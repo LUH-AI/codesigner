@@ -6,7 +6,7 @@ import pytest
 from core import io
 from core.optimizers import RandomOptimizer, SMACOptimizer
 
-from .conftest import DATASETS_DIR, FIXTURES_DIR
+from tests.conftest import DATASETS_DIR, FIXTURES_DIR
 
 
 def _fixture_snapshot(name: str, dataset_path: str | None = None) -> dict:

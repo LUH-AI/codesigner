@@ -55,6 +55,25 @@ Each step = one PR-sized unit: concept walkthrough → implementation → verifi
 **Build:** Copy `models/`, `optimizers/`, and the pure parts of `utils/io.py` into `core/`; copy `test/*.csv` and `test/*.ihpo` as fixtures. Write pytest suites: `.ihpo` round-trip (`save`→`parse`→`build_experiment`, both fixtures + legacy v1), `TrialCollector` resume/incumbent logic, seeded grid/random runs on iris (SMAC marked `slow`), `serialize_result`/`deserialize_result` inverse. Add a `FakeOptimizer` (instant, deterministic) for later run-lifecycle tests. CI: pytest.
 **Verify:** `pytest` green with zero Django involvement.
 
+### Step 2.5 — Minimal manual-testing GUI *(added mid-migration)*
+Every migrated feature needs a way to be exercised by hand in the browser, not
+just by pytest — the original plan deferred visible UI too long. This step
+adds the minimum GUI to manually test Steps 2 and 3, and from here on every
+step ships whatever small UI hooks are needed to manually test what it built.
+**Teaches:** file uploads in views (`request.FILES`), rendering domain objects
+through templates, 404 handling, the test client.
+**Build:** (a) an **Inspect page** (no DB): upload any `.ihpo`, parse and
+build it read-only via `core.io`, and render a summary (name, model,
+optimizer, metric label, seed, trial count, best score) — parse errors render
+the load-dialog's message. This exercises the Step 2 engine through the
+browser. (b) **Experiment list + detail** (after Step 3 models): sidebar
+lists DB experiments linking to a detail page with the header/caption fields
+and metric-label rules from the Streamlit experiment view ("~" when no
+original metric, "Inconsistent" when primary ≠ original), plus trial count /
+best score; unknown ids 404. This makes `import_ihpo` results browsable.
+**Verify:** upload both fixtures on the Inspect page and compare against the
+Streamlit app; `import_ihpo` a fixture and browse to its detail page.
+
 ### Step 3 — Data model, admin, and `.ihpo` import command
 **Teaches:** ORM models, `makemigrations`/`migrate`, JSONField/FileField, the admin site, management commands, the Django shell.
 **Build:** `Experiment` + `Run` models (per Decisions); register in admin; `createsuperuser`; management command `import_ihpo <path>` reusing `core.io.parse()` (copies the CSV into `media/datasets/`); a `web/services/snapshot.py` adapter mapping row ↔ `.ihpo` snapshot dict — the seam reused by export, runs, and loading.

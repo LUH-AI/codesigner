@@ -1,11 +1,10 @@
 import json
-from pathlib import Path
 
 from pytest import approx
 
 from core.optimizers import OptimizationResult, RandomOptimizer, TrialResult
 
-FIXTURES_DIR = Path(__file__).parent / "fixtures"
+from tests.conftest import FIXTURES_DIR
 
 
 def _synthetic_result() -> OptimizationResult:

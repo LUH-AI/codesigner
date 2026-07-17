@@ -3,7 +3,7 @@ import pytest
 from core.models import RandomForestModel
 from core.optimizers import GridOptimizer, RandomOptimizer, SMACOptimizer
 
-from .conftest import FakeModel, FakeOptimizer, PreCancelled
+from tests.conftest import FakeModel, FakeOptimizer, PreCancelled
 
 
 def _run(optimizer, model, splits, metrics, n_trials, previous=None, cancel=None):

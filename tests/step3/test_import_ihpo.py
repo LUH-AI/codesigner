@@ -12,7 +12,7 @@ import shutil
 import pytest
 from django.core.management import CommandError, call_command
 
-from .conftest import DATASETS_DIR, FIXTURES_DIR
+from tests.conftest import DATASETS_DIR, FIXTURES_DIR
 
 
 @pytest.mark.django_db

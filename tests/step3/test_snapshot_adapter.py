@@ -12,8 +12,8 @@ import pytest
 from core import io
 from core.version import VERSION
 
-from .conftest import FIXTURES_DIR
-from .test_snapshot_contract import IDENTITY_KEYS, SNAPSHOT_KEYS
+from tests.conftest import FIXTURES_DIR
+from tests.step2.test_snapshot_contract import IDENTITY_KEYS, SNAPSHOT_KEYS
 
 
 def _fixture_snapshot(name: str) -> dict:

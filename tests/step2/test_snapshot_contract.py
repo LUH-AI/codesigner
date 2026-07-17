@@ -14,7 +14,7 @@ from core import io
 from core.version import VERSION
 from core.optimizers import GridOptimizer, RandomOptimizer, SMACOptimizer
 
-from .conftest import DATASETS_DIR, FIXTURES_DIR
+from tests.conftest import DATASETS_DIR, FIXTURES_DIR
 
 # Every top-level key the .ihpo format documents; a store must persist each.
 SNAPSHOT_KEYS = (
