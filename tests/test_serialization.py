@@ -9,6 +9,10 @@ FIXTURES_DIR = Path(__file__).parent / "fixtures"
 
 
 def _synthetic_result() -> OptimizationResult:
+    """A small hand-built OptimizationResult covering the tricky cases:
+    a mid-run non-improving trial (trial 2) and a config whose dict key
+    order differs from insertion order (trial 3) — key order must not
+    affect config identity during (de)serialization."""
     trials = [
         TrialResult(trial=1, config={"a": 1, "b": 2}, scores={"accuracy": 0.5, "f1": 0.4},
                     score=0.5, incumbent_score=0.5, incumbent_config={"a": 1, "b": 2}),
@@ -29,6 +33,15 @@ def _synthetic_result() -> OptimizationResult:
 
 
 def test_serialize_deserialize_inverse():
+    """deserialize_result reconstructs every field serialize_result wrote.
+
+    Action: round-trip the synthetic result through the base implementation
+    (RandomOptimizer adds no optimizer_state).
+    Expect: trials (number, config, scores, incumbents), primary metric,
+    best config/score, importance dicts and trials_limit all survive.
+    score/incumbent_score use approx because they travel as cost = 1 - score,
+    which loses a few float ulps.
+    """
     opt = RandomOptimizer()
     original = _synthetic_result()
     restored = opt.deserialize_result(opt.serialize_result(original))
@@ -38,7 +51,6 @@ def test_serialize_deserialize_inverse():
         assert back.trial == orig.trial
         assert back.config == orig.config
         assert back.scores == orig.scores
-        # score travels as cost = 1 - score, so allow float round-trip error
         assert back.score == approx(orig.score)
         assert back.incumbent_score == approx(orig.incumbent_score)
         assert back.incumbent_config == orig.incumbent_config
@@ -52,20 +64,34 @@ def test_serialize_deserialize_inverse():
 
 
 def test_serialized_dict_mirrors_runhistory_shape():
+    """The serialized result dict keeps the exact runhistory-style shape the
+    .ihpo format promises.
+
+    This pins the stored format itself (not just round-trip consistency), so
+    accidental schema drift fails loudly. Checks: stats counters, config_id
+    set, the cost = 1 - score convention, best_config_id recovery, and
+    config_origins mapping every trial to the optimizer name.
+    """
     opt = RandomOptimizer()
     d = opt.serialize_result(_synthetic_result())
 
     assert d["stats"] == {"submitted": 3, "finished": 3, "running": 0}
     assert {e["config_id"] for e in d["data"]} == {1, 2, 3}
-    # cost is 1 - score, the runhistory convention
     by_id = {e["config_id"]: e for e in d["data"]}
-    assert by_id[3]["cost"] == 0.19999999999999996 or abs(by_id[3]["cost"] - 0.2) < 1e-12
+    assert by_id[3]["cost"] == approx(0.2)
     assert d["best_config_id"] == "3"
     assert d["config_origins"] == {"1": "Random Search", "2": "Random Search", "3": "Random Search"}
 
 
 def test_fixture_result_roundtrips_through_base_format():
-    """A stored result dict (no optimizer_state) survives deserialize→serialize."""
+    """A result dict from a stored .ihpo file survives deserialize→serialize.
+
+    Setup: the 30-trial Random Search fixture (test2.ihpo), which has no
+    optimizer_state and therefore exercises the base-format path.
+    Expect: configs, per-trial cost/scores/incumbent ids, best_score and
+    primary_metric all match the stored dict (cost via approx: it is
+    recomputed as 1 - score on the way back out).
+    """
     snapshot = json.loads((FIXTURES_DIR / "test2.ihpo").read_text(encoding="utf-8"))
     opt = RandomOptimizer()
 
@@ -75,7 +101,7 @@ def test_fixture_result_roundtrips_through_base_format():
     assert again["configs"] == snapshot["result"]["configs"]
     assert [e["config_id"] for e in again["data"]] == [e["config_id"] for e in snapshot["result"]["data"]]
     for new, old in zip(again["data"], snapshot["result"]["data"]):
-        assert abs(new["cost"] - old["cost"]) < 1e-12
+        assert new["cost"] == approx(old["cost"])
         assert new["scores"] == old["scores"]
         assert new["incumbent_config_id"] == old["incumbent_config_id"]
     assert again["best_score"] == snapshot["result"]["best_score"]

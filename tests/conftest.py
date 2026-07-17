@@ -80,7 +80,11 @@ class FakeOptimizer(BaseOptimizer):
 
 
 class PreCancelled:
-    """Minimal cancel flag honouring the .is_set() contract, always cancelled."""
+    """Minimal cancel flag honouring the .is_set() contract, always cancelled.
+
+    Deliberately not a threading.Event: it proves optimizers depend only on
+    the .is_set() method, which any cancellation backend can provide.
+    """
 
     def is_set(self) -> bool:
         return True
@@ -88,6 +92,7 @@ class PreCancelled:
 
 @pytest.fixture
 def metrics() -> dict:
+    """The four standard classification metrics, keyed as the app registers them."""
     return {
         "accuracy":      lambda y, yp: accuracy_score(y, yp),
         "f1":            lambda y, yp: f1_score(y, yp, average="weighted", zero_division=0),
@@ -98,11 +103,13 @@ def metrics() -> dict:
 
 @pytest.fixture
 def models() -> dict:
+    """The registry models, keyed as the app registers them."""
     return {"Random Forest": RandomForestModel(), "SVM Classifier": SVMModel()}
 
 
 @pytest.fixture
 def optimizers() -> dict:
+    """The registry optimizers, keyed as the app registers them."""
     return {
         "SMAC": SMACOptimizer(),
         "Random Search": RandomOptimizer(),
