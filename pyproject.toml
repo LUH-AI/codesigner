@@ -1,0 +1,6 @@
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["."]
+markers = [
+    "slow: long-running tests (SMAC end-to-end); deselect with -m 'not slow'",
+]

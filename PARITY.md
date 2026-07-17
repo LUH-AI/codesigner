@@ -30,6 +30,9 @@ against the Streamlit app. Target step in parentheses.
 
 ## Deliberate behavior changes (not bugs)
 
+- Legacy `.ihpo` files (integer `version` field) are not supported; only the
+  current string-version format is read.
+
 - Experiments persist across restarts and are shared by everyone on the same
   instance — there is no auth or per-user scoping by design.
 - Old `.ihpo` files with dead absolute dataset paths route through the

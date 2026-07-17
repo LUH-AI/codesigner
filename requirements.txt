@@ -1,2 +1,14 @@
 django>=6.0,<7
 django-environ>=0.12
+
+# HPO core. NOTE: the PyPI smac 2.4.0 release has a bug; we run a local
+# editable checkout of https://github.com/automl/SMAC3 branch dev_1320.
+# For a fresh environment install it with:
+#   pip install "smac @ git+https://github.com/automl/SMAC3.git@dev_1320"
+hypershap>=0.0.6
+pandas>=2.3
+scikit-learn>=1.9
+numpy>=2.4
+
+# Development / CI
+pytest>=8
