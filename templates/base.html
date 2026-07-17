@@ -1,0 +1,63 @@
+<!doctype html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>{% block title %}Codesigner{% endblock %}</title>
+    {# Styles are inline for now; they move to a static file in the analytics step. #}
+    <style>
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        body {
+            font-family: system-ui, -apple-system, sans-serif;
+            color: #1a1a1a;
+            display: flex;
+            min-height: 100vh;
+        }
+        nav.sidebar {
+            width: 18rem;
+            flex-shrink: 0;
+            background: #f0f2f6;
+            padding: 1.5rem 1rem;
+            display: flex;
+            flex-direction: column;
+            gap: 1rem;
+        }
+        nav.sidebar h1 { font-size: 1.5rem; }
+        nav.sidebar .actions { display: flex; gap: 0.5rem; }
+        nav.sidebar .actions a, nav.sidebar .actions button {
+            flex: 1;
+            padding: 0.4rem 0;
+            text-align: center;
+            border: 1px solid #d0d3d8;
+            border-radius: 6px;
+            background: #fff;
+            text-decoration: none;
+            color: inherit;
+            font-size: 0.9rem;
+        }
+        nav.sidebar hr { border: none; border-top: 1px solid #d0d3d8; }
+        nav.sidebar .experiment-list { display: flex; flex-direction: column; gap: 0.4rem; }
+        main.content { flex: 1; padding: 2rem 3rem; max-width: 70rem; }
+        .placeholder { color: #8a8f98; font-size: 0.85rem; }
+    </style>
+</head>
+<body>
+    <nav class="sidebar">
+        <div class="locale">
+            🌐 <span class="placeholder">language selector (i18n step)</span>
+        </div>
+        <h1>Experiments</h1>
+        <div class="actions">
+            <button disabled title="Coming in the forms step">New</button>
+            <button disabled title="Coming in the import step">Load</button>
+        </div>
+        <hr>
+        <div class="experiment-list">
+            <span class="placeholder">experiment list (read-only pages step)</span>
+        </div>
+    </nav>
+    <main class="content">
+        {% block content %}{% endblock %}
+    </main>
+</body>
+</html>
