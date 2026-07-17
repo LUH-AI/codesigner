@@ -12,3 +12,4 @@ numpy>=2.4
 
 # Development / CI
 pytest>=8
+pytest-django>=4.9

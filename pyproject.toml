@@ -1,6 +1,7 @@
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 pythonpath = ["."]
+DJANGO_SETTINGS_MODULE = "config.settings"
 markers = [
     "slow: long-running tests (SMAC end-to-end); deselect with -m 'not slow'",
 ]
