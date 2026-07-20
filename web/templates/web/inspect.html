@@ -1,0 +1,35 @@
+{% extends "base.html" %}
+
+{% block title %}Inspect · Codesigner{% endblock %}
+
+{% block content %}
+    <h1>Inspect an experiment file</h1>
+    <p>Upload an <code>.ihpo</code> file to view its contents. Nothing is saved,
+       and the referenced dataset is not required.</p>
+
+    <form method="post" enctype="multipart/form-data">
+        {% csrf_token %}
+        <input type="file" name="file" accept=".ihpo" required>
+        <button type="submit">Inspect</button>
+    </form>
+
+    {% if error %}
+        <p class="error">Invalid or unreadable experiment file. ({{ error }})</p>
+    {% endif %}
+
+    {% if summary %}
+        <section class="summary">
+            <h2>{{ summary.name }}</h2>
+            <dl>
+                <dt>Model</dt><dd>{{ summary.model_name }}</dd>
+                <dt>Optimizer</dt><dd>{{ summary.optimizer_name }}</dd>
+                <dt>Metric</dt><dd>{{ summary.metric_label }}</dd>
+                <dt>Seed</dt><dd>{{ summary.seed }}</dd>
+                <dt>Trials</dt><dd>{{ summary.n_trials }}</dd>
+                {% if summary.best_score is not None %}
+                    <dt>Best score</dt><dd>{{ summary.best_score }}</dd>
+                {% endif %}
+            </dl>
+        </section>
+    {% endif %}
+{% endblock %}
