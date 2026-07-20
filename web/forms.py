@@ -18,8 +18,8 @@ class NewExperimentForm(forms.Form):
     model_name = forms.ChoiceField(label="Model")
     optimizer_name = forms.ChoiceField(label="Optimizer")
     demo_dataset = forms.ChoiceField(label="Demo dataset", required=False)
-    dataset_file = forms.FileField(label="…or upload a CSV", required=False)
-    primary_metric = forms.ChoiceField(label="Metric to optimize")
+    dataset_file = forms.FileField(label="…or upload a CSV (last column = target)", required=False)
+    primary_metric = forms.ChoiceField(label="Evaluation metric")
     seed = forms.IntegerField(label="Seed (negative = random)", initial=0)
     n_trials = forms.IntegerField(
         label="Number of trials", initial=30, min_value=1, max_value=1000,

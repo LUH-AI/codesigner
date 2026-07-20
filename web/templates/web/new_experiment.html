@@ -4,16 +4,22 @@
 
 {% block content %}
     <h1>New experiment</h1>
-    <p>Configure a run and submit. The optimization runs immediately and the
-       page shows the results when it finishes.</p>
+    <p class="caption">Configure a run and submit. The optimization runs immediately
+       and the page shows the results when it finishes.</p>
 
     {% if form.non_field_errors %}
-        <p class="error">{{ form.non_field_errors|join:" " }}</p>
+        <p class="form-error">{{ form.non_field_errors|join:" " }}</p>
     {% endif %}
 
-    <form method="post" enctype="multipart/form-data" class="experiment-form">
+    <form method="post" enctype="multipart/form-data" class="experiment-form" style="max-width: 34rem;">
         {% csrf_token %}
-        {{ form.as_p }}
-        <button type="submit">Run experiment</button>
+        {% for field in form %}
+            <div class="field">
+                <label for="{{ field.id_for_label }}">{{ field.label }}</label>
+                {{ field }}
+                {% if field.errors %}<div class="form-error">{{ field.errors|join:" " }}</div>{% endif %}
+            </div>
+        {% endfor %}
+        <button type="submit" class="btn-primary">▶ Run experiment</button>
     </form>
 {% endblock %}

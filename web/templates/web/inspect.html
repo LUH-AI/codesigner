@@ -4,32 +4,39 @@
 
 {% block content %}
     <h1>Inspect an experiment file</h1>
-    <p>Upload an <code>.ihpo</code> file to view its contents. Nothing is saved,
-       and the referenced dataset is not required.</p>
+    <p class="caption">Upload an <code>.ihpo</code> file to view its contents.
+       Nothing is saved, and the referenced dataset is not required.</p>
 
-    <form method="post" enctype="multipart/form-data">
+    <form method="post" enctype="multipart/form-data" style="max-width: 34rem; margin-top: 1rem;">
         {% csrf_token %}
-        <input type="file" name="file" accept=".ihpo" required>
-        <button type="submit">Inspect</button>
+        <div class="field">
+            <input type="file" name="file" accept=".ihpo" required>
+        </div>
+        <button type="submit" class="btn-primary">Inspect</button>
     </form>
 
     {% if error %}
-        <p class="error">Invalid or unreadable experiment file. ({{ error }})</p>
+        <div class="alert error" style="margin-top: 1rem;">Invalid or unreadable experiment file. ({{ error }})</div>
     {% endif %}
 
     {% if summary %}
-        <section class="summary">
-            <h2>{{ summary.name }}</h2>
-            <dl>
-                <dt>Model</dt><dd>{{ summary.model_name }}</dd>
-                <dt>Optimizer</dt><dd>{{ summary.optimizer_name }}</dd>
-                <dt>Metric</dt><dd>{{ summary.metric_label }}</dd>
-                <dt>Seed</dt><dd>{{ summary.seed }}</dd>
-                <dt>Trials</dt><dd>{{ summary.n_trials }}</dd>
-                {% if summary.best_score is not None %}
-                    <dt>Best score</dt><dd>{{ summary.best_score }}</dd>
-                {% endif %}
-            </dl>
+        <section class="card" style="max-width: 34rem; margin-top: 1.5rem;">
+            <div class="subheader">{{ summary.name }}</div>
+            <div class="metric-label">Best score</div>
+            <div class="metric-value">
+                {% if summary.best_score is not None %}{{ summary.best_score|floatformat:4 }}{% else %}—{% endif %}
+            </div>
+            <div class="table-wrap" style="margin-top: 1rem;">
+                <table class="config">
+                    <tbody>
+                        <tr><td>Model</td><td>{{ summary.model_name }}</td></tr>
+                        <tr><td>Optimizer</td><td>{{ summary.optimizer_name }}</td></tr>
+                        <tr><td>Metric</td><td>{{ summary.metric_label }}</td></tr>
+                        <tr><td>Seed</td><td>{{ summary.seed }}</td></tr>
+                        <tr><td>Trials</td><td>{{ summary.n_trials }}</td></tr>
+                    </tbody>
+                </table>
+            </div>
         </section>
     {% endif %}
 {% endblock %}
