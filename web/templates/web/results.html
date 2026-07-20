@@ -1,4 +1,5 @@
 {% extends "base.html" %}
+{% load static %}
 
 {% block title %}{{ summary.name }} · Codesigner{% endblock %}
 
@@ -7,7 +8,7 @@
     <p class="caption">
         Model: <strong>{{ summary.model_name }}</strong> ·
         Optimizer: <strong>{{ summary.optimizer_name }}</strong> ·
-        Metric: <strong>{{ summary.primary_metric }}</strong> ·
+        Optimized for: <strong>{{ summary.primary_metric }}</strong> ·
         Seed: <strong>{{ summary.seed }}</strong>
     </p>
 
@@ -15,27 +16,48 @@
         <p class="warning">The search space is exhausted at {{ result.trials|length }} trials.</p>
     {% endif %}
 
-    <section>
-        <h2>Best result</h2>
-        <p>Best {{ summary.primary_metric }}: <strong>{{ result.best_score }}</strong></p>
-        <table class="config">
-            <thead><tr><th>Hyperparameter</th><th>Value</th></tr></thead>
-            <tbody>
-                {% for key, value in best_config.items %}
-                    <tr><td>{{ key }}</td><td>{{ value }}</td></tr>
-                {% endfor %}
-            </tbody>
-        </table>
+    <label for="metric-select">Show charts for metric:</label>
+    <select id="metric-select">
+        {% for m in metric_names %}
+            <option value="{{ m }}"{% if m == summary.primary_metric %} selected{% endif %}>{{ m }}</option>
+        {% endfor %}
+    </select>
+
+    {# One set of chart containers; re-plotted client-side when the metric changes. #}
+    <section class="charts">
+        <div>
+            <h2>Performance over trials</h2>
+            <div id="perf-chart"></div>
+        </div>
+        <div>
+            <h2>Hyperparameter importance</h2>
+            <p id="imp-warning" class="warning" hidden></p>
+            <div id="imp-chart"></div>
+            <p id="imp-none" hidden>No importance was computed for this metric.</p>
+        </div>
     </section>
+
+    {# Best-config panel, one per metric, toggled to match the selector. #}
+    {% for panel in panels %}
+        <section class="panel best-config" data-metric="{{ panel.metric }}" hidden>
+            <h2>Best configuration</h2>
+            <p>Trial {{ panel.best_n }} · {{ panel.metric }} = <strong>{{ panel.best_score|floatformat:4 }}</strong></p>
+            <table class="config">
+                <thead><tr><th>Hyperparameter</th><th>Value</th></tr></thead>
+                <tbody>
+                    {% for key, value in panel.best_config %}
+                        <tr><td>{{ key }}</td><td>{{ value }}</td></tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </section>
+    {% endfor %}
 
     <section>
         <h2>Trials ({{ result.trials|length }})</h2>
         <table class="trials">
             <thead>
-                <tr>
-                    <th>#</th>
-                    {% for m in metric_names %}<th>{{ m }}</th>{% endfor %}
-                </tr>
+                <tr><th>#</th>{% for m in metric_names %}<th>{{ m }}</th>{% endfor %}</tr>
             </thead>
             <tbody>
                 {% for row in trial_rows %}
@@ -49,4 +71,51 @@
     </section>
 
     <p><a href="{% url 'web:new_experiment' %}">Run another experiment</a></p>
+
+    {{ figures|json_script:"figures-data" }}
+    {{ panels|json_script:"panels-data" }}
+    <script src="{% static 'web/plotly.min.js' %}"></script>
+    <script>
+        (function () {
+            const figures = JSON.parse(document.getElementById("figures-data").textContent);
+            const warnings = {};
+            JSON.parse(document.getElementById("panels-data").textContent)
+                .forEach(p => { warnings[p.metric] = p.warning; });
+            const select = document.getElementById("metric-select");
+
+            function show(metric) {
+                const fig = figures[metric];
+                Plotly.react("perf-chart", fig.performance.data, fig.performance.layout,
+                             {responsive: true});
+
+                const warnEl = document.getElementById("imp-warning");
+                if (warnings[metric]) {
+                    warnEl.textContent = warnings[metric];
+                    warnEl.hidden = false;
+                } else {
+                    warnEl.hidden = true;
+                }
+
+                const impChart = document.getElementById("imp-chart");
+                const impNone = document.getElementById("imp-none");
+                if (fig.importance) {
+                    impNone.hidden = true;
+                    impChart.hidden = false;
+                    Plotly.react("imp-chart", fig.importance.data, fig.importance.layout,
+                                 {responsive: true});
+                } else {
+                    Plotly.purge("imp-chart");
+                    impChart.hidden = true;
+                    impNone.hidden = false;
+                }
+
+                document.querySelectorAll(".panel.best-config").forEach(el => {
+                    el.hidden = el.dataset.metric !== metric;
+                });
+            }
+
+            select.addEventListener("change", () => show(select.value));
+            show(select.value);
+        })();
+    </script>
 {% endblock %}

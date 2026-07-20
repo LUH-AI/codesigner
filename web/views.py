@@ -1,3 +1,4 @@
+import json
 import tempfile
 from pathlib import Path
 
@@ -5,6 +6,7 @@ from django.shortcuts import render
 
 from core import io
 
+from .charts import importance_figure, performance_figure
 from .forms import NewExperimentForm
 from .registry import METRICS, MODELS, OPTIMIZERS
 from .services.run import resolve_seed, run_experiment
@@ -110,30 +112,58 @@ def new_experiment(request):
         for path in tmp_paths:
             Path(path).unlink(missing_ok=True)
 
-    best_idx = max(
-        range(len(result.trials)),
-        key=lambda i: result.trials[i].scores[primary_metric],
-    )
+    context = _results_context(result, form.cleaned_data, primary_metric, seed)
+    return render(request, "web/results.html", context)
+
+
+def _results_context(result, cleaned, primary_metric, seed):
+    """Assemble the per-metric panels and Plotly figures for the results page.
+
+    For each metric we highlight that metric's best trial and build its
+    performance and importance figures; the browser switches between metrics
+    client-side, so all of them ship embedded in the page.
+    """
     metric_names = list(METRICS)
+
+    panels, figures = [], {}
+    for m in metric_names:
+        best_idx = max(range(len(result.trials)),
+                       key=lambda i: result.trials[i].scores[m])
+        best = result.trials[best_idx]
+        perf = performance_figure(result, m, selected_idx=best_idx)
+        imp = importance_figure(result, m)
+        panels.append({
+            "metric": m,
+            "best_n": best.trial,
+            "best_score": best.scores[m],
+            "best_config": list(best.config.items()),
+            "warning": result.hyperparameter_importance_warning.get(m),
+            "has_importance": imp is not None,
+        })
+        figures[m] = {
+            "performance": json.loads(perf.to_json()),
+            "importance": json.loads(imp.to_json()) if imp is not None else None,
+        }
+
     trial_rows = [
         {"n": t.trial, "scores": [t.scores[m] for m in metric_names]}
         for t in result.trials
     ]
-    context = {
+    return {
         "summary": {
-            "name": form.cleaned_data["name"],
-            "model_name": form.cleaned_data["model_name"],
-            "optimizer_name": form.cleaned_data["optimizer_name"],
+            "name": cleaned["name"],
+            "model_name": cleaned["model_name"],
+            "optimizer_name": cleaned["optimizer_name"],
             "primary_metric": primary_metric,
             "seed": seed,
         },
         "result": result,
         "metric_names": metric_names,
+        "panels": panels,
+        "figures": figures,
         "trial_rows": trial_rows,
-        "best_config": result.trials[best_idx].config,
         "trials_exhausted": (
             result.trials_limit is not None
             and len(result.trials) >= result.trials_limit
         ),
     }
-    return render(request, "web/results.html", context)

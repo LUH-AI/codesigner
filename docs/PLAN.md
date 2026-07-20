@@ -86,11 +86,13 @@ Streamlit app; `import_ihpo` a fixture and browse to its detail page.
 
 > **Deviation from the original Step 3 — read this.** The first draft of Step 3 also promised a **database** (`Experiment`/`Run` models + admin), a row↔snapshot **adapter**, an **`import_ihpo`** command, a **persisted list/detail** page, and **delete** — i.e. experiments surviving between visits. On the instruction to keep Step 3 to the bare minimum to *run* HPO, all of that was **cut and is not yet scheduled**; its tests wait in `tests/deferred/`. Persistence will be slotted when a later step first needs durable server-side state — at the latest Step 6 (background runs must record status somewhere), possibly earlier if browser save/load (Step 5) motivates it. **Until then, every experiment is ephemeral.**
 
-### Step 4 — Charts of the results
+### Step 4 — Charts of the results  *(done)*
 **You can now:** see interactive charts of a run — performance over trials with the running-best line, the best configuration, and hyperparameter importance — and switch which metric the charts show.
 **Teaches:** static files, the `json_script` filter, thin views calling pure chart-builder functions.
-**Build:** Port `app/analytics/{best_config,selected_config,hp_importance,performance}.py` to `web/charts.py` as pure `(result, display_metric, selected_idx) → go.Figure` functions; the detail page embeds `fig.to_json()` and renders with vendored `plotly.min.js`. Display-metric switch is a `?metric=f1` GET param. Selected trial defaults to best-per-metric; click-to-select is Step 7.
-**Verify:** side-by-side with Streamlit on the same experiment — identical best config, importance pie (+ its warning text), performance scatter + incumbent line; switching metric re-renders.
+**Build:** Ported the performance scatter and importance pie to `web/charts.py` as pure `(result, display_metric[, selected_idx]) → go.Figure` functions; the results page embeds `fig.to_json()` and renders with vendored `plotly.min.js`. Best-configuration shown as a per-metric panel.
+**Verify:** side-by-side with Streamlit on the same experiment — best config, importance donut (+ its warning text), performance scatter + incumbent line; switching metric re-renders.
+
+> **Two deviations from the original Step 4:** (1) **Metric switching is client-side**, not the planned `?metric=f1` GET param — every metric's figures ship embedded in the results page and a dropdown swaps them with JS. The GET-param approach needs the result to survive to a second request, which requires persistence (not built yet); it returns when experiments persist. (2) The **selected-config panel is deferred to Step 7** — with no click-to-select yet, it would only ever mirror the best-config panel. Minor: the scatter uses Plotly's default hover, not the Streamlit custom per-hyperparameter hover.
 
 ### Step 5 — Save and load `.ihpo` files in the browser
 **You can now:** download any experiment as an `.ihpo` file and load one back in — files interoperate with the old Streamlit app — re-supplying the dataset (or loading read-only) when the original file isn't present.
