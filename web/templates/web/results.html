@@ -1,0 +1,52 @@
+{% extends "base.html" %}
+
+{% block title %}{{ summary.name }} · Codesigner{% endblock %}
+
+{% block content %}
+    <h1>{{ summary.name }}</h1>
+    <p class="caption">
+        Model: <strong>{{ summary.model_name }}</strong> ·
+        Optimizer: <strong>{{ summary.optimizer_name }}</strong> ·
+        Metric: <strong>{{ summary.primary_metric }}</strong> ·
+        Seed: <strong>{{ summary.seed }}</strong>
+    </p>
+
+    {% if trials_exhausted %}
+        <p class="warning">The search space is exhausted at {{ result.trials|length }} trials.</p>
+    {% endif %}
+
+    <section>
+        <h2>Best result</h2>
+        <p>Best {{ summary.primary_metric }}: <strong>{{ result.best_score }}</strong></p>
+        <table class="config">
+            <thead><tr><th>Hyperparameter</th><th>Value</th></tr></thead>
+            <tbody>
+                {% for key, value in best_config.items %}
+                    <tr><td>{{ key }}</td><td>{{ value }}</td></tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </section>
+
+    <section>
+        <h2>Trials ({{ result.trials|length }})</h2>
+        <table class="trials">
+            <thead>
+                <tr>
+                    <th>#</th>
+                    {% for m in metric_names %}<th>{{ m }}</th>{% endfor %}
+                </tr>
+            </thead>
+            <tbody>
+                {% for row in trial_rows %}
+                    <tr>
+                        <td>{{ row.n }}</td>
+                        {% for score in row.scores %}<td>{{ score|floatformat:4 }}</td>{% endfor %}
+                    </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </section>
+
+    <p><a href="{% url 'web:new_experiment' %}">Run another experiment</a></p>
+{% endblock %}

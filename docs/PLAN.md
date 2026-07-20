@@ -45,17 +45,21 @@ The existing repo is already well-layered: `models/`, `optimizers/`, and the ser
 
 Each step = one PR-sized unit: concept walkthrough → implementation → verification → sign-off.
 
-### Step 1 — Walking skeleton
+### Step 1 — Walking skeleton *(done)*
+**You can now:** open Codesigner in a browser and see its two-panel shell.
 **Teaches:** Django project vs. app anatomy, `settings.py`, `manage.py runserver`, URLconf → view → template flow, built-in migrations.
 **Build:** New repo; `startproject config .` + `startapp web`; env-driven settings via `django-environ` (`SECRET_KEY`, `DEBUG`, `DATABASE_URL`, `.env.example` committed); a base template with the two-column sidebar/main shell; hardcoded home page; `migrate` built-ins to SQLite.
 **Verify:** `python manage.py runserver` serves the shell on :8000 while Streamlit still runs on :8501.
 
-### Step 2 — Bring in the domain core + test safety net
+### Step 2 — Bring in the domain core + test safety net *(done)*
+**You can now:** *(nothing visible yet)* — the HPO engine (models, optimizers, `.ihpo` handling) runs and is covered by tests; it's the foundation every later step calls into.
 **Teaches:** (not Django) — pytest discipline; establishes the parity baseline everything else is checked against.
 **Build:** Copy `models/`, `optimizers/`, and the pure parts of `utils/io.py` into `core/`; copy `test/*.csv` and `test/*.ihpo` as fixtures. Write pytest suites: `.ihpo` round-trip (`save`→`parse`→`build_experiment`, both fixtures + legacy v1), `TrialCollector` resume/incumbent logic, seeded grid/random runs on iris (SMAC marked `slow`), `serialize_result`/`deserialize_result` inverse. Add a `FakeOptimizer` (instant, deterministic) for later run-lifecycle tests. CI: pytest.
 **Verify:** `pytest` green with zero Django involvement.
 
-### Step 2.5 — Minimal manual-testing GUI *(added mid-migration)*
+### Step 2.5 — Inspect page *(done)*
+**You can now:** upload an `.ihpo` file and read its contents in the browser (no saving, no dataset needed).
+*(This also established the rule for the rest of the plan: every step ships the UI needed to manually test what it built.)*
 Every migrated feature needs a way to be exercised by hand in the browser, not
 just by pytest — the original plan deferred visible UI too long. This step
 adds the minimum GUI to manually test Steps 2 and 3, and from here on every
@@ -74,55 +78,54 @@ best score; unknown ids 404. This makes `import_ihpo` results browsable.
 **Verify:** upload both fixtures on the Inspect page and compare against the
 Streamlit app; `import_ihpo` a fixture and browse to its detail page.
 
-### Step 3 — Data model, admin, and `.ihpo` import command
-**Teaches:** ORM models, `makemigrations`/`migrate`, JSONField/FileField, the admin site, management commands, the Django shell.
-**Build:** `Experiment` + `Run` models (per Decisions); register in admin; `createsuperuser`; management command `import_ihpo <path>` reusing `core.io.parse()` (copies the CSV into `media/datasets/`); a `web/services/snapshot.py` adapter mapping row ↔ `.ihpo` snapshot dict — the seam reused by export, runs, and loading.
-**Verify:** `manage.py import_ihpo test/test.ihpo`; inspect the row in `/admin/` and via `manage.py shell`; adapter unit tests (row→snapshot equals the source file's fields).
+### Step 3 — Run HPO from the browser  ← the app becomes usable here
+**You can now:** set up an experiment (choose a model, an optimizer, a dataset, which metrics to score, a seed, and how many trials), run the optimization, and see the results — and your experiments are saved so you can come back to them.
+**Teaches:** ORM models + `makemigrations`/`migrate`, the admin site, Django `Form`s + validation + CSRF, file uploads, POST/redirect/GET, rendering results through templates.
+**Build:** `Experiment` + `Run` models (per Decisions) + admin registration + a `web/services/snapshot.py` row↔snapshot adapter. A **create-experiment form** (registry model + optimizer + demo-or-uploaded dataset + metric checkboxes + seed + n_trials) ported from `app/experiment_form.py` — kept intentionally simple first (optimizer params use defaults/basic fields; the dynamic-param HTMX polish comes in Step 6). On submit, build the experiment via `core.io` + `web/registry.py` and **run the optimizer synchronously** (the request blocks until it finishes — fine for manual testing; grid/random are quick, ~30 SMAC trials on iris ≈ 20s), storing the result on the row. A **detail page** shows the config summary and a results table (best config, best score, per-trial scores); the sidebar **lists saved experiments**; **delete** with confirm. A `manage.py import_ihpo <path>` command loads a fixture straight into the store for quick manual testing.
+**Verify:** in the browser, create an experiment on iris/wine, run each optimizer, read the results; delete one; `import_ihpo` a fixture and open its detail page. Automated: model/adapter/import + form-and-run tests (fast `FakeOptimizer` for the run path, one real SMAC run marked `slow`).
+*Note: this is deliberately the biggest step — it's the whole MVP. I'll implement it as committable sub-parts (models+adapter → create form → synchronous run → detail/list/delete), each runnable.*
 
-### Step 4 — Read-only pages: experiment list + detail
-**Teaches:** function-based views, URL path converters, template inheritance, context, `{% url %}`.
-**Build:** Sidebar experiment list (inclusion tag), home page, experiment detail header (name/model/optimizer/metric, including the "Inconsistent" metric label logic from `app/experiment.py:14-19`) and config summary. No forms/charts/runs yet.
-**Verify:** import both fixtures, click list → detail; facts match the Streamlit view of the same file.
+### Step 4 — Charts of the results
+**You can now:** see interactive charts of a run — performance over trials with the running-best line, the best configuration, and hyperparameter importance — and switch which metric the charts show.
+**Teaches:** static files, the `json_script` filter, thin views calling pure chart-builder functions.
+**Build:** Port `app/analytics/{best_config,selected_config,hp_importance,performance}.py` to `web/charts.py` as pure `(result, display_metric, selected_idx) → go.Figure` functions; the detail page embeds `fig.to_json()` and renders with vendored `plotly.min.js`. Display-metric switch is a `?metric=f1` GET param. Selected trial defaults to best-per-metric; click-to-select is Step 7.
+**Verify:** side-by-side with Streamlit on the same experiment — identical best config, importance pie (+ its warning text), performance scatter + incumbent line; switching metric re-renders.
 
-### Step 5 — Analytics panels with Plotly
-**Teaches:** static files, the `json_script` filter, thin views + pure chart-builder functions.
-**Build:** Port `app/analytics/{best_config,selected_config,hp_importance,performance}.py` to `web/charts.py` as pure functions `(result, display_metric, selected_idx) → go.Figure`; detail view deserializes `Experiment.result`, embeds `fig.to_json()`, renders with vendored `plotly.min.js`. Display-metric switcher is a plain GET param (`?metric=f1`) — idempotent URL state instead of session state. Selected trial defaults to best-per-metric (`app/experiment.py:270-273`); click-to-select comes in Step 10.
-**Verify:** side-by-side with Streamlit on the same `.ihpo`: identical best config, importance pie, performance scatter + incumbent line; metric switching re-renders. *Biggest pure-port step.*
+### Step 5 — Save and load `.ihpo` files in the browser
+**You can now:** download any experiment as an `.ihpo` file and load one back in — files interoperate with the old Streamlit app — re-supplying the dataset (or loading read-only) when the original file isn't present.
+**Teaches:** file-download responses (content-disposition), multi-step form flows, MEDIA file management.
+**Build:** Export view (snapshot adapter → `{name}.ihpo` download). Import view porting `app/dialogs.open_load_dialog`: upload `.ihpo`; if the stored dataset is missing, prompt for a dataset upload or load read-only (browse results, can't run); registry-model substitution and name-collision handling.
+**Verify:** round-trip both directions (Codesigner export → Streamlit load and vice versa); the read-only path works with no dataset.
 
-### Step 6 — Forms: create and delete experiments
-**Teaches:** Django `Form`s, `clean_*` validation, CSRF, POST/redirect/GET, file uploads, dynamic fields, first taste of HTMX.
-**Build:** Port `app/experiment_form.py` to `NewExperimentForm`: name uniqueness (vs. DB), seed (negative → random), optimizer choice with param subform generated from each optimizer's `params_schema` (`OptimizerParam` → Integer/Float/ChoiceField), dataset = demo dropdown **or** upload. Optimizer switch re-renders the param subform via an HTMX GET. Registry models only (custom `.py` deferred to Step 11). Delete = POST-only confirm flow (ports `dialogs.open_confirm_delete`). `MODELS`/`OPTIMIZERS`/`METRICS` from `run.py` → `web/registry.py`.
-**Verify:** create with uploaded CSV and with a demo dataset; duplicate-name and validation errors render; delete works; Django test-client form tests.
+### Step 6 — Background runs: cancel, resume, change metric
+**You can now:** start a long run and keep using the app while it runs in the background, watch its progress live, cancel it, resume it (trial numbers continue), and switch the evaluation metric with a confirmation prompt.
+**Teaches:** designing run state for concurrent access, `refresh_from_db`, HTMX polling, why web processes shouldn't own long work.
+**Build:** Move the Step 3 synchronous run into a background `threading.Thread` writing `Run` status/result to the DB; `hx-trigger="every 2s"` status partial swapping to the results/charts on completion; sidebar running-spinner; cancel button via a DB `cancel_requested` flag (`.is_set()` shim, no `threading.Event`); resume via `trial_offset`; metric-change confirm rules from `app/experiment.py:200-240`; an `AppConfig.ready` sweep marking runs orphaned by a restart as stale (a capability Streamlit lacks).
+**Verify:** launch 30 SMAC trials — page stays responsive, spinner → charts; resume continues numbering; cancel mid-run; restart the server mid-run and see the run marked stale.
 
-### Step 7 — `.ihpo` export and import through the browser
-**Teaches:** non-HTML responses (content-disposition downloads), multi-step form flows, MEDIA file management.
-**Build:** Export view (snapshot adapter → `{name}.ihpo` download, replacing `st.download_button`); import view porting `dialogs.open_load_dialog` — upload `.ihpo`, and if the stored `dataset_path` doesn't exist server-side, prompt for a dataset upload or load read-only (results panels only, no runs); name-collision handling.
-**Verify:** cross-app round-trip both directions (Django export → Streamlit load, and vice versa); automated test asserting exported JSON == imported snapshot for the fixtures.
-
-### Step 8 — Background runs, part 1: DB-backed state + threads ⚠ *the risky step*
-**Teaches:** designing state for concurrent access, transactions/`refresh_from_db`, HTMX polling, why web processes shouldn't own long work (sets up Step 11).
-**Build:** Port `_start_run` (`app/experiment.py:295-326`): Run form (n_trials, metric) → POST creates `Run(status=pending)`, launches a thread that (a) rebuilds everything from the DB via snapshot adapter + `build_experiment` — no shared live objects, (b) writes result JSON + status back to the DB, (c) gets a `DbCancelFlag` (`.is_set()` → cached read of `Run.cancel_requested`) instead of `threading.Event`. Port the metric-change confirm dialog and `primary_metric`/`original_metric` rules (`app/experiment.py:200-240`). Status partial polled via `hx-trigger="every 2s"`, swapping to result panels on completion; sidebar spinner; error rendering; cancel button. Plus a new capability Streamlit lacks: an `AppConfig.ready` sweep marking orphaned "running" rows stale after a server restart.
-**Verify:** 30 SMAC trials on iris — page stays responsive, spinner → charts on completion; run again and confirm trial numbers continue (resume via `trial_offset`); cancel mid-run; kill and restart the server mid-run, confirm the Run is marked stale. Run-lifecycle tests use `FakeOptimizer`.
-
-### Step 9 — i18n
-**Teaches:** `LocaleMiddleware`, `{% translate %}`/`gettext`, `makemessages`/`compilemessages`, the `set_language` view.
-**Build:** Wrap template/form strings (English msgids = the values in `utils/strings.py`, so existing translations match); copy `locale/{de,es}/LC_MESSAGES/app.po` → `django.po` + `compilemessages`; language dropdown posting to `set_language`; a translation-completeness CI check (adapting `utils/check_translations.py`).
-**Verify:** switch to de/es — parity with Streamlit's translated UI; CI check green.
-
-### Step 10 — Interactive chart selection (click a trial)
+### Step 7 — Click a trial on the chart
+**You can now:** click a point on the performance chart to inspect that trial's configuration.
 **Teaches:** HTMX partial endpoints + a little first-party JS; progressive enhancement.
-**Build:** Port `on_select="rerun"` from `app/analytics/performance.py:59-70`: a `plotly_click` handler reads `point_index` (curve 0 only, as today) and HTMX-GETs `/experiments/<id>/trial/<idx>/panel/`, returning the selected-config partial + re-rendered scatter (selected marker restyled, matching lines 32-36). Selection survives metric switches via query param.
-**Verify:** click points → selected-config table updates without reload; matches Streamlit side-by-side.
+**Build:** Port `app/analytics/performance.py:59-70`: a `plotly_click` handler HTMX-GETs a trial-panel partial and re-renders the scatter with the selected point restyled; selection survives metric switches via query param.
+**Verify:** clicking points updates the selected-config panel without a reload; matches Streamlit.
 
-### Step 11 — Production task queue + custom models
-**Teaches:** huey integration (task decorator, consumer process), settings-gated features.
-**Build:** (a) Step 8's thread body becomes a `@db_task()` huey task (SqliteHuey); `manage.py run_huey` as a second process — views change only the launch line since cancel/polling are already DB-based. (b) Custom model `.py` upload gated by `ALLOW_CUSTOM_MODELS`, loaded via existing `load_model_from_path` in the worker; port the model-reattach flow (`app/experiment.py:96-147`); trust-model note in README (must be disabled on any public deployment).
-**Verify:** full run through the consumer (`runserver` + `run_huey`); cancel/resume still work; custom model runs when enabled, absent from UI when disabled.
+### Step 8 — Use the app in another language
+**You can now:** switch the interface between English, German, and Spanish.
+**Teaches:** `LocaleMiddleware`, `{% translate %}`/`gettext`, `makemessages`/`compilemessages`, `set_language`.
+**Build:** Wrap UI strings (English msgids = the values in `utils/strings.py`, so existing translations match); bring over the `de`/`es` catalogs; language dropdown; translation-completeness CI check.
+**Verify:** switch to de/es — parity with the Streamlit app's translated UI.
 
-### Step 12 — Productionize + parity sign-off
+### Step 9 — Bring your own model; production-grade runs
+**You can now:** upload your own model `.py` file to optimize (when the operator enables it), with runs handled by a real background task queue instead of an in-process thread.
+**Teaches:** huey (task decorator + consumer process), settings-gated features.
+**Build:** Step 6's thread body becomes a `@db_task()` huey task (SqliteHuey), `manage.py run_huey` as a second process (views change only the launch line). Custom-model `.py` upload gated by `ALLOW_CUSTOM_MODELS`, loaded via `load_model_from_path` in the worker; model-reattach flow from `app/experiment.py:96-147`; trust-model note in the README (must be off on any public deployment).
+**Verify:** full run through the consumer; cancel/resume still work; a custom model runs when enabled and is absent when disabled.
+
+### Step 10 — Package for deployment + final parity sign-off
+**You can now (as an operator):** deploy Codesigner as a container and run it as a web service.
 **Teaches:** deployment hygiene: `DEBUG=False`, `collectstatic` + whitenoise, gunicorn, multi-process Docker.
-**Build:** Dockerfile/compose (gunicorn + huey consumer; keep the `pyrfr` wheel workaround and `datasets/`/`models/` volume-mount dropdowns); healthcheck; README (setup, run, trust model); CI = tests + translation check + docker build.
-**Verify:** `docker build && docker run` on a clean, display-less container: create → run → cancel → export → import end-to-end; **walk the full parity checklist against the Streamlit app one final time** (below). The old repo then simply retires — nothing to delete.
+**Build:** Dockerfile/compose (gunicorn + huey consumer; keep the `pyrfr` wheel workaround and the demo `datasets/`/`mounted_models/` volume mounts); healthcheck; README; CI = tests + translation check + docker build.
+**Verify:** `docker build && docker run` on a clean, display-less container: create → run → cancel → export → import end-to-end; **walk the full parity checklist against the Streamlit app one final time**. The old repo then simply retires.
 
 ## Parity checklist (maintained as `PARITY.md` in the new repo, ticked per step)
 
