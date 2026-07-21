@@ -13,6 +13,7 @@ urlpatterns = [
     path("experiments/<int:pk>/run/", views.experiment_run, name="experiment_run"),
     path("experiments/<int:pk>/status/", views.run_status, name="run_status"),
     path("experiments/<int:pk>/cancel/", views.run_cancel, name="run_cancel"),
+    path("experiments/<int:pk>/trial-panel/", views.trial_panel, name="trial_panel"),
     path("experiments/<int:pk>/export/", views.experiment_export, name="experiment_export"),
     path("experiments/<int:pk>/delete/", views.experiment_delete, name="experiment_delete"),
 ]

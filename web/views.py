@@ -2,7 +2,7 @@ import json
 import tempfile
 from pathlib import Path
 
-from django.http import HttpResponse
+from django.http import HttpResponse, HttpResponseBadRequest
 from django.shortcuts import get_object_or_404, redirect, render
 
 from core import io
@@ -127,6 +127,31 @@ def experiment_detail(request, pk):
     return render(request, "web/experiment_detail.html", _detail_context(exp))
 
 
+def trial_panel(request, pk):
+    """Render the selected-config panel for one (metric, trial index).
+
+    Backs click-to-select on the performance chart (curve 0 only, point index
+    into result.trials) — the browser fetches this fragment and swaps it into
+    the panel for the metric currently being viewed.
+    """
+    exp = get_object_or_404(Experiment, pk=pk)
+    metric = request.GET.get("metric", "")
+    idx_raw = request.GET.get("idx", "")
+
+    if metric not in exp.metric_names:
+        return HttpResponseBadRequest("unknown metric")
+    if not idx_raw.lstrip("-").isdigit():
+        return HttpResponseBadRequest("invalid trial index")
+
+    result = _rebuild_result(exp)
+    idx = int(idx_raw)
+    if result is None or not (0 <= idx < len(result.trials)):
+        return HttpResponseBadRequest("invalid trial index")
+
+    return render(request, "web/_selected_config_inner.html",
+                  {"sel": _selected_panel_data(result, metric, idx)})
+
+
 def experiment_run(request, pk):
     """Launch a background run of an experiment (or confirm a metric change).
 
@@ -219,6 +244,41 @@ def import_experiment(request):
     return render(request, "web/import.html", context)
 
 
+def _rebuild_result(exp):
+    """Rebuild the OptimizationResult from a saved experiment's snapshot
+    (read-only — no dataset or live model needed), or None if it can't be
+    rebuilt (e.g. it names a metric/optimizer no longer available)."""
+    try:
+        _, built = io.build_experiment(
+            snapshot_adapter.snapshot_from_experiment(exp),
+            METRICS, MODELS, OPTIMIZERS, read_only=True,
+        )
+    except ValueError:
+        return None
+    return built["result"]
+
+
+def _selected_panel_data(result, metric, idx):
+    """The selected-config panel's data for one (metric, trial index).
+
+    Mirrors app/analytics/selected_config.py: the trial's score for *metric*,
+    and its delta against the metric's best score — omitted when the selected
+    trial IS the best (so the panel matches best-config with no delta shown).
+    """
+    trials = result.trials
+    best_idx = max(range(len(trials)), key=lambda i: trials[i].scores[metric])
+    trial = trials[idx]
+    is_best = idx == best_idx
+    delta = None if is_best else trial.scores[metric] - trials[best_idx].scores[metric]
+    return {
+        "metric": metric,
+        "trial_n": trial.trial,
+        "score": trial.scores[metric],
+        "delta": delta,
+        "config": list(trial.config.items()),
+    }
+
+
 def _detail_context(exp):
     """Detail-page context: identity, run state, per-metric panels and figures.
 
@@ -226,15 +286,7 @@ def _detail_context(exp):
     when present, builds each metric's best-config panel and performance /
     importance figures; the browser switches metrics client-side.
     """
-    try:
-        _, built = io.build_experiment(
-            snapshot_adapter.snapshot_from_experiment(exp),
-            METRICS, MODELS, OPTIMIZERS, read_only=True,
-        )
-        result = built["result"]
-    except ValueError:
-        result = None
-
+    result = _rebuild_result(exp)
     metric_names = list(exp.metric_names)
     active_run = exp.runs.filter(status__in=_ACTIVE).order_by("-id").first()
     last_run = exp.runs.order_by("-id").first()
@@ -274,6 +326,8 @@ def _detail_context(exp):
             "best_config": list(best.config.items()),
             "warning": result.hyperparameter_importance_warning.get(m),
             "has_importance": imp is not None,
+            # No selection has been clicked yet, so it defaults to the best trial.
+            "selected": _selected_panel_data(result, m, best_idx),
         })
         figures[m] = {
             "performance": json.loads(perf.to_json()),

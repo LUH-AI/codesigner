@@ -90,6 +90,12 @@
                             </table>
                         </div>
                     </section>
+                    <section class="card panel selected-config" data-metric="{{ panel.metric }}" hidden>
+                        <div class="subheader">Selected configuration</div>
+                        <div id="selected-content-{{ panel.metric }}">
+                            {% include "web/_selected_config_inner.html" with sel=panel.selected %}
+                        </div>
+                    </section>
                 {% endfor %}
 
                 <section class="card">
@@ -139,11 +145,54 @@
                 JSON.parse(document.getElementById("panels-data").textContent)
                     .forEach(p => { warnings[p.metric] = p.warning; });
                 const select = document.getElementById("metric-select");
+                const trialPanelUrl = "{% url 'web:trial_panel' summary.pk %}";
+
+                // Snapshot each metric's default (best-trial) selected-config HTML so
+                // switching metrics can restore it — a click only affects the metric
+                // being viewed at the time, and is not remembered across switches.
+                const defaultSelectedHTML = {};
+                document.querySelectorAll('[id^="selected-content-"]').forEach(function (el) {
+                    defaultSelectedHTML[el.id.replace("selected-content-", "")] = el.innerHTML;
+                });
+
+                function highlightPoint(metric, idx) {
+                    const n = figures[metric].performance.data[0].x.length;
+                    const colors = new Array(n).fill("#636EFA");
+                    const sizes = new Array(n).fill(6);
+                    if (idx >= 0 && idx < n) { colors[idx] = "#EF553B"; sizes[idx] = 13; }
+                    Plotly.restyle("perf-chart", {"marker.color": [colors], "marker.size": [sizes]}, [0]);
+                }
+
+                let perfClickAttached = false;
+                function attachPerfClickOnce() {
+                    if (perfClickAttached) return;
+                    perfClickAttached = true;
+                    document.getElementById("perf-chart").on("plotly_click", function (data) {
+                        const pt = data.points && data.points[0];
+                        if (!pt || pt.curveNumber !== 0) return;  // ignore the incumbent line
+                        const metric = select.value;
+                        const idx = pt.pointIndex;
+                        highlightPoint(metric, idx);
+                        fetch(trialPanelUrl + "?metric=" + encodeURIComponent(metric) + "&idx=" + idx)
+                            .then(function (r) { return r.ok ? r.text() : Promise.reject(); })
+                            .then(function (html) {
+                                const el = document.getElementById("selected-content-" + metric);
+                                if (el) el.innerHTML = html;
+                            })
+                            .catch(function () {});
+                    });
+                }
 
                 function show(metric) {
                     const fig = figures[metric];
                     Plotly.react("perf-chart", fig.performance.data, fig.performance.layout,
                                  {responsive: true});
+                    attachPerfClickOnce();
+
+                    const selEl = document.getElementById("selected-content-" + metric);
+                    if (selEl && defaultSelectedHTML[metric] !== undefined) {
+                        selEl.innerHTML = defaultSelectedHTML[metric];
+                    }
 
                     const warnEl = document.getElementById("imp-warning");
                     if (warnings[metric]) {
@@ -166,7 +215,7 @@
                         impNone.hidden = false;
                     }
 
-                    document.querySelectorAll(".panel.best-config").forEach(el => {
+                    document.querySelectorAll(".panel").forEach(function (el) {
                         el.hidden = el.dataset.metric !== metric;
                     });
                 }

@@ -110,10 +110,13 @@ Streamlit app; `import_ihpo` a fixture and browse to its detail page.
 
 > **Deviations / notes.** (1) **Create and Run are now separate** (Streamlit's model), superseding the interim synchronous `new_experiment`; ~10 Step 3/4/5 view tests were rewritten to the create→run→poll flow (you approved this). (2) **Standalone Cancel** button (Streamlit only cancelled via delete); a cancelled run keeps its completed trials. (3) **No HTMX dependency** — a ~20-line vanilla shim (`poll.js`) reads `hx-get`/`hx-trigger` + the `HX-Refresh` header, so templates/tests stay HTMX-shaped. (4) The orphan sweep is a **`sweep_stale_runs` management command** (run at startup, wired in Step 10), not `AppConfig.ready()` — querying the DB during app init is discouraged and would hit the dev DB under pytest. (5) Viewing a metric (client-side, Step 4) is separate from the Run form's explicit **"optimize for"** field, resolving Streamlit's overloaded selectbox.
 
-### Step 7 — Click a trial on the chart
-**You can now:** click a point on the performance chart to inspect that trial's configuration.
-**Teaches:** HTMX partial endpoints + a little first-party JS; progressive enhancement.
-**Build:** Port `app/analytics/performance.py:59-70`: a `plotly_click` handler HTMX-GETs a trial-panel partial and re-renders the scatter with the selected point restyled; selection survives metric switches via query param.
+### Step 7 — Click a trial on the chart  *(done)*
+**You can now:** click a point on the performance chart to see that trial's score and full hyperparameter configuration in a "Selected configuration" panel, with the clicked point highlighted on the chart. Before any click, it defaults to the metric's best trial (same as Best configuration, with no delta shown).
+**Teaches:** a small partial-rendering endpoint fetched by client-side JS; keeping a shared helper between the page render and the AJAX endpoint so both agree on what a "selected trial" contains.
+**Build:** Ported `app/analytics/selected_config.py` (score, delta-vs-best, config table) plus the `on_select` handler in `app/analytics/performance.py:59-70` (curve 0 only, i.e. ignore clicks on the incumbent line; `point_index` → trial). `_selected_panel_data(result, metric, idx)` is shared by `_detail_context` (the default, pre-rendered panel per metric) and the new `GET /experiments/<pk>/trial-panel/?metric=&idx=` endpoint (fetched on click). The click handler restyles the chart's markers via `Plotly.restyle` and swaps the panel's inner HTML via `fetch`.
+**Verify:** live-checked against the `test2.ihpo` fixture — clicking trial 1 (index 0) shows a `-0.0875` delta vs. the best (trial 9); clicking the best trial itself shows no delta; bad metric/index both 400. 13 new tests, 157 total.
+
+> **Deviation.** Selection does **not** survive a metric switch via query param, as originally planned — switching metrics resets the selection to that metric's best (a client-side snapshot-and-restore of each metric's default panel HTML, taken at page load). This matches the metric-switching mechanism already chosen in Step 4 (fully client-side, no page reload/query params) and keeps the chart's highlight and the panel's text always consistent with each other.
 **Verify:** clicking points updates the selected-config panel without a reload; matches Streamlit.
 
 ### Step 8 — Use the app in another language
