@@ -240,6 +240,7 @@ def _detail_context(exp):
     last_run = exp.runs.order_by("-id").first()
 
     context = {
+        "experiment": exp,  # the _run_status.html include reverses URLs from experiment.pk
         "summary": {
             "pk": exp.pk,
             "name": exp.name,
