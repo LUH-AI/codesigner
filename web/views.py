@@ -12,8 +12,12 @@ from .charts import importance_figure, performance_figure
 from .forms import NewExperimentForm
 from .models import Experiment
 from .registry import METRICS, MODELS, OPTIMIZERS
+from .services import run as run_service
 from .services import snapshot as snapshot_adapter
-from .services.run import resolve_seed, run_experiment
+from .services.run import resolve_seed
+from .services.run_logic import decide_run, resolve_metric_change
+
+_ACTIVE = ["pending", "running"]
 
 
 def metric_label(primary_metric, original_metric):
@@ -35,12 +39,7 @@ def home(request):
 
 
 def inspect(request):
-    """Upload an .ihpo file and view its contents read-only, no database.
-
-    Exercises the core engine end to end in the browser: parse the file, then
-    build it read-only (which validates the model/optimizer/metrics and
-    deserializes the stored result) without needing the referenced dataset.
-    """
+    """Upload an .ihpo file and view its contents read-only, no database."""
     context = {}
     upload = request.FILES.get("file")
     if request.method == "POST" and upload is not None:
@@ -68,11 +67,7 @@ def inspect(request):
 
 
 def _dataset_path_from(form, tmp_paths):
-    """Resolve the chosen dataset to a filesystem path.
-
-    A demo dataset is already a path; an uploaded file is written to a temp
-    file whose name is recorded in *tmp_paths* for the caller to clean up.
-    """
+    """Resolve the chosen dataset to a filesystem path (temp file for uploads)."""
     demo = form.cleaned_data.get("demo_dataset")
     if demo:
         return demo
@@ -86,11 +81,10 @@ def _dataset_path_from(form, tmp_paths):
 
 
 def new_experiment(request):
-    """Set up an experiment, run it synchronously, and save it.
+    """Set up (but do not run) an experiment, then go to its detail page.
 
-    On a valid POST: build the split, run the optimizer to completion (the
-    request blocks — fine for manual testing), persist the experiment with its
-    result and a stored copy of the dataset, and render its detail page.
+    Persists the experiment with no result and no committed metric; the dataset
+    is copied into MEDIA. Running is a separate action on the detail page.
     """
     if request.method != "POST":
         return render(request, "web/new_experiment.html", {"form": NewExperimentForm()})
@@ -101,18 +95,9 @@ def new_experiment(request):
 
     cleaned = form.cleaned_data
     seed = resolve_seed(cleaned["seed"])
-    primary = cleaned["primary_metric"]
     tmp_paths = []
     try:
         dataset_path = _dataset_path_from(form, tmp_paths)
-        result = run_experiment(
-            model_name=cleaned["model_name"],
-            optimizer_name=cleaned["optimizer_name"],
-            dataset_path=dataset_path,
-            seed=seed,
-            primary_metric=primary,
-            n_trials=cleaned["n_trials"],
-        )
         optimizer = type(OPTIMIZERS[cleaned["optimizer_name"]])()
         snapshot = {
             "version": VERSION,
@@ -121,25 +106,74 @@ def new_experiment(request):
             "model_path": "",
             "optimizer_name": optimizer.name,
             "optimizer_params": optimizer.get_params(),
-            "primary_metric": primary,
-            "original_metric": primary,
+            "primary_metric": None,
+            "original_metric": None,
             "metric_names": list(METRICS),
             "seed": seed,
             "dataset_path": dataset_path,
-            "result": optimizer.serialize_result(result),
+            "result": None,
         }
         exp = snapshot_adapter.experiment_from_snapshot(snapshot)
     finally:
         for path in tmp_paths:
             Path(path).unlink(missing_ok=True)
 
-    return render(request, "web/experiment_detail.html", _detail_context(exp))
+    return redirect("web:experiment_detail", pk=exp.pk)
 
 
 def experiment_detail(request, pk):
-    """Show a saved experiment: its config, results, and charts."""
+    """Show a saved experiment: its config, results/charts, run state, Run form."""
     exp = get_object_or_404(Experiment, pk=pk)
     return render(request, "web/experiment_detail.html", _detail_context(exp))
+
+
+def experiment_run(request, pk):
+    """Launch a background run of an experiment (or confirm a metric change).
+
+    The Run form supplies n_trials and the metric to optimize. A run that would
+    change the optimized metric first shows a confirmation; the confirmation
+    posts back with a `decision` of "new" or "old".
+    """
+    exp = get_object_or_404(Experiment, pk=pk)
+    if request.method != "POST" or not exp.dataset or exp.is_running:
+        return redirect("web:experiment_detail", pk=pk)
+
+    n_trials = max(1, min(1000, int(request.POST.get("n_trials") or 30)))
+    chosen = request.POST.get("optimize_metric")
+    decision = request.POST.get("decision")
+
+    if decision:
+        optimize_metric = resolve_metric_change(decision, exp.original_metric, chosen)
+        if optimize_metric is None:
+            return redirect("web:experiment_detail", pk=pk)
+    else:
+        action, optimize_metric = decide_run(exp.original_metric, exp.primary_metric, chosen)
+        if action == "warn":
+            return render(request, "web/metric_change.html", {
+                "experiment": exp, "chosen": chosen, "n_trials": n_trials,
+            })
+
+    run = run_service.create_run(exp, n_trials, optimize_metric)
+    run_service.start_background_run(run.id)
+    return redirect("web:experiment_detail", pk=pk)
+
+
+def run_status(request, pk):
+    """HTMX poll target: the current run's status, or a refresh when finished."""
+    exp = get_object_or_404(Experiment, pk=pk)
+    active = exp.runs.filter(status__in=_ACTIVE).order_by("-id").first()
+    if active is None:
+        response = HttpResponse("")
+        response["HX-Refresh"] = "true"
+        return response
+    return render(request, "web/_run_status.html", {"experiment": exp, "run": active})
+
+
+def run_cancel(request, pk):
+    """Request cancellation of the experiment's active run."""
+    exp = get_object_or_404(Experiment, pk=pk)
+    exp.runs.filter(status__in=_ACTIVE).update(cancel_requested=True)
+    return redirect("web:experiment_detail", pk=pk)
 
 
 def experiment_export(request, pk):
@@ -153,21 +187,17 @@ def experiment_export(request, pk):
 
 
 def experiment_delete(request, pk):
-    """Confirm (GET) then delete (POST) a saved experiment."""
+    """Confirm (GET) then delete (POST) a saved experiment, stopping any run."""
     exp = get_object_or_404(Experiment, pk=pk)
     if request.method == "POST":
+        exp.runs.filter(status__in=_ACTIVE).update(cancel_requested=True)
         exp.delete()
         return redirect("web:home")
     return render(request, "web/delete_confirm.html", {"experiment": exp})
 
 
 def import_experiment(request):
-    """Upload an .ihpo file to create a saved experiment.
-
-    Reuses core.io.parse for validation (same message as elsewhere). If a
-    dataset file is supplied it is adopted; otherwise the experiment is saved
-    without one (browsable, re-runnable once a dataset is attached later).
-    """
+    """Upload an .ihpo file to create a saved experiment."""
     context = {}
     upload = request.FILES.get("file")
     if request.method == "POST" and upload is not None:
@@ -190,39 +220,45 @@ def import_experiment(request):
 
 
 def _detail_context(exp):
-    """Assemble the detail-page context: identity, per-metric panels, figures.
+    """Detail-page context: identity, run state, per-metric panels and figures.
 
     Rebuilds the OptimizationResult from the stored snapshot (read-only) and,
     when present, builds each metric's best-config panel and performance /
     importance figures; the browser switches metrics client-side.
     """
-    snapshot = snapshot_adapter.snapshot_from_experiment(exp)
     try:
         _, built = io.build_experiment(
-            snapshot, METRICS, MODELS, OPTIMIZERS, read_only=True,
+            snapshot_adapter.snapshot_from_experiment(exp),
+            METRICS, MODELS, OPTIMIZERS, read_only=True,
         )
         result = built["result"]
     except ValueError:
         result = None
 
-    summary = {
-        "pk": exp.pk,
-        "name": exp.name,
-        "model_name": exp.model_name,
-        "optimizer_name": exp.optimizer_name,
-        "primary_metric": exp.primary_metric,
-        "metric_label": metric_label(exp.primary_metric, exp.original_metric),
-        "seed": exp.seed,
-    }
+    metric_names = list(exp.metric_names)
+    active_run = exp.runs.filter(status__in=_ACTIVE).order_by("-id").first()
+    last_run = exp.runs.order_by("-id").first()
+
     context = {
-        "summary": summary,
-        "metric_names": list(exp.metric_names),
+        "summary": {
+            "pk": exp.pk,
+            "name": exp.name,
+            "model_name": exp.model_name,
+            "optimizer_name": exp.optimizer_name,
+            "primary_metric": exp.primary_metric,
+            "metric_label": metric_label(exp.primary_metric, exp.original_metric),
+            "seed": exp.seed,
+        },
+        "metric_names": metric_names,
         "has_result": result is not None,
+        "active_run": active_run,
+        "can_run": bool(exp.dataset),
+        "run_error": last_run.error if (last_run and last_run.status == "error") else None,
+        "run_default_metric": exp.primary_metric or (metric_names[0] if metric_names else None),
     }
     if result is None:
         return context
 
-    metric_names = list(exp.metric_names)
     panels, figures = [], {}
     for m in metric_names:
         best_idx = max(range(len(result.trials)),

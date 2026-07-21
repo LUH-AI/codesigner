@@ -31,6 +31,11 @@ class Experiment(models.Model):
     def __str__(self) -> str:
         return self.name
 
+    @property
+    def is_running(self) -> bool:
+        """True while a run is pending or executing (drives the sidebar spinner)."""
+        return self.runs.filter(status__in=["pending", "running"]).exists()
+
 
 class Run(models.Model):
     """One optimization run of an Experiment.

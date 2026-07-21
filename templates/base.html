@@ -6,6 +6,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>{% block title %}Codesigner{% endblock %}</title>
     <link rel="stylesheet" href="{% static 'web/app.css' %}">
+    <script src="{% static 'web/poll.js' %}" defer></script>
 </head>
 <body>
     <nav class="sidebar">
@@ -21,7 +22,9 @@
         <div class="experiment-list">
             {% for e in sidebar_experiments %}
                 <a class="btn btn-block{% if request.resolver_match.kwargs.pk == e.pk %} btn-primary{% endif %}"
-                   href="{% url 'web:experiment_detail' e.pk %}">{{ e.name }}</a>
+                   href="{% url 'web:experiment_detail' e.pk %}">
+                    {{ e.name }}{% if e.is_running %} <span class="spinner" title="Running"></span>{% endif %}
+                </a>
             {% empty %}
                 <span class="placeholder">No experiments yet.</span>
             {% endfor %}

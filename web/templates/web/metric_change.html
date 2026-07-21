@@ -1,0 +1,21 @@
+{% extends "base.html" %}
+
+{% block title %}Change metric · {{ experiment.name }}{% endblock %}
+
+{% block content %}
+    <h1>Change the optimized metric?</h1>
+    <div class="alert warning" style="max-width: 40rem;">
+        This experiment has been optimizing <strong>{{ experiment.original_metric }}</strong>.
+        Running now for <strong>{{ chosen }}</strong> changes the optimized metric —
+        the trials accumulated so far were optimized for {{ experiment.original_metric }}.
+    </div>
+    <form method="post" action="{% url 'web:experiment_run' experiment.pk %}"
+          style="display: flex; gap: 0.5rem; margin-top: 1rem; flex-wrap: wrap;">
+        {% csrf_token %}
+        <input type="hidden" name="optimize_metric" value="{{ chosen }}">
+        <input type="hidden" name="n_trials" value="{{ n_trials }}">
+        <button type="submit" name="decision" value="new" class="btn-primary">Optimize {{ chosen }}</button>
+        <button type="submit" name="decision" value="old" class="btn">Keep optimizing {{ experiment.original_metric }}</button>
+        <a class="btn" href="{% url 'web:experiment_detail' experiment.pk %}">Cancel</a>
+    </form>
+{% endblock %}

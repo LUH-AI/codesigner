@@ -1,123 +1,93 @@
-"""Step 3: the new-experiment page — configure, run, and see results in the browser.
+"""Step 3 (updated in Step 6): the new-experiment page *creates* an experiment.
 
-The user-facing MVP. These drive the Django view end to end with the real
-core engine (small, fast runs), so a green suite here means HPO is genuinely
-doable from the browser. No database is involved.
+Since Step 6 separated create from run, submitting this form saves the
+experiment (no result yet) and redirects to its detail page; running happens
+there, in the background (see tests/step6). These tests cover creation and its
+validation; the run flow and results rendering live in step6/step4.
+
+DB access + isolated media come from tests/step3/conftest.py.
 """
 
 import io as _io
 
-import pytest
 from django.urls import reverse
 
 from tests.conftest import DATASETS_DIR
 
 
 def _valid_post(**overrides):
-    """A valid create-experiment POST: Random Forest + Random Search on the
-    demo iris dataset, 3 trials. Fast enough to run in a test."""
+    """A valid create-experiment POST: Random Forest + Random Search on iris."""
     data = {
-        "name": "my-run",
+        "name": "my-exp",
         "model_name": "Random Forest",
         "optimizer_name": "Random Search",
         "demo_dataset": str(DATASETS_DIR / "iris.csv"),
-        "primary_metric": "accuracy",
         "seed": 0,
-        "n_trials": 3,
     }
     data.update(overrides)
     return data
 
 
 def test_get_shows_the_form(client):
-    """GET renders the configuration form with all the choices.
+    """GET renders the setup form: model, optimizer, dataset, seed.
 
-    Expect: 200 and a field for each of model, optimizer, dataset, metric,
-    seed and trial count — everything needed to specify a run.
+    The metric and trial-count fields are gone from creation — they are chosen
+    per run on the detail page.
     """
     response = client.get(reverse("web:new_experiment"))
     assert response.status_code == 200
     html = response.content.decode()
     for field in ("name", "model_name", "optimizer_name", "demo_dataset",
-                  "dataset_file", "primary_metric", "seed", "n_trials"):
+                  "dataset_file", "seed"):
         assert field in html
 
 
-def test_post_runs_and_shows_results(client):
-    """A valid submission runs the optimizer and renders the results.
+def test_post_creates_experiment_and_redirects(client):
+    """A valid submission saves an experiment with no result and redirects to detail.
 
-    Expect: 200, the experiment name and choices echoed, and exactly the
-    requested 3 trials shown — evidence the run actually happened.
+    Expect: 302 to the experiment's detail page, and an Experiment row with no
+    result and no committed metric (creating does not run).
     """
-    response = client.post(reverse("web:new_experiment"), _valid_post())
-    assert response.status_code == 200
-    html = response.content.decode()
-    assert "my-run" in html
-    assert "Random Search" in html
-    assert "Best" in html
-    # three trial rows, numbered 1..3
-    for n in (1, 2, 3):
-        assert f"<td>{n}</td>" in html
+    from web.models import Experiment
+
+    resp = client.post(reverse("web:new_experiment"), _valid_post(name="created"))
+    exp = Experiment.objects.get(name="created")
+
+    assert resp.status_code == 302
+    assert resp["Location"] == reverse("web:experiment_detail", args=[exp.pk])
+    assert exp.result is None
+    assert exp.primary_metric is None
 
 
-def test_post_with_uploaded_csv(client):
-    """A run works with an uploaded CSV instead of a demo dataset.
+def test_post_with_uploaded_csv_stores_the_dataset(client):
+    """Creating with an uploaded CSV stores that dataset on the experiment."""
+    from web.models import Experiment
 
-    Uploads iris.csv as the dataset file (no demo selected) and expects a
-    results page with trials — the upload path builds the split correctly.
-    """
     with open(DATASETS_DIR / "iris.csv", "rb") as f:
         upload = _io.BytesIO(f.read())
     upload.name = "iris.csv"
-    data = _valid_post(demo_dataset="")
+    data = _valid_post(name="uploaded", demo_dataset="")
     data["dataset_file"] = upload
-    response = client.post(reverse("web:new_experiment"), data)
-    assert response.status_code == 200
-    assert "<td>1</td>" in response.content.decode()
 
-
-def test_grid_search_run(client):
-    """Grid Search runs from the browser and reports its capped trial count.
-
-    numeric_steps default over Random Forest yields a finite grid; requesting
-    more trials than the grid holds still returns a results page.
-    """
-    response = client.post(reverse("web:new_experiment"),
-                           _valid_post(optimizer_name="Grid Search", n_trials=5))
-    assert response.status_code == 200
-    assert "Best" in response.content.decode()
+    resp = client.post(reverse("web:new_experiment"), data)
+    assert resp.status_code == 302
+    assert Experiment.objects.get(name="uploaded").dataset
 
 
 def test_missing_dataset_is_rejected(client):
-    """Submitting with neither a demo dataset nor an upload shows an error.
+    """Submitting with neither a demo dataset nor an upload re-renders with an error."""
+    from web.models import Experiment
 
-    Expect: 200 (form re-rendered, not a run), with the dataset-required
-    message and no results.
-    """
-    response = client.post(reverse("web:new_experiment"),
-                           _valid_post(demo_dataset=""))
-    assert response.status_code == 200
-    html = response.content.decode()
-    assert "demo dataset or upload" in html
-    assert "Best" not in html
+    resp = client.post(reverse("web:new_experiment"), _valid_post(demo_dataset=""))
+    assert resp.status_code == 200
+    assert "demo dataset or upload" in resp.content.decode()
+    assert Experiment.objects.count() == 0
 
 
 def test_missing_name_is_rejected(client):
-    """A blank name re-renders the form with an error rather than running."""
-    response = client.post(reverse("web:new_experiment"), _valid_post(name=""))
-    assert response.status_code == 200
-    assert "Best" not in response.content.decode()
+    """A blank name re-renders the form and creates nothing."""
+    from web.models import Experiment
 
-
-@pytest.mark.slow
-def test_smac_run_from_browser(client):
-    """A small SMAC run completes synchronously and shows results.
-
-    Marked slow: real SMAC + model training. 3 trials keeps it bounded.
-    """
-    response = client.post(reverse("web:new_experiment"),
-                           _valid_post(optimizer_name="SMAC", n_trials=3))
-    assert response.status_code == 200
-    html = response.content.decode()
-    assert "Best" in html
-    assert "<td>3</td>" in html
+    resp = client.post(reverse("web:new_experiment"), _valid_post(name=""))
+    assert resp.status_code == 200
+    assert Experiment.objects.count() == 0

@@ -3,16 +3,17 @@ from django import forms
 from core.io import demo_datasets
 
 from .models import Experiment
-from .registry import METRICS, MODELS, OPTIMIZERS
+from .registry import MODELS, OPTIMIZERS
 
 
 class NewExperimentForm(forms.Form):
-    """Everything needed to set up and run one experiment.
+    """Set up an experiment: name, model, optimizer, dataset, seed.
 
     A dataset comes from either the demo dropdown or an upload; exactly one is
-    required. All metrics are always scored — primary_metric only chooses which
-    the optimizer optimizes. Optimizer parameters use their defaults here;
-    editing them is a later step.
+    required. Creating an experiment does not run it — the metric to optimize
+    and the number of trials are chosen per-run on the detail page. All metrics
+    are always scored. Optimizer parameters use their defaults here (editing
+    them is a later step).
     """
 
     name = forms.CharField(label="Experiment name", max_length=200)
@@ -20,17 +21,12 @@ class NewExperimentForm(forms.Form):
     optimizer_name = forms.ChoiceField(label="Optimizer")
     demo_dataset = forms.ChoiceField(label="Demo dataset", required=False)
     dataset_file = forms.FileField(label="…or upload a CSV (last column = target)", required=False)
-    primary_metric = forms.ChoiceField(label="Evaluation metric")
     seed = forms.IntegerField(label="Seed (negative = random)", initial=0)
-    n_trials = forms.IntegerField(
-        label="Number of trials", initial=30, min_value=1, max_value=1000,
-    )
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.fields["model_name"].choices = [(k, k) for k in MODELS]
         self.fields["optimizer_name"].choices = [(k, k) for k in OPTIMIZERS]
-        self.fields["primary_metric"].choices = [(k, k) for k in METRICS]
         demos = demo_datasets()
         self.fields["demo_dataset"].choices = [("", "— none —")] + [(p, k) for k, p in demos.items()]
 

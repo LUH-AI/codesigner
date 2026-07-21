@@ -149,3 +149,15 @@ table.config td:last-child, table.trials td:not(:first-child) { text-align: righ
 .subheader { font-size: 1.25rem; font-weight: 600; margin-bottom: 0.25rem; }
 .chart { width: 100%; min-height: 320px; }
 hr.divider { border: none; border-top: 1px solid var(--border); margin: 1.5rem 0; }
+
+/* ── Spinner (running runs) ─────────────────────────────────────────────── */
+.spinner {
+    display: inline-block;
+    width: 14px; height: 14px;
+    border: 2px solid rgba(150, 150, 150, 0.25);
+    border-top-color: var(--primary);
+    border-radius: 50%;
+    animation: spin 0.75s linear infinite;
+    vertical-align: middle;
+}
+@keyframes spin { to { transform: rotate(360deg); } }
