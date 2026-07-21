@@ -2,6 +2,7 @@ from django import forms
 
 from core.io import demo_datasets
 
+from .models import Experiment
 from .registry import METRICS, MODELS, OPTIMIZERS
 
 
@@ -32,6 +33,12 @@ class NewExperimentForm(forms.Form):
         self.fields["primary_metric"].choices = [(k, k) for k in METRICS]
         demos = demo_datasets()
         self.fields["demo_dataset"].choices = [("", "— none —")] + [(p, k) for k, p in demos.items()]
+
+    def clean_name(self):
+        name = self.cleaned_data["name"]
+        if Experiment.objects.filter(name=name).exists():
+            raise forms.ValidationError(f"An experiment named '{name}' already exists.")
+        return name
 
     def clean(self):
         cleaned = super().clean()

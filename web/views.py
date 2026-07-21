@@ -2,13 +2,17 @@ import json
 import tempfile
 from pathlib import Path
 
-from django.shortcuts import render
+from django.http import HttpResponse
+from django.shortcuts import get_object_or_404, redirect, render
 
 from core import io
+from core.version import VERSION
 
 from .charts import importance_figure, performance_figure
 from .forms import NewExperimentForm
+from .models import Experiment
 from .registry import METRICS, MODELS, OPTIMIZERS
+from .services import snapshot as snapshot_adapter
 from .services.run import resolve_seed, run_experiment
 
 
@@ -82,11 +86,11 @@ def _dataset_path_from(form, tmp_paths):
 
 
 def new_experiment(request):
-    """Set up an experiment, run it synchronously, and show the results.
+    """Set up an experiment, run it synchronously, and save it.
 
-    The whole MVP in one page: on GET show the form; on a valid POST build the
-    split, run the optimizer to completion (the request blocks — fine for
-    manual testing), and render the result. Nothing is persisted.
+    On a valid POST: build the split, run the optimizer to completion (the
+    request blocks — fine for manual testing), persist the experiment with its
+    result and a stored copy of the dataset, and render its detail page.
     """
     if request.method != "POST":
         return render(request, "web/new_experiment.html", {"form": NewExperimentForm()})
@@ -95,36 +99,130 @@ def new_experiment(request):
     if not form.is_valid():
         return render(request, "web/new_experiment.html", {"form": form})
 
-    seed = resolve_seed(form.cleaned_data["seed"])
-    primary_metric = form.cleaned_data["primary_metric"]
+    cleaned = form.cleaned_data
+    seed = resolve_seed(cleaned["seed"])
+    primary = cleaned["primary_metric"]
     tmp_paths = []
     try:
         dataset_path = _dataset_path_from(form, tmp_paths)
         result = run_experiment(
-            model_name=form.cleaned_data["model_name"],
-            optimizer_name=form.cleaned_data["optimizer_name"],
+            model_name=cleaned["model_name"],
+            optimizer_name=cleaned["optimizer_name"],
             dataset_path=dataset_path,
             seed=seed,
-            primary_metric=primary_metric,
-            n_trials=form.cleaned_data["n_trials"],
+            primary_metric=primary,
+            n_trials=cleaned["n_trials"],
         )
+        optimizer = type(OPTIMIZERS[cleaned["optimizer_name"]])()
+        snapshot = {
+            "version": VERSION,
+            "name": cleaned["name"],
+            "model_name": cleaned["model_name"],
+            "model_path": "",
+            "optimizer_name": optimizer.name,
+            "optimizer_params": optimizer.get_params(),
+            "primary_metric": primary,
+            "original_metric": primary,
+            "metric_names": list(METRICS),
+            "seed": seed,
+            "dataset_path": dataset_path,
+            "result": optimizer.serialize_result(result),
+        }
+        exp = snapshot_adapter.experiment_from_snapshot(snapshot)
     finally:
         for path in tmp_paths:
             Path(path).unlink(missing_ok=True)
 
-    context = _results_context(result, form.cleaned_data, primary_metric, seed)
-    return render(request, "web/results.html", context)
+    return render(request, "web/experiment_detail.html", _detail_context(exp))
 
 
-def _results_context(result, cleaned, primary_metric, seed):
-    """Assemble the per-metric panels and Plotly figures for the results page.
+def experiment_detail(request, pk):
+    """Show a saved experiment: its config, results, and charts."""
+    exp = get_object_or_404(Experiment, pk=pk)
+    return render(request, "web/experiment_detail.html", _detail_context(exp))
 
-    For each metric we highlight that metric's best trial and build its
-    performance and importance figures; the browser switches between metrics
-    client-side, so all of them ship embedded in the page.
+
+def experiment_export(request, pk):
+    """Download a saved experiment as a Streamlit-loadable .ihpo file."""
+    exp = get_object_or_404(Experiment, pk=pk)
+    snapshot = snapshot_adapter.snapshot_from_experiment(exp)
+    body = json.dumps(snapshot, ensure_ascii=False, indent=2).encode("utf-8")
+    response = HttpResponse(body, content_type="application/octet-stream")
+    response["Content-Disposition"] = f'attachment; filename="{exp.name}.ihpo"'
+    return response
+
+
+def experiment_delete(request, pk):
+    """Confirm (GET) then delete (POST) a saved experiment."""
+    exp = get_object_or_404(Experiment, pk=pk)
+    if request.method == "POST":
+        exp.delete()
+        return redirect("web:home")
+    return render(request, "web/delete_confirm.html", {"experiment": exp})
+
+
+def import_experiment(request):
+    """Upload an .ihpo file to create a saved experiment.
+
+    Reuses core.io.parse for validation (same message as elsewhere). If a
+    dataset file is supplied it is adopted; otherwise the experiment is saved
+    without one (browsable, re-runnable once a dataset is attached later).
     """
-    metric_names = list(METRICS)
+    context = {}
+    upload = request.FILES.get("file")
+    if request.method == "POST" and upload is not None:
+        try:
+            snapshot = io.parse(upload.read())
+        except ValueError as exc:
+            context["error"] = f"Invalid or unreadable experiment file. ({exc})"
+            return render(request, "web/import.html", context)
 
+        if Experiment.objects.filter(name=snapshot["name"]).exists():
+            context["error"] = f"An experiment named '{snapshot['name']}' already exists."
+            return render(request, "web/import.html", context)
+
+        exp = snapshot_adapter.experiment_from_snapshot(
+            snapshot, dataset_file=request.FILES.get("dataset"),
+        )
+        return redirect("web:experiment_detail", pk=exp.pk)
+
+    return render(request, "web/import.html", context)
+
+
+def _detail_context(exp):
+    """Assemble the detail-page context: identity, per-metric panels, figures.
+
+    Rebuilds the OptimizationResult from the stored snapshot (read-only) and,
+    when present, builds each metric's best-config panel and performance /
+    importance figures; the browser switches metrics client-side.
+    """
+    snapshot = snapshot_adapter.snapshot_from_experiment(exp)
+    try:
+        _, built = io.build_experiment(
+            snapshot, METRICS, MODELS, OPTIMIZERS, read_only=True,
+        )
+        result = built["result"]
+    except ValueError:
+        result = None
+
+    summary = {
+        "pk": exp.pk,
+        "name": exp.name,
+        "model_name": exp.model_name,
+        "optimizer_name": exp.optimizer_name,
+        "primary_metric": exp.primary_metric,
+        "metric_label": metric_label(exp.primary_metric, exp.original_metric),
+        "seed": exp.seed,
+    }
+    context = {
+        "summary": summary,
+        "metric_names": list(exp.metric_names),
+        "has_result": result is not None,
+    }
+    if result is None:
+        return context
+
+    metric_names = list(exp.metric_names)
     panels, figures = [], {}
     for m in metric_names:
         best_idx = max(range(len(result.trials)),
@@ -145,25 +243,17 @@ def _results_context(result, cleaned, primary_metric, seed):
             "importance": json.loads(imp.to_json()) if imp is not None else None,
         }
 
-    trial_rows = [
-        {"n": t.trial, "scores": [t.scores[m] for m in metric_names]}
-        for t in result.trials
-    ]
-    return {
-        "summary": {
-            "name": cleaned["name"],
-            "model_name": cleaned["model_name"],
-            "optimizer_name": cleaned["optimizer_name"],
-            "primary_metric": primary_metric,
-            "seed": seed,
-        },
-        "result": result,
-        "metric_names": metric_names,
-        "panels": panels,
-        "figures": figures,
-        "trial_rows": trial_rows,
-        "trials_exhausted": (
+    context.update(
+        result=result,
+        panels=panels,
+        figures=figures,
+        trial_rows=[
+            {"n": t.trial, "scores": [t.scores[m] for m in metric_names]}
+            for t in result.trials
+        ],
+        trials_exhausted=(
             result.trials_limit is not None
             and len(result.trials) >= result.trials_limit
         ),
-    }
+    )
+    return context

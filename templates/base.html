@@ -15,11 +15,16 @@
         <h1>Experiments</h1>
         <div class="actions">
             <a class="btn btn-block" href="{% url 'web:new_experiment' %}">＋ New</a>
-            <button class="btn-block" disabled title="Coming in the load step">📂 Load</button>
+            <a class="btn btn-block" href="{% url 'web:import_experiment' %}">📂 Load</a>
         </div>
         <hr>
         <div class="experiment-list">
-            {% block experiment_list %}{% endblock %}
+            {% for e in sidebar_experiments %}
+                <a class="btn btn-block{% if request.resolver_match.kwargs.pk == e.pk %} btn-primary{% endif %}"
+                   href="{% url 'web:experiment_detail' e.pk %}">{{ e.name }}</a>
+            {% empty %}
+                <span class="placeholder">No experiments yet.</span>
+            {% endfor %}
         </div>
         <div class="nav-links">
             <a href="{% url 'web:inspect' %}">Inspect an .ihpo file</a>

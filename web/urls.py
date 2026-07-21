@@ -8,4 +8,8 @@ urlpatterns = [
     path("", views.home, name="home"),
     path("inspect/", views.inspect, name="inspect"),
     path("experiments/new/", views.new_experiment, name="new_experiment"),
+    path("experiments/import/", views.import_experiment, name="import_experiment"),
+    path("experiments/<int:pk>/", views.experiment_detail, name="experiment_detail"),
+    path("experiments/<int:pk>/export/", views.experiment_export, name="experiment_export"),
+    path("experiments/<int:pk>/delete/", views.experiment_delete, name="experiment_delete"),
 ]

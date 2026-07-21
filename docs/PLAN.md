@@ -94,11 +94,13 @@ Streamlit app; `import_ihpo` a fixture and browse to its detail page.
 
 > **Two deviations from the original Step 4:** (1) **Metric switching is client-side**, not the planned `?metric=f1` GET param — every metric's figures ship embedded in the results page and a dropdown swaps them with JS. The GET-param approach needs the result to survive to a second request, which requires persistence (not built yet); it returns when experiments persist. (2) The **selected-config panel is deferred to Step 7** — with no click-to-select yet, it would only ever mirror the best-config panel. Minor: the scatter uses Plotly's default hover, not the Streamlit custom per-hyperparameter hover.
 
-### Step 5 — Save and load `.ihpo` files in the browser
-**You can now:** download any experiment as an `.ihpo` file and load one back in — files interoperate with the old Streamlit app — re-supplying the dataset (or loading read-only) when the original file isn't present.
-**Teaches:** file-download responses (content-disposition), multi-step form flows, MEDIA file management.
-**Build:** Export view (snapshot adapter → `{name}.ihpo` download). Import view porting `app/dialogs.open_load_dialog`: upload `.ihpo`; if the stored dataset is missing, prompt for a dataset upload or load read-only (browse results, can't run); registry-model substitution and name-collision handling.
-**Verify:** round-trip both directions (Codesigner export → Streamlit load and vice versa); the read-only path works with no dataset.
+### Step 5 — Persistence: save/load `.ihpo`, and experiments that stick around  *(done)*
+**You can now:** your experiments are **saved** — running one stores it, it appears in the sidebar, and you can revisit its detail page any time. You can **download** any experiment as an `.ihpo` file (Streamlit-loadable) and **load** one back by uploading it (optionally attaching its dataset, else read-only). Delete removes an experiment after a confirmation.
+**Teaches:** ORM models + migrations, the admin, a custom JSONField, `FileField`/`MEDIA_ROOT` uploads, a context processor (sidebar on every page), management commands, file-download responses, `get_object_or_404`.
+**Build:** `Experiment` (+ `Run`) models with a `SafeJSONField` that round-trips SMAC's non-finite floats; admin; `web/services/snapshot.py` row↔snapshot adapter; `import_ihpo` command; export/import/detail/delete views; sidebar context processor. Running an experiment now persists it via the adapter (dataset copied into `MEDIA_ROOT`).
+**Verify:** create→run persists and shows the detail page; sidebar lists it; export downloads a parseable `.ihpo`; import (a Streamlit fixture) lands on the detail page; delete works. Full suite 115 green; browser smoke test of the whole flow.
+
+> **Deviations / notes for this step.** (1) **Running now persists** the experiment (this is what "introduce the database" bought us) — this wasn't in the original Step 5 build text, which was only export/import; it came from the mid-migration decision to add the DB now. (2) `new_experiment` **renders the detail page inline (200)** after saving rather than doing a POST→redirect→GET, so the Step 3/4 view tests (which assert a 200 with results) stay valid without being edited. (3) The **`Run` model exists but is inert** — its status/cancel lifecycle is wired up in Step 6 (background runs); only the schema lands now. (4) Custom-model files are still not adopted on import (Step 9).
 
 ### Step 6 — Background runs: cancel, resume, change metric
 **You can now:** start a long run and keep using the app while it runs in the background, watch its progress live, cancel it, resume it (trial numbers continue), and switch the evaluation metric with a confirmation prompt.

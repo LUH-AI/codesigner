@@ -1,0 +1,16 @@
+{% extends "base.html" %}
+
+{% block title %}Delete {{ experiment.name }} · Codesigner{% endblock %}
+
+{% block content %}
+    <h1>Delete experiment</h1>
+    <div class="alert warning" style="max-width: 34rem;">
+        Are you sure you want to delete <strong>{{ experiment.name }}</strong>?
+        This cannot be undone.
+    </div>
+    <form method="post" style="margin-top: 1rem; display: flex; gap: 0.5rem;">
+        {% csrf_token %}
+        <button type="submit" class="btn-primary">Delete</button>
+        <a class="btn" href="{% url 'web:experiment_detail' experiment.pk %}">Cancel</a>
+    </form>
+{% endblock %}

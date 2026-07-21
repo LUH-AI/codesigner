@@ -1,0 +1,27 @@
+{% extends "base.html" %}
+
+{% block title %}Load experiment · Codesigner{% endblock %}
+
+{% block content %}
+    <h1>Load an experiment</h1>
+    <p class="caption">Upload an <code>.ihpo</code> file to add it to your saved
+       experiments. Optionally attach its dataset to make it runnable; otherwise
+       it loads read-only.</p>
+
+    {% if error %}
+        <div class="alert error" style="margin-top: 1rem; max-width: 34rem;">{{ error }}</div>
+    {% endif %}
+
+    <form method="post" enctype="multipart/form-data" style="max-width: 34rem; margin-top: 1rem;">
+        {% csrf_token %}
+        <div class="field">
+            <label>Experiment file (.ihpo)</label>
+            <input type="file" name="file" accept=".ihpo" required>
+        </div>
+        <div class="field">
+            <label>Dataset CSV (optional)</label>
+            <input type="file" name="dataset" accept=".csv">
+        </div>
+        <button type="submit" class="btn-primary">Load</button>
+    </form>
+{% endblock %}
