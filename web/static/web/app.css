@@ -123,6 +123,18 @@ input:focus, select:focus {
 .grid-2 > .col { flex: 1; display: flex; flex-direction: column; gap: 1.5rem; min-width: 0; }
 @media (max-width: 900px) { .grid-2 { flex-direction: column; } }
 
+/* ── Inline row of controls (Run + Evaluation metric, side by side) ────── */
+.row-inline { display: flex; gap: 1.5rem; align-items: flex-start; flex-wrap: wrap; }
+
+/* ── 2x2 analytics grid: best-config | selected-config
+                           importance  | performance
+   Grid's default align-items:stretch means both cells in a row always match
+   that row's height, independent of the other row. ─────────────────────── */
+.grid-2x2 { display: grid; grid-template-columns: 1fr 1fr; gap: 1.5rem; }
+.grid-2x2 > .slot { min-width: 0; display: flex; flex-direction: column; }
+.grid-2x2 > .slot > .card { flex: 1; }
+@media (max-width: 900px) { .grid-2x2 { grid-template-columns: 1fr; } }
+
 /* ── Metric component (st.metric) ─────────────────────────────────────── */
 .metric-label { font-size: 0.875rem; color: var(--muted); }
 .metric-value { font-size: 2.25rem; font-weight: 600; line-height: 1.2; }

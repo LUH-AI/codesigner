@@ -334,12 +334,18 @@ def _detail_context(exp):
             "importance": json.loads(imp.to_json()) if imp is not None else None,
         }
 
+    hp_names = list(result.trials[0].config.keys()) if result.trials else []
     context.update(
         result=result,
         panels=panels,
         figures=figures,
+        hp_names=hp_names,
         trial_rows=[
-            {"n": t.trial, "scores": [t.scores[m] for m in metric_names]}
+            {
+                "n": t.trial,
+                "config_values": [t.config.get(h) for h in hp_names],
+                "scores": [t.scores[m] for m in metric_names],
+            }
             for t in result.trials
         ],
         trials_exhausted=(

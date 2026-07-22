@@ -24,31 +24,46 @@
         <div class="alert error" style="max-width: 40rem;">Run failed: {{ run_error }}</div>
     {% endif %}
 
-    {% if active_run %}
-        {% include "web/_run_status.html" with run=active_run %}
-    {% elif can_run %}
-        <section class="card" style="max-width: 28rem;">
-            <div class="subheader">Run</div>
-            <form method="post" action="{% url 'web:experiment_run' summary.pk %}">
-                {% csrf_token %}
-                <div class="field">
-                    <label for="n_trials">Number of trials</label>
-                    <input type="number" id="n_trials" name="n_trials" value="30" min="1" max="1000">
-                </div>
-                <div class="field">
-                    <label for="optimize_metric">Optimize for</label>
-                    <select id="optimize_metric" name="optimize_metric">
+    <div class="row-inline">
+        {% if active_run %}
+            {% include "web/_run_status.html" with run=active_run %}
+        {% elif can_run %}
+            <section class="card" style="max-width: 28rem;">
+                <div class="subheader">Run</div>
+                <form method="post" action="{% url 'web:experiment_run' summary.pk %}">
+                    {% csrf_token %}
+                    <div class="field">
+                        <label for="n_trials">Number of trials</label>
+                        <input type="number" id="n_trials" name="n_trials" value="30" min="1" max="1000">
+                    </div>
+                    <div class="field">
+                        <label for="optimize_metric">Optimize for</label>
+                        <select id="optimize_metric" name="optimize_metric">
+                            {% for m in metric_names %}
+                                <option value="{{ m }}"{% if m == run_default_metric %} selected{% endif %}>{{ m }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    <button type="submit" class="btn-primary">▶ Run</button>
+                </form>
+            </section>
+        {% else %}
+            <div class="alert info" style="max-width: 40rem;">Attach a dataset to run this experiment (loaded read-only).</div>
+        {% endif %}
+
+        {% if has_result %}
+            <div class="card" style="max-width: 22rem;">
+                <div class="field" style="margin: 0;">
+                    <label for="metric-select">Evaluation metric</label>
+                    <select id="metric-select">
                         {% for m in metric_names %}
-                            <option value="{{ m }}"{% if m == run_default_metric %} selected{% endif %}>{{ m }}</option>
+                            <option value="{{ m }}"{% if m == summary.primary_metric %} selected{% endif %}>{{ m }}</option>
                         {% endfor %}
                     </select>
                 </div>
-                <button type="submit" class="btn-primary">▶ Run</button>
-            </form>
-        </section>
-    {% else %}
-        <div class="alert info" style="max-width: 40rem;">Attach a dataset to run this experiment (loaded read-only).</div>
-    {% endif %}
+            </div>
+        {% endif %}
+    </div>
 
     {% if not has_result %}
         <div class="alert info" style="margin-top: 1rem;">No results yet.</div>
@@ -58,21 +73,8 @@
             <div class="alert warning">The search space is exhausted at {{ result.trials|length }} trials.</div>
         {% endif %}
 
-        <div class="card" style="max-width: 22rem;">
-            <div class="field" style="margin: 0;">
-                <label for="metric-select">Evaluation metric</label>
-                <select id="metric-select">
-                    {% for m in metric_names %}
-                        <option value="{{ m }}"{% if m == summary.primary_metric %} selected{% endif %}>{{ m }}</option>
-                    {% endfor %}
-                </select>
-            </div>
-        </div>
-
-        <hr class="divider">
-
-        <div class="grid-2">
-            <div class="col">
+        <div class="grid-2x2">
+            <div class="slot">
                 {% for panel in panels %}
                     <section class="card panel best-config" data-metric="{{ panel.metric }}" hidden>
                         <div class="subheader">Best configuration</div>
@@ -90,6 +92,11 @@
                             </table>
                         </div>
                     </section>
+                {% endfor %}
+            </div>
+
+            <div class="slot">
+                {% for panel in panels %}
                     <section class="card panel selected-config" data-metric="{{ panel.metric }}" hidden>
                         <div class="subheader">Selected configuration</div>
                         <div id="selected-content-{{ panel.metric }}">
@@ -97,7 +104,9 @@
                         </div>
                     </section>
                 {% endfor %}
+            </div>
 
+            <div class="slot">
                 <section class="card">
                     <div class="subheader">Hyperparameter importance (HyperSHAP)</div>
                     <p id="imp-warning" class="alert warning" hidden></p>
@@ -106,7 +115,7 @@
                 </section>
             </div>
 
-            <div class="col">
+            <div class="slot">
                 <section class="card">
                     <div class="subheader">Performance of Incumbent</div>
                     <div id="perf-chart" class="chart"></div>
@@ -121,12 +130,17 @@
             <div class="table-wrap table-scroll">
                 <table class="trials">
                     <thead>
-                        <tr><th>#</th>{% for m in metric_names %}<th>{{ m }}</th>{% endfor %}</tr>
+                        <tr>
+                            <th>#</th>
+                            {% for h in hp_names %}<th>{{ h }}</th>{% endfor %}
+                            {% for m in metric_names %}<th>{{ m }}</th>{% endfor %}
+                        </tr>
                     </thead>
                     <tbody>
                         {% for row in trial_rows %}
                             <tr>
                                 <td>{{ row.n }}</td>
+                                {% for v in row.config_values %}<td>{{ v }}</td>{% endfor %}
                                 {% for score in row.scores %}<td>{{ score|floatformat:4 }}</td>{% endfor %}
                             </tr>
                         {% endfor %}
