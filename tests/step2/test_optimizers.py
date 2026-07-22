@@ -184,3 +184,31 @@ def test_smac_serialize_embeds_optimizer_state(iris_splits, metrics):
     restored = opt.deserialize_result(d)
     assert len(restored.trials) == 3
     assert restored.metadata.get("smac_output_dir")
+
+
+@pytest.mark.slow
+def test_smac_resume_through_serialization_preserves_all_trials(iris_splits, metrics):
+    """A resumed SMAC run must not lose trials when persisted between runs.
+
+    Every real run gets a fresh SMACOptimizer instance, and "previous result"
+    always arrives via serialize_result/deserialize_result (a saved
+    Experiment row or .ihpo file), never the same in-memory object — this is
+    the exact round trip resume must survive. (test_smac_runs_and_resumes
+    above resumes from the same in-memory object and can't catch this.)
+    """
+    opt1 = SMACOptimizer()
+    first = _run(opt1, RandomForestModel(), iris_splits, metrics, n_trials=3)
+    snapshot1 = opt1.serialize_result(first)
+    assert len(snapshot1["data"]) == 3
+
+    opt2 = SMACOptimizer()
+    restored = opt2.deserialize_result(snapshot1)
+    combined = _run(opt2, RandomForestModel(), iris_splits, metrics,
+                    n_trials=2, previous=restored)
+    assert [t.trial for t in combined.trials] == [1, 2, 3, 4, 5]
+
+    snapshot2 = opt2.serialize_result(combined)
+    assert [e["config_id"] for e in snapshot2["data"]] == [1, 2, 3, 4, 5], (
+        "serialize_result must reflect every trial after a resume, not only "
+        "the newly-run ones"
+    )

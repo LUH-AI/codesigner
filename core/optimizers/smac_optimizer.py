@@ -139,6 +139,7 @@ class SMACOptimizer(BaseOptimizer):
 
         scenario = Scenario(
             model.get_config_space(seed=seed),
+            name="ihpo",
             n_trials=_SMAC_MAX_TRIALS,
             deterministic=True,
             seed=seed,
