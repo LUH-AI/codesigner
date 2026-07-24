@@ -8,7 +8,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: PACKAGE VERSION\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2026-07-24 12:39+0000\n"
+"POT-Creation-Date: 2026-07-24 13:43+0000\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
 "Language-Team: LANGUAGE <LL@li.org>\n"
@@ -17,6 +17,7 @@ msgstr ""
 "Content-Type: text/plain; charset=UTF-8\n"
 "Content-Transfer-Encoding: 8bit\n"
 "Plural-Forms: nplurals=2; plural=(n != 1);\n"
+
 #: templates/base.html:24
 msgid "Experiments"
 msgstr "Experimentos"
@@ -46,42 +47,54 @@ msgstr "Inspeccionar un archivo .ihpo"
 msgid "Number of trials"
 msgstr "Número de pruebas"
 
-#: web/forms.py:20
+#: web/forms.py:25
 msgid "Experiment name"
 msgstr "Nombre del experimento"
 
-#: web/forms.py:21 web/templates/web/experiment_detail.html:11
+#: web/forms.py:26 web/templates/web/experiment_detail.html:11
 #: web/templates/web/inspect.html:33
 msgid "Model"
 msgstr "Modelo"
 
-#: web/forms.py:22 web/templates/web/experiment_detail.html:12
+#: web/forms.py:27
+msgid "…or upload a model .py"
+msgstr "…o suba un modelo (.py)"
+
+#: web/forms.py:28 web/templates/web/experiment_detail.html:12
 #: web/templates/web/inspect.html:34
 msgid "Optimizer"
 msgstr "Optimizador"
 
-#: web/forms.py:23
+#: web/forms.py:29
 msgid "Demo dataset"
 msgstr "Conjunto de datos de demostración"
 
-#: web/forms.py:24
+#: web/forms.py:30
 msgid "…or upload a CSV (last column = target)"
 msgstr "…o suba un CSV (última columna = objetivo)"
 
-#: web/forms.py:25
+#: web/forms.py:31
 msgid "Seed (negative = random)"
 msgstr "Semilla (negativa = aleatoria)"
 
-#: web/forms.py:32
+#: web/forms.py:35
+msgid "— select —"
+msgstr "— seleccionar —"
+
+#: web/forms.py:38
 msgid "— none —"
 msgstr "— ninguno —"
 
-#: web/forms.py:37 web/views.py:237
+#: web/forms.py:45 web/views.py:257
 #, python-format
 msgid "An experiment named '%(name)s' already exists."
 msgstr "Ya existe un experimento llamado '%(name)s'."
 
-#: web/forms.py:43
+#: web/forms.py:62
+msgid "Choose a model or upload a model .py file."
+msgstr "Elija un modelo o suba un archivo de modelo .py."
+
+#: web/forms.py:65
 msgid "Choose a demo dataset or upload a CSV file."
 msgstr "Elija un conjunto de datos de demostración o suba un archivo CSV."
 
@@ -130,7 +143,9 @@ msgstr "Eliminar experimento"
 msgid ""
 "Are you sure you want to delete <strong>%(name)s</strong>? This cannot be "
 "undone."
-msgstr "¿Estás seguro de que quieres eliminar <strong>%(name)s</strong>? Esta acción no se puede deshacer."
+msgstr ""
+"¿Estás seguro de que quieres eliminar <strong>%(name)s</strong>? Esta acción "
+"no se puede deshacer."
 
 #: web/templates/web/delete_confirm.html:13
 msgid "Delete"
@@ -193,7 +208,9 @@ msgstr "▶ Ejecutar"
 
 #: web/templates/web/experiment_detail.html:67
 msgid "Attach a dataset to run this experiment (loaded read-only)."
-msgstr "Adjunte un conjunto de datos para ejecutar este experimento (cargado en modo de solo lectura)."
+msgstr ""
+"Adjunte un conjunto de datos para ejecutar este experimento (cargado en modo "
+"de solo lectura)."
 
 #: web/templates/web/experiment_detail.html:71
 msgid "No results yet."
@@ -252,7 +269,10 @@ msgid ""
 "       experiments. Optionally attach its dataset to make it runnable; "
 "otherwise\n"
 "       it loads read-only."
-msgstr "Suba un archivo <code>.ihpo</code> para añadirlo a sus experimentos guardados. Opcionalmente, adjunte su conjunto de datos para poder ejecutarlo; de lo contrario, se cargará en modo de solo lectura."
+msgstr ""
+"Suba un archivo <code>.ihpo</code> para añadirlo a sus experimentos "
+"guardados. Opcionalmente, adjunte su conjunto de datos para poder "
+"ejecutarlo; de lo contrario, se cargará en modo de solo lectura."
 
 #: web/templates/web/import.html:19
 msgid "Experiment file (.ihpo)"
@@ -262,7 +282,11 @@ msgstr "Archivo de experimento (.ihpo)"
 msgid "Dataset CSV (optional)"
 msgstr "CSV del conjunto de datos (opcional)"
 
-#: web/templates/web/import.html:26
+#: web/templates/web/import.html:28
+msgid "Model .py (optional, custom models only)"
+msgstr "Modelo .py (opcional, solo modelos personalizados)"
+
+#: web/templates/web/import.html:32
 msgid "Load"
 msgstr "Cargar"
 
@@ -278,9 +302,11 @@ msgstr "Inspeccionar un archivo de experimento"
 msgid ""
 "Upload an <code>.ihpo</code> file to view its contents.\n"
 "       Nothing is saved, and the referenced dataset is not required."
-msgstr "Suba un archivo <code>.ihpo</code> para ver su contenido. No se guarda nada y el conjunto de datos referenciado no es necesario."
+msgstr ""
+"Suba un archivo <code>.ihpo</code> para ver su contenido. No se guarda nada "
+"y el conjunto de datos referenciado no es necesario."
 
-#: web/templates/web/inspect.html:20 web/views.py:233
+#: web/templates/web/inspect.html:20 web/views.py:253
 msgid "Invalid or unreadable experiment file."
 msgstr "Archivo de experimento inválido o ilegible."
 
@@ -309,7 +335,12 @@ msgid ""
 "metric —\n"
 "        the trials accumulated so far were optimized for %(original)s.\n"
 "        "
-msgstr "\nEste experimento ha estado optimizando <strong>%(original)s</strong>. Ejecutarlo ahora para <strong>%(chosen)s</strong> cambia la métrica optimizada — las pruebas acumuladas hasta ahora se optimizaron para %(original)s."
+msgstr ""
+"\n"
+"Este experimento ha estado optimizando <strong>%(original)s</strong>. "
+"Ejecutarlo ahora para <strong>%(chosen)s</strong> cambia la métrica "
+"optimizada — las pruebas acumuladas hasta ahora se optimizaron para "
+"%(original)s."
 
 #: web/templates/web/metric_change.html:20
 #, python-format
@@ -330,12 +361,14 @@ msgstr "Nuevo experimento"
 msgid ""
 "Set up an experiment. It is saved but not run — start runs\n"
 "       (and pick the metric and number of trials) on its page."
-msgstr "Configure un experimento. Se guarda pero no se ejecuta — inicie las ejecuciones (y elija la métrica y el número de pruebas) en su página."
+msgstr ""
+"Configure un experimento. Se guarda pero no se ejecuta — inicie las "
+"ejecuciones (y elija la métrica y el número de pruebas) en su página."
 
 #: web/templates/web/new_experiment.html:24
 msgid "Create experiment"
 msgstr "Crear experimento"
 
-#: web/views.py:34
+#: web/views.py:46
 msgid "Inconsistent"
 msgstr "Inconsistente"

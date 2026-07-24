@@ -130,11 +130,30 @@ def _parse_po_all(path: Path) -> dict[str, str]:
 # --- completeness -------------------------------------------------------------
 
 
+def _fuzzy_msgids(path: Path) -> set[str]:
+    """msgids flagged '#, fuzzy' (excluding the header). makemessages marks a
+    guessed translation fuzzy; gettext then refuses to compile it, so at runtime
+    the string silently falls back to English — as bad as no translation."""
+    fuzzy: set[str] = set()
+    pending = False
+    for raw in path.read_text("utf-8").splitlines():
+        line = raw.strip()
+        if line.startswith("#,") and "fuzzy" in line:
+            pending = True
+        elif line.startswith("msgid "):
+            mid = _unquote(line[len("msgid "):].strip())
+            if pending and mid:  # skip the header (empty msgid)
+                fuzzy.add(mid)
+            pending = False
+    return fuzzy
+
+
 @pytest.mark.parametrize("locale", NON_ENGLISH)
 def test_every_marked_string_is_translated(locale):
     """Adapts utils/check_translations.py: every msgid the app marks for
-    translation must have a non-empty msgstr in each non-English catalog, so
-    switching language never falls back to English for a visible string."""
+    translation must have a non-empty, non-fuzzy msgstr in each non-English
+    catalog, so switching language never falls back to English for a visible
+    string. Fuzzy entries count as untranslated — gettext won't compile them."""
     po_path = CODESIGNER_LOCALE / locale / "LC_MESSAGES" / "django.po"
     assert po_path.exists(), f"missing catalog: {po_path}"
 
@@ -143,6 +162,9 @@ def test_every_marked_string_is_translated(locale):
     assert not untranslated, (
         f"[{locale}] {len(untranslated)} untranslated string(s): {untranslated}"
     )
+
+    fuzzy = sorted(_fuzzy_msgids(po_path))
+    assert not fuzzy, f"[{locale}] {len(fuzzy)} fuzzy (uncompiled) string(s): {fuzzy}"
 
 
 # --- parity against the InteractiveHPO oracle ---------------------------------

@@ -1,0 +1,48 @@
+import textwrap
+
+import pytest
+from django.core.files.uploadedfile import SimpleUploadedFile
+
+# A minimal valid custom model: one integer hyperparameter, constant scores so
+# a run is instant and deterministic. Mirrors the fixture in
+# tests/step2/test_model_loading.py.
+VALID_MODEL_SRC = textwrap.dedent("""
+    from ConfigSpace import ConfigurationSpace, Integer
+    from core.models import BaseModel
+
+    class MyModel(BaseModel):
+        name = "My Custom Model"
+        def get_config_space(self, seed: int = 0):
+            cs = ConfigurationSpace(seed=seed)
+            cs.add([Integer("k", (1, 5), default=3)])
+            return cs
+        def train_evaluate(self, config, X_train, y_train, X_val, y_val, metrics, seed=0):
+            return {m: 0.5 for m in metrics}
+""")
+
+# A .py with no BaseModel subclass — must be rejected at upload time.
+INVALID_MODEL_SRC = "x = 1\n"
+
+
+@pytest.fixture(autouse=True)
+def _db_media_and_flag(db, settings, tmp_path):
+    """Custom-model tests hit the DB, store uploads, and depend on the feature
+    flag — give each a throwaway MEDIA_ROOT and the flag on by default."""
+    settings.MEDIA_ROOT = str(tmp_path / "media")
+    settings.ALLOW_CUSTOM_MODELS = True
+
+
+@pytest.fixture
+def model_upload():
+    """A valid uploaded model .py (Django SimpleUploadedFile)."""
+    return SimpleUploadedFile(
+        "mymodel.py", VALID_MODEL_SRC.encode("utf-8"), content_type="text/x-python"
+    )
+
+
+@pytest.fixture
+def bad_model_upload():
+    """An uploaded .py that contains no BaseModel subclass."""
+    return SimpleUploadedFile(
+        "bad.py", INVALID_MODEL_SRC.encode("utf-8"), content_type="text/x-python"
+    )

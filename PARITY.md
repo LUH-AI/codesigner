@@ -4,7 +4,7 @@ Ticked when the feature works in Codesigner and has been verified side-by-side
 against the Streamlit app. Target step in parentheses (see docs/PLAN.md).
 
 - [x] Create experiment with registry model (3)
-- [ ] Create experiment with custom uploaded model `.py` (9)
+- [x] Create experiment with custom uploaded model `.py` (9 — gated by ALLOW_CUSTOM_MODELS)
 - [x] Create experiment with demo/mounted dataset (3)
 - [x] Create experiment with uploaded dataset CSV (3)
 - [x] Run N trials — SMAC (3)

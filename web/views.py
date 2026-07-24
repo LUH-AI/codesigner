@@ -2,6 +2,7 @@ import json
 import tempfile
 from pathlib import Path
 
+from django.conf import settings
 from django.http import HttpResponse, HttpResponseBadRequest
 from django.shortcuts import get_object_or_404, redirect, render
 from django.utils.translation import gettext as _
@@ -19,6 +20,17 @@ from .services.run import resolve_seed
 from .services.run_logic import decide_run, resolve_metric_change
 
 _ACTIVE = ["pending", "running"]
+
+
+def _model_available(exp):
+    """Whether *exp*'s model can be built to run it.
+
+    Registry models are always available; a custom model needs its uploaded
+    .py present and the ALLOW_CUSTOM_MODELS feature enabled.
+    """
+    if exp.model_name in MODELS:
+        return True
+    return bool(exp.model_file) and settings.ALLOW_CUSTOM_MODELS
 
 
 def metric_label(primary_metric, original_metric):
@@ -114,7 +126,9 @@ def new_experiment(request):
             "dataset_path": dataset_path,
             "result": None,
         }
-        exp = snapshot_adapter.experiment_from_snapshot(snapshot)
+        exp = snapshot_adapter.experiment_from_snapshot(
+            snapshot, model_file=cleaned.get("model_file"),
+        )
     finally:
         for path in tmp_paths:
             Path(path).unlink(missing_ok=True)
@@ -161,7 +175,8 @@ def experiment_run(request, pk):
     posts back with a `decision` of "new" or "old".
     """
     exp = get_object_or_404(Experiment, pk=pk)
-    if request.method != "POST" or not exp.dataset or exp.is_running:
+    if (request.method != "POST" or not exp.dataset or exp.is_running
+            or not _model_available(exp)):
         return redirect("web:experiment_detail", pk=pk)
 
     n_trials = max(1, min(1000, int(request.POST.get("n_trials") or 30)))
@@ -223,8 +238,13 @@ def experiment_delete(request, pk):
 
 
 def import_experiment(request):
-    """Upload an .ihpo file to create a saved experiment."""
-    context = {}
+    """Upload an .ihpo file to create a saved experiment.
+
+    A dataset and — when custom models are enabled — a model .py may be
+    attached to make the imported experiment runnable; without them it loads
+    read-only.
+    """
+    context = {"allow_custom_models": settings.ALLOW_CUSTOM_MODELS}
     upload = request.FILES.get("file")
     if request.method == "POST" and upload is not None:
         try:
@@ -237,8 +257,9 @@ def import_experiment(request):
             context["error"] = _("An experiment named '%(name)s' already exists.") % {"name": snapshot["name"]}
             return render(request, "web/import.html", context)
 
+        model_upload = request.FILES.get("model") if settings.ALLOW_CUSTOM_MODELS else None
         exp = snapshot_adapter.experiment_from_snapshot(
-            snapshot, dataset_file=request.FILES.get("dataset"),
+            snapshot, dataset_file=request.FILES.get("dataset"), model_file=model_upload,
         )
         return redirect("web:experiment_detail", pk=exp.pk)
 
@@ -306,7 +327,7 @@ def _detail_context(exp):
         "metric_names": metric_names,
         "has_result": result is not None,
         "active_run": active_run,
-        "can_run": bool(exp.dataset),
+        "can_run": bool(exp.dataset) and _model_available(exp),
         "run_error": last_run.error if (last_run and last_run.status == "error") else None,
         "run_default_metric": exp.primary_metric or (metric_names[0] if metric_names else None),
     }

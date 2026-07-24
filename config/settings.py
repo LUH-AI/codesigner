@@ -27,6 +27,11 @@ DEBUG = env("DEBUG")
 
 ALLOWED_HOSTS = env.list("ALLOWED_HOSTS", default=["localhost", "127.0.0.1"])
 
+# When on, users may upload a model .py that the app imports and executes to
+# run experiments. That is arbitrary code execution by design, so it must be
+# OFF on any shared or public deployment (see README).
+ALLOW_CUSTOM_MODELS = env.bool("ALLOW_CUSTOM_MODELS", default=True)
+
 
 # Application definition
 

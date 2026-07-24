@@ -127,17 +127,19 @@ Streamlit app; `import_ihpo` a fixture and browse to its detail page.
 
 > **Deviations / notes.** (1) The `utils/strings.py` symbolic-key shim is not carried over — Django keys `{% translate %}`/`gettext` directly on the English source, so the indirection is unnecessary. (2) Of 70 marked strings, 30 reuse the Streamlit catalog byte-for-byte; the other 40 are Codesigner-native (different phrasing, or UI that only exists here) and were translated fresh or adapted for Django's `%(name)s` placeholder syntax. (3) `check_translations.py` is reproduced as a pytest test (completeness) plus a parity test that diffs Codesigner's catalog against the InteractiveHPO oracle for shared msgids, rather than a standalone script. (4) One Step 6 test (`test_run_and_metric_controls_share_one_card`) was adjusted to count forms in the page body only — the new sidebar language switcher is a second `<form>` and must not be conflated with the run/metric controls.
 
-### Step 9 — Bring your own model; production-grade runs
-**You can now:** upload your own model `.py` file to optimize (when the operator enables it), with runs handled by a real background task queue instead of an in-process thread.
-**Teaches:** huey (task decorator + consumer process), settings-gated features.
-**Build:** Step 6's thread body becomes a `@db_task()` huey task (SqliteHuey), `manage.py run_huey` as a second process (views change only the launch line). Custom-model `.py` upload gated by `ALLOW_CUSTOM_MODELS`, loaded via `load_model_from_path` in the worker; model-reattach flow from `app/experiment.py:96-147`; trust-model note in the README (must be off on any public deployment).
-**Verify:** full run through the consumer; cancel/resume still work; a custom model runs when enabled and is absent when disabled.
+### Step 9 — Bring your own model  *(done)*
+**You can now:** upload your own model `.py` file to optimize, when the operator has enabled the feature.
+**Teaches:** settings-gated features; a trust boundary (arbitrary code execution) documented and flag-controlled; composing FileField uploads + form `clean()` validation + the snapshot adapter.
+**Build:** `ALLOW_CUSTOM_MODELS` setting; `NewExperimentForm` gains a gated model `.py` upload validated via `load_model_from_path` (resolving `model_name` to the model's `.name`); the snapshot adapter adopts the model file and emits an absolute `model_path`; `_model_available` gates `can_run` and the run view; import gains an optional model-reattach upload; README trust note.
+**Verify:** 15 new tests (form, create, run, snapshot, read-only, gating), 184 total; live-checked the gated upload fields render and a custom model runs end-to-end.
 
-### Step 10 — Package for deployment + final parity sign-off
-**You can now (as an operator):** deploy Codesigner as a container and run it as a web service.
-**Teaches:** deployment hygiene: `DEBUG=False`, `collectstatic` + whitenoise, gunicorn, multi-process Docker.
-**Build:** Dockerfile/compose (gunicorn + huey consumer; keep the `pyrfr` wheel workaround and the demo `datasets/`/`mounted_models/` volume mounts); healthcheck; README; CI = tests + translation check + docker build.
-**Verify:** `docker build && docker run` on a clean, display-less container: create → run → cancel → export → import end-to-end; **walk the full parity checklist against the Streamlit app one final time**. The old repo then simply retires.
+> **Scope change (agreed).** The original Step 9 also folded in the huey task queue ("production-grade runs"). We split it: **custom models landed here; huey moves to Step 10 (deployment)**, since it is invisible plumbing whose payoff is operational, and its main argument here (isolating untrusted model code in a worker) is acceptable to defer for a local, gated, single-user tool. Consequence: custom-model code currently runs in the in-process thread executor, behind the flag — noted in the README.
+
+### Step 10 — Package for deployment + task queue + final parity sign-off
+**You can now (as an operator):** deploy Codesigner as a container and run it as a web service, with runs handled by a real background task queue.
+**Teaches:** huey (task decorator + consumer process); deployment hygiene: `DEBUG=False`, `collectstatic` + whitenoise, gunicorn, multi-process Docker.
+**Build:** Step 6's thread body becomes a `@db_task()` huey task (SqliteHuey), `manage.py run_huey` as a second process (views change only the launch line) — this is where custom-model code gains worker isolation. Dockerfile/compose (gunicorn + huey consumer; keep the `pyrfr` wheel workaround and the demo `datasets/`/`mounted_models/` volume mounts); healthcheck; README; CI = tests + translation check + docker build.
+**Verify:** `docker build && docker run` on a clean, display-less container: create → run (through the consumer) → cancel → export → import end-to-end; cancel/resume still work; **walk the full parity checklist against the Streamlit app one final time**. The old repo then simply retires.
 
 ## Parity checklist (maintained as `PARITY.md` in the new repo, ticked per step)
 

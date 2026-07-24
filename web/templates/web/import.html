@@ -23,6 +23,12 @@
             <label>{% translate "Dataset CSV (optional)" %}</label>
             <input type="file" name="dataset" accept=".csv">
         </div>
+        {% if allow_custom_models %}
+        <div class="field">
+            <label>{% translate "Model .py (optional, custom models only)" %}</label>
+            <input type="file" name="model" accept=".py">
+        </div>
+        {% endif %}
         <button type="submit" class="btn-primary">{% translate "Load" %}</button>
     </form>
 {% endblock %}
