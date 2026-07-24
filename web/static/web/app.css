@@ -110,6 +110,11 @@ input:focus, select:focus {
 }
 .errorlist, .form-error { color: var(--red); font-size: 0.875rem; list-style: none; }
 
+/* A form field whose control shares a row with a companion button
+   (e.g. the Evaluation metric select + Reevaluate button). */
+.field-inline { display: flex; gap: 0.5rem; align-items: center; }
+.field-inline select { flex: 1; }
+
 /* ── Bordered container ("st.container(border=True)") ─────────────────── */
 .card {
     border: 1px solid var(--border);
@@ -122,9 +127,6 @@ input:focus, select:focus {
 .grid-2 { display: flex; gap: 1.5rem; align-items: flex-start; }
 .grid-2 > .col { flex: 1; display: flex; flex-direction: column; gap: 1.5rem; min-width: 0; }
 @media (max-width: 900px) { .grid-2 { flex-direction: column; } }
-
-/* ── Inline row of controls (Run + Evaluation metric, side by side) ────── */
-.row-inline { display: flex; gap: 1.5rem; align-items: flex-start; flex-wrap: wrap; }
 
 /* ── 2x2 analytics grid: best-config | selected-config
                            importance  | performance

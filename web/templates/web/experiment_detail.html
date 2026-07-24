@@ -24,46 +24,48 @@
         <div class="alert error" style="max-width: 40rem;">Run failed: {{ run_error }}</div>
     {% endif %}
 
-    <div class="row-inline">
-        {% if active_run %}
-            {% include "web/_run_status.html" with run=active_run %}
-        {% elif can_run %}
-            <section class="card" style="max-width: 28rem;">
-                <div class="subheader">Run</div>
-                <form method="post" action="{% url 'web:experiment_run' summary.pk %}">
-                    {% csrf_token %}
-                    <div class="field">
-                        <label for="n_trials">Number of trials</label>
-                        <input type="number" id="n_trials" name="n_trials" value="30" min="1" max="1000">
-                    </div>
-                    <div class="field">
-                        <label for="optimize_metric">Optimize for</label>
-                        <select id="optimize_metric" name="optimize_metric">
+    {% if active_run %}
+        {% include "web/_run_status.html" with run=active_run %}
+    {% elif can_run %}
+        <section class="card">
+            <div class="subheader">Run</div>
+            <form method="post" action="{% url 'web:experiment_run' summary.pk %}">
+                {% csrf_token %}
+                <div class="field">
+                    <label for="n_trials">Number of trials</label>
+                    <input type="number" id="n_trials" name="n_trials" value="30" min="1" max="1000">
+                </div>
+                <div class="field">
+                    <label for="metric-select">Evaluation metric</label>
+                    <div class="field-inline">
+                        <select id="metric-select" name="optimize_metric">
                             {% for m in metric_names %}
                                 <option value="{{ m }}"{% if m == run_default_metric %} selected{% endif %}>{{ m }}</option>
                             {% endfor %}
                         </select>
+                        {% if has_result %}
+                            <button type="button" id="reevaluate-btn" class="btn">⚖️ Reevaluate</button>
+                        {% endif %}
                     </div>
-                    <button type="submit" class="btn-primary">▶ Run</button>
-                </form>
-            </section>
-        {% else %}
-            <div class="alert info" style="max-width: 40rem;">Attach a dataset to run this experiment (loaded read-only).</div>
-        {% endif %}
-
-        {% if has_result %}
-            <div class="card" style="max-width: 22rem;">
-                <div class="field" style="margin: 0;">
-                    <label for="metric-select">Evaluation metric</label>
-                    <select id="metric-select">
-                        {% for m in metric_names %}
-                            <option value="{{ m }}"{% if m == summary.primary_metric %} selected{% endif %}>{{ m }}</option>
-                        {% endfor %}
-                    </select>
                 </div>
+                <button type="submit" class="btn-primary">▶ Run</button>
+            </form>
+        </section>
+    {% elif has_result %}
+        <section class="card">
+            <div class="subheader">Evaluation metric</div>
+            <div class="field-inline">
+                <select id="metric-select">
+                    {% for m in metric_names %}
+                        <option value="{{ m }}"{% if m == run_default_metric %} selected{% endif %}>{{ m }}</option>
+                    {% endfor %}
+                </select>
+                <button type="button" id="reevaluate-btn" class="btn">⚖️ Reevaluate</button>
             </div>
-        {% endif %}
-    </div>
+        </section>
+    {% else %}
+        <div class="alert info">Attach a dataset to run this experiment (loaded read-only).</div>
+    {% endif %}
 
     {% if not has_result %}
         <div class="alert info" style="margin-top: 1rem;">No results yet.</div>
@@ -169,6 +171,14 @@
                     defaultSelectedHTML[el.id.replace("selected-content-", "")] = el.innerHTML;
                 });
 
+                // Hide the "Produced with Plotly.js" link and the lasso/box
+                // select tools from every chart's toolbar.
+                const plotlyConfig = {
+                    responsive: true,
+                    displaylogo: false,
+                    modeBarButtonsToRemove: ["lasso2d", "select2d"],
+                };
+
                 function highlightPoint(metric, idx) {
                     const n = figures[metric].performance.data[0].x.length;
                     const colors = new Array(n).fill("#636EFA");
@@ -199,8 +209,7 @@
 
                 function show(metric) {
                     const fig = figures[metric];
-                    Plotly.react("perf-chart", fig.performance.data, fig.performance.layout,
-                                 {responsive: true});
+                    Plotly.react("perf-chart", fig.performance.data, fig.performance.layout, plotlyConfig);
                     attachPerfClickOnce();
 
                     const selEl = document.getElementById("selected-content-" + metric);
@@ -221,8 +230,7 @@
                     if (fig.importance) {
                         impNone.hidden = true;
                         impChart.hidden = false;
-                        Plotly.react("imp-chart", fig.importance.data, fig.importance.layout,
-                                     {responsive: true});
+                        Plotly.react("imp-chart", fig.importance.data, fig.importance.layout, plotlyConfig);
                     } else {
                         Plotly.purge("imp-chart");
                         impChart.hidden = true;
@@ -234,7 +242,14 @@
                     });
                 }
 
-                select.addEventListener("change", () => show(select.value));
+                // Metric changes do not apply on their own — matching the
+                // original app, you pick a metric then press Reevaluate to
+                // apply it (and reset the selected trial to that metric's
+                // best). The charts still reflect the current metric on load.
+                const reevaluateBtn = document.getElementById("reevaluate-btn");
+                if (reevaluateBtn) {
+                    reevaluateBtn.addEventListener("click", () => show(select.value));
+                }
                 show(select.value);
             })();
         </script>
