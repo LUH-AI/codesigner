@@ -24,7 +24,7 @@ against the Streamlit app. Target step in parentheses (see docs/PLAN.md).
 - [x] Cancel mid-run (6)
 - [x] Metric change with confirmation rules (6)
 - [x] Sidebar running spinner (6)
-- [ ] Languages: en / de / es (8)
+- [x] Languages: en / de / es (8)
 - [ ] Demo dataset & model volume mounts in Docker (10)
 
 ## Deliberate behavior changes (not bugs)

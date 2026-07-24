@@ -1,6 +1,6 @@
-{% load static %}
+{% load static i18n %}
 <!doctype html>
-<html lang="en">
+<html lang="{{ LANGUAGE_CODE }}">
 <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
@@ -10,27 +10,35 @@
 </head>
 <body>
     <nav class="sidebar">
-        <div class="locale">
-            🌐 <span>English</span>
-        </div>
-        <h1>Experiments</h1>
+        <form class="locale" action="{% url 'set_language' %}" method="post">
+            {% csrf_token %}
+            <input type="hidden" name="next" value="{{ request.path }}">
+            <label for="language-select">🌐</label>
+            <select id="language-select" name="language" onchange="this.form.submit()">
+                {% get_current_language as CURRENT_LANGUAGE %}
+                {% for code, label in LANGUAGES %}
+                    <option value="{{ code }}"{% if code == CURRENT_LANGUAGE %} selected{% endif %}>{{ label }}</option>
+                {% endfor %}
+            </select>
+        </form>
+        <h1>{% translate "Experiments" %}</h1>
         <div class="actions">
-            <a class="btn btn-block" href="{% url 'web:new_experiment' %}">＋ New</a>
-            <a class="btn btn-block" href="{% url 'web:import_experiment' %}">📂 Load</a>
+            <a class="btn btn-block" href="{% url 'web:new_experiment' %}">{% translate "＋ New" %}</a>
+            <a class="btn btn-block" href="{% url 'web:import_experiment' %}">{% translate "📂 Load" %}</a>
         </div>
         <hr>
         <div class="experiment-list">
             {% for e in sidebar_experiments %}
                 <a class="btn btn-block{% if request.resolver_match.kwargs.pk == e.pk %} btn-primary{% endif %}"
                    href="{% url 'web:experiment_detail' e.pk %}">
-                    {{ e.name }}{% if e.is_running %} <span class="spinner" title="Running"></span>{% endif %}
+                    {{ e.name }}{% if e.is_running %} <span class="spinner" title="{% translate 'Running' %}"></span>{% endif %}
                 </a>
             {% empty %}
-                <span class="placeholder">No experiments yet.</span>
+                <span class="placeholder">{% translate "No experiments yet." %}</span>
             {% endfor %}
         </div>
         <div class="nav-links">
-            <a href="{% url 'web:inspect' %}">Inspect an .ihpo file</a>
+            <a href="{% url 'web:inspect' %}">{% translate "Inspect an .ihpo file" %}</a>
         </div>
     </nav>
     <main class="content">

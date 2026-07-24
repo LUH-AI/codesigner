@@ -1,11 +1,11 @@
-{% load static %}
+{% load static i18n %}
 <div id="run-status" class="card" hx-get="{% url 'web:run_status' experiment.pk %}"
      hx-trigger="every 2s" hx-swap="outerHTML" style="max-width: 28rem;">
     <div class="alert info" style="display: flex; align-items: center; gap: 0.5rem;">
-        <span class="spinner"></span> Optimizing… ({{ run.get_status_display }})
+        <span class="spinner"></span> {% blocktranslate with status=run.get_status_display %}Optimizing… ({{ status }}){% endblocktranslate %}
     </div>
     <form method="post" action="{% url 'web:run_cancel' experiment.pk %}" style="margin-top: 0.75rem;">
         {% csrf_token %}
-        <button type="submit" class="btn">Cancel run</button>
+        <button type="submit" class="btn">{% translate "Cancel run" %}</button>
     </form>
 </div>

@@ -1,11 +1,12 @@
 {% extends "base.html" %}
+{% load i18n %}
 
-{% block title %}New experiment · Codesigner{% endblock %}
+{% block title %}{% translate "New experiment" %} · Codesigner{% endblock %}
 
 {% block content %}
-    <h1>New experiment</h1>
-    <p class="caption">Set up an experiment. It is saved but not run — start runs
-       (and pick the metric and number of trials) on its page.</p>
+    <h1>{% translate "New experiment" %}</h1>
+    <p class="caption">{% blocktranslate %}Set up an experiment. It is saved but not run — start runs
+       (and pick the metric and number of trials) on its page.{% endblocktranslate %}</p>
 
     {% if form.non_field_errors %}
         <p class="form-error">{{ form.non_field_errors|join:" " }}</p>
@@ -20,6 +21,6 @@
                 {% if field.errors %}<div class="form-error">{{ field.errors|join:" " }}</div>{% endif %}
             </div>
         {% endfor %}
-        <button type="submit" class="btn-primary">Create experiment</button>
+        <button type="submit" class="btn-primary">{% translate "Create experiment" %}</button>
     </form>
 {% endblock %}

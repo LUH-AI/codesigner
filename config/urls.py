@@ -11,6 +11,8 @@ from django.urls import include, path
 
 urlpatterns = [
     path("admin/", admin.site.urls),
+    # Django's set_language view, for the sidebar language switcher.
+    path("i18n/", include("django.conf.urls.i18n")),
     path("", include("web.urls")),
 ]
 

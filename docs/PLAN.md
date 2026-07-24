@@ -119,11 +119,13 @@ Streamlit app; `import_ihpo` a fixture and browse to its detail page.
 > **Deviation.** Selection does **not** survive a metric switch via query param, as originally planned — switching metrics resets the selection to that metric's best (a client-side snapshot-and-restore of each metric's default panel HTML, taken at page load). This matches the metric-switching mechanism already chosen in Step 4 (fully client-side, no page reload/query params) and keeps the chart's highlight and the panel's text always consistent with each other.
 **Verify:** clicking points updates the selected-config panel without a reload; matches Streamlit.
 
-### Step 8 — Use the app in another language
+### Step 8 — Use the app in another language  *(done)*
 **You can now:** switch the interface between English, German, and Spanish.
 **Teaches:** `LocaleMiddleware`, `{% translate %}`/`gettext`, `makemessages`/`compilemessages`, `set_language`.
 **Build:** Wrap UI strings (English msgids = the values in `utils/strings.py`, so existing translations match); bring over the `de`/`es` catalogs; language dropdown; translation-completeness CI check.
-**Verify:** switch to de/es — parity with the Streamlit app's translated UI.
+**Verify:** switch to de/es — parity with the Streamlit app's translated UI; 10 new tests, 169 total.
+
+> **Deviations / notes.** (1) The `utils/strings.py` symbolic-key shim is not carried over — Django keys `{% translate %}`/`gettext` directly on the English source, so the indirection is unnecessary. (2) Of 70 marked strings, 30 reuse the Streamlit catalog byte-for-byte; the other 40 are Codesigner-native (different phrasing, or UI that only exists here) and were translated fresh or adapted for Django's `%(name)s` placeholder syntax. (3) `check_translations.py` is reproduced as a pytest test (completeness) plus a parity test that diffs Codesigner's catalog against the InteractiveHPO oracle for shared msgids, rather than a standalone script. (4) One Step 6 test (`test_run_and_metric_controls_share_one_card`) was adjusted to count forms in the page body only — the new sidebar language switcher is a second `<form>` and must not be conflated with the run/metric controls.
 
 ### Step 9 — Bring your own model; production-grade runs
 **You can now:** upload your own model `.py` file to optimize (when the operator enables it), with runs handled by a real background task queue instead of an in-process thread.

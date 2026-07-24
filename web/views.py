@@ -4,6 +4,7 @@ from pathlib import Path
 
 from django.http import HttpResponse, HttpResponseBadRequest
 from django.shortcuts import get_object_or_404, redirect, render
+from django.utils.translation import gettext as _
 
 from core import io
 from core.version import VERSION
@@ -30,7 +31,7 @@ def metric_label(primary_metric, original_metric):
     if original_metric is None:
         return "~"
     if primary_metric != original_metric:
-        return "Inconsistent"
+        return _("Inconsistent")
     return primary_metric
 
 
@@ -229,11 +230,11 @@ def import_experiment(request):
         try:
             snapshot = io.parse(upload.read())
         except ValueError as exc:
-            context["error"] = f"Invalid or unreadable experiment file. ({exc})"
+            context["error"] = _("Invalid or unreadable experiment file.") + f" ({exc})"
             return render(request, "web/import.html", context)
 
         if Experiment.objects.filter(name=snapshot["name"]).exists():
-            context["error"] = f"An experiment named '{snapshot['name']}' already exists."
+            context["error"] = _("An experiment named '%(name)s' already exists.") % {"name": snapshot["name"]}
             return render(request, "web/import.html", context)
 
         exp = snapshot_adapter.experiment_from_snapshot(

@@ -1,39 +1,40 @@
 {% extends "base.html" %}
+{% load i18n %}
 
-{% block title %}Inspect · Codesigner{% endblock %}
+{% block title %}{% translate "Inspect" %} · Codesigner{% endblock %}
 
 {% block content %}
-    <h1>Inspect an experiment file</h1>
-    <p class="caption">Upload an <code>.ihpo</code> file to view its contents.
-       Nothing is saved, and the referenced dataset is not required.</p>
+    <h1>{% translate "Inspect an experiment file" %}</h1>
+    <p class="caption">{% blocktranslate %}Upload an <code>.ihpo</code> file to view its contents.
+       Nothing is saved, and the referenced dataset is not required.{% endblocktranslate %}</p>
 
     <form method="post" enctype="multipart/form-data" style="max-width: 34rem; margin-top: 1rem;">
         {% csrf_token %}
         <div class="field">
             <input type="file" name="file" accept=".ihpo" required>
         </div>
-        <button type="submit" class="btn-primary">Inspect</button>
+        <button type="submit" class="btn-primary">{% translate "Inspect" %}</button>
     </form>
 
     {% if error %}
-        <div class="alert error" style="margin-top: 1rem;">Invalid or unreadable experiment file. ({{ error }})</div>
+        <div class="alert error" style="margin-top: 1rem;">{% translate "Invalid or unreadable experiment file." %} ({{ error }})</div>
     {% endif %}
 
     {% if summary %}
         <section class="card" style="max-width: 34rem; margin-top: 1.5rem;">
             <div class="subheader">{{ summary.name }}</div>
-            <div class="metric-label">Best score</div>
+            <div class="metric-label">{% translate "Best score" %}</div>
             <div class="metric-value">
                 {% if summary.best_score is not None %}{{ summary.best_score|floatformat:4 }}{% else %}—{% endif %}
             </div>
             <div class="table-wrap" style="margin-top: 1rem;">
                 <table class="config">
                     <tbody>
-                        <tr><td>Model</td><td>{{ summary.model_name }}</td></tr>
-                        <tr><td>Optimizer</td><td>{{ summary.optimizer_name }}</td></tr>
-                        <tr><td>Metric</td><td>{{ summary.metric_label }}</td></tr>
-                        <tr><td>Seed</td><td>{{ summary.seed }}</td></tr>
-                        <tr><td>Trials</td><td>{{ summary.n_trials }}</td></tr>
+                        <tr><td>{% translate "Model" %}</td><td>{{ summary.model_name }}</td></tr>
+                        <tr><td>{% translate "Optimizer" %}</td><td>{{ summary.optimizer_name }}</td></tr>
+                        <tr><td>{% translate "Metric" %}</td><td>{{ summary.metric_label }}</td></tr>
+                        <tr><td>{% translate "Seed" %}</td><td>{{ summary.seed }}</td></tr>
+                        <tr><td>{% translate "Trials" %}</td><td>{{ summary.n_trials }}</td></tr>
                     </tbody>
                 </table>
             </div>

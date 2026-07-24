@@ -1,42 +1,42 @@
 {% extends "base.html" %}
-{% load static %}
+{% load static i18n %}
 
 {% block title %}{{ summary.name }} · Codesigner{% endblock %}
 
 {% block content %}
     <div style="display: flex; justify-content: space-between; align-items: flex-start; gap: 1rem;">
         <div>
-            <h1>Experiment: {{ summary.name }}</h1>
+            <h1>{% blocktranslate with name=summary.name %}Experiment: {{ name }}{% endblocktranslate %}</h1>
             <p class="caption">
-                Model: <strong>{{ summary.model_name }}</strong> ·
-                Optimizer: <strong>{{ summary.optimizer_name }}</strong> ·
-                Metric: <strong>{{ summary.metric_label }}</strong> ·
-                Seed: <strong>{{ summary.seed }}</strong>
+                {% translate "Model" %}: <strong>{{ summary.model_name }}</strong> ·
+                {% translate "Optimizer" %}: <strong>{{ summary.optimizer_name }}</strong> ·
+                {% translate "Metric" %}: <strong>{{ summary.metric_label }}</strong> ·
+                {% translate "Seed" %}: <strong>{{ summary.seed }}</strong>
             </p>
         </div>
         <div class="actions" style="flex-shrink: 0;">
-            <a class="btn" href="{% url 'web:experiment_export' summary.pk %}" title="Download as .ihpo">💾 Export</a>
-            <a class="btn" href="{% url 'web:experiment_delete' summary.pk %}" title="Delete experiment">🗑 Delete</a>
+            <a class="btn" href="{% url 'web:experiment_export' summary.pk %}" title="{% translate 'Download as .ihpo' %}">{% translate "💾 Export" %}</a>
+            <a class="btn" href="{% url 'web:experiment_delete' summary.pk %}" title="{% translate 'Delete experiment' %}">{% translate "🗑 Delete" %}</a>
         </div>
     </div>
 
     {% if run_error %}
-        <div class="alert error" style="max-width: 40rem;">Run failed: {{ run_error }}</div>
+        <div class="alert error" style="max-width: 40rem;">{% blocktranslate %}Run failed: {{ run_error }}{% endblocktranslate %}</div>
     {% endif %}
 
     {% if active_run %}
         {% include "web/_run_status.html" with run=active_run %}
     {% elif can_run %}
         <section class="card">
-            <div class="subheader">Run</div>
+            <div class="subheader">{% translate "Run" %}</div>
             <form method="post" action="{% url 'web:experiment_run' summary.pk %}">
                 {% csrf_token %}
                 <div class="field">
-                    <label for="n_trials">Number of trials</label>
+                    <label for="n_trials">{% translate "Number of trials" %}</label>
                     <input type="number" id="n_trials" name="n_trials" value="30" min="1" max="1000">
                 </div>
                 <div class="field">
-                    <label for="metric-select">Evaluation metric</label>
+                    <label for="metric-select">{% translate "Evaluation metric" %}</label>
                     <div class="field-inline">
                         <select id="metric-select" name="optimize_metric">
                             {% for m in metric_names %}
@@ -44,48 +44,48 @@
                             {% endfor %}
                         </select>
                         {% if has_result %}
-                            <button type="button" id="reevaluate-btn" class="btn">⚖️ Reevaluate</button>
+                            <button type="button" id="reevaluate-btn" class="btn">{% translate "⚖️ Reevaluate" %}</button>
                         {% endif %}
                     </div>
                 </div>
-                <button type="submit" class="btn-primary">▶ Run</button>
+                <button type="submit" class="btn-primary">{% translate "▶ Run" %}</button>
             </form>
         </section>
     {% elif has_result %}
         <section class="card">
-            <div class="subheader">Evaluation metric</div>
+            <div class="subheader">{% translate "Evaluation metric" %}</div>
             <div class="field-inline">
                 <select id="metric-select">
                     {% for m in metric_names %}
                         <option value="{{ m }}"{% if m == run_default_metric %} selected{% endif %}>{{ m }}</option>
                     {% endfor %}
                 </select>
-                <button type="button" id="reevaluate-btn" class="btn">⚖️ Reevaluate</button>
+                <button type="button" id="reevaluate-btn" class="btn">{% translate "⚖️ Reevaluate" %}</button>
             </div>
         </section>
     {% else %}
-        <div class="alert info">Attach a dataset to run this experiment (loaded read-only).</div>
+        <div class="alert info">{% translate "Attach a dataset to run this experiment (loaded read-only)." %}</div>
     {% endif %}
 
     {% if not has_result %}
-        <div class="alert info" style="margin-top: 1rem;">No results yet.</div>
+        <div class="alert info" style="margin-top: 1rem;">{% translate "No results yet." %}</div>
     {% else %}
         <hr class="divider">
         {% if trials_exhausted %}
-            <div class="alert warning">The search space is exhausted at {{ result.trials|length }} trials.</div>
+            <div class="alert warning">{% blocktranslate with n=result.trials|length %}The search space is exhausted at {{ n }} trials.{% endblocktranslate %}</div>
         {% endif %}
 
         <div class="grid-2x2">
             <div class="slot">
                 {% for panel in panels %}
                     <section class="card panel best-config" data-metric="{{ panel.metric }}" hidden>
-                        <div class="subheader">Best configuration</div>
-                        <p class="caption">Best overall (Trial {{ panel.best_n }})</p>
-                        <div class="metric-label">{{ panel.metric }} score</div>
+                        <div class="subheader">{% translate "Best configuration" %}</div>
+                        <p class="caption">{% blocktranslate with trial=panel.best_n %}Best overall (Trial {{ trial }}){% endblocktranslate %}</p>
+                        <div class="metric-label">{% blocktranslate with metric=panel.metric %}{{ metric }} score{% endblocktranslate %}</div>
                         <div class="metric-value">{{ panel.best_score|floatformat:4 }}</div>
                         <div class="table-wrap" style="margin-top: 1rem;">
                             <table class="config">
-                                <thead><tr><th>Hyperparameter</th><th>Value</th></tr></thead>
+                                <thead><tr><th>{% translate "Hyperparameter" %}</th><th>{% translate "Value" %}</th></tr></thead>
                                 <tbody>
                                     {% for key, value in panel.best_config %}
                                         <tr><td>{{ key }}</td><td>{{ value }}</td></tr>
@@ -100,7 +100,7 @@
             <div class="slot">
                 {% for panel in panels %}
                     <section class="card panel selected-config" data-metric="{{ panel.metric }}" hidden>
-                        <div class="subheader">Selected configuration</div>
+                        <div class="subheader">{% translate "Selected configuration" %}</div>
                         <div id="selected-content-{{ panel.metric }}">
                             {% include "web/_selected_config_inner.html" with sel=panel.selected %}
                         </div>
@@ -110,16 +110,16 @@
 
             <div class="slot">
                 <section class="card">
-                    <div class="subheader">Hyperparameter importance (HyperSHAP)</div>
+                    <div class="subheader">{% translate "Hyperparameter importance (HyperSHAP)" %}</div>
                     <p id="imp-warning" class="alert warning" hidden></p>
                     <div id="imp-chart" class="chart"></div>
-                    <p id="imp-none" class="caption" hidden>No importance data available.</p>
+                    <p id="imp-none" class="caption" hidden>{% translate "No importance data available." %}</p>
                 </section>
             </div>
 
             <div class="slot">
                 <section class="card">
-                    <div class="subheader">Performance of Incumbent</div>
+                    <div class="subheader">{% translate "Performance of Incumbent" %}</div>
                     <div id="perf-chart" class="chart"></div>
                 </section>
             </div>
@@ -128,7 +128,7 @@
         <hr class="divider">
 
         <section>
-            <div class="subheader">Trials ({{ result.trials|length }})</div>
+            <div class="subheader">{% blocktranslate with n=result.trials|length %}Trials ({{ n }}){% endblocktranslate %}</div>
             <div class="table-wrap table-scroll">
                 <table class="trials">
                     <thead>

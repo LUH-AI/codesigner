@@ -1,5 +1,6 @@
-<p class="caption">Trial {{ sel.trial_n }} — click any point on the graph to select</p>
-<div class="metric-label">{{ sel.metric }} score</div>
+{% load i18n %}
+<p class="caption">{% blocktranslate with trial=sel.trial_n %}Trial {{ trial }} — click any point on the graph to select{% endblocktranslate %}</p>
+<div class="metric-label">{% blocktranslate with metric=sel.metric %}{{ metric }} score{% endblocktranslate %}</div>
 <div class="metric-value">{{ sel.score|floatformat:4 }}</div>
 {% if sel.delta is not None %}
     <div class="metric-delta {% if sel.delta > 0 %}up{% else %}down{% endif %}">
@@ -8,7 +9,7 @@
 {% endif %}
 <div class="table-wrap" style="margin-top: 1rem;">
     <table class="config">
-        <thead><tr><th>Hyperparameter</th><th>Value</th></tr></thead>
+        <thead><tr><th>{% translate "Hyperparameter" %}</th><th>{% translate "Value" %}</th></tr></thead>
         <tbody>
             {% for key, value in sel.config %}
                 <tr><td>{{ key }}</td><td>{{ value }}</td></tr>

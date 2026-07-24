@@ -67,7 +67,10 @@ def test_run_and_metric_controls_share_one_card(client):
     exp.save()
 
     html = client.get(reverse("web:experiment_detail", args=[exp.pk])).content.decode()
-    assert html.count("<form") == 1
+    # Count forms in the page body only — the sidebar's language switcher is a
+    # separate form and must not be conflated with the run/metric controls.
+    content = html.split("<main", 1)[-1]
+    assert content.count("<form") == 1
     assert 'name="n_trials"' in html
     assert 'id="metric-select"' in html
     assert 'id="reevaluate-btn"' in html

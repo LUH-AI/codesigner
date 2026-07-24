@@ -1,16 +1,16 @@
 {% extends "base.html" %}
+{% load i18n %}
 
-{% block title %}Delete {{ experiment.name }} · Codesigner{% endblock %}
+{% block title %}{% blocktranslate with name=experiment.name %}Delete {{ name }}{% endblocktranslate %} · Codesigner{% endblock %}
 
 {% block content %}
-    <h1>Delete experiment</h1>
+    <h1>{% translate "Delete experiment" %}</h1>
     <div class="alert warning" style="max-width: 34rem;">
-        Are you sure you want to delete <strong>{{ experiment.name }}</strong>?
-        This cannot be undone.
+        {% blocktranslate with name=experiment.name %}Are you sure you want to delete <strong>{{ name }}</strong>? This cannot be undone.{% endblocktranslate %}
     </div>
     <form method="post" style="margin-top: 1rem; display: flex; gap: 0.5rem;">
         {% csrf_token %}
-        <button type="submit" class="btn-primary">Delete</button>
-        <a class="btn" href="{% url 'web:experiment_detail' experiment.pk %}">Cancel</a>
+        <button type="submit" class="btn-primary">{% translate "Delete" %}</button>
+        <a class="btn" href="{% url 'web:experiment_detail' experiment.pk %}">{% translate "Cancel" %}</a>
     </form>
 {% endblock %}
