@@ -8,6 +8,7 @@ what's displayed — you press Reevaluate to apply it. A read-only experiment
 selector + Reevaluate, since there's no Run form to attach it to.
 """
 
+import pytest
 from django.urls import reverse
 
 from core import io
@@ -35,6 +36,7 @@ def _readonly_experiment_with_result():
     return adapter.experiment_from_snapshot(io.parse((FIXTURES_DIR / "test2.ihpo").read_bytes()))
 
 
+@pytest.mark.django_db
 def test_reevaluate_absent_before_first_run(client):
     """A fresh, never-run experiment shows the Run form but no Reevaluate
     button — there is nothing to reevaluate yet."""
@@ -45,6 +47,7 @@ def test_reevaluate_absent_before_first_run(client):
     assert 'id="reevaluate-btn"' not in html
 
 
+@pytest.mark.django_db
 def test_run_and_metric_controls_share_one_card(client):
     """Once a result exists, the Run form and the metric dropdown + Reevaluate
     button live in the same card (one 'Run' subheader), not two separate boxes."""
@@ -72,6 +75,7 @@ def test_run_and_metric_controls_share_one_card(client):
     assert 'name="optimize_metric"' in html
 
 
+@pytest.mark.django_db
 def test_readonly_experiment_keeps_metric_selector_without_run_form(client):
     """A read-only experiment (result but no dataset) still gets a metric
     selector and Reevaluate — just no n_trials/Run, since it can't be run."""
@@ -83,6 +87,7 @@ def test_readonly_experiment_keeps_metric_selector_without_run_form(client):
     assert 'name="n_trials"' not in html
 
 
+@pytest.mark.django_db
 def test_metric_switch_requires_reevaluate_not_automatic(client):
     """The dropdown's change event is not wired to re-render charts on its own
     — only the Reevaluate button's click handler calls show()."""
@@ -93,6 +98,7 @@ def test_metric_switch_requires_reevaluate_not_automatic(client):
     assert "reevaluateBtn.addEventListener(\"click\"" in html
 
 
+@pytest.mark.django_db
 def test_plotly_toolbar_hides_logo_and_select_tools(client):
     """The embedded Plotly config removes the Plotly logo/link and the lasso
     and box-select modebar buttons from every chart."""
