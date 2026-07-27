@@ -13,6 +13,8 @@ hypershap>=0.0.6
 pandas>=2.3
 scikit-learn>=1.9
 numpy>=2.4
+plotly>=6              # analytics figures (web/charts.py)
+ConfigSpace>=1.2       # hyperparameter search spaces (also pulled by smac)
 
 # Development / CI
 pytest>=8
