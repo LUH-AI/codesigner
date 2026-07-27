@@ -51,34 +51,6 @@ def home(request):
     return render(request, "web/home.html")
 
 
-def inspect(request):
-    """Upload an .ihpo file and view its contents read-only, no database."""
-    context = {}
-    upload = request.FILES.get("file")
-    if request.method == "POST" and upload is not None:
-        try:
-            snapshot = io.parse(upload.read())
-            name, exp = io.build_experiment(
-                snapshot, METRICS, MODELS, OPTIMIZERS, read_only=True,
-            )
-        except ValueError as exc:
-            context["error"] = str(exc)
-            return render(request, "web/inspect.html", context)
-
-        result = exp["result"]
-        context["summary"] = {
-            "name": name,
-            "model_name": exp["model_name"],
-            "optimizer_name": exp["optimizer"].name,
-            "seed": exp["seed"],
-            "metric_label": metric_label(exp["primary_metric"], exp["original_metric"]),
-            "n_trials": len(result.trials) if result else 0,
-            "best_score": result.best_score if result else None,
-        }
-
-    return render(request, "web/inspect.html", context)
-
-
 def _dataset_path_from(form, tmp_paths):
     """Resolve the chosen dataset to a filesystem path (temp file for uploads)."""
     demo = form.cleaned_data.get("demo_dataset")
@@ -253,10 +225,6 @@ def import_experiment(request):
             context["error"] = _("Invalid or unreadable experiment file.") + f" ({exc})"
             return render(request, "web/import.html", context)
 
-        if Experiment.objects.filter(name=snapshot["name"]).exists():
-            context["error"] = _("An experiment named '%(name)s' already exists.") % {"name": snapshot["name"]}
-            return render(request, "web/import.html", context)
-
         model_upload = request.FILES.get("model") if settings.ALLOW_CUSTOM_MODELS else None
         exp = snapshot_adapter.experiment_from_snapshot(
             snapshot, dataset_file=request.FILES.get("dataset"), model_file=model_upload,
@@ -318,6 +286,7 @@ def _detail_context(exp):
         "summary": {
             "pk": exp.pk,
             "name": exp.name,
+            "identifier": exp.identifier,
             "model_name": exp.model_name,
             "optimizer_name": exp.optimizer_name,
             "primary_metric": exp.primary_metric,

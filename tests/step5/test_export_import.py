@@ -80,8 +80,8 @@ def test_import_creates_experiment_and_redirects_to_detail(client):
 def test_import_rejects_invalid_file(client):
     """An unparseable upload re-renders the page with the load error, no row.
 
-    Mirrors the inspect page and the command: same "Invalid or unreadable
-    experiment file." message, validation no weaker than core.io.parse.
+    Mirrors the import command: same "Invalid or unreadable experiment file."
+    message, validation no weaker than core.io.parse.
     """
     from web.models import Experiment
 
@@ -94,17 +94,19 @@ def test_import_rejects_invalid_file(client):
 
 
 @pytest.mark.django_db
-def test_import_rejects_duplicate_name(client):
-    """Importing a file whose name already exists is refused with no second row."""
+def test_import_allows_duplicate_names(client):
+    """Importing the same file twice creates two experiments; they share a name
+    but have distinct identifiers (names are no longer unique)."""
     from web.models import Experiment
 
     for _ in range(2):
         with open(FIXTURES_DIR / "test2.ihpo", "rb") as f:
             resp = client.post(reverse("web:import_experiment"), {"file": f})
 
-    assert resp.status_code == 200
-    assert Experiment.objects.count() == 1
-    assert "already exists" in resp.content.decode()
+    assert resp.status_code == 302
+    assert Experiment.objects.count() == 2
+    ids = list(Experiment.objects.values_list("identifier", flat=True))
+    assert len(set(ids)) == 2
 
 
 @pytest.mark.django_db

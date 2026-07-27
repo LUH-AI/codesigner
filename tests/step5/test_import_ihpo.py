@@ -62,18 +62,21 @@ def test_import_adopts_existing_dataset_into_media(tmp_path, settings):
 
 
 @pytest.mark.django_db
-def test_import_rejects_duplicate_name():
-    """Importing a file whose experiment name already exists fails cleanly.
+def test_import_allows_duplicate_names():
+    """Importing the same file twice creates two distinct experiments.
 
-    Expect: CommandError naming the conflict, and no second row — the CLI
-    equivalent of the load dialog's name-taken error.
+    Names are no longer unique — each experiment has its own identifier — so
+    re-importing a file is allowed and yields a second, separately-identified
+    row rather than an error.
     """
     from web.models import Experiment
 
     call_command("import_ihpo", str(FIXTURES_DIR / "test2.ihpo"))
-    with pytest.raises(CommandError, match="exists"):
-        call_command("import_ihpo", str(FIXTURES_DIR / "test2.ihpo"))
-    assert Experiment.objects.count() == 1
+    call_command("import_ihpo", str(FIXTURES_DIR / "test2.ihpo"))
+    exps = Experiment.objects.all()
+    assert exps.count() == 2
+    assert exps[0].name == exps[1].name
+    assert exps[0].identifier != exps[1].identifier
 
 
 @pytest.mark.django_db

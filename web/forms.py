@@ -7,7 +7,6 @@ from django.utils.translation import gettext_lazy as _
 
 from core.io import demo_datasets, load_model_from_path
 
-from .models import Experiment
 from .registry import MODELS, OPTIMIZERS
 
 
@@ -38,12 +37,6 @@ class NewExperimentForm(forms.Form):
         self.fields["demo_dataset"].choices = [("", _("— none —"))] + [(p, k) for k, p in demos.items()]
         if not settings.ALLOW_CUSTOM_MODELS:
             del self.fields["model_file"]
-
-    def clean_name(self):
-        name = self.cleaned_data["name"]
-        if Experiment.objects.filter(name=name).exists():
-            raise forms.ValidationError(_("An experiment named '%(name)s' already exists.") % {"name": name})
-        return name
 
     def clean(self):
         cleaned = super().clean()

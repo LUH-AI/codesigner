@@ -39,3 +39,8 @@ against the Streamlit app. Target step in parentheses (see docs/PLAN.md).
 - The tkinter file picker does not carry over; datasets and models are
   browser uploads or server-side mounts.
 - Product name is **Codesigner** (was "Interactive HPO").
+- Experiment names need not be unique — each experiment carries a short
+  `identifier` shown beside its name, so duplicate names (and re-importing the
+  same `.ihpo`) are allowed and distinguishable.
+- No standalone "inspect an .ihpo" page; loading a file (which now permits
+  duplicates) covers viewing it.

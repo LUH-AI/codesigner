@@ -1,7 +1,8 @@
 """Step 5 (updated in Step 6): creating an experiment persists it.
 
 Creating saves the experiment (dataset stored) so it survives and can be
-revisited; it does not run (running is Step 6). Unique names are enforced.
+revisited; it does not run (running is Step 6). Names need not be unique —
+each experiment is told apart by its identifier.
 """
 
 import pytest
@@ -52,13 +53,13 @@ def test_persisted_experiment_appears_in_sidebar(client):
 
 
 @pytest.mark.django_db
-def test_duplicate_name_is_rejected(client):
-    """Creating with a name that already exists is refused, keeping names unique."""
+def test_duplicate_name_is_allowed(client):
+    """Creating with a name that already exists is allowed — the two rows are
+    told apart by their identifiers, not their names."""
     from web.models import Experiment
 
     _post(client, name="dup")
     resp = _post(client, name="dup")
 
-    assert resp.status_code == 200
-    assert Experiment.objects.filter(name="dup").count() == 1
-    assert "already exists" in resp.content.decode()
+    assert resp.status_code == 302  # created and redirected, not re-rendered with an error
+    assert Experiment.objects.filter(name="dup").count() == 2

@@ -31,14 +31,11 @@
             {% for e in sidebar_experiments %}
                 <a class="btn btn-block{% if request.resolver_match.kwargs.pk == e.pk %} btn-primary{% endif %}"
                    href="{% url 'web:experiment_detail' e.pk %}">
-                    {{ e.name }}{% if e.is_running %} <span class="spinner" title="{% translate 'Running' %}"></span>{% endif %}
+                    {{ e.name }} <span class="exp-id">({{ e.identifier }})</span>{% if e.is_running %} <span class="spinner" title="{% translate 'Running' %}"></span>{% endif %}
                 </a>
             {% empty %}
                 <span class="placeholder">{% translate "No experiments yet." %}</span>
             {% endfor %}
-        </div>
-        <div class="nav-links">
-            <a href="{% url 'web:inspect' %}">{% translate "Inspect an .ihpo file" %}</a>
         </div>
     </nav>
     <main class="content">

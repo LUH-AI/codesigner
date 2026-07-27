@@ -175,3 +175,16 @@ hr.divider { border: none; border-top: 1px solid var(--border); margin: 1.5rem 0
     vertical-align: middle;
 }
 @keyframes spin { to { transform: rotate(360deg); } }
+
+/* Short experiment ID shown beside the name — small and sitting on the name's
+   baseline (so it aligns with the bottom of the name text). */
+.exp-id {
+    opacity: 0.4;
+    font-size: 0.62em;
+    font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+    vertical-align: baseline;
+}
+
+/* Checkbox that toggles a field between a demo source and an upload. */
+.field label.check { display: inline-flex; align-items: center; gap: 0.4rem; font-weight: normal; }
+.field label.check input[type="checkbox"] { width: auto; }

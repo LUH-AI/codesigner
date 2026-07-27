@@ -78,6 +78,14 @@ best score; unknown ids 404. This makes `import_ihpo` results browsable.
 **Verify:** upload both fixtures on the Inspect page and compare against the
 Streamlit app; `import_ihpo` a fixture and browse to its detail page.
 
+> **Later removed (post-Step 9).** The standalone Inspect page was dropped —
+> loading an `.ihpo` (the Load/import flow) covers viewing a file, so a
+> separate no-save preview was redundant. Its view/URL/template and tests were
+> removed. Also dropped around then: the **unique-name constraint** on
+> experiments — names are now a human label and each experiment is told apart
+> by its short `identifier`, so duplicate names (and re-importing the same
+> `.ihpo`) are allowed.
+
 ### Step 3 — Run HPO from the browser  ← the app becomes usable here  *(done)*
 **You can now:** set up an experiment (choose a model, an optimizer, a dataset — demo or uploaded — a metric to optimize, a seed, and how many trials), run the optimization, and see the results (best config, best score, per-trial scores). **Nothing is saved: one page, configure → run → results.**
 **Teaches:** Django `Form`s + validation + CSRF, file uploads (`request.FILES`), GET-shows-form / POST-runs, rendering results through templates; keeping the run logic in a Django-free service module.

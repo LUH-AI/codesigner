@@ -14,13 +14,91 @@
 
     <form method="post" enctype="multipart/form-data" class="experiment-form" style="max-width: 34rem;">
         {% csrf_token %}
-        {% for field in form %}
+
+        <div class="field">
+            <label for="{{ form.name.id_for_label }}">{{ form.name.label }}</label>
+            {{ form.name }}
+            {% if form.name.errors %}<div class="form-error">{{ form.name.errors|join:" " }}</div>{% endif %}
+        </div>
+
+        {# ── Model: an uploaded .py by default, or a built-in when the box is checked ── #}
+        {% if form.model_file %}
             <div class="field">
-                <label for="{{ field.id_for_label }}">{{ field.label }}</label>
-                {{ field }}
-                {% if field.errors %}<div class="form-error">{{ field.errors|join:" " }}</div>{% endif %}
+                <label class="check"><input type="checkbox" name="use_demo_model"> {% translate "Use demo models" %}</label>
             </div>
-        {% endfor %}
+            <div class="field" data-pane="model-builtin">
+                <label for="{{ form.model_name.id_for_label }}">{{ form.model_name.label }}</label>
+                {{ form.model_name }}
+            </div>
+            <div class="field" data-pane="model-upload">
+                <label for="{{ form.model_file.id_for_label }}">{{ form.model_file.label }}</label>
+                {{ form.model_file }}
+            </div>
+        {% else %}
+            <div class="field">
+                <label for="{{ form.model_name.id_for_label }}">{{ form.model_name.label }}</label>
+                {{ form.model_name }}
+            </div>
+        {% endif %}
+        {% if form.model_name.errors %}<div class="form-error">{{ form.model_name.errors|join:" " }}</div>{% endif %}
+        {% if form.model_file.errors %}<div class="form-error">{{ form.model_file.errors|join:" " }}</div>{% endif %}
+
+        <div class="field">
+            <label for="{{ form.optimizer_name.id_for_label }}">{{ form.optimizer_name.label }}</label>
+            {{ form.optimizer_name }}
+        </div>
+
+        {# ── Dataset: an uploaded CSV by default, or a demo when the box is checked ── #}
+        <div class="field">
+            <label class="check"><input type="checkbox" name="use_demo_dataset"> {% translate "Use demo datasets" %}</label>
+        </div>
+        <div class="field" data-pane="dataset-demo">
+            <label for="{{ form.demo_dataset.id_for_label }}">{{ form.demo_dataset.label }}</label>
+            {{ form.demo_dataset }}
+        </div>
+        <div class="field" data-pane="dataset-upload">
+            <label for="{{ form.dataset_file.id_for_label }}">{{ form.dataset_file.label }}</label>
+            {{ form.dataset_file }}
+        </div>
+
+        <div class="field">
+            <label for="{{ form.seed.id_for_label }}">{{ form.seed.label }}</label>
+            {{ form.seed }}
+            {% if form.seed.errors %}<div class="form-error">{{ form.seed.errors|join:" " }}</div>{% endif %}
+        </div>
+
         <button type="submit" class="btn-primary">{% translate "Create experiment" %}</button>
     </form>
+
+    <script>
+        // A checkbox picks the demo source; unchecked (the default) shows the
+        // upload instead. The hidden pane's inputs are disabled so they aren't
+        // submitted. Without JS both panes stay visible and enabled — the
+        // form's "choose one" validation still applies.
+        (function () {
+            function setPane(pane, active) {
+                if (!pane) return;
+                pane.hidden = !active;
+                pane.querySelectorAll("input, select, textarea").forEach(function (el) {
+                    el.disabled = !active;
+                });
+            }
+            function wire(checkboxName, demoPane, uploadPane) {
+                const cb = document.querySelector('input[name="' + checkboxName + '"]');
+                if (!cb) return;
+                function apply() {
+                    setPane(demoPane, cb.checked);
+                    setPane(uploadPane, !cb.checked);
+                }
+                cb.addEventListener("change", apply);
+                apply();
+            }
+            wire("use_demo_dataset",
+                document.querySelector('[data-pane="dataset-demo"]'),
+                document.querySelector('[data-pane="dataset-upload"]'));
+            wire("use_demo_model",
+                document.querySelector('[data-pane="model-builtin"]'),
+                document.querySelector('[data-pane="model-upload"]'));
+        })();
+    </script>
 {% endblock %}

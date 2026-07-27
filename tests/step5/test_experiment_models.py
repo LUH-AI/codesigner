@@ -24,19 +24,18 @@ def _snapshot_fields():
 
 
 @pytest.mark.django_db
-def test_experiment_name_is_unique():
-    """Two experiments cannot share a name.
+def test_experiments_may_share_a_name():
+    """Two experiments can share a name; the identifier tells them apart.
 
-    The name is the user-facing identity (sidebar labels, .ihpo filenames);
-    duplicates were rejected in the create form and load dialog, so the
-    database must enforce the same rule as an integrity constraint.
+    Names are a human label, not an identity — each row carries its own
+    unique identifier, so the database allows duplicate names.
     """
-    from django.db import IntegrityError
     from web.models import Experiment
 
-    Experiment.objects.create(**_snapshot_fields())
-    with pytest.raises(IntegrityError):
-        Experiment.objects.create(**_snapshot_fields())
+    a = Experiment.objects.create(**_snapshot_fields())
+    b = Experiment.objects.create(**_snapshot_fields())
+    assert a.name == b.name
+    assert a.identifier != b.identifier
 
 
 @pytest.mark.django_db

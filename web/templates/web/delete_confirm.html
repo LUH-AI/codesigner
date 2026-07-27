@@ -6,7 +6,7 @@
 {% block content %}
     <h1>{% translate "Delete experiment" %}</h1>
     <div class="alert warning" style="max-width: 34rem;">
-        {% blocktranslate with name=experiment.name %}Are you sure you want to delete <strong>{{ name }}</strong>? This cannot be undone.{% endblocktranslate %}
+        {% blocktranslate with name=experiment.name ref=experiment.identifier %}Are you sure you want to delete <strong>{{ name }}</strong> (<code>{{ ref }}</code>)? This cannot be undone.{% endblocktranslate %}
     </div>
     <form method="post" style="margin-top: 1rem; display: flex; gap: 0.5rem;">
         {% csrf_token %}

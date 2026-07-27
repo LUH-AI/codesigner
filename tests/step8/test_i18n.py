@@ -133,18 +133,35 @@ def _parse_po_all(path: Path) -> dict[str, str]:
 def _fuzzy_msgids(path: Path) -> set[str]:
     """msgids flagged '#, fuzzy' (excluding the header). makemessages marks a
     guessed translation fuzzy; gettext then refuses to compile it, so at runtime
-    the string silently falls back to English — as bad as no translation."""
+    the string silently falls back to English — as bad as no translation.
+
+    Reconstructs multi-line msgids so a fuzzy flag on a wrapped entry (e.g. a
+    long blocktranslate) is still detected."""
+    lines = path.read_text("utf-8").splitlines()
     fuzzy: set[str] = set()
     pending = False
-    for raw in path.read_text("utf-8").splitlines():
-        line = raw.strip()
+    i, n = 0, len(lines)
+    while i < n:
+        line = lines[i].strip()
         if line.startswith("#,") and "fuzzy" in line:
             pending = True
-        elif line.startswith("msgid "):
+            i += 1
+            continue
+        if line.startswith("msgid "):
             mid = _unquote(line[len("msgid "):].strip())
+            j = i + 1
+            while j < n and lines[j].strip().startswith('"'):
+                mid += _unquote(lines[j].strip())
+                j += 1
             if pending and mid:  # skip the header (empty msgid)
                 fuzzy.add(mid)
             pending = False
+            i = j
+            continue
+        # a #| previous-msgid comment keeps pending alive; anything else clears it
+        if line and not line.startswith("#"):
+            pending = False
+        i += 1
     return fuzzy
 
 

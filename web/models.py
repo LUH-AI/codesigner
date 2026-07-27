@@ -1,6 +1,17 @@
+import secrets
+
 from django.db import models
 
 from .fields import SafeJSONField
+
+
+def generate_identifier() -> str:
+    """A short, stable handle shown beside an experiment's name.
+
+    Eight hex characters — enough to tell similarly-named experiments apart at
+    a glance and to reference one independently of its (mutable) name.
+    """
+    return secrets.token_hex(4)
 
 
 class Experiment(models.Model):
@@ -12,7 +23,8 @@ class Experiment(models.Model):
     runhistory-mirrored dict, or None if it has never run).
     """
 
-    name = models.CharField(max_length=200, unique=True)
+    name = models.CharField(max_length=200)
+    identifier = models.CharField(max_length=12, unique=True, editable=False, default=generate_identifier)
     model_name = models.CharField(max_length=200)
     model_file = models.FileField(upload_to="custom_models/", blank=True, null=True)
     optimizer_name = models.CharField(max_length=200)
