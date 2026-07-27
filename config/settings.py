@@ -41,7 +41,7 @@ ALLOW_CUSTOM_MODELS = env.bool("ALLOW_CUSTOM_MODELS", default=True)
 HUEY = {
     "huey_class": "huey.SqliteHuey",
     "name": "codesigner",
-    "filename": str(BASE_DIR / "huey.sqlite3"),
+    "filename": env.str("HUEY_FILENAME", default=str(BASE_DIR / "huey.sqlite3")),
     "immediate": env.bool("HUEY_IMMEDIATE", default=DEBUG),
     "results": False,
 }
@@ -62,6 +62,9 @@ INSTALLED_APPS = [
 
 MIDDLEWARE = [
     "django.middleware.security.SecurityMiddleware",
+    # Serves static files directly from the app process (no separate web server
+    # needed in the container); must sit right after SecurityMiddleware.
+    "whitenoise.middleware.WhiteNoiseMiddleware",
     "django.contrib.sessions.middleware.SessionMiddleware",
     # LocaleMiddleware must sit after SessionMiddleware and before CommonMiddleware.
     "django.middleware.locale.LocaleMiddleware",
@@ -149,9 +152,20 @@ USE_TZ = True
 # https://docs.djangoproject.com/en/6.0/howto/static-files/
 
 STATIC_URL = "static/"
+# `collectstatic` gathers files here for WhiteNoise to serve in production.
+STATIC_ROOT = BASE_DIR / "staticfiles"
+STORAGES = {
+    "default": {"BACKEND": "django.core.files.storage.FileSystemStorage"},
+    # Non-manifest WhiteNoise storage: compresses files at collectstatic and
+    # serves them with cache headers, but keeps plain filenames — so
+    # {% static %} needs no manifest and works in tests / `runserver` without a
+    # prior collectstatic (manifest/hashed storage errors there).
+    "staticfiles": {"BACKEND": "whitenoise.storage.CompressedStaticFilesStorage"},
+}
 
-# Uploaded files (datasets, custom models) live under here.
+# Uploaded files (datasets, custom models) live under here. Env-configurable so
+# the container can point it at a shared data volume (with the two SQLite files).
 MEDIA_URL = "media/"
-MEDIA_ROOT = BASE_DIR / "media"
+MEDIA_ROOT = env.str("MEDIA_ROOT", default=str(BASE_DIR / "media"))
 
 DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"

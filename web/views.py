@@ -51,6 +51,11 @@ def home(request):
     return render(request, "web/home.html")
 
 
+def healthz(request):
+    """Liveness probe for the container healthcheck — no DB, no template."""
+    return HttpResponse("ok", content_type="text/plain")
+
+
 def _dataset_path_from(form, tmp_paths):
     """Resolve the chosen dataset to a filesystem path (temp file for uploads)."""
     demo = form.cleaned_data.get("demo_dataset")

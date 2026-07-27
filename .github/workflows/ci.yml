@@ -1,0 +1,33 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    env:
+      SECRET_KEY: ci-secret-key
+      DEBUG: "False"
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      # swig builds SMAC's pyrfr backend; gettext compiles the translations.
+      - run: sudo apt-get update && sudo apt-get install -y swig gettext
+      - run: pip install -r requirements.txt
+      # Translation catalogs must compile (and are checked for completeness by
+      # tests/step8, run below).
+      - run: python manage.py compilemessages -l de -l es
+      # Fast suite includes the i18n completeness/parity checks. The slow SMAC
+      # end-to-end tests are a separate opt-in job.
+      - run: python -m pytest -m "not slow"
+
+  docker-build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: docker build -t codesigner:ci .
