@@ -8,7 +8,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: PACKAGE VERSION\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2026-07-27 13:17+0000\n"
+"POT-Creation-Date: 2026-07-27 13:26+0000\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
 "Language-Team: LANGUAGE <LL@li.org>\n"
@@ -38,8 +38,12 @@ msgstr "Läuft"
 msgid "No experiments yet."
 msgstr "Noch keine Experimente."
 
+#: templates/base.html:41 web/templates/web/experiment_detail.html:20
+msgid "⚙ Settings"
+msgstr "⚙ Einstellungen"
+
 #: tests/step8/test_i18n.py:220 tests/step8/test_i18n.py:226
-#: web/templates/web/experiment_detail.html:36
+#: web/templates/web/experiment_detail.html:37
 msgid "Number of trials"
 msgstr "Anzahl der Versuche"
 
@@ -91,6 +95,14 @@ msgstr "Wählen Sie ein Modell oder laden Sie eine Modell-.py-Datei hoch."
 msgid "Choose a demo dataset or upload a CSV file."
 msgstr "Wählen Sie einen Demo-Datensatz oder laden Sie eine CSV-Datei hoch."
 
+#: web/forms.py:94
+msgid "Include absolute timestamps in exported .ihpo files"
+msgstr "Absolute Zeitstempel in exportierte .ihpo-Dateien aufnehmen"
+
+#: web/forms.py:106
+msgid "Use default experiment settings"
+msgstr "Standard-Experimenteinstellungen verwenden"
+
 #: web/templates/web/_run_status.html:5
 #, python-format
 msgid "Optimizing… (%(status)s)"
@@ -107,20 +119,34 @@ msgstr ""
 "Versuch %(trial)s — Klicken Sie auf einen Punkt im Diagramm zur Auswahl"
 
 #: web/templates/web/_selected_config_inner.html:3
-#: web/templates/web/experiment_detail.html:89
+#: web/templates/web/experiment_detail.html:90
 #, python-format
 msgid "%(metric)s score"
 msgstr "%(metric)s-Bewertung"
 
 #: web/templates/web/_selected_config_inner.html:12
-#: web/templates/web/experiment_detail.html:93
+#: web/templates/web/experiment_detail.html:94
 msgid "Hyperparameter"
 msgstr "Hyperparameter"
 
 #: web/templates/web/_selected_config_inner.html:12
-#: web/templates/web/experiment_detail.html:93
+#: web/templates/web/experiment_detail.html:94
 msgid "Value"
 msgstr "Wert"
+
+#: web/templates/web/default_experiment_settings.html:4
+#: web/templates/web/default_experiment_settings.html:7
+#: web/templates/web/global_settings.html:10
+msgid "Default experiment settings"
+msgstr "Standard-Experimenteinstellungen"
+
+#: web/templates/web/default_experiment_settings.html:8
+msgid "New experiments use these unless they override them."
+msgstr "Neue Experimente verwenden diese, sofern sie sie nicht überschreiben."
+
+#: web/templates/web/default_experiment_settings.html:18
+msgid "Save defaults"
+msgstr "Standardwerte speichern"
 
 #: web/templates/web/delete_confirm.html:4
 #, python-format
@@ -128,7 +154,7 @@ msgid "Delete %(name)s"
 msgstr "%(name)s löschen"
 
 #: web/templates/web/delete_confirm.html:7
-#: web/templates/web/experiment_detail.html:20
+#: web/templates/web/experiment_detail.html:21
 msgid "Delete experiment"
 msgstr "Experiment löschen"
 
@@ -176,104 +202,142 @@ msgid "💾 Export"
 msgstr "💾 Exportieren"
 
 #: web/templates/web/experiment_detail.html:20
+msgid "Experiment settings"
+msgstr "Experimenteinstellungen"
+
+#: web/templates/web/experiment_detail.html:21
 msgid "🗑 Delete"
 msgstr "🗑 Löschen"
 
-#: web/templates/web/experiment_detail.html:25
+#: web/templates/web/experiment_detail.html:26
 #, python-format
 msgid "Run failed: %(run_error)s"
 msgstr "Lauf fehlgeschlagen: %(run_error)s"
 
-#: web/templates/web/experiment_detail.html:32
+#: web/templates/web/experiment_detail.html:33
 msgid "Run"
 msgstr "Starten"
 
-#: web/templates/web/experiment_detail.html:40
-#: web/templates/web/experiment_detail.html:57
+#: web/templates/web/experiment_detail.html:41
+#: web/templates/web/experiment_detail.html:58
 msgid "Evaluation metric"
 msgstr "Bewertungsmetrik"
 
-#: web/templates/web/experiment_detail.html:48
-#: web/templates/web/experiment_detail.html:64
+#: web/templates/web/experiment_detail.html:49
+#: web/templates/web/experiment_detail.html:65
 msgid "⚖️ Reevaluate"
 msgstr "⚖️ Neu bewerten"
 
-#: web/templates/web/experiment_detail.html:52
+#: web/templates/web/experiment_detail.html:53
 msgid "▶ Run"
 msgstr "▶ Starten"
 
-#: web/templates/web/experiment_detail.html:68
+#: web/templates/web/experiment_detail.html:69
 msgid "Attach a dataset to run this experiment (loaded read-only)."
 msgstr ""
 "Hängen Sie einen Datensatz an, um dieses Experiment auszuführen "
 "(schreibgeschützt geladen)."
 
-#: web/templates/web/experiment_detail.html:72
-msgid "Last run finished in %(total)s s — %(trials)s s in trials, %(overhead)s s overhead."
-msgstr "Letzter Lauf in %(total)s s abgeschlossen — %(trials)s s in Versuchen, %(overhead)s s Overhead."
+#: web/templates/web/experiment_detail.html:73
+#, python-format
+msgid ""
+"Last run finished in %(total)s s — %(trials)s s in trials, %(overhead)s s "
+"overhead."
+msgstr ""
+"Letzter Lauf in %(total)s s abgeschlossen — %(trials)s s in Versuchen, "
+"%(overhead)s s Overhead."
 
-#: web/templates/web/experiment_detail.html:76
+#: web/templates/web/experiment_detail.html:77
 msgid "No results yet."
 msgstr "Noch keine Ergebnisse."
 
-#: web/templates/web/experiment_detail.html:80
+#: web/templates/web/experiment_detail.html:81
 #, python-format
 msgid "The search space is exhausted at %(n)s trials."
 msgstr "Der Suchraum ist nach %(n)s Versuchen erschöpft."
 
-#: web/templates/web/experiment_detail.html:87
+#: web/templates/web/experiment_detail.html:88
 msgid "Best configuration"
 msgstr "Beste Konfiguration"
 
-#: web/templates/web/experiment_detail.html:88
+#: web/templates/web/experiment_detail.html:89
 #, python-format
 msgid "Best overall (Trial %(trial)s)"
 msgstr "Bestes Gesamtergebnis (Versuch %(trial)s)"
 
-#: web/templates/web/experiment_detail.html:108
+#: web/templates/web/experiment_detail.html:109
 msgid "Selected configuration"
 msgstr "Ausgewählte Konfiguration"
 
-#: web/templates/web/experiment_detail.html:118
+#: web/templates/web/experiment_detail.html:119
 msgid "Hyperparameter importance (HyperSHAP)"
 msgstr "Hyperparameter-Wichtigkeit (HyperSHAP)"
 
-#: web/templates/web/experiment_detail.html:121
+#: web/templates/web/experiment_detail.html:122
 msgid "No importance data available."
 msgstr "Keine Wichtigkeitsdaten verfügbar."
 
-#: web/templates/web/experiment_detail.html:127
+#: web/templates/web/experiment_detail.html:128
 msgid "Performance of Incumbent"
 msgstr "Leistung des Incumbents"
 
-#: web/templates/web/experiment_detail.html:136
+#: web/templates/web/experiment_detail.html:137
 msgid "Trial duration"
 msgstr "Versuchsdauer"
 
-#: web/templates/web/experiment_detail.html:142
+#: web/templates/web/experiment_detail.html:143
 msgid "Gain per unit time"
 msgstr "Gewinn pro Zeiteinheit"
 
-#: web/templates/web/experiment_detail.html:144
+#: web/templates/web/experiment_detail.html:145
 msgid "No data available."
 msgstr "Keine Daten verfügbar."
 
-#: web/templates/web/experiment_detail.html:152
+#: web/templates/web/experiment_detail.html:153
 #, python-format
 msgid "Trials (%(n)s)"
 msgstr "Versuche (%(n)s)"
 
-#: web/templates/web/experiment_detail.html:160
+#: web/templates/web/experiment_detail.html:161
 msgid "Duration"
 msgstr "Dauer"
 
-#: web/templates/web/experiment_detail.html:215
+#: web/templates/web/experiment_detail.html:216
 msgid "Absolute scale (0-1)"
 msgstr "Absolute Skala (0-1)"
 
-#: web/templates/web/experiment_detail.html:216
+#: web/templates/web/experiment_detail.html:217
 msgid "Relative scale (fit to data)"
 msgstr "Relative Skala (an Daten anpassen)"
+
+#: web/templates/web/experiment_settings.html:4
+msgid "Settings"
+msgstr "Einstellungen"
+
+#: web/templates/web/experiment_settings.html:7
+msgid "Settings: %(name)s"
+msgstr "Einstellungen: %(name)s"
+
+#: web/templates/web/experiment_settings.html:24
+msgid "Save settings"
+msgstr "Einstellungen speichern"
+
+#: web/templates/web/experiment_settings.html:25
+msgid "Reset to default experiment settings"
+msgstr "Auf Standard-Experimenteinstellungen zurücksetzen"
+
+#: web/templates/web/experiment_settings.html:30
+msgid "Change default experiment settings"
+msgstr "Standard-Experimenteinstellungen ändern"
+
+#: web/templates/web/global_settings.html:4
+#: web/templates/web/global_settings.html:7
+msgid "Global settings"
+msgstr "Globale Einstellungen"
+
+#: web/templates/web/global_settings.html:8
+msgid "Application-wide settings."
+msgstr "Anwendungsweite Einstellungen."
 
 #: web/templates/web/home.html:6
 msgid "Use the sidebar to create a new experiment."
@@ -373,10 +437,10 @@ msgstr "Demo-Datensätze verwenden"
 msgid "Create experiment"
 msgstr "Experiment erstellen"
 
-#: web/views.py:46
+#: web/views.py:48
 msgid "Inconsistent"
 msgstr "Inkonsistent"
 
-#: web/views.py:233
+#: web/views.py:288
 msgid "Invalid or unreadable experiment file."
 msgstr "Ungültige oder unleserliche Experimentdatei."

@@ -1,0 +1,20 @@
+{% extends "base.html" %}
+{% load i18n %}
+
+{% block title %}{% translate "Default experiment settings" %} · Codesigner{% endblock %}
+
+{% block content %}
+    <h1>{% translate "Default experiment settings" %}</h1>
+    <p class="caption">{% translate "New experiments use these unless they override them." %}</p>
+
+    <form method="post" style="max-width: 34rem;">
+        {% csrf_token %}
+        <div class="field">
+            <label class="check">
+                <input type="checkbox" name="export_absolute_times" {% if form.export_absolute_times.value %}checked{% endif %}>
+                {{ form.export_absolute_times.label }}
+            </label>
+        </div>
+        <button type="submit" class="btn-primary">{% translate "Save defaults" %}</button>
+    </form>
+{% endblock %}

@@ -1,3 +1,4 @@
+import copy
 import json
 import tempfile
 from pathlib import Path
@@ -11,13 +12,14 @@ from core import io
 from core.version import VERSION
 
 from .charts import duration_figure, gain_per_time_figure, importance_figure, performance_figure
-from .forms import NewExperimentForm
-from .models import Experiment
+from .forms import DefaultExperimentSettingsForm, ExperimentSettingsForm, NewExperimentForm
+from .models import Experiment, GlobalSettings
 from .registry import METRICS, MODELS, OPTIMIZERS
 from .services import run as run_service
 from .services import snapshot as snapshot_adapter
 from .services.run import resolve_seed
 from .services.run_logic import decide_run, resolve_metric_change
+from .services.settings import global_defaults, resolve_settings
 
 _ACTIVE = ["pending", "running"]
 
@@ -198,13 +200,66 @@ def run_cancel(request, pk):
 
 
 def experiment_export(request, pk):
-    """Download a saved experiment as a Streamlit-loadable .ihpo file."""
+    """Download a saved experiment as a Streamlit-loadable .ihpo file.
+
+    When the experiment's `export_absolute_times` setting is off, per-trial
+    `starttime`/`endtime` are scrubbed so a shared file reveals no run times
+    (durations are kept). Done here, not in the adapter, so the detail page's
+    own reconstruction is unaffected; deserialize ignores the keys on re-import.
+    """
     exp = get_object_or_404(Experiment, pk=pk)
     snapshot = snapshot_adapter.snapshot_from_experiment(exp)
+    if not resolve_settings(exp)["export_absolute_times"] and snapshot.get("result"):
+        snapshot["result"] = copy.deepcopy(snapshot["result"])
+        for entry in snapshot["result"].get("data", []):
+            entry.pop("starttime", None)
+            entry.pop("endtime", None)
     body = json.dumps(snapshot, ensure_ascii=False, indent=2).encode("utf-8")
     response = HttpResponse(body, content_type="application/octet-stream")
     response["Content-Disposition"] = f'attachment; filename="{exp.name}.ihpo"'
     return response
+
+
+def experiment_settings(request, pk):
+    """Per-experiment settings: inherit the global defaults, override, or reset."""
+    exp = get_object_or_404(Experiment, pk=pk)
+    if request.method == "POST":
+        if "reset" in request.POST or request.POST.get("use_default_settings"):
+            exp.use_default_settings = True
+            exp.settings = {}
+        else:
+            exp.use_default_settings = False
+            exp.settings = {"export_absolute_times": bool(request.POST.get("export_absolute_times"))}
+        exp.save(update_fields=["use_default_settings", "settings"])
+        return redirect("web:experiment_settings", pk=pk)
+
+    effective = resolve_settings(exp)
+    form = ExperimentSettingsForm(initial={
+        "use_default_settings": exp.use_default_settings,
+        "export_absolute_times": effective["export_absolute_times"],
+    })
+    return render(request, "web/experiment_settings.html", {"experiment": exp, "form": form})
+
+
+def global_settings(request):
+    """Global settings landing page (currently just links to the defaults)."""
+    return render(request, "web/global_settings.html", {})
+
+
+def default_experiment_settings(request):
+    """Edit the default experiment settings that inheriting experiments use."""
+    gs = GlobalSettings.get_solo()
+    if request.method == "POST":
+        gs.default_experiment_settings = {
+            "export_absolute_times": bool(request.POST.get("export_absolute_times")),
+        }
+        gs.save(update_fields=["default_experiment_settings"])
+        return redirect("web:default_experiment_settings")
+
+    form = DefaultExperimentSettingsForm(initial={
+        "export_absolute_times": global_defaults()["export_absolute_times"],
+    })
+    return render(request, "web/default_experiment_settings.html", {"form": form})
 
 
 def experiment_delete(request, pk):

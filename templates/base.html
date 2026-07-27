@@ -37,6 +37,9 @@
                 <span class="placeholder">{% translate "No experiments yet." %}</span>
             {% endfor %}
         </div>
+        <div class="nav-links">
+            <a href="{% url 'web:global_settings' %}">{% translate "⚙ Settings" %}</a>
+        </div>
     </nav>
     <main class="content">
         {% block content %}{% endblock %}

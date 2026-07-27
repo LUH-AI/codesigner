@@ -36,6 +36,10 @@ class Experiment(models.Model):
     dataset = models.FileField(upload_to="datasets/", blank=True, null=True)
     result = SafeJSONField(blank=True, null=True, default=None)
     created_at = models.DateTimeField(auto_now_add=True)
+    # Per-experiment settings overrides; when use_default_settings is True the
+    # global default experiment settings apply instead (see services/settings.py).
+    settings = models.JSONField(default=dict, blank=True)
+    use_default_settings = models.BooleanField(default=True)
 
     class Meta:
         ordering = ["-created_at"]
@@ -87,3 +91,21 @@ class Run(models.Model):
         if self.started_at and self.finished_at:
             return (self.finished_at - self.started_at).total_seconds()
         return None
+
+
+class GlobalSettings(models.Model):
+    """Single-row app settings, including the default experiment settings that
+    new/inheriting experiments fall back to. Use `GlobalSettings.get_solo()`."""
+
+    default_experiment_settings = models.JSONField(default=dict, blank=True)
+
+    class Meta:
+        verbose_name_plural = "Global settings"
+
+    def __str__(self) -> str:
+        return "Global settings"
+
+    @classmethod
+    def get_solo(cls) -> "GlobalSettings":
+        obj, _ = cls.objects.get_or_create(pk=1)
+        return obj

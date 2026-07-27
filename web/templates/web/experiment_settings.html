@@ -1,0 +1,46 @@
+{% extends "base.html" %}
+{% load i18n %}
+
+{% block title %}{% translate "Settings" %} · {{ experiment.name }}{% endblock %}
+
+{% block content %}
+    <h1>{% blocktranslate with name=experiment.name %}Settings: {{ name }}{% endblocktranslate %}</h1>
+
+    <form method="post" class="experiment-form" style="max-width: 34rem;">
+        {% csrf_token %}
+        <div class="field">
+            <label class="check">
+                <input type="checkbox" name="use_default_settings" {% if form.use_default_settings.value %}checked{% endif %}>
+                {{ form.use_default_settings.label }}
+            </label>
+        </div>
+        <div class="field" data-pane="overrides">
+            <label class="check">
+                <input type="checkbox" name="export_absolute_times" {% if form.export_absolute_times.value %}checked{% endif %}>
+                {{ form.export_absolute_times.label }}
+            </label>
+        </div>
+        <div style="display: flex; gap: 0.5rem;">
+            <button type="submit" class="btn-primary">{% translate "Save settings" %}</button>
+            <button type="submit" name="reset" value="1" class="btn">{% translate "Reset to default experiment settings" %}</button>
+        </div>
+    </form>
+
+    <p class="nav-links" style="margin-top: 1rem;">
+        <a href="{% url 'web:default_experiment_settings' %}">{% translate "Change default experiment settings" %}</a>
+    </p>
+
+    <script>
+        // Hide/disable the overrides while inheriting the defaults (checkbox on).
+        (function () {
+            const cb = document.querySelector('input[name="use_default_settings"]');
+            const pane = document.querySelector('[data-pane="overrides"]');
+            function apply() {
+                pane.hidden = cb.checked;
+                pane.querySelectorAll("input").forEach(function (el) { el.disabled = cb.checked; });
+            }
+            cb.addEventListener("change", apply);
+            apply();
+        })();
+    </script>
+{% endblock %}

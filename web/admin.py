@@ -1,12 +1,17 @@
 from django.contrib import admin
 
-from .models import Experiment, Run
+from .models import Experiment, GlobalSettings, Run
 
 
 @admin.register(Experiment)
 class ExperimentAdmin(admin.ModelAdmin):
-    list_display = ("name", "model_name", "optimizer_name", "primary_metric", "seed", "created_at")
-    search_fields = ("name",)
+    list_display = ("name", "identifier", "model_name", "optimizer_name", "primary_metric", "seed", "created_at")
+    search_fields = ("name", "identifier")
+
+
+@admin.register(GlobalSettings)
+class GlobalSettingsAdmin(admin.ModelAdmin):
+    list_display = ("__str__",)
 
 
 @admin.register(Run)

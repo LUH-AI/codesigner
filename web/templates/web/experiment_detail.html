@@ -17,6 +17,7 @@
         </div>
         <div class="actions" style="flex-shrink: 0;">
             <a class="btn" href="{% url 'web:experiment_export' summary.pk %}" title="{% translate 'Download as .ihpo' %}">{% translate "💾 Export" %}</a>
+            <a class="btn" href="{% url 'web:experiment_settings' summary.pk %}" title="{% translate 'Experiment settings' %}">{% translate "⚙ Settings" %}</a>
             <a class="btn" href="{% url 'web:experiment_delete' summary.pk %}" title="{% translate 'Delete experiment' %}">{% translate "🗑 Delete" %}</a>
         </div>
     </div>

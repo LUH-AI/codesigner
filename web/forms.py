@@ -89,3 +89,19 @@ class NewExperimentForm(forms.Form):
         finally:
             os.unlink(tmp.name)
         return (None, err) if err else (model.name, None)
+
+
+_EXPORT_ABS_LABEL = _("Include absolute timestamps in exported .ihpo files")
+
+
+class DefaultExperimentSettingsForm(forms.Form):
+    """The default experiment settings, edited on the global settings subpage."""
+
+    export_absolute_times = forms.BooleanField(label=_EXPORT_ABS_LABEL, required=False)
+
+
+class ExperimentSettingsForm(forms.Form):
+    """One experiment's settings: inherit the defaults, or override them."""
+
+    use_default_settings = forms.BooleanField(label=_("Use default experiment settings"), required=False)
+    export_absolute_times = forms.BooleanField(label=_EXPORT_ABS_LABEL, required=False)
