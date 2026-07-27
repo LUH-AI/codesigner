@@ -39,8 +39,11 @@ against the Streamlit app. Target step in parentheses (see docs/PLAN.md).
   had no queue; parity was met by the Step 6 thread version.)
 - **Mounted-model** source: pick a server-side `mounted_models/*.py` in the
   create form, in addition to uploading (both gated by `ALLOW_CUSTOM_MODELS`).
-- Deferred (planned, not built): per-trial timing capture + duration/overhead
-  UI + a global/per-experiment settings system — see the saved plan.
+- **Per-trial timing** recorded for every optimizer: a Duration column, a
+  per-run duration/overhead note, and two figures (trial duration; gain per
+  unit time). See [docs/walkthroughs/timing-and-settings.md](docs/walkthroughs/timing-and-settings.md).
+- **Settings system**: global default + per-experiment settings; the first
+  setting scrubs absolute timestamps from an exported `.ihpo` when off.
 
 ## Deliberate behavior changes (not bugs)
 
