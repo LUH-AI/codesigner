@@ -25,7 +25,22 @@ against the Streamlit app. Target step in parentheses (see docs/PLAN.md).
 - [x] Metric change with confirmation rules (6)
 - [x] Sidebar running spinner (6)
 - [x] Languages: en / de / es (8)
-- [ ] Demo dataset & model volume mounts in Docker (10)
+- [x] Demo dataset & model volume mounts in Docker (10) — demo-dataset and
+  mounted-model sources work and are tested; Dockerfile/compose bind-mount
+  `datasets/` and `mounted_models/`. ⚠️ `docker build`/`docker run` itself was
+  not executed in the build environment (no Docker daemon); every non-Docker
+  part is verified and the config is written, but the container end-to-end run
+  is pending a Docker host.
+
+## Beyond parity (Codesigner-only improvements)
+
+- Runs execute on a durable **huey** task queue (`manage.py run_huey` consumer),
+  not an in-process thread — queued runs survive a web restart. (InteractiveHPO
+  had no queue; parity was met by the Step 6 thread version.)
+- **Mounted-model** source: pick a server-side `mounted_models/*.py` in the
+  create form, in addition to uploading (both gated by `ALLOW_CUSTOM_MODELS`).
+- Deferred (planned, not built): per-trial timing capture + duration/overhead
+  UI + a global/per-experiment settings system — see the saved plan.
 
 ## Deliberate behavior changes (not bugs)
 

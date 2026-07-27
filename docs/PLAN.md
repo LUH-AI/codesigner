@@ -143,11 +143,13 @@ Streamlit app; `import_ihpo` a fixture and browse to its detail page.
 
 > **Scope change (agreed).** The original Step 9 also folded in the huey task queue ("production-grade runs"). We split it: **custom models landed here; huey moves to Step 10 (deployment)**, since it is invisible plumbing whose payoff is operational, and its main argument here (isolating untrusted model code in a worker) is acceptable to defer for a local, gated, single-user tool. Consequence: custom-model code currently runs in the in-process thread executor, behind the flag — noted in the README.
 
-### Step 10 — Package for deployment + task queue + final parity sign-off
+### Step 10 — Package for deployment + task queue + final parity sign-off  *(implemented; container run + final side-by-side pending a Docker host)*
 **You can now (as an operator):** deploy Codesigner as a container and run it as a web service, with runs handled by a real background task queue.
 **Teaches:** huey (task decorator + consumer process); deployment hygiene: `DEBUG=False`, `collectstatic` + whitenoise, gunicorn, multi-process Docker.
 **Build:** Step 6's thread body becomes a `@db_task()` huey task (SqliteHuey), `manage.py run_huey` as a second process (views change only the launch line) — this is where custom-model code gains worker isolation. Dockerfile/compose (gunicorn + huey consumer; keep the `pyrfr` wheel workaround and the demo `datasets/`/`mounted_models/` volume mounts); healthcheck; README; CI = tests + translation check + docker build.
 **Verify:** `docker build && docker run` on a clean, display-less container: create → run (through the consumer) → cancel → export → import end-to-end; cancel/resume still work; **walk the full parity checklist against the Streamlit app one final time**. The old repo then simply retires.
+
+> **Status / deviations.** Delivered in two parts: part 1 the huey task-queue swap ([walkthroughs/step-10-task-queue.md](walkthroughs/step-10-task-queue.md)), part 2 static/healthcheck/Docker + the mounted-model source ([walkthroughs/step-10-deployment.md](walkthroughs/step-10-deployment.md)). Full suite green (209). **Not executed in the build environment (no Docker daemon):** `docker build`/`docker run` and the final one-sitting side-by-side against a live Streamlit instance — both are set up and documented, pending a Docker host. WhiteNoise uses non-manifest compressed storage (manifest/hashed storage errors in tests/runserver without a prior collectstatic). The stale-run sweep runs in the *worker* entrypoint (a "running" row is only stale when its consumer died = a worker restart).
 
 ## Parity checklist (maintained as `PARITY.md` in the new repo, ticked per step)
 
