@@ -74,6 +74,16 @@ class Run(models.Model):
     error = models.TextField(blank=True, default="")
     started_at = models.DateTimeField(null=True, blank=True)
     finished_at = models.DateTimeField(null=True, blank=True)
+    # Sum of this run's trial evaluation durations (seconds); total − this is
+    # the search/bookkeeping overhead. Null until the run finishes.
+    trial_seconds = models.FloatField(null=True, blank=True)
 
     def __str__(self) -> str:
         return f"{self.experiment.name} run #{self.pk} ({self.status})"
+
+    @property
+    def duration(self):
+        """Total wall-clock seconds, or None until both timestamps are set."""
+        if self.started_at and self.finished_at:
+            return (self.finished_at - self.started_at).total_seconds()
+        return None

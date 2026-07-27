@@ -10,7 +10,7 @@ from django.utils.translation import gettext as _
 from core import io
 from core.version import VERSION
 
-from .charts import importance_figure, performance_figure
+from .charts import duration_figure, gain_per_time_figure, importance_figure, performance_figure
 from .forms import NewExperimentForm
 from .models import Experiment
 from .registry import METRICS, MODELS, OPTIMIZERS
@@ -289,6 +289,12 @@ def _detail_context(exp):
     active_run = exp.runs.filter(status__in=_ACTIVE).order_by("-id").first()
     last_run = exp.runs.order_by("-id").first()
 
+    run_summary = None
+    if last_run and last_run.status in ("done", "cancelled") and last_run.duration is not None:
+        total = last_run.duration
+        trials = last_run.trial_seconds or 0.0
+        run_summary = {"total": total, "trials": trials, "overhead": max(0.0, total - trials)}
+
     context = {
         "experiment": exp,  # the _run_status.html include reverses URLs from experiment.pk
         "summary": {
@@ -306,6 +312,7 @@ def _detail_context(exp):
         "active_run": active_run,
         "can_run": bool(exp.dataset) and _model_available(exp),
         "run_error": last_run.error if (last_run and last_run.status == "error") else None,
+        "run_summary": run_summary,
         "run_default_metric": exp.primary_metric or (metric_names[0] if metric_names else None),
     }
     if result is None:
@@ -328,16 +335,20 @@ def _detail_context(exp):
             # No selection has been clicked yet, so it defaults to the best trial.
             "selected": _selected_panel_data(result, m, best_idx),
         })
+        gpt = gain_per_time_figure(result, m)
         figures[m] = {
             "performance": json.loads(perf.to_json()),
             "importance": json.loads(imp.to_json()) if imp is not None else None,
+            "gain_per_time": json.loads(gpt.to_json()) if gpt is not None else None,
         }
 
     hp_names = list(result.trials[0].config.keys()) if result.trials else []
+    dfig = duration_figure(result)
     context.update(
         result=result,
         panels=panels,
         figures=figures,
+        duration_figure=json.loads(dfig.to_json()) if dfig is not None else None,
         hp_names=hp_names,
         trial_rows=[
             {

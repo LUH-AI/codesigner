@@ -71,3 +71,47 @@ def importance_figure(result, display_metric):
     ))
     fig.update_layout(margin=dict(t=20, b=20, l=20, r=20), showlegend=False)
     return fig
+
+
+def duration_figure(result):
+    """Bar of each trial's evaluation duration (seconds). Metric-independent.
+
+    Returns None when there are no trials.
+    """
+    trials = result.trials
+    if not trials:
+        return None
+    fig = go.Figure(go.Bar(
+        x=[t.trial for t in trials], y=[t.duration for t in trials],
+        marker_color=_MARKER_COLOR,
+    ))
+    fig.update_layout(
+        xaxis_title="Trial", yaxis_title="Duration (s)",
+        margin=dict(t=20, b=40, l=40, r=20), showlegend=False,
+    )
+    return fig
+
+
+def gain_per_time_figure(result, display_metric):
+    """Bar of each trial's marginal value: the incumbent improvement it produced
+    for *display_metric*, divided by its duration (score gain per second).
+
+    The first trial and non-improving trials are 0; a zero-duration trial is 0
+    (no divide-by-zero). Returns None when there are no trials.
+    """
+    trials = result.trials
+    if not trials:
+        return None
+    incumbents = incumbent_scores(result, display_metric)
+    gains = []
+    for i, t in enumerate(trials):
+        improvement = 0.0 if i == 0 else max(0.0, incumbents[i] - incumbents[i - 1])
+        gains.append(improvement / t.duration if t.duration > 1e-9 else 0.0)
+    fig = go.Figure(go.Bar(
+        x=[t.trial for t in trials], y=gains, marker_color=_MARKER_COLOR,
+    ))
+    fig.update_layout(
+        xaxis_title="Trial", yaxis_title="Gain / s",
+        margin=dict(t=20, b=40, l=40, r=20), showlegend=False,
+    )
+    return fig

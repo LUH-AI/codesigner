@@ -8,7 +8,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: PACKAGE VERSION\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2026-07-27 13:09+0000\n"
+"POT-Creation-Date: 2026-07-27 13:17+0000\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
 "Language-Team: LANGUAGE <LL@li.org>\n"
@@ -107,18 +107,18 @@ msgstr ""
 "Versuch %(trial)s — Klicken Sie auf einen Punkt im Diagramm zur Auswahl"
 
 #: web/templates/web/_selected_config_inner.html:3
-#: web/templates/web/experiment_detail.html:85
+#: web/templates/web/experiment_detail.html:89
 #, python-format
 msgid "%(metric)s score"
 msgstr "%(metric)s-Bewertung"
 
 #: web/templates/web/_selected_config_inner.html:12
-#: web/templates/web/experiment_detail.html:89
+#: web/templates/web/experiment_detail.html:93
 msgid "Hyperparameter"
 msgstr "Hyperparameter"
 
 #: web/templates/web/_selected_config_inner.html:12
-#: web/templates/web/experiment_detail.html:89
+#: web/templates/web/experiment_detail.html:93
 msgid "Value"
 msgstr "Wert"
 
@@ -209,53 +209,69 @@ msgstr ""
 "(schreibgeschützt geladen)."
 
 #: web/templates/web/experiment_detail.html:72
+msgid "Last run finished in %(total)s s — %(trials)s s in trials, %(overhead)s s overhead."
+msgstr "Letzter Lauf in %(total)s s abgeschlossen — %(trials)s s in Versuchen, %(overhead)s s Overhead."
+
+#: web/templates/web/experiment_detail.html:76
 msgid "No results yet."
 msgstr "Noch keine Ergebnisse."
 
-#: web/templates/web/experiment_detail.html:76
+#: web/templates/web/experiment_detail.html:80
 #, python-format
 msgid "The search space is exhausted at %(n)s trials."
 msgstr "Der Suchraum ist nach %(n)s Versuchen erschöpft."
 
-#: web/templates/web/experiment_detail.html:83
+#: web/templates/web/experiment_detail.html:87
 msgid "Best configuration"
 msgstr "Beste Konfiguration"
 
-#: web/templates/web/experiment_detail.html:84
+#: web/templates/web/experiment_detail.html:88
 #, python-format
 msgid "Best overall (Trial %(trial)s)"
 msgstr "Bestes Gesamtergebnis (Versuch %(trial)s)"
 
-#: web/templates/web/experiment_detail.html:104
+#: web/templates/web/experiment_detail.html:108
 msgid "Selected configuration"
 msgstr "Ausgewählte Konfiguration"
 
-#: web/templates/web/experiment_detail.html:114
+#: web/templates/web/experiment_detail.html:118
 msgid "Hyperparameter importance (HyperSHAP)"
 msgstr "Hyperparameter-Wichtigkeit (HyperSHAP)"
 
-#: web/templates/web/experiment_detail.html:117
+#: web/templates/web/experiment_detail.html:121
 msgid "No importance data available."
 msgstr "Keine Wichtigkeitsdaten verfügbar."
 
-#: web/templates/web/experiment_detail.html:123
+#: web/templates/web/experiment_detail.html:127
 msgid "Performance of Incumbent"
 msgstr "Leistung des Incumbents"
 
-#: web/templates/web/experiment_detail.html:132
+#: web/templates/web/experiment_detail.html:136
+msgid "Trial duration"
+msgstr "Versuchsdauer"
+
+#: web/templates/web/experiment_detail.html:142
+msgid "Gain per unit time"
+msgstr "Gewinn pro Zeiteinheit"
+
+#: web/templates/web/experiment_detail.html:144
+msgid "No data available."
+msgstr "Keine Daten verfügbar."
+
+#: web/templates/web/experiment_detail.html:152
 #, python-format
 msgid "Trials (%(n)s)"
 msgstr "Versuche (%(n)s)"
 
-#: web/templates/web/experiment_detail.html:140
+#: web/templates/web/experiment_detail.html:160
 msgid "Duration"
 msgstr "Dauer"
 
-#: web/templates/web/experiment_detail.html:193
+#: web/templates/web/experiment_detail.html:215
 msgid "Absolute scale (0-1)"
 msgstr "Absolute Skala (0-1)"
 
-#: web/templates/web/experiment_detail.html:194
+#: web/templates/web/experiment_detail.html:216
 msgid "Relative scale (fit to data)"
 msgstr "Relative Skala (an Daten anpassen)"
 

@@ -109,6 +109,7 @@ def execute_run(run_id):
             read_only=False,
         )
         optimizer = built["optimizer"]
+        offset = len(built["result"].trials) if built["result"] else 0
         result = optimizer.optimize(
             built["model"],
             built["X_train"], built["y_train"], built["X_val"], built["y_val"],
@@ -134,8 +135,12 @@ def execute_run(run_id):
         Experiment.objects.filter(pk=experiment.pk).update(
             result=optimizer.serialize_result(result),
         )
+    # Σ durations of the trials this run added (excludes any resumed-from trials),
+    # so the run box can show trial time vs. search/bookkeeping overhead.
+    trial_seconds = sum(t.duration for t in result.trials[offset:])
     Run.objects.filter(pk=run_id).update(
         status="cancelled" if cancelled else "done", finished_at=timezone.now(),
+        trial_seconds=trial_seconds,
     )
 
 

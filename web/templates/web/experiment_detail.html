@@ -68,6 +68,10 @@
         <div class="alert info">{% translate "Attach a dataset to run this experiment (loaded read-only)." %}</div>
     {% endif %}
 
+    {% if run_summary %}
+        <p class="caption" style="margin-top: 0.75rem;">{% blocktranslate with total=run_summary.total|floatformat:2 trials=run_summary.trials|floatformat:2 overhead=run_summary.overhead|floatformat:2 %}Last run finished in {{ total }} s — {{ trials }} s in trials, {{ overhead }} s overhead.{% endblocktranslate %}</p>
+    {% endif %}
+
     {% if not has_result %}
         <div class="alert info" style="margin-top: 1rem;">{% translate "No results yet." %}</div>
     {% else %}
@@ -126,6 +130,22 @@
             </div>
         </div>
 
+        <div class="grid-2x2">
+            <div class="slot">
+                <section class="card">
+                    <div class="subheader">{% translate "Trial duration" %}</div>
+                    <div id="duration-chart" class="chart"></div>
+                </section>
+            </div>
+            <div class="slot">
+                <section class="card">
+                    <div class="subheader">{% translate "Gain per unit time" %}</div>
+                    <div id="gain-chart" class="chart"></div>
+                    <p id="gain-none" class="caption" hidden>{% translate "No data available." %}</p>
+                </section>
+            </div>
+        </div>
+
         <hr class="divider">
 
         <section>
@@ -156,10 +176,12 @@
 
         {{ figures|json_script:"figures-data" }}
         {{ panels|json_script:"panels-data" }}
+        {{ duration_figure|json_script:"duration-data" }}
         <script src="{% static 'web/plotly.min.js' %}"></script>
         <script>
             (function () {
                 const figures = JSON.parse(document.getElementById("figures-data").textContent);
+                const durationFig = JSON.parse(document.getElementById("duration-data").textContent);
                 const warnings = {};
                 JSON.parse(document.getElementById("panels-data").textContent)
                     .forEach(p => { warnings[p.metric] = p.warning; });
@@ -277,6 +299,19 @@
                         impNone.hidden = false;
                     }
 
+                    // Gain per unit time is per-metric (incumbent improvement uses this metric).
+                    const gainChart = document.getElementById("gain-chart");
+                    const gainNone = document.getElementById("gain-none");
+                    if (fig.gain_per_time) {
+                        gainNone.hidden = true;
+                        gainChart.hidden = false;
+                        Plotly.react("gain-chart", fig.gain_per_time.data, fig.gain_per_time.layout, plotlyConfig);
+                    } else {
+                        Plotly.purge("gain-chart");
+                        gainChart.hidden = true;
+                        gainNone.hidden = false;
+                    }
+
                     document.querySelectorAll(".panel").forEach(function (el) {
                         el.hidden = el.dataset.metric !== metric;
                     });
@@ -289,6 +324,10 @@
                 const reevaluateBtn = document.getElementById("reevaluate-btn");
                 if (reevaluateBtn) {
                     reevaluateBtn.addEventListener("click", () => show(select.value));
+                }
+                // The duration chart is metric-independent — render it once.
+                if (durationFig) {
+                    Plotly.newPlot("duration-chart", durationFig.data, durationFig.layout, plotlyConfig);
                 }
                 show(select.value);
             })();
