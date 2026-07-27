@@ -33,6 +33,10 @@
             <div class="field" data-pane="model-upload">
                 <label for="{{ form.model_file.id_for_label }}">{{ form.model_file.label }}</label>
                 {{ form.model_file }}
+                {% if form.mounted_model %}
+                    <label for="{{ form.mounted_model.id_for_label }}" style="margin-top: 0.5rem;">{{ form.mounted_model.label }}</label>
+                    {{ form.mounted_model }}
+                {% endif %}
             </div>
         {% else %}
             <div class="field">
@@ -42,6 +46,7 @@
         {% endif %}
         {% if form.model_name.errors %}<div class="form-error">{{ form.model_name.errors|join:" " }}</div>{% endif %}
         {% if form.model_file.errors %}<div class="form-error">{{ form.model_file.errors|join:" " }}</div>{% endif %}
+        {% if form.mounted_model.errors %}<div class="form-error">{{ form.mounted_model.errors|join:" " }}</div>{% endif %}
 
         <div class="field">
             <label for="{{ form.optimizer_name.id_for_label }}">{{ form.optimizer_name.label }}</label>

@@ -8,7 +8,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: PACKAGE VERSION\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2026-07-24 14:43+0000\n"
+"POT-Creation-Date: 2026-07-27 10:18+0000\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
 "Language-Team: LANGUAGE <LL@li.org>\n"
@@ -55,35 +55,39 @@ msgstr "Modelo"
 msgid "…or upload a model .py"
 msgstr "…o suba un modelo (.py)"
 
-#: web/forms.py:27 web/templates/web/experiment_detail.html:12
+#: web/forms.py:27
+msgid "…or a mounted model .py"
+msgstr "…o un modelo montado (.py)"
+
+#: web/forms.py:28 web/templates/web/experiment_detail.html:12
 msgid "Optimizer"
 msgstr "Optimizador"
 
-#: web/forms.py:28
+#: web/forms.py:29
 msgid "Demo dataset"
 msgstr "Conjunto de datos de demostración"
 
-#: web/forms.py:29
+#: web/forms.py:30
 msgid "…or upload a CSV (last column = target)"
 msgstr "…o suba un CSV (última columna = objetivo)"
 
-#: web/forms.py:30
+#: web/forms.py:31
 msgid "Seed (negative = random)"
 msgstr "Semilla (negativa = aleatoria)"
 
-#: web/forms.py:34
+#: web/forms.py:35
 msgid "— select —"
 msgstr "— seleccionar —"
 
-#: web/forms.py:37
+#: web/forms.py:38 web/forms.py:42
 msgid "— none —"
 msgstr "— ninguno —"
 
-#: web/forms.py:55
+#: web/forms.py:69
 msgid "Choose a model or upload a model .py file."
 msgstr "Elija un modelo o suba un archivo de modelo .py."
 
-#: web/forms.py:58
+#: web/forms.py:72
 msgid "Choose a demo dataset or upload a CSV file."
 msgstr "Elija un conjunto de datos de demostración o suba un archivo CSV."
 
@@ -340,11 +344,11 @@ msgstr ""
 msgid "Use demo models"
 msgstr "Usar modelos de demostración"
 
-#: web/templates/web/new_experiment.html:53
+#: web/templates/web/new_experiment.html:58
 msgid "Use demo datasets"
 msgstr "Usar conjuntos de datos de demostración"
 
-#: web/templates/web/new_experiment.html:70
+#: web/templates/web/new_experiment.html:75
 msgid "Create experiment"
 msgstr "Crear experimento"
 
@@ -352,6 +356,6 @@ msgstr "Crear experimento"
 msgid "Inconsistent"
 msgstr "Inconsistente"
 
-#: web/views.py:225
+#: web/views.py:228
 msgid "Invalid or unreadable experiment file."
 msgstr "Archivo de experimento inválido o ilegible."

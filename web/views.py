@@ -84,11 +84,14 @@ def new_experiment(request):
     try:
         dataset_path = _dataset_path_from(form, tmp_paths)
         optimizer = type(OPTIMIZERS[cleaned["optimizer_name"]])()
+        # A mounted model is adopted from its server-side path (unless an upload
+        # was given, which takes precedence); the adapter copies it into MEDIA.
+        mounted = cleaned.get("mounted_model") or ""
         snapshot = {
             "version": VERSION,
             "name": cleaned["name"],
             "model_name": cleaned["model_name"],
-            "model_path": "",
+            "model_path": mounted if (mounted and not cleaned.get("model_file")) else "",
             "optimizer_name": optimizer.name,
             "optimizer_params": optimizer.get_params(),
             "primary_metric": None,

@@ -5,7 +5,7 @@ from django import forms
 from django.conf import settings
 from django.utils.translation import gettext_lazy as _
 
-from core.io import demo_datasets, load_model_from_path
+from core.io import demo_datasets, load_model_from_path, mounted_models
 
 from .registry import MODELS, OPTIMIZERS
 
@@ -24,6 +24,7 @@ class NewExperimentForm(forms.Form):
     name = forms.CharField(label=_("Experiment name"), max_length=200)
     model_name = forms.ChoiceField(label=_("Model"), required=False)
     model_file = forms.FileField(label=_("…or upload a model .py"), required=False)
+    mounted_model = forms.ChoiceField(label=_("…or a mounted model .py"), required=False)
     optimizer_name = forms.ChoiceField(label=_("Optimizer"))
     demo_dataset = forms.ChoiceField(label=_("Demo dataset"), required=False)
     dataset_file = forms.FileField(label=_("…or upload a CSV (last column = target)"), required=False)
@@ -35,6 +36,12 @@ class NewExperimentForm(forms.Form):
         self.fields["optimizer_name"].choices = [(k, k) for k in OPTIMIZERS]
         demos = demo_datasets()
         self.fields["demo_dataset"].choices = [("", _("— none —"))] + [(p, k) for k, p in demos.items()]
+
+        mounted = mounted_models() if settings.ALLOW_CUSTOM_MODELS else {}
+        if mounted:
+            self.fields["mounted_model"].choices = [("", _("— none —"))] + [(p, k) for k, p in mounted.items()]
+        else:
+            del self.fields["mounted_model"]
         if not settings.ALLOW_CUSTOM_MODELS:
             del self.fields["model_file"]
 
@@ -45,12 +52,19 @@ class NewExperimentForm(forms.Form):
         # otherwise a registry choice is required. A valid custom file resolves
         # the stored model_name to the model's own .name.
         upload = cleaned.get("model_file")
+        mounted = cleaned.get("mounted_model")
         if upload:
             resolved, err = self._load_uploaded_model(upload)
             if err:
                 self.add_error("model_file", err)
             else:
                 cleaned["model_name"] = resolved
+        elif mounted:
+            model, err = load_model_from_path(mounted)
+            if err:
+                self.add_error("mounted_model", err)
+            else:
+                cleaned["model_name"] = model.name
         elif not cleaned.get("model_name"):
             self.add_error("model_name", _("Choose a model or upload a model .py file."))
 
