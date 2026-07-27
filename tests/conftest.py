@@ -6,6 +6,7 @@ from sklearn.metrics import accuracy_score, f1_score, precision_score, recall_sc
 
 from core.io import _load_splits
 from core.models import BaseModel, RandomForestModel, SVMModel
+from core.optimizers.timing import timed_evaluation
 from core.optimizers import (
     BaseOptimizer,
     GridOptimizer,
@@ -60,10 +61,11 @@ class FakeOptimizer(BaseOptimizer):
             if cancel_event and cancel_event.is_set():
                 break
             cfg = dict(config_space.sample_configuration())
-            all_scores = model.train_evaluate(
-                cfg, X_train, y_train, X_val, y_val, metrics, seed=seed
-            )
-            collector.record(cfg, all_scores[primary_metric], all_scores)
+            with timed_evaluation(seed=seed) as run_info:
+                all_scores = model.train_evaluate(
+                    cfg, X_train, y_train, X_val, y_val, metrics, seed=seed
+                )
+            collector.record(cfg, all_scores[primary_metric], all_scores, run_info=run_info)
 
         all_trials = (previous_result.trials if previous_result else []) + collector.results
         params = list(config_space.keys())

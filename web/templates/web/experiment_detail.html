@@ -137,6 +137,7 @@
                             <th>#</th>
                             {% for h in hp_names %}<th>{{ h }}</th>{% endfor %}
                             {% for m in metric_names %}<th>{{ m }}</th>{% endfor %}
+                            <th>{% translate "Duration" %}</th>
                         </tr>
                     </thead>
                     <tbody>
@@ -145,6 +146,7 @@
                                 <td>{{ row.n }}</td>
                                 {% for v in row.config_values %}<td>{{ v }}</td>{% endfor %}
                                 {% for score in row.scores %}<td>{{ score|floatformat:4 }}</td>{% endfor %}
+                                <td>{{ row.duration|floatformat:3 }} s</td>
                             </tr>
                         {% endfor %}
                     </tbody>

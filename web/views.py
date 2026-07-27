@@ -344,6 +344,7 @@ def _detail_context(exp):
                 "n": t.trial,
                 "config_values": [t.config.get(h) for h in hp_names],
                 "scores": [t.scores[m] for m in metric_names],
+                "duration": t.duration,
             }
             for t in result.trials
         ],

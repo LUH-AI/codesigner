@@ -8,7 +8,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: PACKAGE VERSION\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2026-07-27 10:18+0000\n"
+"POT-Creation-Date: 2026-07-27 13:09+0000\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
 "Language-Team: LANGUAGE <LL@li.org>\n"
@@ -246,11 +246,15 @@ msgstr "Rendimiento del Incumbente"
 msgid "Trials (%(n)s)"
 msgstr "Pruebas (%(n)s)"
 
-#: web/templates/web/experiment_detail.html:191
+#: web/templates/web/experiment_detail.html:140
+msgid "Duration"
+msgstr "Duración"
+
+#: web/templates/web/experiment_detail.html:193
 msgid "Absolute scale (0-1)"
 msgstr "Escala absoluta (0-1)"
 
-#: web/templates/web/experiment_detail.html:192
+#: web/templates/web/experiment_detail.html:194
 msgid "Relative scale (fit to data)"
 msgstr "Escala relativa (ajustar a los datos)"
 
@@ -356,6 +360,6 @@ msgstr "Crear experimento"
 msgid "Inconsistent"
 msgstr "Inconsistente"
 
-#: web/views.py:228
+#: web/views.py:233
 msgid "Invalid or unreadable experiment file."
 msgstr "Archivo de experimento inválido o ilegible."

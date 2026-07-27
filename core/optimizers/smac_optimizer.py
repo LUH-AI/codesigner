@@ -4,9 +4,11 @@ import tempfile
 from pathlib import Path
 
 from smac import Scenario, BlackBoxFacade
+from smac.runhistory import StatusType
 from smac.runhistory.dataclasses import TrialValue
 
 from .base import BaseOptimizer, OptimizationResult, TrialCollector, TrialResult
+from .timing import timed_evaluation
 
 logging.getLogger("smac").setLevel(logging.WARNING)
 
@@ -156,12 +158,19 @@ class SMACOptimizer(BaseOptimizer):
                 break
             info = smac.ask()
             config = dict(info.config)
-            all_scores = model.train_evaluate(
-                config, X_train, y_train, X_val, y_val, metrics, seed=seed
-            )
+            with timed_evaluation(seed=seed) as run_info:
+                all_scores = model.train_evaluate(
+                    config, X_train, y_train, X_val, y_val, metrics, seed=seed
+                )
             cost = 1.0 - all_scores[primary_metric]
-            smac.tell(info, TrialValue(cost=cost))
-            collector.record(config, all_scores[primary_metric], all_scores)
+            # Feed the measured timing into SMAC so its runhistory (which the
+            # serialize override copies verbatim) carries the real values.
+            smac.tell(info, TrialValue(
+                cost=cost, time=run_info["time"], cpu_time=run_info["cpu_time"],
+                starttime=run_info["starttime"], endtime=run_info["endtime"],
+                status=StatusType.SUCCESS,
+            ))
+            collector.record(config, all_scores[primary_metric], all_scores, run_info=run_info)
 
         incumbent = smac.intensifier.get_incumbent()
         all_trials = (previous_result.trials if previous_result else []) + collector.results

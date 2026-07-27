@@ -3,6 +3,9 @@ from dataclasses import dataclass, field
 from typing import Any, Dict, List, Optional
 from hypershap import ExplanationTask, HyperSHAP
 
+from .timing import RUN_INFO_KEYS
+
+
 @dataclass
 class OptimizerParam:
     """Describes one user-configurable parameter of an optimizer, for form rendering."""
@@ -23,6 +26,12 @@ class TrialResult:
     score: float                # primary metric score (used internally)
     incumbent_score: float      # running incumbent score
     incumbent_config: Dict[str, Any]
+    run_info: Dict[str, Any] = field(default_factory=dict)  # SMAC-native per-trial fields (timing, seed, status, …)
+
+    @property
+    def duration(self) -> float:
+        """Wall-clock seconds the trial's evaluation took (0.0 if unrecorded)."""
+        return self.run_info.get("time") or 0.0
 
 
 @dataclass
@@ -83,6 +92,7 @@ class TrialCollector:
         config: Dict[str, Any],
         score: float,
         all_scores: Dict[str, float],
+        run_info: Optional[Dict[str, Any]] = None,
     ) -> TrialResult:
         """Record one completed trial, update the incumbent, return the TrialResult."""
         if score > self._incumbent_score:
@@ -96,6 +106,7 @@ class TrialCollector:
             score=score,
             incumbent_score=self._incumbent_score,
             incumbent_config=self._incumbent_config or config,
+            run_info=run_info or {},
         )
         self.results.append(trial)
         return trial
@@ -148,6 +159,7 @@ class BaseOptimizer(ABC):
             incumbent_key = tuple(sorted(t.incumbent_config.items()))
             incumbent_cid = config_id_by_key.get(incumbent_key, str(t.trial))
             data.append({
+                **t.run_info,  # SMAC-native fields (timing, seed, status, …); disjoint from the keys below
                 "config_id": t.trial,
                 "cost": 1.0 - t.score,
                 "scores": t.scores,
@@ -195,6 +207,7 @@ class BaseOptimizer(ABC):
                 score=1.0 - entry["cost"],
                 incumbent_score=entry.get("incumbent_score", 1.0 - entry["cost"]),
                 incumbent_config=configs.get(incumbent_cid, configs.get(cid, {})),
+                run_info={k: entry[k] for k in RUN_INFO_KEYS if k in entry},
             ))
 
         best_config_id = str(d.get("best_config_id") or (str(trials[-1].trial) if trials else "0"))
