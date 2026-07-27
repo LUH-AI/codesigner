@@ -1,5 +1,6 @@
 django>=6.0,<7
 django-environ>=0.12
+huey>=3.3           # background task queue (SqliteHuey; run via `manage.py run_huey`)
 
 # HPO core. NOTE: the PyPI smac 2.4.0 release has a bug; we run a local
 # editable checkout of https://github.com/automl/SMAC3 branch dev_1320.

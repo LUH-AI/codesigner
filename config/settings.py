@@ -32,6 +32,20 @@ ALLOWED_HOSTS = env.list("ALLOWED_HOSTS", default=["localhost", "127.0.0.1"])
 # OFF on any shared or public deployment (see README).
 ALLOW_CUSTOM_MODELS = env.bool("ALLOW_CUSTOM_MODELS", default=True)
 
+# Background task queue. Runs execute in a separate `manage.py run_huey`
+# consumer process; run state lives in the database, so the web process only
+# enqueues (polling and cancellation are DB-based and unaffected). SqliteHuey
+# keeps everything on-box — no Redis. `immediate` runs tasks inline instead of
+# via the consumer; it defaults to DEBUG so a lone `runserver` works in
+# development, and is off in production where the consumer runs.
+HUEY = {
+    "huey_class": "huey.SqliteHuey",
+    "name": "codesigner",
+    "filename": str(BASE_DIR / "huey.sqlite3"),
+    "immediate": env.bool("HUEY_IMMEDIATE", default=DEBUG),
+    "results": False,
+}
+
 
 # Application definition
 
@@ -42,6 +56,7 @@ INSTALLED_APPS = [
     "django.contrib.sessions",
     "django.contrib.messages",
     "django.contrib.staticfiles",
+    "huey.contrib.djhuey",
     "web",
 ]
 

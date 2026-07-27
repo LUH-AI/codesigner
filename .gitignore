@@ -5,3 +5,4 @@ media/
 __pycache__/
 *.pyc
 staticfiles/
+huey.sqlite3*

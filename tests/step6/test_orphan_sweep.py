@@ -1,8 +1,10 @@
-"""Step 6: sweeping runs orphaned by a server restart.
+"""Step 6 (updated in Step 10): sweeping runs orphaned by a restart.
 
-In-process run threads don't survive a restart, so any run still marked
-pending/running afterwards is stale. sweep_stale_runs (called once on startup)
-marks them errored; finished runs are untouched.
+Runs now execute through a durable huey queue: a *pending* run is still queued
+and will be picked up by the consumer, so it is NOT stale. Only a *running* run
+is orphaned — the consumer died mid-execution — so sweep_stale_runs (run once at
+consumer/system startup) marks only running runs errored; pending and finished
+runs are left untouched.
 """
 
 import pytest
@@ -19,8 +21,8 @@ def _experiment():
 
 
 @pytest.mark.django_db
-def test_sweep_marks_active_runs_errored_and_leaves_finished():
-    """Pending/running runs become errored with a restart message; done stays done."""
+def test_sweep_marks_running_errored_and_leaves_pending_and_finished():
+    """Only running runs are stale; pending (still queued) and done are untouched."""
     from web.models import Run
 
     exp = _experiment()
@@ -33,7 +35,7 @@ def test_sweep_marks_active_runs_errored_and_leaves_finished():
     running.refresh_from_db()
     pending.refresh_from_db()
     done.refresh_from_db()
-    assert swept == 2
+    assert swept == 1
     assert running.status == "error" and "restart" in running.error.lower()
-    assert pending.status == "error"
+    assert pending.status == "pending"  # durably queued — will still be processed
     assert done.status == "done"

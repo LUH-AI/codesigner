@@ -8,7 +8,6 @@ result and status back so the page can poll and cancel.
 """
 
 import random
-import threading
 import time
 from pathlib import Path
 
@@ -141,19 +140,26 @@ def execute_run(run_id):
 
 
 def start_background_run(run_id):
-    """Execute a run in a daemon thread (fire-and-forget)."""
-    threading.Thread(target=execute_run, args=(run_id,), daemon=True).start()
+    """Enqueue a run for the huey consumer to execute (fire-and-forget).
+
+    A lazy import keeps the task module out of the import cycle (tasks.py imports
+    this module). In immediate mode the task runs inline; otherwise the consumer
+    picks it up. Either way the web request returns at once.
+    """
+    from ..tasks import run_experiment_task
+
+    run_experiment_task(run_id)
 
 
 def sweep_stale_runs():
-    """Mark still-active runs as errored — they were interrupted by a restart.
+    """Mark runs left ``running`` by an interrupted consumer as errored.
 
-    Runs execute in in-process threads, so a server restart abandons any that
-    were pending or running. Called once on startup to clear them (Streamlit
-    had no equivalent: its runs simply vanished with the process).
+    With the durable huey queue a ``pending`` run is still queued and will be
+    picked up, so it is not stale — only a ``running`` run is (its consumer died
+    mid-execution). Run once at consumer/system startup. Finished runs untouched.
     """
     from ..models import Run
 
-    return Run.objects.filter(status__in=["pending", "running"]).update(
-        status="error", error="Interrupted by a server restart.",
+    return Run.objects.filter(status="running").update(
+        status="error", error="Interrupted by a restart.",
     )
