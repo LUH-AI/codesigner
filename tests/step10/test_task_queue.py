@@ -70,3 +70,44 @@ def test_call_local_runs_the_experiment():
 
     run.refresh_from_db()
     assert run.status == "done", run.error
+
+
+def test_inline_runs_are_dispatched_off_the_request_thread(settings, monkeypatch):
+    """With no consumer running (immediate mode, i.e. a lone `runserver`), the
+    work must not happen during the click: `start_background_run` hands it to a
+    background thread and returns straight away, so the browser gets its page
+    back instead of waiting out the whole optimization.
+    """
+    import threading
+
+    from ui.services import run as run_service
+
+    settings.RUN_IMMEDIATE_IN_THREAD = True
+    started, release = threading.Event(), threading.Event()
+
+    def blocking_task(run_id):
+        started.set()
+        release.wait(timeout=5)
+
+    monkeypatch.setattr("ui.tasks.run_experiment_task", blocking_task)
+    run_service.start_background_run(1)
+
+    # The call returned while the task is still blocked — i.e. it did not run
+    # inline. (Without the thread this line is only reached after `release`.)
+    assert started.wait(timeout=5), "task never started"
+    assert not release.is_set()
+    release.set()
+
+
+def test_inline_runs_stay_synchronous_when_threading_is_off(settings, monkeypatch):
+    """With the dev-server dispatch off (the default under tests and in
+    production, where a real consumer runs), enqueuing executes inline so
+    callers and assertions see a finished run."""
+    from ui.services import run as run_service
+
+    settings.RUN_IMMEDIATE_IN_THREAD = False
+    calls = []
+    monkeypatch.setattr("ui.tasks.run_experiment_task", lambda run_id: calls.append(run_id))
+    run_service.start_background_run(7)
+
+    assert calls == [7]

@@ -35,8 +35,14 @@ already read/write the DB and are unchanged.
 **Immediate mode.** huey can run a task inline instead of via the consumer
 (`immediate=True`). We default it to `DEBUG`, so a lone `runserver` still works
 in development with no second process; it's off in production, where the
-consumer runs. Tests flip it on so an enqueued task runs synchronously and can
+consumer runs. Tests rely on it so an enqueued task runs synchronously and can
 be asserted.
+
+Inline means *in the caller*, though — and for a run launched from the page the
+caller is the request, so the browser would wait out the whole optimization.
+`RUN_IMMEDIATE_IN_THREAD` (default on) hands an immediate-mode run to a daemon
+thread instead, so the response is immediate the way it is with a real
+consumer. Tests turn it off (an autouse fixture) to keep launches synchronous.
 
 ## 2. What changed
 
@@ -48,9 +54,10 @@ be asserted.
   consumer finds it with no extra wiring; the web process imports it lazily when
   enqueuing.
 - **`ui/services/run.py`** — `start_background_run` now enqueues that task
-  instead of `threading.Thread(...)` (and `import threading` is gone). This is
-  the *only* launch-path change; `execute_run` (rebuild-from-DB, run with the
-  `DbCancelFlag`, write result/status back) is byte-for-byte the same.
+  instead of `threading.Thread(...)`; a thread survives only as the immediate
+  -mode dispatch described above, so the dev server answers the request without
+  waiting. This is the *only* launch-path change; `execute_run` (rebuild-from-DB,
+  run with the `DbCancelFlag`, write result/status back) is byte-for-byte the same.
 - **`sweep_stale_runs`** — now sweeps only `running` runs, not `pending` (see
   the deviation below).
 - **`.gitignore`** — `huey.sqlite3*`.
@@ -69,7 +76,8 @@ Source: Step 6's thread-based engine (the behavior to preserve). ✅ done ·
 - ✅ Durable queue: a queued (`pending`) run **survives a web restart** and is
   still processed — a genuine improvement over the thread version
 - ✅ Dev ergonomics: `immediate=DEBUG` means a solo `runserver` still runs tasks
-  inline; set `HUEY_IMMEDIATE=false` to use the real consumer locally
+  inline — on a thread, so the page returns at once; set `HUEY_IMMEDIATE=false`
+  to use the real consumer locally
 - 🔄 **Stale-run sweep semantics** changed (below)
 - ⏭ Custom-model execution moving *into* the worker (the trust-boundary
   isolation) — deferred to the Docker part of Step 10

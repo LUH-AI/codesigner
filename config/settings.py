@@ -46,6 +46,13 @@ HUEY = {
     "results": False,
 }
 
+# Immediate mode executes a task in the caller — which, for a run launched from
+# the page, is the request itself: the browser would wait out the whole
+# optimization. When it is on, dispatch the inline task to a background thread
+# so the request returns at once, the way it does with a real consumer. Tests
+# turn this off (see tests/conftest.py) to keep inline execution synchronous.
+RUN_IMMEDIATE_IN_THREAD = env.bool("RUN_IMMEDIATE_IN_THREAD", default=True)
+
 
 # Application definition
 

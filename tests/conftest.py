@@ -92,6 +92,18 @@ class PreCancelled:
         return True
 
 
+@pytest.fixture(autouse=True)
+def runs_execute_synchronously(settings):
+    """Keep inline runs synchronous for the whole suite.
+
+    The dev server hands an immediate-mode run to a background thread so the
+    request returns at once; under test that would race every assertion about a
+    launched run, so launching executes in the caller instead. The tests that
+    cover the threaded dispatch itself opt back in.
+    """
+    settings.RUN_IMMEDIATE_IN_THREAD = False
+
+
 @pytest.fixture
 def metrics() -> dict:
     """The four standard classification metrics, keyed as the app registers them."""

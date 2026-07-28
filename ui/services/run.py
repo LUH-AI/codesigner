@@ -8,10 +8,12 @@ result and status back so the page can poll and cancel.
 """
 
 import random
+import threading
 import time
 from pathlib import Path
 
 from django.utils import timezone
+from huey.contrib.djhuey import HUEY
 
 from core import io
 from core.io import _load_splits
@@ -150,12 +152,22 @@ def start_background_run(run_id):
     """Enqueue a run for the huey consumer to execute (fire-and-forget).
 
     A lazy import keeps the task module out of the import cycle (tasks.py imports
-    this module). In immediate mode the task runs inline; otherwise the consumer
-    picks it up. Either way the web request returns at once.
+    this module). With a consumer running, enqueuing returns at once. In
+    immediate mode there is no consumer and the task would execute in the
+    caller — so the request would block for the whole optimization; a daemon
+    thread keeps the response immediate there too. A run whose thread dies with
+    the server is swept back to `error` at startup.
     """
-    from ..tasks import run_experiment_task
+    from django.conf import settings as django_settings
 
-    run_experiment_task(run_id)
+    from .. import tasks
+
+    if django_settings.RUN_IMMEDIATE_IN_THREAD and HUEY.immediate:
+        threading.Thread(target=tasks.run_experiment_task, args=(run_id,),
+                         daemon=True).start()
+        return
+
+    tasks.run_experiment_task(run_id)
 
 
 def sweep_stale_runs():
