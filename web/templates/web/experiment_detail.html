@@ -131,27 +131,21 @@
             </div>
         </div>
 
-        <section class="card">
-            <div class="subheader">{% translate "Trial duration" %}</div>
-            <div id="duration-chart" class="chart"></div>
-        </section>
-
-        {# Three candidate efficiency views to compare side by side, then cull. #}
-        <section class="card">
-            <div class="subheader">A — {% translate "Error-reduction spikes (log)" %}</div>
-            <div id="variant-a-chart" class="chart"></div>
-            <p id="variant-a-none" class="caption" hidden>{% translate "No data available." %}</p>
-        </section>
-        <section class="card">
-            <div class="subheader">B — {% translate "Remaining error (log convergence)" %}</div>
-            <div id="variant-b-chart" class="chart"></div>
-            <p id="variant-b-none" class="caption" hidden>{% translate "No data available." %}</p>
-        </section>
-        <section class="card">
-            <div class="subheader">C — {% translate "Return on compute (scaled markers)" %}</div>
-            <div id="variant-c-chart" class="chart"></div>
-            <p id="variant-c-none" class="caption" hidden>{% translate "No data available." %}</p>
-        </section>
+        <div class="grid-2x2">
+            <div class="slot">
+                <section class="card">
+                    <div class="subheader">{% translate "Trial duration" %}</div>
+                    <div id="duration-chart" class="chart"></div>
+                </section>
+            </div>
+            <div class="slot">
+                <section class="card">
+                    <div class="subheader">{% translate "Error vs compute" %}</div>
+                    <div id="error-compute-chart" class="chart"></div>
+                    <p id="error-compute-none" class="caption" hidden>{% translate "No data available." %}</p>
+                </section>
+            </div>
+        </div>
 
         <hr class="divider">
 
@@ -306,19 +300,15 @@
                         impNone.hidden = false;
                     }
 
-                    // The three efficiency variants are per-metric (they use this
-                    // metric's incumbent). Render each, or show its "no data" note.
-                    [["a", fig.variant_a], ["b", fig.variant_b], ["c", fig.variant_c]].forEach(function (pair) {
-                        const id = pair[0], f = pair[1];
-                        const chart = document.getElementById("variant-" + id + "-chart");
-                        const none = document.getElementById("variant-" + id + "-none");
-                        if (f) {
-                            none.hidden = true; chart.hidden = false;
-                            Plotly.react(chart, f.data, f.layout, plotlyConfig);
-                        } else {
-                            Plotly.purge(chart); chart.hidden = true; none.hidden = false;
-                        }
-                    });
+                    // Error vs compute is per-metric (uses this metric's incumbent).
+                    const ecChart = document.getElementById("error-compute-chart");
+                    const ecNone = document.getElementById("error-compute-none");
+                    if (fig.error_vs_compute) {
+                        ecNone.hidden = true; ecChart.hidden = false;
+                        Plotly.react(ecChart, fig.error_vs_compute.data, fig.error_vs_compute.layout, plotlyConfig);
+                    } else {
+                        Plotly.purge(ecChart); ecChart.hidden = true; ecNone.hidden = false;
+                    }
 
                     document.querySelectorAll(".panel").forEach(function (el) {
                         el.hidden = el.dataset.metric !== metric;

@@ -92,111 +92,40 @@ def duration_figure(result):
     return fig
 
 
-def _relative_error_reduction(incumbents, i):
-    """Fraction of the remaining error (1 − best) that trial i eliminated.
+def error_vs_compute_figure(result, display_metric):
+    """Remaining error (1 − best-so-far) against cumulative trial time — an
+    "anytime performance" curve: how the error comes down as compute is spent.
 
-    e.g. 0.65→0.70 cuts error 0.35→0.30 = 14%; 0.95→0.98 cuts 0.05→0.02 = 60%.
-    Zero (or negative, clamped) when the trial didn't improve the incumbent.
+    Unlike the incumbent line (error vs *trial number*), the x-axis here is
+    seconds of compute, so the WIDTH of each flat run is time spent without
+    improvement (expensive dry spells stretch wide) and each drop is a win.
+    Log y so near-optimal gains still read large; markers flag new incumbents.
+    Returns None with no trials.
     """
-    prev_err = 1.0 - incumbents[i - 1]
-    if prev_err <= 1e-9:
-        return 0.0
-    return max(0.0, (incumbents[i] - incumbents[i - 1]) / prev_err)
-
-
-def error_reduction_spikes_figure(result, display_metric):
-    """(A) Bars: the fraction of remaining error a trial cut ÷ its duration, on
-    a log y-axis. Each win is a spike sized by significance — a 0.65→0.70 jump
-    and a 0.95→0.98 jump both stand out. First trial dropped; None with <2
-    trials or no post-first improvement."""
-    trials = result.trials
-    if len(trials) < 2:
-        return None
-    incumbents = incumbent_scores(result, display_metric)
-    xs, ys = [], []
-    for i in range(1, len(trials)):
-        red = _relative_error_reduction(incumbents, i)
-        dur = trials[i].duration
-        xs.append(trials[i].trial)
-        ys.append(red / dur if dur > 1e-9 else 0.0)
-    if not any(v > 0 for v in ys):
-        return None
-    fig = go.Figure(go.Bar(x=xs, y=ys, marker_color=_MARKER_COLOR))
-    fig.update_layout(
-        xaxis_title="Trial", yaxis_title="Error cut / s", yaxis_type="log",
-        margin=dict(t=20, b=40, l=40, r=20), showlegend=False,
-    )
-    return fig
-
-
-def regret_convergence_figure(result, display_metric):
-    """(B) Remaining error (1 − best-so-far) on a log y-axis over trials — the
-    standard convergence view: a descending staircase where each win is a drop
-    sized by significance (near-optimal drops tower); markers flag wins. None
-    with no trials."""
     trials = result.trials
     if not trials:
-        return None
-    incumbents = incumbent_scores(result, display_metric)
-    regret = [max(1e-3, 1.0 - incumbents[i]) for i in range(len(trials))]  # floor so log never hits 0
-    xs = [t.trial for t in trials]
-    win = [i == 0 or incumbents[i] > incumbents[i - 1] for i in range(len(trials))]
-    fig = go.Figure()
-    fig.add_trace(go.Scatter(
-        x=xs, y=regret, mode="lines", name="Remaining error",
-        line=dict(width=2, shape="hv", color=_MARKER_COLOR),
-    ))
-    fig.add_trace(go.Scatter(
-        x=[trials[i].trial for i in range(len(trials)) if win[i]],
-        y=[regret[i] for i in range(len(trials)) if win[i]],
-        mode="markers", name="New incumbent",
-        marker=dict(size=10, color=_SELECTED_COLOR),
-    ))
-    fig.update_layout(
-        xaxis_title="Trial", yaxis_title="Remaining error (1 − best)", yaxis_type="log",
-        legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1),
-        margin=dict(t=40, b=40, l=40, r=20),
-    )
-    return fig
-
-
-def return_on_compute_figure(result, display_metric):
-    """(C) Declining best-so-far ÷ cumulative time line (utility eroding as
-    compute is spent without gains), with a new-incumbent marker whose size
-    grows with the error reduction the win achieved. First trial dropped; None
-    with <2 trials."""
-    trials = result.trials
-    if len(trials) < 2:
         return None
     incumbents = incumbent_scores(result, display_metric)
     elapsed, running = [], 0.0
     for t in trials:
         running += t.duration
         elapsed.append(running)
-
-    def utility(i):
-        return incumbents[i] / elapsed[i] if elapsed[i] > 1e-9 else 0.0
-
-    xs = [trials[i].trial for i in range(1, len(trials))]
-    ys = [utility(i) for i in range(1, len(trials))]
-    wx, wy, wsize = [], [], []
-    for i in range(1, len(trials)):
-        if incumbents[i] > incumbents[i - 1]:
-            wx.append(trials[i].trial)
-            wy.append(utility(i))
-            wsize.append(8 + 40 * _relative_error_reduction(incumbents, i))
+    regret = [max(1e-3, 1.0 - incumbents[i]) for i in range(len(trials))]  # floor so log never hits 0
+    win = [i == 0 or incumbents[i] > incumbents[i - 1] for i in range(len(trials))]
     fig = go.Figure()
     fig.add_trace(go.Scatter(
-        x=xs, y=ys, mode="lines", name="Return on compute",
-        line=dict(width=2, color=_MARKER_COLOR),
+        x=elapsed, y=regret, mode="lines", name="Remaining error",
+        line=dict(width=2, shape="hv", color=_MARKER_COLOR),
     ))
-    if wx:
-        fig.add_trace(go.Scatter(
-            x=wx, y=wy, mode="markers", name="New incumbent",
-            marker=dict(size=wsize, color=_SELECTED_COLOR, symbol="triangle-up"),
-        ))
+    fig.add_trace(go.Scatter(
+        x=[elapsed[i] for i in range(len(trials)) if win[i]],
+        y=[regret[i] for i in range(len(trials)) if win[i]],
+        mode="markers", name="New incumbent",
+        marker=dict(size=10, color=_SELECTED_COLOR),
+    ))
     fig.update_layout(
-        xaxis_title="Trial", yaxis_title="Best ÷ cumulative s",
+        xaxis_title="Cumulative time (s)", yaxis_title="Remaining error (1 − best)",
+        yaxis_type="log",
         legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1),
         margin=dict(t=40, b=40, l=40, r=20),
     )

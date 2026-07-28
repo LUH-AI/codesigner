@@ -1,20 +1,14 @@
-"""Timing figures: per-trial duration + three candidate efficiency views.
+"""Timing figures: per-trial duration + error-vs-compute.
 
 `duration_figure` is metric-independent (one bar per trial = its duration).
-The three efficiency variants are per-metric and under comparison:
-A `error_reduction_spikes_figure`, B `regret_convergence_figure`,
-C `return_on_compute_figure`.
+`error_vs_compute_figure` (remaining error vs cumulative compute time) is
+per-metric and still being refined, so it's intentionally untested for now.
 """
 
 import pytest
 
 from core.optimizers.base import OptimizationResult, TrialResult
-from web.charts import (
-    duration_figure,
-    error_reduction_spikes_figure,
-    regret_convergence_figure,
-    return_on_compute_figure,
-)
+from web.charts import duration_figure
 
 
 def _res(trials):
