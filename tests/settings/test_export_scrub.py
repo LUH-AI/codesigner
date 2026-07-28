@@ -10,7 +10,7 @@ import json
 import pytest
 from django.urls import reverse
 
-from web.models import Experiment
+from ui.models import Experiment
 
 
 def _experiment_with_timestamps(**kw):
@@ -33,7 +33,7 @@ def _experiment_with_timestamps(**kw):
 
 
 def _exported(client, exp):
-    resp = client.get(reverse("web:experiment_export", args=[exp.pk]))
+    resp = client.get(reverse("ui:experiment_export", args=[exp.pk]))
     return json.loads(resp.content.decode())["result"]["data"][0]
 
 
@@ -59,6 +59,6 @@ def test_scrubbed_export_still_reimports(client):
     from core import io
     exp = _experiment_with_timestamps(
         use_default_settings=False, settings={"export_absolute_times": False})
-    body = client.get(reverse("web:experiment_export", args=[exp.pk])).content
+    body = client.get(reverse("ui:experiment_export", args=[exp.pk])).content
     snapshot = io.parse(body)
     assert snapshot["result"]["data"][0]["time"] == 2.0

@@ -10,7 +10,7 @@ off, the upload field is absent and only registry models are offered.
 import pytest
 
 from core import io
-from web.forms import NewExperimentForm
+from ui.forms import NewExperimentForm
 
 
 def _demo_dataset_path():

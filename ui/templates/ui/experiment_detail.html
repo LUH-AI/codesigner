@@ -16,9 +16,9 @@
             </p>
         </div>
         <div class="actions" style="flex-shrink: 0;">
-            <a class="btn" href="{% url 'web:experiment_export' summary.pk %}" title="{% translate 'Download as .ihpo' %}">{% translate "💾 Export" %}</a>
-            <a class="btn" href="{% url 'web:experiment_settings' summary.pk %}" title="{% translate 'Experiment settings' %}">{% translate "⚙ Settings" %}</a>
-            <a class="btn" href="{% url 'web:experiment_delete' summary.pk %}" title="{% translate 'Delete experiment' %}">{% translate "🗑 Delete" %}</a>
+            <a class="btn" href="{% url 'ui:experiment_export' summary.pk %}" title="{% translate 'Download as .ihpo' %}">{% translate "💾 Export" %}</a>
+            <a class="btn" href="{% url 'ui:experiment_settings' summary.pk %}" title="{% translate 'Experiment settings' %}">{% translate "⚙ Settings" %}</a>
+            <a class="btn" href="{% url 'ui:experiment_delete' summary.pk %}" title="{% translate 'Delete experiment' %}">{% translate "🗑 Delete" %}</a>
         </div>
     </div>
 
@@ -27,11 +27,11 @@
     {% endif %}
 
     {% if active_run %}
-        {% include "web/_run_status.html" with run=active_run %}
+        {% include "ui/_run_status.html" with run=active_run %}
     {% elif can_run %}
         <section class="card">
             <div class="subheader">{% translate "Run" %}</div>
-            <form method="post" action="{% url 'web:experiment_run' summary.pk %}">
+            <form method="post" action="{% url 'ui:experiment_run' summary.pk %}">
                 {% csrf_token %}
                 <div class="field">
                     <label for="n_trials">{% translate "Number of trials" %}</label>
@@ -108,7 +108,7 @@
                     <section class="card panel selected-config" data-metric="{{ panel.metric }}" hidden>
                         <div class="subheader">{% translate "Selected configuration" %}</div>
                         <div id="selected-content-{{ panel.metric }}">
-                            {% include "web/_selected_config_inner.html" with sel=panel.selected %}
+                            {% include "ui/_selected_config_inner.html" with sel=panel.selected %}
                         </div>
                     </section>
                 {% endfor %}
@@ -178,7 +178,7 @@
         {{ figures|json_script:"figures-data" }}
         {{ panels|json_script:"panels-data" }}
         {{ duration_figure|json_script:"duration-data" }}
-        <script src="{% static 'web/plotly.min.js' %}"></script>
+        <script src="{% static 'ui/plotly.min.js' %}"></script>
         <script>
             (function () {
                 const figures = JSON.parse(document.getElementById("figures-data").textContent);
@@ -187,7 +187,7 @@
                 JSON.parse(document.getElementById("panels-data").textContent)
                     .forEach(p => { warnings[p.metric] = p.warning; });
                 const select = document.getElementById("metric-select");
-                const trialPanelUrl = "{% url 'web:trial_panel' summary.pk %}";
+                const trialPanelUrl = "{% url 'ui:trial_panel' summary.pk %}";
 
                 // Snapshot each metric's default (best-trial) selected-config HTML so
                 // switching metrics can restore it — a click only affects the metric

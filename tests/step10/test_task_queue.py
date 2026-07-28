@@ -15,7 +15,7 @@ from tests.conftest import DATASETS_DIR
 
 def _runnable_experiment():
     """A saved experiment with iris attached, ready to run (Random Search)."""
-    from web.services import snapshot as adapter
+    from ui.services import snapshot as adapter
     return adapter.experiment_from_snapshot({
         "version": "0.1.0",
         "name": "queue-exp",
@@ -35,7 +35,7 @@ def _runnable_experiment():
 def test_start_background_run_executes_via_the_queue():
     """Enqueuing a run (immediate mode) runs the task and completes the run,
     writing the result back to the experiment — the launch→task→execute path."""
-    from web.services.run import create_run, start_background_run
+    from ui.services.run import create_run, start_background_run
 
     exp = _runnable_experiment()
     run = create_run(exp, n_trials=3, optimize_metric="accuracy")
@@ -51,8 +51,8 @@ def test_start_background_run_executes_via_the_queue():
 def test_run_experiment_task_is_a_registered_huey_task():
     """The run body is a huey db_task (TaskWrapper): it can be enqueued
     (`schedule`) and run directly (`call_local`), and the consumer autoloads it
-    from web/tasks.py."""
-    from web.tasks import run_experiment_task
+    from ui/tasks.py."""
+    from ui.tasks import run_experiment_task
 
     assert hasattr(run_experiment_task, "schedule")   # huey TaskWrapper API
     assert hasattr(run_experiment_task, "call_local")  # db_task raw function
@@ -61,8 +61,8 @@ def test_run_experiment_task_is_a_registered_huey_task():
 def test_call_local_runs_the_experiment():
     """Running the task's wrapped function directly (bypassing the queue)
     executes the run — the consumer's execution path."""
-    from web.services.run import create_run
-    from web.tasks import run_experiment_task
+    from ui.services.run import create_run
+    from ui.tasks import run_experiment_task
 
     exp = _runnable_experiment()
     run = create_run(exp, n_trials=2, optimize_metric="accuracy")

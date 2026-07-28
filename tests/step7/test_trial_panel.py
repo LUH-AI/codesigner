@@ -22,12 +22,12 @@ from tests.conftest import FIXTURES_DIR
 
 
 def _experiment_with_result():
-    from web.services import snapshot as adapter
+    from ui.services import snapshot as adapter
     return adapter.experiment_from_snapshot(io.parse((FIXTURES_DIR / "test2.ihpo").read_bytes()))
 
 
 def _panel_url(pk, metric, idx):
-    return reverse("web:trial_panel", args=[pk]) + f"?metric={metric}&idx={idx}"
+    return reverse("ui:trial_panel", args=[pk]) + f"?metric={metric}&idx={idx}"
 
 
 def test_selecting_the_best_trial_shows_no_delta(client):
@@ -97,7 +97,7 @@ def test_rejects_out_of_range_or_malformed_index(idx):
 
 def test_rejects_when_experiment_has_no_result(client):
     """An experiment with no result yet (never run) can't supply a trial panel."""
-    from web.services import snapshot as adapter
+    from ui.services import snapshot as adapter
 
     exp = adapter.experiment_from_snapshot({
         "version": "0.1.0", "name": "no-result-yet", "model_name": "Random Forest",

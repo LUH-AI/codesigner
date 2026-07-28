@@ -20,7 +20,7 @@ def _post(client, **overrides):
         "seed": 0,
     }
     data.update(overrides)
-    return client.post(reverse("web:new_experiment"), data)
+    return client.post(reverse("ui:new_experiment"), data)
 
 
 @pytest.mark.django_db
@@ -30,7 +30,7 @@ def test_creating_persists_the_experiment(client):
     Expect: an Experiment row with a dataset file and result None (creating
     does not run), reachable at its detail page.
     """
-    from web.models import Experiment
+    from ui.models import Experiment
 
     resp = _post(client, name="persisted")
     exp = Experiment.objects.get(name="persisted")
@@ -38,25 +38,25 @@ def test_creating_persists_the_experiment(client):
     assert resp.status_code == 302
     assert exp.dataset
     assert exp.result is None
-    assert client.get(reverse("web:experiment_detail", args=[exp.pk])).status_code == 200
+    assert client.get(reverse("ui:experiment_detail", args=[exp.pk])).status_code == 200
 
 
 @pytest.mark.django_db
 def test_persisted_experiment_appears_in_sidebar(client):
     """A saved experiment is listed in the sidebar on later page loads."""
     _post(client, name="listed-exp")
-    html = client.get(reverse("web:home")).content.decode()
+    html = client.get(reverse("ui:home")).content.decode()
     assert "listed-exp" in html
-    from web.models import Experiment
+    from ui.models import Experiment
     pk = Experiment.objects.get(name="listed-exp").pk
-    assert reverse("web:experiment_detail", args=[pk]) in html
+    assert reverse("ui:experiment_detail", args=[pk]) in html
 
 
 @pytest.mark.django_db
 def test_duplicate_name_is_allowed(client):
     """Creating with a name that already exists is allowed — the two rows are
     told apart by their identifiers, not their names."""
-    from web.models import Experiment
+    from ui.models import Experiment
 
     _post(client, name="dup")
     resp = _post(client, name="dup")

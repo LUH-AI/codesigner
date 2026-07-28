@@ -228,7 +228,7 @@ def test_gettext_translates_a_known_string_to_spanish():
 
 def test_default_language_renders_english(client):
     """With no language chosen the sidebar renders the English source text."""
-    resp = client.get(reverse("web:home"))
+    resp = client.get(reverse("ui:home"))
     assert resp.status_code == 200
     body = resp.content.decode()
     assert "Experiments" in body
@@ -237,7 +237,7 @@ def test_default_language_renders_english(client):
 
 def test_language_switcher_lists_all_three_languages(client):
     """The sidebar switcher offers English, German and Spanish."""
-    body = client.get(reverse("web:home")).content.decode()
+    body = client.get(reverse("ui:home")).content.decode()
     for label in ("English", "Deutsch", "Español"):
         assert label in body
 
@@ -252,7 +252,7 @@ def test_language_switcher_lists_all_three_languages(client):
 def test_set_language_switches_rendered_page(client, code, expected):
     """Posting to set_language activates the locale for the session, and the
     next page render comes back translated (not the English source)."""
-    home = reverse("web:home")
+    home = reverse("ui:home")
     resp = client.post(
         reverse("set_language"),
         {"language": code, "next": home},

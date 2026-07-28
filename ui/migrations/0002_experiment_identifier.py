@@ -2,14 +2,14 @@ import secrets
 
 from django.db import migrations, models
 
-import web.models
+import ui.models
 
 
 def backfill_identifiers(apps, schema_editor):
     """Give every existing experiment a unique identifier before the column
     becomes unique and non-null. Done as data migration rather than a single
     AddField default, which would assign one identical value to all rows."""
-    Experiment = apps.get_model("web", "Experiment")
+    Experiment = apps.get_model("ui", "Experiment")
     seen = set()
     for exp in Experiment.objects.filter(identifier__isnull=True):
         token = secrets.token_hex(4)
@@ -23,7 +23,7 @@ def backfill_identifiers(apps, schema_editor):
 class Migration(migrations.Migration):
 
     dependencies = [
-        ("web", "0001_initial"),
+        ("ui", "0001_initial"),
     ]
 
     operations = [
@@ -37,7 +37,7 @@ class Migration(migrations.Migration):
             model_name="experiment",
             name="identifier",
             field=models.CharField(
-                default=web.models.generate_identifier,
+                default=ui.models.generate_identifier,
                 editable=False,
                 max_length=12,
                 unique=True,

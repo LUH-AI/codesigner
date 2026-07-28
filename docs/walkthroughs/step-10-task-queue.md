@@ -43,11 +43,11 @@ be asserted.
 - **`config/settings.py`** — `huey.contrib.djhuey` added to `INSTALLED_APPS`;
   a `HUEY` config (`SqliteHuey`, `filename=BASE_DIR/huey.sqlite3`,
   `immediate=env.bool("HUEY_IMMEDIATE", default=DEBUG)`, `results=False`).
-- **`web/tasks.py`** (new) — `run_experiment_task = @db_task()` wrapping the
+- **`ui/tasks.py`** (new) — `run_experiment_task = @db_task()` wrapping the
   existing `execute_run`. `run_huey` autoloads each app's `tasks.py`, so the
   consumer finds it with no extra wiring; the web process imports it lazily when
   enqueuing.
-- **`web/services/run.py`** — `start_background_run` now enqueues that task
+- **`ui/services/run.py`** — `start_background_run` now enqueues that task
   instead of `threading.Thread(...)` (and `import threading` is gone). This is
   the *only* launch-path change; `execute_run` (rebuild-from-DB, run with the
   `DbCancelFlag`, write result/status back) is byte-for-byte the same.
@@ -109,5 +109,5 @@ HUEY_IMMEDIATE=false .venv/bin/python manage.py runserver                # termi
 ```
 
 I verified the two-process path directly: `run_huey` booted and autoloaded
-`web.tasks.run_experiment_task`; a run enqueued from a separate process came
+`ui.tasks.run_experiment_task`; a run enqueued from a separate process came
 back `pending`, and the consumer executed it to `done` (3 trials).

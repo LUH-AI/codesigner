@@ -17,8 +17,8 @@ from tests.conftest import FIXTURES_DIR
 
 def _experiment(**overrides):
     """Create an Experiment row with valid defaults (import deferred so the
-    suite collects while web.models doesn't exist yet)."""
-    from web.models import Experiment
+    suite collects while ui.models doesn't exist yet)."""
+    from ui.models import Experiment
 
     fields = dict(
         name="exp-1",
@@ -45,12 +45,12 @@ def test_sidebar_lists_experiments_with_detail_links(client):
     a = _experiment(name="alpha")
     b = _experiment(name="beta")
 
-    response = client.get(reverse("web:home"))
+    response = client.get(reverse("ui:home"))
     html = response.content.decode()
 
     for exp in (a, b):
         assert exp.name in html
-        assert reverse("web:experiment_detail", args=[exp.pk]) in html
+        assert reverse("ui:experiment_detail", args=[exp.pk]) in html
 
 
 @pytest.mark.django_db
@@ -73,7 +73,7 @@ def test_detail_shows_identity_and_result_summary(client):
         result=snapshot["result"],
     )
 
-    response = client.get(reverse("web:experiment_detail", args=[exp.pk]))
+    response = client.get(reverse("ui:experiment_detail", args=[exp.pk]))
     assert response.status_code == 200
     html = response.content.decode()
 
@@ -99,12 +99,12 @@ def test_detail_metric_label_rules(client, primary, original, expected_label):
     """
     exp = _experiment(primary_metric=primary, original_metric=original)
 
-    response = client.get(reverse("web:experiment_detail", args=[exp.pk]))
+    response = client.get(reverse("ui:experiment_detail", args=[exp.pk]))
     assert expected_label in response.content.decode()
 
 
 @pytest.mark.django_db
 def test_unknown_experiment_returns_404(client):
     """A detail URL for a nonexistent experiment id returns 404, not an error page."""
-    response = client.get(reverse("web:experiment_detail", args=[99999]))
+    response = client.get(reverse("ui:experiment_detail", args=[99999]))
     assert response.status_code == 404

@@ -23,7 +23,7 @@ def test_import_creates_experiment_with_result():
     succeed (datasetless row, browsable results — the read-only-load analog)
     rather than fail on a machine-specific path.
     """
-    from web.models import Experiment
+    from ui.models import Experiment
 
     call_command("import_ihpo", str(FIXTURES_DIR / "test2.ihpo"))
 
@@ -44,7 +44,7 @@ def test_import_adopts_existing_dataset_into_media(tmp_path, settings):
     Expect: the row has a dataset file stored below MEDIA_ROOT (the store
     owns its data; nothing may keep referencing the original path).
     """
-    from web.models import Experiment
+    from ui.models import Experiment
 
     settings.MEDIA_ROOT = str(tmp_path / "media")
     snapshot = json.loads((FIXTURES_DIR / "test2.ihpo").read_text(encoding="utf-8"))
@@ -69,7 +69,7 @@ def test_import_allows_duplicate_names():
     re-importing a file is allowed and yields a second, separately-identified
     row rather than an error.
     """
-    from web.models import Experiment
+    from ui.models import Experiment
 
     call_command("import_ihpo", str(FIXTURES_DIR / "test2.ihpo"))
     call_command("import_ihpo", str(FIXTURES_DIR / "test2.ihpo"))
@@ -87,7 +87,7 @@ def test_import_rejects_invalid_file(tmp_path):
     Expect: CommandError surfacing the "not valid JSON" reason, no row
     created — the command must not have weaker validation than the app.
     """
-    from web.models import Experiment
+    from ui.models import Experiment
 
     bad = tmp_path / "bad.ihpo"
     bad.write_bytes(b"definitely not json {")

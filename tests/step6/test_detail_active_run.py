@@ -18,16 +18,16 @@ from tests.conftest import FIXTURES_DIR
 @pytest.mark.django_db
 def test_detail_renders_while_a_run_is_active(client):
     """Detail renders (200) with the status partial and its cancel/poll URLs."""
-    from web.models import Run
-    from web.services import snapshot as adapter
+    from ui.models import Run
+    from ui.services import snapshot as adapter
 
     exp = adapter.experiment_from_snapshot(io.parse((FIXTURES_DIR / "test2.ihpo").read_bytes()))
     Run.objects.create(experiment=exp, n_trials=3, primary_metric="accuracy", status="running")
 
-    resp = client.get(reverse("web:experiment_detail", args=[exp.pk]))
+    resp = client.get(reverse("ui:experiment_detail", args=[exp.pk]))
 
     assert resp.status_code == 200
     body = resp.content.decode()
     assert "Optimizing" in body
-    assert reverse("web:run_cancel", args=[exp.pk]) in body
-    assert reverse("web:run_status", args=[exp.pk]) in body
+    assert reverse("ui:run_cancel", args=[exp.pk]) in body
+    assert reverse("ui:run_status", args=[exp.pk]) in body

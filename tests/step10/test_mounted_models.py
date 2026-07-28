@@ -14,8 +14,8 @@ import pytest
 from django.urls import reverse
 
 from core import io
-from web.forms import NewExperimentForm
-from web.models import Experiment
+from ui.forms import NewExperimentForm
+from ui.models import Experiment
 
 from tests.step9.conftest import VALID_MODEL_SRC
 
@@ -71,7 +71,7 @@ def test_create_view_adopts_a_mounted_model(client, mounted_dir):
     resolved model name — the experiment is runnable and self-contained."""
     from pathlib import Path
 
-    resp = client.post(reverse("web:new_experiment"), {
+    resp = client.post(reverse("ui:new_experiment"), {
         "name": "mm-create", "model_name": "", "optimizer_name": "Random Search",
         "demo_dataset": _demo_dataset_path(), "seed": "0",
         "mounted_model": _mounted_path(mounted_dir),

@@ -1,6 +1,6 @@
 from django.core.management.base import BaseCommand
 
-from web.services.run import sweep_stale_runs
+from ui.services.run import sweep_stale_runs
 
 
 class Command(BaseCommand):

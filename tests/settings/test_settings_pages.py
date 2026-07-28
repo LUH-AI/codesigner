@@ -8,7 +8,7 @@ sidebar.
 
 from django.urls import reverse
 
-from web.models import Experiment, GlobalSettings
+from ui.models import Experiment, GlobalSettings
 
 
 def _exp():
@@ -19,7 +19,7 @@ def _exp():
 
 def test_experiment_settings_page_renders(client):
     exp = _exp()
-    resp = client.get(reverse("web:experiment_settings", args=[exp.pk]))
+    resp = client.get(reverse("ui:experiment_settings", args=[exp.pk]))
     assert resp.status_code == 200
     body = resp.content.decode()
     assert 'name="use_default_settings"' in body
@@ -28,7 +28,7 @@ def test_experiment_settings_page_renders(client):
 
 def test_experiment_settings_saves_an_override(client):
     exp = _exp()
-    client.post(reverse("web:experiment_settings", args=[exp.pk]),
+    client.post(reverse("ui:experiment_settings", args=[exp.pk]),
                 {"export_absolute_times": ""})  # use_default unchecked, export unchecked
     exp.refresh_from_db()
     assert exp.use_default_settings is False
@@ -40,7 +40,7 @@ def test_experiment_settings_reset_restores_defaults(client):
     exp.use_default_settings = False
     exp.settings = {"export_absolute_times": False}
     exp.save()
-    client.post(reverse("web:experiment_settings", args=[exp.pk]), {"reset": "1"})
+    client.post(reverse("ui:experiment_settings", args=[exp.pk]), {"reset": "1"})
     exp.refresh_from_db()
     assert exp.use_default_settings is True
     assert exp.settings == {}
@@ -48,7 +48,7 @@ def test_experiment_settings_reset_restores_defaults(client):
 
 def test_experiment_settings_use_default_checkbox_clears_override(client):
     exp = _exp()
-    client.post(reverse("web:experiment_settings", args=[exp.pk]),
+    client.post(reverse("ui:experiment_settings", args=[exp.pk]),
                 {"use_default_settings": "on", "export_absolute_times": "on"})
     exp.refresh_from_db()
     assert exp.use_default_settings is True
@@ -56,22 +56,22 @@ def test_experiment_settings_use_default_checkbox_clears_override(client):
 
 
 def test_default_experiment_settings_saves_global(client):
-    client.post(reverse("web:default_experiment_settings"),
+    client.post(reverse("ui:default_experiment_settings"),
                 {"export_absolute_times": ""})  # unchecked → False
     assert GlobalSettings.get_solo().default_experiment_settings == {"export_absolute_times": False}
 
 
 def test_global_settings_page_links_to_defaults(client):
-    body = client.get(reverse("web:global_settings")).content.decode()
-    assert reverse("web:default_experiment_settings") in body
+    body = client.get(reverse("ui:global_settings")).content.decode()
+    assert reverse("ui:default_experiment_settings") in body
 
 
 def test_experiment_page_has_settings_link(client):
     exp = _exp()
-    body = client.get(reverse("web:experiment_detail", args=[exp.pk])).content.decode()
-    assert reverse("web:experiment_settings", args=[exp.pk]) in body
+    body = client.get(reverse("ui:experiment_detail", args=[exp.pk])).content.decode()
+    assert reverse("ui:experiment_settings", args=[exp.pk]) in body
 
 
 def test_sidebar_has_global_settings_link(client):
-    body = client.get(reverse("web:home")).content.decode()
-    assert reverse("web:global_settings") in body
+    body = client.get(reverse("ui:home")).content.decode()
+    assert reverse("ui:global_settings") in body

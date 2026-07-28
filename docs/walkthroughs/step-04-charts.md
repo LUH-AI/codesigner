@@ -8,10 +8,10 @@
 ## 1. Concepts introduced
 
 ### Pure chart builders + a thin view
-[web/charts.py](../../web/charts.py) holds `performance_figure` and
+[ui/charts.py](../../ui/charts.py) holds `performance_figure` and
 `importance_figure` — pure functions from an `OptimizationResult` + a metric to
 a Plotly `Figure`, with no Django imports. The view
-([web/views.py](../../web/views.py) `_results_context`) calls them and does
+([ui/views.py](../../ui/views.py) `_results_context`) calls them and does
 nothing chart-specific itself. Same separation as the run service: the
 figure logic is unit-tested on its own.
 
@@ -19,13 +19,13 @@ figure logic is unit-tested on its own.
 Plotly renders client-side. The bridge: `fig.to_json()` turns a figure into a
 plain data structure, the view puts those in a dict, and the template ships it
 with Django's `{% json_script %}` filter (which safely embeds JSON in a
-`<script>` tag). Vendored [plotly.min.js](../../web/static/web/plotly.min.js)
+`<script>` tag). Vendored [plotly.min.js](../../ui/static/ui/plotly.min.js)
 (served as a static file) reads that data and draws the charts — no CDN, no
 build step.
 
 ### Static files
 First use of `{% load static %}` + `{% static %}`. `plotly.min.js` lives in
-`web/static/web/` and is served at `/static/web/plotly.min.js` in development.
+`ui/static/ui/` and is served at `/static/ui/plotly.min.js` in development.
 
 ## 2. Feature checklist
 

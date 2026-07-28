@@ -13,8 +13,8 @@ from tests.conftest import DATASETS_DIR
 @pytest.mark.slow
 @pytest.mark.django_db
 def test_smac_run_completes_and_stores_result():
-    from web.services import snapshot as adapter
-    from web.services.run import create_run, execute_run
+    from ui.services import snapshot as adapter
+    from ui.services.run import create_run, execute_run
 
     snapshot = {
         "version": "0.1.0", "name": "smac-exp", "model_name": "Random Forest",
@@ -48,8 +48,8 @@ def test_smac_resume_through_the_web_engine_keeps_all_trials():
     different directory than the one being read back from — silently
     dropping the accumulated history from the saved result.
     """
-    from web.services import snapshot as adapter
-    from web.services.run import create_run, execute_run
+    from ui.services import snapshot as adapter
+    from ui.services.run import create_run, execute_run
 
     snapshot = {
         "version": "0.1.0", "name": "smac-resume-exp", "model_name": "Random Forest",

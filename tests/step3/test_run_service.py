@@ -1,4 +1,4 @@
-"""Step 3: the create-and-run service (web/services/run.py).
+"""Step 3: the create-and-run service (ui/services/run.py).
 
 Ported from the create-and-run contract validated against InteractiveHPO:
 the seed rule and the run contract (trials numbered from 1, all metrics
@@ -7,7 +7,7 @@ scored, best_score = max primary score, grid capped at grid size).
 
 import pytest
 
-from web.services.run import resolve_seed, run_experiment
+from ui.services.run import resolve_seed, run_experiment
 
 from tests.conftest import DATASETS_DIR
 

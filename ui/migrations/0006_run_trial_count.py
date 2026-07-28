@@ -6,7 +6,7 @@ from django.db import migrations, models
 class Migration(migrations.Migration):
 
     dependencies = [
-        ('web', '0005_globalsettings_experiment_settings_and_more'),
+        ('ui', '0005_globalsettings_experiment_settings_and_more'),
     ]
 
     operations = [

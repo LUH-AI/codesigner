@@ -1,4 +1,4 @@
-"""Step 3 TDD: contracts for the row ↔ snapshot adapter (web/services/snapshot.py).
+"""Step 3 TDD: contracts for the row ↔ snapshot adapter (ui/services/snapshot.py).
 
 Written before the adapter exists — imports are deferred into the tests so
 the suite collects while these fail. The adapter is the single seam between
@@ -28,7 +28,7 @@ def test_row_round_trip_preserves_identity_fields():
     model/optimizer identity and params, metrics (with order), and seed all
     survive the row round-trip for both fixtures.
     """
-    from web.services import snapshot as adapter
+    from ui.services import snapshot as adapter
 
     for filename in ("test.ihpo", "test2.ihpo"):
         original = _fixture_snapshot(filename)
@@ -47,7 +47,7 @@ def test_row_round_trip_preserves_result():
     so the adapter must pass it through unchanged — including SMAC's
     embedded optimizer_state in the test.ihpo fixture.
     """
-    from web.services import snapshot as adapter
+    from ui.services import snapshot as adapter
 
     for filename in ("test.ihpo", "test2.ihpo"):
         original = _fixture_snapshot(filename)
@@ -64,7 +64,7 @@ def test_exported_snapshot_carries_all_documented_keys_and_current_version():
     app's VERSION (the writer owns the version field), and the whole thing
     accepted by io.parse — i.e. a Streamlit-loadable file.
     """
-    from web.services import snapshot as adapter
+    from ui.services import snapshot as adapter
 
     row = adapter.experiment_from_snapshot(_fixture_snapshot("test2.ihpo"))
     exported = adapter.snapshot_from_experiment(row)
@@ -85,7 +85,7 @@ def test_dataset_path_reflects_stored_file_not_foreign_machine():
     without re-supplying data must not leak that path back out. Once a
     dataset file is attached to the row, the exported path must point at it.
     """
-    from web.services import snapshot as adapter
+    from ui.services import snapshot as adapter
 
     row = adapter.experiment_from_snapshot(_fixture_snapshot("test2.ihpo"))
     exported = adapter.snapshot_from_experiment(row)

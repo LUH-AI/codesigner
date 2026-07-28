@@ -7,7 +7,7 @@ decimals. Trials from files without timing render 0.000 s.
 import pytest
 from django.urls import reverse
 
-from web.models import Experiment
+from ui.models import Experiment
 
 
 def _experiment_with_timed_result():
@@ -34,6 +34,6 @@ def _experiment_with_timed_result():
 
 def test_trials_table_has_duration_column_and_value(client):
     exp = _experiment_with_timed_result()
-    body = client.get(reverse("web:experiment_detail", args=[exp.pk])).content.decode()
+    body = client.get(reverse("ui:experiment_detail", args=[exp.pk])).content.decode()
     assert "Duration" in body          # column header
     assert "2.500" in body             # the trial's duration, 3 decimals

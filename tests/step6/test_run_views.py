@@ -16,7 +16,7 @@ from tests.conftest import DATASETS_DIR
 def no_thread(monkeypatch):
     """Stop launched runs from actually executing, so a launched run stays
     'pending' and assertions are race-free."""
-    from web.services import run as run_service
+    from ui.services import run as run_service
     monkeypatch.setattr(run_service, "start_background_run", lambda run_id: None)
 
 
@@ -29,11 +29,11 @@ def _create(client, **overrides):
         "seed": 0,
     }
     data.update(overrides)
-    return client.post(reverse("web:new_experiment"), data)
+    return client.post(reverse("ui:new_experiment"), data)
 
 
 def _experiment(**overrides):
-    from web.services import snapshot as adapter
+    from ui.services import snapshot as adapter
     snapshot = {
         "version": "0.1.0", "name": "exp", "model_name": "Random Forest",
         "model_path": "", "optimizer_name": "Random Search", "optimizer_params": {},
@@ -54,13 +54,13 @@ def test_create_persists_without_running(client):
     Expect: a redirect to the detail page, an Experiment with result None and no
     committed metric, and zero Run rows.
     """
-    from web.models import Experiment, Run
+    from ui.models import Experiment, Run
 
     resp = _create(client, name="fresh")
     exp = Experiment.objects.get(name="fresh")
 
     assert resp.status_code == 302
-    assert resp["Location"] == reverse("web:experiment_detail", args=[exp.pk])
+    assert resp["Location"] == reverse("ui:experiment_detail", args=[exp.pk])
     assert exp.result is None
     assert exp.primary_metric is None
     assert Run.objects.count() == 0
@@ -70,7 +70,7 @@ def test_create_persists_without_running(client):
 def test_detail_offers_a_run_form_when_idle(client):
     """An idle experiment with a dataset shows a Run form (trials + metric)."""
     exp = _experiment()
-    html = client.get(reverse("web:experiment_detail", args=[exp.pk])).content.decode()
+    html = client.get(reverse("ui:experiment_detail", args=[exp.pk])).content.decode()
     assert 'name="n_trials"' in html
     assert 'name="optimize_metric"' in html
 
@@ -80,14 +80,14 @@ def test_detail_offers_a_run_form_when_idle(client):
 @pytest.mark.django_db
 def test_run_launches_a_pending_run(client, no_thread):
     """Submitting the Run form records a pending run and redirects to detail."""
-    from web.models import Run
+    from ui.models import Run
 
     exp = _experiment()
-    resp = client.post(reverse("web:experiment_run", args=[exp.pk]),
+    resp = client.post(reverse("ui:experiment_run", args=[exp.pk]),
                        {"n_trials": 3, "optimize_metric": "accuracy"})
 
     assert resp.status_code == 302
-    assert resp["Location"] == reverse("web:experiment_detail", args=[exp.pk])
+    assert resp["Location"] == reverse("ui:experiment_detail", args=[exp.pk])
     run = Run.objects.get(experiment=exp)
     assert run.status == "pending"
     assert run.n_trials == 3
@@ -100,10 +100,10 @@ def test_run_metric_change_asks_for_confirmation(client, no_thread):
 
     Expect: 200 (a confirmation naming both metrics), and no run created yet.
     """
-    from web.models import Run
+    from ui.models import Run
 
     exp = _experiment(primary_metric="accuracy", original_metric="accuracy")
-    resp = client.post(reverse("web:experiment_run", args=[exp.pk]),
+    resp = client.post(reverse("ui:experiment_run", args=[exp.pk]),
                        {"n_trials": 3, "optimize_metric": "f1"})
 
     assert resp.status_code == 200
@@ -115,10 +115,10 @@ def test_run_metric_change_asks_for_confirmation(client, no_thread):
 @pytest.mark.django_db
 def test_run_metric_change_confirm_new_launches_with_chosen(client, no_thread):
     """Confirming 'new' launches a run optimizing the chosen metric."""
-    from web.models import Run
+    from ui.models import Run
 
     exp = _experiment(primary_metric="accuracy", original_metric="accuracy")
-    resp = client.post(reverse("web:experiment_run", args=[exp.pk]),
+    resp = client.post(reverse("ui:experiment_run", args=[exp.pk]),
                        {"n_trials": 3, "optimize_metric": "f1", "decision": "new"})
 
     assert resp.status_code == 302
@@ -132,10 +132,10 @@ def test_run_metric_change_confirm_new_launches_with_chosen(client, no_thread):
 @pytest.mark.django_db
 def test_run_metric_change_confirm_old_keeps_original(client, no_thread):
     """Confirming 'old' launches a run optimizing the original metric."""
-    from web.models import Run
+    from ui.models import Run
 
     exp = _experiment(primary_metric="accuracy", original_metric="accuracy")
-    client.post(reverse("web:experiment_run", args=[exp.pk]),
+    client.post(reverse("ui:experiment_run", args=[exp.pk]),
                 {"n_trials": 3, "optimize_metric": "f1", "decision": "old"})
 
     run = Run.objects.get(experiment=exp)
@@ -147,27 +147,27 @@ def test_run_metric_change_confirm_old_keeps_original(client, no_thread):
 @pytest.mark.django_db
 def test_status_partial_reports_running(client):
     """While a run is active, the status endpoint shows it running and keeps polling."""
-    from web.models import Run
+    from ui.models import Run
 
     exp = _experiment()
     Run.objects.create(experiment=exp, n_trials=3, primary_metric="accuracy", status="running")
-    resp = client.get(reverse("web:run_status", args=[exp.pk]))
+    resp = client.get(reverse("ui:run_status", args=[exp.pk]))
 
     assert resp.status_code == 200
     body = resp.content.decode()
     assert "unning" in body            # "Running" / "running"
     assert "hx-trigger" in body        # keeps polling
-    assert reverse("web:run_cancel", args=[exp.pk]) in body  # cancel available
+    assert reverse("ui:run_cancel", args=[exp.pk]) in body  # cancel available
 
 
 @pytest.mark.django_db
 def test_status_partial_refreshes_when_finished(client):
     """When no run is active, the status endpoint asks the page to refresh."""
-    from web.models import Run
+    from ui.models import Run
 
     exp = _experiment()
     Run.objects.create(experiment=exp, n_trials=3, primary_metric="accuracy", status="done")
-    resp = client.get(reverse("web:run_status", args=[exp.pk]))
+    resp = client.get(reverse("ui:run_status", args=[exp.pk]))
 
     assert resp.status_code == 200
     assert resp.get("HX-Refresh") == "true"
@@ -178,11 +178,11 @@ def test_status_partial_refreshes_when_finished(client):
 @pytest.mark.django_db
 def test_cancel_requests_cancellation(client):
     """Cancelling sets the active run's cancel flag (the worker stops soon after)."""
-    from web.models import Run
+    from ui.models import Run
 
     exp = _experiment()
     run = Run.objects.create(experiment=exp, n_trials=3, primary_metric="accuracy", status="running")
-    resp = client.post(reverse("web:run_cancel", args=[exp.pk]))
+    resp = client.post(reverse("ui:run_cancel", args=[exp.pk]))
 
     run.refresh_from_db()
     assert run.cancel_requested is True
@@ -192,11 +192,11 @@ def test_cancel_requests_cancellation(client):
 @pytest.mark.django_db
 def test_delete_works_with_an_active_run(client):
     """Deleting an experiment mid-run removes it (its runs cascade)."""
-    from web.models import Experiment, Run
+    from ui.models import Experiment, Run
 
     exp = _experiment()
     Run.objects.create(experiment=exp, n_trials=3, primary_metric="accuracy", status="running")
-    resp = client.post(reverse("web:experiment_delete", args=[exp.pk]))
+    resp = client.post(reverse("ui:experiment_delete", args=[exp.pk]))
 
     assert resp.status_code == 302
     assert not Experiment.objects.filter(pk=exp.pk).exists()
@@ -208,10 +208,10 @@ def test_delete_works_with_an_active_run(client):
 @pytest.mark.django_db
 def test_sidebar_marks_running_experiments(client):
     """An experiment with an active run is flagged in the sidebar (spinner)."""
-    from web.models import Run
+    from ui.models import Run
 
     exp = _experiment(primary_metric="accuracy", original_metric="accuracy")
     Run.objects.create(experiment=exp, n_trials=3, primary_metric="accuracy", status="running")
-    html = client.get(reverse("web:home")).content.decode()
+    html = client.get(reverse("ui:home")).content.decode()
 
     assert "spinner" in html.lower()

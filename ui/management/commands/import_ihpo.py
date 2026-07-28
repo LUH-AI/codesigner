@@ -4,7 +4,7 @@ from django.core.management.base import BaseCommand, CommandError
 
 from core import io
 
-from web.services import snapshot as adapter
+from ui.services import snapshot as adapter
 
 
 class Command(BaseCommand):

@@ -19,7 +19,7 @@
   rather than shared memory (`DbCancelFlag` reads the cancel request from the DB
   in place of a `threading.Event`).
 - **Pure decision logic** — the metric-change rules live in
-  [run_logic.py](../../web/services/run_logic.py) as small tested functions,
+  [run_logic.py](../../ui/services/run_logic.py) as small tested functions,
   kept out of the view.
 
 ## 2. Feature checklist
@@ -66,7 +66,7 @@ delete-cancel) and `app/sidebar.py` (spinner). ✅ done · 🔄 changed · ➕ a
   (step5); the run flow is covered in step6. No test was changed to make failing
   code pass — the product behavior changed by design.
 - **No HTMX dependency**: HTMX isn't available offline, so a ~20-line vanilla
-  shim ([poll.js](../../web/static/web/poll.js)) reads the same
+  shim ([poll.js](../../ui/static/ui/poll.js)) reads the same
   `hx-get`/`hx-trigger` attributes and the `HX-Refresh` header. Templates and
   tests stay HTMX-shaped, so swapping in real HTMX later is trivial.
 - **Orphan sweep is a management command**, not `AppConfig.ready()`: querying the

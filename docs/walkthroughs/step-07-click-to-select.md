@@ -34,7 +34,7 @@ default in a plain web page, so:
 
 Both the initial page render and the AJAX endpoint compute the panel's data
 through one shared function, `_selected_panel_data(result, metric, idx)` in
-`web/views.py` — so "what a selected trial shows" is defined once.
+`ui/views.py` — so "what a selected trial shows" is defined once.
 
 ## 2. Feature checklist
 

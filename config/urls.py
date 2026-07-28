@@ -1,6 +1,6 @@
 """Root URLconf: every incoming request is matched against these patterns.
 
-Per-page routes live in web/urls.py; this file only mounts them (plus the
+Per-page routes live in ui/urls.py; this file only mounts them (plus the
 admin).  `include()` keeps app routes self-contained so apps stay portable.
 """
 
@@ -13,7 +13,7 @@ urlpatterns = [
     path("admin/", admin.site.urls),
     # Django's set_language view, for the sidebar language switcher.
     path("i18n/", include("django.conf.urls.i18n")),
-    path("", include("web.urls")),
+    path("", include("ui.urls")),
 ]
 
 if settings.DEBUG:

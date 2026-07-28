@@ -62,7 +62,7 @@ overrides, so sharing an `.ihpo` need not leak *when* it ran.
 
 - `Experiment` gains `settings` (overrides) + `use_default_settings`; a
   `GlobalSettings` singleton holds the default experiment settings.
-  `web/services/settings.py` `resolve_settings(exp)` resolves per key:
+  `ui/services/settings.py` `resolve_settings(exp)` resolves per key:
   experiment override → global default → built-in `SETTING_DEFAULTS`.
 - First setting: **`export_absolute_times`** (default on). When off,
   `experiment_export` scrubs `starttime`/`endtime` from each trial entry (on a

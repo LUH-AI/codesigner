@@ -12,7 +12,7 @@ Streamlit has one unit: the script. Django has two:
 
 - A **project** (`config/`) — the deployment: settings, the root URL table, the
   WSGI/ASGI entry points servers use. It contains no features.
-- **Apps** (`web/`, later `core/`) — reusable feature packages. `web` will hold
+- **Apps** (`ui/`, later `core/`) — reusable feature packages. `ui` will hold
   all views/templates/forms. An app must be listed in `INSTALLED_APPS` before
   Django looks inside it.
 
@@ -34,15 +34,15 @@ is literally one env var.
 This replaces Streamlit's top-to-bottom rerun model. A request to `/`:
 
 1. **Root URLconf** [config/urls.py](../../config/urls.py) — a table mapping
-   URL patterns to handlers. It `include()`s [web/urls.py](../../web/urls.py),
+   URL patterns to handlers. It `include()`s [ui/urls.py](../../ui/urls.py),
    so each app owns its own routes.
-2. **View** [web/views.py](../../web/views.py) — a plain function
+2. **View** [ui/views.py](../../ui/views.py) — a plain function
    `home(request)` that returns a response. Where Streamlit re-runs your whole
    script on every interaction, Django runs *only* the view matched by the URL.
 3. **Template** — `render()` fills an HTML template.
    [templates/base.html](../../templates/base.html) is the shared layout
    (declared in `TEMPLATES["DIRS"]`);
-   [web/templates/web/home.html](../../web/templates/web/home.html) *extends*
+   [ui/templates/ui/home.html](../../ui/templates/ui/home.html) *extends*
    it and fills the `{% block content %}` hole. Template inheritance is
    Django's answer to "the sidebar renders on every page."
 
@@ -75,7 +75,7 @@ Extracted from `run.py`, `app/app.py`, `app/sidebar.py`, and
 | Per-experiment buttons with active highlight (`sidebar.py:51-73`) | ⏳ Deferred → Step 4 |
 | Running-experiment spinner (`sidebar.py:7-15,55-63`) | ⏳ Deferred → Step 8 |
 | Session-state init: `experiments`/`active`/`creating`/`locale` (`run.py:29-33`) | 🔄 Intentionally changed — this state moves to the database (Step 3) and URLs (Step 4); nothing to port literally |
-| `MODELS`/`OPTIMIZERS`/`METRICS` registries (`run.py:11-27`) | ⏳ Deferred → Step 6 (`web/registry.py`) |
+| `MODELS`/`OPTIMIZERS`/`METRICS` registries (`run.py:11-27`) | ⏳ Deferred → Step 6 (`ui/registry.py`) |
 | Routing: creating → form, active → experiment, else home (`app.py:16-22`) | 🔄 Intentionally changed — becomes URLs: `/experiments/new/`, `/experiments/<id>/`, `/` (Steps 4/6) |
 
 Every ⏳ item is tracked in [PARITY.md](../../PARITY.md) with its target step.
@@ -99,7 +99,7 @@ cd ~/Downloads/python/projects/InteractiveHPO && streamlit run run.py   # → :8
 ```
 
 Compare the shells side by side. Things worth poking at while you're there:
-change the home heading in `web/templates/web/home.html` and reload (no
+change the home heading in `ui/templates/ui/home.html` and reload (no
 restart needed); delete `SECRET_KEY` from `.env` and see Django refuse to
 start (env-driven settings are real); visit a URL that doesn't exist and read
 the DEBUG-mode 404 page, which shows the URLconf patterns it tried.

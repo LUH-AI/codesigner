@@ -34,7 +34,7 @@ def test_get_shows_the_form(client):
     The metric and trial-count fields are gone from creation — they are chosen
     per run on the detail page.
     """
-    response = client.get(reverse("web:new_experiment"))
+    response = client.get(reverse("ui:new_experiment"))
     assert response.status_code == 200
     html = response.content.decode()
     for field in ("name", "model_name", "optimizer_name", "demo_dataset",
@@ -48,20 +48,20 @@ def test_post_creates_experiment_and_redirects(client):
     Expect: 302 to the experiment's detail page, and an Experiment row with no
     result and no committed metric (creating does not run).
     """
-    from web.models import Experiment
+    from ui.models import Experiment
 
-    resp = client.post(reverse("web:new_experiment"), _valid_post(name="created"))
+    resp = client.post(reverse("ui:new_experiment"), _valid_post(name="created"))
     exp = Experiment.objects.get(name="created")
 
     assert resp.status_code == 302
-    assert resp["Location"] == reverse("web:experiment_detail", args=[exp.pk])
+    assert resp["Location"] == reverse("ui:experiment_detail", args=[exp.pk])
     assert exp.result is None
     assert exp.primary_metric is None
 
 
 def test_post_with_uploaded_csv_stores_the_dataset(client):
     """Creating with an uploaded CSV stores that dataset on the experiment."""
-    from web.models import Experiment
+    from ui.models import Experiment
 
     with open(DATASETS_DIR / "iris.csv", "rb") as f:
         upload = _io.BytesIO(f.read())
@@ -69,16 +69,16 @@ def test_post_with_uploaded_csv_stores_the_dataset(client):
     data = _valid_post(name="uploaded", demo_dataset="")
     data["dataset_file"] = upload
 
-    resp = client.post(reverse("web:new_experiment"), data)
+    resp = client.post(reverse("ui:new_experiment"), data)
     assert resp.status_code == 302
     assert Experiment.objects.get(name="uploaded").dataset
 
 
 def test_missing_dataset_is_rejected(client):
     """Submitting with neither a demo dataset nor an upload re-renders with an error."""
-    from web.models import Experiment
+    from ui.models import Experiment
 
-    resp = client.post(reverse("web:new_experiment"), _valid_post(demo_dataset=""))
+    resp = client.post(reverse("ui:new_experiment"), _valid_post(demo_dataset=""))
     assert resp.status_code == 200
     assert "demo dataset or upload" in resp.content.decode()
     assert Experiment.objects.count() == 0
@@ -86,8 +86,8 @@ def test_missing_dataset_is_rejected(client):
 
 def test_missing_name_is_rejected(client):
     """A blank name re-renders the form and creates nothing."""
-    from web.models import Experiment
+    from ui.models import Experiment
 
-    resp = client.post(reverse("web:new_experiment"), _valid_post(name=""))
+    resp = client.post(reverse("ui:new_experiment"), _valid_post(name=""))
     assert resp.status_code == 200
     assert Experiment.objects.count() == 0

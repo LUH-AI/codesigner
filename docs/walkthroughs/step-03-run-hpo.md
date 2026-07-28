@@ -8,7 +8,7 @@
 ## 1. Concepts introduced
 
 ### Django `Form`s
-[web/forms.py](../../web/forms.py) defines `NewExperimentForm` — a declarative
+[ui/forms.py](../../ui/forms.py) defines `NewExperimentForm` — a declarative
 list of fields (choices, file, integers). Django renders it to HTML, and on
 submit validates it: required fields, integer bounds (`n_trials` 1–1000), and a
 custom `clean()` that enforces "a demo dataset **or** an upload." Invalid input
@@ -16,14 +16,14 @@ comes back as `form.errors` and re-renders with messages; the view never sees
 bad data. The registry drives the dropdown choices, populated in `__init__`.
 
 ### POST-and-render, CSRF, file uploads
-[web/views.py](../../web/views.py) `new_experiment` is the request/response
+[ui/views.py](../../ui/views.py) `new_experiment` is the request/response
 shape you'll see everywhere: GET renders an empty form; POST validates and, if
 good, does the work and renders a result. The form template carries
 `{% csrf_token %}` (Django rejects POSTs without it) and
 `enctype="multipart/form-data"` so the file upload arrives in `request.FILES`.
 
 ### Keeping the view thin
-The actual work lives in [web/services/run.py](../../web/services/run.py)
+The actual work lives in [ui/services/run.py](../../ui/services/run.py)
 (`resolve_seed`, `run_experiment`) — plain functions with no Django imports,
 callable and testable on their own. The view only translates HTTP ↔ those
 functions. That separation is why the run logic could be tested against the

@@ -9,8 +9,8 @@ Streamlit format is unchanged.
 
 from django.urls import reverse
 
-from web.models import Experiment, generate_identifier
-from web.services import snapshot as snapshot_adapter
+from ui.models import Experiment, generate_identifier
+from ui.services import snapshot as snapshot_adapter
 
 
 def _make(name):
@@ -54,13 +54,13 @@ def test_identifier_not_in_snapshot():
 
 def test_identifier_shown_in_sidebar(client):
     exp = _make("sidebar-exp")
-    body = client.get(reverse("web:home")).content.decode()
+    body = client.get(reverse("ui:home")).content.decode()
     assert "({})".format(exp.identifier) in body  # shown in parentheses
 
 
 def test_identifier_shown_on_detail_page(client):
     exp = _make("detail-exp")
-    body = client.get(reverse("web:experiment_detail", args=[exp.pk])).content.decode()
+    body = client.get(reverse("ui:experiment_detail", args=[exp.pk])).content.decode()
     assert exp.identifier in body
 
 
@@ -68,5 +68,5 @@ def test_identifier_shown_on_delete_confirm(client):
     """The delete confirmation names the experiment AND its ID, so the right
     one is being deleted even when names are similar."""
     exp = _make("delete-exp")
-    body = client.get(reverse("web:experiment_delete", args=[exp.pk])).content.decode()
+    body = client.get(reverse("ui:experiment_delete", args=[exp.pk])).content.decode()
     assert exp.identifier in body

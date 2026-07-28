@@ -16,7 +16,7 @@ from tests.conftest import DATASETS_DIR, FIXTURES_DIR
 
 
 def _experiment(**overrides):
-    from web.services import snapshot as adapter
+    from ui.services import snapshot as adapter
 
     fields = dict(
         version="0.1.0", name="reeval-exp", model_name="Random Forest",
@@ -32,7 +32,7 @@ def _experiment(**overrides):
 def _readonly_experiment_with_result():
     """An experiment with a stored result but no dataset (can't run) —
     the fixture's dataset_path is a foreign machine path that doesn't exist here."""
-    from web.services import snapshot as adapter
+    from ui.services import snapshot as adapter
     return adapter.experiment_from_snapshot(io.parse((FIXTURES_DIR / "test2.ihpo").read_bytes()))
 
 
@@ -41,7 +41,7 @@ def test_reevaluate_absent_before_first_run(client):
     """A fresh, never-run experiment shows the Run form but no Reevaluate
     button — there is nothing to reevaluate yet."""
     exp = _experiment()
-    html = client.get(reverse("web:experiment_detail", args=[exp.pk])).content.decode()
+    html = client.get(reverse("ui:experiment_detail", args=[exp.pk])).content.decode()
     assert 'name="n_trials"' in html
     assert 'name="optimize_metric"' in html
     assert 'id="reevaluate-btn"' not in html
@@ -66,7 +66,7 @@ def test_run_and_metric_controls_share_one_card(client):
     exp.original_metric = "accuracy"
     exp.save()
 
-    html = client.get(reverse("web:experiment_detail", args=[exp.pk])).content.decode()
+    html = client.get(reverse("ui:experiment_detail", args=[exp.pk])).content.decode()
     # Count forms in the page body only — the sidebar's language switcher is a
     # separate form and must not be conflated with the run/metric controls.
     content = html.split("<main", 1)[-1]
@@ -83,7 +83,7 @@ def test_readonly_experiment_keeps_metric_selector_without_run_form(client):
     """A read-only experiment (result but no dataset) still gets a metric
     selector and Reevaluate — just no n_trials/Run, since it can't be run."""
     exp = _readonly_experiment_with_result()
-    html = client.get(reverse("web:experiment_detail", args=[exp.pk])).content.decode()
+    html = client.get(reverse("ui:experiment_detail", args=[exp.pk])).content.decode()
 
     assert 'id="metric-select"' in html
     assert 'id="reevaluate-btn"' in html
@@ -95,7 +95,7 @@ def test_metric_switch_requires_reevaluate_not_automatic(client):
     """The dropdown's change event is not wired to re-render charts on its own
     — only the Reevaluate button's click handler calls show()."""
     exp = _readonly_experiment_with_result()
-    html = client.get(reverse("web:experiment_detail", args=[exp.pk])).content.decode()
+    html = client.get(reverse("ui:experiment_detail", args=[exp.pk])).content.decode()
 
     assert 'select.addEventListener("change"' not in html
     assert "reevaluateBtn.addEventListener(\"click\"" in html
@@ -106,7 +106,7 @@ def test_plotly_toolbar_hides_logo_and_select_tools(client):
     """The embedded Plotly config removes the Plotly logo/link and the lasso
     and box-select modebar buttons from every chart."""
     exp = _readonly_experiment_with_result()
-    html = client.get(reverse("web:experiment_detail", args=[exp.pk])).content.decode()
+    html = client.get(reverse("ui:experiment_detail", args=[exp.pk])).content.decode()
 
     assert "displaylogo: false" in html
     assert "lasso2d" in html

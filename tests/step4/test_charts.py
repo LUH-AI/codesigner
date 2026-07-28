@@ -1,4 +1,4 @@
-"""Step 4: the pure Plotly figure builders (web/charts.py).
+"""Step 4: the pure Plotly figure builders (ui/charts.py).
 
 These assert the figures faithfully reflect a result — the incumbent line is
 the running best, the scatter carries every trial's score, the selected point
@@ -9,7 +9,7 @@ from a synthetic result with hand-chosen numbers so every assertion is exact.
 import pytest
 
 from core.optimizers import OptimizationResult, TrialResult
-from web.charts import importance_figure, incumbent_scores, performance_figure
+from ui.charts import importance_figure, incumbent_scores, performance_figure
 
 
 def _result() -> OptimizationResult:

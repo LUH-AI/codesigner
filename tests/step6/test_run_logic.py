@@ -1,4 +1,4 @@
-"""Step 6: the metric-change decision (web/services/run_logic.py).
+"""Step 6: the metric-change decision (ui/services/run_logic.py).
 
 Pure logic derived from app/experiment.py's run-pressed block (lines 200-240).
 Deciding what a Run should do given the experiment's committed metrics and the
@@ -18,7 +18,7 @@ optimized metric; original is set once, on the first run.
 
 import pytest
 
-from web.services.run_logic import apply_metrics, decide_run, resolve_metric_change
+from ui.services.run_logic import apply_metrics, decide_run, resolve_metric_change
 
 
 def test_first_run_commits_the_chosen_metric():

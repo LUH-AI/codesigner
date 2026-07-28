@@ -11,6 +11,6 @@
     <form method="post" style="margin-top: 1rem; display: flex; gap: 0.5rem;">
         {% csrf_token %}
         <button type="submit" class="btn-primary">{% translate "Delete" %}</button>
-        <a class="btn" href="{% url 'web:experiment_detail' experiment.pk %}">{% translate "Cancel" %}</a>
+        <a class="btn" href="{% url 'ui:experiment_detail' experiment.pk %}">{% translate "Cancel" %}</a>
     </form>
 {% endblock %}

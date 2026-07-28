@@ -16,9 +16,9 @@ from django.core.files.uploadedfile import SimpleUploadedFile
 from django.urls import reverse
 
 from core import io
-from web.models import Experiment
-from web.services import run as run_service
-from web.services import snapshot as snapshot_adapter
+from ui.models import Experiment
+from ui.services import run as run_service
+from ui.services import snapshot as snapshot_adapter
 
 from tests.step9.conftest import VALID_MODEL_SRC
 
@@ -54,7 +54,7 @@ def _model_file():
 def test_create_view_stores_custom_model(client):
     """POSTing the new-experiment form with a model .py persists the file and
     the resolved model name, then redirects to the detail page."""
-    resp = client.post(reverse("web:new_experiment"), {
+    resp = client.post(reverse("ui:new_experiment"), {
         "name": "cm-create",
         "model_name": "",
         "optimizer_name": "Random Search",
@@ -117,7 +117,7 @@ def test_custom_model_with_file_is_runnable(client):
     exp = snapshot_adapter.experiment_from_snapshot(
         _custom_snapshot(name="cm-ok"), model_file=_model_file(),
     )
-    resp = client.get(reverse("web:experiment_detail", args=[exp.pk]))
+    resp = client.get(reverse("ui:experiment_detail", args=[exp.pk]))
     assert resp.context["can_run"] is True
 
 
@@ -126,7 +126,7 @@ def test_custom_model_without_file_is_readonly(client):
     (its model is unavailable) — same treatment as a missing dataset."""
     exp = snapshot_adapter.experiment_from_snapshot(_custom_snapshot(name="cm-missing"))
     assert not exp.model_file
-    resp = client.get(reverse("web:experiment_detail", args=[exp.pk]))
+    resp = client.get(reverse("ui:experiment_detail", args=[exp.pk]))
     assert resp.context["can_run"] is False
 
 
@@ -137,7 +137,7 @@ def test_custom_model_readonly_when_flag_off(client, settings):
         _custom_snapshot(name="cm-flagoff"), model_file=_model_file(),
     )
     settings.ALLOW_CUSTOM_MODELS = False
-    resp = client.get(reverse("web:experiment_detail", args=[exp.pk]))
+    resp = client.get(reverse("ui:experiment_detail", args=[exp.pk]))
     assert resp.context["can_run"] is False
 
 
@@ -145,7 +145,7 @@ def test_run_view_refuses_unavailable_custom_model(client):
     """POSTing Run for a custom model whose file is missing does not start a
     run — it redirects without creating one."""
     exp = snapshot_adapter.experiment_from_snapshot(_custom_snapshot(name="cm-norun"))
-    resp = client.post(reverse("web:experiment_run", args=[exp.pk]),
+    resp = client.post(reverse("ui:experiment_run", args=[exp.pk]),
                        {"n_trials": "3", "optimize_metric": "accuracy"})
     assert resp.status_code == 302
     assert exp.runs.count() == 0

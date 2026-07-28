@@ -9,11 +9,11 @@ runs are left untouched.
 
 import pytest
 
-from web.services.run import sweep_stale_runs
+from ui.services.run import sweep_stale_runs
 
 
 def _experiment():
-    from web.models import Experiment
+    from ui.models import Experiment
     return Experiment.objects.create(
         name="sweep-exp", model_name="Random Forest", optimizer_name="Random Search",
         optimizer_params={}, metric_names=["accuracy"], seed=0,
@@ -23,7 +23,7 @@ def _experiment():
 @pytest.mark.django_db
 def test_sweep_marks_running_errored_and_leaves_pending_and_finished():
     """Only running runs are stale; pending (still queued) and done are untouched."""
-    from web.models import Run
+    from ui.models import Run
 
     exp = _experiment()
     running = Run.objects.create(experiment=exp, n_trials=3, primary_metric="accuracy", status="running")

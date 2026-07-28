@@ -8,7 +8,7 @@ per-metric and still being refined, so it's intentionally untested for now.
 import pytest
 
 from core.optimizers.base import OptimizationResult, TrialResult
-from web.charts import duration_figure
+from ui.charts import duration_figure
 
 
 def _res(trials):

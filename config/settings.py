@@ -57,7 +57,7 @@ INSTALLED_APPS = [
     "django.contrib.messages",
     "django.contrib.staticfiles",
     "huey.contrib.djhuey",
-    "web",
+    "ui",
 ]
 
 MIDDLEWARE = [
@@ -90,7 +90,7 @@ TEMPLATES = [
                 "django.template.context_processors.i18n",
                 "django.contrib.auth.context_processors.auth",
                 "django.contrib.messages.context_processors.messages",
-                "web.context_processors.sidebar_experiments",
+                "ui.context_processors.sidebar_experiments",
             ],
         },
     },

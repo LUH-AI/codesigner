@@ -9,7 +9,7 @@ submission still creates an experiment.
 
 from django.urls import reverse
 
-from web.models import Experiment
+from ui.models import Experiment
 
 
 def _demo_dataset_path():
@@ -18,33 +18,33 @@ def _demo_dataset_path():
 
 
 def test_dataset_toggle_present(client):
-    body = client.get(reverse("web:new_experiment")).content.decode()
+    body = client.get(reverse("ui:new_experiment")).content.decode()
     assert 'name="use_demo_dataset"' in body  # the demo/upload checkbox
 
 
 def test_dataset_checkbox_defaults_unchecked(client):
     """The demo checkbox is off by default, so upload is the initial mode."""
-    body = client.get(reverse("web:new_experiment")).content.decode()
+    body = client.get(reverse("ui:new_experiment")).content.decode()
     checkbox = body[body.index('name="use_demo_dataset"') - 60:body.index('name="use_demo_dataset"') + 60]
     assert "checked" not in checkbox
 
 
 def test_model_toggle_present_when_flag_on(client, settings):
     settings.ALLOW_CUSTOM_MODELS = True
-    body = client.get(reverse("web:new_experiment")).content.decode()
+    body = client.get(reverse("ui:new_experiment")).content.decode()
     assert 'name="use_demo_model"' in body
 
 
 def test_model_toggle_absent_when_flag_off(client, settings):
     settings.ALLOW_CUSTOM_MODELS = False
-    body = client.get(reverse("web:new_experiment")).content.decode()
+    body = client.get(reverse("ui:new_experiment")).content.decode()
     assert 'name="use_demo_model"' not in body
 
 
 def test_normal_submission_still_creates(client):
     """The toggles don't break the ordinary path — demo dataset + registry
     model still creates an experiment."""
-    resp = client.post(reverse("web:new_experiment"), {
+    resp = client.post(reverse("ui:new_experiment"), {
         "name": "toggle-ok",
         "model_name": "Random Forest",
         "optimizer_name": "Random Search",

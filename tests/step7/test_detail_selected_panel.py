@@ -16,9 +16,9 @@ from tests.conftest import FIXTURES_DIR
 
 
 def _detail_html(client):
-    from web.services import snapshot as adapter
+    from ui.services import snapshot as adapter
     exp = adapter.experiment_from_snapshot(io.parse((FIXTURES_DIR / "test2.ihpo").read_bytes()))
-    return client.get(reverse("web:experiment_detail", args=[exp.pk])).content.decode(), exp
+    return client.get(reverse("ui:experiment_detail", args=[exp.pk])).content.decode(), exp
 
 
 def test_detail_has_a_selected_config_panel_per_metric(client):
@@ -52,4 +52,4 @@ def test_detail_wires_up_click_to_select(client):
     at the trial-panel endpoint."""
     html, exp = _detail_html(client)
     assert "plotly_click" in html
-    assert reverse("web:trial_panel", args=[exp.pk]) in html
+    assert reverse("ui:trial_panel", args=[exp.pk]) in html

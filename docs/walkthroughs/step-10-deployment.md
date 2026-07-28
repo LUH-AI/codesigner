@@ -37,8 +37,8 @@ container packaging.
   `STATIC_ROOT`, `STORAGES` (WhiteNoise `CompressedStaticFilesStorage`), and
   env-configurable `MEDIA_ROOT` + huey `filename` so both processes share one
   data volume.
-- `web/views.py` + `web/urls.py` — the `/healthz/` endpoint.
-- `web/forms.py` + `web/views.py` + `new_experiment.html` — the mounted-model
+- `ui/views.py` + `ui/urls.py` — the `/healthz/` endpoint.
+- `ui/forms.py` + `ui/views.py` + `new_experiment.html` — the mounted-model
   source (part of the parity item; see its own tests).
 - New: `Dockerfile`, `docker-entrypoint.sh`, `docker-compose.yml`,
   `.dockerignore`, `.github/workflows/ci.yml`, `mounted_models/`. `requirements.txt`

@@ -55,7 +55,7 @@ def metric_label(primary_metric, original_metric):
 
 
 def home(request):
-    return render(request, "web/home.html")
+    return render(request, "ui/home.html")
 
 
 def healthz(request):
@@ -84,11 +84,11 @@ def new_experiment(request):
     is copied into MEDIA. Running is a separate action on the detail page.
     """
     if request.method != "POST":
-        return render(request, "web/new_experiment.html", {"form": NewExperimentForm()})
+        return render(request, "ui/new_experiment.html", {"form": NewExperimentForm()})
 
     form = NewExperimentForm(request.POST, request.FILES)
     if not form.is_valid():
-        return render(request, "web/new_experiment.html", {"form": form})
+        return render(request, "ui/new_experiment.html", {"form": form})
 
     cleaned = form.cleaned_data
     seed = resolve_seed(cleaned["seed"])
@@ -120,13 +120,13 @@ def new_experiment(request):
         for path in tmp_paths:
             Path(path).unlink(missing_ok=True)
 
-    return redirect("web:experiment_detail", pk=exp.pk)
+    return redirect("ui:experiment_detail", pk=exp.pk)
 
 
 def experiment_detail(request, pk):
     """Show a saved experiment: its config, results/charts, run state, Run form."""
     exp = get_object_or_404(Experiment, pk=pk)
-    return render(request, "web/experiment_detail.html", _detail_context(exp))
+    return render(request, "ui/experiment_detail.html", _detail_context(exp))
 
 
 def trial_panel(request, pk):
@@ -150,7 +150,7 @@ def trial_panel(request, pk):
     if result is None or not (0 <= idx < len(result.trials)):
         return HttpResponseBadRequest("invalid trial index")
 
-    return render(request, "web/_selected_config_inner.html",
+    return render(request, "ui/_selected_config_inner.html",
                   {"sel": _selected_panel_data(result, metric, idx)})
 
 
@@ -164,7 +164,7 @@ def experiment_run(request, pk):
     exp = get_object_or_404(Experiment, pk=pk)
     if (request.method != "POST" or not exp.dataset or exp.is_running
             or not _model_available(exp)):
-        return redirect("web:experiment_detail", pk=pk)
+        return redirect("ui:experiment_detail", pk=pk)
 
     n_trials = max(1, min(1000, int(request.POST.get("n_trials") or 30)))
     chosen = request.POST.get("optimize_metric")
@@ -173,17 +173,17 @@ def experiment_run(request, pk):
     if decision:
         optimize_metric = resolve_metric_change(decision, exp.original_metric, chosen)
         if optimize_metric is None:
-            return redirect("web:experiment_detail", pk=pk)
+            return redirect("ui:experiment_detail", pk=pk)
     else:
         action, optimize_metric = decide_run(exp.original_metric, exp.primary_metric, chosen)
         if action == "warn":
-            return render(request, "web/metric_change.html", {
+            return render(request, "ui/metric_change.html", {
                 "experiment": exp, "chosen": chosen, "n_trials": n_trials,
             })
 
     run = run_service.create_run(exp, n_trials, optimize_metric)
     run_service.start_background_run(run.id)
-    return redirect("web:experiment_detail", pk=pk)
+    return redirect("ui:experiment_detail", pk=pk)
 
 
 def run_status(request, pk):
@@ -194,14 +194,14 @@ def run_status(request, pk):
         response = HttpResponse("")
         response["HX-Refresh"] = "true"
         return response
-    return render(request, "web/_run_status.html", {"experiment": exp, "run": active})
+    return render(request, "ui/_run_status.html", {"experiment": exp, "run": active})
 
 
 def run_cancel(request, pk):
     """Request cancellation of the experiment's active run."""
     exp = get_object_or_404(Experiment, pk=pk)
     exp.runs.filter(status__in=_ACTIVE).update(cancel_requested=True)
-    return redirect("web:experiment_detail", pk=pk)
+    return redirect("ui:experiment_detail", pk=pk)
 
 
 def experiment_export(request, pk):
@@ -236,19 +236,19 @@ def experiment_settings(request, pk):
             exp.use_default_settings = False
             exp.settings = {"export_absolute_times": bool(request.POST.get("export_absolute_times"))}
         exp.save(update_fields=["use_default_settings", "settings"])
-        return redirect("web:experiment_settings", pk=pk)
+        return redirect("ui:experiment_settings", pk=pk)
 
     effective = resolve_settings(exp)
     form = ExperimentSettingsForm(initial={
         "use_default_settings": exp.use_default_settings,
         "export_absolute_times": effective["export_absolute_times"],
     })
-    return render(request, "web/experiment_settings.html", {"experiment": exp, "form": form})
+    return render(request, "ui/experiment_settings.html", {"experiment": exp, "form": form})
 
 
 def global_settings(request):
     """Global settings landing page (currently just links to the defaults)."""
-    return render(request, "web/global_settings.html", {})
+    return render(request, "ui/global_settings.html", {})
 
 
 def default_experiment_settings(request):
@@ -259,12 +259,12 @@ def default_experiment_settings(request):
             "export_absolute_times": bool(request.POST.get("export_absolute_times")),
         }
         gs.save(update_fields=["default_experiment_settings"])
-        return redirect("web:default_experiment_settings")
+        return redirect("ui:default_experiment_settings")
 
     form = DefaultExperimentSettingsForm(initial={
         "export_absolute_times": global_defaults()["export_absolute_times"],
     })
-    return render(request, "web/default_experiment_settings.html", {"form": form})
+    return render(request, "ui/default_experiment_settings.html", {"form": form})
 
 
 def experiment_delete(request, pk):
@@ -273,8 +273,8 @@ def experiment_delete(request, pk):
     if request.method == "POST":
         exp.runs.filter(status__in=_ACTIVE).update(cancel_requested=True)
         exp.delete()
-        return redirect("web:home")
-    return render(request, "web/delete_confirm.html", {"experiment": exp})
+        return redirect("ui:home")
+    return render(request, "ui/delete_confirm.html", {"experiment": exp})
 
 
 def import_experiment(request):
@@ -291,15 +291,15 @@ def import_experiment(request):
             snapshot = io.parse(upload.read())
         except ValueError as exc:
             context["error"] = _("Invalid or unreadable experiment file.") + f" ({exc})"
-            return render(request, "web/import.html", context)
+            return render(request, "ui/import.html", context)
 
         model_upload = request.FILES.get("model") if settings.ALLOW_CUSTOM_MODELS else None
         exp = snapshot_adapter.experiment_from_snapshot(
             snapshot, dataset_file=request.FILES.get("dataset"), model_file=model_upload,
         )
-        return redirect("web:experiment_detail", pk=exp.pk)
+        return redirect("ui:experiment_detail", pk=exp.pk)
 
-    return render(request, "web/import.html", context)
+    return render(request, "ui/import.html", context)
 
 
 def _rebuild_result(exp):

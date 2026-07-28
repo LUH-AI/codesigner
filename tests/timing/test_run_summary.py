@@ -15,7 +15,7 @@ from tests.conftest import DATASETS_DIR
 
 
 def test_run_duration_property():
-    from web.models import Experiment, Run
+    from ui.models import Experiment, Run
     exp = Experiment.objects.create(name="d", model_name="Random Forest",
                                     optimizer_name="Random Search", metric_names=["accuracy"], seed=0)
     start = timezone.now()
@@ -26,8 +26,8 @@ def test_run_duration_property():
 
 
 def test_execute_run_stores_trial_seconds():
-    from web.services import snapshot as adapter
-    from web.services.run import create_run, execute_run
+    from ui.services import snapshot as adapter
+    from ui.services.run import create_run, execute_run
     exp = adapter.experiment_from_snapshot({
         "version": "0.1.0", "name": "rs", "model_name": "Random Forest", "model_path": "",
         "optimizer_name": "Random Search", "optimizer_params": {},
@@ -45,7 +45,7 @@ def test_execute_run_stores_trial_seconds():
 
 def test_detail_page_shows_run_summary(client):
     """A finished run surfaces total duration and overhead on the detail page."""
-    from web.models import Experiment, Run
+    from ui.models import Experiment, Run
     result = {
         "stats": {"submitted": 1, "finished": 1, "running": 0},
         "data": [{"config_id": 1, "cost": 0.2, "time": 2.0,
@@ -64,7 +64,7 @@ def test_detail_page_shows_run_summary(client):
     Run.objects.create(experiment=exp, n_trials=1, primary_metric="accuracy", status="done",
                        started_at=start, finished_at=start + datetime.timedelta(seconds=3),
                        trial_seconds=2.0, trial_count=1)
-    body = client.get(reverse("web:experiment_detail", args=[exp.pk])).content.decode()
+    body = client.get(reverse("ui:experiment_detail", args=[exp.pk])).content.decode()
     assert "overhead" in body.lower()
     assert "3.0" in body and "2.0" in body   # total 3s, 2s in trials
     assert "1 trials" in body                # count of trials performed

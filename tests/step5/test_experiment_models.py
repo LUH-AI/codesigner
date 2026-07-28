@@ -30,7 +30,7 @@ def test_experiments_may_share_a_name():
     Names are a human label, not an identity — each row carries its own
     unique identifier, so the database allows duplicate names.
     """
-    from web.models import Experiment
+    from ui.models import Experiment
 
     a = Experiment.objects.create(**_snapshot_fields())
     b = Experiment.objects.create(**_snapshot_fields())
@@ -46,7 +46,7 @@ def test_experiment_defaults_for_fresh_rows():
     never run), dataset/model_file are falsy (no uploads yet), and
     created_at is populated automatically.
     """
-    from web.models import Experiment
+    from ui.models import Experiment
 
     exp = Experiment.objects.create(**_snapshot_fields())
     assert exp.result is None
@@ -62,7 +62,7 @@ def test_experiment_json_fields_round_trip():
     JSONFields must preserve dict/list structure exactly — these values are
     fed back into optimizer constructors and metric registries.
     """
-    from web.models import Experiment
+    from ui.models import Experiment
 
     fields = _snapshot_fields()
     fields["optimizer_params"] = {"numeric_steps": 7}
@@ -80,7 +80,7 @@ def test_run_lifecycle_defaults():
     Expect: status "pending", cancel_requested False, error empty, and no
     finished_at — the state a run is in between form-submit and pickup.
     """
-    from web.models import Experiment, Run
+    from ui.models import Experiment, Run
 
     exp = Experiment.objects.create(**_snapshot_fields())
     run = Run.objects.create(experiment=exp, n_trials=10, primary_metric="accuracy")
@@ -98,7 +98,7 @@ def test_runs_are_deleted_with_their_experiment():
     Mirrors delete-with-confirm semantics: the experiment and everything
     about it disappears together.
     """
-    from web.models import Experiment, Run
+    from ui.models import Experiment, Run
 
     exp = Experiment.objects.create(**_snapshot_fields())
     Run.objects.create(experiment=exp, n_trials=5, primary_metric="accuracy")
@@ -115,7 +115,7 @@ def test_experiment_and_run_are_registered_in_admin():
     make the verify step impossible.
     """
     from django.contrib import admin
-    from web.models import Experiment, Run
+    from ui.models import Experiment, Run
 
     assert Experiment in admin.site._registry
     assert Run in admin.site._registry

@@ -6,8 +6,8 @@ key, falling back to the global default). The global default itself falls back
 to the built-in `SETTING_DEFAULTS`.
 """
 
-from web.models import Experiment, GlobalSettings
-from web.services.settings import SETTING_DEFAULTS, resolve_settings
+from ui.models import Experiment, GlobalSettings
+from ui.services.settings import SETTING_DEFAULTS, resolve_settings
 
 
 def _exp(**kw):

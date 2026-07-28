@@ -5,8 +5,8 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>{% block title %}Codesigner{% endblock %}</title>
-    <link rel="stylesheet" href="{% static 'web/app.css' %}">
-    <script src="{% static 'web/poll.js' %}" defer></script>
+    <link rel="stylesheet" href="{% static 'ui/app.css' %}">
+    <script src="{% static 'ui/poll.js' %}" defer></script>
 </head>
 <body>
     <nav class="sidebar">
@@ -23,14 +23,14 @@
         </form>
         <h1>{% translate "Experiments" %}</h1>
         <div class="actions">
-            <a class="btn btn-block" href="{% url 'web:new_experiment' %}">{% translate "＋ New" %}</a>
-            <a class="btn btn-block" href="{% url 'web:import_experiment' %}">{% translate "📂 Load" %}</a>
+            <a class="btn btn-block" href="{% url 'ui:new_experiment' %}">{% translate "＋ New" %}</a>
+            <a class="btn btn-block" href="{% url 'ui:import_experiment' %}">{% translate "📂 Load" %}</a>
         </div>
         <hr>
         <div class="experiment-list">
             {% for e in sidebar_experiments %}
                 <a class="btn btn-block{% if request.resolver_match.kwargs.pk == e.pk %} btn-primary{% endif %}"
-                   href="{% url 'web:experiment_detail' e.pk %}">
+                   href="{% url 'ui:experiment_detail' e.pk %}">
                     {{ e.name }} <span class="exp-id">({{ e.identifier }})</span>{% if e.is_running %} <span class="spinner" title="{% translate 'Running' %}"></span>{% endif %}
                 </a>
             {% empty %}
@@ -38,7 +38,7 @@
             {% endfor %}
         </div>
         <div class="nav-links">
-            <a href="{% url 'web:global_settings' %}">{% translate "⚙ Settings" %}</a>
+            <a href="{% url 'ui:global_settings' %}">{% translate "⚙ Settings" %}</a>
         </div>
     </nav>
     <main class="content">

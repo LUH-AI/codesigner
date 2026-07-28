@@ -8,16 +8,16 @@
 ## 1. Concepts introduced
 
 ### Models, migrations, the admin
-[web/models.py](../../web/models.py) defines `Experiment` (the DB mirror of an
+[ui/models.py](../../ui/models.py) defines `Experiment` (the DB mirror of an
 `.ihpo` snapshot) and `Run` (one run's lifecycle — schema only for now).
-`makemigrations` generated [web/migrations/0001_initial.py](../../web/migrations/0001_initial.py);
+`makemigrations` generated [ui/migrations/0001_initial.py](../../ui/migrations/0001_initial.py);
 `migrate` creates the tables. Both are registered in
-[web/admin.py](../../web/admin.py), so `/admin/` is a full inspection surface.
+[ui/admin.py](../../ui/admin.py), so `/admin/` is a full inspection surface.
 
 ### A custom field for a real-world snag
 SMAC's stored scenario state contains `inf` (no-limit sentinels). SQLite's JSON
 column rejects the `Infinity` token Python emits, a constraint the file-based
-`.ihpo` store never had. [web/fields.py](../../web/fields.py)'s `SafeJSONField`
+`.ihpo` store never had. [ui/fields.py](../../ui/fields.py)'s `SafeJSONField`
 stores non-finite floats as a sentinel and restores them on read — valid JSON
 in the DB, full fidelity in Python (verified: `inf` survives a write→read).
 
@@ -25,12 +25,12 @@ in the DB, full fidelity in Python (verified: `inf` survives a write→read).
 Datasets are stored as `FileField`s under `MEDIA_ROOT` (served in dev via
 [config/urls.py](../../config/urls.py)). The sidebar lists experiments on every
 page through a **context processor**
-([web/context_processors.py](../../web/context_processors.py)) — no per-view
+([ui/context_processors.py](../../ui/context_processors.py)) — no per-view
 plumbing. Export is a plain `HttpResponse` with a content-disposition header;
 detail/delete use `get_object_or_404`.
 
 ### The adapter seam
-[web/services/snapshot.py](../../web/services/snapshot.py) is the single
+[ui/services/snapshot.py](../../ui/services/snapshot.py) is the single
 row↔snapshot converter. Import, export, running, and the detail page all go
 through it, so the DB and the `.ihpo` format never drift.
 
