@@ -17,7 +17,7 @@ from core import io
 from ui.forms import NewExperimentForm
 from ui.models import Experiment
 
-from tests.step9.conftest import VALID_MODEL_SRC
+from tests.ui.custom_models.conftest import VALID_MODEL_SRC
 
 
 @pytest.fixture

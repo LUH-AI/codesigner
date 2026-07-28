@@ -1,7 +1,7 @@
 """Step 10: runs execute through a huey task queue instead of a raw thread.
 
 The run lifecycle (create → execute → done, resume, cancel, error) is unchanged
-and already covered in tests/step6 by calling `execute_run` directly. Here we
+and already covered alongside it by calling `execute_run` directly. Here we
 pin the queue seam: `start_background_run` now enqueues a huey `db_task` that
 calls `execute_run`, and the web process only enqueues (state stays in the DB,
 so polling/cancel are untouched). In immediate mode the task runs synchronously,

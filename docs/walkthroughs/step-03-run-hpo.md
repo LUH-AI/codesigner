@@ -86,7 +86,7 @@ changed · ⏳ deferred (step).
 ```bash
 cd ~/Downloads/python/projects/codesigner
 .venv/bin/python manage.py runserver        # http://127.0.0.1:8000/ → New
-.venv/bin/python -m pytest tests/step3       # 11 tests (one slow SMAC run)
+.venv/bin/python -m pytest tests/ui/experiments tests/ui/runs   # one slow SMAC run
 ```
 
 Try, side by side with the Streamlit app on the same dataset/seed/optimizer:

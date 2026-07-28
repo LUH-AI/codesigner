@@ -71,7 +71,7 @@ Source: Step 6's thread-based engine (the behavior to preserve). ✅ done ·
   responsive and polls to completion (unchanged UX)
 - ✅ Run lifecycle preserved: create → execute → done, **resume** (trials
   continue), **cancel** mid-run, **error** capture — all still exercised by the
-  existing `tests/step6` suite calling `execute_run` directly
+  existing `tests/ui/runs` suite calling `execute_run` directly
 - ✅ Runs execute in a **separate consumer process** (`manage.py run_huey`)
 - ✅ Durable queue: a queued (`pending`) run **survives a web restart** and is
   still processed — a genuine improvement over the thread version
@@ -96,11 +96,11 @@ The orphan-sweep test was updated to this contract.
 
 ## 5. The tests
 
-- `tests/step10/test_task_queue.py`: enqueuing a run (immediate mode) drives it
+- `tests/ui/runs/test_task_queue.py`: enqueuing a run (immediate mode) drives it
   to `done` with results written (the launch → task → `execute_run` path); the
   task is a registered huey `db_task` (`schedule`/`call_local`); and
   `call_local` runs the experiment (the consumer's execution path).
-- `tests/step6/test_orphan_sweep.py` (updated): `running` → error, `pending`
+- `tests/ui/runs/test_orphan_sweep.py` (updated): `running` → error, `pending`
   left queued, `done` untouched.
 - Full suite: **198 passed**, 5 slow deselected.
 
@@ -108,7 +108,7 @@ The orphan-sweep test was updated to this contract.
 
 ```bash
 cd ~/Downloads/python/projects/codesigner
-.venv/bin/python -m pytest tests/step10 tests/step6/test_orphan_sweep.py
+.venv/bin/python -m pytest tests/ui/ops tests/ui/custom_models tests/ui/runs/test_orphan_sweep.py
 
 # Real two-process path (not immediate):
 HUEY_IMMEDIATE=false DEBUG=false .venv/bin/python manage.py run_huey     # terminal 1

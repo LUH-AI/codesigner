@@ -72,7 +72,7 @@ From `app/analytics/{performance,hp_importance,best_config,selected_config}.py`.
 ```bash
 cd ~/Downloads/python/projects/codesigner
 .venv/bin/python manage.py runserver     # New → run → results page has charts
-.venv/bin/python -m pytest tests/step4    # 11 tests
+.venv/bin/python -m pytest tests/ui/results
 ```
 
 Run Grid Search on iris (fast), then change the metric dropdown and watch the
@@ -83,7 +83,7 @@ warning path.
 
 ## 5. Notes
 
-- Chart builders are tested directly (`tests/step4/test_charts.py`) against a
+- Chart builders are tested directly (`tests/ui/results/test_charts.py`) against a
   synthetic result with hand-picked numbers; the view test confirms the page
   embeds every metric's figures. The Streamlit originals are `st.*`-coupled and
   can't run under pytest, so these tests are codesigner-native (the incumbent

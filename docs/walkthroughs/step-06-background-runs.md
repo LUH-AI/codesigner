@@ -77,7 +77,7 @@ delete-cancel) and `app/sidebar.py` (spinner). ✅ done · 🔄 changed · ➕ a
 - The synchronous `run_experiment` helper is retained (its build-and-run path is
   unit-tested); the background engine is what the UI now uses.
 - **Oracle validation**: the resume and cancel *engine* semantics were already
-  validated against the Streamlit app in `tests/step2/test_optimizers`
+  validated against the Streamlit app in `tests/core/test_optimizers`
   (resume/`PreCancelled`). Step 6's DB wiring, views, polling, and metric-change
   decision are codesigner-native (no runnable Streamlit equivalent).
 

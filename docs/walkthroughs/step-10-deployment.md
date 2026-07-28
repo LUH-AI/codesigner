@@ -67,8 +67,8 @@ container packaging.
 ## 4. Verification
 
 Automated: **`pytest` — 209 passed** (full suite, including the slow SMAC
-end-to-end tests). New this part: `tests/step10/test_healthz.py` and
-`tests/step10/test_mounted_models.py`.
+end-to-end tests). New this part: `tests/ui/ops/test_healthz.py` and
+`tests/ui/custom_models/test_mounted_models.py`.
 
 Ran here (no Docker needed):
 - `manage.py collectstatic --noinput` → 133 files copied, compressed `.gz`

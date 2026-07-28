@@ -85,7 +85,7 @@ as-is in every language. The `Run` model's status label inside the "Optimizingâ€
 (Running)" line is left in English â€” it's an internal state name, and the
 surrounding sentence is translated.
 
-## 5. The tests (`tests/step8/`)
+## 5. The tests (`tests/ui/i18n/`)
 
 Written before the catalogs existed (they failed red until the `.po`/`.mo`
 files were built), then made green:
@@ -113,7 +113,7 @@ files were built), then made green:
 ```bash
 cd ~/Downloads/python/projects/codesigner
 .venv/bin/python manage.py compilemessages -l de -l es   # build the .mo files
-.venv/bin/python -m pytest tests/step8                   # 10 tests
+.venv/bin/python -m pytest tests/ui/i18n                   # 10 tests
 .venv/bin/python manage.py runserver
 ```
 

@@ -6,7 +6,7 @@ the optimizer with a DB-backed cancel flag, write the result and status back);
 `DbCancelFlag` reads the cancel request from the database.
 
 The resume and cancel *engine* semantics are already validated against the
-Streamlit oracle in tests/step2/test_optimizers; here we pin the DB wiring
+Streamlit oracle in tests/core/test_optimizers; here we pin the DB wiring
 around them. Real Random Forest + Random Search on iris keeps the runs small
 and deterministic.
 """

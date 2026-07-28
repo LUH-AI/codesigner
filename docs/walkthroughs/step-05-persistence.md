@@ -93,7 +93,8 @@ one. Cross-check an exported file loads in the Streamlit app.
   rather than POST→redirect→GET, so the Step 3/4 view tests stay valid untouched.
 - The **`Run` model exists but is inert**; its lifecycle (status, cancel) is
   Step 6.
-- Web-layer tests get DB access + an isolated `MEDIA_ROOT` via small per-folder
-  `conftest.py` fixtures, so the pure-domain `tests/step2` suite stays db-free.
-- The DB-layer tests (models, adapter, `import_ihpo`, pages) moved from
-  `tests/deferred/` into `tests/step5/`; the export/import/persist tests are new.
+- Web-layer tests get DB access + an isolated `MEDIA_ROOT` from a shared
+  `conftest.py`, so the pure-domain `tests/core` suite stays db-free.
+- The DB-layer tests (models, adapter, `import_ihpo`, pages) moved out of
+  `tests/deferred/`; the export/import/persist tests are new. They now live
+  in `tests/ui/storage/` and `tests/ui/experiments/`.

@@ -5,7 +5,7 @@ create and run separated, they render on an experiment's detail page once it
 has a result. We set up an experiment carrying a stored result (via the
 adapter) and GET its detail page.
 
-DB access + isolated media come from tests/step4/conftest.py.
+DB access + isolated media come from tests/ui/conftest.py.
 """
 
 import json

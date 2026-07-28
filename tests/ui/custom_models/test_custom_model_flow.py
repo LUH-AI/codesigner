@@ -20,7 +20,7 @@ from ui.models import Experiment
 from ui.services import run as run_service
 from ui.services import snapshot as snapshot_adapter
 
-from tests.step9.conftest import VALID_MODEL_SRC
+from tests.ui.custom_models.conftest import VALID_MODEL_SRC
 
 
 def _demo_dataset_path():

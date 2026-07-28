@@ -2,10 +2,10 @@
 
 Since Step 6 separated create from run, submitting this form saves the
 experiment (no result yet) and redirects to its detail page; running happens
-there, in the background (see tests/step6). These tests cover creation and its
+there, in the background (see tests/ui/runs/). These tests cover creation and its
 validation; the run flow and results rendering live in step6/step4.
 
-DB access + isolated media come from tests/step3/conftest.py.
+DB access + isolated media come from tests/ui/conftest.py.
 """
 
 import io as _io

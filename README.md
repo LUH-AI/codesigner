@@ -90,5 +90,5 @@ python -m pytest -m "not slow"     # fast suite
 python -m pytest                    # includes slow SMAC end-to-end tests
 ```
 
-The i18n catalogs are checked by `tests/step8` (every marked string must have a
+The i18n catalogs are checked by `tests/ui/i18n` (every marked string must have a
 complete, non-fuzzy de/es translation).

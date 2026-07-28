@@ -80,7 +80,7 @@ instead of the page-load default) — flagging rather than assuming.
 ```bash
 cd ~/Downloads/python/projects/codesigner
 .venv/bin/python manage.py runserver
-.venv/bin/python -m pytest tests/step7   # 13 tests
+.venv/bin/python -m pytest tests/ui/results   # 13 tests
 ```
 
 Open any experiment with results, click a few points on the performance

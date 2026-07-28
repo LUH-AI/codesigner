@@ -23,7 +23,7 @@ jobs:
       # app version (single source: pyproject.toml). Deps are installed above.
       - run: pip install -e . --no-deps
       # Re-extract strings from source FIRST, so the i18n completeness/fuzzy
-      # test (tests/step8) catches catalogs that drifted from the source —
+      # test (tests/ui/i18n) catches catalogs that drifted from the source —
       # a new string, or one whose English changed — not just missing msgstrs.
       - run: python manage.py makemessages -l de -l es --no-obsolete
       - run: python manage.py compilemessages -l de -l es

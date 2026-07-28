@@ -89,14 +89,15 @@ reset) · ✅ global + defaults pages · ✅ ⚙ + sidebar links · ✅ admin.
 ## Verify
 
 ```bash
-python -m pytest tests/timing tests/settings     # this epic
+python -m pytest tests/ui/settings tests/ui/runs tests/core   # this epic
 python -m pytest                                   # full suite (incl. slow SMAC)
 python manage.py runserver
 ```
 
-Automated: `tests/timing/` (helper, record, serialize round-trip, real Grid/
-Random + slow SMAC timing, duration column, both figures, run summary) and
-`tests/settings/` (resolve, export scrub + re-import, all pages). Live-checked:
+Automated: the timing tests (helper, record, serialize round-trip, real
+Grid/Random + slow SMAC timing in `tests/core/`; duration column and figures
+in `tests/ui/results/`; run summary in `tests/ui/runs/`) and
+`tests/ui/settings/` (resolve, export scrub + re-import, all pages). Live-checked:
 the Duration column, both timing figures, the overhead note, all three settings
 pages, and that export scrubbing strips `starttime`/`endtime` when the setting
 is off.

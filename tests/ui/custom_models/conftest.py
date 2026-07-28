@@ -5,7 +5,7 @@ from django.core.files.uploadedfile import SimpleUploadedFile
 
 # A minimal valid custom model: one integer hyperparameter, constant scores so
 # a run is instant and deterministic. Mirrors the fixture in
-# tests/step2/test_model_loading.py.
+# tests/core/test_model_loading.py.
 VALID_MODEL_SRC = textwrap.dedent("""
     from ConfigSpace import ConfigurationSpace, Integer
     from core.models import BaseModel
@@ -22,14 +22,6 @@ VALID_MODEL_SRC = textwrap.dedent("""
 
 # A .py with no BaseModel subclass — must be rejected at upload time.
 INVALID_MODEL_SRC = "x = 1\n"
-
-
-@pytest.fixture(autouse=True)
-def _db_media_and_flag(db, settings, tmp_path):
-    """Custom-model tests hit the DB, store uploads, and depend on the feature
-    flag — give each a throwaway MEDIA_ROOT and the flag on by default."""
-    settings.MEDIA_ROOT = str(tmp_path / "media")
-    settings.ALLOW_CUSTOM_MODELS = True
 
 
 @pytest.fixture

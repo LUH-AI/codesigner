@@ -92,7 +92,7 @@ From the Streamlit custom-model handling. ✅ done · 🔄 changed · ⏭ deferr
   Docker volume-mount concern, deferred to Step 10 with the demo mounts
 - ⏭ Production task queue (huey) — deferred to Step 10 (see scope note)
 
-## 5. The tests (`tests/step9/`, 15 tests)
+## 5. The tests (`tests/ui/custom_models/`, 15 tests)
 
 - **Form** (`test_custom_model_form.py`): upload field present/absent per flag;
   valid upload resolves the model name; invalid `.py` is a form error; registry
@@ -112,12 +112,12 @@ refuses to compile).
 
 ```bash
 cd ~/Downloads/python/projects/codesigner
-.venv/bin/python -m pytest tests/step9 tests/step8   # 25 tests
+.venv/bin/python -m pytest tests/ui/custom_models tests/ui/i18n   # 25 tests
 .venv/bin/python manage.py runserver
 ```
 
 Create an experiment; instead of picking a model, upload a `.py` with a
-`BaseModel` subclass (see `tests/step9/conftest.py` for a minimal one) — it runs
+`BaseModel` subclass (see `tests/ui/custom_models/conftest.py` for a minimal one) — it runs
 like any built-in model. Try an invalid `.py`: you get a form error. Restart
 with `ALLOW_CUSTOM_MODELS=False` in `.env`: the upload field is gone, and an
 existing custom-model experiment shows read-only.
