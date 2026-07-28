@@ -147,6 +147,16 @@ table.config td:last-child, table.trials td:not(:first-child) { text-align: righ
 .table-wrap { border: 1px solid var(--border); border-radius: var(--radius); overflow: hidden; }
 .table-scroll { overflow-x: auto; }
 
+/* Trials table: a trial's outcome (scores, duration) is separated from the
+   configuration that produced it, and the outcome columns sort on click. */
+.trials .group-start { border-left: 2px solid var(--border); }
+.trials th.sortable { cursor: pointer; user-select: none; white-space: nowrap; }
+.trials th.sortable::after { content: "↕"; margin-left: 0.35rem; opacity: 0.3; }
+.trials th.sortable[aria-sort]::after { opacity: 1; }
+.trials th.sortable[aria-sort="ascending"]::after  { content: "↑"; }
+.trials th.sortable[aria-sort="descending"]::after { content: "↓"; }
+.trials th.sortable:hover { color: var(--text); }
+
 /* ── Alerts (st.info/warning/error/success) ───────────────────────────── */
 .alert { padding: 0.75rem 1rem; border-radius: var(--radius); font-size: 0.9rem; }
 .alert.info    { background: rgba(0, 104, 201, 0.1); color: #004280; }

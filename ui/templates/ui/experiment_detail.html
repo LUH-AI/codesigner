@@ -145,25 +145,60 @@
                 <table class="trials">
                     <thead>
                         <tr>
-                            <th>#</th>
-                            {% for h in hp_names %}<th>{{ h }}</th>{% endfor %}
-                            {% for m in metric_names %}<th>{{ m }}</th>{% endfor %}
-                            <th>{% translate "Duration" %}</th>
+                            <th class="sortable">#</th>
+                            {% for m in metric_names %}<th class="sortable">{{ m }}</th>{% endfor %}
+                            <th class="sortable">{% translate "Duration" %}</th>
+                            {% for h in hp_names %}<th{% if forloop.first %} class="group-start"{% endif %}>{{ h }}</th>{% endfor %}
                         </tr>
                     </thead>
                     <tbody>
                         {% for row in trial_rows %}
                             <tr>
-                                <td>{{ row.n }}</td>
-                                {% for v in row.config_values %}<td>{{ v }}</td>{% endfor %}
-                                {% for score in row.scores %}<td>{{ score|floatformat:4 }}</td>{% endfor %}
-                                <td>{{ row.duration|floatformat:3 }} s</td>
+                                <td data-sort="{{ row.n }}">{{ row.n }}</td>
+                                {% for score in row.scores %}<td data-sort="{{ score }}">{{ score|floatformat:4 }}</td>{% endfor %}
+                                <td data-sort="{{ row.duration }}">{{ row.duration|floatformat:3 }} s</td>
+                                {% for v in row.config_values %}<td{% if forloop.first %} class="group-start"{% endif %}>{{ v }}</td>{% endfor %}
                             </tr>
                         {% endfor %}
                     </tbody>
                 </table>
             </div>
         </section>
+
+        <script>
+            // Click-to-sort on the outcome columns. Every sortable cell carries
+            // its raw value in data-sort, so ordering is numeric rather than by
+            // the formatted text ("9.000 s" would sort above "10.000 s").
+            (function () {
+                const table = document.querySelector("table.trials");
+                if (!table) return;
+                const tbody = table.tBodies[0];
+                const headers = Array.from(table.querySelectorAll("th.sortable"));
+
+                function sortBy(th, descending) {
+                    const col = Array.from(th.parentNode.children).indexOf(th);
+                    Array.from(tbody.rows)
+                        .sort(function (a, b) {
+                            const x = parseFloat(a.cells[col].dataset.sort);
+                            const y = parseFloat(b.cells[col].dataset.sort);
+                            return descending ? y - x : x - y;
+                        })
+                        .forEach(function (row) { tbody.appendChild(row); });
+                    headers.forEach(function (h) { h.removeAttribute("aria-sort"); });
+                    th.setAttribute("aria-sort", descending ? "descending" : "ascending");
+                }
+
+                headers.forEach(function (th, i) {
+                    // Scores and durations are most useful largest-first; the
+                    // trial number reads in run order. Clicking again reverses.
+                    const startsDescending = i > 0;
+                    th.addEventListener("click", function () {
+                        const sorted = th.getAttribute("aria-sort");
+                        sortBy(th, sorted ? sorted === "ascending" : startsDescending);
+                    });
+                });
+            })();
+        </script>
 
         {{ figures|json_script:"figures-data" }}
         {{ panels|json_script:"panels-data" }}
