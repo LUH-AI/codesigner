@@ -81,6 +81,9 @@ class Run(models.Model):
     # Sum of this run's trial evaluation durations (seconds); total − this is
     # the search/bookkeeping overhead. Null until the run finishes.
     trial_seconds = models.FloatField(null=True, blank=True)
+    # Number of trials this run actually performed (may be < n_trials if
+    # cancelled or the space was exhausted). Null until the run finishes.
+    trial_count = models.IntegerField(null=True, blank=True)
 
     def __str__(self) -> str:
         return f"{self.experiment.name} run #{self.pk} ({self.status})"

@@ -40,6 +40,7 @@ def test_execute_run_stores_trial_seconds():
     run.refresh_from_db()
     assert run.status == "done"
     assert run.trial_seconds is not None and run.trial_seconds >= 0.0
+    assert run.trial_count == 3
 
 
 def test_detail_page_shows_run_summary(client):
@@ -62,7 +63,8 @@ def test_detail_page_shows_run_summary(client):
     start = timezone.now()
     Run.objects.create(experiment=exp, n_trials=1, primary_metric="accuracy", status="done",
                        started_at=start, finished_at=start + datetime.timedelta(seconds=3),
-                       trial_seconds=2.0)
+                       trial_seconds=2.0, trial_count=1)
     body = client.get(reverse("web:experiment_detail", args=[exp.pk])).content.decode()
     assert "overhead" in body.lower()
     assert "3.0" in body and "2.0" in body   # total 3s, 2s in trials
+    assert "1 trials" in body                # count of trials performed

@@ -105,7 +105,9 @@ def gain_per_time_figure(result, display_metric):
     incumbents = incumbent_scores(result, display_metric)
     gains = []
     for i, t in enumerate(trials):
-        improvement = 0.0 if i == 0 else max(0.0, incumbents[i] - incumbents[i - 1])
+        # The first trial's value is establishing the incumbent from nothing
+        # (baseline 0); later trials contribute the step they add to it.
+        improvement = incumbents[0] if i == 0 else max(0.0, incumbents[i] - incumbents[i - 1])
         gains.append(improvement / t.duration if t.duration > 1e-9 else 0.0)
     fig = go.Figure(go.Bar(
         x=[t.trial for t in trials], y=gains, marker_color=_MARKER_COLOR,

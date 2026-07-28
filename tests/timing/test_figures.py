@@ -32,10 +32,11 @@ def test_duration_figure_plots_per_trial_durations():
 
 
 def test_gain_per_time_is_improvement_over_duration():
-    # trial 2 lifts the incumbent 0.5 → 0.7 (Δ0.2) in 0.5 s → gain 0.4/s.
+    # trial 1 establishes 0.5 in 1.0 s → 0.5/s; trial 2 lifts 0.5 → 0.7 (Δ0.2)
+    # in 0.5 s → 0.4/s.
     fig = gain_per_time_figure(_res([_t(1, 0.5, 1.0), _t(2, 0.7, 0.5)]), "accuracy")
     y = list(fig.to_dict()["data"][0]["y"])
-    assert y[0] == 0.0                      # first trial: no prior incumbent
+    assert y[0] == pytest.approx(0.5)       # first trial: establishes the incumbent
     assert y[1] == pytest.approx(0.4)
 
 

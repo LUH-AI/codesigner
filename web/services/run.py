@@ -135,12 +135,14 @@ def execute_run(run_id):
         Experiment.objects.filter(pk=experiment.pk).update(
             result=optimizer.serialize_result(result),
         )
-    # Σ durations of the trials this run added (excludes any resumed-from trials),
-    # so the run box can show trial time vs. search/bookkeeping overhead.
-    trial_seconds = sum(t.duration for t in result.trials[offset:])
+    # The trials this run added (excludes any resumed-from trials): their count
+    # and total time, so the run box can show trials done, trial time, and the
+    # search/bookkeeping overhead.
+    new_trials = result.trials[offset:]
     Run.objects.filter(pk=run_id).update(
         status="cancelled" if cancelled else "done", finished_at=timezone.now(),
-        trial_seconds=trial_seconds,
+        trial_seconds=sum(t.duration for t in new_trials),
+        trial_count=len(new_trials),
     )
 
 

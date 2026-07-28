@@ -348,7 +348,8 @@ def _detail_context(exp):
     if last_run and last_run.status in ("done", "cancelled") and last_run.duration is not None:
         total = last_run.duration
         trials = last_run.trial_seconds or 0.0
-        run_summary = {"total": total, "trials": trials, "overhead": max(0.0, total - trials)}
+        run_summary = {"total": total, "trials": trials, "overhead": max(0.0, total - trials),
+                       "count": last_run.trial_count or 0}
 
     context = {
         "experiment": exp,  # the _run_status.html include reverses URLs from experiment.pk

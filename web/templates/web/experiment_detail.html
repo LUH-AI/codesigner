@@ -70,7 +70,7 @@
     {% endif %}
 
     {% if run_summary %}
-        <p class="caption" style="margin-top: 0.75rem;">{% blocktranslate with total=run_summary.total|floatformat:2 trials=run_summary.trials|floatformat:2 overhead=run_summary.overhead|floatformat:2 %}Last run finished in {{ total }} s — {{ trials }} s in trials, {{ overhead }} s overhead.{% endblocktranslate %}</p>
+        <p class="caption" style="margin-top: 0.75rem;">{% blocktranslate with count=run_summary.count total=run_summary.total|floatformat:2 trials=run_summary.trials|floatformat:2 overhead=run_summary.overhead|floatformat:2 %}Last run: {{ count }} trials in {{ total }} s — {{ trials }} s in trials, {{ overhead }} s overhead.{% endblocktranslate %}</p>
     {% endif %}
 
     {% if not has_result %}
