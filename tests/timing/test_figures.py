@@ -31,28 +31,30 @@ def test_duration_figure_plots_per_trial_durations():
     assert list(trace["y"]) == pytest.approx([0.2, 0.3])
 
 
-def test_gain_excludes_the_first_trial_and_spikes_at_improvements():
-    # trials 1,2,3; the incumbent improves at trial 2 (0.5→0.8). Trial 1 is
-    # dropped; trial 2 spikes (0.3/0.5 = 0.6), trial 3 (no improvement) is 0.
-    fig = gain_per_time_figure(_res([_t(1, 0.5, 1.0), _t(2, 0.8, 0.5), _t(3, 0.8, 1.0)]), "accuracy")
-    trace = fig.to_dict()["data"][0]
-    assert list(trace["x"]) == [2, 3]                 # first trial excluded
-    assert list(trace["y"]) == pytest.approx([0.6, 0.0])
+def test_gain_line_drops_first_trial_and_declines_without_improvement():
+    # best flat at 0.6; cumulative time 1→2→3. Line plots trials 2,3 (first
+    # dropped) at 0.6/2=0.3 then 0.6/3=0.2 — descending utility.
+    fig = gain_per_time_figure(_res([_t(1, 0.6, 1.0), _t(2, 0.6, 1.0), _t(3, 0.6, 1.0)]), "accuracy")
+    line = fig.to_dict()["data"][0]
+    assert list(line["x"]) == [2, 3]
+    assert list(line["y"]) == pytest.approx([0.3, 0.2])
+    assert line["y"][0] > line["y"][1]
 
 
-def test_gain_spike_height_is_improvement_over_duration():
-    fig = gain_per_time_figure(_res([_t(1, 0.5, 1.0), _t(2, 0.9, 0.2)]), "accuracy")
-    assert list(fig.to_dict()["data"][0]["y"]) == pytest.approx([2.0])  # (0.9-0.5)/0.2
+def test_gain_marks_new_incumbents():
+    # incumbent improves at trial 2 (0.5→0.8), not trial 3 → one marker, at x=2.
+    fig = gain_per_time_figure(_res([_t(1, 0.5, 1.0), _t(2, 0.8, 1.0), _t(3, 0.8, 1.0)]), "accuracy")
+    data = fig.to_dict()["data"]
+    assert len(data) == 2                       # line + new-incumbent markers
+    markers = data[1]
+    assert markers["mode"] == "markers"
+    assert list(markers["x"]) == [2]
 
 
-def test_gain_uses_a_log_y_axis():
-    fig = gain_per_time_figure(_res([_t(1, 0.5, 1.0), _t(2, 0.9, 0.2)]), "accuracy")
-    assert fig.to_dict()["layout"]["yaxis"]["type"] == "log"
-
-
-def test_gain_none_when_nothing_improves_after_first():
-    # trial 1 is the best; no later trial beats it → nothing to show.
-    assert gain_per_time_figure(_res([_t(1, 1.0, 0.1), _t(2, 0.9, 0.5)]), "accuracy") is None
+def test_gain_no_marker_trace_when_nothing_improves():
+    # a declining line is still shown (utility eroding), but no win markers.
+    fig = gain_per_time_figure(_res([_t(1, 1.0, 0.1), _t(2, 0.9, 0.5)]), "accuracy")
+    assert len(fig.to_dict()["data"]) == 1
 
 
 def test_gain_none_with_fewer_than_two_trials():

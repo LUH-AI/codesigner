@@ -93,31 +93,47 @@ def duration_figure(result):
 
 
 def gain_per_time_figure(result, display_metric):
-    """Bars of marginal value: each trial's incumbent improvement (for
-    *display_metric*) ÷ its duration — the score gained per second at that
-    trial. Nonzero only when a trial beats the best-so-far, so wins read as
-    spikes.
+    """Return-on-compute: best-so-far (for *display_metric*) ÷ cumulative trial
+    time, as a line, with a marker at each trial that set a new incumbent.
 
-    The first trial is omitted: its "improvement" is the whole score from a
-    zero baseline — a huge, uninformative outlier that flattens the rest. A log
-    y-axis keeps a small late win legible beside a big early one. Returns None
-    when there are fewer than two trials or nothing improved after the first.
+    Between wins the best is flat while time grows, so the line descends —
+    utility eroding as compute is spent without improvement; an efficient win
+    steps it back up. The markers flag every new incumbent, so even a slow win
+    that barely moves the line is visible. The first trial is dropped: its
+    best÷time is a huge outlier (a full score over a tiny time) that flattens
+    the scale. Returns None with fewer than two trials.
     """
     trials = result.trials
     if len(trials) < 2:
         return None
     incumbents = incumbent_scores(result, display_metric)
-    xs, gains = [], []
-    for i in range(1, len(trials)):
-        improvement = max(0.0, incumbents[i] - incumbents[i - 1])
-        dur = trials[i].duration
-        xs.append(trials[i].trial)
-        gains.append(improvement / dur if dur > 1e-9 else 0.0)
-    if not any(g > 0 for g in gains):
-        return None
-    fig = go.Figure(go.Bar(x=xs, y=gains, marker_color=_MARKER_COLOR))
+    elapsed, running = [], 0.0
+    for t in trials:
+        running += t.duration
+        elapsed.append(running)
+
+    def utility(i):
+        return incumbents[i] / elapsed[i] if elapsed[i] > 1e-9 else 0.0
+
+    # Plot from the second trial on (drop the out-of-scale first point).
+    xs = [trials[i].trial for i in range(1, len(trials))]
+    ys = [utility(i) for i in range(1, len(trials))]
+    wins_x = [trials[i].trial for i in range(1, len(trials)) if incumbents[i] > incumbents[i - 1]]
+    wins_y = [utility(i) for i in range(1, len(trials)) if incumbents[i] > incumbents[i - 1]]
+
+    fig = go.Figure()
+    fig.add_trace(go.Scatter(
+        x=xs, y=ys, mode="lines", name="Return on compute",
+        line=dict(width=2, color=_MARKER_COLOR),
+    ))
+    if wins_x:
+        fig.add_trace(go.Scatter(
+            x=wins_x, y=wins_y, mode="markers", name="New incumbent",
+            marker=dict(size=11, color=_SELECTED_COLOR, symbol="triangle-up"),
+        ))
     fig.update_layout(
-        xaxis_title="Trial", yaxis_title="Gain / s", yaxis_type="log",
-        margin=dict(t=20, b=40, l=40, r=20), showlegend=False,
+        xaxis_title="Trial", yaxis_title="Best ÷ cumulative s",
+        legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1),
+        margin=dict(t=40, b=40, l=40, r=20),
     )
     return fig
