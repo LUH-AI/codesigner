@@ -22,15 +22,25 @@ sidebar).
 ## Running locally
 
 ```bash
+pip install -r requirements.txt
+pip install -e .                   # registers the app version (pyproject.toml)
 cp .env.example .env               # set SECRET_KEY
 python manage.py migrate
 python manage.py compilemessages -l de -l es   # build the de/es catalogs
 python manage.py runserver
 ```
 
-By default (`DEBUG=True`) runs execute **inline**, so `runserver` alone is
-enough. To exercise the real queue locally, set `HUEY_IMMEDIATE=false` and run
-the consumer in a second terminal:
+By default (`DEBUG=True`) there is no consumer, so `runserver` alone is enough:
+runs execute in-process on a background thread, and the page comes back as soon
+as you press Run rather than waiting out the optimization. Stopping the server
+mid-run leaves that run marked `running`; clear it with
+
+```bash
+python manage.py sweep_stale_runs
+```
+
+To exercise the real queue locally, set `HUEY_IMMEDIATE=false` and run the
+consumer in a second terminal:
 
 ```bash
 HUEY_IMMEDIATE=false python manage.py runserver     # terminal 1

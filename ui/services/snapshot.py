@@ -5,12 +5,11 @@ snapshot; `snapshot_from_experiment` produces a current-version snapshot dict
 from a row. Import, export, and detail-page reconstruction all go through here.
 """
 
+from importlib.metadata import version as dist_version
 from pathlib import Path
 
 from django.conf import settings
 from django.core.files import File
-
-from core.version import VERSION
 
 from ..models import Experiment
 
@@ -69,7 +68,7 @@ def snapshot_from_experiment(exp: Experiment) -> dict:
     — a foreign path from an imported file is never echoed back out.
     """
     return {
-        "version": VERSION,
+        "version": dist_version("codesigner"),
         "name": exp.name,
         "model_name": exp.model_name,
         "model_path": exp.model_file.path if exp.model_file else "",

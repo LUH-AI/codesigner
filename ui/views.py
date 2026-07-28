@@ -1,6 +1,7 @@
 import copy
 import json
 import tempfile
+from importlib.metadata import version as dist_version
 from pathlib import Path
 
 from django.conf import settings
@@ -9,7 +10,6 @@ from django.shortcuts import get_object_or_404, redirect, render
 from django.utils.translation import gettext as _
 
 from core import io
-from core.version import VERSION
 
 from .charts import (
     duration_figure,
@@ -100,7 +100,7 @@ def new_experiment(request):
         # was given, which takes precedence); the adapter copies it into MEDIA.
         mounted = cleaned.get("mounted_model") or ""
         snapshot = {
-            "version": VERSION,
+            "version": dist_version("codesigner"),
             "name": cleaned["name"],
             "model_name": cleaned["model_name"],
             "model_path": mounted if (mounted and not cleaned.get("model_file")) else "",

@@ -7,10 +7,11 @@ all go through it, so it must preserve exactly what the snapshot-contract
 tests say a store preserves.
 """
 
+from importlib.metadata import version as dist_version
+
 import pytest
 
 from core import io
-from core.version import VERSION
 
 from tests.conftest import FIXTURES_DIR
 from tests.step2.test_snapshot_contract import IDENTITY_KEYS, SNAPSHOT_KEYS
@@ -61,7 +62,7 @@ def test_exported_snapshot_carries_all_documented_keys_and_current_version():
     """An exported snapshot is a complete, current-version .ihpo document.
 
     Expect: all documented top-level keys present, version stamped with this
-    app's VERSION (the writer owns the version field), and the whole thing
+    the app version from package metadata (the writer owns the version field), and the whole thing
     accepted by io.parse — i.e. a Streamlit-loadable file.
     """
     from ui.services import snapshot as adapter
@@ -71,7 +72,7 @@ def test_exported_snapshot_carries_all_documented_keys_and_current_version():
 
     for key in SNAPSHOT_KEYS:
         assert key in exported, key
-    assert exported["version"] == VERSION
+    assert exported["version"] == dist_version("codesigner")
 
     import json
     assert io.parse(json.dumps(exported).encode("utf-8"))

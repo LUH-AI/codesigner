@@ -7,11 +7,11 @@ one of these green.
 """
 
 import json
+from importlib.metadata import version as dist_version
 
 import pytest
 
 from core import io
-from core.version import VERSION
 from core.optimizers import GridOptimizer, RandomOptimizer, SMACOptimizer
 
 from tests.conftest import DATASETS_DIR, FIXTURES_DIR
@@ -88,7 +88,7 @@ def test_save_stamps_current_version_string():
         "result":          None,
     }
     again = io.parse(io.save(snapshot["name"], exp))
-    assert again["version"] == VERSION
+    assert again["version"] == dist_version("codesigner")
 
 
 @pytest.mark.parametrize("filename,opt_cls", [

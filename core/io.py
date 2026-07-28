@@ -29,13 +29,12 @@ import inspect
 import json
 import os
 import tempfile
+from importlib.metadata import version as _dist_version
 from pathlib import Path
 from typing import Any
 
 import pandas as pd
 from sklearn.model_selection import train_test_split
-
-from .version import VERSION as _VERSION
 
 _REPO_ROOT   = Path(__file__).parent.parent
 _DATASETS_DIR = _REPO_ROOT / "datasets"
@@ -162,7 +161,7 @@ def _load_splits(csv_path: Path, seed: int):
 def save(name: str, exp: dict) -> bytes:
     """Serialize *exp* to UTF-8 JSON bytes."""
     snapshot = {
-        "version":          _VERSION,
+        "version":          _dist_version("codesigner"),
         "name":             name,
         "model_name":       exp["model_name"],
         "model_path":       exp.get("model_path", ""),
