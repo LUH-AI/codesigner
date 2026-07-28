@@ -140,7 +140,7 @@
             </div>
             <div class="slot">
                 <section class="card">
-                    <div class="subheader">{% translate "Error vs compute" %}</div>
+                    <div class="subheader">{% translate "Error over time" %}</div>
                     <div id="error-compute-chart" class="chart"></div>
                     <p id="error-compute-none" class="caption" hidden>{% translate "No data available." %}</p>
                 </section>
@@ -204,39 +204,71 @@
                     displaylogo: false,
                     modeBarButtonsToRemove: ["lasso2d", "select2d"],
                 };
-                // The performance chart gets a custom modebar button that toggles
-                // its y-axis between the metric's absolute [0, 1] range and
-                // auto-fit-to-data. The icon flips to show the current state
-                // (outward arrows = will expand to full range; inward arrows =
-                // will shrink back to the data), and the choice sticks across
-                // metric switches.
-                let absoluteScale = false;
+                // Absolute/relative y-scale toggle, shared by the performance and
+                // error charts. "Absolute" pins the axis to a fixed full range;
+                // "relative" auto-fits to the data. The icon and hover text flip to
+                // show the current state (outward arrows = will expand to full
+                // range; inward = will fit to data). It also drops Plotly's
+                // Autoscale button (redundant with this) and snaps back to relative
+                // when the axes are reset via the reset button.
                 const SCALE_EXPAND = "M250 0 L150 120 L220 120 L220 480 L150 480 L250 600 L350 480 L280 480 L280 120 L350 120 Z";
                 const SCALE_FIT = "M250 260 L150 140 L220 140 L220 40 L280 40 L280 140 L350 140 Z M250 340 L150 460 L220 460 L220 560 L280 560 L280 460 L350 460 Z";
                 const SCALE_TITLE = "{% translate 'Absolute scale (0-1)' %}";
                 const SCALE_TITLE_REL = "{% translate 'Relative scale (fit to data)' %}";
-                function paintScaleButton(btn) {
-                    if (!btn) return;
-                    const p = btn.querySelector("path");
-                    if (p) p.setAttribute("d", absoluteScale ? SCALE_FIT : SCALE_EXPAND);
-                    // Plotly renders the modebar tooltip from data-title, so
-                    // swapping it makes the hover text match what a click does.
-                    btn.setAttribute("data-title", absoluteScale ? SCALE_TITLE_REL : SCALE_TITLE);
+
+                function makeScaleToggle(absoluteRelayout) {
+                    const state = { absolute: false, chartId: null };
+                    function btn() {
+                        if (!state.chartId) return null;
+                        return document.querySelector(
+                            '#' + state.chartId + ' .modebar-btn[data-title="' + SCALE_TITLE + '"], ' +
+                            '#' + state.chartId + ' .modebar-btn[data-title="' + SCALE_TITLE_REL + '"]');
+                    }
+                    function paint() {
+                        const b = btn();
+                        if (!b) return;
+                        const p = b.querySelector("path");
+                        if (p) p.setAttribute("d", state.absolute ? SCALE_FIT : SCALE_EXPAND);
+                        b.setAttribute("data-title", state.absolute ? SCALE_TITLE_REL : SCALE_TITLE);
+                    }
+                    const config = Object.assign({}, plotlyConfig, {
+                        modeBarButtonsToRemove: plotlyConfig.modeBarButtonsToRemove.concat(["autoScale2d"]),
+                        modeBarButtonsToAdd: [{
+                            name: "toggleAbsoluteScale",
+                            title: SCALE_TITLE,
+                            icon: { width: 500, height: 600, path: SCALE_EXPAND },
+                            click: function (gd) {
+                                state.absolute = !state.absolute;
+                                Plotly.relayout(gd, state.absolute ? absoluteRelayout : {"yaxis.autorange": true});
+                                paint();
+                            },
+                        }],
+                    });
+                    // Call after each Plotly.react on chartId: re-assert the pinned
+                    // range, repaint the button, and (once) wire the reset button so
+                    // restoring autorange snaps the toggle back to relative.
+                    function apply(chartId) {
+                        state.chartId = chartId;
+                        const gd = document.getElementById(chartId);
+                        if (state.absolute) Plotly.relayout(gd, absoluteRelayout);
+                        paint();
+                        if (!gd._scaleResetWired) {
+                            gd._scaleResetWired = true;
+                            gd.on("plotly_relayout", function (e) {
+                                if (e && e["yaxis.autorange"] === true && state.absolute) {
+                                    state.absolute = false;
+                                    paint();
+                                }
+                            });
+                        }
+                    }
+                    return { config: config, apply: apply };
                 }
-                const perfConfig = Object.assign({}, plotlyConfig, {
-                    modeBarButtonsToAdd: [{
-                        name: "toggleAbsoluteScale",
-                        title: SCALE_TITLE,
-                        icon: { width: 500, height: 600, path: SCALE_EXPAND },
-                        click: function (gd, ev) {
-                            absoluteScale = !absoluteScale;
-                            Plotly.relayout(gd, absoluteScale
-                                ? {"yaxis.range": [0, 1], "yaxis.autorange": false}
-                                : {"yaxis.autorange": true});
-                            paintScaleButton(ev && ev.currentTarget);
-                        },
-                    }],
-                });
+
+                // Performance uses a linear [0, 1] absolute range; the error chart
+                // is log, so its full-error range is [1e-3, 1] → log10 [-3, 0].
+                const perfToggle = makeScaleToggle({"yaxis.range": [0, 1], "yaxis.autorange": false});
+                const errorToggle = makeScaleToggle({"yaxis.range": [-3, 0], "yaxis.autorange": false});
 
                 function highlightPoint(metric, idx) {
                     const n = figures[metric].performance.data[0].x.length;
@@ -268,11 +300,8 @@
 
                 function show(metric) {
                     const fig = figures[metric];
-                    Plotly.react("perf-chart", fig.performance.data, fig.performance.layout, perfConfig);
-                    if (absoluteScale) {
-                        Plotly.relayout("perf-chart", {"yaxis.range": [0, 1], "yaxis.autorange": false});
-                    }
-                    paintScaleButton(document.querySelector('#perf-chart .modebar-btn[data-title="' + SCALE_TITLE + '"]'));
+                    Plotly.react("perf-chart", fig.performance.data, fig.performance.layout, perfToggle.config);
+                    perfToggle.apply("perf-chart");
                     attachPerfClickOnce();
 
                     const selEl = document.getElementById("selected-content-" + metric);
@@ -305,7 +334,8 @@
                     const ecNone = document.getElementById("error-compute-none");
                     if (fig.error_vs_compute) {
                         ecNone.hidden = true; ecChart.hidden = false;
-                        Plotly.react(ecChart, fig.error_vs_compute.data, fig.error_vs_compute.layout, plotlyConfig);
+                        Plotly.react(ecChart, fig.error_vs_compute.data, fig.error_vs_compute.layout, errorToggle.config);
+                        errorToggle.apply("error-compute-chart");
                     } else {
                         Plotly.purge(ecChart); ecChart.hidden = true; ecNone.hidden = false;
                     }

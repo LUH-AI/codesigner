@@ -124,8 +124,7 @@ def error_vs_compute_figure(result, display_metric):
         marker=dict(size=10, color=_SELECTED_COLOR),
     ))
     fig.update_layout(
-        xaxis_title="Cumulative time (s)", yaxis_title="Remaining error (1 − best)",
-        yaxis_type="log",
+        xaxis_title="time (s)", yaxis_title="Error", yaxis_type="log",
         legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1),
         margin=dict(t=40, b=40, l=40, r=20),
     )

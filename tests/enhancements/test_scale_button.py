@@ -31,8 +31,9 @@ def test_absolute_scale_button_wired_on_detail(client):
 
 def test_scale_button_has_two_icons_for_toggle_state(client):
     """The button swaps between two icons (expand / fit) so its current state
-    is visible — both glyph definitions must be present and distinct."""
+    is visible — both glyph definitions must be present and distinct, and the
+    shared toggle factory drives them."""
     exp = _experiment_with_result()
     body = client.get(reverse("web:experiment_detail", args=[exp.pk])).content.decode()
     assert "SCALE_EXPAND" in body and "SCALE_FIT" in body
-    assert "paintScaleButton" in body
+    assert "makeScaleToggle" in body
