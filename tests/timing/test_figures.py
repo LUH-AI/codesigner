@@ -31,26 +31,32 @@ def test_duration_figure_plots_per_trial_durations():
     assert list(trace["y"]) == pytest.approx([0.2, 0.3])
 
 
-def test_efficiency_falls_without_improvement():
-    # best-so-far flat at 0.6, cumulative time grows 1→2→3 → 0.6, 0.3, 0.2.
-    fig = gain_per_time_figure(_res([_t(1, 0.6, 1.0), _t(2, 0.6, 1.0), _t(3, 0.6, 1.0)]), "accuracy")
-    y = list(fig.to_dict()["data"][0]["y"])
-    assert y[0] > y[1] > y[2]
-    assert y == pytest.approx([0.6, 0.3, 0.2])
+def test_gain_excludes_the_first_trial_and_spikes_at_improvements():
+    # trials 1,2,3; the incumbent improves at trial 2 (0.5→0.8). Trial 1 is
+    # dropped; trial 2 spikes (0.3/0.5 = 0.6), trial 3 (no improvement) is 0.
+    fig = gain_per_time_figure(_res([_t(1, 0.5, 1.0), _t(2, 0.8, 0.5), _t(3, 0.8, 1.0)]), "accuracy")
+    trace = fig.to_dict()["data"][0]
+    assert list(trace["x"]) == [2, 3]                 # first trial excluded
+    assert list(trace["y"]) == pytest.approx([0.6, 0.0])
 
 
-def test_efficiency_spikes_on_improvement():
-    # a big improvement in little added time lifts best ÷ elapsed above the prior point.
-    fig = gain_per_time_figure(_res([_t(1, 0.5, 1.0), _t(2, 0.9, 0.1)]), "accuracy")
-    y = list(fig.to_dict()["data"][0]["y"])
-    assert y[1] > y[0]                              # spike up: 0.9/1.1 > 0.5/1.0
-    assert y == pytest.approx([0.5, 0.9 / 1.1])
+def test_gain_spike_height_is_improvement_over_duration():
+    fig = gain_per_time_figure(_res([_t(1, 0.5, 1.0), _t(2, 0.9, 0.2)]), "accuracy")
+    assert list(fig.to_dict()["data"][0]["y"]) == pytest.approx([2.0])  # (0.9-0.5)/0.2
 
 
-def test_efficiency_guards_zero_elapsed():
-    # a single zero-duration trial must not divide-by-zero.
-    fig = gain_per_time_figure(_res([_t(1, 0.5, 0.0)]), "accuracy")
-    assert list(fig.to_dict()["data"][0]["y"]) == [0.0]
+def test_gain_uses_a_log_y_axis():
+    fig = gain_per_time_figure(_res([_t(1, 0.5, 1.0), _t(2, 0.9, 0.2)]), "accuracy")
+    assert fig.to_dict()["layout"]["yaxis"]["type"] == "log"
+
+
+def test_gain_none_when_nothing_improves_after_first():
+    # trial 1 is the best; no later trial beats it → nothing to show.
+    assert gain_per_time_figure(_res([_t(1, 1.0, 0.1), _t(2, 0.9, 0.5)]), "accuracy") is None
+
+
+def test_gain_none_with_fewer_than_two_trials():
+    assert gain_per_time_figure(_res([_t(1, 0.5, 1.0)]), "accuracy") is None
 
 
 def test_figures_none_when_no_trials():

@@ -93,29 +93,31 @@ def duration_figure(result):
 
 
 def gain_per_time_figure(result, display_metric):
-    """Line of return-on-compute: the best-so-far score for *display_metric*
-    divided by the cumulative trial time spent to reach it.
+    """Bars of marginal value: each trial's incumbent improvement (for
+    *display_metric*) ÷ its duration — the score gained per second at that
+    trial. Nonzero only when a trial beats the best-so-far, so wins read as
+    spikes.
 
-    Between improvements the best-so-far is flat while cumulative time grows, so
-    the curve falls; each new best config makes it spike up — a descending
-    sawtooth that shows value-per-compute eroding until the next win. A
-    zero-elapsed point is 0 (no divide-by-zero). Returns None with no trials.
+    The first trial is omitted: its "improvement" is the whole score from a
+    zero baseline — a huge, uninformative outlier that flattens the rest. A log
+    y-axis keeps a small late win legible beside a big early one. Returns None
+    when there are fewer than two trials or nothing improved after the first.
     """
     trials = result.trials
-    if not trials:
+    if len(trials) < 2:
         return None
     incumbents = incumbent_scores(result, display_metric)
-    elapsed = 0.0
-    y = []
-    for i, t in enumerate(trials):
-        elapsed += t.duration
-        y.append(incumbents[i] / elapsed if elapsed > 1e-9 else 0.0)
-    fig = go.Figure(go.Scatter(
-        x=[t.trial for t in trials], y=y, mode="lines",
-        line=dict(width=2, color=_MARKER_COLOR),
-    ))
+    xs, gains = [], []
+    for i in range(1, len(trials)):
+        improvement = max(0.0, incumbents[i] - incumbents[i - 1])
+        dur = trials[i].duration
+        xs.append(trials[i].trial)
+        gains.append(improvement / dur if dur > 1e-9 else 0.0)
+    if not any(g > 0 for g in gains):
+        return None
+    fig = go.Figure(go.Bar(x=xs, y=gains, marker_color=_MARKER_COLOR))
     fig.update_layout(
-        xaxis_title="Trial", yaxis_title="Best ÷ cumulative s",
+        xaxis_title="Trial", yaxis_title="Gain / s", yaxis_type="log",
         margin=dict(t=20, b=40, l=40, r=20), showlegend=False,
     )
     return fig
