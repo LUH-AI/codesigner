@@ -19,8 +19,10 @@ jobs:
       # swig builds SMAC's pyrfr backend; gettext compiles the translations.
       - run: sudo apt-get update && sudo apt-get install -y swig gettext
       - run: pip install -r requirements.txt
-      # Translation catalogs must compile (and are checked for completeness by
-      # tests/step8, run below).
+      # Re-extract strings from source FIRST, so the i18n completeness/fuzzy
+      # test (tests/step8) catches catalogs that drifted from the source —
+      # a new string, or one whose English changed — not just missing msgstrs.
+      - run: python manage.py makemessages -l de -l es --no-obsolete
       - run: python manage.py compilemessages -l de -l es
       # Fast suite includes the i18n completeness/parity checks. The slow SMAC
       # end-to-end tests are a separate opt-in job.

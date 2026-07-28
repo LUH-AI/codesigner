@@ -8,7 +8,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: PACKAGE VERSION\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2026-07-27 13:26+0000\n"
+"POT-Creation-Date: 2026-07-28 08:21+0000\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
 "Language-Team: LANGUAGE <LL@li.org>\n"
@@ -239,13 +239,8 @@ msgstr ""
 "(schreibgeschützt geladen)."
 
 #: web/templates/web/experiment_detail.html:73
-#, python-format
-msgid ""
-"Last run finished in %(total)s s — %(trials)s s in trials, %(overhead)s s "
-"overhead."
-msgstr ""
-"Letzter Lauf in %(total)s s abgeschlossen — %(trials)s s in Versuchen, "
-"%(overhead)s s Overhead."
+msgid "Last run: %(count)s trials in %(total)s s — %(trials)s s in trials, %(overhead)s s overhead."
+msgstr "Letzter Lauf: %(count)s Versuche in %(total)s s — %(trials)s s in Versuchen, %(overhead)s s Overhead."
 
 #: web/templates/web/experiment_detail.html:77
 msgid "No results yet."
@@ -315,6 +310,7 @@ msgid "Settings"
 msgstr "Einstellungen"
 
 #: web/templates/web/experiment_settings.html:7
+#, python-format
 msgid "Settings: %(name)s"
 msgstr "Einstellungen: %(name)s"
 
