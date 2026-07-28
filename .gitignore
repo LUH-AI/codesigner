@@ -6,3 +6,6 @@ __pycache__/
 *.pyc
 staticfiles/
 huey.sqlite3*
+
+# Editable-install metadata
+*.egg-info/

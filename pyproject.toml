@@ -1,3 +1,23 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "codesigner"
+version = "0.1.0"
+description = "Interactive hyperparameter-optimization workbench"
+requires-python = ">=3.12"
+dynamic = ["dependencies"]
+
+# Flat layout: the importable packages are top-level directories, not a single
+# src package. Discover config/core/ui and their subpackages while excluding
+# datasets/, docs/, tests/ (which are not part of the distribution).
+[tool.setuptools.packages.find]
+include = ["config*", "core*", "ui*"]
+
+[tool.setuptools.dynamic]
+dependencies = { file = ["requirements.txt"] }
+
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 pythonpath = ["."]

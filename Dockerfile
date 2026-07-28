@@ -19,6 +19,11 @@ RUN pip install -r requirements.txt
 
 COPY . .
 
+# Register the project's own package metadata so importlib.metadata can read the
+# app version (the single source in pyproject.toml). Deps are already installed
+# above, so skip re-resolving them (avoids rebuilding the git-pinned SMAC).
+RUN pip install -e . --no-deps
+
 # Bake static + compiled translations into the image. A dummy SECRET_KEY lets
 # these management commands run at build time; real secrets come in at runtime.
 ENV SECRET_KEY=build-only DEBUG=False

@@ -19,6 +19,9 @@ jobs:
       # swig builds SMAC's pyrfr backend; gettext compiles the translations.
       - run: sudo apt-get update && sudo apt-get install -y swig gettext
       - run: pip install -r requirements.txt
+      # Register the project's own metadata so importlib.metadata resolves the
+      # app version (single source: pyproject.toml). Deps are installed above.
+      - run: pip install -e . --no-deps
       # Re-extract strings from source FIRST, so the i18n completeness/fuzzy
       # test (tests/step8) catches catalogs that drifted from the source —
       # a new string, or one whose English changed — not just missing msgstrs.
