@@ -11,7 +11,14 @@ from django.utils.translation import gettext as _
 from core import io
 from core.version import VERSION
 
-from .charts import duration_figure, gain_per_time_figure, importance_figure, performance_figure
+from .charts import (
+    duration_figure,
+    error_reduction_spikes_figure,
+    importance_figure,
+    performance_figure,
+    regret_convergence_figure,
+    return_on_compute_figure,
+)
 from .forms import DefaultExperimentSettingsForm, ExperimentSettingsForm, NewExperimentForm
 from .models import Experiment, GlobalSettings
 from .registry import METRICS, MODELS, OPTIMIZERS
@@ -391,11 +398,17 @@ def _detail_context(exp):
             # No selection has been clicked yet, so it defaults to the best trial.
             "selected": _selected_panel_data(result, m, best_idx),
         })
-        gpt = gain_per_time_figure(result, m)
+        def _fig(f):  # per-metric figure → embedded JSON, or None
+            fig = f(result, m)
+            return json.loads(fig.to_json()) if fig is not None else None
+
         figures[m] = {
             "performance": json.loads(perf.to_json()),
             "importance": json.loads(imp.to_json()) if imp is not None else None,
-            "gain_per_time": json.loads(gpt.to_json()) if gpt is not None else None,
+            # Three candidate "efficiency" views to compare, then cull to one.
+            "variant_a": _fig(error_reduction_spikes_figure),
+            "variant_b": _fig(regret_convergence_figure),
+            "variant_c": _fig(return_on_compute_figure),
         }
 
     hp_names = list(result.trials[0].config.keys()) if result.trials else []
