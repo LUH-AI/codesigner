@@ -93,27 +93,29 @@ def duration_figure(result):
 
 
 def gain_per_time_figure(result, display_metric):
-    """Bar of each trial's marginal value: the incumbent improvement it produced
-    for *display_metric*, divided by its duration (score gain per second).
+    """Line of return-on-compute: the best-so-far score for *display_metric*
+    divided by the cumulative trial time spent to reach it.
 
-    The first trial and non-improving trials are 0; a zero-duration trial is 0
-    (no divide-by-zero). Returns None when there are no trials.
+    Between improvements the best-so-far is flat while cumulative time grows, so
+    the curve falls; each new best config makes it spike up — a descending
+    sawtooth that shows value-per-compute eroding until the next win. A
+    zero-elapsed point is 0 (no divide-by-zero). Returns None with no trials.
     """
     trials = result.trials
     if not trials:
         return None
     incumbents = incumbent_scores(result, display_metric)
-    gains = []
+    elapsed = 0.0
+    y = []
     for i, t in enumerate(trials):
-        # The first trial's value is establishing the incumbent from nothing
-        # (baseline 0); later trials contribute the step they add to it.
-        improvement = incumbents[0] if i == 0 else max(0.0, incumbents[i] - incumbents[i - 1])
-        gains.append(improvement / t.duration if t.duration > 1e-9 else 0.0)
-    fig = go.Figure(go.Bar(
-        x=[t.trial for t in trials], y=gains, marker_color=_MARKER_COLOR,
+        elapsed += t.duration
+        y.append(incumbents[i] / elapsed if elapsed > 1e-9 else 0.0)
+    fig = go.Figure(go.Scatter(
+        x=[t.trial for t in trials], y=y, mode="lines",
+        line=dict(width=2, color=_MARKER_COLOR),
     ))
     fig.update_layout(
-        xaxis_title="Trial", yaxis_title="Gain / s",
+        xaxis_title="Trial", yaxis_title="Best ÷ cumulative s",
         margin=dict(t=20, b=40, l=40, r=20), showlegend=False,
     )
     return fig

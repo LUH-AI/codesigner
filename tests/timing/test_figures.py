@@ -31,24 +31,26 @@ def test_duration_figure_plots_per_trial_durations():
     assert list(trace["y"]) == pytest.approx([0.2, 0.3])
 
 
-def test_gain_per_time_is_improvement_over_duration():
-    # trial 1 establishes 0.5 in 1.0 s → 0.5/s; trial 2 lifts 0.5 → 0.7 (Δ0.2)
-    # in 0.5 s → 0.4/s.
-    fig = gain_per_time_figure(_res([_t(1, 0.5, 1.0), _t(2, 0.7, 0.5)]), "accuracy")
+def test_efficiency_falls_without_improvement():
+    # best-so-far flat at 0.6, cumulative time grows 1→2→3 → 0.6, 0.3, 0.2.
+    fig = gain_per_time_figure(_res([_t(1, 0.6, 1.0), _t(2, 0.6, 1.0), _t(3, 0.6, 1.0)]), "accuracy")
     y = list(fig.to_dict()["data"][0]["y"])
-    assert y[0] == pytest.approx(0.5)       # first trial: establishes the incumbent
-    assert y[1] == pytest.approx(0.4)
+    assert y[0] > y[1] > y[2]
+    assert y == pytest.approx([0.6, 0.3, 0.2])
 
 
-def test_gain_per_time_zero_for_non_improving_trial():
-    fig = gain_per_time_figure(_res([_t(1, 0.5, 0.5), _t(2, 0.4, 0.5)]), "accuracy")
-    assert list(fig.to_dict()["data"][0]["y"])[1] == 0.0
+def test_efficiency_spikes_on_improvement():
+    # a big improvement in little added time lifts best ÷ elapsed above the prior point.
+    fig = gain_per_time_figure(_res([_t(1, 0.5, 1.0), _t(2, 0.9, 0.1)]), "accuracy")
+    y = list(fig.to_dict()["data"][0]["y"])
+    assert y[1] > y[0]                              # spike up: 0.9/1.1 > 0.5/1.0
+    assert y == pytest.approx([0.5, 0.9 / 1.1])
 
 
-def test_gain_per_time_guards_zero_duration():
-    # zero-duration trial must not divide-by-zero.
-    fig = gain_per_time_figure(_res([_t(1, 0.5, 0.0), _t(2, 0.9, 0.0)]), "accuracy")
-    assert all(v == 0.0 for v in fig.to_dict()["data"][0]["y"])
+def test_efficiency_guards_zero_elapsed():
+    # a single zero-duration trial must not divide-by-zero.
+    fig = gain_per_time_figure(_res([_t(1, 0.5, 0.0)]), "accuracy")
+    assert list(fig.to_dict()["data"][0]["y"]) == [0.0]
 
 
 def test_figures_none_when_no_trials():
