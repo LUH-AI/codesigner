@@ -110,11 +110,6 @@ input:focus, select:focus {
 }
 .errorlist, .form-error { color: var(--red); font-size: 0.875rem; list-style: none; }
 
-/* A form field whose control shares a row with a companion button
-   (e.g. the Evaluation metric select + Reevaluate button). */
-.field-inline { display: flex; gap: 0.5rem; align-items: center; }
-.field-inline select { flex: 1; }
-
 /* ── Bordered container ("st.container(border=True)") ─────────────────── */
 .card {
     border: 1px solid var(--border);

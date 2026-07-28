@@ -33,10 +33,11 @@ delete-cancel) and `app/sidebar.py` (spinner). ✅ done · 🔄 changed · ➕ a
 - ✅ Live polling every 2s, swapping to results on completion (`HX-Refresh`)
 - ✅ Run failure surfaced as an error message on the page
 - ✅ **Resume**: running again continues the trial history (`previous_result`)
-- 🔄 The Streamlit "display metric" selectbox + "Reevaluate" button became two
-  things: **viewing** a metric is client-side (Step 4's switcher); the Run form
-  has an explicit **"optimize for"** field. This removes Streamlit's overloaded
-  selectbox and its `display_metric`/`display_metric_input` inconsistency.
+- 🔄 The Streamlit "display metric" selectbox + "Reevaluate" button collapsed
+  into one dropdown that applies on change: **viewing** a metric is client-side
+  (Step 4's switcher), and the same control is the Run form's **"optimize for"**
+  field. This removes Streamlit's two-step reevaluate flow and its
+  `display_metric`/`display_metric_input` inconsistency.
 
 ### Metric change (`dialogs.open_metric_change_dialog`, `experiment.py:200-240`)
 - ✅ First run commits `primary = original = chosen`

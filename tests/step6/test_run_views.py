@@ -113,6 +113,22 @@ def test_run_metric_change_asks_for_confirmation(client, no_thread):
 
 
 @pytest.mark.django_db
+def test_metric_change_warning_states_the_reproducibility_cost(client, no_thread):
+    """The confirmation warns about the real consequence — the experiment can
+    no longer be reproduced from its seed and setup — and names each metric
+    once rather than restating which one the trials used."""
+    exp = _experiment(primary_metric="accuracy", original_metric="accuracy")
+    body = client.post(reverse("ui:experiment_run", args=[exp.pk]),
+                       {"n_trials": 3, "optimize_metric": "f1"}).content.decode()
+    warning = body.split('class="alert warning"', 1)[-1].split("</div>", 1)[0]
+
+    assert "reproduc" in warning.lower()
+    # each metric is named once in the warning; the old copy repeated the original
+    assert warning.count("accuracy") == 1
+    assert warning.count("f1") == 1
+
+
+@pytest.mark.django_db
 def test_run_metric_change_confirm_new_launches_with_chosen(client, no_thread):
     """Confirming 'new' launches a run optimizing the chosen metric."""
     from ui.models import Run

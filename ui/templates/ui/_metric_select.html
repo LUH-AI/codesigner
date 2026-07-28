@@ -1,0 +1,12 @@
+{% comment %}
+The metric the results are shown for. Changing it re-renders the charts on the
+spot (see the detail page's script). It doubles as the Run form's
+optimize-metric field when included with field_name set; the charts are driven
+off it either way, so it must render on every branch that has results —
+including while a run is in flight.
+{% endcomment %}
+<select id="metric-select"{% if field_name %} name="{{ field_name }}"{% endif %}>
+    {% for m in metric_names %}
+        <option value="{{ m }}"{% if m == run_default_metric %} selected{% endif %}>{{ m }}</option>
+    {% endfor %}
+</select>

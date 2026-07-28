@@ -7,9 +7,9 @@
     <h1>{% translate "Change the optimized metric?" %}</h1>
     <div class="alert warning" style="max-width: 40rem;">
         {% blocktranslate with original=experiment.original_metric chosen=chosen %}
-        This experiment has been optimizing <strong>{{ original }}</strong>.
-        Running now for <strong>{{ chosen }}</strong> changes the optimized metric —
-        the trials accumulated so far were optimized for {{ original }}.
+        These trials optimize <strong>{{ original }}</strong>. Switching to
+        <strong>{{ chosen }}</strong> mixes two objectives in one experiment, so its
+        results can no longer be reproduced from the seed and setup alone.
         {% endblocktranslate %}
     </div>
     <form method="post" action="{% url 'ui:experiment_run' experiment.pk %}"

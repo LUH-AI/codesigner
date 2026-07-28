@@ -28,6 +28,12 @@
 
     {% if active_run %}
         {% include "ui/_run_status.html" with run=active_run %}
+        {% if has_result %}
+            <section class="card">
+                <div class="subheader">{% translate "Evaluation metric" %}</div>
+                {% include "ui/_metric_select.html" %}
+            </section>
+        {% endif %}
     {% elif can_run %}
         <section class="card">
             <div class="subheader">{% translate "Run" %}</div>
@@ -39,16 +45,7 @@
                 </div>
                 <div class="field">
                     <label for="metric-select">{% translate "Evaluation metric" %}</label>
-                    <div class="field-inline">
-                        <select id="metric-select" name="optimize_metric">
-                            {% for m in metric_names %}
-                                <option value="{{ m }}"{% if m == run_default_metric %} selected{% endif %}>{{ m }}</option>
-                            {% endfor %}
-                        </select>
-                        {% if has_result %}
-                            <button type="button" id="reevaluate-btn" class="btn">{% translate "⚖️ Reevaluate" %}</button>
-                        {% endif %}
-                    </div>
+                    {% include "ui/_metric_select.html" with field_name="optimize_metric" %}
                 </div>
                 <button type="submit" class="btn-primary">{% translate "▶ Run" %}</button>
             </form>
@@ -56,14 +53,7 @@
     {% elif has_result %}
         <section class="card">
             <div class="subheader">{% translate "Evaluation metric" %}</div>
-            <div class="field-inline">
-                <select id="metric-select">
-                    {% for m in metric_names %}
-                        <option value="{{ m }}"{% if m == run_default_metric %} selected{% endif %}>{{ m }}</option>
-                    {% endfor %}
-                </select>
-                <button type="button" id="reevaluate-btn" class="btn">{% translate "⚖️ Reevaluate" %}</button>
-            </div>
+            {% include "ui/_metric_select.html" %}
         </section>
     {% else %}
         <div class="alert info">{% translate "Attach a dataset to run this experiment (loaded read-only)." %}</div>
@@ -345,19 +335,21 @@
                     });
                 }
 
-                // Metric changes do not apply on their own — matching the
-                // original app, you pick a metric then press Reevaluate to
-                // apply it (and reset the selected trial to that metric's
-                // best). The charts still reflect the current metric on load.
-                const reevaluateBtn = document.getElementById("reevaluate-btn");
-                if (reevaluateBtn) {
-                    reevaluateBtn.addEventListener("click", () => show(select.value));
+                // Picking a metric applies it immediately: the charts re-render
+                // for it and the selected trial resets to that metric's best.
+                if (select) {
+                    select.addEventListener("change", () => show(select.value));
                 }
                 // The duration chart is metric-independent — render it once.
                 if (durationFig) {
                     Plotly.newPlot("duration-chart", durationFig.data, durationFig.layout, plotlyConfig);
                 }
-                show(select.value);
+                // Fall back to the first metric if the page rendered without a
+                // selector, so the charts never come up blank.
+                const initialMetric = select ? select.value : Object.keys(figures)[0];
+                if (initialMetric) {
+                    show(initialMetric);
+                }
             })();
         </script>
     {% endif %}
