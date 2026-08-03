@@ -246,9 +246,9 @@ def experiment_settings(request, pk):
     return render(request, "ui/experiment_settings.html", {"experiment": exp, "form": form})
 
 
-def global_settings(request):
-    """Global settings landing page (currently just links to the defaults)."""
-    return render(request, "ui/global_settings.html", {})
+def appearance(request):
+    """Appearance settings (display/theme options; currently a placeholder)."""
+    return render(request, "ui/appearance.html", {})
 
 
 def default_experiment_settings(request):

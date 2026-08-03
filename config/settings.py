@@ -98,6 +98,7 @@ TEMPLATES = [
                 "django.contrib.auth.context_processors.auth",
                 "django.contrib.messages.context_processors.messages",
                 "ui.context_processors.sidebar_experiments",
+                "ui.context_processors.active_tab",
             ],
         },
     },

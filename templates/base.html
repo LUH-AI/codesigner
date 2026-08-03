@@ -9,38 +9,64 @@
     <script src="{% static 'ui/poll.js' %}" defer></script>
 </head>
 <body>
-    <nav class="sidebar">
-        <form class="locale" action="{% url 'set_language' %}" method="post">
+    <nav class="rail">
+        <div class="rail-tabs">
+            <a class="rail-icon{% if active_tab == 'experiments' %} active{% endif %}"
+               href="{% url 'ui:home' %}" title="{% translate 'Experiments' %}">
+                <span aria-hidden="true">🧪</span>
+                <span class="visually-hidden">{% translate "Experiments" %}</span>
+            </a>
+            <a class="rail-icon{% if active_tab == 'settings' %} active{% endif %}"
+               href="{% url 'ui:appearance' %}" title="{% translate 'Settings' %}">
+                <span aria-hidden="true">⚙</span>
+                <span class="visually-hidden">{% translate "Settings" %}</span>
+            </a>
+        </div>
+        {% get_current_language as CURRENT_LANGUAGE %}
+        <form class="locale" action="{% url 'set_language' %}" method="post" title="{% translate 'Language' %}">
             {% csrf_token %}
             <input type="hidden" name="next" value="{{ request.path }}">
-            <label for="language-select">🌐</label>
-            <select id="language-select" name="language" onchange="this.form.submit()">
-                {% get_current_language as CURRENT_LANGUAGE %}
+            <label for="language-select" aria-hidden="true">
+                <span class="locale-icon">🌐</span>
+                <span class="locale-code">{{ CURRENT_LANGUAGE|upper }}</span>
+            </label>
+            <select id="language-select" name="language" onchange="this.form.submit()" aria-label="{% translate 'Language' %}">
                 {% for code, label in LANGUAGES %}
                     <option value="{{ code }}"{% if code == CURRENT_LANGUAGE %} selected{% endif %}>{{ label }}</option>
                 {% endfor %}
             </select>
         </form>
-        <h1>{% translate "Experiments" %}</h1>
-        <div class="actions">
-            <a class="btn btn-block" href="{% url 'ui:new_experiment' %}">{% translate "＋ New" %}</a>
-            <a class="btn btn-block" href="{% url 'ui:import_experiment' %}">{% translate "📂 Load" %}</a>
-        </div>
-        <hr>
-        <div class="experiment-list">
-            {% for e in sidebar_experiments %}
-                <a class="btn btn-block{% if request.resolver_match.kwargs.pk == e.pk %} btn-primary{% endif %}"
-                   href="{% url 'ui:experiment_detail' e.pk %}">
-                    {{ e.name }} <span class="exp-id">({{ e.identifier }})</span>{% if e.is_running %} <span class="spinner" title="{% translate 'Running' %}"></span>{% endif %}
-                </a>
-            {% empty %}
-                <span class="placeholder">{% translate "No experiments yet." %}</span>
-            {% endfor %}
-        </div>
-        <div class="nav-links">
-            <a href="{% url 'ui:global_settings' %}">{% translate "⚙ Settings" %}</a>
-        </div>
     </nav>
+    {% if active_tab == 'settings' %}
+        <nav class="sidebar">
+            <h1>{% translate "Settings" %}</h1>
+            <div class="tab-list">
+                <a class="tab{% if request.resolver_match.url_name == 'appearance' %} active{% endif %}"
+                   href="{% url 'ui:appearance' %}">{% translate "Appearance" %}</a>
+                <a class="tab{% if request.resolver_match.url_name == 'default_experiment_settings' %} active{% endif %}"
+                   href="{% url 'ui:default_experiment_settings' %}">{% translate "Default experiment settings" %}</a>
+            </div>
+        </nav>
+    {% else %}
+        <nav class="sidebar">
+            <h1>{% translate "Experiments" %}</h1>
+            <div class="actions">
+                <a class="btn btn-block" href="{% url 'ui:new_experiment' %}">{% translate "＋ New" %}</a>
+                <a class="btn btn-block" href="{% url 'ui:import_experiment' %}">{% translate "📂 Load" %}</a>
+            </div>
+            <hr>
+            <div class="tab-list experiment-list">
+                {% for e in sidebar_experiments %}
+                    <a class="tab{% if request.resolver_match.kwargs.pk == e.pk %} active{% endif %}"
+                       href="{% url 'ui:experiment_detail' e.pk %}">
+                        {{ e.name }} <span class="exp-id">({{ e.identifier }})</span>{% if e.is_running %} <span class="spinner" title="{% translate 'Running' %}"></span>{% endif %}
+                    </a>
+                {% empty %}
+                    <span class="placeholder">{% translate "No experiments yet." %}</span>
+                {% endfor %}
+            </div>
+        </nav>
+    {% endif %}
     <main class="content">
         {% block content %}{% endblock %}
     </main>

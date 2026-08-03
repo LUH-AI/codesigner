@@ -1,9 +1,9 @@
-"""The settings pages: per-experiment, global, and default-experiment-settings.
+"""The settings pages: per-experiment, appearance, and default-experiment-settings.
 
 Per-experiment settings inherit the global defaults (a checkbox), can override
 them, and can be reset to them. The defaults subpage edits the global template.
-Both are reachable — a ⚙ link on the experiment page and a global link in the
-sidebar.
+Both are reachable — a ⚙ link on the experiment page and a Settings tab in the
+outer rail, which lands on the appearance subpage.
 """
 
 from django.urls import reverse
@@ -61,8 +61,14 @@ def test_default_experiment_settings_saves_global(client):
     assert GlobalSettings.get_solo().default_experiment_settings == {"export_absolute_times": False}
 
 
-def test_global_settings_page_links_to_defaults(client):
-    body = client.get(reverse("ui:global_settings")).content.decode()
+def test_appearance_page_renders(client):
+    resp = client.get(reverse("ui:appearance"))
+    assert resp.status_code == 200
+
+
+def test_appearance_page_links_to_defaults(client):
+    """The settings sidebar (shared across settings subpages) links to defaults."""
+    body = client.get(reverse("ui:appearance")).content.decode()
     assert reverse("ui:default_experiment_settings") in body
 
 
@@ -72,6 +78,6 @@ def test_experiment_page_has_settings_link(client):
     assert reverse("ui:experiment_settings", args=[exp.pk]) in body
 
 
-def test_sidebar_has_global_settings_link(client):
+def test_sidebar_has_settings_link(client):
     body = client.get(reverse("ui:home")).content.decode()
-    assert reverse("ui:global_settings") in body
+    assert reverse("ui:appearance") in body
