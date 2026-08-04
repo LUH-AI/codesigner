@@ -1,5 +1,5 @@
 """Step 7: the detail page embeds a default selected-config panel per metric,
-and wires up click-to-select on the performance chart.
+and wires up click-to-select on the performance figure.
 
 Mirrors app/experiment.py's default (sel_key defaults to the metric's best
 trial until a point is clicked) and the on_select handler in
@@ -48,7 +48,7 @@ def test_default_selection_matches_the_best_trial_with_no_delta(client):
 
 
 def test_detail_wires_up_click_to_select(client):
-    """The page attaches a click handler to the performance chart and points it
+    """The page attaches a click handler to the performance figure and points it
     at the trial-panel endpoint."""
     html, exp = _detail_html(client)
     assert "plotly_click" in html

@@ -1,18 +1,18 @@
-# Step 4 — Charts of the results
+# Step 4 — Figures of the results
 
 **Status:** implemented, awaiting your sign-off.
-**You can now:** after a run, see a performance-over-trials scatter with the running-best line, a hyperparameter-importance donut (with any warning text), and the best configuration — and switch which metric the charts show, instantly.
+**You can now:** after a run, see a performance-over-trials scatter with the running-best line, a hyperparameter-importance donut (with any warning text), and the best configuration — and switch which metric the figures show, instantly.
 
 ---
 
 ## 1. Concepts introduced
 
-### Pure chart builders + a thin view
-[ui/charts.py](../../ui/charts.py) holds `performance_figure` and
+### Pure figure builders + a thin view
+[ui/figures/plots.py](../../ui/figures/plots.py) holds `performance_figure` and
 `importance_figure` — pure functions from an `OptimizationResult` + a metric to
 a Plotly `Figure`, with no Django imports. The view
 ([ui/views.py](../../ui/views.py) `_results_context`) calls them and does
-nothing chart-specific itself. Same separation as the run service: the
+nothing figure-specific itself. Same separation as the run service: the
 figure logic is unit-tested on its own.
 
 ### Getting Python figures into the browser
@@ -20,7 +20,7 @@ Plotly renders client-side. The bridge: `fig.to_json()` turns a figure into a
 plain data structure, the view puts those in a dict, and the template ships it
 with Django's `{% json_script %}` filter (which safely embeds JSON in a
 `<script>` tag). Vendored [plotly.min.js](../../ui/static/ui/plotly.min.js)
-(served as a static file) reads that data and draws the charts — no CDN, no
+(served as a static file) reads that data and draws the figures — no CDN, no
 build step.
 
 ### Static files
@@ -60,7 +60,7 @@ From `app/analytics/{performance,hp_importance,best_config,selected_config}.py`.
 
 ## 3. What is now possible
 
-- Run an experiment (Step 3) and the results page now shows real charts: the
+- Run an experiment (Step 3) and the results page now shows real figures: the
   performance scatter with the incumbent line, the importance donut, and the
   best configuration — for whichever of the four metrics you select, switched
   instantly without reloading.
@@ -71,7 +71,7 @@ From `app/analytics/{performance,hp_importance,best_config,selected_config}.py`.
 
 ```bash
 cd ~/Downloads/python/projects/codesigner
-.venv/bin/python manage.py runserver     # New → run → results page has charts
+.venv/bin/python manage.py runserver     # New → run → results page has figures
 .venv/bin/python -m pytest tests/ui/results
 ```
 
@@ -83,7 +83,7 @@ warning path.
 
 ## 5. Notes
 
-- Chart builders are tested directly (`tests/ui/results/test_charts.py`) against a
+- Figure builders are tested directly (`tests/ui/results/test_plots.py`) against a
   synthetic result with hand-picked numbers; the view test confirms the page
   embeds every metric's figures. The Streamlit originals are `st.*`-coupled and
   can't run under pytest, so these tests are codesigner-native (the incumbent

@@ -71,7 +71,7 @@ test, ✅· = ported, exercised indirectly, ❌ = intentionally dropped.
 - ✅ `serialize_result()`: runhistory-mirrored dict — stats/data/configs/config_origins, `cost = 1 − score`, `.ihpo` extension fields (`scores`, `incumbent_score`, `incumbent_config_id`), `best_config_id` recovery (shape-pinning test)
 - ✅ `deserialize_result()` inverse (synthetic + 30-trial fixture round-trips)
 - ✅ `get_params()` `self._<name>` convention
-- ✅· `compute_hp_importance()`: HyperSHAP tunability → RandomForest-surrogate fallback → uniform fallback, with warning-message chaining (<2 trials and happy paths hit in optimizer tests; the two fallbacks are best verified visually in Step 5's pie chart)
+- ✅· `compute_hp_importance()`: HyperSHAP tunability → RandomForest-surrogate fallback → uniform fallback, with warning-message chaining (<2 trials and happy paths hit in optimizer tests; the two fallbacks are best verified visually in Step 5's pie figure)
 
 ### `optimizers/{smac,grid,random}_optimizer.py`
 - ✅ Random: uniform sampling, duplicate-skip with 200-consecutive-dupes cutoff, resume, cancellation (tested)

@@ -11,13 +11,7 @@ from django.utils.translation import gettext as _
 
 from core import io
 
-from .charts import (
-    CHARTS,
-    error_over_time_figure,
-    hyperparameter_importance_figure,
-    incumbent_performance_figure,
-    trial_duration_figure,
-)
+from .figures import FIGURES, FULL, HALF
 from .forms import DefaultExperimentSettingsForm, ExperimentSettingsForm, NewExperimentForm
 from .models import Experiment, GlobalSettings
 from .registry import METRICS, MODELS, OPTIMIZERS
@@ -125,7 +119,7 @@ def new_experiment(request):
 
 
 def experiment_detail(request, pk):
-    """Show a saved experiment: its config, results/charts, run state, Run form."""
+    """Show a saved experiment: its config, results/figures, run state, Run form."""
     exp = get_object_or_404(Experiment, pk=pk)
     return render(request, "ui/experiment_detail.html", _detail_context(exp))
 
@@ -133,7 +127,7 @@ def experiment_detail(request, pk):
 def trial_panel(request, pk):
     """Render the selected-config panel for one (metric, trial index).
 
-    Backs click-to-select on the performance chart (curve 0 only, point index
+    Backs click-to-select on the performance figure (curve 0 only, point index
     into result.trials) — the browser fetches this fragment and swaps it into
     the panel for the metric currently being viewed.
     """
@@ -340,10 +334,10 @@ def _selected_panel_data(result, metric, idx):
 
 
 def _detail_context(exp):
-    """Detail-page context: identity, run state, and the charts to draw.
+    """Detail-page context: identity, run state, and the figures to draw.
 
     Rebuilds the OptimizationResult from the stored snapshot (read-only) and,
-    when present, builds the panels and per-metric figures for whichever charts
+    when present, builds the panels and per-metric figures for whichever figures
     the settings have switched on; the browser switches metrics client-side.
     """
     result = _rebuild_result(exp)
@@ -381,18 +375,17 @@ def _detail_context(exp):
     if result is None:
         return context
 
-    # Which charts to draw. A chart that is switched off is not rendered and its
-    # figure is not built, so nothing is computed or shipped to be left unused.
+    # Which figures to draw. A figure that is switched off is not rendered and
+    # its plot is not built, so nothing is computed or shipped to go unused.
     shown = resolve_settings(exp)
-    charts = [chart for chart in CHARTS if shown[chart.setting_key]]
-    on = {chart.key for chart in charts}
+    figures = [figure for figure in FIGURES if shown[figure.setting_key]]
 
-    def figure_json(builder, *args):
-        """A chart's figure as JSON, or None when it is off or has no data."""
-        fig = builder(*args)
-        return json.loads(fig.to_json()) if fig is not None else None
+    def plot_json(figure, metric=None):
+        """A figure's plot as JSON, or None when it draws no plot / has no data."""
+        plot = figure.plot(result, metric)
+        return json.loads(plot.to_json()) if plot is not None else None
 
-    panels, figures = [], {}
+    panels = []
     for m in metric_names:
         best_idx = max(range(len(result.trials)),
                        key=lambda i: result.trials[i].scores[m])
@@ -406,27 +399,26 @@ def _detail_context(exp):
             # No selection has been clicked yet, so it defaults to the best trial.
             "selected": _selected_panel_data(result, m, best_idx),
         })
-        figures[m] = {
-            "incumbent_performance": (
-                figure_json(incumbent_performance_figure, result, m, best_idx)
-                if "incumbent_performance" in on else None),
-            "hyperparameter_importance": (
-                figure_json(hyperparameter_importance_figure, result, m)
-                if "hyperparameter_importance" in on else None),
-            "error_over_time": (
-                figure_json(error_over_time_figure, result, m)
-                if "error_over_time" in on else None),
-        }
+
+    # Plots, keyed by figure, built straight off the catalog — per-metric ones
+    # for every metric (the browser switches between them), the rest once.
+    metric_plots = {
+        m: {f.key: plot_json(f, m) for f in figures if f.per_metric}
+        for m in metric_names
+    }
+    static_plots = {f.key: plot_json(f) for f in figures if not f.per_metric}
+    static_plots = {key: plot for key, plot in static_plots.items() if plot is not None}
 
     hp_names = list(result.trials[0].config.keys()) if result.trials else []
     context.update(
         result=result,
         panels=panels,
-        figures=figures,
-        grid_charts=[chart for chart in charts if chart.layout == "grid"],
-        wide_charts=[chart for chart in charts if chart.layout == "wide"],
-        trial_duration_figure=(figure_json(trial_duration_figure, result)
-                               if "trial_duration" in on else None),
+        metric_plots=metric_plots,
+        static_plots=static_plots,
+        # Each figure's declared display behavior, for the page script.
+        figure_options={f.key: {"absoluteScale": f.absolute_scale} for f in figures},
+        half_figures=[f for f in figures if f.width == HALF],
+        full_figures=[f for f in figures if f.width == FULL],
         hp_names=hp_names,
         trial_rows=[
             {

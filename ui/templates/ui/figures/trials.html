@@ -1,7 +1,7 @@
 {% load i18n %}
 {% comment %}Every trial: its outcome (scores, duration) first, then the
 configuration that produced it. The outcome columns sort on click.{% endcomment %}
-<section data-chart="{{ chart.key }}">
+<section data-figure="{{ figure.key }}">
     <div class="subheader">{% blocktranslate with n=result.trials|length %}Trials ({{ n }}){% endblocktranslate %}</div>
     <div class="table-wrap table-scroll">
         <table class="trials">

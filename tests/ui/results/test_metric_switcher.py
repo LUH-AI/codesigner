@@ -1,7 +1,7 @@
 """GUI polish: the merged Run/Evaluation-metric box and the metric switcher.
 
 The Run form and the Evaluation-metric selector live in one card. Choosing a
-metric in the dropdown applies immediately — the charts re-render on the
+metric in the dropdown applies immediately — the figures re-render on the
 select's change event, with no separate button to press. A read-only
 experiment (has a result but no dataset, so it can't run) still needs its own
 metric selector, since there's no Run form to attach it to; so does an
@@ -104,8 +104,8 @@ def test_readonly_experiment_keeps_metric_selector_without_run_form(client):
 @pytest.mark.django_db
 def test_metric_selector_present_while_a_run_is_in_flight(client):
     """A run in flight replaces the Run form with the status panel, but the
-    metric selector must survive — the charts are driven off it, so without it
-    every per-metric chart renders blank until the run finishes."""
+    metric selector must survive — the figures are driven off it, so without it
+    every per-metric figure renders blank until the run finishes."""
     from ui.models import Run
 
     exp = _experiment_with_result()
@@ -119,7 +119,7 @@ def test_metric_selector_present_while_a_run_is_in_flight(client):
 
 @pytest.mark.django_db
 def test_metric_switch_applies_automatically(client):
-    """Choosing a metric re-renders the charts on the spot — the dropdown's
+    """Choosing a metric re-renders the figures on the spot — the dropdown's
     change event calls show(), with no button in between."""
     exp = _readonly_experiment_with_result()
     html = client.get(reverse("ui:experiment_detail", args=[exp.pk])).content.decode()
@@ -130,7 +130,7 @@ def test_metric_switch_applies_automatically(client):
 @pytest.mark.django_db
 def test_plotly_toolbar_hides_logo_and_select_tools(client):
     """The embedded Plotly config removes the Plotly logo/link and the lasso
-    and box-select modebar buttons from every chart."""
+    and box-select modebar buttons from every figure."""
     exp = _readonly_experiment_with_result()
     html = client.get(reverse("ui:experiment_detail", args=[exp.pk])).content.decode()
 

@@ -1,8 +1,8 @@
 {% load i18n %}
 {% comment %}The best trial per metric; only the viewed metric's panel is shown.{% endcomment %}
 {% for panel in panels %}
-    <section class="card panel best-config" data-chart="{{ chart.key }}" data-metric="{{ panel.metric }}" hidden>
-        <div class="subheader">{{ chart.label }}</div>
+    <section class="card panel best-config" data-figure="{{ figure.key }}" data-metric="{{ panel.metric }}" hidden>
+        <div class="subheader">{{ figure.label }}</div>
         <p class="caption">{% blocktranslate with trial=panel.best_n %}Best overall (Trial {{ trial }}){% endblocktranslate %}</p>
         <div class="metric-label">{% blocktranslate with metric=panel.metric %}{{ metric }} score{% endblocktranslate %}</div>
         <div class="metric-value">{{ panel.best_score|floatformat:4 }}</div>

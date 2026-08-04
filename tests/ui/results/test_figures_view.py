@@ -1,6 +1,6 @@
-"""Result charts render on the detail page.
+"""Result figures render on the detail page.
 
-Charts used to be checked on the synchronous new_experiment response; with
+Figures used to be checked on the synchronous new_experiment response; with
 create and run separated, they render on an experiment's detail page once it
 has a result. We set up an experiment carrying a stored result (via the
 adapter) and GET its detail page.
@@ -26,11 +26,11 @@ def _detail(client):
 
 
 def test_detail_includes_plotly_and_chart_containers(client):
-    """The detail page loads Plotly and provides the chart mount points."""
+    """The detail page loads Plotly and provides the figure mount points."""
     html, _ = _detail(client)
     assert "plotly.min.js" in html
-    assert 'id="chart-incumbent_performance"' in html
-    assert 'id="chart-hyperparameter_importance"' in html
+    assert 'id="figure-incumbent_performance"' in html
+    assert 'id="figure-hyperparameter_importance"' in html
 
 
 def test_detail_has_metric_switcher_with_all_metrics(client):
@@ -44,12 +44,12 @@ def test_detail_has_metric_switcher_with_all_metrics(client):
 def test_embedded_figures_cover_every_metric(client):
     """Every metric's performance figure is embedded for the client-side switcher."""
     html, exp = _detail(client)
-    start = html.index('id="figures-data"')
+    start = html.index('id="metric-plots-data"')
     payload = html[html.index(">", start) + 1: html.index("</script>", start)]
-    figures = json.loads(payload)
+    plots = json.loads(payload)
     for m in exp.metric_names:
-        assert m in figures
-        assert figures[m]["incumbent_performance"]["data"]
+        assert m in plots
+        assert plots[m]["incumbent_performance"]["data"]
 
 
 def test_best_config_panel_present_per_metric(client):

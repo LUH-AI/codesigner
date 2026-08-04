@@ -1,0 +1,7 @@
+{% load i18n %}
+<section class="card" data-figure="{{ figure.key }}">
+    <div class="subheader">{{ figure.label }}</div>
+    <p id="imp-warning" class="alert warning" hidden></p>
+    <div id="{{ figure.dom_id }}" class="plot"></div>
+    <p id="{{ figure.dom_id }}-empty" class="caption" hidden>{% translate "No importance data available." %}</p>
+</section>

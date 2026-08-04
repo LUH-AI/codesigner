@@ -1,7 +1,7 @@
-# Step 7 — Click a trial on the chart
+# Step 7 — Click a trial on the figure
 
 **Status:** implemented, awaiting your sign-off.
-**You can now:** click any point on the performance chart to see that trial's score and its full hyperparameter configuration, with the clicked point highlighted. Before any click, each metric's panel defaults to its best trial (matching the existing "Best configuration" panel, with no delta shown).
+**You can now:** click any point on the performance figure to see that trial's score and its full hyperparameter configuration, with the clicked point highlighted. Before any click, each metric's panel defaults to its best trial (matching the existing "Best configuration" panel, with no delta shown).
 
 ---
 
@@ -11,7 +11,7 @@ Source: `app/analytics/selected_config.py` (the panel content — score, delta v
 the metric's best, config table) and the `on_select` handler at the bottom of
 `app/analytics/performance.py:59-70` (which curve/point a click resolves to).
 
-**The Streamlit mechanism:** `st.plotly_chart(..., on_select="rerun",
+**The Streamlit mechanism:** `st.plotly_figure(..., on_select="rerun",
 selection_mode="points")` gives Streamlit an event object on every rerun;
 the code filters for `curve_number == 0` (the trial-score markers — curve 1 is
 the incumbent line, which isn't clickable-meaningful) and reads
@@ -21,12 +21,12 @@ reruns to show the new selection.
 
 **The Django/JS equivalent:** there's no server round-trip per click by
 default in a plain web page, so:
-1. A `plotly_click` listener is attached to the chart div (once, since
+1. A `plotly_click` listener is attached to the figure div (once, since
    `Plotly.react` — used for the metric switcher — preserves event listeners
    on the same DOM node; only `Plotly.purge` would require re-attaching).
 2. The listener does the same `curveNumber === 0` filter and reads
    `pointIndex` (JS naming, same meaning as Python's `point_index`).
-3. It immediately restyles the chart's markers client-side (instant visual
+3. It immediately restyles the figure's markers client-side (instant visual
    feedback — no need to wait on the network for the highlight to move), then
    fetches `GET /experiments/<pk>/trial-panel/?metric=<m>&idx=<i>`, a small
    view that renders exactly the same partial template used for the page's
@@ -67,7 +67,7 @@ reloads just for this one feature, working against Step 4's design.
 Instead: switching metrics resets that metric's panel to its default (best
 trial), via a client-side snapshot taken once at page load of each metric's
 initial panel HTML. This keeps two things always consistent, which a
-query-param approach would not automatically guarantee: the chart's highlight
+query-param approach would not automatically guarantee: the figure's highlight
 (which already resets to the server-embedded best-trial highlight on every
 `Plotly.react` call) and the panel's text. A click is remembered only while
 you stay on that metric; switching away and back re-shows the best trial. If
@@ -84,9 +84,9 @@ cd ~/Downloads/python/projects/codesigner
 ```
 
 Open any experiment with results, click a few points on the performance
-chart — the "Selected configuration" panel updates and the clicked marker
+figure — the "Selected configuration" panel updates and the clicked marker
 turns red/large. Click the incumbent *line* — nothing happens (by design).
-Switch the metric dropdown — both the chart's highlight and the panel reset
+Switch the metric dropdown — both the figure's highlight and the panel reset
 to that metric's best trial.
 
 I additionally verified the full path live (no headless browser available in

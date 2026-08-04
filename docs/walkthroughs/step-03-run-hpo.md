@@ -66,7 +66,7 @@ changed · ⏳ deferred (step).
 - ✅ "Search space exhausted" note when `len(trials) ≥ trials_limit` (`warn_trials_exhausted`)
 - ✅ Per-trial scores table (all metrics)
 - 🔄 Synchronous run (was a daemon thread + `cancel_event` + `st.fragment` polling) — **background/cancel/resume: Step 6**
-- ⏳ Analytics panels — best-config/selected-config/hp-importance/performance charts — **Step 4** (shown as tables for now)
+- ⏳ Analytics panels — best-config/selected-config/hp-importance/performance figures — **Step 4** (shown as tables for now)
 - ⏳ Display-metric switching + re-evaluate button — **Step 6**
 - ⏳ Metric-change confirmation dialog + `primary`/`original` rules — **Step 6**
 - ⏳ Load-dataset / load-model recovery pickers (read-only mode) — **Step 5**

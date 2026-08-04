@@ -17,8 +17,8 @@
         </div>
 
         <fieldset class="check-group">
-            <legend>{% translate "Charts shown on an experiment page" %}</legend>
-            {% for field in form.chart_fields %}
+            <legend>{% translate "Figures shown on an experiment page" %}</legend>
+            {% for field in form.figure_fields %}
                 <label class="check">
                     <input type="checkbox" name="{{ field.name }}" {% if field.value %}checked{% endif %}>
                     {{ field.label }}

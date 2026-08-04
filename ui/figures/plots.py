@@ -1,8 +1,8 @@
-"""Plotly figure builders, one per chart that draws a figure.
+"""Plotly chart builders, one per figure that draws a figure.
 
-Each is named for the chart it backs (see `catalog.py`), so
-`incumbent_performance_figure` fills the "Performance of Incumbent" chart. The
-other charts — best/selected configuration and trials — are tables, and are
+Each is named for the figure it backs (see `catalog.py`), so
+`incumbent_performance_plot` fills the "Performance of Incumbent" figure. The
+other figures — best/selected configuration and trials — are tables, and are
 built by their templates from the view's context rather than from here.
 
 Pure functions: given an OptimizationResult and a metric, return a
@@ -26,7 +26,7 @@ def incumbent_scores(result, display_metric):
     return out
 
 
-def incumbent_performance_figure(result, display_metric, selected_idx=None):
+def incumbent_performance_plot(result, display_metric, selected_idx=None):
     """Scatter of each trial's score with the running-best line overlaid.
 
     The point at *selected_idx* (default: none) is enlarged and recolored, the
@@ -61,7 +61,7 @@ def incumbent_performance_figure(result, display_metric, selected_idx=None):
     return fig
 
 
-def hyperparameter_importance_figure(result, display_metric):
+def hyperparameter_importance_plot(result, display_metric):
     """Donut of hyperparameter importance for *display_metric*.
 
     Returns None when no importance was computed for the metric (the caller
@@ -78,7 +78,7 @@ def hyperparameter_importance_figure(result, display_metric):
     return fig
 
 
-def trial_duration_figure(result):
+def trial_duration_plot(result):
     """Bar of each trial's evaluation duration (seconds). Metric-independent.
 
     Returns None when there are no trials.
@@ -97,7 +97,7 @@ def trial_duration_figure(result):
     return fig
 
 
-def error_over_time_figure(result, display_metric):
+def error_over_time_plot(result, display_metric):
     """Remaining error (1 − best-so-far) against cumulative trial time — an
     "anytime performance" curve: how the error comes down as compute is spent.
 

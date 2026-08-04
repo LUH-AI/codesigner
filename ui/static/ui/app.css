@@ -39,7 +39,7 @@ nav.rail {
     border-right: 1px solid var(--border);
     /* Sticky + viewport height, independent of main.content's height: the
        flex row would otherwise stretch the rail to match a tall page (lots
-       of charts/tables), centering its icons far below the visible fold. */
+       of figures/tables), centering its icons far below the visible fold. */
     position: sticky;
     top: 0;
     height: 100vh;
@@ -271,9 +271,9 @@ table.config td:last-child, table.trials td:not(:first-child) { text-align: righ
 .alert.error   { background: rgba(255, 43, 43, 0.1); color: #7d0000; }
 .alert.success { background: rgba(9, 171, 59, 0.1); color: #005f1e; }
 
-/* ── Charts ────────────────────────────────────────────────────────────── */
+/* ── Figures ────────────────────────────────────────────────────────────── */
 .subheader { font-size: 1.25rem; font-weight: 600; margin-bottom: 0.25rem; }
-.chart { width: 100%; min-height: 320px; }
+.plot { width: 100%; min-height: 320px; }
 hr.divider { border: none; border-top: 1px solid var(--border); margin: 1.5rem 0; }
 
 /* ── Spinner (running runs) ─────────────────────────────────────────────── */
@@ -301,7 +301,7 @@ hr.divider { border: none; border-top: 1px solid var(--border); margin: 1.5rem 0
 .field label.check { display: inline-flex; align-items: center; gap: 0.4rem; font-weight: normal; }
 .field label.check input[type="checkbox"] { width: auto; }
 
-/* A titled list of related checkboxes (e.g. which charts to show). */
+/* A titled list of related checkboxes (e.g. which figures to show). */
 .check-group {
     border: 1px solid var(--border);
     border-radius: var(--radius);

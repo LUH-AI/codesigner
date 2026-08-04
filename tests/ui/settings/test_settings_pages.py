@@ -59,7 +59,7 @@ def test_experiment_settings_use_default_checkbox_clears_override(client):
 def test_default_experiment_settings_saves_global(client):
     """Posting the form stores a value for every key in the schema; an omitted
     checkbox means off, so this posts nothing and everything lands False.
-    (The chart checkboxes are covered in test_chart_settings.py.)"""
+    (The figure checkboxes are covered in test_figure_settings.py.)"""
     client.post(reverse("ui:default_experiment_settings"), {})
     stored = GlobalSettings.get_solo().default_experiment_settings
     assert stored["export_absolute_times"] is False

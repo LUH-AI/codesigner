@@ -63,7 +63,7 @@ delete-cancel) and `app/sidebar.py` (spinner). ✅ done · 🔄 changed · ➕ a
 
 - **~10 Step 3/4/5 view tests were rewritten** to the create→run→poll flow (you
   approved this when choosing "separate create/run, all background"). They now
-  test creation (step3), charts on the detail page (step4), and create-persists
+  test creation (step3), figures on the detail page (step4), and create-persists
   (step5); the run flow is covered in step6. No test was changed to make failing
   code pass — the product behavior changed by design.
 - **No HTMX dependency**: HTMX isn't available offline, so a ~20-line vanilla

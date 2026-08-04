@@ -64,7 +64,7 @@ Ported from the Streamlit save/load/delete/sidebar flows. ✅ done · 🔄 chang
 ## 3. What is now possible
 
 - Run an experiment → it's saved and appears in the sidebar; come back to it
-  later via its detail page (charts and all).
+  later via its detail page (figures and all).
 - Download it as `.ihpo`, open it in the Streamlit app, and vice-versa.
 - Load a colleague's `.ihpo` by uploading it; browse it read-only if you don't
   have the dataset, or attach the dataset to make it runnable.

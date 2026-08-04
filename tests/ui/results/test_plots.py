@@ -1,24 +1,24 @@
-"""The pure Plotly figure builders (ui/charts/figures.py).
+"""The pure Plotly chart builders (ui/figures/figures.py).
 
-One builder per chart that draws a figure, each named for its chart. These
+One builder per figure that draws a figure, each named for its figure. These
 assert the figures faithfully reflect a result — the incumbent line is the
 running best, the scatter carries every trial's score, the selected point is
 highlighted, the importance donut mirrors the importance dict, and the duration
 bars are the per-trial times. Built from synthetic results with hand-chosen
 numbers so every assertion is exact.
 
-`error_over_time_figure` is still being refined visually, so it is deliberately
+`error_over_time_plot` is still being refined visually, so it is deliberately
 uncovered for now.
 """
 
 import pytest
 
 from core.optimizers import OptimizationResult, TrialResult
-from ui.charts import (
-    hyperparameter_importance_figure,
-    incumbent_performance_figure,
+from ui.figures import (
+    hyperparameter_importance_plot,
+    incumbent_performance_plot,
     incumbent_scores,
-    trial_duration_figure,
+    trial_duration_plot,
 )
 
 
@@ -54,7 +54,7 @@ def test_performance_figure_has_score_and_incumbent_traces():
     Expect: two traces; the marker trace's y equals the per-trial scores; the
     line trace's y equals the running best.
     """
-    fig = incumbent_performance_figure(_result(), "accuracy")
+    fig = incumbent_performance_plot(_result(), "accuracy")
     assert len(fig.data) == 2
 
     markers = next(t for t in fig.data if t.mode == "markers")
@@ -70,7 +70,7 @@ def test_performance_figure_highlights_selected_point():
     Selecting trial index 2 must enlarge/recolor only that marker, leaving the
     others at the default size and color.
     """
-    fig = incumbent_performance_figure(_result(), "accuracy", selected_idx=2)
+    fig = incumbent_performance_plot(_result(), "accuracy", selected_idx=2)
     markers = next(t for t in fig.data if t.mode == "markers")
     assert markers.marker.size[2] > markers.marker.size[0]
     assert markers.marker.color[2] != markers.marker.color[0]
@@ -78,7 +78,7 @@ def test_performance_figure_highlights_selected_point():
 
 def test_performance_yaxis_labels_the_metric():
     """The y-axis is titled with the metric being shown."""
-    fig = incumbent_performance_figure(_result(), "f1")
+    fig = incumbent_performance_plot(_result(), "f1")
     assert fig.layout.yaxis.title.text.lower() == "f1"
 
 
@@ -88,22 +88,22 @@ def test_importance_figure_mirrors_the_importance_dict():
     A pie trace whose labels/values equal the hyperparameter_importance entry
     for the metric.
     """
-    fig = hyperparameter_importance_figure(_result(), "accuracy")
+    fig = hyperparameter_importance_plot(_result(), "accuracy")
     pie = fig.data[0]
     assert set(pie.labels) == {"a", "b"}
     assert dict(zip(pie.labels, pie.values)) == {"a": 0.7, "b": 0.3}
 
 
 def test_importance_figure_none_when_metric_has_no_importance():
-    """hyperparameter_importance_figure returns None when the metric has no importance data,
-    so the view can show an explanatory message instead of an empty chart."""
-    assert hyperparameter_importance_figure(_result(), "f1") is None
+    """hyperparameter_importance_plot returns None when the metric has no importance data,
+    so the view can show an explanatory message instead of an empty figure."""
+    assert hyperparameter_importance_plot(_result(), "f1") is None
 
 
 def test_figures_serialize_to_json():
     """Both figures survive fig.to_json() — the view embeds them that way."""
-    assert incumbent_performance_figure(_result(), "accuracy").to_json()
-    assert hyperparameter_importance_figure(_result(), "accuracy").to_json()
+    assert incumbent_performance_plot(_result(), "accuracy").to_json()
+    assert hyperparameter_importance_plot(_result(), "accuracy").to_json()
 
 
 def _timed(n, score, dur):
@@ -120,11 +120,11 @@ def _timed_result(trials):
 
 def test_trial_duration_figure_plots_per_trial_durations():
     """One bar per trial, its height the trial's measured duration."""
-    fig = trial_duration_figure(_timed_result([_timed(1, 0.5, 0.2), _timed(2, 0.6, 0.3)]))
+    fig = trial_duration_plot(_timed_result([_timed(1, 0.5, 0.2), _timed(2, 0.6, 0.3)]))
     trace = fig.to_dict()["data"][0]
     assert list(trace["x"]) == [1, 2]
     assert list(trace["y"]) == pytest.approx([0.2, 0.3])
 
 
 def test_trial_duration_figure_none_when_no_trials():
-    assert trial_duration_figure(_timed_result([])) is None
+    assert trial_duration_plot(_timed_result([])) is None

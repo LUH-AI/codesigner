@@ -71,20 +71,21 @@
             <div class="alert warning">{% blocktranslate with n=result.trials|length %}The search space is exhausted at {{ n }} trials.{% endblocktranslate %}</div>
         {% endif %}
 
-        {% comment %}Charts are declared in ui/charts/catalog.py, one partial each
-        under ui/charts/; which of them appear is a setting. Grid charts tile
-        two-up, wide ones span the page below.{% endcomment %}
-        {% if grid_charts %}
+        {% comment %}Figures are declared in ui/figures/catalog.py, one partial
+        each under ui/figures/. Each declares its own width and whether it
+        appears at all, so this only has to place them: half-width ones tile
+        two-up in catalog order, full-width ones span the page below.{% endcomment %}
+        {% if half_figures %}
             <div class="grid-2x2">
-                {% for chart in grid_charts %}
-                    <div class="slot">{% include chart.template %}</div>
+                {% for figure in half_figures %}
+                    <div class="slot">{% include figure.template %}</div>
                 {% endfor %}
             </div>
         {% endif %}
 
-        {% for chart in wide_charts %}
+        {% for figure in full_figures %}
             <hr class="divider">
-            {% include chart.template %}
+            {% include figure.template %}
         {% endfor %}
 
         <script>
@@ -122,22 +123,23 @@
             })();
         </script>
 
-        {{ figures|json_script:"figures-data" }}
+        {{ metric_plots|json_script:"metric-plots-data" }}
+        {{ static_plots|json_script:"static-plots-data" }}
+        {{ figure_options|json_script:"figure-options-data" }}
         {{ panels|json_script:"panels-data" }}
-        {% if trial_duration_figure %}{{ trial_duration_figure|json_script:"trial-duration-data" }}{% endif %}
         <script src="{% static 'ui/plotly.min.js' %}"></script>
         <script>
             (function () {
-                const figures = JSON.parse(document.getElementById("figures-data").textContent);
-                // Any chart can be switched off in settings, so every lookup below
-                // is conditional: a chart that isn't on the page is simply skipped
-                // rather than taking the rest of the script down with it.
-                function chartEl(key) { return document.getElementById("chart-" + key); }
-                function readJSON(id) {
-                    const el = document.getElementById(id);
-                    return el ? JSON.parse(el.textContent) : null;
-                }
-                const durationFig = readJSON("trial-duration-data");
+                // Plots keyed by figure: per-metric ones for the viewed metric,
+                // static ones drawn once. Only the figures that are switched on
+                // are here at all, so every lookup below is conditional — a
+                // figure that isn't on the page is skipped rather than taking the
+                // rest of the script down with it.
+                const metricPlots = JSON.parse(document.getElementById("metric-plots-data").textContent);
+                const staticPlots = JSON.parse(document.getElementById("static-plots-data").textContent);
+                // Per-figure display behavior, as declared on the Figure class.
+                const figureOptions = JSON.parse(document.getElementById("figure-options-data").textContent);
+                function figureEl(key) { return document.getElementById("figure-" + key); }
                 const warnings = {};
                 JSON.parse(document.getElementById("panels-data").textContent)
                     .forEach(p => { warnings[p.metric] = p.warning; });
@@ -153,14 +155,14 @@
                 });
 
                 // Hide the "Produced with Plotly.js" link and the lasso/box
-                // select tools from every chart's toolbar.
+                // select tools from every figure's toolbar.
                 const plotlyConfig = {
                     responsive: true,
                     displaylogo: false,
                     modeBarButtonsToRemove: ["lasso2d", "select2d"],
                 };
                 // Absolute/relative y-scale toggle, shared by the performance and
-                // error charts. "Absolute" pins the axis to a fixed full range;
+                // error figures. "Absolute" pins the axis to a fixed full range;
                 // "relative" auto-fits to the data. The icon and hover text flip to
                 // show the current state (outward arrows = will expand to full
                 // range; inward = will fit to data). It also drops Plotly's
@@ -172,12 +174,12 @@
                 const SCALE_TITLE_REL = "{% translate 'Relative scale (fit to data)' %}";
 
                 function makeScaleToggle(absoluteRelayout) {
-                    const state = { absolute: false, chartId: null };
+                    const state = { absolute: false, figureId: null };
                     function btn() {
-                        if (!state.chartId) return null;
+                        if (!state.figureId) return null;
                         return document.querySelector(
-                            '#' + state.chartId + ' .modebar-btn[data-title="' + SCALE_TITLE + '"], ' +
-                            '#' + state.chartId + ' .modebar-btn[data-title="' + SCALE_TITLE_REL + '"]');
+                            '#' + state.figureId + ' .modebar-btn[data-title="' + SCALE_TITLE + '"], ' +
+                            '#' + state.figureId + ' .modebar-btn[data-title="' + SCALE_TITLE_REL + '"]');
                     }
                     function paint() {
                         const b = btn();
@@ -199,12 +201,12 @@
                             },
                         }],
                     });
-                    // Call after each Plotly.react on chartId: re-assert the pinned
+                    // Call after each Plotly.react on figureId: re-assert the pinned
                     // range, repaint the button, and (once) wire the reset button so
                     // restoring autorange snaps the toggle back to relative.
-                    function apply(chartId) {
-                        state.chartId = chartId;
-                        const gd = document.getElementById(chartId);
+                    function apply(figureId) {
+                        state.figureId = figureId;
+                        const gd = document.getElementById(figureId);
                         if (state.absolute) Plotly.relayout(gd, absoluteRelayout);
                         paint();
                         if (!gd._scaleResetWired) {
@@ -220,15 +222,18 @@
                     return { config: config, apply: apply };
                 }
 
-                // Performance uses a linear [0, 1] absolute range; the error chart
-                // is log, so its full-error range is [1e-3, 1] → log10 [-3, 0].
-                const perfToggle = makeScaleToggle({"yaxis.range": [0, 1], "yaxis.autorange": false});
-                const errorToggle = makeScaleToggle({"yaxis.range": [-3, 0], "yaxis.autorange": false});
+                // One toggle per figure that declared an absolute scale, built
+                // from that declaration rather than hardcoded here.
+                const scaleToggles = {};
+                Object.keys(figureOptions).forEach(function (key) {
+                    const absolute = figureOptions[key].absoluteScale;
+                    if (absolute) scaleToggles[key] = makeScaleToggle(absolute);
+                });
 
                 function highlightPoint(metric, idx) {
-                    const perfEl = chartEl("incumbent_performance");
+                    const perfEl = figureEl("incumbent_performance");
                     if (!perfEl) return;
-                    const n = figures[metric].incumbent_performance.data[0].x.length;
+                    const n = metricPlots[metric].incumbent_performance.data[0].x.length;
                     const colors = new Array(n).fill("#636EFA");
                     const sizes = new Array(n).fill(6);
                     if (idx >= 0 && idx < n) { colors[idx] = "#EF553B"; sizes[idx] = 13; }
@@ -239,7 +244,7 @@
                 function attachPerfClickOnce() {
                     if (perfClickAttached) return;
                     perfClickAttached = true;
-                    chartEl("incumbent_performance").on("plotly_click", function (data) {
+                    figureEl("incumbent_performance").on("plotly_click", function (data) {
                         const pt = data.points && data.points[0];
                         if (!pt || pt.curveNumber !== 0) return;  // ignore the incumbent line
                         const metric = select.value;
@@ -255,14 +260,33 @@
                     });
                 }
 
-                function show(metric) {
-                    const fig = figures[metric];
+                // Draw one figure's plot, or show its "no data" note if it has
+                // none. Every figure follows the same contract: the plot mounts
+                // in #figure-<key>, and an optional #figure-<key>-empty carries
+                // the note — so this needs no per-figure knowledge.
+                function draw(key, plot) {
+                    const el = figureEl(key);
+                    if (!el) return;
+                    const empty = document.getElementById("figure-" + key + "-empty");
+                    if (!plot) {
+                        Plotly.purge(el);
+                        el.hidden = true;
+                        if (empty) empty.hidden = false;
+                        return;
+                    }
+                    if (empty) empty.hidden = true;
+                    el.hidden = false;
+                    const toggle = scaleToggles[key];
+                    Plotly.react(el, plot.data, plot.layout, toggle ? toggle.config : plotlyConfig);
+                    if (toggle) toggle.apply(el.id);
+                }
 
-                    const perfEl = chartEl("incumbent_performance");
-                    if (perfEl && fig.incumbent_performance) {
-                        Plotly.react(perfEl, fig.incumbent_performance.data,
-                                     fig.incumbent_performance.layout, perfToggle.config);
-                        perfToggle.apply(perfEl.id);
+                function show(metric) {
+                    const plots = metricPlots[metric] || {};
+                    Object.keys(plots).forEach(function (key) { draw(key, plots[key]); });
+
+                    // Click-to-select lives on the performance figure only.
+                    if (figureEl("incumbent_performance") && plots.incumbent_performance) {
                         attachPerfClickOnce();
                     }
 
@@ -271,40 +295,11 @@
                         selEl.innerHTML = defaultSelectedHTML[metric];
                     }
 
-                    const impEl = chartEl("hyperparameter_importance");
-                    if (impEl) {
-                        const warnEl = document.getElementById("imp-warning");
-                        if (warnings[metric]) {
-                            warnEl.textContent = warnings[metric];
-                            warnEl.hidden = false;
-                        } else {
-                            warnEl.hidden = true;
-                        }
-                        const impNone = document.getElementById("imp-none");
-                        if (fig.hyperparameter_importance) {
-                            impNone.hidden = true;
-                            impEl.hidden = false;
-                            Plotly.react(impEl, fig.hyperparameter_importance.data,
-                                         fig.hyperparameter_importance.layout, plotlyConfig);
-                        } else {
-                            Plotly.purge(impEl);
-                            impEl.hidden = true;
-                            impNone.hidden = false;
-                        }
-                    }
-
-                    // Error over time is per-metric (uses this metric's incumbent).
-                    const errEl = chartEl("error_over_time");
-                    if (errEl) {
-                        const errNone = document.getElementById("error-over-time-none");
-                        if (fig.error_over_time) {
-                            errNone.hidden = true; errEl.hidden = false;
-                            Plotly.react(errEl, fig.error_over_time.data,
-                                         fig.error_over_time.layout, errorToggle.config);
-                            errorToggle.apply(errEl.id);
-                        } else {
-                            Plotly.purge(errEl); errEl.hidden = true; errNone.hidden = false;
-                        }
+                    // Importance is the one figure with a per-metric caveat to report.
+                    const warnEl = document.getElementById("imp-warning");
+                    if (warnEl) {
+                        warnEl.textContent = warnings[metric] || "";
+                        warnEl.hidden = !warnings[metric];
                     }
 
                     document.querySelectorAll(".panel").forEach(function (el) {
@@ -312,19 +307,18 @@
                     });
                 }
 
-                // Picking a metric applies it immediately: the charts re-render
+                // Picking a metric applies it immediately: the figures re-render
                 // for it and the selected trial resets to that metric's best.
                 if (select) {
                     select.addEventListener("change", () => show(select.value));
                 }
-                // The trial-duration chart is metric-independent — draw it once.
-                const durationEl = chartEl("trial_duration");
-                if (durationEl && durationFig) {
-                    Plotly.newPlot(durationEl, durationFig.data, durationFig.layout, plotlyConfig);
-                }
+                // Figures that don't depend on the metric are drawn once.
+                Object.keys(staticPlots).forEach(function (key) {
+                    draw(key, staticPlots[key]);
+                });
                 // Fall back to the first metric if the page rendered without a
-                // selector, so the charts never come up blank.
-                const initialMetric = select ? select.value : Object.keys(figures)[0];
+                // selector, so the figures never come up blank.
+                const initialMetric = select ? select.value : Object.keys(metricPlots)[0];
                 if (initialMetric) {
                     show(initialMetric);
                 }
