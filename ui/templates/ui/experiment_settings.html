@@ -4,10 +4,6 @@
 {% block title %}{% translate "Settings" %} · {{ experiment.name }}{% endblock %}
 
 {% block content %}
-    <div class="actions">
-        <a class="btn" href="{% url 'ui:experiment_detail' experiment.pk %}">{% blocktranslate with name=experiment.name %}← Back to {{ name }}{% endblocktranslate %}</a>
-    </div>
-
     <h1>{% blocktranslate with name=experiment.name %}Settings: {{ name }}{% endblocktranslate %}</h1>
 
     <form method="post" class="settings-form">
@@ -33,7 +29,9 @@
     </form>
 
     <p class="nav-links" style="margin-top: 1rem;">
-        <a href="{% url 'ui:default_experiment_settings' %}">{% translate "Change default experiment settings" %}</a>
+        {% comment %}The defaults are global, so this leaves the experiment behind —
+        ?next= is what lets that page offer a way back to it.{% endcomment %}
+        <a href="{% url 'ui:default_experiment_settings' %}?next={% url 'ui:experiment_detail' experiment.pk %}">{% translate "Change default experiment settings" %}</a>
     </p>
 
     <script>

@@ -301,6 +301,16 @@ hr.divider { border: none; border-top: 1px solid var(--border); margin: 1.5rem 0
 .field label.check { display: inline-flex; align-items: center; gap: 0.4rem; font-weight: normal; }
 .field label.check input[type="checkbox"] { width: auto; }
 
+/* ── Breadcrumbs + back link (ui/_breadcrumbs.html) ────────────────────── */
+.breadcrumbs { display: flex; align-items: baseline; gap: 1rem; flex-wrap: wrap;
+               font-size: 0.875rem; margin-bottom: 0.5rem; }
+.breadcrumbs ol { display: flex; gap: 0.4rem; flex-wrap: wrap; list-style: none; }
+.breadcrumbs li + li::before { content: "/"; color: var(--border); margin-right: 0.4rem; }
+.breadcrumbs a { color: var(--muted); text-decoration: none; }
+.breadcrumbs a:hover { color: var(--primary); }
+.breadcrumbs [aria-current="page"] { color: var(--text); font-weight: 600; }
+.breadcrumbs .back-link { color: var(--primary); font-weight: 600; }
+
 /* Settings pages: the per-experiment and defaults pages show the same fields,
    so they share a width. */
 .settings-form { max-width: 34rem; }

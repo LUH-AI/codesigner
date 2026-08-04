@@ -99,6 +99,7 @@ TEMPLATES = [
                 "django.contrib.messages.context_processors.messages",
                 "ui.context_processors.sidebar_experiments",
                 "ui.context_processors.active_tab",
+                "ui.context_processors.navigation",
             ],
         },
     },

@@ -1,0 +1,30 @@
+{% load i18n %}
+{% comment %}
+Included by base.html, so every page gets this without asking. Both parts come
+from the request via ui.context_processors.navigation:
+
+  breadcrumbs — where this page sits, derived from its route. The last crumb is
+  the page itself and is not a link.
+  back_link   — where the user came from, only present when a link carried
+  `?next=`, for jumps the hierarchy can't express (the global default-settings
+  page reached from one experiment).
+
+See ui/navigation.py for why those are two things and not one.
+{% endcomment %}
+{% if breadcrumbs or back_link %}
+    <nav class="breadcrumbs" aria-label="{% translate 'Breadcrumb' %}">
+        {% if back_link %}
+            <a class="back-link" href="{{ back_link.url }}">{% blocktranslate with page=back_link.label %}← Back to {{ page }}{% endblocktranslate %}</a>
+        {% endif %}
+        {% if breadcrumbs %}
+            <ol>
+                {% for crumb in breadcrumbs %}
+                    <li>
+                        {% if crumb.url %}<a href="{{ crumb.url }}">{{ crumb.label }}</a>
+                        {% else %}<span aria-current="page">{{ crumb.label }}</span>{% endif %}
+                    </li>
+                {% endfor %}
+            </ol>
+        {% endif %}
+    </nav>
+{% endif %}
