@@ -12,10 +12,11 @@ from django.utils.translation import gettext as _
 from core import io
 
 from .charts import (
-    duration_figure,
-    error_vs_compute_figure,
-    importance_figure,
-    performance_figure,
+    CHARTS,
+    error_over_time_figure,
+    hyperparameter_importance_figure,
+    incumbent_performance_figure,
+    trial_duration_figure,
 )
 from .forms import DefaultExperimentSettingsForm, ExperimentSettingsForm, NewExperimentForm
 from .models import Experiment, GlobalSettings
@@ -24,7 +25,7 @@ from .services import run as run_service
 from .services import snapshot as snapshot_adapter
 from .services.run import resolve_seed
 from .services.run_logic import decide_run, resolve_metric_change
-from .services.settings import global_defaults, resolve_settings
+from .services.settings import SETTING_DEFAULTS, global_defaults, resolve_settings
 
 _ACTIVE = ["pending", "running"]
 
@@ -252,18 +253,19 @@ def appearance(request):
 
 
 def default_experiment_settings(request):
-    """Edit the default experiment settings that inheriting experiments use."""
+    """Edit the default experiment settings that inheriting experiments use.
+
+    Every key in the schema is a checkbox, so an absent key means unchecked.
+    """
     gs = GlobalSettings.get_solo()
     if request.method == "POST":
         gs.default_experiment_settings = {
-            "export_absolute_times": bool(request.POST.get("export_absolute_times")),
+            key: bool(request.POST.get(key)) for key in SETTING_DEFAULTS
         }
         gs.save(update_fields=["default_experiment_settings"])
         return redirect("ui:default_experiment_settings")
 
-    form = DefaultExperimentSettingsForm(initial={
-        "export_absolute_times": global_defaults()["export_absolute_times"],
-    })
+    form = DefaultExperimentSettingsForm(initial=global_defaults())
     return render(request, "ui/default_experiment_settings.html", {"form": form})
 
 
@@ -338,11 +340,11 @@ def _selected_panel_data(result, metric, idx):
 
 
 def _detail_context(exp):
-    """Detail-page context: identity, run state, per-metric panels and figures.
+    """Detail-page context: identity, run state, and the charts to draw.
 
     Rebuilds the OptimizationResult from the stored snapshot (read-only) and,
-    when present, builds each metric's best-config panel and performance /
-    importance figures; the browser switches metrics client-side.
+    when present, builds the panels and per-metric figures for whichever charts
+    the settings have switched on; the browser switches metrics client-side.
     """
     result = _rebuild_result(exp)
     metric_names = list(exp.metric_names)
@@ -379,37 +381,52 @@ def _detail_context(exp):
     if result is None:
         return context
 
+    # Which charts to draw. A chart that is switched off is not rendered and its
+    # figure is not built, so nothing is computed or shipped to be left unused.
+    shown = resolve_settings(exp)
+    charts = [chart for chart in CHARTS if shown[chart.setting_key]]
+    on = {chart.key for chart in charts}
+
+    def figure_json(builder, *args):
+        """A chart's figure as JSON, or None when it is off or has no data."""
+        fig = builder(*args)
+        return json.loads(fig.to_json()) if fig is not None else None
+
     panels, figures = [], {}
     for m in metric_names:
         best_idx = max(range(len(result.trials)),
                        key=lambda i: result.trials[i].scores[m])
         best = result.trials[best_idx]
-        perf = performance_figure(result, m, selected_idx=best_idx)
-        imp = importance_figure(result, m)
         panels.append({
             "metric": m,
             "best_n": best.trial,
             "best_score": best.scores[m],
             "best_config": list(best.config.items()),
             "warning": result.hyperparameter_importance_warning.get(m),
-            "has_importance": imp is not None,
             # No selection has been clicked yet, so it defaults to the best trial.
             "selected": _selected_panel_data(result, m, best_idx),
         })
-        evc = error_vs_compute_figure(result, m)
         figures[m] = {
-            "performance": json.loads(perf.to_json()),
-            "importance": json.loads(imp.to_json()) if imp is not None else None,
-            "error_vs_compute": json.loads(evc.to_json()) if evc is not None else None,
+            "incumbent_performance": (
+                figure_json(incumbent_performance_figure, result, m, best_idx)
+                if "incumbent_performance" in on else None),
+            "hyperparameter_importance": (
+                figure_json(hyperparameter_importance_figure, result, m)
+                if "hyperparameter_importance" in on else None),
+            "error_over_time": (
+                figure_json(error_over_time_figure, result, m)
+                if "error_over_time" in on else None),
         }
 
     hp_names = list(result.trials[0].config.keys()) if result.trials else []
-    dfig = duration_figure(result)
     context.update(
         result=result,
         panels=panels,
         figures=figures,
-        duration_figure=json.loads(dfig.to_json()) if dfig is not None else None,
+        grid_charts=[chart for chart in charts if chart.layout == "grid"],
+        wide_charts=[chart for chart in charts if chart.layout == "wide"],
+        trial_duration_figure=(figure_json(trial_duration_figure, result)
+                               if "trial_duration" in on else None),
         hp_names=hp_names,
         trial_rows=[
             {

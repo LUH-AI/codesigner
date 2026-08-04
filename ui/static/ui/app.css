@@ -300,3 +300,20 @@ hr.divider { border: none; border-top: 1px solid var(--border); margin: 1.5rem 0
 /* Checkbox that toggles a field between a demo source and an upload. */
 .field label.check { display: inline-flex; align-items: center; gap: 0.4rem; font-weight: normal; }
 .field label.check input[type="checkbox"] { width: auto; }
+
+/* A titled list of related checkboxes (e.g. which charts to show). */
+.check-group {
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 0.75rem 1rem 1rem;
+    margin-bottom: 1rem;
+}
+.check-group legend { font-size: 0.875rem; color: var(--muted); padding: 0 0.35rem; }
+.check-group label.check {
+    display: flex;
+    align-items: center;
+    gap: 0.4rem;
+    font-weight: normal;
+    padding: 0.15rem 0;
+}
+.check-group label.check input[type="checkbox"] { width: auto; }

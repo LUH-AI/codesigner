@@ -7,6 +7,7 @@ from django.utils.translation import gettext_lazy as _
 
 from core.io import demo_datasets, load_model_from_path, mounted_models
 
+from .charts import CHARTS
 from .registry import MODELS, OPTIMIZERS
 
 
@@ -95,9 +96,25 @@ _EXPORT_ABS_LABEL = _("Include absolute timestamps in exported .ihpo files")
 
 
 class DefaultExperimentSettingsForm(forms.Form):
-    """The default experiment settings, edited on the global settings subpage."""
+    """The default experiment settings, edited on the global settings subpage.
+
+    One field per chart (`show_<key>`) is added from the catalog, so a newly
+    declared chart gets its checkbox without touching this class.
+    """
 
     export_absolute_times = forms.BooleanField(label=_EXPORT_ABS_LABEL, required=False)
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        for chart in CHARTS:
+            self.fields[chart.setting_key] = forms.BooleanField(
+                label=chart.label, required=False,
+            )
+
+    @property
+    def chart_fields(self):
+        """The chart checkboxes, in catalog order — for the template to loop."""
+        return [self[chart.setting_key] for chart in CHARTS]
 
 
 class ExperimentSettingsForm(forms.Form):

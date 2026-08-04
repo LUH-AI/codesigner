@@ -71,99 +71,21 @@
             <div class="alert warning">{% blocktranslate with n=result.trials|length %}The search space is exhausted at {{ n }} trials.{% endblocktranslate %}</div>
         {% endif %}
 
-        <div class="grid-2x2">
-            <div class="slot">
-                {% for panel in panels %}
-                    <section class="card panel best-config" data-metric="{{ panel.metric }}" hidden>
-                        <div class="subheader">{% translate "Best configuration" %}</div>
-                        <p class="caption">{% blocktranslate with trial=panel.best_n %}Best overall (Trial {{ trial }}){% endblocktranslate %}</p>
-                        <div class="metric-label">{% blocktranslate with metric=panel.metric %}{{ metric }} score{% endblocktranslate %}</div>
-                        <div class="metric-value">{{ panel.best_score|floatformat:4 }}</div>
-                        <div class="table-wrap" style="margin-top: 1rem;">
-                            <table class="config">
-                                <thead><tr><th>{% translate "Hyperparameter" %}</th><th>{% translate "Value" %}</th></tr></thead>
-                                <tbody>
-                                    {% for key, value in panel.best_config %}
-                                        <tr><td>{{ key }}</td><td>{{ value }}</td></tr>
-                                    {% endfor %}
-                                </tbody>
-                            </table>
-                        </div>
-                    </section>
+        {% comment %}Charts are declared in ui/charts/catalog.py, one partial each
+        under ui/charts/; which of them appear is a setting. Grid charts tile
+        two-up, wide ones span the page below.{% endcomment %}
+        {% if grid_charts %}
+            <div class="grid-2x2">
+                {% for chart in grid_charts %}
+                    <div class="slot">{% include chart.template %}</div>
                 {% endfor %}
             </div>
+        {% endif %}
 
-            <div class="slot">
-                {% for panel in panels %}
-                    <section class="card panel selected-config" data-metric="{{ panel.metric }}" hidden>
-                        <div class="subheader">{% translate "Selected configuration" %}</div>
-                        <div id="selected-content-{{ panel.metric }}">
-                            {% include "ui/_selected_config_inner.html" with sel=panel.selected %}
-                        </div>
-                    </section>
-                {% endfor %}
-            </div>
-
-            <div class="slot">
-                <section class="card">
-                    <div class="subheader">{% translate "Hyperparameter importance (HyperSHAP)" %}</div>
-                    <p id="imp-warning" class="alert warning" hidden></p>
-                    <div id="imp-chart" class="chart"></div>
-                    <p id="imp-none" class="caption" hidden>{% translate "No importance data available." %}</p>
-                </section>
-            </div>
-
-            <div class="slot">
-                <section class="card">
-                    <div class="subheader">{% translate "Performance of Incumbent" %}</div>
-                    <div id="perf-chart" class="chart"></div>
-                </section>
-            </div>
-        </div>
-
-        <div class="grid-2x2">
-            <div class="slot">
-                <section class="card">
-                    <div class="subheader">{% translate "Trial duration" %}</div>
-                    <div id="duration-chart" class="chart"></div>
-                </section>
-            </div>
-            <div class="slot">
-                <section class="card">
-                    <div class="subheader">{% translate "Error over time" %}</div>
-                    <div id="error-compute-chart" class="chart"></div>
-                    <p id="error-compute-none" class="caption" hidden>{% translate "No data available." %}</p>
-                </section>
-            </div>
-        </div>
-
-        <hr class="divider">
-
-        <section>
-            <div class="subheader">{% blocktranslate with n=result.trials|length %}Trials ({{ n }}){% endblocktranslate %}</div>
-            <div class="table-wrap table-scroll">
-                <table class="trials">
-                    <thead>
-                        <tr>
-                            <th class="sortable">#</th>
-                            {% for m in metric_names %}<th class="sortable">{{ m }}</th>{% endfor %}
-                            <th class="sortable">{% translate "Duration" %}</th>
-                            {% for h in hp_names %}<th{% if forloop.first %} class="group-start"{% endif %}>{{ h }}</th>{% endfor %}
-                        </tr>
-                    </thead>
-                    <tbody>
-                        {% for row in trial_rows %}
-                            <tr>
-                                <td data-sort="{{ row.n }}">{{ row.n }}</td>
-                                {% for score in row.scores %}<td data-sort="{{ score }}">{{ score|floatformat:4 }}</td>{% endfor %}
-                                <td data-sort="{{ row.duration }}">{{ row.duration|floatformat:3 }} s</td>
-                                {% for v in row.config_values %}<td{% if forloop.first %} class="group-start"{% endif %}>{{ v }}</td>{% endfor %}
-                            </tr>
-                        {% endfor %}
-                    </tbody>
-                </table>
-            </div>
-        </section>
+        {% for chart in wide_charts %}
+            <hr class="divider">
+            {% include chart.template %}
+        {% endfor %}
 
         <script>
             // Click-to-sort on the outcome columns. Every sortable cell carries
@@ -202,12 +124,20 @@
 
         {{ figures|json_script:"figures-data" }}
         {{ panels|json_script:"panels-data" }}
-        {{ duration_figure|json_script:"duration-data" }}
+        {% if trial_duration_figure %}{{ trial_duration_figure|json_script:"trial-duration-data" }}{% endif %}
         <script src="{% static 'ui/plotly.min.js' %}"></script>
         <script>
             (function () {
                 const figures = JSON.parse(document.getElementById("figures-data").textContent);
-                const durationFig = JSON.parse(document.getElementById("duration-data").textContent);
+                // Any chart can be switched off in settings, so every lookup below
+                // is conditional: a chart that isn't on the page is simply skipped
+                // rather than taking the rest of the script down with it.
+                function chartEl(key) { return document.getElementById("chart-" + key); }
+                function readJSON(id) {
+                    const el = document.getElementById(id);
+                    return el ? JSON.parse(el.textContent) : null;
+                }
+                const durationFig = readJSON("trial-duration-data");
                 const warnings = {};
                 JSON.parse(document.getElementById("panels-data").textContent)
                     .forEach(p => { warnings[p.metric] = p.warning; });
@@ -296,18 +226,20 @@
                 const errorToggle = makeScaleToggle({"yaxis.range": [-3, 0], "yaxis.autorange": false});
 
                 function highlightPoint(metric, idx) {
-                    const n = figures[metric].performance.data[0].x.length;
+                    const perfEl = chartEl("incumbent_performance");
+                    if (!perfEl) return;
+                    const n = figures[metric].incumbent_performance.data[0].x.length;
                     const colors = new Array(n).fill("#636EFA");
                     const sizes = new Array(n).fill(6);
                     if (idx >= 0 && idx < n) { colors[idx] = "#EF553B"; sizes[idx] = 13; }
-                    Plotly.restyle("perf-chart", {"marker.color": [colors], "marker.size": [sizes]}, [0]);
+                    Plotly.restyle(perfEl, {"marker.color": [colors], "marker.size": [sizes]}, [0]);
                 }
 
                 let perfClickAttached = false;
                 function attachPerfClickOnce() {
                     if (perfClickAttached) return;
                     perfClickAttached = true;
-                    document.getElementById("perf-chart").on("plotly_click", function (data) {
+                    chartEl("incumbent_performance").on("plotly_click", function (data) {
                         const pt = data.points && data.points[0];
                         if (!pt || pt.curveNumber !== 0) return;  // ignore the incumbent line
                         const metric = select.value;
@@ -325,44 +257,54 @@
 
                 function show(metric) {
                     const fig = figures[metric];
-                    Plotly.react("perf-chart", fig.performance.data, fig.performance.layout, perfToggle.config);
-                    perfToggle.apply("perf-chart");
-                    attachPerfClickOnce();
+
+                    const perfEl = chartEl("incumbent_performance");
+                    if (perfEl && fig.incumbent_performance) {
+                        Plotly.react(perfEl, fig.incumbent_performance.data,
+                                     fig.incumbent_performance.layout, perfToggle.config);
+                        perfToggle.apply(perfEl.id);
+                        attachPerfClickOnce();
+                    }
 
                     const selEl = document.getElementById("selected-content-" + metric);
                     if (selEl && defaultSelectedHTML[metric] !== undefined) {
                         selEl.innerHTML = defaultSelectedHTML[metric];
                     }
 
-                    const warnEl = document.getElementById("imp-warning");
-                    if (warnings[metric]) {
-                        warnEl.textContent = warnings[metric];
-                        warnEl.hidden = false;
-                    } else {
-                        warnEl.hidden = true;
+                    const impEl = chartEl("hyperparameter_importance");
+                    if (impEl) {
+                        const warnEl = document.getElementById("imp-warning");
+                        if (warnings[metric]) {
+                            warnEl.textContent = warnings[metric];
+                            warnEl.hidden = false;
+                        } else {
+                            warnEl.hidden = true;
+                        }
+                        const impNone = document.getElementById("imp-none");
+                        if (fig.hyperparameter_importance) {
+                            impNone.hidden = true;
+                            impEl.hidden = false;
+                            Plotly.react(impEl, fig.hyperparameter_importance.data,
+                                         fig.hyperparameter_importance.layout, plotlyConfig);
+                        } else {
+                            Plotly.purge(impEl);
+                            impEl.hidden = true;
+                            impNone.hidden = false;
+                        }
                     }
 
-                    const impChart = document.getElementById("imp-chart");
-                    const impNone = document.getElementById("imp-none");
-                    if (fig.importance) {
-                        impNone.hidden = true;
-                        impChart.hidden = false;
-                        Plotly.react("imp-chart", fig.importance.data, fig.importance.layout, plotlyConfig);
-                    } else {
-                        Plotly.purge("imp-chart");
-                        impChart.hidden = true;
-                        impNone.hidden = false;
-                    }
-
-                    // Error vs compute is per-metric (uses this metric's incumbent).
-                    const ecChart = document.getElementById("error-compute-chart");
-                    const ecNone = document.getElementById("error-compute-none");
-                    if (fig.error_vs_compute) {
-                        ecNone.hidden = true; ecChart.hidden = false;
-                        Plotly.react(ecChart, fig.error_vs_compute.data, fig.error_vs_compute.layout, errorToggle.config);
-                        errorToggle.apply("error-compute-chart");
-                    } else {
-                        Plotly.purge(ecChart); ecChart.hidden = true; ecNone.hidden = false;
+                    // Error over time is per-metric (uses this metric's incumbent).
+                    const errEl = chartEl("error_over_time");
+                    if (errEl) {
+                        const errNone = document.getElementById("error-over-time-none");
+                        if (fig.error_over_time) {
+                            errNone.hidden = true; errEl.hidden = false;
+                            Plotly.react(errEl, fig.error_over_time.data,
+                                         fig.error_over_time.layout, errorToggle.config);
+                            errorToggle.apply(errEl.id);
+                        } else {
+                            Plotly.purge(errEl); errEl.hidden = true; errNone.hidden = false;
+                        }
                     }
 
                     document.querySelectorAll(".panel").forEach(function (el) {
@@ -375,9 +317,10 @@
                 if (select) {
                     select.addEventListener("change", () => show(select.value));
                 }
-                // The duration chart is metric-independent — render it once.
-                if (durationFig) {
-                    Plotly.newPlot("duration-chart", durationFig.data, durationFig.layout, plotlyConfig);
+                // The trial-duration chart is metric-independent — draw it once.
+                const durationEl = chartEl("trial_duration");
+                if (durationEl && durationFig) {
+                    Plotly.newPlot(durationEl, durationFig.data, durationFig.layout, plotlyConfig);
                 }
                 // Fall back to the first metric if the page rendered without a
                 // selector, so the charts never come up blank.

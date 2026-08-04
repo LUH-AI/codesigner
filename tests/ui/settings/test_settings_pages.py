@@ -9,6 +9,7 @@ outer rail, which lands on the appearance subpage.
 from django.urls import reverse
 
 from ui.models import Experiment, GlobalSettings
+from ui.services.settings import SETTING_DEFAULTS
 
 
 def _exp():
@@ -56,9 +57,13 @@ def test_experiment_settings_use_default_checkbox_clears_override(client):
 
 
 def test_default_experiment_settings_saves_global(client):
-    client.post(reverse("ui:default_experiment_settings"),
-                {"export_absolute_times": ""})  # unchecked → False
-    assert GlobalSettings.get_solo().default_experiment_settings == {"export_absolute_times": False}
+    """Posting the form stores a value for every key in the schema; an omitted
+    checkbox means off, so this posts nothing and everything lands False.
+    (The chart checkboxes are covered in test_chart_settings.py.)"""
+    client.post(reverse("ui:default_experiment_settings"), {})
+    stored = GlobalSettings.get_solo().default_experiment_settings
+    assert stored["export_absolute_times"] is False
+    assert set(stored) == set(SETTING_DEFAULTS)
 
 
 def test_appearance_page_renders(client):

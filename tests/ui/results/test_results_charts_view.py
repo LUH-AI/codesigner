@@ -1,4 +1,4 @@
-"""Step 4 (updated in Step 6): result charts render on the detail page.
+"""Result charts render on the detail page.
 
 Charts used to be checked on the synchronous new_experiment response; with
 create and run separated, they render on an experiment's detail page once it
@@ -29,8 +29,8 @@ def test_detail_includes_plotly_and_chart_containers(client):
     """The detail page loads Plotly and provides the chart mount points."""
     html, _ = _detail(client)
     assert "plotly.min.js" in html
-    assert 'id="perf-chart"' in html
-    assert 'id="imp-chart"' in html
+    assert 'id="chart-incumbent_performance"' in html
+    assert 'id="chart-hyperparameter_importance"' in html
 
 
 def test_detail_has_metric_switcher_with_all_metrics(client):
@@ -49,7 +49,7 @@ def test_embedded_figures_cover_every_metric(client):
     figures = json.loads(payload)
     for m in exp.metric_names:
         assert m in figures
-        assert figures[m]["performance"]["data"]
+        assert figures[m]["incumbent_performance"]["data"]
 
 
 def test_best_config_panel_present_per_metric(client):
