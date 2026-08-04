@@ -14,18 +14,27 @@ from django.core.files import File
 from ..models import Experiment
 
 
-def experiment_from_snapshot(snapshot: dict, dataset_file=None, model_file=None) -> Experiment:
+def experiment_from_snapshot(snapshot: dict, dataset_file=None, model_file=None,
+                             adopt_paths: bool = False) -> Experiment:
     """Create and save an Experiment row from a parsed snapshot.
 
-    The dataset is adopted into MEDIA when an uploaded *dataset_file* is given,
-    or when the snapshot's dataset_path points at a file that exists here;
-    otherwise the row is created without a dataset (browsable, not runnable).
+    Files are adopted into MEDIA from the uploads passed as *dataset_file* and
+    *model_file*. Without them the row is created without that file — browsable,
+    not runnable — which is what an imported `.ihpo` does until its dataset is
+    attached.
 
-    A custom model .py is adopted the same way — from an uploaded *model_file*,
-    or from the snapshot's model_path if it exists here — but only when
-    ALLOW_CUSTOM_MODELS is on (untrusted code is never stored on an instance
-    that has the feature disabled). Callers that pass *model_file* have already
-    gated on the flag.
+    *adopt_paths* additionally allows `dataset_path` and `model_path` to be read
+    from the snapshot as paths on this machine. It is off by default because a
+    snapshot is only as trustworthy as wherever it came from: read from an
+    uploaded file, those fields name any path the uploader likes, and adopting
+    one copies a file they were never shown into an experiment they can export.
+    Only a caller that produced the paths itself may turn it on — the create form
+    (validated choices and a temp file it just wrote) and the import command
+    (an operator naming a file on their own machine).
+
+    A custom model .py is adopted only when ALLOW_CUSTOM_MODELS is on: untrusted
+    code is never stored on an instance that has the feature disabled. Callers
+    that pass *model_file* have already gated on the flag.
     """
     exp = Experiment(
         name=snapshot["name"],
@@ -42,7 +51,7 @@ def experiment_from_snapshot(snapshot: dict, dataset_file=None, model_file=None)
     if dataset_file is not None:
         name = getattr(dataset_file, "name", None) or _dataset_name(snapshot)
         exp.dataset.save(Path(name).name, dataset_file, save=False)
-    else:
+    elif adopt_paths:
         stored = snapshot.get("dataset_path", "")
         if stored and Path(stored).is_file():
             with open(stored, "rb") as fh:
@@ -51,7 +60,7 @@ def experiment_from_snapshot(snapshot: dict, dataset_file=None, model_file=None)
     if model_file is not None:
         name = getattr(model_file, "name", None) or "model.py"
         exp.model_file.save(Path(name).name, model_file, save=False)
-    elif settings.ALLOW_CUSTOM_MODELS:
+    elif adopt_paths and settings.ALLOW_CUSTOM_MODELS:
         stored_model = snapshot.get("model_path", "")
         if stored_model and Path(stored_model).is_file():
             with open(stored_model, "rb") as fh:

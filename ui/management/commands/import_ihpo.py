@@ -20,5 +20,8 @@ class Command(BaseCommand):
         except (OSError, ValueError) as exc:
             raise CommandError(str(exc))
 
-        exp = adapter.experiment_from_snapshot(snapshot)
+        # A command run by whoever operates the server, naming a file they chose,
+        # so the dataset and model paths inside it are theirs to adopt. The web
+        # importer deliberately does not do this — see experiment_from_snapshot.
+        exp = adapter.experiment_from_snapshot(snapshot, adopt_paths=True)
         self.stdout.write(self.style.SUCCESS(f"Imported experiment {exp.name!r} (id {exp.pk})"))

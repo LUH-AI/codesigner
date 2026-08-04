@@ -29,7 +29,7 @@ def _runnable_experiment():
         "seed": 0,
         "dataset_path": str(DATASETS_DIR / "iris.csv"),
         "result": None,
-    })
+    }, adopt_paths=True)
 
 
 def test_start_background_run_executes_via_the_queue():

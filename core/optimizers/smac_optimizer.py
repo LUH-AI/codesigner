@@ -7,6 +7,7 @@ from smac import Scenario, BlackBoxFacade
 from smac.runhistory import StatusType
 from smac.runhistory.dataclasses import TrialValue
 
+from ..paths import safe_join
 from .base import BaseOptimizer, OptimizationResult, TrialCollector, TrialResult
 from .timing import timed_evaluation
 
@@ -88,7 +89,7 @@ class SMACOptimizer(BaseOptimizer):
         output_dir = Path(tempfile.mkdtemp())
         first_key = next(iter(optimizer_state))
         subdir = "/".join(first_key.split("/")[:-1])
-        smac_dir = output_dir / Path(subdir)
+        smac_dir = safe_join(output_dir, subdir) if subdir else output_dir
         smac_dir.mkdir(parents=True, exist_ok=True)
 
         # Write runhistory.json; data entries include .ihpo extensions which SMAC ignores.
@@ -103,9 +104,11 @@ class SMACOptimizer(BaseOptimizer):
         )
 
         # Write remaining SMAC files; update scenario.json's output_directory to new path.
+        # Each key is confined to output_dir: they come from the .ihpo, and an
+        # absolute or ../ key would otherwise be written wherever it pointed.
         scenario_key = f"{subdir}/scenario.json"
         for rel, content in optimizer_state.items():
-            dest = output_dir / Path(rel)
+            dest = safe_join(output_dir, rel)
             dest.parent.mkdir(parents=True, exist_ok=True)
             if rel == scenario_key:
                 content = {**content, "output_directory": str(smac_dir)}

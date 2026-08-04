@@ -36,6 +36,8 @@ from typing import Any
 import pandas as pd
 from sklearn.model_selection import train_test_split
 
+from .paths import MAX_STATE_FILES, is_safe_relative
+
 _REPO_ROOT   = Path(__file__).parent.parent
 _DATASETS_DIR = _REPO_ROOT / "datasets"
 _MODELS_DIR   = _REPO_ROOT / "mounted_models"
@@ -196,7 +198,28 @@ def parse(data: bytes) -> dict:
         if key not in snapshot:
             raise ValueError(f"missing field: {key!r}")
 
+    _check_optimizer_state(snapshot)
     return snapshot
+
+
+def _check_optimizer_state(snapshot: dict) -> None:
+    """Refuse a result whose optimizer files name paths of their own choosing.
+
+    `optimizer_state` is keyed by the relative path each file was written to,
+    and deserializing writes them back out. Checking here means a file edited to
+    point somewhere else is refused when it is read, rather than at whatever
+    later moment something happens to rebuild its result.
+    """
+    state = (snapshot.get("result") or {}).get("optimizer_state")
+    if state is None:
+        return
+    if not isinstance(state, dict):
+        raise ValueError("optimizer_state must be an object")
+    if len(state) > MAX_STATE_FILES:
+        raise ValueError(f"optimizer_state has more than {MAX_STATE_FILES} entries")
+    for name in state:
+        if not is_safe_relative(name):
+            raise ValueError(f"unsafe path in experiment file: {name!r}")
 
 
 def dataset_path_ok(snapshot: dict) -> bool:

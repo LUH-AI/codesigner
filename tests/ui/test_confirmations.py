@@ -31,7 +31,7 @@ def _runnable():
         "primary_metric": "accuracy", "original_metric": "accuracy",
         "metric_names": ["accuracy", "f1"], "seed": 0,
         "dataset_path": str(DATASETS_DIR / "iris.csv"), "result": None,
-    })
+    }, adopt_paths=True)
 
 
 def _confirmations(client):

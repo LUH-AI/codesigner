@@ -8,6 +8,7 @@ from django.conf import settings
 from django.http import HttpResponse, HttpResponseBadRequest
 from django.shortcuts import get_object_or_404, redirect, render
 from django.utils.translation import gettext as _
+from django.views.decorators.http import require_POST
 
 from core import io
 
@@ -108,8 +109,10 @@ def new_experiment(request):
             "dataset_path": dataset_path,
             "result": None,
         }
+        # This snapshot's paths were built right here: a validated demo/mounted
+        # choice, or a temp file written above — so they are ours to adopt.
         exp = snapshot_adapter.experiment_from_snapshot(
-            snapshot, model_file=cleaned.get("model_file"),
+            snapshot, model_file=cleaned.get("model_file"), adopt_paths=True,
         )
     finally:
         for path in tmp_paths:
@@ -192,8 +195,13 @@ def run_status(request, pk):
     return render(request, "ui/_run_status.html", {"experiment": exp, "run": active})
 
 
+@require_POST
 def run_cancel(request, pk):
-    """Request cancellation of the experiment's active run."""
+    """Request cancellation of the experiment's active run.
+
+    POST only: it changes something, and on GET a prefetcher or an <img> tag
+    pointing here would cancel someone's run without CSRF ever being consulted.
+    """
     exp = get_object_or_404(Experiment, pk=pk)
     exp.runs.filter(status__in=_ACTIVE).update(cancel_requested=True)
     return redirect("ui:experiment_detail", pk=pk)

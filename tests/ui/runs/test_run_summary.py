@@ -34,7 +34,7 @@ def test_execute_run_stores_trial_seconds():
         "primary_metric": None, "original_metric": None,
         "metric_names": ["accuracy", "f1", "precision", "recall(macro)"],
         "seed": 0, "dataset_path": str(DATASETS_DIR / "iris.csv"), "result": None,
-    })
+    }, adopt_paths=True)
     run = create_run(exp, n_trials=3, optimize_metric="accuracy")
     execute_run(run.id)
     run.refresh_from_db()

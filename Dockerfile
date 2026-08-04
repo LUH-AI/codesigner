@@ -26,9 +26,13 @@ RUN pip install -e . --no-deps
 
 # Bake static + compiled translations into the image. A dummy SECRET_KEY lets
 # these management commands run at build time; real secrets come in at runtime.
-ENV SECRET_KEY=build-only DEBUG=False
-RUN python manage.py collectstatic --noinput \
-    && python manage.py compilemessages -l de -l es
+# ARG, not ENV: an ENV would persist into the final image, and settings read the
+# process environment first — so a container started without a real SECRET_KEY
+# would boot on this published one rather than failing.
+ARG SECRET_KEY=build-only
+ARG DEBUG=False
+RUN SECRET_KEY=$SECRET_KEY DEBUG=$DEBUG python manage.py collectstatic --noinput \
+    && SECRET_KEY=$SECRET_KEY DEBUG=$DEBUG python manage.py compilemessages -l de -l es
 
 EXPOSE 8000
 ENTRYPOINT ["./docker-entrypoint.sh"]

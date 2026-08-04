@@ -98,7 +98,7 @@ def test_execute_run_optimizes_a_custom_model():
     """The background engine rebuilds a custom-model experiment from its row and
     runs it to completion, producing trials."""
     exp = snapshot_adapter.experiment_from_snapshot(
-        _custom_snapshot(name="cm-run"), model_file=_model_file(),
+        _custom_snapshot(name="cm-run"), model_file=_model_file(), adopt_paths=True,
     )
     run = run_service.create_run(exp, n_trials=3, optimize_metric="accuracy")
     run_service.execute_run(run.id)
@@ -115,7 +115,7 @@ def test_execute_run_optimizes_a_custom_model():
 
 def test_custom_model_with_file_is_runnable(client):
     exp = snapshot_adapter.experiment_from_snapshot(
-        _custom_snapshot(name="cm-ok"), model_file=_model_file(),
+        _custom_snapshot(name="cm-ok"), model_file=_model_file(), adopt_paths=True,
     )
     resp = client.get(reverse("ui:experiment_detail", args=[exp.pk]))
     assert resp.context["can_run"] is True

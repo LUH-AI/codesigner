@@ -36,7 +36,7 @@ def _make_experiment(metric_names=None, primary=None, original=None):
         "dataset_path": str(DATASETS_DIR / "iris.csv"),
         "result": None,
     }
-    return adapter.experiment_from_snapshot(snapshot)
+    return adapter.experiment_from_snapshot(snapshot, adopt_paths=True)
 
 
 # ── create_run ────────────────────────────────────────────────────────────────

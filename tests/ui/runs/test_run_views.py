@@ -42,7 +42,7 @@ def _experiment(**overrides):
         "metric_names": ["accuracy", "f1", "precision", "recall(macro)"],
         "seed": 0, "dataset_path": str(DATASETS_DIR / "iris.csv"), "result": None,
     }
-    return adapter.experiment_from_snapshot(snapshot)
+    return adapter.experiment_from_snapshot(snapshot, adopt_paths=True)
 
 
 # ── Create no longer runs ─────────────────────────────────────────────────────

@@ -16,5 +16,10 @@ urlpatterns = [
     path("", include("ui.urls")),
 ]
 
-if settings.DEBUG:
+# Uploaded datasets and models, served straight from disk for convenience while
+# developing. Never on an instance with accounts: MEDIA_ROOT is one flat
+# directory, so this would hand every signed-in user every other user's data at
+# a guessable URL. In the container nothing serves it at all (WhiteNoise handles
+# STATIC_ROOT only).
+if settings.DEBUG and not settings.REQUIRE_LOGIN:
     urlpatterns += static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT)

@@ -27,6 +27,12 @@ DEBUG = env("DEBUG")
 
 ALLOWED_HOSTS = env.list("ALLOWED_HOSTS", default=["localhost", "127.0.0.1"])
 
+# Whether this instance has accounts. Off is the primary case: run it locally
+# or on a trusted private network and there is no login and no per-user
+# anything. On, it is being hosted for several people — see the `access`
+# package, and the README's hosting section.
+REQUIRE_LOGIN = env.bool("REQUIRE_LOGIN", default=False)
+
 # When on, users may upload a model .py that the app imports and executes to
 # run experiments. That is arbitrary code execution by design, so it must be
 # OFF on any shared or public deployment (see README).

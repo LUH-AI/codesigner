@@ -38,7 +38,7 @@ def _experiment(**overrides):
         seed=0, dataset_path=str(DATASETS_DIR / "iris.csv"), result=None,
     )
     fields.update(overrides)
-    return adapter.experiment_from_snapshot(fields)
+    return adapter.experiment_from_snapshot(fields, adopt_paths=True)
 
 
 def _experiment_with_result():
