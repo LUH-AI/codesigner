@@ -1,0 +1,21 @@
+{% load i18n %}
+{% comment %}The experiment settings themselves — shared by the per-experiment
+page and the defaults page so the two stay identical. The per-experiment page
+wraps this in a pane it greys out while the experiment inherits the defaults.
+{% endcomment %}
+<div class="field">
+    <label class="check">
+        <input type="checkbox" name="export_absolute_times" {% if form.export_absolute_times.value %}checked{% endif %}>
+        {{ form.export_absolute_times.label }}
+    </label>
+</div>
+
+<fieldset class="check-group">
+    <legend>{% translate "Figures shown on an experiment page" %}</legend>
+    {% for field in form.figure_fields %}
+        <label class="check">
+            <input type="checkbox" name="{{ field.name }}" {% if field.value %}checked{% endif %}>
+            {{ field.label }}
+        </label>
+    {% endfor %}
+</fieldset>

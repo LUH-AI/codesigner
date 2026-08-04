@@ -6,7 +6,7 @@
 {% block content %}
     <h1>{% blocktranslate with name=experiment.name %}Settings: {{ name }}{% endblocktranslate %}</h1>
 
-    <form method="post" class="experiment-form" style="max-width: 34rem;">
+    <form method="post" class="settings-form">
         {% csrf_token %}
         <div class="field">
             <label class="check">
@@ -14,30 +14,40 @@
                 {{ form.use_default_settings.label }}
             </label>
         </div>
-        <div class="field" data-pane="overrides">
-            <label class="check">
-                <input type="checkbox" name="export_absolute_times" {% if form.export_absolute_times.value %}checked{% endif %}>
-                {{ form.export_absolute_times.label }}
-            </label>
+
+        {% comment %}The same fields as the defaults page, greyed out while this
+        experiment inherits them.{% endcomment %}
+        <div data-pane="overrides">
+            {% include "ui/_experiment_settings_fields.html" %}
         </div>
-        <div style="display: flex; gap: 0.5rem;">
+
+        <div class="actions">
             <button type="submit" class="btn-primary">{% translate "Save settings" %}</button>
-            <button type="submit" name="reset" value="1" class="btn">{% translate "Reset to default experiment settings" %}</button>
+            <button type="submit" name="reset" value="1" class="btn">{% translate "Reset to default" %}</button>
+            <button type="submit" name="save_as_default" value="1" class="btn" data-needs-overrides>{% translate "Save settings as default" %}</button>
         </div>
     </form>
 
     <p class="nav-links" style="margin-top: 1rem;">
-        <a href="{% url 'ui:default_experiment_settings' %}">{% translate "Change default experiment settings" %}</a>
+        {% comment %}The defaults are global, so this leaves the experiment behind —
+        ?next= is what lets that page offer a way back to it.{% endcomment %}
+        <a href="{% url 'ui:default_experiment_settings' %}?next={% url 'ui:experiment_detail' experiment.pk %}">{% translate "Change default experiment settings" %}</a>
     </p>
 
     <script>
-        // Hide/disable the overrides while inheriting the defaults (checkbox on).
+        // While the experiment inherits the defaults, its own settings are shown
+        // but greyed out and unusable — and there is nothing of its own to save
+        // as the default either, so that button is disabled too.
         (function () {
             const cb = document.querySelector('input[name="use_default_settings"]');
             const pane = document.querySelector('[data-pane="overrides"]');
+            if (!cb || !pane) return;
             function apply() {
-                pane.hidden = cb.checked;
+                pane.classList.toggle("pane-disabled", cb.checked);
                 pane.querySelectorAll("input").forEach(function (el) { el.disabled = cb.checked; });
+                document.querySelectorAll("[data-needs-overrides]").forEach(function (el) {
+                    el.disabled = cb.checked;
+                });
             }
             cb.addEventListener("change", apply);
             apply();

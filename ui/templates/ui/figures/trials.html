@@ -1,0 +1,28 @@
+{% load i18n %}
+{% comment %}Every trial: its outcome (scores, duration) first, then the
+configuration that produced it. The outcome columns sort on click.{% endcomment %}
+<section data-figure="{{ figure.key }}">
+    <div class="subheader">{% blocktranslate with n=result.trials|length %}Trials ({{ n }}){% endblocktranslate %}</div>
+    <div class="table-wrap table-scroll">
+        <table class="trials">
+            <thead>
+                <tr>
+                    <th class="sortable">#</th>
+                    {% for m in metric_names %}<th class="sortable">{{ m }}</th>{% endfor %}
+                    <th class="sortable">{% translate "Duration" %}</th>
+                    {% for h in hp_names %}<th{% if forloop.first %} class="group-start"{% endif %}>{{ h }}</th>{% endfor %}
+                </tr>
+            </thead>
+            <tbody>
+                {% for row in trial_rows %}
+                    <tr>
+                        <td data-sort="{{ row.n }}">{{ row.n }}</td>
+                        {% for score in row.scores %}<td data-sort="{{ score }}">{{ score|floatformat:4 }}</td>{% endfor %}
+                        <td data-sort="{{ row.duration }}">{{ row.duration|floatformat:3 }} s</td>
+                        {% for v in row.config_values %}<td{% if forloop.first %} class="group-start"{% endif %}>{{ v }}</td>{% endfor %}
+                    </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</section>

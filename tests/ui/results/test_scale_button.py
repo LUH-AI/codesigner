@@ -1,4 +1,4 @@
-"""The performance chart gets a custom modebar button toggling the y-axis
+"""The performance figure gets a custom modebar button toggling the y-axis
 between its absolute 0-1 range and auto-fit-to-data.
 
 The behaviour itself is client-side (a Plotly.relayout on click), so this pins
@@ -23,7 +23,7 @@ def _experiment_with_result():
 def test_absolute_scale_button_wired_on_detail(client):
     exp = _experiment_with_result()
     body = client.get(reverse("ui:experiment_detail", args=[exp.pk])).content.decode()
-    # a custom button is added to the performance chart's modebar…
+    # a custom button is added to the performance figure's modebar…
     assert "modeBarButtonsToAdd" in body
     # …and it toggles the y-axis to the absolute [0, 1] range
     assert "[0, 1]" in body

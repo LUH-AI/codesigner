@@ -1,0 +1,6 @@
+{% load i18n %}
+{% comment %}Metric-independent: one bar per trial, so it is drawn once.{% endcomment %}
+<section class="card" data-figure="{{ figure.key }}">
+    <div class="subheader">{{ figure.label }}</div>
+    <div id="{{ figure.dom_id }}" class="plot"></div>
+</section>

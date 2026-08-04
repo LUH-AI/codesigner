@@ -42,6 +42,19 @@ msgstr "Aún no hay experimentos."
 msgid "⚙ Settings"
 msgstr "⚙ Configuración"
 
+#: templates/base.html:25 templates/base.html:29
+msgid "Language"
+msgstr "Idioma"
+
+#: templates/base.html:42 ui/templates/ui/appearance.html:4
+#: ui/templates/ui/appearance.html:7
+msgid "Appearance"
+msgstr "Apariencia"
+
+#: ui/templates/ui/appearance.html:8
+msgid "Display and theme settings."
+msgstr "Configuración de visualización y tema."
+
 #: tests/step8/test_i18n.py:220 tests/step8/test_i18n.py:226
 #: web/templates/web/experiment_detail.html:37
 msgid "Number of trials"

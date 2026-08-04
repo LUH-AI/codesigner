@@ -1,0 +1,11 @@
+{% load i18n %}
+{% comment %}The trial clicked on the performance figure, or that metric's best
+until one is clicked. Its body is swapped in by the page script.{% endcomment %}
+{% for panel in panels %}
+    <section class="card panel selected-config" data-figure="{{ figure.key }}" data-metric="{{ panel.metric }}" hidden>
+        <div class="subheader">{{ figure.label }}</div>
+        <div id="selected-content-{{ panel.metric }}">
+            {% include "ui/_selected_config_inner.html" with sel=panel.selected %}
+        </div>
+    </section>
+{% endfor %}

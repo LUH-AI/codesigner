@@ -11,12 +11,7 @@ from django.utils.translation import gettext as _
 
 from core import io
 
-from .charts import (
-    duration_figure,
-    error_vs_compute_figure,
-    importance_figure,
-    performance_figure,
-)
+from .figures import FIGURES, FULL, HALF
 from .forms import DefaultExperimentSettingsForm, ExperimentSettingsForm, NewExperimentForm
 from .models import Experiment, GlobalSettings
 from .registry import METRICS, MODELS, OPTIMIZERS
@@ -24,7 +19,7 @@ from .services import run as run_service
 from .services import snapshot as snapshot_adapter
 from .services.run import resolve_seed
 from .services.run_logic import decide_run, resolve_metric_change
-from .services.settings import global_defaults, resolve_settings
+from .services.settings import SETTING_DEFAULTS, global_defaults, resolve_settings
 
 _ACTIVE = ["pending", "running"]
 
@@ -124,7 +119,7 @@ def new_experiment(request):
 
 
 def experiment_detail(request, pk):
-    """Show a saved experiment: its config, results/charts, run state, Run form."""
+    """Show a saved experiment: its config, results/figures, run state, Run form."""
     exp = get_object_or_404(Experiment, pk=pk)
     return render(request, "ui/experiment_detail.html", _detail_context(exp))
 
@@ -132,7 +127,7 @@ def experiment_detail(request, pk):
 def trial_panel(request, pk):
     """Render the selected-config panel for one (metric, trial index).
 
-    Backs click-to-select on the performance chart (curve 0 only, point index
+    Backs click-to-select on the performance figure (curve 0 only, point index
     into result.trials) — the browser fetches this fragment and swaps it into
     the panel for the metric currently being viewed.
     """
@@ -225,45 +220,66 @@ def experiment_export(request, pk):
     return response
 
 
+def _posted_settings(request):
+    """The settings as submitted. Every one is a checkbox, so absent means off."""
+    return {key: bool(request.POST.get(key)) for key in SETTING_DEFAULTS}
+
+
 def experiment_settings(request, pk):
-    """Per-experiment settings: inherit the global defaults, override, or reset."""
+    """One experiment's settings: inherit the defaults, override, reset, or
+    promote its own settings to be the defaults (which asks first)."""
     exp = get_object_or_404(Experiment, pk=pk)
     if request.method == "POST":
         if "reset" in request.POST or request.POST.get("use_default_settings"):
             exp.use_default_settings = True
             exp.settings = {}
-        else:
-            exp.use_default_settings = False
-            exp.settings = {"export_absolute_times": bool(request.POST.get("export_absolute_times"))}
+            exp.save(update_fields=["use_default_settings", "settings"])
+            return redirect("ui:experiment_settings", pk=pk)
+
+        posted = _posted_settings(request)
+
+        if "save_as_default" in request.POST:
+            # Ask before changing what every inheriting experiment shows.
+            return render(request, "ui/save_as_default_confirm.html", {
+                "experiment": exp,
+                "pending": [key for key, on in posted.items() if on],
+            })
+
+        if "confirm_save_as_default" in request.POST:
+            gs = GlobalSettings.get_solo()
+            gs.default_experiment_settings = posted
+            gs.save(update_fields=["default_experiment_settings"])
+            return redirect("ui:experiment_settings", pk=pk)
+
+        exp.use_default_settings = False
+        exp.settings = posted
         exp.save(update_fields=["use_default_settings", "settings"])
         return redirect("ui:experiment_settings", pk=pk)
 
-    effective = resolve_settings(exp)
     form = ExperimentSettingsForm(initial={
+        **resolve_settings(exp),
         "use_default_settings": exp.use_default_settings,
-        "export_absolute_times": effective["export_absolute_times"],
     })
     return render(request, "ui/experiment_settings.html", {"experiment": exp, "form": form})
 
 
-def global_settings(request):
-    """Global settings landing page (currently just links to the defaults)."""
-    return render(request, "ui/global_settings.html", {})
+def appearance(request):
+    """Appearance settings (display/theme options; currently a placeholder)."""
+    return render(request, "ui/appearance.html", {})
 
 
 def default_experiment_settings(request):
-    """Edit the default experiment settings that inheriting experiments use."""
+    """Edit the default experiment settings that inheriting experiments use.
+
+    Every key in the schema is a checkbox, so an absent key means unchecked.
+    """
     gs = GlobalSettings.get_solo()
     if request.method == "POST":
-        gs.default_experiment_settings = {
-            "export_absolute_times": bool(request.POST.get("export_absolute_times")),
-        }
+        gs.default_experiment_settings = _posted_settings(request)
         gs.save(update_fields=["default_experiment_settings"])
         return redirect("ui:default_experiment_settings")
 
-    form = DefaultExperimentSettingsForm(initial={
-        "export_absolute_times": global_defaults()["export_absolute_times"],
-    })
+    form = DefaultExperimentSettingsForm(initial=global_defaults())
     return render(request, "ui/default_experiment_settings.html", {"form": form})
 
 
@@ -338,11 +354,11 @@ def _selected_panel_data(result, metric, idx):
 
 
 def _detail_context(exp):
-    """Detail-page context: identity, run state, per-metric panels and figures.
+    """Detail-page context: identity, run state, and the figures to draw.
 
     Rebuilds the OptimizationResult from the stored snapshot (read-only) and,
-    when present, builds each metric's best-config panel and performance /
-    importance figures; the browser switches metrics client-side.
+    when present, builds the panels and per-metric figures for whichever figures
+    the settings have switched on; the browser switches metrics client-side.
     """
     result = _rebuild_result(exp)
     metric_names = list(exp.metric_names)
@@ -379,37 +395,50 @@ def _detail_context(exp):
     if result is None:
         return context
 
-    panels, figures = [], {}
+    # Which figures to draw. A figure that is switched off is not rendered and
+    # its plot is not built, so nothing is computed or shipped to go unused.
+    shown = resolve_settings(exp)
+    figures = [figure for figure in FIGURES if shown[figure.setting_key]]
+
+    def plot_json(figure, metric=None):
+        """A figure's plot as JSON, or None when it draws no plot / has no data."""
+        plot = figure.plot(result, metric)
+        return json.loads(plot.to_json()) if plot is not None else None
+
+    panels = []
     for m in metric_names:
         best_idx = max(range(len(result.trials)),
                        key=lambda i: result.trials[i].scores[m])
         best = result.trials[best_idx]
-        perf = performance_figure(result, m, selected_idx=best_idx)
-        imp = importance_figure(result, m)
         panels.append({
             "metric": m,
             "best_n": best.trial,
             "best_score": best.scores[m],
             "best_config": list(best.config.items()),
             "warning": result.hyperparameter_importance_warning.get(m),
-            "has_importance": imp is not None,
             # No selection has been clicked yet, so it defaults to the best trial.
             "selected": _selected_panel_data(result, m, best_idx),
         })
-        evc = error_vs_compute_figure(result, m)
-        figures[m] = {
-            "performance": json.loads(perf.to_json()),
-            "importance": json.loads(imp.to_json()) if imp is not None else None,
-            "error_vs_compute": json.loads(evc.to_json()) if evc is not None else None,
-        }
+
+    # Plots, keyed by figure, built straight off the catalog — per-metric ones
+    # for every metric (the browser switches between them), the rest once.
+    metric_plots = {
+        m: {f.key: plot_json(f, m) for f in figures if f.per_metric}
+        for m in metric_names
+    }
+    static_plots = {f.key: plot_json(f) for f in figures if not f.per_metric}
+    static_plots = {key: plot for key, plot in static_plots.items() if plot is not None}
 
     hp_names = list(result.trials[0].config.keys()) if result.trials else []
-    dfig = duration_figure(result)
     context.update(
         result=result,
         panels=panels,
-        figures=figures,
-        duration_figure=json.loads(dfig.to_json()) if dfig is not None else None,
+        metric_plots=metric_plots,
+        static_plots=static_plots,
+        # Each figure's declared display behavior, for the page script.
+        figure_options={f.key: {"absoluteScale": f.absolute_scale} for f in figures},
+        half_figures=[f for f in figures if f.width == HALF],
+        full_figures=[f for f in figures if f.width == FULL],
         hp_names=hp_names,
         trial_rows=[
             {

@@ -5,16 +5,13 @@
 
 {% block content %}
     <h1>{% translate "Default experiment settings" %}</h1>
-    <p class="caption">{% translate "New experiments use these unless they override them." %}</p>
+    <p class="caption">{% translate "Experiments use these unless they have their own." %}</p>
 
-    <form method="post" style="max-width: 34rem;">
+    <form method="post" class="settings-form">
         {% csrf_token %}
-        <div class="field">
-            <label class="check">
-                <input type="checkbox" name="export_absolute_times" {% if form.export_absolute_times.value %}checked{% endif %}>
-                {{ form.export_absolute_times.label }}
-            </label>
+        {% include "ui/_experiment_settings_fields.html" %}
+        <div class="actions">
+            <button type="submit" class="btn-primary">{% translate "Save settings" %}</button>
         </div>
-        <button type="submit" class="btn-primary">{% translate "Save defaults" %}</button>
     </form>
 {% endblock %}

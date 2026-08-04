@@ -4,13 +4,17 @@ Precedence per key: an experiment's own `settings` (when it isn't inheriting)
 → the global default experiment settings → the built-in `SETTING_DEFAULTS`.
 """
 
+from ..figures import FIGURES
 from ..models import GlobalSettings
 
-# The experiment-settings schema and its built-in fallbacks. The first (and
-# for now only) setting controls whether absolute timestamps are kept when an
-# .ihpo is exported.
+# The experiment-settings schema and its built-in fallbacks:
+#   export_absolute_times — keep absolute timestamps when exporting an .ihpo
+#   show_<figure>          — draw that figure on an experiment page
+# The figure flags come from the catalog rather than being listed here, so
+# declaring a figure is all it takes to give it a setting.
 SETTING_DEFAULTS = {
     "export_absolute_times": True,
+    **{figure.setting_key: True for figure in FIGURES},
 }
 
 

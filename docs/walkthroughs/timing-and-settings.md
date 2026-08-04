@@ -44,7 +44,7 @@ spent evaluating trials, and which trials were worth their time.
   (resumed-from trials excluded). The detail page shows **"Last run finished in
   T s — X s in trials, O s overhead"** (overhead = total − trial time = the
   search/bookkeeping SMAC and Codesigner spent between evaluations).
-- Two figures in `charts.py`: **Trial duration** (per-trial seconds,
+- Two figures in `figures.py`: **Trial duration** (per-trial seconds,
   metric-independent, rendered once) and **Gain per unit time** (per-metric:
   each trial's incumbent improvement ÷ its duration — the marginal value of the
   trial; first/non-improving/zero-duration trials are 0). Placed in a timing
@@ -79,7 +79,7 @@ reset) · ✅ global + defaults pages · ✅ ⚙ + sidebar links · ✅ admin.
 
 ## What is now possible
 
-- Read each trial's **duration** in the trials table and as a chart.
+- Read each trial's **duration** in the trials table and as a figure.
 - See a run's **total time and overhead**, and each trial's **value per
   second** (gain-per-time) to judge diminishing returns.
 - Set, per experiment or as a global default, whether an exported `.ihpo`

@@ -1,16 +1,15 @@
-{% extends "base.html" %}
+{% extends "ui/_confirm_page.html" %}
 {% load i18n %}
 
-{% block title %}{% blocktranslate with name=experiment.name %}Delete {{ name }}{% endblocktranslate %} · Codesigner{% endblock %}
+{% block confirm_title %}{% blocktranslate with name=experiment.name %}Delete {{ name }}{% endblocktranslate %}{% endblock %}
+{% block confirm_heading %}{% translate "Delete experiment" %}{% endblock %}
 
-{% block content %}
-    <h1>{% translate "Delete experiment" %}</h1>
-    <div class="alert warning" style="max-width: 34rem;">
-        {% blocktranslate with name=experiment.name ref=experiment.identifier %}Are you sure you want to delete <strong>{{ name }}</strong> (<code>{{ ref }}</code>)? This cannot be undone.{% endblocktranslate %}
-    </div>
-    <form method="post" style="margin-top: 1rem; display: flex; gap: 0.5rem;">
-        {% csrf_token %}
-        <button type="submit" class="btn-primary">{% translate "Delete" %}</button>
-        <a class="btn" href="{% url 'ui:experiment_detail' experiment.pk %}">{% translate "Cancel" %}</a>
-    </form>
+{% block confirm_message %}
+    {% blocktranslate with name=experiment.name ref=experiment.identifier %}Are you sure you want to delete <strong>{{ name }}</strong> (<code>{{ ref }}</code>)? This cannot be undone.{% endblocktranslate %}
 {% endblock %}
+
+{% block confirm_buttons %}
+    <button type="submit" class="btn-primary">{% translate "Delete" %}</button>
+{% endblock %}
+
+{% block confirm_cancel %}{% url 'ui:experiment_detail' experiment.pk %}{% endblock %}

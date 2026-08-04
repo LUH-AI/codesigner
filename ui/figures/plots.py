@@ -1,4 +1,9 @@
-"""Plotly figure builders for the results panels.
+"""Plotly chart builders, one per figure that draws a figure.
+
+Each is named for the figure it backs (see `catalog.py`), so
+`incumbent_performance_plot` fills the "Performance of Incumbent" figure. The
+other figures — best/selected configuration and trials — are tables, and are
+built by their templates from the view's context rather than from here.
 
 Pure functions: given an OptimizationResult and a metric, return a
 plotly.graph_objects.Figure (or None). No Django, no request state — the view
@@ -21,7 +26,7 @@ def incumbent_scores(result, display_metric):
     return out
 
 
-def performance_figure(result, display_metric, selected_idx=None):
+def incumbent_performance_plot(result, display_metric, selected_idx=None):
     """Scatter of each trial's score with the running-best line overlaid.
 
     The point at *selected_idx* (default: none) is enlarged and recolored, the
@@ -56,7 +61,7 @@ def performance_figure(result, display_metric, selected_idx=None):
     return fig
 
 
-def importance_figure(result, display_metric):
+def hyperparameter_importance_plot(result, display_metric):
     """Donut of hyperparameter importance for *display_metric*.
 
     Returns None when no importance was computed for the metric (the caller
@@ -73,7 +78,7 @@ def importance_figure(result, display_metric):
     return fig
 
 
-def duration_figure(result):
+def trial_duration_plot(result):
     """Bar of each trial's evaluation duration (seconds). Metric-independent.
 
     Returns None when there are no trials.
@@ -92,7 +97,7 @@ def duration_figure(result):
     return fig
 
 
-def error_vs_compute_figure(result, display_metric):
+def error_over_time_plot(result, display_metric):
     """Remaining error (1 − best-so-far) against cumulative trial time — an
     "anytime performance" curve: how the error comes down as compute is spent.
 

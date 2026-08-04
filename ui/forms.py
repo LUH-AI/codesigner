@@ -7,6 +7,7 @@ from django.utils.translation import gettext_lazy as _
 
 from core.io import demo_datasets, load_model_from_path, mounted_models
 
+from .figures import FIGURES
 from .registry import MODELS, OPTIMIZERS
 
 
@@ -94,14 +95,37 @@ class NewExperimentForm(forms.Form):
 _EXPORT_ABS_LABEL = _("Include absolute timestamps in exported .ihpo files")
 
 
-class DefaultExperimentSettingsForm(forms.Form):
-    """The default experiment settings, edited on the global settings subpage."""
+class ExperimentSettingsFields(forms.Form):
+    """The experiment settings themselves.
+
+    Both settings pages show exactly these, so both forms inherit them: the
+    defaults page edits the template new experiments follow, the per-experiment
+    page edits one experiment's own copy. One field per figure (`show_<key>`)
+    comes from the catalog, so a newly declared figure gets its checkbox on both
+    pages without touching this class.
+    """
 
     export_absolute_times = forms.BooleanField(label=_EXPORT_ABS_LABEL, required=False)
 
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        for figure in FIGURES:
+            self.fields[figure.setting_key] = forms.BooleanField(
+                label=figure.label, required=False,
+            )
 
-class ExperimentSettingsForm(forms.Form):
-    """One experiment's settings: inherit the defaults, or override them."""
+    @property
+    def figure_fields(self):
+        """The figure checkboxes, in catalog order — for the template to loop."""
+        return [self[figure.setting_key] for figure in FIGURES]
 
-    use_default_settings = forms.BooleanField(label=_("Use default experiment settings"), required=False)
-    export_absolute_times = forms.BooleanField(label=_EXPORT_ABS_LABEL, required=False)
+
+class DefaultExperimentSettingsForm(ExperimentSettingsFields):
+    """The defaults every inheriting experiment uses."""
+
+
+class ExperimentSettingsForm(ExperimentSettingsFields):
+    """One experiment's settings, plus whether it just inherits the defaults."""
+
+    use_default_settings = forms.BooleanField(
+        label=_("Use default experiment settings"), required=False)

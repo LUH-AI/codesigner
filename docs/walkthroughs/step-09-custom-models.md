@@ -79,7 +79,7 @@ From the Streamlit custom-model handling. ✅ done · 🔄 changed · ⏭ deferr
 - ✅ Create an experiment with an uploaded custom model `.py`
 - ✅ Upload validated by loading it; invalid file → form error, not a crash
 - ✅ `model_name` resolves to the model's declared `.name`
-- ✅ Run a custom-model experiment (trials, results, charts — all as normal)
+- ✅ Run a custom-model experiment (trials, results, figures — all as normal)
 - ✅ Export carries `model_path`; import adopts an attached model file
 - ✅ Read-only when the model file is missing or the feature is disabled
 - ✅ `ALLOW_CUSTOM_MODELS` gate: no upload UI, no adoption, no runs when off

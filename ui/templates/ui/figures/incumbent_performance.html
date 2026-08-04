@@ -1,0 +1,6 @@
+{% load i18n %}
+{% comment %}Clicking a point here selects that trial (see selected_configuration).{% endcomment %}
+<section class="card" data-figure="{{ figure.key }}">
+    <div class="subheader">{{ figure.label }}</div>
+    <div id="{{ figure.dom_id }}" class="plot"></div>
+</section>

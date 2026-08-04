@@ -1,0 +1,35 @@
+{% extends "base.html" %}
+{% load i18n %}
+
+{% comment %}
+The site's confirmation page — extend it for anything that should ask before it
+happens, so every "are you sure" looks and behaves the same: a heading, the
+consequence stated plainly, the button(s) that carry it out, and Cancel going
+back where the user came from.
+
+    {% extends "ui/_confirm_page.html" %}
+    {% block confirm_heading %}Delete experiment{% endblock %}
+    {% block confirm_message %}...what will happen...{% endblock %}
+    {% block confirm_buttons %}<button class="btn-primary" ...>Delete</button>{% endblock %}
+    {% block confirm_cancel %}{% url 'ui:experiment_detail' experiment.pk %}{% endblock %}
+
+Leave confirm_action empty to post back to the same URL. Extra data the action
+needs goes in confirm_fields as hidden inputs.
+{% endcomment %}
+
+{% block title %}{% block confirm_title %}{% endblock %} · Codesigner{% endblock %}
+
+{% block content %}
+    <h1>{% block confirm_heading %}{% endblock %}</h1>
+
+    <div class="alert warning confirm-message">
+        {% block confirm_message %}{% endblock %}
+    </div>
+
+    <form method="post" action="{% block confirm_action %}{% endblock %}" class="confirm-actions">
+        {% csrf_token %}
+        {% block confirm_fields %}{% endblock %}
+        {% block confirm_buttons %}{% endblock %}
+        <a class="btn" href="{% block confirm_cancel %}{% endblock %}">{% translate "Cancel" %}</a>
+    </form>
+{% endblock %}
