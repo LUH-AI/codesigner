@@ -120,7 +120,9 @@ def test_metric_change_warning_states_the_reproducibility_cost(client, no_thread
     exp = _experiment(primary_metric="accuracy", original_metric="accuracy")
     body = client.post(reverse("ui:experiment_run", args=[exp.pk]),
                        {"n_trials": 3, "optimize_metric": "f1"}).content.decode()
-    warning = body.split('class="alert warning"', 1)[-1].split("</div>", 1)[0]
+    # the consequence is stated in the confirmation page's message block
+    assert "confirm-message" in body, "not the shared confirmation page"
+    warning = body.split("confirm-message", 1)[1].split("</div>", 1)[0]
 
     assert "reproduc" in warning.lower()
     # each metric is named once in the warning; the old copy repeated the original

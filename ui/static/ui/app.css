@@ -301,6 +301,20 @@ hr.divider { border: none; border-top: 1px solid var(--border); margin: 1.5rem 0
 .field label.check { display: inline-flex; align-items: center; gap: 0.4rem; font-weight: normal; }
 .field label.check input[type="checkbox"] { width: auto; }
 
+/* Settings pages: the per-experiment and defaults pages show the same fields,
+   so they share a width. */
+.settings-form { max-width: 34rem; }
+.settings-form .actions { display: flex; gap: 0.5rem; flex-wrap: wrap; margin-top: 1rem; }
+
+/* Settings an experiment is inheriting rather than setting: shown so you can
+   see what they are, greyed out because editing them here would do nothing. */
+.pane-disabled { opacity: 0.5; }
+.pane-disabled, .pane-disabled * { cursor: not-allowed; }
+
+/* Confirmation pages (ui/_confirm_page.html). */
+.confirm-message { max-width: 40rem; }
+.confirm-actions { display: flex; gap: 0.5rem; margin-top: 1rem; flex-wrap: wrap; }
+
 /* A titled list of related checkboxes (e.g. which figures to show). */
 .check-group {
     border: 1px solid var(--border);

@@ -220,23 +220,45 @@ def experiment_export(request, pk):
     return response
 
 
+def _posted_settings(request):
+    """The settings as submitted. Every one is a checkbox, so absent means off."""
+    return {key: bool(request.POST.get(key)) for key in SETTING_DEFAULTS}
+
+
 def experiment_settings(request, pk):
-    """Per-experiment settings: inherit the global defaults, override, or reset."""
+    """One experiment's settings: inherit the defaults, override, reset, or
+    promote its own settings to be the defaults (which asks first)."""
     exp = get_object_or_404(Experiment, pk=pk)
     if request.method == "POST":
         if "reset" in request.POST or request.POST.get("use_default_settings"):
             exp.use_default_settings = True
             exp.settings = {}
-        else:
-            exp.use_default_settings = False
-            exp.settings = {"export_absolute_times": bool(request.POST.get("export_absolute_times"))}
+            exp.save(update_fields=["use_default_settings", "settings"])
+            return redirect("ui:experiment_settings", pk=pk)
+
+        posted = _posted_settings(request)
+
+        if "save_as_default" in request.POST:
+            # Ask before changing what every inheriting experiment shows.
+            return render(request, "ui/save_as_default_confirm.html", {
+                "experiment": exp,
+                "pending": [key for key, on in posted.items() if on],
+            })
+
+        if "confirm_save_as_default" in request.POST:
+            gs = GlobalSettings.get_solo()
+            gs.default_experiment_settings = posted
+            gs.save(update_fields=["default_experiment_settings"])
+            return redirect("ui:experiment_settings", pk=pk)
+
+        exp.use_default_settings = False
+        exp.settings = posted
         exp.save(update_fields=["use_default_settings", "settings"])
         return redirect("ui:experiment_settings", pk=pk)
 
-    effective = resolve_settings(exp)
     form = ExperimentSettingsForm(initial={
+        **resolve_settings(exp),
         "use_default_settings": exp.use_default_settings,
-        "export_absolute_times": effective["export_absolute_times"],
     })
     return render(request, "ui/experiment_settings.html", {"experiment": exp, "form": form})
 
@@ -253,9 +275,7 @@ def default_experiment_settings(request):
     """
     gs = GlobalSettings.get_solo()
     if request.method == "POST":
-        gs.default_experiment_settings = {
-            key: bool(request.POST.get(key)) for key in SETTING_DEFAULTS
-        }
+        gs.default_experiment_settings = _posted_settings(request)
         gs.save(update_fields=["default_experiment_settings"])
         return redirect("ui:default_experiment_settings")
 

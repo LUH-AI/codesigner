@@ -1,0 +1,25 @@
+{% extends "ui/_confirm_page.html" %}
+{% load i18n %}
+
+{% block confirm_title %}{% translate "Save as default" %}{% endblock %}
+{% block confirm_heading %}{% translate "Make these the default settings?" %}{% endblock %}
+
+{% block confirm_message %}
+    {% blocktranslate %}These settings become the defaults for every experiment that
+    uses them, including existing ones. Experiments with their own settings are
+    unaffected.{% endblocktranslate %}
+{% endblock %}
+
+{% block confirm_fields %}
+    {% comment %}Carry the submitted settings through the confirmation; an
+    unchecked box simply isn't here, as in the form itself.{% endcomment %}
+    {% for key in pending %}
+        <input type="hidden" name="{{ key }}" value="on">
+    {% endfor %}
+{% endblock %}
+
+{% block confirm_buttons %}
+    <button type="submit" name="confirm_save_as_default" value="1" class="btn-primary">{% translate "Save as default" %}</button>
+{% endblock %}
+
+{% block confirm_cancel %}{% url 'ui:experiment_settings' experiment.pk %}{% endblock %}

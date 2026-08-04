@@ -1,9 +1,9 @@
-"""The settings pages: per-experiment, appearance, and default-experiment-settings.
+"""The settings pages are reachable and save.
 
-Per-experiment settings inherit the global defaults (a checkbox), can override
-them, and can be reset to them. The defaults subpage edits the global template.
-Both are reachable — a ⚙ link on the experiment page and a Settings tab in the
-outer rail, which lands on the appearance subpage.
+A ⚙ link on the experiment page reaches its settings; a Settings tab in the
+outer rail lands on the appearance subpage, which links on to the defaults.
+What the two experiment-settings pages contain, and how saving them behaves, is
+covered in test_settings_page_parity.py.
 """
 
 from django.urls import reverse
@@ -18,33 +18,7 @@ def _exp():
         metric_names=["accuracy"], seed=0)
 
 
-def test_experiment_settings_page_renders(client):
-    exp = _exp()
-    resp = client.get(reverse("ui:experiment_settings", args=[exp.pk]))
-    assert resp.status_code == 200
-    body = resp.content.decode()
-    assert 'name="use_default_settings"' in body
-    assert 'name="export_absolute_times"' in body
 
-
-def test_experiment_settings_saves_an_override(client):
-    exp = _exp()
-    client.post(reverse("ui:experiment_settings", args=[exp.pk]),
-                {"export_absolute_times": ""})  # use_default unchecked, export unchecked
-    exp.refresh_from_db()
-    assert exp.use_default_settings is False
-    assert exp.settings == {"export_absolute_times": False}
-
-
-def test_experiment_settings_reset_restores_defaults(client):
-    exp = _exp()
-    exp.use_default_settings = False
-    exp.settings = {"export_absolute_times": False}
-    exp.save()
-    client.post(reverse("ui:experiment_settings", args=[exp.pk]), {"reset": "1"})
-    exp.refresh_from_db()
-    assert exp.use_default_settings is True
-    assert exp.settings == {}
 
 
 def test_experiment_settings_use_default_checkbox_clears_override(client):

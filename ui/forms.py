@@ -95,11 +95,14 @@ class NewExperimentForm(forms.Form):
 _EXPORT_ABS_LABEL = _("Include absolute timestamps in exported .ihpo files")
 
 
-class DefaultExperimentSettingsForm(forms.Form):
-    """The default experiment settings, edited on the global settings subpage.
+class ExperimentSettingsFields(forms.Form):
+    """The experiment settings themselves.
 
-    One field per figure (`show_<key>`) is added from the catalog, so a newly
-    declared figure gets its checkbox without touching this class.
+    Both settings pages show exactly these, so both forms inherit them: the
+    defaults page edits the template new experiments follow, the per-experiment
+    page edits one experiment's own copy. One field per figure (`show_<key>`)
+    comes from the catalog, so a newly declared figure gets its checkbox on both
+    pages without touching this class.
     """
 
     export_absolute_times = forms.BooleanField(label=_EXPORT_ABS_LABEL, required=False)
@@ -117,8 +120,12 @@ class DefaultExperimentSettingsForm(forms.Form):
         return [self[figure.setting_key] for figure in FIGURES]
 
 
-class ExperimentSettingsForm(forms.Form):
-    """One experiment's settings: inherit the defaults, or override them."""
+class DefaultExperimentSettingsForm(ExperimentSettingsFields):
+    """The defaults every inheriting experiment uses."""
 
-    use_default_settings = forms.BooleanField(label=_("Use default experiment settings"), required=False)
-    export_absolute_times = forms.BooleanField(label=_EXPORT_ABS_LABEL, required=False)
+
+class ExperimentSettingsForm(ExperimentSettingsFields):
+    """One experiment's settings, plus whether it just inherits the defaults."""
+
+    use_default_settings = forms.BooleanField(
+        label=_("Use default experiment settings"), required=False)

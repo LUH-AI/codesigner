@@ -1,24 +1,27 @@
-{% extends "base.html" %}
+{% extends "ui/_confirm_page.html" %}
 {% load i18n %}
 
-{% block title %}{% translate "Change metric" %} · {{ experiment.name }}{% endblock %}
+{% block confirm_title %}{% translate "Change metric" %}{% endblock %}
+{% block confirm_heading %}{% translate "Change the optimized metric?" %}{% endblock %}
 
-{% block content %}
-    <h1>{% translate "Change the optimized metric?" %}</h1>
-    <div class="alert warning" style="max-width: 40rem;">
-        {% blocktranslate with original=experiment.original_metric chosen=chosen %}
-        These trials optimize <strong>{{ original }}</strong>. Switching to
-        <strong>{{ chosen }}</strong> mixes two objectives in one experiment, so its
-        results can no longer be reproduced from the seed and setup alone.
-        {% endblocktranslate %}
-    </div>
-    <form method="post" action="{% url 'ui:experiment_run' experiment.pk %}"
-          style="display: flex; gap: 0.5rem; margin-top: 1rem; flex-wrap: wrap;">
-        {% csrf_token %}
-        <input type="hidden" name="optimize_metric" value="{{ chosen }}">
-        <input type="hidden" name="n_trials" value="{{ n_trials }}">
-        <button type="submit" name="decision" value="new" class="btn-primary">{% blocktranslate with chosen=chosen %}Optimize {{ chosen }}{% endblocktranslate %}</button>
-        <button type="submit" name="decision" value="old" class="btn">{% blocktranslate with original=experiment.original_metric %}Keep optimizing {{ original }}{% endblocktranslate %}</button>
-        <a class="btn" href="{% url 'ui:experiment_detail' experiment.pk %}">{% translate "Cancel" %}</a>
-    </form>
+{% block confirm_message %}
+    {% blocktranslate with original=experiment.original_metric chosen=chosen %}
+    These trials optimize <strong>{{ original }}</strong>. Switching to
+    <strong>{{ chosen }}</strong> mixes two objectives in one experiment, so its
+    results can no longer be reproduced from the seed and setup alone.
+    {% endblocktranslate %}
 {% endblock %}
+
+{% block confirm_action %}{% url 'ui:experiment_run' experiment.pk %}{% endblock %}
+
+{% block confirm_fields %}
+    <input type="hidden" name="optimize_metric" value="{{ chosen }}">
+    <input type="hidden" name="n_trials" value="{{ n_trials }}">
+{% endblock %}
+
+{% block confirm_buttons %}
+    <button type="submit" name="decision" value="new" class="btn-primary">{% blocktranslate with chosen=chosen %}Optimize {{ chosen }}{% endblocktranslate %}</button>
+    <button type="submit" name="decision" value="old" class="btn">{% blocktranslate with original=experiment.original_metric %}Keep optimizing {{ original }}{% endblocktranslate %}</button>
+{% endblock %}
+
+{% block confirm_cancel %}{% url 'ui:experiment_detail' experiment.pk %}{% endblock %}
