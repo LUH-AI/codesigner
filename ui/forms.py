@@ -1,11 +1,11 @@
-import os
-import tempfile
+from pathlib import Path
 
 from django import forms
 from django.conf import settings
 from django.utils.translation import gettext_lazy as _
 
-from core.io import demo_datasets, load_model_from_path, mounted_models
+from core.io import demo_datasets, mounted_models
+from core.model_source import inspect_model_source
 
 from .figures import FIGURES
 from .registry import MODELS, OPTIMIZERS
@@ -49,23 +49,18 @@ class NewExperimentForm(forms.Form):
     def clean(self):
         cleaned = super().clean()
 
-        # Model: an uploaded .py (validated by loading it) takes precedence;
-        # otherwise a registry choice is required. A valid custom file resolves
-        # the stored model_name to the model's own .name.
+        # Model: a custom .py takes precedence over a registry choice, and is
+        # read rather than run — see core.model_source. Its declared name and
+        # dependencies are carried through for the view to record; whether it
+        # actually imports is settled later, in its own environment.
         upload = cleaned.get("model_file")
         mounted = cleaned.get("mounted_model")
         if upload:
-            resolved, err = self._load_uploaded_model(upload)
-            if err:
-                self.add_error("model_file", err)
-            else:
-                cleaned["model_name"] = resolved
+            source = upload.read()
+            upload.seek(0)
+            self._read_model_source(cleaned, source, "model_file")
         elif mounted:
-            model, err = load_model_from_path(mounted)
-            if err:
-                self.add_error("mounted_model", err)
-            else:
-                cleaned["model_name"] = model.name
+            self._read_model_source(cleaned, Path(mounted).read_bytes(), "mounted_model")
         elif not cleaned.get("model_name"):
             self.add_error("model_name", _("Choose a model or upload a model .py file."))
 
@@ -73,23 +68,14 @@ class NewExperimentForm(forms.Form):
             raise forms.ValidationError(_("Choose a demo dataset or upload a CSV file."))
         return cleaned
 
-    @staticmethod
-    def _load_uploaded_model(upload):
-        """Validate an uploaded model file by loading it; return (name, error).
-
-        The upload is written to a temp file so load_model_from_path can import
-        it, then rewound so the view can still persist it to storage.
-        """
-        data = upload.read()
-        upload.seek(0)
-        tmp = tempfile.NamedTemporaryFile(suffix=".py", delete=False)
-        try:
-            tmp.write(data)
-            tmp.close()
-            model, err = load_model_from_path(tmp.name)
-        finally:
-            os.unlink(tmp.name)
-        return (None, err) if err else (model.name, None)
+    def _read_model_source(self, cleaned, source: bytes, field: str) -> None:
+        """Inspect a custom model's source, recording its name or an error."""
+        info, err = inspect_model_source(source)
+        if err:
+            self.add_error(field, err)
+            return
+        cleaned["model_name"] = info.name
+        cleaned["model_source"] = info
 
 
 _EXPORT_ABS_LABEL = _("Include absolute timestamps in exported .ihpo files")
