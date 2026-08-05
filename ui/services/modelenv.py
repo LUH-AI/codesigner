@@ -373,6 +373,45 @@ def resolve_runner(exp) -> tuple[list[str] | None, str]:
     return None, ""
 
 
+def start_preparation(exp, info=None) -> None:
+    """Queue an environment build for *exp*, if it needs one.
+
+    Called after creating or importing an experiment with a custom model, and by
+    the retry button. What the source declared is recorded first so the page can
+    show it while the build is still running.
+    """
+    from ..models import Experiment
+    from ..tasks import prepare_model_env_task
+    from .dispatch import enqueue
+
+    if not (exp.model_file and settings.ALLOW_CUSTOM_MODELS):
+        return
+
+    meta = dict(exp.env_meta or {})
+    if info is not None:
+        meta.update({"dependencies": list(info.dependencies),
+                     "requires_python": info.requires_python,
+                     "class_name": info.class_name})
+    Experiment.objects.filter(pk=exp.pk).update(
+        env_status=Experiment.ENV_PENDING, env_error="", env_meta=meta)
+
+    enqueue(prepare_model_env_task, exp.pk)
+
+
+def sweep_stale_environments() -> int:
+    """Fail environments left ``preparing`` by an interrupted worker.
+
+    Run at worker startup, beside the stale-run sweep. Deliberately not
+    re-queued: a build that killed the worker would restart-loop, so the user
+    presses Try again instead.
+    """
+    from ..models import Experiment
+
+    return Experiment.objects.filter(env_status=Experiment.ENV_PREPARING).update(
+        env_status=Experiment.ENV_FAILED,
+        env_error="Interrupted by a restart. Try preparing it again.")
+
+
 def session_kwargs() -> dict:
     """How `core.modelhost.model_session` should be configured here.
 

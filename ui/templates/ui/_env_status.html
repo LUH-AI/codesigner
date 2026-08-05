@@ -1,0 +1,17 @@
+{% load i18n %}
+{% comment %}Polled while a model's environment is built. Same shape as
+_run_status.html, so poll.js needs no changes: this partial replaces itself
+every two seconds until the view answers with HX-Refresh instead.{% endcomment %}
+<div id="env-status" class="card" hx-get="{% url 'ui:env_status' experiment.pk %}"
+     hx-trigger="every 2s" hx-swap="outerHTML" style="max-width: 34rem;">
+    <div class="alert info" style="display: flex; align-items: center; gap: 0.5rem;">
+        <span class="spinner"></span>
+        {% translate "Preparing this model's environment…" %}
+    </div>
+    {% if experiment.env_meta.dependencies %}
+        <p class="caption" style="margin-top: 0.75rem;">
+            {% blocktranslate with deps=experiment.env_meta.dependencies|join:", " %}Installing {{ deps }}.{% endblocktranslate %}
+            {% translate "The first build of an environment can take several minutes." %}
+        </p>
+    {% endif %}
+</div>

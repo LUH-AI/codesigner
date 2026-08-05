@@ -26,6 +26,30 @@
         <div class="alert error" style="max-width: 40rem;">{% blocktranslate %}Run failed: {{ run_error }}{% endblocktranslate %}</div>
     {% endif %}
 
+    {% if env.pending %}
+        {% comment %}Nothing can run until the environment exists, so this
+        replaces the Run form rather than sitting beside it.{% endcomment %}
+        {% include "ui/_env_status.html" %}
+    {% elif env.failed %}
+        <div class="alert error" style="max-width: 40rem;">
+            <p>{% translate "This model's environment could not be built." %}</p>
+            <pre style="white-space: pre-wrap; margin-top: 0.5rem;">{{ env.error }}</pre>
+        </div>
+        <form method="post" action="{% url 'ui:prepare_env' summary.pk %}" style="margin-top: 0.75rem;">
+            {% csrf_token %}
+            <button type="submit" class="btn">{% translate "Try again" %}</button>
+        </form>
+    {% elif env.in_process %}
+        <div class="alert warning" style="max-width: 40rem;">
+            <p>{% translate "This model runs inside the application's own Python environment, not one of its own — so the dependencies it declares are ignored." %}</p>
+            <p style="margin-top: 0.5rem;">{{ env.error }}</p>
+        </div>
+        <form method="post" action="{% url 'ui:prepare_env' summary.pk %}" style="margin-top: 0.75rem;">
+            {% csrf_token %}
+            <button type="submit" class="btn">{% translate "Prepare an isolated environment" %}</button>
+        </form>
+    {% endif %}
+
     {% if active_run %}
         {% include "ui/_run_status.html" with run=active_run %}
         {% if has_result %}
@@ -49,6 +73,9 @@
                 </div>
                 <button type="submit" class="btn-primary">{% translate "▶ Run" %}</button>
             </form>
+            {% if env.ready and env.summary %}
+                <p class="caption" style="margin-top: 0.75rem;">{% blocktranslate with summary=env.summary %}Environment: {{ summary }}{% endblocktranslate %}</p>
+            {% endif %}
         </section>
     {% elif has_result %}
         <section class="card">

@@ -17,6 +17,7 @@ from .forms import DefaultExperimentSettingsForm, ExperimentSettingsForm, NewExp
 from .models import Experiment, GlobalSettings
 from .registry import METRICS, MODELS, OPTIMIZERS
 from .services import run as run_service
+from .services import modelenv
 from .services import snapshot as snapshot_adapter
 from .services.run import resolve_seed
 from .services.run_logic import decide_run, resolve_metric_change
@@ -28,12 +29,18 @@ _ACTIVE = ["pending", "running"]
 def _model_available(exp):
     """Whether *exp*'s model can be built to run it.
 
-    Registry models are always available; a custom model needs its uploaded
-    .py present and the ALLOW_CUSTOM_MODELS feature enabled.
+    Registry models are always available. A custom model needs its .py present,
+    the feature enabled, and either a prepared environment or permission to be
+    imported into this process. Reads `env_status` — a column — so rendering a
+    page never shells out.
     """
     if exp.model_name in MODELS:
         return True
-    return bool(exp.model_file) and settings.ALLOW_CUSTOM_MODELS
+    if not (exp.model_file and settings.ALLOW_CUSTOM_MODELS):
+        return False
+    if exp.env_status == Experiment.ENV_READY:
+        return True
+    return not exp.env_pending and not settings.REQUIRE_LOGIN
 
 
 def metric_label(primary_metric, original_metric):
@@ -114,6 +121,10 @@ def new_experiment(request):
         exp = snapshot_adapter.experiment_from_snapshot(
             snapshot, model_file=cleaned.get("model_file"), adopt_paths=True,
         )
+        # A custom model needs an environment before it can run. Resolving it
+        # takes minutes, so it happens in the background and the detail page
+        # reports progress.
+        modelenv.start_preparation(exp, cleaned.get("model_source"))
     finally:
         for path in tmp_paths:
             Path(path).unlink(missing_ok=True)
@@ -193,6 +204,36 @@ def run_status(request, pk):
         response["HX-Refresh"] = "true"
         return response
     return render(request, "ui/_run_status.html", {"experiment": exp, "run": active})
+
+
+def env_status(request, pk):
+    """Poll target while a model environment is being built.
+
+    Shaped exactly like `run_status`: the partial while there is something to
+    wait for, then an empty response with `HX-Refresh` so the page reloads into
+    whatever the outcome was. poll.js already understands both.
+    """
+    exp = get_object_or_404(Experiment, pk=pk)
+    if not exp.env_pending:
+        response = HttpResponse("")
+        response["HX-Refresh"] = "true"
+        return response
+    return render(request, "ui/_env_status.html", {"experiment": exp})
+
+
+@require_POST
+def prepare_env(request, pk):
+    """Build (or rebuild) this experiment's model environment.
+
+    For the retry button. Helps when the cause was transient — no network, an
+    index down — or when uv has since been installed. A model file with a bad
+    dependency name needs a new experiment, since there is no way to replace the
+    file in place.
+    """
+    exp = get_object_or_404(Experiment, pk=pk)
+    if exp.model_file and not exp.is_running:
+        modelenv.start_preparation(exp)
+    return redirect("ui:experiment_detail", pk=pk)
 
 
 @require_POST
@@ -321,6 +362,9 @@ def import_experiment(request):
         exp = snapshot_adapter.experiment_from_snapshot(
             snapshot, dataset_file=request.FILES.get("dataset"), model_file=model_upload,
         )
+        # An imported model is re-locked here rather than trusting pins chosen by
+        # whoever exported it.
+        modelenv.start_preparation(exp)
         return redirect("ui:experiment_detail", pk=exp.pk)
 
     return render(request, "ui/import.html", context)
@@ -397,6 +441,16 @@ def _detail_context(exp):
         "active_run": active_run,
         "can_run": bool(exp.dataset) and _model_available(exp),
         "run_error": last_run.error if (last_run and last_run.status == "error") else None,
+        # The model's environment, for the branches on the detail page.
+        "env": {
+            "status": exp.env_status,
+            "pending": exp.env_pending,
+            "in_process": exp.env_in_process,
+            "ready": exp.env_status == Experiment.ENV_READY,
+            "failed": exp.env_status == Experiment.ENV_FAILED,
+            "error": exp.env_error,
+            "summary": modelenv.prepared_summary(exp),
+        },
         "run_summary": run_summary,
         "run_default_metric": exp.primary_metric or (metric_names[0] if metric_names else None),
     }

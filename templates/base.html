@@ -59,7 +59,7 @@
                 {% for e in sidebar_experiments %}
                     <a class="tab{% if request.resolver_match.kwargs.pk == e.pk %} active{% endif %}"
                        href="{% url 'ui:experiment_detail' e.pk %}">
-                        {{ e.name }} <span class="exp-id">({{ e.identifier }})</span>{% if e.is_running %} <span class="spinner" title="{% translate 'Running' %}"></span>{% endif %}
+                        {{ e.name }} <span class="exp-id">({{ e.identifier }})</span>{% if e.is_running %} <span class="spinner" title="{% translate 'Running' %}"></span>{% elif e.env_pending %} <span title="{% translate 'Preparing its environment' %}">⏳</span>{% endif %}
                     </a>
                 {% empty %}
                     <span class="placeholder">{% translate "No experiments yet." %}</span>
