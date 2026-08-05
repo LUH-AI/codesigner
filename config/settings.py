@@ -79,12 +79,23 @@ MODEL_ENV_DENYLIST = (
 # keeps everything on-box — no Redis. `immediate` runs tasks inline instead of
 # via the consumer; it defaults to DEBUG so a lone `runserver` works in
 # development, and is off in production where the consumer runs.
+#
+# The consumer defaults to a single worker, which would mean one queue for two
+# very different jobs: an optimization, and building a model's environment. The
+# second can take minutes of downloading, and while it held the only worker
+# nothing on the instance could run. Both spend nearly all their time waiting on
+# a subprocess, so threads are the right kind of worker; the count is what needs
+# to be greater than one.
 HUEY = {
     "huey_class": "huey.SqliteHuey",
     "name": "codesigner",
     "filename": env.str("HUEY_FILENAME", default=str(BASE_DIR / "huey.sqlite3")),
     "immediate": env.bool("HUEY_IMMEDIATE", default=DEBUG),
     "results": False,
+    "consumer": {
+        "workers": env.int("HUEY_WORKERS", default=4),
+        "worker_type": "thread",
+    },
 }
 
 # Immediate mode executes a task in the caller — which, for a run launched from

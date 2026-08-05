@@ -59,6 +59,11 @@ This starts two processes off one image — the gunicorn **web** server on
 `:8000` and the huey **worker** — sharing a `data` volume (SQLite DB, huey
 queue, uploaded media). The web service has a `/healthz/` healthcheck.
 
+The worker runs `HUEY_WORKERS` jobs at once (default 4). It has to be more than
+one because building a model's environment shares the queue with optimizations
+and can spend minutes downloading; raise it if runs queue up behind each other,
+bearing in mind that each concurrent run costs the memory of one model.
+
 **Demo datasets and mounted models (volume workflow).** `./datasets` and
 `./mounted_models` are bind-mounted into both containers. Drop a `*.csv` into
 `datasets/` and it appears as a **demo dataset**; drop a `BaseModel` subclass
