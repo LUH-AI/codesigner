@@ -21,8 +21,8 @@ _VALID_MODEL = textwrap.dedent("""
             cs = ConfigurationSpace(seed=seed)
             cs.add([Integer("k", (1, 5), default=3)])
             return cs
-        def train_evaluate(self, config, X_train, y_train, X_val, y_val, metrics, seed=0):
-            return {m: 0.5 for m in metrics}
+        def fit_predict(self, config, X_train, y_train, X_val, seed=0):
+            return ["a"] * len(X_val)
 """)
 
 
@@ -59,7 +59,7 @@ def test_load_model_from_path_missing_abstract_methods(tmp_path):
                 return ConfigurationSpace(seed=seed)
     """), encoding="utf-8")
     model, err = io.load_model_from_path(str(f))
-    assert model is None and "train_evaluate" in err
+    assert model is None and "fit_predict" in err
 
 
 def test_demo_datasets_includes_bundled_csvs():

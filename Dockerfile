@@ -24,6 +24,10 @@ COPY . .
 # above, so skip re-resolving them (avoids rebuilding the git-pinned SMAC).
 RUN pip install -e . --no-deps
 
+# The model contract, as its own dependency-free distribution: core.models
+# imports it, and it is installed into each model's environment too.
+RUN pip install -e ./model_sdk --no-deps
+
 # Bake static + compiled translations into the image. A dummy SECRET_KEY lets
 # these management commands run at build time; real secrets come in at runtime.
 # ARG, not ENV: an ENV would persist into the final image, and settings read the

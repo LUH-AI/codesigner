@@ -22,6 +22,9 @@ jobs:
       # Register the project's own metadata so importlib.metadata resolves the
       # app version (single source: pyproject.toml). Deps are installed above.
       - run: pip install -e . --no-deps
+      # The model contract is its own dependency-free distribution, because it
+      # is also installed into each model's environment. core.models imports it.
+      - run: pip install -e ./model_sdk --no-deps
       # Re-extract strings from source FIRST, so the i18n completeness/fuzzy
       # test (tests/ui/i18n) catches catalogs that drifted from the source —
       # a new string, or one whose English changed — not just missing msgstrs.

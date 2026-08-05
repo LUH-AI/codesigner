@@ -17,8 +17,14 @@ RUN_INFO_KEYS = (
     "status", "starttime", "endtime", "additional_info",
 )
 
-# SMAC's StatusType.SUCCESS as the stored int (base stays SMAC-import-free).
-_STATUS_SUCCESS = 1
+# SMAC's StatusType values as stored ints (base stays SMAC-import-free). A
+# trial that failed is still recorded — with the reason in additional_info —
+# because "this configuration does not work" is a real result for a search.
+STATUS_SUCCESS = 1
+STATUS_CRASHED = 2
+STATUS_TIMEOUT = 3
+
+_STATUS_SUCCESS = STATUS_SUCCESS  # retained: base.py's serializer imports it
 
 
 @contextmanager

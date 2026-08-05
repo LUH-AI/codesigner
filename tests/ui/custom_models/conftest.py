@@ -20,8 +20,8 @@ VALID_MODEL_SRC = textwrap.dedent("""
             cs = ConfigurationSpace(seed=seed)
             cs.add([Integer("k", (1, 5), default=3)])
             return cs
-        def train_evaluate(self, config, X_train, y_train, X_val, y_val, metrics, seed=0):
-            return {m: 0.5 for m in metrics}
+        def fit_predict(self, config, X_train, y_train, X_val, seed=0):
+            return [next(iter(y_train))] * len(X_val)
 """)
 
 # A .py with no BaseModel subclass — must be rejected at upload time.

@@ -19,8 +19,7 @@ class RandomForestModel(BaseModel):
         ])
         return cs
 
-    def train_evaluate(self, config, X_train, y_train, X_val, y_val,
-                       metrics: dict, seed: int = 0) -> dict:
+    def fit_predict(self, config, X_train, y_train, X_val, seed: int = 0):
         clf = RandomForestClassifier(
             n_estimators=int(config["n_estimators"]),
             max_depth=int(config["max_depth"]),
@@ -30,9 +29,4 @@ class RandomForestModel(BaseModel):
             n_jobs=-1,
         )
         clf.fit(X_train, y_train)
-        y_pred = clf.predict(X_val)
-        return {name: fn(y_val, y_pred) for name, fn in metrics.items()}
-
-
-# Module-level sentinel — the loader looks for this name.
-MODEL = RandomForestModel()
+        return clf.predict(X_val)

@@ -1,5 +1,5 @@
 from .base import BaseOptimizer, OptimizationResult, TrialCollector
-from .timing import timed_evaluation
+from .trial import evaluate_trial
 
 _MAX_CONSECUTIVE_DUPES = 200  # give up after this many consecutive duplicate samples
 
@@ -54,10 +54,8 @@ class RandomOptimizer(BaseOptimizer):
                 continue
             consecutive_dupes = 0
             evaluated.add(key)
-            with timed_evaluation(seed=seed) as run_info:
-                all_scores = model.train_evaluate(
-                    cfg, X_train, y_train, X_val, y_val, metrics, seed=seed
-                )
+            all_scores, run_info = evaluate_trial(
+                model, cfg, X_train, y_train, X_val, y_val, metrics, seed=seed)
             collector.record(cfg, all_scores[primary_metric], all_scores, run_info=run_info)
 
         all_trials = (previous_result.trials if previous_result else []) + collector.results
@@ -80,7 +78,3 @@ class RandomOptimizer(BaseOptimizer):
             hyperparameter_importance=hp_importance,
             hyperparameter_importance_warning=hp_warning,
         )
-
-
-# Module-level sentinel — the loader looks for this name.
-OPTIMIZER = RandomOptimizer()

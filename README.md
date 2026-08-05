@@ -24,6 +24,7 @@ sidebar).
 ```bash
 pip install -r requirements.txt
 pip install -e .                   # registers the app version (pyproject.toml)
+pip install -e ./model_sdk         # the model contract (core.models imports it)
 cp .env.example .env               # set SECRET_KEY
 python manage.py migrate
 python manage.py compilemessages -l de -l es   # build the de/es catalogs

@@ -1,11 +1,14 @@
 """Contract for the built-in models (core/models/random_forest.py, svm.py).
 
-Pins each model's advertised search space and the train_evaluate contract:
-score every requested metric, deterministically for a fixed seed.
+Pins each model's advertised search space and the fit_predict contract: one
+prediction per validation row, of the dataset's own label type, deterministically
+for a fixed seed. A model is never asked for a score and never sees the
+validation labels — scoring is core.metrics' job.
 """
 
 import pytest
 
+from core.metrics import score_all
 from core.models import RandomForestModel, SVMModel
 
 
@@ -29,19 +32,36 @@ def test_svm_config_space():
 
 
 @pytest.mark.parametrize("model_cls", [RandomForestModel, SVMModel])
-def test_train_evaluate_scores_every_metric(model_cls, iris_splits, metrics):
-    """train_evaluate returns a numeric score in [0,1] for every requested metric."""
+def test_fit_predict_returns_one_label_per_validation_row(model_cls, iris_splits):
+    """One prediction per row, drawn from the labels the model was trained on."""
     X_train, X_val, y_train, y_val = iris_splits
     cfg = dict(model_cls().get_config_space(seed=0).get_default_configuration())
-    scores = model_cls().train_evaluate(cfg, X_train, y_train, X_val, y_val, metrics, seed=0)
+
+    y_pred = model_cls().fit_predict(cfg, X_train, y_train, X_val, seed=0)
+
+    assert len(y_pred) == len(X_val)
+    assert set(y_pred) <= set(y_train)
+
+
+@pytest.mark.parametrize("model_cls", [RandomForestModel, SVMModel])
+def test_predictions_score_against_every_metric(model_cls, iris_splits, metrics):
+    """What the model returns is scoreable by the application's own metrics."""
+    X_train, X_val, y_train, y_val = iris_splits
+    cfg = dict(model_cls().get_config_space(seed=0).get_default_configuration())
+
+    y_pred = model_cls().fit_predict(cfg, X_train, y_train, X_val, seed=0)
+    scores = score_all(y_val, y_pred, metrics)
+
     assert set(scores) == set(metrics)
     assert all(0.0 <= v <= 1.0 for v in scores.values())
 
 
-def test_train_evaluate_is_deterministic(iris_splits, metrics):
-    """The same config + seed reproduces identical scores."""
+def test_fit_predict_is_deterministic(iris_splits):
+    """The same config + seed reproduces identical predictions."""
     X_train, X_val, y_train, y_val = iris_splits
     cfg = dict(RandomForestModel().get_config_space(seed=0).get_default_configuration())
-    a = RandomForestModel().train_evaluate(cfg, X_train, y_train, X_val, y_val, metrics, seed=0)
-    b = RandomForestModel().train_evaluate(cfg, X_train, y_train, X_val, y_val, metrics, seed=0)
-    assert a == b
+
+    a = RandomForestModel().fit_predict(cfg, X_train, y_train, X_val, seed=0)
+    b = RandomForestModel().fit_predict(cfg, X_train, y_train, X_val, seed=0)
+
+    assert list(a) == list(b)

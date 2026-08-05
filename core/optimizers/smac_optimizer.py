@@ -9,7 +9,7 @@ from smac.runhistory.dataclasses import TrialValue
 
 from ..paths import safe_join
 from .base import BaseOptimizer, OptimizationResult, TrialCollector, TrialResult
-from .timing import timed_evaluation
+from .trial import evaluate_trial
 
 logging.getLogger("smac").setLevel(logging.WARNING)
 
@@ -161,17 +161,18 @@ class SMACOptimizer(BaseOptimizer):
                 break
             info = smac.ask()
             config = dict(info.config)
-            with timed_evaluation(seed=seed) as run_info:
-                all_scores = model.train_evaluate(
-                    config, X_train, y_train, X_val, y_val, metrics, seed=seed
-                )
+            all_scores, run_info = evaluate_trial(
+                model, config, X_train, y_train, X_val, y_val, metrics, seed=seed)
             cost = 1.0 - all_scores[primary_metric]
             # Feed the measured timing into SMAC so its runhistory (which the
-            # serialize override copies verbatim) carries the real values.
+            # serialize override copies verbatim) carries the real values. The
+            # status is passed through rather than assumed: a configuration the
+            # model died on is something the surrogate should learn, not a
+            # success that happened to score zero.
             smac.tell(info, TrialValue(
                 cost=cost, time=run_info["time"], cpu_time=run_info["cpu_time"],
                 starttime=run_info["starttime"], endtime=run_info["endtime"],
-                status=StatusType.SUCCESS,
+                status=StatusType(run_info["status"]),
             ))
             collector.record(config, all_scores[primary_metric], all_scores, run_info=run_info)
 
@@ -195,7 +196,3 @@ class SMACOptimizer(BaseOptimizer):
             hyperparameter_importance_warning=hp_warning,
             metadata={"smac_output_dir": str(output_dir)},
         )
-
-
-# Module-level sentinel — the loader looks for this name.
-OPTIMIZER = SMACOptimizer()

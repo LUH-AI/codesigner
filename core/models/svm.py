@@ -21,8 +21,7 @@ class SVMModel(BaseModel):
         ])
         return cs
 
-    def train_evaluate(self, config, X_train, y_train, X_val, y_val,
-                       metrics: dict, seed: int = 0) -> dict:
+    def fit_predict(self, config, X_train, y_train, X_val, seed: int = 0):
         clf = SVC(
             C=float(config["C"]),
             kernel=config["kernel"],
@@ -33,8 +32,4 @@ class SVMModel(BaseModel):
             random_state=seed,
         )
         clf.fit(X_train, y_train)
-        y_pred = clf.predict(X_val)
-        return {name: fn(y_val, y_pred) for name, fn in metrics.items()}
-
-
-MODEL = SVMModel()
+        return clf.predict(X_val)

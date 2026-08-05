@@ -11,7 +11,7 @@ from ConfigSpace.hyperparameters import (
 )
 from sklearn.model_selection import ParameterGrid
 
-from .timing import timed_evaluation
+from .trial import evaluate_trial
 
 from .base import BaseOptimizer, OptimizerParam, OptimizationResult, TrialCollector
 
@@ -77,10 +77,8 @@ class GridOptimizer(BaseOptimizer):
         for cfg in to_run:
             if cancel_event and cancel_event.is_set():
                 break
-            with timed_evaluation(seed=seed) as run_info:
-                all_scores = model.train_evaluate(
-                    cfg, X_train, y_train, X_val, y_val, metrics, seed=seed
-                )
+            all_scores, run_info = evaluate_trial(
+                model, cfg, X_train, y_train, X_val, y_val, metrics, seed=seed)
             collector.record(cfg, all_scores[primary_metric], all_scores, run_info=run_info)
 
         all_trials = (previous_result.trials if previous_result else []) + collector.results
@@ -131,7 +129,3 @@ class GridOptimizer(BaseOptimizer):
             return True
         except Exception:
             return False
-
-
-# Module-level sentinel — the loader looks for this name.
-OPTIMIZER = GridOptimizer()

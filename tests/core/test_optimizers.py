@@ -108,7 +108,7 @@ def test_grid_search_get_params_roundtrip():
 
 # ── Fake optimizer (used by later run-lifecycle tests) ───────────────────────
 
-def test_fake_optimizer_is_instant_and_honours_contract(metrics):
+def test_fake_optimizer_is_instant_and_honours_contract(metrics, tiny_splits):
     """FakeOptimizer implements the full optimize() contract it advertises.
 
     It backs later web-layer run-lifecycle tests, so its behavior is pinned
@@ -116,14 +116,15 @@ def test_fake_optimizer_is_instant_and_honours_contract(metrics):
     lower the best score, and a pre-set cancel flag yields zero trials.
     """
     model = FakeModel()
+    X_train, X_val, y_train, y_val = tiny_splits
     result = FakeOptimizer().optimize(
-        model, None, None, None, None,
+        model, X_train, y_train, X_val, y_val,
         metrics=metrics, primary_metric="accuracy", n_trials=10, seed=0,
     )
     assert [t.trial for t in result.trials] == list(range(1, 11))
 
     resumed = FakeOptimizer().optimize(
-        model, None, None, None, None,
+        model, X_train, y_train, X_val, y_val,
         metrics=metrics, primary_metric="accuracy", n_trials=5,
         previous_result=result, seed=1,
     )
@@ -131,7 +132,7 @@ def test_fake_optimizer_is_instant_and_honours_contract(metrics):
     assert resumed.best_score >= result.best_score
 
     cancelled = FakeOptimizer().optimize(
-        model, None, None, None, None,
+        model, X_train, y_train, X_val, y_val,
         metrics=metrics, primary_metric="accuracy", n_trials=5,
         cancel_event=PreCancelled(), seed=0,
     )
