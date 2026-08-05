@@ -356,7 +356,12 @@ def resolve_runner(exp) -> tuple[list[str] | None, str]:
                 _digest(lock_path(exp)) != exp.env_meta["lock_sha256"]:
             return None, ("This model's lock has changed since it was prepared. "
                           "Prepare it again from the experiment page.")
-        return run_command(uv, script_path(exp)), ""
+        if not runner_path(exp).is_file():
+            return None, ("This model's runner is missing. Prepare its environment "
+                          "again from the experiment page.")
+        # The runner, not the model: uv builds the environment from the header of
+        # the script it runs, and the lock belongs to the runner.
+        return run_command(uv, runner_path(exp)), ""
 
     if exp.env_status == Experiment.ENV_FAILED:
         return None, exp.env_error or "This model's environment could not be built."

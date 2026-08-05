@@ -3,6 +3,11 @@
 # media, so both see the same run state. `datasets/` and `mounted_models/` are
 # bind-mounted from the host — drop CSVs / model .py files there and they appear
 # as demo-dataset and mounted-model options in the UI.
+#
+# `uv-cache` is separate from `data` on purpose: it holds downloads and built
+# model environments, so it is large, disposable and safe to `docker volume rm`,
+# while `data` holds the things that cannot be rebuilt. Only the worker needs it —
+# all model execution happens there.
 services:
   web:
     build: .
@@ -40,11 +45,17 @@ services:
       MEDIA_ROOT: "/app/data/media"
     volumes:
       - data:/app/data
+      - uv-cache:/uv-cache
       - ./datasets:/app/datasets
       - ./mounted_models:/app/mounted_models
+    # A model gets a process of its own but not a machine of its own, so a
+    # runaway one is bounded here. Without a limit the kernel may pick the
+    # consumer — or the web server — instead.
+    mem_limit: 8g
     depends_on:
       web:
         condition: service_healthy
 
 volumes:
   data:
+  uv-cache:

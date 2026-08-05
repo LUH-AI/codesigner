@@ -32,7 +32,29 @@ jobs:
       - run: python manage.py compilemessages -l de -l es
       # Fast suite includes the i18n completeness/parity checks. The slow SMAC
       # end-to-end tests are a separate opt-in job.
-      - run: python -m pytest -m "not slow"
+      # uv is not installed here, so the environment tests run against a shim
+      # and the real-uv ones are skipped by their marker.
+      - run: python -m pytest -m "not slow and not uv"
+
+  model-environments:
+    # The tests that check uv accepts the commands we build. Separate because it
+    # needs uv, and because a uv release changing a flag should fail visibly here
+    # rather than looking like an unrelated breakage.
+    runs-on: ubuntu-latest
+    env:
+      SECRET_KEY: ci-secret-key
+      DEBUG: "False"
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - uses: astral-sh/setup-uv@v5
+      - run: sudo apt-get update && sudo apt-get install -y swig
+      - run: pip install -r requirements.txt
+      - run: pip install -e . --no-deps
+      - run: pip install -e ./model_sdk --no-deps
+      - run: python -m pytest -m uv
 
   docker-build:
     runs-on: ubuntu-latest

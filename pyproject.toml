@@ -24,4 +24,5 @@ pythonpath = ["."]
 DJANGO_SETTINGS_MODULE = "config.settings"
 markers = [
     "slow: long-running tests (SMAC end-to-end); deselect with -m 'not slow'",
+    "uv: needs uv installed; exercises real environment building. Skipped without it.",
 ]

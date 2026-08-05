@@ -65,6 +65,53 @@ queue, uploaded media). The web service has a `/healthz/` healthcheck.
 `*.py` into `mounted_models/` and it appears as a **mounted model** option —
 no upload needed. (Mounted models are gated by `ALLOW_CUSTOM_MODELS`, below.)
 
+## Custom models and their environments
+
+A model you upload declares what it needs in a [PEP 723](https://peps.python.org/pep-0723/)
+header, and runs in an environment built from exactly that — in its own process,
+under an interpreter chosen for it:
+
+```python
+# /// script
+# requires-python = ">=3.11"
+# dependencies = ["scikit-learn", "ConfigSpace", "numpy"]
+# ///
+
+from codesigner_model import BaseModel
+
+
+class MyModel(BaseModel):
+    name = "My Model"
+
+    def get_config_space(self, seed: int = 0):
+        ...                      # a ConfigSpace ConfigurationSpace
+
+    def fit_predict(self, config, X_train, y_train, X_val, seed: int = 0):
+        ...                      # one predicted label per row of X_val
+```
+
+You are never asked for a score. Codesigner keeps the validation labels back,
+calls `fit_predict`, and computes every metric itself — so all models are
+measured by the same code regardless of what they were built with.
+
+The environment is resolved and locked **once**, when the experiment is created;
+the page shows progress while that happens, and every later run of that
+experiment uses the same pinned dependencies. Building it is also when the model
+is first imported, so a file that does not work is reported there.
+
+This needs [uv](https://docs.astral.sh/uv/). Without it a model is imported into
+the application's own environment instead — which is what happened before any of
+this existed, so a local install keeps working — and the experiment page says so.
+A hosted instance (`REQUIRE_LOGIN=True`) refuses rather than falling back.
+
+uv's cache of built environments can get large; one model needing torch is a few
+gigabytes. In Docker it lives on its own `uv-cache` volume, separate from `data`
+so it can be deleted safely. Reclaim space with:
+
+```bash
+python manage.py prune_model_envs
+```
+
 ## Custom / mounted models — trust model ⚠️
 
 Beyond the built-in models, you can **upload** a model `.py` (a
@@ -83,6 +130,13 @@ With it off, the upload field and mounted-model dropdown disappear, model files
 in imported `.ihpo` experiments are not adopted, and a custom-model experiment
 loads read-only. There is no sandboxing — the flag is the boundary. With the
 task queue, this code executes in the **worker** process, not the web process.
+
+**Model environments do not change this.** Giving a model its own environment
+buys *dependency* isolation: it cannot be broken by, or break, what the
+application has installed. It is not a security boundary — the model still runs
+as the same user, with the same filesystem and the same network access. `uv`
+solves "your model needs a library we don't have", not "your model is hostile".
+Real sandboxing is separate work that has not been done.
 
 ## Tests
 
