@@ -8,7 +8,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: PACKAGE VERSION\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2026-07-28 08:21+0000\n"
+"POT-Creation-Date: 2026-08-05 15:07+0000\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
 "Language-Team: LANGUAGE <LL@li.org>\n"
@@ -18,159 +18,242 @@ msgstr ""
 "Content-Transfer-Encoding: 8bit\n"
 "Plural-Forms: nplurals=2; plural=(n != 1);\n"
 
-#: templates/base.html:24
+#: templates/base.html:15 templates/base.html:17 templates/base.html:52
+#: ui/navigation.py:54
 msgid "Experiments"
 msgstr "Experimentos"
 
-#: templates/base.html:26
-msgid "＋ New"
-msgstr "＋ Nuevo"
+#: templates/base.html:20 templates/base.html:22 templates/base.html:42
+#: ui/navigation.py:35 ui/navigation.py:55
+#: ui/templates/ui/experiment_settings.html:4
+msgid "Settings"
+msgstr "Configuración"
 
-#: templates/base.html:27
-msgid "📂 Load"
-msgstr "📂 Cargar"
-
-#: templates/base.html:34
-msgid "Running"
-msgstr "En ejecución"
-
-#: templates/base.html:37
-msgid "No experiments yet."
-msgstr "Aún no hay experimentos."
-
-#: templates/base.html:41 web/templates/web/experiment_detail.html:20
-msgid "⚙ Settings"
-msgstr "⚙ Configuración"
-
-#: templates/base.html:25 templates/base.html:29
+#: templates/base.html:26 templates/base.html:33
 msgid "Language"
 msgstr "Idioma"
 
-#: templates/base.html:42 ui/templates/ui/appearance.html:4
+#: templates/base.html:45 ui/navigation.py:64 ui/templates/ui/appearance.html:4
 #: ui/templates/ui/appearance.html:7
 msgid "Appearance"
 msgstr "Apariencia"
+
+#: templates/base.html:47 ui/navigation.py:66
+#: ui/templates/ui/default_experiment_settings.html:4
+#: ui/templates/ui/default_experiment_settings.html:7
+msgid "Default experiment settings"
+msgstr "Configuración de experimento predeterminada"
+
+#: templates/base.html:54
+msgid "＋ New"
+msgstr "＋ Nuevo"
+
+#: templates/base.html:55
+msgid "📂 Load"
+msgstr "📂 Cargar"
+
+#: templates/base.html:62
+msgid "Running"
+msgstr "En ejecución"
+
+#: templates/base.html:62
+msgid "Preparing its environment"
+msgstr "Preparando su entorno"
+
+#: templates/base.html:65
+msgid "No experiments yet."
+msgstr "Aún no hay experimentos."
+
+#: tests/ui/i18n/test_i18n.py:220 tests/ui/i18n/test_i18n.py:226
+#: ui/templates/ui/experiment_detail.html:68
+msgid "Number of trials"
+msgstr "Número de pruebas"
+
+#: ui/figures/catalog.py:22
+msgid "Best configuration"
+msgstr "Mejor configuración"
+
+#: ui/figures/catalog.py:29
+msgid "Selected configuration"
+msgstr "Configuración seleccionada"
+
+#: ui/figures/catalog.py:36
+msgid "Hyperparameter importance (HyperSHAP)"
+msgstr "Importancia de hiperparámetros (HyperSHAP)"
+
+#: ui/figures/catalog.py:46
+msgid "Performance of Incumbent"
+msgstr "Rendimiento del Incumbente"
+
+#: ui/figures/catalog.py:63
+msgid "Trial duration"
+msgstr "Duración de la prueba"
+
+#: ui/figures/catalog.py:72
+msgid "Error over time"
+msgstr "Error a lo largo del tiempo"
+
+#: ui/figures/catalog.py:86
+msgid "Trials"
+msgstr "Pruebas"
+
+#: ui/forms.py:25
+msgid "Experiment name"
+msgstr "Nombre del experimento"
+
+#: ui/forms.py:26 ui/templates/ui/experiment_detail.html:11
+msgid "Model"
+msgstr "Modelo"
+
+#: ui/forms.py:27
+msgid "…or upload a model .py"
+msgstr "…o suba un modelo (.py)"
+
+#: ui/forms.py:28
+msgid "…or a mounted model .py"
+msgstr "…o un modelo montado (.py)"
+
+#: ui/forms.py:29 ui/templates/ui/experiment_detail.html:12
+msgid "Optimizer"
+msgstr "Optimizador"
+
+#: ui/forms.py:30
+msgid "Demo dataset"
+msgstr "Conjunto de datos de demostración"
+
+#: ui/forms.py:31
+msgid "…or upload a CSV (last column = target)"
+msgstr "…o suba un CSV (última columna = objetivo)"
+
+#: ui/forms.py:32
+msgid "Seed (negative = random)"
+msgstr "Semilla (negativa = aleatoria)"
+
+#: ui/forms.py:36
+msgid "— select —"
+msgstr "— seleccionar —"
+
+#: ui/forms.py:39 ui/forms.py:43
+msgid "— none —"
+msgstr "— ninguno —"
+
+#: ui/forms.py:65
+msgid "Choose a model or upload a model .py file."
+msgstr "Elija un modelo o suba un archivo de modelo .py."
+
+#: ui/forms.py:68
+msgid "Choose a demo dataset or upload a CSV file."
+msgstr "Elija un conjunto de datos de demostración o suba un archivo CSV."
+
+#: ui/forms.py:81
+msgid "Include absolute timestamps in exported .ihpo files"
+msgstr "Incluir marcas de tiempo absolutas en los archivos .ihpo exportados"
+
+#: ui/forms.py:117
+msgid "Use default experiment settings"
+msgstr "Usar la configuración de experimento predeterminada"
+
+#: ui/navigation.py:36 ui/templates/ui/delete_confirm.html:12
+msgid "Delete"
+msgstr "Eliminar"
+
+#: ui/navigation.py:38 ui/templates/ui/metric_change.html:4
+msgid "Change metric"
+msgstr "Cambiar métrica"
+
+#: ui/navigation.py:60 ui/templates/ui/new_experiment.html:4
+#: ui/templates/ui/new_experiment.html:7
+msgid "New experiment"
+msgstr "Nuevo experimento"
+
+#: ui/navigation.py:62
+msgid "Import experiment"
+msgstr "Importar experimento"
+
+#: ui/templates/ui/_breadcrumbs.html:15
+msgid "Breadcrumb"
+msgstr "Ruta de navegación"
+
+#: ui/templates/ui/_breadcrumbs.html:17
+#, python-format
+msgid "← Back to %(page)s"
+msgstr "← Volver a %(page)s"
+
+#: ui/templates/ui/_confirm_page.html:33
+msgid "Cancel"
+msgstr "Cancelar"
+
+#: ui/templates/ui/_env_status.html:10
+msgid "Preparing this model's environment…"
+msgstr "Preparando el entorno de este modelo…"
+
+#: ui/templates/ui/_env_status.html:14
+#, python-format
+msgid "Installing %(deps)s."
+msgstr "Instalando %(deps)s."
+
+#: ui/templates/ui/_env_status.html:15
+msgid "The first build of an environment can take several minutes."
+msgstr "La primera construcción de un entorno puede tardar varios minutos."
+
+#: ui/templates/ui/_experiment_settings_fields.html:14
+msgid "Figures shown on an experiment page"
+msgstr "Figuras mostradas en la página de un experimento"
+
+#: ui/templates/ui/_run_status.html:5
+#, python-format
+msgid "Optimizing… (%(status)s)"
+msgstr "Optimizando… (%(status)s)"
+
+#: ui/templates/ui/_run_status.html:9
+msgid "Cancel run"
+msgstr "Cancelar ejecución"
+
+#: ui/templates/ui/_selected_config_inner.html:2
+#, python-format
+msgid "Trial %(trial)s — click any point on the graph to select"
+msgstr "Prueba %(trial)s — haz clic en un punto del gráfico para seleccionar"
+
+#: ui/templates/ui/_selected_config_inner.html:3
+#: ui/templates/ui/figures/best_configuration.html:8
+#, python-format
+msgid "%(metric)s score"
+msgstr "Puntuación de %(metric)s"
+
+#: ui/templates/ui/_selected_config_inner.html:12
+#: ui/templates/ui/figures/best_configuration.html:12
+msgid "Hyperparameter"
+msgstr "Hiperparámetro"
+
+#: ui/templates/ui/_selected_config_inner.html:12
+#: ui/templates/ui/figures/best_configuration.html:12
+msgid "Value"
+msgstr "Valor"
 
 #: ui/templates/ui/appearance.html:8
 msgid "Display and theme settings."
 msgstr "Configuración de visualización y tema."
 
-#: tests/step8/test_i18n.py:220 tests/step8/test_i18n.py:226
-#: web/templates/web/experiment_detail.html:37
-msgid "Number of trials"
-msgstr "Número de pruebas"
+#: ui/templates/ui/default_experiment_settings.html:8
+msgid "Experiments use these unless they have their own."
+msgstr "Los experimentos usan estos salvo que tengan los suyos."
 
-#: web/forms.py:24
-msgid "Experiment name"
-msgstr "Nombre del experimento"
+#: ui/templates/ui/default_experiment_settings.html:14
+#: ui/templates/ui/experiment_settings.html:26
+msgid "Save settings"
+msgstr "Guardar configuración"
 
-#: web/forms.py:25 web/templates/web/experiment_detail.html:11
-msgid "Model"
-msgstr "Modelo"
-
-#: web/forms.py:26
-msgid "…or upload a model .py"
-msgstr "…o suba un modelo (.py)"
-
-#: web/forms.py:27
-msgid "…or a mounted model .py"
-msgstr "…o un modelo montado (.py)"
-
-#: web/forms.py:28 web/templates/web/experiment_detail.html:12
-msgid "Optimizer"
-msgstr "Optimizador"
-
-#: web/forms.py:29
-msgid "Demo dataset"
-msgstr "Conjunto de datos de demostración"
-
-#: web/forms.py:30
-msgid "…or upload a CSV (last column = target)"
-msgstr "…o suba un CSV (última columna = objetivo)"
-
-#: web/forms.py:31
-msgid "Seed (negative = random)"
-msgstr "Semilla (negativa = aleatoria)"
-
-#: web/forms.py:35
-msgid "— select —"
-msgstr "— seleccionar —"
-
-#: web/forms.py:38 web/forms.py:42
-msgid "— none —"
-msgstr "— ninguno —"
-
-#: web/forms.py:69
-msgid "Choose a model or upload a model .py file."
-msgstr "Elija un modelo o suba un archivo de modelo .py."
-
-#: web/forms.py:72
-msgid "Choose a demo dataset or upload a CSV file."
-msgstr "Elija un conjunto de datos de demostración o suba un archivo CSV."
-
-#: web/forms.py:94
-msgid "Include absolute timestamps in exported .ihpo files"
-msgstr "Incluir marcas de tiempo absolutas en los archivos .ihpo exportados"
-
-#: web/forms.py:106
-msgid "Use default experiment settings"
-msgstr "Usar la configuración de experimento predeterminada"
-
-#: web/templates/web/_run_status.html:5
-#, python-format
-msgid "Optimizing… (%(status)s)"
-msgstr "Optimizando… (%(status)s)"
-
-#: web/templates/web/_run_status.html:9
-msgid "Cancel run"
-msgstr "Cancelar ejecución"
-
-#: web/templates/web/_selected_config_inner.html:2
-#, python-format
-msgid "Trial %(trial)s — click any point on the graph to select"
-msgstr "Prueba %(trial)s — haz clic en un punto del gráfico para seleccionar"
-
-#: web/templates/web/_selected_config_inner.html:3
-#: web/templates/web/experiment_detail.html:90
-#, python-format
-msgid "%(metric)s score"
-msgstr "Puntuación de %(metric)s"
-
-#: web/templates/web/_selected_config_inner.html:12
-#: web/templates/web/experiment_detail.html:94
-msgid "Hyperparameter"
-msgstr "Hiperparámetro"
-
-#: web/templates/web/_selected_config_inner.html:12
-#: web/templates/web/experiment_detail.html:94
-msgid "Value"
-msgstr "Valor"
-
-#: web/templates/web/default_experiment_settings.html:4
-#: web/templates/web/default_experiment_settings.html:7
-#: web/templates/web/global_settings.html:10
-msgid "Default experiment settings"
-msgstr "Configuración de experimento predeterminada"
-
-#: web/templates/web/default_experiment_settings.html:8
-msgid "New experiments use these unless they override them."
-msgstr "Los experimentos nuevos usan esta configuración salvo que la anulen."
-
-#: web/templates/web/default_experiment_settings.html:18
-msgid "Save defaults"
-msgstr "Guardar valores predeterminados"
-
-#: web/templates/web/delete_confirm.html:4
+#: ui/templates/ui/delete_confirm.html:4
 #, python-format
 msgid "Delete %(name)s"
 msgstr "Eliminar %(name)s"
 
-#: web/templates/web/delete_confirm.html:7
-#: web/templates/web/experiment_detail.html:21
+#: ui/templates/ui/delete_confirm.html:5
+#: ui/templates/ui/experiment_detail.html:21
 msgid "Delete experiment"
 msgstr "Eliminar experimento"
 
-#: web/templates/web/delete_confirm.html:9
+#: ui/templates/ui/delete_confirm.html:8
 #, python-format
 msgid ""
 "Are you sure you want to delete <strong>%(name)s</strong> (<code>%(ref)s</"
@@ -179,187 +262,169 @@ msgstr ""
 "¿Estás seguro de que quieres eliminar <strong>%(name)s</strong> "
 "(<code>%(ref)s</code>)? Esta acción no se puede deshacer."
 
-#: web/templates/web/delete_confirm.html:13
-msgid "Delete"
-msgstr "Eliminar"
-
-#: web/templates/web/delete_confirm.html:14
-#: web/templates/web/metric_change.html:22
-msgid "Cancel"
-msgstr "Cancelar"
-
-#: web/templates/web/experiment_detail.html:9
+#: ui/templates/ui/experiment_detail.html:9
 #, python-format
 msgid "Experiment: %(name)s"
 msgstr "Experimento: %(name)s"
 
-#: web/templates/web/experiment_detail.html:13
+#: ui/templates/ui/experiment_detail.html:13
 msgid "Metric"
 msgstr "Métrica"
 
-#: web/templates/web/experiment_detail.html:14
+#: ui/templates/ui/experiment_detail.html:14
 msgid "Seed"
 msgstr "Semilla"
 
-#: web/templates/web/experiment_detail.html:15
+#: ui/templates/ui/experiment_detail.html:15
 msgid "ID"
 msgstr "ID"
 
-#: web/templates/web/experiment_detail.html:19
+#: ui/templates/ui/experiment_detail.html:19
 msgid "Download as .ihpo"
 msgstr "Descargar como .ihpo"
 
-#: web/templates/web/experiment_detail.html:19
+#: ui/templates/ui/experiment_detail.html:19
 msgid "💾 Export"
 msgstr "💾 Exportar"
 
-#: web/templates/web/experiment_detail.html:20
+#: ui/templates/ui/experiment_detail.html:20
 msgid "Experiment settings"
 msgstr "Configuración del experimento"
 
-#: web/templates/web/experiment_detail.html:21
+#: ui/templates/ui/experiment_detail.html:20
+msgid "⚙ Settings"
+msgstr "⚙ Configuración"
+
+#: ui/templates/ui/experiment_detail.html:21
 msgid "🗑 Delete"
 msgstr "🗑 Eliminar"
 
-#: web/templates/web/experiment_detail.html:26
+#: ui/templates/ui/experiment_detail.html:26
 #, python-format
 msgid "Run failed: %(run_error)s"
 msgstr "La ejecución falló: %(run_error)s"
 
-#: web/templates/web/experiment_detail.html:33
-msgid "Run"
-msgstr "Ejecutar"
+#: ui/templates/ui/experiment_detail.html:36
+msgid "This model's environment could not be built."
+msgstr "No se pudo construir el entorno de este modelo."
 
-#: web/templates/web/experiment_detail.html:41
-#: web/templates/web/experiment_detail.html:58
+#: ui/templates/ui/experiment_detail.html:41
+msgid "Try again"
+msgstr "Intentar de nuevo"
+
+#: ui/templates/ui/experiment_detail.html:45
+msgid ""
+"This model runs inside the application's own Python environment, not one of "
+"its own — so the dependencies it declares are ignored."
+msgstr "Este modelo se ejecuta en el propio entorno de Python de la aplicación, no en uno propio, por lo que se ignoran las dependencias que declara."
+
+#: ui/templates/ui/experiment_detail.html:50
+msgid "Prepare an isolated environment"
+msgstr "Preparar un entorno aislado"
+
+#: ui/templates/ui/experiment_detail.html:58
+#: ui/templates/ui/experiment_detail.html:72
+#: ui/templates/ui/experiment_detail.html:83
 msgid "Evaluation metric"
 msgstr "Métrica de evaluación"
 
-#: web/templates/web/experiment_detail.html:49
-#: web/templates/web/experiment_detail.html:65
-msgid "⚖️ Reevaluate"
-msgstr "⚖️ Reevaluar"
+#: ui/templates/ui/experiment_detail.html:64
+msgid "Run"
+msgstr "Ejecutar"
 
-#: web/templates/web/experiment_detail.html:53
+#: ui/templates/ui/experiment_detail.html:75
 msgid "▶ Run"
 msgstr "▶ Ejecutar"
 
-#: web/templates/web/experiment_detail.html:69
+#: ui/templates/ui/experiment_detail.html:78
+#, python-format
+msgid "Environment: %(summary)s"
+msgstr "Entorno: %(summary)s"
+
+#: ui/templates/ui/experiment_detail.html:87
 msgid "Attach a dataset to run this experiment (loaded read-only)."
 msgstr ""
 "Adjunte un conjunto de datos para ejecutar este experimento (cargado en modo "
 "de solo lectura)."
 
-#: web/templates/web/experiment_detail.html:73
-msgid "Last run: %(count)s trials in %(total)s s — %(trials)s s in trials, %(overhead)s s overhead."
-msgstr "Última ejecución: %(count)s pruebas en %(total)s s — %(trials)s s en pruebas, %(overhead)s s de sobrecarga."
+#: ui/templates/ui/experiment_detail.html:91
+#, python-format
+msgid ""
+"Last run: %(count)s trials in %(total)s s — %(trials)s s in trials, "
+"%(overhead)s s overhead."
+msgstr ""
+"Última ejecución: %(count)s pruebas en %(total)s s — %(trials)s s en "
+"pruebas, %(overhead)s s de sobrecarga."
 
-#: web/templates/web/experiment_detail.html:77
+#: ui/templates/ui/experiment_detail.html:95
 msgid "No results yet."
 msgstr "Aún no hay resultados."
 
-#: web/templates/web/experiment_detail.html:81
+#: ui/templates/ui/experiment_detail.html:99
 #, python-format
 msgid "The search space is exhausted at %(n)s trials."
 msgstr "El espacio de búsqueda se agota tras %(n)s pruebas."
 
-#: web/templates/web/experiment_detail.html:88
-msgid "Best configuration"
-msgstr "Mejor configuración"
-
-#: web/templates/web/experiment_detail.html:89
-#, python-format
-msgid "Best overall (Trial %(trial)s)"
-msgstr "Mejor resultado global (Prueba %(trial)s)"
-
-#: web/templates/web/experiment_detail.html:109
-msgid "Selected configuration"
-msgstr "Configuración seleccionada"
-
-#: web/templates/web/experiment_detail.html:119
-msgid "Hyperparameter importance (HyperSHAP)"
-msgstr "Importancia de hiperparámetros (HyperSHAP)"
-
-#: web/templates/web/experiment_detail.html:122
-msgid "No importance data available."
-msgstr "No hay datos de importancia disponibles."
-
-#: web/templates/web/experiment_detail.html:128
-msgid "Performance of Incumbent"
-msgstr "Rendimiento del Incumbente"
-
-#: web/templates/web/experiment_detail.html:137
-msgid "Trial duration"
-msgstr "Duración de la prueba"
-
-#: web/templates/web/experiment_detail.html:143
-msgid "Gain per unit time"
-msgstr "Ganancia por unidad de tiempo"
-
-#: web/templates/web/experiment_detail.html:145
-msgid "No data available."
-msgstr "No hay datos disponibles."
-
-#: web/templates/web/experiment_detail.html:153
-#, python-format
-msgid "Trials (%(n)s)"
-msgstr "Pruebas (%(n)s)"
-
-#: web/templates/web/experiment_detail.html:161
-msgid "Duration"
-msgstr "Duración"
-
-#: web/templates/web/experiment_detail.html:216
+#: ui/templates/ui/experiment_detail.html:202
 msgid "Absolute scale (0-1)"
 msgstr "Escala absoluta (0-1)"
 
-#: web/templates/web/experiment_detail.html:217
+#: ui/templates/ui/experiment_detail.html:203
 msgid "Relative scale (fit to data)"
 msgstr "Escala relativa (ajustar a los datos)"
 
-#: web/templates/web/experiment_settings.html:4
-msgid "Settings"
-msgstr "Configuración"
-
-#: web/templates/web/experiment_settings.html:7
+#: ui/templates/ui/experiment_settings.html:7
 #, python-format
 msgid "Settings: %(name)s"
 msgstr "Configuración: %(name)s"
 
-#: web/templates/web/experiment_settings.html:24
-msgid "Save settings"
-msgstr "Guardar configuración"
+#: ui/templates/ui/experiment_settings.html:27
+msgid "Reset to default"
+msgstr "Restablecer al valor predeterminado"
 
-#: web/templates/web/experiment_settings.html:25
-msgid "Reset to default experiment settings"
-msgstr "Restablecer a la configuración de experimento predeterminada"
+#: ui/templates/ui/experiment_settings.html:28
+msgid "Save settings as default"
+msgstr "Guardar la configuración como predeterminada"
 
-#: web/templates/web/experiment_settings.html:30
+#: ui/templates/ui/experiment_settings.html:36
 msgid "Change default experiment settings"
 msgstr "Cambiar la configuración de experimento predeterminada"
 
-#: web/templates/web/global_settings.html:4
-#: web/templates/web/global_settings.html:7
-msgid "Global settings"
-msgstr "Configuración global"
+#: ui/templates/ui/figures/best_configuration.html:7
+#, python-format
+msgid "Best overall (Trial %(trial)s)"
+msgstr "Mejor resultado global (Prueba %(trial)s)"
 
-#: web/templates/web/global_settings.html:8
-msgid "Application-wide settings."
-msgstr "Configuración de toda la aplicación."
+#: ui/templates/ui/figures/error_over_time.html:5
+msgid "No data available."
+msgstr "No hay datos disponibles."
 
-#: web/templates/web/home.html:6
+#: ui/templates/ui/figures/hyperparameter_importance.html:6
+msgid "No importance data available."
+msgstr "No hay datos de importancia disponibles."
+
+#: ui/templates/ui/figures/trials.html:6
+#, python-format
+msgid "Trials (%(n)s)"
+msgstr "Pruebas (%(n)s)"
+
+#: ui/templates/ui/figures/trials.html:13
+msgid "Duration"
+msgstr "Duración"
+
+#: ui/templates/ui/home.html:6
 msgid "Use the sidebar to create a new experiment."
 msgstr "Usa la barra lateral para crear un nuevo experimento."
 
-#: web/templates/web/import.html:4
+#: ui/templates/ui/import.html:4
 msgid "Load experiment"
 msgstr "Cargar experimento"
 
-#: web/templates/web/import.html:7
+#: ui/templates/ui/import.html:7
 msgid "Load an experiment"
 msgstr "Cargar un experimento"
 
-#: web/templates/web/import.html:8
+#: ui/templates/ui/import.html:8
 msgid ""
 "Upload an <code>.ihpo</code> file to add it to your saved\n"
 "       experiments. Optionally attach its dataset to make it runnable; "
@@ -370,62 +435,53 @@ msgstr ""
 "guardados. Opcionalmente, adjunte su conjunto de datos para poder "
 "ejecutarlo; de lo contrario, se cargará en modo de solo lectura."
 
-#: web/templates/web/import.html:19
+#: ui/templates/ui/import.html:19
 msgid "Experiment file (.ihpo)"
 msgstr "Archivo de experimento (.ihpo)"
 
-#: web/templates/web/import.html:23
+#: ui/templates/ui/import.html:23
 msgid "Dataset CSV (optional)"
 msgstr "CSV del conjunto de datos (opcional)"
 
-#: web/templates/web/import.html:28
+#: ui/templates/ui/import.html:28
 msgid "Model .py (optional, custom models only)"
 msgstr "Modelo .py (opcional, solo modelos personalizados)"
 
-#: web/templates/web/import.html:32
+#: ui/templates/ui/import.html:32
 msgid "Load"
 msgstr "Cargar"
 
-#: web/templates/web/metric_change.html:4
-msgid "Change metric"
-msgstr "Cambiar métrica"
-
-#: web/templates/web/metric_change.html:7
+#: ui/templates/ui/metric_change.html:5
 msgid "Change the optimized metric?"
 msgstr "¿Cambiar la métrica optimizada?"
 
-#: web/templates/web/metric_change.html:9
+#: ui/templates/ui/metric_change.html:8
 #, python-format
 msgid ""
 "\n"
-"        This experiment has been optimizing <strong>%(original)s</strong>.\n"
-"        Running now for <strong>%(chosen)s</strong> changes the optimized "
-"metric —\n"
-"        the trials accumulated so far were optimized for %(original)s.\n"
-"        "
+"    These trials optimize <strong>%(original)s</strong>. Switching to\n"
+"    <strong>%(chosen)s</strong> mixes two objectives in one experiment, so "
+"its\n"
+"    results can no longer be reproduced from the seed and setup alone.\n"
+"    "
 msgstr ""
 "\n"
-"Este experimento ha estado optimizando <strong>%(original)s</strong>. "
-"Ejecutarlo ahora para <strong>%(chosen)s</strong> cambia la métrica "
-"optimizada — las pruebas acumuladas hasta ahora se optimizaron para "
-"%(original)s."
+"    Estas pruebas optimizan <strong>%(original)s</strong>. Cambiar a\n"
+"    <strong>%(chosen)s</strong> mezcla dos objetivos en un mismo experimento, por lo que sus\n"
+"    resultados ya no pueden reproducirse solo con la semilla y la configuración.\n"
+"    "
 
-#: web/templates/web/metric_change.html:20
+#: ui/templates/ui/metric_change.html:23
 #, python-format
 msgid "Optimize %(chosen)s"
 msgstr "Optimizar %(chosen)s"
 
-#: web/templates/web/metric_change.html:21
+#: ui/templates/ui/metric_change.html:24
 #, python-format
 msgid "Keep optimizing %(original)s"
 msgstr "Seguir optimizando %(original)s"
 
-#: web/templates/web/new_experiment.html:4
-#: web/templates/web/new_experiment.html:7
-msgid "New experiment"
-msgstr "Nuevo experimento"
-
-#: web/templates/web/new_experiment.html:8
+#: ui/templates/ui/new_experiment.html:8
 msgid ""
 "Set up an experiment. It is saved but not run — start runs\n"
 "       (and pick the metric and number of trials) on its page."
@@ -433,22 +489,42 @@ msgstr ""
 "Configure un experimento. Se guarda pero no se ejecuta — inicie las "
 "ejecuciones (y elija la métrica y el número de pruebas) en su página."
 
-#: web/templates/web/new_experiment.html:27
+#: ui/templates/ui/new_experiment.html:27
 msgid "Use demo models"
 msgstr "Usar modelos de demostración"
 
-#: web/templates/web/new_experiment.html:58
+#: ui/templates/ui/new_experiment.html:58
 msgid "Use demo datasets"
 msgstr "Usar conjuntos de datos de demostración"
 
-#: web/templates/web/new_experiment.html:75
+#: ui/templates/ui/new_experiment.html:75
 msgid "Create experiment"
 msgstr "Crear experimento"
 
-#: web/views.py:48
+#: ui/templates/ui/save_as_default_confirm.html:4
+#: ui/templates/ui/save_as_default_confirm.html:23
+msgid "Save as default"
+msgstr "Guardar como predeterminado"
+
+#: ui/templates/ui/save_as_default_confirm.html:5
+msgid "Make these the default settings?"
+msgstr "¿Establecer esta configuración como predeterminada?"
+
+#: ui/templates/ui/save_as_default_confirm.html:8
+msgid ""
+"These settings become the defaults for every experiment that\n"
+"    uses them, including existing ones. Experiments with their own settings "
+"are\n"
+"    unaffected."
+msgstr ""
+"Esta configuración pasa a ser la predeterminada para todo experimento que\n"
+"    la use, incluidos los existentes. Los experimentos con su propia configuración no\n"
+"    se ven afectados."
+
+#: ui/views.py:56
 msgid "Inconsistent"
 msgstr "Inconsistente"
 
-#: web/views.py:288
+#: ui/views.py:358
 msgid "Invalid or unreadable experiment file."
 msgstr "Archivo de experimento inválido o ilegible."
