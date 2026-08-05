@@ -105,23 +105,47 @@ def execute_run(run_id):
     experiment = run.experiment
 
     try:
+        # A custom model with a prepared environment runs in its own process, so
+        # everything around it is built here but the model itself is not
+        # imported. `launch` is None for a registry model, or for a custom one on
+        # an instance without uv, and then it is imported as it always was.
+        launch, refusal = _model_launch(experiment)
+        if refusal:
+            raise RuntimeError(refusal)
+
         snapshot = snapshot_adapter.snapshot_from_experiment(experiment)
         _, built = io.build_experiment(
             snapshot, registry.METRICS, registry.MODELS, registry.OPTIMIZERS,
-            read_only=False,
+            read_only=False, load_model=launch is None,
         )
         optimizer = built["optimizer"]
         offset = len(built["result"].trials) if built["result"] else 0
-        result = optimizer.optimize(
-            built["model"],
-            built["X_train"], built["y_train"], built["X_val"], built["y_val"],
-            metrics=built["metrics"],
-            primary_metric=run.primary_metric,
-            n_trials=run.n_trials,
-            previous_result=built["result"],
-            seed=built["seed"],
-            cancel_event=DbCancelFlag(run_id),
-        )
+        cancel = DbCancelFlag(run_id)
+
+        def _optimize(model):
+            return optimizer.optimize(
+                model,
+                built["X_train"], built["y_train"], built["X_val"], built["y_val"],
+                metrics=built["metrics"],
+                primary_metric=run.primary_metric,
+                n_trials=run.n_trials,
+                previous_result=built["result"],
+                seed=built["seed"],
+                cancel_event=cancel,
+            )
+
+        if launch is None:
+            result = _optimize(built["model"])
+        else:
+            from core.modelhost import model_session
+
+            from . import modelenv
+
+            with model_session(
+                launch, built["X_train"], built["y_train"], built["X_val"],
+                seed=built["seed"], cancel=cancel, **modelenv.session_kwargs(),
+            ) as model:
+                result = _optimize(model)
     except Exception as exc:  # noqa: BLE001 — any failure is reported on the run
         Run.objects.filter(pk=run_id).update(
             status="error", error=str(exc), finished_at=timezone.now(),
@@ -146,6 +170,20 @@ def execute_run(run_id):
         trial_seconds=sum(t.duration for t in new_trials),
         trial_count=len(new_trials),
     )
+
+
+def _model_launch(experiment):
+    """How to start this experiment's model: ``(launch_argv, refusal)``.
+
+    ``(None, "")`` means import it in this process — a registry model, or a
+    custom one on an instance that has no uv and no accounts. A refusal string
+    means the run cannot go ahead and says why.
+    """
+    from . import modelenv
+
+    if not experiment.model_file:
+        return None, ""
+    return modelenv.resolve_runner(experiment)
 
 
 def start_background_run(run_id):

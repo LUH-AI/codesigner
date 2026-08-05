@@ -38,6 +38,41 @@ REQUIRE_LOGIN = env.bool("REQUIRE_LOGIN", default=False)
 # OFF on any shared or public deployment (see README).
 ALLOW_CUSTOM_MODELS = env.bool("ALLOW_CUSTOM_MODELS", default=True)
 
+# ── Model environments ────────────────────────────────────────────────────────
+# A user's model declares its own dependencies with a PEP 723 header and runs in
+# an environment built from them, in its own process. uv builds and caches those
+# environments. Without uv the model is imported into this process instead —
+# which is what happened before any of this existed, so a local install keeps
+# working — but a hosted instance refuses rather than quietly doing that.
+UV_BIN = env.str("UV_BIN", default="uv")
+
+# The model contract, installed into every model environment. A built wheel is
+# preferred: handing uv the source directory makes it fetch a build backend,
+# which fails on a machine with no index access.
+MODEL_SDK_WHEEL = env.str("MODEL_SDK_WHEEL", default=str(BASE_DIR / "wheels" / "sdk"))
+MODEL_SDK_PATH = env.str("MODEL_SDK_PATH", default=str(BASE_DIR / "model_sdk"))
+
+# Resolve against the cache only, and refuse to fetch an interpreter. Both
+# belong on in an air-gapped or locked-down deployment.
+MODEL_ENV_OFFLINE = env.bool("MODEL_ENV_OFFLINE", default=False)
+MODEL_ENV_PYTHON_DOWNLOADS = env.bool("MODEL_ENV_PYTHON_DOWNLOADS", default=True)
+
+# Preparing an environment can mean a large download, so this is generous. The
+# per-trial and startup limits live in core.modelhost, which owns the process.
+MODEL_ENV_PREPARE_TIMEOUT = env.float("MODEL_ENV_PREPARE_TIMEOUT", default=900.0)
+MODEL_TRIAL_TIMEOUT = env.float("MODEL_TRIAL_TIMEOUT", default=600.0)
+
+# The largest file a model may write. Not a memory limit — see core.modelhost.
+MODEL_MAX_FILE_BYTES = env.int("MODEL_MAX_FILE_BYTES", default=1024 * 1024 * 1024)
+
+# Never passed to a model's process. The rest of the environment is inherited,
+# because proxy, certificate and index settings are numerous and operator-
+# specific; these are the ones that would matter if they leaked.
+MODEL_ENV_DENYLIST = (
+    "SECRET_KEY", "DATABASE_URL", "DJANGO_SETTINGS_MODULE", "HUEY_FILENAME",
+    "MEDIA_ROOT", "ALLOWED_HOSTS", "REQUIRE_LOGIN", "ALLOW_CUSTOM_MODELS",
+)
+
 # Background task queue. Runs execute in a separate `manage.py run_huey`
 # consumer process; run state lives in the database, so the web process only
 # enqueues (polling and cancellation are DB-based and unaffected). SqliteHuey

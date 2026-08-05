@@ -16,7 +16,13 @@ import numpy as np
 import pytest
 
 from core.metrics import METRICS
-from core.modelhost import ModelProcessError, TrialTimeout, describe, model_session
+from core.modelhost import (
+    ModelProcessError,
+    TrialTimeout,
+    describe,
+    launch_local,
+    model_session,
+)
 from core.modelhost.errors import ModelTrialError, TrialCancelled
 from core.optimizers.timing import STATUS_CRASHED, STATUS_TIMEOUT, STATUS_SUCCESS
 from core.optimizers.trial import evaluate_trial
@@ -54,7 +60,8 @@ def _model(tmp_path: Path, body: str, name: str = "model.py") -> Path:
 
 
 def _session(model_file, **kwargs):
-    return model_session(sys.executable, model_file, X_TRAIN, Y_TRAIN, X_VAL, **kwargs)
+    return model_session(
+        launch_local(sys.executable, model_file), X_TRAIN, Y_TRAIN, X_VAL, **kwargs)
 
 
 class _Flag:
@@ -73,7 +80,8 @@ def test_describe_reports_the_name_and_search_space(tmp_path):
     """How an experiment learns what it has, without a web request importing
     user code — and, since the class is instantiated to answer, whether it
     works at all."""
-    hello = describe(sys.executable, _model(tmp_path, "return ['a'] * len(X_val)"))
+    hello = describe(launch_local(
+        sys.executable, _model(tmp_path, "return ['a'] * len(X_val)")))
 
     assert hello["name"] == "Test Model"
     assert hello["model_class"] == "TestModel"
@@ -86,7 +94,7 @@ def test_describe_reports_a_file_that_will_not_import(tmp_path):
     bad.write_text("import a_package_that_does_not_exist\n", encoding="utf-8")
 
     with pytest.raises(ModelProcessError, match="ModuleNotFoundError"):
-        describe(sys.executable, bad)
+        describe(launch_local(sys.executable, bad))
 
 
 def test_describe_refuses_a_file_with_no_model(tmp_path):
@@ -94,7 +102,7 @@ def test_describe_refuses_a_file_with_no_model(tmp_path):
     plain.write_text("x = 1\n", encoding="utf-8")
 
     with pytest.raises(ModelProcessError, match="No BaseModel subclass"):
-        describe(sys.executable, plain)
+        describe(launch_local(sys.executable, plain))
 
 
 def test_describe_refuses_a_file_with_two_models(tmp_path):
@@ -113,7 +121,7 @@ def test_describe_refuses_a_file_with_two_models(tmp_path):
     '''), encoding="utf-8")
 
     with pytest.raises(ModelProcessError, match="more than one model"):
-        describe(sys.executable, two)
+        describe(launch_local(sys.executable, two))
 
 
 # ── a model file may import its neighbours ───────────────────────────────────
@@ -295,6 +303,6 @@ def test_a_non_numeric_feature_column_is_refused_with_a_reason(tmp_path):
     X_text = np.array([["red"], ["blue"]], dtype=object)
 
     with pytest.raises(ValueError, match="not numeric"):
-        with model_session(sys.executable, _model(tmp_path, "return ['a']"),
+        with model_session(launch_local(sys.executable, _model(tmp_path, "return ['a']")),
                            X_text, Y_TRAIN, X_text):
             pass

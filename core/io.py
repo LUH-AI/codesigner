@@ -270,6 +270,7 @@ def build_experiment(
     available_optimizers: dict,
     model_name: str | None = None,
     read_only: bool = False,
+    load_model: bool = True,
 ) -> tuple[str, dict]:
     """Construct a live experiment dict from a parsed snapshot.
 
@@ -286,6 +287,10 @@ def build_experiment(
         If True, skip all file-based loading: dataset arrays are None and any
         custom model file is not loaded (model will be None).  Registry-based
         models are still resolved normally since they require no file I/O.
+    load_model:
+        If False, a custom model file is not imported and ``model`` is None,
+        while the dataset is still loaded.  For a caller that runs the model in
+        its own process and only needs everything around it.
 
     Returns ``(name, exp_dict)`` on success.  Raises ``ValueError`` on failure.
     """
@@ -307,7 +312,10 @@ def build_experiment(
 
     # ── Model ─────────────────────────────────────────────────────────────────
     if model_path:
-        if read_only:
+        if read_only or not load_model:
+            # `load_model=False` means the caller will supply the model itself —
+            # a custom model usually runs in its own process now, and importing
+            # it here to then throw it away is exactly what that avoids.
             model = None
         else:
             model, err = load_model_from_path(model_path)

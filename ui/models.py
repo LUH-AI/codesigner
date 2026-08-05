@@ -41,6 +41,30 @@ class Experiment(models.Model):
     settings = models.JSONField(default=dict, blank=True)
     use_default_settings = models.BooleanField(default=True)
 
+    # ── The custom model's environment (see services/modelenv.py) ────────────
+    # Pinned per experiment: resolved and locked once, so every run uses the
+    # same dependencies and only the first pays for resolving them.
+    ENV_NONE = "none"            # a registry model — nothing to prepare
+    ENV_PENDING = "pending"      # queued
+    ENV_PREPARING = "preparing"  # resolving and downloading
+    ENV_READY = "ready"          # locked and built
+    ENV_FAILED = "failed"        # see env_error
+    ENV_SKIPPED = "skipped"      # no uv here, so it runs in this process
+    ENV_LEGACY = "legacy"        # predates environments; runs in this process
+    ENV_STATUS_CHOICES = [
+        (ENV_NONE, "Not required"), (ENV_PENDING, "Queued"),
+        (ENV_PREPARING, "Preparing"), (ENV_READY, "Ready"),
+        (ENV_FAILED, "Failed"), (ENV_SKIPPED, "No uv — runs in-process"),
+        (ENV_LEGACY, "Predates environments"),
+    ]
+    env_status = models.CharField(max_length=20, choices=ENV_STATUS_CHOICES, default=ENV_NONE)
+    env_error = models.TextField(blank=True, default="")
+    # Whatever is worth knowing about the environment without adding a column
+    # for each: declared dependencies, requires-python, the resolved interpreter,
+    # the model class, the lock's digest.
+    env_meta = models.JSONField(default=dict, blank=True)
+    env_prepared_at = models.DateTimeField(null=True, blank=True)
+
     class Meta:
         ordering = ["-created_at"]
 
@@ -51,6 +75,21 @@ class Experiment(models.Model):
     def is_running(self) -> bool:
         """True while a run is pending or executing (drives the sidebar spinner)."""
         return self.runs.filter(status__in=["pending", "running"]).exists()
+
+    @property
+    def env_pending(self) -> bool:
+        """True while an environment is queued or being built."""
+        return self.env_status in (self.ENV_PENDING, self.ENV_PREPARING)
+
+    @property
+    def env_in_process(self) -> bool:
+        """True when this model runs in the application's own interpreter.
+
+        Either uv was missing when it was prepared, or the experiment predates
+        environments entirely. Kept as two states because the page says
+        different things about them, but they run identically.
+        """
+        return self.env_status in (self.ENV_SKIPPED, self.ENV_LEGACY)
 
 
 class Run(models.Model):

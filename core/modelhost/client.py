@@ -57,13 +57,27 @@ def _kill_stragglers() -> None:
             pass
 
 
-class ModelProcess:
-    """One live child: start it, ask it one thing at a time, make sure it dies."""
+def launch_local(python, model_file) -> list[str]:
+    """Argv that runs the harness under *python*, importing *model_file*.
 
-    def __init__(self, python: str, model_file, *, start_timeout: float = DEFAULT_START_TIMEOUT,
+    The plain case: no environment of its own, so the interpreter is named
+    directly. A model with a prepared environment is launched by uv instead, and
+    that argv is built by the application — `core` knows nothing about uv.
+    """
+    return [str(python), "-B", str(HARNESS), "--model-file", str(model_file)]
+
+
+class ModelProcess:
+    """One live child: start it, ask it one thing at a time, make sure it dies.
+
+    Takes the whole argv that starts the harness, because how it gets started
+    differs: a bare interpreter here, `uv run` for a model with its own
+    environment. Anything after this argv is the harness's own flags.
+    """
+
+    def __init__(self, launch, *, start_timeout: float = DEFAULT_START_TIMEOUT,
                  env: dict | None = None, cwd=None):
-        self._python = str(python)
-        self._model_file = str(model_file)
+        self._launch = [str(part) for part in launch]
         self._start_timeout = start_timeout
         self._env = env
         self._cwd = str(cwd) if cwd else None
@@ -80,8 +94,7 @@ class ModelProcess:
 
     def start(self, *, seed: int = 0, describe: bool = False) -> dict:
         """Spawn the child and return its greeting."""
-        argv = [self._python, "-B", str(HARNESS),
-                "--model-file", self._model_file, "--seed", str(seed)]
+        argv = [*self._launch, "--seed", str(seed)]
         if describe:
             argv.append("--describe")
 
@@ -304,7 +317,7 @@ def _jsonable(config: dict) -> dict:
             for key, value in config.items()}
 
 
-def describe(python: str, model_file, *, seed: int = 0, env=None,
+def describe(launch, *, seed: int = 0, env=None,
              start_timeout: float = DEFAULT_START_TIMEOUT) -> dict:
     """Start a model, read its greeting, stop. Its name and search space.
 
@@ -312,7 +325,7 @@ def describe(python: str, model_file, *, seed: int = 0, env=None,
     code, and — because the model is imported and instantiated to answer — the
     check that it works at all.
     """
-    process = ModelProcess(python, model_file, start_timeout=start_timeout, env=env)
+    process = ModelProcess(launch, start_timeout=start_timeout, env=env)
     try:
         return process.start(seed=seed, describe=True)
     finally:
@@ -327,12 +340,11 @@ class model_session:
     run, or a plain return.
     """
 
-    def __init__(self, python: str, model_file, X_train, y_train, X_val, *,
+    def __init__(self, launch, X_train, y_train, X_val, *,
                  seed: int = 0, cancel=None, env=None, cwd=None,
                  trial_timeout: float = DEFAULT_TRIAL_TIMEOUT,
                  start_timeout: float = DEFAULT_START_TIMEOUT):
-        self._python = python
-        self._model_file = model_file
+        self._launch = launch
         self._split = (X_train, y_train, X_val)
         self._seed = seed
         self._cancel = cancel
@@ -347,8 +359,8 @@ class model_session:
         X_train, y_train, X_val = self._split
         self._arrays_dir = write_split(X_train, X_val)
         self._process = ModelProcess(
-            self._python, self._model_file,
-            start_timeout=self._start_timeout, env=self._env, cwd=self._cwd)
+            self._launch, start_timeout=self._start_timeout,
+            env=self._env, cwd=self._cwd)
         hello = self._process.start(seed=self._seed)
 
         reply = self._process.request(

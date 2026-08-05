@@ -22,6 +22,7 @@ from .client import (
     ModelProcess,
     RemoteModel,
     describe,
+    launch_local,
     model_session,
 )
 from .errors import (
@@ -44,5 +45,6 @@ __all__ = [
     "TrialCancelled",
     "TrialTimeout",
     "describe",
+    "launch_local",
     "model_session",
 ]
