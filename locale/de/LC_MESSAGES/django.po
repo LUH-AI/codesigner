@@ -8,7 +8,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: PACKAGE VERSION\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2026-08-06 13:26+0000\n"
+"POT-Creation-Date: 2026-08-06 14:02+0000\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
 "Language-Team: LANGUAGE <LL@li.org>\n"
@@ -704,25 +704,29 @@ msgstr "die Suche sicher war, dass nichts Besseres übrig ist"
 msgid "it was interrupted"
 msgstr "es unterbrochen wurde"
 
-#: ui/views.py:128
+#: ui/views.py:92
+msgid "every trial was failing"
+msgstr "jeder Versuch fehlschlug"
+
+#: ui/views.py:129
 msgid "Inconsistent"
 msgstr "Inkonsistent"
 
-#: ui/views.py:268
+#: ui/views.py:269
 msgid ""
 "Set at least one stopping criterion, so the run has something to end on."
 msgstr ""
 "Legen Sie mindestens ein Abbruchkriterium fest, damit der Lauf enden kann."
 
-#: ui/views.py:479
+#: ui/views.py:480
 msgid "Invalid or unreadable experiment file."
 msgstr "Ungültige oder unleserliche Experimentdatei."
 
-#: ui/views.py:565
+#: ui/views.py:566
 #, python-format
 msgid "%(k)s-fold CV"
 msgstr "%(k)s-fache CV"
 
-#: ui/views.py:566
+#: ui/views.py:567
 msgid "holdout"
 msgstr "Holdout"

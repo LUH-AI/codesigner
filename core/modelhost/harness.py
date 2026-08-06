@@ -133,7 +133,9 @@ def _load_dataset(arrays_dir: Path, fold_labels):
     for index, labels in enumerate(fold_labels):
         train_idx = np.load(arrays_dir / f"fold_{index}_train.npy", allow_pickle=False)
         val_idx = np.load(arrays_dir / f"fold_{index}_val.npy", allow_pickle=False)
-        folds.append((X[train_idx], np.asarray(labels, dtype=object), X[val_idx]))
+        # dtype inferred, not forced: object-typed integer labels are not
+        # discrete classes to scikit-learn, and every fit would refuse.
+        folds.append((X[train_idx], np.asarray(labels), X[val_idx]))
     return folds
 
 

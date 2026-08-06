@@ -89,6 +89,7 @@ STOPPED_BY_LABELS = {
     "no_improvement_trials": _("the score had stopped improving"),
     "incumbent_confidence": _("the search was confident nothing better remained"),
     "cancelled": _("it was interrupted"),
+    "all_failing": _("every trial was failing"),
 }
 
 

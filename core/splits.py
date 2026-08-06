@@ -59,8 +59,10 @@ def holdout(X_train, y_train, X_val, y_val) -> Splits:
     """
     n_train, n_val = len(X_train), len(X_val)
     X = np.concatenate([np.asarray(X_train), np.asarray(X_val)])
-    y = np.concatenate([np.asarray(y_train, dtype=object),
-                        np.asarray(y_val, dtype=object)])
+    # No dtype forced. An integer target coerced to object stops looking like
+    # discrete classes to scikit-learn — `type_of_target` calls it "unknown" and
+    # every classifier refuses to fit, so every trial fails at once.
+    y = np.concatenate([np.asarray(y_train), np.asarray(y_val)])
     train_idx = np.arange(n_train)
     val_idx = np.arange(n_train, n_train + n_val)
     return Splits(X=X, y=y, folds=[(train_idx, val_idx)])
@@ -78,7 +80,7 @@ def cross_validation(X, y, folds: int, seed: int) -> Splits:
     from sklearn.model_selection import KFold, StratifiedKFold
 
     X = np.asarray(X)
-    y = np.asarray(y, dtype=object)
+    y = np.asarray(y)          # dtype preserved — see `holdout` for why
 
     try:
         splitter = StratifiedKFold(n_splits=folds, shuffle=True, random_state=seed)

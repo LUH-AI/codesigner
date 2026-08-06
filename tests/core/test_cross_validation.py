@@ -242,4 +242,54 @@ def test_an_optimizer_runs_a_cross_validated_search(optimizers, models):
     # Still one score per metric per trial — the averaging happens inside the
     # trial, so nothing downstream sees folds at all.
     assert all(set(t.scores) == set(METRICS) for t in result.trials)
-    assert all(0.0 <= t.scores["accuracy"] <= 1.0 for t in result.trials)
+    # Succeeded, not merely "produced a number in range". `0.0 <= x <= 1.0` is
+    # true of a trial that crashed, which is how a bug that failed every trial
+    # on a numeric-target dataset got past this file once already.
+    assert all(t.run_info["status"] == 1 for t in result.trials)
+    assert all(t.scores["accuracy"] > 0.5 for t in result.trials)
+
+
+# ── label types ──────────────────────────────────────────────────────────────
+
+@pytest.mark.parametrize("dataset,kind", [("iris.csv", "string"), ("wine.csv", "integer")])
+def test_the_target_keeps_the_type_the_file_gave_it(dataset, kind):
+    """Both splitters used to coerce labels to object dtype, which is invisible
+    for string labels and fatal for integer ones: scikit-learn's
+    `type_of_target` calls an object array of ints "unknown", every classifier
+    refuses to fit, and *every trial* of the run crashes and scores zero.
+
+    Both shipped demo datasets are covered because that is exactly the gap —
+    every test here used iris, whose labels are strings, so nothing noticed."""
+    from core.io import _load_frame, _load_splits
+    from tests.conftest import DATASETS_DIR
+
+    path = DATASETS_DIR / dataset
+    X, y = _load_frame(path)
+    X_train, X_val, y_train, y_val = _load_splits(path, 0)
+
+    assert holdout(X_train, y_train, X_val, y_val).y.dtype == y.dtype, kind
+    assert cross_validation(X, y, folds=3, seed=0).y.dtype == y.dtype, kind
+
+
+@pytest.mark.parametrize("dataset", ["iris.csv", "wine.csv"])
+@pytest.mark.parametrize("folds", [0, 5])
+def test_a_real_model_fits_both_demo_datasets_either_way(dataset, folds):
+    """The end the user sees: a trial that succeeds and scores something."""
+    from core.io import _load_frame, _load_splits
+    from core.models.random_forest import RandomForestModel
+    from tests.conftest import DATASETS_DIR
+
+    path = DATASETS_DIR / dataset
+    model = RandomForestModel()
+    config = dict(model.get_config_space(seed=0).sample_configuration())
+
+    if folds:
+        splits = cross_validation(*_load_frame(path), folds=folds, seed=0)
+    else:
+        X_train, X_val, y_train, y_val = _load_splits(path, 0)
+        splits = holdout(X_train, y_train, X_val, y_val)
+
+    scores, run_info = evaluate_trial(model, config, splits, METRICS, seed=0)
+
+    assert run_info["status"] == 1, run_info.get("additional_info")
+    assert scores["accuracy"] > 0.0

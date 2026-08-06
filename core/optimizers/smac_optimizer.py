@@ -304,6 +304,10 @@ class SMACOptimizer(BaseOptimizer):
                 cost=cost, time=run_info["time"], cpu_time=run_info["cpu_time"],
                 starttime=run_info["starttime"], endtime=run_info["endtime"],
                 status=StatusType(run_info["status"]),
+                # Why it failed, or the runhistory records a zero with no
+                # explanation and neither the page nor a later reader can say
+                # whether the configuration was bad or the model was broken.
+                additional_info=run_info.get("additional_info") or {},
             ))
             collector.record(config, all_scores[primary_metric], all_scores, run_info=run_info)
 

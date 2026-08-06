@@ -311,6 +311,47 @@ def test_smac_will_not_stop_on_confidence_before_it_has_evidence(
     assert result.metadata["stopped_by"] == "max_trials"
 
 
+# ── giving up ────────────────────────────────────────────────────────────────
+
+def test_a_run_whose_every_trial_fails_gives_up():
+    """A model that cannot fit the dataset at all fails instantly and
+    identically every time. Without this the run burns its whole budget and
+    reports a tidy row of zeros, which is what a broken run looked like."""
+    from core.optimizers.base import MAX_CONSECUTIVE_FAILURES
+
+    collector = _collector({"max_trials": 500})
+    for _ in range(MAX_CONSECUTIVE_FAILURES):
+        collector.record({"x": 1}, 0.0, {"accuracy": 0.0}, run_info={"status": 2})
+
+    assert collector.done is True
+    assert collector.stopped_by == "all_failing"
+
+
+def test_one_good_trial_resets_the_patience():
+    """A search exploring a bad region is not a broken run. Only an unbroken
+    streak counts."""
+    from core.optimizers.base import MAX_CONSECUTIVE_FAILURES
+
+    collector = _collector({"max_trials": 500})
+    for _ in range(MAX_CONSECUTIVE_FAILURES - 1):
+        collector.record({"x": 1}, 0.0, {"accuracy": 0.0}, run_info={"status": 2})
+    collector.record({"x": 2}, 0.9, {"accuracy": 0.9}, run_info={"status": 1})
+    for _ in range(MAX_CONSECUTIVE_FAILURES - 1):
+        collector.record({"x": 3}, 0.0, {"accuracy": 0.0}, run_info={"status": 2})
+
+    assert collector.done is False
+
+
+def test_a_trial_with_no_status_counts_as_a_success():
+    """Not every caller records run_info, and a missing status must not read as
+    a failure and end the run."""
+    collector = _collector({"max_trials": 500})
+    for _ in range(30):
+        collector.record({"x": 1}, 0.5, {"accuracy": 0.5})
+
+    assert collector.done is False
+
+
 # ── being interrupted ────────────────────────────────────────────────────────
 
 def test_a_trial_that_was_never_run_is_not_serialized(optimizers, models, metrics,

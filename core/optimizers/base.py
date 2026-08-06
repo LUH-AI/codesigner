@@ -4,7 +4,7 @@ from dataclasses import dataclass, field, replace
 from typing import Any, Dict, List, Optional
 from hypershap import ExplanationTask, HyperSHAP
 
-from .timing import RUN_INFO_KEYS
+from .timing import RUN_INFO_KEYS, STATUS_SUCCESS
 
 
 @dataclass
@@ -110,6 +110,17 @@ STOPPING_CRITERIA = ("max_trials", "max_seconds", "max_trial_seconds",
                      "target_score", "no_improvement_trials",
                      "incumbent_confidence")
 
+#: Consecutive failed trials before a run gives up. Not something to configure:
+#: it is not a budget anyone would choose, it is the difference between "this
+#: search is exploring a bad region" and "nothing here can work". A model that
+#: cannot fit the dataset at all fails instantly and identically every time, and
+#: without this it burns the whole budget and reports a tidy run of zeros.
+MAX_CONSECUTIVE_FAILURES = 15
+
+#: Every trial failing is a reason a run ended, like being interrupted: nothing
+#: the caller asked for, but something the page has to be able to say.
+STOPPED_BY_ALL_FAILING = "all_failing"
+
 #: Not a criterion — nothing in the collector can decide it — but it ends runs
 #: and so belongs in the same vocabulary. Stored in `Run.stopped_by` by whoever
 #: noticed the interruption, so "why did this stop?" has one answer to read
@@ -203,6 +214,7 @@ class TrialCollector:
         self._started = time.monotonic()
         self._trial_seconds = 0.0
         self._since_improvement = 0
+        self._consecutive_failures = 0
         self._confidence: Optional[float] = None
         #: Which criterion ended the run, or None while it is still going.
         self.stopped_by: Optional[str] = None
@@ -242,6 +254,8 @@ class TrialCollector:
             return "max_seconds"
         if self._trial_seconds >= self._stopping.get("max_trial_seconds", float("inf")):
             return "max_trial_seconds"
+        if self._consecutive_failures >= MAX_CONSECUTIVE_FAILURES:
+            return STOPPED_BY_ALL_FAILING
         stagnant = self._stopping.get("no_improvement_trials")
         if stagnant is not None and self._since_improvement >= stagnant:
             return "no_improvement_trials"
@@ -275,6 +289,10 @@ class TrialCollector:
             self._since_improvement += 1
 
         self._trial_seconds += (run_info or {}).get("time") or 0.0
+        if (run_info or {}).get("status", STATUS_SUCCESS) == STATUS_SUCCESS:
+            self._consecutive_failures = 0
+        else:
+            self._consecutive_failures += 1
 
         trial = TrialResult(
             trial=self._trial_offset + len(self.results) + 1,
