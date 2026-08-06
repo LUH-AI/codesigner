@@ -72,6 +72,7 @@ def test_the_declared_actions_match_what_the_routes_do():
         "prepare_env": permissions.RUN,
         "run_cancel": permissions.RUN,
         "experiment_settings": permissions.EDIT,
+        "experiment_share": permissions.EDIT,
         "experiment_delete": permissions.DELETE,
         "experiment_export": permissions.EXPORT,
     }

@@ -146,11 +146,37 @@ python manage.py createsuperuser     # then add the rest at /admin/
 Password reset is not wired up; it needs a mail server, which is an operator
 decision. Until it is asked for, an operator resets a password in the admin.
 
-Turning `REQUIRE_LOGIN` on also affects two things beyond the login page: media
-files are no longer served from the app (`MEDIA_ROOT` is one flat directory, so
-that would hand every signed-in user every other user's data at a guessable
-URL), and a model that would run in the application's own process is refused
-rather than falling back — see below.
+### Who sees what
+
+With accounts, an experiment belongs to whoever created it. There are three
+kinds:
+
+| | Read | Run / edit / delete | Export |
+|---|---|---|---|
+| **Yours** | ✅ | ✅ | ✅ |
+| **Shared with you** | ✅ | ❌ | ✅ |
+| **Nobody's** (`owner` is empty) | ✅ | ✅ | ✅ |
+
+Sharing is an invitation to look, not a transfer of control — a colleague can
+read and download a shared experiment, and cannot run, rename or delete it. The
+owner turns sharing on with a checkbox on the experiment page.
+
+"Nobody's" is every experiment that existed before the instance had accounts.
+They stay fully usable rather than disappearing when you flip the switch; assign
+them owners in the admin if you want the normal rules to apply. Staff see and
+can act on everything. Deleting a user does **not** delete their experiments —
+they become nobody's.
+
+Exported `.ihpo` files never carry server paths, whether or not this instance
+has accounts: the paths name a machine that is not the recipient's, and they
+describe how the instance is laid out.
+
+### Other effects of the switch
+
+Media files are no longer served from the app (`MEDIA_ROOT` is one flat
+directory, so that would hand every signed-in user every other user's data at a
+guessable URL), and a model that would run in the application's own process is
+refused rather than falling back — see below.
 
 ## Custom / mounted models — trust model ⚠️
 

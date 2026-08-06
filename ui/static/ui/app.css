@@ -74,6 +74,9 @@ nav.rail .account button {
     font: inherit;
 }
 
+.ownership { margin-top: -0.5rem; }
+.ownership form { display: inline; }
+
 /* The sign-in page, which does not use the rail/sidebar layout at all. */
 body.signin { display: block; background: var(--rail-bg); }
 .signin-panel { max-width: 22rem; margin: 12vh auto; padding: 0 1rem; }

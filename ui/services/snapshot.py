@@ -15,7 +15,7 @@ from ..models import Experiment
 
 
 def experiment_from_snapshot(snapshot: dict, dataset_file=None, model_file=None,
-                             adopt_paths: bool = False) -> Experiment:
+                             adopt_paths: bool = False, owner=None) -> Experiment:
     """Create and save an Experiment row from a parsed snapshot.
 
     Files are adopted into MEDIA from the uploads passed as *dataset_file* and
@@ -35,6 +35,10 @@ def experiment_from_snapshot(snapshot: dict, dataset_file=None, model_file=None,
     A custom model .py is adopted only when ALLOW_CUSTOM_MODELS is on: untrusted
     code is never stored on an instance that has the feature disabled. Callers
     that pass *model_file* have already gated on the flag.
+
+    *owner* is the account it belongs to, or None for an install with no
+    accounts. Set at creation because there is nowhere else it could come
+    from — an .ihpo has no notion of who made it.
     """
     exp = Experiment(
         name=snapshot["name"],
@@ -46,6 +50,7 @@ def experiment_from_snapshot(snapshot: dict, dataset_file=None, model_file=None,
         original_metric=snapshot.get("original_metric"),
         seed=snapshot["seed"],
         result=snapshot.get("result"),
+        owner=owner,
     )
 
     if dataset_file is not None:

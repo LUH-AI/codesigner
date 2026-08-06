@@ -1,5 +1,6 @@
 import secrets
 
+from django.conf import settings as django_settings
 from django.db import models
 
 from .fields import SafeJSONField
@@ -40,6 +41,18 @@ class Experiment(models.Model):
     # global default experiment settings apply instead (see services/settings.py).
     settings = models.JSONField(default=dict, blank=True)
     use_default_settings = models.BooleanField(default=True)
+
+    # ── Who it belongs to (see access/policy.py) ─────────────────────────────
+    # Null means nobody's, which is every experiment on an install with no
+    # accounts and every experiment that predates them. SET_NULL because
+    # removing a person from an instance must not destroy their results — an
+    # operator can reassign an ownerless experiment in the admin.
+    owner = models.ForeignKey(
+        django_settings.AUTH_USER_MODEL, null=True, blank=True,
+        on_delete=models.SET_NULL, related_name="experiments")
+    # Readable by everyone who can sign in. Not writable by them: sharing is an
+    # invitation to look, not to run, rename or delete.
+    shared = models.BooleanField(default=False)
 
     # ── The custom model's environment (see services/modelenv.py) ────────────
     # Pinned per experiment: resolved and locked once, so every run uses the

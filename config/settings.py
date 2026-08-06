@@ -38,10 +38,11 @@ REQUIRE_LOGIN = env.bool("REQUIRE_LOGIN", default=False)
 # OFF on any shared or public deployment (see README).
 ALLOW_CUSTOM_MODELS = env.bool("ALLOW_CUSTOM_MODELS", default=True)
 
-# Who may see and do what to an experiment. The default says "everyone,
-# everything", which is what an install with no accounts wants; a deployment
-# that manages users points this at a policy of its own. See ui/permissions.py.
-EXPERIMENT_POLICY = env.str("EXPERIMENT_POLICY", default="ui.permissions.OpenPolicy")
+# Who may see and do what to an experiment. The default enforces ownership when
+# REQUIRE_LOGIN is on and says "everyone, everything" when it is off, so that
+# stays the only switch. Point this at ui.permissions.OpenPolicy to disable
+# ownership on an instance that has accounts, or at a policy of your own.
+EXPERIMENT_POLICY = env.str("EXPERIMENT_POLICY", default="access.policy.OwnerPolicy")
 
 # Where the login wall sends an unauthenticated request, and where signing in
 # and out land. Set even when REQUIRE_LOGIN is off, so turning it on is one

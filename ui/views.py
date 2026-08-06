@@ -16,6 +16,7 @@ from core import io
 from .figures import FIGURES, FULL, HALF
 from .forms import DefaultExperimentSettingsForm, ExperimentSettingsForm, NewExperimentForm
 from .models import Experiment, GlobalSettings
+from . import permissions
 from .permissions import DELETE, EDIT, EXPORT, RUN, VIEW, experiment_view
 from .registry import METRICS, MODELS, OPTIMIZERS
 from .services import run as run_service
@@ -43,6 +44,25 @@ def _model_available(exp):
     if exp.env_status == Experiment.ENV_READY:
         return True
     return not exp.env_pending and not settings.REQUIRE_LOGIN
+
+
+def _owner(request):
+    """The account creating an experiment, or None with no accounts.
+
+    `AnonymousUser` is not a row, so it cannot be stored; None is the column's
+    way of saying nobody's.
+    """
+    user = request.user
+    return user if user.is_authenticated else None
+
+
+def _ownership(request, exp):
+    """Who this experiment belongs to, or None when the instance has no
+    accounts and there is nothing to say."""
+    if not settings.REQUIRE_LOGIN:
+        return None
+    return {"owner": exp.owner, "shared": exp.shared,
+            "mine": exp.owner_id == request.user.pk}
 
 
 def metric_label(primary_metric, original_metric):
@@ -127,6 +147,7 @@ def new_experiment(request):
         # choice, or a temp file written above — so they are ours to adopt.
         exp = snapshot_adapter.experiment_from_snapshot(
             snapshot, model_file=cleaned.get("model_file"), adopt_paths=True,
+            owner=_owner(request),
         )
         # A custom model needs an environment before it can run. Resolving it
         # takes minutes, so it happens in the background and the detail page
@@ -142,7 +163,7 @@ def new_experiment(request):
 @experiment_view(VIEW)
 def experiment_detail(request, exp):
     """Show a saved experiment: its config, results/figures, run state, Run form."""
-    return render(request, "ui/experiment_detail.html", _detail_context(exp))
+    return render(request, "ui/experiment_detail.html", _detail_context(request, exp))
 
 
 @experiment_view(VIEW)
@@ -244,6 +265,20 @@ def prepare_env(request, exp):
 
 
 @require_POST
+@experiment_view(EDIT)
+def experiment_share(request, exp):
+    """Turn read access for everyone else on or off.
+
+    Only reachable on an instance with accounts, and only by the owner (EDIT is
+    refused on someone else's), so an experiment cannot be shared out from under
+    the person it belongs to.
+    """
+    exp.shared = bool(request.POST.get("shared"))
+    exp.save(update_fields=["shared"])
+    return redirect("ui:experiment_detail", pk=exp.pk)
+
+
+@require_POST
 @experiment_view(RUN)
 def run_cancel(request, exp):
     """Request cancellation of the experiment's active run.
@@ -259,12 +294,17 @@ def run_cancel(request, exp):
 def experiment_export(request, exp):
     """Download a saved experiment as a Streamlit-loadable .ihpo file.
 
-    When the experiment's `export_absolute_times` setting is off, per-trial
-    `starttime`/`endtime` are scrubbed so a shared file reveals no run times
-    (durations are kept). Done here, not in the adapter, so the detail page's
-    own reconstruction is unaffected; deserialize ignores the keys on re-import.
+    Server paths are always blanked, and when the experiment's
+    `export_absolute_times` setting is off, per-trial `starttime`/`endtime` are
+    scrubbed too, so a shared file reveals no run times (durations are kept).
+    Done here, not in the adapter, so the detail page's own reconstruction and
+    the run engine are unaffected; deserialize ignores the keys on re-import.
     """
     snapshot = snapshot_adapter.snapshot_from_experiment(exp)
+    # The paths name files on this server, which is of no use to whoever opens
+    # the file and tells them how the instance is laid out.
+    snapshot["dataset_path"] = ""
+    snapshot["model_path"] = ""
     if not resolve_settings(exp)["export_absolute_times"] and snapshot.get("result"):
         snapshot["result"] = copy.deepcopy(snapshot["result"])
         for entry in snapshot["result"].get("data", []):
@@ -368,6 +408,7 @@ def import_experiment(request):
         model_upload = request.FILES.get("model") if settings.ALLOW_CUSTOM_MODELS else None
         exp = snapshot_adapter.experiment_from_snapshot(
             snapshot, dataset_file=request.FILES.get("dataset"), model_file=model_upload,
+            owner=_owner(request),
         )
         # An imported model is re-locked here rather than trusting pins chosen by
         # whoever exported it.
@@ -412,7 +453,7 @@ def _selected_panel_data(result, metric, idx):
     }
 
 
-def _detail_context(exp):
+def _detail_context(request, exp):
     """Detail-page context: identity, run state, and the figures to draw.
 
     Rebuilds the OptimizationResult from the stored snapshot (read-only) and,
@@ -446,7 +487,13 @@ def _detail_context(exp):
         "metric_names": metric_names,
         "has_result": result is not None,
         "active_run": active_run,
-        "can_run": bool(exp.dataset) and _model_available(exp),
+        "can_run": (bool(exp.dataset) and _model_available(exp)
+                    and permissions.policy().may(request, exp, RUN)),
+        # What this viewer may do, for the buttons. Read access got them here;
+        # the rest depends on whose experiment it is.
+        "may": {action: permissions.policy().may(request, exp, action)
+                for action in (RUN, EDIT, DELETE, EXPORT)},
+        "ownership": _ownership(request, exp),
         "run_error": last_run.error if (last_run and last_run.status == "error") else None,
         # The model's environment, for the branches on the detail page.
         "env": {

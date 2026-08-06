@@ -17,10 +17,33 @@
         </div>
         <div class="actions" style="flex-shrink: 0;">
             <a class="btn" href="{% url 'ui:experiment_export' summary.pk %}" title="{% translate 'Download as .ihpo' %}">{% translate "💾 Export" %}</a>
-            <a class="btn" href="{% url 'ui:experiment_settings' summary.pk %}" title="{% translate 'Experiment settings' %}">{% translate "⚙ Settings" %}</a>
-            <a class="btn" href="{% url 'ui:experiment_delete' summary.pk %}" title="{% translate 'Delete experiment' %}">{% translate "🗑 Delete" %}</a>
+            {% if may.edit %}
+                <a class="btn" href="{% url 'ui:experiment_settings' summary.pk %}" title="{% translate 'Experiment settings' %}">{% translate "⚙ Settings" %}</a>
+            {% endif %}
+            {% if may.delete %}
+                <a class="btn" href="{% url 'ui:experiment_delete' summary.pk %}" title="{% translate 'Delete experiment' %}">{% translate "🗑 Delete" %}</a>
+            {% endif %}
         </div>
     </div>
+
+    {% if ownership %}
+        <p class="caption ownership">
+            {% if ownership.mine %}
+                <form method="post" action="{% url 'ui:experiment_share' summary.pk %}">
+                    {% csrf_token %}
+                    <label class="check">
+                        <input type="checkbox" name="shared" onchange="this.form.submit()"
+                               {% if ownership.shared %}checked{% endif %}>
+                        {% translate "Let everyone else read this experiment" %}
+                    </label>
+                </form>
+            {% elif ownership.owner %}
+                {% blocktranslate with name=ownership.owner.get_username %}Shared with you by {{ name }} — read only.{% endblocktranslate %}
+            {% else %}
+                {% translate "This experiment has no owner, so everyone here can change it." %}
+            {% endif %}
+        </p>
+    {% endif %}
 
     {% if run_error %}
         <div class="alert error" style="max-width: 40rem;">{% blocktranslate %}Run failed: {{ run_error }}{% endblocktranslate %}</div>
