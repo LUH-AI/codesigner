@@ -13,7 +13,7 @@ def _experiment_with_active_run():
     exp = Experiment.objects.create(
         name="r", model_name="Random Forest", optimizer_name="Random Search",
         metric_names=["accuracy"], seed=0)
-    Run.objects.create(experiment=exp, n_trials=3, primary_metric="accuracy",
+    Run.objects.create(experiment=exp, stopping={"max_trials": 3}, primary_metric="accuracy",
                        status="running")
     return exp
 

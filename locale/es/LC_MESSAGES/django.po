@@ -8,7 +8,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: PACKAGE VERSION\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2026-08-06 11:49+0000\n"
+"POT-Creation-Date: 2026-08-06 12:55+0000\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
 "Language-Team: LANGUAGE <LL@li.org>\n"
@@ -105,7 +105,6 @@ msgid "No experiments yet."
 msgstr "Aún no hay experimentos."
 
 #: tests/ui/i18n/test_i18n.py:220 tests/ui/i18n/test_i18n.py:226
-#: ui/templates/ui/experiment_detail.html:96
 msgid "Number of trials"
 msgstr "Número de pruebas"
 
@@ -404,8 +403,8 @@ msgid "Prepare an isolated environment"
 msgstr "Preparar un entorno aislado"
 
 #: ui/templates/ui/experiment_detail.html:86
-#: ui/templates/ui/experiment_detail.html:100
-#: ui/templates/ui/experiment_detail.html:137
+#: ui/templates/ui/experiment_detail.html:96
+#: ui/templates/ui/experiment_detail.html:169
 msgid "Evaluation metric"
 msgstr "Métrica de evaluación"
 
@@ -413,46 +412,68 @@ msgstr "Métrica de evaluación"
 msgid "Run"
 msgstr "Ejecutar"
 
-#: ui/templates/ui/experiment_detail.html:110
-msgid "Stop early when…"
-msgstr "Detener antes cuando…"
+#: ui/templates/ui/experiment_detail.html:107
+msgid "Run until…"
+msgstr "Ejecutar hasta que…"
 
-#: ui/templates/ui/experiment_detail.html:112
+#: ui/templates/ui/experiment_detail.html:109
+msgid "…this many trials have run"
+msgstr "…se hayan hecho estas pruebas"
+
+#: ui/templates/ui/experiment_detail.html:114
 msgid "…the best score reaches"
 msgstr "…la mejor puntuación alcance"
 
-#: ui/templates/ui/experiment_detail.html:114
+#: ui/templates/ui/experiment_detail.html:116
+#: ui/templates/ui/experiment_detail.html:134
 msgid "e.g. 0.95"
 msgstr "p. ej. 0,95"
 
-#: ui/templates/ui/experiment_detail.html:117
+#: ui/templates/ui/experiment_detail.html:119
 msgid "…the run has taken this many seconds"
 msgstr "…la ejecución haya durado estos segundos"
 
-#: ui/templates/ui/experiment_detail.html:121
+#: ui/templates/ui/experiment_detail.html:123
 msgid "…this many seconds have been spent in trials"
 msgstr "…se hayan dedicado estos segundos a las pruebas"
 
-#: ui/templates/ui/experiment_detail.html:125
+#: ui/templates/ui/experiment_detail.html:127
 msgid "…this many trials in a row have not improved"
 msgstr "…estas pruebas seguidas no hayan mejorado"
 
-#: ui/templates/ui/experiment_detail.html:129
+#: ui/templates/ui/experiment_detail.html:132
+msgid "…the search is this sure nothing better remains"
+msgstr "…la búsqueda esté así de segura de que no queda nada mejor"
+
+#: ui/templates/ui/experiment_detail.html:135
+msgid ""
+"Asks this optimizer's own model of the objective how likely it is that any "
+"untried configuration beats the best one so far. Confidence under that "
+"model, not a guarantee."
+msgstr "Pregunta al propio modelo del objetivo de este optimizador qué probabilidad hay de que alguna configuración no probada supere a la mejor hasta ahora. Confianza según ese modelo, no una garantía."
+
+#: ui/templates/ui/experiment_detail.html:138
+msgid ""
+"These may never happen. Consider a trial or time limit as well, so the run "
+"is certain to end."
+msgstr "Puede que esto no ocurra nunca. Conviene añadir también un límite de pruebas o de tiempo para que la ejecución termine con seguridad."
+
+#: ui/templates/ui/experiment_detail.html:140
 msgid "▶ Run"
 msgstr "▶ Ejecutar"
 
-#: ui/templates/ui/experiment_detail.html:132
+#: ui/templates/ui/experiment_detail.html:164
 #, python-format
 msgid "Environment: %(summary)s"
 msgstr "Entorno: %(summary)s"
 
-#: ui/templates/ui/experiment_detail.html:141
+#: ui/templates/ui/experiment_detail.html:173
 msgid "Attach a dataset to run this experiment (loaded read-only)."
 msgstr ""
 "Adjunte un conjunto de datos para ejecutar este experimento (cargado en modo "
 "de solo lectura)."
 
-#: ui/templates/ui/experiment_detail.html:145
+#: ui/templates/ui/experiment_detail.html:177
 #, python-format
 msgid ""
 "Last run: %(count)s trials in %(total)s s — %(trials)s s in trials, "
@@ -461,20 +482,25 @@ msgstr ""
 "Última ejecución: %(count)s pruebas en %(total)s s — %(trials)s s en "
 "pruebas, %(overhead)s s de sobrecarga."
 
-#: ui/templates/ui/experiment_detail.html:149
+#: ui/templates/ui/experiment_detail.html:177
+#, python-format
+msgid "Stopped because %(reason)s."
+msgstr "Detenido porque %(reason)s."
+
+#: ui/templates/ui/experiment_detail.html:181
 msgid "No results yet."
 msgstr "Aún no hay resultados."
 
-#: ui/templates/ui/experiment_detail.html:153
+#: ui/templates/ui/experiment_detail.html:185
 #, python-format
 msgid "The search space is exhausted at %(n)s trials."
 msgstr "El espacio de búsqueda se agota tras %(n)s pruebas."
 
-#: ui/templates/ui/experiment_detail.html:256
+#: ui/templates/ui/experiment_detail.html:288
 msgid "Absolute scale (0-1)"
 msgstr "Escala absoluta (0-1)"
 
-#: ui/templates/ui/experiment_detail.html:257
+#: ui/templates/ui/experiment_detail.html:289
 msgid "Relative scale (fit to data)"
 msgstr "Escala relativa (ajustar a los datos)"
 
@@ -613,7 +639,9 @@ msgstr "Usar conjuntos de datos de demostración"
 msgid ""
 "Fixed once the experiment exists: trials scored different ways cannot be "
 "compared with each other."
-msgstr "Fijo una vez creado el experimento: las pruebas puntuadas de distinta forma no se pueden comparar entre sí."
+msgstr ""
+"Fijo una vez creado el experimento: las pruebas puntuadas de distinta forma "
+"no se pueden comparar entre sí."
 
 #: ui/templates/ui/new_experiment.html:82
 msgid "Create experiment"
@@ -640,35 +668,48 @@ msgstr ""
 "configuración no\n"
 "    se ven afectados."
 
-#: ui/views.py:84
-msgid "stopped early: the target score was reached"
-msgstr "detenido antes: se alcanzó la puntuación objetivo"
-
 #: ui/views.py:85
-msgid "stopped early: the time limit was reached"
-msgstr "detenido antes: se alcanzó el límite de tiempo"
+msgid "all the requested trials ran"
+msgstr "se ejecutaron todas las pruebas solicitadas"
 
 #: ui/views.py:86
-msgid "stopped early: the compute budget was used up"
-msgstr "detenido antes: se agotó el presupuesto de cómputo"
+msgid "the target score was reached"
+msgstr "se alcanzó la puntuación objetivo"
 
 #: ui/views.py:87
-msgid "stopped early: the score had stopped improving"
-msgstr "detenido antes: la puntuación dejó de mejorar"
+msgid "the time limit was reached"
+msgstr "se alcanzó el límite de tiempo"
 
-#: ui/views.py:124
+#: ui/views.py:88
+msgid "the compute budget was used up"
+msgstr "se agotó el presupuesto de cómputo"
+
+#: ui/views.py:89
+msgid "the score had stopped improving"
+msgstr "la puntuación dejó de mejorar"
+
+#: ui/views.py:90
+msgid "the search was confident nothing better remained"
+msgstr "la búsqueda tuvo la certeza de que no quedaba nada mejor"
+
+#: ui/views.py:127
 msgid "Inconsistent"
 msgstr "Inconsistente"
 
-#: ui/views.py:468
+#: ui/views.py:267
+msgid ""
+"Set at least one stopping criterion, so the run has something to end on."
+msgstr "Define al menos un criterio de parada para que la ejecución pueda terminar."
+
+#: ui/views.py:478
 msgid "Invalid or unreadable experiment file."
 msgstr "Archivo de experimento inválido o ilegible."
 
-#: ui/views.py:554
+#: ui/views.py:564
 #, python-format
 msgid "%(k)s-fold CV"
 msgstr "VC de %(k)s pliegues"
 
-#: ui/views.py:555
+#: ui/views.py:565
 msgid "holdout"
 msgstr "retención"

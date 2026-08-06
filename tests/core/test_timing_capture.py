@@ -43,7 +43,7 @@ def test_trialresult_duration_defaults_to_zero():
 
 
 def test_collector_record_stores_run_info():
-    c = TrialCollector(target_new_trials=1)
+    c = TrialCollector(stopping={"max_trials": 1})
     t = c.record({"k": 1}, 0.5, {"accuracy": 0.5}, run_info={"time": 0.3, "status": 1})
     assert t.run_info["time"] == 0.3
 

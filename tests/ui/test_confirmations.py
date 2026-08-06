@@ -43,7 +43,7 @@ def _confirmations(client):
          client.get(reverse("ui:experiment_delete", args=[exp.pk])).content.decode()),
         ("metric change",
          client.post(reverse("ui:experiment_run", args=[runnable.pk]),
-                     {"n_trials": 1, "optimize_metric": "f1"}).content.decode()),
+                     {"max_trials": 1, "optimize_metric": "f1"}).content.decode()),
         ("save as default",
          client.post(reverse("ui:experiment_settings", args=[exp.pk]),
                      {"save_as_default": "1"}).content.decode()),

@@ -26,9 +26,9 @@ def test_sweep_marks_running_errored_and_leaves_pending_and_finished():
     from ui.models import Run
 
     exp = _experiment()
-    running = Run.objects.create(experiment=exp, n_trials=3, primary_metric="accuracy", status="running")
-    pending = Run.objects.create(experiment=exp, n_trials=3, primary_metric="accuracy", status="pending")
-    done = Run.objects.create(experiment=exp, n_trials=3, primary_metric="accuracy", status="done")
+    running = Run.objects.create(experiment=exp, stopping={"max_trials": 3}, primary_metric="accuracy", status="running")
+    pending = Run.objects.create(experiment=exp, stopping={"max_trials": 3}, primary_metric="accuracy", status="pending")
+    done = Run.objects.create(experiment=exp, stopping={"max_trials": 3}, primary_metric="accuracy", status="done")
 
     swept = sweep_stale_runs()
 

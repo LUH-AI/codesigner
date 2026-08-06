@@ -38,7 +38,7 @@ def test_start_background_run_executes_via_the_queue():
     from ui.services.run import create_run, start_background_run
 
     exp = _runnable_experiment()
-    run = create_run(exp, n_trials=3, optimize_metric="accuracy")
+    run = create_run(exp, {"max_trials": 3}, "accuracy")
     start_background_run(run.id)
 
     run.refresh_from_db()
@@ -65,7 +65,7 @@ def test_call_local_runs_the_experiment():
     from ui.tasks import run_experiment_task
 
     exp = _runnable_experiment()
-    run = create_run(exp, n_trials=2, optimize_metric="accuracy")
+    run = create_run(exp, {"max_trials": 2}, "accuracy")
     run_experiment_task.call_local(run.id)
 
     run.refresh_from_db()

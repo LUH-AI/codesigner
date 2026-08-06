@@ -66,11 +66,12 @@ class DbCancelFlag:
         return self._value
 
 
-def create_run(experiment, n_trials, optimize_metric, started_by=None, stopping=None):
+def create_run(experiment, stopping, optimize_metric, started_by=None):
     """Record a pending run and commit its metric onto the experiment.
 
     Primary becomes the optimized metric; original is pinned on the first run.
-    Returns the pending Run.
+    *stopping* is the criteria the run ends on — at least one; see
+    `core.optimizers.base.STOPPING_CRITERIA`. Returns the pending Run.
     """
     from ..models import Run
 
@@ -81,11 +82,10 @@ def create_run(experiment, n_trials, optimize_metric, started_by=None, stopping=
 
     return Run.objects.create(
         experiment=experiment,
-        n_trials=n_trials,
         primary_metric=optimize_metric,
         status="pending",
         started_by=started_by,
-        stopping=stopping or {},
+        stopping=dict(stopping),
     )
 
 
@@ -137,7 +137,6 @@ def execute_run(run_id):
                 built["X_train"], built["y_train"], built["X_val"], built["y_val"],
                 metrics=built["metrics"],
                 primary_metric=run.primary_metric,
-                n_trials=run.n_trials,
                 previous_result=built["result"],
                 seed=built["seed"],
                 cancel_event=cancel,

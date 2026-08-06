@@ -86,7 +86,7 @@ def test_the_page_polls_while_preparing(client):
     assert reverse("ui:env_status", args=[exp.pk]) in html
     assert "hx-trigger" in html
     assert "scikit-learn" in html          # says what it is installing
-    assert 'name="n_trials"' not in html   # and nothing can be run yet
+    assert 'name="max_trials"' not in html  # and nothing can be run yet
 
 
 def test_the_poll_target_reports_progress_then_asks_for_a_reload(client):
@@ -143,7 +143,7 @@ def test_retrying_requires_a_post(client):
 def test_a_run_in_flight_blocks_a_rebuild(client, fake_uv):
     """Rebuilding under a running optimization would change what it is using."""
     exp = _experiment(env_status=Experiment.ENV_FAILED)
-    Run.objects.create(experiment=exp, n_trials=3, primary_metric="accuracy",
+    Run.objects.create(experiment=exp, stopping={"max_trials": 3}, primary_metric="accuracy",
                        status="running")
 
     client.post(reverse("ui:prepare_env", args=[exp.pk]))
@@ -193,7 +193,7 @@ def test_a_ready_experiment_shows_the_run_form_and_its_environment(client):
                       env_meta={"dependencies": ["scikit-learn"], "python": "3.12.4"})
     html = _page(client, exp)
 
-    assert 'name="n_trials"' in html
+    assert 'name="max_trials"' in html
     assert "scikit-learn" in html
     assert "Python 3.12.4" in html
 

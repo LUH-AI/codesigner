@@ -104,14 +104,34 @@ def rebase_history(previous_result, primary_metric: str):
     ), True
 
 
-#: The optional stopping criteria, and what each one measures. `n_trials` is
-#: not here because it is always present — it is the collector's first
-#: argument, and the backstop that keeps every run finite.
-STOPPING_CRITERIA = ("max_seconds", "max_trial_seconds", "target_score",
-                     "no_improvement_trials")
+#: Every stopping criterion, on equal footing. A run needs at least one and may
+#: have any combination; the first to fire ends it.
+STOPPING_CRITERIA = ("max_trials", "max_seconds", "max_trial_seconds",
+                     "target_score", "no_improvement_trials",
+                     "incumbent_confidence")
 
-#: What ended a run, when it was not simply the trial count.
-STOPPED_BY_TRIALS = "n_trials"
+#: Criteria that may never fire. A run set up with only these has no guaranteed
+#: end — a target score the search never reaches, or a surrogate that stays
+#: unsure — so a caller should pair them with something bounded.
+UNBOUNDED_CRITERIA = ("target_score", "incumbent_confidence")
+
+
+class NoStoppingCriterion(ValueError):
+    """A run was set up with nothing that could ever end it."""
+
+
+def merge_stopping(n_trials, stopping) -> Dict[str, Any]:
+    """`n_trials` as sugar for `stopping["max_trials"]`.
+
+    Kept on `optimize()` because "run this many more trials" is the natural way
+    to ask for a search from code, and every caller in the tests says it that
+    way. It is only spelling: the collector sees one set of criteria with no
+    privileged member, and an explicit `max_trials` wins.
+    """
+    merged = dict(stopping or {})
+    if n_trials is not None:
+        merged.setdefault("max_trials", n_trials)
+    return merged
 
 
 class TrialCollector:
@@ -126,10 +146,6 @@ class TrialCollector:
 
     Parameters
     ----------
-    target_new_trials:
-        Stop collecting (``done`` becomes True) after this many new trials.
-        Always applies: a run has to be bounded by something, and a target that
-        is never reached would otherwise run forever.
     trial_offset:
         Number of trials already recorded in a previous run; used to produce
         globally-sequential trial numbers when resuming.
@@ -139,52 +155,83 @@ class TrialCollector:
     initial_best_config:
         Config that produced ``initial_best_score``.
     stopping:
-        Optional extra criteria, any of which may end the run first — see
-        ``STOPPING_CRITERIA``. An absent or None key means that criterion does
-        not apply, so the default is exactly the old behaviour.
+        The criteria, any of which may end the run — see ``STOPPING_CRITERIA``.
+        At least one is required; an absent or None key means that criterion
+        does not apply. No criterion is privileged: a trial cap is a limit like
+        any other, not a mandatory backstop the rest hang off.
 
+        ``max_trials``           this many new trials
         ``max_seconds``          wall-clock for this run
         ``max_trial_seconds``    cumulative time spent inside trials, which is
                                  the compute actually consumed rather than how
                                  long the run has been open
-        ``target_score``         stop once the incumbent reaches this
-        ``no_improvement_trials``  stop after this many trials in a row that
-                                 did not improve the incumbent
+        ``target_score``         the incumbent reaches this
+        ``no_improvement_trials``  this many trials in a row did not improve
+                                 the incumbent
+        ``incumbent_confidence`` the optimizer's surrogate is at least this sure
+                                 nothing left will beat the incumbent. Only an
+                                 optimizer that fits a surrogate can answer, and
+                                 it does so through `note_confidence`; for one
+                                 that cannot, this never fires.
     """
 
     def __init__(
         self,
-        target_new_trials: int,
         trial_offset: int = 0,
         initial_best_score: float = float("-inf"),
         initial_best_config: Optional[Dict[str, Any]] = None,
         stopping: Optional[Dict[str, Any]] = None,
     ):
         self.results: List[TrialResult] = []
-        self._target_new_trials = target_new_trials
         self._trial_offset = trial_offset
         self._incumbent_score = initial_best_score
         self._incumbent_config = initial_best_config
 
         self._stopping = {k: v for k, v in (stopping or {}).items()
                           if k in STOPPING_CRITERIA and v is not None}
+        if not self._stopping:
+            raise NoStoppingCriterion(
+                "a run needs at least one stopping criterion; got "
+                f"{sorted(stopping or {})}")
+
         self._started = time.monotonic()
         self._trial_seconds = 0.0
         self._since_improvement = 0
+        self._confidence: Optional[float] = None
         #: Which criterion ended the run, or None while it is still going.
         self.stopped_by: Optional[str] = None
+
+    @property
+    def incumbent_score(self) -> float:
+        """The best primary-metric score so far, over this run and any it
+        resumed from. Read by an optimizer that needs the incumbent to ask its
+        surrogate about."""
+        return self._incumbent_score
+
+    def note_confidence(self, probability: Optional[float]) -> None:
+        """How sure the optimizer's surrogate is that nothing left is better.
+
+        Reported rather than computed here: it needs a fitted model of the
+        objective, which only the optimizer has. None means the optimizer could
+        not say — no surrogate, or too little data to have trained one yet — and
+        leaves the criterion unfired rather than guessing.
+        """
+        self._confidence = probability
 
     def _fired(self) -> Optional[str]:
         """The first criterion that says to stop, or None to keep going.
 
         Checked in the order a user would find least surprising to be told
-        about: reaching the target is a success, the budgets are limits, and
-        stagnation is a judgement call.
+        about: the two that mean "we are done" first, then the budgets that mean
+        "we ran out", then stagnation, which is a judgement call.
         """
         if self._incumbent_score >= self._stopping.get("target_score", float("inf")):
             return "target_score"
-        if len(self.results) >= self._target_new_trials:
-            return STOPPED_BY_TRIALS
+        wanted = self._stopping.get("incumbent_confidence")
+        if wanted is not None and self._confidence is not None and self._confidence >= wanted:
+            return "incumbent_confidence"
+        if len(self.results) >= self._stopping.get("max_trials", float("inf")):
+            return "max_trials"
         if time.monotonic() - self._started >= self._stopping.get("max_seconds", float("inf")):
             return "max_seconds"
         if self._trial_seconds >= self._stopping.get("max_trial_seconds", float("inf")):
@@ -245,6 +292,11 @@ class BaseOptimizer(ABC):
     @abstractmethod
     def name(self) -> str: ...
 
+    #: Whether this optimizer fits a model of the objective it can be asked how
+    #: sure it is. Only such an optimizer can answer `incumbent_confidence`, and
+    #: the Run form uses this to decide whether to offer the criterion at all.
+    supports_confidence_stopping: bool = False
+
     @abstractmethod
     def optimize(
         self,
@@ -253,7 +305,7 @@ class BaseOptimizer(ABC):
         X_val, y_val,
         metrics: dict,
         primary_metric: str,
-        n_trials: int,
+        n_trials: Optional[int] = None,
         previous_result: Optional["OptimizationResult"] = None,
         seed: int = 0,
         cancel_event=None,

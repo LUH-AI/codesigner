@@ -1,6 +1,6 @@
 from typing import Optional
 
-from .base import BaseOptimizer, OptimizationResult, TrialCollector, rebase_history
+from .base import BaseOptimizer, OptimizationResult, TrialCollector, merge_stopping, rebase_history
 from ..splits import holdout
 from .trial import evaluate_trial
 
@@ -24,7 +24,7 @@ class RandomOptimizer(BaseOptimizer):
         X_val, y_val,
         metrics: dict,
         primary_metric: str,
-        n_trials: int,
+        n_trials: int | None = None,
         previous_result=None,
         seed: int = 0,
         cancel_event=None,
@@ -48,11 +48,10 @@ class RandomOptimizer(BaseOptimizer):
             trial_offset = len(previous_result.trials)
 
         collector = TrialCollector(
-            target_new_trials=n_trials,
             trial_offset=trial_offset,
             initial_best_score=previous_result.best_score if previous_result else float("-inf"),
             initial_best_config=previous_result.best_config if previous_result else None,
-            stopping=stopping,
+            stopping=merge_stopping(n_trials, stopping),
         )
 
         consecutive_dupes = 0

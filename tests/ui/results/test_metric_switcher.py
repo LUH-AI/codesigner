@@ -69,7 +69,7 @@ def test_metric_select_present_before_first_run(client):
     """A fresh, never-run experiment shows the Run form with its metric dropdown."""
     exp = _experiment()
     html = client.get(reverse("ui:experiment_detail", args=[exp.pk])).content.decode()
-    assert 'name="n_trials"' in html
+    assert 'name="max_trials"' in html
     assert 'name="optimize_metric"' in html
 
 
@@ -84,7 +84,7 @@ def test_run_and_metric_controls_share_one_card(client):
     # separate form and must not be conflated with the run/metric controls.
     content = html.split("<main", 1)[-1]
     assert content.count("<form") == 1
-    assert 'name="n_trials"' in html
+    assert 'name="max_trials"' in html
     assert 'id="metric-select"' in html
     # the dropdown doubles as the Run form's optimize-metric field
     assert 'name="optimize_metric"' in html
@@ -98,7 +98,7 @@ def test_readonly_experiment_keeps_metric_selector_without_run_form(client):
     html = client.get(reverse("ui:experiment_detail", args=[exp.pk])).content.decode()
 
     assert 'id="metric-select"' in html
-    assert 'name="n_trials"' not in html
+    assert 'name="max_trials"' not in html
 
 
 @pytest.mark.django_db
@@ -109,12 +109,12 @@ def test_metric_selector_present_while_a_run_is_in_flight(client):
     from ui.models import Run
 
     exp = _experiment_with_result()
-    Run.objects.create(experiment=exp, n_trials=3, primary_metric="accuracy", status="running")
+    Run.objects.create(experiment=exp, stopping={"max_trials": 3}, primary_metric="accuracy", status="running")
 
     html = client.get(reverse("ui:experiment_detail", args=[exp.pk])).content.decode()
     assert 'id="metric-select"' in html
     # the run form itself is gone while running
-    assert 'name="n_trials"' not in html
+    assert 'name="max_trials"' not in html
 
 
 @pytest.mark.django_db

@@ -22,7 +22,7 @@ def test_detail_renders_while_a_run_is_active(client):
     from ui.services import snapshot as adapter
 
     exp = adapter.experiment_from_snapshot(io.parse((FIXTURES_DIR / "test2.ihpo").read_bytes()))
-    Run.objects.create(experiment=exp, n_trials=3, primary_metric="accuracy", status="running")
+    Run.objects.create(experiment=exp, stopping={"max_trials": 3}, primary_metric="accuracy", status="running")
 
     resp = client.get(reverse("ui:experiment_detail", args=[exp.pk]))
 

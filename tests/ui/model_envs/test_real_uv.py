@@ -117,7 +117,7 @@ def test_a_real_run_goes_through_the_built_environment(experiment, sdk_wheel):
     experiment.refresh_from_db()
     assert experiment.env_status == Experiment.ENV_READY, experiment.env_error
 
-    run = create_run(experiment, n_trials=3, optimize_metric="accuracy")
+    run = create_run(experiment, {"max_trials": 3}, "accuracy")
     execute_run(run.id)
 
     run.refresh_from_db()

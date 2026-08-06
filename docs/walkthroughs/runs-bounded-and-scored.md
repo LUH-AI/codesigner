@@ -2,11 +2,13 @@
 
 **Status:** implemented, awaiting your sign-off.
 **You can now:** change an experiment's optimized metric without corrupting its
-search; end a run on a target score, a deadline, a compute budget or stagnation
-rather than only a trial count; and score trials with k-fold cross-validation
-instead of a single holdout.
+search; end a run on any of six criteria — including asking SMAC's own surrogate
+whether anything untried is likely to beat the incumbent — rather than only a
+trial count; and score trials with k-fold cross-validation instead of a single
+holdout.
 
-Three commits: `576ef40`, `b22752d`, `f72b841`. They came out of planning the
+Four commits: `576ef40`, `b22752d`, `f72b841`, and the follow-up that removed
+the trial count's special status and added the surrogate criterion. They came out of planning the
 A3S integration — two are gaps that integration will need, one is a live
 correctness bug — and A3S is deferred until after them.
 
@@ -65,43 +67,80 @@ but they were *selected* under the old objective, so the run inherits that bias.
 fails with `0.033333333` (`1 − accuracy`) sitting where `0.033416876`
 (`1 − f1`) belongs.
 
-## 2. A run can stop on more than a trial count
+## 2. A run can stop on any of six things
 
-Five criteria. Any of them can be set at once, the first to fire ends the run,
-and the run records which.
+Six criteria, none privileged. Any combination may be set, at least one must be,
+the first to fire ends the run, and the run records which.
 
 | | |
 |---|---|
-| `n_trials` | The trial cap. **Always present** — a target that is never reached has to end somewhere. |
+| `max_trials` | This many new trials. |
 | `target_score` | The incumbent reached what you asked for. |
 | `max_seconds` | Wall-clock for the run. |
 | `max_trial_seconds` | Time spent inside trials — the compute actually consumed, which is what a shared machine budgets. |
 | `no_improvement_trials` | The score stopped improving. |
+| `incumbent_confidence` | The optimizer's surrogate is this sure nothing untried beats the incumbent. |
 
 All of it lives in `TrialCollector.done`, the condition every optimizer loop is
-already written against, so all four got it without knowing. `Run.stopping`
-holds the optional four and `Run.n_trials` stays as the always-present one, so
-no criterion has two homes. `Run.stopped_by` records the answer and the page
-says *stopped early: the target score was reached* rather than leaving you to
-work out why there are 12 trials and not 30.
+already written against, so all four got it without knowing. `Run.stopping` is
+the one home for every criterion — a trial cap is a limit like any other, not
+the frame the rest hang off, so it is not required and has no column of its own.
+A run with no criterion at all is refused, by the collector and by the form,
+because it could never end. `Run.stopped_by` records the answer.
 
 The reason is **latched** — `done` is read once per loop iteration and the wall
 clock keeps moving, so a run that finished its trials must not be relabelled a
 timeout on the next read.
 
-On **confidence bound on the incumbent**, which you asked for: a real
-statistical criterion needs a variance estimate the single-holdout protocol
-could not supply. Stagnation is the honest proxy. Cross-validation now makes the
-real thing possible — see below.
+`n_trials` survives as an argument to `optimize()`, where "run this many more
+trials" is how code asks for a search. It is spelling: `merge_stopping` folds it
+into `max_trials`, and an explicit `max_trials` wins.
 
-Measured end to end on iris, 25-trial cap:
+### The surrogate's confidence
+
+This is the one worth reading twice, because a first attempt got it wrong. It is
+**not** about noise in the metric. A Bayesian optimizer already carries a model
+of the objective and already spends it on choosing the next trial; the same
+posterior answers "how likely is it that anything left beats what we have?".
+
+For a candidate `x`, the chance it beats the incumbent is
+`Φ((c_inc − μ(x)) / σ(x))` — costs are minimized, so beating means lower. Take
+the best chance any of a thousand sampled candidates has; one minus that is the
+confidence that none of them does.
+
+Three honest limits, all of them in the code's docstrings:
+
+- **SMAC only.** Random and grid search fit no model. `supports_confidence_stopping`
+  declares it, the Run form does not offer the field where it cannot be
+  answered, and the collector treats "no answer" as *not fired* rather than as
+  certainty.
+- **Confidence under the surrogate's own model**, a GP with its own assumptions,
+  badly calibrated early — so `_CONFIDENCE_MIN_TRIALS` stops a handful of points
+  ending a run.
+- The space is **sampled, not covered**: a narrow optimum no sample lands near is
+  not accounted for.
+
+Measured on iris, 40-trial cap. It behaves monotonically, which is the check
+that matters:
 
 ```
-trial cap only   trials=25  stopped_by='n_trials'
+confidence >= 0.5    -> 33 trials, stopped_by='incumbent_confidence'
+confidence >= 0.8    -> 40 trials, stopped_by='max_trials'
+confidence >= 0.95   -> 40 trials, stopped_by='max_trials'
+```
+
+And the rest, 25-trial cap:
+
+```
+cap only         trials=25  stopped_by='max_trials'
 target 0.5       trials= 1  stopped_by='target_score'
 stagnation 2     trials= 3  stopped_by='no_improvement_trials'
 budget 0.001s    trials= 1  stopped_by='max_trial_seconds'
 ```
+
+`target_score` and `incumbent_confidence` may never fire. Chosen without
+anything bounded alongside them, the form says so beside the fields — advice,
+not a refusal, because wanting exactly that is legitimate.
 
 ## 3. Cross-validation
 
@@ -170,13 +209,18 @@ The holdout calls the best configuration perfect. It is not.
 ## Verify
 
 ```bash
-python -m pytest -m "not slow and not uv"   # 528
-python -m pytest -m slow                    # 10
-python -m pytest -m uv                      # 3, needs uv
-python manage.py migrate                    # 0010, 0011
+python -m pytest -m "not slow and not uv"
+python -m pytest -m slow
+python -m pytest -m uv                      # needs uv
+python manage.py migrate                    # 0010, 0011, 0012
 ```
 
-New tests: `tests/core/test_metric_change.py` (11), `test_stopping.py` (16),
+Migration `0012` carries each existing run's `n_trials` into
+`stopping["max_trials"]` before dropping the column — without it every past run
+would read as having had no stopping criterion, which is a state the code now
+refuses.
+
+New tests: `tests/core/test_metric_change.py` (11), `test_stopping.py` (24),
 `test_cross_validation.py` (15), plus four cross-validation cases across the
 pipe in `test_modelhost.py` and four view-level ones in `test_run_views.py`.
 
@@ -192,9 +236,10 @@ up as a wall of unrelated environment failures. It now interpolates
 
 ## What this opens up
 
-- **A real incumbent-confidence stopping criterion.** The per-fold scores exist
-  now, so the variance does too. It would need `TrialResult` to keep the fold
-  scores rather than only their mean.
+- **Per-fold variance.** The fold scores exist during a trial but only their
+  mean is kept. Keeping them would let the confidence criterion account for
+  noise in the *observations* as well as uncertainty in the surrogate, and would
+  give the figures error bars.
 - **The A3S integration**, which is where all three of these came from. Their
   generated target function cross-validates 5 ways; codesigner can now match
   that rather than measuring an agent-designed pipeline differently from

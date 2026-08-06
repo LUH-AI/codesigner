@@ -3,13 +3,15 @@ import logging
 import tempfile
 from pathlib import Path
 
+import numpy as np
 from ConfigSpace import Configuration
 from smac import Scenario, BlackBoxFacade
+from smac.utils.configspace import convert_configurations_to_array
 from smac.runhistory import StatusType
 from smac.runhistory.dataclasses import TrialInfo, TrialValue
 
 from ..paths import safe_join
-from .base import BaseOptimizer, OptimizationResult, TrialCollector, rebase_history
+from .base import BaseOptimizer, OptimizationResult, TrialCollector, merge_stopping, rebase_history
 from ..splits import holdout
 from .timing import STATUS_SUCCESS
 from .trial import evaluate_trial
@@ -18,6 +20,24 @@ logging.getLogger("smac").setLevel(logging.WARNING)
 
 # Fixed budget keeps the Scenario hash stable across runs; the while-loop controls actual stopping.
 _SMAC_MAX_TRIALS = 100_000
+
+# How many configurations to ask the surrogate about when answering "is anything
+# left better than the incumbent?". The space is sampled rather than covered, so
+# this trades a little cost for a tighter bound; a thousand predictions from a
+# fitted GP is milliseconds beside a trial.
+_CONFIDENCE_SAMPLES = 1000
+
+# Trials before the surrogate is allowed to end a run. A GP fitted on a handful
+# of points is confident in the way a straight line through two points is: the
+# posterior is narrow because there is nothing to contradict it.
+_CONFIDENCE_MIN_TRIALS = 10
+
+
+def _normal_cdf(z):
+    """Standard normal CDF, without pulling scipy in for one function."""
+    from math import erf, sqrt
+
+    return np.vectorize(lambda v: 0.5 * (1.0 + erf(v / sqrt(2.0))))(z)
 
 
 class SMACOptimizer(BaseOptimizer):
@@ -28,6 +48,9 @@ class SMACOptimizer(BaseOptimizer):
     """
 
     name = "SMAC (BlackBox)"
+
+    #: The GP is the whole point of this optimizer, so it can be asked.
+    supports_confidence_stopping = True
 
     def serialize_result(self, result: OptimizationResult) -> dict:
         output_dir = result.metadata.get("smac_output_dir", "")
@@ -121,6 +144,51 @@ class SMACOptimizer(BaseOptimizer):
         result.metadata["smac_output_dir"] = str(output_dir)
         return result
 
+    def _confidence_nothing_better(self, smac, config_space, incumbent_cost: float):
+        """How sure the surrogate is that no remaining configuration wins.
+
+        This is what a Bayesian optimizer already knows and normally spends on
+        choosing the next trial. The Gaussian process gives a posterior mean and
+        standard deviation for any point in the space, so for a candidate *x*
+        the chance it beats the incumbent is `Φ((c_inc − μ(x)) / σ(x))` — costs
+        are minimized, so beating means lower. Take the best chance any sampled
+        candidate has, and one minus it is the confidence that none of them does.
+
+        Returns None when there is no answer to give: the model has not been
+        fitted yet (SMAC trains it lazily, inside `ask`, and not before its
+        initial design is done), or predicting failed. The criterion then simply
+        does not fire, rather than a missing model reading as certainty.
+
+        Two honest limits. It is confidence **under the surrogate's own model** —
+        a GP with its own assumptions, and one that is poorly calibrated early
+        on, which is why a handful of trials cannot end a run this way. And the
+        space is *sampled*, not covered, so a narrow optimum that no sample lands
+        near is not accounted for.
+        """
+        selector = getattr(smac.intensifier, "_config_selector", None)
+        model = getattr(selector, "_model", None)
+        if model is None:
+            return None
+
+        try:
+            candidates = config_space.sample_configuration(_CONFIDENCE_SAMPLES)
+            if not isinstance(candidates, list):
+                candidates = [candidates]
+            mean, std = model.predict(
+                convert_configurations_to_array(candidates), covariance_type="std")
+        except Exception:  # noqa: BLE001 — an unfitted or unhappy model means "no answer"
+            return None
+        if std is None:
+            return None
+
+        mean = np.asarray(mean, dtype=float).reshape(-1)
+        std = np.asarray(std, dtype=float).reshape(-1)
+        # A candidate the model is certain about beats the incumbent or does not;
+        # the floor keeps that from dividing by zero on the way to saying so.
+        z = (incumbent_cost - mean) / np.maximum(std, 1e-12)
+        best_chance = float(_normal_cdf(z).max())
+        return 1.0 - best_chance
+
     def _replay(self, smac, config_space, trials, primary_metric: str, seed: int) -> None:
         """Tell SMAC an earlier run's trials, so a rebuilt surrogate knows them.
 
@@ -156,7 +224,7 @@ class SMACOptimizer(BaseOptimizer):
 
     def optimize(self, model, X_train, y_train, X_val, y_val,
                  metrics: dict, primary_metric: str,
-                 n_trials, previous_result=None, seed: int = 0, cancel_event=None,
+                 n_trials=None, previous_result=None, seed: int = 0, cancel_event=None,
                  stopping: dict | None = None, splits=None):
         # One fold unless the caller divided the data itself; see core.splits.
         splits = splits if splits is not None else holdout(X_train, y_train, X_val, y_val)
@@ -181,11 +249,10 @@ class SMACOptimizer(BaseOptimizer):
             overwrite = True
 
         collector = TrialCollector(
-            target_new_trials=n_trials,
             trial_offset=trial_offset,
             initial_best_score=previous_result.best_score if previous_result else float("-inf"),
             initial_best_config=previous_result.best_config if previous_result else None,
-            stopping=stopping,
+            stopping=merge_stopping(n_trials, stopping),
         )
 
         config_space = model.get_config_space(seed=seed)
@@ -202,6 +269,8 @@ class SMACOptimizer(BaseOptimizer):
             raise RuntimeError("SMAC called target_function unexpectedly in ask/tell mode")
 
         smac = BlackBoxFacade(scenario, _unreachable, overwrite=overwrite)
+
+        wants_confidence = "incumbent_confidence" in merge_stopping(n_trials, stopping)
 
         # A fresh facade knows nothing, so anything already evaluated has to be
         # handed to it — otherwise the search would begin from zero while the
@@ -227,6 +296,14 @@ class SMACOptimizer(BaseOptimizer):
                 status=StatusType(run_info["status"]),
             ))
             collector.record(config, all_scores[primary_metric], all_scores, run_info=run_info)
+
+            # Only worth asking if someone is listening, and only once there is
+            # enough history for the answer to mean anything. The model is one
+            # trial stale — SMAC trains it inside `ask` — which for a stopping
+            # heuristic is close enough and avoids re-fitting it here.
+            if wants_confidence and len(collector.results) >= _CONFIDENCE_MIN_TRIALS:
+                collector.note_confidence(self._confidence_nothing_better(
+                    smac, config_space, 1.0 - collector.incumbent_score))
 
         incumbent = smac.intensifier.get_incumbent()
         all_trials = (previous_result.trials if previous_result else []) + collector.results

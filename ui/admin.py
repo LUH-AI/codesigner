@@ -21,5 +21,5 @@ class GlobalSettingsAdmin(admin.ModelAdmin):
 
 @admin.register(Run)
 class RunAdmin(admin.ModelAdmin):
-    list_display = ("experiment", "status", "n_trials", "primary_metric", "started_at", "finished_at")
+    list_display = ("experiment", "status", "stopped_by", "primary_metric", "started_at", "finished_at")
     list_filter = ("status",)

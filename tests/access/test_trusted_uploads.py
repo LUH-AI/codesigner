@@ -75,7 +75,7 @@ def _custom_experiment(owner=None) -> Experiment:
 def test_the_worker_refuses_an_untrusted_owners_model(hosted, ana):
     """Reached by a task, not a request, so no form gate applies here."""
     exp = _custom_experiment(owner=ana)
-    run = run_service.create_run(exp, 3, "accuracy", started_by=ana)
+    run = run_service.create_run(exp, {"max_trials": 3}, "accuracy", started_by=ana)
 
     run_service.execute_run(run.id)
     run.refresh_from_db()
@@ -87,7 +87,7 @@ def test_the_worker_refuses_an_untrusted_owners_model(hosted, ana):
 def test_the_worker_names_who_was_refused(hosted, ana):
     """A worker log entry that just says "denied" cannot be acted on."""
     exp = _custom_experiment(owner=ana)
-    run = run_service.create_run(exp, 3, "accuracy", started_by=ana)
+    run = run_service.create_run(exp, {"max_trials": 3}, "accuracy", started_by=ana)
 
     run_service.execute_run(run.id)
     run.refresh_from_db()
@@ -101,7 +101,7 @@ def test_who_pressed_run_is_what_is_checked_not_only_who_owns_it(hosted, ana, tr
     custom model, or could always run one — both wrong."""
     exp = _custom_experiment(owner=None)
 
-    refused = run_service.create_run(exp, 3, "accuracy", started_by=ana)
+    refused = run_service.create_run(exp, {"max_trials": 3}, "accuracy", started_by=ana)
     run_service.execute_run(refused.id)
     refused.refresh_from_db()
     assert refused.status == "error"
@@ -110,7 +110,7 @@ def test_who_pressed_run_is_what_is_checked_not_only_who_owns_it(hosted, ana, tr
     # instead — this experiment predates environments, and a hosted instance
     # will not import a model into its own process. Two independent refusals,
     # and this is the one being pinned.
-    allowed = run_service.create_run(exp, 3, "accuracy", started_by=trusted)
+    allowed = run_service.create_run(exp, {"max_trials": 3}, "accuracy", started_by=trusted)
     run_service.execute_run(allowed.id)
     allowed.refresh_from_db()
     assert "not allowed to run custom models" not in allowed.error
@@ -123,7 +123,7 @@ def test_a_registry_model_is_never_gated(hosted, ana):
         name="builtin", model_name="Random Forest", optimizer_name="Random Search",
         metric_names=["accuracy"], seed=0, owner=ana)
     exp.dataset.save("iris.csv", ContentFile((DATASETS_DIR / "iris.csv").read_bytes()))
-    run = run_service.create_run(exp, 2, "accuracy", started_by=ana)
+    run = run_service.create_run(exp, {"max_trials": 2}, "accuracy", started_by=ana)
 
     run_service.execute_run(run.id)
     run.refresh_from_db()

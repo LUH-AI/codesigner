@@ -92,20 +92,22 @@
             <form method="post" action="{% url 'ui:experiment_run' summary.pk %}">
                 {% csrf_token %}
                 <div class="field">
-                    <label for="n_trials">{% translate "Number of trials" %}</label>
-                    <input type="number" id="n_trials" name="n_trials" value="30" min="1" max="1000">
-                </div>
-                <div class="field">
                     <label for="metric-select">{% translate "Evaluation metric" %}</label>
                     {% include "ui/_metric_select.html" with field_name="optimize_metric" %}
                 </div>
                 {% comment %}
-                Folded away because the trial count is enough for most runs.
-                Any of these that is filled in can end the run before the trial
-                count does; left blank, it simply does not apply.
+                No field here is required and none is the default. What is
+                required is that at least one be filled in — the run needs
+                something to end on, and which limit that is belongs to whoever
+                is starting it.
                 {% endcomment %}
-                <details class="stopping">
-                    <summary>{% translate "Stop early when…" %}</summary>
+                <fieldset class="check-group stopping">
+                    <legend>{% translate "Run until…" %}</legend>
+                    <div class="field">
+                        <label for="max_trials">{% translate "…this many trials have run" %}</label>
+                        <input type="number" id="max_trials" name="max_trials"
+                               value="30" min="1" max="100000">
+                    </div>
                     <div class="field">
                         <label for="target_score">{% translate "…the best score reaches" %}</label>
                         <input type="number" id="target_score" name="target_score"
@@ -123,9 +125,39 @@
                         <label for="no_improvement_trials">{% translate "…this many trials in a row have not improved" %}</label>
                         <input type="number" id="no_improvement_trials" name="no_improvement_trials" min="1" step="1">
                     </div>
-                </details>
+                    {% if supports_confidence %}
+                        <div class="field">
+                            <label for="incumbent_confidence">{% translate "…the search is this sure nothing better remains" %}</label>
+                            <input type="number" id="incumbent_confidence" name="incumbent_confidence"
+                                   step="0.01" min="0" max="1" placeholder="{% translate 'e.g. 0.95' %}">
+                            <p class="caption">{% translate "Asks this optimizer's own model of the objective how likely it is that any untried configuration beats the best one so far. Confidence under that model, not a guarantee." %}</p>
+                        </div>
+                    {% endif %}
+                    <p class="caption stopping-note" hidden>{% translate "These may never happen. Consider a trial or time limit as well, so the run is certain to end." %}</p>
+                </fieldset>
                 <button type="submit" class="btn-primary">{% translate "▶ Run" %}</button>
             </form>
+            <script>
+                // The two criteria that may never fire. Chosen alone, the run
+                // has no guaranteed end — said quietly, next to the fields,
+                // rather than as a refusal: it is a legitimate thing to want.
+                (function () {
+                    const form = document.currentScript.closest("section").querySelector("form");
+                    const note = form.querySelector(".stopping-note");
+                    const unbounded = ["target_score", "incumbent_confidence"];
+                    const bounded = ["max_trials", "max_seconds", "max_trial_seconds",
+                                     "no_improvement_trials"];
+                    const filled = (name) => {
+                        const el = form.querySelector(`[name="${name}"]`);
+                        return el && el.value.trim() !== "";
+                    };
+                    function apply() {
+                        note.hidden = !(unbounded.some(filled) && !bounded.some(filled));
+                    }
+                    form.addEventListener("input", apply);
+                    apply();
+                })();
+            </script>
             {% if env.ready and env.summary %}
                 <p class="caption" style="margin-top: 0.75rem;">{% blocktranslate with summary=env.summary %}Environment: {{ summary }}{% endblocktranslate %}</p>
             {% endif %}
@@ -140,7 +172,7 @@
     {% endif %}
 
     {% if run_summary %}
-        <p class="caption" style="margin-top: 0.75rem;">{% blocktranslate with count=run_summary.count total=run_summary.total|floatformat:2 trials=run_summary.trials|floatformat:2 overhead=run_summary.overhead|floatformat:2 %}Last run: {{ count }} trials in {{ total }} s — {{ trials }} s in trials, {{ overhead }} s overhead.{% endblocktranslate %}{% if run_summary.stopped_early %} <strong>{{ run_summary.stopped_early }}</strong>{% endif %}</p>
+        <p class="caption" style="margin-top: 0.75rem;">{% blocktranslate with count=run_summary.count total=run_summary.total|floatformat:2 trials=run_summary.trials|floatformat:2 overhead=run_summary.overhead|floatformat:2 %}Last run: {{ count }} trials in {{ total }} s — {{ trials }} s in trials, {{ overhead }} s overhead.{% endblocktranslate %}{% if run_summary.stopped_by %} {% blocktranslate with reason=run_summary.stopped_by %}Stopped because {{ reason }}.{% endblocktranslate %}{% endif %}</p>
     {% endif %}
 
     {% if not has_result %}

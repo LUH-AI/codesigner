@@ -19,7 +19,7 @@ def test_run_duration_property():
     exp = Experiment.objects.create(name="d", model_name="Random Forest",
                                     optimizer_name="Random Search", metric_names=["accuracy"], seed=0)
     start = timezone.now()
-    run = Run.objects.create(experiment=exp, n_trials=3, primary_metric="accuracy",
+    run = Run.objects.create(experiment=exp, stopping={"max_trials": 3}, primary_metric="accuracy",
                              status="done", started_at=start,
                              finished_at=start + datetime.timedelta(seconds=5))
     assert run.duration == pytest.approx(5.0, abs=0.01)
@@ -35,7 +35,7 @@ def test_execute_run_stores_trial_seconds():
         "metric_names": ["accuracy", "f1", "precision", "recall(macro)"],
         "seed": 0, "dataset_path": str(DATASETS_DIR / "iris.csv"), "result": None,
     }, adopt_paths=True)
-    run = create_run(exp, n_trials=3, optimize_metric="accuracy")
+    run = create_run(exp, {"max_trials": 3}, "accuracy")
     execute_run(run.id)
     run.refresh_from_db()
     assert run.status == "done"
@@ -61,7 +61,7 @@ def test_detail_page_shows_run_summary(client):
         metric_names=["accuracy", "f1", "precision", "recall(macro)"],
         primary_metric="accuracy", original_metric="accuracy", seed=0, result=result)
     start = timezone.now()
-    Run.objects.create(experiment=exp, n_trials=1, primary_metric="accuracy", status="done",
+    Run.objects.create(experiment=exp, stopping={"max_trials": 1}, primary_metric="accuracy", status="done",
                        started_at=start, finished_at=start + datetime.timedelta(seconds=3),
                        trial_seconds=2.0, trial_count=1)
     body = client.get(reverse("ui:experiment_detail", args=[exp.pk])).content.decode()

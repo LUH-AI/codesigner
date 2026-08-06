@@ -100,7 +100,7 @@ def test_execute_run_optimizes_a_custom_model():
     exp = snapshot_adapter.experiment_from_snapshot(
         _custom_snapshot(name="cm-run"), model_file=_model_file(), adopt_paths=True,
     )
-    run = run_service.create_run(exp, n_trials=3, optimize_metric="accuracy")
+    run = run_service.create_run(exp, {"max_trials": 3}, "accuracy")
     run_service.execute_run(run.id)
 
     run.refresh_from_db()
@@ -146,6 +146,6 @@ def test_run_view_refuses_unavailable_custom_model(client):
     run — it redirects without creating one."""
     exp = snapshot_adapter.experiment_from_snapshot(_custom_snapshot(name="cm-norun"))
     resp = client.post(reverse("ui:experiment_run", args=[exp.pk]),
-                       {"n_trials": "3", "optimize_metric": "accuracy"})
+                       {"max_trials": "3", "optimize_metric": "accuracy"})
     assert resp.status_code == 302
     assert exp.runs.count() == 0

@@ -17,7 +17,7 @@ from .trial import evaluate_trial
 from typing import Optional
 
 from .base import (
-    BaseOptimizer, OptimizerParam, OptimizationResult, TrialCollector, rebase_history,
+    BaseOptimizer, OptimizerParam, OptimizationResult, TrialCollector, merge_stopping, rebase_history,
 )
 
 _NUMERIC_STEPS = 5
@@ -48,7 +48,7 @@ class GridOptimizer(BaseOptimizer):
         X_val, y_val,
         metrics: dict,
         primary_metric: str,
-        n_trials: int,
+        n_trials: int | None = None,
         previous_result=None,
         seed: int = 0,
         cancel_event=None,
@@ -83,15 +83,20 @@ class GridOptimizer(BaseOptimizer):
         ][:n_trials]
 
         collector = TrialCollector(
-            target_new_trials=len(to_run),
             trial_offset=len(previous_result.trials) if previous_result else 0,
             initial_best_score=previous_result.best_score if previous_result else float("-inf"),
             initial_best_config=previous_result.best_config if previous_result else None,
-            stopping=stopping,
+            stopping=merge_stopping(n_trials, stopping),
         )
 
+        # Two ways to finish, and the grid's own is not a stopping criterion:
+        # running out of configurations is the search being *complete*, not a
+        # limit being hit. So the loop ends on either, and only the criteria get
+        # to name themselves in `stopped_by`.
         for cfg in to_run:
             if cancel_event and cancel_event.is_set():
+                break
+            if collector.done:
                 break
             all_scores, run_info = evaluate_trial(model, cfg, splits, metrics, seed=seed)
             collector.record(cfg, all_scores[primary_metric], all_scores, run_info=run_info)

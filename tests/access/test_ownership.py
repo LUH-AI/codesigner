@@ -143,7 +143,7 @@ def test_running_someone_elses_shared_experiment_is_refused(client, hosted, ana,
     client.force_login(ana)
 
     resp = client.post(reverse("ui:experiment_run", args=[exp.pk]),
-                       {"n_trials": "3", "optimize_metric": "accuracy"})
+                       {"max_trials": "3", "optimize_metric": "accuracy"})
 
     assert resp.status_code == 403
 

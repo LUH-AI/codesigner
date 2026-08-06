@@ -66,35 +66,38 @@ def _ownership(request, exp):
             "mine": exp.owner_id == request.user.pk}
 
 
-# How each optional stopping criterion is read off the form: its parser and the
-# range it is held to. `n_trials` is not here — it is always present and is
-# parsed with the rest of the required fields.
+# How each stopping criterion is read off the Run form: its parser and the range
+# it is held to. Every criterion is here, including the trial cap — the form has
+# no required field, only a requirement that at least one be filled in.
 _STOPPING_FIELDS = {
+    "max_trials": (int, 1, 100_000),
     "target_score": (float, 0.0, 1.0),
     "max_seconds": (float, 1.0, None),
     "max_trial_seconds": (float, 1.0, None),
     "no_improvement_trials": (int, 1, None),
+    "incumbent_confidence": (float, 0.0, 1.0),
 }
 
 
-#: What to say about a run that ended before its trial cap. The trial count is
-#: absent on purpose: it is the unremarkable default, and the summary beside
-#: this already states how many trials there were.
-STOPPED_EARLY_LABELS = {
-    "target_score": _("stopped early: the target score was reached"),
-    "max_seconds": _("stopped early: the time limit was reached"),
-    "max_trial_seconds": _("stopped early: the compute budget was used up"),
-    "no_improvement_trials": _("stopped early: the score had stopped improving"),
+#: What ended a run, for the summary line. Every criterion is named: with no
+#: privileged default, "it stopped" no longer implies the trial count.
+STOPPED_BY_LABELS = {
+    "max_trials": _("all the requested trials ran"),
+    "target_score": _("the target score was reached"),
+    "max_seconds": _("the time limit was reached"),
+    "max_trial_seconds": _("the compute budget was used up"),
+    "no_improvement_trials": _("the score had stopped improving"),
+    "incumbent_confidence": _("the search was confident nothing better remained"),
 }
 
 
 def _posted_stopping(request) -> dict:
-    """The optional stopping criteria as submitted, ignoring the blanks.
+    """The stopping criteria as submitted, ignoring the blanks.
 
-    A criterion that was left empty is absent rather than zero: zero would mean
-    "stop immediately", which is never what an empty box asks for. Unparseable
-    input is dropped for the same reason — the trial cap still bounds the run,
-    so a typo costs the criterion, not the run.
+    A criterion left empty is absent rather than zero: zero would mean "stop
+    immediately", which is never what an empty box asks for. Unparseable input
+    is dropped the same way — and if that leaves nothing at all, the caller
+    refuses the run rather than starting one that cannot end.
     """
     stopping = {}
     for key, (parse, low, high) in _STOPPING_FIELDS.items():
@@ -245,18 +248,25 @@ def trial_panel(request, exp):
 def experiment_run(request, exp):
     """Launch a background run of an experiment (or confirm a metric change).
 
-    The Run form supplies n_trials and the metric to optimize. A run that would
-    change the optimized metric first shows a confirmation; the confirmation
-    posts back with a `decision` of "new" or "old".
+    The Run form supplies the stopping criteria and the metric to optimize. A
+    run that would change the optimized metric first shows a confirmation; the
+    confirmation posts back with a `decision` of "new" or "old".
     """
     if (request.method != "POST" or not exp.dataset or exp.is_running
             or not _model_available(exp)):
         return redirect("ui:experiment_detail", pk=exp.pk)
 
-    n_trials = max(1, min(1000, int(request.POST.get("n_trials") or 30)))
     stopping = _posted_stopping(request)
     chosen = request.POST.get("optimize_metric")
     decision = request.POST.get("decision")
+
+    if not stopping:
+        # A run has to be able to end. Back to the page with the reason rather
+        # than a started run that never finishes.
+        context = _detail_context(request, exp)
+        context["run_error"] = _("Set at least one stopping criterion, so the "
+                                 "run has something to end on.")
+        return render(request, "ui/experiment_detail.html", context)
 
     if decision:
         optimize_metric = resolve_metric_change(decision, exp.primary_metric, chosen)
@@ -266,14 +276,14 @@ def experiment_run(request, exp):
         action, optimize_metric = decide_run(exp.original_metric, exp.primary_metric, chosen)
         if action == "warn":
             return render(request, "ui/metric_change.html", {
-                "experiment": exp, "chosen": chosen, "n_trials": n_trials,
+                "experiment": exp, "chosen": chosen,
                 # Carried through the confirmation, or answering it would
                 # silently drop the limits the run was set up with.
                 "stopping": stopping,
             })
 
-    run = run_service.create_run(exp, n_trials, optimize_metric,
-                                 started_by=_owner(request), stopping=stopping)
+    run = run_service.create_run(exp, stopping, optimize_metric,
+                                 started_by=_owner(request))
     run_service.start_background_run(run.id)
     return redirect("ui:experiment_detail", pk=exp.pk)
 
@@ -538,7 +548,7 @@ def _detail_context(request, exp):
         trials = last_run.trial_seconds or 0.0
         run_summary = {"total": total, "trials": trials, "overhead": max(0.0, total - trials),
                        "count": last_run.trial_count or 0,
-                       "stopped_early": STOPPED_EARLY_LABELS.get(last_run.stopped_by)}
+                       "stopped_by": STOPPED_BY_LABELS.get(last_run.stopped_by)}
 
     context = {
         "experiment": exp,  # the _run_status.html include reverses URLs from experiment.pk
@@ -578,6 +588,12 @@ def _detail_context(request, exp):
             "summary": modelenv.prepared_summary(exp),
         },
         "run_summary": run_summary,
+        # Only an optimizer that fits a model of the objective can answer the
+        # confidence criterion, so only then is it offered.
+        "supports_confidence": getattr(
+            OPTIMIZERS.get(exp.optimizer_name)
+            or next((o for o in OPTIMIZERS.values() if o.name == exp.optimizer_name), None),
+            "supports_confidence_stopping", False),
         "run_default_metric": exp.primary_metric or (metric_names[0] if metric_names else None),
     }
     if result is None:

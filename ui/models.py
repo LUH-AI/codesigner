@@ -136,12 +136,11 @@ class Run(models.Model):
     started_by = models.ForeignKey(
         django_settings.AUTH_USER_MODEL, null=True, blank=True,
         on_delete=models.SET_NULL, related_name="runs_started")
-    # The trial cap, and the one criterion always present: a run has to be
-    # bounded by something, and a target score that is never reached would
-    # otherwise never end. The optional criteria live in `stopping`, so no
-    # criterion has two homes — see core.optimizers.base.STOPPING_CRITERIA.
-    n_trials = models.IntegerField()
-    stopping = models.JSONField(default=dict, blank=True)
+    # Every stopping criterion, on equal footing — see
+    # core.optimizers.base.STOPPING_CRITERIA. A run needs at least one and may
+    # have any combination; a trial cap is one of them, not the frame the others
+    # hang off.
+    stopping = models.JSONField(default=dict)
     # Which criterion ended it. Empty while running, and for a run that was
     # cancelled or errored rather than stopping on its own terms.
     stopped_by = models.CharField(max_length=40, blank=True, default="")
@@ -160,6 +159,12 @@ class Run(models.Model):
 
     def __str__(self) -> str:
         return f"{self.experiment.name} run #{self.pk} ({self.status})"
+
+    @property
+    def max_trials(self):
+        """The trial cap, if this run has one. Read by the pages that report
+        progress as "n of m"; None when the run is bounded some other way."""
+        return self.stopping.get("max_trials")
 
     @property
     def duration(self):

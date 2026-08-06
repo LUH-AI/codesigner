@@ -36,7 +36,8 @@ def _experiment(**overrides):
     from ui.services import snapshot as adapter
     snapshot = {
         "version": "0.1.0", "name": "exp", "model_name": "Random Forest",
-        "model_path": "", "optimizer_name": "Random Search", "optimizer_params": {},
+        "model_path": "", "optimizer_params": {},
+        "optimizer_name": overrides.get("optimizer_name", "Random Search"),
         "primary_metric": overrides.get("primary_metric"),
         "original_metric": overrides.get("original_metric"),
         "metric_names": ["accuracy", "f1", "precision", "recall(macro)"],
@@ -71,7 +72,7 @@ def test_detail_offers_a_run_form_when_idle(client):
     """An idle experiment with a dataset shows a Run form (trials + metric)."""
     exp = _experiment()
     html = client.get(reverse("ui:experiment_detail", args=[exp.pk])).content.decode()
-    assert 'name="n_trials"' in html
+    assert 'name="max_trials"' in html
     assert 'name="optimize_metric"' in html
 
 
@@ -84,13 +85,13 @@ def test_run_launches_a_pending_run(client, no_thread):
 
     exp = _experiment()
     resp = client.post(reverse("ui:experiment_run", args=[exp.pk]),
-                       {"n_trials": 3, "optimize_metric": "accuracy"})
+                       {"max_trials": 3, "optimize_metric": "accuracy"})
 
     assert resp.status_code == 302
     assert resp["Location"] == reverse("ui:experiment_detail", args=[exp.pk])
     run = Run.objects.get(experiment=exp)
     assert run.status == "pending"
-    assert run.n_trials == 3
+    assert run.max_trials == 3
     assert run.primary_metric == "accuracy"
 
 
@@ -104,7 +105,7 @@ def test_run_metric_change_asks_for_confirmation(client, no_thread):
 
     exp = _experiment(primary_metric="accuracy", original_metric="accuracy")
     resp = client.post(reverse("ui:experiment_run", args=[exp.pk]),
-                       {"n_trials": 3, "optimize_metric": "f1"})
+                       {"max_trials": 3, "optimize_metric": "f1"})
 
     assert resp.status_code == 200
     body = resp.content.decode()
@@ -123,7 +124,7 @@ def test_metric_change_warning_states_the_real_cost(client, no_thread):
     objective. Each metric is named once."""
     exp = _experiment(primary_metric="accuracy", original_metric="accuracy")
     body = client.post(reverse("ui:experiment_run", args=[exp.pk]),
-                       {"n_trials": 3, "optimize_metric": "f1"}).content.decode()
+                       {"max_trials": 3, "optimize_metric": "f1"}).content.decode()
     assert "confirm-message" in body, "not the shared confirmation page"
     warning = body.split("confirm-message", 1)[1].split("</div>", 1)[0]
 
@@ -139,7 +140,7 @@ def test_run_metric_change_confirm_new_launches_with_chosen(client, no_thread):
 
     exp = _experiment(primary_metric="accuracy", original_metric="accuracy")
     resp = client.post(reverse("ui:experiment_run", args=[exp.pk]),
-                       {"n_trials": 3, "optimize_metric": "f1", "decision": "new"})
+                       {"max_trials": 3, "optimize_metric": "f1", "decision": "new"})
 
     assert resp.status_code == 302
     run = Run.objects.get(experiment=exp)
@@ -156,7 +157,7 @@ def test_run_metric_change_confirm_old_keeps_original(client, no_thread):
 
     exp = _experiment(primary_metric="accuracy", original_metric="accuracy")
     client.post(reverse("ui:experiment_run", args=[exp.pk]),
-                {"n_trials": 3, "optimize_metric": "f1", "decision": "old"})
+                {"max_trials": 3, "optimize_metric": "f1", "decision": "old"})
 
     run = Run.objects.get(experiment=exp)
     assert run.primary_metric == "accuracy"
@@ -170,7 +171,7 @@ def test_status_partial_reports_running(client):
     from ui.models import Run
 
     exp = _experiment()
-    Run.objects.create(experiment=exp, n_trials=3, primary_metric="accuracy", status="running")
+    Run.objects.create(experiment=exp, stopping={"max_trials": 3}, primary_metric="accuracy", status="running")
     resp = client.get(reverse("ui:run_status", args=[exp.pk]))
 
     assert resp.status_code == 200
@@ -186,7 +187,7 @@ def test_status_partial_refreshes_when_finished(client):
     from ui.models import Run
 
     exp = _experiment()
-    Run.objects.create(experiment=exp, n_trials=3, primary_metric="accuracy", status="done")
+    Run.objects.create(experiment=exp, stopping={"max_trials": 3}, primary_metric="accuracy", status="done")
     resp = client.get(reverse("ui:run_status", args=[exp.pk]))
 
     assert resp.status_code == 200
@@ -201,7 +202,7 @@ def test_cancel_requests_cancellation(client):
     from ui.models import Run
 
     exp = _experiment()
-    run = Run.objects.create(experiment=exp, n_trials=3, primary_metric="accuracy", status="running")
+    run = Run.objects.create(experiment=exp, stopping={"max_trials": 3}, primary_metric="accuracy", status="running")
     resp = client.post(reverse("ui:run_cancel", args=[exp.pk]))
 
     run.refresh_from_db()
@@ -215,7 +216,7 @@ def test_delete_works_with_an_active_run(client):
     from ui.models import Experiment, Run
 
     exp = _experiment()
-    Run.objects.create(experiment=exp, n_trials=3, primary_metric="accuracy", status="running")
+    Run.objects.create(experiment=exp, stopping={"max_trials": 3}, primary_metric="accuracy", status="running")
     resp = client.post(reverse("ui:experiment_delete", args=[exp.pk]))
 
     assert resp.status_code == 302
@@ -231,7 +232,7 @@ def test_sidebar_marks_running_experiments(client):
     from ui.models import Run
 
     exp = _experiment(primary_metric="accuracy", original_metric="accuracy")
-    Run.objects.create(experiment=exp, n_trials=3, primary_metric="accuracy", status="running")
+    Run.objects.create(experiment=exp, stopping={"max_trials": 3}, primary_metric="accuracy", status="running")
     html = client.get(reverse("ui:home")).content.decode()
 
     assert "spinner" in html.lower()
@@ -245,11 +246,12 @@ def test_stopping_criteria_reach_the_run(client, no_thread):
 
     exp = _experiment()
     client.post(reverse("ui:experiment_run", args=[exp.pk]),
-                {"n_trials": 3, "optimize_metric": "accuracy",
+                {"max_trials": 3, "optimize_metric": "accuracy",
                  "target_score": "0.9", "no_improvement_trials": "5"})
 
     run = Run.objects.get()
-    assert run.stopping == {"target_score": 0.9, "no_improvement_trials": 5}
+    assert run.stopping == {"max_trials": 3, "target_score": 0.9,
+                            "no_improvement_trials": 5}
 
 
 @pytest.mark.django_db
@@ -260,10 +262,10 @@ def test_blank_criteria_are_absent_rather_than_zero(client, no_thread):
 
     exp = _experiment()
     client.post(reverse("ui:experiment_run", args=[exp.pk]),
-                {"n_trials": 3, "optimize_metric": "accuracy",
+                {"max_trials": 3, "optimize_metric": "accuracy",
                  "target_score": "", "max_seconds": "", "no_improvement_trials": ""})
 
-    assert Run.objects.get().stopping == {}
+    assert Run.objects.get().stopping == {"max_trials": 3}
 
 
 @pytest.mark.django_db
@@ -274,11 +276,11 @@ def test_an_unparseable_criterion_costs_the_criterion_not_the_run(client, no_thr
 
     exp = _experiment()
     resp = client.post(reverse("ui:experiment_run", args=[exp.pk]),
-                       {"n_trials": 3, "optimize_metric": "accuracy",
+                       {"max_trials": 3, "optimize_metric": "accuracy",
                         "max_seconds": "soon"})
 
     assert resp.status_code == 302
-    assert Run.objects.get().stopping == {}
+    assert Run.objects.get().stopping == {"max_trials": 3}
 
 
 @pytest.mark.django_db
@@ -289,13 +291,56 @@ def test_criteria_survive_the_metric_change_confirmation(client, no_thread):
 
     exp = _experiment(primary_metric="accuracy", original_metric="accuracy")
     body = client.post(reverse("ui:experiment_run", args=[exp.pk]),
-                       {"n_trials": 3, "optimize_metric": "f1",
+                       {"max_trials": 3, "optimize_metric": "f1",
                         "target_score": "0.9"}).content.decode()
 
     assert 'name="target_score" value="0.9"' in body
 
     client.post(reverse("ui:experiment_run", args=[exp.pk]),
-                {"n_trials": 3, "optimize_metric": "f1", "decision": "new",
+                {"max_trials": 3, "optimize_metric": "f1", "decision": "new",
                  "target_score": "0.9"})
 
-    assert Run.objects.latest("id").stopping == {"target_score": 0.9}
+    assert Run.objects.latest("id").stopping == {"max_trials": 3, "target_score": 0.9}
+
+
+@pytest.mark.django_db
+def test_a_run_with_no_criteria_is_refused_with_a_reason(client, no_thread):
+    """No field on the form is required, so all of them can be empty — and a run
+    that cannot end must not start. The page says why rather than redirecting to
+    a detail page that looks like nothing happened."""
+    from ui.models import Run
+
+    exp = _experiment()
+    resp = client.post(reverse("ui:experiment_run", args=[exp.pk]),
+                       {"optimize_metric": "accuracy", "max_trials": "",
+                        "target_score": "", "max_seconds": ""})
+
+    assert resp.status_code == 200
+    assert "at least one stopping criterion" in resp.content.decode()
+    assert Run.objects.count() == 0
+
+
+@pytest.mark.django_db
+def test_any_single_criterion_is_enough_to_start_a_run(client, no_thread):
+    """Including one that is not a trial count. The cap has no special status."""
+    from ui.models import Run
+
+    exp = _experiment()
+    client.post(reverse("ui:experiment_run", args=[exp.pk]),
+                {"optimize_metric": "accuracy", "target_score": "0.9"})
+
+    assert Run.objects.get().stopping == {"target_score": 0.9}
+
+
+@pytest.mark.django_db
+def test_the_confidence_criterion_is_offered_only_where_it_can_be_answered(client):
+    """It reads an optimizer's surrogate. Grid search has none, so offering the
+    field would be offering a limit that can never fire."""
+    smac = _experiment(optimizer_name="SMAC (BlackBox)")
+    grid = _experiment(optimizer_name="Grid Search")
+
+    def page(exp):
+        return client.get(reverse("ui:experiment_detail", args=[exp.pk])).content.decode()
+
+    assert 'name="incumbent_confidence"' in page(smac)
+    assert 'name="incumbent_confidence"' not in page(grid)

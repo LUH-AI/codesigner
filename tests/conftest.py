@@ -15,6 +15,7 @@ from core.optimizers import (
     SMACOptimizer,
     TrialCollector,
 )
+from core.optimizers.base import merge_stopping
 
 FIXTURES_DIR = Path(__file__).parent / "fixtures"
 DATASETS_DIR = Path(__file__).parent.parent / "datasets"
@@ -51,17 +52,16 @@ class FakeOptimizer(BaseOptimizer):
 
     def optimize(self, model, X_train, y_train, X_val, y_val,
                  metrics: dict, primary_metric: str,
-                 n_trials, previous_result=None, seed: int = 0, cancel_event=None,
+                 n_trials=None, previous_result=None, seed: int = 0, cancel_event=None,
                  stopping: dict | None = None, splits=None):
         from core.splits import holdout
         splits = splits if splits is not None else holdout(X_train, y_train, X_val, y_val)
         config_space = model.get_config_space(seed=seed)
         collector = TrialCollector(
-            target_new_trials=n_trials,
             trial_offset=len(previous_result.trials) if previous_result else 0,
             initial_best_score=previous_result.best_score if previous_result else float("-inf"),
             initial_best_config=previous_result.best_config if previous_result else None,
-            stopping=stopping,
+            stopping=merge_stopping(n_trials, stopping),
         )
         while not collector.done:
             if cancel_event and cancel_event.is_set():
