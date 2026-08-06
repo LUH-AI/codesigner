@@ -38,6 +38,11 @@ REQUIRE_LOGIN = env.bool("REQUIRE_LOGIN", default=False)
 # OFF on any shared or public deployment (see README).
 ALLOW_CUSTOM_MODELS = env.bool("ALLOW_CUSTOM_MODELS", default=True)
 
+# Who may see and do what to an experiment. The default says "everyone,
+# everything", which is what an install with no accounts wants; a deployment
+# that manages users points this at a policy of its own. See ui/permissions.py.
+EXPERIMENT_POLICY = env.str("EXPERIMENT_POLICY", default="ui.permissions.OpenPolicy")
+
 # ── Model environments ────────────────────────────────────────────────────────
 # A user's model declares its own dependencies with a PEP 723 header and runs in
 # an environment built from them, in its own process. uv builds and caches those

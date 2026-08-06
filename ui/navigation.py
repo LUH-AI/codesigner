@@ -39,13 +39,18 @@ _EXPERIMENT_PAGES = {
 }
 
 
-def _experiment(pk):
-    from .models import Experiment
+def _experiment(request, pk):
+    """The experiment named by a route, if this request may see it.
 
-    return Experiment.objects.filter(pk=pk).first()
+    Through the policy, so a crumb never names an experiment its own link would
+    404 on — the trail would otherwise be a directory of what exists.
+    """
+    from .permissions import visible_experiments
+
+    return visible_experiments(request).filter(pk=pk).first()
 
 
-def _crumbs_for(url_name, kwargs):
+def _crumbs_for(request, url_name, kwargs):
     """(label, url) pairs for a route: root first, the page itself last.
 
     The last crumb has no url — it is the page you are on. An unknown route
@@ -66,7 +71,7 @@ def _crumbs_for(url_name, kwargs):
         return [settings_root, (_("Default experiment settings"), None)]
 
     if url_name in _EXPERIMENT_PAGES:
-        exp = _experiment(kwargs.get("pk"))
+        exp = _experiment(request, kwargs.get("pk"))
         if exp is None:
             return [experiments]
         itself = (exp.name, reverse("ui:experiment_detail", args=[exp.pk]))
@@ -82,7 +87,7 @@ def breadcrumbs(request):
     if match is None:
         return []
     return [{"label": label, "url": url}
-            for label, url in _crumbs_for(match.url_name, match.kwargs)]
+            for label, url in _crumbs_for(request, match.url_name, match.kwargs)]
 
 
 def safe_next(request):
@@ -111,7 +116,7 @@ def back_link(request):
         match = resolve(urlparse(target).path)
     except Resolver404:
         return None
-    crumbs = _crumbs_for(match.url_name, match.kwargs)
+    crumbs = _crumbs_for(request, match.url_name, match.kwargs)
     if not crumbs:
         return None
     return {"label": crumbs[-1][0], "url": target}

@@ -6,7 +6,7 @@ from pathlib import Path
 
 from django.conf import settings
 from django.http import HttpResponse, HttpResponseBadRequest
-from django.shortcuts import get_object_or_404, redirect, render
+from django.shortcuts import redirect, render
 from django.utils.translation import gettext as _
 from django.views.decorators.http import require_POST
 
@@ -15,6 +15,7 @@ from core import io
 from .figures import FIGURES, FULL, HALF
 from .forms import DefaultExperimentSettingsForm, ExperimentSettingsForm, NewExperimentForm
 from .models import Experiment, GlobalSettings
+from .permissions import DELETE, EDIT, EXPORT, RUN, VIEW, experiment_view
 from .registry import METRICS, MODELS, OPTIMIZERS
 from .services import run as run_service
 from .services import modelenv
@@ -132,20 +133,20 @@ def new_experiment(request):
     return redirect("ui:experiment_detail", pk=exp.pk)
 
 
-def experiment_detail(request, pk):
+@experiment_view(VIEW)
+def experiment_detail(request, exp):
     """Show a saved experiment: its config, results/figures, run state, Run form."""
-    exp = get_object_or_404(Experiment, pk=pk)
     return render(request, "ui/experiment_detail.html", _detail_context(exp))
 
 
-def trial_panel(request, pk):
+@experiment_view(VIEW)
+def trial_panel(request, exp):
     """Render the selected-config panel for one (metric, trial index).
 
     Backs click-to-select on the performance figure (curve 0 only, point index
     into result.trials) — the browser fetches this fragment and swaps it into
     the panel for the metric currently being viewed.
     """
-    exp = get_object_or_404(Experiment, pk=pk)
     metric = request.GET.get("metric", "")
     idx_raw = request.GET.get("idx", "")
 
@@ -163,17 +164,17 @@ def trial_panel(request, pk):
                   {"sel": _selected_panel_data(result, metric, idx)})
 
 
-def experiment_run(request, pk):
+@experiment_view(RUN)
+def experiment_run(request, exp):
     """Launch a background run of an experiment (or confirm a metric change).
 
     The Run form supplies n_trials and the metric to optimize. A run that would
     change the optimized metric first shows a confirmation; the confirmation
     posts back with a `decision` of "new" or "old".
     """
-    exp = get_object_or_404(Experiment, pk=pk)
     if (request.method != "POST" or not exp.dataset or exp.is_running
             or not _model_available(exp)):
-        return redirect("ui:experiment_detail", pk=pk)
+        return redirect("ui:experiment_detail", pk=exp.pk)
 
     n_trials = max(1, min(1000, int(request.POST.get("n_trials") or 30)))
     chosen = request.POST.get("optimize_metric")
@@ -182,7 +183,7 @@ def experiment_run(request, pk):
     if decision:
         optimize_metric = resolve_metric_change(decision, exp.original_metric, chosen)
         if optimize_metric is None:
-            return redirect("ui:experiment_detail", pk=pk)
+            return redirect("ui:experiment_detail", pk=exp.pk)
     else:
         action, optimize_metric = decide_run(exp.original_metric, exp.primary_metric, chosen)
         if action == "warn":
@@ -192,12 +193,12 @@ def experiment_run(request, pk):
 
     run = run_service.create_run(exp, n_trials, optimize_metric)
     run_service.start_background_run(run.id)
-    return redirect("ui:experiment_detail", pk=pk)
+    return redirect("ui:experiment_detail", pk=exp.pk)
 
 
-def run_status(request, pk):
+@experiment_view(VIEW)
+def run_status(request, exp):
     """HTMX poll target: the current run's status, or a refresh when finished."""
-    exp = get_object_or_404(Experiment, pk=pk)
     active = exp.runs.filter(status__in=_ACTIVE).order_by("-id").first()
     if active is None:
         response = HttpResponse("")
@@ -206,14 +207,14 @@ def run_status(request, pk):
     return render(request, "ui/_run_status.html", {"experiment": exp, "run": active})
 
 
-def env_status(request, pk):
+@experiment_view(VIEW)
+def env_status(request, exp):
     """Poll target while a model environment is being built.
 
     Shaped exactly like `run_status`: the partial while there is something to
     wait for, then an empty response with `HX-Refresh` so the page reloads into
     whatever the outcome was. poll.js already understands both.
     """
-    exp = get_object_or_404(Experiment, pk=pk)
     if not exp.env_pending:
         response = HttpResponse("")
         response["HX-Refresh"] = "true"
@@ -222,7 +223,8 @@ def env_status(request, pk):
 
 
 @require_POST
-def prepare_env(request, pk):
+@experiment_view(RUN)
+def prepare_env(request, exp):
     """Build (or rebuild) this experiment's model environment.
 
     For the retry button. Helps when the cause was transient — no network, an
@@ -230,25 +232,25 @@ def prepare_env(request, pk):
     dependency name needs a new experiment, since there is no way to replace the
     file in place.
     """
-    exp = get_object_or_404(Experiment, pk=pk)
     if exp.model_file and not exp.is_running:
         modelenv.start_preparation(exp)
-    return redirect("ui:experiment_detail", pk=pk)
+    return redirect("ui:experiment_detail", pk=exp.pk)
 
 
 @require_POST
-def run_cancel(request, pk):
+@experiment_view(RUN)
+def run_cancel(request, exp):
     """Request cancellation of the experiment's active run.
 
     POST only: it changes something, and on GET a prefetcher or an <img> tag
     pointing here would cancel someone's run without CSRF ever being consulted.
     """
-    exp = get_object_or_404(Experiment, pk=pk)
     exp.runs.filter(status__in=_ACTIVE).update(cancel_requested=True)
-    return redirect("ui:experiment_detail", pk=pk)
+    return redirect("ui:experiment_detail", pk=exp.pk)
 
 
-def experiment_export(request, pk):
+@experiment_view(EXPORT)
+def experiment_export(request, exp):
     """Download a saved experiment as a Streamlit-loadable .ihpo file.
 
     When the experiment's `export_absolute_times` setting is off, per-trial
@@ -256,7 +258,6 @@ def experiment_export(request, pk):
     (durations are kept). Done here, not in the adapter, so the detail page's
     own reconstruction is unaffected; deserialize ignores the keys on re-import.
     """
-    exp = get_object_or_404(Experiment, pk=pk)
     snapshot = snapshot_adapter.snapshot_from_experiment(exp)
     if not resolve_settings(exp)["export_absolute_times"] and snapshot.get("result"):
         snapshot["result"] = copy.deepcopy(snapshot["result"])
@@ -274,16 +275,16 @@ def _posted_settings(request):
     return {key: bool(request.POST.get(key)) for key in SETTING_DEFAULTS}
 
 
-def experiment_settings(request, pk):
+@experiment_view(EDIT)
+def experiment_settings(request, exp):
     """One experiment's settings: inherit the defaults, override, reset, or
     promote its own settings to be the defaults (which asks first)."""
-    exp = get_object_or_404(Experiment, pk=pk)
     if request.method == "POST":
         if "reset" in request.POST or request.POST.get("use_default_settings"):
             exp.use_default_settings = True
             exp.settings = {}
             exp.save(update_fields=["use_default_settings", "settings"])
-            return redirect("ui:experiment_settings", pk=pk)
+            return redirect("ui:experiment_settings", pk=exp.pk)
 
         posted = _posted_settings(request)
 
@@ -298,12 +299,12 @@ def experiment_settings(request, pk):
             gs = GlobalSettings.get_solo()
             gs.default_experiment_settings = posted
             gs.save(update_fields=["default_experiment_settings"])
-            return redirect("ui:experiment_settings", pk=pk)
+            return redirect("ui:experiment_settings", pk=exp.pk)
 
         exp.use_default_settings = False
         exp.settings = posted
         exp.save(update_fields=["use_default_settings", "settings"])
-        return redirect("ui:experiment_settings", pk=pk)
+        return redirect("ui:experiment_settings", pk=exp.pk)
 
     form = ExperimentSettingsForm(initial={
         **resolve_settings(exp),
@@ -332,9 +333,9 @@ def default_experiment_settings(request):
     return render(request, "ui/default_experiment_settings.html", {"form": form})
 
 
-def experiment_delete(request, pk):
+@experiment_view(DELETE)
+def experiment_delete(request, exp):
     """Confirm (GET) then delete (POST) a saved experiment, stopping any run."""
-    exp = get_object_or_404(Experiment, pk=pk)
     if request.method == "POST":
         exp.runs.filter(status__in=_ACTIVE).update(cancel_requested=True)
         exp.delete()

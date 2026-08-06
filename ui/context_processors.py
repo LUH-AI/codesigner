@@ -1,10 +1,14 @@
 from . import navigation as nav
-from .models import Experiment
+from .permissions import visible_experiments
 
 
 def sidebar_experiments(request):
-    """Expose the saved experiments to every template, for the sidebar list."""
-    return {"sidebar_experiments": Experiment.objects.all()}
+    """Expose the saved experiments to every template, for the sidebar list.
+
+    Through the policy, so the sidebar never lists an experiment a page would
+    then refuse to open.
+    """
+    return {"sidebar_experiments": visible_experiments(request)}
 
 
 _SETTINGS_URL_NAMES = {"appearance", "default_experiment_settings"}
