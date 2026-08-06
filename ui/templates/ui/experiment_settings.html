@@ -24,15 +24,19 @@
         <div class="actions">
             <button type="submit" class="btn-primary">{% translate "Save settings" %}</button>
             <button type="submit" name="reset" value="1" class="btn">{% translate "Reset to default" %}</button>
-            <button type="submit" name="save_as_default" value="1" class="btn" data-needs-overrides>{% translate "Save settings as default" %}</button>
+            {% if may_change_defaults %}
+                <button type="submit" name="save_as_default" value="1" class="btn" data-needs-overrides>{% translate "Save settings as default" %}</button>
+            {% endif %}
         </div>
     </form>
 
-    <p class="nav-links" style="margin-top: 1rem;">
-        {% comment %}The defaults are global, so this leaves the experiment behind —
-        ?next= is what lets that page offer a way back to it.{% endcomment %}
-        <a href="{% url 'ui:default_experiment_settings' %}?next={% url 'ui:experiment_detail' experiment.pk %}">{% translate "Change default experiment settings" %}</a>
-    </p>
+    {% if may_change_defaults %}
+        <p class="nav-links" style="margin-top: 1rem;">
+            {% comment %}The defaults are global, so this leaves the experiment behind —
+            ?next= is what lets that page offer a way back to it.{% endcomment %}
+            <a href="{% url 'ui:default_experiment_settings' %}?next={% url 'ui:experiment_detail' experiment.pk %}">{% translate "Change default experiment settings" %}</a>
+        </p>
+    {% endif %}
 
     <script>
         // While the experiment inherits the defaults, its own settings are shown

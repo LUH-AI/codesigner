@@ -14,8 +14,10 @@ from .registry import MODELS, OPTIMIZERS
 class NewExperimentForm(forms.Form):
     """Set up an experiment: name, model, optimizer, dataset, seed.
 
-    The model is either a registry choice or — when ALLOW_CUSTOM_MODELS is on —
-    an uploaded ``.py`` file defining a BaseModel subclass. A dataset comes from
+    The model is either a registry choice or — when the person filling the form
+    is allowed to bring one — an uploaded ``.py`` file defining a BaseModel
+    subclass. That permission is decided by the policy and passed in, so the
+    form does not have to know whether the instance has accounts. A dataset comes from
     either the demo dropdown or an upload; exactly one is required. Creating an
     experiment does not run it — the metric to optimize and the number of trials
     are chosen per-run on the detail page. All metrics are always scored.
@@ -31,19 +33,21 @@ class NewExperimentForm(forms.Form):
     dataset_file = forms.FileField(label=_("…or upload a CSV (last column = target)"), required=False)
     seed = forms.IntegerField(label=_("Seed (negative = random)"), initial=0)
 
-    def __init__(self, *args, **kwargs):
+    def __init__(self, *args, may_upload_models=None, **kwargs):
         super().__init__(*args, **kwargs)
+        if may_upload_models is None:
+            may_upload_models = settings.ALLOW_CUSTOM_MODELS
         self.fields["model_name"].choices = [("", _("— select —"))] + [(k, k) for k in MODELS]
         self.fields["optimizer_name"].choices = [(k, k) for k in OPTIMIZERS]
         demos = demo_datasets()
         self.fields["demo_dataset"].choices = [("", _("— none —"))] + [(p, k) for k, p in demos.items()]
 
-        mounted = mounted_models() if settings.ALLOW_CUSTOM_MODELS else {}
+        mounted = mounted_models() if may_upload_models else {}
         if mounted:
             self.fields["mounted_model"].choices = [("", _("— none —"))] + [(p, k) for k, p in mounted.items()]
         else:
             del self.fields["mounted_model"]
-        if not settings.ALLOW_CUSTOM_MODELS:
+        if not may_upload_models:
             del self.fields["model_file"]
 
     def clean(self):

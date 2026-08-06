@@ -16,7 +16,7 @@ from django.utils import timezone
 from core import io
 from core.io import _load_splits
 
-from .. import registry
+from .. import permissions, registry
 from ..registry import METRICS, MODELS, OPTIMIZERS
 from . import snapshot as snapshot_adapter
 from .run_logic import apply_metrics
@@ -66,7 +66,7 @@ class DbCancelFlag:
         return self._value
 
 
-def create_run(experiment, n_trials, optimize_metric):
+def create_run(experiment, n_trials, optimize_metric, started_by=None):
     """Record a pending run and commit its metric onto the experiment.
 
     Primary becomes the optimized metric; original is pinned on the first run.
@@ -84,6 +84,7 @@ def create_run(experiment, n_trials, optimize_metric):
         n_trials=n_trials,
         primary_metric=optimize_metric,
         status="pending",
+        started_by=started_by,
     )
 
 
@@ -107,6 +108,15 @@ def execute_run(run_id):
         # everything around it is built here but the model itself is not
         # imported. `launch` is None for a registry model, or for a custom one on
         # an instance without uv, and then it is imported as it always was.
+        # Whose code is about to be executed. Checked here and not only at
+        # the form because this is the process that would run it, and it is
+        # reached by a task rather than by a request — a gate on the upload page
+        # is advice, this is the decision.
+        refusal = permissions.policy().custom_model_refusal(
+            experiment, run.started_by or experiment.owner)
+        if refusal:
+            raise RuntimeError(refusal)
+
         launch, refusal = _model_launch(experiment)
         if refusal:
             raise RuntimeError(refusal)

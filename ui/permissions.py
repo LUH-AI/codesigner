@@ -55,6 +55,30 @@ class OpenPolicy:
         """Whether this request may perform *action* on a visible experiment."""
         return True
 
+    # ── Questions that are not about one experiment ──────────────────────────
+
+    def may_upload_models(self, request):
+        """Whether this request may bring a custom model onto the instance.
+
+        Uploading one is arbitrary code execution, so the instance-wide flag is
+        the floor; a policy with accounts can require more on top of it.
+        """
+        return settings.ALLOW_CUSTOM_MODELS
+
+    def custom_model_refusal(self, experiment, user):
+        """Why *user* may not run *experiment*'s custom model, or "" if they may.
+
+        A string rather than a boolean because this is the last thing standing
+        between an upload and the interpreter, and "no" without a reason is
+        unactionable in a worker log.
+        """
+        return ""
+
+    def may_change_defaults(self, request):
+        """Whether this request may edit the default experiment settings, which
+        every inheriting experiment on the instance follows."""
+        return True
+
 
 _cached: tuple[str, object] | None = None
 

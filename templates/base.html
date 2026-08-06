@@ -57,8 +57,10 @@
             <div class="tab-list">
                 <a class="tab{% if request.resolver_match.url_name == 'appearance' %} active{% endif %}"
                    href="{% url 'ui:appearance' %}">{% translate "Appearance" %}</a>
-                <a class="tab{% if request.resolver_match.url_name == 'default_experiment_settings' %} active{% endif %}"
-                   href="{% url 'ui:default_experiment_settings' %}">{% translate "Default experiment settings" %}</a>
+                {% if may_change_defaults %}
+                    <a class="tab{% if request.resolver_match.url_name == 'default_experiment_settings' %} active{% endif %}"
+                       href="{% url 'ui:default_experiment_settings' %}">{% translate "Default experiment settings" %}</a>
+                {% endif %}
             </div>
         </nav>
     {% else %}

@@ -8,7 +8,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: PACKAGE VERSION\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2026-08-06 08:32+0000\n"
+"POT-Creation-Date: 2026-08-06 08:53+0000\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
 "Language-Team: LANGUAGE <LL@li.org>\n"
@@ -17,6 +17,21 @@ msgstr ""
 "Content-Type: text/plain; charset=UTF-8\n"
 "Content-Transfer-Encoding: 8bit\n"
 "Plural-Forms: nplurals=2; plural=(n != 1);\n"
+
+#: access/policy.py:87
+#, python-format
+msgid "%(user)s is not allowed to run custom models here."
+msgstr "%(user)s darf hier keine eigenen Modelle ausführen."
+
+#: access/policy.py:88
+msgid ""
+"This experiment's custom model has no account behind it, so it cannot be "
+"run. Give the experiment an owner who is allowed to run custom models."
+msgstr ""
+"Hinter dem eigenen Modell dieses Experiments steht kein Konto, daher "
+"kann es nicht ausgeführt werden. Geben Sie dem Experiment eine "
+"Eigentümerin oder einen Eigentümer mit der Berechtigung, eigene "
+"Modelle auszuführen."
 
 #: access/templates/access/login.html:7 access/templates/access/login.html:33
 msgid "Sign in"
@@ -39,7 +54,7 @@ msgstr "Passwort"
 msgid "Language"
 msgstr "Sprache"
 
-#: templates/base.html:15 templates/base.html:17 templates/base.html:67
+#: templates/base.html:15 templates/base.html:17 templates/base.html:69
 #: ui/navigation.py:59
 msgid "Experiments"
 msgstr "Experimente"
@@ -64,34 +79,34 @@ msgstr "Abmelden"
 msgid "Appearance"
 msgstr "Erscheinungsbild"
 
-#: templates/base.html:62 ui/navigation.py:71
+#: templates/base.html:63 ui/navigation.py:71
 #: ui/templates/ui/default_experiment_settings.html:4
 #: ui/templates/ui/default_experiment_settings.html:7
 msgid "Default experiment settings"
 msgstr "Standard-Experimenteinstellungen"
 
-#: templates/base.html:69
+#: templates/base.html:71
 msgid "＋ New"
 msgstr "＋ Neues"
 
-#: templates/base.html:70
+#: templates/base.html:72
 msgid "📂 Load"
 msgstr "📂 Laden"
 
-#: templates/base.html:77
+#: templates/base.html:79
 msgid "Running"
 msgstr "Läuft"
 
-#: templates/base.html:77
+#: templates/base.html:79
 msgid "Preparing its environment"
 msgstr "Umgebung wird vorbereitet"
 
-#: templates/base.html:80
+#: templates/base.html:82
 msgid "No experiments yet."
 msgstr "Noch keine Experimente."
 
 #: tests/ui/i18n/test_i18n.py:220 tests/ui/i18n/test_i18n.py:226
-#: ui/templates/ui/experiment_detail.html:91
+#: ui/templates/ui/experiment_detail.html:95
 msgid "Number of trials"
 msgstr "Anzahl der Versuche"
 
@@ -123,59 +138,59 @@ msgstr "Fehler über Zeit"
 msgid "Trials"
 msgstr "Versuche"
 
-#: ui/forms.py:25
+#: ui/forms.py:27
 msgid "Experiment name"
 msgstr "Experimentname"
 
-#: ui/forms.py:26 ui/templates/ui/experiment_detail.html:11
+#: ui/forms.py:28 ui/templates/ui/experiment_detail.html:11
 msgid "Model"
 msgstr "Modell"
 
-#: ui/forms.py:27
+#: ui/forms.py:29
 msgid "…or upload a model .py"
 msgstr "…oder ein Modell (.py) hochladen"
 
-#: ui/forms.py:28
+#: ui/forms.py:30
 msgid "…or a mounted model .py"
 msgstr "…oder ein eingebundenes Modell (.py)"
 
-#: ui/forms.py:29 ui/templates/ui/experiment_detail.html:12
+#: ui/forms.py:31 ui/templates/ui/experiment_detail.html:12
 msgid "Optimizer"
 msgstr "Optimierer"
 
-#: ui/forms.py:30
+#: ui/forms.py:32
 msgid "Demo dataset"
 msgstr "Demo-Datensatz"
 
-#: ui/forms.py:31
+#: ui/forms.py:33
 msgid "…or upload a CSV (last column = target)"
 msgstr "…oder eine CSV hochladen (letzte Spalte = Zielvariable)"
 
-#: ui/forms.py:32
+#: ui/forms.py:34
 msgid "Seed (negative = random)"
 msgstr "Seed (negativ = zufällig)"
 
-#: ui/forms.py:36
+#: ui/forms.py:40
 msgid "— select —"
 msgstr "— auswählen —"
 
-#: ui/forms.py:39 ui/forms.py:43
+#: ui/forms.py:43 ui/forms.py:47
 msgid "— none —"
 msgstr "— keine —"
 
-#: ui/forms.py:65
+#: ui/forms.py:69
 msgid "Choose a model or upload a model .py file."
 msgstr "Wählen Sie ein Modell oder laden Sie eine Modell-.py-Datei hoch."
 
-#: ui/forms.py:68
+#: ui/forms.py:72
 msgid "Choose a demo dataset or upload a CSV file."
 msgstr "Wählen Sie einen Demo-Datensatz oder laden Sie eine CSV-Datei hoch."
 
-#: ui/forms.py:81
+#: ui/forms.py:85
 msgid "Include absolute timestamps in exported .ihpo files"
 msgstr "Absolute Zeitstempel in exportierte .ihpo-Dateien aufnehmen"
 
-#: ui/forms.py:117
+#: ui/forms.py:121
 msgid "Use default experiment settings"
 msgstr "Standard-Experimenteinstellungen verwenden"
 
@@ -337,22 +352,24 @@ msgstr "Von %(name)s mit Ihnen geteilt – nur lesbar."
 
 #: ui/templates/ui/experiment_detail.html:43
 msgid "This experiment has no owner, so everyone here can change it."
-msgstr "Dieses Experiment hat keine Eigentümerin und keinen Eigentümer, daher kann es hier jede und jeder ändern."
+msgstr ""
+"Dieses Experiment hat keine Eigentümerin und keinen Eigentümer, daher kann "
+"es hier jede und jeder ändern."
 
-#: ui/templates/ui/experiment_detail.html:49
+#: ui/templates/ui/experiment_detail.html:53
 #, python-format
 msgid "Run failed: %(run_error)s"
 msgstr "Lauf fehlgeschlagen: %(run_error)s"
 
-#: ui/templates/ui/experiment_detail.html:59
+#: ui/templates/ui/experiment_detail.html:63
 msgid "This model's environment could not be built."
 msgstr "Die Umgebung dieses Modells konnte nicht erstellt werden."
 
-#: ui/templates/ui/experiment_detail.html:64
+#: ui/templates/ui/experiment_detail.html:68
 msgid "Try again"
 msgstr "Erneut versuchen"
 
-#: ui/templates/ui/experiment_detail.html:68
+#: ui/templates/ui/experiment_detail.html:72
 msgid ""
 "This model runs inside the application's own Python environment, not one of "
 "its own — so the dependencies it declares are ignored."
@@ -361,36 +378,36 @@ msgstr ""
 "einer eigenen – die von ihm angegebenen Abhängigkeiten werden daher "
 "ignoriert."
 
-#: ui/templates/ui/experiment_detail.html:73
+#: ui/templates/ui/experiment_detail.html:77
 msgid "Prepare an isolated environment"
 msgstr "Isolierte Umgebung vorbereiten"
 
-#: ui/templates/ui/experiment_detail.html:81
-#: ui/templates/ui/experiment_detail.html:95
-#: ui/templates/ui/experiment_detail.html:106
+#: ui/templates/ui/experiment_detail.html:85
+#: ui/templates/ui/experiment_detail.html:99
+#: ui/templates/ui/experiment_detail.html:110
 msgid "Evaluation metric"
 msgstr "Bewertungsmetrik"
 
-#: ui/templates/ui/experiment_detail.html:87
+#: ui/templates/ui/experiment_detail.html:91
 msgid "Run"
 msgstr "Starten"
 
-#: ui/templates/ui/experiment_detail.html:98
+#: ui/templates/ui/experiment_detail.html:102
 msgid "▶ Run"
 msgstr "▶ Starten"
 
-#: ui/templates/ui/experiment_detail.html:101
+#: ui/templates/ui/experiment_detail.html:105
 #, python-format
 msgid "Environment: %(summary)s"
 msgstr "Umgebung: %(summary)s"
 
-#: ui/templates/ui/experiment_detail.html:110
+#: ui/templates/ui/experiment_detail.html:114
 msgid "Attach a dataset to run this experiment (loaded read-only)."
 msgstr ""
 "Hängen Sie einen Datensatz an, um dieses Experiment auszuführen "
 "(schreibgeschützt geladen)."
 
-#: ui/templates/ui/experiment_detail.html:114
+#: ui/templates/ui/experiment_detail.html:118
 #, python-format
 msgid ""
 "Last run: %(count)s trials in %(total)s s — %(trials)s s in trials, "
@@ -399,20 +416,20 @@ msgstr ""
 "Letzter Lauf: %(count)s Versuche in %(total)s s — %(trials)s s in Versuchen, "
 "%(overhead)s s Overhead."
 
-#: ui/templates/ui/experiment_detail.html:118
+#: ui/templates/ui/experiment_detail.html:122
 msgid "No results yet."
 msgstr "Noch keine Ergebnisse."
 
-#: ui/templates/ui/experiment_detail.html:122
+#: ui/templates/ui/experiment_detail.html:126
 #, python-format
 msgid "The search space is exhausted at %(n)s trials."
 msgstr "Der Suchraum ist nach %(n)s Versuchen erschöpft."
 
-#: ui/templates/ui/experiment_detail.html:225
+#: ui/templates/ui/experiment_detail.html:229
 msgid "Absolute scale (0-1)"
 msgstr "Absolute Skala (0-1)"
 
-#: ui/templates/ui/experiment_detail.html:226
+#: ui/templates/ui/experiment_detail.html:230
 msgid "Relative scale (fit to data)"
 msgstr "Relative Skala (an Daten anpassen)"
 
@@ -425,11 +442,11 @@ msgstr "Einstellungen: %(name)s"
 msgid "Reset to default"
 msgstr "Auf Standard zurücksetzen"
 
-#: ui/templates/ui/experiment_settings.html:28
+#: ui/templates/ui/experiment_settings.html:29
 msgid "Save settings as default"
 msgstr "Einstellungen als Standard speichern"
 
-#: ui/templates/ui/experiment_settings.html:36
+#: ui/templates/ui/experiment_settings.html:39
 msgid "Change default experiment settings"
 msgstr "Standard-Experimenteinstellungen ändern"
 
@@ -567,10 +584,10 @@ msgstr ""
 "Einstellungen sind\n"
 "    nicht betroffen."
 
-#: ui/views.py:78
+#: ui/views.py:79
 msgid "Inconsistent"
 msgstr "Inkonsistent"
 
-#: ui/views.py:405
+#: ui/views.py:418
 msgid "Invalid or unreadable experiment file."
 msgstr "Ungültige oder unleserliche Experimentdatei."

@@ -6,6 +6,7 @@ from pathlib import Path
 
 from django.conf import settings
 from django.contrib.auth.decorators import login_not_required
+from django.core.exceptions import PermissionDenied
 from django.http import HttpResponse, HttpResponseBadRequest
 from django.shortcuts import redirect, render
 from django.utils.translation import gettext as _
@@ -113,10 +114,13 @@ def new_experiment(request):
     Persists the experiment with no result and no committed metric; the dataset
     is copied into MEDIA. Running is a separate action on the detail page.
     """
+    may_upload = permissions.policy().may_upload_models(request)
     if request.method != "POST":
-        return render(request, "ui/new_experiment.html", {"form": NewExperimentForm()})
+        return render(request, "ui/new_experiment.html",
+                      {"form": NewExperimentForm(may_upload_models=may_upload)})
 
-    form = NewExperimentForm(request.POST, request.FILES)
+    form = NewExperimentForm(request.POST, request.FILES,
+                             may_upload_models=may_upload)
     if not form.is_valid():
         return render(request, "ui/new_experiment.html", {"form": form})
 
@@ -218,7 +222,8 @@ def experiment_run(request, exp):
                 "experiment": exp, "chosen": chosen, "n_trials": n_trials,
             })
 
-    run = run_service.create_run(exp, n_trials, optimize_metric)
+    run = run_service.create_run(exp, n_trials, optimize_metric,
+                                 started_by=_owner(request))
     run_service.start_background_run(run.id)
     return redirect("ui:experiment_detail", pk=exp.pk)
 
@@ -334,6 +339,11 @@ def experiment_settings(request, exp):
 
         posted = _posted_settings(request)
 
+        if ("save_as_default" in request.POST
+                or "confirm_save_as_default" in request.POST):
+            if not permissions.policy().may_change_defaults(request):
+                raise PermissionDenied
+
         if "save_as_default" in request.POST:
             # Ask before changing what every inheriting experiment shows.
             return render(request, "ui/save_as_default_confirm.html", {
@@ -369,6 +379,8 @@ def default_experiment_settings(request):
 
     Every key in the schema is a checkbox, so an absent key means unchecked.
     """
+    if not permissions.policy().may_change_defaults(request):
+        raise PermissionDenied
     gs = GlobalSettings.get_solo()
     if request.method == "POST":
         gs.default_experiment_settings = _posted_settings(request)
@@ -396,7 +408,8 @@ def import_experiment(request):
     attached to make the imported experiment runnable; without them it loads
     read-only.
     """
-    context = {"allow_custom_models": settings.ALLOW_CUSTOM_MODELS}
+    may_upload = permissions.policy().may_upload_models(request)
+    context = {"allow_custom_models": may_upload}
     upload = request.FILES.get("file")
     if request.method == "POST" and upload is not None:
         try:
@@ -405,7 +418,7 @@ def import_experiment(request):
             context["error"] = _("Invalid or unreadable experiment file.") + f" ({exc})"
             return render(request, "ui/import.html", context)
 
-        model_upload = request.FILES.get("model") if settings.ALLOW_CUSTOM_MODELS else None
+        model_upload = request.FILES.get("model") if may_upload else None
         exp = snapshot_adapter.experiment_from_snapshot(
             snapshot, dataset_file=request.FILES.get("dataset"), model_file=model_upload,
             owner=_owner(request),
@@ -465,6 +478,10 @@ def _detail_context(request, exp):
     active_run = exp.runs.filter(status__in=_ACTIVE).order_by("-id").first()
     last_run = exp.runs.order_by("-id").first()
 
+    # Why this viewer may not run this experiment's custom model, if they
+    # may not. Shown rather than silently disabling the form.
+    model_refusal = permissions.policy().custom_model_refusal(exp, request.user)
+
     run_summary = None
     if last_run and last_run.status in ("done", "cancelled") and last_run.duration is not None:
         total = last_run.duration
@@ -488,13 +505,15 @@ def _detail_context(request, exp):
         "has_result": result is not None,
         "active_run": active_run,
         "can_run": (bool(exp.dataset) and _model_available(exp)
-                    and permissions.policy().may(request, exp, RUN)),
+                    and permissions.policy().may(request, exp, RUN)
+                    and not model_refusal),
         # What this viewer may do, for the buttons. Read access got them here;
         # the rest depends on whose experiment it is.
         "may": {action: permissions.policy().may(request, exp, action)
                 for action in (RUN, EDIT, DELETE, EXPORT)},
         "ownership": _ownership(request, exp),
         "run_error": last_run.error if (last_run and last_run.status == "error") else None,
+        "model_refusal": model_refusal,
         # The model's environment, for the branches on the detail page.
         "env": {
             "status": exp.env_status,

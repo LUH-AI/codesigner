@@ -123,6 +123,13 @@ class Run(models.Model):
     ]
 
     experiment = models.ForeignKey(Experiment, on_delete=models.CASCADE, related_name="runs")
+    # Who pressed Run. Null with no accounts, and after that account is
+    # deleted. The worker needs it to know whose custom-model code it is
+    # about to execute, which the experiment's owner does not always answer
+    # — an unowned experiment is run by whoever is looking at it.
+    started_by = models.ForeignKey(
+        django_settings.AUTH_USER_MODEL, null=True, blank=True,
+        on_delete=models.SET_NULL, related_name="runs_started")
     n_trials = models.IntegerField()
     primary_metric = models.CharField(max_length=100)
     status = models.CharField(max_length=20, choices=STATUS_CHOICES, default="pending")

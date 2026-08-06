@@ -1,5 +1,5 @@
 from . import navigation as nav
-from .permissions import visible_experiments
+from .permissions import policy, visible_experiments
 
 
 def sidebar_experiments(request):
@@ -30,3 +30,13 @@ def navigation(request):
         "breadcrumbs": nav.breadcrumbs(request),
         "back_link": nav.back_link(request),
     }
+
+
+def capabilities(request):
+    """Instance-wide permissions the layout itself branches on.
+
+    Only what a template outside one experiment's pages needs — the sidebar's
+    link to the default experiment settings, and the button that promotes an
+    experiment's settings to be those defaults.
+    """
+    return {"may_change_defaults": policy().may_change_defaults(request)}

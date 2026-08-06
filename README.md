@@ -171,6 +171,34 @@ Exported `.ihpo` files never carry server paths, whether or not this instance
 has accounts: the paths name a machine that is not the recipient's, and they
 describe how the instance is laid out.
 
+### Who may upload a model
+
+Uploading a model is arbitrary code execution, so on a hosted instance
+`ALLOW_CUSTOM_MODELS` alone is too blunt — it means every account or none. A
+per-account permission sits on top of it:
+
+> **Access permissions | Can upload and run custom models** — grant it in the
+> admin, per user or via a group.
+
+Without it the upload field and the mounted-model dropdown do not appear, an
+imported `.ihpo`'s model file is not attached, and — the check that actually
+matters — the worker refuses to run the model and says whose account was
+refused. That last one is where the decision is made, because a run is started
+by a background task rather than by the request that rendered a form.
+
+`ALLOW_CUSTOM_MODELS=False` still outranks the permission: off means off for
+everyone, so an operator turning custom models off never has to audit who holds
+what. Being staff does **not** confer the permission — `is_staff` means "can use
+the admin", not "trusted to run arbitrary code" — though a superuser has every
+permission by definition.
+
+### Who may change the defaults
+
+The **default experiment settings** apply to every experiment that inherits
+them, so one person changing them changes what everyone's pages draw. On a
+hosted instance that page, and the "Save settings as default" button on an
+experiment's own settings page, are staff-only; without accounts both are open.
+
 ### Other effects of the switch
 
 Media files are no longer served from the app (`MEDIA_ROOT` is one flat
@@ -186,7 +214,9 @@ Beyond the built-in models, you can **upload** a model `.py` (a
 running on the server, by design.
 
 This is gated by `ALLOW_CUSTOM_MODELS` (env var), default **on** for local
-single-user use. **Turn it off on any shared or public deployment:**
+single-user use, and on a hosted instance additionally by the per-account
+*Can upload and run custom models* permission (above). **Turn the flag off on
+any shared or public deployment:**
 
 ```bash
 ALLOW_CUSTOM_MODELS=False

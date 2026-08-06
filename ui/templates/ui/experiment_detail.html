@@ -45,6 +45,10 @@
         </p>
     {% endif %}
 
+    {% if model_refusal %}
+        <div class="alert warning" style="max-width: 40rem;">{{ model_refusal }}</div>
+    {% endif %}
+
     {% if run_error %}
         <div class="alert error" style="max-width: 40rem;">{% blocktranslate %}Run failed: {{ run_error }}{% endblocktranslate %}</div>
     {% endif %}
