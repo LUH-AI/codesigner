@@ -110,6 +110,12 @@ STOPPING_CRITERIA = ("max_trials", "max_seconds", "max_trial_seconds",
                      "target_score", "no_improvement_trials",
                      "incumbent_confidence")
 
+#: Not a criterion — nothing in the collector can decide it — but it ends runs
+#: and so belongs in the same vocabulary. Stored in `Run.stopped_by` by whoever
+#: noticed the interruption, so "why did this stop?" has one answer to read
+#: rather than a reason for the criteria and a status field for everything else.
+STOPPED_BY_CANCELLED = "cancelled"
+
 #: Criteria that may never fire. A run set up with only these has no guaranteed
 #: end — a target score the search never reaches, or a surrogate that stays
 #: unsure — so a caller should pair them with something bounded.

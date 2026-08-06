@@ -309,3 +309,35 @@ def test_smac_will_not_stop_on_confidence_before_it_has_evidence(
 
     assert len(result.trials) == 3
     assert result.metadata["stopped_by"] == "max_trials"
+
+
+# ── being interrupted ────────────────────────────────────────────────────────
+
+def test_a_trial_that_was_never_run_is_not_serialized(optimizers, models, metrics,
+                                                      iris_splits, monkeypatch):
+    """SMAC's runhistory is its own bookkeeping and can hold entries the run
+    never recorded — a configuration asked for and not told because the run
+    stopped, or one left in a reused output directory. Copied out verbatim they
+    became rows in the trials table with no scores at all: a trial that never
+    happened, reported as one that scored nothing."""
+    import json
+
+    from pathlib import Path
+
+    X_train, X_val, y_train, y_val = iris_splits
+    smac = optimizers["SMAC"]
+    result = smac.optimize(
+        models["Random Forest"], X_train, y_train, X_val, y_val,
+        metrics=metrics, primary_metric="accuracy", n_trials=3, seed=0)
+
+    # Forge exactly that: an entry SMAC knows about and the collector does not.
+    rh_path = next(Path(result.metadata["smac_output_dir"]).rglob("runhistory.json"))
+    rh = json.loads(rh_path.read_text())
+    rh["data"].append({**rh["data"][0], "config_id": 999, "cost": 1.0})
+    rh_path.write_text(json.dumps(rh))
+
+    serialized = smac.serialize_result(result)
+
+    assert [e["config_id"] for e in serialized["data"]] == [1, 2, 3]
+    assert all("scores" in e for e in serialized["data"])
+    assert serialized["stats"]["finished"] == 3

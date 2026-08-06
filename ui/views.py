@@ -88,6 +88,7 @@ STOPPED_BY_LABELS = {
     "max_trial_seconds": _("the compute budget was used up"),
     "no_improvement_trials": _("the score had stopped improving"),
     "incumbent_confidence": _("the search was confident nothing better remained"),
+    "cancelled": _("it was interrupted"),
 }
 
 

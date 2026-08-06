@@ -16,6 +16,8 @@ from django.utils import timezone
 from core import io
 from core.io import _load_splits
 
+from core.optimizers.base import STOPPED_BY_CANCELLED
+
 from .. import permissions, registry
 from ..registry import METRICS, MODELS, OPTIMIZERS
 from . import snapshot as snapshot_adapter
@@ -179,8 +181,10 @@ def execute_run(run_id):
         status="cancelled" if cancelled else "done", finished_at=timezone.now(),
         trial_seconds=sum(t.duration for t in new_trials),
         trial_count=len(new_trials),
-        # Empty when cancelled: the run did not end on its own terms.
-        stopped_by="" if cancelled else (result.metadata.get("stopped_by") or ""),
+        # Being interrupted is a reason a run stopped, and the page has to be
+        # able to say so. Left to the criteria only when it was not.
+        stopped_by=(STOPPED_BY_CANCELLED if cancelled
+                    else (result.metadata.get("stopped_by") or "")),
     )
 
 

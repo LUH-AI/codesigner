@@ -8,7 +8,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: PACKAGE VERSION\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2026-08-06 12:55+0000\n"
+"POT-Creation-Date: 2026-08-06 13:26+0000\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
 "Language-Team: LANGUAGE <LL@li.org>\n"
@@ -452,13 +452,18 @@ msgid ""
 "Asks this optimizer's own model of the objective how likely it is that any "
 "untried configuration beats the best one so far. Confidence under that "
 "model, not a guarantee."
-msgstr "Fragt das Zielfunktionsmodell dieses Optimierers, wie wahrscheinlich es ist, dass eine noch nicht getestete Konfiguration die bisher beste übertrifft. Sicherheit gemäß diesem Modell, keine Garantie."
+msgstr ""
+"Fragt das Zielfunktionsmodell dieses Optimierers, wie wahrscheinlich es ist, "
+"dass eine noch nicht getestete Konfiguration die bisher beste übertrifft. "
+"Sicherheit gemäß diesem Modell, keine Garantie."
 
 #: ui/templates/ui/experiment_detail.html:138
 msgid ""
 "These may never happen. Consider a trial or time limit as well, so the run "
 "is certain to end."
-msgstr "Diese treten möglicherweise nie ein. Ergänzen Sie am besten eine Versuchs- oder Zeitgrenze, damit der Lauf sicher endet."
+msgstr ""
+"Diese treten möglicherweise nie ein. Ergänzen Sie am besten eine Versuchs- "
+"oder Zeitgrenze, damit der Lauf sicher endet."
 
 #: ui/templates/ui/experiment_detail.html:140
 msgid "▶ Run"
@@ -695,24 +700,29 @@ msgstr "der Wert sich nicht mehr verbesserte"
 msgid "the search was confident nothing better remained"
 msgstr "die Suche sicher war, dass nichts Besseres übrig ist"
 
-#: ui/views.py:127
+#: ui/views.py:91
+msgid "it was interrupted"
+msgstr "es unterbrochen wurde"
+
+#: ui/views.py:128
 msgid "Inconsistent"
 msgstr "Inkonsistent"
 
-#: ui/views.py:267
+#: ui/views.py:268
 msgid ""
 "Set at least one stopping criterion, so the run has something to end on."
-msgstr "Legen Sie mindestens ein Abbruchkriterium fest, damit der Lauf enden kann."
+msgstr ""
+"Legen Sie mindestens ein Abbruchkriterium fest, damit der Lauf enden kann."
 
-#: ui/views.py:478
+#: ui/views.py:479
 msgid "Invalid or unreadable experiment file."
 msgstr "Ungültige oder unleserliche Experimentdatei."
 
-#: ui/views.py:564
+#: ui/views.py:565
 #, python-format
 msgid "%(k)s-fold CV"
 msgstr "%(k)s-fache CV"
 
-#: ui/views.py:565
+#: ui/views.py:566
 msgid "holdout"
 msgstr "Holdout"

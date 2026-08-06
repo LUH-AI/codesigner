@@ -344,3 +344,24 @@ def test_the_confidence_criterion_is_offered_only_where_it_can_be_answered(clien
 
     assert 'name="incumbent_confidence"' in page(smac)
     assert 'name="incumbent_confidence"' not in page(grid)
+
+
+@pytest.mark.django_db
+def test_an_interrupted_run_says_it_was_interrupted(client):
+    """Being stopped by hand is a reason a run ended, and the page has to be
+    able to say so. Reported through the same field as the criteria, so there
+    is one answer to "why did this stop?" rather than two places to look."""
+    from django.utils import timezone
+
+    from ui.models import Run
+
+    exp = _experiment()
+    Run.objects.create(experiment=exp, stopping={"max_trials": 30},
+                       primary_metric="accuracy", status="cancelled",
+                       stopped_by="cancelled", trial_count=4, trial_seconds=1.0,
+                       started_at=timezone.now(), finished_at=timezone.now())
+
+    html = client.get(reverse("ui:experiment_detail", args=[exp.pk])).content.decode()
+
+    assert "Stopped because it was interrupted" in html
+    assert "requested trials ran" not in html

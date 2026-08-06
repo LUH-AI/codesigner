@@ -71,15 +71,24 @@ class SMACOptimizer(BaseOptimizer):
             tuple(sorted(t.config.items())): str(t.trial) for t in result.trials
         }
 
+        # Only trials this run actually evaluated. SMAC's runhistory is its own
+        # bookkeeping and can hold entries we never recorded — a trial asked for
+        # and not told because the run stopped, or one left behind in a reused
+        # output directory. Copied out verbatim they became rows in the trials
+        # table with no scores, which is a trial that never happened being
+        # reported as one that scored nothing.
+        recorded = []
         for entry in rh["data"]:
             t = trial_by_id.get(entry["config_id"])
-            if t is not None:
-                entry["scores"] = t.scores
-                entry["incumbent_score"] = t.incumbent_score
-                incumbent_key = tuple(sorted(t.incumbent_config.items()))
-                entry["incumbent_config_id"] = int(
-                    config_key_to_id.get(incumbent_key, str(entry["config_id"]))
-                )
+            if t is None:
+                continue
+            entry["scores"] = t.scores
+            entry["incumbent_score"] = t.incumbent_score
+            incumbent_key = tuple(sorted(t.incumbent_config.items()))
+            entry["incumbent_config_id"] = int(
+                config_key_to_id.get(incumbent_key, str(entry["config_id"]))
+            )
+            recorded.append(entry)
 
         best_key = tuple(sorted(result.best_config.items())) if result.best_config else ()
         best_config_id = config_key_to_id.get(best_key) or (
@@ -93,8 +102,9 @@ class SMACOptimizer(BaseOptimizer):
         }
 
         return {
-            "stats": rh["stats"],
-            "data": rh["data"],
+            # Counted from what was kept, not from what SMAC happened to hold.
+            "stats": {"submitted": len(recorded), "finished": len(recorded), "running": 0},
+            "data": recorded,
             "configs": rh["configs"],
             "config_origins": rh.get("config_origins", {}),
             "optimizer_state": optimizer_state,

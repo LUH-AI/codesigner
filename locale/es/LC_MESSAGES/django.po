@@ -8,7 +8,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: PACKAGE VERSION\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2026-08-06 12:55+0000\n"
+"POT-Creation-Date: 2026-08-06 13:26+0000\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
 "Language-Team: LANGUAGE <LL@li.org>\n"
@@ -450,13 +450,18 @@ msgid ""
 "Asks this optimizer's own model of the objective how likely it is that any "
 "untried configuration beats the best one so far. Confidence under that "
 "model, not a guarantee."
-msgstr "Pregunta al propio modelo del objetivo de este optimizador qué probabilidad hay de que alguna configuración no probada supere a la mejor hasta ahora. Confianza según ese modelo, no una garantía."
+msgstr ""
+"Pregunta al propio modelo del objetivo de este optimizador qué probabilidad "
+"hay de que alguna configuración no probada supere a la mejor hasta ahora. "
+"Confianza según ese modelo, no una garantía."
 
 #: ui/templates/ui/experiment_detail.html:138
 msgid ""
 "These may never happen. Consider a trial or time limit as well, so the run "
 "is certain to end."
-msgstr "Puede que esto no ocurra nunca. Conviene añadir también un límite de pruebas o de tiempo para que la ejecución termine con seguridad."
+msgstr ""
+"Puede que esto no ocurra nunca. Conviene añadir también un límite de pruebas "
+"o de tiempo para que la ejecución termine con seguridad."
 
 #: ui/templates/ui/experiment_detail.html:140
 msgid "▶ Run"
@@ -692,24 +697,29 @@ msgstr "la puntuación dejó de mejorar"
 msgid "the search was confident nothing better remained"
 msgstr "la búsqueda tuvo la certeza de que no quedaba nada mejor"
 
-#: ui/views.py:127
+#: ui/views.py:91
+msgid "it was interrupted"
+msgstr "se interrumpió"
+
+#: ui/views.py:128
 msgid "Inconsistent"
 msgstr "Inconsistente"
 
-#: ui/views.py:267
+#: ui/views.py:268
 msgid ""
 "Set at least one stopping criterion, so the run has something to end on."
-msgstr "Define al menos un criterio de parada para que la ejecución pueda terminar."
+msgstr ""
+"Define al menos un criterio de parada para que la ejecución pueda terminar."
 
-#: ui/views.py:478
+#: ui/views.py:479
 msgid "Invalid or unreadable experiment file."
 msgstr "Archivo de experimento inválido o ilegible."
 
-#: ui/views.py:564
+#: ui/views.py:565
 #, python-format
 msgid "%(k)s-fold CV"
 msgstr "VC de %(k)s pliegues"
 
-#: ui/views.py:565
+#: ui/views.py:566
 msgid "holdout"
 msgstr "retención"
