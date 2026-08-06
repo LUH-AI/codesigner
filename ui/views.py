@@ -212,7 +212,7 @@ def experiment_run(request, exp):
     decision = request.POST.get("decision")
 
     if decision:
-        optimize_metric = resolve_metric_change(decision, exp.original_metric, chosen)
+        optimize_metric = resolve_metric_change(decision, exp.primary_metric, chosen)
         if optimize_metric is None:
             return redirect("ui:experiment_detail", pk=exp.pk)
     else:

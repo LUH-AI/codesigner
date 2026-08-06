@@ -113,19 +113,21 @@ def test_run_metric_change_asks_for_confirmation(client, no_thread):
 
 
 @pytest.mark.django_db
-def test_metric_change_warning_states_the_reproducibility_cost(client, no_thread):
-    """The confirmation warns about the real consequence — the experiment can
-    no longer be reproduced from its seed and setup — and names each metric
-    once rather than restating which one the trials used."""
+def test_metric_change_warning_states_the_real_cost(client, no_thread):
+    """The confirmation states the consequence that actually survives the fix.
+
+    The optimizer now re-reads the accumulated trials under the new metric, so
+    the search does not restart and the old claim — that the experiment is no
+    longer reproducible from its seed and setup — is not what is wrong any
+    more. What remains is selection bias: those trials were *chosen* by the old
+    objective. Each metric is named once."""
     exp = _experiment(primary_metric="accuracy", original_metric="accuracy")
     body = client.post(reverse("ui:experiment_run", args=[exp.pk]),
                        {"n_trials": 3, "optimize_metric": "f1"}).content.decode()
-    # the consequence is stated in the confirmation page's message block
     assert "confirm-message" in body, "not the shared confirmation page"
     warning = body.split("confirm-message", 1)[1].split("</div>", 1)[0]
 
-    assert "reproduc" in warning.lower()
-    # each metric is named once in the warning; the old copy repeated the original
+    assert "bias" in warning.lower()
     assert warning.count("accuracy") == 1
     assert warning.count("f1") == 1
 

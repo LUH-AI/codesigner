@@ -8,7 +8,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: PACKAGE VERSION\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2026-08-06 08:53+0000\n"
+"POT-Creation-Date: 2026-08-06 11:15+0000\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
 "Language-Team: LANGUAGE <LL@li.org>\n"
@@ -28,9 +28,9 @@ msgid ""
 "This experiment's custom model has no account behind it, so it cannot be "
 "run. Give the experiment an owner who is allowed to run custom models."
 msgstr ""
-"El modelo propio de este experimento no tiene ninguna cuenta detrás, "
-"así que no se puede ejecutar. Asigna al experimento un propietario "
-"con permiso para ejecutar modelos propios."
+"El modelo propio de este experimento no tiene ninguna cuenta detrás, así que "
+"no se puede ejecutar. Asigna al experimento un propietario con permiso para "
+"ejecutar modelos propios."
 
 #: access/templates/access/login.html:7 access/templates/access/login.html:33
 msgid "Sign in"
@@ -516,29 +516,30 @@ msgstr "¿Cambiar la métrica optimizada?"
 #, python-format
 msgid ""
 "\n"
-"    These trials optimize <strong>%(original)s</strong>. Switching to\n"
-"    <strong>%(chosen)s</strong> mixes two objectives in one experiment, so "
-"its\n"
-"    results can no longer be reproduced from the seed and setup alone.\n"
+"    These trials were chosen to optimize <strong>%(current)s</strong>. "
+"Their\n"
+"    scores for <strong>%(chosen)s</strong> were recorded too, so the search\n"
+"    continues from them rather than starting over — but they are still a "
+"sample\n"
+"    the old objective picked, and the run inherits that bias.\n"
 "    "
 msgstr ""
 "\n"
-"    Estas pruebas optimizan <strong>%(original)s</strong>. Cambiar a\n"
-"    <strong>%(chosen)s</strong> mezcla dos objetivos en un mismo "
-"experimento, por lo que sus\n"
-"    resultados ya no pueden reproducirse solo con la semilla y la "
-"configuración.\n"
+"    Estas pruebas se eligieron para optimizar <strong>%(current)s</strong>. También\n"
+"    se registraron sus valores de <strong>%(chosen)s</strong>, así que la búsqueda\n"
+"    continúa a partir de ellas en lugar de empezar de cero, pero siguen siendo una\n"
+"    muestra que eligió el objetivo anterior, y la ejecución hereda ese sesgo.\n"
 "    "
 
-#: ui/templates/ui/metric_change.html:23
+#: ui/templates/ui/metric_change.html:24
 #, python-format
 msgid "Optimize %(chosen)s"
 msgstr "Optimizar %(chosen)s"
 
-#: ui/templates/ui/metric_change.html:24
+#: ui/templates/ui/metric_change.html:25
 #, python-format
-msgid "Keep optimizing %(original)s"
-msgstr "Seguir optimizando %(original)s"
+msgid "Keep optimizing %(current)s"
+msgstr "Seguir optimizando %(current)s"
 
 #: ui/templates/ui/new_experiment.html:8
 msgid ""

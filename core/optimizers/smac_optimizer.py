@@ -3,12 +3,14 @@ import logging
 import tempfile
 from pathlib import Path
 
+from ConfigSpace import Configuration
 from smac import Scenario, BlackBoxFacade
 from smac.runhistory import StatusType
-from smac.runhistory.dataclasses import TrialValue
+from smac.runhistory.dataclasses import TrialInfo, TrialValue
 
 from ..paths import safe_join
-from .base import BaseOptimizer, OptimizationResult, TrialCollector, TrialResult
+from .base import BaseOptimizer, OptimizationResult, TrialCollector, rebase_history
+from .timing import STATUS_SUCCESS
 from .trial import evaluate_trial
 
 logging.getLogger("smac").setLevel(logging.WARNING)
@@ -118,13 +120,51 @@ class SMACOptimizer(BaseOptimizer):
         result.metadata["smac_output_dir"] = str(output_dir)
         return result
 
+    def _replay(self, smac, config_space, trials, primary_metric: str, seed: int) -> None:
+        """Tell SMAC an earlier run's trials, so a rebuilt surrogate knows them.
+
+        Used when the stored SMAC state cannot be resumed — the optimized metric
+        changed, or the run directory is gone. Without this the search would
+        start blind while the page still showed the accumulated history.
+
+        `save=False`: SMAC writes its runhistory on every `tell`, and rewriting
+        a growing file once per replayed trial is pointless when the first real
+        trial saves the lot. If the run is cancelled before any real trial, no
+        runhistory is written and `serialize_result` falls back to rebuilding
+        from the trials themselves, which is correct — just without SMAC state.
+        """
+        for t in trials:
+            try:
+                config = Configuration(config_space, values=t.config)
+            except Exception:
+                # A configuration the space no longer admits (the model's search
+                # space changed under the experiment). Not tellable, and not
+                # worth failing the run over.
+                continue
+            info = t.run_info
+            smac.tell(
+                TrialInfo(config=config, seed=seed),
+                TrialValue(
+                    cost=1.0 - t.scores.get(primary_metric, t.score),
+                    time=info.get("time", 0.0), cpu_time=info.get("cpu_time", 0.0),
+                    starttime=info.get("starttime", 0.0), endtime=info.get("endtime", 0.0),
+                    status=StatusType(info.get("status", STATUS_SUCCESS)),
+                ),
+                save=False,
+            )
+
     def optimize(self, model, X_train, y_train, X_val, y_val,
                  metrics: dict, primary_metric: str,
                  n_trials, previous_result=None, seed: int = 0, cancel_event=None):
+        # A changed metric makes the stored surrogate worse than useless: it was
+        # fitted on costs from a different objective, and resuming would mix the
+        # two in one model. Rebuild instead, replaying the history below.
+        previous_result, metric_changed = rebase_history(previous_result, primary_metric)
+
         if previous_result is not None:
             stored_dir = previous_result.metadata.get("smac_output_dir", "")
             trial_offset = len(previous_result.trials)
-            if stored_dir and Path(stored_dir).exists():
+            if stored_dir and Path(stored_dir).exists() and not metric_changed:
                 output_dir = stored_dir
                 overwrite = False
             else:
@@ -142,8 +182,9 @@ class SMACOptimizer(BaseOptimizer):
             initial_best_config=previous_result.best_config if previous_result else None,
         )
 
+        config_space = model.get_config_space(seed=seed)
         scenario = Scenario(
-            model.get_config_space(seed=seed),
+            config_space,
             name="ihpo",
             n_trials=_SMAC_MAX_TRIALS,
             deterministic=True,
@@ -155,6 +196,12 @@ class SMACOptimizer(BaseOptimizer):
             raise RuntimeError("SMAC called target_function unexpectedly in ask/tell mode")
 
         smac = BlackBoxFacade(scenario, _unreachable, overwrite=overwrite)
+
+        # A fresh facade knows nothing, so anything already evaluated has to be
+        # handed to it — otherwise the search would begin from zero while the
+        # page still shows the accumulated trials.
+        if overwrite and previous_result is not None:
+            self._replay(smac, config_space, previous_result.trials, primary_metric, seed)
 
         while not collector.done:
             if cancel_event and cancel_event.is_set():
@@ -179,7 +226,6 @@ class SMACOptimizer(BaseOptimizer):
         incumbent = smac.intensifier.get_incumbent()
         all_trials = (previous_result.trials if previous_result else []) + collector.results
 
-        config_space = model.get_config_space(seed=seed)
         hp_importance = {}
         hp_warning = {}
         for metric_name in metrics:
@@ -191,7 +237,10 @@ class SMACOptimizer(BaseOptimizer):
             trials=all_trials,
             primary_metric=primary_metric,
             best_config=dict(incumbent) if incumbent else (all_trials[-1].config if all_trials else {}),
-            best_score=max((r.score for r in all_trials), default=0.0),
+            # From `scores`, not `score`: after a metric change the history has
+            # been re-read, and a trial that could not be (an old file with one
+            # metric) must not contribute a score for a metric it never had.
+            best_score=max((t.scores.get(primary_metric, t.score) for t in all_trials), default=0.0),
             hyperparameter_importance=hp_importance,
             hyperparameter_importance_warning=hp_warning,
             metadata={"smac_output_dir": str(output_dir)},

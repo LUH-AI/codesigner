@@ -1,5 +1,5 @@
 from abc import ABC, abstractmethod
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from typing import Any, Dict, List, Optional
 from hypershap import ExplanationTask, HyperSHAP
 
@@ -46,6 +46,61 @@ class OptimizationResult:
     hyperparameter_importance_warning: Dict[str, Optional[str]]     # metric → warning or None
     trials_limit: Optional[int] = None    # None = unlimited; set by optimizers with a finite search space
     metadata: Dict[str, Any] = field(default_factory=dict)
+
+
+def rebase_history(previous_result, primary_metric: str):
+    """Re-read an earlier run's trials under *primary_metric*.
+
+    Returns ``(result, stale)``. *stale* is True when the metric has changed,
+    which means any optimizer state carried alongside the trials — a fitted
+    surrogate above all — was built against a different objective and must be
+    discarded rather than resumed.
+
+    An experiment that changes the metric it optimizes has, until now, carried
+    its history forward unchanged: `TrialResult.score` and the incumbent
+    trajectory still meant the *old* metric, so the incumbent figure drew a
+    curve for an objective nobody was optimizing any more, and SMAC fitted its
+    surrogate across two different cost functions at once.
+
+    Nothing has to be thrown away to fix that, because every trial records a
+    score for *every* metric. The history is simply re-read: each trial's score
+    becomes its score under the new metric, and the incumbent trajectory is
+    recomputed from those. The trials themselves are untouched — the same
+    configurations were evaluated on the same data.
+
+    The one case that cannot be re-read is a very old `.ihpo` that stored only
+    the optimized metric's score. Then the trials stay as they are and only
+    *stale* is reported, so the optimizer still discards its state instead of
+    resuming against the wrong objective.
+    """
+    if previous_result is None:
+        return None, False
+
+    stored = previous_result.primary_metric
+    if not stored or stored == primary_metric:
+        return previous_result, False
+
+    if not all(primary_metric in t.scores for t in previous_result.trials):
+        return previous_result, True
+
+    trials: List[TrialResult] = []
+    best_score = float("-inf")
+    best_config: Optional[Dict[str, Any]] = None
+    for t in previous_result.trials:
+        score = t.scores[primary_metric]
+        if score > best_score:
+            best_score, best_config = score, t.config
+        trials.append(replace(
+            t, score=score, incumbent_score=best_score, incumbent_config=best_config or t.config,
+        ))
+
+    return replace(
+        previous_result,
+        trials=trials,
+        primary_metric=primary_metric,
+        best_score=best_score if trials else 0.0,
+        best_config=best_config or {},
+    ), True
 
 
 class TrialCollector:

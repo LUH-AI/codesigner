@@ -13,7 +13,9 @@ from sklearn.model_selection import ParameterGrid
 
 from .trial import evaluate_trial
 
-from .base import BaseOptimizer, OptimizerParam, OptimizationResult, TrialCollector
+from .base import (
+    BaseOptimizer, OptimizerParam, OptimizationResult, TrialCollector, rebase_history,
+)
 
 _NUMERIC_STEPS = 5
 
@@ -48,6 +50,11 @@ class GridOptimizer(BaseOptimizer):
         seed: int = 0,
         cancel_event=None,
     ) -> OptimizationResult:
+        # The metric may have changed since the last run; re-read the history
+        # under the current one so the incumbent trajectory means what the page
+        # says it means. No surrogate here, so nothing else is stale.
+        previous_result, _ = rebase_history(previous_result, primary_metric)
+
         config_space = model.get_config_space(seed=seed)
         hps = list(config_space.values())
         param_grid = {hp.name: self._hp_values(hp) for hp in hps}

@@ -8,7 +8,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: PACKAGE VERSION\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2026-08-06 08:53+0000\n"
+"POT-Creation-Date: 2026-08-06 11:15+0000\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
 "Language-Team: LANGUAGE <LL@li.org>\n"
@@ -28,10 +28,9 @@ msgid ""
 "This experiment's custom model has no account behind it, so it cannot be "
 "run. Give the experiment an owner who is allowed to run custom models."
 msgstr ""
-"Hinter dem eigenen Modell dieses Experiments steht kein Konto, daher "
-"kann es nicht ausgeführt werden. Geben Sie dem Experiment eine "
-"Eigentümerin oder einen Eigentümer mit der Berechtigung, eigene "
-"Modelle auszuführen."
+"Hinter dem eigenen Modell dieses Experiments steht kein Konto, daher kann es "
+"nicht ausgeführt werden. Geben Sie dem Experiment eine Eigentümerin oder "
+"einen Eigentümer mit der Berechtigung, eigene Modelle auszuführen."
 
 #: access/templates/access/login.html:7 access/templates/access/login.html:33
 msgid "Sign in"
@@ -520,28 +519,30 @@ msgstr "Optimierte Metrik ändern?"
 #, python-format
 msgid ""
 "\n"
-"    These trials optimize <strong>%(original)s</strong>. Switching to\n"
-"    <strong>%(chosen)s</strong> mixes two objectives in one experiment, so "
-"its\n"
-"    results can no longer be reproduced from the seed and setup alone.\n"
+"    These trials were chosen to optimize <strong>%(current)s</strong>. "
+"Their\n"
+"    scores for <strong>%(chosen)s</strong> were recorded too, so the search\n"
+"    continues from them rather than starting over — but they are still a "
+"sample\n"
+"    the old objective picked, and the run inherits that bias.\n"
 "    "
 msgstr ""
 "\n"
-"    Diese Versuche optimieren <strong>%(original)s</strong>. Ein Wechsel zu\n"
-"    <strong>%(chosen)s</strong> vermischt zwei Ziele in einem Experiment, "
-"sodass seine\n"
-"    Ergebnisse nicht mehr allein aus Seed und Aufbau reproduzierbar sind.\n"
+"    Diese Versuche wurden ausgewählt, um <strong>%(current)s</strong> zu optimieren.\n"
+"    Ihre Werte für <strong>%(chosen)s</strong> wurden ebenfalls erfasst, sodass die\n"
+"    Suche darauf aufbaut, statt neu zu beginnen – sie bleiben aber eine Stichprobe,\n"
+"    die das alte Ziel ausgewählt hat, und der Lauf übernimmt diese Verzerrung.\n"
 "    "
 
-#: ui/templates/ui/metric_change.html:23
+#: ui/templates/ui/metric_change.html:24
 #, python-format
 msgid "Optimize %(chosen)s"
 msgstr "Optimieren nach %(chosen)s"
 
-#: ui/templates/ui/metric_change.html:24
+#: ui/templates/ui/metric_change.html:25
 #, python-format
-msgid "Keep optimizing %(original)s"
-msgstr "Weiterhin %(original)s optimieren"
+msgid "Keep optimizing %(current)s"
+msgstr "Weiterhin %(current)s optimieren"
 
 #: ui/templates/ui/new_experiment.html:8
 msgid ""
