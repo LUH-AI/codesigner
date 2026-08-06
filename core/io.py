@@ -37,6 +37,7 @@ import pandas as pd
 from sklearn.model_selection import train_test_split
 
 from .paths import MAX_STATE_FILES, is_safe_relative
+from .splits import MIN_FOLDS, cross_validation, holdout
 
 _REPO_ROOT   = Path(__file__).parent.parent
 _DATASETS_DIR = _REPO_ROOT / "datasets"
@@ -144,14 +145,18 @@ def _json_default(obj: Any) -> Any:
     raise TypeError(f"Object of type {type(obj).__name__} is not JSON serializable")
 
 
-def _load_splits(csv_path: Path, seed: int):
-    """Reconstruct the identical train/val split from a CSV path + seed."""
+def _load_frame(csv_path: Path):
+    """The dataset as (X, y). The last column is the target."""
     raw = csv_path.read_bytes()
     sample = raw[:2048].decode("utf-8", errors="replace")
     sep = ";" if sample.count(";") > sample.count(",") else ","
     df = pd.read_csv(csv_path, sep=sep)
-    X = df.iloc[:, :-1].to_numpy()
-    y = df.iloc[:, -1].to_numpy()
+    return df.iloc[:, :-1].to_numpy(), df.iloc[:, -1].to_numpy()
+
+
+def _load_splits(csv_path: Path, seed: int):
+    """Reconstruct the identical train/val split from a CSV path + seed."""
+    X, y = _load_frame(csv_path)
     try:
         return train_test_split(X, y, test_size=0.2, random_state=seed, stratify=y)
     except ValueError:
@@ -334,13 +339,23 @@ def build_experiment(
         resolved_model = stored_model
 
     # ── Dataset ───────────────────────────────────────────────────────────────
+    # `splits` is what a trial is actually evaluated over — one fold for a
+    # holdout, k for cross-validation. The four arrays stay as they were: plenty
+    # of callers read them, and for a holdout they are the same data.
+    cv_folds = int(snapshot.get("cv_folds") or 0)
     if read_only:
         X_train = X_val = y_train = y_val = None
+        splits = None
     else:
         path = Path(snapshot["dataset_path"])
         if not path.is_file():
             raise ValueError(f"dataset not found: {snapshot['dataset_path']}")
         X_train, X_val, y_train, y_val = _load_splits(path, seed)
+        if cv_folds >= MIN_FOLDS:
+            X_all, y_all = _load_frame(path)
+            splits = cross_validation(X_all, y_all, cv_folds, seed)
+        else:
+            splits = holdout(X_train, y_train, X_val, y_val)
 
     metrics   = {m: available_metrics[m] for m in snapshot["metric_names"]}
     opt_type  = type(opt_entry)
@@ -359,6 +374,8 @@ def build_experiment(
         "dataset_path":    snapshot["dataset_path"],
         "X_train": X_train, "y_train": y_train,
         "X_val":   X_val,   "y_val":   y_val,
+        "cv_folds": cv_folds,
+        "splits":  splits,
         "result":  result,
     }
     return snapshot["name"], exp

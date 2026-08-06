@@ -52,7 +52,9 @@ class FakeOptimizer(BaseOptimizer):
     def optimize(self, model, X_train, y_train, X_val, y_val,
                  metrics: dict, primary_metric: str,
                  n_trials, previous_result=None, seed: int = 0, cancel_event=None,
-                 stopping: dict | None = None):
+                 stopping: dict | None = None, splits=None):
+        from core.splits import holdout
+        splits = splits if splits is not None else holdout(X_train, y_train, X_val, y_val)
         config_space = model.get_config_space(seed=seed)
         collector = TrialCollector(
             target_new_trials=n_trials,
@@ -65,8 +67,7 @@ class FakeOptimizer(BaseOptimizer):
             if cancel_event and cancel_event.is_set():
                 break
             cfg = dict(config_space.sample_configuration())
-            all_scores, run_info = evaluate_trial(
-                model, cfg, X_train, y_train, X_val, y_val, metrics, seed=seed)
+            all_scores, run_info = evaluate_trial(model, cfg, splits, metrics, seed=seed)
             collector.record(cfg, all_scores[primary_metric], all_scores, run_info=run_info)
 
         all_trials = (previous_result.trials if previous_result else []) + collector.results

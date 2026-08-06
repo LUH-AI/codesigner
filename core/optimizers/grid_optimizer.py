@@ -11,6 +11,7 @@ from ConfigSpace.hyperparameters import (
 )
 from sklearn.model_selection import ParameterGrid
 
+from ..splits import holdout
 from .trial import evaluate_trial
 
 from typing import Optional
@@ -52,7 +53,11 @@ class GridOptimizer(BaseOptimizer):
         seed: int = 0,
         cancel_event=None,
         stopping: Optional[dict] = None,
+        splits=None,
     ) -> OptimizationResult:
+        # One fold unless the caller divided the data itself; see core.splits.
+        splits = splits if splits is not None else holdout(X_train, y_train, X_val, y_val)
+
         # The metric may have changed since the last run; re-read the history
         # under the current one so the incumbent trajectory means what the page
         # says it means. No surrogate here, so nothing else is stale.
@@ -88,8 +93,7 @@ class GridOptimizer(BaseOptimizer):
         for cfg in to_run:
             if cancel_event and cancel_event.is_set():
                 break
-            all_scores, run_info = evaluate_trial(
-                model, cfg, X_train, y_train, X_val, y_val, metrics, seed=seed)
+            all_scores, run_info = evaluate_trial(model, cfg, splits, metrics, seed=seed)
             collector.record(cfg, all_scores[primary_metric], all_scores, run_info=run_info)
 
         all_trials = (previous_result.trials if previous_result else []) + collector.results

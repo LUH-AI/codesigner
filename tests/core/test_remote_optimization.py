@@ -13,6 +13,7 @@ import pytest
 
 from core.metrics import METRICS
 from core.modelhost import launch_local, model_session
+from core.splits import holdout
 from core.optimizers import GridOptimizer, RandomOptimizer
 from core.optimizers.timing import STATUS_CRASHED, STATUS_SUCCESS
 
@@ -48,7 +49,7 @@ def remote_model(tmp_path, iris_splits):
     path.write_text(textwrap.dedent(MODEL), encoding="utf-8")
     X_train, X_val, y_train, y_val = iris_splits
     with model_session(launch_local(sys.executable, path),
-                       X_train, y_train, X_val, seed=0) as model:
+                       holdout(X_train, y_train, X_val, y_val), seed=0) as model:
         yield model
 
 
@@ -114,7 +115,7 @@ def test_a_run_survives_a_model_that_fails_on_one_configuration(tmp_path, iris_s
     X_train, X_val, y_train, y_val = iris_splits
 
     with model_session(launch_local(sys.executable, path),
-                       X_train, y_train, X_val, seed=0) as model:
+                       holdout(X_train, y_train, X_val, y_val), seed=0) as model:
         result = GridOptimizer().optimize(
             model, X_train, y_train, X_val, y_val,
             metrics=METRICS, primary_metric="accuracy", n_trials=50, seed=0)

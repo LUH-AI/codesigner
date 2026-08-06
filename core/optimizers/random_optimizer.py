@@ -1,6 +1,7 @@
 from typing import Optional
 
 from .base import BaseOptimizer, OptimizationResult, TrialCollector, rebase_history
+from ..splits import holdout
 from .trial import evaluate_trial
 
 _MAX_CONSECUTIVE_DUPES = 200  # give up after this many consecutive duplicate samples
@@ -28,7 +29,11 @@ class RandomOptimizer(BaseOptimizer):
         seed: int = 0,
         cancel_event=None,
         stopping: Optional[dict] = None,
+        splits=None,
     ) -> OptimizationResult:
+        # One fold unless the caller divided the data itself; see core.splits.
+        splits = splits if splits is not None else holdout(X_train, y_train, X_val, y_val)
+
         # The metric may have changed since the last run; re-read the history
         # under the current one so the incumbent trajectory means what the page
         # says it means. No surrogate here, so nothing else is stale.
@@ -63,8 +68,7 @@ class RandomOptimizer(BaseOptimizer):
                 continue
             consecutive_dupes = 0
             evaluated.add(key)
-            all_scores, run_info = evaluate_trial(
-                model, cfg, X_train, y_train, X_val, y_val, metrics, seed=seed)
+            all_scores, run_info = evaluate_trial(model, cfg, splits, metrics, seed=seed)
             collector.record(cfg, all_scores[primary_metric], all_scores, run_info=run_info)
 
         all_trials = (previous_result.trials if previous_result else []) + collector.results

@@ -67,6 +67,13 @@
         </div>
 
         <div class="field">
+            <label for="{{ form.cv_folds.id_for_label }}">{{ form.cv_folds.label }}</label>
+            {{ form.cv_folds }}
+            {% if form.cv_folds.errors %}<div class="form-error">{{ form.cv_folds.errors|join:" " }}</div>{% endif %}
+            <p class="caption">{% translate "Fixed once the experiment exists: trials scored different ways cannot be compared with each other." %}</p>
+        </div>
+
+        <div class="field">
             <label for="{{ form.seed.id_for_label }}">{{ form.seed.label }}</label>
             {{ form.seed }}
             {% if form.seed.errors %}<div class="form-error">{{ form.seed.errors|join:" " }}</div>{% endif %}

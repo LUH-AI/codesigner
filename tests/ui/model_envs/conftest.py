@@ -14,6 +14,8 @@ import textwrap
 
 import pytest
 
+from core.modelhost.protocol import PROTOCOL_VERSION
+
 _SHIM = '''\
 import json, sys
 from pathlib import Path
@@ -34,8 +36,12 @@ sys.exit(0)
 '''
 
 _WRITES_LOCK = 'Path(str(script) + ".lock").write_text("# fake lock\\n")'
+# The version comes from the protocol module rather than a literal: the client
+# refuses a mismatch, so a hardcoded number here would turn the next protocol
+# bump into a wall of unrelated failures in the environment tests.
 _GREETS = (
-    'print(json.dumps({"t": "hello", "protocol": 1, "name": "Fake Model", '
+    'print(json.dumps({"t": "hello", "protocol": ' + str(PROTOCOL_VERSION) + ', '
+    '"name": "Fake Model", '
     '"model_class": "FakeModel", "python": "3.12.0", '
     '"config_space": {"name": "s", "hyperparameters": [], "conditions": [], '
     '"forbiddens": [], "format_version": 0.4, "python_module_version": "1.2.0"}}))'

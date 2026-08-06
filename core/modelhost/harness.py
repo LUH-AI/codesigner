@@ -27,7 +27,7 @@ import time
 import traceback
 from pathlib import Path
 
-PROTOCOL_VERSION = 1
+PROTOCOL_VERSION = 2
 
 
 def _send(message: dict) -> None:
@@ -117,16 +117,24 @@ def _greeting(model, seed: int) -> dict:
     }
 
 
-def _load_split(arrays_dir: Path, y_train_json):
+def _load_dataset(arrays_dir: Path, fold_labels):
+    """The feature matrix, and per fold the rows to train on and predict.
+
+    Returns a list of `(X_train, y_train, X_val)`, one per fold, sliced here so
+    a trial request only has to name an index. allow_pickle stays off: a .npy
+    that needed it would be a pickle written by the parent, and keeping it off
+    means a non-numeric feature column is refused loudly instead of travelling
+    as one.
+    """
     import numpy as np
 
-    # allow_pickle stays off: a .npy that needed it would be a pickle written by
-    # the parent, and keeping it off means a non-numeric feature column is
-    # refused loudly instead of travelling as one.
-    X_train = np.load(arrays_dir / "X_train.npy", allow_pickle=False)
-    X_val = np.load(arrays_dir / "X_val.npy", allow_pickle=False)
-    y_train = np.asarray(y_train_json, dtype=object)
-    return X_train, y_train, X_val
+    X = np.load(arrays_dir / "X.npy", allow_pickle=False)
+    folds = []
+    for index, labels in enumerate(fold_labels):
+        train_idx = np.load(arrays_dir / f"fold_{index}_train.npy", allow_pickle=False)
+        val_idx = np.load(arrays_dir / f"fold_{index}_val.npy", allow_pickle=False)
+        folds.append((X[train_idx], np.asarray(labels, dtype=object), X[val_idx]))
+    return folds
 
 
 def main(argv=None) -> int:
@@ -155,7 +163,7 @@ def main(argv=None) -> int:
     if args.describe:
         return 0
 
-    split = None
+    folds = None
     for line in sys.stdin:
         line = line.strip()
         if not line:
@@ -174,19 +182,23 @@ def main(argv=None) -> int:
 
         if kind == "init":
             try:
-                split = _load_split(Path(request["arrays_dir"]), request["y_train"])
+                folds = _load_dataset(Path(request["arrays_dir"]), request["fold_labels"])
             except BaseException as exc:  # noqa: BLE001
-                _fail("load", f"could not read the dataset split: {type(exc).__name__}: {exc}",
+                _fail("load", f"could not read the dataset: {type(exc).__name__}: {exc}",
                       request_id)
                 return 1
             _send({"t": "ready", "id": request_id})
             continue
 
         if kind == "trial":
-            if split is None:
-                _fail("protocol", "a trial arrived before the dataset split", request_id)
+            if folds is None:
+                _fail("protocol", "a trial arrived before the dataset", request_id)
                 return 1
-            X_train, y_train, X_val = split
+            fold = request.get("fold", 0)
+            if not 0 <= fold < len(folds):
+                _fail("protocol", f"no such fold: {fold}", request_id)
+                return 1
+            X_train, y_train, X_val = folds[fold]
             cpu0 = time.process_time()
             try:
                 y_pred = model.fit_predict(

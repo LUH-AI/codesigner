@@ -8,7 +8,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: PACKAGE VERSION\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2026-08-06 11:29+0000\n"
+"POT-Creation-Date: 2026-08-06 11:49+0000\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
 "Language-Team: LANGUAGE <LL@li.org>\n"
@@ -105,7 +105,7 @@ msgid "No experiments yet."
 msgstr "Aún no hay experimentos."
 
 #: tests/ui/i18n/test_i18n.py:220 tests/ui/i18n/test_i18n.py:226
-#: ui/templates/ui/experiment_detail.html:95
+#: ui/templates/ui/experiment_detail.html:96
 msgid "Number of trials"
 msgstr "Número de pruebas"
 
@@ -137,59 +137,79 @@ msgstr "Error a lo largo del tiempo"
 msgid "Trials"
 msgstr "Pruebas"
 
-#: ui/forms.py:27
+#: ui/forms.py:29
 msgid "Experiment name"
 msgstr "Nombre del experimento"
 
-#: ui/forms.py:28 ui/templates/ui/experiment_detail.html:11
+#: ui/forms.py:30 ui/templates/ui/experiment_detail.html:11
 msgid "Model"
 msgstr "Modelo"
 
-#: ui/forms.py:29
+#: ui/forms.py:31
 msgid "…or upload a model .py"
 msgstr "…o suba un modelo (.py)"
 
-#: ui/forms.py:30
+#: ui/forms.py:32
 msgid "…or a mounted model .py"
 msgstr "…o un modelo montado (.py)"
 
-#: ui/forms.py:31 ui/templates/ui/experiment_detail.html:12
+#: ui/forms.py:33 ui/templates/ui/experiment_detail.html:12
 msgid "Optimizer"
 msgstr "Optimizador"
 
-#: ui/forms.py:32
+#: ui/forms.py:34
 msgid "Demo dataset"
 msgstr "Conjunto de datos de demostración"
 
-#: ui/forms.py:33
+#: ui/forms.py:35
 msgid "…or upload a CSV (last column = target)"
 msgstr "…o suba un CSV (última columna = objetivo)"
 
-#: ui/forms.py:34
+#: ui/forms.py:36
 msgid "Seed (negative = random)"
 msgstr "Semilla (negativa = aleatoria)"
 
-#: ui/forms.py:40
+#: ui/forms.py:41
+msgid "How each trial is scored"
+msgstr "Cómo se puntúa cada prueba"
+
+#: ui/forms.py:43
+msgid "One 80/20 split — fastest"
+msgstr "Una división 80/20: lo más rápido"
+
+#: ui/forms.py:44
+msgid "3-fold cross-validation"
+msgstr "Validación cruzada de 3 pliegues"
+
+#: ui/forms.py:45
+msgid "5-fold cross-validation — steadier on a small dataset"
+msgstr "Validación cruzada de 5 pliegues: más estable con pocos datos"
+
+#: ui/forms.py:46
+msgid "10-fold cross-validation"
+msgstr "Validación cruzada de 10 pliegues"
+
+#: ui/forms.py:54
 msgid "— select —"
 msgstr "— seleccionar —"
 
-#: ui/forms.py:43 ui/forms.py:47
+#: ui/forms.py:57 ui/forms.py:61
 msgid "— none —"
 msgstr "— ninguno —"
 
-#: ui/forms.py:69
+#: ui/forms.py:83
 msgid "Choose a model or upload a model .py file."
 msgstr "Elija un modelo o suba un archivo de modelo .py."
 
-#: ui/forms.py:72
+#: ui/forms.py:86
 msgid "Choose a demo dataset or upload a CSV file."
 msgstr "Elija un conjunto de datos de demostración o suba un archivo CSV."
 
-#: ui/forms.py:85
+#: ui/forms.py:99
 msgid "Include absolute timestamps in exported .ihpo files"
 msgstr "Incluir marcas de tiempo absolutas en los archivos .ihpo exportados"
 
-#: ui/forms.py:121
+#: ui/forms.py:135
 msgid "Use default experiment settings"
 msgstr "Usar la configuración de experimento predeterminada"
 
@@ -289,7 +309,7 @@ msgid "Delete %(name)s"
 msgstr "Eliminar %(name)s"
 
 #: ui/templates/ui/delete_confirm.html:5
-#: ui/templates/ui/experiment_detail.html:24
+#: ui/templates/ui/experiment_detail.html:25
 msgid "Delete experiment"
 msgstr "Eliminar experimento"
 
@@ -312,62 +332,66 @@ msgid "Metric"
 msgstr "Métrica"
 
 #: ui/templates/ui/experiment_detail.html:14
+msgid "Scoring"
+msgstr "Puntuación"
+
+#: ui/templates/ui/experiment_detail.html:15
 msgid "Seed"
 msgstr "Semilla"
 
-#: ui/templates/ui/experiment_detail.html:15
+#: ui/templates/ui/experiment_detail.html:16
 msgid "ID"
 msgstr "ID"
 
-#: ui/templates/ui/experiment_detail.html:19
+#: ui/templates/ui/experiment_detail.html:20
 msgid "Download as .ihpo"
 msgstr "Descargar como .ihpo"
 
-#: ui/templates/ui/experiment_detail.html:19
+#: ui/templates/ui/experiment_detail.html:20
 msgid "💾 Export"
 msgstr "💾 Exportar"
 
-#: ui/templates/ui/experiment_detail.html:21
+#: ui/templates/ui/experiment_detail.html:22
 msgid "Experiment settings"
 msgstr "Configuración del experimento"
 
-#: ui/templates/ui/experiment_detail.html:21
+#: ui/templates/ui/experiment_detail.html:22
 msgid "⚙ Settings"
 msgstr "⚙ Configuración"
 
-#: ui/templates/ui/experiment_detail.html:24
+#: ui/templates/ui/experiment_detail.html:25
 msgid "🗑 Delete"
 msgstr "🗑 Eliminar"
 
-#: ui/templates/ui/experiment_detail.html:37
+#: ui/templates/ui/experiment_detail.html:38
 msgid "Let everyone else read this experiment"
 msgstr "Permitir que los demás lean este experimento"
 
-#: ui/templates/ui/experiment_detail.html:41
+#: ui/templates/ui/experiment_detail.html:42
 #, python-format
 msgid "Shared with you by %(name)s — read only."
 msgstr "Compartido contigo por %(name)s: solo lectura."
 
-#: ui/templates/ui/experiment_detail.html:43
+#: ui/templates/ui/experiment_detail.html:44
 msgid "This experiment has no owner, so everyone here can change it."
 msgstr ""
 "Este experimento no tiene propietario, así que cualquiera aquí puede "
 "modificarlo."
 
-#: ui/templates/ui/experiment_detail.html:53
+#: ui/templates/ui/experiment_detail.html:54
 #, python-format
 msgid "Run failed: %(run_error)s"
 msgstr "La ejecución falló: %(run_error)s"
 
-#: ui/templates/ui/experiment_detail.html:63
+#: ui/templates/ui/experiment_detail.html:64
 msgid "This model's environment could not be built."
 msgstr "No se pudo construir el entorno de este modelo."
 
-#: ui/templates/ui/experiment_detail.html:68
+#: ui/templates/ui/experiment_detail.html:69
 msgid "Try again"
 msgstr "Intentar de nuevo"
 
-#: ui/templates/ui/experiment_detail.html:72
+#: ui/templates/ui/experiment_detail.html:73
 msgid ""
 "This model runs inside the application's own Python environment, not one of "
 "its own — so the dependencies it declares are ignored."
@@ -375,60 +399,60 @@ msgstr ""
 "Este modelo se ejecuta en el propio entorno de Python de la aplicación, no "
 "en uno propio, por lo que se ignoran las dependencias que declara."
 
-#: ui/templates/ui/experiment_detail.html:77
+#: ui/templates/ui/experiment_detail.html:78
 msgid "Prepare an isolated environment"
 msgstr "Preparar un entorno aislado"
 
-#: ui/templates/ui/experiment_detail.html:85
-#: ui/templates/ui/experiment_detail.html:99
-#: ui/templates/ui/experiment_detail.html:136
+#: ui/templates/ui/experiment_detail.html:86
+#: ui/templates/ui/experiment_detail.html:100
+#: ui/templates/ui/experiment_detail.html:137
 msgid "Evaluation metric"
 msgstr "Métrica de evaluación"
 
-#: ui/templates/ui/experiment_detail.html:91
+#: ui/templates/ui/experiment_detail.html:92
 msgid "Run"
 msgstr "Ejecutar"
 
-#: ui/templates/ui/experiment_detail.html:109
+#: ui/templates/ui/experiment_detail.html:110
 msgid "Stop early when…"
 msgstr "Detener antes cuando…"
 
-#: ui/templates/ui/experiment_detail.html:111
+#: ui/templates/ui/experiment_detail.html:112
 msgid "…the best score reaches"
 msgstr "…la mejor puntuación alcance"
 
-#: ui/templates/ui/experiment_detail.html:113
+#: ui/templates/ui/experiment_detail.html:114
 msgid "e.g. 0.95"
 msgstr "p. ej. 0,95"
 
-#: ui/templates/ui/experiment_detail.html:116
+#: ui/templates/ui/experiment_detail.html:117
 msgid "…the run has taken this many seconds"
 msgstr "…la ejecución haya durado estos segundos"
 
-#: ui/templates/ui/experiment_detail.html:120
+#: ui/templates/ui/experiment_detail.html:121
 msgid "…this many seconds have been spent in trials"
 msgstr "…se hayan dedicado estos segundos a las pruebas"
 
-#: ui/templates/ui/experiment_detail.html:124
+#: ui/templates/ui/experiment_detail.html:125
 msgid "…this many trials in a row have not improved"
 msgstr "…estas pruebas seguidas no hayan mejorado"
 
-#: ui/templates/ui/experiment_detail.html:128
+#: ui/templates/ui/experiment_detail.html:129
 msgid "▶ Run"
 msgstr "▶ Ejecutar"
 
-#: ui/templates/ui/experiment_detail.html:131
+#: ui/templates/ui/experiment_detail.html:132
 #, python-format
 msgid "Environment: %(summary)s"
 msgstr "Entorno: %(summary)s"
 
-#: ui/templates/ui/experiment_detail.html:140
+#: ui/templates/ui/experiment_detail.html:141
 msgid "Attach a dataset to run this experiment (loaded read-only)."
 msgstr ""
 "Adjunte un conjunto de datos para ejecutar este experimento (cargado en modo "
 "de solo lectura)."
 
-#: ui/templates/ui/experiment_detail.html:144
+#: ui/templates/ui/experiment_detail.html:145
 #, python-format
 msgid ""
 "Last run: %(count)s trials in %(total)s s — %(trials)s s in trials, "
@@ -437,20 +461,20 @@ msgstr ""
 "Última ejecución: %(count)s pruebas en %(total)s s — %(trials)s s en "
 "pruebas, %(overhead)s s de sobrecarga."
 
-#: ui/templates/ui/experiment_detail.html:148
+#: ui/templates/ui/experiment_detail.html:149
 msgid "No results yet."
 msgstr "Aún no hay resultados."
 
-#: ui/templates/ui/experiment_detail.html:152
+#: ui/templates/ui/experiment_detail.html:153
 #, python-format
 msgid "The search space is exhausted at %(n)s trials."
 msgstr "El espacio de búsqueda se agota tras %(n)s pruebas."
 
-#: ui/templates/ui/experiment_detail.html:255
+#: ui/templates/ui/experiment_detail.html:256
 msgid "Absolute scale (0-1)"
 msgstr "Escala absoluta (0-1)"
 
-#: ui/templates/ui/experiment_detail.html:256
+#: ui/templates/ui/experiment_detail.html:257
 msgid "Relative scale (fit to data)"
 msgstr "Escala relativa (ajustar a los datos)"
 
@@ -585,7 +609,13 @@ msgstr "Usar modelos de demostración"
 msgid "Use demo datasets"
 msgstr "Usar conjuntos de datos de demostración"
 
-#: ui/templates/ui/new_experiment.html:75
+#: ui/templates/ui/new_experiment.html:73
+msgid ""
+"Fixed once the experiment exists: trials scored different ways cannot be "
+"compared with each other."
+msgstr "Fijo una vez creado el experimento: las pruebas puntuadas de distinta forma no se pueden comparar entre sí."
+
+#: ui/templates/ui/new_experiment.html:82
 msgid "Create experiment"
 msgstr "Crear experimento"
 
@@ -630,6 +660,15 @@ msgstr "detenido antes: la puntuación dejó de mejorar"
 msgid "Inconsistent"
 msgstr "Inconsistente"
 
-#: ui/views.py:467
+#: ui/views.py:468
 msgid "Invalid or unreadable experiment file."
 msgstr "Archivo de experimento inválido o ilegible."
+
+#: ui/views.py:554
+#, python-format
+msgid "%(k)s-fold CV"
+msgstr "VC de %(k)s pliegues"
+
+#: ui/views.py:555
+msgid "holdout"
+msgstr "retención"

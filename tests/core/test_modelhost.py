@@ -26,11 +26,14 @@ from core.modelhost import (
 from core.modelhost.errors import ModelTrialError, TrialCancelled
 from core.optimizers.timing import STATUS_CRASHED, STATUS_TIMEOUT, STATUS_SUCCESS
 from core.optimizers.trial import evaluate_trial
+from core.splits import holdout
 
 X_TRAIN = np.array([[0.0], [1.0], [2.0], [3.0]])
 Y_TRAIN = np.array(["a", "b", "a", "b"], dtype=object)
 X_VAL = np.array([[4.0], [5.0]])
 Y_VAL = np.array(["a", "b"], dtype=object)
+#: One fold, which is what a holdout is. See core.splits.
+SPLITS = holdout(X_TRAIN, Y_TRAIN, X_VAL, Y_VAL)
 
 HEADER = '''
 # /// script
@@ -61,7 +64,7 @@ def _model(tmp_path: Path, body: str, name: str = "model.py") -> Path:
 
 def _session(model_file, **kwargs):
     return model_session(
-        launch_local(sys.executable, model_file), X_TRAIN, Y_TRAIN, X_VAL, **kwargs)
+        launch_local(sys.executable, model_file), SPLITS, **kwargs)
 
 
 class _Flag:
@@ -158,8 +161,7 @@ def test_the_rebuilt_space_samples_reproducibly(tmp_path):
 
 def test_predictions_come_back_and_score(tmp_path):
     with _session(_model(tmp_path, "return ['a', 'b']")) as remote:
-        scores, run_info = evaluate_trial(
-            remote, {"k": 1}, X_TRAIN, Y_TRAIN, X_VAL, Y_VAL, METRICS, seed=0)
+        scores, run_info = evaluate_trial(remote, {"k": 1}, SPLITS, METRICS, seed=0)
 
     assert scores["accuracy"] == 1.0
     assert run_info["status"] == STATUS_SUCCESS
@@ -169,8 +171,7 @@ def test_the_child_reports_its_own_cpu_time(tmp_path):
     """This thread's CPU clock saw none of the work, so the child's measurement
     is the only true one."""
     with _session(_model(tmp_path, "return ['a', 'b']")) as remote:
-        _, run_info = evaluate_trial(
-            remote, {"k": 1}, X_TRAIN, Y_TRAIN, X_VAL, Y_VAL, METRICS, seed=0)
+        _, run_info = evaluate_trial(remote, {"k": 1}, SPLITS, METRICS, seed=0)
 
     assert remote.last_cpu_time is not None
     assert run_info["cpu_time"] == remote.last_cpu_time
@@ -207,10 +208,8 @@ def test_a_model_that_raises_fails_one_trial_and_the_run_continues(tmp_path):
         return ['a', 'b']
     """)
     with _session(model) as remote:
-        bad, bad_info = evaluate_trial(
-            remote, {"k": 1}, X_TRAIN, Y_TRAIN, X_VAL, Y_VAL, METRICS, seed=0)
-        good, good_info = evaluate_trial(
-            remote, {"k": 2}, X_TRAIN, Y_TRAIN, X_VAL, Y_VAL, METRICS, seed=0)
+        bad, bad_info = evaluate_trial(remote, {"k": 1}, SPLITS, METRICS, seed=0)
+        good, good_info = evaluate_trial(remote, {"k": 2}, SPLITS, METRICS, seed=0)
 
     assert bad == {name: 0.0 for name in METRICS}
     assert bad_info["status"] == STATUS_CRASHED
@@ -241,8 +240,7 @@ def test_a_timeout_is_recorded_as_a_timed_out_trial(tmp_path):
     model = _model(tmp_path, "import time\ntime.sleep(30)\nreturn ['a', 'b']")
 
     with _session(model, trial_timeout=1.0) as remote:
-        scores, run_info = evaluate_trial(
-            remote, {"k": 1}, X_TRAIN, Y_TRAIN, X_VAL, Y_VAL, METRICS, seed=0)
+        scores, run_info = evaluate_trial(remote, {"k": 1}, SPLITS, METRICS, seed=0)
 
     assert scores == {name: 0.0 for name in METRICS}
     assert run_info["status"] == STATUS_TIMEOUT
@@ -290,7 +288,8 @@ def test_the_split_directory_is_removed_after_the_session(tmp_path):
     session = _session(_model(tmp_path, "return ['a', 'b']"))
     with session as remote:
         arrays_dir = session._arrays_dir
-        assert (arrays_dir / "X_train.npy").is_file()
+        assert (arrays_dir / "X.npy").is_file()
+        assert (arrays_dir / "fold_0_train.npy").is_file()
         assert arrays_dir.stat().st_mode & 0o777 == 0o700
     assert not arrays_dir.exists()
 
@@ -301,8 +300,76 @@ def test_a_non_numeric_feature_column_is_refused_with_a_reason(tmp_path):
     """Pickling is off, so an object feature array cannot cross. That dataset
     already fails at fit; this says so before a subprocess is spent on it."""
     X_text = np.array([["red"], ["blue"]], dtype=object)
+    text_splits = holdout(X_text, np.array(["a", "b"], dtype=object),
+                          X_text, np.array(["a", "b"], dtype=object))
 
     with pytest.raises(ValueError, match="not numeric"):
         with model_session(launch_local(sys.executable, _model(tmp_path, "return ['a']")),
-                           X_text, Y_TRAIN, X_text):
+                           text_splits):
             pass
+
+
+# ── cross-validation across the pipe ─────────────────────────────────────────
+
+def test_a_cross_validated_trial_sends_one_request_per_fold(tmp_path):
+    """The dataset went once at startup, so each fold is a round trip naming an
+    index rather than another copy of the arrays."""
+    from core.splits import cross_validation
+
+    X = np.arange(12, dtype=float).reshape(-1, 1)
+    y = np.array(["a" if i % 2 else "b" for i in range(12)], dtype=object)
+    splits = cross_validation(X, y, folds=3, seed=0)
+
+    model = _model(tmp_path, "return [y_train[0]] * len(X_val)")
+    with model_session(launch_local(sys.executable, model), splits) as remote:
+        scores, run_info = evaluate_trial(remote, {"k": 1}, splits, METRICS, seed=0)
+
+    assert 0.0 <= scores["accuracy"] <= 1.0
+    assert run_info["status"] == STATUS_SUCCESS
+
+
+def test_each_fold_gets_its_own_rows(tmp_path):
+    """The child slices by index on its side. If the folds were mixed up it
+    would train on rows it is about to predict, and score suspiciously well."""
+    from core.splits import cross_validation
+
+    X = np.arange(12, dtype=float).reshape(-1, 1)
+    y = np.array([str(i) for i in range(12)], dtype=object)
+    splits = cross_validation(X, y, folds=3, seed=0)
+
+    # Echoes the first feature value of each validation row, so the parent can
+    # check exactly which rows the child was given.
+    model = _model(tmp_path, "return [str(int(row[0])) for row in X_val]")
+    seen = []
+    with model_session(launch_local(sys.executable, model), splits) as remote:
+        for index, (_, val_idx) in enumerate(splits.folds):
+            remote.use_fold(index)
+            seen.extend(remote.fit_predict({"k": 1}, None, None, None, seed=0))
+
+    assert sorted(int(v) for v in seen) == list(range(12))
+
+
+def test_the_child_is_never_sent_the_labels_of_the_fold_it_is_scored_on(tmp_path):
+    """The property `core.splits` claims. Per fold the child holds the training
+    labels only; what it is about to be judged on is not in the message."""
+    from core.modelhost.arrays import fold_labels_for_json
+    from core.splits import cross_validation
+
+    X = np.arange(12, dtype=float).reshape(-1, 1)
+    y = np.array([f"row{i}" for i in range(12)], dtype=object)
+    splits = cross_validation(X, y, folds=3, seed=0)
+
+    for labels, (_, val_idx) in zip(fold_labels_for_json(splits), splits.folds):
+        withheld = {f"row{i}" for i in val_idx}
+        assert not withheld & set(labels)
+
+
+def test_a_holdout_sends_only_the_training_labels(tmp_path):
+    """One fold, and the stronger statement still holds outright: the child
+    never sees a validation label at all."""
+    from core.modelhost.arrays import fold_labels_for_json
+
+    labels = fold_labels_for_json(SPLITS)
+
+    assert len(labels) == 1
+    assert labels[0] == list(Y_TRAIN)

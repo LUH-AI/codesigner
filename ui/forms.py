@@ -18,8 +18,10 @@ class NewExperimentForm(forms.Form):
     is allowed to bring one — an uploaded ``.py`` file defining a BaseModel
     subclass. That permission is decided by the policy and passed in, so the
     form does not have to know whether the instance has accounts. A dataset comes from
-    either the demo dropdown or an upload; exactly one is required. Creating an
-    experiment does not run it — the metric to optimize and the number of trials
+    either the demo dropdown or an upload; exactly one is required. How a trial
+    is scored — one holdout or k folds — is settled here too, because it cannot
+    change later without making the experiment's own trials incomparable.
+    Creating an experiment does not run it — the metric to optimize and the number of trials
     are chosen per-run on the detail page. All metrics are always scored.
     Optimizer parameters use their defaults here (editing them is a later step).
     """
@@ -32,6 +34,18 @@ class NewExperimentForm(forms.Form):
     demo_dataset = forms.ChoiceField(label=_("Demo dataset"), required=False)
     dataset_file = forms.FileField(label=_("…or upload a CSV (last column = target)"), required=False)
     seed = forms.IntegerField(label=_("Seed (negative = random)"), initial=0)
+    # Fixed for the experiment's life, so it is asked here rather than per run:
+    # trials scored k-fold and trials scored on one holdout are not comparable,
+    # and an experiment's own history has to be.
+    cv_folds = forms.ChoiceField(
+        label=_("How each trial is scored"), initial="0", required=False,
+        choices=[
+            ("0", _("One 80/20 split — fastest")),
+            ("3", _("3-fold cross-validation")),
+            ("5", _("5-fold cross-validation — steadier on a small dataset")),
+            ("10", _("10-fold cross-validation")),
+        ],
+    )
 
     def __init__(self, *args, may_upload_models=None, **kwargs):
         super().__init__(*args, **kwargs)

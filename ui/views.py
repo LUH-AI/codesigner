@@ -189,6 +189,7 @@ def new_experiment(request):
             "original_metric": None,
             "metric_names": list(METRICS),
             "seed": seed,
+            "cv_folds": int(cleaned.get("cv_folds") or 0),
             "dataset_path": dataset_path,
             "result": None,
         }
@@ -550,6 +551,8 @@ def _detail_context(request, exp):
             "primary_metric": exp.primary_metric,
             "metric_label": metric_label(exp.primary_metric, exp.original_metric),
             "seed": exp.seed,
+            "scoring": (_("%(k)s-fold CV") % {"k": exp.cv_folds}
+                        if exp.cv_folds >= 2 else _("holdout")),
         },
         "metric_names": metric_names,
         "has_result": result is not None,

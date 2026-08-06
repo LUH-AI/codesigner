@@ -49,6 +49,7 @@ def experiment_from_snapshot(snapshot: dict, dataset_file=None, model_file=None,
         primary_metric=snapshot.get("primary_metric"),
         original_metric=snapshot.get("original_metric"),
         seed=snapshot["seed"],
+        cv_folds=int(snapshot.get("cv_folds") or 0),
         result=snapshot.get("result"),
         owner=owner,
     )
@@ -92,6 +93,7 @@ def snapshot_from_experiment(exp: Experiment) -> dict:
         "original_metric": exp.original_metric,
         "metric_names": exp.metric_names,
         "seed": exp.seed,
+        "cv_folds": exp.cv_folds,
         "dataset_path": exp.dataset.path if exp.dataset else "",
         "result": exp.result,
     }

@@ -10,6 +10,7 @@ from smac.runhistory.dataclasses import TrialInfo, TrialValue
 
 from ..paths import safe_join
 from .base import BaseOptimizer, OptimizationResult, TrialCollector, rebase_history
+from ..splits import holdout
 from .timing import STATUS_SUCCESS
 from .trial import evaluate_trial
 
@@ -156,7 +157,10 @@ class SMACOptimizer(BaseOptimizer):
     def optimize(self, model, X_train, y_train, X_val, y_val,
                  metrics: dict, primary_metric: str,
                  n_trials, previous_result=None, seed: int = 0, cancel_event=None,
-                 stopping: dict | None = None):
+                 stopping: dict | None = None, splits=None):
+        # One fold unless the caller divided the data itself; see core.splits.
+        splits = splits if splits is not None else holdout(X_train, y_train, X_val, y_val)
+
         # A changed metric makes the stored surrogate worse than useless: it was
         # fitted on costs from a different objective, and resuming would mix the
         # two in one model. Rebuild instead, replaying the history below.
@@ -210,8 +214,7 @@ class SMACOptimizer(BaseOptimizer):
                 break
             info = smac.ask()
             config = dict(info.config)
-            all_scores, run_info = evaluate_trial(
-                model, config, X_train, y_train, X_val, y_val, metrics, seed=seed)
+            all_scores, run_info = evaluate_trial(model, config, splits, metrics, seed=seed)
             cost = 1.0 - all_scores[primary_metric]
             # Feed the measured timing into SMAC so its runhistory (which the
             # serialize override copies verbatim) carries the real values. The

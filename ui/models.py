@@ -34,6 +34,12 @@ class Experiment(models.Model):
     primary_metric = models.CharField(max_length=100, blank=True, null=True)
     original_metric = models.CharField(max_length=100, blank=True, null=True)
     seed = models.IntegerField(default=0)
+    # How a trial is evaluated: 0 is a single holdout, k >= 2 is k-fold
+    # cross-validation. Chosen when the experiment is created and fixed
+    # thereafter — changing it mid-experiment would make the accumulated
+    # trials incomparable with the new ones, the same fault a changed
+    # metric used to have. See core.splits.
+    cv_folds = models.IntegerField(default=0)
     dataset = models.FileField(upload_to="datasets/", blank=True, null=True)
     result = SafeJSONField(blank=True, null=True, default=None)
     created_at = models.DateTimeField(auto_now_add=True)

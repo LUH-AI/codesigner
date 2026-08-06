@@ -142,6 +142,7 @@ def execute_run(run_id):
                 seed=built["seed"],
                 cancel_event=cancel,
                 stopping=run.stopping,
+                splits=built["splits"],
             )
 
         if launch is None:
@@ -152,7 +153,7 @@ def execute_run(run_id):
             from . import modelenv
 
             with model_session(
-                launch, built["X_train"], built["y_train"], built["X_val"],
+                launch, built["splits"],
                 seed=built["seed"], cancel=cancel, **modelenv.session_kwargs(),
             ) as model:
                 result = _optimize(model)

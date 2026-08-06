@@ -12,11 +12,13 @@ import pytest
 from core.metrics import METRICS
 from core.optimizers.timing import STATUS_CRASHED, STATUS_SUCCESS
 from core.optimizers.trial import evaluate_trial
+from core.splits import cross_validation, holdout
 
 X_TRAIN = np.array([[0.0], [1.0]])
 Y_TRAIN = np.array(["a", "b"], dtype=object)
 X_VAL = np.array([[2.0], [3.0]])
 Y_VAL = np.array(["a", "b"], dtype=object)
+SPLITS = holdout(X_TRAIN, Y_TRAIN, X_VAL, Y_VAL)
 
 
 class Perfect:
@@ -52,7 +54,7 @@ class WrongLength:
 
 
 def _run(model):
-    return evaluate_trial(model, {"a": 1}, X_TRAIN, Y_TRAIN, X_VAL, Y_VAL, METRICS, seed=0)
+    return evaluate_trial(model, {"a": 1}, SPLITS, METRICS, seed=0)
 
 
 def test_a_good_trial_is_scored_and_marked_successful():

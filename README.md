@@ -99,6 +99,21 @@ You are never asked for a score. Codesigner keeps the validation labels back,
 calls `fit_predict`, and computes every metric itself — so all models are
 measured by the same code regardless of what they were built with.
 
+**How a trial is scored** is chosen when the experiment is created: one 80/20
+holdout, or k-fold cross-validation. It cannot change afterwards, because trials
+scored different ways cannot be compared with each other, and an experiment's
+own history has to be. Cross-validation costs k fits per trial and is worth it
+on a small table, where a single split is noisy enough that a search can spend
+its budget chasing the split rather than the model.
+
+One consequence worth knowing if you are relying on the isolation. With a single
+holdout the model is never sent a validation label at all. With k folds every
+row trains in k−1 of them, so across one trial the union of what the model
+receives is every label — it is never told which rows it is about to be scored
+on, but a model deliberately caching what it was sent could reconstruct them.
+Closing that would mean one process per fold, k times the memory for the whole
+run. Like the rest of this: dependency isolation, not a sandbox.
+
 The environment is resolved and locked **once**, when the experiment is created;
 the page shows progress while that happens, and every later run of that
 experiment uses the same pinned dependencies. Building it is also when the model

@@ -258,6 +258,7 @@ class BaseOptimizer(ABC):
         seed: int = 0,
         cancel_event=None,
         stopping: Optional[Dict[str, Any]] = None,
+        splits=None,
     ) -> OptimizationResult: ...
 
     def serialize_result(self, result: "OptimizationResult") -> dict:

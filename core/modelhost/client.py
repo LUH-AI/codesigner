@@ -27,7 +27,7 @@ from copy import deepcopy
 from pathlib import Path
 
 from . import protocol
-from .arrays import labels_for_json, write_split
+from .arrays import fold_labels_for_json, write_dataset
 from .errors import ModelProcessError, ModelTrialError, TrialCancelled, TrialTimeout
 
 HARNESS = Path(__file__).with_name("harness.py")
@@ -263,6 +263,7 @@ class RemoteModel:
         self._seed = seed
         self._trial_timeout = trial_timeout
         self._cancel = cancel
+        self._fold = 0
         #: Read by `evaluate_trial`: this thread's CPU clock saw none of the work,
         #: so the child's own measurement is the only true one.
         self.last_cpu_time: float | None = None
@@ -289,15 +290,28 @@ class RemoteModel:
         space.seed(seed)
         return space
 
+    def use_fold(self, index: int) -> None:
+        """Which fold the next `fit_predict` runs on.
+
+        A local model is handed the fold as arrays. This one cannot be: the
+        dataset was sent once at startup and lives in the other process, so the
+        fold travels as an index and the child does the slicing. Set before the
+        call rather than passed to it, because `fit_predict` is the contract
+        user models implement and it must not grow an argument for something no
+        user model will ever use.
+        """
+        self._fold = index
+
     def fit_predict(self, config, X_train, y_train, X_val, seed: int = 0):
         """One round trip. The arrays are already over there.
 
         They are accepted and ignored so this matches the local signature
         exactly; an optimizer passes them without knowing which kind of model it
-        has.
+        has. Which rows to use comes from `use_fold`.
         """
         reply = self._process.request(
-            {"t": protocol.TRIAL, "config": _jsonable(config), "seed": seed},
+            {"t": protocol.TRIAL, "config": _jsonable(config), "seed": seed,
+             "fold": self._fold},
             timeout=self._trial_timeout, cancel=self._cancel,
         )
         if reply.get("t") == protocol.ERROR:
@@ -340,12 +354,12 @@ class model_session:
     run, or a plain return.
     """
 
-    def __init__(self, launch, X_train, y_train, X_val, *,
+    def __init__(self, launch, splits, *,
                  seed: int = 0, cancel=None, env=None, cwd=None,
                  trial_timeout: float = DEFAULT_TRIAL_TIMEOUT,
                  start_timeout: float = DEFAULT_START_TIMEOUT):
         self._launch = launch
-        self._split = (X_train, y_train, X_val)
+        self._splits = splits
         self._seed = seed
         self._cancel = cancel
         self._env = env
@@ -356,8 +370,7 @@ class model_session:
         self._arrays_dir: Path | None = None
 
     def __enter__(self) -> RemoteModel:
-        X_train, y_train, X_val = self._split
-        self._arrays_dir = write_split(X_train, X_val)
+        self._arrays_dir = write_dataset(self._splits)
         self._process = ModelProcess(
             self._launch, start_timeout=self._start_timeout,
             env=self._env, cwd=self._cwd)
@@ -366,7 +379,7 @@ class model_session:
         reply = self._process.request(
             {"t": protocol.INIT,
              "arrays_dir": str(self._arrays_dir),
-             "y_train": labels_for_json(y_train)},
+             "fold_labels": fold_labels_for_json(self._splits)},
             timeout=self._start_timeout, cancel=self._cancel,
         )
         if reply.get("t") != protocol.READY:
