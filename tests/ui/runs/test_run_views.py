@@ -235,3 +235,67 @@ def test_sidebar_marks_running_experiments(client):
     html = client.get(reverse("ui:home")).content.decode()
 
     assert "spinner" in html.lower()
+
+
+@pytest.mark.django_db
+def test_stopping_criteria_reach_the_run(client, no_thread):
+    """Filled-in criteria are stored on the Run, which is what the optimizer
+    reads them from."""
+    from ui.models import Run
+
+    exp = _experiment()
+    client.post(reverse("ui:experiment_run", args=[exp.pk]),
+                {"n_trials": 3, "optimize_metric": "accuracy",
+                 "target_score": "0.9", "no_improvement_trials": "5"})
+
+    run = Run.objects.get()
+    assert run.stopping == {"target_score": 0.9, "no_improvement_trials": 5}
+
+
+@pytest.mark.django_db
+def test_blank_criteria_are_absent_rather_than_zero(client, no_thread):
+    """An empty box means "this does not apply". Stored as 0 it would mean
+    "stop immediately", and the run would do nothing."""
+    from ui.models import Run
+
+    exp = _experiment()
+    client.post(reverse("ui:experiment_run", args=[exp.pk]),
+                {"n_trials": 3, "optimize_metric": "accuracy",
+                 "target_score": "", "max_seconds": "", "no_improvement_trials": ""})
+
+    assert Run.objects.get().stopping == {}
+
+
+@pytest.mark.django_db
+def test_an_unparseable_criterion_costs_the_criterion_not_the_run(client, no_thread):
+    """The trial cap still bounds the run, so a typo should not be an error
+    page in the middle of starting one."""
+    from ui.models import Run
+
+    exp = _experiment()
+    resp = client.post(reverse("ui:experiment_run", args=[exp.pk]),
+                       {"n_trials": 3, "optimize_metric": "accuracy",
+                        "max_seconds": "soon"})
+
+    assert resp.status_code == 302
+    assert Run.objects.get().stopping == {}
+
+
+@pytest.mark.django_db
+def test_criteria_survive_the_metric_change_confirmation(client, no_thread):
+    """The confirmation reposts the form, so anything it does not carry is
+    silently dropped on the way through."""
+    from ui.models import Run
+
+    exp = _experiment(primary_metric="accuracy", original_metric="accuracy")
+    body = client.post(reverse("ui:experiment_run", args=[exp.pk]),
+                       {"n_trials": 3, "optimize_metric": "f1",
+                        "target_score": "0.9"}).content.decode()
+
+    assert 'name="target_score" value="0.9"' in body
+
+    client.post(reverse("ui:experiment_run", args=[exp.pk]),
+                {"n_trials": 3, "optimize_metric": "f1", "decision": "new",
+                 "target_score": "0.9"})
+
+    assert Run.objects.latest("id").stopping == {"target_score": 0.9}

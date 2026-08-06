@@ -51,13 +51,15 @@ class FakeOptimizer(BaseOptimizer):
 
     def optimize(self, model, X_train, y_train, X_val, y_val,
                  metrics: dict, primary_metric: str,
-                 n_trials, previous_result=None, seed: int = 0, cancel_event=None):
+                 n_trials, previous_result=None, seed: int = 0, cancel_event=None,
+                 stopping: dict | None = None):
         config_space = model.get_config_space(seed=seed)
         collector = TrialCollector(
             target_new_trials=n_trials,
             trial_offset=len(previous_result.trials) if previous_result else 0,
             initial_best_score=previous_result.best_score if previous_result else float("-inf"),
             initial_best_config=previous_result.best_config if previous_result else None,
+            stopping=stopping,
         )
         while not collector.done:
             if cancel_event and cancel_event.is_set():
@@ -78,6 +80,7 @@ class FakeOptimizer(BaseOptimizer):
             best_score=max((t.scores[primary_metric] for t in all_trials), default=0.0),
             hyperparameter_importance={m: dict(uniform) for m in metrics},
             hyperparameter_importance_warning={m: None for m in metrics},
+            metadata={"stopped_by": collector.stopped_by},
         )
 
 

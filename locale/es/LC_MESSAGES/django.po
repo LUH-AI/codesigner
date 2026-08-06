@@ -8,7 +8,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: PACKAGE VERSION\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2026-08-06 11:15+0000\n"
+"POT-Creation-Date: 2026-08-06 11:29+0000\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
 "Language-Team: LANGUAGE <LL@li.org>\n"
@@ -381,7 +381,7 @@ msgstr "Preparar un entorno aislado"
 
 #: ui/templates/ui/experiment_detail.html:85
 #: ui/templates/ui/experiment_detail.html:99
-#: ui/templates/ui/experiment_detail.html:110
+#: ui/templates/ui/experiment_detail.html:136
 msgid "Evaluation metric"
 msgstr "Métrica de evaluación"
 
@@ -389,22 +389,46 @@ msgstr "Métrica de evaluación"
 msgid "Run"
 msgstr "Ejecutar"
 
-#: ui/templates/ui/experiment_detail.html:102
+#: ui/templates/ui/experiment_detail.html:109
+msgid "Stop early when…"
+msgstr "Detener antes cuando…"
+
+#: ui/templates/ui/experiment_detail.html:111
+msgid "…the best score reaches"
+msgstr "…la mejor puntuación alcance"
+
+#: ui/templates/ui/experiment_detail.html:113
+msgid "e.g. 0.95"
+msgstr "p. ej. 0,95"
+
+#: ui/templates/ui/experiment_detail.html:116
+msgid "…the run has taken this many seconds"
+msgstr "…la ejecución haya durado estos segundos"
+
+#: ui/templates/ui/experiment_detail.html:120
+msgid "…this many seconds have been spent in trials"
+msgstr "…se hayan dedicado estos segundos a las pruebas"
+
+#: ui/templates/ui/experiment_detail.html:124
+msgid "…this many trials in a row have not improved"
+msgstr "…estas pruebas seguidas no hayan mejorado"
+
+#: ui/templates/ui/experiment_detail.html:128
 msgid "▶ Run"
 msgstr "▶ Ejecutar"
 
-#: ui/templates/ui/experiment_detail.html:105
+#: ui/templates/ui/experiment_detail.html:131
 #, python-format
 msgid "Environment: %(summary)s"
 msgstr "Entorno: %(summary)s"
 
-#: ui/templates/ui/experiment_detail.html:114
+#: ui/templates/ui/experiment_detail.html:140
 msgid "Attach a dataset to run this experiment (loaded read-only)."
 msgstr ""
 "Adjunte un conjunto de datos para ejecutar este experimento (cargado en modo "
 "de solo lectura)."
 
-#: ui/templates/ui/experiment_detail.html:118
+#: ui/templates/ui/experiment_detail.html:144
 #, python-format
 msgid ""
 "Last run: %(count)s trials in %(total)s s — %(trials)s s in trials, "
@@ -413,20 +437,20 @@ msgstr ""
 "Última ejecución: %(count)s pruebas en %(total)s s — %(trials)s s en "
 "pruebas, %(overhead)s s de sobrecarga."
 
-#: ui/templates/ui/experiment_detail.html:122
+#: ui/templates/ui/experiment_detail.html:148
 msgid "No results yet."
 msgstr "Aún no hay resultados."
 
-#: ui/templates/ui/experiment_detail.html:126
+#: ui/templates/ui/experiment_detail.html:152
 #, python-format
 msgid "The search space is exhausted at %(n)s trials."
 msgstr "El espacio de búsqueda se agota tras %(n)s pruebas."
 
-#: ui/templates/ui/experiment_detail.html:229
+#: ui/templates/ui/experiment_detail.html:255
 msgid "Absolute scale (0-1)"
 msgstr "Escala absoluta (0-1)"
 
-#: ui/templates/ui/experiment_detail.html:230
+#: ui/templates/ui/experiment_detail.html:256
 msgid "Relative scale (fit to data)"
 msgstr "Escala relativa (ajustar a los datos)"
 
@@ -525,18 +549,22 @@ msgid ""
 "    "
 msgstr ""
 "\n"
-"    Estas pruebas se eligieron para optimizar <strong>%(current)s</strong>. También\n"
-"    se registraron sus valores de <strong>%(chosen)s</strong>, así que la búsqueda\n"
-"    continúa a partir de ellas en lugar de empezar de cero, pero siguen siendo una\n"
-"    muestra que eligió el objetivo anterior, y la ejecución hereda ese sesgo.\n"
+"    Estas pruebas se eligieron para optimizar <strong>%(current)s</strong>. "
+"También\n"
+"    se registraron sus valores de <strong>%(chosen)s</strong>, así que la "
+"búsqueda\n"
+"    continúa a partir de ellas en lugar de empezar de cero, pero siguen "
+"siendo una\n"
+"    muestra que eligió el objetivo anterior, y la ejecución hereda ese "
+"sesgo.\n"
 "    "
 
-#: ui/templates/ui/metric_change.html:24
+#: ui/templates/ui/metric_change.html:27
 #, python-format
 msgid "Optimize %(chosen)s"
 msgstr "Optimizar %(chosen)s"
 
-#: ui/templates/ui/metric_change.html:25
+#: ui/templates/ui/metric_change.html:28
 #, python-format
 msgid "Keep optimizing %(current)s"
 msgstr "Seguir optimizando %(current)s"
@@ -582,10 +610,26 @@ msgstr ""
 "configuración no\n"
 "    se ven afectados."
 
-#: ui/views.py:79
+#: ui/views.py:84
+msgid "stopped early: the target score was reached"
+msgstr "detenido antes: se alcanzó la puntuación objetivo"
+
+#: ui/views.py:85
+msgid "stopped early: the time limit was reached"
+msgstr "detenido antes: se alcanzó el límite de tiempo"
+
+#: ui/views.py:86
+msgid "stopped early: the compute budget was used up"
+msgstr "detenido antes: se agotó el presupuesto de cómputo"
+
+#: ui/views.py:87
+msgid "stopped early: the score had stopped improving"
+msgstr "detenido antes: la puntuación dejó de mejorar"
+
+#: ui/views.py:124
 msgid "Inconsistent"
 msgstr "Inconsistente"
 
-#: ui/views.py:418
+#: ui/views.py:467
 msgid "Invalid or unreadable experiment file."
 msgstr "Archivo de experimento inválido o ilegible."

@@ -74,6 +74,18 @@ nav.rail .account button {
     font: inherit;
 }
 
+/* The optional stopping criteria, folded away: the trial count is enough for
+   most runs, and four more boxes would make the common case look complicated. */
+details.stopping { margin-bottom: 1rem; }
+details.stopping > summary {
+    cursor: pointer;
+    font-size: 0.875rem;
+    color: var(--muted);
+    margin-bottom: 0.5rem;
+}
+details.stopping > summary:hover { color: var(--primary); }
+details.stopping .field { margin-bottom: 0.5rem; }
+
 .ownership { margin-top: -0.5rem; }
 .ownership form { display: inline; }
 

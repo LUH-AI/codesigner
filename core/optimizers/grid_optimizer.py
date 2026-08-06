@@ -13,6 +13,8 @@ from sklearn.model_selection import ParameterGrid
 
 from .trial import evaluate_trial
 
+from typing import Optional
+
 from .base import (
     BaseOptimizer, OptimizerParam, OptimizationResult, TrialCollector, rebase_history,
 )
@@ -49,6 +51,7 @@ class GridOptimizer(BaseOptimizer):
         previous_result=None,
         seed: int = 0,
         cancel_event=None,
+        stopping: Optional[dict] = None,
     ) -> OptimizationResult:
         # The metric may have changed since the last run; re-read the history
         # under the current one so the incumbent trajectory means what the page
@@ -79,6 +82,7 @@ class GridOptimizer(BaseOptimizer):
             trial_offset=len(previous_result.trials) if previous_result else 0,
             initial_best_score=previous_result.best_score if previous_result else float("-inf"),
             initial_best_config=previous_result.best_config if previous_result else None,
+            stopping=stopping,
         )
 
         for cfg in to_run:
@@ -108,6 +112,7 @@ class GridOptimizer(BaseOptimizer):
             hyperparameter_importance=hp_importance,
             hyperparameter_importance_warning=hp_warning,
             trials_limit=grid_size,
+            metadata={"stopped_by": collector.stopped_by},
         )
 
     # ── Helpers ───────────────────────────────────────────────────────────────

@@ -66,7 +66,7 @@ class DbCancelFlag:
         return self._value
 
 
-def create_run(experiment, n_trials, optimize_metric, started_by=None):
+def create_run(experiment, n_trials, optimize_metric, started_by=None, stopping=None):
     """Record a pending run and commit its metric onto the experiment.
 
     Primary becomes the optimized metric; original is pinned on the first run.
@@ -85,6 +85,7 @@ def create_run(experiment, n_trials, optimize_metric, started_by=None):
         primary_metric=optimize_metric,
         status="pending",
         started_by=started_by,
+        stopping=stopping or {},
     )
 
 
@@ -140,6 +141,7 @@ def execute_run(run_id):
                 previous_result=built["result"],
                 seed=built["seed"],
                 cancel_event=cancel,
+                stopping=run.stopping,
             )
 
         if launch is None:
@@ -177,6 +179,8 @@ def execute_run(run_id):
         status="cancelled" if cancelled else "done", finished_at=timezone.now(),
         trial_seconds=sum(t.duration for t in new_trials),
         trial_count=len(new_trials),
+        # Empty when cancelled: the run did not end on its own terms.
+        stopped_by="" if cancelled else (result.metadata.get("stopped_by") or ""),
     )
 
 

@@ -1,3 +1,5 @@
+from typing import Optional
+
 from .base import BaseOptimizer, OptimizationResult, TrialCollector, rebase_history
 from .trial import evaluate_trial
 
@@ -25,6 +27,7 @@ class RandomOptimizer(BaseOptimizer):
         previous_result=None,
         seed: int = 0,
         cancel_event=None,
+        stopping: Optional[dict] = None,
     ) -> OptimizationResult:
         # The metric may have changed since the last run; re-read the history
         # under the current one so the incumbent trajectory means what the page
@@ -44,6 +47,7 @@ class RandomOptimizer(BaseOptimizer):
             trial_offset=trial_offset,
             initial_best_score=previous_result.best_score if previous_result else float("-inf"),
             initial_best_config=previous_result.best_config if previous_result else None,
+            stopping=stopping,
         )
 
         consecutive_dupes = 0
@@ -82,4 +86,5 @@ class RandomOptimizer(BaseOptimizer):
             best_score=max((t.scores[primary_metric] for t in all_trials), default=0.0),
             hyperparameter_importance=hp_importance,
             hyperparameter_importance_warning=hp_warning,
+            metadata={"stopped_by": collector.stopped_by},
         )

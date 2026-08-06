@@ -130,7 +130,15 @@ class Run(models.Model):
     started_by = models.ForeignKey(
         django_settings.AUTH_USER_MODEL, null=True, blank=True,
         on_delete=models.SET_NULL, related_name="runs_started")
+    # The trial cap, and the one criterion always present: a run has to be
+    # bounded by something, and a target score that is never reached would
+    # otherwise never end. The optional criteria live in `stopping`, so no
+    # criterion has two homes — see core.optimizers.base.STOPPING_CRITERIA.
     n_trials = models.IntegerField()
+    stopping = models.JSONField(default=dict, blank=True)
+    # Which criterion ended it. Empty while running, and for a run that was
+    # cancelled or errored rather than stopping on its own terms.
+    stopped_by = models.CharField(max_length=40, blank=True, default="")
     primary_metric = models.CharField(max_length=100)
     status = models.CharField(max_length=20, choices=STATUS_CHOICES, default="pending")
     cancel_requested = models.BooleanField(default=False)

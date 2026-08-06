@@ -155,7 +155,8 @@ class SMACOptimizer(BaseOptimizer):
 
     def optimize(self, model, X_train, y_train, X_val, y_val,
                  metrics: dict, primary_metric: str,
-                 n_trials, previous_result=None, seed: int = 0, cancel_event=None):
+                 n_trials, previous_result=None, seed: int = 0, cancel_event=None,
+                 stopping: dict | None = None):
         # A changed metric makes the stored surrogate worse than useless: it was
         # fitted on costs from a different objective, and resuming would mix the
         # two in one model. Rebuild instead, replaying the history below.
@@ -180,6 +181,7 @@ class SMACOptimizer(BaseOptimizer):
             trial_offset=trial_offset,
             initial_best_score=previous_result.best_score if previous_result else float("-inf"),
             initial_best_config=previous_result.best_config if previous_result else None,
+            stopping=stopping,
         )
 
         config_space = model.get_config_space(seed=seed)
@@ -243,5 +245,6 @@ class SMACOptimizer(BaseOptimizer):
             best_score=max((t.scores.get(primary_metric, t.score) for t in all_trials), default=0.0),
             hyperparameter_importance=hp_importance,
             hyperparameter_importance_warning=hp_warning,
-            metadata={"smac_output_dir": str(output_dir)},
+            metadata={"smac_output_dir": str(output_dir),
+                      "stopped_by": collector.stopped_by},
         )

@@ -18,6 +18,9 @@
 {% block confirm_fields %}
     <input type="hidden" name="optimize_metric" value="{{ chosen }}">
     <input type="hidden" name="n_trials" value="{{ n_trials }}">
+    {% for key, value in stopping.items %}
+        <input type="hidden" name="{{ key }}" value="{{ value }}">
+    {% endfor %}
 {% endblock %}
 
 {% block confirm_buttons %}

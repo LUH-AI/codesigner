@@ -1,3 +1,4 @@
+import time
 from abc import ABC, abstractmethod
 from dataclasses import dataclass, field, replace
 from typing import Any, Dict, List, Optional
@@ -103,17 +104,32 @@ def rebase_history(previous_result, primary_metric: str):
     ), True
 
 
+#: The optional stopping criteria, and what each one measures. `n_trials` is
+#: not here because it is always present — it is the collector's first
+#: argument, and the backstop that keeps every run finite.
+STOPPING_CRITERIA = ("max_seconds", "max_trial_seconds", "target_score",
+                     "no_improvement_trials")
+
+#: What ended a run, when it was not simply the trial count.
+STOPPED_BY_TRIALS = "n_trials"
+
+
 class TrialCollector:
-    """Reusable bookkeeper for optimizer trial results.
+    """Reusable bookkeeper for optimizer trial results, and what ends a run.
 
     Tracks the per-trial results list and the running incumbent as trials
     complete.  Optimizer-specific callbacks should inherit from (or delegate
     to) this class and call ``record()`` once per evaluated trial.
 
+    Every optimizer loop is ``while not collector.done``, so this is the one
+    place a stopping rule has to be written to apply to all of them.
+
     Parameters
     ----------
     target_new_trials:
         Stop collecting (``done`` becomes True) after this many new trials.
+        Always applies: a run has to be bounded by something, and a target that
+        is never reached would otherwise run forever.
     trial_offset:
         Number of trials already recorded in a previous run; used to produce
         globally-sequential trial numbers when resuming.
@@ -122,6 +138,18 @@ class TrialCollector:
         run).  Ensures the incumbent is correct relative to full history.
     initial_best_config:
         Config that produced ``initial_best_score``.
+    stopping:
+        Optional extra criteria, any of which may end the run first — see
+        ``STOPPING_CRITERIA``. An absent or None key means that criterion does
+        not apply, so the default is exactly the old behaviour.
+
+        ``max_seconds``          wall-clock for this run
+        ``max_trial_seconds``    cumulative time spent inside trials, which is
+                                 the compute actually consumed rather than how
+                                 long the run has been open
+        ``target_score``         stop once the incumbent reaches this
+        ``no_improvement_trials``  stop after this many trials in a row that
+                                 did not improve the incumbent
     """
 
     def __init__(
@@ -130,6 +158,7 @@ class TrialCollector:
         trial_offset: int = 0,
         initial_best_score: float = float("-inf"),
         initial_best_config: Optional[Dict[str, Any]] = None,
+        stopping: Optional[Dict[str, Any]] = None,
     ):
         self.results: List[TrialResult] = []
         self._target_new_trials = target_new_trials
@@ -137,10 +166,45 @@ class TrialCollector:
         self._incumbent_score = initial_best_score
         self._incumbent_config = initial_best_config
 
+        self._stopping = {k: v for k, v in (stopping or {}).items()
+                          if k in STOPPING_CRITERIA and v is not None}
+        self._started = time.monotonic()
+        self._trial_seconds = 0.0
+        self._since_improvement = 0
+        #: Which criterion ended the run, or None while it is still going.
+        self.stopped_by: Optional[str] = None
+
+    def _fired(self) -> Optional[str]:
+        """The first criterion that says to stop, or None to keep going.
+
+        Checked in the order a user would find least surprising to be told
+        about: reaching the target is a success, the budgets are limits, and
+        stagnation is a judgement call.
+        """
+        if self._incumbent_score >= self._stopping.get("target_score", float("inf")):
+            return "target_score"
+        if len(self.results) >= self._target_new_trials:
+            return STOPPED_BY_TRIALS
+        if time.monotonic() - self._started >= self._stopping.get("max_seconds", float("inf")):
+            return "max_seconds"
+        if self._trial_seconds >= self._stopping.get("max_trial_seconds", float("inf")):
+            return "max_trial_seconds"
+        stagnant = self._stopping.get("no_improvement_trials")
+        if stagnant is not None and self._since_improvement >= stagnant:
+            return "no_improvement_trials"
+        return None
+
     @property
     def done(self) -> bool:
-        """True once the target number of new trials has been collected."""
-        return len(self.results) >= self._target_new_trials
+        """True once any stopping criterion has fired.
+
+        Latched: the first criterion to fire is the one reported, so a run does
+        not get relabelled by a later check (wall-clock keeps advancing after
+        the trial count is reached).
+        """
+        if self.stopped_by is None:
+            self.stopped_by = self._fired()
+        return self.stopped_by is not None
 
     def record(
         self,
@@ -153,6 +217,11 @@ class TrialCollector:
         if score > self._incumbent_score:
             self._incumbent_score = score
             self._incumbent_config = config
+            self._since_improvement = 0
+        else:
+            self._since_improvement += 1
+
+        self._trial_seconds += (run_info or {}).get("time") or 0.0
 
         trial = TrialResult(
             trial=self._trial_offset + len(self.results) + 1,
@@ -188,6 +257,7 @@ class BaseOptimizer(ABC):
         previous_result: Optional["OptimizationResult"] = None,
         seed: int = 0,
         cancel_event=None,
+        stopping: Optional[Dict[str, Any]] = None,
     ) -> OptimizationResult: ...
 
     def serialize_result(self, result: "OptimizationResult") -> dict:

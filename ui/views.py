@@ -66,6 +66,51 @@ def _ownership(request, exp):
             "mine": exp.owner_id == request.user.pk}
 
 
+# How each optional stopping criterion is read off the form: its parser and the
+# range it is held to. `n_trials` is not here — it is always present and is
+# parsed with the rest of the required fields.
+_STOPPING_FIELDS = {
+    "target_score": (float, 0.0, 1.0),
+    "max_seconds": (float, 1.0, None),
+    "max_trial_seconds": (float, 1.0, None),
+    "no_improvement_trials": (int, 1, None),
+}
+
+
+#: What to say about a run that ended before its trial cap. The trial count is
+#: absent on purpose: it is the unremarkable default, and the summary beside
+#: this already states how many trials there were.
+STOPPED_EARLY_LABELS = {
+    "target_score": _("stopped early: the target score was reached"),
+    "max_seconds": _("stopped early: the time limit was reached"),
+    "max_trial_seconds": _("stopped early: the compute budget was used up"),
+    "no_improvement_trials": _("stopped early: the score had stopped improving"),
+}
+
+
+def _posted_stopping(request) -> dict:
+    """The optional stopping criteria as submitted, ignoring the blanks.
+
+    A criterion that was left empty is absent rather than zero: zero would mean
+    "stop immediately", which is never what an empty box asks for. Unparseable
+    input is dropped for the same reason — the trial cap still bounds the run,
+    so a typo costs the criterion, not the run.
+    """
+    stopping = {}
+    for key, (parse, low, high) in _STOPPING_FIELDS.items():
+        raw = (request.POST.get(key) or "").strip()
+        if not raw:
+            continue
+        try:
+            value = parse(raw)
+        except ValueError:
+            continue
+        if value < low:
+            continue
+        stopping[key] = min(value, high) if high is not None else value
+    return stopping
+
+
 def metric_label(primary_metric, original_metric):
     """The label shown for an experiment's metric.
 
@@ -208,6 +253,7 @@ def experiment_run(request, exp):
         return redirect("ui:experiment_detail", pk=exp.pk)
 
     n_trials = max(1, min(1000, int(request.POST.get("n_trials") or 30)))
+    stopping = _posted_stopping(request)
     chosen = request.POST.get("optimize_metric")
     decision = request.POST.get("decision")
 
@@ -220,10 +266,13 @@ def experiment_run(request, exp):
         if action == "warn":
             return render(request, "ui/metric_change.html", {
                 "experiment": exp, "chosen": chosen, "n_trials": n_trials,
+                # Carried through the confirmation, or answering it would
+                # silently drop the limits the run was set up with.
+                "stopping": stopping,
             })
 
     run = run_service.create_run(exp, n_trials, optimize_metric,
-                                 started_by=_owner(request))
+                                 started_by=_owner(request), stopping=stopping)
     run_service.start_background_run(run.id)
     return redirect("ui:experiment_detail", pk=exp.pk)
 
@@ -487,7 +536,8 @@ def _detail_context(request, exp):
         total = last_run.duration
         trials = last_run.trial_seconds or 0.0
         run_summary = {"total": total, "trials": trials, "overhead": max(0.0, total - trials),
-                       "count": last_run.trial_count or 0}
+                       "count": last_run.trial_count or 0,
+                       "stopped_early": STOPPED_EARLY_LABELS.get(last_run.stopped_by)}
 
     context = {
         "experiment": exp,  # the _run_status.html include reverses URLs from experiment.pk
