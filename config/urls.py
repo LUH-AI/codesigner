@@ -7,12 +7,19 @@ admin).  `include()` keeps app routes self-contained so apps stay portable.
 from django.conf import settings
 from django.conf.urls.static import static
 from django.contrib import admin
+from django.contrib.auth.decorators import login_not_required
 from django.urls import include, path
+from django.views.i18n import set_language
 
 urlpatterns = [
     path("admin/", admin.site.urls),
-    # Django's set_language view, for the sidebar language switcher.
-    path("i18n/", include("django.conf.urls.i18n")),
+    path("accounts/", include("access.urls")),
+    # Django's set_language view, for the sidebar language switcher. Spelled out
+    # rather than `include("django.conf.urls.i18n")` — which is the same single
+    # route — so it can be exempted from the login wall: the login page carries
+    # the switcher, and choosing a language you can read should not require
+    # signing in first.
+    path("i18n/setlang/", login_not_required(set_language), name="set_language"),
     path("", include("ui.urls")),
 ]
 

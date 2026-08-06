@@ -5,6 +5,7 @@ from importlib.metadata import version as dist_version
 from pathlib import Path
 
 from django.conf import settings
+from django.contrib.auth.decorators import login_not_required
 from django.http import HttpResponse, HttpResponseBadRequest
 from django.shortcuts import redirect, render
 from django.utils.translation import gettext as _
@@ -62,8 +63,13 @@ def home(request):
     return render(request, "ui/home.html")
 
 
+@login_not_required
 def healthz(request):
-    """Liveness probe for the container healthcheck — no DB, no template."""
+    """Liveness probe for the container healthcheck — no DB, no template.
+
+    Exempt from the login wall: the container runtime has no session, and a
+    healthcheck that 302s to a login page reports a healthy instance as down.
+    """
     return HttpResponse("ok", content_type="text/plain")
 
 

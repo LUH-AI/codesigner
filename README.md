@@ -117,6 +117,41 @@ so it can be deleted safely. Reclaim space with:
 python manage.py prune_model_envs
 ```
 
+## Hosting it for other people
+
+By default there are no accounts. Codesigner is run locally or on a trusted
+private network at least as often as it is hosted, and in those cases nothing
+about permissions should be in the way — so the default is no login, no users,
+no ownership.
+
+One variable changes that:
+
+```bash
+REQUIRE_LOGIN=True
+```
+
+Every page then requires a signed-in user. Two things stay outside the wall, and
+only two: `/healthz/` (the container runtime has no session, and a healthcheck
+that redirects to a login page reports a healthy instance as down) and the
+language switcher (the login page carries it, and choosing a language you can
+read should not require signing in first).
+
+Accounts are created in the Django admin — there is no self-registration, which
+is the right default for an instance hosted for a known set of people:
+
+```bash
+python manage.py createsuperuser     # then add the rest at /admin/
+```
+
+Password reset is not wired up; it needs a mail server, which is an operator
+decision. Until it is asked for, an operator resets a password in the admin.
+
+Turning `REQUIRE_LOGIN` on also affects two things beyond the login page: media
+files are no longer served from the app (`MEDIA_ROOT` is one flat directory, so
+that would hand every signed-in user every other user's data at a guessable
+URL), and a model that would run in the application's own process is refused
+rather than falling back — see below.
+
 ## Custom / mounted models — trust model ⚠️
 
 Beyond the built-in models, you can **upload** a model `.py` (a

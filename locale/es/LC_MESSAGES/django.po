@@ -8,7 +8,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: PACKAGE VERSION\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2026-08-05 15:07+0000\n"
+"POT-Creation-Date: 2026-08-06 08:02+0000\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
 "Language-Team: LANGUAGE <LL@li.org>\n"
@@ -18,49 +18,75 @@ msgstr ""
 "Content-Transfer-Encoding: 8bit\n"
 "Plural-Forms: nplurals=2; plural=(n != 1);\n"
 
-#: templates/base.html:15 templates/base.html:17 templates/base.html:52
-#: ui/navigation.py:54
+#: access/templates/access/login.html:7 access/templates/access/login.html:31
+msgid "Sign in"
+msgstr "Iniciar sesión"
+
+#: access/templates/access/login.html:20
+msgid "That username and password do not match an account."
+msgstr "Ese nombre de usuario y contraseña no corresponden a ninguna cuenta."
+
+#: access/templates/access/login.html:23
+msgid "Username"
+msgstr "Nombre de usuario"
+
+#: access/templates/access/login.html:27
+msgid "Password"
+msgstr "Contraseña"
+
+#: access/templates/access/login.html:38 templates/base.html:38
+#: templates/base.html:45
+msgid "Language"
+msgstr "Idioma"
+
+#: templates/base.html:15 templates/base.html:17 templates/base.html:64
+#: ui/navigation.py:59
 msgid "Experiments"
 msgstr "Experimentos"
 
-#: templates/base.html:20 templates/base.html:22 templates/base.html:42
-#: ui/navigation.py:35 ui/navigation.py:55
+#: templates/base.html:20 templates/base.html:22 templates/base.html:54
+#: ui/navigation.py:35 ui/navigation.py:60
 #: ui/templates/ui/experiment_settings.html:4
 msgid "Settings"
 msgstr "Configuración"
 
-#: templates/base.html:26 templates/base.html:33
-msgid "Language"
-msgstr "Idioma"
+#: templates/base.html:29
+#, python-format
+msgid "Signed in as %(name)s — sign out"
+msgstr "Sesión iniciada como %(name)s: cerrar sesión"
 
-#: templates/base.html:45 ui/navigation.py:64 ui/templates/ui/appearance.html:4
+#: templates/base.html:33
+msgid "Sign out"
+msgstr "Cerrar sesión"
+
+#: templates/base.html:57 ui/navigation.py:69 ui/templates/ui/appearance.html:4
 #: ui/templates/ui/appearance.html:7
 msgid "Appearance"
 msgstr "Apariencia"
 
-#: templates/base.html:47 ui/navigation.py:66
+#: templates/base.html:59 ui/navigation.py:71
 #: ui/templates/ui/default_experiment_settings.html:4
 #: ui/templates/ui/default_experiment_settings.html:7
 msgid "Default experiment settings"
 msgstr "Configuración de experimento predeterminada"
 
-#: templates/base.html:54
+#: templates/base.html:66
 msgid "＋ New"
 msgstr "＋ Nuevo"
 
-#: templates/base.html:55
+#: templates/base.html:67
 msgid "📂 Load"
 msgstr "📂 Cargar"
 
-#: templates/base.html:62
+#: templates/base.html:74
 msgid "Running"
 msgstr "En ejecución"
 
-#: templates/base.html:62
+#: templates/base.html:74
 msgid "Preparing its environment"
 msgstr "Preparando su entorno"
 
-#: templates/base.html:65
+#: templates/base.html:77
 msgid "No experiments yet."
 msgstr "Aún no hay experimentos."
 
@@ -161,12 +187,12 @@ msgstr "Eliminar"
 msgid "Change metric"
 msgstr "Cambiar métrica"
 
-#: ui/navigation.py:60 ui/templates/ui/new_experiment.html:4
+#: ui/navigation.py:65 ui/templates/ui/new_experiment.html:4
 #: ui/templates/ui/new_experiment.html:7
 msgid "New experiment"
 msgstr "Nuevo experimento"
 
-#: ui/navigation.py:62
+#: ui/navigation.py:67
 msgid "Import experiment"
 msgstr "Importar experimento"
 
@@ -316,7 +342,9 @@ msgstr "Intentar de nuevo"
 msgid ""
 "This model runs inside the application's own Python environment, not one of "
 "its own — so the dependencies it declares are ignored."
-msgstr "Este modelo se ejecuta en el propio entorno de Python de la aplicación, no en uno propio, por lo que se ignoran las dependencias que declara."
+msgstr ""
+"Este modelo se ejecuta en el propio entorno de Python de la aplicación, no "
+"en uno propio, por lo que se ignoran las dependencias que declara."
 
 #: ui/templates/ui/experiment_detail.html:50
 msgid "Prepare an isolated environment"
@@ -467,8 +495,10 @@ msgid ""
 msgstr ""
 "\n"
 "    Estas pruebas optimizan <strong>%(original)s</strong>. Cambiar a\n"
-"    <strong>%(chosen)s</strong> mezcla dos objetivos en un mismo experimento, por lo que sus\n"
-"    resultados ya no pueden reproducirse solo con la semilla y la configuración.\n"
+"    <strong>%(chosen)s</strong> mezcla dos objetivos en un mismo "
+"experimento, por lo que sus\n"
+"    resultados ya no pueden reproducirse solo con la semilla y la "
+"configuración.\n"
 "    "
 
 #: ui/templates/ui/metric_change.html:23
@@ -518,13 +548,14 @@ msgid ""
 "    unaffected."
 msgstr ""
 "Esta configuración pasa a ser la predeterminada para todo experimento que\n"
-"    la use, incluidos los existentes. Los experimentos con su propia configuración no\n"
+"    la use, incluidos los existentes. Los experimentos con su propia "
+"configuración no\n"
 "    se ven afectados."
 
-#: ui/views.py:56
+#: ui/views.py:58
 msgid "Inconsistent"
 msgstr "Inconsistente"
 
-#: ui/views.py:358
+#: ui/views.py:365
 msgid "Invalid or unreadable experiment file."
 msgstr "Archivo de experimento inválido o ilegible."

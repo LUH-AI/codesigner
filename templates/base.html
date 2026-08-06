@@ -22,6 +22,20 @@
                 <span class="visually-hidden">{% translate "Settings" %}</span>
             </a>
         </div>
+        {% comment %}
+        Only when there is a session, so an install with no accounts sees no
+        trace of any of this.
+        {% endcomment %}
+        {% if user.is_authenticated %}
+            <form class="account" action="{% url 'access:logout' %}" method="post"
+                  title="{% blocktranslate with name=user.get_username %}Signed in as {{ name }} — sign out{% endblocktranslate %}">
+                {% csrf_token %}
+                <button type="submit" class="rail-icon">
+                    <span aria-hidden="true">⏻</span>
+                    <span class="visually-hidden">{% translate "Sign out" %}</span>
+                </button>
+            </form>
+        {% endif %}
         {% get_current_language as CURRENT_LANGUAGE %}
         <form class="locale" action="{% url 'set_language' %}" method="post" title="{% translate 'Language' %}">
             {% csrf_token %}

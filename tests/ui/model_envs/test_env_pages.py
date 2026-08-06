@@ -170,11 +170,19 @@ def test_an_in_process_model_can_still_be_run_locally(client, settings):
     assert client.get(reverse("ui:experiment_detail", args=[exp.pk])).context["can_run"] is True
 
 
-def test_an_in_process_model_cannot_be_run_on_a_hosted_instance(client, settings):
+def test_an_in_process_model_cannot_be_run_on_a_hosted_instance(client, settings,
+                                                                django_user_model):
     """The whole point of the refusal: one user's code would run in the process
-    holding everyone's data."""
+    holding everyone's data.
+
+    Signed in, because `REQUIRE_LOGIN` also raises the login wall — being signed
+    in is what makes this a hosted instance's *user* rather than a stranger, and
+    the refusal has to hold for them too."""
     settings.REQUIRE_LOGIN = True
+    django_user_model.objects.create_user(username="someone", password="pw")
+    client.login(username="someone", password="pw")
     exp = _experiment(env_status=Experiment.ENV_LEGACY)
+
     assert client.get(reverse("ui:experiment_detail", args=[exp.pk])).context["can_run"] is False
 
 

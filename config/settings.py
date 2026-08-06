@@ -43,6 +43,13 @@ ALLOW_CUSTOM_MODELS = env.bool("ALLOW_CUSTOM_MODELS", default=True)
 # that manages users points this at a policy of its own. See ui/permissions.py.
 EXPERIMENT_POLICY = env.str("EXPERIMENT_POLICY", default="ui.permissions.OpenPolicy")
 
+# Where the login wall sends an unauthenticated request, and where signing in
+# and out land. Set even when REQUIRE_LOGIN is off, so turning it on is one
+# variable rather than a checklist.
+LOGIN_URL = "access:login"
+LOGIN_REDIRECT_URL = "ui:home"
+LOGOUT_REDIRECT_URL = "access:login"
+
 # ── Model environments ────────────────────────────────────────────────────────
 # A user's model declares its own dependencies with a PEP 723 header and runs in
 # an environment built from them, in its own process. uv builds and caches those
@@ -121,6 +128,7 @@ INSTALLED_APPS = [
     "django.contrib.messages",
     "django.contrib.staticfiles",
     "huey.contrib.djhuey",
+    "access",
     "ui",
 ]
 
@@ -135,6 +143,9 @@ MIDDLEWARE = [
     "django.middleware.common.CommonMiddleware",
     "django.middleware.csrf.CsrfViewMiddleware",
     "django.contrib.auth.middleware.AuthenticationMiddleware",
+    # The login wall. Inert unless REQUIRE_LOGIN is on; must follow
+    # AuthenticationMiddleware, which is what puts request.user there.
+    "access.middleware.LoginWallMiddleware",
     "django.contrib.messages.middleware.MessageMiddleware",
     "django.middleware.clickjacking.XFrameOptionsMiddleware",
 ]
