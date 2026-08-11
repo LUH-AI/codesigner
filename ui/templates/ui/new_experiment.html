@@ -54,13 +54,16 @@
         </div>
 
         {% comment %}
-        The settings shown belong to SMAC, which is what the dropdown starts on.
-        Choosing another optimizer and saving stores that one's defaults; its own
-        settings are then editable from the experiment's settings page. Rendering
-        all three optimizers' fields at once, or fetching them on change, would
-        both be more machinery than one dropdown deserves.
+        Every optimizer's panel is rendered and all but the chosen one is hidden
+        and disabled, so the dropdown swaps them with no request. A disabled
+        input is not submitted and the parser reads a missing value as that
+        setting's default, which is exactly right for an optimizer nobody chose.
         {% endcomment %}
-        {% include "ui/_optimizer_params.html" %}
+        {% for panel in optimizer_panels %}
+            <div data-optimizer="{{ panel.key }}"{% if not panel.selected %} hidden{% endif %}>
+                {% include "ui/_optimizer_params.html" with optimizer_params=panel.optimizer_params has_advanced_params=panel.has_advanced_params panel_disabled=panel.disabled %}
+            </div>
+        {% endfor %}
 
         {# ── Dataset: an uploaded CSV by default, or a demo when the box is checked ── #}
         <div class="field">
@@ -100,9 +103,22 @@
             function setPane(pane, active) {
                 if (!pane) return;
                 pane.hidden = !active;
-                pane.querySelectorAll("input, select, textarea").forEach(function (el) {
+                pane.querySelectorAll("input, select, textarea, fieldset").forEach(function (el) {
                     el.disabled = !active;
                 });
+            }
+            // One pane of several, chosen by a <select> rather than a checkbox.
+            // Same setPane, so the unchosen panes are disabled and stay out of
+            // the POST; without JS every panel shows and the last one wins.
+            function wireChoice(control, panes, attribute) {
+                if (!control || !panes.length) return;
+                function apply() {
+                    panes.forEach(function (pane) {
+                        setPane(pane, pane.dataset[attribute] === control.value);
+                    });
+                }
+                control.addEventListener("change", apply);
+                apply();
             }
             function wire(checkboxName, demoPane, uploadPane) {
                 const cb = document.querySelector('input[name="' + checkboxName + '"]');
@@ -120,6 +136,8 @@
             wire("use_demo_model",
                 document.querySelector('[data-pane="model-builtin"]'),
                 document.querySelector('[data-pane="model-upload"]'));
+            wireChoice(document.querySelector('select[name="optimizer_name"]'),
+                Array.from(document.querySelectorAll("[data-optimizer]")), "optimizer");
         })();
     </script>
 {% endblock %}

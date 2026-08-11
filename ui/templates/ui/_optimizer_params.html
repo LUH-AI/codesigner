@@ -1,16 +1,27 @@
 {% load i18n %}
 {% comment %}
-Every optimizer setting, rendered from what the optimizer declares rather than
-written out per field — so adding one is a line in `params_schema` and nothing
-here changes. The advanced half is folded away: it is the half that needs you to
-already know what it does.
+One optimizer's settings, as a bordered panel — the same `check-group` box the
+figures checkboxes live in. It carries number inputs and selects rather than
+checkboxes, which the box already supports: the "Run until…" stopping criteria
+on the experiment page are the same fieldset.
+
+Nothing here names an optimizer. The fields come from what the optimizer
+declares in its `params_schema`, so a new setting is one line in `core` and this
+template does not change. An optimizer that declares nothing renders nothing.
+
+`panel_disabled` renders the fieldset inert, which disables every control in it
+without touching them one by one. The create page uses it so an unchosen
+optimizer's settings are never submitted even with no JavaScript running; pages
+showing a single panel leave it unset.
 
 An empty numeric field means "whatever the strategy does by default", the same
-convention the stopping criteria use. The two strategies disagree about several
-of these, so imposing one number on both would be worse than saying nothing.
+convention the stopping criteria use — the strategies disagree about several of
+these, so imposing one number on both would be worse than saying nothing.
 {% endcomment %}
 {% if optimizer_params %}
-    <div class="optimizer-params">
+    <fieldset class="check-group"{% if panel_disabled %} disabled{% endif %}>
+        <legend>{% translate "How the search runs" %}</legend>
+
         {% for p in optimizer_params %}
             {% if not p.advanced %}{% include "ui/_optimizer_param_field.html" %}{% endif %}
         {% endfor %}
@@ -23,5 +34,5 @@ of these, so imposing one number on both would be worse than saying nothing.
                 {% endfor %}
             </details>
         {% endif %}
-    </div>
+    </fieldset>
 {% endif %}

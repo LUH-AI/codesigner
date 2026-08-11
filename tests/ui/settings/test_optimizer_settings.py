@@ -195,3 +195,132 @@ def test_a_stored_setting_the_optimizer_no_longer_has_is_ignored(client):
 
     assert client.get(
         reverse("ui:experiment_detail", args=[exp.pk])).status_code == 200
+
+
+# ── the create page's panel per optimizer ────────────────────────────────────
+
+def _panels(html):
+    """Each `data-optimizer` panel on the page: key → (hidden, field names)."""
+    import re
+
+    starts = list(re.finditer(r'<div data-optimizer="([^"]+)"( hidden)?>', html))
+    edges = [m.end() for m in starts] + [len(html)]
+    return {
+        m.group(1): (bool(m.group(2)),
+                     re.findall(r'name="(opt_[a-z_]+)"', html[edges[i]:edges[i + 1]]))
+        for i, m in enumerate(starts)
+    }
+
+
+def test_every_optimizer_with_settings_gets_a_panel(client):
+    """All of them are rendered so the dropdown can swap between them without a
+    request. Random Search declares nothing, so it contributes nothing rather
+    than an empty box."""
+    panels = _panels(client.get(reverse("ui:new_experiment")).content.decode())
+
+    assert set(panels) == {"SMAC", "Grid Search"}
+
+
+def test_only_the_selected_optimizers_panel_is_shown(client):
+    panels = _panels(client.get(reverse("ui:new_experiment")).content.decode())
+
+    assert panels["SMAC"][0] is False
+    assert panels["Grid Search"][0] is True
+
+
+def test_the_panel_is_the_same_bordered_box_as_the_figure_settings(client):
+    """`check-group` — the fieldset the figures checkboxes live in. It already
+    carries number inputs elsewhere, so this needs no CSS of its own."""
+    html = client.get(reverse("ui:new_experiment")).content.decode()
+
+    assert '<fieldset class="check-group">' in html
+    assert "<legend>" in html
+
+
+def test_grid_search_settings_are_reachable_at_last(client):
+    """`numeric_steps` has round-tripped correctly since Step 2 and no page has
+    ever offered it — the create form only ever rendered SMAC's schema."""
+    panels = _panels(client.get(reverse("ui:new_experiment")).content.decode())
+
+    assert panels["Grid Search"][1] == ["opt_numeric_steps"]
+
+
+def test_creating_with_grid_search_stores_what_its_panel_said(client):
+    client.post(reverse("ui:new_experiment"), {
+        "name": "gridded", "model_name": "Random Forest",
+        "optimizer_name": "Grid Search", "seed": "0",
+        "demo_dataset": str(DATASETS_DIR / "iris.csv"),
+        "opt_numeric_steps": "9",
+    })
+
+    exp = Experiment.objects.get(name="gridded")
+    assert exp.optimizer_params == {"numeric_steps": 9}
+
+
+def test_the_hidden_panels_settings_do_not_leak_into_the_chosen_one(client):
+    """The browser disables them so they are never submitted. Even posted by
+    hand they belong to another optimizer and are not in its schema."""
+    client.post(reverse("ui:new_experiment"), {
+        "name": "clean", "model_name": "Random Forest",
+        "optimizer_name": "Grid Search", "seed": "0",
+        "demo_dataset": str(DATASETS_DIR / "iris.csv"),
+        "opt_numeric_steps": "4", "opt_search_strategy": "rf",
+    })
+
+    assert Experiment.objects.get(name="clean").optimizer_params == {"numeric_steps": 4}
+
+
+def test_an_optimizer_whose_panel_was_hidden_gets_its_own_defaults(client):
+    """A disabled input is not submitted, and the parser reads a missing value
+    as that setting's default — so picking an optimizer without opening its
+    panel stores exactly what it would have shown."""
+    client.post(reverse("ui:new_experiment"), {
+        "name": "untouched", "model_name": "Random Forest",
+        "optimizer_name": "Grid Search", "seed": "0",
+        "demo_dataset": str(DATASETS_DIR / "iris.csv"),
+    })
+
+    assert Experiment.objects.get(name="untouched").optimizer_params == {"numeric_steps": 5}
+
+
+def test_a_validation_error_keeps_the_optimizer_and_its_values(client):
+    """The page comes back with the same optimizer selected and the numbers
+    still in their boxes, rather than resetting to the first one."""
+    html = client.post(reverse("ui:new_experiment"), {
+        "name": "", "model_name": "Random Forest",
+        "optimizer_name": "Grid Search", "seed": "0",
+        "demo_dataset": str(DATASETS_DIR / "iris.csv"),
+        "opt_numeric_steps": "8",
+    }).content.decode()
+
+    panels = _panels(html)
+    assert panels["Grid Search"][0] is False
+    assert panels["SMAC"][0] is True
+    assert 'name="opt_numeric_steps"' in html and 'value="8"' in html
+
+
+def test_an_unchosen_panel_is_inert_as_rendered_not_only_hidden(client):
+    """`hidden` is a browser hint; `disabled` is what keeps a panel's values out
+    of the POST. Rendering it on the fieldset means the page is correct with no
+    JavaScript at all, and the switch is an enhancement rather than the
+    mechanism — which matters, because two optimizers could one day declare a
+    setting under the same name."""
+    import re
+
+    html = client.get(reverse("ui:new_experiment")).content.decode()
+    fieldsets = re.findall(
+        r'<div data-optimizer="([^"]+)"( hidden)?>\s*\n?\s*'
+        r'<fieldset class="check-group"( disabled)?>', html)
+
+    assert fieldsets, "no panels found"
+    for key, hidden, disabled in fieldsets:
+        assert bool(hidden) == bool(disabled), f"{key}: hidden and disabled disagree"
+
+
+def test_the_switch_toggles_the_fieldset_and_not_just_its_inputs(client):
+    """A disabled fieldset overrides its children, so re-enabling the inputs one
+    by one would leave the panel dead."""
+    html = client.get(reverse("ui:new_experiment")).content.decode()
+
+    assert 'querySelectorAll("input, select, textarea, fieldset")' in html
+    assert "wireChoice" in html

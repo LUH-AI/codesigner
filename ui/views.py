@@ -170,6 +170,38 @@ def _optimizer_param_context(optimizer, stored=None) -> dict:
     }
 
 
+def _optimizer_panels(request, selected: str) -> list:
+    """One settings panel per optimizer that has settings.
+
+    All of them, not just the chosen one: the page hides the rest and disables
+    their inputs, so the dropdown swaps panels without a request and only the
+    chosen optimizer's values are submitted. An optimizer with an empty schema
+    contributes nothing rather than an empty box.
+
+    On a re-render after a validation error each panel is filled from what was
+    posted. For the hidden ones that is nothing, which the parser reads as their
+    own defaults — the same answer as never having touched them.
+    """
+    panels = []
+    for key, optimizer in OPTIMIZERS.items():
+        if not optimizer.params_schema:
+            continue
+        posted = _posted_optimizer_params(request, optimizer) if request.method == "POST" else None
+        panels.append({"key": key, "selected": key == selected,
+                       # Inert as rendered, not merely hidden: with no
+                       # JavaScript the dropdown cannot swap panels anyway, and
+                       # an enabled one would still post its values.
+                       "disabled": key != selected,
+                       **_optimizer_param_context(optimizer, posted)})
+    return panels
+
+
+def _selected_optimizer(request) -> str:
+    """The optimizer the create form is showing — posted, or the first offered."""
+    posted = request.POST.get("optimizer_name")
+    return posted if posted in OPTIMIZERS else next(iter(OPTIMIZERS))
+
+
 def _optimizer_for(name):
     """The registry optimizer an experiment names, or None. Aliases included, so
     an experiment stored under an optimizer's older name still resolves."""
@@ -230,7 +262,7 @@ def new_experiment(request):
     if request.method != "POST":
         return render(request, "ui/new_experiment.html", {
             "form": NewExperimentForm(may_upload_models=may_upload),
-            **_optimizer_param_context(OPTIMIZERS["SMAC"]),
+            "optimizer_panels": _optimizer_panels(request, _selected_optimizer(request)),
         })
 
     form = NewExperimentForm(request.POST, request.FILES,
@@ -238,11 +270,7 @@ def new_experiment(request):
     if not form.is_valid():
         return render(request, "ui/new_experiment.html", {
             "form": form,
-            **_optimizer_param_context(
-                _optimizer_for(request.POST.get("optimizer_name", "")) or OPTIMIZERS["SMAC"],
-                _posted_optimizer_params(
-                    request,
-                    _optimizer_for(request.POST.get("optimizer_name", "")) or OPTIMIZERS["SMAC"])),
+            "optimizer_panels": _optimizer_panels(request, _selected_optimizer(request)),
         })
 
     cleaned = form.cleaned_data
