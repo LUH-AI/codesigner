@@ -341,51 +341,74 @@ def test_a_setting_is_named_and_not_described_in_place(client):
     assert '<p class="caption">' not in _smac_panel(client)
 
 
-def test_the_explanation_is_a_tooltip_on_the_name(client):
-    """`.hint` is the dotted underline. Without it the tooltip exists and
-    nothing on the page says so."""
+def test_the_explanation_is_behind_a_marked_control(client):
+    """A circled i beside the name. A `title` on the label would have been
+    invisible until hovered, so nothing on the page would say there was
+    anything to read."""
     panel = _smac_panel(client)
 
-    assert '<span class="hint" title="Fraction of the budget sampled' in panel
-
-
-def test_the_explanation_is_readable_without_a_pointer_too(client):
-    """A `title` cannot be reached by keyboard and several screen readers skip
-    it, so moving the prose into one would have taken it away from everybody who
-    does not hover. The same words are the control's description as well."""
-    panel = _smac_panel(client)
-
-    assert 'aria-describedby="opt_exploration_ratio_help"' in panel
-    assert ('<span id="opt_exploration_ratio_help" class="visually-hidden">'
+    assert '<button type="button" class="info-mark"' in panel
+    assert ('<span class="info-bubble" role="tooltip" id="opt_exploration_ratio_help">'
             'Fraction of the budget sampled') in panel
 
 
-def test_a_decimal_field_has_no_spinner(client):
-    """A number input's arrows step by one, which on a fraction between 0 and 1
-    is the entire range."""
+def test_the_explanation_is_readable_without_a_pointer_too(client):
+    """The bubble is the control's description, so the words are announced on
+    reaching the field whether or not anyone opens it — and the mark is a
+    button, so opening it takes a keypress rather than a hover."""
     panel = _smac_panel(client)
+    mark = panel[panel.index('class="info-mark"'):]
 
-    assert 'name="opt_exploration_ratio"\n' in panel.replace('"\n         ', '"\n')
-    for name, decimal in (("exploration_ratio", True), ("exploration_trials", False)):
-        field = panel[panel.index(f'id="opt_{name}"'):]
-        field = field[:field.index(">")]
-        assert ('class="decimal"' in field) is decimal, name
+    assert 'aria-describedby="opt_exploration_ratio_help"' in panel
+    assert 'tabindex="0"' in mark[:mark.index(">")]
 
 
-def test_only_a_setting_the_strategy_decides_says_that_it_does(client):
+def _control(panel, name):
+    """The whole opening tag of one setting's control."""
+    at = panel.index(f'id="opt_{name}"')
+    return panel[panel.rindex("<", 0, at):panel.index(">", at) + 1]
+
+
+def test_a_decimal_field_is_not_a_stepper_at_all(client):
+    """A number input's arrows step by one, which on a fraction between 0 and 1
+    is the entire range. Worse than useless: they make the field look like it
+    wants a whole number."""
+    panel = _smac_panel(client)
+    control = _control(panel, "exploration_ratio")
+
+    assert control.startswith("<input")
+    assert 'type="text"' in control and 'inputmode="decimal"' in control
+    assert "step=" not in control
+
+
+def test_a_whole_number_field_still_steps_by_one(client):
+    """Where one is a real increment the arrows are worth having, and the
+    difference between the two kinds of field is then visible."""
+    panel = _smac_panel(client)
+    control = _control(panel, "exploration_trials")
+
+    assert 'type="number"' in control and 'step="1"' in control
+
+
+def test_an_empty_field_says_what_filling_it_in_would_displace(client):
     """The placeholder names the search strategy as the source of the default,
-    which is only true of the settings that declare none of their own. Grid
-    Search has no strategy at all, and its one setting has a default."""
+    which is only true of the settings that declare none of their own — and not
+    of every one of those. Grid Search has no strategy at all."""
     html = client.get(reverse("ui:new_experiment")).content.decode()
     panel = _smac_panel(client)
 
     def placeholder(fragment, name):
-        field = fragment[fragment.index(f'id="opt_{name}"'):]
-        return "search strategy default" in field[:field.index(">")]
+        import re
+        at = fragment.index(f'id="opt_{name}"')
+        tag = fragment[fragment.rindex("<", 0, at):fragment.index(">", at)]
+        found = re.search(r'placeholder="([^"]*)"', tag)
+        return found.group(1) if found else ""
 
-    assert placeholder(panel, "retrain_after")
-    assert not placeholder(panel, "exploration_ratio")
-    assert not placeholder(html[html.index('data-optimizer="Grid Search"'):], "numeric_steps")
+    assert placeholder(panel, "retrain_after") == "search strategy default"
+    assert placeholder(panel, "exploration_ratio") == "", "it has a default of its own"
+    assert placeholder(panel, "exploration_trials") == "uses the share", (
+        "blank here falls back to the share, not to anything the strategy picks")
+    assert placeholder(html[html.index('data-optimizer="Grid Search"'):], "numeric_steps") == ""
 
 
 # ── the exploration budget, said either way ──────────────────────────────────

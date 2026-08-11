@@ -105,6 +105,24 @@ CHOICES = {
 }
 
 
+#: What an empty field means, where it is not "whatever the search strategy
+#: uses". Only a setting with no default of its own can be empty at all, and
+#: most of those are the strategy's to decide — these are the exceptions.
+PLACEHOLDERS = {
+    "exploration_trials": _("uses the share"),
+}
+
+#: The rest of them.
+STRATEGY_DEFAULT = _("search strategy default")
+
+
+def placeholder_for(param):
+    """What to show in *param*'s field while it is empty, if anything."""
+    if param.default is not None:
+        return ""
+    return PLACEHOLDERS.get(param.name, STRATEGY_DEFAULT)
+
+
 def described(param, value=None):
     """One `OptimizerParam` as the template needs it: words, and a value."""
     label, help_text = LABELS.get(param.name, (param.label, ""))
@@ -116,11 +134,10 @@ def described(param, value=None):
         "min": param.min,
         "max": param.max,
         "advanced": param.advanced,
-        # A setting that declares no default is one the search strategy decides,
-        # and the field says so where the number would be. Settings that have a
-        # default of their own show it and get no placeholder — it would name a
-        # strategy that has nothing to do with them.
-        "strategy_default": param.default is None,
+        # A setting with a default of its own shows it, and needs no
+        # placeholder; one without is empty, and the field says what filling it
+        # in would displace.
+        "placeholder": placeholder_for(param),
         "value": param.default if value is None else value,
         "checked": bool(param.default if value is None else value),
         "choices": [(v, CHOICES.get(param.name, {}).get(v, v)) for v in param.choices],

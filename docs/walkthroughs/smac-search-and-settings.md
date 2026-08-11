@@ -63,8 +63,13 @@ falls back to a documented constant. It only sizes the initial design, and
 Eleven settings on `SMACOptimizer`. **Blank means the strategy's own default**,
 the convention the stopping criteria already use — the two strategies disagree
 about several of these and imposing one number on both would be worse than
-silence. Each field's label is the setting's *name*; what it means is a tooltip
-on that name, and a visually-hidden description for anyone not using a pointer.
+silence. Each field's label is the setting's *name*; what it means is behind the
+circled i beside it — a button, so it opens by keyboard and by tap as well as by
+pointer, and the bubble it opens is what the field's `aria-describedby` points
+at. Decimal fields are plain text inputs: `type="number"` puts arrows on them
+that step by one, which on a fraction between zero and one is the whole range,
+and which make the field look like it wants a whole number. A stepper now means
+the field takes one.
 
 ### Always visible
 

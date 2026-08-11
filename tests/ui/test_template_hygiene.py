@@ -45,9 +45,12 @@ def test_every_template_with_text_of_its_own_marks_it_for_translation():
     translated — the figure partials render `figure.label` (translated in
     `ui/figures/catalog.py`), the breadcrumb bar renders labels from
     `ui/navigation.py`, and the metric select and selected-config panel render
-    metric names, numbers and config keys, which are data.
+    metric names, numbers and config keys, which are data. The optimizer field
+    renders one setting, and every word of it — name, explanation, placeholder —
+    comes from `ui/optimizer_labels.py`, which is where they are marked.
     """
-    exempt = {"_selected_config_inner.html", "_breadcrumbs.html", "_metric_select.html"}
+    exempt = {"_selected_config_inner.html", "_breadcrumbs.html", "_metric_select.html",
+              "_optimizer_param_field.html"}
     no_i18n = {p.name for p in _templates()
                if "translate" not in p.read_text()
                and p.name not in exempt

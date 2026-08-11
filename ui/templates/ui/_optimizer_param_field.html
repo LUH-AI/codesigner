@@ -1,41 +1,56 @@
 {% load i18n %}
 {% comment %}
 One optimizer setting. The label is the setting's name and nothing else; what it
-means is a tooltip on that name, marked by the dotted underline `.hint` carries.
-A dozen settings with a line of prose under each is a wall to read past while
-filling in a form, and the explanation is wanted once rather than every time.
+means is behind the circled i beside it. A dozen settings with a line of prose
+under each is a wall to read past while filling in a form, and the explanation
+is wanted once rather than every time.
 
-A `title` is not reachable by keyboard and is skipped by some screen readers, so
-the same words are also placed after the control as the description the control
-points at. Visually hidden, and the only copy anyone not using a pointer gets.
+A decimal is a plain text field. `type="number"` puts arrows on it that step by
+one, which on a fraction between zero and one is the whole range — useless in
+themselves, and they make the field look like it wants a whole number. Stepping
+is left to the settings where a step of one is a real increment.
 {% endcomment %}
 <div class="field">
-    {% if p.type == "bool" %}
-        <label class="check" for="opt_{{ p.name }}">
-            <input type="checkbox" id="opt_{{ p.name }}" name="opt_{{ p.name }}"
-                   {% if p.help %}aria-describedby="opt_{{ p.name }}_help"{% endif %}
-                   {% if p.checked %}checked{% endif %}>
-            <span{% if p.help %} class="hint" title="{{ p.help }}"{% endif %}>{{ p.label }}</span>
-        </label>
-    {% else %}
-        <label for="opt_{{ p.name }}"><span{% if p.help %} class="hint" title="{{ p.help }}"{% endif %}>{{ p.label }}</span></label>
-        {% if p.type == "select" %}
-            <select id="opt_{{ p.name }}" name="opt_{{ p.name }}"
-                    {% if p.help %}aria-describedby="opt_{{ p.name }}_help"{% endif %}>
-                {% for value, text in p.choices %}
-                    <option value="{{ value }}"{% if value == p.value %} selected{% endif %}>{{ text }}</option>
-                {% endfor %}
-            </select>
+    <div class="field-label">
+        {% if p.type == "bool" %}
+            <label class="check" for="opt_{{ p.name }}">
+                <input type="checkbox" id="opt_{{ p.name }}" name="opt_{{ p.name }}"
+                       {% if p.help %}aria-describedby="opt_{{ p.name }}_help"{% endif %}
+                       {% if p.checked %}checked{% endif %}>
+                {{ p.label }}
+            </label>
         {% else %}
-            <input type="number" id="opt_{{ p.name }}" name="opt_{{ p.name }}"
-                   {% if p.type == "float" %}class="decimal"{% endif %}
-                   {% if p.help %}aria-describedby="opt_{{ p.name }}_help"{% endif %}
-                   value="{{ p.value|default_if_none:'' }}"
-                   {% if p.min is not None %}min="{{ p.min }}"{% endif %}
-                   {% if p.max is not None %}max="{{ p.max }}"{% endif %}
-                   {% if p.type == "float" %}step="any"{% else %}step="1"{% endif %}
-                   {% if p.strategy_default %}placeholder="{% translate 'search strategy default' %}"{% endif %}>
+            <label for="opt_{{ p.name }}">{{ p.label }}</label>
         {% endif %}
+        {% if p.help %}
+            {% include "ui/_info.html" with info_id="opt_"|add:p.name|add:"_help" info_text=p.help %}
+        {% endif %}
+    </div>
+
+    {% if p.type == "select" %}
+        <select id="opt_{{ p.name }}" name="opt_{{ p.name }}"
+                {% if p.help %}aria-describedby="opt_{{ p.name }}_help"{% endif %}>
+            {% for value, text in p.choices %}
+                <option value="{{ value }}"{% if value == p.value %} selected{% endif %}>{{ text }}</option>
+            {% endfor %}
+        </select>
+    {% elif p.type == "float" %}
+        {% comment %}
+        Out of range is clamped by the parser rather than refused, so `min` and
+        `max` would only be advisory here; the pattern is what keeps a typo from
+        silently falling back to the default.
+        {% endcomment %}
+        <input type="text" inputmode="decimal" pattern="[0-9]*[.,]?[0-9]*"
+               id="opt_{{ p.name }}" name="opt_{{ p.name }}"
+               {% if p.help %}aria-describedby="opt_{{ p.name }}_help"{% endif %}
+               value="{{ p.value|default_if_none:'' }}"
+               {% if p.placeholder %}placeholder="{{ p.placeholder }}"{% endif %}>
+    {% elif p.type == "int" %}
+        <input type="number" step="1" id="opt_{{ p.name }}" name="opt_{{ p.name }}"
+               {% if p.help %}aria-describedby="opt_{{ p.name }}_help"{% endif %}
+               value="{{ p.value|default_if_none:'' }}"
+               {% if p.min is not None %}min="{{ p.min }}"{% endif %}
+               {% if p.max is not None %}max="{{ p.max }}"{% endif %}
+               {% if p.placeholder %}placeholder="{{ p.placeholder }}"{% endif %}>
     {% endif %}
-    {% if p.help %}<span id="opt_{{ p.name }}_help" class="visually-hidden">{{ p.help }}</span>{% endif %}
 </div>

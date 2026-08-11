@@ -78,11 +78,13 @@
         </div>
 
         <div class="field">
-            <label for="{{ form.cv_folds.id_for_label }}"><span class="hint" title="{{ form.cv_folds.help_text }}">{{ form.cv_folds.label }}</span></label>
+            <div class="field-label">
+                <label for="{{ form.cv_folds.id_for_label }}">{{ form.cv_folds.label }}</label>
+                {# Django points the field's `aria-describedby` at this id. #}
+                {% include "ui/_info.html" with info_id=form.cv_folds.id_for_label|add:"_helptext" info_text=form.cv_folds.help_text %}
+            </div>
             {{ form.cv_folds }}
             {% if form.cv_folds.errors %}<div class="form-error">{{ form.cv_folds.errors|join:" " }}</div>{% endif %}
-            {# The field's `aria-describedby` points here; see _optimizer_param_field.html. #}
-            <span id="{{ form.cv_folds.id_for_label }}_helptext" class="visually-hidden">{{ form.cv_folds.help_text }}</span>
         </div>
 
         <div class="field">
