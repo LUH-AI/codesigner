@@ -194,7 +194,9 @@ class TrialCollector:
         ``max_trial_seconds``    cumulative time spent inside trials, which is
                                  the compute actually consumed rather than how
                                  long the run has been open
-        ``target_score``         the incumbent reaches this
+        ``target_score``         the incumbent surpasses this — strictly, so a
+                                 target equal to the score already in hand is
+                                 not met until something beats it
         ``no_improvement_trials``  this many trials in a row did not improve
                                  the incumbent
         ``incumbent_confidence`` the optimizer's surrogate is at least this sure
@@ -261,7 +263,10 @@ class TrialCollector:
         about: the two that mean "we are done" first, then the budgets that mean
         "we ran out", then stagnation, which is a judgement call.
         """
-        if self._incumbent_score >= self._stopping.get("target_score", float("inf")):
+        # Strictly greater. The target is a score to *surpass*, which is what
+        # makes filling it with the incumbent's own score mean "run until
+        # something does better" rather than "stop immediately".
+        if self._incumbent_score > self._stopping.get("target_score", float("inf")):
             return "target_score"
         wanted = self._stopping.get("incumbent_confidence")
         if wanted is not None and self._confidence is not None and self._confidence >= wanted:

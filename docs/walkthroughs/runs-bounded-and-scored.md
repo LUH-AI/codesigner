@@ -75,7 +75,7 @@ the first to fire ends the run, and the run records which.
 | | |
 |---|---|
 | `max_trials` | This many new trials. |
-| `target_score` | The incumbent reached what you asked for. |
+| `target_score` | The incumbent surpassed what you asked for — strictly, so a target equal to the score already in hand is not met until something beats it. The field opens filled with the incumbent's own score, which makes that the point: run until we do better. |
 | `max_seconds` | Wall-clock for the run. |
 | `max_trial_seconds` | Time spent inside trials — the compute actually consumed, which is what a shared machine budgets. |
 | `no_improvement_trials` | The score stopped improving. |

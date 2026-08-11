@@ -84,7 +84,7 @@ _STOPPING_FIELDS = {
 #: privileged default, "it stopped" no longer implies the trial count.
 STOPPED_BY_LABELS = {
     "max_trials": _("all the requested trials ran"),
-    "target_score": _("the target score was reached"),
+    "target_score": _("performance surpassed the target"),
     "max_seconds": _("the time limit was reached"),
     "max_trial_seconds": _("the compute budget was used up"),
     "no_improvement_trials": _("the score had stopped improving"),
@@ -92,6 +92,19 @@ STOPPED_BY_LABELS = {
     "cancelled": _("it was interrupted"),
     "all_failing": _("every trial was failing"),
 }
+
+
+def surpass_target(score: float, places: int = 4) -> str:
+    """The incumbent's score, as a target for the next run to beat.
+
+    Rounded for the field it goes in, but never *below* the score itself: the
+    criterion is a strict improvement, so a target a hair under what is already
+    in hand would be met before the run started and end it after one trial.
+    """
+    shown = round(score, places)
+    if shown < score:
+        shown = round(shown + 10 ** -places, places)
+    return f"{shown:g}"
 
 
 def _posted_stopping(request) -> dict:
@@ -749,6 +762,10 @@ def _detail_context(request, exp):
     static_plots = {key: plot for key, plot in static_plots.items() if plot is not None}
 
     hp_names = list(result.trials[0].config.keys()) if result.trials else []
+    # The Run form's target starts at what there is to beat. Per metric, so the
+    # page can follow the metric dropdown; the one for the metric the form opens
+    # on is what the field is filled with.
+    incumbent_targets = {p["metric"]: surpass_target(p["best_score"]) for p in panels}
     context.update(
         result=result,
         panels=panels,
@@ -759,6 +776,8 @@ def _detail_context(request, exp):
         half_figures=[f for f in figures if f.width == HALF],
         full_figures=[f for f in figures if f.width == FULL],
         hp_names=hp_names,
+        incumbent_targets=incumbent_targets,
+        incumbent_target=incumbent_targets.get(context["run_default_metric"], ""),
         trial_rows=[
             {
                 "n": t.trial,

@@ -84,6 +84,17 @@ def test_the_target_score_ends_the_run():
     assert collector.stopped_by == "target_score"
 
 
+def test_matching_the_target_exactly_is_not_surpassing_it():
+    """Strictly greater. The field is filled with the incumbent's own score, so
+    "equal counts" would end every run after one trial without improving on
+    anything."""
+    collector = _collector({"target_score": 0.9})
+
+    _record(collector, 0.9)
+
+    assert collector.done is False
+
+
 def test_the_target_score_counts_the_incumbent_not_the_last_trial():
     """A trial that scores worse after the target was reached does not un-reach
     it — the incumbent is what the run achieved."""

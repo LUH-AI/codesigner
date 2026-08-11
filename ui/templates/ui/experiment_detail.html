@@ -109,9 +109,10 @@
                                value="30" min="1" max="100000">
                     </div>
                     <div class="field">
-                        <label for="target_score">{% translate "…the best score reaches" %}</label>
+                        <label for="target_score">{% translate "…performance surpasses" %}</label>
                         <input type="text" inputmode="decimal" pattern="[0-9]*[.,]?[0-9]*"
                                id="target_score" name="target_score"
+                               value="{{ incumbent_target }}"
                                placeholder="{% translate 'e.g. 0.95' %}">
                     </div>
                     <div class="field">
@@ -162,6 +163,27 @@
                     }
                     form.addEventListener("input", apply);
                     apply();
+                })();
+            </script>
+            {{ incumbent_targets|json_script:"incumbent-targets" }}
+            <script>
+                // The target opens at the score there is to beat, and follows
+                // the metric dropdown, because the incumbent is per metric and
+                // a number left over from the previous one would be nonsense.
+                // Typing in the field stops that: at the point someone has
+                // chosen a target, replacing it is not help.
+                (function () {
+                    const form = document.currentScript.closest("section").querySelector("form");
+                    const field = form.querySelector('[name="target_score"]');
+                    const metric = form.querySelector("#metric-select");
+                    const holder = document.getElementById("incumbent-targets");
+                    if (!field || !metric || !holder) return;
+                    const targets = JSON.parse(holder.textContent || "{}");
+                    let untouched = true;
+                    field.addEventListener("input", function () { untouched = false; });
+                    metric.addEventListener("change", function () {
+                        if (untouched) field.value = targets[metric.value] || "";
+                    });
                 })();
             </script>
             {% if env.ready and env.summary %}
