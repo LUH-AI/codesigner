@@ -17,6 +17,13 @@ showing a single panel leave it unset.
 An empty numeric field means "whatever the strategy does by default", the same
 convention the stopping criteria use — the strategies disagree about several of
 these, so imposing one number on both would be worse than saying nothing.
+
+A setting can declare that it only applies when another one has a certain value
+(`depends_on`), which arrives here as `data-when="name=value"`. The script at the
+bottom hides those, and hides them only: a disabled field is not submitted, and
+switching search strategy would then throw away everything set for the other
+one. The names do not collide — they are prefixed per strategy — so there is
+nothing to gain by dropping them.
 {% endcomment %}
 {% if optimizer_params %}
     <fieldset class="check-group"{% if panel_disabled %} disabled{% endif %}>
@@ -34,5 +41,24 @@ these, so imposing one number on both would be worse than saying nothing.
                 {% endfor %}
             </details>
         {% endif %}
+
+        <script>
+            // Scoped to this fieldset, so the create page's several panels each
+            // wire their own without knowing about the others.
+            (function () {
+                const box = document.currentScript.closest("fieldset");
+                const dependent = Array.from(box.querySelectorAll("[data-when]"));
+                if (!dependent.length) return;
+                function apply() {
+                    dependent.forEach(function (field) {
+                        const [name, wanted] = field.dataset.when.split("=");
+                        const control = box.querySelector('[name="opt_' + name + '"]');
+                        field.hidden = !control || control.value !== wanted;
+                    });
+                }
+                box.addEventListener("change", apply);
+                apply();
+            })();
+        </script>
     </fieldset>
 {% endif %}

@@ -81,6 +81,55 @@ LABELS = {
         _("Grid steps"),
         _("Values tried per numeric hyperparameter. Combinations multiply."),
     ),
+
+    # The surrogate. Every label leads with "surrogate" deliberately: the model
+    # being tuned can have settings of the same names — a Random Forest tuned
+    # over `max_depth` while the search's own forest has one too — and the two
+    # appear on the same page.
+    "rf_trees": (
+        _("Surrogate trees"),
+        _("Trees in the forest the search fits over your trials — not in the "
+          "model being tuned. More of them are better calibrated and slower, "
+          "and the default of ten is not many."),
+    ),
+    "rf_max_depth": (
+        _("Surrogate tree depth"),
+        _("How deep the search's own trees may grow. Blank is no limit."),
+    ),
+    "rf_min_samples_split": (
+        _("Surrogate split threshold"),
+        _("Fewest trials at a node before the search's trees will split it."),
+    ),
+    "rf_min_samples_leaf": (
+        _("Surrogate leaf size"),
+        _("Fewest trials the search's trees will leave in a leaf."),
+    ),
+    "rf_feature_ratio": (
+        _("Surrogate feature ratio"),
+        _("Share of your hyperparameters the search considers at each split of "
+          "its own trees."),
+    ),
+    "rf_bootstrapping": (
+        _("Bootstrap the surrogate's trees"),
+        _("Fit each of the search's trees to a resample of the trials. Off, the "
+          "trees agree more, and the confidence the search reports narrows "
+          "whether or not it should."),
+    ),
+    "gp_model_type": (
+        _("Surrogate fitting"),
+        _("Vanilla fits the process once, by maximum likelihood. MCMC samples "
+          "the kernel's own hyperparameters and averages over the result: "
+          "better calibrated, and about an order of magnitude slower."),
+    ),
+    "gp_restarts": (
+        _("Surrogate fit restarts"),
+        _("Attempts at fitting the process, from different starting points. "
+          "More is a better fit and a slower trial."),
+    ),
+    "gp_normalize_y": (
+        _("Normalise surrogate targets"),
+        _("Centre and scale the scores before fitting the process to them."),
+    ),
 }
 
 #: The values of `select` parameters. Kept apart from `LABELS` because a choice
@@ -102,6 +151,10 @@ CHOICES = {
         "ei": _("Expected improvement"),
         "pi": _("Probability of improvement"),
     },
+    "gp_model_type": {
+        "vanilla": _("Vanilla"),
+        "mcmc": _("MCMC (slow)"),
+    },
 }
 
 
@@ -110,6 +163,7 @@ CHOICES = {
 #: most of those are the strategy's to decide — these are the exceptions.
 PLACEHOLDERS = {
     "exploration_trials": _("uses the share"),
+    "rf_max_depth": _("no limit"),
 }
 
 #: The rest of them.
@@ -134,6 +188,9 @@ def described(param, value=None):
         "min": param.min,
         "max": param.max,
         "advanced": param.advanced,
+        # "search_strategy=rf" — the form hides this field unless that setting
+        # has that value. A string because it is going into a data attribute.
+        "when": ("=".join(param.depends_on) if param.depends_on else ""),
         # A setting with a default of its own shows it, and needs no
         # placeholder; one without is empty, and the field says what filling it
         # in would displace.

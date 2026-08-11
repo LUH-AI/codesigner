@@ -86,6 +86,48 @@ the field takes one.
 Sampling method, acquisition function (EI or PI) and its improvement margin
 (`xi`), candidates per trial, local search iterations, refit interval.
 
+### The surrogate itself
+
+Nine more, each declaring the strategy it belongs to (`OptimizerParam.
+depends_on`) so the form shows only the set that applies. Hidden, not disabled:
+a disabled field is not submitted and would reset on every strategy switch, and
+the names are prefixed per strategy so there is nothing to gain by dropping them.
+
+| Random forest | Gaussian process |
+|---|---|
+| trees, tree depth, split threshold, leaf size, feature ratio, bootstrapping | fitting (vanilla / MCMC), fit restarts, target normalisation |
+
+The forest comes through `HyperparameterOptimizationFacade.get_model`, which
+takes all six. The process does not: `BlackBoxFacade.get_model` exposes only
+`model_type` and `kernel`, so restarts and normalisation mean constructing
+`GaussianProcess` directly — with the facade's own kernel, and identical to what
+the facade would have returned when nothing is set.
+
+Three things worth knowing rather than discovering.
+
+**The naming collision.** The demo Random Forest *model* is tuned over
+`max_depth` and `min_samples_split`. The random forest *surrogate* has settings
+of those exact names, and both appear on the same page. Hence `rf_`/`gp_`
+prefixes on the schema names and the word **surrogate** in every label, which a
+test enforces.
+
+**`ratio_features` above 1.0** makes SMAC compute `max_features = 0` — a forest
+whose every split considers no features, fitted and consulted and useless, with
+no error. Capped in three places, because only the last covers a hand-edited
+`.ihpo`.
+
+**MCMC must be paired with `IntegratedAcquisitionFunction`.** An MCMC process is
+an ensemble; nothing in SMAC pairs them up, and an unwrapped acquisition
+function scores against one arbitrary member rather than complaining — it raises
+only when there are no members at all. It costs roughly six times the wall clock
+per trial here, which is why the choice is labelled "MCMC (slow)".
+
+One thing that did **not** hold up. The plan expected more trees to fix the flat
+confidence readings the forest gives. It moves them, but not reliably enough to
+assert on: how coarse the forest's answer is depends on the split and the data
+more than on the tree count. The knob is there and works; the claim about what
+it buys is not pinned by a test.
+
 ### Not exposed, deliberately
 
 `walltime_limit` and friends duplicate the stopping criteria we already built —

@@ -153,10 +153,15 @@ def test_either_strategy_answers_when_asked_how_sure_it_is(strategy, models, met
 
 def test_the_gaussian_process_gives_an_answer_that_actually_varies(
         models, metrics, iris_splits):
-    """And the random forest, at these trial counts, does not — its posterior is
-    flat enough that the number sits at one half whatever it has seen. Pinned so
-    the difference is a known property rather than a surprise: the criterion is
-    worth setting under `gp` and close to inert under `rf`."""
+    """The forest's answer is coarser, and only the process's is asserted here.
+
+    A forest's uncertainty is its trees disagreeing, and the default ten do not
+    disagree much: its readings come in a handful of steps and lean on 0.5,
+    where 0.5 means the best candidate's predicted cost equals the incumbent's
+    and the trees are unanimous about it. How coarse depends on the split and
+    the data, which is why only the process's variation is pinned — raising
+    `rf_trees` is the knob to reach for, but it is not reliable enough on one
+    small dataset to assert on."""
     X_train, X_val, y_train, y_val = iris_splits
     seen = {}
     for strategy in ("gp", "rf"):
@@ -213,3 +218,28 @@ def test_changed_settings_take_effect_without_losing_the_history(
     assert len(second.trials) == 15
     assert [t.trial for t in second.trials] == list(range(1, 16))
     assert [t.config for t in second.trials[:10]] == [t.config for t in first.trials]
+
+
+# ── the surrogate, end to end ────────────────────────────────────────────────
+
+def test_a_configured_forest_actually_searches(models, metrics, iris_splits):
+    """The construction is pinned in `test_smac_surrogate`; what this adds is
+    that a forest built with settings on it still fits, still gets asked, and
+    still produces model-chosen trials."""
+    optimizer = SMACOptimizer(search_strategy="rf", rf_trees=64, rf_max_depth=7,
+                              rf_feature_ratio=0.5, rf_bootstrapping=False)
+
+    counts = _origins(optimizer, _run(optimizer, models, metrics, iris_splits, trials=14))
+
+    assert counts["model"] > 0, counts
+
+
+def test_an_mcmc_process_runs_and_is_told_its_trials(models, metrics, iris_splits):
+    """Slow enough to be worth pinning that it works at all: three walkers per
+    kernel dimension over 250-step chains, resampled on every ask."""
+    optimizer = SMACOptimizer(search_strategy="gp", gp_model_type="mcmc")
+
+    result = _run(optimizer, models, metrics, iris_splits, trials=3)
+
+    assert len(result.trials) == 3
+    assert all(t.scores["accuracy"] > 0 for t in result.trials)

@@ -444,3 +444,108 @@ def test_leaving_the_count_blank_stores_nothing_for_it(client):
     params = Experiment.objects.get(name="shared").optimizer_params
     assert params["exploration_trials"] is None
     assert params["exploration_ratio"] == 0.25
+
+
+# ── the surrogate settings, and the strategy each belongs to ─────────────────
+
+def test_the_surrogate_settings_are_all_there(client):
+    panel = _smac_panel(client)
+
+    for name in ("rf_trees", "rf_max_depth", "rf_min_samples_split",
+                 "rf_min_samples_leaf", "rf_feature_ratio", "rf_bootstrapping",
+                 "gp_model_type", "gp_restarts", "gp_normalize_y"):
+        assert f'name="opt_{name}"' in panel, name
+
+
+def test_they_are_all_folded_away(client):
+    """Nobody reaches for the surrogate's leaf size without knowing what one
+    is."""
+    advanced = _smac_panel(client).split("Advanced search settings", 1)[1]
+
+    assert 'name="opt_rf_trees"' in advanced
+    assert 'name="opt_gp_model_type"' in advanced
+
+
+def test_every_surrogate_setting_says_surrogate(client):
+    """The hazard this guards is specific. The demo Random Forest *model* is
+    tuned over `max_depth` and `min_samples_split`; the random forest
+    *surrogate* has settings of those same two names, and both can be on the
+    page at once. The prefix keeps the form fields apart; the word keeps the
+    reader's two models apart."""
+    from ui.optimizer_labels import LABELS
+    from core.optimizers import SMACOptimizer
+
+    scoped = [p.name for p in SMACOptimizer.params_schema if p.depends_on]
+
+    assert scoped, "no strategy-scoped settings found"
+    for name in scoped:
+        label = str(LABELS[name][0])
+        assert "urrogate" in label, f"{name}: {label!r} does not say which model"
+
+
+def test_a_setting_declares_when_it_applies(client):
+    """`data-when="search_strategy=rf"` — the form hides it under the other
+    strategy without knowing what a surrogate is."""
+    panel = _smac_panel(client)
+
+    at = panel.index('id="opt_rf_trees"')
+    field = panel[panel.rindex('<div class="field"', 0, at):at]
+
+    assert 'data-when="search_strategy=rf"' in field
+
+
+def test_the_panel_wires_its_own_switch(client):
+    """It travels with the partial rather than living on the page, because the
+    settings page renders the same panel and would otherwise render it dead."""
+    from django.urls import reverse
+
+    for html in (client.get(reverse("ui:new_experiment")).content.decode(),
+                 _settings(client, _experiment())):
+        assert 'querySelectorAll("[data-when]")' in html
+        assert 'document.currentScript.closest("fieldset")' in html
+
+
+def test_a_setting_for_the_other_strategy_is_hidden_and_not_disabled(client):
+    """Disabling it would drop it from the POST, and the parser reads a missing
+    value as the default — so switching strategy and back would silently reset
+    everything set for the other one. The names are prefixed per strategy, so
+    there is nothing to gain by dropping them."""
+    html = client.get(reverse("ui:new_experiment")).content.decode()
+
+    assert "field.hidden = !control || control.value !== wanted" in html
+    assert "disabled" not in html.split("[data-when]")[1].split("</script>")[0]
+
+
+def test_creating_stores_the_surrogate_settings(client):
+    client.post(reverse("ui:new_experiment"), {
+        "name": "forested", "model_name": "Random Forest",
+        "optimizer_name": "SMAC", "seed": "0",
+        "demo_dataset": str(DATASETS_DIR / "iris.csv"),
+        "opt_search_strategy": "rf", "opt_rf_trees": "64",
+        "opt_rf_feature_ratio": "0.5",
+    })
+
+    params = Experiment.objects.get(name="forested").optimizer_params
+    assert params["rf_trees"] == 64
+    assert params["rf_feature_ratio"] == 0.5
+
+
+def test_a_feature_ratio_above_one_is_clamped_on_the_way_in(client):
+    """Above 1.0 SMAC computes `max_features = 0`. The field caps it, the
+    parser caps it, and the optimizer caps it again — three, because only the
+    last one covers a hand-edited `.ihpo`."""
+    client.post(reverse("ui:new_experiment"), {
+        "name": "greedy", "model_name": "Random Forest",
+        "optimizer_name": "SMAC", "seed": "0",
+        "demo_dataset": str(DATASETS_DIR / "iris.csv"),
+        "opt_search_strategy": "rf", "opt_rf_feature_ratio": "5",
+    })
+
+    assert Experiment.objects.get(name="greedy").optimizer_params["rf_feature_ratio"] == 1.0
+
+
+def test_the_slow_fitting_method_says_so_where_it_is_chosen(client):
+    """An order of magnitude per trial is not something to find out afterwards."""
+    panel = _smac_panel(client)
+
+    assert '<option value="mcmc">MCMC (slow)</option>' in panel

@@ -20,6 +20,13 @@ class OptimizerParam:
     A `default` of None means "whatever the thing being configured already
     does". The form renders an empty field, and the optimizer is expected to
     leave that component alone rather than substitute a number of its own.
+
+    `depends_on` names another parameter and the value that makes this one
+    apply — `("search_strategy", "rf")` for a setting that only means anything
+    under the random forest. It is declared rather than described so the form
+    can hide what does not apply without knowing what any of it is. Hidden, not
+    dropped: the value stays in the experiment and comes back if the other
+    setting changes back.
     """
     name: str                               # kwarg name passed to __init__
     label: str                              # plain-English fallback label
@@ -29,6 +36,7 @@ class OptimizerParam:
     max: Any = None                         # upper bound for int / float
     choices: List[Any] = field(default_factory=list)  # (value, label) for select
     advanced: bool = False                  # folded away unless asked for
+    depends_on: Optional[tuple] = None      # (other parameter, value it must have)
 
 
 @dataclass

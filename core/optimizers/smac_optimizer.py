@@ -6,13 +6,14 @@ from pathlib import Path
 import numpy as np
 from ConfigSpace import Configuration
 from smac import BlackBoxFacade, HyperparameterOptimizationFacade, Scenario
-from smac.acquisition.function import PI
+from smac.acquisition.function import PI, IntegratedAcquisitionFunction
 from smac.initial_design import (
     DefaultInitialDesign,
     LatinHypercubeInitialDesign,
     RandomInitialDesign,
     SobolInitialDesign,
 )
+from smac.model.gaussian_process import GaussianProcess, MCMCGaussianProcess
 from smac.utils.configspace import convert_configurations_to_array
 from smac.runhistory import StatusType
 from smac.runhistory.dataclasses import TrialInfo, TrialValue
@@ -42,6 +43,13 @@ _STRATEGIES = {
     "gp": BlackBoxFacade,
     "rf": HyperparameterOptimizationFacade,
 }
+
+#: How the Gaussian process is fitted. `vanilla` maximizes the marginal
+#: likelihood once; `mcmc` samples the kernel's own hyperparameters and carries
+#: an ensemble of processes, which is better calibrated and an order of
+#: magnitude slower — three walkers per kernel dimension over 250-step chains,
+#: refitted on every ask.
+_GP_MODELS = ("vanilla", "mcmc")
 
 _INITIAL_DESIGNS = {
     "sobol": SobolInitialDesign,
@@ -121,6 +129,44 @@ class SMACOptimizer(BaseOptimizer):
                        None, min=1, max=1_000, advanced=True),
         OptimizerParam("retrain_after", "Refit interval", "int",
                        None, min=1, max=100, advanced=True),
+
+        # The surrogate itself, one set per strategy, each shown only under the
+        # strategy it belongs to. Every name is prefixed and every label says
+        # "surrogate" for a reason that is not tidiness: the demo Random Forest
+        # *model* is tuned over `max_depth` and `min_samples_split`, and the
+        # random forest *surrogate* has settings of the same names. Both can be
+        # on screen at once, and confusing them would silently tune the wrong
+        # thing.
+        OptimizerParam("rf_trees", "Surrogate trees", "int", None,
+                       min=2, max=1_000, advanced=True,
+                       depends_on=("search_strategy", "rf")),
+        OptimizerParam("rf_max_depth", "Surrogate tree depth", "int", None,
+                       min=1, max=1_000, advanced=True,
+                       depends_on=("search_strategy", "rf")),
+        OptimizerParam("rf_min_samples_split", "Surrogate split threshold", "int",
+                       None, min=2, max=100, advanced=True,
+                       depends_on=("search_strategy", "rf")),
+        OptimizerParam("rf_min_samples_leaf", "Surrogate leaf size", "int", None,
+                       min=1, max=100, advanced=True,
+                       depends_on=("search_strategy", "rf")),
+        # Capped at 1.0, and not only for tidiness: above it SMAC computes
+        # `max_features = 0` and the forest splits on nothing at all.
+        OptimizerParam("rf_feature_ratio", "Surrogate feature ratio", "float",
+                       None, min=0.05, max=1.0, advanced=True,
+                       depends_on=("search_strategy", "rf")),
+        OptimizerParam("rf_bootstrapping", "Bootstrap the surrogate's trees",
+                       "bool", True, advanced=True,
+                       depends_on=("search_strategy", "rf")),
+
+        OptimizerParam("gp_model_type", "Surrogate fitting", "select", "vanilla",
+                       choices=["vanilla", "mcmc"], advanced=True,
+                       depends_on=("search_strategy", "gp")),
+        OptimizerParam("gp_restarts", "Surrogate fit restarts", "int", None,
+                       min=1, max=100, advanced=True,
+                       depends_on=("search_strategy", "gp")),
+        OptimizerParam("gp_normalize_y", "Normalise surrogate targets", "bool",
+                       True, advanced=True,
+                       depends_on=("search_strategy", "gp")),
     ]
 
     def __init__(self, search_strategy="gp", exploration_ratio=0.25,
@@ -128,7 +174,11 @@ class SMACOptimizer(BaseOptimizer):
                  random_probability=None, use_default_config=False,
                  initial_design="sobol", acquisition="ei", acquisition_xi=0.0,
                  challengers=None, local_search_iterations=None,
-                 retrain_after=None):
+                 retrain_after=None,
+                 rf_trees=None, rf_max_depth=None, rf_min_samples_split=None,
+                 rf_min_samples_leaf=None, rf_feature_ratio=None,
+                 rf_bootstrapping=True,
+                 gp_model_type="vanilla", gp_restarts=None, gp_normalize_y=True):
         # `self._<name>` for every schema entry: the convention `get_params()`
         # reads back, and what makes the round trip through `.ihpo` work.
         self._search_strategy = search_strategy if search_strategy in _STRATEGIES else "gp"
@@ -142,6 +192,60 @@ class SMACOptimizer(BaseOptimizer):
         self._challengers = challengers
         self._local_search_iterations = local_search_iterations
         self._retrain_after = retrain_after
+        self._rf_trees = rf_trees
+        self._rf_max_depth = rf_max_depth
+        self._rf_min_samples_split = rf_min_samples_split
+        self._rf_min_samples_leaf = rf_min_samples_leaf
+        self._rf_feature_ratio = rf_feature_ratio
+        self._rf_bootstrapping = bool(rf_bootstrapping)
+        self._gp_model_type = gp_model_type if gp_model_type in _GP_MODELS else "vanilla"
+        self._gp_restarts = gp_restarts
+        self._gp_normalize_y = bool(gp_normalize_y)
+
+    def _surrogate(self, facade, scenario):
+        """The model the search fits, with whatever was set on it.
+
+        Asked for through the facade's own `get_model` where that will take the
+        setting, and built here where it will not: the Gaussian-process facade
+        exposes only `model_type` and `kernel`, so restarts and target
+        normalisation mean constructing the process directly. It is given the
+        facade's own kernel, so the rest of the bundle still fits together — and
+        with nothing set it is the same object `get_model` would have returned.
+
+        Only settings that were actually given are passed, so an unset one keeps
+        the strategy's default rather than one of ours.
+        """
+        if self._search_strategy == "rf":
+            given = {
+                "n_trees": self._rf_trees,
+                "max_depth": self._rf_max_depth,
+                "min_samples_split": self._rf_min_samples_split,
+                "min_samples_leaf": self._rf_min_samples_leaf,
+                # Above 1.0 SMAC computes `max_features = 0` and every split
+                # considers no features at all — a forest of stumps, reported
+                # as a fitted surrogate. The schema caps it and so does this.
+                "ratio_features": (None if self._rf_feature_ratio is None
+                                   else min(float(self._rf_feature_ratio), 1.0)),
+            }
+            return facade.get_model(
+                scenario, bootstrapping=self._rf_bootstrapping,
+                **{k: v for k, v in given.items() if v is not None})
+
+        kernel = facade.get_kernel(scenario)
+        if self._gp_model_type == "mcmc":
+            # Mirrors the facade's own MCMC construction. The walker count is
+            # derived from the kernel rather than chosen, and has to be even.
+            walkers = 3 * len(kernel.theta)
+            return MCMCGaussianProcess(
+                configspace=scenario.configspace, kernel=kernel,
+                n_mcmc_walkers=walkers + (walkers % 2),
+                chain_length=250, burning_steps=250,
+                normalize_y=self._gp_normalize_y, seed=scenario.seed)
+
+        restarts = {} if self._gp_restarts is None else {"n_restarts": self._gp_restarts}
+        return GaussianProcess(
+            configspace=scenario.configspace, kernel=kernel,
+            normalize_y=self._gp_normalize_y, seed=scenario.seed, **restarts)
 
     def _scenario_extras(self) -> dict:
         """Settings that belong to the scenario rather than to a component."""
@@ -178,6 +282,15 @@ class SMACOptimizer(BaseOptimizer):
         if self._acquisition == "pi":
             acquisition = PI(xi=self._acquisition_xi)
 
+        model = self._surrogate(facade, scenario)
+        # An MCMC process is an ensemble, and an acquisition function handed one
+        # scores against whichever member it happens to hold. Marginalizing over
+        # them is the whole point of sampling them, and nothing in SMAC pairs
+        # these up for you — `IntegratedAcquisitionFunction` raises only if the
+        # model has no members at all, so an unwrapped one fails quietly.
+        if isinstance(model, MCMCGaussianProcess):
+            acquisition = IntegratedAcquisitionFunction(acquisition)
+
         maximizer_kwargs = {}
         if self._challengers is not None:
             maximizer_kwargs["challengers"] = self._challengers
@@ -194,6 +307,7 @@ class SMACOptimizer(BaseOptimizer):
 
         return facade(
             scenario, target_function,
+            model=model,
             initial_design=initial_design,
             acquisition_function=acquisition,
             acquisition_maximizer=facade.get_acquisition_maximizer(
