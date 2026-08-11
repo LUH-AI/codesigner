@@ -13,71 +13,55 @@ for it first.
 
 from django.utils.translation import gettext_lazy as _
 
-#: label, and a sentence saying what the setting is actually for. The help is
-#: the part that matters: these are SMAC's knobs, and someone who already knew
-#: what "acquisition function" meant would not be reading them here.
+#: label, and a short line under it. Kept to one line: these sit in a form
+#: someone is filling in, not a manual they are reading, and a paragraph under
+#: every field turns the panel into a wall. An empty string means the label
+#: already says it.
 LABELS = {
     "search_strategy": (
         _("Search strategy"),
-        _("How the optimizer models the objective. A Gaussian process is the "
-          "stronger choice for a handful of numeric hyperparameters and a short "
-          "budget; a random forest copes better with many hyperparameters, "
-          "categorical choices, and settings that only apply sometimes."),
+        _("Gaussian process for a few numeric settings; random forest for many, "
+          "or categorical ones."),
     ),
     "exploration_ratio": (
         _("Exploration before modelling"),
-        _("The share of the run spent sampling the space before the model "
-          "starts choosing. Too little and it builds its model from too few "
-          "points; too much and it never gets to use what it learned."),
+        _("Share of the budget sampled before the model takes over."),
     ),
     "random_probability": (
         _("Random configurations"),
-        _("How often to try a random configuration instead of the model's "
-          "suggestion, as a fraction. Guards against the search settling into "
-          "one region too early."),
+        _("Fraction of trials taken at random rather than from the model."),
     ),
     "use_default_config": (
         _("Try the model's own defaults first"),
-        _("Evaluate the configuration the model ships with, so the search has a "
-          "known reference point to beat."),
+        "",
     ),
     "initial_design": (
         _("How the exploration samples"),
-        _("Sobol and Latin hypercube cover the space more evenly than chance "
-          "does, which is worth more the shorter the run."),
+        _("Sobol and Latin hypercube spread more evenly than chance."),
     ),
     "acquisition": (
         _("What makes a configuration worth trying"),
-        _("Expected improvement weighs how much better a candidate might be; "
-          "probability of improvement only asks whether it is likely to be "
-          "better at all, and explores less."),
+        _("Expected improvement weighs by how much; probability, only whether."),
     ),
     "acquisition_xi": (
         _("Improvement required"),
-        _("How much better than the best so far a candidate must promise to be "
-          "before it is worth spending a trial on. Raising it pushes the search "
-          "to explore."),
+        _("Margin over the best so far. Higher explores more."),
     ),
     "challengers": (
         _("Candidates considered per trial"),
-        _("How many configurations the optimizer scores against its model "
-          "before picking one. More is a better choice for more time between "
-          "trials."),
+        _("More candidates, better pick, slower."),
     ),
     "local_search_iterations": (
         _("Candidates refined per trial"),
-        _("How many of the best candidates are improved by a local search "
-          "around them."),
+        _("How many of the best get a local search around them."),
     ),
     "retrain_after": (
         _("Trials between model refits"),
-        _("Refitting every trial is the most informed and the slowest. Only "
-          "worth raising once the model itself has become the expensive part."),
+        _("Higher is faster and less informed."),
     ),
     "numeric_steps": (
         _("Grid steps per numeric hyperparameter"),
-        _("How finely a numeric range is divided. Every combination is tried, "
-          "so this multiplies out fast."),
+        _("Values per numeric range. Combinations multiply."),
     ),
 }
 

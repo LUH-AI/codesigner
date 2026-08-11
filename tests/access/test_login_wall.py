@@ -125,24 +125,19 @@ def test_the_healthcheck_answers_without_a_session(client, hosted):
     assert resp.content == b"ok"
 
 
-def test_the_language_can_be_switched_before_signing_in(client, hosted):
-    """The login page carries the switcher, so this has to work while gated —
-    otherwise the one page a stranger can reach is the one page they may not be
-    able to read."""
+def test_the_language_route_is_reachable_before_signing_in(client, hosted):
+    """The login page carries the switcher whenever more than one language is
+    offered, so the route has to work while gated — otherwise the one page a
+    stranger can reach would be the one page they might not be able to read.
+
+    Only English is offered at the moment (see `config.settings.LANGUAGES`), so
+    what this pins is the exemption, not a translation.
+    """
     resp = client.post(reverse("set_language"),
-                       {"language": "de", "next": reverse("access:login")})
+                       {"language": "en", "next": reverse("access:login")})
 
     assert resp.status_code == 302
-    assert client.cookies["django_language"].value == "de"
-
-
-def test_the_login_page_renders_in_the_chosen_language(client, hosted):
-    client.post(reverse("set_language"),
-                {"language": "de", "next": reverse("access:login")})
-
-    html = client.get(reverse("access:login")).content.decode()
-
-    assert "Anmelden" in html
+    assert client.get(reverse("access:login")).status_code == 200
 
 
 def test_the_url_space_has_no_unintended_exemptions(hosted):

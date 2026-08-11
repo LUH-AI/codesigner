@@ -37,6 +37,9 @@
             </form>
         {% endif %}
         {% get_current_language as CURRENT_LANGUAGE %}
+        {% comment %}Hidden while only one language is offered — a dropdown with
+        a single choice is a control that does nothing.{% endcomment %}
+        {% if LANGUAGES|length > 1 %}
         <form class="locale" action="{% url 'set_language' %}" method="post" title="{% translate 'Language' %}">
             {% csrf_token %}
             <input type="hidden" name="next" value="{{ request.path }}">
@@ -50,6 +53,7 @@
                 {% endfor %}
             </select>
         </form>
+        {% endif %}
     </nav>
     {% if active_tab == 'settings' %}
         <nav class="sidebar">

@@ -25,13 +25,12 @@ jobs:
       # The model contract is its own dependency-free distribution, because it
       # is also installed into each model's environment. core.models imports it.
       - run: pip install -e ./model_sdk --no-deps
-      # Re-extract strings from source FIRST, so the i18n completeness/fuzzy
-      # test (tests/ui/i18n) catches catalogs that drifted from the source —
-      # a new string, or one whose English changed — not just missing msgstrs.
-      - run: python manage.py makemessages -l de -l es --no-obsolete
-      - run: python manage.py compilemessages -l de -l es
-      # Fast suite includes the i18n completeness/parity checks. The slow SMAC
-      # end-to-end tests are a separate opt-in job.
+      # No translation step. German and Spanish are shelved and their catalogs
+      # hold unreviewed drafts; compiling them is precisely what must not
+      # happen, and re-extracting would only churn a file nobody reads.
+      # See config/settings.py LANGUAGES.
+      # Fast suite includes the check that the shelved catalogs stay shelved.
+      # The slow SMAC end-to-end tests are a separate opt-in job.
       # uv is not installed here, so the environment tests run against a shim
       # and the real-uv ones are skipped by their marker.
       - run: python -m pytest -m "not slow and not uv"

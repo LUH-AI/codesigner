@@ -1,23 +1,21 @@
-"""Step 8: internationalisation (English / German / Spanish).
+"""Internationalisation, while German and Spanish are shelved.
 
-Codesigner reuses InteractiveHPO's human-verified de/es translations. Because
-the Streamlit app keys its catalog on the *English* text (``_STRINGS`` values
-are the gettext msgids), and Django's ``{% translate %}`` / ``gettext`` also
-key on the English source string, a translation that is correct in the
-Streamlit app is correct here verbatim — the msgid is identical.
+The interface is marked for translation throughout and only English is offered.
+The de/es catalogs are still in `locale/`, but everything in them that was not
+carried over from InteractiveHPO is marked fuzzy — a draft nobody who speaks the
+language has read — and there are no compiled `.mo` files, so none of it can
+reach a user. An unreviewed translation is worse than an English one; a missing
+translation is not.
 
-These tests pin four things:
+So what is pinned here is no longer completeness. It is that the machinery stays
+intact and inert: the markup keeps working as identity, the switcher does not
+offer a language that has nothing behind it, and nothing unreviewed is compiled.
+Re-enabling is `LANGUAGES` plus `compilemessages`, once the drafts have been
+read.
 
-* every English string marked for translation has a non-empty de and es
-  translation (the CI completeness check the plan calls for, adapted from
-  ``utils/check_translations.py``);
-* for every msgid codesigner shares with InteractiveHPO, codesigner's
-  translation *equals* the oracle's — a direct parity assertion against the
-  reference app rather than a hand-copied table (skipped if the sibling
-  InteractiveHPO checkout isn't present);
-* the default language renders English;
-* posting to ``set_language`` switches the active language and the rendered
-  page comes back translated.
+The one assertion kept from before is the parity check against InteractiveHPO —
+those 32 strings *were* reviewed by a person, and if one ever diverges from the
+reference app that is still worth knowing.
 """
 
 from __future__ import annotations
@@ -27,15 +25,12 @@ from pathlib import Path
 import pytest
 from django.conf import settings
 from django.urls import reverse
-from django.utils import translation
-
-# --- locating the two catalogs ------------------------------------------------
 
 CODESIGNER_LOCALE = Path(settings.BASE_DIR) / "locale"
 # InteractiveHPO lives beside the codesigner repo; its catalog is the oracle.
 IHPO_LOCALE = Path(settings.BASE_DIR).parent / "InteractiveHPO" / "locale"
 
-NON_ENGLISH = ["de", "es"]
+SHELVED = ["de", "es"]
 
 
 def _unquote(s: str) -> str:
@@ -49,11 +44,10 @@ def _unquote(s: str) -> str:
 
 
 def _parse_po(path: Path) -> dict[str, str]:
-    """Return {msgid: msgstr} for every translated (non-empty msgstr) entry.
+    """{msgid: msgstr} for every entry with a non-empty msgstr, fuzzy included.
 
     A minimal parser covering the subset of PO syntax our catalogs use:
-    single- and multi-line msgid/msgstr, ignoring the header (empty msgid)
-    and any fuzzy/comment lines.
+    single- and multi-line msgid/msgstr, ignoring the header (empty msgid).
     """
     catalog: dict[str, str] = {}
     msgid: str | None = None
@@ -61,7 +55,7 @@ def _parse_po(path: Path) -> dict[str, str]:
     in_msgstr = False
 
     def _flush():
-        if msgid and msgstr:  # skip header (msgid "") and untranslated entries
+        if msgid and msgstr:
             catalog[msgid] = msgstr
 
     for raw in path.read_text("utf-8").splitlines():
@@ -85,180 +79,85 @@ def _parse_po(path: Path) -> dict[str, str]:
     return catalog
 
 
-def _codesigner_msgids() -> set[str]:
-    """Every msgid makemessages extracted for German (the set of strings the
-    app actually marks for translation; identical across locales)."""
-    po = _parse_po_all(CODESIGNER_LOCALE / "de" / "LC_MESSAGES" / "django.po")
-    return set(po)
+# --- the drafts stay drafts ---------------------------------------------------
 
 
-def _parse_po_all(path: Path) -> dict[str, str]:
-    """Like _parse_po but keeps entries whose msgstr is empty too, so callers
-    can distinguish 'string is marked' from 'string is translated'."""
-    catalog: dict[str, str] = {}
-    msgid: str | None = None
-    msgstr: str | None = None
-    in_msgstr = False
-
-    def _flush():
-        if msgid:  # keep any real msgid, translated or not; skip header
-            catalog[msgid] = msgstr or ""
-
-    for raw in path.read_text("utf-8").splitlines():
-        line = raw.strip()
-        if line.startswith("#"):
-            continue
-        if line.startswith("msgid "):
-            _flush()
-            msgid, msgstr, in_msgstr = _unquote(line[6:].strip()), None, False
-        elif line.startswith("msgstr "):
-            msgstr, in_msgstr = _unquote(line[7:].strip()), True
-        elif line.startswith('"') and line.endswith('"'):
-            frag = _unquote(line)
-            if in_msgstr:
-                msgstr = (msgstr or "") + frag
-            elif msgid is not None:
-                msgid += frag
-        elif not line:
-            _flush()
-            msgid = msgstr = None
-            in_msgstr = False
-    _flush()
-    return catalog
+@pytest.mark.parametrize("locale", SHELVED)
+def test_nothing_unreviewed_is_compiled(locale):
+    """A `.mo` is the only thing gettext actually reads. While the catalogs hold
+    unreviewed drafts there must not be one, or the drafts are live."""
+    assert not (CODESIGNER_LOCALE / locale / "LC_MESSAGES" / "django.mo").exists()
 
 
-# --- completeness -------------------------------------------------------------
+@pytest.mark.parametrize("locale", SHELVED)
+def test_the_drafts_are_still_there_to_come_back_to(locale):
+    """Shelved, not discarded. Deleting them would mean redoing the work when
+    the interface settles, and the reviewed ones would go with it."""
+    catalog = _parse_po(CODESIGNER_LOCALE / locale / "LC_MESSAGES" / "django.po")
+
+    assert len(catalog) > 100
 
 
-def _fuzzy_msgids(path: Path) -> set[str]:
-    """msgids flagged '#, fuzzy' (excluding the header). makemessages marks a
-    guessed translation fuzzy; gettext then refuses to compile it, so at runtime
-    the string silently falls back to English — as bad as no translation.
-
-    Reconstructs multi-line msgids so a fuzzy flag on a wrapped entry (e.g. a
-    long blocktranslate) is still detected."""
-    lines = path.read_text("utf-8").splitlines()
-    fuzzy: set[str] = set()
-    pending = False
-    i, n = 0, len(lines)
-    while i < n:
-        line = lines[i].strip()
-        if line.startswith("#,") and "fuzzy" in line:
-            pending = True
-            i += 1
-            continue
-        if line.startswith("msgid "):
-            mid = _unquote(line[len("msgid "):].strip())
-            j = i + 1
-            while j < n and lines[j].strip().startswith('"'):
-                mid += _unquote(lines[j].strip())
-                j += 1
-            if pending and mid:  # skip the header (empty msgid)
-                fuzzy.add(mid)
-            pending = False
-            i = j
-            continue
-        # a #| previous-msgid comment keeps pending alive; anything else clears it
-        if line and not line.startswith("#"):
-            pending = False
-        i += 1
-    return fuzzy
+@pytest.mark.parametrize("locale", SHELVED)
+def test_a_shelved_language_is_not_offered(locale):
+    """The switcher must not list a language with nothing behind it — choosing
+    it would silently do nothing at all."""
+    assert locale not in dict(settings.LANGUAGES)
 
 
-@pytest.mark.parametrize("locale", NON_ENGLISH)
-def test_every_marked_string_is_translated(locale):
-    """Adapts utils/check_translations.py: every msgid the app marks for
-    translation must have a non-empty, non-fuzzy msgstr in each non-English
-    catalog, so switching language never falls back to English for a visible
-    string. Fuzzy entries count as untranslated — gettext won't compile them."""
-    po_path = CODESIGNER_LOCALE / locale / "LC_MESSAGES" / "django.po"
-    assert po_path.exists(), f"missing catalog: {po_path}"
-
-    entries = _parse_po_all(po_path)
-    untranslated = sorted(mid for mid, mstr in entries.items() if not mstr)
-    assert not untranslated, (
-        f"[{locale}] {len(untranslated)} untranslated string(s): {untranslated}"
-    )
-
-    fuzzy = sorted(_fuzzy_msgids(po_path))
-    assert not fuzzy, f"[{locale}] {len(fuzzy)} fuzzy (uncompiled) string(s): {fuzzy}"
+def test_english_is_what_is_offered():
+    assert [code for code, _ in settings.LANGUAGES] == ["en"]
 
 
-# --- parity against the InteractiveHPO oracle ---------------------------------
+# --- parity with the reference app, for the strings a person did check --------
 
 
 @pytest.mark.skipif(
     not IHPO_LOCALE.exists(),
     reason="InteractiveHPO reference checkout not found beside codesigner",
 )
-@pytest.mark.parametrize("locale", NON_ENGLISH)
-def test_translations_match_interactivehpo_reference(locale):
-    """For every msgid codesigner shares with InteractiveHPO, codesigner's
-    translation must be byte-identical to the reference app's — the msgid is
-    the English source in both, so a shared string must translate the same."""
+@pytest.mark.parametrize("locale", SHELVED)
+def test_translations_carried_over_still_match_interactivehpo(locale):
+    """For every msgid codesigner shares with InteractiveHPO, the translation
+    must be byte-identical to the reference app's — the msgid is the English
+    source in both, so a shared string must translate the same. These are the
+    only entries in the catalog anyone has verified."""
     ours = _parse_po(CODESIGNER_LOCALE / locale / "LC_MESSAGES" / "django.po")
     oracle = _parse_po(IHPO_LOCALE / locale / "LC_MESSAGES" / "app.po")
 
-    shared = set(ours) & set(oracle)
-    assert shared, "expected codesigner to reuse at least some reference strings"
-
-    mismatches = {
-        mid: (ours[mid], oracle[mid]) for mid in shared if ours[mid] != oracle[mid]
+    differing = {
+        msgid: (ours[msgid], oracle[msgid])
+        for msgid in set(ours) & set(oracle)
+        if ours[msgid] != oracle[msgid]
     }
-    assert not mismatches, (
-        f"[{locale}] translations diverge from InteractiveHPO: {mismatches}"
-    )
+
+    assert not differing, f"[{locale}] diverged from the reference app: {differing}"
 
 
-# --- runtime behaviour --------------------------------------------------------
+# --- the markup still works ---------------------------------------------------
 
 
-def test_gettext_translates_a_known_string_to_german():
-    """The gettext machinery is wired (LOCALE_PATHS + compiled .mo): activating
-    German returns the German source for a representative UI string."""
-    with translation.override("de"):
-        assert translation.gettext("Number of trials") == "Anzahl der Versuche"
+def test_the_interface_renders_its_english_source(client):
+    """`{% translate %}` with no catalog behind it is the identity function, so
+    every marked string renders as written. This is what makes leaving strings
+    untranslated cost nothing."""
+    body = client.get(reverse("ui:home")).content.decode()
 
-
-def test_gettext_translates_a_known_string_to_spanish():
-    """Same wiring check for Spanish."""
-    with translation.override("es"):
-        assert translation.gettext("Number of trials") == "Número de pruebas"
-
-
-def test_default_language_renders_english(client):
-    """With no language chosen the sidebar renders the English source text."""
-    resp = client.get(reverse("ui:home"))
-    assert resp.status_code == 200
-    body = resp.content.decode()
     assert "Experiments" in body
     assert "Use the sidebar to create a new experiment." in body
 
 
-def test_language_switcher_lists_all_three_languages(client):
-    """The sidebar switcher offers English, German and Spanish."""
+def test_the_switcher_is_hidden_while_there_is_nothing_to_switch_to(client):
+    """A dropdown with one option is a control that does nothing."""
     body = client.get(reverse("ui:home")).content.decode()
-    for label in ("English", "Deutsch", "Español"):
-        assert label in body
+
+    assert 'class="locale"' not in body
 
 
-@pytest.mark.parametrize(
-    "code, expected",
-    [
-        ("de", "Erstellen Sie über die Seitenleiste"),
-        ("es", "Usa la barra lateral"),
-    ],
-)
-def test_set_language_switches_rendered_page(client, code, expected):
-    """Posting to set_language activates the locale for the session, and the
-    next page render comes back translated (not the English source)."""
-    home = reverse("ui:home")
-    resp = client.post(
-        reverse("set_language"),
-        {"language": code, "next": home},
-    )
+def test_the_language_route_still_exists(client):
+    """Kept wired so re-enabling a language is `LANGUAGES` and a compile, not a
+    hunt for what else was removed."""
+    resp = client.post(reverse("set_language"),
+                       {"language": "en", "next": reverse("ui:home")})
+
     assert resp.status_code in (302, 200)
-
-    body = client.get(home).content.decode()
-    assert expected in body
-    assert "Use the sidebar to create a new experiment." not in body

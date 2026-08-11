@@ -20,7 +20,7 @@ these, so imposing one number on both would be worse than saying nothing.
 {% endcomment %}
 {% if optimizer_params %}
     <fieldset class="check-group"{% if panel_disabled %} disabled{% endif %}>
-        <legend>{% translate "How the search runs" %}</legend>
+        <legend>{% translate "Configure optimizer" %}</legend>
 
         {% for p in optimizer_params %}
             {% if not p.advanced %}{% include "ui/_optimizer_param_field.html" %}{% endif %}

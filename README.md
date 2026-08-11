@@ -6,8 +6,13 @@ results — best/selected configuration, hyperparameter importance, and the
 incumbent's performance over trials. Experiments save to a portable `.ihpo`
 file. A Django rebuild of the InteractiveHPO Streamlit app.
 
-The interface is available in English, German, and Spanish (🌐 selector in the
-sidebar).
+The interface is in English. German and Spanish catalogs exist under `locale/`
+but are shelved while the interface is still moving: everything in them that did
+not come from the InteractiveHPO original is an unreviewed draft, marked fuzzy
+and not compiled, because a wrong translation is worse than an English one. The
+strings stay marked for translation throughout, so re-enabling a language is
+`LANGUAGES` in `config/settings.py` plus `compilemessages`, once someone who
+speaks it has read the drafts.
 
 ## Architecture at a glance
 
@@ -27,7 +32,6 @@ pip install -e .                   # registers the app version (pyproject.toml)
 pip install -e ./model_sdk         # the model contract (core.models imports it)
 cp .env.example .env               # set SECRET_KEY
 python manage.py migrate
-python manage.py compilemessages -l de -l es   # build the de/es catalogs
 python manage.py runserver
 ```
 
@@ -148,8 +152,9 @@ REQUIRE_LOGIN=True
 Every page then requires a signed-in user. Two things stay outside the wall, and
 only two: `/healthz/` (the container runtime has no session, and a healthcheck
 that redirects to a login page reports a healthy instance as down) and the
-language switcher (the login page carries it, and choosing a language you can
-read should not require signing in first).
+language route (the login page carries the switcher when more than one language
+is offered, and choosing a language you can read should not require signing in
+first).
 
 Accounts are created in the Django admin — there is no self-registration, which
 is the right default for an instance hosted for a known set of people:

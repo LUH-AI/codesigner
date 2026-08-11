@@ -211,10 +211,18 @@ AUTH_PASSWORD_VALIDATORS = [
 LANGUAGE_CODE = "en"
 
 # The languages offered in the switcher (labels shown in their own language).
+#
+# German and Spanish are shelved while the interface is still moving. Their
+# catalogs are still in `locale/`, but every string that was not carried over
+# from InteractiveHPO is marked fuzzy — a draft nobody has checked — and there
+# are no compiled .mo files, so nothing of it can reach a user. An unreviewed
+# translation is worse than an English one; a missing translation is not.
+#
+# Re-enabling is this list plus `compilemessages`, after the drafts have been
+# read by someone who speaks the language. The `{% translate %}` markup stays
+# throughout in the meantime, so nothing has to be re-marked.
 LANGUAGES = [
     ("en", "English"),
-    ("de", "Deutsch"),
-    ("es", "Español"),
 ]
 
 # Translation catalogs live here (locale/<lang>/LC_MESSAGES/django.{po,mo}).

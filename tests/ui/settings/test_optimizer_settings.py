@@ -171,7 +171,7 @@ def test_an_optimizer_with_nothing_to_configure_offers_nothing(client):
     than an empty box with a save button."""
     exp = _experiment(optimizer_name="Random Search")
 
-    assert "How the search runs" not in _settings(client, exp)
+    assert "Configure optimizer" not in _settings(client, exp)
 
 
 # ── surviving a rename ───────────────────────────────────────────────────────
@@ -182,7 +182,7 @@ def test_an_experiment_stored_under_the_old_name_still_works(client):
     has to resolve."""
     exp = _experiment(optimizer_name="SMAC (BlackBox)")
 
-    assert "How the search runs" in _settings(client, exp)
+    assert "Configure optimizer" in _settings(client, exp)
     assert client.get(
         reverse("ui:experiment_detail", args=[exp.pk])).status_code == 200
 

@@ -34,6 +34,7 @@ read should not require signing in first.
         </form>
 
         {% get_current_language as CURRENT_LANGUAGE %}
+        {% if LANGUAGES|length > 1 %}
         <form class="signin-locale" action="{% url 'set_language' %}" method="post">
             {% csrf_token %}
             <input type="hidden" name="next" value="{{ request.get_full_path }}">
@@ -43,6 +44,7 @@ read should not require signing in first.
                 {% endfor %}
             </select>
         </form>
+        {% endif %}
     </main>
 </body>
 </html>
