@@ -8,7 +8,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: PACKAGE VERSION\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2026-08-06 14:02+0000\n"
+"POT-Creation-Date: 2026-08-11 08:27+0000\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
 "Language-Team: LANGUAGE <LL@li.org>\n"
@@ -229,6 +229,182 @@ msgstr "Neues Experiment"
 msgid "Import experiment"
 msgstr "Experiment importieren"
 
+#: ui/optimizer_labels.py:21
+msgid "Search strategy"
+msgstr "Suchstrategie"
+
+#: ui/optimizer_labels.py:22
+msgid ""
+"How the optimizer models the objective. A Gaussian process is the stronger "
+"choice for a handful of numeric hyperparameters and a short budget; a random "
+"forest copes better with many hyperparameters, categorical choices, and "
+"settings that only apply sometimes."
+msgstr ""
+"Wie der Optimierer die Zielfunktion modelliert. Ein Gauß-Prozess "
+"ist bei wenigen numerischen Hyperparametern und kleinem Budget die "
+"stärkere Wahl; ein Random Forest kommt mit vielen Hyperparametern, "
+"kategorialen Auswahlen und nur manchmal geltenden Einstellungen "
+"besser zurecht."
+
+#: ui/optimizer_labels.py:28
+msgid "Exploration before modelling"
+msgstr "Erkundung vor der Modellierung"
+
+#: ui/optimizer_labels.py:29
+msgid ""
+"The share of the run spent sampling the space before the model starts "
+"choosing. Too little and it builds its model from too few points; too much "
+"and it never gets to use what it learned."
+msgstr ""
+"Der Anteil des Laufs, der den Raum abtastet, bevor das Modell "
+"auswählt. Zu wenig, und es baut sein Modell auf zu wenigen "
+"Punkten; zu viel, und es kann das Gelernte nicht mehr nutzen."
+
+#: ui/optimizer_labels.py:34
+msgid "Random configurations"
+msgstr "Zufällige Konfigurationen"
+
+#: ui/optimizer_labels.py:35
+msgid ""
+"How often to try a random configuration instead of the model's suggestion, "
+"as a fraction. Guards against the search settling into one region too early."
+msgstr ""
+"Wie oft statt des Modellvorschlags eine zufällige Konfiguration "
+"probiert wird, als Anteil. Verhindert, dass sich die Suche zu früh "
+"auf eine Region festlegt."
+
+#: ui/optimizer_labels.py:40
+msgid "Try the model's own defaults first"
+msgstr "Zuerst die Standardwerte des Modells probieren"
+
+#: ui/optimizer_labels.py:41
+msgid ""
+"Evaluate the configuration the model ships with, so the search has a known "
+"reference point to beat."
+msgstr ""
+"Die mitgelieferte Konfiguration des Modells auswerten, damit die "
+"Suche einen bekannten Referenzpunkt hat, den sie schlagen kann."
+
+#: ui/optimizer_labels.py:45
+msgid "How the exploration samples"
+msgstr "Wie die Erkundung abtastet"
+
+#: ui/optimizer_labels.py:46
+msgid ""
+"Sobol and Latin hypercube cover the space more evenly than chance does, "
+"which is worth more the shorter the run."
+msgstr ""
+"Sobol und Latin Hypercube decken den Raum gleichmäßiger ab als der "
+"Zufall, was umso mehr zählt, je kürzer der Lauf ist."
+
+#: ui/optimizer_labels.py:50
+msgid "What makes a configuration worth trying"
+msgstr "Was eine Konfiguration probierenswert macht"
+
+#: ui/optimizer_labels.py:51
+msgid ""
+"Expected improvement weighs how much better a candidate might be; "
+"probability of improvement only asks whether it is likely to be better at "
+"all, and explores less."
+msgstr ""
+"Erwartete Verbesserung gewichtet, um wie viel besser ein Kandidat "
+"sein könnte; Verbesserungswahrscheinlichkeit fragt nur, ob er "
+"überhaupt wahrscheinlich besser ist, und erkundet weniger."
+
+#: ui/optimizer_labels.py:56
+msgid "Improvement required"
+msgstr "Erforderliche Verbesserung"
+
+#: ui/optimizer_labels.py:57
+msgid ""
+"How much better than the best so far a candidate must promise to be before "
+"it is worth spending a trial on. Raising it pushes the search to explore."
+msgstr ""
+"Um wie viel besser als das bisher Beste ein Kandidat verspricht zu "
+"sein muss, damit sich ein Versuch lohnt. Ein höherer Wert treibt "
+"die Suche zur Erkundung."
+
+#: ui/optimizer_labels.py:62
+msgid "Candidates considered per trial"
+msgstr "Betrachtete Kandidaten pro Versuch"
+
+#: ui/optimizer_labels.py:63
+msgid ""
+"How many configurations the optimizer scores against its model before "
+"picking one. More is a better choice for more time between trials."
+msgstr ""
+"Wie viele Konfigurationen der Optimierer gegen sein Modell "
+"bewertet, bevor er eine auswählt. Mehr bedeutet eine bessere Wahl "
+"für mehr Zeit zwischen den Versuchen."
+
+#: ui/optimizer_labels.py:68
+msgid "Candidates refined per trial"
+msgstr "Verfeinerte Kandidaten pro Versuch"
+
+#: ui/optimizer_labels.py:69
+msgid ""
+"How many of the best candidates are improved by a local search around them."
+msgstr ""
+"Wie viele der besten Kandidaten durch eine lokale Suche um sie "
+"herum verbessert werden."
+
+#: ui/optimizer_labels.py:73
+msgid "Trials between model refits"
+msgstr "Versuche zwischen Modellanpassungen"
+
+#: ui/optimizer_labels.py:74
+msgid ""
+"Refitting every trial is the most informed and the slowest. Only worth "
+"raising once the model itself has become the expensive part."
+msgstr ""
+"Nach jedem Versuch neu anzupassen ist am informiertesten und am "
+"langsamsten. Nur zu erhöhen, wenn das Modell selbst zum teuren "
+"Teil geworden ist."
+
+#: ui/optimizer_labels.py:78
+msgid "Grid steps per numeric hyperparameter"
+msgstr "Rasterschritte je numerischem Hyperparameter"
+
+#: ui/optimizer_labels.py:79
+msgid ""
+"How finely a numeric range is divided. Every combination is tried, so this "
+"multiplies out fast."
+msgstr ""
+"Wie fein ein numerischer Bereich unterteilt wird. Jede Kombination "
+"wird probiert, das multipliziert sich schnell auf."
+
+#: ui/optimizer_labels.py:89
+msgid "Gaussian process — a few continuous settings"
+msgstr "Gauß-Prozess – wenige kontinuierliche Einstellungen"
+
+#: ui/optimizer_labels.py:90
+msgid "Random forest — many settings, or categorical ones"
+msgstr "Random Forest – viele oder kategoriale Einstellungen"
+
+#: ui/optimizer_labels.py:93
+msgid "Sobol — evenly spread"
+msgstr "Sobol – gleichmäßig verteilt"
+
+#: ui/optimizer_labels.py:94
+msgid "Latin hypercube"
+msgstr "Latin Hypercube"
+
+#: ui/optimizer_labels.py:95
+msgid "Uniformly random"
+msgstr "Gleichverteilt zufällig"
+
+#: ui/optimizer_labels.py:96
+msgid "Only the model's defaults"
+msgstr "Nur die Standardwerte des Modells"
+
+#: ui/optimizer_labels.py:99
+msgid "Expected improvement"
+msgstr "Erwartete Verbesserung"
+
+#: ui/optimizer_labels.py:100
+msgid "Probability of improvement"
+msgstr "Verbesserungswahrscheinlichkeit"
+
 #: ui/templates/ui/_breadcrumbs.html:15
 msgid "Breadcrumb"
 msgstr "Navigationspfad"
@@ -258,6 +434,14 @@ msgstr "Das erste Erstellen einer Umgebung kann mehrere Minuten dauern."
 #: ui/templates/ui/_experiment_settings_fields.html:14
 msgid "Figures shown on an experiment page"
 msgstr "Auf einer Experimentseite angezeigte Abbildungen"
+
+#: ui/templates/ui/_optimizer_param_field.html:23
+msgid "the strategy decides"
+msgstr "die Strategie entscheidet"
+
+#: ui/templates/ui/_optimizer_params.html:20
+msgid "Advanced search settings"
+msgstr "Erweiterte Sucheinstellungen"
 
 #: ui/templates/ui/_run_status.html:5
 #, python-format
@@ -524,7 +708,32 @@ msgstr "Auf Standard zurücksetzen"
 msgid "Save settings as default"
 msgstr "Einstellungen als Standard speichern"
 
-#: ui/templates/ui/experiment_settings.html:39
+#: ui/templates/ui/experiment_settings.html:35
+msgid "How the search runs"
+msgstr "Wie die Suche abläuft"
+
+#: ui/templates/ui/experiment_settings.html:37
+#, python-format
+msgid ""
+"Settings for %(optimizer)s. They apply from the next run onwards — trials "
+"already recorded stay exactly as they were measured, and the search "
+"continues from them."
+msgstr ""
+"Einstellungen für %(optimizer)s. Sie gelten ab dem nächsten Lauf – "
+"bereits erfasste Versuche bleiben genau so, wie sie gemessen "
+"wurden, und die Suche setzt auf ihnen auf."
+
+#: ui/templates/ui/experiment_settings.html:40
+msgid "A run is in flight. These can be changed once it finishes."
+msgstr ""
+"Ein Lauf ist im Gange. Diese Einstellungen sind änderbar, sobald "
+"er endet."
+
+#: ui/templates/ui/experiment_settings.html:46
+msgid "Save search settings"
+msgstr "Sucheinstellungen speichern"
+
+#: ui/templates/ui/experiment_settings.html:57
 msgid "Change default experiment settings"
 msgstr "Standard-Experimenteinstellungen ändern"
 
@@ -639,11 +848,11 @@ msgstr ""
 msgid "Use demo models"
 msgstr "Demo-Modelle verwenden"
 
-#: ui/templates/ui/new_experiment.html:58
+#: ui/templates/ui/new_experiment.html:68
 msgid "Use demo datasets"
 msgstr "Demo-Datensätze verwenden"
 
-#: ui/templates/ui/new_experiment.html:73
+#: ui/templates/ui/new_experiment.html:83
 msgid ""
 "Fixed once the experiment exists: trials scored different ways cannot be "
 "compared with each other."
@@ -651,7 +860,7 @@ msgstr ""
 "Nach dem Anlegen unveränderlich: unterschiedlich bewertete Versuche lassen "
 "sich nicht miteinander vergleichen."
 
-#: ui/templates/ui/new_experiment.html:82
+#: ui/templates/ui/new_experiment.html:92
 msgid "Create experiment"
 msgstr "Experiment erstellen"
 
@@ -676,57 +885,57 @@ msgstr ""
 "Einstellungen sind\n"
 "    nicht betroffen."
 
-#: ui/views.py:85
+#: ui/views.py:86
 msgid "all the requested trials ran"
 msgstr "alle angeforderten Versuche gelaufen sind"
 
-#: ui/views.py:86
+#: ui/views.py:87
 msgid "the target score was reached"
 msgstr "der Zielwert erreicht wurde"
 
-#: ui/views.py:87
+#: ui/views.py:88
 msgid "the time limit was reached"
 msgstr "das Zeitlimit erreicht wurde"
 
-#: ui/views.py:88
+#: ui/views.py:89
 msgid "the compute budget was used up"
 msgstr "das Rechenbudget aufgebraucht war"
 
-#: ui/views.py:89
+#: ui/views.py:90
 msgid "the score had stopped improving"
 msgstr "der Wert sich nicht mehr verbesserte"
 
-#: ui/views.py:90
+#: ui/views.py:91
 msgid "the search was confident nothing better remained"
 msgstr "die Suche sicher war, dass nichts Besseres übrig ist"
 
-#: ui/views.py:91
+#: ui/views.py:92
 msgid "it was interrupted"
 msgstr "es unterbrochen wurde"
 
-#: ui/views.py:92
+#: ui/views.py:93
 msgid "every trial was failing"
 msgstr "jeder Versuch fehlschlug"
 
-#: ui/views.py:129
+#: ui/views.py:191
 msgid "Inconsistent"
 msgstr "Inkonsistent"
 
-#: ui/views.py:269
+#: ui/views.py:342
 msgid ""
 "Set at least one stopping criterion, so the run has something to end on."
 msgstr ""
 "Legen Sie mindestens ein Abbruchkriterium fest, damit der Lauf enden kann."
 
-#: ui/views.py:480
+#: ui/views.py:567
 msgid "Invalid or unreadable experiment file."
 msgstr "Ungültige oder unleserliche Experimentdatei."
 
-#: ui/views.py:566
+#: ui/views.py:653
 #, python-format
 msgid "%(k)s-fold CV"
 msgstr "%(k)s-fache CV"
 
-#: ui/views.py:567
+#: ui/views.py:654
 msgid "holdout"
 msgstr "Holdout"

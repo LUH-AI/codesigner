@@ -25,6 +25,7 @@ from .services import modelenv
 from .services import snapshot as snapshot_adapter
 from .services.run import resolve_seed
 from .services.run_logic import decide_run, resolve_metric_change
+from .optimizer_labels import describe_all
 from .services.settings import SETTING_DEFAULTS, global_defaults, resolve_settings
 
 _ACTIVE = ["pending", "running"]
@@ -116,6 +117,67 @@ def _posted_stopping(request) -> dict:
     return stopping
 
 
+#: Optimizer settings are posted with this prefix, so a parameter can be named
+#: whatever the optimizer calls it without colliding with `n_trials` or a
+#: stopping criterion on the same form.
+_OPTIMIZER_PREFIX = "opt_"
+
+
+def _posted_optimizer_params(request, optimizer) -> dict:
+    """The optimizer's settings as submitted, read through its own schema.
+
+    Types and bounds come from the declaration rather than a table here, which
+    is the difference between this and `_posted_stopping`: an optimizer that
+    declares a new setting gets it parsed without this function changing.
+
+    A blank numeric field means "leave it to the strategy" and is stored as
+    None, not dropped — the difference matters, because a stored value that is
+    simply absent would be filled by the constructor default on the next read
+    and the two would disagree.
+    """
+    params = {}
+    for param in optimizer.params_schema:
+        raw = request.POST.get(f"{_OPTIMIZER_PREFIX}{param.name}")
+        if param.type == "bool":
+            params[param.name] = bool(raw)
+            continue
+        raw = (raw or "").strip()
+        if not raw:
+            params[param.name] = None if param.default is None else param.default
+            continue
+        if param.type == "select":
+            params[param.name] = raw if raw in param.choices else param.default
+            continue
+        try:
+            value = (int if param.type == "int" else float)(raw)
+        except ValueError:
+            params[param.name] = param.default
+            continue
+        if param.min is not None:
+            value = max(param.min, value)
+        if param.max is not None:
+            value = min(param.max, value)
+        params[param.name] = value
+    return params
+
+
+def _optimizer_param_context(optimizer, stored=None) -> dict:
+    """What the settings partial needs, for whichever optimizer this is."""
+    described = describe_all(optimizer, stored)
+    return {
+        "optimizer_params": described,
+        "has_advanced_params": any(p["advanced"] for p in described),
+    }
+
+
+def _optimizer_for(name):
+    """The registry optimizer an experiment names, or None. Aliases included, so
+    an experiment stored under an optimizer's older name still resolves."""
+    return OPTIMIZERS.get(name) or next(
+        (o for o in OPTIMIZERS.values()
+         if o.name == name or name in getattr(o, "aliases", ())), None)
+
+
 def metric_label(primary_metric, original_metric):
     """The label shown for an experiment's metric.
 
@@ -166,20 +228,31 @@ def new_experiment(request):
     """
     may_upload = permissions.policy().may_upload_models(request)
     if request.method != "POST":
-        return render(request, "ui/new_experiment.html",
-                      {"form": NewExperimentForm(may_upload_models=may_upload)})
+        return render(request, "ui/new_experiment.html", {
+            "form": NewExperimentForm(may_upload_models=may_upload),
+            **_optimizer_param_context(OPTIMIZERS["SMAC"]),
+        })
 
     form = NewExperimentForm(request.POST, request.FILES,
                              may_upload_models=may_upload)
     if not form.is_valid():
-        return render(request, "ui/new_experiment.html", {"form": form})
+        return render(request, "ui/new_experiment.html", {
+            "form": form,
+            **_optimizer_param_context(
+                _optimizer_for(request.POST.get("optimizer_name", "")) or OPTIMIZERS["SMAC"],
+                _posted_optimizer_params(
+                    request,
+                    _optimizer_for(request.POST.get("optimizer_name", "")) or OPTIMIZERS["SMAC"])),
+        })
 
     cleaned = form.cleaned_data
     seed = resolve_seed(cleaned["seed"])
     tmp_paths = []
     try:
         dataset_path = _dataset_path_from(form, tmp_paths)
-        optimizer = type(OPTIMIZERS[cleaned["optimizer_name"]])()
+        chosen = OPTIMIZERS[cleaned["optimizer_name"]]
+        optimizer = type(chosen)(**type(chosen).known_params(
+            _posted_optimizer_params(request, chosen)))
         # A mounted model is adopted from its server-side path (unless an upload
         # was given, which takes precedence); the adapter copies it into MEDIA.
         mounted = cleaned.get("mounted_model") or ""
@@ -392,7 +465,18 @@ def _posted_settings(request):
 def experiment_settings(request, exp):
     """One experiment's settings: inherit the defaults, override, reset, or
     promote its own settings to be the defaults (which asks first)."""
+    optimizer = _optimizer_for(exp.optimizer_name)
+
     if request.method == "POST":
+        if "save_search" in request.POST and optimizer is not None:
+            # Its own form and its own field. The display settings above have
+            # inherit/override/promote-to-default semantics; how the search runs
+            # has none of that — it belongs to this experiment alone.
+            if not exp.is_running:
+                exp.optimizer_params = _posted_optimizer_params(request, optimizer)
+                exp.save(update_fields=["optimizer_params"])
+            return redirect("ui:experiment_settings", pk=exp.pk)
+
         if "reset" in request.POST or request.POST.get("use_default_settings"):
             exp.use_default_settings = True
             exp.settings = {}
@@ -428,7 +512,10 @@ def experiment_settings(request, exp):
         **resolve_settings(exp),
         "use_default_settings": exp.use_default_settings,
     })
-    return render(request, "ui/experiment_settings.html", {"experiment": exp, "form": form})
+    context = {"experiment": exp, "form": form, "search_locked": exp.is_running}
+    if optimizer is not None:
+        context.update(_optimizer_param_context(optimizer, exp.optimizer_params))
+    return render(request, "ui/experiment_settings.html", context)
 
 
 def appearance(request):
@@ -593,9 +680,7 @@ def _detail_context(request, exp):
         # Only an optimizer that fits a model of the objective can answer the
         # confidence criterion, so only then is it offered.
         "supports_confidence": getattr(
-            OPTIMIZERS.get(exp.optimizer_name)
-            or next((o for o in OPTIMIZERS.values() if o.name == exp.optimizer_name), None),
-            "supports_confidence_stopping", False),
+            _optimizer_for(exp.optimizer_name), "supports_confidence_stopping", False),
         "run_default_metric": exp.primary_metric or (metric_names[0] if metric_names else None),
     }
     if result is None:

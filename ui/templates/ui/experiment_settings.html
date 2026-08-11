@@ -30,6 +30,24 @@
         </div>
     </form>
 
+    {% if optimizer_params %}
+        <h2 style="margin-top: 2rem;">{% translate "How the search runs" %}</h2>
+        <p class="caption">
+            {% blocktranslate with optimizer=experiment.optimizer_name %}Settings for {{ optimizer }}. They apply from the next run onwards — trials already recorded stay exactly as they were measured, and the search continues from them.{% endblocktranslate %}
+        </p>
+        {% if search_locked %}
+            <div class="alert info" style="max-width: 40rem;">{% translate "A run is in flight. These can be changed once it finishes." %}</div>
+        {% else %}
+            <form method="post" class="settings-form">
+                {% csrf_token %}
+                {% include "ui/_optimizer_params.html" %}
+                <div class="actions">
+                    <button type="submit" name="save_search" value="1" class="btn-primary">{% translate "Save search settings" %}</button>
+                </div>
+            </form>
+        {% endif %}
+    {% endif %}
+
     {% if may_change_defaults %}
         <p class="nav-links" style="margin-top: 1rem;">
             {% comment %}The defaults are global, so this leaves the experiment behind —

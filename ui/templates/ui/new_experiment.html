@@ -53,6 +53,15 @@
             {{ form.optimizer_name }}
         </div>
 
+        {% comment %}
+        The settings shown belong to SMAC, which is what the dropdown starts on.
+        Choosing another optimizer and saving stores that one's defaults; its own
+        settings are then editable from the experiment's settings page. Rendering
+        all three optimizers' fields at once, or fetching them on change, would
+        both be more machinery than one dropdown deserves.
+        {% endcomment %}
+        {% include "ui/_optimizer_params.html" %}
+
         {# ── Dataset: an uploaded CSV by default, or a demo when the box is checked ── #}
         <div class="field">
             <label class="check"><input type="checkbox" name="use_demo_dataset"> {% translate "Use demo datasets" %}</label>

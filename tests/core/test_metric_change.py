@@ -174,11 +174,12 @@ def test_smac_keeps_the_history_across_a_metric_change(two_runs):
 
 
 @pytest.mark.slow
-def test_resuming_on_the_same_metric_still_reuses_the_stored_run(
-        optimizers, models, metrics, iris_splits):
-    """The rebuild is only for a changed metric. Resuming unchanged must keep
-    using the stored SMAC directory, or every resume would pay to replay its
-    whole history."""
+def test_every_resume_rebuilds_and_replays(optimizers, models, metrics, iris_splits):
+    """Resuming used to reuse SMAC's stored directory, which required the
+    scenario to be byte-identical between runs — and that is what forced the
+    budget to be a constant, which is what stopped the search ever reaching its
+    model. A rebuild costs one `tell` per past trial and no evaluations, so the
+    history survives and the budget can be honest."""
     X_train, X_val, y_train, y_val = iris_splits
     smac = optimizers["SMAC"]
     first = smac.optimize(models["Random Forest"], X_train, y_train, X_val, y_val,
@@ -187,5 +188,6 @@ def test_resuming_on_the_same_metric_still_reuses_the_stored_run(
                            metrics=metrics, primary_metric="accuracy", n_trials=2,
                            previous_result=first, seed=0)
 
-    assert second.metadata["smac_output_dir"] == first.metadata["smac_output_dir"]
+    assert second.metadata["smac_output_dir"] != first.metadata["smac_output_dir"]
     assert len(second.trials) == 5
+    assert [t.trial for t in second.trials] == [1, 2, 3, 4, 5]

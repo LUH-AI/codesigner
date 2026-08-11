@@ -1,0 +1,27 @@
+{% load i18n %}
+<div class="field">
+    {% if p.type == "bool" %}
+        <label class="check" for="opt_{{ p.name }}">
+            <input type="checkbox" id="opt_{{ p.name }}" name="opt_{{ p.name }}"
+                   {% if p.checked %}checked{% endif %}>
+            {{ p.label }}
+        </label>
+    {% else %}
+        <label for="opt_{{ p.name }}">{{ p.label }}</label>
+        {% if p.type == "select" %}
+            <select id="opt_{{ p.name }}" name="opt_{{ p.name }}">
+                {% for value, text in p.choices %}
+                    <option value="{{ value }}"{% if value == p.value %} selected{% endif %}>{{ text }}</option>
+                {% endfor %}
+            </select>
+        {% else %}
+            <input type="number" id="opt_{{ p.name }}" name="opt_{{ p.name }}"
+                   value="{{ p.value|default_if_none:'' }}"
+                   {% if p.min is not None %}min="{{ p.min }}"{% endif %}
+                   {% if p.max is not None %}max="{{ p.max }}"{% endif %}
+                   {% if p.type == "float" %}step="any"{% else %}step="1"{% endif %}
+                   placeholder="{% translate 'the strategy decides' %}">
+        {% endif %}
+    {% endif %}
+    {% if p.help %}<p class="caption">{{ p.help }}</p>{% endif %}
+</div>

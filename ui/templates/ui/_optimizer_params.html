@@ -1,0 +1,27 @@
+{% load i18n %}
+{% comment %}
+Every optimizer setting, rendered from what the optimizer declares rather than
+written out per field — so adding one is a line in `params_schema` and nothing
+here changes. The advanced half is folded away: it is the half that needs you to
+already know what it does.
+
+An empty numeric field means "whatever the strategy does by default", the same
+convention the stopping criteria use. The two strategies disagree about several
+of these, so imposing one number on both would be worse than saying nothing.
+{% endcomment %}
+{% if optimizer_params %}
+    <div class="optimizer-params">
+        {% for p in optimizer_params %}
+            {% if not p.advanced %}{% include "ui/_optimizer_param_field.html" %}{% endif %}
+        {% endfor %}
+
+        {% if has_advanced_params %}
+            <details class="advanced-params">
+                <summary>{% translate "Advanced search settings" %}</summary>
+                {% for p in optimizer_params %}
+                    {% if p.advanced %}{% include "ui/_optimizer_param_field.html" %}{% endif %}
+                {% endfor %}
+            </details>
+        {% endif %}
+    </div>
+{% endif %}

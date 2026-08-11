@@ -336,7 +336,7 @@ def test_any_single_criterion_is_enough_to_start_a_run(client, no_thread):
 def test_the_confidence_criterion_is_offered_only_where_it_can_be_answered(client):
     """It reads an optimizer's surrogate. Grid search has none, so offering the
     field would be offering a limit that can never fire."""
-    smac = _experiment(optimizer_name="SMAC (BlackBox)")
+    smac = _experiment(optimizer_name="SMAC")
     grid = _experiment(optimizer_name="Grid Search")
 
     def page(exp):
@@ -344,6 +344,10 @@ def test_the_confidence_criterion_is_offered_only_where_it_can_be_answered(clien
 
     assert 'name="incumbent_confidence"' in page(smac)
     assert 'name="incumbent_confidence"' not in page(grid)
+
+    # And under the name it had before the strategy became a setting, because
+    # every experiment created before that still carries it.
+    assert 'name="incumbent_confidence"' in page(_experiment(optimizer_name="SMAC (BlackBox)"))
 
 
 @pytest.mark.django_db

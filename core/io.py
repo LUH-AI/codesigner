@@ -306,8 +306,11 @@ def build_experiment(
         raise ValueError(f"unknown metric(s): {', '.join(missing_metrics)}")
 
     opt_name = snapshot["optimizer_name"]
+    # Aliases too: an optimizer that has been renamed still has to answer to
+    # what it was called in every .ihpo written before the rename.
     opt_entry = next(
-        (o for o in available_optimizers.values() if o.name == opt_name),
+        (o for o in available_optimizers.values()
+         if o.name == opt_name or opt_name in getattr(o, "aliases", ())),
         None,
     )
     if opt_entry is None:
@@ -359,7 +362,10 @@ def build_experiment(
 
     metrics   = {m: available_metrics[m] for m in snapshot["metric_names"]}
     opt_type  = type(opt_entry)
-    optimizer = opt_type(**snapshot.get("optimizer_params", {}))
+    # Narrowed to what this optimizer still accepts. A withdrawn or renamed
+    # parameter would otherwise be an unexpected keyword, raised from whichever
+    # page happened to rebuild the result.
+    optimizer = opt_type(**opt_type.known_params(snapshot.get("optimizer_params", {})))
     result    = optimizer.deserialize_result(snapshot["result"]) if snapshot.get("result") else None
 
     exp = {

@@ -9,14 +9,26 @@ from .timing import RUN_INFO_KEYS, STATUS_SUCCESS
 
 @dataclass
 class OptimizerParam:
-    """Describes one user-configurable parameter of an optimizer, for form rendering."""
+    """Describes one user-configurable parameter of an optimizer, for form rendering.
+
+    `label` is a plain English fallback, not the string shown to a user: this
+    layer has no Django and so cannot mark anything for translation. The
+    interface supplies translated labels and help keyed by `name`, the same
+    division the stopping criteria use — the vocabulary lives here, what to call
+    it lives in `ui`.
+
+    A `default` of None means "whatever the thing being configured already
+    does". The form renders an empty field, and the optimizer is expected to
+    leave that component alone rather than substitute a number of its own.
+    """
     name: str                               # kwarg name passed to __init__
-    label: str                              # human-readable label shown in the form
-    type: str                               # "int", "float", or "select"
+    label: str                              # plain-English fallback label
+    type: str                               # "int", "float", "bool", or "select"
     default: Any
     min: Any = None                         # lower bound for int / float
     max: Any = None                         # upper bound for int / float
-    choices: List[Any] = field(default_factory=list)  # options for select
+    choices: List[Any] = field(default_factory=list)  # (value, label) for select
+    advanced: bool = False                  # folded away unless asked for
 
 
 @dataclass
@@ -226,6 +238,12 @@ class TrialCollector:
         surrogate about."""
         return self._incumbent_score
 
+    @property
+    def incumbent_config(self) -> Optional[Dict[str, Any]]:
+        """The best configuration so far, for an optimizer that needs to ask its
+        surrogate about it rather than about a bare number."""
+        return self._incumbent_config
+
     def note_confidence(self, probability: Optional[float]) -> None:
         """How sure the optimizer's surrogate is that nothing left is better.
 
@@ -311,6 +329,11 @@ class BaseOptimizer(ABC):
     """Base class for all hyperparameter optimizers."""
 
     params_schema: List[OptimizerParam] = []
+
+    #: Names this optimizer used to be called. An `.ihpo` records the optimizer
+    #: by name, so a rename would otherwise orphan every file and row written
+    #: before it.
+    aliases: tuple = ()
 
     @property
     @abstractmethod
@@ -432,6 +455,19 @@ class BaseOptimizer(ABC):
         return an empty dict.
         """
         return {p.name: getattr(self, f"_{p.name}") for p in self.params_schema}
+
+    @classmethod
+    def known_params(cls, stored: Dict[str, Any]) -> Dict[str, Any]:
+        """*stored* narrowed to parameters this optimizer still has.
+
+        A parameter that was renamed or withdrawn would otherwise reach
+        `__init__` as an unexpected keyword and raise `TypeError` — from the
+        page that rebuilds a result to display it, which catches `ValueError`
+        and nothing else. Dropped rather than fatal, the same way the collector
+        drops a stopping key it does not recognise.
+        """
+        known = {p.name for p in cls.params_schema}
+        return {k: v for k, v in (stored or {}).items() if k in known}
 
     def compute_hp_importance(
         self,
