@@ -145,6 +145,19 @@ class Run(models.Model):
     # cancelled or errored rather than stopping on its own terms.
     stopped_by = models.CharField(max_length=40, blank=True, default="")
     primary_metric = models.CharField(max_length=100)
+    # The optimizer's settings as they stood when this run started. They are
+    # editable between runs, so the experiment's current ones are not what the
+    # earlier trials were produced under — and an .ihpo that could not say which
+    # settings produced which trials could not recreate the experiment.
+    optimizer_params = models.JSONField(default=dict, blank=True)
+    # How many trials the experiment already had. With `trial_count` this gives
+    # the range this run produced, which is what turns a flat list of trials
+    # back into a history of runs.
+    trial_offset = models.IntegerField(null=True, blank=True)
+    # Things that happened to the search rather than to a trial — so far, the
+    # optimized metric changing, which rescores the whole history and throws
+    # away any fitted surrogate. Appended to, never rewritten.
+    events = models.JSONField(default=list, blank=True)
     status = models.CharField(max_length=20, choices=STATUS_CHOICES, default="pending")
     cancel_requested = models.BooleanField(default=False)
     error = models.TextField(blank=True, default="")

@@ -74,9 +74,15 @@ def create_run(experiment, stopping, optimize_metric, started_by=None):
     Primary becomes the optimized metric; original is pinned on the first run.
     *stopping* is the criteria the run ends on — at least one; see
     `core.optimizers.base.STOPPING_CRITERIA`. Returns the pending Run.
+
+    The optimizer's settings are copied onto the run rather than referenced.
+    They are editable between runs, so the experiment's current settings are not
+    the ones the earlier trials came out of, and a record that said they were
+    would be wrong about every experiment anyone ever adjusted.
     """
     from ..models import Run
 
+    was = experiment.primary_metric
     primary, original = apply_metrics(experiment.original_metric, optimize_metric)
     experiment.primary_metric = primary
     experiment.original_metric = original
@@ -88,7 +94,33 @@ def create_run(experiment, stopping, optimize_metric, started_by=None):
         status="pending",
         started_by=started_by,
         stopping=dict(stopping),
+        optimizer_params=dict(experiment.optimizer_params or {}),
+        events=_metric_change_event(experiment, was, optimize_metric),
     )
+
+
+def _metric_change_event(experiment, was, now):
+    """The record of an experiment changing what it optimizes, if it just did.
+
+    Worth recording because of what it costs rather than because it happened:
+    the accumulated trials are re-read under the new metric, and an optimizer
+    that carries a fitted model of the objective has to throw it away — it was
+    fitted to costs from a different question. That is the one thing an .ihpo
+    could not previously say about its own history.
+    """
+    trials = (experiment.result or {}).get("data") or []
+    if not was or not trials or was == now:
+        return []
+
+    optimizer = registry.OPTIMIZERS.get(experiment.optimizer_name)
+    return [{
+        "kind": "metric_changed",
+        "from": was,
+        "to": now,
+        "at_trial": len(trials),
+        "surrogate": ("rebuilt_and_replayed"
+                      if getattr(optimizer, "fits_surrogate", False) else "none"),
+    }]
 
 
 def execute_run(run_id):
@@ -181,6 +213,8 @@ def execute_run(run_id):
         status="cancelled" if cancelled else "done", finished_at=timezone.now(),
         trial_seconds=sum(t.duration for t in new_trials),
         trial_count=len(new_trials),
+        # With the count, this is the range of trials this run produced.
+        trial_offset=offset,
         # Being interrupted is a reason a run stopped, and the page has to be
         # able to say so. Left to the criteria only when it was not.
         stopped_by=(STOPPED_BY_CANCELLED if cancelled

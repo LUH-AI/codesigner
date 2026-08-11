@@ -12,7 +12,7 @@ from django.shortcuts import redirect, render
 from django.utils.translation import gettext as _
 from django.views.decorators.http import require_POST
 
-from core import io
+from core import io, provenance
 
 from .figures import FIGURES, FULL, HALF
 from .forms import DefaultExperimentSettingsForm, ExperimentSettingsForm, NewExperimentForm
@@ -481,7 +481,7 @@ def experiment_export(request, exp):
     Done here, not in the adapter, so the detail page's own reconstruction and
     the run engine are unaffected; deserialize ignores the keys on re-import.
     """
-    snapshot = snapshot_adapter.snapshot_from_experiment(exp)
+    snapshot = snapshot_adapter.snapshot_from_experiment(exp, provenance=True)
     # The paths name files on this server, which is of no use to whoever opens
     # the file and tells them how the instance is laid out.
     snapshot["dataset_path"] = ""
@@ -608,9 +608,21 @@ def import_experiment(request):
             context["error"] = _("Invalid or unreadable experiment file.") + f" ({exc})"
             return render(request, "ui/import.html", context)
 
+        # The file records which dataset produced its trials. Attaching a
+        # different one here is the one way an experiment could go on adding
+        # trials to a history they do not belong to, and nothing downstream —
+        # not the incumbent, not the surrogate, not the importance — could tell.
+        dataset_upload = request.FILES.get("dataset")
+        if dataset_upload is not None:
+            mismatch = provenance.dataset_mismatch(
+                snapshot.get("data"), provenance.sha256_stream(dataset_upload))
+            if mismatch:
+                context["error"] = mismatch
+                return render(request, "ui/import.html", context)
+
         model_upload = request.FILES.get("model") if may_upload else None
         exp = snapshot_adapter.experiment_from_snapshot(
-            snapshot, dataset_file=request.FILES.get("dataset"), model_file=model_upload,
+            snapshot, dataset_file=dataset_upload, model_file=model_upload,
             owner=_owner(request),
         )
         # An imported model is re-locked here rather than trusting pins chosen by

@@ -11,7 +11,13 @@ from pathlib import Path
 from django.conf import settings
 from django.core.files import File
 
+from core import io
+from core.provenance import (
+    dataset_fingerprint, environment, evaluation, model_fingerprint,
+)
+
 from ..models import Experiment
+from ..registry import OPTIMIZERS
 
 
 def experiment_from_snapshot(snapshot: dict, dataset_file=None, model_file=None,
@@ -76,13 +82,21 @@ def experiment_from_snapshot(snapshot: dict, dataset_file=None, model_file=None,
     return exp
 
 
-def snapshot_from_experiment(exp: Experiment) -> dict:
+def snapshot_from_experiment(exp: Experiment, *, provenance: bool = False) -> dict:
     """Build a current-version .ihpo snapshot dict from an Experiment row.
 
     dataset_path points at the row's stored file, or is empty when it has none
     — a foreign path from an imported file is never echoed back out.
+
+    *provenance* adds the sections that describe how the experiment was made
+    rather than what it is: the data and model fingerprints, how a trial was
+    evaluated, what the optimizer's settings resolved to, the history of runs,
+    and the versions behind the numbers. Off by default because the run engine
+    and the detail page rebuild through this function on every run and every
+    page load, and the dataset fingerprint reads and hashes the file. Export
+    turns it on; nothing else needs it.
     """
-    return {
+    snapshot = {
         "version": dist_version("codesigner"),
         "name": exp.name,
         "model_name": exp.model_name,
@@ -96,6 +110,99 @@ def snapshot_from_experiment(exp: Experiment) -> dict:
         "cv_folds": exp.cv_folds,
         "dataset_path": exp.dataset.path if exp.dataset else "",
         "result": exp.result,
+    }
+    if provenance:
+        snapshot.update(_provenance(exp))
+    return snapshot
+
+
+def _provenance(exp: Experiment) -> dict:
+    """The sections that say how the experiment was made.
+
+    Nested rather than flattened in beside the existing keys: they are a
+    different kind of thing — a record of the process, not the configuration it
+    ran under — and every one of them is optional on the way back in, so a file
+    written before any of this existed still opens.
+    """
+    dataset = exp.dataset.path if exp.dataset else ""
+    return {
+        "data": dataset_fingerprint(dataset) if dataset else None,
+        "model": model_fingerprint(
+            exp.model_name, exp.model_file.path if exp.model_file else "", exp.env_meta),
+        "evaluation": evaluation(exp.cv_folds, _target(dataset)),
+        "optimizer": _optimizer_record(exp),
+        "runs": [_run_record(index, run)
+                 for index, run in enumerate(exp.runs.order_by("id"), start=1)],
+        "environment": environment(),
+    }
+
+
+def _target(dataset_path: str):
+    """The target column, for deciding whether the split could stratify."""
+    if not dataset_path or not Path(dataset_path).is_file():
+        return None
+    try:
+        _, y = io._load_frame(Path(dataset_path))
+    except Exception:  # noqa: BLE001 — an unreadable dataset leaves it unanswered
+        return None
+    return y
+
+
+def _optimizer_record(exp: Experiment) -> dict:
+    """What the search was configured to do, with the blanks answered.
+
+    `resolved` is the reader's copy: a blank setting means "whatever that
+    component already does", which is the right thing to store and useless to
+    read. Reconstruction still goes through `optimizer_params`, which is what
+    was actually asked for — the difference matters if the installed SMAC ever
+    changes a default, and `environment.packages.smac` says which one answered.
+
+    The initial design is described here rather than sized here, because its
+    size depends on the budget the run was given and that belongs to each run.
+    """
+    optimizer = OPTIMIZERS.get(exp.optimizer_name)
+    params = exp.optimizer_params or {}
+    resolved = None
+    if optimizer is not None:
+        kind = type(optimizer)
+        try:
+            resolved = kind(**kind.known_params(params)).resolved_params()
+        except Exception:  # noqa: BLE001 — a record is never worth a failed export
+            resolved = None
+    return {
+        "name": exp.optimizer_name,
+        "resolved": resolved,
+        "initial_design": {
+            "kind": params.get("initial_design"),
+            "sized_by": "trials" if params.get("exploration_trials") else "share",
+            "trials": params.get("exploration_trials"),
+            "share": params.get("exploration_ratio"),
+        },
+    }
+
+
+def _run_record(index: int, run) -> dict:
+    """One run: when, over which trials, under what, and why it ended."""
+    offset = run.trial_offset
+    count = run.trial_count
+    span = None
+    if offset is not None and count:
+        span = [offset + 1, offset + count]
+    return {
+        "index": index,
+        "status": run.status,
+        "started_at": run.started_at.isoformat() if run.started_at else None,
+        "finished_at": run.finished_at.isoformat() if run.finished_at else None,
+        "trial_range": span,
+        "primary_metric": run.primary_metric,
+        "optimizer_params": run.optimizer_params or None,
+        "stopping": run.stopping,
+        "stopped_by": run.stopped_by or None,
+        # The budget SMAC was told about, which is what sized its initial
+        # design. Not the same as the trial cap once a run resumes.
+        "budget_told": ((offset or 0) + run.stopping["max_trials"]
+                        if run.stopping.get("max_trials") else None),
+        "events": run.events or [],
     }
 
 

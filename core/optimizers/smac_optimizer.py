@@ -70,6 +70,35 @@ _CONFIDENCE_SAMPLES = 1000
 _CONFIDENCE_MIN_TRIALS = 10
 
 
+#: Where each blank setting's default comes from: the facade method that would
+#: have supplied the component, and the argument on it. Read out of the
+#: signature at export time rather than copied, so this cannot drift from the
+#: SMAC that is installed. The random-forest entries only resolve under `rf` —
+#: `BlackBoxFacade.get_model` has no `n_trees` — and `_signature_default`
+#: returns None for an argument that is not there, which is the truthful answer.
+_FACADE_DEFAULTS = {
+    "random_probability": ("get_random_design", "probability"),
+    "challengers": ("get_acquisition_maximizer", "challengers"),
+    "local_search_iterations": ("get_acquisition_maximizer", "local_search_iterations"),
+    "retrain_after": ("get_config_selector", "retrain_after"),
+    "rf_trees": ("get_model", "n_trees"),
+    "rf_max_depth": ("get_model", "max_depth"),
+    "rf_min_samples_split": ("get_model", "min_samples_split"),
+    "rf_min_samples_leaf": ("get_model", "min_samples_leaf"),
+    "rf_feature_ratio": ("get_model", "ratio_features"),
+}
+
+
+def _signature_default(function, argument):
+    """*function*'s default for *argument*, or None if it has neither."""
+    import inspect
+
+    parameter = inspect.signature(function).parameters.get(argument)
+    if parameter is None or parameter.default is inspect.Parameter.empty:
+        return None
+    return parameter.default
+
+
 def _normal_cdf(z):
     """Standard normal CDF, without pulling scipy in for one function."""
     from math import erf, sqrt
@@ -100,6 +129,10 @@ class SMACOptimizer(BaseOptimizer):
     #: A fitted model of the objective is the whole point of this optimizer, so
     #: it can be asked how sure it is — see `incumbent_confidence`.
     supports_confidence_stopping = True
+
+    #: And that model is state carried between runs, which a changed metric
+    #: invalidates: it was fitted to costs from the other objective.
+    fits_surrogate = True
 
     params_schema = [
         OptimizerParam("search_strategy", "Search strategy", "select", "gp",
@@ -201,6 +234,28 @@ class SMACOptimizer(BaseOptimizer):
         self._gp_model_type = gp_model_type if gp_model_type in _GP_MODELS else "vanilla"
         self._gp_restarts = gp_restarts
         self._gp_normalize_y = bool(gp_normalize_y)
+
+    def resolved_params(self) -> dict:
+        """Every setting with the blanks answered, for the record.
+
+        A blank means "whatever this component already does", and what it does
+        is a default sitting in a SMAC signature — read from there rather than
+        copied here, because a copy is a second source of truth that goes stale
+        without anything noticing. The version those signatures came from is in
+        the file too, under `environment.packages.smac`.
+
+        The blanks that stay blank are the ones that belong to the other search
+        strategy, which has no default for them because it has no such
+        component. Left as null: honest, and correct on re-import.
+        """
+        facade = _STRATEGIES[self._search_strategy]
+        filled = dict(self.get_params())
+        for name, (getter, argument) in _FACADE_DEFAULTS.items():
+            if filled.get(name) is None:
+                filled[name] = _signature_default(getattr(facade, getter), argument)
+        if filled.get("gp_restarts") is None and self._search_strategy == "gp":
+            filled["gp_restarts"] = _signature_default(GaussianProcess.__init__, "n_restarts")
+        return filled
 
     def _surrogate(self, facade, scenario):
         """The model the search fits, with whatever was set on it.

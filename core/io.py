@@ -145,12 +145,17 @@ def _json_default(obj: Any) -> Any:
     raise TypeError(f"Object of type {type(obj).__name__} is not JSON serializable")
 
 
-def _load_frame(csv_path: Path):
-    """The dataset as (X, y). The last column is the target."""
+def _read_csv(csv_path: Path):
+    """The dataset as a DataFrame, with the separator sniffed."""
     raw = csv_path.read_bytes()
     sample = raw[:2048].decode("utf-8", errors="replace")
     sep = ";" if sample.count(";") > sample.count(",") else ","
-    df = pd.read_csv(csv_path, sep=sep)
+    return pd.read_csv(csv_path, sep=sep)
+
+
+def _load_frame(csv_path: Path):
+    """The dataset as (X, y). The last column is the target."""
+    df = _read_csv(csv_path)
     return df.iloc[:, :-1].to_numpy(), df.iloc[:, -1].to_numpy()
 
 

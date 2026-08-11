@@ -357,6 +357,13 @@ class BaseOptimizer(ABC):
     #: the Run form uses this to decide whether to offer the criterion at all.
     supports_confidence_stopping: bool = False
 
+    #: Whether this optimizer carries fitted state from one run into the next.
+    #: Read when recording *why* a run rebased its history: for an optimizer
+    #: that fits nothing, a changed metric is a rescoring and no more; for one
+    #: that does, the model it had was fitted to the old objective and had to be
+    #: thrown away.
+    fits_surrogate: bool = False
+
     @abstractmethod
     def optimize(
         self,
@@ -468,6 +475,21 @@ class BaseOptimizer(ABC):
         return an empty dict.
         """
         return {p.name: getattr(self, f"_{p.name}") for p in self.params_schema}
+
+    def resolved_params(self) -> dict:
+        """`get_params`, with the defaults that were actually in force filled in.
+
+        A setting left unset means "whatever this component already does", which
+        is the right thing to store and the wrong thing to read: nobody opening
+        a file six months later knows what SMAC's random forest uses for its
+        leaf size. This is the same dict with those blanks answered, for the
+        record rather than for reconstruction — reconstruction uses
+        `optimizer_params`, which is what was asked for.
+
+        Base implementation has nothing to add, since a default it does not know
+        about is better left visibly unanswered than guessed at.
+        """
+        return dict(self.get_params())
 
     @classmethod
     def known_params(cls, stored: Dict[str, Any]) -> Dict[str, Any]:

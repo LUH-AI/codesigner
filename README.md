@@ -14,6 +14,25 @@ strings stay marked for translation throughout, so re-enabling a language is
 `LANGUAGES` in `config/settings.py` plus `compilemessages`, once someone who
 speaks it has read the drafts.
 
+## The .ihpo file
+
+An experiment exports to one JSON file that carries enough to recreate it: the
+seed, the dataset and model it ran on, how a trial was evaluated, every
+optimizer setting, the trials themselves, and the history of runs that produced
+them. It is a superset of SMAC's own output — `result` mirrors the runhistory
+and embeds `scenario.json`, `intensifier.json`, `optimization.json` and
+`configspace.json` verbatim.
+
+The dataset and any custom model are recorded by **SHA-256, not embedded**, so
+the file stays a record rather than an archive. Importing with a dataset whose
+digest disagrees is refused: trials measured on different data cannot be
+compared with each other, and nothing downstream would notice. Importing with
+*no* dataset is fine — the experiment loads browsable and unrunnable, and the
+check happens when one is attached. Files exported before fingerprints existed
+have nothing to disagree with and still open.
+
+See [docs/walkthroughs/ihpo-provenance.md](docs/walkthroughs/ihpo-provenance.md).
+
 ## Architecture at a glance
 
 - **web** — Django (templates + a little plotly.js), serving the UI. Static
