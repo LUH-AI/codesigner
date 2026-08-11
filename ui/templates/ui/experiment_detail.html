@@ -11,7 +11,7 @@
                 {% translate "Model" %}: <strong>{{ summary.model_name }}</strong> ·
                 {% translate "Optimizer" %}: <strong>{{ summary.optimizer_name }}</strong> ·
                 {% translate "Metric" %}: <strong>{{ summary.metric_label }}</strong> ·
-                {% translate "Scoring" %}: <strong>{{ summary.scoring }}</strong> ·
+                {% translate "Evaluation" %}: <strong>{{ summary.evaluation }}</strong> ·
                 {% translate "Seed" %}: <strong>{{ summary.seed }}</strong> ·
                 {% translate "ID" %}: <strong>{{ summary.identifier }}</strong>
             </p>
@@ -111,7 +111,7 @@
                     <div class="field">
                         <label for="target_score">{% translate "…the best score reaches" %}</label>
                         <input type="number" id="target_score" name="target_score"
-                               step="0.001" min="0" max="1" placeholder="{% translate 'e.g. 0.95' %}">
+                               class="decimal" step="0.001" min="0" max="1" placeholder="{% translate 'e.g. 0.95' %}">
                     </div>
                     <div class="field">
                         <label for="max_seconds">{% translate "…the run has taken this many seconds" %}</label>
@@ -127,10 +127,11 @@
                     </div>
                     {% if supports_confidence %}
                         <div class="field">
-                            <label for="incumbent_confidence">{% translate "…the search is this sure nothing better remains" %}</label>
+                            <label for="incumbent_confidence"><span class="hint" title="{% translate 'Asks the optimizer how likely its own model of the objective thinks it is that some untried configuration beats the best one so far. Confidence under that model, not a guarantee.' %}">{% translate "…the search is this sure nothing better remains" %}</span></label>
                             <input type="number" id="incumbent_confidence" name="incumbent_confidence"
-                                   step="0.01" min="0" max="1" placeholder="{% translate 'e.g. 0.95' %}">
-                            <p class="caption">{% translate "Asks this optimizer's own model of the objective how likely it is that any untried configuration beats the best one so far. Confidence under that model, not a guarantee." %}</p>
+                                   class="decimal" step="0.01" min="0" max="1" placeholder="{% translate 'e.g. 0.95' %}"
+                                   aria-describedby="incumbent_confidence_help">
+                            <span id="incumbent_confidence_help" class="visually-hidden">{% translate "Asks the optimizer how likely its own model of the objective thinks it is that some untried configuration beats the best one so far. Confidence under that model, not a guarantee." %}</span>
                         </div>
                     {% endif %}
                     <p class="caption stopping-note" hidden>{% translate "These may never happen. Consider a trial or time limit as well, so the run is certain to end." %}</p>

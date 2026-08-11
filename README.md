@@ -103,12 +103,13 @@ You are never asked for a score. Codesigner keeps the validation labels back,
 calls `fit_predict`, and computes every metric itself — so all models are
 measured by the same code regardless of what they were built with.
 
-**How a trial is scored** is chosen when the experiment is created: one 80/20
+**How a trial is evaluated** is chosen when the experiment is created: one 80/20
 holdout, or k-fold cross-validation. It cannot change afterwards, because trials
-scored different ways cannot be compared with each other, and an experiment's
-own history has to be. Cross-validation costs k fits per trial and is worth it
-on a small table, where a single split is noisy enough that a search can spend
-its budget chasing the split rather than the model.
+evaluated different ways cannot be compared with each other, and an experiment's
+own history has to be. Cross-validation costs k fits per trial and is the
+default at five folds: the tables this is pointed at are small, and a single
+split on a small table is noisy enough that a search can spend its budget
+chasing the split rather than the model.
 
 One consequence worth knowing if you are relying on the isolation. With a single
 holdout the model is never sent a validation label at all. With k folds every

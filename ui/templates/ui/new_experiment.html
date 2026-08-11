@@ -5,8 +5,7 @@
 
 {% block content %}
     <h1>{% translate "New experiment" %}</h1>
-    <p class="caption">{% blocktranslate %}Set up an experiment. It is saved but not run — start runs
-       (and pick the metric and number of trials) on its page.{% endblocktranslate %}</p>
+    <p class="caption">{% translate "Set up a new experiment" %}</p>
 
     {% if form.non_field_errors %}
         <p class="form-error">{{ form.non_field_errors|join:" " }}</p>
@@ -79,10 +78,11 @@
         </div>
 
         <div class="field">
-            <label for="{{ form.cv_folds.id_for_label }}">{{ form.cv_folds.label }}</label>
+            <label for="{{ form.cv_folds.id_for_label }}"><span class="hint" title="{{ form.cv_folds.help_text }}">{{ form.cv_folds.label }}</span></label>
             {{ form.cv_folds }}
             {% if form.cv_folds.errors %}<div class="form-error">{{ form.cv_folds.errors|join:" " }}</div>{% endif %}
-            <p class="caption">{% translate "Fixed once the experiment exists: trials scored different ways cannot be compared with each other." %}</p>
+            {# The field's `aria-describedby` points here; see _optimizer_param_field.html. #}
+            <span id="{{ form.cv_folds.id_for_label }}_helptext" class="visually-hidden">{{ form.cv_folds.help_text }}</span>
         </div>
 
         <div class="field">

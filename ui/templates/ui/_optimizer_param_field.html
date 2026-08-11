@@ -1,27 +1,41 @@
 {% load i18n %}
+{% comment %}
+One optimizer setting. The label is the setting's name and nothing else; what it
+means is a tooltip on that name, marked by the dotted underline `.hint` carries.
+A dozen settings with a line of prose under each is a wall to read past while
+filling in a form, and the explanation is wanted once rather than every time.
+
+A `title` is not reachable by keyboard and is skipped by some screen readers, so
+the same words are also placed after the control as the description the control
+points at. Visually hidden, and the only copy anyone not using a pointer gets.
+{% endcomment %}
 <div class="field">
     {% if p.type == "bool" %}
         <label class="check" for="opt_{{ p.name }}">
             <input type="checkbox" id="opt_{{ p.name }}" name="opt_{{ p.name }}"
+                   {% if p.help %}aria-describedby="opt_{{ p.name }}_help"{% endif %}
                    {% if p.checked %}checked{% endif %}>
-            {{ p.label }}
+            <span{% if p.help %} class="hint" title="{{ p.help }}"{% endif %}>{{ p.label }}</span>
         </label>
     {% else %}
-        <label for="opt_{{ p.name }}">{{ p.label }}</label>
+        <label for="opt_{{ p.name }}"><span{% if p.help %} class="hint" title="{{ p.help }}"{% endif %}>{{ p.label }}</span></label>
         {% if p.type == "select" %}
-            <select id="opt_{{ p.name }}" name="opt_{{ p.name }}">
+            <select id="opt_{{ p.name }}" name="opt_{{ p.name }}"
+                    {% if p.help %}aria-describedby="opt_{{ p.name }}_help"{% endif %}>
                 {% for value, text in p.choices %}
                     <option value="{{ value }}"{% if value == p.value %} selected{% endif %}>{{ text }}</option>
                 {% endfor %}
             </select>
         {% else %}
             <input type="number" id="opt_{{ p.name }}" name="opt_{{ p.name }}"
+                   {% if p.type == "float" %}class="decimal"{% endif %}
+                   {% if p.help %}aria-describedby="opt_{{ p.name }}_help"{% endif %}
                    value="{{ p.value|default_if_none:'' }}"
                    {% if p.min is not None %}min="{{ p.min }}"{% endif %}
                    {% if p.max is not None %}max="{{ p.max }}"{% endif %}
                    {% if p.type == "float" %}step="any"{% else %}step="1"{% endif %}
-                   placeholder="{% translate 'the strategy decides' %}">
+                   {% if p.strategy_default %}placeholder="{% translate 'search strategy default' %}"{% endif %}>
         {% endif %}
     {% endif %}
-    {% if p.help %}<p class="caption">{{ p.help }}</p>{% endif %}
+    {% if p.help %}<span id="opt_{{ p.name }}_help" class="visually-hidden">{{ p.help }}</span>{% endif %}
 </div>

@@ -64,6 +64,55 @@ def test_exploration_before_modelling_is_what_moves_that_line(
     assert many["initial"] > few["initial"], (few, many)
 
 
+# ── saying it as a count instead ─────────────────────────────────────────────
+
+def test_a_count_of_exploration_trials_is_taken_exactly(
+        models, metrics, iris_splits):
+    """The other way to say the same thing. A share scales with whatever budget
+    the run turns out to have; a count is for someone who knows their space and
+    wants that many samples and no more."""
+    optimizer = SMACOptimizer(exploration_trials=7)
+
+    counts = _origins(optimizer, _run(optimizer, models, metrics, iris_splits, trials=30))
+
+    assert counts["initial"] == 7, counts
+
+
+def test_the_count_wins_where_both_are_given(models, metrics, iris_splits):
+    """`max_ratio` clamps an explicit count as well as supplying the default
+    one, so a count under a small share would silently be cut back down to the
+    share — the field would look like it worked and would not have."""
+    optimizer = SMACOptimizer(exploration_trials=9, exploration_ratio=0.05)
+
+    counts = _origins(optimizer, _run(optimizer, models, metrics, iris_splits, trials=30))
+
+    assert counts["initial"] == 9, counts
+
+
+def test_a_count_larger_than_the_budget_is_capped_rather_than_fatal(
+        models, metrics, iris_splits):
+    """SMAC raises on an initial design that does not fit in the budget. Someone
+    typing 500 into a field next to a 10-trial run should get a run that only
+    explores, not a run that refuses to start."""
+    optimizer = SMACOptimizer(exploration_trials=500)
+
+    counts = _origins(optimizer, _run(optimizer, models, metrics, iris_splits, trials=10))
+
+    assert counts["initial"] == 10, counts
+    assert counts["model"] == 0
+
+
+def test_the_room_the_default_configuration_takes_is_left_for_it(
+        models, metrics, iris_splits):
+    """The model's own defaults are an extra configuration on top of the
+    sampled ones, and SMAC counts both against the budget."""
+    optimizer = SMACOptimizer(exploration_trials=500, use_default_config=True)
+
+    counts = _origins(optimizer, _run(optimizer, models, metrics, iris_splits, trials=10))
+
+    assert counts["initial"] == 10, counts
+
+
 # ── the strategies ───────────────────────────────────────────────────────────
 
 @pytest.mark.parametrize("strategy", ["gp", "rf"])

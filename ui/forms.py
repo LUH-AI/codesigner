@@ -19,11 +19,11 @@ class NewExperimentForm(forms.Form):
     subclass. That permission is decided by the policy and passed in, so the
     form does not have to know whether the instance has accounts. A dataset comes from
     either the demo dropdown or an upload; exactly one is required. How a trial
-    is scored — one holdout or k folds — is settled here too, because it cannot
-    change later without making the experiment's own trials incomparable.
-    Creating an experiment does not run it — the metric to optimize and the number of trials
-    are chosen per-run on the detail page. All metrics are always scored.
-    Optimizer parameters use their defaults here (editing them is a later step).
+    is evaluated — one holdout or k folds — is settled here too, because it
+    cannot change later without making the experiment's own trials incomparable.
+    Creating an experiment does not run it — the metric to optimize and what
+    stops the run are chosen per-run on the detail page. Every metric is always
+    computed; the primary one is only the one the search optimizes.
     """
 
     name = forms.CharField(label=_("Experiment name"), max_length=200)
@@ -37,15 +37,32 @@ class NewExperimentForm(forms.Form):
     # Fixed for the experiment's life, so it is asked here rather than per run:
     # trials scored k-fold and trials scored on one holdout are not comparable,
     # and an experiment's own history has to be.
+    # Five folds by default. A single split on a small table is noisy enough
+    # that a search can spend its budget chasing the split rather than the
+    # model, and the tables this is pointed at are small.
     cv_folds = forms.ChoiceField(
-        label=_("How each trial is scored"), initial="0", required=False,
+        label=_("How each trial is evaluated"), initial="5", required=False,
+        help_text=_("Fixed once the experiment exists: trials evaluated "
+                    "different ways cannot be compared with each other. "
+                    "Cross-validation costs one fit per fold."),
         choices=[
-            ("0", _("One 80/20 split — fastest")),
+            ("0", _("One 80/20 split")),
             ("3", _("3-fold cross-validation")),
-            ("5", _("5-fold cross-validation — steadier on a small dataset")),
+            ("5", _("5-fold cross-validation")),
             ("10", _("10-fold cross-validation")),
         ],
     )
+
+    def clean_cv_folds(self):
+        """Blank is "not stated", and not stated is the default.
+
+        The browser always sends this, so it is only a submission built by hand
+        that can leave it out — and that should land on what the page shows
+        rather than on the quietest of the options. Distinct from a *snapshot*
+        without the field, which really is a holdout: those files were written
+        before there was anything else.
+        """
+        return self.cleaned_data["cv_folds"] or self.fields["cv_folds"].initial
 
     def __init__(self, *args, may_upload_models=None, **kwargs):
         super().__init__(*args, **kwargs)

@@ -91,3 +91,25 @@ def test_missing_name_is_rejected(client):
     resp = client.post(reverse("ui:new_experiment"), _valid_post(name=""))
     assert resp.status_code == 200
     assert Experiment.objects.count() == 0
+
+
+def test_five_fold_cross_validation_is_the_default(client):
+    """A single 80/20 split on a small table is noisy enough that a search can
+    spend its budget chasing the split rather than the model, and the tables
+    this is pointed at are small. Holdout stays one selection away."""
+    from ui.models import Experiment
+
+    html = client.get(reverse("ui:new_experiment")).content.decode()
+    client.post(reverse("ui:new_experiment"), _valid_post(name="folded"))
+
+    assert '<option value="5" selected>' in html
+    assert Experiment.objects.get(name="folded").cv_folds == 5
+
+
+def test_a_choice_of_holdout_is_still_honoured(client):
+    from ui.models import Experiment
+
+    client.post(reverse("ui:new_experiment"),
+                _valid_post(name="split", cv_folds="0"))
+
+    assert Experiment.objects.get(name="split").cv_folds == 0

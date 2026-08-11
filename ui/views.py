@@ -678,8 +678,8 @@ def _detail_context(request, exp):
             "primary_metric": exp.primary_metric,
             "metric_label": metric_label(exp.primary_metric, exp.original_metric),
             "seed": exp.seed,
-            "scoring": (_("%(k)s-fold CV") % {"k": exp.cv_folds}
-                        if exp.cv_folds >= 2 else _("holdout")),
+            "evaluation": (_("%(k)s-fold CV") % {"k": exp.cv_folds}
+                           if exp.cv_folds >= 2 else _("holdout")),
         },
         "metric_names": metric_names,
         "has_result": result is not None,

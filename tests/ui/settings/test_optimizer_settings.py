@@ -324,3 +324,100 @@ def test_the_switch_toggles_the_fieldset_and_not_just_its_inputs(client):
 
     assert 'querySelectorAll("input, select, textarea, fieldset")' in html
     assert "wireChoice" in html
+
+
+# ── what the fields say, and where they say it ───────────────────────────────
+
+def _smac_panel(client):
+    html = client.get(reverse("ui:new_experiment")).content.decode()
+    start = html.index('data-optimizer="SMAC"')
+    return html[start:html.index("data-optimizer", start + 10)]
+
+
+def test_a_setting_is_named_and_not_described_in_place(client):
+    """A dozen settings with a line of prose under each is a wall to read past
+    while filling in a form. The label is the setting's name; the explanation is
+    hidden until someone wants it."""
+    assert '<p class="caption">' not in _smac_panel(client)
+
+
+def test_the_explanation_is_a_tooltip_on_the_name(client):
+    """`.hint` is the dotted underline. Without it the tooltip exists and
+    nothing on the page says so."""
+    panel = _smac_panel(client)
+
+    assert '<span class="hint" title="Fraction of the budget sampled' in panel
+
+
+def test_the_explanation_is_readable_without_a_pointer_too(client):
+    """A `title` cannot be reached by keyboard and several screen readers skip
+    it, so moving the prose into one would have taken it away from everybody who
+    does not hover. The same words are the control's description as well."""
+    panel = _smac_panel(client)
+
+    assert 'aria-describedby="opt_exploration_ratio_help"' in panel
+    assert ('<span id="opt_exploration_ratio_help" class="visually-hidden">'
+            'Fraction of the budget sampled') in panel
+
+
+def test_a_decimal_field_has_no_spinner(client):
+    """A number input's arrows step by one, which on a fraction between 0 and 1
+    is the entire range."""
+    panel = _smac_panel(client)
+
+    assert 'name="opt_exploration_ratio"\n' in panel.replace('"\n         ', '"\n')
+    for name, decimal in (("exploration_ratio", True), ("exploration_trials", False)):
+        field = panel[panel.index(f'id="opt_{name}"'):]
+        field = field[:field.index(">")]
+        assert ('class="decimal"' in field) is decimal, name
+
+
+def test_only_a_setting_the_strategy_decides_says_that_it_does(client):
+    """The placeholder names the search strategy as the source of the default,
+    which is only true of the settings that declare none of their own. Grid
+    Search has no strategy at all, and its one setting has a default."""
+    html = client.get(reverse("ui:new_experiment")).content.decode()
+    panel = _smac_panel(client)
+
+    def placeholder(fragment, name):
+        field = fragment[fragment.index(f'id="opt_{name}"'):]
+        return "search strategy default" in field[:field.index(">")]
+
+    assert placeholder(panel, "retrain_after")
+    assert not placeholder(panel, "exploration_ratio")
+    assert not placeholder(html[html.index('data-optimizer="Grid Search"'):], "numeric_steps")
+
+
+# ── the exploration budget, said either way ──────────────────────────────────
+
+def test_both_ways_of_saying_how_long_to_explore_are_offered(client):
+    panel = _smac_panel(client)
+
+    assert 'name="opt_exploration_ratio"' in panel
+    assert 'name="opt_exploration_trials"' in panel
+
+
+def test_creating_with_a_count_stores_the_count(client):
+    client.post(reverse("ui:new_experiment"), {
+        "name": "counted", "model_name": "Random Forest",
+        "optimizer_name": "SMAC", "seed": "0",
+        "demo_dataset": str(DATASETS_DIR / "iris.csv"),
+        "opt_exploration_trials": "12",
+    })
+
+    assert Experiment.objects.get(name="counted").optimizer_params["exploration_trials"] == 12
+
+
+def test_leaving_the_count_blank_stores_nothing_for_it(client):
+    """Blank means "use the share", and the share is the default. A zero here
+    would read as "explore not at all"."""
+    client.post(reverse("ui:new_experiment"), {
+        "name": "shared", "model_name": "Random Forest",
+        "optimizer_name": "SMAC", "seed": "0",
+        "demo_dataset": str(DATASETS_DIR / "iris.csv"),
+        "opt_exploration_trials": "",
+    })
+
+    params = Experiment.objects.get(name="shared").optimizer_params
+    assert params["exploration_trials"] is None
+    assert params["exploration_ratio"] == 0.25

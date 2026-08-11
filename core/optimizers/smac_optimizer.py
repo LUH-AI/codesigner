@@ -96,29 +96,35 @@ class SMACOptimizer(BaseOptimizer):
     params_schema = [
         OptimizerParam("search_strategy", "Search strategy", "select", "gp",
                        choices=["gp", "rf"]),
-        OptimizerParam("exploration_ratio", "Exploration before modelling",
+        # How much exploring, said either way. A share scales with whatever
+        # budget the run turns out to have; a count is exact and is what someone
+        # who knows their space wants. The count wins where both are given.
+        OptimizerParam("exploration_ratio", "Exploration share",
                        "float", 0.25, min=0.05, max=1.0),
-        OptimizerParam("random_probability", "Random configurations",
+        OptimizerParam("exploration_trials", "Exploration trials", "int", None,
+                       min=1, max=10_000),
+        OptimizerParam("random_probability", "Random trial rate",
                        "float", None, min=0.0, max=1.0),
-        OptimizerParam("use_default_config", "Try the model's own defaults first",
+        OptimizerParam("use_default_config", "Include the model's defaults",
                        "bool", False),
 
-        OptimizerParam("initial_design", "How the exploration samples", "select",
+        OptimizerParam("initial_design", "Sampling method", "select",
                        "sobol", advanced=True,
                        choices=["sobol", "latin_hypercube", "random", "default_only"]),
-        OptimizerParam("acquisition", "What makes a configuration worth trying",
+        OptimizerParam("acquisition", "Acquisition function",
                        "select", "ei", advanced=True, choices=["ei", "pi"]),
-        OptimizerParam("acquisition_xi", "Improvement required", "float", 0.0,
+        OptimizerParam("acquisition_xi", "Improvement margin", "float", 0.0,
                        min=0.0, max=1.0, advanced=True),
-        OptimizerParam("challengers", "Candidates considered per trial", "int",
+        OptimizerParam("challengers", "Candidates per trial", "int",
                        None, min=1, max=100_000, advanced=True),
-        OptimizerParam("local_search_iterations", "Candidates refined per trial",
-                       "int", None, min=1, max=1_000, advanced=True),
-        OptimizerParam("retrain_after", "Trials between model refits", "int",
+        OptimizerParam("local_search_iterations", "Local search iterations", "int",
+                       None, min=1, max=1_000, advanced=True),
+        OptimizerParam("retrain_after", "Refit interval", "int",
                        None, min=1, max=100, advanced=True),
     ]
 
     def __init__(self, search_strategy="gp", exploration_ratio=0.25,
+                 exploration_trials=None,
                  random_probability=None, use_default_config=False,
                  initial_design="sobol", acquisition="ei", acquisition_xi=0.0,
                  challengers=None, local_search_iterations=None,
@@ -127,6 +133,7 @@ class SMACOptimizer(BaseOptimizer):
         # reads back, and what makes the round trip through `.ihpo` work.
         self._search_strategy = search_strategy if search_strategy in _STRATEGIES else "gp"
         self._exploration_ratio = exploration_ratio
+        self._exploration_trials = exploration_trials
         self._random_probability = random_probability
         self._use_default_config = bool(use_default_config)
         self._initial_design = initial_design if initial_design in _INITIAL_DESIGNS else "sobol"
@@ -152,9 +159,20 @@ class SMACOptimizer(BaseOptimizer):
         facade = _STRATEGIES[self._search_strategy]
 
         design = _INITIAL_DESIGNS[self._initial_design]
-        # `max_ratio` is the fraction of the budget the initial design may take.
+        # How long to explore, said either as a share of the budget or as a
+        # number of trials. `max_ratio` is the share; it also clamps an explicit
+        # `n_configs`, so a count has to open it up or it would be quietly
+        # reduced back to a quarter of the budget. SMAC refuses an initial
+        # design that does not fit in the budget, counting the default
+        # configuration if one was asked for, so the count is capped here rather
+        # than left to fail the run.
         # `DefaultInitialDesign` is a single configuration and ignores both.
-        initial_design = design(scenario, max_ratio=self._exploration_ratio)
+        if self._exploration_trials:
+            room = max(1, scenario.n_trials - (1 if self._use_default_config else 0))
+            initial_design = design(scenario, max_ratio=1.0,
+                                    n_configs=min(int(self._exploration_trials), room))
+        else:
+            initial_design = design(scenario, max_ratio=self._exploration_ratio)
 
         acquisition = facade.get_acquisition_function(scenario, xi=self._acquisition_xi)
         if self._acquisition == "pi":

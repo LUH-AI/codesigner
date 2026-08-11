@@ -249,6 +249,14 @@ input:focus, select:focus {
     border-color: var(--primary);
     box-shadow: 0 0 0 1px var(--primary);
 }
+/* A field name that carries its explanation as a tooltip. The dotted underline
+   is the only thing that says there is one to read. */
+.hint { border-bottom: 1px dotted var(--muted); cursor: help; }
+/* Spinners step by one, which on a fraction between 0 and 1 is the whole
+   range — so a decimal field is better off without them. */
+input.decimal { appearance: textfield; -moz-appearance: textfield; }
+input.decimal::-webkit-outer-spin-button,
+input.decimal::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
 .errorlist, .form-error { color: var(--red); font-size: 0.875rem; list-style: none; }
 
 /* ── Bordered container ("st.container(border=True)") ─────────────────── */

@@ -60,23 +60,26 @@ falls back to a documented constant. It only sizes the initial design, and
 
 ## What became configurable
 
-Ten settings on `SMACOptimizer`. **Blank means the strategy's own default**, the
-convention the stopping criteria already use — the two strategies disagree about
-several of these and imposing one number on both would be worse than silence.
+Eleven settings on `SMACOptimizer`. **Blank means the strategy's own default**,
+the convention the stopping criteria already use — the two strategies disagree
+about several of these and imposing one number on both would be worse than
+silence. Each field's label is the setting's *name*; what it means is a tooltip
+on that name, and a visually-hidden description for anyone not using a pointer.
 
 ### Always visible
 
 | | |
 |---|---|
 | **Search strategy** | Gaussian process (default) or random forest — `BlackBoxFacade` / `HyperparameterOptimizationFacade`. |
-| **Exploration before modelling** | `max_ratio`: the share of the budget spent sampling before the model chooses. The knob the headline fix makes real. |
-| **Random configurations** | How often to try a random configuration instead of the model's pick. |
-| **Try the model's own defaults first** | `use_default_config` — a known reference point to beat. |
+| **Exploration share** | `max_ratio`: the fraction of the budget spent sampling before the model chooses. The knob the headline fix makes real. |
+| **Exploration trials** | The same thing as a count — `n_configs`. Overrides the share, which otherwise clamps it back down; capped at the budget, less the default configuration if one was asked for, because SMAC raises on an initial design that does not fit. |
+| **Random trial rate** | How often to try a random configuration instead of the model's pick. |
+| **Include the model's defaults** | `use_default_config` — a known reference point to beat. |
 
 ### Advanced, folded away
 
-Initial design kind, acquisition function (EI or PI) and its `xi`, candidates
-scored per trial, candidates locally refined, trials between refits.
+Sampling method, acquisition function (EI or PI) and its improvement margin
+(`xi`), candidates per trial, local search iterations, refit interval.
 
 ### Not exposed, deliberately
 
