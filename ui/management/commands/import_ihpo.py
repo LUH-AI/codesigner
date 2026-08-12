@@ -24,10 +24,10 @@ class Command(BaseCommand):
         # be the one the trials were measured on — otherwise the experiment
         # resumes against different data and every later trial is compared with
         # a history it does not belong to.
-        stored = snapshot.get("dataset_path", "")
+        stored = (snapshot.get("dataset") or {}).get("path", "")
         if stored and Path(stored).is_file():
             mismatch = provenance.dataset_mismatch(
-                snapshot.get("data"), provenance.sha256(stored))
+                snapshot.get("dataset"), provenance.sha256(stored))
             if mismatch:
                 raise CommandError(mismatch)
 

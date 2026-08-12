@@ -303,19 +303,19 @@ def new_experiment(request):
         # A mounted model is adopted from its server-side path (unless an upload
         # was given, which takes precedence); the adapter copies it into MEDIA.
         mounted = cleaned.get("mounted_model") or ""
+        model_path = mounted if (mounted and not cleaned.get("model_file")) else ""
+        folds = int(cleaned.get("cv_folds") or 0)
         snapshot = {
+            "format": io.SNAPSHOT_FORMAT,
             "version": dist_version("codesigner"),
             "name": cleaned["name"],
-            "model_name": cleaned["model_name"],
-            "model_path": mounted if (mounted and not cleaned.get("model_file")) else "",
-            "optimizer_name": optimizer.name,
-            "optimizer_params": optimizer.get_params(),
-            "primary_metric": None,
-            "original_metric": None,
-            "metric_names": list(METRICS),
             "seed": seed,
-            "cv_folds": int(cleaned.get("cv_folds") or 0),
-            "dataset_path": dataset_path,
+            "dataset": {"filename": Path(dataset_path).name, "path": dataset_path},
+            "model": {"kind": "file" if model_path else "registry",
+                      "name": cleaned["model_name"], "path": model_path},
+            "evaluation": provenance.evaluation(folds),
+            "metrics": {"names": list(METRICS), "primary": None, "original": None},
+            "optimizer": {"name": optimizer.name, "params": optimizer.get_params()},
             "result": None,
         }
         # This snapshot's paths were built right here: a validated demo/mounted
@@ -490,8 +490,8 @@ def experiment_export(request, exp):
     snapshot = snapshot_adapter.snapshot_from_experiment(exp, provenance=True)
     # The paths name files on this server, which is of no use to whoever opens
     # the file and tells them how the instance is laid out.
-    snapshot["dataset_path"] = ""
-    snapshot["model_path"] = ""
+    snapshot["dataset"]["path"] = ""
+    snapshot["model"]["path"] = ""
     if not resolve_settings(exp)["export_absolute_times"] and snapshot.get("result"):
         snapshot["result"] = copy.deepcopy(snapshot["result"])
         for entry in snapshot["result"].get("data", []):
@@ -511,19 +511,13 @@ def _posted_settings(request):
 @experiment_view(EDIT)
 def experiment_settings(request, exp):
     """One experiment's settings: inherit the defaults, override, reset, or
-    promote its own settings to be the defaults (which asks first)."""
-    optimizer = _optimizer_for(exp.optimizer_name)
+    promote its own settings to be the defaults (which asks first).
 
+    How the search runs is not here. An optimizer's settings are chosen when the
+    experiment is created and fixed for its life, like `cv_folds` — see
+    `_posted_optimizer_params`.
+    """
     if request.method == "POST":
-        if "save_search" in request.POST and optimizer is not None:
-            # Its own form and its own field. The display settings above have
-            # inherit/override/promote-to-default semantics; how the search runs
-            # has none of that — it belongs to this experiment alone.
-            if not exp.is_running:
-                exp.optimizer_params = _posted_optimizer_params(request, optimizer)
-                exp.save(update_fields=["optimizer_params"])
-            return redirect("ui:experiment_settings", pk=exp.pk)
-
         if "reset" in request.POST or request.POST.get("use_default_settings"):
             exp.use_default_settings = True
             exp.settings = {}
@@ -559,10 +553,8 @@ def experiment_settings(request, exp):
         **resolve_settings(exp),
         "use_default_settings": exp.use_default_settings,
     })
-    context = {"experiment": exp, "form": form, "search_locked": exp.is_running}
-    if optimizer is not None:
-        context.update(_optimizer_param_context(optimizer, exp.optimizer_params))
-    return render(request, "ui/experiment_settings.html", context)
+    return render(request, "ui/experiment_settings.html",
+                  {"experiment": exp, "form": form})
 
 
 def appearance(request):
@@ -621,7 +613,7 @@ def import_experiment(request):
         dataset_upload = request.FILES.get("dataset")
         if dataset_upload is not None:
             mismatch = provenance.dataset_mismatch(
-                snapshot.get("data"), provenance.sha256_stream(dataset_upload))
+                snapshot.get("dataset"), provenance.sha256_stream(dataset_upload))
             if mismatch:
                 context["error"] = mismatch
                 return render(request, "ui/import.html", context)

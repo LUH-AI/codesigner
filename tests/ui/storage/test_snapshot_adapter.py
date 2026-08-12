@@ -14,7 +14,7 @@ import pytest
 from core import io
 
 from tests.conftest import FIXTURES_DIR
-from tests.core.test_snapshot_contract import IDENTITY_KEYS, SNAPSHOT_KEYS
+from tests.core.test_snapshot_contract import IDENTITY_KEYS, SNAPSHOT_KEYS, _at
 
 
 def _fixture_snapshot(name: str) -> dict:
@@ -36,8 +36,8 @@ def test_row_round_trip_preserves_identity_fields():
         row = adapter.experiment_from_snapshot(original)
         again = adapter.snapshot_from_experiment(row)
 
-        for key in IDENTITY_KEYS:
-            assert again[key] == original[key], f"{filename}: {key}"
+        for path in IDENTITY_KEYS:
+            assert _at(again, path) == _at(original, path), f"{filename}: {path}"
 
 
 @pytest.mark.django_db
@@ -80,7 +80,7 @@ def test_exported_snapshot_carries_all_documented_keys_and_current_version():
 
 @pytest.mark.django_db
 def test_dataset_path_reflects_stored_file_not_foreign_machine():
-    """The exported dataset_path points at this store's file, or is empty.
+    """The exported dataset path points at this store's file, or is empty.
 
     The fixtures carry dataset paths from another machine; importing them
     without re-supplying data must not leak that path back out. Once a
@@ -90,4 +90,4 @@ def test_dataset_path_reflects_stored_file_not_foreign_machine():
 
     row = adapter.experiment_from_snapshot(_fixture_snapshot("test2.ihpo"))
     exported = adapter.snapshot_from_experiment(row)
-    assert exported["dataset_path"] == ""
+    assert exported["dataset"]["path"] == ""

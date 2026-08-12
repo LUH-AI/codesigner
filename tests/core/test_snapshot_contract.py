@@ -18,17 +18,25 @@ from tests.conftest import DATASETS_DIR, FIXTURES_DIR
 
 # Every top-level key the .ihpo format documents; a store must persist each.
 SNAPSHOT_KEYS = (
-    "version", "name", "model_name", "model_path", "optimizer_name",
-    "optimizer_params", "primary_metric", "original_metric", "metric_names",
-    "seed", "dataset_path", "result",
+    "format", "version", "name", "seed", "dataset", "model", "evaluation",
+    "metrics", "optimizer", "result",
 )
 
-# Snapshot fields that identify the experiment (everything except version,
-# which the writing app owns, and dataset_path/result, handled separately).
+# Snapshot fields that identify the experiment (everything except version and
+# format, which the writing app owns, and the dataset path and result, handled
+# separately).
 IDENTITY_KEYS = (
-    "name", "model_name", "model_path", "optimizer_name", "optimizer_params",
-    "primary_metric", "original_metric", "metric_names", "seed",
+    ("name",), ("seed",), ("model", "name"), ("model", "path"),
+    ("optimizer", "name"), ("optimizer", "params"), ("metrics", "names"),
+    ("metrics", "primary"), ("metrics", "original"),
 )
+
+
+def _at(snapshot: dict, path: tuple):
+    """The value at a dotted path, so a test can name a nested field."""
+    for key in path:
+        snapshot = snapshot[key]
+    return snapshot
 
 
 def _snapshot(filename: str, dataset_path: str | None = None) -> dict:
@@ -36,7 +44,7 @@ def _snapshot(filename: str, dataset_path: str | None = None) -> dict:
     file that exists on this machine (the stored paths are machine-specific)."""
     snapshot = io.parse((FIXTURES_DIR / filename).read_bytes())
     if dataset_path is not None:
-        snapshot["dataset_path"] = dataset_path
+        snapshot["dataset"]["path"] = dataset_path
     return snapshot
 
 
@@ -65,8 +73,8 @@ def test_save_load_cycle_preserves_identity_fields(metrics, models, optimizers):
 
     again = io.parse(io.save(name, exp))
 
-    for key in IDENTITY_KEYS:
-        assert again[key] == snapshot[key], key
+    for path in IDENTITY_KEYS:
+        assert _at(again, path) == _at(snapshot, path), path
 
 
 def test_save_stamps_current_version_string():
@@ -77,14 +85,14 @@ def test_save_stamps_current_version_string():
     """
     snapshot = _snapshot("test2.ihpo")
     exp = {
-        "model_name":      snapshot["model_name"],
+        "model_name":      snapshot["model"]["name"],
         "model_path":      "",
         "optimizer":       RandomOptimizer(),
-        "primary_metric":  snapshot["primary_metric"],
-        "original_metric": snapshot["original_metric"],
-        "metrics":         {m: None for m in snapshot["metric_names"]},
+        "primary_metric":  snapshot["metrics"]["primary"],
+        "original_metric": snapshot["metrics"]["original"],
+        "metrics":         {m: None for m in snapshot["metrics"]["names"]},
         "seed":            snapshot["seed"],
-        "dataset_path":    snapshot["dataset_path"],
+        "dataset_path":    snapshot["dataset"]["path"],
         "result":          None,
     }
     again = io.parse(io.save(snapshot["name"], exp))
@@ -143,7 +151,7 @@ def test_registry_model_substitution_on_load(metrics, models, optimizers):
     replacement is resolved and recorded as the experiment's model_name.
     """
     snapshot = _snapshot("test2.ihpo")
-    snapshot["model_name"] = "Discontinued Model"
+    snapshot["model"]["name"] = "Discontinued Model"
 
     with pytest.raises(ValueError, match="not available"):
         io.build_experiment(snapshot, metrics, models, optimizers, read_only=True)
@@ -164,7 +172,7 @@ def test_missing_custom_model_blocks_full_load_but_not_read_only(metrics, models
     read-only browsing stays available.
     """
     snapshot = _snapshot("test2.ihpo", dataset_path=str(DATASETS_DIR / "wine.csv"))
-    snapshot["model_path"] = "/nonexistent/custom_model.py"
+    snapshot["model"]["path"] = "/nonexistent/custom_model.py"
 
     assert not io.model_path_ok(snapshot)
     with pytest.raises(ValueError, match="custom model error"):
@@ -172,7 +180,7 @@ def test_missing_custom_model_blocks_full_load_but_not_read_only(metrics, models
 
     _, exp = io.build_experiment(snapshot, metrics, models, optimizers, read_only=True)
     assert exp["model"] is None
-    assert exp["model_name"] == snapshot["model_name"]
+    assert exp["model_name"] == snapshot["model"]["name"]
 
 
 def test_optimizer_params_reconstruct_the_optimizer(metrics, models, optimizers):
@@ -183,8 +191,8 @@ def test_optimizer_params_reconstruct_the_optimizer(metrics, models, optimizers)
     subsequent save writes them back identically.
     """
     snapshot = _snapshot("test2.ihpo", dataset_path=str(DATASETS_DIR / "wine.csv"))
-    snapshot["optimizer_name"] = GridOptimizer.name
-    snapshot["optimizer_params"] = {"numeric_steps": 7}
+    snapshot["optimizer"]["name"] = GridOptimizer.name
+    snapshot["optimizer"]["params"] = {"numeric_steps": 7}
     snapshot["result"] = None
 
     name, exp = io.build_experiment(snapshot, metrics, models, optimizers)
@@ -192,7 +200,7 @@ def test_optimizer_params_reconstruct_the_optimizer(metrics, models, optimizers)
     assert exp["optimizer"].get_params() == {"numeric_steps": 7}
 
     again = io.parse(io.save(name, exp))
-    assert again["optimizer_params"] == {"numeric_steps": 7}
+    assert again["optimizer"]["params"] == {"numeric_steps": 7}
 
 
 def test_snapshot_json_is_human_readable():
@@ -203,12 +211,12 @@ def test_snapshot_json_is_human_readable():
     """
     snapshot = _snapshot("test2.ihpo")
     exp = {
-        "model_name":      snapshot["model_name"],
+        "model_name":      snapshot["model"]["name"],
         "model_path":      "",
         "optimizer":       RandomOptimizer(),
-        "primary_metric":  snapshot["primary_metric"],
-        "original_metric": snapshot["original_metric"],
-        "metrics":         {m: None for m in snapshot["metric_names"]},
+        "primary_metric":  snapshot["metrics"]["primary"],
+        "original_metric": snapshot["metrics"]["original"],
+        "metrics":         {m: None for m in snapshot["metrics"]["names"]},
         "seed":            snapshot["seed"],
         "dataset_path":    "",
         "result":          None,

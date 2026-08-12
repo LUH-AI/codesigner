@@ -8,10 +8,10 @@ mirrors the runhistory and `result.optimizer_state` embeds the other four files
 verbatim. These pin the sections that describe everything *around* the
 optimizer.
 
-The sections are additive. Nothing that existed moved, so a file written here
-opens in an older build and a file from an older build opens here — which the
-last test in this module pins directly, because it is the property that stops
-the format from becoming a version negotiation.
+Format 2 gives each subject one object and states it once. Reading stays
+backward-compatible — a format 1 file is lifted by `io.normalize` rather than
+refused, which the last test in this module pins directly, because those files
+are on other people's disks and there is nothing wrong with them.
 """
 
 import hashlib
@@ -67,8 +67,7 @@ def _run(exp, **overrides):
     """A finished run row, without executing anything."""
     fields = {"primary_metric": "accuracy", "status": "done",
               "stopping": {"max_trials": 6}, "stopped_by": "max_trials",
-              "trial_offset": 0, "trial_count": 6,
-              "optimizer_params": dict(exp.optimizer_params)}
+              "trial_offset": 0, "trial_count": 6}
     fields.update(overrides)
     return Run.objects.create(experiment=exp, **fields)
 
@@ -78,7 +77,7 @@ def _run(exp, **overrides):
 def test_the_dataset_is_recorded_by_digest_not_embedded(client):
     """A record, not an archive. The digest is what makes it enforceable; the
     shape is what makes it readable without the file to hand."""
-    record = _exported(client, _create(client))["data"]
+    record = _exported(client, _create(client))["dataset"]
 
     assert record["sha256"] == hashlib.sha256(IRIS.read_bytes()).hexdigest()
     assert record["filename"] == "iris.csv"
@@ -87,13 +86,17 @@ def test_the_dataset_is_recorded_by_digest_not_embedded(client):
     assert record["target_column"] == record["column_names"][-1]
 
 
-def test_an_experiment_with_no_dataset_records_none(client):
+def test_an_experiment_with_no_dataset_records_nothing_to_check(client):
     """Importing without one is supported — the experiment is browsable and not
-    runnable — so the section has to be able to say there was nothing."""
+    runnable — so the section has to be able to say there is nothing to
+    recognise, without a digest that would refuse every dataset offered."""
     exp = _create(client)
     exp.dataset.delete(save=True)
 
-    assert _exported(client, exp)["data"] is None
+    record = _exported(client, exp)["dataset"]
+
+    assert record["path"] == ""
+    assert record.get("sha256") is None
 
 
 # ── the model ────────────────────────────────────────────────────────────────
@@ -103,9 +106,10 @@ def test_a_registry_model_is_named_and_nothing_else(client):
     already in `environment`."""
     record = _exported(client, _create(client))["model"]
 
-    assert record == {"kind": "registry", "name": "Random Forest", "sha256": None,
-                      "dependencies": None, "requires_python": None,
-                      "python": None, "lock_sha256": None}
+    assert record == {"kind": "registry", "name": "Random Forest", "path": "",
+                      "sha256": None, "dependencies": None,
+                      "requires_python": None, "python": None,
+                      "lock_sha256": None}
 
 
 # ── how a trial was evaluated ────────────────────────────────────────────────
@@ -146,49 +150,56 @@ def test_stratification_is_what_happened_not_what_was_asked_for(client):
 
 def test_the_blanks_are_answered_for_the_reader(client):
     """A blank setting means "whatever that component already does", which is
-    the right thing to store and useless to read six months later. `resolved`
-    answers them from the installed SMAC's own signatures — and the version that
-    answered is in `environment.packages`."""
+    the right thing to store and useless to read six months later.
+    `defaults_used` answers them from the installed SMAC's own signatures — and
+    the version that answered is in `environment.packages`."""
     exp = _create(client, opt_search_strategy="rf")
 
     record = _exported(client, exp)["optimizer"]
 
     assert exp.optimizer_params["rf_trees"] is None, "asked for nothing"
-    assert record["resolved"]["rf_trees"] == 10, "and got SMAC's ten"
-    assert record["resolved"]["retrain_after"] == 8
+    assert record["defaults_used"]["rf_trees"] == 10, "and got SMAC's ten"
+    assert record["defaults_used"]["retrain_after"] == 8
 
 
 def test_the_other_strategys_blanks_stay_blank(client):
     """`BlackBoxFacade` has no forest to have a tree count of. A number here
-    would be invented."""
+    would be invented, so the key is simply absent."""
     record = _exported(client, _create(client, opt_search_strategy="gp"))["optimizer"]
 
-    assert record["resolved"]["rf_trees"] is None
-    assert record["resolved"]["gp_restarts"] == 10
+    assert "rf_trees" not in record["defaults_used"]
+    assert record["defaults_used"]["gp_restarts"] == 10
 
 
-def test_what_was_asked_for_is_still_recorded_separately(client):
-    """`resolved` is the reader's copy. Reconstruction goes through
-    `optimizer_params`, so a SMAC that changes a default later reproduces the
-    same *request* rather than freezing today's answer to it."""
-    body = _exported(client, _create(client, opt_search_strategy="rf"))
+def test_only_the_blanks_are_answered(client):
+    """`defaults_used` is the reader's copy of what the blanks became, and only
+    of those. Reconstruction goes through `params`, so a SMAC that changes a
+    default later reproduces the same *request* rather than freezing today's
+    answer to it — and repeating the settings that were chosen would say the
+    same thing twice."""
+    record = _exported(client, _create(
+        client, opt_search_strategy="rf", opt_rf_trees="24"))["optimizer"]
 
-    assert body["optimizer_params"]["rf_trees"] is None
-    assert body["optimizer"]["resolved"]["rf_trees"] == 10
+    assert record["params"]["rf_trees"] == 24, "asked for"
+    assert "rf_trees" not in record["defaults_used"], "so not answered"
+    assert record["params"]["rf_min_samples_leaf"] is None, "not asked for"
+    assert record["defaults_used"]["rf_min_samples_leaf"] == 1, "so answered"
 
 
-def test_how_the_initial_design_was_bounded_is_recorded(client):
-    """The settings, not the number they produce: the number depends on the
-    budget each run was given and on how many hyperparameters the model has.
-    `per_hyperparameter` is what a blank trial cap falls back to, and with the
-    config space in `result.optimizer_state` that is enough to work it out."""
+def test_how_the_initial_design_was_bounded_is_in_the_settings(client):
+    """It has no section of its own. Every field one would hold is a setting
+    already recorded under `params`, and the number they produce depends on the
+    budget each run was given — so it belongs to the run, not here. SMAC records
+    the number it settled on in the scenario it saves, which
+    `result.optimizer_state` already embeds verbatim."""
     record = _exported(client, _create(
         client, opt_use_trial_cap="on", opt_trial_cap="4"))["optimizer"]
 
-    assert record["initial_design"] == {
-        "kind": "sobol", "use_share_cap": False, "share_cap": None,
-        "use_trial_cap": True, "trial_cap": 4,
-        "per_hyperparameter": 10, "combine": "min"}
+    assert record["params"]["initial_design"] == "sobol"
+    assert record["params"]["use_trial_cap"] is True
+    assert record["params"]["trial_cap"] == 4
+    assert record["params"]["initial_points_use_max"] is False
+    assert "initial_design" not in record, "not a second copy of the same five"
 
 
 # ── the runs ─────────────────────────────────────────────────────────────────
@@ -205,19 +216,20 @@ def test_a_run_records_the_trials_it_produced(client):
     assert [r["trial_range"] for r in runs] == [[1, 6], [7, 10]]
 
 
-def test_a_run_records_the_settings_it_ran_under(client):
-    """They are editable between runs, so the experiment's current settings are
-    not the ones the earlier trials came out of."""
+def test_the_settings_are_recorded_once_for_the_whole_experiment(client):
+    """The search settings are chosen at creation and fixed for the
+    experiment's life, so they describe every trial in it. Repeating them per
+    run would be the same values written once per run, and a reader finding two
+    copies would reasonably assume they could differ."""
     exp = _create(client, opt_search_strategy="rf", opt_rf_trees="24")
-    _run(exp, optimizer_params={"search_strategy": "rf", "rf_trees": 24})
-    exp.optimizer_params = {**exp.optimizer_params, "rf_trees": 200}
-    exp.save(update_fields=["optimizer_params"])
-    _run(exp, optimizer_params=dict(exp.optimizer_params))
+    _run(exp)
+    _run(exp)
 
-    runs = _exported(client, exp)["runs"]
+    body = _exported(client, exp)
 
-    assert runs[0]["optimizer_params"]["rf_trees"] == 24
-    assert runs[1]["optimizer_params"]["rf_trees"] == 200
+    assert body["optimizer"]["params"]["rf_trees"] == 24
+    assert all("optimizer_params" not in run for run in body["runs"])
+    assert all("params" not in run for run in body["runs"])
 
 
 def test_a_run_records_what_bounded_it_and_what_ended_it(client):
@@ -231,13 +243,17 @@ def test_a_run_records_what_bounded_it_and_what_ended_it(client):
     assert record["stopped_by"] == "target_score"
 
 
-def test_a_run_records_the_budget_smac_was_told_about(client):
-    """Not the same as the trial cap once a run resumes — and it is the budget,
-    not the cap, that sizes the initial design."""
+def test_the_budget_smac_was_told_is_derivable_not_repeated(client):
+    """It is what sized the initial design and it is not the trial cap once a
+    run resumes — but it is the run's first trial plus its cap, both already
+    recorded, so writing it as well would be a third copy of the same fact."""
     exp = _create(client)
     _run(exp, trial_offset=6, trial_count=4, stopping={"max_trials": 4})
 
-    assert _exported(client, exp)["runs"][0]["budget_told"] == 10
+    record = _exported(client, exp)["runs"][0]
+
+    assert "budget_told" not in record
+    assert record["trial_range"][0] - 1 + record["stopping"]["max_trials"] == 10
 
 
 # ── the metric change ────────────────────────────────────────────────────────
@@ -347,7 +363,7 @@ def test_a_file_with_no_fingerprint_is_still_accepted(client):
     """Every `.ihpo` exported before this existed. There is nothing to disagree
     with, and refusing them would make the section a breaking change."""
     body = _exported(client, _create(client))
-    body.pop("data")
+    body["dataset"].pop("sha256")
 
     resp = client.post(reverse("ui:import_experiment"), {
         "file": SimpleUploadedFile("e.ihpo", json.dumps(body).encode()),
@@ -372,19 +388,38 @@ def test_importing_without_a_dataset_is_not_a_refusal(client):
 # ── the sections are additive ────────────────────────────────────────────────
 
 def test_a_file_from_before_any_of_this_still_opens(client):
-    """Every existing key stayed where it was and every new one is optional, so
-    the format did not need a version bump and does not need a shim."""
+    """A format 1 file — the flat namespace, with or without the provenance
+    sections that were added beside it. `io.normalize` lifts it on the way in,
+    so nothing downstream knows there were ever two shapes."""
     from core import io
 
-    body = _exported(client, _create(client))
-    older = {k: v for k, v in body.items()
-             if k not in ("data", "model", "evaluation", "optimizer", "runs",
-                          "environment")}
+    flat = {
+        "version": "0.1.0", "name": "older", "model_name": "Random Forest",
+        "model_path": "", "optimizer_name": "SMAC",
+        "optimizer_params": {"search_strategy": "rf"},
+        "primary_metric": "accuracy", "original_metric": "accuracy",
+        "metric_names": ["accuracy"], "seed": 7, "cv_folds": 3,
+        "dataset_path": str(IRIS), "result": None,
+        # The sections format 1 grew late, in the places it put them.
+        "data": {"filename": "iris.csv", "sha256": "abc"},
+        "evaluation": {"scheme": "kfold", "folds": 3, "stratified": True},
+        "optimizer": {"name": "SMAC", "resolved": {"rf_trees": 10}},
+    }
 
-    parsed = io.parse(json.dumps(older).encode())
+    parsed = io.parse(json.dumps(flat).encode())
 
-    assert parsed["name"] == "recorded"
+    assert parsed["format"] == io.SNAPSHOT_FORMAT
+    assert parsed["name"] == "older"
     assert parsed["seed"] == 7
+    assert parsed["optimizer"] == {"name": "SMAC", "params": {"search_strategy": "rf"}}
+    assert parsed["metrics"] == {"names": ["accuracy"], "primary": "accuracy",
+                                 "original": "accuracy"}
+    assert parsed["evaluation"] == {"scheme": "kfold", "folds": 3,
+                                    "test_size": None, "stratified": True}
+    assert parsed["dataset"]["sha256"] == "abc"
+    assert parsed["dataset"]["path"] == str(IRIS)
+    assert parsed["model"] == {"kind": "registry", "name": "Random Forest",
+                               "path": ""}
 
 
 def test_the_run_engine_does_not_pay_for_the_record(client):
@@ -394,8 +429,13 @@ def test_the_run_engine_does_not_pay_for_the_record(client):
 
     exp = _create(client)
 
-    assert "data" not in adapter.snapshot_from_experiment(exp)
-    assert "data" in adapter.snapshot_from_experiment(exp, provenance=True)
+    plain = adapter.snapshot_from_experiment(exp)
+    recorded = adapter.snapshot_from_experiment(exp, provenance=True)
+
+    assert "sha256" not in plain["dataset"]
+    assert "environment" not in plain
+    assert recorded["dataset"]["sha256"]
+    assert recorded["environment"]
 
 
 # ── the record survives coming back in ──────────────────────────────────────

@@ -94,7 +94,6 @@ def create_run(experiment, stopping, optimize_metric, started_by=None):
         status="pending",
         started_by=started_by,
         stopping=dict(stopping),
-        optimizer_params=dict(experiment.optimizer_params or {}),
         events=_metric_change_event(experiment, was, optimize_metric),
     )
 

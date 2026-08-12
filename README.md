@@ -23,6 +23,24 @@ them. It is a superset of SMAC's own output — `result` mirrors the runhistory
 and embeds `scenario.json`, `intensifier.json`, `optimization.json` and
 `configspace.json` verbatim.
 
+One object per subject, each stating its subject once, and `result` last:
+
+```jsonc
+{ "format": 2, "version", "name", "seed",
+  "dataset":     { "filename", "sha256", "rows", "columns", "column_names", … },
+  "model":       { "kind", "name", "sha256", "dependencies", … },
+  "evaluation":  { "scheme", "folds", "test_size", "stratified" },
+  "metrics":     { "names", "primary", "original" },
+  "optimizer":   { "name", "params", "defaults_used" },
+  "runs":        [ … ],
+  "environment": { "codesigner", "python", "packages" },
+  "result":      { … } }
+```
+
+Files written before `format` existed spelled all of this as one flat namespace;
+they are lifted on the way in, so they still open. Files written now do not open
+in a build from before this.
+
 The dataset and any custom model are recorded by **SHA-256, not embedded**, so
 the file stays a record rather than an archive. Importing with a dataset whose
 digest disagrees is refused: trials measured on different data cannot be

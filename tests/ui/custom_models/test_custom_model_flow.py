@@ -81,14 +81,14 @@ def test_adapter_adopts_uploaded_model_file():
 
 
 def test_snapshot_emits_absolute_loadable_model_path():
-    """snapshot_from_experiment must emit an absolute, on-disk model_path so the
+    """snapshot_from_experiment must emit an absolute, on-disk model path so the
     run engine can load it (a relative name would not resolve)."""
     exp = snapshot_adapter.experiment_from_snapshot(
         _custom_snapshot(), model_file=_model_file(),
     )
     out = snapshot_adapter.snapshot_from_experiment(exp)
-    assert Path(out["model_path"]).is_absolute()
-    assert Path(out["model_path"]).is_file()
+    assert Path(out["model"]["path"]).is_absolute()
+    assert Path(out["model"]["path"]).is_file()
 
 
 # --- running ------------------------------------------------------------------

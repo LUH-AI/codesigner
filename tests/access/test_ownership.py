@@ -265,8 +265,8 @@ def test_an_export_names_no_paths_on_this_server(client, ana):
     body = client.get(reverse("ui:experiment_export", args=[exp.pk])).content
     snapshot = json.loads(body)
 
-    assert snapshot["dataset_path"] == ""
-    assert snapshot["model_path"] == ""
+    assert snapshot["dataset"]["path"] == ""
+    assert snapshot["model"]["path"] == ""
 
 
 def test_the_experiment_itself_still_knows_its_paths(client, ana):
@@ -280,4 +280,4 @@ def test_the_experiment_itself_still_knows_its_paths(client, ana):
     exp = _experiment(owner=ana)
     exp.dataset.save("iris.csv", ContentFile((DATASETS_DIR / "iris.csv").read_bytes()))
 
-    assert adapter.snapshot_from_experiment(exp)["dataset_path"] != ""
+    assert adapter.snapshot_from_experiment(exp)["dataset"]["path"] != ""

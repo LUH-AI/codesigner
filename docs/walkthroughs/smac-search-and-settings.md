@@ -202,10 +202,14 @@ dataclass. They cannot be: `core` has no Django, deliberately. So the split
 follows the stopping criteria instead — the vocabulary in `core`, the words in
 `ui/optimizer_labels.py`, translated there.
 
-**Editable between runs**, not fixed at creation like `cv_folds`. The test is
-whether past trials stay comparable, and they do: the strategy chooses *which*
-configurations to try, not *how* they are measured. Refused while a run is in
-flight, and the page says the change applies from the next run onwards.
+**Fixed at creation, like `cv_folds`.** An earlier cut let the settings page
+edit them between runs, on the argument that past trials stay comparable — the
+strategy chooses *which* configurations to try, not *how* they are measured.
+That is true and beside the point. The cost lands on the record: an experiment
+whose settings can change no longer has settings that describe its trials, so
+every run has to carry its own copy, and a reader has to reconcile them. For a
+capability nobody asked for. They are chosen once, on the create form, and the
+`.ihpo` states them once.
 
 ---
 
@@ -268,11 +272,11 @@ stays in the slow file, to check that the number the arithmetic produces is the
 number of trials that actually get sampled.
 `tests/core/test_resume_initial_points.py` covers what a stopped run does to the
 sampling phase, and `tests/ui/settings/test_optimizer_settings.py` the panel,
-clamping, the run-in-flight refusal, the alias and the withdrawn-setting case.
+clamping, the alias, the withdrawn-setting case, and that the settings page
+neither offers these nor accepts them posted by hand.
 
-Live-checked: the create form and the settings page render all ten with the
-advanced six folded, stored values come back selected, and a saved change
-survives a reload.
+Live-checked: the create form renders all ten with the advanced six folded, and
+stored values come back selected on a re-render.
 
 ## For A3S
 

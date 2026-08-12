@@ -18,8 +18,6 @@ from core.provenance import (
 )
 
 from ..models import Experiment
-from core.optimizers.smac_optimizer import _per_hyperparameter as per_hyperparameter
-
 from ..registry import OPTIMIZERS
 
 
@@ -32,8 +30,8 @@ def experiment_from_snapshot(snapshot: dict, dataset_file=None, model_file=None,
     not runnable — which is what an imported `.ihpo` does until its dataset is
     attached.
 
-    *adopt_paths* additionally allows `dataset_path` and `model_path` to be read
-    from the snapshot as paths on this machine. It is off by default because a
+    *adopt_paths* additionally allows the snapshot's `dataset.path` and
+    `model.path` to be read as paths on this machine. It is off by default because a
     snapshot is only as trustworthy as wherever it came from: read from an
     uploaded file, those fields name any path the uploader likes, and adopting
     one copies a file they were never shown into an experiment they can export.
@@ -49,16 +47,17 @@ def experiment_from_snapshot(snapshot: dict, dataset_file=None, model_file=None,
     accounts. Set at creation because there is nowhere else it could come
     from — an .ihpo has no notion of who made it.
     """
+    snapshot = io.normalize(snapshot)
     exp = Experiment(
         name=snapshot["name"],
-        model_name=snapshot["model_name"],
-        optimizer_name=snapshot["optimizer_name"],
-        optimizer_params=snapshot.get("optimizer_params", {}),
-        metric_names=snapshot["metric_names"],
-        primary_metric=snapshot.get("primary_metric"),
-        original_metric=snapshot.get("original_metric"),
+        model_name=snapshot["model"]["name"],
+        optimizer_name=snapshot["optimizer"]["name"],
+        optimizer_params=snapshot["optimizer"].get("params") or {},
+        metric_names=snapshot["metrics"]["names"],
+        primary_metric=snapshot["metrics"].get("primary"),
+        original_metric=snapshot["metrics"].get("original"),
         seed=snapshot["seed"],
-        cv_folds=int(snapshot.get("cv_folds") or 0),
+        cv_folds=io.folds_of(snapshot),
         result=snapshot.get("result"),
         owner=owner,
     )
@@ -67,7 +66,7 @@ def experiment_from_snapshot(snapshot: dict, dataset_file=None, model_file=None,
         name = getattr(dataset_file, "name", None) or _dataset_name(snapshot)
         exp.dataset.save(Path(name).name, dataset_file, save=False)
     elif adopt_paths:
-        stored = snapshot.get("dataset_path", "")
+        stored = snapshot["dataset"].get("path", "")
         if stored and Path(stored).is_file():
             with open(stored, "rb") as fh:
                 exp.dataset.save(Path(stored).name, File(fh), save=False)
@@ -76,7 +75,7 @@ def experiment_from_snapshot(snapshot: dict, dataset_file=None, model_file=None,
         name = getattr(model_file, "name", None) or "model.py"
         exp.model_file.save(Path(name).name, model_file, save=False)
     elif adopt_paths and settings.ALLOW_CUSTOM_MODELS:
-        stored_model = snapshot.get("model_path", "")
+        stored_model = snapshot["model"].get("path", "")
         if stored_model and Path(stored_model).is_file():
             with open(stored_model, "rb") as fh:
                 exp.model_file.save(Path(stored_model).name, File(fh), save=False)
@@ -98,9 +97,9 @@ def _restore_runs(exp: Experiment, recorded: list) -> None:
 
     Without this the `runs` section is write-only: an imported experiment keeps
     its trials and loses which run produced which of them, what bounded each
-    one, what settings it ran under and when the metric changed — all of which
-    are in the file. A round trip has to be lossless or the file is not the
-    record it claims to be.
+    one, why it ended and when the metric changed — all of which are in the
+    file. A round trip has to be lossless or the file is not the record it
+    claims to be.
 
     `started_by` is deliberately not restored. An account on the instance that
     exported this is not an account here, and inventing a local one would put a
@@ -119,7 +118,6 @@ def _restore_runs(exp: Experiment, recorded: list) -> None:
             primary_metric=entry.get("primary_metric") or "",
             stopping=entry.get("stopping") or {},
             stopped_by=entry.get("stopped_by") or "",
-            optimizer_params=entry.get("optimizer_params") or {},
             events=entry.get("events") or [],
             started_at=parse_datetime(entry["started_at"]) if entry.get("started_at") else None,
             finished_at=parse_datetime(entry["finished_at"]) if entry.get("finished_at") else None,
@@ -131,58 +129,61 @@ def _restore_runs(exp: Experiment, recorded: list) -> None:
 
 
 def snapshot_from_experiment(exp: Experiment, *, provenance: bool = False) -> dict:
-    """Build a current-version .ihpo snapshot dict from an Experiment row.
+    """Build a current-format .ihpo snapshot dict from an Experiment row.
 
-    dataset_path points at the row's stored file, or is empty when it has none
-    — a foreign path from an imported file is never echoed back out.
+    One object per subject, each stating its subject once, and `result` last
+    because it dwarfs everything above it. The dataset and model paths point at
+    the row's own stored files, or are empty when it has none — a foreign path
+    from an imported file is never echoed back out.
 
-    *provenance* adds the sections that describe how the experiment was made
-    rather than what it is: the data and model fingerprints, how a trial was
-    evaluated, what the optimizer's settings resolved to, the history of runs,
-    and the versions behind the numbers. Off by default because the run engine
+    *provenance* fills in what describes how the experiment was made rather
+    than what it is: the two digests, the shape of the data, whether the split
+    could stratify, the defaults the optimizer's blanks resolved to, the history
+    of runs, and the versions behind the numbers. It adds keys to the sections
+    below rather than sections of its own. Off by default because the run engine
     and the detail page rebuild through this function on every run and every
     page load, and the dataset fingerprint reads and hashes the file. Export
     turns it on; nothing else needs it.
     """
+    dataset = exp.dataset.path if exp.dataset else ""
+    model_path = exp.model_file.path if exp.model_file else ""
     snapshot = {
+        "format": io.SNAPSHOT_FORMAT,
         "version": dist_version("codesigner"),
         "name": exp.name,
-        "model_name": exp.model_name,
-        "model_path": exp.model_file.path if exp.model_file else "",
-        "optimizer_name": exp.optimizer_name,
-        "optimizer_params": exp.optimizer_params,
-        "primary_metric": exp.primary_metric,
-        "original_metric": exp.original_metric,
-        "metric_names": exp.metric_names,
         "seed": exp.seed,
-        "cv_folds": exp.cv_folds,
-        "dataset_path": exp.dataset.path if exp.dataset else "",
-        "result": exp.result,
+        "dataset": {"filename": Path(dataset).name if dataset else "",
+                    "path": dataset},
+        "model": {"kind": "file" if model_path else "registry",
+                  "name": exp.model_name, "path": model_path},
+        "evaluation": evaluation(exp.cv_folds),
+        "metrics": {"names": exp.metric_names,
+                    "primary": exp.primary_metric,
+                    "original": exp.original_metric},
+        "optimizer": {"name": exp.optimizer_name, "params": exp.optimizer_params},
     }
     if provenance:
-        snapshot.update(_provenance(exp))
+        _add_provenance(snapshot, exp, dataset, model_path)
+    snapshot["result"] = exp.result
     return snapshot
 
 
-def _provenance(exp: Experiment) -> dict:
-    """The sections that say how the experiment was made.
+def _add_provenance(snapshot: dict, exp: Experiment, dataset: str, model_path: str) -> None:
+    """Fill in what the record needs and reconstruction does not.
 
-    Nested rather than flattened in beside the existing keys: they are a
-    different kind of thing — a record of the process, not the configuration it
-    ran under — and every one of them is optional on the way back in, so a file
-    written before any of this existed still opens.
+    In place, and into the sections that already exist, so the file says each
+    thing once: the dataset's digest goes beside the dataset's path rather than
+    into a section of its own that names the dataset again.
     """
-    dataset = exp.dataset.path if exp.dataset else ""
-    return {
-        "data": dataset_fingerprint(dataset) if dataset else None,
-        "model": model_fingerprint(
-            exp.model_name, exp.model_file.path if exp.model_file else "", exp.env_meta),
-        "evaluation": evaluation(exp.cv_folds, _target(dataset)),
-        "optimizer": _optimizer_record(exp),
-        "runs": [_run_record(index, run)
-                 for index, run in enumerate(exp.runs.order_by("id"), start=1)],
-        "environment": environment(),
-    }
+    if dataset:
+        snapshot["dataset"].update(dataset_fingerprint(dataset))
+    snapshot["model"].update(
+        model_fingerprint(exp.model_name, model_path, exp.env_meta))
+    snapshot["evaluation"].update(evaluation(exp.cv_folds, _target(dataset)))
+    snapshot["optimizer"]["defaults_used"] = _defaults_used(exp)
+    snapshot["runs"] = [_run_record(index, run)
+                        for index, run in enumerate(exp.runs.order_by("id"), start=1)]
+    snapshot["environment"] = environment()
 
 
 def _target(dataset_path: str):
@@ -196,46 +197,37 @@ def _target(dataset_path: str):
     return y
 
 
-def _optimizer_record(exp: Experiment) -> dict:
-    """What the search was configured to do, with the blanks answered.
+def _defaults_used(exp: Experiment) -> dict:
+    """The blanks, and what the installed optimizer filled them with.
 
-    `resolved` is the reader's copy: a blank setting means "whatever that
-    component already does", which is the right thing to store and useless to
-    read. Reconstruction still goes through `optimizer_params`, which is what
-    was actually asked for — the difference matters if the installed SMAC ever
-    changes a default, and `environment.packages.smac` says which one answered.
+    A blank setting means "whatever that component already does", which is the
+    right thing to store and useless to read six months later — nobody knows
+    what SMAC's random forest uses for its leaf size. This answers the blanks
+    and only the blanks: repeating the settings that were actually chosen would
+    say the same thing twice, and a reader finding two copies would reasonably
+    wonder which one ran.
 
-    The initial design is described here rather than sized here, because its
-    size depends on the budget the run was given and that belongs to each run.
+    The answers are read out of the installed SMAC's own signatures rather than
+    copied here, because a copy is a second source of truth that goes stale
+    silently. Reconstruction still goes through `params`, so a SMAC that changes
+    a default later reproduces the same *request* rather than today's answer to
+    it — and `environment.packages.smac` says which version answered.
+
+    The blanks that stay blank belong to the other search strategy, which has no
+    default for them because it has no such component: `BlackBoxFacade` has no
+    forest to have a tree count of.
     """
     optimizer = OPTIMIZERS.get(exp.optimizer_name)
     params = exp.optimizer_params or {}
-    resolved = None
-    if optimizer is not None:
-        kind = type(optimizer)
-        try:
-            resolved = kind(**kind.known_params(params)).resolved_params()
-        except Exception:  # noqa: BLE001 — a record is never worth a failed export
-            resolved = None
-    return {
-        "name": exp.optimizer_name,
-        "resolved": resolved,
-        # Mirrors the settings rather than the number they produce: the number
-        # depends on the budget the run was given and on how many
-        # hyperparameters the model has, so it belongs to each run and not here.
-        # `per_hyperparameter` is what the trial cap falls back to when blank,
-        # and with the config space (in `result.optimizer_state`) it is enough
-        # to work the number out.
-        "initial_design": {
-            "kind": params.get("initial_design"),
-            "use_share_cap": params.get("use_share_cap"),
-            "share_cap": params.get("share_cap"),
-            "use_trial_cap": params.get("use_trial_cap"),
-            "trial_cap": params.get("trial_cap"),
-            "per_hyperparameter": per_hyperparameter(),
-            "combine": "max" if params.get("initial_points_use_max") else "min",
-        },
-    }
+    if optimizer is None:
+        return {}
+    kind = type(optimizer)
+    try:
+        resolved = kind(**kind.known_params(params)).resolved_params()
+    except Exception:  # noqa: BLE001 — a record is never worth a failed export
+        return {}
+    return {name: value for name, value in resolved.items()
+            if params.get(name) is None and value is not None}
 
 
 def _run_record(index: int, run) -> dict:
@@ -252,7 +244,6 @@ def _run_record(index: int, run) -> dict:
         "finished_at": run.finished_at.isoformat() if run.finished_at else None,
         "trial_range": span,
         "primary_metric": run.primary_metric,
-        "optimizer_params": run.optimizer_params or None,
         "stopping": run.stopping,
         "stopped_by": run.stopped_by or None,
         # The split between trial time and search overhead, and why a run
@@ -260,14 +251,10 @@ def _run_record(index: int, run) -> dict:
         # round trip lossy the moment the history started being read back.
         "trial_seconds": run.trial_seconds,
         "error": run.error or None,
-        # The budget SMAC was told about, which is what sized its initial
-        # design. Not the same as the trial cap once a run resumes.
-        "budget_told": ((offset or 0) + run.stopping["max_trials"]
-                        if run.stopping.get("max_trials") else None),
         "events": run.events or [],
     }
 
 
 def _dataset_name(snapshot: dict) -> str:
-    stored = snapshot.get("dataset_path", "")
+    stored = (snapshot.get("dataset") or {}).get("path", "")
     return Path(stored).name if stored else "dataset.csv"

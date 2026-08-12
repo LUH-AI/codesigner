@@ -145,11 +145,6 @@ class Run(models.Model):
     # cancelled or errored rather than stopping on its own terms.
     stopped_by = models.CharField(max_length=40, blank=True, default="")
     primary_metric = models.CharField(max_length=100)
-    # The optimizer's settings as they stood when this run started. They are
-    # editable between runs, so the experiment's current ones are not what the
-    # earlier trials were produced under — and an .ihpo that could not say which
-    # settings produced which trials could not recreate the experiment.
-    optimizer_params = models.JSONField(default=dict, blank=True)
     # How many trials the experiment already had. With `trial_count` this gives
     # the range this run produced, which is what turns a flat list of trials
     # back into a history of runs.

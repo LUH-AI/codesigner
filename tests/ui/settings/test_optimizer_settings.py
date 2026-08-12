@@ -1,13 +1,12 @@
-"""Editing how an experiment's search runs.
+"""Choosing how an experiment's search runs.
 
-`OptimizerParam` has described these settings since Step 2 and nothing rendered
-them — the create form's docstring has said "editing them is a later step" for
-eight steps. The form is generic: it loops what the optimizer declares, so a new
-setting is a line in `params_schema` and no template changes.
+The form is generic: it loops what the optimizer declares, so a new setting is a
+line in `params_schema` and no template changes.
 
-They are editable *between* runs, not fixed at creation like `cv_folds`. The
-distinction is whether past trials stay comparable, and they do: the search
-strategy chooses which configurations to try, not how they are measured.
+They are chosen at creation and fixed for the experiment's life, like
+`cv_folds`. An experiment's settings therefore describe every trial in it, which
+is what lets the record say what produced the history rather than what would
+produce the next run.
 """
 
 import pytest
@@ -88,102 +87,54 @@ def test_creating_without_touching_them_stores_the_defaults(client):
     assert stored["challengers"] is None
 
 
-# ── editing afterwards ───────────────────────────────────────────────────────
+# ── fixed once the experiment exists ─────────────────────────────────────────
 
-def test_the_settings_page_shows_what_is_stored(client):
-    exp = _experiment(params={"search_strategy": "rf", "share_cap": 0.4})
-
-    html = _settings(client, exp)
-
-    assert 'value="rf" selected' in html
-    assert 'value="0.4"' in html
-
-
-def test_saving_changes_them(client):
-    exp = _experiment()
-
-    client.post(reverse("ui:experiment_settings", args=[exp.pk]), {
-        "save_search": "1", "opt_search_strategy": "rf",
-        "opt_share_cap": "0.5", "opt_acquisition": "pi",
-    })
-    exp.refresh_from_db()
-
-    assert exp.optimizer_params["search_strategy"] == "rf"
-    assert exp.optimizer_params["share_cap"] == 0.5
-    assert exp.optimizer_params["acquisition"] == "pi"
+def _create(client, **overrides):
+    data = {"name": "created", "model_name": "Random Forest",
+            "optimizer_name": "SMAC", "seed": "0",
+            "demo_dataset": str(DATASETS_DIR / "iris.csv")}
+    data.update(overrides)
+    client.post(reverse("ui:new_experiment"), data)
+    return Experiment.objects.get(name=data["name"]).optimizer_params
 
 
-def test_saving_the_search_leaves_the_display_settings_alone(client):
-    """Two forms on one page, two fields on the model. The display settings
-    have inherit/override/promote-to-default semantics and these have none, so
-    saving one must not reach into the other."""
-    exp = _experiment()
-    exp.settings = {"export_absolute_times": False}
-    exp.use_default_settings = False
-    exp.save()
+def test_the_settings_page_does_not_offer_them(client):
+    """The one page that could plausibly host them, and deliberately does not.
 
-    client.post(reverse("ui:experiment_settings", args=[exp.pk]),
-                {"save_search": "1", "opt_search_strategy": "rf"})
-    exp.refresh_from_db()
+    Its display settings are inherit/override/promote-to-default; these have
+    none of that, and changing them mid-experiment would leave the trials
+    already recorded describing a search that no longer runs.
+    """
+    exp = _experiment(params={"search_strategy": "rf"})
 
-    assert exp.settings == {"export_absolute_times": False}
-    assert exp.use_default_settings is False
+    assert "Configure optimizer" not in _settings(client, exp)
 
 
-def test_they_cannot_be_changed_under_a_running_search(client):
-    """Rebuilding the optimizer mid-run would change what the run is using
-    halfway through it."""
+def test_posting_them_at_the_settings_page_changes_nothing(client):
+    """Absent from the form is not the same as refused by the view. A page that
+    rendered no fields but accepted them would be editable by anyone who knew
+    the names."""
     exp = _experiment(params={"search_strategy": "gp"})
-    Run.objects.create(experiment=exp, stopping={"max_trials": 5},
-                       primary_metric="accuracy", status="running")
 
-    html = _settings(client, exp)
     client.post(reverse("ui:experiment_settings", args=[exp.pk]),
                 {"save_search": "1", "opt_search_strategy": "rf"})
     exp.refresh_from_db()
 
-    assert "A run is in flight" in html
     assert exp.optimizer_params["search_strategy"] == "gp"
 
 
 def test_a_value_out_of_range_is_clamped_rather_than_refused(client):
-    exp = _experiment()
-
-    client.post(reverse("ui:experiment_settings", args=[exp.pk]),
-                {"save_search": "1", "opt_share_cap": "5"})
-    exp.refresh_from_db()
-
-    assert exp.optimizer_params["share_cap"] == 1.0
+    assert _create(client, opt_share_cap="5")["share_cap"] == 1.0
 
 
 def test_an_unreadable_value_falls_back_to_the_default(client):
-    exp = _experiment()
-
-    client.post(reverse("ui:experiment_settings", args=[exp.pk]),
-                {"save_search": "1", "opt_acquisition_xi": "lots"})
-    exp.refresh_from_db()
-
-    assert exp.optimizer_params["acquisition_xi"] == 0.0
+    assert _create(client, opt_acquisition_xi="lots")["acquisition_xi"] == 0.0
 
 
 def test_an_unreadable_value_with_no_default_falls_back_to_blank(client):
     """Blank is a real answer for these — it means "whatever SMAC does" — so
     "falls back to the default" and "falls back to empty" are the same thing."""
-    exp = _experiment()
-
-    client.post(reverse("ui:experiment_settings", args=[exp.pk]),
-                {"save_search": "1", "opt_share_cap": "lots"})
-    exp.refresh_from_db()
-
-    assert exp.optimizer_params["share_cap"] is None
-
-
-def test_an_optimizer_with_nothing_to_configure_offers_nothing(client):
-    """Random search declares an empty schema, so the section is absent rather
-    than an empty box with a save button."""
-    exp = _experiment(optimizer_name="Random Search")
-
-    assert "Configure optimizer" not in _settings(client, exp)
+    assert _create(client, opt_share_cap="lots")["share_cap"] is None
 
 
 # ── surviving a rename ───────────────────────────────────────────────────────
@@ -194,9 +145,10 @@ def test_an_experiment_stored_under_the_old_name_still_works(client):
     has to resolve."""
     exp = _experiment(optimizer_name="SMAC (BlackBox)")
 
-    assert "Configure optimizer" in _settings(client, exp)
     assert client.get(
         reverse("ui:experiment_detail", args=[exp.pk])).status_code == 200
+    assert client.get(
+        reverse("ui:experiment_settings", args=[exp.pk])).status_code == 200
 
 
 def test_a_stored_setting_the_optimizer_no_longer_has_is_ignored(client):
@@ -546,14 +498,13 @@ def test_a_setting_declares_when_it_applies(client):
 
 
 def test_the_panel_wires_its_own_switch(client):
-    """It travels with the partial rather than living on the page, because the
-    settings page renders the same panel and would otherwise render it dead."""
-    from django.urls import reverse
+    """It travels with the partial rather than living on the page, and scopes
+    itself to its own fieldset — the create page renders one panel per optimizer
+    and each has to switch only its own fields."""
+    html = client.get(reverse("ui:new_experiment")).content.decode()
 
-    for html in (client.get(reverse("ui:new_experiment")).content.decode(),
-                 _settings(client, _experiment())):
-        assert 'querySelectorAll("[data-when]")' in html
-        assert 'document.currentScript.closest("fieldset")' in html
+    assert 'querySelectorAll("[data-when]")' in html
+    assert 'document.currentScript.closest("fieldset")' in html
 
 
 def test_a_setting_for_the_other_strategy_is_hidden_and_not_disabled(client):
