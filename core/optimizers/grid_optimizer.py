@@ -23,6 +23,11 @@ from .base import (
 _NUMERIC_STEPS = 5
 
 
+#: Where every configuration this optimizer proposes comes from — one point of
+#: the grid, in order. See `_ORIGIN` in random_optimizer.
+_ORIGIN = "Grid point"
+
+
 class GridOptimizer(BaseOptimizer):
     """Exhaustive grid search over a discretized hyperparameter space.
 
@@ -99,7 +104,8 @@ class GridOptimizer(BaseOptimizer):
             if collector.done:
                 break
             all_scores, run_info = evaluate_trial(model, cfg, splits, metrics, seed=seed)
-            collector.record(cfg, all_scores[primary_metric], all_scores, run_info=run_info)
+            collector.record(cfg, all_scores[primary_metric], all_scores,
+                             run_info=run_info, origin=_ORIGIN)
 
         all_trials = (previous_result.trials if previous_result else []) + collector.results
 

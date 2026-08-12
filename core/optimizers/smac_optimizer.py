@@ -65,6 +65,17 @@ def _per_hyperparameter() -> int:
     return _signature_default(
         AbstractInitialDesign.__init__, "n_configs_per_hyperparameter") or 10
 
+#: The designs whose points are a *sequence*, so that a bigger draw contains a
+#: smaller one. Sobol is one by construction and `sample_configuration` draws
+#: sequentially from a seeded generator, so a resume that asks for more points
+#: gets the ones it already has plus the rest — SMAC skips what it has evaluated
+#: and the totals come out the same as an uninterrupted run.
+#:
+#: Latin hypercube is not: it stratifies each dimension into `n` bins, so
+#: changing `n` moves every point. Measured, none of a 3-point draw survives
+#: into a 7-point one. A resume under it must therefore keep the size it had.
+_EXTENDABLE_DESIGNS = frozenset({"sobol", "random", "default_only"})
+
 _INITIAL_DESIGNS = {
     "sobol": SobolInitialDesign,
     "latin_hypercube": LatinHypercubeInitialDesign,
@@ -290,8 +301,35 @@ class SMACOptimizer(BaseOptimizer):
         migrated.setdefault("use_trial_cap", True)
         return migrated
 
-    def _initial_points(self, scenario) -> int:
+    def _initial_points(self, scenario, previous_result=None) -> int:
         """How many points to sample before the model takes over.
+
+        **On a resume under a design whose points do not nest, the number the
+        first run settled on wins.** The design is
+        regenerated from scratch every run, and asking for a different size than
+        last time asks for a different *set* of points: Sobol is a sequence, so
+        a bigger draw contains the smaller one and SMAC skips what it has
+        already evaluated, and the totals come out the same as an uninterrupted
+        run. A Latin hypercube stratifies each dimension into `n` bins, so
+        changing `n` moves every point and the whole design gets sampled again,
+        in the middle of a search that had started modelling. Only the second
+        kind is pinned; see `_EXTENDABLE_DESIGNS`.
+
+        The size is not recomputed from what the history looks like, and not
+        inferred from what the trials say about themselves. SMAC records it in
+        the scenario, `deserialize_result` lifts it out, and this honours it.
+        Recomputing would have to reconstruct an intent from origin strings
+        written by another library for its own logs, and get two things right
+        that it cannot: the model's own default configuration carries an
+        initial-design origin while sitting outside `n_configs`, so counting
+        origins grows the design by one on every resume; and a file written
+        before origins were recorded labels every trial with the optimizer's
+        name, which reads as "none of these were sampled".
+
+        The recorded design is only honoured while it is still the design in
+        use. Change the sampling method between runs and the number is
+        re-derived, because keeping it would size a Latin hypercube draw by a
+        Sobol count and resample everything — the opposite of the point.
 
         SMAC bounds this two ways and takes the smaller of them: a share of the
         budget (`max_ratio`) and a count (`n_configs`, or ten per hyperparameter
@@ -309,6 +347,10 @@ class SMACOptimizer(BaseOptimizer):
         not fit rather than truncating it — and to at least one, because a
         search has to start somewhere.
         """
+        pinned = self._pinned_points(previous_result)
+        if pinned is not None:
+            return pinned
+
         budget = scenario.n_trials
         caps = []
         if self._use_share_cap:
@@ -329,6 +371,31 @@ class SMACOptimizer(BaseOptimizer):
 
         room = budget - (1 if self._use_default_config else 0)
         return max(1, min(wanted, room))
+
+    def _pinned_points(self, previous_result) -> int | None:
+        """The size the initial design already settled on, or None to work it out.
+
+        None whenever there is nothing to protect or nothing trustworthy to
+        honour: a design whose points nest, a first run, a file from before
+        SMAC's scenario was embedded, or a sampling method changed since.
+        Falling through to the computed number is the safe direction in all of
+        them — it is what every run did before this existed.
+        """
+        if self._initial_design in _EXTENDABLE_DESIGNS:
+            # Asking for more points asks for the same points plus more, so
+            # there is nothing to protect: let the phase grow with the budget,
+            # which is what keeps a stopped-and-resumed experiment sampling as
+            # much in total as an uninterrupted one.
+            return None
+
+        recorded = (previous_result.metadata.get("initial_design")
+                    if previous_result is not None else None) or {}
+        n_configs = recorded.get("n_configs")
+        if n_configs is None:
+            return None
+        if recorded.get("name") != _INITIAL_DESIGNS[self._initial_design].__name__:
+            return None
+        return max(1, int(n_configs))
 
     def resolved_params(self) -> dict:
         """Every setting with the blanks answered, for the record.
@@ -404,7 +471,7 @@ class SMACOptimizer(BaseOptimizer):
         """Settings that belong to the scenario rather than to a component."""
         return {"use_default_config": self._use_default_config}
 
-    def _facade(self, scenario, target_function):
+    def _facade(self, scenario, target_function, previous_result=None):
         """Build the chosen strategy, overriding only what was actually set.
 
         Each component is asked for through the facade's own `get_*`, so an
@@ -424,7 +491,7 @@ class SMACOptimizer(BaseOptimizer):
         # and ignores both.
         initial_design = design(
             scenario, max_ratio=1.0,
-            n_configs=self._initial_points(scenario))
+            n_configs=self._initial_points(scenario, previous_result))
 
         acquisition = facade.get_acquisition_function(scenario, xi=self._acquisition_xi)
         if self._acquisition == "pi":
@@ -519,7 +586,14 @@ class SMACOptimizer(BaseOptimizer):
             "stats": {"submitted": len(recorded), "finished": len(recorded), "running": 0},
             "data": recorded,
             "configs": rh["configs"],
-            "config_origins": rh.get("config_origins", {}),
+            # Ours, keyed by trial number, not SMAC's, keyed by its own config
+            # ids. Two reasons. The key spaces diverge as soon as a replayed
+            # configuration is dropped or two trials share one configuration.
+            # And SMAC reads origins off the live `Configuration` objects when
+            # it saves, which the local-search maximizer relabels in place — so
+            # its map says what the last local search touched, not where each
+            # trial came from.
+            "config_origins": {str(t.trial): t.origin for t in result.trials},
             "optimizer_state": optimizer_state,
             "primary_metric": result.primary_metric,
             "best_score": result.best_score,
@@ -565,6 +639,14 @@ class SMACOptimizer(BaseOptimizer):
 
         result = super().deserialize_result(d)
         result.metadata["smac_output_dir"] = str(output_dir)
+        # How big the initial design was, and which design it was. SMAC records
+        # both in the scenario it saves, and that file is already embedded here
+        # verbatim — so the number a resume has to honour is in the .ihpo
+        # without the .ihpo needing a field for it. See `_initial_points`.
+        scenario = optimizer_state.get(f"{subdir}/scenario.json") or {}
+        pinned = (scenario.get("_meta") or {}).get("initial_design")
+        if isinstance(pinned, dict) and pinned.get("n_configs") is not None:
+            result.metadata["initial_design"] = pinned
         return result
 
     def _confidence_nothing_better(self, smac, config_space, incumbent_config: dict):
@@ -649,6 +731,12 @@ class SMACOptimizer(BaseOptimizer):
                 # space changed under the experiment). Not tellable, and not
                 # worth failing the run over.
                 continue
+            # Where it came from, put back before SMAC is told about it. A told
+            # configuration with no origin is stamped "Custom" by SMAC, which is
+            # how every replayed trial used to lose the one thing the record
+            # wanted from it. Left as None when we never knew, so SMAC's own
+            # label is at least honest about that.
+            config.origin = t.origin or None
             info = t.run_info
             smac.tell(
                 TrialInfo(config=config, seed=seed),
@@ -710,7 +798,7 @@ class SMACOptimizer(BaseOptimizer):
         def _unreachable(config, seed: int = 0) -> float:
             raise RuntimeError("SMAC called target_function unexpectedly in ask/tell mode")
 
-        smac = self._facade(scenario, _unreachable)
+        smac = self._facade(scenario, _unreachable, previous_result)
 
         wants_confidence = "incumbent_confidence" in criteria
 
@@ -741,7 +829,8 @@ class SMACOptimizer(BaseOptimizer):
                 # whether the configuration was bad or the model was broken.
                 additional_info=run_info.get("additional_info") or {},
             ))
-            collector.record(config, all_scores[primary_metric], all_scores, run_info=run_info)
+            collector.record(config, all_scores[primary_metric], all_scores,
+                             run_info=run_info, origin=info.config.origin or "")
 
             # Only worth asking if someone is listening, and only once there is
             # enough history for the answer to mean anything. The model is one

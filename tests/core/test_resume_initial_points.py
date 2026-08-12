@@ -34,18 +34,26 @@ INITIAL = "Initial Design"
 def _origins(optimizer, result):
     """One character per trial, in order: I sampled, m chosen by the model."""
     origins = optimizer.serialize_result(result)["config_origins"]
-    return "".join("I" if kind.startswith(INITIAL) else "m"
+    return "".join("I" if (kind or "").lower().startswith(INITIAL.lower()) else "m"
                    for _, kind in sorted(origins.items(), key=lambda kv: int(kv[0])))
 
 
-def _run(models, metrics, iris_splits, trials, previous=None):
+def _run(models, metrics, iris_splits, trials, previous=None, **settings):
+    """One search, as `(origin string, a result ready to resume from)`.
+
+    The result is round-tripped through serialize/deserialize rather than
+    returned live, because that is what a resume actually gets: the run engine
+    rebuilds from `Experiment.result` every time. It is also what carries each
+    trial's origin and the recorded size of the initial design.
+    """
     X_train, X_val, y_train, y_val = iris_splits
-    optimizer = SMACOptimizer()
+    optimizer = SMACOptimizer(**settings)
     result = optimizer.optimize(
         models["Random Forest"], X_train, y_train, X_val, y_val,
         metrics=metrics, primary_metric="accuracy", seed=0,
         stopping={"max_trials": trials}, previous_result=previous)
-    return _origins(optimizer, result), result
+    stored = optimizer.serialize_result(result)
+    return _origins(optimizer, result), optimizer.deserialize_result(stored)
 
 
 def test_a_resumed_search_collects_the_points_it_had_not_got_to(
@@ -56,42 +64,63 @@ def test_a_resumed_search_collects_the_points_it_had_not_got_to(
     whole, _ = _run(models, metrics, iris_splits, 27, previous=partial)
 
     assert first.count("I") == 1, first
-    assert whole.count("I") == 6, whole
-    assert whole.startswith("mmm"), "the replayed three come first"
+    assert whole.count("I") == 7, whole
+    assert whole[:3] == first, "the replayed three come first, as they were"
 
 
 def test_the_totals_line_up_when_the_rest_of_the_budget_is_asked_for(
         models, metrics, iris_splits):
     """Three then twenty-seven samples as many points as thirty in one go —
-    because SMAC is told the same total either way.
-
-    Counted across both runs rather than off the resumed one, for the reason the
-    next test is about: the replayed trials come back labelled as though the
-    model had chosen them."""
+    because SMAC is told the same total either way."""
     straight, _ = _run(models, metrics, iris_splits, 30)
-    first, partial = _run(models, metrics, iris_splits, 3)
-    resumed, _ = _run(models, metrics, iris_splits, 27, previous=partial)
-
-    assert straight.count("I") == 7
-    assert first.count("I") + resumed.count("I") == 7
-
-
-def test_replaying_a_trial_loses_where_it_came_from(models, metrics, iris_splits):
-    """A known gap in the record, pinned rather than left to be discovered.
-
-    Resuming rebuilds the facade and replays every past trial into it with
-    `tell`, which is what lets a changed metric or a lost run directory be
-    recovered from. But a told trial carries no origin, so SMAC's runhistory —
-    which the exported `.ihpo` copies verbatim — records the replayed ones as
-    though the model had chosen them. The trials, their configurations and their
-    scores are all intact; only the label for how each was arrived at is not.
-
-    Nothing downstream reads `config_origins`, so this costs nothing today. It
-    costs a reader of the file, which is the point of the file."""
     _, partial = _run(models, metrics, iris_splits, 3)
     resumed, _ = _run(models, metrics, iris_splits, 27, previous=partial)
 
-    assert resumed[:3] == "mmm", "the first run sampled one of these"
+    assert straight.count("I") == resumed.count("I") == 7
+
+
+def test_replaying_a_trial_keeps_where_it_came_from(models, metrics, iris_splits):
+    """Resuming rebuilds the facade and replays every past trial with `tell`, and
+    a told configuration carrying no origin is stamped `"Custom"` by SMAC — which
+    used to relabel the whole of the first run as though the model had chosen it.
+    The origin each trial recorded when it was proposed is put back before the
+    telling, so the record still says which trials were sampled."""
+    first, partial = _run(models, metrics, iris_splits, 3)
+    resumed, _ = _run(models, metrics, iris_splits, 27, previous=partial)
+
+    assert first == "Imm"
+    assert resumed[:3] == first, "the first run's three trials, still saying so"
+
+
+@pytest.mark.parametrize("design", ["sobol", "random"])
+def test_a_design_whose_points_nest_samples_as_much_in_total(
+        design, models, metrics, iris_splits):
+    """The invariant that makes stopping early harmless. Both of these draw
+    sequentially from a seeded generator, so a bigger design contains the
+    smaller one and SMAC skips what it has already evaluated — the totals come
+    out the same however the run was chopped up. Only the placement differs."""
+    straight, _ = _run(models, metrics, iris_splits, 24, initial_design=design)
+    _, partial = _run(models, metrics, iris_splits, 8, initial_design=design)
+    resumed, _ = _run(models, metrics, iris_splits, 16, previous=partial,
+                      initial_design=design)
+
+    assert resumed.count("I") == straight.count("I"), (straight, resumed)
+
+
+def test_a_latin_hypercube_keeps_the_design_it_started_with(
+        models, metrics, iris_splits):
+    """It does not nest — it stratifies each dimension into `n` bins, so asking
+    for a different `n` moves every point. Before this was handled, resuming
+    sampled a whole fresh design in the middle of a search that had been
+    modelling for nine trials. The size SMAC recorded in its scenario is
+    honoured instead, so the resumed run adds none."""
+    first, partial = _run(models, metrics, iris_splits, 12,
+                          initial_design="latin_hypercube")
+    resumed, _ = _run(models, metrics, iris_splits, 24, previous=partial,
+                      initial_design="latin_hypercube")
+
+    assert first.count("I") == resumed.count("I"), (first, resumed)
+    assert "I" not in resumed[12:], "no sampling once the model has taken over"
 
 
 def test_but_it_is_not_the_same_experiment(models, metrics, iris_splits):
@@ -104,8 +133,8 @@ def test_but_it_is_not_the_same_experiment(models, metrics, iris_splits):
     resumed, _ = _run(models, metrics, iris_splits, 27, previous=partial)
 
     assert straight != resumed
-    assert straight.startswith("IIIIIII")
-    assert resumed.startswith("mmmIIIIII")
+    assert straight.startswith("IIIIIII"), "sampled first, then modelled"
+    assert resumed.startswith("ImmIIIIII"), "one sampled, two modelled, then the rest"
 
 
 def test_resuming_with_a_smaller_budget_explores_less_than_was_planned(
@@ -115,7 +144,10 @@ def test_resuming_with_a_smaller_budget_explores_less_than_was_planned(
     trials have nearly covered already. Asking for a quarter and getting an
     eighth is not a bug in the arithmetic; it is that "a quarter" has always
     meant a quarter of what this run knows about."""
+    straight, _ = _run(models, metrics, iris_splits, 8)
     _, partial = _run(models, metrics, iris_splits, 3)
     resumed, _ = _run(models, metrics, iris_splits, 5, previous=partial)
 
-    assert resumed.count("I") == 1, resumed
+    assert resumed.count("I") == 2, resumed
+    assert resumed.count("I") == straight.count("I"), (
+        "and still a quarter of the eight trials that were actually run")

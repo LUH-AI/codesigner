@@ -10,6 +10,7 @@ from pathlib import Path
 
 from django.conf import settings
 from django.core.files import File
+from django.utils.dateparse import parse_datetime
 
 from core import io
 from core.provenance import (
@@ -81,7 +82,52 @@ def experiment_from_snapshot(snapshot: dict, dataset_file=None, model_file=None,
                 exp.model_file.save(Path(stored_model).name, File(fh), save=False)
 
     exp.save()
+    _restore_runs(exp, snapshot.get("runs") or [])
     return exp
+
+
+#: A run that had not finished when the file was written did not finish at all —
+#: it was interrupted by whatever ended the process that was running it. Imported
+#: as pending or running it would leave `Experiment.is_running` true for ever and
+#: the detail page polling a run that cannot report.
+_UNFINISHED = ("pending", "running")
+
+
+def _restore_runs(exp: Experiment, recorded: list) -> None:
+    """Rebuild the experiment's run history from what the file recorded.
+
+    Without this the `runs` section is write-only: an imported experiment keeps
+    its trials and loses which run produced which of them, what bounded each
+    one, what settings it ran under and when the metric changed — all of which
+    are in the file. A round trip has to be lossless or the file is not the
+    record it claims to be.
+
+    `started_by` is deliberately not restored. An account on the instance that
+    exported this is not an account here, and inventing a local one would put a
+    name against work they did not do.
+    """
+    from ..models import Run
+
+    for entry in sorted(recorded, key=lambda r: r.get("index") or 0):
+        if not isinstance(entry, dict):
+            continue
+        span = entry.get("trial_range") or []
+        status = entry.get("status") or "done"
+        Run.objects.create(
+            experiment=exp,
+            status="cancelled" if status in _UNFINISHED else status,
+            primary_metric=entry.get("primary_metric") or "",
+            stopping=entry.get("stopping") or {},
+            stopped_by=entry.get("stopped_by") or "",
+            optimizer_params=entry.get("optimizer_params") or {},
+            events=entry.get("events") or [],
+            started_at=parse_datetime(entry["started_at"]) if entry.get("started_at") else None,
+            finished_at=parse_datetime(entry["finished_at"]) if entry.get("finished_at") else None,
+            trial_seconds=entry.get("trial_seconds"),
+            trial_offset=(span[0] - 1) if len(span) == 2 else None,
+            trial_count=(span[1] - span[0] + 1) if len(span) == 2 else None,
+            error=entry.get("error") or "",
+        )
 
 
 def snapshot_from_experiment(exp: Experiment, *, provenance: bool = False) -> dict:
@@ -209,6 +255,11 @@ def _run_record(index: int, run) -> dict:
         "optimizer_params": run.optimizer_params or None,
         "stopping": run.stopping,
         "stopped_by": run.stopped_by or None,
+        # The split between trial time and search overhead, and why a run
+        # failed. Both are on the row and neither was recorded, which made a
+        # round trip lossy the moment the history started being read back.
+        "trial_seconds": run.trial_seconds,
+        "error": run.error or None,
         # The budget SMAC was told about, which is what sized its initial
         # design. Not the same as the trial cap once a run resumes.
         "budget_told": ((offset or 0) + run.stopping["max_trials"]

@@ -33,13 +33,16 @@ build opens here. A test pins that directly.
 "optimizer": {
   "name",
   "resolved": { ... },         // every setting with the blanks answered
-  "initial_design": { "kind", "sized_by", "trials", "share" }
+  "initial_design": { "kind", "use_share_cap", "share_cap",
+                      "use_trial_cap", "trial_cap",
+                      "per_hyperparameter", "combine" }
 },
-"runs": [{
+"runs": [{                     // read back on import, not only written
   "index", "status", "started_at", "finished_at",
   "trial_range": [1, 6],       // which trials this run produced
   "primary_metric", "optimizer_params", "stopping", "stopped_by",
   "budget_told",               // what sized the initial design
+  "trial_seconds", "error",
   "events": [{ "kind": "metric_changed", "from": "accuracy", "to": "f1",
                "at_trial": 6, "surrogate": "rebuilt_and_replayed" }]
 }],
@@ -86,12 +89,23 @@ to the surrogate, maximizer, initial design, random design and intensifier —
 whole experiment is what makes it reproducible from (dataset, seed, setup), and
 splitting it across sections would have suggested otherwise.
 
-**`runs[]` did not exist in any form.** It is what turns a flat list of trials
-back into a history: which run produced which trials, what bounded it, why it
-ended, and what it ran under. That last one matters because the settings are
-editable *between* runs, so the experiment's current settings are not the ones
-the earlier trials came out of — a record that said they were would be wrong
-about every experiment anyone ever adjusted.
+**`runs[]` turns a flat list of trials back into a history**: which run produced
+which trials, what bounded it, why it ended, and what it ran under. That last one
+matters because the settings are editable *between* runs, so an experiment's
+current settings are not the ones its earlier trials came out of — a record that
+said they were would be wrong about every experiment anyone ever adjusted.
+
+It was **write-only** to begin with. `experiment_from_snapshot` never looked at
+it, so an imported experiment kept its trials and lost the structure over them —
+a round trip was lossy in exactly the section added to stop the file being lossy.
+It is read back now, and `test_exporting_what_was_imported_gives_the_same_record`
+pins that export → import → export comes back identical. Two fields were added to
+make that true (`trial_seconds`, `error`). `started_by` is deliberately not
+recorded: an account on the exporting instance is not an account here, and
+inventing a local one would put a name against work they did not do. A run that
+had not finished when the file was written comes back `cancelled` rather than
+`running`, or `Experiment.is_running` would be true for ever and the page would
+poll a run that cannot report.
 
 **The metric change is an event**, and the case the format could not previously
 describe at all. It is recorded for what it costs: the whole history is re-read
@@ -116,6 +130,7 @@ export passes `provenance=True` and nothing else does.
 | `ui/services/snapshot.py` | Assembles the sections; `runs[]` and the optimizer record. |
 | `ui/services/run.py` | Records each run's settings, trial offset and metric-change event. |
 | `ui/models.py` + `0014` | `Run.optimizer_params`, `Run.trial_offset`, `Run.events`. |
+| `ui/services/snapshot.py` | `_restore_runs` rebuilds the history on import. |
 | `ui/views.py`, `import_ihpo` | Refuse a dataset that disagrees with the record. |
 
 ## Verification

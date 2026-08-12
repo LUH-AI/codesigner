@@ -120,91 +120,73 @@ submitted.
 
 ### What resuming does to it
 
-The size is worked out from the budget *this run* was told about — trials
-already done plus this run's cap. Nothing stores an intent, so:
+A search samples before it models, and a run stopped part-way leaves that phase
+unfinished. Resuming rebuilds the facade and replays every past trial into it, so
+SMAC knows what has been evaluated and skips those design points.
 
-- Resume with the rest of the original budget and the totals line up. Three then
-  twenty-seven reaches the same seven sampled points as thirty in one go, because
-  SMAC skips design configurations already in its runhistory and every past trial
-  is replayed before anything is asked of it.
-- Resume with **less** and the phase is sized smaller. Stop at 3 and resume for 5
-  and SMAC is told the budget is 8, so a quarter of it is 2 — which the replayed
-  trials nearly cover. You asked for a quarter and got an eighth.
-- Either way it is **not the same experiment** as running straight through: the
-  interrupted run sized its own phase for its own small budget, so its trials are
-  not the first few of the long run.
+**For Sobol and Random the totals come out right.** Both draw sequentially from a
+seeded generator, so a bigger design *contains* the smaller one. Three trials
+then twenty-seven samples the same seven points as thirty in one go; eight then
+sixteen matches twenty-four. The only difference is placement — the extra points
+can land mid-search rather than at the start.
 
-`tests/core/test_resume_initial_points.py` pins all three. Giving the experiment
-a stored intended budget to size against would change the second of them; it has
-not been done.
+An earlier version of this document claimed resuming explored *less* than
+intended. It does not, and there was no "intended": the share cap has always
+meant a share of what the run knows about, and the arithmetic is self-consistent
+at every budget. What is true is that a stopped-and-resumed experiment is not the
+*same* experiment as one run straight through — the interrupted run sized its own
+phase for its own smaller budget — but it is not a shortchanged one.
 
-One gap it also pins. Resuming rebuilds the facade and replays every past trial
-into it with `tell`, and a told trial carries no origin — so SMAC's runhistory,
-which the exported `.ihpo` copies verbatim, records the replayed ones as though
-the model had chosen them. The trials, configurations and scores are intact;
-only the label for how each was arrived at is not. Nothing downstream reads
-`config_origins`, so it costs nothing today — it costs a reader of the file,
-which is what the file is for.
+**Latin hypercube was the real problem.** It stratifies each dimension into `n`
+bins rather than extending a sequence, so a different `n` moves every point:
 
-### Advanced, folded away
+```
+Sobol            first 3 of 7 reused: 3/3
+Random           first 3 of 7 reused: 3/3
+Latin hypercube  first 3 of 7 reused: 0/3
+```
 
-Sampling method, acquisition function (EI or PI) and its improvement margin
-(`xi`), candidates per trial, local search iterations, refit interval.
+Resuming under it therefore sampled a whole fresh design — nine points dropped
+into the middle of a search that had been modelling for nine trials. It now keeps
+the size it started with, so a resumed run adds none.
 
-### The surrogate itself
+The size is **read, not reconstructed**. SMAC records the initial design's class,
+count and seed in the scenario it saves, and `serialize_result` already embeds
+that file verbatim under `optimizer_state`; `deserialize_result` lifts it out.
+So the number a resume honours is in the `.ihpo` without the `.ihpo` needing a
+field for it, and it is only honoured while the sampling method is unchanged —
+change it deliberately and the number is re-derived, because keeping it would
+size a Latin hypercube draw by a Sobol count.
 
-Nine more, each declaring the strategy it belongs to (`OptimizerParam.
-depends_on`) so the form shows only the set that applies. Hidden, not disabled:
-a disabled field is not submitted and would reset on every strategy switch, and
-the names are prefixed per strategy so there is nothing to gain by dropping them.
+Two ways of reconstructing it instead were written and rejected, and
+`tests/core/test_initial_points.py` keeps them as regression tests. Counting
+trials whose *origin* names an initial design grows the design by one on every
+resume, because the model's own default configuration carries such an origin
+while sitting outside `n_configs`; and it collapses to a single point on any file
+written before origins were recorded, where every origin reads as the optimizer's
+name. Freezing the phase once the model has been consulted sounds cleaner but
+means the first run decides exploration for ever — with the default share cap
+every run of more than one trial reaches its model, so a three-trial look-first
+run would cap a later three-hundred-trial search at one sampled point.
 
-| Random forest | Gaussian process |
-|---|---|
-| trees, tree depth, split threshold, leaf size, feature ratio, bootstrapping | fitting (vanilla / MCMC), fit restarts, target normalisation |
+### Where each trial came from
 
-The forest comes through `HyperparameterOptimizationFacade.get_model`, which
-takes all six. The process does not: `BlackBoxFacade.get_model` exposes only
-`model_type` and `kernel`, so restarts and normalisation mean constructing
-`GaussianProcess` directly — with the facade's own kernel, and identical to what
-the facade would have returned when nothing is set.
+`result.config_origins` says whether each trial was sampled or chosen, and used
+to lie about it after a resume: a configuration told to SMAC with no origin is
+stamped `"Custom"`, so replaying relabelled the whole of the first run as though
+the model had picked it.
 
-Three things worth knowing rather than discovering.
-
-**The naming collision.** The demo Random Forest *model* is tuned over
-`max_depth` and `min_samples_split`. The random forest *surrogate* has settings
-of those exact names, and both appear on the same page. Hence `rf_`/`gp_`
-prefixes on the schema names and the word **surrogate** in every label, which a
-test enforces.
-
-**`ratio_features` above 1.0** makes SMAC compute `max_features = 0` — a forest
-whose every split considers no features, fitted and consulted and useless, with
-no error. Capped in three places, because only the last covers a hand-edited
-`.ihpo`.
-
-**MCMC must be paired with `IntegratedAcquisitionFunction`.** An MCMC process is
-an ensemble; nothing in SMAC pairs them up, and an unwrapped acquisition
-function scores against one arbitrary member rather than complaining — it raises
-only when there are no members at all. It costs roughly six times the wall clock
-per trial here, which is why the choice is labelled "MCMC (slow)".
-
-One thing that did **not** hold up. The plan expected more trees to fix the flat
-confidence readings the forest gives. It moves them, but not reliably enough to
-assert on: how coarse the forest's answer is depends on the split and the data
-more than on the tree count. The knob is there and works; the claim about what
-it buys is not pinned by a test.
-
-### Not exposed, deliberately
-
-`walltime_limit` and friends duplicate the stopping criteria we already built —
-one concept, one mechanism. `n_workers` is inert in ask/tell but still enters
-the scenario hash, so it would look like it did something. Multi-fidelity
-*raises* without budgets. `max_config_calls` and `n_seeds` collapse to one under
-`deterministic=True`. `LCB`'s `beta` is not the coefficient it uses — that is
-`2·log(D·t²/beta)` — and is not a number to put in front of anyone. The
-runhistory encoder stays with the strategy that owns it, because mismatching it
-with `EI(log=)` silently corrupts the acquisition.
-
----
+Every trial now records its origin as it was proposed (`TrialResult.origin`), and
+the replay puts it back before telling. Two smaller things went with that. The
+map is written from the trials rather than copied out of SMAC's runhistory —
+SMAC reads origins off live `Configuration` objects when it saves, and the
+local-search maximizer relabels ones it takes out of the runhistory in place, so
+its map records what the last local search touched. And it is keyed by trial
+number in every optimizer, where the SMAC path used to key by SMAC's own config
+ids; the two diverge as soon as a replayed configuration is dropped or two trials
+share a configuration. An unrecorded origin is written through as empty rather
+than filled in with the optimizer's name, so "we do not know" stays
+distinguishable from "the model chose it".
 
 ## Where it lives
 

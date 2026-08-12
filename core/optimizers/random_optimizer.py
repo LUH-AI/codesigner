@@ -7,6 +7,12 @@ from .trial import evaluate_trial
 _MAX_CONSECUTIVE_DUPES = 200  # give up after this many consecutive duplicate samples
 
 
+#: Where every configuration this optimizer proposes comes from. Recorded per
+#: trial like SMAC's, so a reader of the file does not have to know which
+#: optimizer wrote it to know how a configuration was arrived at.
+_ORIGIN = "Random sample"
+
+
 class RandomOptimizer(BaseOptimizer):
     """Uniform random search over the hyperparameter space.
 
@@ -68,7 +74,8 @@ class RandomOptimizer(BaseOptimizer):
             consecutive_dupes = 0
             evaluated.add(key)
             all_scores, run_info = evaluate_trial(model, cfg, splits, metrics, seed=seed)
-            collector.record(cfg, all_scores[primary_metric], all_scores, run_info=run_info)
+            collector.record(cfg, all_scores[primary_metric], all_scores,
+                             run_info=run_info, origin=_ORIGIN)
 
         all_trials = (previous_result.trials if previous_result else []) + collector.results
 

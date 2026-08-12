@@ -35,11 +35,12 @@ def _scenario(space, budget, **extras):
                     output_directory=Path(tempfile.mkdtemp()), **extras)
 
 
-def _points(space, budget=30, **settings):
+def _points(space, budget=30, previous_result=None, **settings):
     """How many initial points SMAC ends up holding."""
     optimizer = SMACOptimizer(**settings)
     scenario = _scenario(space, budget, **optimizer._scenario_extras())
-    return optimizer._facade(scenario, lambda config, seed=0: 0.0)._initial_design._n_configs
+    smac = optimizer._facade(scenario, lambda config, seed=0: 0.0, previous_result)
+    return smac._initial_design._n_configs
 
 
 # ── the number is still SMAC's, when nothing is asked for ────────────────────
@@ -172,3 +173,93 @@ def test_settings_written_since_the_reshape_are_left_alone():
     read = SMACOptimizer.known_params({"share_cap": 0.3, "use_trial_cap": False})
 
     assert read == {"share_cap": 0.3, "use_trial_cap": False}
+
+
+# ── what a resume is allowed to change about it ──────────────────────────────
+
+def _resumed(name, n_configs):
+    """A previous result carrying the design SMAC recorded in its scenario."""
+    from core.optimizers.base import OptimizationResult
+
+    return OptimizationResult(
+        trials=[], primary_metric="accuracy", best_config={}, best_score=0.0,
+        hyperparameter_importance={}, hyperparameter_importance_warning={},
+        metadata={"initial_design": {"name": name, "n_configs": n_configs}})
+
+
+def test_a_design_whose_points_nest_keeps_growing_with_the_budget(space):
+    """Sobol is a sequence and `sample_configuration` draws sequentially, so a
+    bigger draw contains the smaller one: SMAC skips what it has evaluated and
+    tops up the rest. Nothing to protect, so nothing is pinned — which is what
+    keeps a stopped-and-resumed experiment sampling as much in total as an
+    uninterrupted one."""
+    previous = _resumed("SobolInitialDesign", 3)
+
+    assert _points(space, 200, previous_result=previous) == 40
+
+
+def test_a_design_whose_points_do_not_nest_keeps_the_size_it_had(space):
+    """A Latin hypercube stratifies each dimension into `n` bins, so asking for
+    a different `n` moves every point — the whole design would be sampled again,
+    in the middle of a search that had already started modelling. Measured: none
+    of a 3-point draw survives into a 7-point one."""
+    previous = _resumed("LatinHypercubeInitialDesign", 3)
+
+    assert _points(space, 200, initial_design="latin_hypercube",
+                   previous_result=previous) == 3
+
+
+def test_changing_the_sampling_method_rederives_rather_than_reusing(space):
+    """Keeping the number would size a Latin hypercube draw by a Sobol count,
+    which is the resampling this exists to prevent, done deliberately."""
+    previous = _resumed("SobolInitialDesign", 3)
+
+    assert _points(space, 200, initial_design="latin_hypercube",
+                   previous_result=previous) == 40
+
+
+def test_a_file_that_records_no_design_falls_back_to_working_it_out(space):
+    """Everything exported before SMAC's scenario was embedded. Falling through
+    to the computed number is what every run did before this existed."""
+    from core.optimizers.base import OptimizationResult
+
+    previous = OptimizationResult(
+        trials=[], primary_metric="accuracy", best_config={}, best_score=0.0,
+        hyperparameter_importance={}, hyperparameter_importance_warning={},
+        metadata={})
+
+    assert _points(space, 200, initial_design="latin_hypercube",
+                   previous_result=previous) == 40
+
+
+# ── two ways of reconstructing the size that were tried and do not work ──────
+
+def test_the_size_does_not_come_from_counting_what_the_trials_say(space):
+    """Kept as a regression test for an approach that was written and rejected.
+
+    Counting trials whose origin names an initial design cannot work, for two
+    reasons this pins by construction. The model's own default configuration
+    carries `Initial Design: Default configuration` while sitting *outside*
+    `n_configs` — so a count grows by one on every resume, unboundedly. And a
+    file written before origins were recorded labels every trial with the
+    optimizer's name, which reads as "none of these were sampled" and collapses
+    the design to a single point, permanently and silently.
+
+    The recorded `n_configs` has neither problem: it excludes additional configs
+    by construction and it is absent rather than wrong on an old file.
+    """
+    previous = _resumed("LatinHypercubeInitialDesign", 3)
+    previous.trials = []          # no trials at all, so nothing to count
+
+    assert _points(space, 200, initial_design="latin_hypercube",
+                   previous_result=previous) == 3, "read, not reconstructed"
+
+
+def test_the_default_configuration_does_not_inflate_the_size(space):
+    """It is an additional config, outside `n_configs`, and SMAC appends it to
+    whatever size it is handed. Handing back a number that already counted it
+    would append it again."""
+    previous = _resumed("LatinHypercubeInitialDesign", 3)
+
+    assert _points(space, 200, initial_design="latin_hypercube",
+                   use_default_config=True, previous_result=previous) == 3

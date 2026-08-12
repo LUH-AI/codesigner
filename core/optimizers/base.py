@@ -59,6 +59,12 @@ class TrialResult:
     incumbent_score: float      # running incumbent score
     incumbent_config: Dict[str, Any]
     run_info: Dict[str, Any] = field(default_factory=dict)  # SMAC-native per-trial fields (timing, seed, status, …)
+    #: How this configuration was arrived at — sampled from the initial design,
+    #: chosen by the model, drawn at random. Its own field rather than part of
+    #: `run_info` because that mirrors SMAC's runhistory entry, and SMAC keeps
+    #: origins in a separate top-level map beside the entries. Empty means
+    #: unrecorded, which every trial from before this existed is.
+    origin: str = ""
 
     @property
     def duration(self) -> float:
@@ -321,8 +327,16 @@ class TrialCollector:
         score: float,
         all_scores: Dict[str, float],
         run_info: Optional[Dict[str, Any]] = None,
+        origin: str = "",
     ) -> TrialResult:
-        """Record one completed trial, update the incumbent, return the TrialResult."""
+        """Record one completed trial, update the incumbent, return the TrialResult.
+
+        *origin* is where the configuration came from, as the optimizer knew it
+        at the moment it was proposed. Taken here rather than read back off the
+        optimizer afterwards, because by then it may not say the same thing —
+        SMAC's local-search maximizer relabels configurations it takes out of
+        the runhistory, in place.
+        """
         if score > self._incumbent_score:
             self._incumbent_score = score
             self._incumbent_config = config
@@ -344,6 +358,7 @@ class TrialCollector:
             incumbent_score=self._incumbent_score,
             incumbent_config=self._incumbent_config or config,
             run_info=run_info or {},
+            origin=origin or "",
         )
         self.results.append(trial)
         return trial
@@ -432,7 +447,12 @@ class BaseOptimizer(ABC):
             "stats": {"submitted": len(result.trials), "finished": len(result.trials), "running": 0},
             "data": data,
             "configs": configs,
-            "config_origins": {str(t.trial): self.name for t in result.trials},
+            # Keyed by trial number, and written from what each trial recorded
+            # at the moment it was proposed. An empty origin is written through
+            # rather than filled with this optimizer's name: "we did not record
+            # where this came from" and "the model chose it" are different
+            # facts, and something downstream reads them apart.
+            "config_origins": {str(t.trial): t.origin for t in result.trials},
             "optimizer_state": {},
             "primary_metric": result.primary_metric,
             "best_score": result.best_score,
@@ -450,6 +470,7 @@ class BaseOptimizer(ABC):
         """
         configs = d.get("configs", {})
         data = d.get("data", [])
+        origins = d.get("config_origins") or {}
         primary_metric = d.get("primary_metric", "")
 
         trials = []
@@ -464,6 +485,7 @@ class BaseOptimizer(ABC):
                 incumbent_score=entry.get("incumbent_score", 1.0 - entry["cost"]),
                 incumbent_config=configs.get(incumbent_cid, configs.get(cid, {})),
                 run_info={k: entry[k] for k in RUN_INFO_KEYS if k in entry},
+                origin=str(origins.get(cid) or ""),
             ))
 
         best_config_id = str(d.get("best_config_id") or (str(trials[-1].trial) if trials else "0"))

@@ -53,6 +53,16 @@ def _exported(client, exp) -> dict:
         client.get(reverse("ui:experiment_export", args=[exp.pk])).content)
 
 
+def _reimport(client, body):
+    """*body* imported as a fresh experiment, and that experiment."""
+    body = {**body, "name": f"{body['name']}-again"}
+    client.post(reverse("ui:import_experiment"), {
+        "file": SimpleUploadedFile("e.ihpo", json.dumps(body).encode()),
+        "dataset": SimpleUploadedFile("iris.csv", IRIS.read_bytes()),
+    })
+    return Experiment.objects.get(name=body["name"])
+
+
 def _run(exp, **overrides):
     """A finished run row, without executing anything."""
     fields = {"primary_metric": "accuracy", "status": "done",
@@ -386,6 +396,69 @@ def test_the_run_engine_does_not_pay_for_the_record(client):
 
     assert "data" not in adapter.snapshot_from_experiment(exp)
     assert "data" in adapter.snapshot_from_experiment(exp, provenance=True)
+
+
+# ── the record survives coming back in ──────────────────────────────────────
+
+def test_a_run_history_survives_a_round_trip(client):
+    """`runs[]` was written and never read: an imported experiment kept its
+    trials and lost which run produced which of them, what bounded each one and
+    what settings it ran under — all of it in the file, all of it dropped."""
+    exp = _create(client)
+    _run(exp, trial_offset=0, trial_count=6, stopping={"max_trials": 6},
+         stopped_by="max_trials", trial_seconds=1.5)
+    _run(exp, trial_offset=6, trial_count=4, primary_metric="f1",
+         stopping={"max_trials": 4}, stopped_by="target_score")
+
+    imported = _reimport(client, _exported(client, exp))
+    runs = list(imported.runs.order_by("id"))
+
+    assert [(r.trial_offset, r.trial_count) for r in runs] == [(0, 6), (6, 4)]
+    assert [r.primary_metric for r in runs] == ["accuracy", "f1"]
+    assert [r.stopped_by for r in runs] == ["max_trials", "target_score"]
+    assert runs[0].trial_seconds == 1.5
+
+
+def test_a_run_that_had_not_finished_comes_back_interrupted(client):
+    """A file exported mid-run records `status="running"`. Imported as-is it
+    would leave the experiment permanently busy — `Experiment.is_running` reads
+    exactly this — and the page would poll a run that cannot report."""
+    exp = _create(client)
+    _run(exp, status="running", stopped_by="", trial_offset=None, trial_count=None)
+
+    imported = _reimport(client, _exported(client, exp))
+
+    assert imported.runs.get().status == "cancelled"
+    assert imported.is_running is False
+
+
+def test_who_pressed_run_is_not_carried_across(client):
+    """An account on the instance that exported this is not an account here, and
+    inventing a local one would put a name against work they did not do."""
+    exp = _create(client)
+    _run(exp)
+
+    body = _exported(client, exp)
+
+    assert "started_by" not in body["runs"][0]
+    assert _reimport(client, body).runs.get().started_by is None
+
+
+def test_exporting_what_was_imported_gives_the_same_record(client):
+    """The property the whole section exists for. Anything the importer drops
+    shows up here as a difference, which is how `runs[]` being write-only would
+    have been caught."""
+    exp = _create(client)
+    _run(exp, trial_offset=0, trial_count=6, trial_seconds=2.25,
+         events=[{"kind": "metric_changed", "from": "accuracy", "to": "f1",
+                  "at_trial": 6, "surrogate": "rebuilt_and_replayed"}])
+    _run(exp, trial_offset=6, trial_count=2, status="error", stopped_by="",
+         error="the model would not fit")
+
+    once = _exported(client, exp)
+    twice = _exported(client, _reimport(client, once))
+
+    assert twice["runs"] == once["runs"]
 
 
 # ── the whole point ──────────────────────────────────────────────────────────
