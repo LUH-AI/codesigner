@@ -27,15 +27,30 @@ LABELS = {
         _("Gaussian process suits a few numeric hyperparameters. Random forest "
           "suits many of them, or categorical ones."),
     ),
-    "exploration_ratio": (
-        _("Exploration share"),
-        _("Fraction of the budget sampled before the model takes over. Ignored "
-          "when a number of exploration trials is given."),
+    "use_share_cap": (
+        _("Use share cap"),
+        _("Bound the initial points by a fraction of the run's budget, so a "
+          "longer run explores for longer."),
     ),
-    "exploration_trials": (
-        _("Exploration trials"),
-        _("Exact number of trials sampled before the model takes over. "
-          "Overrides the share; blank uses it."),
+    "share_cap": (
+        _("Share cap"),
+        _("Fraction of the run's trials spent sampling before the model takes "
+          "over."),
+    ),
+    "use_trial_cap": (
+        _("Use trial cap"),
+        _("Bound the initial points by a fixed number, whatever the run's "
+          "budget turns out to be."),
+    ),
+    "trial_cap": (
+        _("Trial cap"),
+        _("How many points to sample before the model takes over."),
+    ),
+    "initial_points_use_max": (
+        _("Use the larger of the two"),
+        _("With both caps in use, sample up to the larger rather than the "
+          "smaller. SMAC itself only ever takes the smaller; the larger is "
+          "worked out here and handed to it."),
     ),
     "random_probability": (
         _("Random trial rate"),
@@ -162,8 +177,19 @@ CHOICES = {
 #: uses". Only a setting with no default of its own can be empty at all, and
 #: most of those are the strategy's to decide — these are the exceptions.
 PLACEHOLDERS = {
-    "exploration_trials": _("uses the share"),
+    "share_cap": _("0.25"),
+    "trial_cap": _("10 per hyperparameter"),
     "rf_max_depth": _("no limit"),
+}
+
+#: A group's title, for the blocks the form lays out itself. Keyed by the
+#: `group` on the parameters that belong to it.
+GROUPS = {
+    "initial_points": (
+        _("Initial points"),
+        _("How many configurations are sampled before the model takes over. "
+          "SMAC bounds this two ways at once and uses the smaller of them."),
+    ),
 }
 
 #: The rest of them.
@@ -188,6 +214,10 @@ def described(param, value=None):
         "min": param.min,
         "max": param.max,
         "advanced": param.advanced,
+        "group": param.group,
+        # Space-separated for the data attribute: every one of these has to be
+        # checked for the field to be worth filling in.
+        "enabled_by": " ".join(param.enabled_by),
         # "search_strategy=rf" — the form hides this field unless that setting
         # has that value. A string because it is going into a data attribute.
         "when": ("=".join(param.depends_on) if param.depends_on else ""),
@@ -205,3 +235,39 @@ def describe_all(optimizer, stored=None):
     """Every setting of *optimizer*, with the experiment's stored values applied."""
     stored = stored or {}
     return [described(p, stored.get(p.name)) for p in optimizer.params_schema]
+
+
+def grouped(described_params):
+    """The panel's layout: what to render, in the order it was declared.
+
+    Each entry is either a single setting or a whole group, and a group sits
+    where its first member was declared rather than after everything loose —
+    otherwise a block of important settings would drift to the bottom of the
+    panel because it happens to be a block.
+    """
+    layout, advanced, seen = [], [], set()
+    for param in described_params:
+        if param["advanced"] and not param["group"]:
+            advanced.append(param)
+            continue
+        if not param["group"]:
+            layout.append({"param": param})
+            continue
+        if param["group"] in seen:
+            continue
+        seen.add(param["group"])
+        layout.append({"group": _group(param["group"], described_params)})
+    return layout, advanced
+
+
+def _group(name, described_params):
+    label, help_text = GROUPS.get(name, (name, ""))
+    return {
+        "name": name,
+        "label": label,
+        "help": help_text,
+        "template": f"ui/_group_{name}.html",
+        # Keyed by name so the group's own template can place each setting
+        # deliberately rather than take them in declaration order.
+        "params": {p["name"]: p for p in described_params if p["group"] == name},
+    }

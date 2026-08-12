@@ -17,6 +17,8 @@ from core.provenance import (
 )
 
 from ..models import Experiment
+from core.optimizers.smac_optimizer import _per_hyperparameter as per_hyperparameter
+
 from ..registry import OPTIMIZERS
 
 
@@ -172,11 +174,20 @@ def _optimizer_record(exp: Experiment) -> dict:
     return {
         "name": exp.optimizer_name,
         "resolved": resolved,
+        # Mirrors the settings rather than the number they produce: the number
+        # depends on the budget the run was given and on how many
+        # hyperparameters the model has, so it belongs to each run and not here.
+        # `per_hyperparameter` is what the trial cap falls back to when blank,
+        # and with the config space (in `result.optimizer_state`) it is enough
+        # to work the number out.
         "initial_design": {
             "kind": params.get("initial_design"),
-            "sized_by": "trials" if params.get("exploration_trials") else "share",
-            "trials": params.get("exploration_trials"),
-            "share": params.get("exploration_ratio"),
+            "use_share_cap": params.get("use_share_cap"),
+            "share_cap": params.get("share_cap"),
+            "use_trial_cap": params.get("use_trial_cap"),
+            "trial_cap": params.get("trial_cap"),
+            "per_hyperparameter": per_hyperparameter(),
+            "combine": "max" if params.get("initial_points_use_max") else "min",
         },
     }
 

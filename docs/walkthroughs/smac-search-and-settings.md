@@ -54,7 +54,7 @@ console waits forever.
 
 When a run has no trial cap — a deadline or a target score instead — the budget
 falls back to a documented constant. It only sizes the initial design, and
-`exploration_ratio` is the real knob for the same idea.
+the share cap is the real knob for the same idea.
 
 ---
 
@@ -76,10 +76,75 @@ the field takes one.
 | | |
 |---|---|
 | **Search strategy** | Gaussian process (default) or random forest — `BlackBoxFacade` / `HyperparameterOptimizationFacade`. |
-| **Exploration share** | `max_ratio`: the fraction of the budget spent sampling before the model chooses. The knob the headline fix makes real. |
-| **Exploration trials** | The same thing as a count — `n_configs`. Overrides the share, which otherwise clamps it back down; capped at the budget, less the default configuration if one was asked for, because SMAC raises on an initial design that does not fit. |
+| **Initial points** | Its own block — see below. |
 | **Random trial rate** | How often to try a random configuration instead of the model's pick. |
 | **Include the model's defaults** | `use_default_config` — a known reference point to beat. |
+
+### Initial points
+
+SMAC bounds the sampling phase two ways at once and uses the **smaller**:
+
+```python
+int(max(1, min(n_configs, max_ratio * n_trials)))
+```
+
+where `n_configs` defaults to ten per hyperparameter in the space. So "how many
+initial points does a search use" has no single answer — which bound binds
+depends on the model and the budget. A four-hyperparameter model at 30 trials
+gets 7 (a quarter of the budget); the same model at 600 gets 40 (ten each), not
+150.
+
+Both bounds are exposed as caps, in a two-column block because they are
+alternatives to each other:
+
+| | |
+|---|---|
+| **Use share cap** / **Share cap** | `max_ratio`. Blank is SMAC's 0.25. |
+| **Use trial cap** / **Trial cap** | `n_configs`. Blank is ten per hyperparameter. |
+| **Use the larger of the two** | Off by default, matching SMAC. |
+
+Either cap can be switched off. With **both** off nothing bounds the phase, which
+is the whole budget: a search that only samples. Strange to ask for and legible,
+so it is allowed rather than reinterpreted.
+
+**The larger is ours, not SMAC's.** There is no maximum form of that expression.
+It is reachable because `n_configs` overrides the per-hyperparameter bound and
+`max_ratio=1.0` disables the clamp, so `SMACOptimizer._initial_points` works the
+number out and hands it over. A test pins that with nothing configured the
+number is still exactly what SMAC would have reached alone.
+
+"Use default" beside each field is **not a setting**. An empty field already
+means "SMAC's own", and a second thing recording the same fact could disagree
+with it; it is a control over whether the field is filled in, and is never
+submitted.
+
+### What resuming does to it
+
+The size is worked out from the budget *this run* was told about — trials
+already done plus this run's cap. Nothing stores an intent, so:
+
+- Resume with the rest of the original budget and the totals line up. Three then
+  twenty-seven reaches the same seven sampled points as thirty in one go, because
+  SMAC skips design configurations already in its runhistory and every past trial
+  is replayed before anything is asked of it.
+- Resume with **less** and the phase is sized smaller. Stop at 3 and resume for 5
+  and SMAC is told the budget is 8, so a quarter of it is 2 — which the replayed
+  trials nearly cover. You asked for a quarter and got an eighth.
+- Either way it is **not the same experiment** as running straight through: the
+  interrupted run sized its own phase for its own small budget, so its trials are
+  not the first few of the long run.
+
+`tests/core/test_resume_initial_points.py` pins all three. Giving the experiment
+a stored intended budget to size against would change the second of them; it has
+not been done.
+
+One gap it also pins. Resuming rebuilds the facade and replays every past trial
+into it with `tell`, and a told trial carries no origin — so SMAC's runhistory,
+which the exported `.ihpo` copies verbatim, records the replayed ones as though
+the model had chosen them. The trials, configurations and scores are intact;
+only the label for how each was arrived at is not. Nothing downstream reads
+`config_origins`, so it costs nothing today — it costs a reader of the file,
+which is what the file is for.
 
 ### Advanced, folded away
 
@@ -209,11 +274,14 @@ python manage.py migrate                     # 0013
 
 `tests/core/test_smac_configuration.py` leads with the regression: a 30-trial
 run must contain more model-chosen configurations than initial-design ones.
-Then `exploration_ratio` moving that line, both strategies searching, both
-answering the confidence criterion, a resume not re-exploring, and changed
-settings taking effect while the history survives.
-`tests/ui/settings/test_optimizer_settings.py` covers the two forms, clamping,
-the run-in-flight refusal, the alias, and the withdrawn-setting case.
+Then the share cap moving that line, both strategies searching, both answering
+the confidence criterion, and changed settings taking effect while the history
+survives. `tests/core/test_initial_points.py` covers the two caps and what an
+experiment configured before they existed comes back as;
+`tests/core/test_resume_initial_points.py` covers what a stopped run does to
+the sampling phase. `tests/ui/settings/test_optimizer_settings.py` covers the
+panel, clamping, the run-in-flight refusal, the alias, and the
+withdrawn-setting case.
 
 Live-checked: the create form and the settings page render all ten with the
 advanced six folded, stored values come back selected, and a saved change

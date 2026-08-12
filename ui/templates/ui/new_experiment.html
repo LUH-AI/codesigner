@@ -60,7 +60,7 @@
         {% endcomment %}
         {% for panel in optimizer_panels %}
             <div data-optimizer="{{ panel.key }}"{% if not panel.selected %} hidden{% endif %}>
-                {% include "ui/_optimizer_params.html" with optimizer_params=panel.optimizer_params has_advanced_params=panel.has_advanced_params panel_disabled=panel.disabled %}
+                {% include "ui/_optimizer_params.html" with optimizer_layout=panel.optimizer_layout advanced_params=panel.advanced_params has_advanced_params=panel.has_advanced_params panel_disabled=panel.disabled %}
             </div>
         {% endfor %}
 

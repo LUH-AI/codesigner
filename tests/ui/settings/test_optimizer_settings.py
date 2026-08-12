@@ -44,7 +44,7 @@ def test_the_create_form_offers_the_search_settings(client):
     html = client.get(reverse("ui:new_experiment")).content.decode()
 
     assert 'name="opt_search_strategy"' in html
-    assert 'name="opt_exploration_ratio"' in html
+    assert 'name="opt_share_cap"' in html
     assert 'name="opt_use_default_config"' in html
 
 
@@ -64,13 +64,13 @@ def test_creating_stores_what_was_chosen(client):
         "name": "configured", "model_name": "Random Forest",
         "optimizer_name": "SMAC", "seed": "0",
         "demo_dataset": str(DATASETS_DIR / "iris.csv"),
-        "opt_search_strategy": "rf", "opt_exploration_ratio": "0.4",
+        "opt_search_strategy": "rf", "opt_share_cap": "0.4",
         "opt_use_default_config": "on",
     })
 
     stored = Experiment.objects.get(name="configured").optimizer_params
     assert stored["search_strategy"] == "rf"
-    assert stored["exploration_ratio"] == 0.4
+    assert stored["share_cap"] == 0.4
     assert stored["use_default_config"] is True
 
 
@@ -91,7 +91,7 @@ def test_creating_without_touching_them_stores_the_defaults(client):
 # ── editing afterwards ───────────────────────────────────────────────────────
 
 def test_the_settings_page_shows_what_is_stored(client):
-    exp = _experiment(params={"search_strategy": "rf", "exploration_ratio": 0.4})
+    exp = _experiment(params={"search_strategy": "rf", "share_cap": 0.4})
 
     html = _settings(client, exp)
 
@@ -104,12 +104,12 @@ def test_saving_changes_them(client):
 
     client.post(reverse("ui:experiment_settings", args=[exp.pk]), {
         "save_search": "1", "opt_search_strategy": "rf",
-        "opt_exploration_ratio": "0.5", "opt_acquisition": "pi",
+        "opt_share_cap": "0.5", "opt_acquisition": "pi",
     })
     exp.refresh_from_db()
 
     assert exp.optimizer_params["search_strategy"] == "rf"
-    assert exp.optimizer_params["exploration_ratio"] == 0.5
+    assert exp.optimizer_params["share_cap"] == 0.5
     assert exp.optimizer_params["acquisition"] == "pi"
 
 
@@ -150,20 +150,32 @@ def test_a_value_out_of_range_is_clamped_rather_than_refused(client):
     exp = _experiment()
 
     client.post(reverse("ui:experiment_settings", args=[exp.pk]),
-                {"save_search": "1", "opt_exploration_ratio": "5"})
+                {"save_search": "1", "opt_share_cap": "5"})
     exp.refresh_from_db()
 
-    assert exp.optimizer_params["exploration_ratio"] == 1.0
+    assert exp.optimizer_params["share_cap"] == 1.0
 
 
 def test_an_unreadable_value_falls_back_to_the_default(client):
     exp = _experiment()
 
     client.post(reverse("ui:experiment_settings", args=[exp.pk]),
-                {"save_search": "1", "opt_exploration_ratio": "lots"})
+                {"save_search": "1", "opt_acquisition_xi": "lots"})
     exp.refresh_from_db()
 
-    assert exp.optimizer_params["exploration_ratio"] == 0.25
+    assert exp.optimizer_params["acquisition_xi"] == 0.0
+
+
+def test_an_unreadable_value_with_no_default_falls_back_to_blank(client):
+    """Blank is a real answer for these — it means "whatever SMAC does" — so
+    "falls back to the default" and "falls back to empty" are the same thing."""
+    exp = _experiment()
+
+    client.post(reverse("ui:experiment_settings", args=[exp.pk]),
+                {"save_search": "1", "opt_share_cap": "lots"})
+    exp.refresh_from_db()
+
+    assert exp.optimizer_params["share_cap"] is None
 
 
 def test_an_optimizer_with_nothing_to_configure_offers_nothing(client):
@@ -348,8 +360,8 @@ def test_the_explanation_is_behind_a_marked_control(client):
     panel = _smac_panel(client)
 
     assert '<button type="button" class="info-mark"' in panel
-    assert ('<span class="info-bubble" role="tooltip" id="opt_exploration_ratio_help">'
-            'Fraction of the budget sampled') in panel
+    assert ('<span class="info-bubble" role="tooltip" id="opt_share_cap_help">'
+            "Fraction of the run") in panel
 
 
 def test_the_explanation_is_readable_without_a_pointer_too(client):
@@ -359,7 +371,7 @@ def test_the_explanation_is_readable_without_a_pointer_too(client):
     panel = _smac_panel(client)
     mark = panel[panel.index('class="info-mark"'):]
 
-    assert 'aria-describedby="opt_exploration_ratio_help"' in panel
+    assert 'aria-describedby="opt_share_cap_help"' in panel
     assert 'tabindex="0"' in mark[:mark.index(">")]
 
 
@@ -374,7 +386,7 @@ def test_a_decimal_field_is_not_a_stepper_at_all(client):
     is the entire range. Worse than useless: they make the field look like it
     wants a whole number."""
     panel = _smac_panel(client)
-    control = _control(panel, "exploration_ratio")
+    control = _control(panel, "share_cap")
 
     assert control.startswith("<input")
     assert 'type="text"' in control and 'inputmode="decimal"' in control
@@ -385,7 +397,7 @@ def test_a_whole_number_field_still_steps_by_one(client):
     """Where one is a real increment the arrows are worth having, and the
     difference between the two kinds of field is then visible."""
     panel = _smac_panel(client)
-    control = _control(panel, "exploration_trials")
+    control = _control(panel, "trial_cap")
 
     assert 'type="number"' in control and 'step="1"' in control
 
@@ -405,45 +417,84 @@ def test_an_empty_field_says_what_filling_it_in_would_displace(client):
         return found.group(1) if found else ""
 
     assert placeholder(panel, "retrain_after") == "search strategy default"
-    assert placeholder(panel, "exploration_ratio") == "", "it has a default of its own"
-    assert placeholder(panel, "exploration_trials") == "uses the share", (
-        "blank here falls back to the share, not to anything the strategy picks")
+    assert placeholder(panel, "share_cap") == "0.25"
+    assert placeholder(panel, "trial_cap") == "10 per hyperparameter", (
+        "blank here is SMAC's own per-hyperparameter bound, not a strategy default")
     assert placeholder(html[html.index('data-optimizer="Grid Search"'):], "numeric_steps") == ""
 
 
-# ── the exploration budget, said either way ──────────────────────────────────
+# ── the initial-points block ─────────────────────────────────────────────────
 
-def test_both_ways_of_saying_how_long_to_explore_are_offered(client):
+def test_both_caps_are_offered_side_by_side(client):
+    """They are alternatives to each other, and reading them together is what
+    makes "the smaller of these" mean anything."""
+    panel = _smac_panel(client)
+    block = panel[panel.index('<fieldset class="param-group">'):]
+
+    assert "Initial points" in block
+    for name in ("use_share_cap", "share_cap", "use_trial_cap", "trial_cap",
+                 "initial_points_use_max"):
+        assert f'name="opt_{name}"' in block, name
+    assert block.count('class="param-column"') == 2
+
+
+def test_both_caps_are_on_and_both_values_blank_to_begin_with(client):
     panel = _smac_panel(client)
 
-    assert 'name="opt_exploration_ratio"' in panel
-    assert 'name="opt_exploration_trials"' in panel
+    for name in ("use_share_cap", "use_trial_cap"):
+        assert " checked" in _control(panel, name), name
+    for name in ("share_cap", "trial_cap"):
+        assert 'value=""' in _control(panel, name), name
 
 
-def test_creating_with_a_count_stores_the_count(client):
+def test_the_smaller_of_the_two_is_the_default(client):
+    """SMAC only ever takes the smaller. The larger is arithmetic of ours, so it
+    is the one that has to be asked for."""
+    assert " checked" not in _control(_smac_panel(client), "initial_points_use_max")
+
+
+def test_use_default_is_a_control_and_not_a_setting(client):
+    """An empty field already means "SMAC's own", so a second thing recording
+    the same fact could disagree with it. It is checked because the field is
+    empty, and it is never submitted."""
+    panel = _smac_panel(client)
+    row = panel[panel.index('data-default-for="opt_share_cap"'):]
+    row = row[:row.index("</div>")]
+
+    assert "Use default" in row
+    assert " checked" in row
+    assert "name=" not in row, "not a setting; nothing to submit"
+
+
+def test_creating_stores_the_caps(client):
     client.post(reverse("ui:new_experiment"), {
-        "name": "counted", "model_name": "Random Forest",
+        "name": "capped", "model_name": "Random Forest",
         "optimizer_name": "SMAC", "seed": "0",
         "demo_dataset": str(DATASETS_DIR / "iris.csv"),
-        "opt_exploration_trials": "12",
+        "opt_use_share_cap": "on", "opt_share_cap": "0.4",
+        "opt_use_trial_cap": "on", "opt_trial_cap": "12",
+        "opt_initial_points_use_max": "on",
     })
 
-    assert Experiment.objects.get(name="counted").optimizer_params["exploration_trials"] == 12
+    params = Experiment.objects.get(name="capped").optimizer_params
+    assert params["share_cap"] == 0.4
+    assert params["trial_cap"] == 12
+    assert params["initial_points_use_max"] is True
 
 
-def test_leaving_the_count_blank_stores_nothing_for_it(client):
-    """Blank means "use the share", and the share is the default. A zero here
-    would read as "explore not at all"."""
+def test_a_cap_switched_off_is_stored_as_off(client):
+    """An unchecked box is simply absent from the POST, which is how HTML says
+    no — and how the parser reads it."""
     client.post(reverse("ui:new_experiment"), {
-        "name": "shared", "model_name": "Random Forest",
+        "name": "uncapped", "model_name": "Random Forest",
         "optimizer_name": "SMAC", "seed": "0",
         "demo_dataset": str(DATASETS_DIR / "iris.csv"),
-        "opt_exploration_trials": "",
+        "opt_use_trial_cap": "on",
     })
 
-    params = Experiment.objects.get(name="shared").optimizer_params
-    assert params["exploration_trials"] is None
-    assert params["exploration_ratio"] == 0.25
+    params = Experiment.objects.get(name="uncapped").optimizer_params
+    assert params["use_share_cap"] is False
+    assert params["use_trial_cap"] is True
 
 
 # ── the surrogate settings, and the strategy each belongs to ─────────────────
@@ -512,8 +563,10 @@ def test_a_setting_for_the_other_strategy_is_hidden_and_not_disabled(client):
     there is nothing to gain by dropping them."""
     html = client.get(reverse("ui:new_experiment")).content.decode()
 
-    assert "field.hidden = !control || control.value !== wanted" in html
-    assert "disabled" not in html.split("[data-when]")[1].split("</script>")[0]
+    hiding = html[html.index("[data-when]"):html.index("[data-enabled-by]")]
+
+    assert "field.hidden = !control || control.value !== wanted" in hiding
+    assert "disabled" not in hiding, "hiding must not drop the value from the POST"
 
 
 def test_creating_stores_the_surrogate_settings(client):

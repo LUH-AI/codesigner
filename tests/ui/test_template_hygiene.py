@@ -47,10 +47,13 @@ def test_every_template_with_text_of_its_own_marks_it_for_translation():
     `ui/navigation.py`, and the metric select and selected-config panel render
     metric names, numbers and config keys, which are data. The optimizer field
     renders one setting, and every word of it — name, explanation, placeholder —
-    comes from `ui/optimizer_labels.py`, which is where they are marked.
+    comes from `ui/optimizer_labels.py`, which is where they are marked, and
+    the info label and the initial-points group render names and
+    explanations they are handed.
     """
     exempt = {"_selected_config_inner.html", "_breadcrumbs.html", "_metric_select.html",
-              "_optimizer_param_field.html"}
+              "_optimizer_param_field.html", "_info_label.html",
+              "_group_initial_points.html"}
     no_i18n = {p.name for p in _templates()
                if "translate" not in p.read_text()
                and p.name not in exempt

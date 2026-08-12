@@ -25,7 +25,7 @@ from .services import modelenv
 from .services import snapshot as snapshot_adapter
 from .services.run import resolve_seed
 from .services.run_logic import decide_run, resolve_metric_change
-from .optimizer_labels import describe_all
+from .optimizer_labels import describe_all, grouped
 from .services.settings import SETTING_DEFAULTS, global_defaults, resolve_settings
 
 _ACTIVE = ["pending", "running"]
@@ -175,11 +175,17 @@ def _posted_optimizer_params(request, optimizer) -> dict:
 
 
 def _optimizer_param_context(optimizer, stored=None) -> dict:
-    """What the settings partial needs, for whichever optimizer this is."""
-    described = describe_all(optimizer, stored)
+    """What the settings partial needs, for whichever optimizer this is.
+
+    Settings that belong to a group are handed over separately, keyed by name,
+    so the group's own template can place each one rather than take them in
+    declaration order.
+    """
+    layout, advanced = grouped(describe_all(optimizer, stored))
     return {
-        "optimizer_params": described,
-        "has_advanced_params": any(p["advanced"] for p in described),
+        "optimizer_layout": layout,
+        "advanced_params": advanced,
+        "has_advanced_params": bool(advanced),
     }
 
 

@@ -27,6 +27,15 @@ class OptimizerParam:
     can hide what does not apply without knowing what any of it is. Hidden, not
     dropped: the value stays in the experiment and comes back if the other
     setting changes back.
+
+    `enabled_by` names the boolean parameters that have to be *on* for this one
+    to mean anything. The difference from `depends_on` is what the form does
+    about it: a setting that belongs to the other search strategy is not there
+    at all, while a setting switched off by its own checkbox is greyed out
+    beside it — the reader has to see what turning it back on would offer.
+
+    `group` puts the setting in a named block the form lays out itself, for the
+    few that only make sense read together.
     """
     name: str                               # kwarg name passed to __init__
     label: str                              # plain-English fallback label
@@ -37,6 +46,8 @@ class OptimizerParam:
     choices: List[Any] = field(default_factory=list)  # (value, label) for select
     advanced: bool = False                  # folded away unless asked for
     depends_on: Optional[tuple] = None      # (other parameter, value it must have)
+    enabled_by: tuple = ()                  # boolean parameters that must be on
+    group: str = ""                         # a block the form lays out itself
 
 
 @dataclass
@@ -502,7 +513,21 @@ class BaseOptimizer(ABC):
         drops a stopping key it does not recognise.
         """
         known = {p.name for p in cls.params_schema}
-        return {k: v for k, v in (stored or {}).items() if k in known}
+        stored = cls.migrate_params(stored or {})
+        return {k: v for k, v in stored.items() if k in known}
+
+    @classmethod
+    def migrate_params(cls, stored: Dict[str, Any]) -> Dict[str, Any]:
+        """*stored* with settings from an earlier shape read onto today's.
+
+        Dropping a renamed setting is safe but silent, and silent is the wrong
+        answer here: a stored experiment or an `.ihpo` written last month would
+        come back configured differently from how it ran, with nothing said. An
+        optimizer that reshapes its settings translates them here instead.
+
+        Base implementation has nothing to translate.
+        """
+        return stored
 
     def compute_hp_importance(
         self,

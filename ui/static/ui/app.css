@@ -404,3 +404,19 @@ hr.divider { border: none; border-top: 1px solid var(--border); margin: 1.5rem 0
     padding: 0.15rem 0;
 }
 .check-group label.check input[type="checkbox"] { width: auto; }
+
+/* ── A block of settings the form lays out itself ──────────────────────── */
+.param-group {
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 0.5rem 0.9rem 0.75rem;
+    margin: 0 0 1rem;
+}
+.param-group > legend { font-size: 0.875rem; color: var(--muted); padding: 0 0.35rem; }
+.param-columns { display: flex; gap: 1rem; flex-wrap: wrap; }
+.param-column { flex: 1 1 11rem; min-width: 0; }
+.param-column .field { margin-bottom: 0.5rem; }
+.field.use-default { margin-bottom: 0.25rem; }
+/* Switched off by a checkbox that is right there, so it is greyed rather than
+   removed: the reader has to see what turning it back on would offer. */
+.is-off { opacity: 0.45; }

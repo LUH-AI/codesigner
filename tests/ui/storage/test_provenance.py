@@ -167,11 +167,18 @@ def test_what_was_asked_for_is_still_recorded_separately(client):
     assert body["optimizer"]["resolved"]["rf_trees"] == 10
 
 
-def test_how_the_exploration_was_sized_is_recorded(client):
-    record = _exported(client, _create(client, opt_exploration_trials="4"))["optimizer"]
+def test_how_the_initial_design_was_bounded_is_recorded(client):
+    """The settings, not the number they produce: the number depends on the
+    budget each run was given and on how many hyperparameters the model has.
+    `per_hyperparameter` is what a blank trial cap falls back to, and with the
+    config space in `result.optimizer_state` that is enough to work it out."""
+    record = _exported(client, _create(
+        client, opt_use_trial_cap="on", opt_trial_cap="4"))["optimizer"]
 
-    assert record["initial_design"] == {"kind": "sobol", "sized_by": "trials",
-                                        "trials": 4, "share": 0.25}
+    assert record["initial_design"] == {
+        "kind": "sobol", "use_share_cap": False, "share_cap": None,
+        "use_trial_cap": True, "trial_cap": 4,
+        "per_hyperparameter": 10, "combine": "min"}
 
 
 # ── the runs ─────────────────────────────────────────────────────────────────
@@ -384,7 +391,16 @@ def test_the_run_engine_does_not_pay_for_the_record(client):
 # ── the whole point ──────────────────────────────────────────────────────────
 
 @pytest.mark.slow
-def test_an_experiment_recreated_from_its_file_produces_the_same_trials(client):
+@pytest.mark.parametrize("label,setup", [
+    ("gaussian process, holdout", {"opt_search_strategy": "gp", "cv_folds": "0"}),
+    ("gaussian process, 3-fold", {"opt_search_strategy": "gp", "cv_folds": "3"}),
+    ("random forest, holdout", {"opt_search_strategy": "rf", "cv_folds": "0",
+                                "opt_rf_trees": "24"}),
+    ("random forest, 3-fold", {"opt_search_strategy": "rf", "cv_folds": "3",
+                               "opt_rf_trees": "24"}),
+])
+def test_an_experiment_recreated_from_its_file_produces_the_same_trials(
+        client, label, setup):
     """The test the format exists for.
 
     Run an experiment, export it, import the file with the same dataset into a
@@ -393,16 +409,21 @@ def test_an_experiment_recreated_from_its_file_produces_the_same_trials(client):
     the seed, the evaluation scheme, every optimizer setting, and the budget the
     search was given all have to come back exactly.
 
+    Over both search strategies and both evaluation schemes, because they are
+    four different paths through the same file: the strategies build different
+    surrogates from different settings, and the schemes divide the data
+    differently. One of them passing says little about the others.
+
     The second experiment is run from zero rather than resumed, so nothing is
     carried across in the result — only what the file said.
     """
-    original = _create(client, opt_search_strategy="rf", opt_exploration_trials="3",
-                       opt_rf_trees="24", cv_folds="0")
+    original = _create(client, opt_use_trial_cap="on", opt_trial_cap="3",
+                       opt_use_share_cap="", **setup)
     client.post(reverse("ui:experiment_run", args=[original.pk]),
                 {"optimize_metric": "accuracy", "max_trials": "8",
                  "target_score": ""})
     original.refresh_from_db()
-    assert original.result, "the original never ran"
+    assert original.result, f"{label}: the original never ran"
 
     body = _exported(client, original)
     body["result"] = None          # a fresh experiment, not a resumed one
@@ -425,4 +446,4 @@ def test_an_experiment_recreated_from_its_file_produces_the_same_trials(client):
     assert copy.seed == original.seed == 7
     assert copy.cv_folds == original.cv_folds
     assert copy.optimizer_params == original.optimizer_params
-    assert trials(copy) == trials(original)
+    assert trials(copy) == trials(original), label

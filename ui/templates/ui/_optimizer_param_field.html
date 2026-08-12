@@ -10,7 +10,7 @@ one, which on a fraction between zero and one is the whole range — useless in
 themselves, and they make the field look like it wants a whole number. Stepping
 is left to the settings where a step of one is a real increment.
 {% endcomment %}
-<div class="field"{% if p.when %} data-when="{{ p.when }}"{% endif %}>
+<div class="field"{% if p.when %} data-when="{{ p.when }}"{% endif %}{% if p.enabled_by %} data-enabled-by="{{ p.enabled_by }}"{% endif %}>
     <div class="field-label">
         {% if p.type == "bool" %}
             <label class="check" for="opt_{{ p.name }}">

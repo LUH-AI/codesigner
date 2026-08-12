@@ -8,6 +8,7 @@ from ConfigSpace import Configuration
 from smac import BlackBoxFacade, HyperparameterOptimizationFacade, Scenario
 from smac.acquisition.function import PI, IntegratedAcquisitionFunction
 from smac.initial_design import (
+    AbstractInitialDesign,
     DefaultInitialDesign,
     LatinHypercubeInitialDesign,
     RandomInitialDesign,
@@ -32,8 +33,8 @@ logging.getLogger("smac").setLevel(logging.WARNING)
 # What to tell SMAC the budget is when the run has no trial cap — a deadline or
 # a target score instead. It only sizes the initial design, and a run bounded by
 # time still has to decide how much of itself to spend exploring; this is that
-# guess. Not a setting: `exploration_ratio` is the knob for the same idea, and
-# two ways to say it would only disagree.
+# guess. Not a setting: the share cap is the knob for the same idea, and two
+# ways to say it would only disagree.
 _UNBOUNDED_BUDGET = 100
 
 #: The two search strategies, and the SMAC facade behind each. A facade is a
@@ -50,6 +51,19 @@ _STRATEGIES = {
 #: magnitude slower — three walkers per kernel dimension over 250-step chains,
 #: refitted on every ask.
 _GP_MODELS = ("vanilla", "mcmc")
+
+#: The settings that decide how many points are sampled before the model takes
+#: over. Grouped because they are only legible together: two caps and a choice
+#: of which one binds is three questions with one answer.
+INITIAL_POINTS = "initial_points"
+
+
+def _per_hyperparameter() -> int:
+    """SMAC's own bound when no count is given: this many initial points per
+    hyperparameter in the space. Read from its signature rather than copied, so
+    the trial cap cannot silently stop matching what SMAC would have done."""
+    return _signature_default(
+        AbstractInitialDesign.__init__, "n_configs_per_hyperparameter") or 10
 
 _INITIAL_DESIGNS = {
     "sobol": SobolInitialDesign,
@@ -137,13 +151,23 @@ class SMACOptimizer(BaseOptimizer):
     params_schema = [
         OptimizerParam("search_strategy", "Search strategy", "select", "gp",
                        choices=["gp", "rf"]),
-        # How much exploring, said either way. A share scales with whatever
-        # budget the run turns out to have; a count is exact and is what someone
-        # who knows their space wants. The count wins where both are given.
-        OptimizerParam("exploration_ratio", "Exploration share",
-                       "float", 0.25, min=0.05, max=1.0),
-        OptimizerParam("exploration_trials", "Exploration trials", "int", None,
-                       min=1, max=10_000),
+        # How many points to sample before the model takes over. SMAC bounds
+        # this two ways at once and takes the smaller: a share of the budget,
+        # and a count. Both are exposed, either can be switched off, and the
+        # smaller-of-the-two can be made the larger — see `_initial_points`.
+        OptimizerParam("use_share_cap", "Use share cap", "bool", True,
+                       group=INITIAL_POINTS),
+        OptimizerParam("share_cap", "Share cap", "float", None,
+                       min=0.01, max=1.0, group=INITIAL_POINTS,
+                       enabled_by=("use_share_cap",)),
+        OptimizerParam("use_trial_cap", "Use trial cap", "bool", True,
+                       group=INITIAL_POINTS),
+        OptimizerParam("trial_cap", "Trial cap", "int", None,
+                       min=1, max=10_000, group=INITIAL_POINTS,
+                       enabled_by=("use_trial_cap",)),
+        OptimizerParam("initial_points_use_max", "Use the larger of the two",
+                       "bool", False, group=INITIAL_POINTS,
+                       enabled_by=("use_share_cap", "use_trial_cap")),
         OptimizerParam("random_probability", "Random trial rate",
                        "float", None, min=0.0, max=1.0),
         OptimizerParam("use_default_config", "Include the model's defaults",
@@ -202,8 +226,10 @@ class SMACOptimizer(BaseOptimizer):
                        depends_on=("search_strategy", "gp")),
     ]
 
-    def __init__(self, search_strategy="gp", exploration_ratio=0.25,
-                 exploration_trials=None,
+    def __init__(self, search_strategy="gp",
+                 use_share_cap=True, share_cap=None,
+                 use_trial_cap=True, trial_cap=None,
+                 initial_points_use_max=False,
                  random_probability=None, use_default_config=False,
                  initial_design="sobol", acquisition="ei", acquisition_xi=0.0,
                  challengers=None, local_search_iterations=None,
@@ -215,8 +241,11 @@ class SMACOptimizer(BaseOptimizer):
         # `self._<name>` for every schema entry: the convention `get_params()`
         # reads back, and what makes the round trip through `.ihpo` work.
         self._search_strategy = search_strategy if search_strategy in _STRATEGIES else "gp"
-        self._exploration_ratio = exploration_ratio
-        self._exploration_trials = exploration_trials
+        self._use_share_cap = bool(use_share_cap)
+        self._share_cap = share_cap
+        self._use_trial_cap = bool(use_trial_cap)
+        self._trial_cap = trial_cap
+        self._initial_points_use_max = bool(initial_points_use_max)
         self._random_probability = random_probability
         self._use_default_config = bool(use_default_config)
         self._initial_design = initial_design if initial_design in _INITIAL_DESIGNS else "sobol"
@@ -234,6 +263,72 @@ class SMACOptimizer(BaseOptimizer):
         self._gp_model_type = gp_model_type if gp_model_type in _GP_MODELS else "vanilla"
         self._gp_restarts = gp_restarts
         self._gp_normalize_y = bool(gp_normalize_y)
+
+    @classmethod
+    def migrate_params(cls, stored: dict) -> dict:
+        """Read the two settings the initial design used to have onto the four
+        it has now.
+
+        `exploration_ratio` was the share, and `exploration_trials` was an exact
+        count that *replaced* it — it opened `max_ratio` right up so the share
+        could not clamp it. So a stored count means the trial cap with the share
+        cap switched off, which is the same search; a stored share alone means
+        the share cap, with the per-hyperparameter bound still applying as it
+        always did. Translated rather than dropped, because an experiment that
+        came back configured differently from how it ran would say nothing about
+        it.
+        """
+        if "exploration_ratio" not in stored and "exploration_trials" not in stored:
+            return stored
+
+        migrated = {k: v for k, v in stored.items()
+                    if k not in ("exploration_ratio", "exploration_trials")}
+        count = stored.get("exploration_trials")
+        migrated.setdefault("share_cap", stored.get("exploration_ratio"))
+        migrated.setdefault("use_share_cap", not count)
+        migrated.setdefault("trial_cap", count)
+        migrated.setdefault("use_trial_cap", True)
+        return migrated
+
+    def _initial_points(self, scenario) -> int:
+        """How many points to sample before the model takes over.
+
+        SMAC bounds this two ways and takes the smaller of them: a share of the
+        budget (`max_ratio`) and a count (`n_configs`, or ten per hyperparameter
+        when none is given). Both are exposed, either can be switched off, and
+        the smaller can be made the larger — that last one is arithmetic here
+        rather than a SMAC option, because SMAC only ever writes
+        `min(n_configs, max_ratio * n_trials)`.
+
+        Switching *both* off means neither bounds it, which is the whole budget:
+        a search that only samples. A strange thing to ask for and a legible
+        one, so it is allowed rather than quietly reinterpreted.
+
+        The result is clamped to the budget, less the model's own defaults if
+        those were asked for, because SMAC raises on an initial design that does
+        not fit rather than truncating it — and to at least one, because a
+        search has to start somewhere.
+        """
+        budget = scenario.n_trials
+        caps = []
+        if self._use_share_cap:
+            share = self._share_cap
+            if share is None:
+                share = _signature_default(AbstractInitialDesign.__init__, "max_ratio")
+            caps.append(int(float(share) * budget))
+        if self._use_trial_cap:
+            count = self._trial_cap
+            if count is None:
+                count = _per_hyperparameter() * len(list(scenario.configspace.values()))
+            caps.append(int(count))
+
+        if not caps:
+            wanted = budget
+        else:
+            wanted = max(caps) if self._initial_points_use_max else min(caps)
+
+        room = budget - (1 if self._use_default_config else 0)
+        return max(1, min(wanted, room))
 
     def resolved_params(self) -> dict:
         """Every setting with the blanks answered, for the record.
@@ -253,6 +348,9 @@ class SMACOptimizer(BaseOptimizer):
         for name, (getter, argument) in _FACADE_DEFAULTS.items():
             if filled.get(name) is None:
                 filled[name] = _signature_default(getattr(facade, getter), argument)
+        if filled.get("share_cap") is None and self._use_share_cap:
+            filled["share_cap"] = _signature_default(
+                AbstractInitialDesign.__init__, "max_ratio")
         if filled.get("gp_restarts") is None and self._search_strategy == "gp":
             filled["gp_restarts"] = _signature_default(GaussianProcess.__init__, "n_restarts")
         return filled
@@ -318,20 +416,15 @@ class SMACOptimizer(BaseOptimizer):
         facade = _STRATEGIES[self._search_strategy]
 
         design = _INITIAL_DESIGNS[self._initial_design]
-        # How long to explore, said either as a share of the budget or as a
-        # number of trials. `max_ratio` is the share; it also clamps an explicit
-        # `n_configs`, so a count has to open it up or it would be quietly
-        # reduced back to a quarter of the budget. SMAC refuses an initial
-        # design that does not fit in the budget, counting the default
-        # configuration if one was asked for, so the count is capped here rather
-        # than left to fail the run.
-        # `DefaultInitialDesign` is a single configuration and ignores both.
-        if self._exploration_trials:
-            room = max(1, scenario.n_trials - (1 if self._use_default_config else 0))
-            initial_design = design(scenario, max_ratio=1.0,
-                                    n_configs=min(int(self._exploration_trials), room))
-        else:
-            initial_design = design(scenario, max_ratio=self._exploration_ratio)
+        # The count is worked out here and handed over, rather than letting SMAC
+        # derive it: `max_ratio` is opened up so it cannot clamp the number a
+        # second time, and `n_configs` overrides the per-hyperparameter bound.
+        # That is what makes the larger of the two caps reachable at all — see
+        # `_initial_points`. `DefaultInitialDesign` is a single configuration
+        # and ignores both.
+        initial_design = design(
+            scenario, max_ratio=1.0,
+            n_configs=self._initial_points(scenario))
 
         acquisition = facade.get_acquisition_function(scenario, xi=self._acquisition_xi)
         if self._acquisition == "pi":
