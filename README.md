@@ -277,9 +277,17 @@ Real sandboxing is separate work that has not been done.
 ## Tests
 
 ```bash
-python -m pytest -m "not slow"     # fast suite
-python -m pytest                    # includes slow SMAC end-to-end tests
+python -m pytest -m "not slow and not uv"   # fast suite, what CI runs per push
+python -m pytest -m slow                     # real SMAC searches, ~10 minutes
+python -m pytest -m uv                       # real environment building
 ```
 
-The i18n catalogs are checked by `tests/ui/i18n` (every marked string must have a
-complete, non-fuzzy de/es translation).
+The slow ones are real searches. They are what checks that a search reaches its
+model rather than sampling throughout, that a resumed run picks up where it left
+off, and that an experiment recreated from its `.ihpo` produces the same trials
+— so run them before changing anything about how a search is configured. CI runs
+them weekly and on demand rather than per push.
+
+The i18n catalogs are checked by `tests/ui/i18n`, which pins that the shelved
+German and Spanish drafts stay shelved and uncompiled — not that they are
+complete.

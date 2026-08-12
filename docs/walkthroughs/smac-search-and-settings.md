@@ -276,12 +276,17 @@ python manage.py migrate                     # 0013
 run must contain more model-chosen configurations than initial-design ones.
 Then the share cap moving that line, both strategies searching, both answering
 the confidence criterion, and changed settings taking effect while the history
-survives. `tests/core/test_initial_points.py` covers the two caps and what an
-experiment configured before they existed comes back as;
-`tests/core/test_resume_initial_points.py` covers what a stopped run does to
-the sampling phase. `tests/ui/settings/test_optimizer_settings.py` covers the
-panel, clamping, the run-in-flight refusal, the alias, and the
-withdrawn-setting case.
+survives.
+
+The arithmetic behind the two caps is pinned against the design object in
+`tests/core/test_initial_points.py` rather than against a search: every
+combination and edge is twenty questions, and twenty thirty-trial searches is
+ten minutes to answer what a constructor already knows. One real search per cap
+stays in the slow file, to check that the number the arithmetic produces is the
+number of trials that actually get sampled.
+`tests/core/test_resume_initial_points.py` covers what a stopped run does to the
+sampling phase, and `tests/ui/settings/test_optimizer_settings.py` the panel,
+clamping, the run-in-flight refusal, the alias and the withdrawn-setting case.
 
 Live-checked: the create form and the settings page render all ten with the
 advanced six folded, stored values come back selected, and a saved change

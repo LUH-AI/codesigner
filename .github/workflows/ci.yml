@@ -4,6 +4,10 @@ on:
   push:
     branches: [main]
   pull_request:
+  # For the slow job below, which is too long to run on every push.
+  schedule:
+    - cron: "0 4 * * 1"
+  workflow_dispatch:
 
 jobs:
   test:
@@ -34,6 +38,32 @@ jobs:
       # uv is not installed here, so the environment tests run against a shim
       # and the real-uv ones are skipped by their marker.
       - run: python -m pytest -m "not slow and not uv"
+
+  slow:
+    # The SMAC end-to-end tests: real searches, ten minutes of them. Too slow
+    # for every push and too load-bearing to leave unrun — they are the only
+    # thing that checks a search actually reaches its model, that a resumed run
+    # picks up where it left off, and that an experiment recreated from its
+    # .ihpo produces the same trials. Weekly, and on demand.
+    #
+    # This job is why the comment above says the slow tests are opt-in. It did
+    # not exist when that comment was written, and five of them sat broken for a
+    # commit because nothing ran them.
+    if: github.event_name != 'pull_request'
+    runs-on: ubuntu-latest
+    env:
+      SECRET_KEY: ci-secret-key
+      DEBUG: "False"
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: sudo apt-get update && sudo apt-get install -y swig gettext
+      - run: pip install -r requirements.txt
+      - run: pip install -e . --no-deps
+      - run: pip install -e ./model_sdk --no-deps
+      - run: python -m pytest -m slow
 
   model-environments:
     # The tests that check uv accepts the commands we build. Separate because it
