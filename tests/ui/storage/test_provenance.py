@@ -264,7 +264,8 @@ def test_changing_the_metric_is_recorded_as_an_event(client, no_thread):
     optimizer carrying a fitted model of the objective throws it away, because
     it was fitted to costs from a different question."""
     exp = _create(client)
-    exp.result = {"data": [{"config_id": i} for i in range(6)]}
+    exp.result = {"data": [{"config_id": i} for i in range(6)],
+                  "primary_metric": "accuracy"}
     exp.current_metric = exp.original_metric = "accuracy"
     exp.save()
 
@@ -281,7 +282,7 @@ def test_an_optimizer_that_fits_nothing_says_so(client, no_thread):
     a rescoring and nothing else. Recording "rebuilt" would be a claim about
     work that never happened."""
     exp = _create(client, optimizer_name="Random Search")
-    exp.result = {"data": [{"config_id": 0}]}
+    exp.result = {"data": [{"config_id": 0}], "primary_metric": "accuracy"}
     exp.current_metric = exp.original_metric = "accuracy"
     exp.save()
 
@@ -293,7 +294,7 @@ def test_an_optimizer_that_fits_nothing_says_so(client, no_thread):
 
 def test_a_run_that_changes_nothing_records_no_event(client, no_thread):
     exp = _create(client)
-    exp.result = {"data": [{"config_id": 0}]}
+    exp.result = {"data": [{"config_id": 0}], "primary_metric": "accuracy"}
     exp.current_metric = exp.original_metric = "accuracy"
     exp.save()
 
@@ -301,6 +302,43 @@ def test_a_run_that_changes_nothing_records_no_event(client, no_thread):
                 {"optimize_metric": "accuracy", "max_trials": "2"})
 
     assert _exported(client, exp)["runs"][0]["events"] == []
+
+
+def test_a_metric_change_that_never_ran_is_not_lost_on_retry(client, no_thread):
+    """`create_run` commits `current_metric` onto the experiment before the run
+    it is starting has produced anything. A run that changes the metric and
+    then errors out — as this one does — leaves that field pointing at a
+    metric no trial was ever scored under.
+
+    Comparing a retry's target against that already-moved field would see no
+    difference and record no event on the retry — silently losing the one
+    change that actually happened, while the run that failed keeps a
+    misleading event attached to zero trials. Comparing against the stored
+    result instead — which only moves when a trial actually lands — catches
+    this: the failed run never touched it, so the retry still sees the real
+    change pending and records it correctly.
+    """
+    exp = _create(client)
+    exp.result = {"data": [{"config_id": 0}], "primary_metric": "accuracy"}
+    exp.current_metric = exp.original_metric = "accuracy"
+    exp.save()
+
+    client.post(reverse("ui:experiment_run", args=[exp.pk]),
+                {"optimize_metric": "f1", "max_trials": "2", "decision": "new"})
+    # Simulate the run erroring out before a trial landed — exactly what
+    # `execute_run`'s except-block does: status/error/finished_at are set,
+    # trial_offset/trial_count/events (already computed at creation) are not.
+    exp.runs.update(status="error", error="the model would not fit")
+
+    client.post(reverse("ui:experiment_run", args=[exp.pk]),
+                {"optimize_metric": "f1", "max_trials": "2"})
+
+    expected = [{"kind": "metric_changed", "from": "accuracy", "to": "f1",
+                "at_trial": 1, "surrogate": "rebuilt_and_replayed"}]
+    runs = _exported(client, exp)["runs"]
+    assert len(runs) == 2
+    assert runs[0]["events"] == expected
+    assert runs[1]["events"] == expected  # not silently dropped on the retry
 
 
 # ── the environment ──────────────────────────────────────────────────────────

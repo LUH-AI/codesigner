@@ -82,7 +82,7 @@ def create_run(experiment, stopping, optimize_metric, started_by=None):
     """
     from ..models import Run
 
-    was = experiment.current_metric
+    events = _metric_change_event(experiment, optimize_metric)
     current, original = apply_metrics(experiment.original_metric, optimize_metric)
     experiment.current_metric = current
     experiment.original_metric = original
@@ -94,11 +94,11 @@ def create_run(experiment, stopping, optimize_metric, started_by=None):
         status="pending",
         started_by=started_by,
         stopping=dict(stopping),
-        events=_metric_change_event(experiment, was, optimize_metric),
+        events=events,
     )
 
 
-def _metric_change_event(experiment, was, now):
+def _metric_change_event(experiment, now):
     """The record of an experiment changing what it optimizes, if it just did.
 
     Worth recording because of what it costs rather than because it happened:
@@ -106,8 +106,21 @@ def _metric_change_event(experiment, was, now):
     that carries a fitted model of the objective has to throw it away — it was
     fitted to costs from a different question. That is the one thing an .ihpo
     could not previously say about its own history.
+
+    *was* comes from the stored result rather than `experiment.current_metric`,
+    which is not the same thing: `create_run` commits `current_metric` onto the
+    experiment whether or not the run it is starting ever produces a trial. A
+    run that changes the metric and then errors leaves `current_metric` pointed
+    at a metric no trial was ever scored under — a retry under that same metric
+    would then see no difference and record no event, silently losing the one
+    change that actually happened, while the failed run keeps a misleading one
+    attached to zero trials. The stored result only moves on an actual trial,
+    so reading `was` from it and *trials* from it are the same source agreeing
+    with itself, not two clocks that can drift.
     """
-    trials = (experiment.result or {}).get("data") or []
+    stored = experiment.result or {}
+    trials = stored.get("data") or []
+    was = stored.get("primary_metric")
     if not was or not trials or was == now:
         return []
 
