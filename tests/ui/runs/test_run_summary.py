@@ -59,7 +59,7 @@ def test_detail_page_shows_run_summary(client):
     exp = Experiment.objects.create(
         name="sum", model_name="Random Forest", optimizer_name="Random Search",
         metric_names=["accuracy", "f1", "precision", "recall(macro)"],
-        primary_metric="accuracy", original_metric="accuracy", seed=0, result=result)
+        current_metric="accuracy", original_metric="accuracy", seed=0, result=result)
     start = timezone.now()
     Run.objects.create(experiment=exp, stopping={"max_trials": 1}, primary_metric="accuracy", status="done",
                        started_at=start, finished_at=start + datetime.timedelta(seconds=3),

@@ -63,7 +63,7 @@ def test_create_persists_without_running(client):
     assert resp.status_code == 302
     assert resp["Location"] == reverse("ui:experiment_detail", args=[exp.pk])
     assert exp.result is None
-    assert exp.primary_metric is None
+    assert exp.current_metric is None
     assert Run.objects.count() == 0
 
 
@@ -146,7 +146,7 @@ def test_run_metric_change_confirm_new_launches_with_chosen(client, no_thread):
     run = Run.objects.get(experiment=exp)
     assert run.primary_metric == "f1"
     exp.refresh_from_db()
-    assert exp.primary_metric == "f1"
+    assert exp.current_metric == "f1"
     assert exp.original_metric == "accuracy"
 
 

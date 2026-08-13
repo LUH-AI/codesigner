@@ -31,7 +31,14 @@ class Experiment(models.Model):
     optimizer_name = models.CharField(max_length=200)
     optimizer_params = models.JSONField(default=dict, blank=True)
     metric_names = models.JSONField(default=list)
-    primary_metric = models.CharField(max_length=100, blank=True, null=True)
+    # Which metric the optimizer is optimizing right now, vs. the one the
+    # experiment's first run optimized (`original_metric`, pinned once and
+    # never touched again). Named "current" rather than "primary" so the pair
+    # reads as what it is — the two ends of a timeline — rather than "primary"
+    # sounding like "the main one, as opposed to secondary metrics", which is
+    # a different axis (see `metric_names`). The full history of every change
+    # between them lives per-run, in `Run.primary_metric`/`Run.events`.
+    current_metric = models.CharField(max_length=100, blank=True, null=True)
     original_metric = models.CharField(max_length=100, blank=True, null=True)
     seed = models.IntegerField(default=0)
     # How a trial is evaluated: 0 is a single holdout, k >= 2 is k-fold

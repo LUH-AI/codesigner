@@ -229,18 +229,18 @@ def _optimizer_for(name):
          if o.name == name or name in getattr(o, "aliases", ())), None)
 
 
-def metric_label(primary_metric, original_metric):
+def metric_label(current_metric, original_metric):
     """The label shown for an experiment's metric.
 
     "~" when no metric has been committed by a run yet, "Inconsistent" when
-    the current primary metric no longer matches the one the results were
-    produced with, otherwise the metric name itself.
+    the current metric no longer matches the one the results were produced
+    with, otherwise the metric name itself.
     """
     if original_metric is None:
         return "~"
-    if primary_metric != original_metric:
+    if current_metric != original_metric:
         return _("Inconsistent")
-    return primary_metric
+    return current_metric
 
 
 def home(request):
@@ -314,7 +314,7 @@ def new_experiment(request):
             "model": {"kind": "file" if model_path else "registry",
                       "name": cleaned["model_name"], "path": model_path},
             "evaluation": provenance.evaluation(folds),
-            "metrics": {"names": list(METRICS), "primary": None, "original": None},
+            "metrics": {"names": list(METRICS), "current": None, "original": None},
             "optimizer": {"name": optimizer.name, "params": optimizer.get_params()},
             "result": None,
         }
@@ -391,11 +391,11 @@ def experiment_run(request, exp):
         return render(request, "ui/experiment_detail.html", context)
 
     if decision:
-        optimize_metric = resolve_metric_change(decision, exp.primary_metric, chosen)
+        optimize_metric = resolve_metric_change(decision, exp.current_metric, chosen)
         if optimize_metric is None:
             return redirect("ui:experiment_detail", pk=exp.pk)
     else:
-        action, optimize_metric = decide_run(exp.original_metric, exp.primary_metric, chosen)
+        action, optimize_metric = decide_run(exp.original_metric, exp.current_metric, chosen)
         if action == "warn":
             return render(request, "ui/metric_change.html", {
                 "experiment": exp, "chosen": chosen,
@@ -698,8 +698,8 @@ def _detail_context(request, exp):
             "identifier": exp.identifier,
             "model_name": exp.model_name,
             "optimizer_name": exp.optimizer_name,
-            "primary_metric": exp.primary_metric,
-            "metric_label": metric_label(exp.primary_metric, exp.original_metric),
+            "current_metric": exp.current_metric,
+            "metric_label": metric_label(exp.current_metric, exp.original_metric),
             "seed": exp.seed,
             "evaluation": (_("%(k)s-fold CV") % {"k": exp.cv_folds}
                            if exp.cv_folds >= 2 else _("holdout")),
@@ -732,7 +732,7 @@ def _detail_context(request, exp):
         # confidence criterion, so only then is it offered.
         "supports_confidence": getattr(
             _optimizer_for(exp.optimizer_name), "supports_confidence_stopping", False),
-        "run_default_metric": exp.primary_metric or (metric_names[0] if metric_names else None),
+        "run_default_metric": exp.current_metric or (metric_names[0] if metric_names else None),
     }
     if result is None:
         return context

@@ -56,7 +56,7 @@ def test_post_creates_experiment_and_redirects(client):
     assert resp.status_code == 302
     assert resp["Location"] == reverse("ui:experiment_detail", args=[exp.pk])
     assert exp.result is None
-    assert exp.primary_metric is None
+    assert exp.current_metric is None
 
 
 def test_post_with_uploaded_csv_stores_the_dataset(client):

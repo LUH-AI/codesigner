@@ -26,7 +26,7 @@ def _experiment_with_timestamps(**kw):
         "hyperparameter_importance_warning": {}, "trials_limit": None,
     }
     base = dict(name="exp", model_name="Random Forest", optimizer_name="Random Search",
-                metric_names=["accuracy"], primary_metric="accuracy", original_metric="accuracy",
+                metric_names=["accuracy"], current_metric="accuracy", original_metric="accuracy",
                 seed=0, result=result)
     base.update(kw)
     return Experiment.objects.create(**base)

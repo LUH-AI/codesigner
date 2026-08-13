@@ -9,7 +9,7 @@ class ExperimentAdmin(admin.ModelAdmin):
     # them for someone else: reassigning an ownerless experiment after an
     # instance gains accounts, or handing one over when a person leaves.
     list_display = ("name", "identifier", "owner", "shared", "model_name",
-                    "optimizer_name", "primary_metric", "seed", "created_at")
+                    "optimizer_name", "current_metric", "seed", "created_at")
     list_filter = ("shared",)
     search_fields = ("name", "identifier", "owner__username")
 

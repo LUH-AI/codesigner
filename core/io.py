@@ -12,7 +12,7 @@ magnitude:
     dataset     dict  — path, filename, and (on export) digest and shape
     model       dict  — kind, name, path, and (on export) digest and lock
     evaluation  dict  — scheme, folds, test_size, and (on export) stratified
-    metrics     dict  — names, primary, original
+    metrics     dict  — names, current, original
     optimizer   dict  — name, params, and (on export) defaults_used
     runs        list  — export only: the history of runs over the trials
     environment dict  — export only: the versions behind the numbers
@@ -213,7 +213,7 @@ def normalize(snapshot: dict) -> dict:
                   "path": model_path},
         "evaluation": _lifted_evaluation(snapshot),
         "metrics": {"names": snapshot.get("metric_names") or [],
-                    "primary": snapshot.get("primary_metric"),
+                    "current": snapshot.get("primary_metric"),
                     "original": snapshot.get("original_metric")},
         "optimizer": {"name": snapshot.get("optimizer_name"),
                       "params": snapshot.get("optimizer_params") or {}},
@@ -266,7 +266,7 @@ def save(name: str, exp: dict) -> bytes:
                        "folds": folds if kfold else None,
                        "test_size": None if kfold else 0.2},
         "metrics":    {"names": list(exp["metrics"].keys()),
-                       "primary": exp["primary_metric"],
+                       "current": exp["current_metric"],
                        "original": exp["original_metric"]},
         "optimizer":  {"name": exp["optimizer"].name,
                        "params": exp["optimizer"].get_params()},
@@ -480,7 +480,7 @@ def build_experiment(
         "model_name":      resolved_model,
         "model_path":      model_path,
         "optimizer":       optimizer,
-        "primary_metric":  snapshot["metrics"].get("primary"),
+        "current_metric":  snapshot["metrics"].get("current"),
         "original_metric": snapshot["metrics"].get("original"),
         "metrics":         metrics,
         "seed":            seed,

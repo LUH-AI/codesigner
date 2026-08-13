@@ -36,7 +36,7 @@ resolved to, and how the experiment got to where it is.
   "evaluation": { "scheme": "holdout" | "kfold", "folds",
                   "test_size", "stratified" },
 
-  "metrics": { "names": [...], "primary", "original" },
+  "metrics": { "names": [...], "current", "original" },
 
   "optimizer": { "name",
                  "params": { … },          // as asked for; null means "as it comes"

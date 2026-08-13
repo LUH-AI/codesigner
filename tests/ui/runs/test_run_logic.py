@@ -23,7 +23,7 @@ from ui.services.run_logic import apply_metrics, decide_run, resolve_metric_chan
 
 def test_first_run_commits_the_chosen_metric():
     """With no metric committed yet, a run optimizes the chosen metric."""
-    assert decide_run(original_metric=None, primary_metric=None, chosen_metric="f1") == ("first", "f1")
+    assert decide_run(original_metric=None, current_metric=None, chosen_metric="f1") == ("first", "f1")
 
 
 def test_changing_metric_warns():

@@ -226,7 +226,7 @@ def test_save_parse_roundtrip(metrics, models, optimizers):
 
     for path in (("name",), ("seed",), ("model", "name"), ("model", "path"),
                  ("optimizer", "name"), ("optimizer", "params"),
-                 ("metrics", "names"), ("metrics", "primary"),
+                 ("metrics", "names"), ("metrics", "current"),
                  ("metrics", "original")):
         left, right = again, snapshot
         for key in path:

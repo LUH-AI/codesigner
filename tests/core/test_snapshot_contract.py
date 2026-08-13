@@ -28,7 +28,7 @@ SNAPSHOT_KEYS = (
 IDENTITY_KEYS = (
     ("name",), ("seed",), ("model", "name"), ("model", "path"),
     ("optimizer", "name"), ("optimizer", "params"), ("metrics", "names"),
-    ("metrics", "primary"), ("metrics", "original"),
+    ("metrics", "current"), ("metrics", "original"),
 )
 
 
@@ -88,7 +88,7 @@ def test_save_stamps_current_version_string():
         "model_name":      snapshot["model"]["name"],
         "model_path":      "",
         "optimizer":       RandomOptimizer(),
-        "primary_metric":  snapshot["metrics"]["primary"],
+        "current_metric":  snapshot["metrics"]["current"],
         "original_metric": snapshot["metrics"]["original"],
         "metrics":         {m: None for m in snapshot["metrics"]["names"]},
         "seed":            snapshot["seed"],
@@ -214,7 +214,7 @@ def test_snapshot_json_is_human_readable():
         "model_name":      snapshot["model"]["name"],
         "model_path":      "",
         "optimizer":       RandomOptimizer(),
-        "primary_metric":  snapshot["metrics"]["primary"],
+        "current_metric":  snapshot["metrics"]["current"],
         "original_metric": snapshot["metrics"]["original"],
         "metrics":         {m: None for m in snapshot["metrics"]["names"]},
         "seed":            snapshot["seed"],

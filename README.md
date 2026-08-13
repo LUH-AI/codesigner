@@ -30,7 +30,7 @@ One object per subject, each stating its subject once, and `result` last:
   "dataset":     { "filename", "sha256", "rows", "columns", "column_names", … },
   "model":       { "kind", "name", "sha256", "dependencies", … },
   "evaluation":  { "scheme", "folds", "test_size", "stratified" },
-  "metrics":     { "names", "primary", "original" },
+  "metrics":     { "names", "current", "original" },
   "optimizer":   { "name", "params", "defaults_used" },
   "runs":        [ … ],
   "environment": { "codesigner", "python", "packages" },

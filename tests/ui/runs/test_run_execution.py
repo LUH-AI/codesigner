@@ -59,7 +59,7 @@ def test_create_run_records_pending_run_and_commits_first_metric():
     assert run.primary_metric == "f1"
 
     exp.refresh_from_db()
-    assert exp.primary_metric == "f1"
+    assert exp.current_metric == "f1"
     assert exp.original_metric == "f1"
 
 
@@ -72,7 +72,7 @@ def test_create_run_metric_change_moves_primary_not_original():
     create_run(exp, {"max_trials": 2}, "f1")
 
     exp.refresh_from_db()
-    assert exp.primary_metric == "f1"
+    assert exp.current_metric == "f1"
     assert exp.original_metric == "accuracy"
 
 

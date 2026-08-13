@@ -5,7 +5,7 @@
 {% block confirm_heading %}{% translate "Change the optimized metric?" %}{% endblock %}
 
 {% block confirm_message %}
-    {% blocktranslate with current=experiment.primary_metric chosen=chosen %}
+    {% blocktranslate with current=experiment.current_metric chosen=chosen %}
     These trials were chosen to optimize <strong>{{ current }}</strong>. Their
     scores for <strong>{{ chosen }}</strong> were recorded too, so the search
     continues from them rather than starting over — but they are still a sample
@@ -25,7 +25,7 @@
 
 {% block confirm_buttons %}
     <button type="submit" name="decision" value="new" class="btn-primary">{% blocktranslate with chosen=chosen %}Optimize {{ chosen }}{% endblocktranslate %}</button>
-    <button type="submit" name="decision" value="old" class="btn">{% blocktranslate with current=experiment.primary_metric %}Keep optimizing {{ current }}{% endblocktranslate %}</button>
+    <button type="submit" name="decision" value="old" class="btn">{% blocktranslate with current=experiment.current_metric %}Keep optimizing {{ current }}{% endblocktranslate %}</button>
 {% endblock %}
 
 {% block confirm_cancel %}{% url 'ui:experiment_detail' experiment.pk %}{% endblock %}

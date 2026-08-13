@@ -17,7 +17,7 @@ def _snapshot_fields():
         optimizer_name="Random Search",
         optimizer_params={},
         metric_names=["accuracy", "f1"],
-        primary_metric="accuracy",
+        current_metric="accuracy",
         original_metric="accuracy",
         seed=42,
     )

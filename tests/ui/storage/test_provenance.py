@@ -265,7 +265,7 @@ def test_changing_the_metric_is_recorded_as_an_event(client, no_thread):
     it was fitted to costs from a different question."""
     exp = _create(client)
     exp.result = {"data": [{"config_id": i} for i in range(6)]}
-    exp.primary_metric = exp.original_metric = "accuracy"
+    exp.current_metric = exp.original_metric = "accuracy"
     exp.save()
 
     client.post(reverse("ui:experiment_run", args=[exp.pk]),
@@ -282,7 +282,7 @@ def test_an_optimizer_that_fits_nothing_says_so(client, no_thread):
     work that never happened."""
     exp = _create(client, optimizer_name="Random Search")
     exp.result = {"data": [{"config_id": 0}]}
-    exp.primary_metric = exp.original_metric = "accuracy"
+    exp.current_metric = exp.original_metric = "accuracy"
     exp.save()
 
     client.post(reverse("ui:experiment_run", args=[exp.pk]),
@@ -294,7 +294,7 @@ def test_an_optimizer_that_fits_nothing_says_so(client, no_thread):
 def test_a_run_that_changes_nothing_records_no_event(client, no_thread):
     exp = _create(client)
     exp.result = {"data": [{"config_id": 0}]}
-    exp.primary_metric = exp.original_metric = "accuracy"
+    exp.current_metric = exp.original_metric = "accuracy"
     exp.save()
 
     client.post(reverse("ui:experiment_run", args=[exp.pk]),
@@ -412,7 +412,7 @@ def test_a_file_from_before_any_of_this_still_opens(client):
     assert parsed["name"] == "older"
     assert parsed["seed"] == 7
     assert parsed["optimizer"] == {"name": "SMAC", "params": {"search_strategy": "rf"}}
-    assert parsed["metrics"] == {"names": ["accuracy"], "primary": "accuracy",
+    assert parsed["metrics"] == {"names": ["accuracy"], "current": "accuracy",
                                  "original": "accuracy"}
     assert parsed["evaluation"] == {"scheme": "kfold", "folds": 3,
                                     "test_size": None, "stratified": True}

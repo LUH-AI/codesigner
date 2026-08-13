@@ -16,7 +16,7 @@ from tests.conftest import DATASETS_DIR
 def _exp(**overrides):
     fields = dict(
         name="c", model_name="Random Forest", optimizer_name="Random Search",
-        metric_names=["accuracy", "f1"], primary_metric="accuracy",
+        metric_names=["accuracy", "f1"], current_metric="accuracy",
         original_metric="accuracy", seed=0)
     fields.update(overrides)
     return Experiment.objects.create(**fields)

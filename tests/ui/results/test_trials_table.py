@@ -39,7 +39,7 @@ def experiment():
     }
     return Experiment.objects.create(
         name="trials-table", model_name="Random Forest", optimizer_name="Random Search",
-        metric_names=METRICS, primary_metric="accuracy", original_metric="accuracy",
+        metric_names=METRICS, current_metric="accuracy", original_metric="accuracy",
         seed=0, result=result,
     )
 

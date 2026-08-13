@@ -28,7 +28,7 @@ def _experiment_with_timed_result():
     return Experiment.objects.create(
         name="dur", model_name="Random Forest", optimizer_name="Random Search",
         metric_names=["accuracy", "f1", "precision", "recall(macro)"],
-        primary_metric="accuracy", original_metric="accuracy", seed=0, result=result,
+        current_metric="accuracy", original_metric="accuracy", seed=0, result=result,
     )
 
 

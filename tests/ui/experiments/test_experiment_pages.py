@@ -26,7 +26,7 @@ def _experiment(**overrides):
         optimizer_name="Random Search",
         optimizer_params={},
         metric_names=["accuracy", "f1"],
-        primary_metric="accuracy",
+        current_metric="accuracy",
         original_metric="accuracy",
         seed=42,
     )
@@ -67,7 +67,7 @@ def test_detail_shows_identity_and_result_summary(client):
         model_name=snapshot["model_name"],
         optimizer_name=snapshot["optimizer_name"],
         metric_names=snapshot["metric_names"],
-        primary_metric=snapshot["primary_metric"],
+        current_metric=snapshot["primary_metric"],
         original_metric=snapshot["original_metric"],
         seed=snapshot["seed"],
         result=snapshot["result"],
@@ -97,7 +97,7 @@ def test_detail_metric_label_rules(client, primary, original, expected_label):
     original disagree, else the metric name — matching the experiment
     header the user sees when switching evaluation metrics.
     """
-    exp = _experiment(primary_metric=primary, original_metric=original)
+    exp = _experiment(current_metric=primary, original_metric=original)
 
     response = client.get(reverse("ui:experiment_detail", args=[exp.pk]))
     assert expected_label in response.content.decode()

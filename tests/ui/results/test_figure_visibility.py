@@ -27,7 +27,7 @@ def _experiment():
     """An experiment with one finished trial, so every figure has data."""
     return Experiment.objects.create(
         name="figures", model_name="Random Forest", optimizer_name="Random Search",
-        metric_names=["accuracy", "f1"], primary_metric="accuracy",
+        metric_names=["accuracy", "f1"], current_metric="accuracy",
         original_metric="accuracy", seed=0,
         result={
             "stats": {"submitted": 1, "finished": 1, "running": 0},
