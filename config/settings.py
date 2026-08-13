@@ -78,6 +78,11 @@ MODEL_TRIAL_TIMEOUT = env.float("MODEL_TRIAL_TIMEOUT", default=600.0)
 # The largest file a model may write. Not a memory limit — see core.modelhost.
 MODEL_MAX_FILE_BYTES = env.int("MODEL_MAX_FILE_BYTES", default=1024 * 1024 * 1024)
 
+# The largest dataset, model .py, or .ihpo a browser may upload — a different
+# thing from MODEL_MAX_FILE_BYTES above, which bounds what a *running* model
+# writes, not what a person hands the form. See ui/validators.py.
+MAX_UPLOAD_BYTES = env.int("MAX_UPLOAD_BYTES", default=100 * 1024 * 1024)
+
 # Never passed to a model's process. The rest of the environment is inherited,
 # because proxy, certificate and index settings are numerous and operator-
 # specific; these are the ones that would matter if they leaked.

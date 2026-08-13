@@ -28,6 +28,7 @@ from .services.run import resolve_seed
 from .services.run_logic import decide_run, resolve_metric_change
 from .optimizer_labels import describe_all, grouped
 from .services.settings import SETTING_DEFAULTS, global_defaults, resolve_settings
+from .validators import dataset_upload_error, model_upload_error, oversized
 
 _ACTIVE = ["pending", "running"]
 
@@ -619,6 +620,12 @@ def import_experiment(request):
     context = {"allow_custom_models": may_upload}
     upload = request.FILES.get("file")
     if request.method == "POST" and upload is not None:
+        # No Form here to hang a validator off, so the same checks the create
+        # form's file fields run are called directly — see ui/validators.py.
+        size_error = oversized(upload)
+        if size_error:
+            context["error"] = size_error
+            return render(request, "ui/import.html", context)
         try:
             snapshot = io.parse(upload.read())
         except ValueError as exc:
@@ -631,6 +638,10 @@ def import_experiment(request):
         # not the incumbent, not the surrogate, not the importance — could tell.
         dataset_upload = request.FILES.get("dataset")
         if dataset_upload is not None:
+            dataset_error = dataset_upload_error(dataset_upload)
+            if dataset_error:
+                context["error"] = dataset_error
+                return render(request, "ui/import.html", context)
             mismatch = provenance.dataset_mismatch(
                 snapshot.get("dataset"), provenance.sha256_stream(dataset_upload))
             if mismatch:
@@ -638,6 +649,11 @@ def import_experiment(request):
                 return render(request, "ui/import.html", context)
 
         model_upload = request.FILES.get("model") if may_upload else None
+        if model_upload is not None:
+            model_error = model_upload_error(model_upload)
+            if model_error:
+                context["error"] = model_error
+                return render(request, "ui/import.html", context)
         exp = snapshot_adapter.experiment_from_snapshot(
             snapshot, dataset_file=dataset_upload, model_file=model_upload,
             owner=_owner(request),

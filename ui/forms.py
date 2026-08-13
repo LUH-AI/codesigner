@@ -9,6 +9,7 @@ from core.model_source import inspect_model_source
 
 from .figures import FIGURES
 from .registry import MODELS, OPTIMIZERS
+from .validators import validate_dataset_upload, validate_model_upload
 
 
 class NewExperimentForm(forms.Form):
@@ -28,11 +29,13 @@ class NewExperimentForm(forms.Form):
 
     name = forms.CharField(label=_("Experiment name"), max_length=200)
     model_name = forms.ChoiceField(label=_("Model"), required=False)
-    model_file = forms.FileField(label=_("…or upload a model .py"), required=False)
+    model_file = forms.FileField(label=_("…or upload a model .py"), required=False,
+                                  validators=[validate_model_upload])
     mounted_model = forms.ChoiceField(label=_("…or a mounted model .py"), required=False)
     optimizer_name = forms.ChoiceField(label=_("Optimizer"))
     demo_dataset = forms.ChoiceField(label=_("Demo dataset"), required=False)
-    dataset_file = forms.FileField(label=_("…or upload a CSV (last column = target)"), required=False)
+    dataset_file = forms.FileField(label=_("…or upload a CSV (last column = target)"), required=False,
+                                    validators=[validate_dataset_upload])
     seed = forms.IntegerField(label=_("Seed (negative = random)"), initial=0)
     # Fixed for the experiment's life, so it is asked here rather than per run:
     # trials scored k-fold and trials scored on one holdout are not comparable,
