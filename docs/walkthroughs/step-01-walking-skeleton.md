@@ -78,7 +78,7 @@ Extracted from `run.py`, `app/app.py`, `app/sidebar.py`, and
 | `MODELS`/`OPTIMIZERS`/`METRICS` registries (`run.py:11-27`) | ⏳ Deferred → Step 6 (`ui/registry.py`) |
 | Routing: creating → form, active → experiment, else home (`app.py:16-22`) | 🔄 Intentionally changed — becomes URLs: `/experiments/new/`, `/experiments/<id>/`, `/` (Steps 4/6) |
 
-Every ⏳ item is tracked in [PARITY.md](../../PARITY.md) with its target step.
+Every ⏳ item's target step is noted in the table above.
 
 ## 3. What is now possible
 
