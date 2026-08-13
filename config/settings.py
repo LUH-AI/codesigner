@@ -261,3 +261,58 @@ MEDIA_URL = "media/"
 MEDIA_ROOT = env.str("MEDIA_ROOT", default=str(BASE_DIR / "media"))
 
 DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
+
+
+# ── TLS-dependent hardening ───────────────────────────────────────────────────
+# This runs locally or on a private network at least as often as it is hosted
+# (see REQUIRE_LOGIN above), and in both of those cases there is no TLS: the
+# instance talks plain HTTP directly, exactly like the reference
+# docker-compose.yml. Defaulting SECURE_SSL_REDIRECT etc. to "on whenever
+# DEBUG=False" would break that setup the moment anyone actually ran it — a
+# redirect to HTTPS with nothing on the other end to answer it. So this is one
+# more explicit switch in the REQUIRE_LOGIN/ALLOW_CUSTOM_MODELS mold: off
+# leaves today's behaviour untouched; on is for an operator who has put a
+# TLS-terminating reverse proxy in front and knows it. See the README's
+# hosting section.
+SECURE_BEHIND_TLS = env.bool("SECURE_BEHIND_TLS", default=False)
+
+if SECURE_BEHIND_TLS:
+    SECURE_SSL_REDIRECT = True
+    SESSION_COOKIE_SECURE = True
+    CSRF_COOKIE_SECURE = True
+    # A year, the usual HSTS starting point; subdomains/preload are only safe
+    # once every subdomain is confirmed to be HTTPS-only too, which is an
+    # operator decision this setting does not make for them.
+    SECURE_HSTS_SECONDS = 31536000
+    SECURE_HSTS_INCLUDE_SUBDOMAINS = False
+    SECURE_HSTS_PRELOAD = False
+    # TLS terminates at the reverse proxy, not at gunicorn — this is what
+    # tells Django a request forwarded as plain HTTP was actually HTTPS on the
+    # wire, so SECURE_SSL_REDIRECT doesn't loop and request.is_secure() agrees
+    # with reality. Only trust this header from a proxy that overwrites it
+    # rather than passing a client-supplied one through.
+    SECURE_PROXY_SSL_HEADER = ("HTTP_X_FORWARDED_PROTO", "https")
+
+
+# ── Logging ────────────────────────────────────────────────────────────────────
+# Without this, everything reaches gunicorn's stdout only by accident (Django's
+# own unconfigured-logging fallback). This formalizes that rather than changing
+# it: console only, no file handlers — the container is the log store.
+LOGGING = {
+    "version": 1,
+    "disable_existing_loggers": False,
+    "handlers": {
+        "console": {"class": "logging.StreamHandler"},
+    },
+    "root": {
+        "handlers": ["console"],
+        "level": "WARNING",
+    },
+    "loggers": {
+        "django": {"handlers": ["console"], "level": "INFO", "propagate": False},
+        # A run's own failures already reach Run.error and the page; this is
+        # for what happens around them (env builds, model processes).
+        "ui": {"handlers": ["console"], "level": "INFO", "propagate": False},
+        "core": {"handlers": ["console"], "level": "INFO", "propagate": False},
+    },
+}

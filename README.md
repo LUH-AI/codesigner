@@ -204,6 +204,21 @@ python manage.py createsuperuser     # then add the rest at /admin/
 Password reset is not wired up; it needs a mail server, which is an operator
 decision. Until it is asked for, an operator resets a password in the admin.
 
+### TLS
+
+Another variable, independent of `REQUIRE_LOGIN`:
+
+```bash
+SECURE_BEHIND_TLS=True
+```
+
+Off (the default) matches how this runs locally and in the reference
+`docker-compose.yml` — plain HTTP, no reverse proxy. Turn it on only once
+there is a TLS-terminating reverse proxy in front of the instance; it then
+redirects HTTP to HTTPS, marks the session and CSRF cookies secure-only, and
+enables HSTS. Turning it on without a proxy in front breaks the instance —
+there is nothing to answer the HTTPS redirect.
+
 ### Who sees what
 
 With accounts, an experiment belongs to whoever created it. There are three
