@@ -1,14 +1,21 @@
 from . import navigation as nav
 from .permissions import policy, visible_experiments
 
+#: The sidebar is rendered on every page, so it stays cheap and recent rather
+#: than listing every experiment an instance has ever run — the full,
+#: paginated list lives at `ui:experiment_list`, linked from the sidebar.
+SIDEBAR_LIMIT = 20
+
 
 def sidebar_experiments(request):
-    """Expose the saved experiments to every template, for the sidebar list.
+    """Expose the most recent saved experiments to every template, for the
+    sidebar list — see `ui:experiment_list` for the rest.
 
     Through the policy, so the sidebar never lists an experiment a page would
-    then refuse to open.
+    then refuse to open. `Experiment.Meta.ordering` (`-created_at`) already
+    puts the most recent first, so slicing is all a "most recent N" needs.
     """
-    return {"sidebar_experiments": visible_experiments(request)}
+    return {"sidebar_experiments": visible_experiments(request)[:SIDEBAR_LIMIT]}
 
 
 _SETTINGS_URL_NAMES = {"appearance", "default_experiment_settings"}

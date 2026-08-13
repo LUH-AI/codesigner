@@ -7,6 +7,7 @@ from pathlib import Path
 from django.conf import settings
 from django.contrib.auth.decorators import login_not_required
 from django.core.exceptions import PermissionDenied
+from django.core.paginator import Paginator
 from django.http import HttpResponse, HttpResponseBadRequest
 from django.shortcuts import redirect, render
 from django.utils.translation import gettext as _
@@ -245,6 +246,24 @@ def metric_label(current_metric, original_metric):
 
 def home(request):
     return render(request, "ui/home.html")
+
+
+#: Items per page on the full experiment list — the sidebar only ever shows
+#: the most recent `context_processors.SIDEBAR_LIMIT`; this is where the rest
+#: of an instance's experiments are reachable.
+EXPERIMENT_LIST_PAGE_SIZE = 50
+
+
+def experiment_list(request):
+    """Every experiment this request may see, paginated.
+
+    Through the same policy-scoped queryset the sidebar uses
+    (`permissions.visible_experiments`), so this never shows an experiment the
+    sidebar wouldn't and a page would then refuse to open.
+    """
+    paginator = Paginator(permissions.visible_experiments(request), EXPERIMENT_LIST_PAGE_SIZE)
+    page = paginator.get_page(request.GET.get("page"))
+    return render(request, "ui/experiment_list.html", {"page": page})
 
 
 @login_not_required

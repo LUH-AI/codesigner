@@ -85,6 +85,7 @@
                     <span class="placeholder">{% translate "No experiments yet." %}</span>
                 {% endfor %}
             </div>
+            <a class="tab" href="{% url 'ui:experiment_list' %}">{% translate "See all…" %}</a>
         </nav>
     {% endif %}
     <main class="content">

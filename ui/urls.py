@@ -6,6 +6,7 @@ app_name = "ui"
 
 urlpatterns = [
     path("", views.home, name="home"),
+    path("experiments/", views.experiment_list, name="experiment_list"),
     path("healthz/", views.healthz, name="healthz"),
     path("settings/appearance/", views.appearance, name="appearance"),
     path("settings/experiment-defaults/", views.default_experiment_settings, name="default_experiment_settings"),
