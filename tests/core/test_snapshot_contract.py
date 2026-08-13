@@ -99,6 +99,27 @@ def test_save_stamps_current_version_string():
     assert again["version"] == dist_version("codesigner")
 
 
+def test_save_evaluation_section_matches_provenance():
+    """save()'s evaluation section is provenance.evaluation()'s output, not a
+    second copy of the kfold/holdout decision that could quietly drift from
+    it — ui/services/snapshot.py's live export path already goes through
+    provenance.evaluation() for the same section.
+    """
+    from core import provenance
+
+    exp = {
+        "model_name": "Random Forest", "model_path": "",
+        "optimizer": RandomOptimizer(), "current_metric": "accuracy",
+        "original_metric": "accuracy", "metrics": {"accuracy": None},
+        "seed": 0, "dataset_path": "", "result": None,
+    }
+
+    for folds in (0, 5):
+        exp["cv_folds"] = folds
+        snapshot = io.parse(io.save("readable", exp))
+        assert snapshot["evaluation"] == provenance.evaluation(folds)
+
+
 @pytest.mark.parametrize("filename,opt_cls", [
     ("test.ihpo", SMACOptimizer),      # carries optimizer_state
     ("test2.ihpo", RandomOptimizer),   # base runhistory format

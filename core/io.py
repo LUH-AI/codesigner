@@ -41,6 +41,7 @@ from typing import Any
 import pandas as pd
 from sklearn.model_selection import train_test_split
 
+from . import provenance
 from .paths import MAX_STATE_FILES, is_safe_relative
 from .splits import MIN_FOLDS, cross_validation, holdout
 
@@ -250,8 +251,6 @@ def folds_of(snapshot: dict) -> int:
 
 def save(name: str, exp: dict) -> bytes:
     """Serialize *exp* to UTF-8 JSON bytes."""
-    folds = int(exp.get("cv_folds") or 0)
-    kfold = folds >= MIN_FOLDS
     model_path = exp.get("model_path", "")
     snapshot = {
         "format":     SNAPSHOT_FORMAT,
@@ -262,9 +261,10 @@ def save(name: str, exp: dict) -> bytes:
                        "path": exp.get("dataset_path", "")},
         "model":      {"kind": "file" if model_path else "registry",
                        "name": exp["model_name"], "path": model_path},
-        "evaluation": {"scheme": "kfold" if kfold else "holdout",
-                       "folds": folds if kfold else None,
-                       "test_size": None if kfold else 0.2},
+        # Shared with ui/services/snapshot.py's live export path, so the
+        # kfold/holdout decision has exactly one place to look, not two that
+        # can quietly disagree.
+        "evaluation": provenance.evaluation(exp.get("cv_folds") or 0),
         "metrics":    {"names": list(exp["metrics"].keys()),
                        "current": exp["current_metric"],
                        "original": exp["original_metric"]},
