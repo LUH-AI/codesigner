@@ -122,10 +122,10 @@ def test_importance_pie_mirrors_the_importance_dict():
 
 
 def test_importance_bar_mirrors_the_importance_dict():
-    """The bar view carries the same numbers as the pie view, just as bars."""
+    """The bar view carries the same numbers as the pie view, as vertical bars."""
     fig = hyperparameter_importance_plot(_result(), "accuracy", view="bar")
     bar = fig.data[0]
-    assert dict(zip(bar.y, bar.x)) == {"a": 0.7, "b": 0.3}
+    assert dict(zip(bar.x, bar.y)) == {"a": 0.7, "b": 0.3}
 
 
 def test_importance_table_view_draws_nothing():

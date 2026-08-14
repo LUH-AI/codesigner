@@ -99,6 +99,29 @@ drew improvement markers) — see Deviations.
   it — while metric-switch-resets-selection (existing, tested behavior) is
   untouched.
 
+## Follow-up polish (post-review)
+
+- **Importance bars are vertical, not horizontal.** Matches DeepCave's own
+  layout and reads better in this page's column width. Sorted descending
+  left-to-right (largest first) rather than the horizontal version's
+  ascending-toward-the-axis-label order.
+- **Performance over time's two selects swapped order**, y (score/error)
+  before x (vs. trial/vs. time) — "score vs. trial" reads as the standard
+  axis phrasing; "vs. trial" then "score" read as one compound phrase,
+  "trial score". A little margin was added between them too.
+- **Error bars on the importance bar chart: not done, by choice.** DeepCave's
+  bars get theirs for free — fANOVA is a random-forest decomposition, so
+  variance across trees is intrinsic to the method. Checked HyperSHAP's
+  actual behavior before assuming the same trick applies: for any model with
+  ≤14 hyperparameters (`hypershap.HyperSHAP.EXACT_MAX_HYPERPARAMETERS`, true
+  of every model in this app today), it computes **exact** Shapley values —
+  no sampling step, so no natural uncertainty number sits there to plot.
+  A real error bar would mean bootstrapping the trial set (resample with
+  replacement, recompute importance ~20-30 times, plot mean ± std) — honest,
+  but a genuine feature addition (a new field threaded through
+  `OptimizationResult` and all three optimizers' serialize/deserialize), not
+  a plot tweak. Deferred rather than done half-heartedly or faked.
+
 ## Checklist
 
 ✅ `Figure.views` + per-view `plot()` · ✅ per-view JSON payloads +

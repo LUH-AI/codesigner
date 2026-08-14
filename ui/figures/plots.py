@@ -103,7 +103,7 @@ def performance_over_time_plot(result, display_metric, *, x_axis="trial",
 
 
 def hyperparameter_importance_plot(result, display_metric, view="pie"):
-    """Pie or (horizontal) bar of hyperparameter importance for
+    """Pie or (vertical) bar of hyperparameter importance for
     *display_metric* — two views of the same numbers; a third, "table", is
     rendered directly by the template from `result`, not from here.
 
@@ -115,10 +115,12 @@ def hyperparameter_importance_plot(result, display_metric, view="pie"):
     if not imp or view == "table":
         return None
     if view == "bar":
-        # Ascending so the largest bar ends up on top, reading like a ranking.
-        names, values = zip(*sorted(imp.items(), key=lambda kv: kv[1]))
-        fig = go.Figure(go.Bar(x=values, y=names, orientation="h", marker_color=_MARKER_COLOR))
-        fig.update_layout(xaxis_title="Importance",
+        # Descending, left to right — DeepCAVE's own reading order for this,
+        # and it suits a vertical bar better than the ascending order a
+        # horizontal one wants (largest nearest the axis label).
+        names, values = zip(*sorted(imp.items(), key=lambda kv: kv[1], reverse=True))
+        fig = go.Figure(go.Bar(x=names, y=values, marker_color=_MARKER_COLOR))
+        fig.update_layout(yaxis_title="Importance",
                           margin=dict(t=20, b=20, l=20, r=20), showlegend=False)
         return fig
     fig = go.Figure(go.Pie(
