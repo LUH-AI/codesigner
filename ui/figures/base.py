@@ -42,8 +42,20 @@ class Figure:
     #: True when the figure is drawn per evaluation metric, so it is rebuilt
     #: when the metric selector changes; False when one plot covers the run.
     per_metric = False
+    #: Named view keys this figure offers, in declaration order; the first is
+    #: shown until the switcher is touched. Empty (the default) means no
+    #: switcher — every figure that predates this renders exactly as before.
+    #: A figure with views owns its own selector markup in its template (a
+    #: flat dropdown, two composed axis pickers, whatever fits it), since the
+    #: shapes differ enough that forcing one generic widget would fit neither
+    #: well; only the underlying draw/lookup plumbing is shared (see
+    #: experiment_detail.html's `payloadFor`).
+    views = ()
     #: A Plotly relayout for this figure's "absolute" y-scale, which gives it
-    #: the absolute/relative toggle in its toolbar. None means no toggle.
+    #: the absolute/relative toggle in its toolbar. None means no toggle. For
+    #: a figure with `views`, this is instead a dict keyed by view, since the
+    #: sensible "absolute" range can differ per view (e.g. a linear 0-1 score
+    #: vs. a log-scale error).
     absolute_scale = None
 
     def __init_subclass__(cls, **kwargs):
@@ -60,10 +72,12 @@ class Figure:
     dom_id = ""
 
     @classmethod
-    def plot(cls, result, metric=None):
+    def plot(cls, result, metric=None, view=None):
         """This figure's Plotly plot, or None if it draws a table instead.
 
         Figures with `per_metric = True` are called once per metric; the rest
-        are called once with `metric=None`.
+        are called once with `metric=None`. A figure with `views` is called
+        once per declared view (`view` is one of `views`; None means the
+        first/default); a figure with no views ignores the argument.
         """
         return None

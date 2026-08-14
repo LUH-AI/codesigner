@@ -8,10 +8,9 @@ for each figure that draws one. Their templates live in
 from .base import FULL, HALF, Figure
 from .catalog import FIGURES, FIGURES_BY_KEY
 from .plots import (
-    error_over_time_plot,
     hyperparameter_importance_plot,
-    incumbent_performance_plot,
     incumbent_scores,
+    performance_over_time_plot,
     trial_duration_plot,
 )
 
@@ -21,9 +20,8 @@ __all__ = [
     "FULL",
     "HALF",
     "Figure",
-    "error_over_time_plot",
     "hyperparameter_importance_plot",
-    "incumbent_performance_plot",
     "incumbent_scores",
+    "performance_over_time_plot",
     "trial_duration_plot",
 ]

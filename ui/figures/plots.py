@@ -1,9 +1,10 @@
 """Plotly chart builders, one per figure that draws a figure.
 
 Each is named for the figure it backs (see `catalog.py`), so
-`incumbent_performance_plot` fills the "Performance of Incumbent" figure. The
+`performance_over_time_plot` fills the "Performance over time" figure. The
 other figures — best/selected configuration and trials — are tables, and are
-built by their templates from the view's context rather than from here.
+built by their templates from the view's context rather than from here; so is
+hyperparameter importance's "table" view, alongside this module's pie/bar.
 
 Pure functions: given an OptimizationResult and a metric, return a
 plotly.graph_objects.Figure (or None). No Django, no request state — the view
@@ -26,15 +27,49 @@ def incumbent_scores(result, display_metric):
     return out
 
 
-def incumbent_performance_plot(result, display_metric, selected_idx=None):
-    """Scatter of each trial's score with the running-best line overlaid.
+def performance_over_time_plot(result, display_metric, *, x_axis="trial",
+                                y_axis="score", selected_idx=None):
+    """Every trial's outcome plus the running-best line, on whichever axes
+    *x_axis* ("trial" | "time") and *y_axis* ("score" | "error") pick — the
+    four views of one underlying curve, replacing what used to be two
+    separately-drawn figures (performance-over-trials, error-over-time).
 
-    The point at *selected_idx* (default: none) is enlarged and recolored, the
-    same highlight the click-to-select feature will drive later.
+    The x-axis is trial index or cumulative trial duration — compute *spent*,
+    not wall-clock elapsed since the experiment was created, so a gap between
+    resumed runs (which can be arbitrarily long once experiments persist)
+    never shows up as a dead stretch on the time axis. y is the raw score or
+    1-minus-it floored at 1e-3 (so log scale never hits zero); either way the
+    incumbent line is the running best in that same unit, drawn as a step
+    (`shape="hv"`) since it only actually changes at an improvement, plus
+    markers flagging exactly which trials those were.
+
+    The point at *selected_idx* (default: none) is enlarged and recolored on
+    the raw-outcome trace only — the same highlight click-to-select drives.
+    Returns None with no trials.
     """
     trials = result.trials
-    scores = [t.scores[display_metric] for t in trials]
+    if not trials:
+        return None
+
+    if x_axis == "time":
+        xs, running = [], 0.0
+        for t in trials:
+            running += t.duration
+            xs.append(running)
+        x_title = "Time (s)"
+    else:
+        xs = [t.trial for t in trials]
+        x_title = "Trial"
+
     incumbents = incumbent_scores(result, display_metric)
+    if y_axis == "error":
+        ys = [max(1e-3, 1.0 - t.scores[display_metric]) for t in trials]
+        incumbent_ys = [max(1e-3, 1.0 - v) for v in incumbents]
+        y_title, y_type, outcome_name = "Error", "log", "Trial error"
+    else:
+        ys = [t.scores[display_metric] for t in trials]
+        incumbent_ys = incumbents
+        y_title, y_type, outcome_name = display_metric.capitalize(), "linear", "Trial score"
 
     colors = [_MARKER_COLOR] * len(trials)
     sizes = [6] * len(trials)
@@ -42,34 +77,50 @@ def incumbent_performance_plot(result, display_metric, selected_idx=None):
         colors[selected_idx] = _SELECTED_COLOR
         sizes[selected_idx] = 13
 
+    improved = [i == 0 or incumbents[i] > incumbents[i - 1] for i in range(len(trials))]
+
     fig = go.Figure()
     fig.add_trace(go.Scatter(
-        x=[t.trial for t in trials], y=scores,
-        mode="markers", name="Trial score",
+        x=xs, y=ys, mode="markers", name=outcome_name,
         marker=dict(size=sizes, color=colors, opacity=0.7),
     ))
     fig.add_trace(go.Scatter(
-        x=[t.trial for t in trials], y=incumbents,
-        mode="lines", name="Incumbent", line=dict(width=2),
+        x=xs, y=incumbent_ys, mode="lines", name="Incumbent",
+        line=dict(width=2, shape="hv"),
+    ))
+    fig.add_trace(go.Scatter(
+        x=[xs[i] for i in range(len(trials)) if improved[i]],
+        y=[incumbent_ys[i] for i in range(len(trials)) if improved[i]],
+        mode="markers", name="New incumbent",
+        marker=dict(size=9, color=_SELECTED_COLOR, symbol="diamond"),
     ))
     fig.update_layout(
-        xaxis_title="Trial",
-        yaxis_title=display_metric.capitalize(),
+        xaxis_title=x_title, yaxis_title=y_title, yaxis_type=y_type,
         legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1),
         margin=dict(t=40, b=40, l=40, r=20),
     )
     return fig
 
 
-def hyperparameter_importance_plot(result, display_metric):
-    """Donut of hyperparameter importance for *display_metric*.
+def hyperparameter_importance_plot(result, display_metric, view="pie"):
+    """Pie or (horizontal) bar of hyperparameter importance for
+    *display_metric* — two views of the same numbers; a third, "table", is
+    rendered directly by the template from `result`, not from here.
 
-    Returns None when no importance was computed for the metric (the caller
-    shows an explanatory message instead).
+    Returns None when no importance was computed for the metric, or when
+    *view* is "table" (nothing to draw), so the caller shows the explanatory
+    message / the table instead.
     """
     imp = result.hyperparameter_importance.get(display_metric, {})
-    if not imp:
+    if not imp or view == "table":
         return None
+    if view == "bar":
+        # Ascending so the largest bar ends up on top, reading like a ranking.
+        names, values = zip(*sorted(imp.items(), key=lambda kv: kv[1]))
+        fig = go.Figure(go.Bar(x=values, y=names, orientation="h", marker_color=_MARKER_COLOR))
+        fig.update_layout(xaxis_title="Importance",
+                          margin=dict(t=20, b=20, l=20, r=20), showlegend=False)
+        return fig
     fig = go.Figure(go.Pie(
         labels=list(imp.keys()), values=list(imp.values()),
         hole=0.35, textinfo="label+percent",
@@ -93,44 +144,5 @@ def trial_duration_plot(result):
     fig.update_layout(
         xaxis_title="Trial", yaxis_title="Duration (s)",
         margin=dict(t=20, b=40, l=40, r=20), showlegend=False,
-    )
-    return fig
-
-
-def error_over_time_plot(result, display_metric):
-    """Remaining error (1 − best-so-far) against cumulative trial time — an
-    "anytime performance" curve: how the error comes down as compute is spent.
-
-    Unlike the incumbent line (error vs *trial number*), the x-axis here is
-    seconds of compute, so the WIDTH of each flat run is time spent without
-    improvement (expensive dry spells stretch wide) and each drop is a win.
-    Log y so near-optimal gains still read large; markers flag new incumbents.
-    Returns None with no trials.
-    """
-    trials = result.trials
-    if not trials:
-        return None
-    incumbents = incumbent_scores(result, display_metric)
-    elapsed, running = [], 0.0
-    for t in trials:
-        running += t.duration
-        elapsed.append(running)
-    regret = [max(1e-3, 1.0 - incumbents[i]) for i in range(len(trials))]  # floor so log never hits 0
-    win = [i == 0 or incumbents[i] > incumbents[i - 1] for i in range(len(trials))]
-    fig = go.Figure()
-    fig.add_trace(go.Scatter(
-        x=elapsed, y=regret, mode="lines", name="Remaining error",
-        line=dict(width=2, shape="hv", color=_MARKER_COLOR),
-    ))
-    fig.add_trace(go.Scatter(
-        x=[elapsed[i] for i in range(len(trials)) if win[i]],
-        y=[regret[i] for i in range(len(trials)) if win[i]],
-        mode="markers", name="New incumbent",
-        marker=dict(size=10, color=_SELECTED_COLOR),
-    ))
-    fig.update_layout(
-        xaxis_title="time (s)", yaxis_title="Error", yaxis_type="log",
-        legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1),
-        margin=dict(t=40, b=40, l=40, r=20),
     )
     return fig

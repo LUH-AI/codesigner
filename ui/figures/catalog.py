@@ -8,9 +8,8 @@ from django.utils.translation import gettext_lazy as _
 
 from .base import FULL, HALF, Figure
 from .plots import (
-    error_over_time_plot,
     hyperparameter_importance_plot,
-    incumbent_performance_plot,
+    performance_over_time_plot,
     trial_duration_plot,
 )
 
@@ -35,25 +34,43 @@ class HyperparameterImportance(Figure):
     key = "hyperparameter_importance"
     label = _("Hyperparameter importance (HyperSHAP)")
     per_metric = True
+    # Pie is the default (matches the figure's pre-existing look); bar and
+    # table are alternate views of the exact same numbers.
+    views = ("pie", "bar", "table")
 
     @classmethod
-    def plot(cls, result, metric=None):
-        return hyperparameter_importance_plot(result, metric)
+    def plot(cls, result, metric=None, view=None):
+        return hyperparameter_importance_plot(result, metric, view or cls.views[0])
 
 
-class IncumbentPerformance(Figure):
-    key = "incumbent_performance"
-    label = _("Performance of Incumbent")
+class PerformanceOverTime(Figure):
+    """Every trial's outcome and the running-best line — what used to be two
+    figures (performance-over-trials, error-over-time) are four views of one
+    curve here: trial index or elapsed time on x, score or error on y."""
+
+    key = "performance_over_time"
+    label = _("Performance over time")
     per_metric = True
-    # Scores are bounded, so "absolute" is the full 0-1 range.
-    absolute_scale = {"yaxis.range": [0, 1], "yaxis.autorange": False}
+    views = ("trial-score", "trial-error", "time-score", "time-error")
+    # Keyed by view, since the sensible "absolute" range depends on which
+    # y-axis is showing: scores are bounded 0-1 (linear); error is log, so its
+    # full range 1e-3..1 is log10 -3..0. Same pair for both x-axis choices.
+    absolute_scale = {
+        "trial-score": {"yaxis.range": [0, 1], "yaxis.autorange": False},
+        "trial-error": {"yaxis.range": [-3, 0], "yaxis.autorange": False},
+        "time-score": {"yaxis.range": [0, 1], "yaxis.autorange": False},
+        "time-error": {"yaxis.range": [-3, 0], "yaxis.autorange": False},
+    }
 
     @classmethod
-    def plot(cls, result, metric=None):
+    def plot(cls, result, metric=None, view=None):
         """Highlights the metric's best trial until another is clicked."""
-        best_idx = max(range(len(result.trials)),
-                       key=lambda i: result.trials[i].scores[metric])
-        return incumbent_performance_plot(result, metric, selected_idx=best_idx)
+        view = view or cls.views[0]
+        x_axis, y_axis = view.split("-")
+        best_idx = (max(range(len(result.trials)), key=lambda i: result.trials[i].scores[metric])
+                    if result.trials else None)
+        return performance_over_time_plot(
+            result, metric, x_axis=x_axis, y_axis=y_axis, selected_idx=best_idx)
 
 
 class TrialDuration(Figure):
@@ -65,18 +82,6 @@ class TrialDuration(Figure):
     @classmethod
     def plot(cls, result, metric=None):
         return trial_duration_plot(result)
-
-
-class ErrorOverTime(Figure):
-    key = "error_over_time"
-    label = _("Error over time")
-    per_metric = True
-    # The y-axis is log, so the full error range 1e-3..1 is log10 -3..0.
-    absolute_scale = {"yaxis.range": [-3, 0], "yaxis.autorange": False}
-
-    @classmethod
-    def plot(cls, result, metric=None):
-        return error_over_time_plot(result, metric)
 
 
 class Trials(Figure):
@@ -91,9 +96,8 @@ FIGURES = (
     BestConfiguration,
     SelectedConfiguration,
     HyperparameterImportance,
-    IncumbentPerformance,
+    PerformanceOverTime,
     TrialDuration,
-    ErrorOverTime,
     Trials,
 )
 

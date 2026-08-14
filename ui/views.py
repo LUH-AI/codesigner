@@ -777,10 +777,19 @@ def _detail_context(request, exp):
     shown = resolve_settings(exp)
     figures = [figure for figure in FIGURES if shown[figure.setting_key]]
 
-    def plot_json(figure, metric=None):
-        """A figure's plot as JSON, or None when it draws no plot / has no data."""
-        plot = figure.plot(result, metric)
+    def _fig_json(plot):
         return json.loads(plot.to_json()) if plot is not None else None
+
+    def plot_json(figure, metric=None):
+        """A figure's plot as JSON, or None when it draws no plot / has no
+        data. A figure with declared views instead returns a dict of
+        view key -> plot JSON (or None), one entry per view — the browser
+        picks which to show; see experiment_detail.html's `payloadFor`.
+        """
+        if figure.views:
+            return {view: _fig_json(figure.plot(result, metric, view=view))
+                    for view in figure.views}
+        return _fig_json(figure.plot(result, metric))
 
     panels = []
     for m in metric_names:
@@ -795,6 +804,12 @@ def _detail_context(request, exp):
             "warning": result.hyperparameter_importance_warning.get(m),
             # No selection has been clicked yet, so it defaults to the best trial.
             "selected": _selected_panel_data(result, m, best_idx),
+            # For hyperparameter importance's "table" view — rendered
+            # straight from here rather than from a plot, like best_config
+            # above, so it needs no JSON round-trip through the page script.
+            "importance": sorted(
+                result.hyperparameter_importance.get(m, {}).items(),
+                key=lambda kv: kv[1], reverse=True),
         })
 
     # Plots, keyed by figure, built straight off the catalog — per-metric ones
@@ -818,6 +833,10 @@ def _detail_context(request, exp):
         static_plots=static_plots,
         # Each figure's declared display behavior, for the page script.
         figure_options={f.key: {"absoluteScale": f.absolute_scale} for f in figures},
+        # Which figures have alternate views, and what they're called — only
+        # for those, so the script can tell a plain payload from one keyed by
+        # view without guessing from its shape.
+        figure_views={f.key: list(f.views) for f in figures if f.views},
         half_figures=[f for f in figures if f.width == HALF],
         full_figures=[f for f in figures if f.width == FULL],
         hp_names=hp_names,

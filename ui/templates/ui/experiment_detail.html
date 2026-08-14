@@ -266,6 +266,7 @@
         {{ metric_plots|json_script:"metric-plots-data" }}
         {{ static_plots|json_script:"static-plots-data" }}
         {{ figure_options|json_script:"figure-options-data" }}
+        {{ figure_views|json_script:"figure-views-data" }}
         {{ panels|json_script:"panels-data" }}
         <script src="{% static 'ui/plotly.min.js' %}"></script>
         <script>
@@ -279,7 +280,27 @@
                 const staticPlots = JSON.parse(document.getElementById("static-plots-data").textContent);
                 // Per-figure display behavior, as declared on the Figure class.
                 const figureOptions = JSON.parse(document.getElementById("figure-options-data").textContent);
+                // Which figures have alternate views, and their keys in order —
+                // only present for those, so a plain (non-nested) payload never
+                // has to be told apart from a keyed-by-view one by guessing.
+                const figureViews = JSON.parse(document.getElementById("figure-views-data").textContent);
+                // The view currently showing per multi-view figure; unset means
+                // "the first/default", matching what the server already drew.
+                const currentView = {};
                 function figureEl(key) { return document.getElementById("figure-" + key); }
+
+                // A figure's payload for *metric* — the plain plot/table-data it
+                // has always had, or (for a figure with views) the one currently
+                // selected view's. The one seam every draw/highlight/scale-toggle
+                // call goes through, so none of them need to know views exist.
+                function payloadFor(key, metric) {
+                    const perMetric = metricPlots[metric] && metricPlots[metric][key];
+                    const raw = perMetric !== undefined ? perMetric : staticPlots[key];
+                    if (raw === undefined) return undefined;
+                    const views = figureViews[key];
+                    if (!views) return raw;
+                    return raw[currentView[key] || views[0]];
+                }
                 const warnings = {};
                 JSON.parse(document.getElementById("panels-data").textContent)
                     .forEach(p => { warnings[p.metric] = p.warning; });
@@ -314,6 +335,12 @@
                 const SCALE_TITLE_REL = "{% translate 'Relative scale (fit to data)' %}";
 
                 function makeScaleToggle(absoluteRelayout) {
+                    // absoluteRelayout may be a fixed relayout object, or (for a
+                    // figure whose "absolute" range depends on which view is
+                    // showing) a function returning the current one.
+                    function relayout() {
+                        return typeof absoluteRelayout === "function" ? absoluteRelayout() : absoluteRelayout;
+                    }
                     const state = { absolute: false, figureId: null };
                     function btn() {
                         if (!state.figureId) return null;
@@ -336,7 +363,7 @@
                             icon: { width: 500, height: 600, path: SCALE_EXPAND },
                             click: function (gd) {
                                 state.absolute = !state.absolute;
-                                Plotly.relayout(gd, state.absolute ? absoluteRelayout : {"yaxis.autorange": true});
+                                Plotly.relayout(gd, state.absolute ? relayout() : {"yaxis.autorange": true});
                                 paint();
                             },
                         }],
@@ -347,7 +374,7 @@
                     function apply(figureId) {
                         state.figureId = figureId;
                         const gd = document.getElementById(figureId);
-                        if (state.absolute) Plotly.relayout(gd, absoluteRelayout);
+                        if (state.absolute) Plotly.relayout(gd, relayout());
                         paint();
                         if (!gd._scaleResetWired) {
                             gd._scaleResetWired = true;
@@ -363,17 +390,34 @@
                 }
 
                 // One toggle per figure that declared an absolute scale, built
-                // from that declaration rather than hardcoded here.
+                // from that declaration rather than hardcoded here. A figure
+                // with views declares one relayout per view instead of a single
+                // fixed one, so its toggle reads the current view every time
+                // rather than being handed a fixed relayout up front.
                 const scaleToggles = {};
                 Object.keys(figureOptions).forEach(function (key) {
                     const absolute = figureOptions[key].absoluteScale;
-                    if (absolute) scaleToggles[key] = makeScaleToggle(absolute);
+                    if (!absolute) return;
+                    scaleToggles[key] = figureViews[key]
+                        ? makeScaleToggle(function () {
+                              return absolute[currentView[key] || figureViews[key][0]];
+                          })
+                        : makeScaleToggle(absolute);
                 });
 
+                // Only ever set by an actual click, and only consulted across a
+                // view switch on the same metric — switching metric already
+                // resets the highlight to that metric's best trial (below), and
+                // must also forget any earlier click so a later view switch on
+                // that metric doesn't resurrect it.
+                const lastClickedIdx = {};
+
                 function highlightPoint(metric, idx) {
-                    const perfEl = figureEl("incumbent_performance");
+                    const perfEl = figureEl("performance_over_time");
                     if (!perfEl) return;
-                    const n = metricPlots[metric].incumbent_performance.data[0].x.length;
+                    const payload = payloadFor("performance_over_time", metric);
+                    if (!payload) return;
+                    const n = payload.data[0].x.length;
                     const colors = new Array(n).fill("#636EFA");
                     const sizes = new Array(n).fill(6);
                     if (idx >= 0 && idx < n) { colors[idx] = "#EF553B"; sizes[idx] = 13; }
@@ -384,11 +428,12 @@
                 function attachPerfClickOnce() {
                     if (perfClickAttached) return;
                     perfClickAttached = true;
-                    figureEl("incumbent_performance").on("plotly_click", function (data) {
+                    figureEl("performance_over_time").on("plotly_click", function (data) {
                         const pt = data.points && data.points[0];
-                        if (!pt || pt.curveNumber !== 0) return;  // ignore the incumbent line
+                        if (!pt || pt.curveNumber !== 0) return;  // ignore the incumbent/new-incumbent traces
                         const metric = select.value;
                         const idx = pt.pointIndex;
+                        lastClickedIdx[metric] = idx;
                         highlightPoint(metric, idx);
                         fetch(trialPanelUrl + "?metric=" + encodeURIComponent(metric) + "&idx=" + idx)
                             .then(function (r) { return r.ok ? r.text() : Promise.reject(); })
@@ -421,12 +466,45 @@
                     if (toggle) toggle.apply(el.id);
                 }
 
+                // Redraws one figure for *metric* from whichever view is
+                // currently selected — the one path both a metric switch and a
+                // view switch redraw through, so they can't drift apart.
+                function redraw(key, metric) {
+                    draw(key, payloadFor(key, metric));
+                }
+
+                // Importance's table view is server-rendered HTML, not a plot —
+                // draw() never sees it, so showing/hiding it is separate: the
+                // one block matching the current metric, only while "table" is
+                // the active view. draw() also just showed the "no data" note
+                // for it (table's payload is always null, on purpose — it has
+                // its own empty state inside the table block itself), so that
+                // note is suppressed here rather than actually meaning nothing
+                // was computed.
+                function syncImportanceTable(metric) {
+                    const showTable = currentView.hyperparameter_importance === "table";
+                    document.querySelectorAll(".importance-table").forEach(function (el) {
+                        el.hidden = !(showTable && el.dataset.metric === metric);
+                    });
+                    if (showTable) {
+                        const empty = document.getElementById("figure-hyperparameter_importance-empty");
+                        if (empty) empty.hidden = true;
+                    }
+                }
+
                 function show(metric) {
                     const plots = metricPlots[metric] || {};
-                    Object.keys(plots).forEach(function (key) { draw(key, plots[key]); });
+                    // A metric switch is a fresh start: any earlier click on the
+                    // metric being switched to is forgotten (matches the
+                    // selected-config panel resetting to that metric's best,
+                    // just below), so a later view switch has nothing stale to
+                    // reapply.
+                    delete lastClickedIdx[metric];
+                    Object.keys(plots).forEach(function (key) { redraw(key, metric); });
+                    syncImportanceTable(metric);
 
                     // Click-to-select lives on the performance figure only.
-                    if (figureEl("incumbent_performance") && plots.incumbent_performance) {
+                    if (figureEl("performance_over_time") && plots.performance_over_time) {
                         attachPerfClickOnce();
                     }
 
@@ -452,13 +530,46 @@
                 if (select) {
                     select.addEventListener("change", () => show(select.value));
                 }
+
+                // A view switch redraws only its own figure, on whichever metric
+                // is currently showing, and reapplies a click made since the
+                // last metric switch — a view is a different way to look at the
+                // same selection, not a reason to lose it.
+                function currentMetric() {
+                    return select ? select.value : Object.keys(metricPlots)[0];
+                }
+                function switchView(key, view) {
+                    currentView[key] = view;
+                    const metric = currentMetric();
+                    redraw(key, metric);
+                    if (key === "hyperparameter_importance") syncImportanceTable(metric);
+                    if (key === "performance_over_time" && lastClickedIdx[metric] !== undefined) {
+                        highlightPoint(metric, lastClickedIdx[metric]);
+                    }
+                }
+                const impViewSelect = document.getElementById("view-select-hyperparameter_importance");
+                if (impViewSelect) {
+                    impViewSelect.addEventListener("change", function () {
+                        switchView("hyperparameter_importance", impViewSelect.value);
+                    });
+                }
+                const perfXSelect = document.getElementById("view-select-performance_over_time-x");
+                const perfYSelect = document.getElementById("view-select-performance_over_time-y");
+                if (perfXSelect && perfYSelect) {
+                    function applyPerformanceView() {
+                        switchView("performance_over_time", perfXSelect.value + "-" + perfYSelect.value);
+                    }
+                    perfXSelect.addEventListener("change", applyPerformanceView);
+                    perfYSelect.addEventListener("change", applyPerformanceView);
+                }
+
                 // Figures that don't depend on the metric are drawn once.
                 Object.keys(staticPlots).forEach(function (key) {
-                    draw(key, staticPlots[key]);
+                    redraw(key, null);
                 });
                 // Fall back to the first metric if the page rendered without a
                 // selector, so the figures never come up blank.
-                const initialMetric = select ? select.value : Object.keys(metricPlots)[0];
+                const initialMetric = currentMetric();
                 if (initialMetric) {
                     show(initialMetric);
                 }

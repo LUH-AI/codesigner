@@ -3,12 +3,9 @@
 One builder per figure that draws a figure, each named for its figure. These
 assert the figures faithfully reflect a result — the incumbent line is the
 running best, the scatter carries every trial's score, the selected point is
-highlighted, the importance donut mirrors the importance dict, and the duration
-bars are the per-trial times. Built from synthetic results with hand-chosen
-numbers so every assertion is exact.
-
-`error_over_time_plot` is still being refined visually, so it is deliberately
-uncovered for now.
+highlighted, the importance donut/bar mirror the importance dict, and the
+duration bars are the per-trial times. Built from synthetic results with
+hand-chosen numbers so every assertion is exact.
 """
 
 import pytest
@@ -16,8 +13,8 @@ import pytest
 from core.optimizers import OptimizationResult, TrialResult
 from ui.figures import (
     hyperparameter_importance_plot,
-    incumbent_performance_plot,
     incumbent_scores,
+    performance_over_time_plot,
     trial_duration_plot,
 )
 
@@ -48,16 +45,15 @@ def test_incumbent_scores_is_running_max():
 
 
 def test_performance_figure_has_score_and_incumbent_traces():
-    """The performance figure plots trial scores as markers and the incumbent
-    as a line, both over the trial numbers.
+    """The default view (trial x-axis, score y-axis) plots trial scores as
+    markers and the incumbent as a line, both over the trial numbers.
 
-    Expect: two traces; the marker trace's y equals the per-trial scores; the
-    line trace's y equals the running best.
+    Expect: a markers trace and a lines trace among the figure's data; the
+    marker trace's y equals the per-trial scores; the line trace's y equals
+    the running best.
     """
-    fig = incumbent_performance_plot(_result(), "accuracy")
-    assert len(fig.data) == 2
-
-    markers = next(t for t in fig.data if t.mode == "markers")
+    fig = performance_over_time_plot(_result(), "accuracy")
+    markers = next(t for t in fig.data if t.mode == "markers" and t.name == "Trial score")
     line = next(t for t in fig.data if t.mode == "lines")
     assert list(markers.x) == [1, 2, 3]
     assert list(markers.y) == [0.5, 0.3, 0.9]
@@ -70,28 +66,72 @@ def test_performance_figure_highlights_selected_point():
     Selecting trial index 2 must enlarge/recolor only that marker, leaving the
     others at the default size and color.
     """
-    fig = incumbent_performance_plot(_result(), "accuracy", selected_idx=2)
-    markers = next(t for t in fig.data if t.mode == "markers")
+    fig = performance_over_time_plot(_result(), "accuracy", selected_idx=2)
+    markers = next(t for t in fig.data if t.mode == "markers" and t.name == "Trial score")
     assert markers.marker.size[2] > markers.marker.size[0]
     assert markers.marker.color[2] != markers.marker.color[0]
 
 
 def test_performance_yaxis_labels_the_metric():
-    """The y-axis is titled with the metric being shown."""
-    fig = incumbent_performance_plot(_result(), "f1")
+    """The y-axis is titled with the metric being shown, for the score view."""
+    fig = performance_over_time_plot(_result(), "f1", y_axis="score")
     assert fig.layout.yaxis.title.text.lower() == "f1"
 
 
-def test_importance_figure_mirrors_the_importance_dict():
-    """The importance donut's labels and values come straight from the result.
+def test_time_axis_is_cumulative_trial_duration():
+    """x_axis="time" sums each trial's duration rather than showing its index —
+    compute spent, not wall-clock elapsed (which would include any gap between
+    resumed runs)."""
+    trials = [
+        TrialResult(trial=1, config={"a": 1}, scores={"accuracy": 0.5}, score=0.5,
+                   incumbent_score=0.5, incumbent_config={"a": 1}, run_info={"time": 2.0}),
+        TrialResult(trial=2, config={"a": 2}, scores={"accuracy": 0.9}, score=0.9,
+                   incumbent_score=0.9, incumbent_config={"a": 2}, run_info={"time": 3.0}),
+    ]
+    result = OptimizationResult(
+        trials=trials, primary_metric="accuracy", best_config={"a": 2}, best_score=0.9,
+        hyperparameter_importance={}, hyperparameter_importance_warning={},
+    )
+    fig = performance_over_time_plot(result, "accuracy", x_axis="time")
+    markers = next(t for t in fig.data if t.mode == "markers")
+    assert list(markers.x) == [2.0, 5.0]
 
-    A pie trace whose labels/values equal the hyperparameter_importance entry
-    for the metric.
-    """
+
+def test_error_view_is_one_minus_score_on_a_log_axis():
+    """y_axis="error" plots 1 - score (floored at 1e-3) with a log y-axis."""
+    fig = performance_over_time_plot(_result(), "accuracy", y_axis="error")
+    markers = next(t for t in fig.data if t.mode == "markers" and t.name == "Trial error")
+    assert list(markers.y) == pytest.approx([0.5, 0.7, 0.1])
+    assert fig.layout.yaxis.type == "log"
+
+
+def test_performance_figure_none_when_no_trials():
+    result = OptimizationResult(
+        trials=[], primary_metric="accuracy", best_config={}, best_score=0.0,
+        hyperparameter_importance={}, hyperparameter_importance_warning={},
+    )
+    assert performance_over_time_plot(result, "accuracy") is None
+
+
+def test_importance_pie_mirrors_the_importance_dict():
+    """The default (pie) view's labels/values come straight from the result."""
     fig = hyperparameter_importance_plot(_result(), "accuracy")
     pie = fig.data[0]
     assert set(pie.labels) == {"a", "b"}
     assert dict(zip(pie.labels, pie.values)) == {"a": 0.7, "b": 0.3}
+
+
+def test_importance_bar_mirrors_the_importance_dict():
+    """The bar view carries the same numbers as the pie view, just as bars."""
+    fig = hyperparameter_importance_plot(_result(), "accuracy", view="bar")
+    bar = fig.data[0]
+    assert dict(zip(bar.y, bar.x)) == {"a": 0.7, "b": 0.3}
+
+
+def test_importance_table_view_draws_nothing():
+    """The table view has no plot at all — the template renders it from
+    `result` directly, so the builder returns None for it same as "no data"."""
+    assert hyperparameter_importance_plot(_result(), "accuracy", view="table") is None
 
 
 def test_importance_figure_none_when_metric_has_no_importance():
@@ -102,7 +142,7 @@ def test_importance_figure_none_when_metric_has_no_importance():
 
 def test_figures_serialize_to_json():
     """Both figures survive fig.to_json() — the view embeds them that way."""
-    assert incumbent_performance_plot(_result(), "accuracy").to_json()
+    assert performance_over_time_plot(_result(), "accuracy").to_json()
     assert hyperparameter_importance_plot(_result(), "accuracy").to_json()
 
 
