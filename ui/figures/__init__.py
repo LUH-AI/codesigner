@@ -6,7 +6,7 @@ for each figure that draws one. Their templates live in
 """
 
 from .base import FULL, HALF, Figure
-from .catalog import FIGURES, FIGURES_BY_KEY
+from .catalog import FIGURES, FIGURES_BY_KEY, HP_GAME_FIELDS
 from .plots import (
     hyperparameter_importance_plot,
     incumbent_scores,
@@ -19,6 +19,7 @@ __all__ = [
     "FIGURES_BY_KEY",
     "FULL",
     "HALF",
+    "HP_GAME_FIELDS",
     "Figure",
     "hyperparameter_importance_plot",
     "incumbent_scores",

@@ -15,7 +15,7 @@ from django.views.decorators.http import require_POST
 
 from core import io, provenance
 
-from .figures import FIGURES, FULL, HALF
+from .figures import FIGURES, FULL, HALF, HP_GAME_FIELDS
 from .forms import DefaultExperimentSettingsForm, ExperimentSettingsForm, NewExperimentForm
 from .models import Experiment, GlobalSettings
 from . import permissions
@@ -801,15 +801,22 @@ def _detail_context(request, exp):
             "best_n": best.trial,
             "best_score": best.scores[m],
             "best_config": list(best.config.items()),
-            "warning": result.hyperparameter_importance_warning.get(m),
             # No selection has been clicked yet, so it defaults to the best trial.
             "selected": _selected_panel_data(result, m, best_idx),
-            # For hyperparameter importance's "table" view — rendered
+            # One entry per HyperSHAP game the importance figure offers: its
+            # warning (for #imp-warning) and its "table" view's rows (rendered
             # straight from here rather than from a plot, like best_config
-            # above, so it needs no JSON round-trip through the page script.
-            "importance": sorted(
-                result.hyperparameter_importance.get(m, {}).items(),
-                key=lambda kv: kv[1], reverse=True),
+            # above, so it needs no JSON round-trip through the page script) —
+            # both keyed by game since the figure's game selector picks which
+            # of these applies, independently of the metric selector.
+            "importance_by_game": {
+                game: {
+                    "warning": getattr(result, warning_field).get(m),
+                    "table": sorted(getattr(result, importance_field).get(m, {}).items(),
+                                    key=lambda kv: kv[1], reverse=True),
+                }
+                for game, (importance_field, warning_field) in HP_GAME_FIELDS.items()
+            },
         })
 
     # Plots, keyed by figure, built straight off the catalog — per-metric ones

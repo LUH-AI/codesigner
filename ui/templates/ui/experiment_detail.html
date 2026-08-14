@@ -301,9 +301,17 @@
                     if (!views) return raw;
                     return raw[currentView[key] || views[0]];
                 }
+                // metric -> game -> warning-or-null. Which game's warning
+                // applies depends on the importance figure's own game
+                // selector, not just the metric — see syncImportanceWarning.
                 const warnings = {};
                 JSON.parse(document.getElementById("panels-data").textContent)
-                    .forEach(p => { warnings[p.metric] = p.warning; });
+                    .forEach(p => {
+                        warnings[p.metric] = {};
+                        Object.keys(p.importance_by_game || {}).forEach(function (game) {
+                            warnings[p.metric][game] = p.importance_by_game[game].warning;
+                        });
+                    });
                 const select = document.getElementById("metric-select");
                 const trialPanelUrl = "{% url 'ui:trial_panel' summary.pk %}";
 
@@ -473,23 +481,45 @@
                     draw(key, payloadFor(key, metric));
                 }
 
+                // The importance figure's current (game, rendering) pair —
+                // falls back to the default view the same way payloadFor does,
+                // so this agrees with whatever's actually drawn.
+                function importanceView() {
+                    const views = figureViews.hyperparameter_importance;
+                    const view = (views && (currentView.hyperparameter_importance || views[0])) || "tunability-pie";
+                    return view.split("-");
+                }
+
                 // Importance's table view is server-rendered HTML, not a plot —
                 // draw() never sees it, so showing/hiding it is separate: the
-                // one block matching the current metric, only while "table" is
-                // the active view. draw() also just showed the "no data" note
-                // for it (table's payload is always null, on purpose — it has
-                // its own empty state inside the table block itself), so that
-                // note is suppressed here rather than actually meaning nothing
-                // was computed.
+                // one block matching both the current metric and the current
+                // game, only while "table" is the active rendering. draw()
+                // also just showed the "no data" note for it (table's payload
+                // is always null, on purpose — it has its own empty state
+                // inside the table block itself), so that note is suppressed
+                // here rather than actually meaning nothing was computed.
                 function syncImportanceTable(metric) {
-                    const showTable = currentView.hyperparameter_importance === "table";
+                    const [game, rendering] = importanceView();
+                    const showTable = rendering === "table";
                     document.querySelectorAll(".importance-table").forEach(function (el) {
-                        el.hidden = !(showTable && el.dataset.metric === metric);
+                        el.hidden = !(showTable && el.dataset.metric === metric && el.dataset.game === game);
                     });
                     if (showTable) {
                         const empty = document.getElementById("figure-hyperparameter_importance-empty");
                         if (empty) empty.hidden = true;
                     }
+                }
+
+                // Which game's caveat applies depends on the game selector,
+                // not just the metric — a warning about tunability shouldn't
+                // linger once sensitivity is showing instead.
+                function syncImportanceWarning(metric) {
+                    const warnEl = document.getElementById("imp-warning");
+                    if (!warnEl) return;
+                    const [game] = importanceView();
+                    const msg = (warnings[metric] || {})[game];
+                    warnEl.textContent = msg || "";
+                    warnEl.hidden = !msg;
                 }
 
                 function show(metric) {
@@ -502,6 +532,7 @@
                     delete lastClickedIdx[metric];
                     Object.keys(plots).forEach(function (key) { redraw(key, metric); });
                     syncImportanceTable(metric);
+                    syncImportanceWarning(metric);
 
                     // Click-to-select lives on the performance figure only.
                     if (figureEl("performance_over_time") && plots.performance_over_time) {
@@ -511,13 +542,6 @@
                     const selEl = document.getElementById("selected-content-" + metric);
                     if (selEl && defaultSelectedHTML[metric] !== undefined) {
                         selEl.innerHTML = defaultSelectedHTML[metric];
-                    }
-
-                    // Importance is the one figure with a per-metric caveat to report.
-                    const warnEl = document.getElementById("imp-warning");
-                    if (warnEl) {
-                        warnEl.textContent = warnings[metric] || "";
-                        warnEl.hidden = !warnings[metric];
                     }
 
                     document.querySelectorAll(".panel").forEach(function (el) {
@@ -542,16 +566,22 @@
                     currentView[key] = view;
                     const metric = currentMetric();
                     redraw(key, metric);
-                    if (key === "hyperparameter_importance") syncImportanceTable(metric);
+                    if (key === "hyperparameter_importance") {
+                        syncImportanceTable(metric);
+                        syncImportanceWarning(metric);
+                    }
                     if (key === "performance_over_time" && lastClickedIdx[metric] !== undefined) {
                         highlightPoint(metric, lastClickedIdx[metric]);
                     }
                 }
-                const impViewSelect = document.getElementById("view-select-hyperparameter_importance");
-                if (impViewSelect) {
-                    impViewSelect.addEventListener("change", function () {
-                        switchView("hyperparameter_importance", impViewSelect.value);
-                    });
+                const impGameSelect = document.getElementById("view-select-hyperparameter_importance-game");
+                const impRenderingSelect = document.getElementById("view-select-hyperparameter_importance-rendering");
+                if (impGameSelect && impRenderingSelect) {
+                    function applyImportanceView() {
+                        switchView("hyperparameter_importance", impGameSelect.value + "-" + impRenderingSelect.value);
+                    }
+                    impGameSelect.addEventListener("change", applyImportanceView);
+                    impRenderingSelect.addEventListener("change", applyImportanceView);
                 }
                 const perfXSelect = document.getElementById("view-select-performance_over_time-x");
                 const perfYSelect = document.getElementById("view-select-performance_over_time-y");

@@ -1,13 +1,19 @@
 {% load i18n %}
-{% comment %}Pie, bar and table are three views of the same numbers
-(result.hyperparameter_importance) — the table is rendered here, per metric,
-straight from `panels`; pie/bar come from ui/figures/plots.py as usual. See
-experiment_detail.html's payloadFor/redraw for how the selector drives which
-one shows.{% endcomment %}
+{% comment %}Two independent choices: which HyperSHAP game (tunability /
+sensitivity / mistunability — see core.optimizers.base.BaseOptimizer.HP_GAMES)
+and how to draw its numbers (pie / bar / table). The table is rendered here,
+per metric per game, straight from `panels`; pie/bar come from
+ui/figures/plots.py as usual. See experiment_detail.html's payloadFor/redraw
+for how the two selects below compose into one view key.{% endcomment %}
 <section class="card" data-figure="{{ figure.key }}">
     <div class="subheader">{{ figure.label }}</div>
     <p class="caption" style="margin-bottom: 0.5rem;">
-        <select id="view-select-{{ figure.key }}" aria-label="{% translate 'View' %}">
+        <select id="view-select-{{ figure.key }}-game" aria-label="{% translate 'Game' %}" style="margin-right: 0.5rem;">
+            <option value="tunability">{% translate "Tunability" %}</option>
+            <option value="sensitivity">{% translate "Sensitivity" %}</option>
+            <option value="mistunability">{% translate "Mistunability" %}</option>
+        </select>
+        <select id="view-select-{{ figure.key }}-rendering" aria-label="{% translate 'View' %}">
             <option value="pie">{% translate "Pie" %}</option>
             <option value="bar">{% translate "Bar" %}</option>
             <option value="table">{% translate "Table" %}</option>
@@ -17,21 +23,23 @@ one shows.{% endcomment %}
     <div id="{{ figure.dom_id }}" class="plot"></div>
     <p id="{{ figure.dom_id }}-empty" class="caption" hidden>{% translate "No importance data available." %}</p>
     {% for panel in panels %}
-        <div class="importance-table" data-metric="{{ panel.metric }}" hidden>
-            {% if panel.importance %}
-                <div class="table-wrap">
-                    <table>
-                        <thead><tr><th>{% translate "Hyperparameter" %}</th><th>{% translate "Importance" %}</th></tr></thead>
-                        <tbody>
-                            {% for hp, value in panel.importance %}
-                                <tr><td>{{ hp }}</td><td>{{ value|floatformat:4 }}</td></tr>
-                            {% endfor %}
-                        </tbody>
-                    </table>
-                </div>
-            {% else %}
-                <p class="caption">{% translate "No importance data available." %}</p>
-            {% endif %}
-        </div>
+        {% for game, data in panel.importance_by_game.items %}
+            <div class="importance-table" data-metric="{{ panel.metric }}" data-game="{{ game }}" hidden>
+                {% if data.table %}
+                    <div class="table-wrap">
+                        <table>
+                            <thead><tr><th>{% translate "Hyperparameter" %}</th><th>{% translate "Importance" %}</th></tr></thead>
+                            <tbody>
+                                {% for hp, value in data.table %}
+                                    <tr><td>{{ hp }}</td><td>{{ value|floatformat:4 }}</td></tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                {% else %}
+                    <p class="caption">{% translate "No importance data available." %}</p>
+                {% endif %}
+            </div>
+        {% endfor %}
     {% endfor %}
 </section>

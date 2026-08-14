@@ -84,6 +84,13 @@ class OptimizationResult:
     hyperparameter_importance_warning: Dict[str, Optional[str]]     # metric → warning or None
     trials_limit: Optional[int] = None    # None = unlimited; set by optimizers with a finite search space
     metadata: Dict[str, Any] = field(default_factory=dict)
+    # The other two global HyperSHAP games (see BaseOptimizer.HP_GAMES) —
+    # same shape as hyperparameter_importance/_warning above, defaulted to
+    # empty so a result from before these existed still deserializes.
+    hyperparameter_sensitivity: Dict[str, Dict[str, float]] = field(default_factory=dict)
+    hyperparameter_sensitivity_warning: Dict[str, Optional[str]] = field(default_factory=dict)
+    hyperparameter_mistunability: Dict[str, Dict[str, float]] = field(default_factory=dict)
+    hyperparameter_mistunability_warning: Dict[str, Optional[str]] = field(default_factory=dict)
 
 
 def rebase_history(previous_result, primary_metric: str):
@@ -459,6 +466,10 @@ class BaseOptimizer(ABC):
             "best_config_id": best_config_id,
             "hyperparameter_importance": result.hyperparameter_importance,
             "hyperparameter_importance_warning": result.hyperparameter_importance_warning,
+            "hyperparameter_sensitivity": result.hyperparameter_sensitivity,
+            "hyperparameter_sensitivity_warning": result.hyperparameter_sensitivity_warning,
+            "hyperparameter_mistunability": result.hyperparameter_mistunability,
+            "hyperparameter_mistunability_warning": result.hyperparameter_mistunability_warning,
             "trials_limit": result.trials_limit,
         }
 
@@ -496,6 +507,10 @@ class BaseOptimizer(ABC):
             best_score=d.get("best_score", 0.0),
             hyperparameter_importance=d.get("hyperparameter_importance", {}),
             hyperparameter_importance_warning=d.get("hyperparameter_importance_warning", {}),
+            hyperparameter_sensitivity=d.get("hyperparameter_sensitivity", {}),
+            hyperparameter_sensitivity_warning=d.get("hyperparameter_sensitivity_warning", {}),
+            hyperparameter_mistunability=d.get("hyperparameter_mistunability", {}),
+            hyperparameter_mistunability_warning=d.get("hyperparameter_mistunability_warning", {}),
             trials_limit=d.get("trials_limit"),
             metadata={},
         )
@@ -551,6 +566,17 @@ class BaseOptimizer(ABC):
         """
         return stored
 
+    #: HyperSHAP's global "explanation games" this app surfaces, each answering
+    #: a different question about the same trial history: tunability = how
+    #: much upside does tuning this hyperparameter offer (HyperSHAP's MAX
+    #: aggregation), sensitivity = how much does performance vary as it moves
+    #: (VAR), mistunability = how much downside risk does getting it wrong
+    #: carry (MIN). Same call shape, same fallback ladder — see
+    #: `_compute_hp_game`. `optimizer_bias` exists too but needs a live
+    #: ensemble of optimizers to compare against, not just one run's trial
+    #: history, so it doesn't fit this app's model and isn't offered.
+    HP_GAMES = ("tunability", "sensitivity", "mistunability")
+
     def compute_hp_importance(
         self,
         config_space,
@@ -558,10 +584,85 @@ class BaseOptimizer(ABC):
         metric_name: str,
         seed: int = 0,
     ) -> tuple[Dict[str, float], Optional[str]]:
-        """Estimate hyperparameter importance from a completed list of trials.
+        """Estimate hyperparameter importance (HyperSHAP's "tunability" game)
+        from a completed list of trials.
 
         Returns (importance_dict, warning_message).  warning_message is None
-        when HyperSHAP succeeds.
+        when HyperSHAP succeeds. Kept as its own method, rather than folded
+        into `compute_hp_games`, because it predates the other games and
+        existing callers (tests, every optimizer's serialize path before this)
+        name it directly.
+        """
+        return self._compute_hp_game(config_space, trials, metric_name, "tunability", seed)
+
+    def compute_hp_sensitivity(
+        self,
+        config_space,
+        trials: List[TrialResult],
+        metric_name: str,
+        seed: int = 0,
+    ) -> tuple[Dict[str, float], Optional[str]]:
+        """HyperSHAP's "sensitivity" game — how much performance varies as
+        each hyperparameter moves, holding the others at random draws. Same
+        contract as `compute_hp_importance`."""
+        return self._compute_hp_game(config_space, trials, metric_name, "sensitivity", seed)
+
+    def compute_hp_mistunability(
+        self,
+        config_space,
+        trials: List[TrialResult],
+        metric_name: str,
+        seed: int = 0,
+    ) -> tuple[Dict[str, float], Optional[str]]:
+        """HyperSHAP's "mistunability" game — how much downside a
+        hyperparameter risks if it ends up wrong. Same contract as
+        `compute_hp_importance`."""
+        return self._compute_hp_game(config_space, trials, metric_name, "mistunability", seed)
+
+    def compute_hp_games(
+        self,
+        config_space,
+        trials: List[TrialResult],
+        metrics,
+        seed: int = 0,
+    ) -> Dict[str, tuple[Dict[str, Dict[str, float]], Dict[str, Optional[str]]]]:
+        """Every metric's per-game hyperparameter importance, for all of
+        `HP_GAMES` — what each optimizer's `optimize()` calls once, instead of
+        looping `compute_hp_importance`/`_sensitivity`/`_mistunability`
+        separately over every metric three times.
+
+        Returns `{game: (importance_by_metric, warning_by_metric)}`, each pair
+        shaped exactly like an `OptimizationResult`'s
+        `hyperparameter_<game>`/`hyperparameter_<game>_warning` fields expect.
+        """
+        by_game = {}
+        for game in self.HP_GAMES:
+            importance, warning = {}, {}
+            for metric_name in metrics:
+                importance[metric_name], warning[metric_name] = self._compute_hp_game(
+                    config_space, trials, metric_name, game, seed)
+            by_game[game] = (importance, warning)
+        return by_game
+
+    def _compute_hp_game(
+        self,
+        config_space,
+        trials: List[TrialResult],
+        metric_name: str,
+        game: str,
+        seed: int = 0,
+    ) -> tuple[Dict[str, float], Optional[str]]:
+        """Shared scaffolding behind `compute_hp_importance`/`_sensitivity`/
+        `_mistunability`: pair up trials and scores, ask HyperSHAP's *game* for
+        order-1 values, and fall back to a surrogate's feature_importances_
+        and then uniform weights if that fails. *game* is a `HyperSHAP`
+        instance method name taking no required arguments (`tunability`,
+        `sensitivity`, `mistunability` all qualify; `ablation` does not — it
+        needs a specific configuration to explain, not just trial history, so
+        it is computed separately, on demand, for one selected trial).
+
+        Returns (values_dict, warning_message). warning_message is None when
+        HyperSHAP succeeds.
         """
         import numpy as np
         from ConfigSpace import Configuration
@@ -586,13 +687,13 @@ class BaseOptimizer(ABC):
         try:
             task = ExplanationTask.from_data(config_space, data)
             hs = HyperSHAP(task)
-            iv = hs.tunability()
+            iv = getattr(hs, game)()
             order1 = iv.get_n_order(order=1).dict_values
             raw = {params[idx]: abs(val) for (idx,), val in order1.items()}
             total = sum(raw.values()) or 1.0
             return {k: v / total for k, v in raw.items()}, None
         except Exception as e:
-            warning = f"HyperSHAP failed ({e}) — falling back to surrogate feature importances."
+            warning = f"HyperSHAP ({game}) failed ({e}) — falling back to surrogate feature importances."
 
         try:
             from sklearn.ensemble import RandomForestRegressor

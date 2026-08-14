@@ -79,14 +79,7 @@ class RandomOptimizer(BaseOptimizer):
 
         all_trials = (previous_result.trials if previous_result else []) + collector.results
 
-        hp_importance: dict = {}
-        hp_warning: dict = {}
-        for metric_name in metrics:
-            imp, warn = self.compute_hp_importance(
-                config_space, all_trials, metric_name, seed=seed
-            )
-            hp_importance[metric_name] = imp
-            hp_warning[metric_name] = warn
+        games = self.compute_hp_games(config_space, all_trials, metrics, seed=seed)
 
         return OptimizationResult(
             trials=all_trials,
@@ -94,7 +87,11 @@ class RandomOptimizer(BaseOptimizer):
             best_config=max(all_trials, key=lambda t: t.scores[primary_metric]).config
                         if all_trials else {},
             best_score=max((t.scores[primary_metric] for t in all_trials), default=0.0),
-            hyperparameter_importance=hp_importance,
-            hyperparameter_importance_warning=hp_warning,
+            hyperparameter_importance=games["tunability"][0],
+            hyperparameter_importance_warning=games["tunability"][1],
+            hyperparameter_sensitivity=games["sensitivity"][0],
+            hyperparameter_sensitivity_warning=games["sensitivity"][1],
+            hyperparameter_mistunability=games["mistunability"][0],
+            hyperparameter_mistunability_warning=games["mistunability"][1],
             metadata={"stopped_by": collector.stopped_by},
         )

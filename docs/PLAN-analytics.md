@@ -150,31 +150,54 @@ performance/error-over-time merge, as one entry with axis toggles.
 The highest-value, lowest-effort port: `hypershap` is already a dependency
 and already wired into `compute_hp_importance`
 (`core/optimizers/base.py:554-609`) for its `tunability` game only. The same
-library ships `sensitivity`, `ablation`, and `optimizer_bias` games, and
-supports *local* (single-configuration) explanations, not just global ones.
+library ships `sensitivity`, `ablation`, `mistunability`, and `optimizer_bias`
+games, and supports *local* (single-configuration) explanations, not just
+global ones.
+
+> **Status: split in two after the spike.** `optimizer_bias` turned out to
+> need a live ensemble of optimizers to compare against, not just trial
+> history, so it's excluded (doesn't fit this app's model). The rest split
+> cleanly by call shape — `tunability`/`sensitivity`/`mistunability` take no
+> required arguments (same signature, same cost profile); `ablation` takes a
+> specific configuration to explain, a genuinely different shape and use.
+>
+> **1a — the three global games — done**, see
+> [walkthroughs/analytics-phase-1a-global-games.md](walkthroughs/analytics-phase-1a-global-games.md).
+> `mistunability` (MIN aggregation — downside risk) was added alongside
+> `sensitivity`, since it shares tunability's exact call shape and rides
+> along for free.
+>
+> **1b — the local view via `ablation` — not yet done.** Spike confirmed it's
+> cheap (~45ms against a real fixture, vs. ~0.25-0.3s for each global game),
+> so no caching is needed; wiring it to the existing click-to-select
+> mechanism is its own reviewable unit.
 
 - **Spike first**: confirm the installed `hypershap` version's actual call
   signatures for the other games and for local explanations — this plan's
   research could not fetch the full paper, so treat the exact API as
   unconfirmed until checked against the installed package (`pip show
-  hypershap`, its own source/docstrings).
+  hypershap`, its own source/docstrings). *(Done — see the walkthrough.)*
 - Generalize `compute_hp_importance` into sibling methods (or one method
   parameterized by game) sharing the existing trial-pairing + RandomForest-
   fallback + uniform-weights-warning scaffolding already in `base.py` — no
-  need to duplicate that plumbing per game.
+  need to duplicate that plumbing per game. *(Done, Phase 1a.)*
 - Add a **local importance at the currently-selected trial** view, driven by
-  HyperSHAP's local explanation mode and wired to the *existing*
+  HyperSHAP's `ablation` game (config-of-interest = the selected trial,
+  baseline = the config space default) and wired to the *existing*
   click-to-select mechanism (the `trial_panel` endpoint / selected-config
   panel already built in Step 7) — the standout feature here, since it
   reuses an entire existing UI flow end to end rather than building new
-  interaction.
+  interaction. Ablation's values are signed (did tuning away from baseline
+  help or hurt this specific trial), unlike the three global games' abs-value
+  shares — needs its own rendering (a diverging bar at minimum), not a fourth
+  drop-in option on the existing pie/bar/table. *(Phase 1b, not yet done.)*
 - These become additional views on the Phase 0 Feature Importance entry:
-  Global (tunability) / Sensitivity / Ablation / Local (selected trial), each
-  still renderable as pie/bar/table via Phase 0's view-kind machinery.
+  Tunability / Sensitivity / Mistunability *(done)* / Local (selected trial,
+  via ablation) *(not yet done)*.
 - Tests: unit tests for the new `compute_hp_*` methods (mirror whatever
   currently tests `compute_hp_importance` — locate via
-  `tests/core/test_hp_importance.py`), plus a view test for the
-  local-explanation-at-selected-trial wiring.
+  `tests/core/test_hp_importance.py`) *(done)*, plus a view test for the
+  local-explanation-at-selected-trial wiring *(not yet done)*.
 
 ## Phase 2 — Higher-order HyperSHAP interactions (pairwise, then beyond)
 

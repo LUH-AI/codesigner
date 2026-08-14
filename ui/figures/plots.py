@@ -102,29 +102,30 @@ def performance_over_time_plot(result, display_metric, *, x_axis="trial",
     return fig
 
 
-def hyperparameter_importance_plot(result, display_metric, view="pie"):
-    """Pie or (vertical) bar of hyperparameter importance for
-    *display_metric* — two views of the same numbers; a third, "table", is
-    rendered directly by the template from `result`, not from here.
+def hyperparameter_importance_plot(importance: dict, rendering: str = "pie"):
+    """Pie or (vertical) bar of a per-hyperparameter importance dict — shared
+    by every HyperSHAP game this app surfaces (tunability, sensitivity,
+    mistunability all produce the same shape: {hp: normalized weight}), the
+    caller picks which dict to hand in. A third rendering, "table", is
+    rendered directly by the template from `panels`, not from here.
 
-    Returns None when no importance was computed for the metric, or when
-    *view* is "table" (nothing to draw), so the caller shows the explanatory
-    message / the table instead.
+    Returns None when *importance* is empty, or when *rendering* is "table"
+    (nothing to draw), so the caller shows the explanatory message / the
+    table instead.
     """
-    imp = result.hyperparameter_importance.get(display_metric, {})
-    if not imp or view == "table":
+    if not importance or rendering == "table":
         return None
-    if view == "bar":
+    if rendering == "bar":
         # Descending, left to right — DeepCAVE's own reading order for this,
         # and it suits a vertical bar better than the ascending order a
         # horizontal one wants (largest nearest the axis label).
-        names, values = zip(*sorted(imp.items(), key=lambda kv: kv[1], reverse=True))
+        names, values = zip(*sorted(importance.items(), key=lambda kv: kv[1], reverse=True))
         fig = go.Figure(go.Bar(x=names, y=values, marker_color=_MARKER_COLOR))
         fig.update_layout(yaxis_title="Importance",
                           margin=dict(t=20, b=20, l=20, r=20), showlegend=False)
         return fig
     fig = go.Figure(go.Pie(
-        labels=list(imp.keys()), values=list(imp.values()),
+        labels=list(importance.keys()), values=list(importance.values()),
         hole=0.35, textinfo="label+percent",
     ))
     fig.update_layout(margin=dict(t=20, b=20, l=20, r=20), showlegend=False)

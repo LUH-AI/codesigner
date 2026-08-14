@@ -114,36 +114,37 @@ def test_performance_figure_none_when_no_trials():
 
 
 def test_importance_pie_mirrors_the_importance_dict():
-    """The default (pie) view's labels/values come straight from the result."""
-    fig = hyperparameter_importance_plot(_result(), "accuracy")
+    """The default (pie) rendering's labels/values come straight from the
+    importance dict handed in — any game's, since they're all the same shape."""
+    fig = hyperparameter_importance_plot(_result().hyperparameter_importance["accuracy"])
     pie = fig.data[0]
     assert set(pie.labels) == {"a", "b"}
     assert dict(zip(pie.labels, pie.values)) == {"a": 0.7, "b": 0.3}
 
 
 def test_importance_bar_mirrors_the_importance_dict():
-    """The bar view carries the same numbers as the pie view, as vertical bars."""
-    fig = hyperparameter_importance_plot(_result(), "accuracy", view="bar")
+    """The bar rendering carries the same numbers as pie, as vertical bars."""
+    fig = hyperparameter_importance_plot(_result().hyperparameter_importance["accuracy"], "bar")
     bar = fig.data[0]
     assert dict(zip(bar.x, bar.y)) == {"a": 0.7, "b": 0.3}
 
 
-def test_importance_table_view_draws_nothing():
-    """The table view has no plot at all — the template renders it from
-    `result` directly, so the builder returns None for it same as "no data"."""
-    assert hyperparameter_importance_plot(_result(), "accuracy", view="table") is None
+def test_importance_table_rendering_draws_nothing():
+    """The table rendering has no plot at all — the template renders it from
+    `panels` directly, so the builder returns None for it same as "no data"."""
+    assert hyperparameter_importance_plot(_result().hyperparameter_importance["accuracy"], "table") is None
 
 
 def test_importance_figure_none_when_metric_has_no_importance():
-    """hyperparameter_importance_plot returns None when the metric has no importance data,
+    """hyperparameter_importance_plot returns None when handed an empty dict,
     so the view can show an explanatory message instead of an empty figure."""
-    assert hyperparameter_importance_plot(_result(), "f1") is None
+    assert hyperparameter_importance_plot(_result().hyperparameter_importance["f1"]) is None
 
 
 def test_figures_serialize_to_json():
     """Both figures survive fig.to_json() — the view embeds them that way."""
     assert performance_over_time_plot(_result(), "accuracy").to_json()
-    assert hyperparameter_importance_plot(_result(), "accuracy").to_json()
+    assert hyperparameter_importance_plot(_result().hyperparameter_importance["accuracy"]).to_json()
 
 
 def _timed(n, score, dur):

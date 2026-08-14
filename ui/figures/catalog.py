@@ -28,19 +28,38 @@ class SelectedConfiguration(Figure):
     label = _("Selected configuration")
 
 
+#: Which OptimizationResult field pair backs each HyperSHAP "explanation
+#: game" this app surfaces on the importance figure — see
+#: core.optimizers.base.BaseOptimizer.HP_GAMES for what each one answers.
+#: Order here is the games' order in the game selector.
+HP_GAME_FIELDS = {
+    "tunability": ("hyperparameter_importance", "hyperparameter_importance_warning"),
+    "sensitivity": ("hyperparameter_sensitivity", "hyperparameter_sensitivity_warning"),
+    "mistunability": ("hyperparameter_mistunability", "hyperparameter_mistunability_warning"),
+}
+
+#: The three ways to draw one game's numbers — see hyperparameter_importance_plot.
+HP_RENDERINGS = ("pie", "bar", "table")
+
+
 class HyperparameterImportance(Figure):
     # The heading keeps its existing wording: it is already translated, and
     # rewording it would orphan the de/es entries for no visible gain.
     key = "hyperparameter_importance"
     label = _("Hyperparameter importance (HyperSHAP)")
     per_metric = True
-    # Pie is the default (matches the figure's pre-existing look); bar and
-    # table are alternate views of the exact same numbers.
-    views = ("pie", "bar", "table")
+    # Two independent choices compose into one flat view key (see
+    # experiment_detail.html's game/rendering selects): which game, and how to
+    # draw it. Tunability + pie is first, matching the figure's pre-existing
+    # default look.
+    views = tuple(f"{game}-{rendering}" for game in HP_GAME_FIELDS for rendering in HP_RENDERINGS)
 
     @classmethod
     def plot(cls, result, metric=None, view=None):
-        return hyperparameter_importance_plot(result, metric, view or cls.views[0])
+        game, rendering = (view or cls.views[0]).split("-")
+        importance_field, _ = HP_GAME_FIELDS[game]
+        importance = getattr(result, importance_field).get(metric, {})
+        return hyperparameter_importance_plot(importance, rendering)
 
 
 class PerformanceOverTime(Figure):

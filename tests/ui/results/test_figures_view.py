@@ -77,23 +77,30 @@ def test_performance_over_time_offers_all_four_views(client):
             assert view["data"]
 
 
-def test_hyperparameter_importance_offers_pie_bar_table(client):
-    """Pie, bar and table are three views of the same numbers — pie/bar are
-    plot payloads, table is None (the template renders it directly) but the
-    table markup itself is present, one block per metric."""
+def test_hyperparameter_importance_offers_three_games_and_three_renderings(client):
+    """Tunability, sensitivity and mistunability x pie/bar/table — 9 flat view
+    keys. pie/bar are plot payloads, table is None (the template renders it
+    directly) but the table markup itself is present, one block per metric
+    per game."""
     html, exp = _detail(client)
-    assert 'id="view-select-hyperparameter_importance"' in html
+    assert 'id="view-select-hyperparameter_importance-game"' in html
+    assert 'id="view-select-hyperparameter_importance-rendering"' in html
 
     start = html.index('id="metric-plots-data"')
     payload = html[html.index(">", start) + 1: html.index("</script>", start)]
     plots = json.loads(payload)
+    games = ("tunability", "sensitivity", "mistunability")
     for m in exp.metric_names:
         views = plots[m]["hyperparameter_importance"]
-        assert set(views) == {"pie", "bar", "table"}
-        assert views["pie"]["data"]
-        assert views["bar"]["data"]
-        assert views["table"] is None
-        assert f'class="importance-table" data-metric="{m}"' in html
+        assert set(views) == {f"{g}-{r}" for g in games for r in ("pie", "bar", "table")}
+        for game in games:
+            assert views[f"{game}-table"] is None
+            assert f'class="importance-table" data-metric="{m}" data-game="{game}"' in html
+        # tunability always has real data on this fixture; sensitivity and
+        # mistunability's pie/bar payloads at least round-trip (possibly
+        # empty on a fixture that predates them).
+        assert views["tunability-pie"]["data"]
+        assert views["tunability-bar"]["data"]
 
 
 def test_table_view_suppresses_the_generic_empty_message(client):
@@ -121,6 +128,10 @@ def test_figure_views_lists_only_multiview_figures(client):
     views = json.loads(payload)
 
     assert set(views) == {"hyperparameter_importance", "performance_over_time"}
-    assert views["hyperparameter_importance"] == ["pie", "bar", "table"]
+    assert views["hyperparameter_importance"] == [
+        "tunability-pie", "tunability-bar", "tunability-table",
+        "sensitivity-pie", "sensitivity-bar", "sensitivity-table",
+        "mistunability-pie", "mistunability-bar", "mistunability-table",
+    ]
     assert views["performance_over_time"] == [
         "trial-score", "trial-error", "time-score", "time-error"]
