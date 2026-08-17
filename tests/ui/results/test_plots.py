@@ -18,6 +18,7 @@ from ui.figures import (
     hyperparameter_interactions_bar_plot,
     hyperparameter_interactions_heatmap_plot,
     incumbent_scores,
+    parallel_coordinates_plot,
     performance_over_time_plot,
     trial_duration_plot,
 )
@@ -264,6 +265,72 @@ def test_configuration_cube_none_with_fewer_than_two_hyperparameters():
         hyperparameter_importance={}, hyperparameter_importance_warning={},
     )
     assert configuration_cube_plot(result, "accuracy") is None
+
+
+def _parcoords_result():
+    """Three trials over a numeric hyperparameter (a), a boolean (b), and a
+    string-categorical one (c) — enough to exercise both the numeric and the
+    recoded-categorical dimension paths. Importance ranks b > a > c, so the
+    ordered axes should read b, a, c, score."""
+    trials = [
+        TrialResult(trial=1, config={"a": 1, "b": True, "c": "x"}, scores={"accuracy": 0.5},
+                    score=0.5, incumbent_score=0.5, incumbent_config={}),
+        TrialResult(trial=2, config={"a": 2, "b": False, "c": "y"}, scores={"accuracy": 0.3},
+                    score=0.3, incumbent_score=0.5, incumbent_config={}),
+        TrialResult(trial=3, config={"a": 3, "b": True, "c": "x"}, scores={"accuracy": 0.9},
+                    score=0.9, incumbent_score=0.9, incumbent_config={}),
+    ]
+    return OptimizationResult(
+        trials=trials, primary_metric="accuracy", best_config={"a": 3, "b": True, "c": "x"},
+        best_score=0.9,
+        hyperparameter_importance={"accuracy": {"a": 0.3, "b": 0.6, "c": 0.1}},
+        hyperparameter_importance_warning={"accuracy": None},
+    )
+
+
+def test_parallel_coordinates_orders_axes_by_importance():
+    fig = parallel_coordinates_plot(_parcoords_result(), "accuracy")
+    labels = [d.label for d in fig.data[0].dimensions]
+    assert labels == ["b", "a", "c", "Accuracy"]
+
+
+def test_parallel_coordinates_keeps_numeric_axes_as_is():
+    fig = parallel_coordinates_plot(_parcoords_result(), "accuracy")
+    dims = {d.label: d for d in fig.data[0].dimensions}
+    assert list(dims["a"].values) == [1, 2, 3]
+    assert "ticktext" not in dims["a"] or dims["a"].ticktext is None
+
+
+def test_parallel_coordinates_recodes_non_numeric_axes():
+    """Boolean and string hyperparameters become sorted-unique integer
+    codes, with ticktext naming the original values — Parcoords dimensions
+    are strictly numeric."""
+    fig = parallel_coordinates_plot(_parcoords_result(), "accuracy")
+    dims = {d.label: d for d in fig.data[0].dimensions}
+
+    b = dims["b"]
+    assert list(b.ticktext) == ["False", "True"]  # sorted(..., key=str)
+    assert list(b.values) == [1, 0, 1]  # True, False, True -> code 1, 0, 1
+
+    c = dims["c"]
+    assert list(c.ticktext) == ["x", "y"]
+    assert list(c.values) == [0, 1, 0]
+
+
+def test_parallel_coordinates_final_axis_is_the_score():
+    fig = parallel_coordinates_plot(_parcoords_result(), "accuracy")
+    score_dim = fig.data[0].dimensions[-1]
+    assert score_dim.label == "Accuracy"
+    assert list(score_dim.values) == [0.5, 0.3, 0.9]
+    assert list(fig.data[0].line.color) == [0.5, 0.3, 0.9]
+
+
+def test_parallel_coordinates_none_with_no_trials():
+    result = OptimizationResult(
+        trials=[], primary_metric="accuracy", best_config={}, best_score=0.0,
+        hyperparameter_importance={}, hyperparameter_importance_warning={},
+    )
+    assert parallel_coordinates_plot(result, "accuracy") is None
 
 
 def _timed(n, score, dur):

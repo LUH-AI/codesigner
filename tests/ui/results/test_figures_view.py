@@ -166,6 +166,24 @@ def test_configuration_cube_ships_every_hyperparameter_for_client_side_remap(cli
         assert [row[1] for row in trace["customdata"]] == trace["y"]
 
 
+def test_parallel_coordinates_renders_one_dimension_per_hyperparameter_plus_score(client):
+    """No `views` entry — axis order is a full, fixed HyperSHAP-tunability
+    ranking per metric, not a per-experiment unbounded combination like the
+    cube's, so one precomputed plot per metric is enough."""
+    html, exp = _detail(client)
+
+    hp_count = len(next(iter(exp.result["configs"].values())))
+
+    start = html.index('id="metric-plots-data"')
+    payload = html[html.index(">", start) + 1: html.index("</script>", start)]
+    plots = json.loads(payload)
+    for m in exp.metric_names:
+        parcoords = plots[m]["parallel_coordinates"]
+        dims = parcoords["data"][0]["dimensions"]
+        assert len(dims) == hp_count + 1
+        assert dims[-1]["label"] == m.capitalize()
+
+
 def test_hyperparameter_interactions_offers_heatmap_and_bar(client):
     """Both views come straight from the stored result — no lazy fetch like
     the importance figure's "local" game. The fixture predates this field

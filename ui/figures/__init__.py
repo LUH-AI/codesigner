@@ -14,6 +14,7 @@ from .plots import (
     hyperparameter_interactions_bar_plot,
     hyperparameter_interactions_heatmap_plot,
     incumbent_scores,
+    parallel_coordinates_plot,
     performance_over_time_plot,
     trial_duration_plot,
 )
@@ -31,6 +32,7 @@ __all__ = [
     "hyperparameter_interactions_bar_plot",
     "hyperparameter_interactions_heatmap_plot",
     "incumbent_scores",
+    "parallel_coordinates_plot",
     "performance_over_time_plot",
     "trial_duration_plot",
 ]

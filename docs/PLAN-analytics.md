@@ -285,6 +285,13 @@ surrogate needed — pure trial history, like DeepCave's version.
 
 ## Phase 4 — Parallel Coordinates
 
+> **Status: done**, see
+> [walkthroughs/analytics-phase-4-parallel-coordinates.md](walkthroughs/analytics-phase-4-parallel-coordinates.md).
+> The simplest phase so far: axis order is a full, fixed per-metric ranking
+> rather than an unbounded combination (contrast the cube), so it needed no
+> `views`, no client-side wiring at all — just the ordinary per-metric
+> precompute every figure before Phase 3 already used.
+
 Per-trial lines across every hyperparameter axis, ending in the objective
 axis — codesigner has no equivalent today, and it's DeepCave's best tool for
 spotting HP interactions at a glance.
@@ -293,7 +300,7 @@ spotting HP interactions at a glance.
   axes by the existing HyperSHAP tunability importance (Phase 0/1's output)
   instead of DeepCave's fANOVA ordering — a natural fit for the
   "HyperSHAP-first" framing, and no new computation needed if Phase 1 already
-  shipped.
+  shipped. *(Done.)*
 
 ## Phase 5 — Shared surrogate-fitting utility
 

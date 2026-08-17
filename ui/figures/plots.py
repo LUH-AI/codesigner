@@ -258,6 +258,59 @@ def configuration_cube_plot(result, display_metric):
     return fig
 
 
+def parallel_coordinates_plot(result, display_metric):
+    """Every trial as one line across its hyperparameters, ending at its
+    *display_metric* score — DeepCave's best tool for spotting hyperparameter
+    interactions at a glance: a cluster of high-scoring lines that all bend
+    through the same region of one axis says that axis matters.
+
+    Axes are ordered by HyperSHAP tunability (most important first, the same
+    "most important first" convention the importance bar/interactions heatmap
+    already use) rather than DeepCave's own fANOVA ordering — this app's
+    explanations are HyperSHAP's throughout, so the ordering should be too.
+    Falls back to config order (unordered) when importance isn't available
+    for this metric (e.g. HyperSHAP failed, or a result predating Phase 1a).
+
+    go.Parcoords dimensions are strictly numeric, so a non-numeric
+    hyperparameter (categorical, or boolean — bool is a numeric subtype in
+    Python, but "True"/"False" reads better as a category than as 0/1 here)
+    is recoded to its sorted-unique values' integer position, with
+    `ticktext` naming the original values.
+
+    Returns None with no trials.
+    """
+    trials = result.trials
+    if not trials:
+        return None
+    hp_names = list(trials[0].config.keys())
+    importance = result.hyperparameter_importance.get(display_metric, {})
+    ordered = sorted(hp_names, key=lambda h: importance.get(h, 0.0), reverse=True)
+
+    dimensions = []
+    for hp in ordered:
+        raw = [t.config.get(hp) for t in trials]
+        if all(isinstance(v, (int, float)) and not isinstance(v, bool) for v in raw):
+            dimensions.append(dict(label=hp, values=raw))
+        else:
+            uniques = sorted(set(raw), key=str)
+            index = {v: i for i, v in enumerate(uniques)}
+            dimensions.append(dict(
+                label=hp, values=[index[v] for v in raw],
+                tickvals=list(range(len(uniques))), ticktext=[str(v) for v in uniques],
+            ))
+
+    scores = [t.scores[display_metric] for t in trials]
+    dimensions.append(dict(label=display_metric.capitalize(), values=scores))
+
+    fig = go.Figure(go.Parcoords(
+        line=dict(color=scores, colorscale="Viridis", showscale=True,
+                  colorbar=dict(title=display_metric.capitalize())),
+        dimensions=dimensions,
+    ))
+    fig.update_layout(margin=dict(t=40, b=20, l=40, r=20))
+    return fig
+
+
 def trial_duration_plot(result):
     """Bar of each trial's evaluation duration (seconds). Metric-independent.
 

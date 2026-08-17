@@ -1,6 +1,6 @@
 """Which figures an experiment page shows is a setting.
 
-A "figure" is one analytics panel on an experiment page. The eight of them are
+A "figure" is one analytics panel on an experiment page. The nine of them are
 declared once in `ui.figures.catalog`; each has a visibility setting, on by
 default, editable on the default-experiment-settings page. Turning one off must
 remove it from the page without disturbing the rest — the panels share a script,
@@ -24,6 +24,7 @@ EXPECTED_KEYS = [
     "hyperparameter_interactions",
     "performance_over_time",
     "configuration_cube",
+    "parallel_coordinates",
     "trial_duration",
     "trials",
 ]
@@ -59,7 +60,7 @@ def _hide(*keys):
     gs.save(update_fields=["default_experiment_settings"])
 
 
-def test_catalog_declares_the_eight_figures():
+def test_catalog_declares_the_nine_figures():
     """The catalog is the one list defining what a figure is; everything else
     (settings keys, the settings page, the detail page) reads it."""
     assert [c.key for c in FIGURES] == EXPECTED_KEYS
@@ -98,6 +99,8 @@ def test_each_figure_declares_its_width():
     assert FIGURES_BY_KEY["trial_duration"].width == HALF
     # Axis pickers (and a potential 3D plot) need the room a half-tile lacks.
     assert FIGURES_BY_KEY["configuration_cube"].width == FULL
+    # One line per trial across every hyperparameter needs the same room.
+    assert FIGURES_BY_KEY["parallel_coordinates"].width == FULL
 
 
 def test_only_metric_dependent_figures_are_marked_per_metric():
@@ -106,7 +109,7 @@ def test_only_metric_dependent_figures_are_marked_per_metric():
     per_metric = {f.key for f in FIGURES if f.per_metric}
     assert per_metric == {
         "hyperparameter_importance", "hyperparameter_interactions",
-        "performance_over_time", "configuration_cube",
+        "performance_over_time", "configuration_cube", "parallel_coordinates",
     }
 
 

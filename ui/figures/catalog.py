@@ -12,6 +12,7 @@ from .plots import (
     hyperparameter_importance_plot,
     hyperparameter_interactions_bar_plot,
     hyperparameter_interactions_heatmap_plot,
+    parallel_coordinates_plot,
     performance_over_time_plot,
     trial_duration_plot,
 )
@@ -156,6 +157,27 @@ class ConfigurationCube(Figure):
         return configuration_cube_plot(result, metric)
 
 
+class ParallelCoordinates(Figure):
+    """Every trial as one line across its hyperparameters, ending at its
+    score — see parallel_coordinates_plot for why the axis order is
+    HyperSHAP tunability rather than DeepCave's own fANOVA ordering.
+
+    No `views`, no special client-side wiring: unlike the cube, axis order is
+    a full, fixed ranking (not a per-experiment unbounded combination), so
+    one precomputed plot per metric — the ordinary per_metric contract every
+    figure before Phase 3 already used — is enough.
+    """
+
+    key = "parallel_coordinates"
+    label = _("Parallel coordinates")
+    width = FULL
+    per_metric = True
+
+    @classmethod
+    def plot(cls, result, metric=None):
+        return parallel_coordinates_plot(result, metric)
+
+
 class TrialDuration(Figure):
     """One bar per trial. The same for every metric, so it is drawn once."""
 
@@ -182,6 +204,7 @@ FIGURES = (
     HyperparameterInteractions,
     PerformanceOverTime,
     ConfigurationCube,
+    ParallelCoordinates,
     TrialDuration,
     Trials,
 )
