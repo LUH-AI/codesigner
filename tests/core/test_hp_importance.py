@@ -37,3 +37,29 @@ def test_sufficient_trials_produce_normalized_importance(iris_splits, metrics):
     assert set(imp) == set(cs.keys())
     assert all(v >= 0.0 for v in imp.values())
     assert abs(sum(imp.values()) - 1.0) < 1e-6
+
+
+def test_ablation_insufficient_trials_returns_empty_not_uniform():
+    """Fewer than two usable trials → empty, with a warning — unlike the three
+    global games, there is no uniform-weights rung: a signed "how much did
+    each hyperparameter help or hurt" has no honest uniform answer."""
+    cs = RandomForestModel().get_config_space(seed=0)
+    one = [TrialResult(trial=1, config=dict(cs.get_default_configuration()),
+                       scores={"accuracy": 0.5}, score=0.5,
+                       incumbent_score=0.5, incumbent_config={})]
+    ablation, warning = RandomOptimizer().compute_hp_ablation(
+        cs, one, "accuracy", dict(cs.get_default_configuration()), seed=0)
+    assert ablation == {}
+    assert warning and "trials" in warning.lower()
+
+
+def test_ablation_explains_one_trial_against_the_default(iris_splits, metrics):
+    """Enough trials → a signed value per hyperparameter for the trial handed
+    in, not a normalized distribution (no fallback ladder to normalize)."""
+    cs = RandomForestModel().get_config_space(seed=0)
+    trials = _trials(iris_splits, metrics)
+    ablation, warning = RandomOptimizer().compute_hp_ablation(
+        cs, trials, "accuracy", trials[-1].config, seed=0)
+    assert warning is None
+    assert set(ablation) == set(cs.keys())
+    assert all(isinstance(v, float) for v in ablation.values())

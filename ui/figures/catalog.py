@@ -51,13 +51,25 @@ class HyperparameterImportance(Figure):
     # Two independent choices compose into one flat view key (see
     # experiment_detail.html's game/rendering selects): which game, and how to
     # draw it. Tunability + pie is first, matching the figure's pre-existing
-    # default look.
-    views = tuple(f"{game}-{rendering}" for game in HP_GAME_FIELDS for rendering in HP_RENDERINGS)
+    # default look. "local-bar" is a fourth game, ablation against the
+    # currently-selected trial, tacked on rather than a fourth row of the
+    # game x rendering product — it only has one rendering (see
+    # hyperparameter_ablation_plot) and, unlike the other three, its value
+    # depends on which trial is selected, not just the metric, so `plot()`
+    # below can't compute it — that needs the live model/config space, which
+    # only ui/views.py's _detail_context (default: the metric's best trial)
+    # and the trial_ablation endpoint (a click) have access to. This entry
+    # exists so `views`/`figure_views` still list it as a real option.
+    views = tuple(f"{game}-{rendering}" for game in HP_GAME_FIELDS for rendering in HP_RENDERINGS) \
+        + ("local-bar",)
 
     @classmethod
     def plot(cls, result, metric=None, view=None):
-        game, rendering = (view or cls.views[0]).split("-")
-        importance_field, _ = HP_GAME_FIELDS[game]
+        view = view or cls.views[0]
+        game, rendering = view.split("-")
+        if game == "local":
+            return None
+        importance_field, _warning_field = HP_GAME_FIELDS[game]
         importance = getattr(result, importance_field).get(metric, {})
         return hyperparameter_importance_plot(importance, rendering)
 

@@ -132,6 +132,32 @@ def hyperparameter_importance_plot(importance: dict, rendering: str = "pie"):
     return fig
 
 
+def hyperparameter_ablation_plot(ablation: dict):
+    """Diverging bar of one trial's HyperSHAP ablation values against the
+    config space's default — the "Local (selected trial)" view.
+
+    Unlike the three global games' pie/bar (unsigned shares of a whole),
+    these values are signed: a positive bar means that hyperparameter's value
+    in this trial beat the default, negative means it lost to it. Colored by
+    sign for exactly that reason; ranked by magnitude, like the other views,
+    since "which mattered most" is still the first question even when some
+    answers are negative.
+
+    Returns None when *ablation* is empty (not enough trials, or the game
+    failed — see BaseOptimizer.compute_hp_ablation). No "table"/"pie" — a
+    share-of-a-whole framing does not apply to signed values, so this is the
+    one view this game gets.
+    """
+    if not ablation:
+        return None
+    names, values = zip(*sorted(ablation.items(), key=lambda kv: abs(kv[1]), reverse=True))
+    colors = [_MARKER_COLOR if v >= 0 else _SELECTED_COLOR for v in values]
+    fig = go.Figure(go.Bar(x=names, y=values, marker_color=colors))
+    fig.update_layout(yaxis_title="vs. default",
+                      margin=dict(t=20, b=20, l=20, r=20), showlegend=False)
+    return fig
+
+
 def trial_duration_plot(result):
     """Bar of each trial's evaluation duration (seconds). Metric-independent.
 

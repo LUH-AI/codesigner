@@ -304,16 +304,25 @@
                 // metric -> game -> warning-or-null. Which game's warning
                 // applies depends on the importance figure's own game
                 // selector, not just the metric — see syncImportanceWarning.
+                // "local" starts unset (undefined reads the same as "no
+                // warning" — see syncImportanceWarning); refreshLocalAblation
+                // fills it in once something has actually been fetched.
                 const warnings = {};
+                // metric -> the array index of that metric's best trial —
+                // what a local-explanation fetch asks for before any click,
+                // same index click-to-select already uses (Plotly's pointIndex).
+                const bestIdxByMetric = {};
                 JSON.parse(document.getElementById("panels-data").textContent)
                     .forEach(p => {
                         warnings[p.metric] = {};
                         Object.keys(p.importance_by_game || {}).forEach(function (game) {
                             warnings[p.metric][game] = p.importance_by_game[game].warning;
                         });
+                        bestIdxByMetric[p.metric] = p.best_idx;
                     });
                 const select = document.getElementById("metric-select");
                 const trialPanelUrl = "{% url 'ui:trial_panel' summary.pk %}";
+                const trialAblationUrl = "{% url 'ui:trial_ablation' summary.pk %}";
 
                 // Snapshot each metric's default (best-trial) selected-config HTML so
                 // switching metrics can restore it — a click only affects the metric
@@ -443,6 +452,7 @@
                         const idx = pt.pointIndex;
                         lastClickedIdx[metric] = idx;
                         highlightPoint(metric, idx);
+                        refreshLocalAblation(metric);  // no-op unless "Local" is showing
                         fetch(trialPanelUrl + "?metric=" + encodeURIComponent(metric) + "&idx=" + idx)
                             .then(function (r) { return r.ok ? r.text() : Promise.reject(); })
                             .then(function (html) {
@@ -522,6 +532,38 @@
                     warnEl.hidden = !msg;
                 }
 
+                // "Local" needs live computation per trial (a fresh surrogate
+                // fit plus the ablation game — real work, unlike the other
+                // three games which are already sitting in the page's initial
+                // payload), so it has no entry there at all and is fetched
+                // here instead — on switching to it, on a click while it is
+                // already showing, or on a metric switch while it is showing
+                // (a different metric needs its own best trial, not the one
+                // just left behind). A no-op whenever "Local" is not the
+                // active game, so every call site can call it unconditionally.
+                const localAblationCache = {};  // "metric:idx" -> {figure, warning}
+                function refreshLocalAblation(metric) {
+                    const [game] = importanceView();
+                    if (game !== "local") return;
+                    const idx = lastClickedIdx[metric] !== undefined
+                        ? lastClickedIdx[metric] : bestIdxByMetric[metric];
+                    if (idx === undefined) return;
+                    const key = metric + ":" + idx;
+                    function apply(data) {
+                        // Stale by the time it resolves: the user moved on to
+                        // another metric or game while this was in flight.
+                        if (importanceView()[0] !== "local" || currentMetric() !== metric) return;
+                        draw("hyperparameter_importance", data.figure);
+                        warnings[metric].local = data.warning;
+                        syncImportanceWarning(metric);
+                    }
+                    if (localAblationCache[key]) { apply(localAblationCache[key]); return; }
+                    fetch(trialAblationUrl + "?metric=" + encodeURIComponent(metric) + "&idx=" + idx)
+                        .then(function (r) { return r.ok ? r.json() : Promise.reject(); })
+                        .then(function (data) { localAblationCache[key] = data; apply(data); })
+                        .catch(function () {});
+                }
+
                 function show(metric) {
                     const plots = metricPlots[metric] || {};
                     // A metric switch is a fresh start: any earlier click on the
@@ -533,6 +575,7 @@
                     Object.keys(plots).forEach(function (key) { redraw(key, metric); });
                     syncImportanceTable(metric);
                     syncImportanceWarning(metric);
+                    refreshLocalAblation(metric);  // no-op unless "Local" is showing
 
                     // Click-to-select lives on the performance figure only.
                     if (figureEl("performance_over_time") && plots.performance_over_time) {
@@ -569,6 +612,7 @@
                     if (key === "hyperparameter_importance") {
                         syncImportanceTable(metric);
                         syncImportanceWarning(metric);
+                        refreshLocalAblation(metric);
                     }
                     if (key === "performance_over_time" && lastClickedIdx[metric] !== undefined) {
                         highlightPoint(metric, lastClickedIdx[metric]);
@@ -578,7 +622,14 @@
                 const impRenderingSelect = document.getElementById("view-select-hyperparameter_importance-rendering");
                 if (impGameSelect && impRenderingSelect) {
                     function applyImportanceView() {
-                        switchView("hyperparameter_importance", impGameSelect.value + "-" + impRenderingSelect.value);
+                        const game = impGameSelect.value;
+                        // "Local" has exactly one rendering (a diverging bar —
+                        // pie/table don't apply to signed values), so the
+                        // rendering picker is irrelevant while it's active
+                        // rather than offering two options that do nothing.
+                        impRenderingSelect.hidden = game === "local";
+                        const view = game === "local" ? "local-bar" : (game + "-" + impRenderingSelect.value);
+                        switchView("hyperparameter_importance", view);
                     }
                     impGameSelect.addEventListener("change", applyImportanceView);
                     impRenderingSelect.addEventListener("change", applyImportanceView);

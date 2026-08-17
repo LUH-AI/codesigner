@@ -8,14 +8,14 @@ from django.conf import settings
 from django.contrib.auth.decorators import login_not_required
 from django.core.exceptions import PermissionDenied
 from django.core.paginator import Paginator
-from django.http import HttpResponse, HttpResponseBadRequest
+from django.http import HttpResponse, HttpResponseBadRequest, JsonResponse
 from django.shortcuts import redirect, render
 from django.utils.translation import gettext as _
 from django.views.decorators.http import require_POST
 
 from core import io, provenance
 
-from .figures import FIGURES, FULL, HALF, HP_GAME_FIELDS
+from .figures import FIGURES, FULL, HALF, HP_GAME_FIELDS, hyperparameter_ablation_plot
 from .forms import DefaultExperimentSettingsForm, ExperimentSettingsForm, NewExperimentForm
 from .models import Experiment, GlobalSettings
 from . import permissions
@@ -386,6 +386,33 @@ def trial_panel(request, exp):
                   {"sel": _selected_panel_data(result, metric, idx)})
 
 
+@experiment_view(VIEW)
+def trial_ablation(request, exp):
+    """The local-explanation (HyperSHAP ablation) figure for one (metric,
+    trial index) — fetched lazily, only when the importance figure's game
+    selector is on "Local" and the selection changes, since (unlike the
+    other three games) this depends on which trial is selected rather than
+    just the experiment's stored result, so it cannot be precomputed for
+    every trial the way the rest of the page is.
+    """
+    metric = request.GET.get("metric", "")
+    idx_raw = request.GET.get("idx", "")
+
+    if metric not in exp.metric_names:
+        return HttpResponseBadRequest("unknown metric")
+    if not idx_raw.lstrip("-").isdigit():
+        return HttpResponseBadRequest("invalid trial index")
+
+    built = _rebuild_experiment(exp)
+    idx = int(idx_raw)
+    if (built is None or built["result"] is None
+            or not (0 <= idx < len(built["result"].trials))):
+        return HttpResponseBadRequest("invalid trial index")
+
+    figure, warning = _local_ablation_data(built, metric, idx)
+    return JsonResponse({"figure": figure, "warning": warning})
+
+
 @experiment_view(RUN)
 def experiment_run(request, exp):
     """Launch a background run of an experiment (or confirm a metric change).
@@ -666,10 +693,17 @@ def import_experiment(request):
     return render(request, "ui/import.html", context)
 
 
-def _rebuild_result(exp):
-    """Rebuild the OptimizationResult from a saved experiment's snapshot
-    (read-only — no dataset or live model needed), or None if it can't be
-    rebuilt (e.g. it names a metric/optimizer no longer available)."""
+def _rebuild_experiment(exp):
+    """Rebuild the full `build_experiment` dict from a saved experiment's
+    snapshot (read-only — no dataset needed), or None if it can't be rebuilt
+    (e.g. it names a metric/optimizer no longer available).
+
+    For callers that need more than the result — the model (for its config
+    space) and the optimizer instance, both needed to compute a local
+    explanation on demand, which nothing pre-stored on the result can answer.
+    Read-only still resolves a registry model (only a custom upload's file
+    goes unread), so `built["model"]` is None only for those.
+    """
     try:
         _, built = io.build_experiment(
             snapshot_adapter.snapshot_from_experiment(exp),
@@ -677,7 +711,39 @@ def _rebuild_result(exp):
         )
     except ValueError:
         return None
-    return built["result"]
+    return built
+
+
+def _rebuild_result(exp):
+    """Rebuild the OptimizationResult from a saved experiment's snapshot
+    (read-only — no dataset or live model needed), or None if it can't be
+    rebuilt (e.g. it names a metric/optimizer no longer available)."""
+    built = _rebuild_experiment(exp)
+    return built["result"] if built else None
+
+
+def _local_ablation_data(built, metric, idx):
+    """The local-ablation figure + warning for one (metric, trial index) —
+    HyperSHAP's `ablation` game, explaining that one trial's configuration
+    against the config space's default, rather than a global share like the
+    other three games. `built` is `_rebuild_experiment`'s full dict, since
+    this needs the model (for its config space) and the optimizer instance,
+    neither of which the stored result carries.
+
+    Returns (figure_json_or_None, warning_or_None). The figure is None (with
+    a warning) when the model isn't available — a custom-model experiment
+    viewed read-only, where nothing was ever imported to ask.
+    """
+    model = built.get("model")
+    if model is None:
+        return None, _("Local explanation needs the model, which is not "
+                       "available for a custom model viewed read-only.")
+    result = built["result"]
+    config_space = model.get_config_space(seed=built["seed"])
+    ablation, warning = built["optimizer"].compute_hp_ablation(
+        config_space, result.trials, metric, result.trials[idx].config, seed=built["seed"])
+    fig = hyperparameter_ablation_plot(ablation)
+    return (json.loads(fig.to_json()) if fig is not None else None), warning
 
 
 def _selected_panel_data(result, metric, idx):
@@ -708,7 +774,8 @@ def _detail_context(request, exp):
     when present, builds the panels and per-metric figures for whichever figures
     the settings have switched on; the browser switches metrics client-side.
     """
-    result = _rebuild_result(exp)
+    built = _rebuild_experiment(exp)
+    result = built["result"] if built else None
     metric_names = list(exp.metric_names)
     active_run = exp.runs.filter(status__in=_ACTIVE).order_by("-id").first()
     last_run = exp.runs.order_by("-id").first()
@@ -785,10 +852,23 @@ def _detail_context(request, exp):
         data. A figure with declared views instead returns a dict of
         view key -> plot JSON (or None), one entry per view — the browser
         picks which to show; see experiment_detail.html's `payloadFor`.
+
+        "local-bar" (the importance figure's per-trial local explanation) is
+        left out of that dict entirely, even though it's a declared view:
+        unlike every other view, its value depends on which trial is
+        selected, not just the metric, and recomputing it — a fresh surrogate
+        fit plus the ablation game, per metric — is real work (~80ms each on
+        a small fixture) that every other view here avoids by having been
+        computed once already, at run completion, not on every page view.
+        So it is fetched lazily instead, the same way a click already fetches
+        the selected-config panel — see `trial_ablation` and
+        experiment_detail.html's `refreshLocalAblation`. A missing key here
+        reads as "no data yet" exactly like `None` does (`draw()` treats
+        both as empty), so nothing downstream needs to know the difference.
         """
         if figure.views:
             return {view: _fig_json(figure.plot(result, metric, view=view))
-                    for view in figure.views}
+                    for view in figure.views if view != "local-bar"}
         return _fig_json(figure.plot(result, metric))
 
     panels = []
@@ -799,6 +879,11 @@ def _detail_context(request, exp):
         panels.append({
             "metric": m,
             "best_n": best.trial,
+            # The array index (as opposed to best_n, the trial's own number)
+            # of the metric's best trial — what the local-explanation fetch
+            # asks for by default, before any click. The same index
+            # click-to-select already works in (Plotly's pointIndex).
+            "best_idx": best_idx,
             "best_score": best.scores[m],
             "best_config": list(best.config.items()),
             # No selection has been clicked yet, so it defaults to the best trial.
@@ -808,7 +893,8 @@ def _detail_context(request, exp):
             # straight from here rather than from a plot, like best_config
             # above, so it needs no JSON round-trip through the page script) —
             # both keyed by game since the figure's game selector picks which
-            # of these applies, independently of the metric selector.
+            # of these applies, independently of the metric selector. The
+            # fourth game, "local", isn't here — see plot_json's docstring.
             "importance_by_game": {
                 game: {
                     "warning": getattr(result, warning_field).get(m),

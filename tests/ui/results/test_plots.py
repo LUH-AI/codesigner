@@ -12,6 +12,7 @@ import pytest
 
 from core.optimizers import OptimizationResult, TrialResult
 from ui.figures import (
+    hyperparameter_ablation_plot,
     hyperparameter_importance_plot,
     incumbent_scores,
     performance_over_time_plot,
@@ -145,6 +146,21 @@ def test_figures_serialize_to_json():
     """Both figures survive fig.to_json() — the view embeds them that way."""
     assert performance_over_time_plot(_result(), "accuracy").to_json()
     assert hyperparameter_importance_plot(_result().hyperparameter_importance["accuracy"]).to_json()
+
+
+def test_ablation_plot_is_signed_and_colored_by_sign():
+    """Local ablation is a diverging bar: positive (helped vs. default) and
+    negative (hurt) values both appear, colored differently, ranked by
+    magnitude rather than sign."""
+    fig = hyperparameter_ablation_plot({"a": -0.4, "b": 0.6, "c": 0.1})
+    bar = fig.data[0]
+    assert list(bar.x) == ["b", "a", "c"]  # |0.6| > |-0.4| > |0.1|
+    assert list(bar.y) == [0.6, -0.4, 0.1]
+    assert bar.marker.color[0] != bar.marker.color[1]  # positive vs negative
+
+
+def test_ablation_plot_none_when_empty():
+    assert hyperparameter_ablation_plot({}) is None
 
 
 def _timed(n, score, dur):

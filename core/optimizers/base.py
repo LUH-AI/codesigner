@@ -619,6 +619,57 @@ class BaseOptimizer(ABC):
         `compute_hp_importance`."""
         return self._compute_hp_game(config_space, trials, metric_name, "mistunability", seed)
 
+    def compute_hp_ablation(
+        self,
+        config_space,
+        trials: List[TrialResult],
+        metric_name: str,
+        config_of_interest: Dict[str, Any],
+        seed: int = 0,
+    ) -> tuple[Dict[str, float], Optional[str]]:
+        """HyperSHAP's "ablation" game: how much each hyperparameter's value in
+        *config_of_interest* helped or hurt *metric_name*, versus the config
+        space's default — a *local* explanation of one specific trial, unlike
+        `HP_GAMES`' global ones.
+
+        Signed, deliberately: positive means that hyperparameter's value in
+        this trial beat the default, negative means it lost to it. Zeroing
+        that out with `abs()` (as the three global games do, on purpose,
+        since they answer "how much does this matter" rather than "which
+        direction") would throw away the one thing this view exists to show.
+
+        Returns (values_dict, warning_message). Unlike `_compute_hp_game`,
+        there is no RandomForest-fallback rung: a surrogate's plain
+        `feature_importances_` has no sign and does not answer the same
+        question, so a failure here is reported rather than answered with
+        something that resembles an answer but is not one.
+        """
+        from ConfigSpace import Configuration
+
+        params = list(config_space.keys())
+
+        data: list[tuple] = []
+        for t in trials:
+            try:
+                cfg = Configuration(config_space, values=t.config)
+                data.append((cfg, t.scores[metric_name]))
+            except Exception:
+                continue
+
+        if len(data) < 2:
+            return {}, "Not enough trials for a local explanation."
+
+        try:
+            task = ExplanationTask.from_data(config_space, data)
+            hs = HyperSHAP(task)
+            config = Configuration(config_space, values=config_of_interest)
+            baseline = config_space.get_default_configuration()
+            iv = hs.ablation(config_of_interest=config, baseline_config=baseline)
+            order1 = iv.get_n_order(order=1).dict_values
+            return {params[idx]: val for (idx,), val in order1.items()}, None
+        except Exception as e:
+            return {}, f"HyperSHAP (ablation) failed ({e})."
+
     def compute_hp_games(
         self,
         config_space,

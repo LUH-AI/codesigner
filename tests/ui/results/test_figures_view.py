@@ -132,6 +132,7 @@ def test_figure_views_lists_only_multiview_figures(client):
         "tunability-pie", "tunability-bar", "tunability-table",
         "sensitivity-pie", "sensitivity-bar", "sensitivity-table",
         "mistunability-pie", "mistunability-bar", "mistunability-table",
+        "local-bar",
     ]
     assert views["performance_over_time"] == [
         "trial-score", "trial-error", "time-score", "time-error"]

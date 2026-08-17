@@ -167,10 +167,13 @@ global ones.
 > `sensitivity`, since it shares tunability's exact call shape and rides
 > along for free.
 >
-> **1b — the local view via `ablation` — not yet done.** Spike confirmed it's
-> cheap (~45ms against a real fixture, vs. ~0.25-0.3s for each global game),
-> so no caching is needed; wiring it to the existing click-to-select
-> mechanism is its own reviewable unit.
+> **1b — the local view via `ablation` — done**, see
+> [walkthroughs/analytics-phase-1b-local-ablation.md](walkthroughs/analytics-phase-1b-local-ablation.md).
+> Spike confirmed it's cheap (~45ms against a real fixture, vs. ~0.25-0.3s for
+> each global game), so no caching was needed on the compute side; it's
+> fetched lazily per selected trial rather than precomputed, since (unlike
+> the three global games) its answer depends on which trial is selected and
+> that changes with every click.
 
 - **Spike first**: confirm the installed `hypershap` version's actual call
   signatures for the other games and for local explanations — this plan's
@@ -190,14 +193,14 @@ global ones.
   interaction. Ablation's values are signed (did tuning away from baseline
   help or hurt this specific trial), unlike the three global games' abs-value
   shares — needs its own rendering (a diverging bar at minimum), not a fourth
-  drop-in option on the existing pie/bar/table. *(Phase 1b, not yet done.)*
+  drop-in option on the existing pie/bar/table. *(Done, Phase 1b.)*
 - These become additional views on the Phase 0 Feature Importance entry:
-  Tunability / Sensitivity / Mistunability *(done)* / Local (selected trial,
-  via ablation) *(not yet done)*.
+  Tunability / Sensitivity / Mistunability / Local (selected trial, via
+  ablation) — all *(done)*.
 - Tests: unit tests for the new `compute_hp_*` methods (mirror whatever
   currently tests `compute_hp_importance` — locate via
   `tests/core/test_hp_importance.py`) *(done)*, plus a view test for the
-  local-explanation-at-selected-trial wiring *(not yet done)*.
+  local-explanation-at-selected-trial wiring *(done)*.
 
 ## Phase 2 — Higher-order HyperSHAP interactions (pairwise, then beyond)
 
