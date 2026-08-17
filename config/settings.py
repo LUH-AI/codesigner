@@ -83,6 +83,23 @@ MODEL_MAX_FILE_BYTES = env.int("MODEL_MAX_FILE_BYTES", default=1024 * 1024 * 102
 # writes, not what a person hands the form. See ui/validators.py.
 MAX_UPLOAD_BYTES = env.int("MAX_UPLOAD_BYTES", default=100 * 1024 * 1024)
 
+# How much the importance analytics computed at run completion may spend, in
+# shapiq coalition evaluations (2^hyperparameters x 3 games x metrics). Past it
+# they are skipped and every metric carries the reason, which the experiment page
+# already renders. A capacity limit for this machine, not a per-experiment
+# preference — hence a deployment setting rather than a checkbox.
+#
+# Cost is 15-19ms per coalition and **exponential in hyperparameter count**,
+# while being independent of trial count: a short run of a wide model is the
+# expensive case. Measured over 4 metrics: 4 hyperparameters = 192 coalitions =
+# 3.6s; 6 = 768 = 12.7s; 8 = 3072 = 45.6s. 10 = 12288 would be around 3 minutes.
+#
+# The 1024 default admits both registry models (Random Forest 4, SVM 6) and turns
+# away the custom-upload pathology. Raise it if you routinely tune wide models and
+# don't mind the wait; set it to 0 for no limit. See
+# core.optimizers.base.BaseOptimizer.eager_analytics_budget_exceeded.
+ANALYTICS_EAGER_MAX_COALITIONS = env.int("ANALYTICS_EAGER_MAX_COALITIONS", default=1024)
+
 # Never passed to a model's process. The rest of the environment is inherited,
 # because proxy, certificate and index settings are numerous and operator-
 # specific; these are the ones that would matter if they leaked.

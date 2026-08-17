@@ -11,6 +11,7 @@ import random
 import time
 from pathlib import Path
 
+from django.conf import settings
 from django.utils import timezone
 
 from core import io
@@ -174,6 +175,12 @@ def execute_run(run_id):
             read_only=False, load_model=launch is None,
         )
         optimizer = built["optimizer"]
+        # What this machine will spend on the analytics computed at run
+        # completion. Set here rather than read inside `core/`, which stays
+        # Django-free; see BaseOptimizer.eager_analytics_budget_exceeded for what
+        # the number counts. 0 means no limit.
+        optimizer.analytics_max_coalitions = (
+            settings.ANALYTICS_EAGER_MAX_COALITIONS or None)
         offset = len(built["result"].trials) if built["result"] else 0
         cancel = DbCancelFlag(run_id)
 

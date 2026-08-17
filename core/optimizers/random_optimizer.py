@@ -79,7 +79,8 @@ class RandomOptimizer(BaseOptimizer):
 
         all_trials = (previous_result.trials if previous_result else []) + collector.results
 
-        games = self.compute_hp_games(config_space, all_trials, metrics, seed=seed)
+        games = self.compute_hp_games(config_space, all_trials, metrics, seed=seed,
+                                      cancel_event=cancel_event)
 
         return OptimizationResult(
             trials=all_trials,

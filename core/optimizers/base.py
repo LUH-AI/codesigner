@@ -214,6 +214,18 @@ STOPPING_CRITERIA = ("max_trials", "max_seconds", "max_trial_seconds",
                      "target_score", "no_improvement_trials",
                      "incumbent_confidence")
 
+#: Default coalition budget for the eager, at-run-completion analytics. See
+#: `BaseOptimizer.eager_analytics_budget_exceeded` for what a coalition costs and
+#: why the budget is counted in them. 1024 admits both registry models (4 and 6
+#: hyperparameters, 192 and 768 coalitions over 4 metrics — 3.6s and 12.7s) and
+#: turns away the custom-upload pathology (10 hyperparameters would be 12,288
+#: coalitions, around 3 minutes appended to every run). `None` means no limit.
+#:
+#: A default rather than a hard rule: deployments override it through
+#: `ANALYTICS_EAGER_MAX_COALITIONS`, which is a statement about the machine's
+#: capacity, not about any one experiment's taste.
+EAGER_MAX_COALITIONS = 1024
+
 #: Consecutive failed trials before a run gives up. Not something to configure:
 #: it is not a budget anyone would choose, it is the difference between "this
 #: search is exploring a bad region" and "nothing here can work". A model that
@@ -757,6 +769,53 @@ class BaseOptimizer(ABC):
     #: history, so it doesn't fit this app's model and isn't offered.
     HP_GAMES = ("tunability", "sensitivity", "mistunability")
 
+    #: How many coalition evaluations the eager, at-run-completion analytics may
+    #: spend before they are skipped instead. Overridden per instance by the
+    #: `ANALYTICS_EAGER_MAX_COALITIONS` Django setting — see
+    #: `ui/services/run.py`, which sets it before calling `optimize()`. It lives
+    #: here as a plain attribute so `core/` stays Django-free.
+    #:
+    #: See `eager_analytics_budget_exceeded` for what the number means and why
+    #: it is counted in coalitions rather than seconds.
+    analytics_max_coalitions: Optional[int] = EAGER_MAX_COALITIONS
+
+    def eager_analytics_budget_exceeded(self, config_space, metrics) -> Optional[str]:
+        """Why the global games shouldn't be computed for this run, or None.
+
+        A shapiq `ExactComputer` evaluates **2^n_hp coalitions** per game, at
+        roughly 15-19ms each (the constant drifts down as the count grows, as
+        each game's fixed overhead amortizes). Crucially that is exponential in
+        *hyperparameter count* and independent of trial count, so the expensive
+        case is a short run of a wide model — the opposite of most people's
+        intuition about what makes analytics slow.
+
+        The budget is counted in coalitions rather than seconds on purpose: a
+        seconds budget would bake a machine-calibrated constant into the code,
+        and an HP-count budget would ignore how many metrics multiply it.
+
+            4 HPs x 4 metrics =   192   compute   3.6s  measured
+            6 HPs x 4 metrics =   768   compute  12.7s  measured
+            8 HPs x 4 metrics =  3072   skip     45.6s  measured
+           10 HPs x 4 metrics = 12288   skip     ~3min  extrapolated from the above
+
+        Returns a message intended for the per-metric `hyperparameter_*_warning`
+        fields — the page already renders those, so a skipped run explains itself
+        with no extra UI.
+        """
+        budget = self.analytics_max_coalitions
+        if not budget:
+            return None
+        n_hp = len(list(config_space.keys()))
+        cost = (2 ** n_hp) * len(self.HP_GAMES) * len(list(metrics))
+        if cost <= budget:
+            return None
+        return (
+            f"Importance analytics were skipped: {n_hp} hyperparameters over "
+            f"{len(list(metrics))} metrics would need {cost:,} coalition "
+            f"evaluations, past the {budget:,} this deployment allows "
+            f"(ANALYTICS_EAGER_MAX_COALITIONS). Cost grows as 2^hyperparameters."
+        )
+
     def compute_hp_importance(
         self,
         config_space,
@@ -972,12 +1031,28 @@ class BaseOptimizer(ABC):
 
         return grid, ice_lines, pdp, None
 
+    def _skipped_games(self, metrics, reason: str) -> Dict[str, tuple]:
+        """`compute_hp_games`' return shape for "these weren't computed".
+
+        Empty values plus the reason as every metric's warning — deliberately
+        the same shape a HyperSHAP failure already produces, so nothing
+        downstream has to tell "couldn't" from "wouldn't". Empty importance
+        degrades cleanly at both consumers: parallel coordinates falls back to
+        config order, and the partial-dependence picker to the first
+        hyperparameter.
+        """
+        return {game: ({m: {} for m in metrics},
+                       {m: reason for m in metrics},
+                       {m: {} for m in metrics})
+                for game in self.HP_GAMES}
+
     def compute_hp_games(
         self,
         config_space,
         trials: List[TrialResult],
         metrics,
         seed: int = 0,
+        cancel_event=None,
     ) -> Dict[str, tuple[Dict[str, Dict[str, float]], Dict[str, Optional[str]], Dict[str, Dict[str, Dict[str, float]]]]]:
         """Every metric's per-game hyperparameter importance, for all of
         `HP_GAMES` — what each optimizer's `optimize()` calls once, instead of
@@ -999,7 +1074,30 @@ class BaseOptimizer(ABC):
         the *same* trial history for a given metric, so refitting the
         surrogate underneath them 3 times over is pure waste. See
         `_build_explainer`/`_compute_hp_game`'s `explainer` parameter.
+
+        Declines in two cases, both reported through `_skipped_games`:
+
+        - **The run was cancelled.** Pressing Cancel used to still buy you the
+          full analytics bill — every optimizer breaks out of its trial loop on
+          `cancel_event` and then called this unconditionally, so on a wide model
+          you waited minutes for a run you had just stopped. Nothing is lost
+          permanently: resuming recomputes over `previous + new` trials.
+        - **The run is too wide to afford.** See
+          `eager_analytics_budget_exceeded`.
+
+        Checked in that order: a cancelled run shouldn't be told about a budget
+        it never got to spend.
         """
+        if cancel_event is not None and cancel_event.is_set():
+            return self._skipped_games(
+                metrics,
+                "Importance analytics were skipped because the run was "
+                "cancelled. Resuming the run computes them over every trial.")
+
+        too_wide = self.eager_analytics_budget_exceeded(config_space, metrics)
+        if too_wide:
+            return self._skipped_games(metrics, too_wide)
+
         by_game = {game: ({}, {}, {}) for game in self.HP_GAMES}
         for metric_name in metrics:
             explainer = self._build_explainer(config_space, trials, metric_name, seed)

@@ -48,16 +48,21 @@ run — not estimated from reading the code.
 | 8b | **SMAC only** — `mkdtemp` + rewriting every embedded state file, per request, never cleaned up | `smac_optimizer.py::deserialize_result` | 0.5ms + an unbounded temp-dir leak | every request |
 | 9 | ~57 `go.Figure` builds + `to_json` per render | `views.py::_detail_context` | unmeasured | figures × metrics × views |
 
-The per-coalition cost is a stable **~17ms** (0.27s/16 and 1.07s/64 both give
-it), so a run's eager analytics cost is
-`0.017 × 2^n_hp × 3 games × n_metrics`:
+The per-coalition cost is **15–19ms**, drifting down as the coalition count
+grows (each game's fixed overhead amortizes), so a run's eager analytics cost is
+roughly `0.015 × 2^n_hp × 3 games × n_metrics`:
 
-| Hyperparameters | Eager cost at run completion (4 metrics) |
-|---|---|
-| 4 (Random Forest) | 3.4s — measured |
-| 6 (SVM Classifier) | 13s — measured |
-| 8 | ~51s — extrapolated |
-| 10 (a custom upload) | **~3.5 minutes** — extrapolated |
+| Hyperparameters | Coalitions (4 metrics) | Eager cost at run completion |
+|---|---|---|
+| 4 (Random Forest) | 192 | 3.6s — measured |
+| 6 (SVM Classifier) | 768 | 12.7s — measured |
+| 8 | 3,072 | 45.6s — measured |
+| 10 (a custom upload) | 12,288 | **~3 minutes** — extrapolated |
+
+(Phase 3 measured the 8-hyperparameter point to check the extrapolation rather
+than trusting it. It came in at 45.6s against a predicted ~51s, which is what
+revised the per-coalition constant down from a flat 17ms and the 10-HP figure
+from ~3.5 to ~3 minutes.)
 
 That last row is the motivating pathology: the cost is exponential in
 hyperparameter count and **independent of how long the run was**. A short run
@@ -147,12 +152,14 @@ Pure cleanup, no visible change.
 
 ## Phase 3 — Eager cost guard and cancel-skip
 
+> **Status:** done. See `docs/walkthroughs/analytics-compute-phase-3-cost-guard.md`.
+
 - A coalition budget in `config/settings.py`, checked against
   `2^n_hp × games × metrics`, so a wide custom model can't append minutes to
   every run. When it trips, the reason goes into the existing per-metric
   `_warning` fields — which the page already surfaces, so this needs no new UI.
 - Cancelling a run currently still pays the full analytics cost. On a 10-HP
-  model that means waiting ~3.5 minutes for a run you just cancelled. Skip on
+  model that means waiting ~3 minutes for a run you just cancelled. Skip on
   cancel; resuming recomputes over all trials, so nothing is permanently lost.
 
 ## Phase 4 — Per-figure control over deferred computation
