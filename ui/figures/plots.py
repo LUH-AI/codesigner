@@ -18,13 +18,14 @@ _SELECTED_COLOR = "#EF553B"
 
 
 def incumbent_scores(result, display_metric):
-    """The running best (non-decreasing) score by *display_metric*, per trial."""
-    best = float("-inf")
-    out = []
-    for t in result.trials:
-        best = max(best, t.scores[display_metric])
-        out.append(best)
-    return out
+    """The running best (non-decreasing) score by *display_metric*, per trial.
+
+    Now a thin delegate: the computation lives on `OptimizationResult`, which
+    memoizes it per metric so the four `performance_over_time` views stop
+    recomputing the identical list. Kept as a function because it is part of
+    `ui.figures`' exported surface.
+    """
+    return result.incumbent_scores(display_metric)
 
 
 def performance_over_time_plot(result, display_metric, *, x_axis="trial",

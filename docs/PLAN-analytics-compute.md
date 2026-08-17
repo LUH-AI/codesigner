@@ -132,6 +132,10 @@ No new concepts, no settings, no schema change. Three independent defects.
 
 ## Phase 2 — Compute derived values once per render
 
+> **Status:** done. See `docs/walkthroughs/analytics-compute-phase-2-derived-once.md`.
+> Also fixed a pre-existing 500 found alongside it: a result with no trials
+> (importable — `io.parse` accepts an empty `data`) crashed the detail page.
+
 Pure cleanup, no visible change.
 
 - `best_idx` is computed six times per metric per render, and `incumbent_scores`

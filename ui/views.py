@@ -805,7 +805,7 @@ def _selected_panel_data(result, metric, idx):
     trial IS the best (so the panel matches best-config with no delta shown).
     """
     trials = result.trials
-    best_idx = max(range(len(trials)), key=lambda i: trials[i].scores[metric])
+    best_idx = result.best_index(metric)
     trial = trials[idx]
     is_best = idx == best_idx
     delta = None if is_best else trial.scores[metric] - trials[best_idx].scores[metric]
@@ -887,7 +887,13 @@ def _detail_context(request, exp):
             _optimizer_for(exp.optimizer_name), "supports_confidence_stopping", False),
         "run_default_metric": exp.current_metric or (metric_names[0] if metric_names else None),
     }
-    if result is None:
+    # A result with no trials is the same story as no result at all — there is
+    # nothing to plot and no best trial to describe — so it takes the same early
+    # return. Not a hypothetical: `io.parse` accepts a snapshot whose result has
+    # an empty `data`, and importing one used to 500 the detail page (an argmax
+    # over an empty range). A run never stores one (`run.py` only writes a
+    # result that has trials), which is why this went unnoticed.
+    if result is None or not result.trials:
         return context
 
     # Which figures to draw. A figure that is switched off is not rendered and
@@ -924,8 +930,7 @@ def _detail_context(request, exp):
 
     panels = []
     for m in metric_names:
-        best_idx = max(range(len(result.trials)),
-                       key=lambda i: result.trials[i].scores[m])
+        best_idx = result.best_index(m)
         best = result.trials[best_idx]
         panels.append({
             "metric": m,

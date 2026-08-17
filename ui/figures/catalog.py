@@ -128,10 +128,9 @@ class PerformanceOverTime(Figure):
         """Highlights the metric's best trial until another is clicked."""
         view = view or cls.views[0]
         x_axis, y_axis = view.split("-")
-        best_idx = (max(range(len(result.trials)), key=lambda i: result.trials[i].scores[metric])
-                    if result.trials else None)
         return performance_over_time_plot(
-            result, metric, x_axis=x_axis, y_axis=y_axis, selected_idx=best_idx)
+            result, metric, x_axis=x_axis, y_axis=y_axis,
+            selected_idx=result.best_index(metric))
 
 
 class ConfigurationCube(Figure):

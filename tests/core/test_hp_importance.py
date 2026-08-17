@@ -118,6 +118,41 @@ def test_compute_hp_games_builds_the_explainer_once_per_metric_not_per_game(iris
     assert called_metrics == ["accuracy", "f1"]
 
 
+def test_the_fallback_surrogate_is_also_fitted_once_per_metric_not_per_game(iris_splits, metrics):
+    """When HyperSHAP fails, the RandomForest stand-in is shared across games too.
+
+    The explainer was deliberately shared per metric; this rung was not, so a
+    metric whose game calls raised refit an identical forest once per game —
+    the exact waste the explainer sharing existed to avoid, one rung lower.
+
+    Two metrics × three games = 6 game calls, all failing, and 2 fits.
+    """
+    cs = RandomForestModel().get_config_space(seed=0)
+    trials = _trials(iris_splits, metrics)
+    opt = RandomOptimizer()
+
+    def explode(self):
+        raise RuntimeError("no shapiq today")
+
+    with patch("hypershap.HyperSHAP.tunability", explode), \
+         patch("hypershap.HyperSHAP.sensitivity", explode), \
+         patch("hypershap.HyperSHAP.mistunability", explode), \
+         patch("core.optimizers.base.fit_surrogate",
+               wraps=fit_surrogate) as fits:
+        games = opt.compute_hp_games(cs, trials, ["accuracy", "f1"], seed=0)
+
+    fitted_metrics = [call.args[2] for call in fits.call_args_list]
+    assert fitted_metrics == ["accuracy", "f1"], "one fallback fit per metric"
+    # And the fallback still produced real answers, not uniform weights.
+    for game in opt.HP_GAMES:
+        importance, warning, interactions = (games[game][0]["accuracy"],
+                                             games[game][1]["accuracy"],
+                                             games[game][2]["accuracy"])
+        assert set(importance) == set(cs.keys())
+        assert warning and "falling back" in warning
+        assert interactions == {}, "a plain feature_importances_ has no pairwise structure"
+
+
 def test_ablation_insufficient_trials_returns_empty_not_uniform():
     """Fewer than two usable trials → empty, with a warning — unlike the three
     global games, there is no uniform-weights rung: a signed "how much did

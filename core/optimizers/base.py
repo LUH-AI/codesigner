@@ -99,6 +99,59 @@ class OptimizationResult:
     hyperparameter_interactions: Dict[str, Dict[str, Dict[str, float]]] = field(default_factory=dict)
     hyperparameter_interactions_warning: Dict[str, Optional[str]] = field(default_factory=dict)
 
+    def _derived(self) -> Dict[tuple, Any]:
+        """Memo for values derived from `trials`, keyed by (what, metric).
+
+        Deliberately *not* a dataclass field. `rebase_history` rebuilds a result
+        with `dataclasses.replace`, which passes declared fields through to
+        `__init__` — so a field would carry a memo computed against the old
+        metric into the rebased copy, which is precisely the bug rebasing
+        exists to fix. As a plain attribute it is simply absent on the new
+        object and gets recomputed.
+        """
+        memo = getattr(self, "_derived_memo", None)
+        if memo is None:
+            memo = self._derived_memo = {}
+        return memo
+
+    def best_index(self, metric: str) -> Optional[int]:
+        """Index of the highest-scoring trial by *metric*; None with no trials.
+
+        One implementation of this argmax, because there were six: the detail
+        page's panels, `_selected_panel_data`, and `PerformanceOverTime.plot`
+        once per each of its four views. The duplicated cost was trivial — the
+        point is that six copies of a tie-break rule are five chances to
+        disagree about which trial is "best", and the highlight the page draws
+        has to be the same trial the panel below it describes.
+
+        Ties go to the lowest index, which is what `max` already did.
+        """
+        memo, key = self._derived(), ("best_index", metric)
+        if key not in memo:
+            memo[key] = (max(range(len(self.trials)),
+                             key=lambda i: self.trials[i].scores[metric])
+                         if self.trials else None)
+        return memo[key]
+
+    def incumbent_scores(self, metric: str) -> List[float]:
+        """The running best (non-decreasing) score by *metric*, per trial.
+
+        Recomputed once per view before this — four times per metric for
+        `performance_over_time`'s four axis combinations, all identical.
+
+        Returns the memo itself, not a copy: callers read it into a plot trace
+        and none mutate it.
+        """
+        memo, key = self._derived(), ("incumbent_scores", metric)
+        if key not in memo:
+            best = float("-inf")
+            running = []
+            for t in self.trials:
+                best = max(best, t.scores[metric])
+                running.append(best)
+            memo[key] = running
+        return memo[key]
+
 
 def rebase_history(previous_result, primary_metric: str):
     """Re-read an earlier run's trials under *primary_metric*.
@@ -433,6 +486,47 @@ def fit_surrogate(config_space, trials: List[TrialResult], metric_name: str, see
         return rf, None
     except Exception as e:
         return None, f"Surrogate fit failed ({e})."
+
+
+class _MetricExplainer:
+    """Everything the three global games for one metric can share.
+
+    `tunability`/`sensitivity`/`mistunability` all explain the *same* trial
+    history for a given metric — only the aggregation (MAX/VAR/MIN) differs
+    once the surrogate is fitted. So both expensive pieces are built at most
+    once here and reused across the games: the HyperSHAP explainer eagerly, and
+    the RandomForest stand-in lazily, since most runs never reach the fallback
+    rung at all.
+
+    Replaces the `(hs, warning, insufficient)` tuple this used to be, purely so
+    the fallback surrogate has somewhere to live.
+    """
+
+    __slots__ = ("hs", "warning", "insufficient", "_fallback")
+
+    def __init__(self, hs, warning: Optional[str], insufficient: bool):
+        #: The built HyperSHAP explainer, or None if one couldn't be built.
+        self.hs = hs
+        #: Why there isn't one, when there isn't one.
+        self.warning = warning
+        #: True only for "fewer than two usable trials" — a condition answered
+        #: with uniform weights directly, since there is nothing to fit the
+        #: RandomForest rung from either.
+        self.insufficient = insufficient
+        self._fallback: Optional[tuple] = None
+
+    def fallback_surrogate(self, config_space, trials, metric_name: str, seed: int) -> tuple:
+        """`fit_surrogate`'s `(surrogate, warning)`, fitted at most once.
+
+        The explainer above was already shared across games; this rung was not,
+        so a metric whose HyperSHAP call raised refit an identical forest once
+        per game. Memoized including the failure case: a fit that failed will
+        fail the same way on the next game, and reporting it three times is not
+        three pieces of information.
+        """
+        if self._fallback is None:
+            self._fallback = fit_surrogate(config_space, trials, metric_name, seed)
+        return self._fallback
 
 
 def _hp_grid(hp, n_points: int) -> list:
@@ -929,8 +1023,8 @@ class BaseOptimizer(ABC):
         builds its own when called standalone (e.g. `compute_hp_importance`)
         and no `explainer` was handed to it.
 
-        Returns (hs, warning, insufficient) — pass straight through as
-        `_compute_hp_game`'s `explainer`. `insufficient` is True only for
+        Returns a `_MetricExplainer` — pass straight through as
+        `_compute_hp_game`'s `explainer`. Its `insufficient` is True only for
         "fewer than two usable trials," a condition `_compute_hp_game`
         answers with uniform weights directly, skipping the RandomForest
         rung entirely (there's nothing to fit it from either); it's False
@@ -948,14 +1042,17 @@ class BaseOptimizer(ABC):
 
         data = _pair_trials_with_scores(config_space, trials, metric_name)
         if len(data) < 2:
-            return None, "Not enough trials for importance estimation; showing uniform weights.", True
+            return _MetricExplainer(
+                None,
+                "Not enough trials for importance estimation; showing uniform weights.",
+                True)
         try:
             task = ExplanationTask.from_data(
                 config_space, data,
                 base_model=RandomForestRegressor(n_estimators=100, random_state=seed))
-            return HyperSHAP(task), None, False
+            return _MetricExplainer(HyperSHAP(task), None, False)
         except Exception as e:
-            return None, f"HyperSHAP failed to build a surrogate ({e})", False
+            return _MetricExplainer(None, f"HyperSHAP failed to build a surrogate ({e})", False)
 
     def _compute_hp_game(
         self,
@@ -976,13 +1073,14 @@ class BaseOptimizer(ABC):
         specific configuration to explain, not just trial history, so it is
         computed separately, on demand, for one selected trial).
 
-        *explainer*, when given, is `_build_explainer`'s own
-        `(hs, warning, insufficient)` return for this (config_space, trials,
-        metric_name) — see `compute_hp_games`, which builds it once and
-        reuses it across every game — passed straight through instead of
-        rebuilding (and re-fitting) an identical surrogate per game. `None`
-        (the default) builds its own, for a standalone call like
-        `compute_hp_importance`.
+        *explainer*, when given, is `_build_explainer`'s own `_MetricExplainer`
+        for this (config_space, trials, metric_name) — see `compute_hp_games`,
+        which builds it once and reuses it across every game — passed straight
+        through instead of rebuilding (and re-fitting) an identical surrogate
+        per game. `None` (the default) builds its own, for a standalone call
+        like `compute_hp_importance`. The fallback surrogate is shared through
+        the same object, so a metric whose HyperSHAP call fails fits one forest
+        rather than one per game.
 
         Returns (values_dict, warning_message, interactions_dict).
         warning_message is None when HyperSHAP succeeds. interactions_dict is
@@ -993,16 +1091,16 @@ class BaseOptimizer(ABC):
 
         if explainer is None:
             explainer = self._build_explainer(config_space, trials, metric_name, seed)
-        hs, build_warning, insufficient = explainer
+        build_warning = explainer.warning
 
-        if insufficient:
+        if explainer.insufficient:
             uniform = 1.0 / len(params) if params else 0.0
             return {p: uniform for p in params}, build_warning, {}
 
         warning = None
-        if hs is not None:
+        if explainer.hs is not None:
             try:
-                iv = getattr(hs, game)()
+                iv = getattr(explainer.hs, game)()
                 order1 = iv.get_n_order(order=1).dict_values
                 raw = {params[idx]: abs(val) for (idx,), val in order1.items()}
                 total = sum(raw.values()) or 1.0
@@ -1014,7 +1112,8 @@ class BaseOptimizer(ABC):
         else:
             warning = f"HyperSHAP ({game}) {build_warning} — falling back to surrogate feature importances."
 
-        rf, fit_warning = fit_surrogate(config_space, trials, metric_name, seed)
+        rf, fit_warning = explainer.fallback_surrogate(
+            config_space, trials, metric_name, seed)
         if rf is not None:
             importances = rf.feature_importances_
             total = importances.sum() or 1.0
