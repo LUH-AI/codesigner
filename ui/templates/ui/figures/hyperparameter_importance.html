@@ -28,6 +28,14 @@ compose into one view key.{% endcomment %}
         </select>
     </p>
     <p id="imp-warning" class="alert warning" hidden></p>
+    {% comment %}Only the "Local" game is fetched rather than shipped with the
+    page, so only it can be waiting to be asked — shown when this experiment's
+    settings turn off "compute automatically" for the local explanation. See
+    experiment_detail.html's refreshLocalAblation.{% endcomment %}
+    <p id="ablation-compute" class="caption" hidden>
+        <button type="button" id="ablation-compute-btn">{% translate "Compute" %}</button>
+        <span>{% translate "Worked out on request for the selected trial." %}</span>
+    </p>
     <div id="{{ figure.dom_id }}" class="plot"></div>
     <p id="{{ figure.dom_id }}-empty" class="caption" hidden>{% translate "No importance data available." %}</p>
     {% for panel in panels %}

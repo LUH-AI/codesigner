@@ -104,7 +104,9 @@ on reload," and Phase 4 puts it under the user's control.
 - **Per-figure control, spelled as booleans.** Two states is a boolean, so the
   `bool()` coercion in `_posted_settings` needs no change and no new widget
   type is needed. The third state a tri-state would have offered — "never" —
-  already exists as the `show_<key>` visibility flag.
+  already exists as the `show_<key>` visibility flag. (Shipped this way in
+  Phase 4. The keys name the *computation* rather than the figure, because local
+  ablation is a view of the importance figure whose other views are precomputed.)
 - **The eager cost guard is a deployment setting**, not a per-experiment one:
   it is a statement about machine capacity, not about this experiment's taste.
 - **Analytics stay inside `optimize()`.** Moving them to the run service was
@@ -163,6 +165,14 @@ Pure cleanup, no visible change.
   cancel; resuming recomputes over all trials, so nothing is permanently lost.
 
 ## Phase 4 — Per-figure control over deferred computation
+
+> **Status:** done. See `docs/walkthroughs/analytics-compute-phase-4-on-request.md`.
+> Shipped as booleans rather than the tri-state first sketched: "never" is already
+> the visibility flag, so the new axis has two states and needed no change to the
+> settings POST handling, no new widget and no migration. Also fixed a Phase 2
+> shortfall it exposed — `has_result` rendered the figure script for a result with
+> no trials, turning that 500 into a page with broken JavaScript rather than a
+> clean "No results yet."
 
 The direct answer to "nothing should be recomputed on reload."
 

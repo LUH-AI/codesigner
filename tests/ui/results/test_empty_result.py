@@ -52,3 +52,21 @@ def test_it_renders_the_waiting_state_rather_than_empty_figures(client):
     exp = _experiment_with_an_empty_result()
     resp = client.get(f"/experiments/{exp.pk}/")
     assert "panels" not in resp.context or not resp.context["panels"]
+
+
+def test_the_figure_script_is_not_rendered_at_all(client):
+    """The gap the status-code check above missed.
+
+    Returning 200 was not enough: `has_result` was `result is not None`, so an
+    empty-trials result still rendered the whole plotting script while the early
+    return meant `panels`/`metric_plots` were absent from the context. Django
+    resolves the missing variables to `""`, so the page loaded and then broke in
+    the browser on `JSON.parse('""').forEach`. `has_result` now means "a result
+    with trials", which is what the early return actually keys on.
+    """
+    exp = _experiment_with_an_empty_result()
+    body = client.get(f"/experiments/{exp.pk}/").content.decode()
+
+    assert "No results yet." in body
+    assert 'id="panels-data"' not in body, "the figure script must not render"
+    assert 'id="metric-plots-data"' not in body

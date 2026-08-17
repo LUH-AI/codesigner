@@ -268,6 +268,7 @@
         {{ figure_options|json_script:"figure-options-data" }}
         {{ figure_views|json_script:"figure-views-data" }}
         {{ panels|json_script:"panels-data" }}
+        {{ autocompute|json_script:"autocompute-data" }}
         <script src="{% static 'ui/plotly.min.js' %}"></script>
         <script>
             (function () {
@@ -335,6 +336,23 @@
                 const trialPanelUrl = "{% url 'ui:trial_panel' summary.pk %}";
                 const trialAblationUrl = "{% url 'ui:trial_ablation' summary.pk %}";
                 const partialDependenceUrl = "{% url 'ui:partial_dependence' summary.pk %}";
+                // Which on-request analytics may fetch themselves, and which wait
+                // to be asked (see Figure.deferred and the autocompute_<name>
+                // settings). With one switched off, opening or reloading the page
+                // computes nothing for it — a button appears instead. Through
+                // json_script like every other payload here, so a Python dict
+                // can't leak into the page as `{'x': True}`, which is not JS.
+                const autocompute = JSON.parse(
+                    document.getElementById("autocompute-data").textContent);
+
+                // The two on-request figures share this: show the "Compute"
+                // prompt and blank the plot, or hide the prompt again. `pending`
+                // means "nothing has been asked for yet", which is a different
+                // state from the empty caption's "we asked and there is nothing".
+                function setComputePrompt(id, pending) {
+                    const el = document.getElementById(id);
+                    if (el) el.hidden = !pending;
+                }
 
                 // Snapshot each metric's default (best-trial) selected-config HTML so
                 // switching metrics can restore it — a click only affects the metric
@@ -496,6 +514,22 @@
                     if (toggle) toggle.apply(el.id);
                 }
 
+                // Empties a figure *without* claiming there is nothing to show.
+                // `draw(key, null)` means "we looked and there is no data" and
+                // reveals the figure's empty caption to say so; this means
+                // "nothing has been asked for yet", which the figure's own
+                // Compute prompt explains instead. Two different things, so
+                // showing the empty caption here would contradict the prompt
+                // sitting right above it.
+                function clearPlot(key) {
+                    const el = figureEl(key);
+                    if (!el) return;
+                    const empty = document.getElementById("figure-" + key + "-empty");
+                    if (empty) empty.hidden = true;
+                    Plotly.purge(el);
+                    el.hidden = true;
+                }
+
                 // Redraws one figure for *metric* from whichever view is
                 // currently selected — the one path both a metric switch and a
                 // view switch redraw through, so they can't drift apart.
@@ -554,9 +588,9 @@
                 // just left behind). A no-op whenever "Local" is not the
                 // active game, so every call site can call it unconditionally.
                 const localAblationCache = {};  // "metric:idx" -> {figure, warning}
-                function refreshLocalAblation(metric) {
+                function refreshLocalAblation(metric, asked) {
                     const [game] = importanceView();
-                    if (game !== "local") return;
+                    if (game !== "local") { setComputePrompt("ablation-compute", false); return; }
                     const idx = lastClickedIdx[metric] !== undefined
                         ? lastClickedIdx[metric] : bestIdxByMetric[metric];
                     if (idx === undefined) return;
@@ -565,15 +599,33 @@
                         // Stale by the time it resolves: the user moved on to
                         // another metric or game while this was in flight.
                         if (importanceView()[0] !== "local" || currentMetric() !== metric) return;
+                        setComputePrompt("ablation-compute", false);
                         draw("hyperparameter_importance", data.figure);
                         warnings[metric].local = data.warning;
                         syncImportanceWarning(metric);
                     }
                     if (localAblationCache[key]) { apply(localAblationCache[key]); return; }
+                    // Waiting to be asked. Keyed the same way as the cache, so
+                    // selecting a trial that *has* been computed shows it straight
+                    // away and only a genuinely new one asks again.
+                    if (autocompute.local_ablation === false && !asked) {
+                        setComputePrompt("ablation-compute", true);
+                        clearPlot("hyperparameter_importance");
+                        warnings[metric].local = null;
+                        syncImportanceWarning(metric);
+                        return;
+                    }
+                    setComputePrompt("ablation-compute", false);
                     fetch(trialAblationUrl + "?metric=" + encodeURIComponent(metric) + "&idx=" + idx)
                         .then(function (r) { return r.ok ? r.json() : Promise.reject(); })
                         .then(function (data) { localAblationCache[key] = data; apply(data); })
                         .catch(function () {});
+                }
+                const ablationComputeBtn = document.getElementById("ablation-compute-btn");
+                if (ablationComputeBtn) {
+                    ablationComputeBtn.addEventListener("click", function () {
+                        refreshLocalAblation(currentMetric(), true);
+                    });
                 }
 
                 // Unlike syncImportanceWarning, this doesn't depend on which
@@ -598,7 +650,14 @@
                 // hyperparameter that's actually valid for the new metric).
                 const pdpHpSelect = document.getElementById("pdp-hp-select");
                 const pdpCache = {};  // "metric:hp" -> {figure, warning}
-                function refreshPartialDependence(metric) {
+                function setPdpWarning(msg) {
+                    const warnEl = document.getElementById("pdp-warning");
+                    if (warnEl) {
+                        warnEl.textContent = msg || "";
+                        warnEl.hidden = !msg;
+                    }
+                }
+                function refreshPartialDependence(metric, asked) {
                     if (!pdpHpSelect) return;
                     const hp = pdpHpSelect.value;
                     if (!hp) return;
@@ -607,14 +666,21 @@
                         // Stale by the time it resolves: the user moved on to
                         // another metric or hyperparameter while this was in flight.
                         if (currentMetric() !== metric || pdpHpSelect.value !== hp) return;
+                        setComputePrompt("pdp-compute", false);
                         draw("partial_dependence", data.figure);
-                        const warnEl = document.getElementById("pdp-warning");
-                        if (warnEl) {
-                            warnEl.textContent = data.warning || "";
-                            warnEl.hidden = !data.warning;
-                        }
+                        setPdpWarning(data.warning);
                     }
                     if (pdpCache[key]) { apply(pdpCache[key]); return; }
+                    // Waiting to be asked. Keyed the same way as the cache, so
+                    // going back to an already-computed hyperparameter shows it
+                    // immediately and only a new one asks again.
+                    if (autocompute.partial_dependence === false && !asked) {
+                        setComputePrompt("pdp-compute", true);
+                        clearPlot("partial_dependence");
+                        setPdpWarning(null);
+                        return;
+                    }
+                    setComputePrompt("pdp-compute", false);
                     fetch(partialDependenceUrl + "?metric=" + encodeURIComponent(metric) + "&hp=" + encodeURIComponent(hp))
                         .then(function (r) { return r.ok ? r.json() : Promise.reject(); })
                         .then(function (data) { pdpCache[key] = data; apply(data); })
@@ -623,6 +689,12 @@
                 if (pdpHpSelect) {
                     pdpHpSelect.addEventListener("change", function () {
                         refreshPartialDependence(currentMetric());
+                    });
+                }
+                const pdpComputeBtn = document.getElementById("pdp-compute-btn");
+                if (pdpComputeBtn) {
+                    pdpComputeBtn.addEventListener("click", function () {
+                        refreshPartialDependence(currentMetric(), true);
                     });
                 }
 

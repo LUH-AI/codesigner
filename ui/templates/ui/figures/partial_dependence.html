@@ -17,6 +17,14 @@ experiment_detail.html's refreshPartialDependence.{% endcomment %}
         </select>
     </p>
     <p id="pdp-warning" class="alert warning" hidden></p>
+    {% comment %}Shown instead of fetching when this experiment's settings turn
+    off "compute automatically" for partial dependence — so opening or reloading
+    the page fits nothing until asked. See experiment_detail.html's
+    refreshPartialDependence and the `autocompute` context entry.{% endcomment %}
+    <p id="pdp-compute" class="caption" hidden>
+        <button type="button" id="pdp-compute-btn">{% translate "Compute" %}</button>
+        <span>{% translate "Worked out on request for the chosen hyperparameter." %}</span>
+    </p>
     <div id="{{ figure.dom_id }}" class="plot"></div>
     <p id="{{ figure.dom_id }}-empty" class="caption" hidden>{% translate "No partial dependence data available." %}</p>
 </section>

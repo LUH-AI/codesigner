@@ -16,7 +16,8 @@ from django.views.decorators.http import require_POST
 from core import io, provenance
 
 from .figures import (
-    FIGURES, FULL, HALF, HP_GAME_FIELDS, hyperparameter_ablation_plot, partial_dependence_plot,
+    FIGURES, FULL, HALF, HP_GAME_FIELDS, autocompute_key, deferred_computations,
+    hyperparameter_ablation_plot, partial_dependence_plot,
 )
 from .forms import DefaultExperimentSettingsForm, ExperimentSettingsForm, NewExperimentForm
 from .models import Experiment, GlobalSettings
@@ -858,7 +859,11 @@ def _detail_context(request, exp):
                            if exp.cv_folds >= 2 else _("holdout")),
         },
         "metric_names": metric_names,
-        "has_result": result is not None,
+        # A result with no trials counts as no result: it is what the early
+        # return below stops building panels and plots for, so the template must
+        # take its "No results yet" branch rather than render the figure script
+        # with nothing for it to read.
+        "has_result": result is not None and bool(result.trials),
         "active_run": active_run,
         "can_run": (bool(exp.dataset) and _model_available(exp)
                     and permissions.policy().may(request, exp, RUN)
@@ -1020,5 +1025,10 @@ def _detail_context(request, exp):
             result.trials_limit is not None
             and len(result.trials) >= result.trials_limit
         ),
+        # Which on-request analytics may fetch themselves as soon as their figure
+        # needs them, and which wait for a button. Keyed by the computation's name
+        # (see Figure.deferred), for the page script.
+        autocompute={name: shown[autocompute_key(name)]
+                     for name, _label in deferred_computations()},
     )
     return context

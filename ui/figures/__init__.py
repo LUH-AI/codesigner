@@ -5,7 +5,7 @@ for each figure that draws one. Their templates live in
 `ui/templates/ui/figures/`, one per figure, named for its key.
 """
 
-from .base import FULL, HALF, Figure
+from .base import FULL, HALF, Figure, autocompute_key, deferred_computations
 from .catalog import FIGURES, FIGURES_BY_KEY, HP_GAME_FIELDS
 from .plots import (
     configuration_cube_plot,
@@ -27,6 +27,8 @@ __all__ = [
     "HALF",
     "HP_GAME_FIELDS",
     "Figure",
+    "autocompute_key",
+    "deferred_computations",
     "configuration_cube_plot",
     "hyperparameter_ablation_plot",
     "hyperparameter_importance_plot",

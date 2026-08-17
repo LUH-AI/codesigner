@@ -7,7 +7,7 @@ from django.utils.translation import gettext_lazy as _
 from core.io import demo_datasets, mounted_models
 from core.model_source import inspect_model_source
 
-from .figures import FIGURES
+from .figures import FIGURES, autocompute_key, deferred_computations
 from .registry import MODELS, OPTIMIZERS
 from .validators import validate_dataset_upload, validate_model_upload
 
@@ -124,9 +124,10 @@ class ExperimentSettingsFields(forms.Form):
 
     Both settings pages show exactly these, so both forms inherit them: the
     defaults page edits the template new experiments follow, the per-experiment
-    page edits one experiment's own copy. One field per figure (`show_<key>`)
-    comes from the catalog, so a newly declared figure gets its checkbox on both
-    pages without touching this class.
+    page edits one experiment's own copy. One field per figure (`show_<key>`) and
+    one per deferred computation (`autocompute_<name>`) come from the catalog, so
+    a newly declared figure gets its checkboxes on both pages without touching
+    this class.
     """
 
     export_absolute_times = forms.BooleanField(label=_EXPORT_ABS_LABEL, required=False)
@@ -137,11 +138,20 @@ class ExperimentSettingsFields(forms.Form):
             self.fields[figure.setting_key] = forms.BooleanField(
                 label=figure.label, required=False,
             )
+        for name, label in deferred_computations():
+            self.fields[autocompute_key(name)] = forms.BooleanField(
+                label=label, required=False,
+            )
 
     @property
     def figure_fields(self):
         """The figure checkboxes, in catalog order — for the template to loop."""
         return [self[figure.setting_key] for figure in FIGURES]
+
+    @property
+    def autocompute_fields(self):
+        """The deferred-computation checkboxes, in catalog order."""
+        return [self[autocompute_key(name)] for name, _label in deferred_computations()]
 
 
 class DefaultExperimentSettingsForm(ExperimentSettingsFields):

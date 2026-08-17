@@ -66,6 +66,10 @@ class HyperparameterImportance(Figure):
     # exists so `views`/`figure_views` still list it as a real option.
     views = tuple(f"{game}-{rendering}" for game in HP_GAME_FIELDS for rendering in HP_RENDERINGS) \
         + ("local-bar",)
+    # Only the "local-bar" view is deferred — the other nine are switches between
+    # numbers already computed at run completion and shipped with the page. Hence
+    # the setting is named for the computation rather than for this figure.
+    deferred = (("local_ablation", _("Local explanation (selected trial)")),)
 
     @classmethod
     def plot(cls, result, metric=None, view=None):
@@ -201,6 +205,10 @@ class PartialDependence(Figure):
     label = _("Partial dependence (PDP/ICE)")
     width = FULL
     per_metric = True
+    # The whole figure is deferred, so the computation's name matches the key
+    # here — unlike local ablation, which is one view of a figure whose other
+    # views are precomputed.
+    deferred = (("partial_dependence", _("Partial dependence (PDP/ICE)")),)
 
 
 class TrialDuration(Figure):

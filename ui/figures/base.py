@@ -57,6 +57,19 @@ class Figure:
     #: sensible "absolute" range can differ per view (e.g. a linear 0-1 score
     #: vs. a log-scale error).
     absolute_scale = None
+    #: Computations this figure fetches on demand rather than shipping in the
+    #: page payload, as `(name, label)` pairs. Each gets its own
+    #: `autocompute_<name>` setting: on (the default) fetches as soon as the
+    #: figure needs it, off puts a "Compute" button there instead, so a page
+    #: reload costs nothing until asked. Empty means the figure has nothing
+    #: deferred and gains no such setting.
+    #:
+    #: The names are the *computation's*, not the figure's, because one of them
+    #: isn't a whole figure: local ablation is a **view of** the importance
+    #: figure, so `autocompute_hyperparameter_importance` would claim the
+    #: importance numbers are deferred when they are computed once at run
+    #: completion and stored.
+    deferred = ()
 
     def __init_subclass__(cls, **kwargs):
         """Derive everything that follows from the key, once per subclass."""
@@ -81,3 +94,23 @@ class Figure:
         first/default); a figure with no views ignores the argument.
         """
         return None
+
+
+def autocompute_key(name: str) -> str:
+    """The settings key for a deferred computation named *name*.
+
+    A boolean, not a tri-state: "never compute this" is already expressible as
+    switching the figure off (`show_<key>`), which suppresses its fetch too. Two
+    states means `_posted_settings`' `bool()` coercion needs no special case and
+    no new widget type is needed.
+    """
+    return f"autocompute_{name}"
+
+
+def deferred_computations():
+    """Every `(name, label)` any figure defers, in catalog order.
+
+    Imported lazily to avoid a cycle: `catalog` imports from this module.
+    """
+    from .catalog import FIGURES
+    return [pair for figure in FIGURES for pair in figure.deferred]
