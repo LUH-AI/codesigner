@@ -144,6 +144,60 @@ def test_ablation_explains_one_trial_against_the_default(iris_splits, metrics):
     assert all(isinstance(v, float) for v in ablation.values())
 
 
+def test_the_explanation_surrogate_actually_uses_the_seed_it_is_given(iris_splits, metrics):
+    """`seed` has to reach the surrogate, for both the global games and ablation.
+
+    It didn't. Both paths called `ExplanationTask.from_data` without a
+    `base_model`, and hypershap's default is `RandomForestRegressor(random_state=0)`
+    — a hardcoded 0, not the experiment's seed. So every explanation was
+    computed at seed 0 whatever the run was seeded with, silently. `seed` was
+    even a declared parameter of `compute_hp_ablation` that the body never read.
+
+    Two different seeds must give two different fits. (Not a claim about which
+    is right — only that the argument is no longer ignored.)
+    """
+    cs = RandomForestModel().get_config_space(seed=0)
+    trials = _trials(iris_splits, metrics)
+    opt = RandomOptimizer()
+
+    a, warn_a = opt.compute_hp_ablation(cs, trials, "accuracy", trials[-1].config, seed=0)
+    b, warn_b = opt.compute_hp_ablation(cs, trials, "accuracy", trials[-1].config, seed=7)
+    assert warn_a is None and warn_b is None
+    assert a != b, "ablation ignored its seed"
+
+    imp_a, _, _ = opt._compute_hp_game(cs, trials, "accuracy", "tunability", seed=0)
+    imp_b, _, _ = opt._compute_hp_game(cs, trials, "accuracy", "tunability", seed=7)
+    assert imp_a != imp_b, "the global games ignored their seed"
+
+
+def test_seed_zero_keeps_hypershaps_own_default_estimator(iris_splits, metrics):
+    """Passing the estimator explicitly must not move the numbers at seed 0.
+
+    hypershap's default is `RandomForestRegressor(random_state=0)` and sklearn's
+    own default `n_estimators` is 100, so the estimator now passed in is the
+    identical object at seed 0. This pins that the seed fix changed behaviour
+    only where behaviour was wrong — every stored result and pinned expectation
+    from before it stays valid.
+    """
+    from sklearn.ensemble import RandomForestRegressor
+    from hypershap import ExplanationTask, HyperSHAP
+    from core.optimizers.base import _pair_trials_with_scores
+
+    cs = RandomForestModel().get_config_space(seed=0)
+    trials = _trials(iris_splits, metrics)
+    data = _pair_trials_with_scores(cs, trials, "accuracy")
+    params = list(cs.keys())
+
+    def order1(task):
+        iv = HyperSHAP(task).tunability()
+        return {params[i]: v for (i,), v in iv.get_n_order(order=1).dict_values.items()}
+
+    theirs = order1(ExplanationTask.from_data(cs, data))
+    ours = order1(ExplanationTask.from_data(
+        cs, data, base_model=RandomForestRegressor(n_estimators=100, random_state=0)))
+    assert theirs == ours
+
+
 def test_partial_dependence_insufficient_trials_returns_empty():
     """Fewer than two usable trials → nothing to fit a surrogate from, so
     grid/ice_lines/pdp are all empty rather than some default grid with no
@@ -199,3 +253,73 @@ def test_partial_dependence_ice_lines_and_pdp_share_the_grids_shape(iris_splits,
     for i in range(len(grid)):
         column = [row[i] for row in ice_lines]
         assert pdp[i] == sum(column) / len(column)
+
+
+def test_partial_dependence_batching_matches_predicting_one_at_a_time(iris_splits, metrics):
+    """Batching the grid into one `rf.predict` call must not change a number.
+
+    The one-at-a-time version this replaced spent 1.54s where the batched one
+    spends 0.004s on the same 600 rows — the whole difference was sklearn's
+    per-call overhead, not the forest. This pins that it was only overhead:
+    the same surrogate, asked the same questions one row at a time, gives the
+    same answers.
+    """
+    from ConfigSpace import Configuration
+
+    cs = RandomForestModel().get_config_space(seed=0)
+    trials = _trials(iris_splits, metrics)
+    grid, ice_lines, pdp, warning = RandomOptimizer().compute_partial_dependence(
+        cs, trials, "accuracy", "max_depth", seed=0)
+    assert warning is None
+
+    rf, _ = fit_surrogate(cs, trials, "accuracy", 0)
+    expected = []
+    for t in trials:
+        row = []
+        for value in grid:
+            values = dict(t.config)
+            values["max_depth"] = value
+            cfg = Configuration(cs, values=values)
+            row.append(float(rf.predict([cfg.get_array()])[0]))
+        expected.append(row)
+
+    assert ice_lines == expected
+
+
+def test_partial_dependence_holes_where_the_config_space_refuses_a_grid_value():
+    """A grid value the config space rejects for a given trial contributes
+    `None` at that index rather than raising or shifting the row.
+
+    None of the registry models have forbidden clauses, so this builds a space
+    that does — the branch exists for a future model, and an untested branch in
+    a scatter-back loop is exactly where an off-by-one hides.
+    """
+    from ConfigSpace import (Categorical, ConfigurationSpace,
+                             ForbiddenAndConjunction, ForbiddenEqualsClause, Integer)
+
+    cs = ConfigurationSpace(seed=0)
+    cs.add([Integer("a", (1, 3), default=1), Categorical("b", ["x", "y"], default="x")])
+    cs.add(ForbiddenAndConjunction(ForbiddenEqualsClause(cs["a"], 2),
+                                   ForbiddenEqualsClause(cs["b"], "y")))
+
+    trials = [
+        TrialResult(trial=1, config={"a": 1, "b": "x"}, scores={"accuracy": 0.5},
+                    score=0.5, incumbent_score=0.5, incumbent_config={}),
+        TrialResult(trial=2, config={"a": 3, "b": "y"}, scores={"accuracy": 0.7},
+                    score=0.7, incumbent_score=0.7, incumbent_config={}),
+        TrialResult(trial=3, config={"a": 1, "b": "y"}, scores={"accuracy": 0.6},
+                    score=0.6, incumbent_score=0.6, incumbent_config={}),
+    ]
+
+    grid, ice_lines, pdp, warning = RandomOptimizer().compute_partial_dependence(
+        cs, trials, "accuracy", "a", seed=0)
+
+    assert warning is None
+    assert grid == [1, 2, 3]
+    # b="x" permits every value of a; b="y" forbids a=2 and only a=2.
+    assert all(v is not None for v in ice_lines[0])
+    for row in ice_lines[1:]:
+        assert row[grid.index(2)] is None
+        assert row[grid.index(1)] is not None and row[grid.index(3)] is not None
+    # The mean at the hole skips the missing rows instead of counting them as 0.
+    assert pdp[grid.index(2)] == ice_lines[0][grid.index(2)]

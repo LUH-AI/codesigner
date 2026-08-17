@@ -19,7 +19,7 @@ from smac.utils.configspace import convert_configurations_to_array
 from smac.runhistory import StatusType
 from smac.runhistory.dataclasses import TrialInfo, TrialValue
 
-from ..paths import safe_join
+from ..paths import is_safe_relative
 from .base import (
     BaseOptimizer, OptimizationResult, OptimizerParam, TrialCollector,
     merge_stopping, rebase_history,
@@ -532,16 +532,35 @@ class SMACOptimizer(BaseOptimizer):
             overwrite=True,
         )
 
+    def _serialize_without_a_live_run(self, result: OptimizationResult) -> dict:
+        """The base serialization, plus any SMAC state the result is carrying.
+
+        Reached when there's no live output directory to read a runhistory from:
+        either a run that never wrote one, or — the common case — a result
+        rebuilt by `deserialize_result`, which now carries the embedded state in
+        `metadata` rather than on disk.
+
+        Without the pass-through, a load→save cycle would silently drop
+        `optimizer_state` and with it the ability to resume an imported run.
+        That used to be held together by `deserialize_result` writing the files
+        out so this method could read them back; carrying the dict is the same
+        round trip with the filesystem taken out of the middle.
+        """
+        carried = result.metadata.get("optimizer_state") or {}
+        if not carried:
+            return super().serialize_result(result)
+        return {**super().serialize_result(result), "optimizer_state": carried}
+
     def serialize_result(self, result: OptimizationResult) -> dict:
         output_dir = result.metadata.get("smac_output_dir", "")
         root = Path(output_dir) if output_dir else None
 
         if not root or not root.exists():
-            return super().serialize_result(result)
+            return self._serialize_without_a_live_run(result)
 
         rh_files = list(root.rglob("runhistory.json"))
         if not rh_files:
-            return super().serialize_result(result)
+            return self._serialize_without_a_live_run(result)
 
         rh_path = rh_files[0]
         rh = json.loads(rh_path.read_text(encoding="utf-8"))
@@ -610,41 +629,46 @@ class SMACOptimizer(BaseOptimizer):
         }
 
     def deserialize_result(self, d: dict) -> OptimizationResult:
+        """Rebuild a result, carrying any embedded SMAC state in memory.
+
+        This used to materialize `optimizer_state` into a fresh
+        `tempfile.mkdtemp()` — every embedded file written back out, plus a
+        reconstructed runhistory.json — on the theory that a resume would need
+        it on disk. It doesn't, and nothing else does either:
+
+        - `serialize_result` is the only reader of `metadata["smac_output_dir"]`,
+          and it now takes the state straight from `metadata` instead.
+        - A resume never reuses this directory. `optimize()` always makes its own
+          (see the comment there) and replays history through `tell`.
+        - The one thing a resume does lift out of stored state is
+          `initial_design`, which is read from the in-memory dict just below.
+
+        So the writes bought nothing and cost a directory per call — and since
+        this runs on *every* rebuild (page load, trial click, ablation fetch,
+        partial-dependence fetch), with nothing ever deleting them, they leaked
+        one temp directory per request indefinitely.
+
+        The keys are still validated even though nothing is written. Not writing
+        makes traversal unreachable *here*, but the state is carried forward into
+        whatever `serialize_result` writes next, and refusing a bad path at the
+        boundary keeps it from being laundered through a new .ihpo. `io.parse`
+        checks this too (`_check_optimizer_state`); this is the same guard for a
+        result that reached the optimizer without passing through parse.
+        """
         optimizer_state = d.get("optimizer_state", {})
 
         if not optimizer_state:
             return super().deserialize_result(d)
 
-        output_dir = Path(tempfile.mkdtemp())
+        for rel in optimizer_state:
+            if not is_safe_relative(rel):
+                raise ValueError(f"unsafe path in experiment file: {rel!r}")
+
         first_key = next(iter(optimizer_state))
         subdir = "/".join(first_key.split("/")[:-1])
-        smac_dir = safe_join(output_dir, subdir) if subdir else output_dir
-        smac_dir.mkdir(parents=True, exist_ok=True)
-
-        # Write runhistory.json; data entries include .ihpo extensions which SMAC ignores.
-        (smac_dir / "runhistory.json").write_text(
-            json.dumps({
-                "stats": d.get("stats", {}),
-                "data": d.get("data", []),
-                "configs": d.get("configs", {}),
-                "config_origins": d.get("config_origins", {}),
-            }),
-            encoding="utf-8",
-        )
-
-        # Write remaining SMAC files; update scenario.json's output_directory to new path.
-        # Each key is confined to output_dir: they come from the .ihpo, and an
-        # absolute or ../ key would otherwise be written wherever it pointed.
-        scenario_key = f"{subdir}/scenario.json"
-        for rel, content in optimizer_state.items():
-            dest = safe_join(output_dir, rel)
-            dest.parent.mkdir(parents=True, exist_ok=True)
-            if rel == scenario_key:
-                content = {**content, "output_directory": str(smac_dir)}
-            dest.write_text(json.dumps(content), encoding="utf-8")
 
         result = super().deserialize_result(d)
-        result.metadata["smac_output_dir"] = str(output_dir)
+        result.metadata["optimizer_state"] = optimizer_state
         # How big the initial design was, and which design it was. SMAC records
         # both in the scenario it saves, and that file is already embedded here
         # verbatim — so the number a resume has to honour is in the .ihpo

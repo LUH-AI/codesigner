@@ -165,12 +165,16 @@ def test_smac_runs_and_resumes(iris_splits, metrics):
 @pytest.mark.slow
 def test_smac_serialize_embeds_optimizer_state(iris_splits, metrics):
     """Serializing a SMAC result embeds the working directory; deserializing
-    materializes it again.
+    carries it forward.
 
     Expect: optimizer_state holds SMAC's files (scenario.json among them),
     each data entry keeps the extension fields (scores, incumbent_score),
-    and a deserialized copy points at a restored working dir — the mechanism
+    and a deserialized copy carries that state on the result — the mechanism
     that lets a loaded experiment resume SMAC exactly where it stopped.
+
+    A live run still has a real directory (it is where SMAC itself wrote), so
+    serializing reads from disk as before. Only the *deserialize* direction
+    changed: it no longer writes the files back out, since nothing read them.
     """
     opt = SMACOptimizer()
     result = _run(opt, RandomForestModel(), iris_splits, metrics, n_trials=3)
@@ -184,7 +188,7 @@ def test_smac_serialize_embeds_optimizer_state(iris_splits, metrics):
 
     restored = opt.deserialize_result(d)
     assert len(restored.trials) == 3
-    assert restored.metadata.get("smac_output_dir")
+    assert restored.metadata.get("optimizer_state") == d["optimizer_state"]
 
 
 @pytest.mark.slow

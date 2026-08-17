@@ -1,4 +1,5 @@
 import json
+from unittest import mock
 
 import numpy as np
 import pytest
@@ -149,21 +150,29 @@ def test_build_experiment_read_only(metrics, models, optimizers):
     assert exp["result"].best_score == snapshot["result"]["best_score"]
 
 
-def test_build_experiment_smac_restores_optimizer_state(metrics, models, optimizers):
-    """Loading a SMAC experiment materializes its embedded working directory.
+def test_build_experiment_smac_carries_optimizer_state(metrics, models, optimizers):
+    """Loading a SMAC experiment carries its embedded state on the result.
 
     The SMAC fixture (test.ihpo) carries optimizer_state (runhistory,
-    scenario, intensifier...). Expect: deserialization writes those files to
-    a fresh temp dir and records it in result.metadata["smac_output_dir"],
-    which is what makes resuming the run possible.
+    scenario, intensifier...). Expect: deserialization keeps that dict in
+    result.metadata, which is what a later re-serialization passes through and
+    what `_pinned_points` reads the initial design out of.
+
+    This used to assert the files were written to a fresh temp dir. They were —
+    on every rebuild, and this is a read-only page-render path, so that meant
+    one leaked directory per page view. Nothing read them; see
+    `SMACOptimizer.deserialize_result`.
     """
     snapshot = _fixture_snapshot("test.ihpo")
-    _, exp = io.build_experiment(snapshot, metrics, models, optimizers, read_only=True)
+
+    with mock.patch("tempfile.mkdtemp", side_effect=AssertionError("wrote to disk")):
+        _, exp = io.build_experiment(snapshot, metrics, models, optimizers, read_only=True)
 
     assert isinstance(exp["optimizer"], SMACOptimizer)
     assert len(exp["result"].trials) == 30
-    smac_dir = exp["result"].metadata.get("smac_output_dir")
-    assert smac_dir, "optimizer_state should be materialized to a working directory"
+    state = exp["result"].metadata.get("optimizer_state")
+    assert state, "optimizer_state should be carried on the rebuilt result"
+    assert any(key.endswith("scenario.json") for key in state)
 
 
 def test_build_experiment_with_dataset(metrics, models, optimizers):

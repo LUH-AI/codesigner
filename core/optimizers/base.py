@@ -761,8 +761,14 @@ class BaseOptimizer(ABC):
         `feature_importances_` has no sign and does not answer the same
         question, so a failure here is reported rather than answered with
         something that resembles an answer but is not one.
+
+        *seed* reaches the surrogate the same way `_build_explainer` does,
+        and for the same reason — it was declared but unused here until the
+        compute-policy pass, so a local explanation silently ignored the
+        experiment's seed.
         """
         from ConfigSpace import Configuration
+        from sklearn.ensemble import RandomForestRegressor
 
         params = list(config_space.keys())
         data = _pair_trials_with_scores(config_space, trials, metric_name)
@@ -771,7 +777,9 @@ class BaseOptimizer(ABC):
             return {}, "Not enough trials for a local explanation."
 
         try:
-            task = ExplanationTask.from_data(config_space, data)
+            task = ExplanationTask.from_data(
+                config_space, data,
+                base_model=RandomForestRegressor(n_estimators=100, random_state=seed))
             hs = HyperSHAP(task)
             config = Configuration(config_space, values=config_of_interest)
             baseline = config_space.get_default_configuration()
@@ -816,7 +824,20 @@ class BaseOptimizer(ABC):
         was). All three are empty (with a warning) when there are too few
         trials to fit a surrogate, or *hp_name* has no valid configuration
         anywhere on its grid.
+
+        Every synthetic configuration is predicted in **one** `rf.predict`
+        call rather than one call each. That is not a micro-optimization:
+        sklearn's per-call overhead dwarfs the actual forest traversal at this
+        size, so the one-at-a-time version this replaced spent 1.544s where
+        the batched one spends 0.0035s on the same 600 rows (30 trials × a
+        20-point grid), and the gap grows with both. End to end that took this
+        function from 1553ms to 52ms; what's left is mostly `fit_surrogate`.
+
+        The `Configuration` construction stays per-point — it was only 10ms of
+        the 1.55s, and it is what enforces conditionals and forbidden clauses,
+        which is where the `None` holes come from.
         """
+        import numpy as np
         from ConfigSpace import Configuration
 
         rf, warning = fit_surrogate(config_space, trials, metric_name, seed)
@@ -825,19 +846,27 @@ class BaseOptimizer(ABC):
 
         grid = _hp_grid(config_space[hp_name], n_points)
 
-        ice_lines = []
-        for t in trials:
-            row = []
-            for value in grid:
+        # Build every (trial, grid value) row first, remembering where each one
+        # belongs, and leave a hole where the config space rejected it.
+        rows, slots = [], []
+        for i, t in enumerate(trials):
+            for j, value in enumerate(grid):
                 try:
                     values = dict(t.config)
                     values[hp_name] = value
-                    cfg = Configuration(config_space, values=values)
-                    row.append(float(rf.predict([cfg.get_array()])[0]))
+                    rows.append(Configuration(config_space, values=values).get_array())
                 except Exception:
-                    row.append(None)
-            if any(v is not None for v in row):
-                ice_lines.append(row)
+                    continue
+                slots.append((i, j))
+
+        ice_by_trial: List[List[Optional[float]]] = [
+            [None] * len(grid) for _ in trials]
+        if rows:
+            predictions = rf.predict(np.array(rows))
+            for (i, j), value in zip(slots, predictions):
+                ice_by_trial[i][j] = float(value)
+
+        ice_lines = [row for row in ice_by_trial if any(v is not None for v in row)]
 
         if not ice_lines:
             return [], [], [], "No valid configurations on this hyperparameter's grid."
@@ -879,7 +908,7 @@ class BaseOptimizer(ABC):
         """
         by_game = {game: ({}, {}, {}) for game in self.HP_GAMES}
         for metric_name in metrics:
-            explainer = self._build_explainer(config_space, trials, metric_name)
+            explainer = self._build_explainer(config_space, trials, metric_name, seed)
             for game in self.HP_GAMES:
                 importance, warning, interactions = self._compute_hp_game(
                     config_space, trials, metric_name, game, seed, explainer=explainer)
@@ -888,7 +917,8 @@ class BaseOptimizer(ABC):
                 by_game[game][2][metric_name] = interactions
         return by_game
 
-    def _build_explainer(self, config_space, trials: List[TrialResult], metric_name: str):
+    def _build_explainer(self, config_space, trials: List[TrialResult], metric_name: str,
+                         seed: int = 0):
         """Pair *trials* with *metric_name* scores and fit the HyperSHAP
         explainer every global game (`tunability`/`sensitivity`/
         `mistunability`) shares for a given metric — the one expensive step
@@ -906,12 +936,23 @@ class BaseOptimizer(ABC):
         rung entirely (there's nothing to fit it from either); it's False
         (with `hs` None) when HyperSHAP itself failed to build one, which
         does still warrant trying that rung.
+
+        *seed* reaches the surrogate through an explicit `base_model`.
+        HyperSHAP's own default is `RandomForestRegressor(random_state=0)`
+        — a fixed 0, not whatever seed the experiment was run with — so
+        leaving it out (as this did until the compute-policy pass) quietly
+        made every explanation ignore the seed. At `seed=0` this builds the
+        identical estimator, so the numbers only move where they were wrong.
         """
+        from sklearn.ensemble import RandomForestRegressor
+
         data = _pair_trials_with_scores(config_space, trials, metric_name)
         if len(data) < 2:
             return None, "Not enough trials for importance estimation; showing uniform weights.", True
         try:
-            task = ExplanationTask.from_data(config_space, data)
+            task = ExplanationTask.from_data(
+                config_space, data,
+                base_model=RandomForestRegressor(n_estimators=100, random_state=seed))
             return HyperSHAP(task), None, False
         except Exception as e:
             return None, f"HyperSHAP failed to build a surrogate ({e})", False
@@ -951,7 +992,7 @@ class BaseOptimizer(ABC):
         params = list(config_space.keys())
 
         if explainer is None:
-            explainer = self._build_explainer(config_space, trials, metric_name)
+            explainer = self._build_explainer(config_space, trials, metric_name, seed)
         hs, build_warning, insufficient = explainer
 
         if insufficient:
