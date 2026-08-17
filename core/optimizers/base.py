@@ -378,6 +378,63 @@ class TrialCollector:
         return trial
 
 
+def _pair_trials_with_scores(config_space, trials: List[TrialResult], metric_name: str):
+    """Every trial's config, as a `ConfigSpace.Configuration`, paired with its
+    *metric_name* score — the input shape both HyperSHAP and a plain
+    surrogate fit need, and the one place that pairing happens, so
+    `_compute_hp_game`'s own explainer and `fit_surrogate` never drift apart
+    on how a trial becomes training data. A trial whose config the current
+    config_space rejects (e.g. a leftover from before a model's search space
+    changed) is skipped rather than raised on — one bad trial should not
+    blank out every other one's contribution.
+    """
+    from ConfigSpace import Configuration
+
+    data = []
+    for t in trials:
+        try:
+            cfg = Configuration(config_space, values=t.config)
+            data.append((cfg, t.scores[metric_name]))
+        except Exception:
+            continue
+    return data
+
+
+def fit_surrogate(config_space, trials: List[TrialResult], metric_name: str, seed: int = 0):
+    """Fit a cheap `RandomForestRegressor` surrogate over *trials*' recorded
+    *metric_name* scores.
+
+    Factored out of `_compute_hp_game`'s own fallback rung (used when
+    HyperSHAP itself fails) so a future surrogate-consuming feature — Partial
+    Dependencies (`docs/PLAN-analytics.md` Phase 6) is the first one planned —
+    does not have to duplicate it. `optimize()` does not keep the real model
+    around after it returns (SMAC's facade, in particular, is a local
+    variable, discarded at the end of the call), so anything needing a
+    stand-in model afterward needs one fit fresh, the same way this one is.
+
+    Returns (surrogate, warning). surrogate is `None` (with a warning
+    explaining why) when there are fewer than two usable trials or the fit
+    itself raises — what "no surrogate" means for the caller's own output
+    (a further fallback rung, an empty plot, ...) is the caller's call, not
+    this function's.
+    """
+    import numpy as np
+    from sklearn.ensemble import RandomForestRegressor
+
+    data = _pair_trials_with_scores(config_space, trials, metric_name)
+    if len(data) < 2:
+        return None, "Not enough trials to fit a surrogate."
+
+    try:
+        X = np.array([cfg.get_array() for cfg, _ in data])
+        y = np.array([score for _, score in data])
+        rf = RandomForestRegressor(n_estimators=100, random_state=seed)
+        rf.fit(X, y)
+        return rf, None
+    except Exception as e:
+        return None, f"Surrogate fit failed ({e})."
+
+
 class BaseOptimizer(ABC):
     """Base class for all hyperparameter optimizers."""
 
@@ -690,14 +747,7 @@ class BaseOptimizer(ABC):
         from ConfigSpace import Configuration
 
         params = list(config_space.keys())
-
-        data: list[tuple] = []
-        for t in trials:
-            try:
-                cfg = Configuration(config_space, values=t.config)
-                data.append((cfg, t.scores[metric_name]))
-            except Exception:
-                continue
+        data = _pair_trials_with_scores(config_space, trials, metric_name)
 
         if len(data) < 2:
             return {}, "Not enough trials for a local explanation."
@@ -734,15 +784,51 @@ class BaseOptimizer(ABC):
         (`OptimizationResult.hyperparameter_interactions`) — sensitivity's/
         mistunability's interaction grids are computed here at zero extra
         cost but not yet wired to a field or a view.
+
+        Builds the HyperSHAP explainer once per metric, not once per (game,
+        metric) pair: `tunability`/`sensitivity`/`mistunability` all explain
+        the *same* trial history for a given metric, so refitting the
+        surrogate underneath them 3 times over is pure waste. See
+        `_build_explainer`/`_compute_hp_game`'s `explainer` parameter.
         """
-        by_game = {}
-        for game in self.HP_GAMES:
-            importance, warning, interactions = {}, {}, {}
-            for metric_name in metrics:
-                importance[metric_name], warning[metric_name], interactions[metric_name] = self._compute_hp_game(
-                    config_space, trials, metric_name, game, seed)
-            by_game[game] = (importance, warning, interactions)
+        by_game = {game: ({}, {}, {}) for game in self.HP_GAMES}
+        for metric_name in metrics:
+            explainer = self._build_explainer(config_space, trials, metric_name)
+            for game in self.HP_GAMES:
+                importance, warning, interactions = self._compute_hp_game(
+                    config_space, trials, metric_name, game, seed, explainer=explainer)
+                by_game[game][0][metric_name] = importance
+                by_game[game][1][metric_name] = warning
+                by_game[game][2][metric_name] = interactions
         return by_game
+
+    def _build_explainer(self, config_space, trials: List[TrialResult], metric_name: str):
+        """Pair *trials* with *metric_name* scores and fit the HyperSHAP
+        explainer every global game (`tunability`/`sensitivity`/
+        `mistunability`) shares for a given metric — the one expensive step
+        (constructing an `ExplanationTask` fits a surrogate internally)
+        that's identical across all three; only each game's own aggregation
+        (MAX/VAR/MIN) differs once it's built. `compute_hp_games` builds this
+        once per metric and reuses it across `HP_GAMES`; `_compute_hp_game`
+        builds its own when called standalone (e.g. `compute_hp_importance`)
+        and no `explainer` was handed to it.
+
+        Returns (hs, warning, insufficient) — pass straight through as
+        `_compute_hp_game`'s `explainer`. `insufficient` is True only for
+        "fewer than two usable trials," a condition `_compute_hp_game`
+        answers with uniform weights directly, skipping the RandomForest
+        rung entirely (there's nothing to fit it from either); it's False
+        (with `hs` None) when HyperSHAP itself failed to build one, which
+        does still warrant trying that rung.
+        """
+        data = _pair_trials_with_scores(config_space, trials, metric_name)
+        if len(data) < 2:
+            return None, "Not enough trials for importance estimation; showing uniform weights.", True
+        try:
+            task = ExplanationTask.from_data(config_space, data)
+            return HyperSHAP(task), None, False
+        except Exception as e:
+            return None, f"HyperSHAP failed to build a surrogate ({e})", False
 
     def _compute_hp_game(
         self,
@@ -751,69 +837,64 @@ class BaseOptimizer(ABC):
         metric_name: str,
         game: str,
         seed: int = 0,
+        explainer=None,
     ) -> tuple[Dict[str, float], Optional[str], Dict[str, Dict[str, float]]]:
         """Shared scaffolding behind `compute_hp_importance`/`_sensitivity`/
-        `_mistunability`/`_interactions`: pair up trials and scores, ask
-        HyperSHAP's *game* for order-1 (and, as a free byproduct, order-2)
-        values, and fall back to a surrogate's feature_importances_ and then
-        uniform weights if that fails. *game* is a `HyperSHAP` instance method
-        name taking no required arguments (`tunability`, `sensitivity`,
-        `mistunability` all qualify; `ablation` does not — it needs a specific
-        configuration to explain, not just trial history, so it is computed
-        separately, on demand, for one selected trial).
+        `_mistunability`/`_interactions`: ask HyperSHAP's *game* for order-1
+        (and, as a free byproduct, order-2) values from the built explainer,
+        and fall back to a surrogate's feature_importances_ and then uniform
+        weights if that fails. *game* is a `HyperSHAP` instance method name
+        taking no required arguments (`tunability`, `sensitivity`,
+        `mistunability` all qualify; `ablation` does not — it needs a
+        specific configuration to explain, not just trial history, so it is
+        computed separately, on demand, for one selected trial).
+
+        *explainer*, when given, is `_build_explainer`'s own
+        `(hs, warning, insufficient)` return for this (config_space, trials,
+        metric_name) — see `compute_hp_games`, which builds it once and
+        reuses it across every game — passed straight through instead of
+        rebuilding (and re-fitting) an identical surrogate per game. `None`
+        (the default) builds its own, for a standalone call like
+        `compute_hp_importance`.
 
         Returns (values_dict, warning_message, interactions_dict).
         warning_message is None when HyperSHAP succeeds. interactions_dict is
         `{}` on either fallback rung — a plain feature_importances_ or
         uniform weights carry no pairwise structure to report.
         """
-        import numpy as np
-        from ConfigSpace import Configuration
-
         params = list(config_space.keys())
 
-        data: list[tuple] = []
-        for t in trials:
-            try:
-                cfg = Configuration(config_space, values=t.config)
-                data.append((cfg, t.scores[metric_name]))
-            except Exception:
-                continue
+        if explainer is None:
+            explainer = self._build_explainer(config_space, trials, metric_name)
+        hs, build_warning, insufficient = explainer
 
-        if len(data) < 2:
+        if insufficient:
             uniform = 1.0 / len(params) if params else 0.0
-            return (
-                {p: uniform for p in params},
-                "Not enough trials for importance estimation; showing uniform weights.",
-                {},
-            )
+            return {p: uniform for p in params}, build_warning, {}
 
-        try:
-            task = ExplanationTask.from_data(config_space, data)
-            hs = HyperSHAP(task)
-            iv = getattr(hs, game)()
-            order1 = iv.get_n_order(order=1).dict_values
-            raw = {params[idx]: abs(val) for (idx,), val in order1.items()}
-            total = sum(raw.values()) or 1.0
-            importance = {k: v / total for k, v in raw.items()}
-            interactions = self._extract_pairwise(iv, params)
-            return importance, None, interactions
-        except Exception as e:
-            warning = f"HyperSHAP ({game}) failed ({e}) — falling back to surrogate feature importances."
+        warning = None
+        if hs is not None:
+            try:
+                iv = getattr(hs, game)()
+                order1 = iv.get_n_order(order=1).dict_values
+                raw = {params[idx]: abs(val) for (idx,), val in order1.items()}
+                total = sum(raw.values()) or 1.0
+                importance = {k: v / total for k, v in raw.items()}
+                interactions = self._extract_pairwise(iv, params)
+                return importance, None, interactions
+            except Exception as e:
+                warning = f"HyperSHAP ({game}) failed ({e}) — falling back to surrogate feature importances."
+        else:
+            warning = f"HyperSHAP ({game}) {build_warning} — falling back to surrogate feature importances."
 
-        try:
-            from sklearn.ensemble import RandomForestRegressor
-            X = np.array([cfg.get_array() for cfg, _ in data])
-            y = np.array([score for _, score in data])
-            rf = RandomForestRegressor(n_estimators=100, random_state=seed)
-            rf.fit(X, y)
+        rf, fit_warning = fit_surrogate(config_space, trials, metric_name, seed)
+        if rf is not None:
             importances = rf.feature_importances_
             total = importances.sum() or 1.0
             return {p: float(importances[i] / total) for i, p in enumerate(params)}, warning, {}
-        except Exception as e2:
-            warning += f" Surrogate fallback also failed ({e2}); showing uniform weights."
-            uniform = 1.0 / len(params) if params else 0.0
-            return {p: uniform for p in params}, warning, {}
+        warning += f" Surrogate fallback also failed ({fit_warning}); showing uniform weights."
+        uniform = 1.0 / len(params) if params else 0.0
+        return {p: uniform for p in params}, warning, {}
 
     @staticmethod
     def _extract_pairwise(iv, params: List[str]) -> Dict[str, Dict[str, float]]:

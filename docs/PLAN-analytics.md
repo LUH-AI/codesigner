@@ -306,11 +306,18 @@ spotting HP interactions at a glance.
 
 Pure infrastructure, no user-visible change — unblocks Phase 6.
 
+> **Status: done**, see
+> [walkthroughs/analytics-phase-5-shared-surrogate.md](walkthroughs/analytics-phase-5-shared-surrogate.md).
+> Also fixed a real, verified inefficiency found while implementing this:
+> the three global games were each independently re-fitting an identical
+> surrogate per metric — now built once, reused across all three.
+
 - Factor the RandomForest-fitting logic that `compute_hp_importance`'s
   fallback path already has (`core/optimizers/base.py`) into a small, reusable
   function (e.g. `fit_surrogate(trials, config_space)`), so it isn't
-  duplicated by every future surrogate-consuming plugin.
-- Tests: unit tests against synthetic trial data only.
+  duplicated by every future surrogate-consuming plugin. *(Done —
+  `fit_surrogate(config_space, trials, metric_name, seed)`.)*
+- Tests: unit tests against synthetic trial data only. *(Done.)*
 
 ## Phase 6 — Partial Dependencies (PDP/ICE)
 
