@@ -316,6 +316,11 @@
                 // shares tunability's own warning (see views.py), so it's
                 // one flat map, not keyed by game/view like `warnings` above.
                 const interactionsWarnings = {};
+                // metric -> that metric's own top-tunability hyperparameter —
+                // what the partial-dependence picker resets to on a metric
+                // switch, the same "most interesting thing first" instinct
+                // bestIdxByMetric already applies to local ablation.
+                const topHpByMetric = {};
                 JSON.parse(document.getElementById("panels-data").textContent)
                     .forEach(p => {
                         warnings[p.metric] = {};
@@ -324,10 +329,12 @@
                         });
                         bestIdxByMetric[p.metric] = p.best_idx;
                         interactionsWarnings[p.metric] = p.interactions_warning;
+                        topHpByMetric[p.metric] = p.top_hp;
                     });
                 const select = document.getElementById("metric-select");
                 const trialPanelUrl = "{% url 'ui:trial_panel' summary.pk %}";
                 const trialAblationUrl = "{% url 'ui:trial_ablation' summary.pk %}";
+                const partialDependenceUrl = "{% url 'ui:partial_dependence' summary.pk %}";
 
                 // Snapshot each metric's default (best-trial) selected-config HTML so
                 // switching metrics can restore it — a click only affects the metric
@@ -580,6 +587,45 @@
                     warnEl.hidden = !msg;
                 }
 
+                // Partial dependence: which hyperparameter is showing changes
+                // what's being explained, not just how the same data is
+                // drawn, so — like local ablation — there is nothing
+                // server-precomputed to fall back on; every fetch (including
+                // the very first one) goes through here. Called on the
+                // picker's own change, and on every metric switch (show()
+                // resets the picker to that metric's own top hyperparameter
+                // first — see topHpByMetric — so this always fetches for a
+                // hyperparameter that's actually valid for the new metric).
+                const pdpHpSelect = document.getElementById("pdp-hp-select");
+                const pdpCache = {};  // "metric:hp" -> {figure, warning}
+                function refreshPartialDependence(metric) {
+                    if (!pdpHpSelect) return;
+                    const hp = pdpHpSelect.value;
+                    if (!hp) return;
+                    const key = metric + ":" + hp;
+                    function apply(data) {
+                        // Stale by the time it resolves: the user moved on to
+                        // another metric or hyperparameter while this was in flight.
+                        if (currentMetric() !== metric || pdpHpSelect.value !== hp) return;
+                        draw("partial_dependence", data.figure);
+                        const warnEl = document.getElementById("pdp-warning");
+                        if (warnEl) {
+                            warnEl.textContent = data.warning || "";
+                            warnEl.hidden = !data.warning;
+                        }
+                    }
+                    if (pdpCache[key]) { apply(pdpCache[key]); return; }
+                    fetch(partialDependenceUrl + "?metric=" + encodeURIComponent(metric) + "&hp=" + encodeURIComponent(hp))
+                        .then(function (r) { return r.ok ? r.json() : Promise.reject(); })
+                        .then(function (data) { pdpCache[key] = data; apply(data); })
+                        .catch(function () {});
+                }
+                if (pdpHpSelect) {
+                    pdpHpSelect.addEventListener("change", function () {
+                        refreshPartialDependence(currentMetric());
+                    });
+                }
+
                 // Configuration cube: which two (or three) hyperparameters are
                 // showing is a per-experiment, unbounded choice, so unlike
                 // every other multi-view figure here, there is no
@@ -655,6 +701,11 @@
                     syncInteractionsWarning(metric);
                     refreshLocalAblation(metric);  // no-op unless "Local" is showing
                     applyCubeAxes();  // reapplies the user's axis choice over the fresh default trace
+                    // A metric switch resets the picker to the new metric's own
+                    // top hyperparameter, same as lastClickedIdx being forgotten
+                    // above — a fresh start, not last metric's leftover choice.
+                    if (pdpHpSelect && topHpByMetric[metric]) pdpHpSelect.value = topHpByMetric[metric];
+                    refreshPartialDependence(metric);
 
                     // Click-to-select lives on the performance figure only.
                     if (figureEl("performance_over_time") && plots.performance_over_time) {

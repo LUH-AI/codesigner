@@ -311,6 +311,49 @@ def parallel_coordinates_plot(result, display_metric):
     return fig
 
 
+def partial_dependence_plot(hp_name, grid, ice_lines, pdp):
+    """DeepCave's PDP/ICE plot for one hyperparameter: every trial's
+    Individual Conditional Expectation curve (thin, translucent, batched
+    into one trace with `None`-separated segments so trial count doesn't
+    multiply the trace count) plus the bold Partial Dependence mean curve on
+    top — ICE lines that all move together say this hyperparameter doesn't
+    interact with anything else; ICE lines that fan out somewhere on the
+    grid say it does, right where they fan out.
+
+    x is *grid* on a categorical axis (`xaxis_type="category"`) even for a
+    numeric hyperparameter's evenly-spaced grid — visually identical for an
+    even grid, and it means a categorical hyperparameter's grid (strings)
+    never has to be handled as a special case here.
+
+    Returns None when *grid* is empty (too few trials to fit a surrogate, or
+    no valid configuration anywhere on the grid — see
+    BaseOptimizer.compute_partial_dependence).
+    """
+    if not grid:
+        return None
+    ice_x, ice_y = [], []
+    for row in ice_lines:
+        ice_x.extend(grid)
+        ice_x.append(None)
+        ice_y.extend(row)
+        ice_y.append(None)
+    fig = go.Figure()
+    fig.add_trace(go.Scatter(
+        x=ice_x, y=ice_y, mode="lines", line=dict(width=1, color=_MARKER_COLOR),
+        opacity=0.25, name="Individual trials (ICE)", hoverinfo="skip",
+    ))
+    fig.add_trace(go.Scatter(
+        x=grid, y=pdp, mode="lines+markers", name="Partial dependence",
+        line=dict(width=3, color=_SELECTED_COLOR),
+    ))
+    fig.update_layout(
+        xaxis_title=hp_name, xaxis_type="category", yaxis_title="Predicted score",
+        legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1),
+        margin=dict(t=40, b=40, l=40, r=20),
+    )
+    return fig
+
+
 def trial_duration_plot(result):
     """Bar of each trial's evaluation duration (seconds). Metric-independent.
 

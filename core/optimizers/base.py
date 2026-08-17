@@ -435,6 +435,24 @@ def fit_surrogate(config_space, trials: List[TrialResult], metric_name: str, see
         return None, f"Surrogate fit failed ({e})."
 
 
+def _hp_grid(hp, n_points: int) -> list:
+    """*n_points* values spanning one hyperparameter's domain — its full set
+    of choices for a categorical hyperparameter (there is no "spanning" a
+    finite, unordered set); sorted-unique rounded integers for an integer
+    one, so the grid never suggests a value it couldn't actually take;
+    otherwise *n_points* evenly spaced floats across its bounds.
+    """
+    import numpy as np
+    from ConfigSpace import UniformIntegerHyperparameter
+
+    if hasattr(hp, "choices"):
+        return list(hp.choices)
+    raw = np.linspace(hp.lower, hp.upper, n_points)
+    if isinstance(hp, UniformIntegerHyperparameter):
+        return sorted({int(round(v)) for v in raw})
+    return [float(v) for v in raw]
+
+
 class BaseOptimizer(ABC):
     """Base class for all hyperparameter optimizers."""
 
@@ -762,6 +780,74 @@ class BaseOptimizer(ABC):
             return {params[idx]: val for (idx,), val in order1.items()}, None
         except Exception as e:
             return {}, f"HyperSHAP (ablation) failed ({e})."
+
+    def compute_partial_dependence(
+        self,
+        config_space,
+        trials: List[TrialResult],
+        metric_name: str,
+        hp_name: str,
+        seed: int = 0,
+        n_points: int = 20,
+    ) -> tuple[list, List[List[Optional[float]]], List[Optional[float]], Optional[str]]:
+        """Partial dependence (and per-trial ICE) of *metric_name* on
+        *hp_name*, from a `fit_surrogate` fit over *trials* — DeepCave's
+        PDP/ICE plugin, minus a second surrogate-fitting code path: the same
+        stand-in every global HyperSHAP game's own fallback rung already
+        builds does this job too, so Phase 5 factored it out for exactly this
+        reuse.
+
+        For each of *hp_name*'s grid values (see `_hp_grid`), every trial's
+        own *other* hyperparameter values are held fixed and only *hp_name*
+        is swapped to that grid value — the surrogate's prediction for that
+        synthetic configuration is one point on that trial's Individual
+        Conditional Expectation (ICE) curve. The Partial Dependence curve is
+        the grid-wise mean across every trial's ICE curve — DeepCave's own
+        definition, and the standard one. A trial whose config plus the
+        swapped-in grid value the config space rejects (never happens with
+        this app's current registry models, none of which have conditional
+        or forbidden-clause hyperparameters, but a future model's might)
+        contributes `None` at that grid point rather than raising.
+
+        Returns (grid, ice_lines, pdp, warning). `ice_lines` is one list per
+        trial, each the same length as `grid` (possibly holding `None`s);
+        `pdp` is `grid`'s own length, each entry the mean of the non-`None`
+        values across `ice_lines` at that index (`None` if every trial's
+        was). All three are empty (with a warning) when there are too few
+        trials to fit a surrogate, or *hp_name* has no valid configuration
+        anywhere on its grid.
+        """
+        from ConfigSpace import Configuration
+
+        rf, warning = fit_surrogate(config_space, trials, metric_name, seed)
+        if rf is None:
+            return [], [], [], warning
+
+        grid = _hp_grid(config_space[hp_name], n_points)
+
+        ice_lines = []
+        for t in trials:
+            row = []
+            for value in grid:
+                try:
+                    values = dict(t.config)
+                    values[hp_name] = value
+                    cfg = Configuration(config_space, values=values)
+                    row.append(float(rf.predict([cfg.get_array()])[0]))
+                except Exception:
+                    row.append(None)
+            if any(v is not None for v in row):
+                ice_lines.append(row)
+
+        if not ice_lines:
+            return [], [], [], "No valid configurations on this hyperparameter's grid."
+
+        pdp = []
+        for i in range(len(grid)):
+            column = [row[i] for row in ice_lines if row[i] is not None]
+            pdp.append(sum(column) / len(column) if column else None)
+
+        return grid, ice_lines, pdp, None
 
     def compute_hp_games(
         self,

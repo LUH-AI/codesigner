@@ -19,6 +19,7 @@ from ui.figures import (
     hyperparameter_interactions_heatmap_plot,
     incumbent_scores,
     parallel_coordinates_plot,
+    partial_dependence_plot,
     performance_over_time_plot,
     trial_duration_plot,
 )
@@ -331,6 +332,30 @@ def test_parallel_coordinates_none_with_no_trials():
         hyperparameter_importance={}, hyperparameter_importance_warning={},
     )
     assert parallel_coordinates_plot(result, "accuracy") is None
+
+
+def test_partial_dependence_plot_batches_ice_lines_into_one_none_separated_trace():
+    """Every ICE row becomes one segment of a single trace, joined by a
+    `None` (a gap, not a connecting line) — trace count must not grow with
+    trial count."""
+    fig = partial_dependence_plot(
+        "max_depth", grid=[2, 5, 10], ice_lines=[[0.1, 0.2, 0.3], [0.4, 0.5, 0.6]], pdp=[0.25, 0.35, 0.45])
+    ice_trace = fig.data[0]
+    assert list(ice_trace.x) == [2, 5, 10, None, 2, 5, 10, None]
+    assert list(ice_trace.y) == [0.1, 0.2, 0.3, None, 0.4, 0.5, 0.6, None]
+
+
+def test_partial_dependence_plot_pdp_is_the_bold_second_trace():
+    fig = partial_dependence_plot(
+        "max_depth", grid=[2, 5, 10], ice_lines=[[0.1, 0.2, 0.3], [0.4, 0.5, 0.6]], pdp=[0.25, 0.35, 0.45])
+    pdp_trace = fig.data[1]
+    assert list(pdp_trace.x) == [2, 5, 10]
+    assert list(pdp_trace.y) == [0.25, 0.35, 0.45]
+    assert pdp_trace.line.width > fig.data[0].line.width
+
+
+def test_partial_dependence_plot_none_with_empty_grid():
+    assert partial_dependence_plot("max_depth", grid=[], ice_lines=[], pdp=[]) is None
 
 
 def _timed(n, score, dur):

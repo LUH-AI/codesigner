@@ -184,6 +184,26 @@ def test_parallel_coordinates_renders_one_dimension_per_hyperparameter_plus_scor
         assert dims[-1]["label"] == m.capitalize()
 
 
+def test_partial_dependence_ships_a_picker_but_no_precomputed_data(client):
+    """Which hyperparameter is showing is a picker choice, not one of a
+    small precomputable set (contrast the three global games and the
+    interactions heatmap/bar) — the figure key is present in every metric's
+    payload (so a hidden-figure check like test_a_hidden_figure_ships_no_plot_data
+    still has something to look for), but its value is always None; the
+    real data comes from the partial_dependence endpoint instead, fetched
+    client-side (see experiment_detail.html's refreshPartialDependence)."""
+    html, exp = _detail(client)
+    assert 'id="pdp-hp-select"' in html
+    for h in next(iter(exp.result["configs"].values())):
+        assert f'value="{h}"' in html
+
+    start = html.index('id="metric-plots-data"')
+    payload = html[html.index(">", start) + 1: html.index("</script>", start)]
+    plots = json.loads(payload)
+    for m in exp.metric_names:
+        assert plots[m]["partial_dependence"] is None
+
+
 def test_hyperparameter_interactions_offers_heatmap_and_bar(client):
     """Both views come straight from the stored result — no lazy fetch like
     the importance figure's "local" game. The fixture predates this field

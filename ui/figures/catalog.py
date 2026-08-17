@@ -178,6 +178,32 @@ class ParallelCoordinates(Figure):
         return parallel_coordinates_plot(result, metric)
 
 
+class PartialDependence(Figure):
+    """One hyperparameter's partial dependence + ICE curves, picked via a
+    dropdown — DeepCave's own small multiples become one Figure entry with a
+    picker, matching every other multi-facet figure in this app.
+
+    No `views`: which hyperparameter is showing isn't a small enumerable set
+    of ways to look at the *same* data (contrast importance's game/rendering
+    or performance's axis choices) — it changes what's being explained. And
+    unlike the cube, it isn't cheap enough to precompute every option's data
+    upfront: fitting a surrogate and predicting across a grid for every
+    hyperparameter, on every page load, for a figure that only ever shows
+    one at a time, would be pure waste. So, like local ablation
+    (`hyperparameter_importance`'s "Local" game), this is fetched on demand
+    — see the `partial_dependence` endpoint (ui/views.py) and
+    experiment_detail.html's `refreshPartialDependence`. `plot()` is never
+    called; it stays `None` (the base class default) so `plot_json` ships
+    nothing for it and the client fetches everything, including the default
+    hyperparameter shown on load.
+    """
+
+    key = "partial_dependence"
+    label = _("Partial dependence (PDP/ICE)")
+    width = FULL
+    per_metric = True
+
+
 class TrialDuration(Figure):
     """One bar per trial. The same for every metric, so it is drawn once."""
 
@@ -205,6 +231,7 @@ FIGURES = (
     PerformanceOverTime,
     ConfigurationCube,
     ParallelCoordinates,
+    PartialDependence,
     TrialDuration,
     Trials,
 )

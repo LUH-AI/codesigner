@@ -142,3 +142,60 @@ def test_ablation_explains_one_trial_against_the_default(iris_splits, metrics):
     assert warning is None
     assert set(ablation) == set(cs.keys())
     assert all(isinstance(v, float) for v in ablation.values())
+
+
+def test_partial_dependence_insufficient_trials_returns_empty():
+    """Fewer than two usable trials → nothing to fit a surrogate from, so
+    grid/ice_lines/pdp are all empty rather than some default grid with no
+    predictions to show on it."""
+    cs = RandomForestModel().get_config_space(seed=0)
+    one = [TrialResult(trial=1, config=dict(cs.get_default_configuration()),
+                       scores={"accuracy": 0.5}, score=0.5,
+                       incumbent_score=0.5, incumbent_config={})]
+    grid, ice_lines, pdp, warning = RandomOptimizer().compute_partial_dependence(
+        cs, one, "accuracy", "n_estimators", seed=0)
+    assert grid == [] and ice_lines == [] and pdp == []
+    assert warning and "trials" in warning.lower()
+
+
+def test_partial_dependence_integer_hp_grid_is_all_integers(iris_splits, metrics):
+    """n_estimators is a UniformIntegerHyperparameter — the grid must never
+    suggest a fractional trial count, unlike a plain linspace would."""
+    cs = RandomForestModel().get_config_space(seed=0)
+    trials = _trials(iris_splits, metrics)
+    grid, ice_lines, pdp, warning = RandomOptimizer().compute_partial_dependence(
+        cs, trials, "accuracy", "n_estimators", seed=0)
+    assert warning is None
+    assert all(isinstance(v, int) for v in grid)
+    assert grid == sorted(grid)
+
+
+def test_partial_dependence_categorical_hp_grid_is_its_choices(iris_splits, metrics):
+    """A categorical hyperparameter's grid is its full, exact set of
+    choices — there is nothing to interpolate between categories."""
+    from core.models import SVMModel
+    X_train, X_val, y_train, y_val = iris_splits
+    cs = SVMModel().get_config_space(seed=0)
+    trials = RandomOptimizer().optimize(
+        SVMModel(), X_train, y_train, X_val, y_val,
+        metrics=metrics, primary_metric="accuracy", n_trials=5, seed=0).trials
+    grid, ice_lines, pdp, warning = RandomOptimizer().compute_partial_dependence(
+        cs, trials, "accuracy", "kernel", seed=0)
+    assert warning is None
+    assert grid == list(cs["kernel"].choices)
+
+
+def test_partial_dependence_ice_lines_and_pdp_share_the_grids_shape(iris_splits, metrics):
+    """One ICE row per trial, each the same length as the grid; the PDP
+    curve is the grid-wise mean of those rows, not some other reduction."""
+    cs = RandomForestModel().get_config_space(seed=0)
+    trials = _trials(iris_splits, metrics)
+    grid, ice_lines, pdp, warning = RandomOptimizer().compute_partial_dependence(
+        cs, trials, "accuracy", "max_depth", seed=0)
+    assert warning is None
+    assert len(ice_lines) == len(trials)
+    assert all(len(row) == len(grid) for row in ice_lines)
+    assert len(pdp) == len(grid)
+    for i in range(len(grid)):
+        column = [row[i] for row in ice_lines]
+        assert pdp[i] == sum(column) / len(column)

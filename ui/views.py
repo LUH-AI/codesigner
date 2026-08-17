@@ -15,7 +15,9 @@ from django.views.decorators.http import require_POST
 
 from core import io, provenance
 
-from .figures import FIGURES, FULL, HALF, HP_GAME_FIELDS, hyperparameter_ablation_plot
+from .figures import (
+    FIGURES, FULL, HALF, HP_GAME_FIELDS, hyperparameter_ablation_plot, partial_dependence_plot,
+)
 from .forms import DefaultExperimentSettingsForm, ExperimentSettingsForm, NewExperimentForm
 from .models import Experiment, GlobalSettings
 from . import permissions
@@ -413,6 +415,31 @@ def trial_ablation(request, exp):
     return JsonResponse({"figure": figure, "warning": warning})
 
 
+@experiment_view(VIEW)
+def partial_dependence(request, exp):
+    """The partial-dependence (PDP/ICE) figure for one (metric,
+    hyperparameter) — fetched lazily on every load and every hyperparameter
+    switch, since which hyperparameter is being explained isn't one of a
+    small precomputable set the rest of the page ships upfront (unlike the
+    three global HyperSHAP games), and fitting a surrogate + predicting
+    across a grid for every hyperparameter on every page load, for a figure
+    that only ever shows one at a time, would be pure waste.
+    """
+    metric = request.GET.get("metric", "")
+    hp_name = request.GET.get("hp", "")
+
+    if metric not in exp.metric_names:
+        return HttpResponseBadRequest("unknown metric")
+
+    built = _rebuild_experiment(exp)
+    if (built is None or built["result"] is None or not built["result"].trials
+            or hp_name not in built["result"].trials[0].config):
+        return HttpResponseBadRequest("invalid hyperparameter")
+
+    figure, warning = _partial_dependence_data(built, metric, hp_name)
+    return JsonResponse({"figure": figure, "warning": warning})
+
+
 @experiment_view(RUN)
 def experiment_run(request, exp):
     """Launch a background run of an experiment (or confirm a metric change).
@@ -746,6 +773,30 @@ def _local_ablation_data(built, metric, idx):
     return (json.loads(fig.to_json()) if fig is not None else None), warning
 
 
+def _partial_dependence_data(built, metric, hp_name):
+    """The partial-dependence figure + warning for one (metric,
+    hyperparameter) — same shape as `_local_ablation_data`, and for the same
+    reason: fitting a surrogate and predicting across a grid needs the model
+    (for its config space), not just the stored result, and depends on which
+    hyperparameter is picked rather than being one of a small precomputable
+    set.
+
+    Returns (figure_json_or_None, warning_or_None). The figure is None (with
+    a warning) when the model isn't available — a custom-model experiment
+    viewed read-only, where nothing was ever imported to ask.
+    """
+    model = built.get("model")
+    if model is None:
+        return None, _("Partial dependence needs the model, which is not "
+                       "available for a custom model viewed read-only.")
+    result = built["result"]
+    config_space = model.get_config_space(seed=built["seed"])
+    grid, ice_lines, pdp, warning = built["optimizer"].compute_partial_dependence(
+        config_space, result.trials, metric, hp_name, seed=built["seed"])
+    fig = partial_dependence_plot(hp_name, grid, ice_lines, pdp)
+    return (json.loads(fig.to_json()) if fig is not None else None), warning
+
+
 def _selected_panel_data(result, metric, idx):
     """The selected-config panel's data for one (metric, trial index).
 
@@ -907,6 +958,18 @@ def _detail_context(request, exp):
             # the same HyperSHAP call, not a separate one, so whatever made
             # that call fail explains an empty interactions figure too.
             "interactions_warning": result.hyperparameter_interactions_warning.get(m),
+            # The partial-dependence figure's hyperparameter picker defaults
+            # to this metric's own top-tunability hyperparameter (falling
+            # back to the first one in config order if importance isn't
+            # available) — the same "most interesting thing first" instinct
+            # `best_idx` already applies to which trial ablation explains by
+            # default.
+            "top_hp": (
+                sorted(result.hyperparameter_importance.get(m, {}).items(),
+                       key=lambda kv: kv[1], reverse=True)[0][0]
+                if result.hyperparameter_importance.get(m)
+                else (list(best.config.keys())[0] if best.config else "")
+            ),
         })
 
     # Plots, keyed by figure, built straight off the catalog — per-metric ones

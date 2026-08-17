@@ -321,13 +321,21 @@ Pure infrastructure, no user-visible change — unblocks Phase 6.
 
 ## Phase 6 — Partial Dependencies (PDP/ICE)
 
+> **Status: done**, see
+> [walkthroughs/analytics-phase-6-partial-dependence.md](walkthroughs/analytics-phase-6-partial-dependence.md).
+> Same lazy-fetch shape as local ablation (Phase 1b) — which hyperparameter
+> is showing changes what's being explained, not just how the same data is
+> drawn, so there's nothing to precompute. Closes out the roadmap: every
+> phase through here is done.
+
 Uses Phase 5's surrogate. 1D marginal-effect plot per hyperparameter (a
 picker dropdown selecting which HP to show, rather than DeepCave's small
 multiples, to keep this one `Figure` entry). 2D interaction plots are an
 optional stretch within this phase, not required for it to ship.
 
 - New builder, catalog entry, template, tests, following the same pattern as
-  every prior phase.
+  every prior phase. *(Done. 2D interaction plots — the stretch goal — not
+  attempted; nothing here blocks adding them later.)*
 
 ## Explicitly not scheduled
 
