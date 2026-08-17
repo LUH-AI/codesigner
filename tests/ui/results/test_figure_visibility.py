@@ -1,6 +1,6 @@
 """Which figures an experiment page shows is a setting.
 
-A "figure" is one analytics panel on an experiment page. The six of them are
+A "figure" is one analytics panel on an experiment page. The seven of them are
 declared once in `ui.figures.catalog`; each has a visibility setting, on by
 default, editable on the default-experiment-settings page. Turning one off must
 remove it from the page without disturbing the rest — the panels share a script,
@@ -21,6 +21,7 @@ EXPECTED_KEYS = [
     "best_configuration",
     "selected_configuration",
     "hyperparameter_importance",
+    "hyperparameter_interactions",
     "performance_over_time",
     "trial_duration",
     "trials",
@@ -57,7 +58,7 @@ def _hide(*keys):
     gs.save(update_fields=["default_experiment_settings"])
 
 
-def test_catalog_declares_the_six_figures():
+def test_catalog_declares_the_seven_figures():
     """The catalog is the one list defining what a figure is; everything else
     (settings keys, the settings page, the detail page) reads it."""
     assert [c.key for c in FIGURES] == EXPECTED_KEYS
@@ -100,7 +101,9 @@ def test_only_metric_dependent_figures_are_marked_per_metric():
     """Per-metric figures are rebuilt when the metric changes; trial duration
     is the same plot for every metric, and the tables aren't plots at all."""
     per_metric = {f.key for f in FIGURES if f.per_metric}
-    assert per_metric == {"hyperparameter_importance", "performance_over_time"}
+    assert per_metric == {
+        "hyperparameter_importance", "hyperparameter_interactions", "performance_over_time",
+    }
 
 
 def test_the_scale_toggle_is_declared_not_hardcoded():

@@ -604,6 +604,8 @@ class SMACOptimizer(BaseOptimizer):
             "hyperparameter_sensitivity_warning": result.hyperparameter_sensitivity_warning,
             "hyperparameter_mistunability": result.hyperparameter_mistunability,
             "hyperparameter_mistunability_warning": result.hyperparameter_mistunability_warning,
+            "hyperparameter_interactions": result.hyperparameter_interactions,
+            "hyperparameter_interactions_warning": result.hyperparameter_interactions_warning,
             "trials_limit": result.trials_limit,
         }
 
@@ -863,6 +865,8 @@ class SMACOptimizer(BaseOptimizer):
             hyperparameter_sensitivity_warning=games["sensitivity"][1],
             hyperparameter_mistunability=games["mistunability"][0],
             hyperparameter_mistunability_warning=games["mistunability"][1],
+            hyperparameter_interactions=games["tunability"][2],
+            hyperparameter_interactions_warning=games["tunability"][1],
             metadata={"smac_output_dir": str(output_dir),
                       "stopped_by": collector.stopped_by},
         )

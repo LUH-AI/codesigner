@@ -158,6 +158,61 @@ def hyperparameter_ablation_plot(ablation: dict):
     return fig
 
 
+def hyperparameter_interactions_heatmap_plot(interactions: dict):
+    """Hyperparameter x hyperparameter heatmap of pairwise (order-2) HyperSHAP
+    tunability interactions — the "Hyperparameter interactions" figure's
+    default view. The diagonal is that hyperparameter's own signed order-1
+    value; off-diagonal cells are the signed pairwise interaction between the
+    two — positive reads as synergy (the pair matters more tuned together
+    than the sum of tuning each alone), negative as redundancy.
+
+    Hyperparameters are ordered by |diagonal value| descending, the same
+    "most important first" convention the bar views use elsewhere, so the
+    strongest single effects sit nearest the top-left corner.
+
+    Returns None when *interactions* is empty (not enough trials, or the
+    game failed — see BaseOptimizer.compute_hp_interactions).
+    """
+    if not interactions:
+        return None
+    params = sorted(interactions.keys(), key=lambda p: abs(interactions[p][p]), reverse=True)
+    z = [[interactions[a][b] for b in params] for a in params]
+    fig = go.Figure(go.Heatmap(
+        z=z, x=params, y=params, colorscale="RdBu", zmid=0,
+        colorbar=dict(title="Interaction"),
+    ))
+    fig.update_layout(margin=dict(t=20, b=40, l=80, r=20))
+    return fig
+
+
+def hyperparameter_interactions_bar_plot(interactions: dict, top_k: int = 10):
+    """Bar of the *top_k* strongest off-diagonal pairwise interactions, ranked
+    by magnitude — an alternate view of the heatmap's same data, for reading
+    off the handful of pairs that matter without scanning a grid.
+
+    Signed and colored by sign, like `hyperparameter_ablation_plot` — positive
+    is synergy, negative is redundancy, and which one loses meaning if
+    flattened to a magnitude.
+
+    Returns None when *interactions* is empty, or there are fewer than two
+    hyperparameters (no pairs to show).
+    """
+    if not interactions:
+        return None
+    params = list(interactions.keys())
+    pairs = [(f"{a} × {b}", interactions[a][b])
+             for i, a in enumerate(params) for b in params[i + 1:]]
+    if not pairs:
+        return None
+    pairs.sort(key=lambda kv: abs(kv[1]), reverse=True)
+    names, values = zip(*pairs[:top_k])
+    colors = [_MARKER_COLOR if v >= 0 else _SELECTED_COLOR for v in values]
+    fig = go.Figure(go.Bar(x=names, y=values, marker_color=colors))
+    fig.update_layout(yaxis_title="Interaction strength",
+                      margin=dict(t=20, b=20, l=20, r=20), showlegend=False)
+    return fig
+
+
 def trial_duration_plot(result):
     """Bar of each trial's evaluation duration (seconds). Metric-independent.
 

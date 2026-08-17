@@ -127,12 +127,31 @@ def test_figure_views_lists_only_multiview_figures(client):
     payload = html[html.index(">", start) + 1: html.index("</script>", start)]
     views = json.loads(payload)
 
-    assert set(views) == {"hyperparameter_importance", "performance_over_time"}
+    assert set(views) == {
+        "hyperparameter_importance", "hyperparameter_interactions", "performance_over_time",
+    }
     assert views["hyperparameter_importance"] == [
         "tunability-pie", "tunability-bar", "tunability-table",
         "sensitivity-pie", "sensitivity-bar", "sensitivity-table",
         "mistunability-pie", "mistunability-bar", "mistunability-table",
         "local-bar",
     ]
+    assert views["hyperparameter_interactions"] == ["heatmap", "bar"]
     assert views["performance_over_time"] == [
         "trial-score", "trial-error", "time-score", "time-error"]
+
+
+def test_hyperparameter_interactions_offers_heatmap_and_bar(client):
+    """Both views come straight from the stored result — no lazy fetch like
+    the importance figure's "local" game. The fixture predates this field
+    (hyperparameter_interactions defaults to {} on deserialize), so both
+    views round-trip as None here; test_plots.py covers the actual rendering
+    against a populated dict."""
+    html, exp = _detail(client)
+    assert 'id="view-select-hyperparameter_interactions"' in html
+
+    start = html.index('id="metric-plots-data"')
+    payload = html[html.index(">", start) + 1: html.index("</script>", start)]
+    plots = json.loads(payload)
+    for m in exp.metric_names:
+        assert set(plots[m]["hyperparameter_interactions"]) == {"heatmap", "bar"}

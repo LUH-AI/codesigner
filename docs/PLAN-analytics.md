@@ -204,6 +204,14 @@ global ones.
 
 ## Phase 2 — Higher-order HyperSHAP interactions (pairwise, then beyond)
 
+> **Status: done**, see
+> [walkthroughs/analytics-phase-2-interactions.md](walkthroughs/analytics-phase-2-interactions.md).
+> The "cost is an open question" note below turned out to have a definite
+> answer: zero marginal cost. `order=2` was already the default on every
+> HyperSHAP call this app makes, so the existing importance computation was
+> already producing pairwise values and discarding them — this phase is a
+> re-extraction of data already computed, not a new HyperSHAP call.
+
 Confirmed, not guessed: HyperSHAP already computes this. Every HyperSHAP
 explanation-game method (`tunability`, `sensitivity`, `ablation`,
 `optimizer_bias`, ...) takes an `order` parameter — **default `order=2`** —
@@ -244,17 +252,13 @@ multi-view treatment as Phase 0's Feature Importance entry, for free.
 
 - New `Figure` entry ("Hyperparameter Interactions"), heatmap + bar views,
   computed via the Phase 1 `compute_hp_*` scaffolding with `order=2`.
-- **Cost is an open question, not yet measured**: interaction-index
-  computation is combinatorially more expensive than order-1 importance (both
-  READMEs' own examples center on order ≤2 for exactly this reason), but no
-  concrete benchmark was found. Compute eagerly on every page load like
-  today's importance chart by default, and fall back to computing it
-  on-demand (mirroring the existing `trial_panel` AJAX-endpoint pattern used
-  for click-to-select) only if it proves too slow in practice — don't
-  pre-optimize before measuring.
+  *(Done.)*
+- **Cost turned out to be zero, not "open"**: see the status note above —
+  measured by reading `hypershap`'s own source rather than benchmarking,
+  since there was nothing new to benchmark. *(Done.)*
 - Tests: unit tests for the order-2 computation (mirroring however Phase 1
   tests its `compute_hp_*` methods), plus rendering tests for the heatmap/bar
-  views.
+  views. *(Done.)*
 
 ## Phase 3 — Configuration Cube
 

@@ -39,6 +39,36 @@ def test_sufficient_trials_produce_normalized_importance(iris_splits, metrics):
     assert abs(sum(imp.values()) - 1.0) < 1e-6
 
 
+def test_interactions_insufficient_trials_returns_empty_not_uniform():
+    """Fewer than two usable trials → empty, with a warning — the same
+    "not enough trials" rung `_compute_hp_game` returns for importance itself,
+    since there's no `iv` to re-extract pairwise terms from."""
+    cs = RandomForestModel().get_config_space(seed=0)
+    one = [TrialResult(trial=1, config=dict(cs.get_default_configuration()),
+                       scores={"accuracy": 0.5}, score=0.5,
+                       incumbent_score=0.5, incumbent_config={})]
+    interactions, warning = RandomOptimizer().compute_hp_interactions(cs, one, "accuracy", seed=0)
+    assert interactions == {}
+    assert warning and "trials" in warning.lower()
+
+
+def test_interactions_form_a_symmetric_square_grid(iris_splits, metrics):
+    """Enough trials → one entry per hyperparameter pair (plus the diagonal),
+    symmetric, and the diagonal matches compute_hp_importance's own order-1
+    values before normalization — same HyperSHAP call, just unnormalized and
+    signed rather than abs-valued and scaled to sum to 1."""
+    cs = RandomForestModel().get_config_space(seed=0)
+    trials = _trials(iris_splits, metrics)
+    params = list(cs.keys())
+    interactions, warning = RandomOptimizer().compute_hp_interactions(cs, trials, "accuracy", seed=0)
+    assert warning is None
+    assert set(interactions) == set(params)
+    for a in params:
+        assert set(interactions[a]) == set(params)
+        for b in params:
+            assert interactions[a][b] == interactions[b][a]
+
+
 def test_ablation_insufficient_trials_returns_empty_not_uniform():
     """Fewer than two usable trials → empty, with a warning — unlike the three
     global games, there is no uniform-weights rung: a signed "how much did

@@ -14,6 +14,8 @@ from core.optimizers import OptimizationResult, TrialResult
 from ui.figures import (
     hyperparameter_ablation_plot,
     hyperparameter_importance_plot,
+    hyperparameter_interactions_bar_plot,
+    hyperparameter_interactions_heatmap_plot,
     incumbent_scores,
     performance_over_time_plot,
     trial_duration_plot,
@@ -161,6 +163,54 @@ def test_ablation_plot_is_signed_and_colored_by_sign():
 
 def test_ablation_plot_none_when_empty():
     assert hyperparameter_ablation_plot({}) is None
+
+
+def _interactions():
+    """Three hyperparameters: a strong synergy between a/b, a weaker one
+    between a/c, and near-zero between b/c."""
+    return {
+        "a": {"a": 0.5, "b": 0.3, "c": 0.1},
+        "b": {"a": 0.3, "b": 0.2, "c": -0.05},
+        "c": {"a": 0.1, "b": -0.05, "c": 0.15},
+    }
+
+
+def test_interactions_heatmap_orders_by_diagonal_magnitude():
+    """Hyperparameters are ordered by |diagonal value| descending: a (0.5),
+    b (0.2), c (0.15) — and the grid mirrors the dict in that order."""
+    fig = hyperparameter_interactions_heatmap_plot(_interactions())
+    heatmap = fig.data[0]
+    assert list(heatmap.x) == ["a", "b", "c"]
+    assert list(heatmap.y) == ["a", "b", "c"]
+    assert list(heatmap.z) == [[0.5, 0.3, 0.1], [0.3, 0.2, -0.05], [0.1, -0.05, 0.15]]
+
+
+def test_interactions_heatmap_none_when_empty():
+    assert hyperparameter_interactions_heatmap_plot({}) is None
+
+
+def test_interactions_bar_ranks_off_diagonal_pairs_by_magnitude():
+    """Only pairs (never the diagonal), ranked by |value| — a/b (0.3) beats
+    a/c (0.1) beats b/c (-0.05)."""
+    fig = hyperparameter_interactions_bar_plot(_interactions())
+    bar = fig.data[0]
+    assert list(bar.x) == ["a × b", "a × c", "b × c"]
+    assert list(bar.y) == [0.3, 0.1, -0.05]
+    assert bar.marker.color[0] == bar.marker.color[1]  # both positive
+    assert bar.marker.color[2] != bar.marker.color[0]   # negative
+
+
+def test_interactions_bar_respects_top_k():
+    fig = hyperparameter_interactions_bar_plot(_interactions(), top_k=1)
+    assert list(fig.data[0].x) == ["a × b"]
+
+
+def test_interactions_bar_none_with_fewer_than_two_hyperparameters():
+    assert hyperparameter_interactions_bar_plot({"a": {"a": 0.5}}) is None
+
+
+def test_interactions_bar_none_when_empty():
+    assert hyperparameter_interactions_bar_plot({}) is None
 
 
 def _timed(n, score, dur):

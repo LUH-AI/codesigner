@@ -9,6 +9,8 @@ from django.utils.translation import gettext_lazy as _
 from .base import FULL, HALF, Figure
 from .plots import (
     hyperparameter_importance_plot,
+    hyperparameter_interactions_bar_plot,
+    hyperparameter_interactions_heatmap_plot,
     performance_over_time_plot,
     trial_duration_plot,
 )
@@ -74,6 +76,32 @@ class HyperparameterImportance(Figure):
         return hyperparameter_importance_plot(importance, rendering)
 
 
+class HyperparameterInteractions(Figure):
+    """Pairwise (order-2) HyperSHAP tunability interactions — a heatmap by
+    default, a bar of the top-10 strongest pairs as the alternate view.
+
+    Free byproduct of the importance figure's own HyperSHAP call: tunability
+    is computed with order 2 by default already, so this reuses
+    `OptimizationResult.hyperparameter_interactions` rather than asking
+    HyperSHAP for anything new. Sensitivity/mistunability's own interaction
+    grids are computed the same way (see BaseOptimizer.compute_hp_games) but
+    have no field or view yet — only tunability's is wired up here.
+    """
+
+    key = "hyperparameter_interactions"
+    label = _("Hyperparameter interactions (HyperSHAP)")
+    per_metric = True
+    views = ("heatmap", "bar")
+
+    @classmethod
+    def plot(cls, result, metric=None, view=None):
+        view = view or cls.views[0]
+        interactions = result.hyperparameter_interactions.get(metric, {})
+        if view == "bar":
+            return hyperparameter_interactions_bar_plot(interactions)
+        return hyperparameter_interactions_heatmap_plot(interactions)
+
+
 class PerformanceOverTime(Figure):
     """Every trial's outcome and the running-best line — what used to be two
     figures (performance-over-trials, error-over-time) are four views of one
@@ -127,6 +155,7 @@ FIGURES = (
     BestConfiguration,
     SelectedConfiguration,
     HyperparameterImportance,
+    HyperparameterInteractions,
     PerformanceOverTime,
     TrialDuration,
     Trials,

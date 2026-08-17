@@ -10,6 +10,8 @@ from .catalog import FIGURES, FIGURES_BY_KEY, HP_GAME_FIELDS
 from .plots import (
     hyperparameter_ablation_plot,
     hyperparameter_importance_plot,
+    hyperparameter_interactions_bar_plot,
+    hyperparameter_interactions_heatmap_plot,
     incumbent_scores,
     performance_over_time_plot,
     trial_duration_plot,
@@ -24,6 +26,8 @@ __all__ = [
     "Figure",
     "hyperparameter_ablation_plot",
     "hyperparameter_importance_plot",
+    "hyperparameter_interactions_bar_plot",
+    "hyperparameter_interactions_heatmap_plot",
     "incumbent_scores",
     "performance_over_time_plot",
     "trial_duration_plot",

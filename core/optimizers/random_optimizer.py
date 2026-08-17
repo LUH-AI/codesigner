@@ -93,5 +93,7 @@ class RandomOptimizer(BaseOptimizer):
             hyperparameter_sensitivity_warning=games["sensitivity"][1],
             hyperparameter_mistunability=games["mistunability"][0],
             hyperparameter_mistunability_warning=games["mistunability"][1],
+            hyperparameter_interactions=games["tunability"][2],
+            hyperparameter_interactions_warning=games["tunability"][1],
             metadata={"stopped_by": collector.stopped_by},
         )

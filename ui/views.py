@@ -903,6 +903,10 @@ def _detail_context(request, exp):
                 }
                 for game, (importance_field, warning_field) in HP_GAME_FIELDS.items()
             },
+            # Shares tunability's own warning: interactions are extracted from
+            # the same HyperSHAP call, not a separate one, so whatever made
+            # that call fail explains an empty interactions figure too.
+            "interactions_warning": result.hyperparameter_interactions_warning.get(m),
         })
 
     # Plots, keyed by figure, built straight off the catalog — per-metric ones

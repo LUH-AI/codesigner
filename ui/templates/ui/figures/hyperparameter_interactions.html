@@ -1,0 +1,19 @@
+{% load i18n %}
+{% comment %}One flat view selector: heatmap (default) or bar — see
+ui/figures/catalog.py's HyperparameterInteractions. Both views come straight
+from OptimizationResult.hyperparameter_interactions, a free byproduct of the
+importance figure's own HyperSHAP call (order 2 is already the default), so
+unlike the importance figure's "local" game, there is nothing here that needs
+fetching on demand.{% endcomment %}
+<section class="card" data-figure="{{ figure.key }}">
+    <div class="subheader">{{ figure.label }}</div>
+    <p class="caption" style="margin-bottom: 0.5rem;">
+        <select id="view-select-{{ figure.key }}" aria-label="{% translate 'View' %}">
+            <option value="heatmap">{% translate "Heatmap" %}</option>
+            <option value="bar">{% translate "Top pairs" %}</option>
+        </select>
+    </p>
+    <p id="interactions-warning" class="alert warning" hidden></p>
+    <div id="{{ figure.dom_id }}" class="plot"></div>
+    <p id="{{ figure.dom_id }}-empty" class="caption" hidden>{% translate "No interaction data available." %}</p>
+</section>

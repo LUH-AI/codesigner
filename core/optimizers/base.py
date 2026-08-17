@@ -91,6 +91,13 @@ class OptimizationResult:
     hyperparameter_sensitivity_warning: Dict[str, Optional[str]] = field(default_factory=dict)
     hyperparameter_mistunability: Dict[str, Dict[str, float]] = field(default_factory=dict)
     hyperparameter_mistunability_warning: Dict[str, Optional[str]] = field(default_factory=dict)
+    # Pairwise (order-2) tunability interactions — a free byproduct of the
+    # HyperSHAP call `hyperparameter_importance` already makes, since it asks
+    # for order=2 and previously discarded everything past order 1.
+    # metric → {hp_a: {hp_b: interaction_value}}, symmetric, diagonal is that
+    # hyperparameter's own (signed, unnormalized) order-1 value.
+    hyperparameter_interactions: Dict[str, Dict[str, Dict[str, float]]] = field(default_factory=dict)
+    hyperparameter_interactions_warning: Dict[str, Optional[str]] = field(default_factory=dict)
 
 
 def rebase_history(previous_result, primary_metric: str):
@@ -470,6 +477,8 @@ class BaseOptimizer(ABC):
             "hyperparameter_sensitivity_warning": result.hyperparameter_sensitivity_warning,
             "hyperparameter_mistunability": result.hyperparameter_mistunability,
             "hyperparameter_mistunability_warning": result.hyperparameter_mistunability_warning,
+            "hyperparameter_interactions": result.hyperparameter_interactions,
+            "hyperparameter_interactions_warning": result.hyperparameter_interactions_warning,
             "trials_limit": result.trials_limit,
         }
 
@@ -511,6 +520,8 @@ class BaseOptimizer(ABC):
             hyperparameter_sensitivity_warning=d.get("hyperparameter_sensitivity_warning", {}),
             hyperparameter_mistunability=d.get("hyperparameter_mistunability", {}),
             hyperparameter_mistunability_warning=d.get("hyperparameter_mistunability_warning", {}),
+            hyperparameter_interactions=d.get("hyperparameter_interactions", {}),
+            hyperparameter_interactions_warning=d.get("hyperparameter_interactions_warning", {}),
             trials_limit=d.get("trials_limit"),
             metadata={},
         )
@@ -593,7 +604,9 @@ class BaseOptimizer(ABC):
         existing callers (tests, every optimizer's serialize path before this)
         name it directly.
         """
-        return self._compute_hp_game(config_space, trials, metric_name, "tunability", seed)
+        importance, warning, _interactions = self._compute_hp_game(
+            config_space, trials, metric_name, "tunability", seed)
+        return importance, warning
 
     def compute_hp_sensitivity(
         self,
@@ -605,7 +618,9 @@ class BaseOptimizer(ABC):
         """HyperSHAP's "sensitivity" game — how much performance varies as
         each hyperparameter moves, holding the others at random draws. Same
         contract as `compute_hp_importance`."""
-        return self._compute_hp_game(config_space, trials, metric_name, "sensitivity", seed)
+        importance, warning, _interactions = self._compute_hp_game(
+            config_space, trials, metric_name, "sensitivity", seed)
+        return importance, warning
 
     def compute_hp_mistunability(
         self,
@@ -617,7 +632,35 @@ class BaseOptimizer(ABC):
         """HyperSHAP's "mistunability" game — how much downside a
         hyperparameter risks if it ends up wrong. Same contract as
         `compute_hp_importance`."""
-        return self._compute_hp_game(config_space, trials, metric_name, "mistunability", seed)
+        importance, warning, _interactions = self._compute_hp_game(
+            config_space, trials, metric_name, "mistunability", seed)
+        return importance, warning
+
+    def compute_hp_interactions(
+        self,
+        config_space,
+        trials: List[TrialResult],
+        metric_name: str,
+        seed: int = 0,
+    ) -> tuple[Dict[str, Dict[str, float]], Optional[str]]:
+        """Pairwise (order-2) tunability interactions between hyperparameters —
+        not a separate HyperSHAP call: `compute_hp_importance`'s own call
+        already asks for order 2 by default and previously discarded
+        everything past order 1, so this is a free re-extraction of the same
+        computation, not additional cost.
+
+        Returns (interactions_dict, warning_message), where interactions_dict
+        is `{hp_a: {hp_b: value}}` — symmetric, and the diagonal holds that
+        hyperparameter's own (signed, unnormalized) order-1 value, so the
+        result reads as one square hyperparameter × hyperparameter grid rather
+        than an off-diagonal-only matrix. On any fallback (no HyperSHAP `iv` to
+        re-extract from), interactions_dict is `{}` — a surrogate's
+        `feature_importances_` and uniform weights have no interaction
+        structure to report.
+        """
+        _importance, warning, interactions = self._compute_hp_game(
+            config_space, trials, metric_name, "tunability", seed)
+        return interactions, warning
 
     def compute_hp_ablation(
         self,
@@ -676,23 +719,29 @@ class BaseOptimizer(ABC):
         trials: List[TrialResult],
         metrics,
         seed: int = 0,
-    ) -> Dict[str, tuple[Dict[str, Dict[str, float]], Dict[str, Optional[str]]]]:
+    ) -> Dict[str, tuple[Dict[str, Dict[str, float]], Dict[str, Optional[str]], Dict[str, Dict[str, Dict[str, float]]]]]:
         """Every metric's per-game hyperparameter importance, for all of
         `HP_GAMES` — what each optimizer's `optimize()` calls once, instead of
         looping `compute_hp_importance`/`_sensitivity`/`_mistunability`
         separately over every metric three times.
 
-        Returns `{game: (importance_by_metric, warning_by_metric)}`, each pair
-        shaped exactly like an `OptimizationResult`'s
-        `hyperparameter_<game>`/`hyperparameter_<game>_warning` fields expect.
+        Returns `{game: (importance_by_metric, warning_by_metric,
+        interactions_by_metric)}`, the first pair shaped exactly like an
+        `OptimizationResult`'s `hyperparameter_<game>`/`hyperparameter_<game>_warning`
+        fields expect. `interactions_by_metric` is a free byproduct of the
+        same call (see `compute_hp_interactions`) for every game, though only
+        the `"tunability"` entry currently gets stored anywhere
+        (`OptimizationResult.hyperparameter_interactions`) — sensitivity's/
+        mistunability's interaction grids are computed here at zero extra
+        cost but not yet wired to a field or a view.
         """
         by_game = {}
         for game in self.HP_GAMES:
-            importance, warning = {}, {}
+            importance, warning, interactions = {}, {}, {}
             for metric_name in metrics:
-                importance[metric_name], warning[metric_name] = self._compute_hp_game(
+                importance[metric_name], warning[metric_name], interactions[metric_name] = self._compute_hp_game(
                     config_space, trials, metric_name, game, seed)
-            by_game[game] = (importance, warning)
+            by_game[game] = (importance, warning, interactions)
         return by_game
 
     def _compute_hp_game(
@@ -702,18 +751,21 @@ class BaseOptimizer(ABC):
         metric_name: str,
         game: str,
         seed: int = 0,
-    ) -> tuple[Dict[str, float], Optional[str]]:
+    ) -> tuple[Dict[str, float], Optional[str], Dict[str, Dict[str, float]]]:
         """Shared scaffolding behind `compute_hp_importance`/`_sensitivity`/
-        `_mistunability`: pair up trials and scores, ask HyperSHAP's *game* for
-        order-1 values, and fall back to a surrogate's feature_importances_
-        and then uniform weights if that fails. *game* is a `HyperSHAP`
-        instance method name taking no required arguments (`tunability`,
-        `sensitivity`, `mistunability` all qualify; `ablation` does not — it
-        needs a specific configuration to explain, not just trial history, so
-        it is computed separately, on demand, for one selected trial).
+        `_mistunability`/`_interactions`: pair up trials and scores, ask
+        HyperSHAP's *game* for order-1 (and, as a free byproduct, order-2)
+        values, and fall back to a surrogate's feature_importances_ and then
+        uniform weights if that fails. *game* is a `HyperSHAP` instance method
+        name taking no required arguments (`tunability`, `sensitivity`,
+        `mistunability` all qualify; `ablation` does not — it needs a specific
+        configuration to explain, not just trial history, so it is computed
+        separately, on demand, for one selected trial).
 
-        Returns (values_dict, warning_message). warning_message is None when
-        HyperSHAP succeeds.
+        Returns (values_dict, warning_message, interactions_dict).
+        warning_message is None when HyperSHAP succeeds. interactions_dict is
+        `{}` on either fallback rung — a plain feature_importances_ or
+        uniform weights carry no pairwise structure to report.
         """
         import numpy as np
         from ConfigSpace import Configuration
@@ -733,6 +785,7 @@ class BaseOptimizer(ABC):
             return (
                 {p: uniform for p in params},
                 "Not enough trials for importance estimation; showing uniform weights.",
+                {},
             )
 
         try:
@@ -742,7 +795,9 @@ class BaseOptimizer(ABC):
             order1 = iv.get_n_order(order=1).dict_values
             raw = {params[idx]: abs(val) for (idx,), val in order1.items()}
             total = sum(raw.values()) or 1.0
-            return {k: v / total for k, v in raw.items()}, None
+            importance = {k: v / total for k, v in raw.items()}
+            interactions = self._extract_pairwise(iv, params)
+            return importance, None, interactions
         except Exception as e:
             warning = f"HyperSHAP ({game}) failed ({e}) — falling back to surrogate feature importances."
 
@@ -754,8 +809,28 @@ class BaseOptimizer(ABC):
             rf.fit(X, y)
             importances = rf.feature_importances_
             total = importances.sum() or 1.0
-            return {p: float(importances[i] / total) for i, p in enumerate(params)}, warning
+            return {p: float(importances[i] / total) for i, p in enumerate(params)}, warning, {}
         except Exception as e2:
             warning += f" Surrogate fallback also failed ({e2}); showing uniform weights."
             uniform = 1.0 / len(params) if params else 0.0
-            return {p: uniform for p in params}, warning
+            return {p: uniform for p in params}, warning, {}
+
+    @staticmethod
+    def _extract_pairwise(iv, params: List[str]) -> Dict[str, Dict[str, float]]:
+        """Reshape a HyperSHAP `InteractionValues` object's order-1 and
+        order-2 terms into one square hyperparameter × hyperparameter grid —
+        `{hp_a: {hp_b: value}}`, symmetric, diagonal = that hyperparameter's
+        own signed order-1 value. Raw values, not `abs()`-ed or normalized
+        like `_compute_hp_game`'s `importance` return: a heatmap comparing
+        interaction strength needs sign and a shared scale between the
+        diagonal and off-diagonal, not a share-of-100%.
+        """
+        order1 = iv.get_n_order(order=1).dict_values
+        order2 = iv.get_n_order(order=2).dict_values
+        grid: Dict[str, Dict[str, float]] = {p: {} for p in params}
+        for (idx,), val in order1.items():
+            grid[params[idx]][params[idx]] = float(val)
+        for (i, j), val in order2.items():
+            a, b = params[i], params[j]
+            grid[a][b] = grid[b][a] = float(val)
+        return grid

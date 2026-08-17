@@ -312,6 +312,10 @@
                 // what a local-explanation fetch asks for before any click,
                 // same index click-to-select already uses (Plotly's pointIndex).
                 const bestIdxByMetric = {};
+                // metric -> warning-or-null for the interactions figure —
+                // shares tunability's own warning (see views.py), so it's
+                // one flat map, not keyed by game/view like `warnings` above.
+                const interactionsWarnings = {};
                 JSON.parse(document.getElementById("panels-data").textContent)
                     .forEach(p => {
                         warnings[p.metric] = {};
@@ -319,6 +323,7 @@
                             warnings[p.metric][game] = p.importance_by_game[game].warning;
                         });
                         bestIdxByMetric[p.metric] = p.best_idx;
+                        interactionsWarnings[p.metric] = p.interactions_warning;
                     });
                 const select = document.getElementById("metric-select");
                 const trialPanelUrl = "{% url 'ui:trial_panel' summary.pk %}";
@@ -564,6 +569,17 @@
                         .catch(function () {});
                 }
 
+                // Unlike syncImportanceWarning, this doesn't depend on which
+                // view (heatmap/bar) is showing — both come from the same
+                // warning, so a view switch never needs to re-sync it.
+                function syncInteractionsWarning(metric) {
+                    const warnEl = document.getElementById("interactions-warning");
+                    if (!warnEl) return;
+                    const msg = interactionsWarnings[metric];
+                    warnEl.textContent = msg || "";
+                    warnEl.hidden = !msg;
+                }
+
                 function show(metric) {
                     const plots = metricPlots[metric] || {};
                     // A metric switch is a fresh start: any earlier click on the
@@ -575,6 +591,7 @@
                     Object.keys(plots).forEach(function (key) { redraw(key, metric); });
                     syncImportanceTable(metric);
                     syncImportanceWarning(metric);
+                    syncInteractionsWarning(metric);
                     refreshLocalAblation(metric);  // no-op unless "Local" is showing
 
                     // Click-to-select lives on the performance figure only.
@@ -633,6 +650,12 @@
                     }
                     impGameSelect.addEventListener("change", applyImportanceView);
                     impRenderingSelect.addEventListener("change", applyImportanceView);
+                }
+                const interactionsSelect = document.getElementById("view-select-hyperparameter_interactions");
+                if (interactionsSelect) {
+                    interactionsSelect.addEventListener("change", function () {
+                        switchView("hyperparameter_interactions", interactionsSelect.value);
+                    });
                 }
                 const perfXSelect = document.getElementById("view-select-performance_over_time-x");
                 const perfYSelect = document.getElementById("view-select-performance_over_time-y");
