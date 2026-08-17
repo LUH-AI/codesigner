@@ -8,6 +8,7 @@ from django.utils.translation import gettext_lazy as _
 
 from .base import FULL, HALF, Figure
 from .plots import (
+    configuration_cube_plot,
     hyperparameter_importance_plot,
     hyperparameter_interactions_bar_plot,
     hyperparameter_interactions_heatmap_plot,
@@ -132,6 +133,29 @@ class PerformanceOverTime(Figure):
             result, metric, x_axis=x_axis, y_axis=y_axis, selected_idx=best_idx)
 
 
+class ConfigurationCube(Figure):
+    """Every trial as one point in hyperparameter space, colored by score —
+    DeepCave's "Configuration Cube," with two or three actual hyperparameters
+    as the axes rather than an MDS projection (see configuration_cube_plot).
+
+    No `views`: which hyperparameters are on which axis is a per-experiment,
+    unbounded combination, not a fixed enumerable set the server can
+    precompute one JSON entry per option for. Instead `plot()` ships one
+    default 2D scatter, and every hyperparameter's values ride along in the
+    trace's own `customdata` for the client to remap without a server round
+    trip — see experiment_detail.html's applyCubeAxes.
+    """
+
+    key = "configuration_cube"
+    label = _("Configuration cube")
+    width = FULL
+    per_metric = True
+
+    @classmethod
+    def plot(cls, result, metric=None):
+        return configuration_cube_plot(result, metric)
+
+
 class TrialDuration(Figure):
     """One bar per trial. The same for every metric, so it is drawn once."""
 
@@ -157,6 +181,7 @@ FIGURES = (
     HyperparameterImportance,
     HyperparameterInteractions,
     PerformanceOverTime,
+    ConfigurationCube,
     TrialDuration,
     Trials,
 )

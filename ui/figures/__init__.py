@@ -8,6 +8,7 @@ for each figure that draws one. Their templates live in
 from .base import FULL, HALF, Figure
 from .catalog import FIGURES, FIGURES_BY_KEY, HP_GAME_FIELDS
 from .plots import (
+    configuration_cube_plot,
     hyperparameter_ablation_plot,
     hyperparameter_importance_plot,
     hyperparameter_interactions_bar_plot,
@@ -24,6 +25,7 @@ __all__ = [
     "HALF",
     "HP_GAME_FIELDS",
     "Figure",
+    "configuration_cube_plot",
     "hyperparameter_ablation_plot",
     "hyperparameter_importance_plot",
     "hyperparameter_interactions_bar_plot",

@@ -141,6 +141,31 @@ def test_figure_views_lists_only_multiview_figures(client):
         "trial-score", "trial-error", "time-score", "time-error"]
 
 
+def test_configuration_cube_ships_every_hyperparameter_for_client_side_remap(client):
+    """No `views` entry (axis choice is an unbounded per-experiment
+    combination, not a fixed set the server precomputes one JSON per option
+    for) — instead the one shipped trace carries every hyperparameter's
+    values in customdata, plus hp_names (the column order) in layout.meta,
+    for experiment_detail.html's applyCubeAxes to remap client-side."""
+    html, exp = _detail(client)
+    assert 'id="cube-axis-x"' in html
+    assert 'id="cube-axis-z"' in html
+
+    start = html.index('id="metric-plots-data"')
+    payload = html[html.index(">", start) + 1: html.index("</script>", start)]
+    plots = json.loads(payload)
+    for m in exp.metric_names:
+        cube = plots[m]["configuration_cube"]
+        hp_names = cube["layout"]["meta"]["hp_names"]
+        assert len(hp_names) >= 2
+        trace = cube["data"][0]
+        assert len(trace["customdata"]) == len(trace["x"])
+        assert all(len(row) == len(hp_names) for row in trace["customdata"])
+        # x/y are the first two columns of that same customdata.
+        assert [row[0] for row in trace["customdata"]] == trace["x"]
+        assert [row[1] for row in trace["customdata"]] == trace["y"]
+
+
 def test_hyperparameter_interactions_offers_heatmap_and_bar(client):
     """Both views come straight from the stored result — no lazy fetch like
     the importance figure's "local" game. The fixture predates this field

@@ -213,6 +213,51 @@ def hyperparameter_interactions_bar_plot(interactions: dict, top_k: int = 10):
     return fig
 
 
+def configuration_cube_plot(result, display_metric):
+    """Every trial as one point in hyperparameter space, colored by its
+    *display_metric* score — DeepCave's "Configuration Cube," minus its MDS
+    projection: here the axes are two (or, client-side, three) actual
+    hyperparameters rather than a projected 2D embedding, which needs no new
+    dependency and keeps the axes meaningful (a literal hyperparameter value,
+    not a component with no direct reading).
+
+    Defaults to the first two hyperparameters (config-space/insertion order,
+    the same order the Trials table's columns use) — a starting point, not a
+    fixed pair: every hyperparameter's full per-trial values ride along on
+    the trace's `customdata` (one row per trial, columns in
+    `layout.meta["hp_names"]` order), so the client can remap which two or
+    three axes are showing, or switch between a 2D and a 3D scatter, entirely
+    by re-slicing `customdata` — no server round trip per axis change (see
+    experiment_detail.html's applyCubeAxes). Self-contained in this one
+    trace's own payload on purpose, so it works regardless of whether the
+    Trials figure (which also lists every hyperparameter) is toggled on.
+
+    Returns None with no trials, or fewer than two hyperparameters (a cube
+    needs at least two axes to mean anything).
+    """
+    trials = result.trials
+    if not trials:
+        return None
+    hp_names = list(trials[0].config.keys())
+    if len(hp_names) < 2:
+        return None
+    customdata = [[t.config.get(h) for h in hp_names] for t in trials]
+    scores = [t.scores[display_metric] for t in trials]
+    fig = go.Figure(go.Scatter(
+        x=[row[0] for row in customdata], y=[row[1] for row in customdata],
+        mode="markers", customdata=customdata,
+        text=[f"Trial {t.trial}" for t in trials],
+        marker=dict(size=8, color=scores, colorscale="Viridis", showscale=True,
+                    colorbar=dict(title=display_metric.capitalize())),
+    ))
+    fig.update_layout(
+        xaxis_title=hp_names[0], yaxis_title=hp_names[1],
+        meta={"hp_names": hp_names},
+        margin=dict(t=20, b=40, l=40, r=20),
+    )
+    return fig
+
+
 def trial_duration_plot(result):
     """Bar of each trial's evaluation duration (seconds). Metric-independent.
 

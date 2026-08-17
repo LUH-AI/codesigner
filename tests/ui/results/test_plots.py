@@ -12,6 +12,7 @@ import pytest
 
 from core.optimizers import OptimizationResult, TrialResult
 from ui.figures import (
+    configuration_cube_plot,
     hyperparameter_ablation_plot,
     hyperparameter_importance_plot,
     hyperparameter_interactions_bar_plot,
@@ -211,6 +212,58 @@ def test_interactions_bar_none_with_fewer_than_two_hyperparameters():
 
 def test_interactions_bar_none_when_empty():
     assert hyperparameter_interactions_bar_plot({}) is None
+
+
+def _cube_result():
+    """Three trials over two hyperparameters, with distinct values on every
+    axis so a column mix-up would be caught."""
+    trials = [
+        TrialResult(trial=1, config={"a": 1, "b": 10}, scores={"accuracy": 0.5},
+                    score=0.5, incumbent_score=0.5, incumbent_config={"a": 1, "b": 10}),
+        TrialResult(trial=2, config={"a": 2, "b": 20}, scores={"accuracy": 0.3},
+                    score=0.3, incumbent_score=0.5, incumbent_config={"a": 1, "b": 10}),
+        TrialResult(trial=3, config={"a": 3, "b": 30}, scores={"accuracy": 0.9},
+                    score=0.9, incumbent_score=0.9, incumbent_config={"a": 3, "b": 30}),
+    ]
+    return OptimizationResult(
+        trials=trials, primary_metric="accuracy", best_config={"a": 3, "b": 30}, best_score=0.9,
+        hyperparameter_importance={}, hyperparameter_importance_warning={},
+    )
+
+
+def test_configuration_cube_defaults_to_the_first_two_hyperparameters():
+    """x/y come from the first two hyperparameters in config-space order, and
+    every hyperparameter's values ride along in customdata for client-side
+    axis remapping — see experiment_detail.html's applyCubeAxes."""
+    fig = configuration_cube_plot(_cube_result(), "accuracy")
+    trace = fig.data[0]
+    assert list(trace.x) == [1, 2, 3]
+    assert list(trace.y) == [10, 20, 30]
+    assert [list(row) for row in trace.customdata] == [[1, 10], [2, 20], [3, 30]]
+    assert fig.layout.meta["hp_names"] == ["a", "b"]
+
+
+def test_configuration_cube_colors_by_the_given_metric():
+    fig = configuration_cube_plot(_cube_result(), "accuracy")
+    assert list(fig.data[0].marker.color) == [0.5, 0.3, 0.9]
+
+
+def test_configuration_cube_none_with_no_trials():
+    result = OptimizationResult(
+        trials=[], primary_metric="accuracy", best_config={}, best_score=0.0,
+        hyperparameter_importance={}, hyperparameter_importance_warning={},
+    )
+    assert configuration_cube_plot(result, "accuracy") is None
+
+
+def test_configuration_cube_none_with_fewer_than_two_hyperparameters():
+    trials = [TrialResult(trial=1, config={"a": 1}, scores={"accuracy": 0.5}, score=0.5,
+                          incumbent_score=0.5, incumbent_config={"a": 1})]
+    result = OptimizationResult(
+        trials=trials, primary_metric="accuracy", best_config={"a": 1}, best_score=0.5,
+        hyperparameter_importance={}, hyperparameter_importance_warning={},
+    )
+    assert configuration_cube_plot(result, "accuracy") is None
 
 
 def _timed(n, score, dur):

@@ -1,0 +1,28 @@
+{% load i18n %}
+{% comment %}Which hyperparameters sit on which axis is a per-experiment,
+unbounded choice — not a fixed set of views the server can precompute one
+JSON entry per combination for (contrast hyperparameter_importance's
+game/rendering selects, both drawn from a small fixed vocabulary). So the
+server ships one default 2D scatter (see configuration_cube_plot) carrying
+every hyperparameter's values in its trace's `customdata`, and these three
+pickers just tell the client which columns of that same customdata to plot —
+see experiment_detail.html's applyCubeAxes. `hp_names` is already in the page
+context unconditionally (not gated behind the Trials figure's visibility),
+so these options render even if Trials itself is hidden.{% endcomment %}
+<section class="card" data-figure="{{ figure.key }}">
+    <div class="subheader">{{ figure.label }}</div>
+    <p class="caption" style="margin-bottom: 0.5rem;">
+        <select id="cube-axis-x" aria-label="{% translate 'X axis' %}" style="margin-right: 0.5rem;">
+            {% for h in hp_names %}<option value="{{ h }}"{% if forloop.first %} selected{% endif %}>{{ h }}</option>{% endfor %}
+        </select>
+        <select id="cube-axis-y" aria-label="{% translate 'Y axis' %}" style="margin-right: 0.5rem;">
+            {% for h in hp_names %}<option value="{{ h }}"{% if forloop.counter == 2 %} selected{% endif %}>{{ h }}</option>{% endfor %}
+        </select>
+        <select id="cube-axis-z" aria-label="{% translate 'Z axis' %}">
+            <option value="" selected>{% translate "None (2D)" %}</option>
+            {% for h in hp_names %}<option value="{{ h }}">{{ h }}</option>{% endfor %}
+        </select>
+    </p>
+    <div id="{{ figure.dom_id }}" class="plot"></div>
+    <p id="{{ figure.dom_id }}-empty" class="caption" hidden>{% translate "Not enough hyperparameters for a cube." %}</p>
+</section>

@@ -580,6 +580,67 @@
                     warnEl.hidden = !msg;
                 }
 
+                // Configuration cube: which two (or three) hyperparameters are
+                // showing is a per-experiment, unbounded choice, so unlike
+                // every other multi-view figure here, there is no
+                // server-precomputed payload per combination to switch
+                // between — every hyperparameter's values already rode along
+                // on the drawn trace's own `customdata` (columns in
+                // `layout.meta.hp_names` order — see configuration_cube_plot),
+                // so remapping axes (or flipping 2D/3D, when the Z picker has
+                // a value) is a matter of re-slicing that same array and
+                // handing Plotly a fresh trace/layout. Called after every
+                // redraw (a metric switch redraws with a fresh default
+                // trace) so the user's own axis choice, not just the
+                // server's default pair, survives it.
+                const cubeAxisSelect = {
+                    x: document.getElementById("cube-axis-x"),
+                    y: document.getElementById("cube-axis-y"),
+                    z: document.getElementById("cube-axis-z"),
+                };
+                function applyCubeAxes() {
+                    if (!cubeAxisSelect.x) return;
+                    const el = figureEl("configuration_cube");
+                    if (!el || !el.data || !el.data.length) return;
+                    const trace = el.data[0];
+                    const hpNames = (el.layout.meta && el.layout.meta.hp_names) || [];
+                    const xi = hpNames.indexOf(cubeAxisSelect.x.value);
+                    const yi = hpNames.indexOf(cubeAxisSelect.y.value);
+                    const zi = hpNames.indexOf(cubeAxisSelect.z.value);
+                    if (xi < 0 || yi < 0) return;
+                    const customdata = trace.customdata || [];
+                    const is3d = zi >= 0;
+                    const newTrace = {
+                        type: is3d ? "scatter3d" : "scatter",
+                        mode: "markers",
+                        x: customdata.map(function (row) { return row[xi]; }),
+                        y: customdata.map(function (row) { return row[yi]; }),
+                        customdata: customdata,
+                        text: trace.text,
+                        marker: Object.assign({}, trace.marker),
+                    };
+                    const layout = { margin: el.layout.margin, meta: el.layout.meta };
+                    // { text: ... }, not a bare string — this Plotly.js build
+                    // silently drops the shorthand-string form of `title`
+                    // (caught by screenshotting the result: the axis simply
+                    // had no title at all, no error anywhere to point at it).
+                    if (is3d) {
+                        newTrace.z = customdata.map(function (row) { return row[zi]; });
+                        layout.scene = {
+                            xaxis: { title: { text: cubeAxisSelect.x.value } },
+                            yaxis: { title: { text: cubeAxisSelect.y.value } },
+                            zaxis: { title: { text: cubeAxisSelect.z.value } },
+                        };
+                    } else {
+                        layout.xaxis = { title: { text: cubeAxisSelect.x.value } };
+                        layout.yaxis = { title: { text: cubeAxisSelect.y.value } };
+                    }
+                    Plotly.react(el, [newTrace], layout, plotlyConfig);
+                }
+                Object.keys(cubeAxisSelect).forEach(function (axis) {
+                    if (cubeAxisSelect[axis]) cubeAxisSelect[axis].addEventListener("change", applyCubeAxes);
+                });
+
                 function show(metric) {
                     const plots = metricPlots[metric] || {};
                     // A metric switch is a fresh start: any earlier click on the
@@ -593,6 +654,7 @@
                     syncImportanceWarning(metric);
                     syncInteractionsWarning(metric);
                     refreshLocalAblation(metric);  // no-op unless "Local" is showing
+                    applyCubeAxes();  // reapplies the user's axis choice over the fresh default trace
 
                     // Click-to-select lives on the performance figure only.
                     if (figureEl("performance_over_time") && plots.performance_over_time) {

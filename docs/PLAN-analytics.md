@@ -262,6 +262,13 @@ multi-view treatment as Phase 0's Feature Importance entry, for free.
 
 ## Phase 3 — Configuration Cube
 
+> **Status: done**, see
+> [walkthroughs/analytics-phase-3-configuration-cube.md](walkthroughs/analytics-phase-3-configuration-cube.md).
+> No `views` tuple after all — axis choice is a per-experiment, unbounded
+> combination, not the small fixed vocabulary every other multi-view figure
+> picks from, so the client remaps from one self-contained trace instead
+> (`customdata` + `layout.meta`), per the plan below.
+
 A 2D/3D scatter of every trial's configuration, colored by score. No
 surrogate needed — pure trial history, like DeepCave's version.
 
@@ -270,9 +277,11 @@ surrogate needed — pure trial history, like DeepCave's version.
   projection — keeps this phase dependency-free and cheap). Precompute one
   full per-trial dataset (all HP values + score) once and remap axes
   client-side (`Plotly.newPlot`/`restyle`) rather than round-tripping to the
-  server per axis change.
+  server per axis change. *(Done.)*
 - New template partial, automatic settings checkbox (existing mechanism).
-- Tests: new file or addition to `tests/ui/results/test_plots.py`.
+  *(Done.)*
+- Tests: new file or addition to `tests/ui/results/test_plots.py`. *(Done —
+  added to test_plots.py, plus test_figure_visibility.py/test_figures_view.py.)*
 
 ## Phase 4 — Parallel Coordinates
 
