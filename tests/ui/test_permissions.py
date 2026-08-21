@@ -68,6 +68,8 @@ def test_the_declared_actions_match_what_the_routes_do():
         "trial_panel": permissions.VIEW,
         "trial_ablation": permissions.VIEW,
         "partial_dependence": permissions.VIEW,
+        "metric_figures": permissions.VIEW,
+        "local_effects": permissions.VIEW,
         "run_status": permissions.VIEW,
         "env_status": permissions.VIEW,
         "experiment_run": permissions.RUN,

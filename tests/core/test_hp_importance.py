@@ -7,6 +7,8 @@ ladder (HyperSHAP → RandomForest surrogate → uniform) returning
 
 from unittest.mock import patch
 
+import pytest
+
 from core.models import RandomForestModel
 from core.optimizers import RandomOptimizer, TrialResult
 from core.optimizers.base import BaseOptimizer, fit_surrogate
@@ -40,6 +42,49 @@ def test_sufficient_trials_produce_normalized_importance(iris_splits, metrics):
     assert set(imp) == set(cs.keys())
     assert all(v >= 0.0 for v in imp.values())
     assert abs(sum(imp.values()) - 1.0) < 1e-6
+
+
+def test_a_game_that_finds_nothing_reports_nothing_rather_than_zeros():
+    """Every contribution exactly zero → empty, with a warning saying so.
+
+    Reachable, not theoretical: an objective that saturates (iris accuracy does
+    this readily) makes the surrogate's aggregate identical whichever
+    hyperparameters a coalition frees, so HyperSHAP succeeds and returns all
+    zeros. Normalizing that anyway produced `{hp: 0.0, ...}` with `warning=None`
+    — truthy, so the figure's own `if not importance` guard let it through and
+    the pie was built from zeros and drew nothing, unexplained.
+
+    Distinct from the uniform-weights rung on purpose: uniform means "we could
+    not tell", this means "we could, and there is nothing there".
+    """
+    cs = RandomForestModel().get_config_space(seed=0)
+    flat = [TrialResult(trial=i, config=dict(cs.sample_configuration()),
+                        scores={"accuracy": 0.7}, score=0.7,
+                        incumbent_score=0.7, incumbent_config={})
+            for i in range(1, 7)]
+
+    imp, warning = RandomOptimizer().compute_hp_importance(cs, flat, "accuracy", seed=0)
+
+    assert imp == {}
+    assert warning and "no signal" in warning
+    uniform = 1.0 / len(list(cs.keys()))
+    assert uniform not in imp.values(), "must not be confused with the uniform rung"
+
+
+def test_a_game_that_finds_nothing_reports_no_interactions_either():
+    """Same rung, same reasoning: there is no pairwise structure in all-zeros,
+    so the interactions heatmap gets its caption rather than a grid of 0.0."""
+    cs = RandomForestModel().get_config_space(seed=0)
+    flat = [TrialResult(trial=i, config=dict(cs.sample_configuration()),
+                        scores={"accuracy": 0.7}, score=0.7,
+                        incumbent_score=0.7, incumbent_config={})
+            for i in range(1, 7)]
+
+    interactions, warning = RandomOptimizer().compute_hp_interactions(
+        cs, flat, "accuracy", seed=0)
+
+    assert interactions == {}
+    assert warning and "no signal" in warning
 
 
 def test_interactions_insufficient_trials_returns_empty_not_uniform():
@@ -126,6 +171,11 @@ def test_the_fallback_surrogate_is_also_fitted_once_per_metric_not_per_game(iris
     the exact waste the explainer sharing existed to avoid, one rung lower.
 
     Two metrics × three games = 6 game calls, all failing, and 2 fits.
+
+    There are two ways to reach a game now — our own `ExactComputer` and, if
+    that construction fails, HyperSHAP's facade — so getting to the surrogate
+    rung means closing both. Breaking only the facade leaves the games working,
+    which is the fallback doing its job.
     """
     cs = RandomForestModel().get_config_space(seed=0)
     trials = _trials(iris_splits, metrics)
@@ -134,7 +184,11 @@ def test_the_fallback_surrogate_is_also_fitted_once_per_metric_not_per_game(iris
     def explode(self):
         raise RuntimeError("no shapiq today")
 
-    with patch("hypershap.HyperSHAP.tunability", explode), \
+    def explode_shared(*a, **k):
+        raise RuntimeError("no shapiq today")
+
+    with patch("core.optimizers.base._shared_exact_computer", explode_shared), \
+         patch("hypershap.HyperSHAP.tunability", explode), \
          patch("hypershap.HyperSHAP.sensitivity", explode), \
          patch("hypershap.HyperSHAP.mistunability", explode), \
          patch("core.optimizers.base.fit_surrogate",
@@ -145,12 +199,174 @@ def test_the_fallback_surrogate_is_also_fitted_once_per_metric_not_per_game(iris
     assert fitted_metrics == ["accuracy", "f1"], "one fallback fit per metric"
     # And the fallback still produced real answers, not uniform weights.
     for game in opt.HP_GAMES:
-        importance, warning, interactions = (games[game][0]["accuracy"],
-                                             games[game][1]["accuracy"],
-                                             games[game][2]["accuracy"])
+        importance, warning, interactions, moebius = (games[game][0]["accuracy"],
+                                                      games[game][1]["accuracy"],
+                                                      games[game][2]["accuracy"],
+                                                      games[game][3]["accuracy"])
         assert set(importance) == set(cs.keys())
         assert warning and "falling back" in warning
         assert interactions == {}, "a plain feature_importances_ has no pairwise structure"
+        assert moebius == [], "nor any coalition structure"
+
+
+# ── One ExactComputer, two indices ──────────────────────────────────────────
+#
+# `_shared_exact_computer` builds what `HyperSHAP.<game>()` builds rather than
+# calling it, so that one set of 2^n_hp coalition evaluations can serve both the
+# FSII values the importance figures use and the Möbius decomposition the graph,
+# upset and by-order views need. Its own docstring carries the reasoning; these
+# are the guards it names.
+
+
+def test_our_exact_computer_reproduces_hypershaps_own_numbers(iris_splits, metrics):
+    """The test the coupling rests on: bit-identical FSII, for all three games.
+
+    hypershap is at 0.0.6 and its internals may move. If they do — a changed
+    default, a reordered searcher, a different aggregation — this fails loudly
+    rather than the page quietly showing numbers from a different game.
+    """
+    from hypershap import HyperSHAP
+    from core.optimizers.base import _shared_exact_computer
+
+    cs = RandomForestModel().get_config_space(seed=0)
+    trials = _trials(iris_splits, metrics)
+    opt = RandomOptimizer()
+    explainer = opt._build_explainer(cs, trials, "accuracy", 0)
+
+    for game in opt.HP_GAMES:
+        # The same seed to both, because both take one: the searcher's seed is
+        # the experiment's, not HyperSHAP's default of 0.
+        theirs = getattr(HyperSHAP(explainer.hs.explanation_task), game)(seed=7)
+        ours, _moebius = _shared_exact_computer(explainer, game, seed=7)
+        assert ours.dict_values.keys() == theirs.dict_values.keys(), game
+        for key, value in theirs.dict_values.items():
+            assert ours.dict_values[key] == value, f"{game} {key}"
+
+
+def test_the_moebius_transform_is_truncation_independent(iris_splits, metrics):
+    """Why the new views read Möbius and not a higher-order FSII.
+
+    FSII is the *faithful* least-squares k-order approximation, fitted jointly,
+    so its order-1 terms are not the order-1 terms of an order-3 fit — measured
+    on a 6-hyperparameter space, order-1 moves 5% of the largest term and
+    order-2 moves 24%. Raising the order in place would silently rewrite every
+    stored importance number. Möbius assigns one value per coalition and does
+    not move, which is what lets it be stored once and read at any order.
+
+    Both halves are pinned, because it is the contrast that justifies the
+    design and a reader who only saw the Möbius half might "simplify" it away.
+    """
+    from core.optimizers.base import _shared_exact_computer
+
+    cs = RandomForestModel().get_config_space(seed=0)
+    trials = _trials(iris_splits, metrics)
+    opt = RandomOptimizer()
+    explainer = opt._build_explainer(cs, trials, "accuracy", 0)
+    n = len(list(cs.keys()))
+
+    from shapiq import ExactComputer
+    import hypershap.games as hs_games
+    import hypershap.task as hs_task
+    from hypershap.utils import Aggregation, RandomConfigSpaceSearcher
+    from core.optimizers.base import _HPO_SIMULATION_SAMPLES
+
+    source = explainer.hs.explanation_task
+    task = hs_task.TunabilityExplanationTask(
+        config_space=cs, surrogate_model=source.surrogate_model,
+        baseline_config=cs.get_default_configuration())
+    game = hs_games.TunabilityGame(
+        explanation_task=task,
+        cs_searcher=RandomConfigSpaceSearcher(
+            explanation_task=task, n_samples=_HPO_SIMULATION_SAMPLES,
+            mode=Aggregation.MAX, seed=0))
+    ec = ExactComputer(n_players=game.get_num_hyperparameters(), game=game)
+
+    shallow = ec(index="Moebius", order=2).get_n_order(order=1).dict_values
+    deep = ec(index="Moebius", order=n).get_n_order(order=1).dict_values
+    assert shallow == deep, "Möbius must not move with the truncation order"
+
+    fsii_2 = ec(index="FSII", order=2).get_n_order(order=1).dict_values
+    fsii_n = ec(index="FSII", order=n).get_n_order(order=1).dict_values
+    assert fsii_2 != fsii_n, "FSII does move — which is why it is not used here"
+
+
+def test_moebius_covers_every_coalition_of_every_size(iris_splits, metrics):
+    """2^n_hp - 1 terms: every non-empty coalition, once. The empty one is the
+    game with nothing tuned — a constant offset, not attributable to any
+    hyperparameter — and is dropped."""
+    cs = RandomForestModel().get_config_space(seed=0)
+    params = set(cs.keys())
+    trials = _trials(iris_splits, metrics)
+
+    _imp, warning, _inter, moebius, _total = RandomOptimizer()._compute_hp_game(
+        cs, trials, "accuracy", "tunability", seed=0)
+
+    assert warning is None
+    assert len(moebius) == 2 ** len(params) - 1
+    assert {len(row["members"]) for row in moebius} == set(range(1, len(params) + 1))
+    for row in moebius:
+        assert set(row["members"]) <= params
+        assert isinstance(row["value"], float)
+    assert len({tuple(sorted(row["members"])) for row in moebius}) == len(moebius), "no duplicates"
+
+
+def test_moebius_terms_are_ranked_by_magnitude(iris_splits, metrics):
+    """Every view that reads these takes a top-k slice, so the order is part of
+    the contract rather than an accident of dict iteration."""
+    cs = RandomForestModel().get_config_space(seed=0)
+    _i, _w, _x, moebius, _total = RandomOptimizer()._compute_hp_game(
+        cs, _trials(iris_splits, metrics), "accuracy", "tunability", seed=0)
+
+    magnitudes = [abs(row["value"]) for row in moebius]
+    assert magnitudes == sorted(magnitudes, reverse=True)
+
+
+def test_a_broken_shared_computer_still_yields_hypershaps_own_importance(iris_splits, metrics):
+    """The fallback that makes the coupling survivable: if hypershap's internals
+    move, we lose the Möbius views and nothing else. The importance numbers must
+    not be able to come down with them."""
+    cs = RandomForestModel().get_config_space(seed=0)
+    trials = _trials(iris_splits, metrics)
+
+    def explode(*a, **k):
+        raise RuntimeError("hypershap moved its furniture")
+
+    with patch("core.optimizers.base._shared_exact_computer", explode):
+        importance, warning, interactions, moebius, _total = RandomOptimizer()._compute_hp_game(
+            cs, trials, "accuracy", "tunability", seed=0)
+
+    assert warning is None, "the facade answered, so this is not a failure"
+    assert set(importance) == set(cs.keys())
+    assert interactions, "the order-2 grid still comes from HyperSHAP's own call"
+    assert moebius == [], "only the Möbius-based views go without"
+
+
+def test_the_shared_computer_costs_one_set_of_coalitions(iris_splits, metrics):
+    """The whole reason for building the computer ourselves.
+
+    Not timed — a wall-clock assertion would be flaky on a loaded machine.
+    Counted instead: the game is called once per coalition, and asking for a
+    second index must not call it again.
+    """
+    from core.optimizers.base import _shared_exact_computer
+    import hypershap.games as hs_games
+
+    cs = RandomForestModel().get_config_space(seed=0)
+    trials = _trials(iris_splits, metrics)
+    explainer = RandomOptimizer()._build_explainer(cs, trials, "accuracy", 0)
+
+    calls = []
+    real = hs_games.TunabilityGame.__call__
+
+    def counting(self, *a, **k):
+        calls.append(1)
+        return real(self, *a, **k)
+
+    with patch.object(hs_games.TunabilityGame, "__call__", counting):
+        fsii, moebius = _shared_exact_computer(explainer, "tunability")
+
+    assert fsii is not None and moebius is not None
+    assert len(calls) == 1, "one batched evaluation of every coalition, not one per index"
 
 
 def test_ablation_insufficient_trials_returns_empty_not_uniform():
@@ -200,8 +416,8 @@ def test_the_explanation_surrogate_actually_uses_the_seed_it_is_given(iris_split
     assert warn_a is None and warn_b is None
     assert a != b, "ablation ignored its seed"
 
-    imp_a, _, _ = opt._compute_hp_game(cs, trials, "accuracy", "tunability", seed=0)
-    imp_b, _, _ = opt._compute_hp_game(cs, trials, "accuracy", "tunability", seed=7)
+    imp_a, *_ = opt._compute_hp_game(cs, trials, "accuracy", "tunability", seed=0)
+    imp_b, *_ = opt._compute_hp_game(cs, trials, "accuracy", "tunability", seed=7)
     assert imp_a != imp_b, "the global games ignored their seed"
 
 
@@ -274,6 +490,53 @@ def test_partial_dependence_categorical_hp_grid_is_its_choices(iris_splits, metr
     assert grid == list(cs["kernel"].choices)
 
 
+def test_partial_dependence_log_hp_grid_is_spaced_on_the_log_scale():
+    """A log-scaled hyperparameter is gridded on its own scale, not on a
+    native linspace between its bounds.
+
+    `C` spans 0.01 to 100 logarithmically, so ConfigSpace samples ~69% of its
+    configurations below 5.27 — which is where a native linspace puts its
+    *second* of twenty points. The grid would then spend 19 points in the
+    tail the surrogate has the least evidence about, and one point covering
+    the two-thirds of the run that actually happened.
+
+    Pinned as a constant *ratio* between consecutive points rather than a
+    constant difference, since that is exactly what "log-spaced" means.
+    """
+    from core.models import SVMModel
+    from core.optimizers.base import _hp_grid
+
+    grid = _hp_grid(SVMModel().get_config_space(seed=0)["C"], 20)
+
+    assert grid[0] == pytest.approx(0.01)
+    assert grid[-1] == pytest.approx(100.0)
+    assert grid[1] == pytest.approx(0.016238, abs=1e-6), "a native linspace would put 5.27 here"
+    ratios = [grid[i + 1] / grid[i] for i in range(len(grid) - 1)]
+    assert ratios == pytest.approx([ratios[0]] * len(ratios))
+
+
+def test_partial_dependence_linear_hp_grid_is_unchanged():
+    """The same routing must not move a linear hyperparameter's grid.
+
+    Every RandomForest hyperparameter is linear, and a great many expectations
+    (this file's, the fixtures', anything pinned against a stored result) were
+    taken against the plain `linspace(lower, upper)` this replaced. Mapping the
+    normalized vector back through `to_value` reproduces it to within one ULP.
+    """
+    import numpy as np
+
+    from core.optimizers.base import _hp_grid
+
+    cs = RandomForestModel().get_config_space(seed=0)
+    for name in cs.keys():
+        hp = cs[name]
+        native = np.linspace(hp.lower, hp.upper, 20)
+        expected = (sorted({int(round(v)) for v in native})
+                    if type(hp).__name__ == "UniformIntegerHyperparameter"
+                    else [float(v) for v in native])
+        assert _hp_grid(hp, 20) == pytest.approx(expected), name
+
+
 def test_partial_dependence_ice_lines_and_pdp_share_the_grids_shape(iris_splits, metrics):
     """One ICE row per trial, each the same length as the grid; the PDP
     curve is the grid-wise mean of those rows, not some other reduction."""
@@ -288,6 +551,66 @@ def test_partial_dependence_ice_lines_and_pdp_share_the_grids_shape(iris_splits,
     for i in range(len(grid)):
         column = [row[i] for row in ice_lines]
         assert pdp[i] == sum(column) / len(column)
+
+
+def test_partial_dependence_cap_limits_the_curves_drawn(iris_splits, metrics):
+    """`max_ice_curves` bounds how many trials appear, 0 meaning all of them."""
+    cs = RandomForestModel().get_config_space(seed=0)
+    trials = _trials(iris_splits, metrics)
+
+    _, uncapped, _, _ = RandomOptimizer().compute_partial_dependence(
+        cs, trials, "accuracy", "max_depth", seed=0, max_ice_curves=0)
+    _, capped, _, _ = RandomOptimizer().compute_partial_dependence(
+        cs, trials, "accuracy", "max_depth", seed=0, max_ice_curves=3)
+
+    assert len(uncapped) == len(trials)
+    assert len(capped) == 3
+
+
+def test_partial_dependence_cap_bounds_the_work_not_just_the_picture():
+    """The cap has to reach the predictions, or it saves a payload and none of
+    the seconds — which is the wrong half. The trials outside the sample are
+    never predicted, so the mean is over what was sampled.
+
+    Pinned by construction rather than by timing: with a cap of 2 the curve is
+    the mean of exactly the first and last trials' ICE rows, which it could not
+    be if the middle ones had been predicted and then discarded.
+    """
+    from ConfigSpace import ConfigurationSpace, Float
+    from core.optimizers.base import fit_surrogate
+
+    cs = ConfigurationSpace(seed=0)
+    cs.add([Float("a", (0.0, 1.0), default=0.5), Float("b", (0.0, 1.0), default=0.5)])
+    trials = [TrialResult(trial=i, config={"a": i / 10, "b": 1 - i / 10},
+                          scores={"accuracy": i / 10}, score=i / 10,
+                          incumbent_score=i / 10, incumbent_config={})
+              for i in range(1, 11)]
+
+    grid, ice, pdp, warning = RandomOptimizer().compute_partial_dependence(
+        cs, trials, "accuracy", "a", seed=0, max_ice_curves=2)
+
+    assert warning is None
+    assert len(ice) == 2, "first and last only"
+    for i in range(len(grid)):
+        assert pdp[i] == pytest.approx((ice[0][i] + ice[1][i]) / 2)
+
+
+def test_partial_dependence_cap_above_the_trial_count_changes_nothing():
+    """A cap nobody reaches must not perturb the curve."""
+    from ConfigSpace import ConfigurationSpace, Float
+
+    cs = ConfigurationSpace(seed=0)
+    cs.add([Float("a", (0.0, 1.0), default=0.5)])
+    trials = [TrialResult(trial=i, config={"a": i / 10}, scores={"accuracy": i / 10},
+                          score=i / 10, incumbent_score=i / 10, incumbent_config={})
+              for i in range(1, 6)]
+
+    _, _, uncapped, _ = RandomOptimizer().compute_partial_dependence(
+        cs, trials, "accuracy", "a", seed=0, max_ice_curves=0)
+    _, _, generous, _ = RandomOptimizer().compute_partial_dependence(
+        cs, trials, "accuracy", "a", seed=0, max_ice_curves=500)
+
+    assert uncapped == generous
 
 
 def test_partial_dependence_batching_matches_predicting_one_at_a_time(iris_splits, metrics):
@@ -358,3 +681,37 @@ def test_partial_dependence_holes_where_the_config_space_refuses_a_grid_value():
         assert row[grid.index(1)] is not None and row[grid.index(3)] is not None
     # The mean at the hole skips the missing rows instead of counting them as 0.
     assert pdp[grid.index(2)] == ice_lines[0][grid.index(2)]
+
+
+def test_the_explanation_games_are_drawn_with_the_experiments_own_seed(iris_splits, metrics):
+    """The last thing that was not.
+
+    Each game's searcher draws 10,000 configurations to play against, and that
+    draw used to be seeded at HyperSHAP's own default of 0 — so two experiments
+    with different seeds explained themselves from the same sample. Everything
+    else about a run already follows the seed: the split, the model, the search,
+    the surrogate. This did not.
+
+    Asserted at the searcher rather than on the numbers, because on a small
+    space 10,000 draws find the same maximum whatever the seed: the values
+    coincide here and would not on a wider one. What is being fixed is which
+    determinism it is, so what matters is that the experiment's seed is the one
+    that arrives.
+    """
+    import hypershap.utils
+
+    cs = RandomForestModel().get_config_space(seed=0)
+    trials = _trials(iris_splits, metrics)
+    opt = RandomOptimizer()
+    seen = []
+    real = hypershap.utils.RandomConfigSpaceSearcher
+
+    def spy(*args, **kwargs):
+        seen.append(kwargs.get("seed"))
+        return real(*args, **kwargs)
+
+    with patch.object(hypershap.utils, "RandomConfigSpaceSearcher", spy):
+        opt.compute_hp_games(cs, trials, metrics, seed=7)
+
+    assert seen, "the searcher is built at all"
+    assert set(seen) == {7}, "and every game gets the experiment's seed"

@@ -1,0 +1,138 @@
+{% load i18n %}
+{% comment %}What this experiment is being scored on, and how the next run of it
+will be bounded. The metric selector is the section itself — it drives every
+figure on the page, so it is always visible — and everything about *starting* a
+run sits behind a fold beneath it, because that is a decision taken once and the
+metric is one taken all the time.
+
+While a run is in flight the status box takes the fold's place: there is nothing
+to configure until it finishes, and the alternative is a form that starts a run
+you cannot have.
+{% endcomment %}
+<section class="side-section">
+    <h2>{% translate "Experiment Evaluation" %}</h2>
+
+    {% if active_run %}
+        {% if has_result %}
+            <div class="field">
+                <label for="metric-select">{% translate "Evaluation metric" %}</label>
+                {% include "ui/_metric_select.html" %}
+            </div>
+        {% endif %}
+        {% include "ui/_run_status.html" with run=active_run %}
+    {% elif can_run %}
+        <form method="post" action="{% url 'ui:experiment_run' summary.pk %}">
+            {% csrf_token %}
+            <div class="field">
+                <label for="metric-select">{% translate "Evaluation metric" %}</label>
+                {% include "ui/_metric_select.html" with field_name="optimize_metric" %}
+            </div>
+            {% comment %}The selector stays inside the form so it is still the
+            run's own optimize-metric field; only what bounds the run folds
+            away.{% endcomment %}
+            <details class="run-config">
+                <summary>{% translate "Next run" %}</summary>
+                {% comment %}
+                No field here is required and none is the default. What is
+                required is that at least one be filled in — the run needs
+                something to end on, and which limit that is belongs to whoever
+                is starting it.
+                {% endcomment %}
+                <fieldset class="check-group stopping">
+                    <legend>{% translate "Run until…" %}</legend>
+                    <div class="field">
+                        <label for="max_trials">{% translate "…this many trials have run" %}</label>
+                        <input type="number" id="max_trials" name="max_trials"
+                               value="30" min="1" max="100000">
+                    </div>
+                    <div class="field">
+                        <label for="target_score">{% translate "…performance surpasses" %}</label>
+                        <input type="text" inputmode="decimal" pattern="[0-9]*[.,]?[0-9]*"
+                               id="target_score" name="target_score"
+                               value="{{ incumbent_target }}"
+                               placeholder="{% translate 'e.g. 0.95' %}">
+                    </div>
+                    <div class="field">
+                        <label for="max_seconds">{% translate "…the run has taken this many seconds" %}</label>
+                        <input type="number" id="max_seconds" name="max_seconds" min="1" step="1">
+                    </div>
+                    <div class="field">
+                        <label for="max_trial_seconds">{% translate "…this many seconds have been spent in trials" %}</label>
+                        <input type="number" id="max_trial_seconds" name="max_trial_seconds" min="1" step="1">
+                    </div>
+                    <div class="field">
+                        <label for="no_improvement_trials">{% translate "…this many trials in a row have not improved" %}</label>
+                        <input type="number" id="no_improvement_trials" name="no_improvement_trials" min="1" step="1">
+                    </div>
+                    {% if supports_confidence %}
+                        <div class="field">
+                            <div class="field-label">
+                                <label for="incumbent_confidence">{% translate "…the search is this sure nothing better remains" %}</label>
+                                {% translate "Asks the optimizer how likely its own model of the objective thinks it is that some untried configuration beats the best one so far. Confidence under that model, not a guarantee." as confidence_help %}
+                                {% include "ui/_info.html" with info_id="incumbent_confidence_help" info_text=confidence_help %}
+                            </div>
+                            <input type="text" inputmode="decimal" pattern="[0-9]*[.,]?[0-9]*"
+                                   id="incumbent_confidence" name="incumbent_confidence"
+                                   placeholder="{% translate 'e.g. 0.95' %}"
+                                   aria-describedby="incumbent_confidence_help">
+                        </div>
+                    {% endif %}
+                    <p class="caption stopping-note" hidden>{% translate "These may never happen. Consider a trial or time limit as well, so the run is certain to end." %}</p>
+                </fieldset>
+                <button type="submit" class="btn-primary btn-block">{% translate "▶ Run" %}</button>
+                {% if env.ready and env.summary %}
+                    <p class="caption">{% blocktranslate with summary=env.summary %}Environment: {{ summary }}{% endblocktranslate %}</p>
+                {% endif %}
+            </details>
+        </form>
+        <script>
+            // The two criteria that may never fire. Chosen alone, the run
+            // has no guaranteed end — said quietly, next to the fields,
+            // rather than as a refusal: it is a legitimate thing to want.
+            (function () {
+                const form = document.currentScript.closest("section").querySelector("form");
+                const note = form.querySelector(".stopping-note");
+                const unbounded = ["target_score", "incumbent_confidence"];
+                const bounded = ["max_trials", "max_seconds", "max_trial_seconds",
+                                 "no_improvement_trials"];
+                const filled = (name) => {
+                    const el = form.querySelector(`[name="${name}"]`);
+                    return el && el.value.trim() !== "";
+                };
+                function apply() {
+                    note.hidden = !(unbounded.some(filled) && !bounded.some(filled));
+                }
+                form.addEventListener("input", apply);
+                apply();
+            })();
+        </script>
+        {{ incumbent_targets|json_script:"incumbent-targets" }}
+        <script>
+            // The target opens at the score there is to beat, and follows
+            // the metric dropdown, because the incumbent is per metric and
+            // a number left over from the previous one would be nonsense.
+            // Typing in the field stops that: at the point someone has
+            // chosen a target, replacing it is not help.
+            (function () {
+                const form = document.currentScript.closest("section").querySelector("form");
+                const field = form.querySelector('[name="target_score"]');
+                const metric = form.querySelector("#metric-select");
+                const holder = document.getElementById("incumbent-targets");
+                if (!field || !metric || !holder) return;
+                const targets = JSON.parse(holder.textContent || "{}");
+                let untouched = true;
+                field.addEventListener("input", function () { untouched = false; });
+                metric.addEventListener("change", function () {
+                    if (untouched) field.value = targets[metric.value] || "";
+                });
+            })();
+        </script>
+    {% elif has_result %}
+        <div class="field">
+            <label for="metric-select">{% translate "Evaluation metric" %}</label>
+            {% include "ui/_metric_select.html" %}
+        </div>
+    {% else %}
+        <p class="caption">{% translate "Attach a dataset to run this experiment (loaded read-only)." %}</p>
+    {% endif %}
+</section>

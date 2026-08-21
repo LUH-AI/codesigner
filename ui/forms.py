@@ -4,12 +4,34 @@ from django import forms
 from django.conf import settings
 from django.utils.translation import gettext_lazy as _
 
-from core.io import demo_datasets, mounted_models
+from core.io import DEFAULT_TEST_SIZE, demo_datasets, mounted_models
+from core.splits import MIN_FOLDS
 from core.model_source import inspect_model_source
 
 from .figures import FIGURES, autocompute_key, deferred_computations
 from .registry import MODELS, OPTIMIZERS
 from .validators import validate_dataset_upload, validate_model_upload
+
+
+#: The two ways a trial can be evaluated, and what the number beside the
+#: selector means under each. One place, so the form, the template and the
+#: script cannot disagree about the bounds or what to call it.
+EVALUATION_KFOLD = "kfold"
+EVALUATION_HOLDOUT = "holdout"
+EVALUATION_SCHEMES = {
+    EVALUATION_KFOLD: {
+        "label": _("Folds"),
+        "min": MIN_FOLDS, "max": 20, "step": "1", "default": 5,
+        "help": _("Every row is validated against exactly once. Costs one model "
+                  "fit per fold."),
+    },
+    EVALUATION_HOLDOUT: {
+        "label": _("Share held out for validation"),
+        "min": 0.05, "max": 0.5, "step": "0.05", "default": DEFAULT_TEST_SIZE,
+        "help": _("One division of the data. Cheapest, and noisier on a small "
+                  "table — the search can end up chasing the split."),
+    },
+}
 
 
 class NewExperimentForm(forms.Form):
@@ -36,36 +58,40 @@ class NewExperimentForm(forms.Form):
     demo_dataset = forms.ChoiceField(label=_("Demo dataset"), required=False)
     dataset_file = forms.FileField(label=_("…or upload a CSV (last column = target)"), required=False,
                                     validators=[validate_dataset_upload])
-    seed = forms.IntegerField(label=_("Seed (negative = random)"), initial=0)
+    seed = forms.IntegerField(
+        label=_("Seed"), initial=0,
+        help_text=_("Negative picks one at random. Drives every stochastic part "
+                    "of the experiment: how the data is divided, the model's own "
+                    "randomness, which configurations the search tries, and the "
+                    "surrogates behind partial dependence and the explanations."))
     # Fixed for the experiment's life, so it is asked here rather than per run:
     # trials scored k-fold and trials scored on one holdout are not comparable,
     # and an experiment's own history has to be.
-    # Five folds by default. A single split on a small table is noisy enough
-    # that a search can spend its budget chasing the split rather than the
-    # model, and the tables this is pointed at are small.
-    cv_folds = forms.ChoiceField(
-        label=_("How each trial is evaluated"), initial="5", required=False,
+    # Two fields rather than one dropdown of preset combinations. The scheme and
+    # the number are separate decisions — how the data is divided, and how
+    # finely — and folding them into a fixed menu meant 7-fold or a 70/30 split
+    # were simply not offerable. Cross-validation by default: a single split on
+    # a small table is noisy enough that a search can spend its budget chasing
+    # the split rather than the model, and the tables this is pointed at are
+    # small.
+    evaluation_scheme = forms.ChoiceField(
+        label=_("Validation method"), initial=EVALUATION_KFOLD, required=False,
         help_text=_("Fixed once the experiment exists: trials evaluated "
                     "different ways cannot be compared with each other. "
                     "Cross-validation costs one fit per fold."),
         choices=[
-            ("0", _("One 80/20 split")),
-            ("3", _("3-fold cross-validation")),
-            ("5", _("5-fold cross-validation")),
-            ("10", _("10-fold cross-validation")),
+            (EVALUATION_KFOLD, _("Cross-validation")),
+            (EVALUATION_HOLDOUT, _("Dataset split")),
         ],
     )
-
-    def clean_cv_folds(self):
-        """Blank is "not stated", and not stated is the default.
-
-        The browser always sends this, so it is only a submission built by hand
-        that can leave it out — and that should land on what the page shows
-        rather than on the quietest of the options. Distinct from a *snapshot*
-        without the field, which really is a holdout: those files were written
-        before there was anything else.
-        """
-        return self.cleaned_data["cv_folds"] or self.fields["cv_folds"].initial
+    #: The number the scheme needs: folds under cross-validation, the share held
+    #: out under a single split. One field because only one of them applies at a
+    #: time, and two would leave whichever is inactive sitting there inviting a
+    #: value that goes nowhere. Its label, bounds and default follow the scheme —
+    #: see EVALUATION_SCHEMES and new_experiment.html's script.
+    evaluation_value = forms.FloatField(
+        label=_("Folds"), required=False,
+        initial=EVALUATION_SCHEMES[EVALUATION_KFOLD]["default"])
 
     def __init__(self, *args, may_upload_models=None, **kwargs):
         super().__init__(*args, **kwargs)
@@ -84,8 +110,37 @@ class NewExperimentForm(forms.Form):
         if not may_upload_models:
             del self.fields["model_file"]
 
+    def _resolve_evaluation(self, cleaned) -> None:
+        """Fold the scheme and its number into what the experiment stores.
+
+        `cv_folds` stays the single source of truth for which scheme is in use —
+        0 is a split, 2 or more is cross-validation — because everything
+        downstream already reads it that way, and a second flag would be a
+        second thing to keep in step. `test_size` is carried under either
+        scheme, so switching one later has somewhere to start from.
+
+        Out of range is clamped rather than refused: these are two ends of one
+        continuum and every value between them is meaningful, so there is no
+        typo here worth failing a form over.
+        """
+        scheme = cleaned.get("evaluation_scheme") or self.fields["evaluation_scheme"].initial
+        spec = EVALUATION_SCHEMES[scheme]
+        value = cleaned.get("evaluation_value")
+        if value is None:
+            value = spec["default"]
+        value = max(spec["min"], min(spec["max"], value))
+
+        if scheme == EVALUATION_KFOLD:
+            cleaned["cv_folds"] = str(int(round(value)))
+            cleaned["test_size"] = DEFAULT_TEST_SIZE
+        else:
+            cleaned["cv_folds"] = "0"
+            cleaned["test_size"] = float(value)
+        cleaned["evaluation_value"] = value
+
     def clean(self):
         cleaned = super().clean()
+        self._resolve_evaluation(cleaned)
 
         # Model: a custom .py takes precedence over a registry choice, and is
         # read rather than run — see core.model_source. Its declared name and
@@ -116,7 +171,8 @@ class NewExperimentForm(forms.Form):
         cleaned["model_source"] = info
 
 
-_EXPORT_ABS_LABEL = _("Include absolute timestamps in exported .ihpo files")
+_ICE_LABEL = _("Trials drawn on the partial-dependence figure")
+_LOCAL_EFFECTS_LABEL = _("Trials explained on the local-effects figure")
 
 
 class ExperimentSettingsFields(forms.Form):
@@ -130,7 +186,15 @@ class ExperimentSettingsFields(forms.Form):
     this class.
     """
 
-    export_absolute_times = forms.BooleanField(label=_EXPORT_ABS_LABEL, required=False)
+    ice_max_curves = forms.IntegerField(
+        label=_ICE_LABEL, required=False, min_value=0, max_value=10_000,
+        help_text=_("0 draws every trial. The curve is the mean of whatever is "
+                    "drawn, so a smaller number is faster and lighter but a "
+                    "coarser average."))
+    local_effects_max_trials = forms.IntegerField(
+        label=_LOCAL_EFFECTS_LABEL, required=False, min_value=0, max_value=10_000,
+        help_text=_("0 explains every trial. Each one costs its own explanation, "
+                    "so this is the setting that decides how long the figure takes."))
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)

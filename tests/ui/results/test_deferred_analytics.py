@@ -40,16 +40,18 @@ def test_the_flags_reach_the_page_as_json(client):
     exp = _experiment()
     body = client.get(f"/experiments/{exp.pk}/").content.decode()
 
-    assert _autocompute_payload(body) == {"local_ablation": True,
-                                          "partial_dependence": True}
+    assert _autocompute_payload(body) == {"local_ablation": False,
+                                          "partial_dependence": False,
+                                          "local_effects": False}
 
 
-def test_switching_one_off_is_visible_to_the_page(client):
-    exp = _experiment({"autocompute_partial_dependence": False})
+def test_switching_one_on_is_visible_to_the_page(client):
+    exp = _experiment({"autocompute_partial_dependence": True})
     body = client.get(f"/experiments/{exp.pk}/").content.decode()
 
-    assert _autocompute_payload(body) == {"local_ablation": True,
-                                          "partial_dependence": False}
+    assert _autocompute_payload(body) == {"local_ablation": False,
+                                          "partial_dependence": True,
+                                          "local_effects": False}
 
 
 def test_both_figures_ship_a_compute_button(client):
@@ -78,7 +80,7 @@ def test_a_pending_figure_is_cleared_not_declared_empty(client):
 
     assert "function clearPlot(" in body
     assert 'clearPlot("partial_dependence")' in body
-    assert 'clearPlot("hyperparameter_importance")' in body
+    assert 'clearPlot("local_explanation")' in body
 
 
 def test_the_endpoints_still_work_when_autocompute_is_off(client):

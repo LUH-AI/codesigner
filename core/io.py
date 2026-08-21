@@ -165,13 +165,21 @@ def _load_frame(csv_path: Path):
     return df.iloc[:, :-1].to_numpy(), df.iloc[:, -1].to_numpy()
 
 
-def _load_splits(csv_path: Path, seed: int):
-    """Reconstruct the identical train/val split from a CSV path + seed."""
+#: The share of a dataset held out for validation when the scheme is a single
+#: split, if the experiment does not say. Every experiment written before the
+#: share was settable used this, so it is also what those files mean.
+DEFAULT_TEST_SIZE = 0.2
+
+
+def _load_splits(csv_path: Path, seed: int, test_size: float = DEFAULT_TEST_SIZE):
+    """Reconstruct the identical train/val split from a CSV path, seed and
+    validation share."""
     X, y = _load_frame(csv_path)
+    size = float(test_size or DEFAULT_TEST_SIZE)
     try:
-        return train_test_split(X, y, test_size=0.2, random_state=seed, stratify=y)
+        return train_test_split(X, y, test_size=size, random_state=seed, stratify=y)
     except ValueError:
-        return train_test_split(X, y, test_size=0.2, random_state=seed)
+        return train_test_split(X, y, test_size=size, random_state=seed)
 
 
 # ── Public API ────────────────────────────────────────────────────────────────
@@ -249,6 +257,17 @@ def folds_of(snapshot: dict) -> int:
     return int((snapshot.get("evaluation") or {}).get("folds") or 0)
 
 
+def test_size_of(snapshot: dict) -> float:
+    """What share of the data this snapshot holds out, when it holds out one.
+
+    Meaningless under cross-validation, where every row is validated against
+    once; `DEFAULT_TEST_SIZE` there rather than None so the column always holds
+    a number and a later switch of scheme has something to start from.
+    """
+    section = snapshot.get("evaluation") or {}
+    return float(section.get("test_size") or DEFAULT_TEST_SIZE)
+
+
 def save(name: str, exp: dict) -> bytes:
     """Serialize *exp* to UTF-8 JSON bytes."""
     model_path = exp.get("model_path", "")
@@ -264,7 +283,8 @@ def save(name: str, exp: dict) -> bytes:
         # Shared with ui/services/snapshot.py's live export path, so the
         # kfold/holdout decision has exactly one place to look, not two that
         # can quietly disagree.
-        "evaluation": provenance.evaluation(exp.get("cv_folds") or 0),
+        "evaluation": provenance.evaluation(exp.get("cv_folds") or 0,
+                                            test_size=exp.get("test_size")),
         "metrics":    {"names": list(exp["metrics"].keys()),
                        "current": exp["current_metric"],
                        "original": exp["original_metric"]},
@@ -308,6 +328,7 @@ def parse(data: bytes) -> dict:
 
     snapshot = normalize(raw)
     _check_optimizer_state(snapshot)
+    _check_trial_scores(snapshot)
     return snapshot
 
 
@@ -329,6 +350,40 @@ def _check_optimizer_state(snapshot: dict) -> None:
     for name in state:
         if not is_safe_relative(name):
             raise ValueError(f"unsafe path in experiment file: {name!r}")
+
+
+def _check_trial_scores(snapshot: dict) -> None:
+    """Refuse a result whose trials don't carry every metric the file declares.
+
+    Every figure reads `trial.scores[metric]` for whichever metric is being
+    viewed, and the metric selector offers whatever `metrics.names` lists — so a
+    trial missing one of them is not a degraded figure, it is a KeyError at
+    render time, i.e. a 500 on the detail page for a file that imported
+    cleanly. Refusing it here means the failure lands where it can be
+    explained, naming the trial and the metric, instead of several screens
+    later with no indication which file was at fault.
+
+    Mirrors `BaseOptimizer.deserialize_result`'s own fallback so the two agree
+    on what a valid entry is: an entry with no `scores` at all is read as
+    carrying the primary metric alone (that is how single-metric files written
+    before per-metric scores existed are still loadable), and is therefore fine
+    exactly when the file declares no other metric.
+    """
+    result = snapshot.get("result") or {}
+    names = list(snapshot.get("metrics", {}).get("names") or [])
+    if not names:
+        return
+    primary = result.get("primary_metric") or ""
+    for entry in result.get("data") or []:
+        scores = entry.get("scores")
+        if scores is None:
+            scores = {primary: None} if primary else {}
+        missing = [name for name in names if name not in scores]
+        if missing:
+            trial = entry.get("config_id", "?")
+            raise ValueError(
+                f"trial {trial} has no score for {missing[0]!r}, which this "
+                f"experiment lists as one of its metrics")
 
 
 def dataset_path_ok(snapshot: dict) -> bool:
@@ -452,6 +507,7 @@ def build_experiment(
     # holdout, k for cross-validation. The four arrays stay as they were: plenty
     # of callers read them, and for a holdout they are the same data.
     cv_folds = folds_of(snapshot)
+    test_size = test_size_of(snapshot)
     if read_only:
         X_train = X_val = y_train = y_val = None
         splits = None
@@ -460,7 +516,7 @@ def build_experiment(
         path = Path(dataset_path)
         if not path.is_file():
             raise ValueError(f"dataset not found: {dataset_path}")
-        X_train, X_val, y_train, y_val = _load_splits(path, seed)
+        X_train, X_val, y_train, y_val = _load_splits(path, seed, test_size)
         if cv_folds >= MIN_FOLDS:
             X_all, y_all = _load_frame(path)
             splits = cross_validation(X_all, y_all, cv_folds, seed)
@@ -488,6 +544,7 @@ def build_experiment(
         "X_train": X_train, "y_train": y_train,
         "X_val":   X_val,   "y_val":   y_val,
         "cv_folds": cv_folds,
+        "test_size": test_size,
         "splits":  splits,
         "result":  result,
     }

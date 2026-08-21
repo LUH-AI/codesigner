@@ -74,20 +74,30 @@ def test_metric_select_present_before_first_run(client):
 
 
 @pytest.mark.django_db
-def test_run_and_metric_controls_share_one_card(client):
-    """Once a result exists, the Run form and the metric dropdown live in the
-    same card (one 'Run' subheader), not two separate boxes."""
+def test_run_and_metric_controls_share_one_form_in_the_sidebar(client):
+    """The metric dropdown and what bounds the next run are one form, in the
+    sidebar's Experiment Evaluation section.
+
+    One form because the dropdown *is* the run's optimize-metric field; in the
+    sidebar because the metric drives every figure on the page and a selector
+    that scrolls away is one you have to go and find. Only what bounds the run
+    folds away beneath it.
+    """
     exp = _experiment_with_result()
 
     html = client.get(reverse("ui:experiment_detail", args=[exp.pk])).content.decode()
-    # Count forms in the page body only — the sidebar's language switcher is a
-    # separate form and must not be conflated with the run/metric controls.
+    sidebar = html.split('<nav class="sidebar"', 1)[1].split("</nav>", 1)[0]
     content = html.split("<main", 1)[-1]
-    assert content.count("<form") == 1
-    assert 'name="max_trials"' in html
-    assert 'id="metric-select"' in html
+
+    assert "Experiment Evaluation" in sidebar
+    assert sidebar.count("<form") == 1
+    assert 'name="max_trials"' in sidebar
+    assert 'id="metric-select"' in sidebar
     # the dropdown doubles as the Run form's optimize-metric field
-    assert 'name="optimize_metric"' in html
+    assert 'name="optimize_metric"' in sidebar
+    # and it is not left behind in the main column as well
+    assert 'id="metric-select"' not in content
+    assert "<details class=\"run-config\">" in sidebar
 
 
 @pytest.mark.django_db

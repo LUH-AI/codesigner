@@ -10,12 +10,14 @@ this is fetched lazily instead, including its own default hyperparameter
 no server-rendered plot here at all to start from; see
 experiment_detail.html's refreshPartialDependence.{% endcomment %}
 <section class="card" data-figure="{{ figure.key }}">
-    <div class="subheader">{{ figure.label }}</div>
-    <p class="caption" style="margin-bottom: 0.5rem;">
-        <select id="pdp-hp-select" aria-label="{% translate 'Hyperparameter' %}">
-            {% for h in hp_names %}<option value="{{ h }}">{{ h }}</option>{% endfor %}
-        </select>
-    </p>
+    <div class="card-head">
+        <div class="subheader">{{ figure.label }}</div>
+        <p class="selectors">
+            <select id="pdp-hp-select" aria-label="{% translate 'Hyperparameter' %}">
+                {% for h in hp_names %}<option value="{{ h }}">{{ h }}</option>{% endfor %}
+            </select>
+        </p>
+    </div>
     <p id="pdp-warning" class="alert warning" hidden></p>
     {% comment %}Shown instead of fetching when this experiment's settings turn
     off "compute automatically" for partial dependence — so opening or reloading
@@ -23,7 +25,6 @@ experiment_detail.html's refreshPartialDependence.{% endcomment %}
     refreshPartialDependence and the `autocompute` context entry.{% endcomment %}
     <p id="pdp-compute" class="caption" hidden>
         <button type="button" id="pdp-compute-btn">{% translate "Compute" %}</button>
-        <span>{% translate "Worked out on request for the chosen hyperparameter." %}</span>
     </p>
     <div id="{{ figure.dom_id }}" class="plot"></div>
     <p id="{{ figure.dom_id }}-empty" class="caption" hidden>{% translate "No partial dependence data available." %}</p>

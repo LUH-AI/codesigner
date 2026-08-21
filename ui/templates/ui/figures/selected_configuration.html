@@ -1,11 +1,21 @@
 {% load i18n %}
-{% comment %}The trial clicked on the performance figure, or that metric's best
-until one is clicked. Its body is swapped in by the page script.{% endcomment %}
-{% for panel in panels %}
-    <section class="card panel selected-config" data-figure="{{ figure.key }}" data-metric="{{ panel.metric }}" hidden>
-        <div class="subheader">{{ figure.label }}</div>
-        <div id="selected-content-{{ panel.metric }}">
-            {% include "ui/_selected_config_inner.html" with sel=panel.selected %}
+{% comment %}The trial currently selected, wherever it was selected from — every
+figure that draws all the trials can name one (see Figure.selects_trials).
+
+This figure declares `in_sidebar`, so it is rendered into the page's sidebar
+rather than into the figure grid: it is the answer to a click made anywhere on
+the page, and an answer that scrolls out of view while you are clicking is not
+one. Everything else about it is unchanged — one hidden block per metric, keyed
+the way the page's metric switch and the trial-panel fetch already expect.
+{% endcomment %}
+<section class="side-section">
+    <h2>{{ figure.label }}</h2>
+    {% for panel in panels %}
+        <div class="panel selected-config" data-figure="{{ figure.key }}"
+             data-metric="{{ panel.metric }}" hidden>
+            <div id="selected-content-{{ panel.metric }}">
+                {% include "ui/_selected_config_inner.html" with sel=panel.selected %}
+            </div>
         </div>
-    </section>
-{% endfor %}
+    {% endfor %}
+</section>

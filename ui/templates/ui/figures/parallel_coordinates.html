@@ -4,7 +4,9 @@ server-side from that metric's own HyperSHAP tunability importance (most
 important first), so there is nothing for the client to pick between; see
 parallel_coordinates_plot.{% endcomment %}
 <section class="card" data-figure="{{ figure.key }}">
-    <div class="subheader">{{ figure.label }}</div>
+    <div class="card-head">
+        <div class="subheader">{{ figure.label }}</div>
+    </div>
     <div id="{{ figure.dom_id }}" class="plot"></div>
     <p id="{{ figure.dom_id }}-empty" class="caption" hidden>{% translate "No trials to plot yet." %}</p>
 </section>

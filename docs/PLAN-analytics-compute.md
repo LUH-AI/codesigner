@@ -202,9 +202,35 @@ tri-state widget:
   stored or read. The extraction is a free reshape of data already in memory,
   so deleting it is churn, and *storing* it is a new feature (an interactions
   game selector), not a cleanup.
-- **Optimizing the ~57-figure render cost (#9).** Genuinely unmeasured, and
+- ~~**Optimizing the ~57-figure render cost (#9).** Genuinely unmeasured, and
   plausibly the largest remaining page cost once Phase 1 lands. Measure it
-  after Phase 1 and decide then; it is its own epic, not a footnote to this one.
+  after Phase 1 and decide then; it is its own epic, not a footnote to this
+  one.~~ **Measured after the fact, and done — see Phase 5 below.** It was
+  76 `plot()` calls, 101ms of a 151ms render, and 303KB of JSON (1.07MB at 500
+  trials), which was indeed the largest remaining page cost by a factor of two.
+
+## Phase 5 — Build the metric that is showing, fetch the rest
+
+> **Status:** done. The item the list above deferred, once it had the
+> measurement it was waiting for.
+
+`_detail_context` built every figure for every metric and every view on every
+load: 76 `plot()` calls, of which about six ended up on screen. The rest was
+serialized into the page against the chance the metric selector was touched.
+
+- The page ships the metric it opens on; `ui:metric_figures` answers for the
+  others, once each, the first time one is selected. The browser keeps them in
+  the same `metricPlots` object, so a metric is fetched at most once per page.
+- Nothing new is computed either way — these numbers were all worked out at run
+  completion and stored. What was deferred is building the Plotly objects and
+  serializing them, which is the cost the page was paying blind.
+- Measured after: **22 `plot()` calls, 31ms, 73KB** (from 76 / 151ms / 303KB).
+- The endpoint reads the same visibility settings the page does, so a figure
+  switched off is not reachable by asking for it directly.
+
+This is a different shape from the "on request" of Phase 4: there is no setting
+and no Compute button, because there is no expensive computation to opt out of
+— only work that had no reason to happen before it was needed.
 
 ## Verification (per phase)
 

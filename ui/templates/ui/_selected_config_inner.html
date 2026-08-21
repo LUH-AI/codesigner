@@ -1,18 +1,20 @@
-{% load i18n %}
+{% load numbers i18n %}
 <p class="caption">{% blocktranslate with trial=sel.trial_n %}Trial {{ trial }} — click any point on the graph to select{% endblocktranslate %}</p>
-<div class="metric-label">{% blocktranslate with metric=sel.metric %}{{ metric }} score{% endblocktranslate %}</div>
-<div class="metric-value">{{ sel.score|floatformat:4 }}</div>
-{% if sel.delta is not None %}
-    <div class="metric-delta {% if sel.delta > 0 %}up{% else %}down{% endif %}">
-        {% if sel.delta > 0 %}+{% endif %}{{ sel.delta|floatformat:4 }}
-    </div>
-{% endif %}
+{% comment %}The metric and its number on one line: two lines said the
+same thing twice, and the label was the smaller half of a heading.{% endcomment %}
+<div class="metric-value">{{ sel.score|sig }} <span class="metric-unit">({{ sel.metric }})</span></div>
+{% comment %}Always shown, including for the incumbent itself — where it is
+zero, and says so rather than disappearing and taking the panel's height with
+it.{% endcomment %}
+<div class="metric-delta {% if sel.is_best %}level{% elif sel.delta > 0 %}up{% else %}down{% endif %}">
+    {% if sel.delta > 0 %}+{% endif %}{{ sel.delta|sig }}{% if sel.is_best %} {% translate "(Incumbent)" %}{% endif %}
+</div>
 <div class="table-wrap" style="margin-top: 1rem;">
     <table class="config">
         <thead><tr><th>{% translate "Hyperparameter" %}</th><th>{% translate "Value" %}</th></tr></thead>
         <tbody>
             {% for key, value in sel.config %}
-                <tr><td>{{ key }}</td><td>{{ value }}</td></tr>
+                <tr><td>{{ key }}</td><td>{{ value|sig }}</td></tr>
             {% endfor %}
         </tbody>
     </table>

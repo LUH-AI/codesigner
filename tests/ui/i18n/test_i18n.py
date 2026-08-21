@@ -147,11 +147,26 @@ def test_the_interface_renders_its_english_source(client):
     assert "Use the sidebar to create a new experiment." in body
 
 
-def test_the_switcher_is_hidden_while_there_is_nothing_to_switch_to(client):
-    """A dropdown with one option is a control that does nothing."""
-    body = client.get(reverse("ui:home")).content.decode()
+def test_the_switcher_is_on_the_page_and_does_nothing(client):
+    """It shows the languages the interface is going to offer, so its place on
+    the rail is settled before the catalogs are.
 
-    assert 'class="locale"' not in body
+    Inert on purpose, and this is what says so: no form around it, so there is
+    nothing for it to submit. The German and Spanish drafts have not been read
+    by anyone who speaks them, and half a translation reaching a user is worse
+    than none — see OFFERED_LANGUAGES against LANGUAGES in config/settings.py.
+    """
+    from django.conf import settings
+
+    body = client.get(reverse("ui:home")).content.decode()
+    rail = body.split('<nav class="rail">', 1)[1].split("</nav>", 1)[0]
+    locale = rail.split('class="locale"', 1)[1]
+
+    for _code, label in settings.OFFERED_LANGUAGES:
+        assert label in locale
+    assert len(settings.OFFERED_LANGUAGES) > len(settings.LANGUAGES)
+    assert "<form" not in locale
+    assert "set_language" not in body
 
 
 def test_the_language_route_still_exists(client):

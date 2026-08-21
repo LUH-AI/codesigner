@@ -1,0 +1,29 @@
+{% load i18n %}
+{% comment %}Which HyperSHAP explanation game every figure on the page answers.
+
+One choice rather than one per figure: reading the importance figure under
+tunability beside an interaction figure under sensitivity would be comparing two
+different questions and looking like one answer. The three games are three
+questions about the same trial history, and all three were always computed — see
+BaseOptimizer.HP_GAMES and compute_hp_games.
+
+The local explanation is not here. It explains one trial rather than the search,
+and has no interactions to give the figures that read them, so it is its own
+figure.{% endcomment %}
+<section class="side-section">
+    <h2>{% translate "Explanation Game" %}</h2>
+    <div class="field">
+        <div class="field-label">
+            <label for="explanation-game">{% translate "Game" %}</label>
+            {% translate "HyperSHAP treats a finished search as a cooperative game between its hyperparameters, and splits the outcome between them the way Shapley values split a payoff. Which game is which question is being asked of the same trial history — and every figure that explains hyperparameters answers the one chosen here." as game_help %}
+            {% include "ui/_info.html" with info_id="explanation_game_help" info_text=game_help %}
+        </div>
+        <select id="explanation-game" aria-describedby="explanation_game_help">
+            {% for value, label in explanation_games %}
+                <option value="{{ value }}">{{ label }}</option>
+            {% endfor %}
+        </select>
+        <p class="caption" data-game-help>{% translate "What a hyperparameter could have gained you, had it been tuned." %}</p>
+    </div>
+    {{ explanation_game_help|json_script:"explanation-game-help" }}
+</section>

@@ -36,4 +36,4 @@ def test_trials_table_has_duration_column_and_value(client):
     exp = _experiment_with_timed_result()
     body = client.get(reverse("ui:experiment_detail", args=[exp.pk])).content.decode()
     assert "Duration" in body          # column header
-    assert "2.500" in body             # the trial's duration, 3 decimals
+    assert "2.5" in body               # the trial's duration, four figures

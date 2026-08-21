@@ -84,9 +84,13 @@ def test_going_over_budget_skips_every_game_with_the_reason(iris_splits, metrics
     games = opt.compute_hp_games(cs, [], ["accuracy", "f1"], seed=0)
 
     for game in opt.HP_GAMES:
-        importance, warning, interactions = games[game]
+        importance, warning, interactions, moebius, total = games[game]
         assert importance == {"accuracy": {}, "f1": {}}
         assert interactions == {"accuracy": {}, "f1": {}}
+        assert moebius == {"accuracy": [], "f1": []}
+        # No scale either, which is what stops the importance figure offering
+        # "still to gain" against numbers that were never computed.
+        assert total == {"accuracy": 0.0, "f1": 0.0}
         for m in ("accuracy", "f1"):
             assert "skipped" in warning[m] and "hyperparameters" in warning[m]
 
@@ -172,6 +176,84 @@ def test_zero_in_the_setting_means_no_limit(settings):
     run = create_run(exp, {"max_trials": 2}, "accuracy")
 
     execute_run(run.id)
+
+    exp.refresh_from_db()
+    assert exp.result["hyperparameter_importance"]["accuracy"], "computed, not skipped"
+
+
+# ── When nothing will show them ──────────────────────────────────────────────
+
+def test_analytics_are_skipped_when_no_figure_will_show_them():
+    """Both figures that display the games switched off means the fields get
+    filled and never read — 2^n_hp coalition evaluations per game per metric,
+    for nobody."""
+    opt = RandomOptimizer()
+    opt.analytics_wanted = False
+
+    games = opt.compute_hp_games(
+        RandomForestModel().get_config_space(seed=0), [], ["accuracy"], seed=0)
+
+    for game in opt.HP_GAMES:
+        assert games[game][0] == {"accuracy": {}}
+        assert "switched off" in games[game][1]["accuracy"]
+
+
+def test_wanting_them_is_the_default_for_a_direct_caller():
+    """A script or a test that says nothing gets the analytics — the flag exists
+    for the run service to set, not as something every caller must remember."""
+    assert RandomOptimizer().analytics_wanted is True
+
+
+def test_cancellation_is_reported_before_nobody_wanting_them():
+    """A cancelled run gets the reason it can act on."""
+    opt = RandomOptimizer()
+    opt.analytics_wanted = False
+    cancelled = threading.Event(); cancelled.set()
+
+    games = opt.compute_hp_games(
+        RandomForestModel().get_config_space(seed=0), [], ["accuracy"],
+        seed=0, cancel_event=cancelled)
+
+    assert "cancelled" in games["tunability"][1]["accuracy"]
+
+
+@pytest.mark.django_db
+def test_the_run_service_reads_the_experiments_own_figure_settings():
+    """`core/` has no access to settings, so the run service resolves them and
+    hands the answer over — the same wiring the coalition budget uses."""
+    from ui.services.run import create_run, execute_run
+    from tests.ui.runs.test_run_execution import _make_experiment
+
+    exp = _make_experiment()
+    exp.use_default_settings = False
+    from ui.services.settings import GAME_DISPLAY_FIGURES
+
+    exp.settings = {f"show_{key}": False for key in GAME_DISPLAY_FIGURES}
+    exp.save(update_fields=["use_default_settings", "settings"])
+
+    execute_run(create_run(exp, {"max_trials": 2}, "accuracy").id)
+
+    exp.refresh_from_db()
+    assert exp.result["data"], "the trials themselves are still stored"
+    assert exp.result["hyperparameter_importance"]["accuracy"] == {}
+    assert "switched off" in exp.result["hyperparameter_importance_warning"]["accuracy"]
+
+
+@pytest.mark.django_db
+def test_one_display_figure_left_on_is_enough_to_compute_them():
+    """Any figure showing the numbers is a reason to have them — and there are
+    six of them now that each reading of the interactions is its own."""
+    from ui.services.run import create_run, execute_run
+    from ui.services.settings import GAME_DISPLAY_FIGURES
+    from tests.ui.runs.test_run_execution import _make_experiment
+
+    exp = _make_experiment()
+    exp.use_default_settings = False
+    exp.settings = {f"show_{key}": False for key in GAME_DISPLAY_FIGURES}
+    exp.settings["show_interactions_graph"] = True
+    exp.save(update_fields=["use_default_settings", "settings"])
+
+    execute_run(create_run(exp, {"max_trials": 2}, "accuracy").id)
 
     exp.refresh_from_db()
     assert exp.result["hyperparameter_importance"]["accuracy"], "computed, not skipped"

@@ -154,3 +154,16 @@ def tiny_splits():
     X = np.array([[0.0], [1.0], [2.0], [3.0]])
     y = np.array(["a", "b", "a", "b"], dtype=object)
     return X[:2], X[2:], y[:2], y[2:]     # X_train, X_val, y_train, y_val
+
+
+def export_ihpo(client, pk, timestamps="keep"):
+    """Download one experiment's .ihpo, answering the question export asks.
+
+    Exporting is a POST rather than a GET because the page asks first whether
+    the per-trial timestamps go in — see `ui.views.experiment_export`. Tests that
+    only want the file take the answer that changes nothing about it.
+    """
+    from django.urls import reverse
+
+    return client.post(reverse("ui:experiment_export", args=[pk]),
+                       {"timestamps": timestamps})

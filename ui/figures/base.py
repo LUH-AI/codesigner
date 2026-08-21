@@ -25,6 +25,12 @@ Then add it to `FIGURES` in `catalog.py` (order there is page order) and write
 HALF = "half"
 FULL = "full"
 
+#: And heights. SINGLE is one row of the grid; DOUBLE is two, for a figure whose
+#: content is square rather than wide — a scatter over a projected space reads as
+#: a strip at one row and as a plane at two.
+SINGLE = "single"
+DOUBLE = "double"
+
 
 class Figure:
     """Base class for an experiment page's analytics panels."""
@@ -39,6 +45,10 @@ class Figure:
     label = ""
     #: HALF or FULL (see above).
     width = HALF
+    #: SINGLE or DOUBLE (see above). Height is declared separately from width
+    #: because they answer different questions: how much of the page a figure
+    #: needs beside it, and how much it needs under it.
+    height = SINGLE
     #: True when the figure is drawn per evaluation metric, so it is rebuilt
     #: when the metric selector changes; False when one plot covers the run.
     per_metric = False
@@ -51,6 +61,11 @@ class Figure:
     #: well; only the underlying draw/lookup plumbing is shared (see
     #: experiment_detail.html's `payloadFor`).
     views = ()
+    #: Which of `views` a figure opens on, when that is not the first one
+    #: declared. Separate from the order of `views`, because the order they read
+    #: in and the one worth showing first are different questions — a figure can
+    #: list its views from simplest to richest and still open on the richest.
+    default_view = ""
     #: A Plotly relayout for this figure's "absolute" y-scale, which gives it
     #: the absolute/relative toggle in its toolbar. None means no toggle. For
     #: a figure with `views`, this is instead a dict keyed by view, since the
@@ -70,6 +85,36 @@ class Figure:
     #: importance numbers are deferred when they are computed once at run
     #: completion and stored.
     deferred = ()
+    #: True when this figure's `plot()` takes a `config_space` keyword.
+    #: A builder that draws hyperparameter *values* on an axis needs to know how
+    #: each one is scaled — a log hyperparameter drawn on a linear axis crushes
+    #: the region the search actually explored into a stripe — and the stored
+    #: result carries values, not the space they came from. Declared rather than
+    #: passed to everything, so the figures that don't need it keep the plain
+    #: `(result, metric)` signature they have always had.
+    needs_config_space = False
+    #: True when this figure draws every trial, and so can both take a click
+    #: naming one and show which one is selected. One trial is selected at a
+    #: time across the whole page, so these agree with each other and with the
+    #: Selected configuration panel — see experiment_detail.html's selection
+    #: bus, and `_selection_meta` in plots.py for how a plot says where its
+    #: trials are. A figure that draws a summary rather than the trials
+    #: themselves (importance, interactions, partial dependence) has no point to
+    #: click and nothing to highlight.
+    selects_trials = False
+    #: True when this figure belongs in the page's sidebar rather than in the
+    #: figure grid. For a figure that answers a click made anywhere on the page
+    #: rather than showing something of its own: in the grid it scrolls out of
+    #: view exactly while it is being used. Everything else about such a figure
+    #: — its visibility setting, its per-metric panels, its place in the
+    #: catalog — is unchanged; only where the page puts it.
+    in_sidebar = False
+    #: True when this figure moves into a column of its own beside the grid once
+    #: the window is wide enough for one. For a figure that is read *against*
+    #: the others rather than in sequence with them — the trials table, which
+    #: you look things up in while reading a chart. It has no effect on a narrow
+    #: window, where it simply renders where its catalog order puts it.
+    in_side_column = False
 
     def __init_subclass__(cls, **kwargs):
         """Derive everything that follows from the key, once per subclass."""
@@ -78,6 +123,11 @@ class Figure:
             cls.template = f"ui/figures/{cls.key}.html"
             cls.setting_key = f"show_{cls.key}"
             cls.dom_id = f"figure-{cls.key}"
+
+    @classmethod
+    def opening_view(cls):
+        """The view this figure draws before anything is switched."""
+        return cls.default_view or (cls.views[0] if cls.views else None)
 
     #: Set by __init_subclass__; declared here so the base class is usable too.
     template = ""
@@ -91,7 +141,10 @@ class Figure:
         Figures with `per_metric = True` are called once per metric; the rest
         are called once with `metric=None`. A figure with `views` is called
         once per declared view (`view` is one of `views`; None means the
-        first/default); a figure with no views ignores the argument.
+        first/default); a figure with no views ignores the argument. A figure
+        declaring `needs_config_space` also takes `config_space`, which is None
+        when the model isn't available to build one from (a custom model viewed
+        read-only).
         """
         return None
 

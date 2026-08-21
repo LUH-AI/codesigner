@@ -24,7 +24,7 @@ def _exp():
 def test_experiment_settings_use_default_checkbox_clears_override(client):
     exp = _exp()
     client.post(reverse("ui:experiment_settings", args=[exp.pk]),
-                {"use_default_settings": "on", "export_absolute_times": "on"})
+                {"use_default_settings": "on", "show_trials": "on"})
     exp.refresh_from_db()
     assert exp.use_default_settings is True
     assert exp.settings == {}
@@ -36,7 +36,7 @@ def test_default_experiment_settings_saves_global(client):
     (The figure checkboxes are covered in test_figure_settings.py.)"""
     client.post(reverse("ui:default_experiment_settings"), {})
     stored = GlobalSettings.get_solo().default_experiment_settings
-    assert stored["export_absolute_times"] is False
+    assert stored["show_trials"] is False
     assert set(stored) == set(SETTING_DEFAULTS)
 
 

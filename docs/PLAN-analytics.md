@@ -94,8 +94,9 @@ one pass.
   needed here beyond entries merging correctly.
 - Real wall-clock per-trial timestamps already exist
   (`core/optimizers/timing.py:38-58`, `run_info["starttime"/"endtime"]`) —
-  `error_over_time_plot` currently ignores them and sums `duration` instead;
-  switching to real timestamps is a byproduct of Phase 0, not new capability.
+  `error_over_time_plot` ignores them and sums `duration` instead. This plan
+  assumed switching to them was a free improvement; Phase 0 concluded the
+  opposite and kept the sum. See Phase 0's status note.
 - No live fitted surrogate is ever retained after a run (SMAC's facade is a
   local var, discarded at the end of `optimize()`) — anything needing a
   surrogate (Phase 5+) fits a fresh, cheap RandomForest over the trial
@@ -104,6 +105,25 @@ one pass.
   reused more often.
 
 ## Phase 0 — The "alternate views" mechanism, proven on two concrete cases
+
+> **Status: done, with two departures from what is written below** — the only
+> phase whose plan did not survive contact intact, and the only one that was
+> missing this note until an audit went looking for it.
+>
+> 1. **The time axis kept summing `duration`** rather than switching to the
+>    real `starttime`/`endtime`, contrary to the bullet below. Experiments
+>    persist and resume, and the gap between two runs of the same experiment is
+>    arbitrarily long — wall-clock would draw that gap as a dead stretch of
+>    axis, which says nothing about the search. So the x-axis is compute spent,
+>    not elapsed. Note this is *not* what DeepCave's Cost Over Time shows
+>    ("Wallclock time [s]"), and it excludes the run overhead the page's own
+>    summary line reports separately as `total − trial_seconds`.
+> 2. **There is no "table" view *kind*.** The mechanism below describes a view
+>    as either a Plotly function or a declared table kind; what shipped is
+>    simpler and less general — the table view's `plot()` returns `None` and
+>    `experiment_detail.html`'s `syncImportanceTable` shows the server-rendered
+>    block instead. Adding a kind would be a real generalization, not a
+>    rename, if a second table view ever wants one.
 
 The foundation everything else leans on: importance as pie/bar/table, and the
 performance/error-over-time merge, as one entry with axis toggles.
@@ -125,11 +145,11 @@ performance/error-over-time merge, as one entry with axis toggles.
   (`ui/figures/plots.py:29-61`) and `error_over_time_plot` (`:100-136`) into
   one entry with two independent axis toggles — x: trial index | wall-clock
   time, y: score | error — four view combinations. Both already share
-  `incumbent_scores()` (`:19-26`), so the data layer barely changes; the
-  time axis switches from `error_over_time_plot`'s current cumulative-summed
-  `duration` to the real `starttime`/`endtime` in `run_info`
-  (`core/optimizers/timing.py`), which is strictly more correct and needs no
-  core changes. `absolute_scale` becomes per-view-combination (today's two
+  `incumbent_scores()` (`:19-26`), so the data layer barely changes.
+  *(The intent here was to switch the time axis from the cumulative-summed
+  `duration` to the real `starttime`/`endtime`; that was reversed during the
+  phase — see the status note above.)* `absolute_scale` becomes
+  per-view-combination (today's two
   fixed relayouts — linear 0–1, log −3..0 — need reconciling into a small
   lookup keyed by the active combination).
 - New view-selector UI: one or two small `<select>`s per multi-view figure
@@ -273,8 +293,12 @@ A 2D/3D scatter of every trial's configuration, colored by score. No
 surrogate needed — pure trial history, like DeepCave's version.
 
 - New `Figure` entry in `ui/figures/plots.py` + `catalog.py`. Axes are 2 or 3
-  user-picked hyperparameters (simple `<select>` pickers, not DeepCave's MDS
-  projection — keeps this phase dependency-free and cheap). Precompute one
+  user-picked hyperparameters, via simple `<select>` pickers. *(This bullet
+  originally justified that as avoiding "DeepCave's MDS projection", which was
+  a misreading: DeepCave's Configuration Cube plots real hyperparameter values
+  too, from a checklist. MDS belongs to its separate Footprint plugin —
+  `deepcave/evaluators/footprint.py`, already listed as out of scope above.
+  The picker is the actual difference, and it is a small one.)* Precompute one
   full per-trial dataset (all HP values + score) once and remap axes
   client-side (`Plotly.newPlot`/`restyle`) rather than round-tripping to the
   server per axis change. *(Done.)*

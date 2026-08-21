@@ -36,7 +36,7 @@ def test_saving_records_each_figure_choice(client):
     """Posting with one figure's box unticked stores that one off and the rest on."""
     kept = [c for c in FIGURES if c.key != "trial_duration"]
     client.post(reverse("ui:default_experiment_settings"),
-                {"export_absolute_times": "on",
+                {
                  **{c.setting_key: "on" for c in kept}})
 
     stored = GlobalSettings.get_solo().default_experiment_settings

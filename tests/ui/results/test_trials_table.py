@@ -91,4 +91,29 @@ def test_rows_carry_raw_values_to_sort_on(client, experiment):
 
     assert 'data-sort="0.91"' in rows       # a score, unrounded
     assert 'data-sort="9.0"' in rows        # a duration, without the unit
-    assert "9.000 s" in rows                # still displayed formatted
+    assert "9 s" in rows                    # still displayed to four figures
+
+
+def test_the_table_is_paged_with_its_page_size_on_the_page(client, experiment):
+    """A five-hundred-row table is one you scroll past rather than read, so it
+    is paged — and the page size is a field beside the page selector, because it
+    is the same decision at a different scale.
+
+    The pager is markup only here; which rows are hidden is JavaScript, which
+    this suite does not run. What is asserted is that the controls exist, that
+    they start from the figure's own number rather than a restated one, and that
+    every row is still in the document — paging hides rows, it does not drop
+    them, so a sort still sees the whole table.
+    """
+    from ui.figures import FIGURES_BY_KEY
+
+    page, _head, body = _parts(client, experiment)
+    pager = page.split("data-trials-pager", 1)[1].split("</div>\n</section>", 1)[0]
+
+    assert "data-page-select" in pager
+    assert "data-page-prev" in pager and "data-page-next" in pager
+    assert f'value="{FIGURES_BY_KEY["trials"].page_size}"' in pager
+    assert pager.lstrip().startswith("hidden"), \
+        "no pager until the script finds more rows than fit a page"
+    assert body.count("<tr") == len(experiment.result["data"]), \
+        "every row is in the document; paging hides them, it does not drop them"

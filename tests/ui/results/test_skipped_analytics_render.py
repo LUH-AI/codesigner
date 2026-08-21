@@ -68,7 +68,7 @@ def test_parallel_coordinates_falls_back_to_config_order(client):
     fig = parallel_coordinates_plot(result, "accuracy")
 
     assert fig is not None
-    labels = [d.label for d in fig.data[0].dimensions]
+    labels = list(fig.layout.xaxis.ticktext)
     hp_names = list(result.trials[0].config.keys())
     assert labels[:-1] == hp_names, "config order, unpermuted"
     assert len(labels) == len(hp_names) + 1, "plus the score axis"

@@ -6,12 +6,18 @@ it draws — see `base.py` for the full set of options and how to add one.
 
 from django.utils.translation import gettext_lazy as _
 
-from .base import FULL, HALF, Figure
+from core.projection import METHODS
+
+from .base import DOUBLE, FULL, HALF, Figure
 from .plots import (
     configuration_cube_plot,
+    configuration_projection_plot,
     hyperparameter_importance_plot,
     hyperparameter_interactions_bar_plot,
     hyperparameter_interactions_heatmap_plot,
+    hyperparameter_graph_plot,
+    hyperparameter_orders_plot,
+    hyperparameter_upset_plot,
     parallel_coordinates_plot,
     performance_over_time_plot,
     trial_duration_plot,
@@ -26,21 +32,74 @@ class BestConfiguration(Figure):
 
 
 class SelectedConfiguration(Figure):
-    """The trial clicked on the performance figure, as a table. No plot."""
+    """The selected trial, as a table. No plot.
+
+    Lives in the sidebar: it is what every other figure's click is asking about,
+    so it has to be readable while you are clicking rather than wherever the
+    page happens to be scrolled to.
+    """
 
     key = "selected_configuration"
-    label = _("Selected configuration")
+    label = _("Selected Configuration")
+    in_sidebar = True
 
 
-#: Which OptimizationResult field pair backs each HyperSHAP "explanation
-#: game" this app surfaces on the importance figure — see
-#: core.optimizers.base.BaseOptimizer.HP_GAMES for what each one answers.
-#: Order here is the games' order in the game selector.
+#: Which OptimizationResult fields back each HyperSHAP "explanation game" —
+#: see core.optimizers.base.BaseOptimizer.HP_GAMES for what each one answers.
+#: Order here is the games' order in the page's one game selector.
+#:
+#: Four fields each, because a game is not only an importance: the same call
+#: produces the order-2 interaction grid and the full Möbius decomposition, and
+#: every figure that reads any of them reads the game the sidebar names. The
+#: tunability entry's names have no game in them — they were the only ones
+#: stored back when only tunability's had anywhere to go, and they are in every
+#: .ihpo ever written.
 HP_GAME_FIELDS = {
-    "tunability": ("hyperparameter_importance", "hyperparameter_importance_warning"),
-    "sensitivity": ("hyperparameter_sensitivity", "hyperparameter_sensitivity_warning"),
-    "mistunability": ("hyperparameter_mistunability", "hyperparameter_mistunability_warning"),
+    "tunability": {
+        "importance": "hyperparameter_importance",
+        "warning": "hyperparameter_importance_warning",
+        "interactions": "hyperparameter_interactions",
+        "moebius": "hyperparameter_moebius",
+    },
+    # Mistunability before sensitivity: it is tunability's mirror — what there
+    # is to lose against what there is to gain — and the two read as a pair.
+    "mistunability": {
+        "importance": "hyperparameter_mistunability",
+        "warning": "hyperparameter_mistunability_warning",
+        "interactions": "hyperparameter_mistunability_interactions",
+        "moebius": "hyperparameter_mistunability_moebius",
+    },
+    "sensitivity": {
+        "importance": "hyperparameter_sensitivity",
+        "warning": "hyperparameter_sensitivity_warning",
+        "interactions": "hyperparameter_sensitivity_interactions",
+        "moebius": "hyperparameter_sensitivity_moebius",
+    },
 }
+
+#: What each game is called where a reader sees it, and what it asks. The
+#: selector's own labels; the keys above are what the code and the stored result
+#: use. The questions are BaseOptimizer.HP_GAMES' own, said without the
+#: aggregation names — MAX/VAR/MIN mean nothing to someone reading a figure.
+HP_GAME_LABELS = {
+    "tunability": _("Tunability"),
+    "mistunability": _("Mistunability"),
+    "sensitivity": _("Sensitivity"),
+}
+HP_GAME_HELP = {
+    "tunability": _("How much is there to gain by tuning this hyperparameter?"),
+    "mistunability": _("How much is there to lose by getting this hyperparameter wrong?"),
+    "sensitivity": _("How much does performance move as this hyperparameter moves?"),
+}
+
+
+def game_field(result, game: str, part: str, metric, default):
+    """One game's *part* for *metric*, or *default*.
+
+    The indirection every HyperSHAP figure goes through, so that "which game"
+    is one lookup rather than a branch in each of them.
+    """
+    return getattr(result, HP_GAME_FIELDS[game][part]).get(metric, default)
 
 #: The three ways to draw one game's numbers — see hyperparameter_importance_plot.
 HP_RENDERINGS = ("pie", "bar", "table")
@@ -52,60 +111,131 @@ class HyperparameterImportance(Figure):
     key = "hyperparameter_importance"
     label = _("Hyperparameter importance (HyperSHAP)")
     per_metric = True
-    # Two independent choices compose into one flat view key (see
-    # experiment_detail.html's game/rendering selects): which game, and how to
-    # draw it. Tunability + pie is first, matching the figure's pre-existing
-    # default look. "local-bar" is a fourth game, ablation against the
-    # currently-selected trial, tacked on rather than a fourth row of the
-    # game x rendering product — it only has one rendering (see
-    # hyperparameter_ablation_plot) and, unlike the other three, its value
-    # depends on which trial is selected, not just the metric, so `plot()`
-    # below can't compute it — that needs the live model/config space, which
-    # only ui/views.py's _detail_context (default: the metric's best trial)
-    # and the trial_ablation endpoint (a click) have access to. This entry
-    # exists so `views`/`figure_views` still list it as a real option.
-    views = tuple(f"{game}-{rendering}" for game in HP_GAME_FIELDS for rendering in HP_RENDERINGS) \
-        + ("local-bar",)
-    # Only the "local-bar" view is deferred — the other nine are switches between
-    # numbers already computed at run completion and shipped with the page. Hence
-    # the setting is named for the computation rather than for this figure.
-    deferred = (("local_ablation", _("Local explanation (selected trial)")),)
+    # Two independent choices compose into one flat view key: which game — now
+    # chosen once for the whole page, in the sidebar — and how to draw it, which
+    # is this figure's own and stays on it. Tunability + pie is first, matching
+    # the figure's pre-existing default look.
+    views = tuple(f"{game}-{rendering}"
+                  for game in HP_GAME_FIELDS for rendering in HP_RENDERINGS)
 
     @classmethod
     def plot(cls, result, metric=None, view=None):
         view = view or cls.views[0]
         game, rendering = view.split("-")
-        if game == "local":
-            return None
-        importance_field, _warning_field = HP_GAME_FIELDS[game]
-        importance = getattr(result, importance_field).get(metric, {})
-        return hyperparameter_importance_plot(importance, rendering)
+        return hyperparameter_importance_plot(
+            game_field(result, game, "importance", metric, {}), rendering)
 
 
-class HyperparameterInteractions(Figure):
-    """Pairwise (order-2) HyperSHAP tunability interactions — a heatmap by
-    default, a bar of the top-10 strongest pairs as the alternate view.
+class LocalExplanation(Figure):
+    """The selected trial's score, built from the config-space default one
+    hyperparameter at a time — HyperSHAP's ablation game.
 
-    Free byproduct of the importance figure's own HyperSHAP call: tunability
-    is computed with order 2 by default already, so this reuses
-    `OptimizationResult.hyperparameter_interactions` rather than asking
-    HyperSHAP for anything new. Sensitivity/mistunability's own interaction
-    grids are computed the same way (see BaseOptimizer.compute_hp_games) but
-    have no field or view yet — only tunability's is wired up here.
+    Its own figure rather than a fourth option on the game selector, because it
+    is a different question about a different subject: the other three explain
+    the search, this explains one trial, and it has no interactions to give the
+    five interaction figures. It also cannot be precomputed the way they are —
+    its value depends on which trial is selected, not just the metric, and it
+    needs the live model and config space, which only `ui/views.py`'s
+    `_detail_context` (defaulting to the metric's best trial) and the
+    `trial_ablation` endpoint (a click) have. So `plot()` stays None and the
+    page fetches it, like partial dependence and local effects.
     """
 
-    key = "hyperparameter_interactions"
-    label = _("Hyperparameter interactions (HyperSHAP)")
+    key = "local_explanation"
+    label = _("Local explanation (selected trial)")
+    width = FULL
     per_metric = True
-    views = ("heatmap", "bar")
+    # The computation's name, not the figure's, and unchanged: it is stored in
+    # settings, and it was already named for the computation back when this was
+    # one view of the importance figure.
+    deferred = (("local_ablation", _("Local explanation (selected trial)")),)
+
+
+class _Interactions(Figure):
+    """One way of reading the same set of hyperparameter interactions.
+
+    The five below are five figures rather than five views of one, because they
+    answer different questions and are wanted side by side: the heatmap is a
+    grid you scan, the graph is a shape you recognise, the coalitions are a
+    ranked list you read. Behind a single selector only one could ever be on the
+    page at a time, and each now has its own visibility setting.
+
+    They are also two different computations wearing one name. The heatmap and
+    the top pairs read the order-2 FSII grid; the graph, the coalitions and the
+    orders read the Möbius decomposition, which carries every coalition of every
+    size. Those are not the same numbers and deliberately so — see
+    `BaseOptimizer._shared_exact_computer`.
+
+    All of it is a free byproduct of the importance figure's own HyperSHAP call
+    (order 2 is already its default), so nothing here is fetched on demand —
+    and that is true of all three games, which is what lets one selector drive
+    every figure here as well as the importance figure. The games are these
+    figures' `views`: a game is a different set of numbers to draw rather than a
+    different way to draw them, but the page's view machinery is exactly the
+    "one precomputed payload per option" plumbing that needs, so they use it.
+    Nothing switches them individually — the sidebar's selector switches all of
+    them at once (see experiment_detail.html).
+    """
+
+    per_metric = True
+    views = tuple(HP_GAME_FIELDS)
+    #: Which of a game's fields this reading comes out of: "interactions" for
+    #: the order-2 FSII grid, "moebius" for the full decomposition.
+    source = "interactions"
+    #: The builder. `staticmethod` so it stays a plain function rather than
+    #: becoming a method of the figure that happens to take a dict.
+    builder = None
 
     @classmethod
     def plot(cls, result, metric=None, view=None):
-        view = view or cls.views[0]
-        interactions = result.hyperparameter_interactions.get(metric, {})
-        if view == "bar":
-            return hyperparameter_interactions_bar_plot(interactions)
-        return hyperparameter_interactions_heatmap_plot(interactions)
+        game = view or cls.views[0]
+        empty = [] if cls.source == "moebius" else {}
+        return cls.builder(game_field(result, game, cls.source, metric, empty))
+
+
+class InteractionsHeatmap(_Interactions):
+    """Hyperparameter × hyperparameter, every pair at once."""
+
+    key = "interactions_heatmap"
+    label = _("Interactions: heatmap")
+    builder = staticmethod(hyperparameter_interactions_heatmap_plot)
+
+
+class InteractionsTopPairs(_Interactions):
+    """The handful of pairs that matter, ranked, without scanning a grid."""
+
+    key = "interactions_top_pairs"
+    label = _("Interactions: top pairs")
+    builder = staticmethod(hyperparameter_interactions_bar_plot)
+
+
+class InteractionsGraph(_Interactions):
+    """The Möbius graph — the only reading that shows anything above order 2."""
+
+    key = "interactions_graph"
+    label = _("Interactions: graph")
+    source = "moebius"
+    builder = staticmethod(hyperparameter_graph_plot)
+
+
+class InteractionsCoalitions(_Interactions):
+    """UpSet: which named combinations carry value. Stays legible where the
+    graph stops, which is around six hyperparameters."""
+
+    key = "interactions_coalitions"
+    label = _("Interactions: coalitions")
+    source = "moebius"
+    builder = staticmethod(hyperparameter_upset_plot)
+
+
+class InteractionsOrders(_Interactions):
+    """Alone, in pairs, or in larger groups — where each hyperparameter's
+    attributed value actually comes from."""
+
+    key = "interactions_orders"
+    label = _("Interactions: by order")
+    source = "moebius"
+    builder = staticmethod(hyperparameter_orders_plot)
 
 
 class PerformanceOverTime(Figure):
@@ -114,7 +244,19 @@ class PerformanceOverTime(Figure):
     curve here: trial index or elapsed time on x, score or error on y."""
 
     key = "performance_over_time"
-    label = _("Performance over time")
+    # Renamed from "Performance over time": every figure here is over time in
+    # some sense, and what distinguishes this one is that its unit is the
+    # trial. The key is unchanged — it is stored in settings, so renaming that
+    # would be a data migration.
+    label = _("Trial performance")
+    # The figure the click-to-select gesture started on, and still the most
+    # natural place to make it — but no longer the only one.
+    selects_trials = True
+    # Full width: the chart every other figure is read against, and the one
+    # most often clicked. A spanning grid item always begins a fresh row, so it
+    # lands below whatever tiles precede it however many are switched off —
+    # which an ordering alone would not guarantee.
+    width = FULL
     per_metric = True
     views = ("trial-score", "trial-error", "time-score", "time-error")
     # Keyed by view, since the sensible "absolute" range depends on which
@@ -138,26 +280,65 @@ class PerformanceOverTime(Figure):
 
 
 class ConfigurationCube(Figure):
-    """Every trial as one point in hyperparameter space, colored by score —
-    DeepCave's "Configuration Cube," with two or three actual hyperparameters
-    as the axes rather than an MDS projection (see configuration_cube_plot).
+    """Where the search went, three ways.
 
-    No `views`: which hyperparameters are on which axis is a per-experiment,
-    unbounded combination, not a fixed enumerable set the server can
-    precompute one JSON entry per option for. Instead `plot()` ships one
-    default 2D scatter, and every hyperparameter's values ride along in the
-    trace's own `customdata` for the client to remap without a server round
-    trip — see experiment_detail.html's applyCubeAxes.
+    **Axes** is DeepCave's "Configuration Cube": two or three actual
+    hyperparameters as the axes, chosen by the reader, so a position on an axis
+    is a literal hyperparameter value. That also means a *distance* between two
+    points is not one — the axes carry unrelated units — which is what the other
+    two views add.
+
+    **PCA** and **PLS** project the whole configuration space down to two or
+    three components, where a distance is a distance: PCA along the directions
+    the trials varied in most, PLS along the directions that move the metric.
+    See `core.projection`, which also says why a categorical is one-hot here and
+    integer-coded on parallel coordinates.
+
+    All three ship with the page. A projection costs 0.2–5 ms, from twenty
+    trials to five thousand — a fetch and a Compute button would take longer to
+    press than to compute.
+
+    The reader's choices are not `views`, though the method is: which
+    hyperparameters are on which axis, and how many components to draw, are
+    per-experiment and unbounded, so every payload here carries its numbers in
+    `customdata` and the client assembles the axes from them without a round
+    trip. See `configuration_cube_plot` and experiment_detail.html's
+    applyCubeAxes, which draws all three.
     """
 
     key = "configuration_cube"
-    label = _("Configuration cube")
+    # Renamed from "Configuration cube", which now names one of its three views.
+    # "Projection" covers all three: each keeps two or three linear coordinates
+    # of hyperparameter space and drops the rest, differing only in which
+    # subspace they keep. The key is unchanged — it is stored in settings.
+    label = _("Hyperparameter space projection")
     width = FULL
+    # Two rows as well as two columns. Every one of its three views is a scatter
+    # over a space with no privileged direction, and a scatter squeezed into a
+    # single row is a strip: the vertical axis gets a fifth of the room the
+    # horizontal one does and reports a fifth of what it has to say.
+    height = DOUBLE
     per_metric = True
+    selects_trials = True
+    # Listed simplest first, because that is how they read in the selector, and
+    # opened on the last of them: PLS answers the question the page is actually
+    # about — which directions through this space moved the metric — and axes is
+    # the one that needs three decisions before it says anything at all.
+    views = ("axes",) + METHODS
+    default_view = "pls"
+    # For the axes view: a hyperparameter the search treats logarithmically
+    # needs a logarithmic axis, and the stored result carries values, not the
+    # space they were drawn from. The projections need it too, for the same
+    # reason one column further back — see `encode_configurations`.
+    needs_config_space = True
 
     @classmethod
-    def plot(cls, result, metric=None):
-        return configuration_cube_plot(result, metric)
+    def plot(cls, result, metric=None, view=None, config_space=None):
+        view = view or cls.opening_view()
+        if view in METHODS:
+            return configuration_projection_plot(
+                result, metric, view, config_space=config_space)
+        return configuration_cube_plot(result, metric, config_space=config_space)
 
 
 class ParallelCoordinates(Figure):
@@ -174,11 +355,16 @@ class ParallelCoordinates(Figure):
     key = "parallel_coordinates"
     label = _("Parallel coordinates")
     width = FULL
+    selects_trials = True
     per_metric = True
+    # Same reason as the cube's, different remedy — Parcoords has no log axis,
+    # so a log hyperparameter's values are recoded and its ticks relabelled.
+    # See parallel_coordinates_plot.
+    needs_config_space = True
 
     @classmethod
-    def plot(cls, result, metric=None):
-        return parallel_coordinates_plot(result, metric)
+    def plot(cls, result, metric=None, config_space=None):
+        return parallel_coordinates_plot(result, metric, config_space=config_space)
 
 
 class PartialDependence(Figure):
@@ -211,11 +397,34 @@ class PartialDependence(Figure):
     deferred = (("partial_dependence", _("Partial dependence (PDP/ICE)")),)
 
 
+class LocalEffects(Figure):
+    """Every sampled trial's local ablation as a beeswarm — the spread of each
+    hyperparameter's effect, rather than one trial's or an average.
+
+    Deferred, and the only new figure that is: it needs one ablation game per
+    trial, which no amount of sharing makes free (43 ms each with the explainer
+    shared, against 79 ms without). So it is fetched on request like partial
+    dependence, capped by `local_effects_max_trials`, and its autocompute
+    setting is off by default like every other deferred computation.
+    """
+
+    key = "local_effects"
+    label = _("Local effects across trials")
+    width = FULL
+    # Sampled, so most trials have no point here to click or to light up — see
+    # `_selection_meta`, which is why a plot names its trials rather than
+    # letting position imply them.
+    selects_trials = True
+    per_metric = True
+    deferred = (("local_effects", _("Local effects across trials")),)
+
+
 class TrialDuration(Figure):
     """One bar per trial. The same for every metric, so it is drawn once."""
 
     key = "trial_duration"
     label = _("Trial duration")
+    selects_trials = True
 
     @classmethod
     def plot(cls, result, metric=None):
@@ -228,18 +437,51 @@ class Trials(Figure):
     key = "trials"
     label = _("Trials")
     width = FULL
+    # On a wide window it becomes a column of its own beside everything else:
+    # it is the figure you look things up in while reading a chart, and doing
+    # that by scrolling to the bottom of the page and back is the reason it
+    # wants to be beside them rather than after them.
+    in_side_column = True
+    #: Rows to a page. A long run's table is one you scroll past rather than
+    #: read, so it is paged; the page holds enough that a short run never sees a
+    #: pager at all, and the reader can change it on the page. Declared here so
+    #: the template's field and the script that reads it start from one number.
+    page_size = 50
+    # A table, not a plot: its rows carry the trial index themselves and the
+    # highlight is a class, not a restyle.
+    selects_trials = True
 
 
+#: Page order, and — through `Figure.width` — the page layout: half-width
+#: figures pair up across the grid's two columns and a full-width one spans it,
+#: so a pair listed together here is a pair read together.
+#:
+#: The two configuration panels first, then the chart everything else is read
+#: against, then the interactions in the order they get harder (a grid, a
+#: ranking, a shape, a list, a breakdown), then the figures that need the whole
+#: width. `SelectedConfiguration` is in this list for its settings checkbox and
+#: its per-metric panels; the page renders it into the sidebar rather than the
+#: grid (`Figure.in_sidebar`), so its position here is not a position on it.
 FIGURES = (
-    BestConfiguration,
     SelectedConfiguration,
+    BestConfiguration,
     HyperparameterImportance,
-    HyperparameterInteractions,
     PerformanceOverTime,
+    # Directly under the chart of what the search achieved: where it went. The
+    # two are the same run read along its two axes — time, and space.
     ConfigurationCube,
+    InteractionsHeatmap,
+    InteractionsTopPairs,
+    InteractionsGraph,
+    InteractionsCoalitions,
+    InteractionsOrders,
+    TrialDuration,
+    # Every trial at once, then one hyperparameter at a time, then one trial at
+    # a time — the same run at three magnifications, in that order.
     ParallelCoordinates,
     PartialDependence,
-    TrialDuration,
+    LocalExplanation,
+    LocalEffects,
     Trials,
 )
 

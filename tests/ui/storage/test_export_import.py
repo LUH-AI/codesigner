@@ -15,7 +15,7 @@ from django.urls import reverse
 
 from core import io
 
-from tests.conftest import DATASETS_DIR, FIXTURES_DIR
+from tests.conftest import DATASETS_DIR, FIXTURES_DIR, export_ihpo
 
 
 def _make(name_source="test2.ihpo"):
@@ -34,7 +34,7 @@ def test_export_downloads_parseable_ihpo(client):
     accepts (i.e. a file the Streamlit app could load).
     """
     exp = _make()
-    resp = client.get(reverse("ui:experiment_export", args=[exp.pk]))
+    resp = export_ihpo(client, exp.pk)
 
     assert resp.status_code == 200
     disposition = resp["Content-Disposition"]
@@ -54,7 +54,7 @@ def test_export_body_matches_adapter_snapshot(client):
     """
     from ui.services import snapshot as adapter
     exp = _make()
-    resp = client.get(reverse("ui:experiment_export", args=[exp.pk]))
+    resp = export_ihpo(client, exp.pk)
     body = resp.getvalue() if hasattr(resp, "getvalue") else resp.content
     assert json.loads(body) == adapter.snapshot_from_experiment(exp, provenance=True)
 
@@ -124,7 +124,7 @@ def test_cross_app_round_trip(client):
     """
     from ui.models import Experiment
     exp = _make()
-    resp = client.get(reverse("ui:experiment_export", args=[exp.pk]))
+    resp = export_ihpo(client, exp.pk)
     body = resp.getvalue() if hasattr(resp, "getvalue") else resp.content
 
     snapshot = json.loads(body)

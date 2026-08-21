@@ -98,6 +98,34 @@ class OptimizationResult:
     # hyperparameter's own (signed, unnormalized) order-1 value.
     hyperparameter_interactions: Dict[str, Dict[str, Dict[str, float]]] = field(default_factory=dict)
     hyperparameter_interactions_warning: Dict[str, Optional[str]] = field(default_factory=dict)
+    # The full Möbius (Harsanyi) decomposition of the same tunability call —
+    # one value per coalition, of every size, rather than the order-2 grid
+    # above. Read by the interaction figure's graph/upset/by-order views, which
+    # need terms above order 2; the heatmap and top-pairs views keep reading
+    # `hyperparameter_interactions`, whose FSII numbers this deliberately does
+    # not replace (see `_shared_exact_computer` for why the two are not
+    # interchangeable). metric → [{"members": [...], "value": float}, ...].
+    hyperparameter_moebius: Dict[str, list] = field(default_factory=dict)
+    # The other two games' interactions and Möbius terms. Same shape as
+    # tunability's two fields above, and produced by the same call at no extra
+    # cost — `compute_hp_games` has always computed all three and kept one, back
+    # when only tunability's had anywhere to go. Named after their game rather
+    # than folded into one field keyed by game, because that is how the
+    # importance fields already read and because the shape of
+    # `hyperparameter_interactions` is in every .ihpo ever written.
+    hyperparameter_sensitivity_interactions: Dict[str, Dict[str, Dict[str, float]]] = field(default_factory=dict)
+    hyperparameter_sensitivity_moebius: Dict[str, list] = field(default_factory=dict)
+    hyperparameter_mistunability_interactions: Dict[str, Dict[str, Dict[str, float]]] = field(default_factory=dict)
+    hyperparameter_mistunability_moebius: Dict[str, list] = field(default_factory=dict)
+    # What the tunability shares are shares *of*, per metric: the sum of the raw
+    # order-1 magnitudes, in the metric's own units. A share cannot say whether
+    # the whole is worth eight accuracy points or eight thousandths of one, and
+    # it cannot be compared against the local ablation, which is raw and signed.
+    # Both of those are wanted: "98% of the achievable gain, and 89% of it
+    # already banked" is a complete sentence where "98%" alone is a misleading
+    # one. One float per metric rather than a second copy of every value, since
+    # `share x total` recovers the rest.
+    hyperparameter_tunability_total: Dict[str, float] = field(default_factory=dict)
 
     def _derived(self) -> Dict[tuple, Any]:
         """Memo for values derived from `trials`, keyed by (what, metric).
@@ -125,12 +153,39 @@ class OptimizationResult:
         has to be the same trial the panel below it describes.
 
         Ties go to the lowest index, which is what `max` already did.
+
+        A trial with no score for *metric* is skipped rather than raised on,
+        and the answer is None when no trial has one at all. `io.parse` refuses
+        such a file (see `_check_trial_scores`), so this is the second line of
+        defence, for a row already in the database from before that check
+        existed: the metric then has no best trial, which every caller already
+        handles, instead of a KeyError five frames down and a 500 on the page.
         """
         memo, key = self._derived(), ("best_index", metric)
         if key not in memo:
-            memo[key] = (max(range(len(self.trials)),
-                             key=lambda i: self.trials[i].scores[metric])
-                         if self.trials else None)
+            scored = [i for i, t in enumerate(self.trials) if metric in t.scores]
+            memo[key] = (max(scored, key=lambda i: self.trials[i].scores[metric])
+                         if scored else None)
+        return memo[key]
+
+    def has_every_score(self, metric: str) -> bool:
+        """True when every trial carries a score for *metric*.
+
+        What the per-metric figure builders check before drawing anything. A
+        figure that needs one y-value per trial (the performance curve, the
+        cube's colour array, a parallel-coordinates axis) has no honest way to
+        draw a trial with no score — Plotly's own null handling ranges from a
+        gap to a silently mis-scaled axis depending on the trace type — so they
+        decline as a whole and show the "no data" caption they already have.
+
+        `io.parse` refuses such a file outright (`_check_trial_scores`), so this
+        only ever fires for a row stored before that check existed. Kept as one
+        memoized predicate rather than repeated in each builder so they cannot
+        disagree about what "complete" means.
+        """
+        memo, key = self._derived(), ("has_every_score", metric)
+        if key not in memo:
+            memo[key] = all(metric in t.scores for t in self.trials)
         return memo[key]
 
     def incumbent_scores(self, metric: str) -> List[float]:
@@ -141,13 +196,21 @@ class OptimizationResult:
 
         Returns the memo itself, not a copy: callers read it into a plot trace
         and none mutate it.
+
+        A trial with no score for *metric* carries the running best forward
+        unchanged rather than raising — same reasoning as `best_index`, and it
+        keeps the list one entry per trial, which every caller indexes by trial
+        position. The leading entries are None if the first trials have no such
+        score, since there is no running best yet to carry.
         """
         memo, key = self._derived(), ("incumbent_scores", metric)
         if key not in memo:
-            best = float("-inf")
+            best = None
             running = []
             for t in self.trials:
-                best = max(best, t.scores[metric])
+                score = t.scores.get(metric)
+                if score is not None and (best is None or score > best):
+                    best = score
                 running.append(best)
             memo[key] = running
         return memo[key]
@@ -541,22 +604,169 @@ class _MetricExplainer:
         return self._fallback
 
 
+#: What `HyperSHAP.tunability()`/`.sensitivity()`/`.mistunability()` build for
+#: themselves, named here so `_shared_exact_computer` can build the same thing.
+#: The aggregation is the only difference between the three games once the
+#: surrogate exists: MAX = how much upside is there, VAR = how much does
+#: performance move, MIN = how much downside does getting it wrong carry.
+_GAME_PIECES = {
+    "tunability": ("TunabilityExplanationTask", "TunabilityGame", "MAX"),
+    "sensitivity": ("SensitivityExplanationTask", "SensitivityGame", "VAR"),
+    "mistunability": ("MistunabilityExplanationTask", "MistunabilityGame", "MIN"),
+}
+
+#: How many configurations each game's searcher draws — HyperSHAP's own default
+#: for `HyperSHAP.tunability` and its siblings, which `_shared_exact_computer`
+#: has to match or it would be computing a different game from the one the
+#: facade computes. The equality test in `tests/core/test_hp_importance.py` is
+#: what catches it drifting.
+#:
+#: The searcher's *seed* is not here: it is the experiment's, passed down from
+#: `optimize()` like every other stochastic thing. HyperSHAP defaults it to 0,
+#: which meant two experiments with different seeds drew the same 10,000
+#: configurations to explain themselves with — deterministic, but not the
+#: experiment's determinism. The facade fallback in `_game_values` is given the
+#: same seed, so the two paths stay comparable.
+_HPO_SIMULATION_SAMPLES = 10_000
+
+
+def _shared_exact_computer(explainer, game: str, seed: int = 0):
+    """One `shapiq.ExactComputer` for *game*, read twice: FSII and Möbius.
+
+    Returns `(fsii_order_2, moebius)` — the interaction values today's
+    importance and interactions figures are built from, plus the full Möbius
+    (Harsanyi) decomposition the graph, upset and by-order views need.
+
+    **Why this reaches past HyperSHAP's facade**, which is a real cost and
+    wants justifying:
+
+    - *Why not call the facade twice?* `HyperSHAP.tunability()` builds a fresh
+      `ExactComputer` per call, and an `ExactComputer` evaluates 2^n_hp
+      coalitions. Two calls means paying that twice — measured at 6
+      hyperparameters, 1110 ms each. One computer caches its game evaluations,
+      so the second index is free: **1060 ms for FSII, then 1 ms for Möbius**.
+      Doubling the most expensive thing a run does, to avoid the twenty lines
+      below, is the wrong trade.
+
+    - *Why not just ask the facade for a higher-order FSII?* Because FSII is
+      the *faithful* least-squares k-order approximation — its terms are fitted
+      jointly, so the order-1 values of an order-3 fit are not the order-1
+      values of an order-2 fit. Measured: order-1 moves by 5% of the largest
+      term, order-2 by 24%. Raising the order in place would silently rewrite
+      `hyperparameter_importance` for every new run and make it incomparable
+      with every stored one.
+
+    - *Why Möbius?* It is the unique decomposition assigning one value per
+      coalition, and unlike FSII it is truncation-independent — measured
+      identical at order 2 and at order n. So it can be stored once and read at
+      any order, which is exactly what a plot showing 2-way and 5-way
+      interactions in the same picture needs. It is also the transform the
+      graph is named after.
+
+    **What protects this.** `hypershap` is at 0.0.6 and its internals may move.
+    Two things guard that: a test asserting this function's FSII output is
+    bit-identical to `HyperSHAP.<game>()`'s for all three games, which fails
+    loudly on any drift; and the caller's `except`, which falls back to the
+    facade and simply does without the Möbius-based views. Neither the numbers
+    on the page nor a stored result can go quietly wrong.
+    """
+    from shapiq import ExactComputer
+    import hypershap.games as hs_games
+    import hypershap.task as hs_task
+    from hypershap.utils import Aggregation, RandomConfigSpaceSearcher
+
+    task_name, game_name, aggregation = _GAME_PIECES[game]
+    source = explainer.hs.explanation_task
+    surrogate = source.surrogate_model
+    if isinstance(surrogate, list):
+        surrogate = surrogate[0]
+
+    config_space = source.config_space
+    game_task = getattr(hs_task, task_name)(
+        config_space=config_space, surrogate_model=surrogate,
+        baseline_config=config_space.get_default_configuration())
+    built = getattr(hs_games, game_name)(
+        explanation_task=game_task,
+        cs_searcher=RandomConfigSpaceSearcher(
+            explanation_task=game_task, n_samples=_HPO_SIMULATION_SAMPLES,
+            mode=getattr(Aggregation, aggregation), seed=seed))
+
+    n_players = built.get_num_hyperparameters()
+    computer = ExactComputer(n_players=n_players, game=built)
+    # Order matters only for cost: FSII pays for the coalitions, Möbius reads
+    # the cached game afterwards.
+    return computer(index="FSII", order=2), computer(index="Moebius", order=n_players)
+
+
+def _moebius_terms(iv, params: List[str]) -> list:
+    """A Möbius `InteractionValues` as JSON-storable rows, strongest first.
+
+    `[{"members": ["max_depth", "n_estimators"], "value": 0.013}, ...]` — a list
+    rather than the nested dict `_extract_pairwise` produces, because these
+    terms are of every size from 1 to n_hp and a dict keyed by member would
+    need a separator convention no hyperparameter name is guaranteed to avoid.
+
+    The empty coalition is dropped: it is the game's value with nothing tuned,
+    a constant offset rather than anything attributable to a hyperparameter.
+    """
+    rows = [{"members": [params[i] for i in key], "value": float(value)}
+            for key, value in iv.dict_values.items() if key]
+    rows.sort(key=lambda row: abs(row["value"]), reverse=True)
+    return rows
+
+
 def _hp_grid(hp, n_points: int) -> list:
     """*n_points* values spanning one hyperparameter's domain — its full set
     of choices for a categorical hyperparameter (there is no "spanning" a
-    finite, unordered set); sorted-unique rounded integers for an integer
-    one, so the grid never suggests a value it couldn't actually take;
-    otherwise *n_points* evenly spaced floats across its bounds.
+    finite, unordered set), otherwise *n_points* points spaced evenly across
+    the hyperparameter's *own* scale and converted back to the values it
+    actually takes (sorted-unique for an integer one, so the grid never
+    suggests a value it couldn't hold).
+
+    "Its own scale" is what `to_value` supplies, and it is the whole point of
+    routing through ConfigSpace rather than reaching for `hp.lower`/`hp.upper`
+    directly: for a log-scaled hyperparameter, evenly spaced in native units
+    is not evenly spaced in the units it is *searched* in. `C` on the SVM
+    model spans 0.01 to 100 logarithmically, so a native linspace puts 19 of
+    20 points above 5.27 — while 69% of the configurations ConfigSpace
+    actually samples fall below that second point. The grid would then explore
+    almost entirely the tail the surrogate has the least to say about.
+
+    Evenly spacing the *normalized* [0, 1] vector and mapping it back through
+    `to_value` gives a log-spaced grid for a log hyperparameter and an
+    unchanged, identical one for every linear hyperparameter. This is also
+    what DeepCAVE's PDP does (`pyPDP`'s ICE grids on `linspace(0, 1)` in the
+    same normalized representation).
     """
     import numpy as np
     from ConfigSpace import UniformIntegerHyperparameter
 
     if hasattr(hp, "choices"):
         return list(hp.choices)
-    raw = np.linspace(hp.lower, hp.upper, n_points)
+    raw = hp.to_value(np.linspace(0.0, 1.0, n_points))
     if isinstance(hp, UniformIntegerHyperparameter):
-        return sorted({int(round(v)) for v in raw})
+        return sorted({int(v) for v in raw})
     return [float(v) for v in raw]
+
+
+def _sample_evenly(items: list, limit: int) -> list:
+    """At most *limit* of *items*, spread evenly across it. 0 means all.
+
+    Evenly spaced rather than the first *limit*, because a trial history is
+    ordered and its two ends do not look alike: the front is exploration and
+    the back is exploitation, so a prefix would show only half the story. The
+    first and last items are always included.
+
+    Deterministic, so the same run draws the same picture on every request —
+    a random sample would make the figure flicker between reloads for no
+    benefit.
+    """
+    if limit <= 0 or len(items) <= limit:
+        return items
+    if limit == 1:
+        return [items[-1]]
+    step = (len(items) - 1) / (limit - 1)
+    return [items[round(i * step)] for i in range(limit)]
 
 
 class BaseOptimizer(ABC):
@@ -660,6 +870,12 @@ class BaseOptimizer(ABC):
             "hyperparameter_mistunability_warning": result.hyperparameter_mistunability_warning,
             "hyperparameter_interactions": result.hyperparameter_interactions,
             "hyperparameter_interactions_warning": result.hyperparameter_interactions_warning,
+            "hyperparameter_moebius": result.hyperparameter_moebius,
+            "hyperparameter_sensitivity_interactions": result.hyperparameter_sensitivity_interactions,
+            "hyperparameter_sensitivity_moebius": result.hyperparameter_sensitivity_moebius,
+            "hyperparameter_mistunability_interactions": result.hyperparameter_mistunability_interactions,
+            "hyperparameter_mistunability_moebius": result.hyperparameter_mistunability_moebius,
+            "hyperparameter_tunability_total": result.hyperparameter_tunability_total,
             "trials_limit": result.trials_limit,
         }
 
@@ -703,6 +919,20 @@ class BaseOptimizer(ABC):
             hyperparameter_mistunability_warning=d.get("hyperparameter_mistunability_warning", {}),
             hyperparameter_interactions=d.get("hyperparameter_interactions", {}),
             hyperparameter_interactions_warning=d.get("hyperparameter_interactions_warning", {}),
+            # Absent from every .ihpo written before this field existed, which
+            # reads as "no Möbius views for this run" — the same empty state a
+            # failed game already produces.
+            hyperparameter_moebius=d.get("hyperparameter_moebius", {}),
+            # Likewise absent from anything written before the interaction
+            # figures could show a game other than tunability.
+            hyperparameter_sensitivity_interactions=d.get("hyperparameter_sensitivity_interactions", {}),
+            hyperparameter_sensitivity_moebius=d.get("hyperparameter_sensitivity_moebius", {}),
+            hyperparameter_mistunability_interactions=d.get("hyperparameter_mistunability_interactions", {}),
+            hyperparameter_mistunability_moebius=d.get("hyperparameter_mistunability_moebius", {}),
+            # Absent from anything written before the shares could be read in
+            # the metric's own units, which reads as "no scale for these" — the
+            # figure then offers the achievable view alone.
+            hyperparameter_tunability_total=d.get("hyperparameter_tunability_total", {}),
             trials_limit=d.get("trials_limit"),
             metadata={},
         )
@@ -779,6 +1009,18 @@ class BaseOptimizer(ABC):
     #: it is counted in coalitions rather than seconds.
     analytics_max_coalitions: Optional[int] = EAGER_MAX_COALITIONS
 
+    #: Whether anything on the experiment page will actually display these
+    #: numbers. False makes `compute_hp_games` decline outright — an experiment
+    #: whose importance and interactions figures are both switched off was
+    #: paying 2^n_hp coalition evaluations per game per metric to fill fields no
+    #: page would read.
+    #:
+    #: Set per instance by `ui/services/run.py`, the same way
+    #: `analytics_max_coalitions` is, so `core/` stays Django-free. Defaults to
+    #: True: a caller that says nothing gets the analytics, which is what every
+    #: direct caller (the tests, a script) means.
+    analytics_wanted: bool = True
+
     def eager_analytics_budget_exceeded(self, config_space, metrics) -> Optional[str]:
         """Why the global games shouldn't be computed for this run, or None.
 
@@ -805,13 +1047,17 @@ class BaseOptimizer(ABC):
         budget = self.analytics_max_coalitions
         if not budget:
             return None
+        # Materialized once: read three times below, and a generator would be
+        # empty after the first — silently making `cost` zero and the guard a
+        # no-op, which is the one failure mode a cost guard must not have.
+        metrics = list(metrics)
         n_hp = len(list(config_space.keys()))
-        cost = (2 ** n_hp) * len(self.HP_GAMES) * len(list(metrics))
+        cost = (2 ** n_hp) * len(self.HP_GAMES) * len(metrics)
         if cost <= budget:
             return None
         return (
             f"Importance analytics were skipped: {n_hp} hyperparameters over "
-            f"{len(list(metrics))} metrics would need {cost:,} coalition "
+            f"{len(metrics)} metrics would need {cost:,} coalition "
             f"evaluations, past the {budget:,} this deployment allows "
             f"(ANALYTICS_EAGER_MAX_COALITIONS). Cost grows as 2^hyperparameters."
         )
@@ -832,7 +1078,7 @@ class BaseOptimizer(ABC):
         existing callers (tests, every optimizer's serialize path before this)
         name it directly.
         """
-        importance, warning, _interactions = self._compute_hp_game(
+        importance, warning, _interactions, _moebius, _total = self._compute_hp_game(
             config_space, trials, metric_name, "tunability", seed)
         return importance, warning
 
@@ -846,7 +1092,7 @@ class BaseOptimizer(ABC):
         """HyperSHAP's "sensitivity" game — how much performance varies as
         each hyperparameter moves, holding the others at random draws. Same
         contract as `compute_hp_importance`."""
-        importance, warning, _interactions = self._compute_hp_game(
+        importance, warning, _interactions, _moebius, _total = self._compute_hp_game(
             config_space, trials, metric_name, "sensitivity", seed)
         return importance, warning
 
@@ -860,7 +1106,7 @@ class BaseOptimizer(ABC):
         """HyperSHAP's "mistunability" game — how much downside a
         hyperparameter risks if it ends up wrong. Same contract as
         `compute_hp_importance`."""
-        importance, warning, _interactions = self._compute_hp_game(
+        importance, warning, _interactions, _moebius, _total = self._compute_hp_game(
             config_space, trials, metric_name, "mistunability", seed)
         return importance, warning
 
@@ -886,7 +1132,7 @@ class BaseOptimizer(ABC):
         `feature_importances_` and uniform weights have no interaction
         structure to report.
         """
-        _importance, warning, interactions = self._compute_hp_game(
+        _importance, warning, interactions, _moebius, _total = self._compute_hp_game(
             config_space, trials, metric_name, "tunability", seed)
         return interactions, warning
 
@@ -897,6 +1143,7 @@ class BaseOptimizer(ABC):
         metric_name: str,
         config_of_interest: Dict[str, Any],
         seed: int = 0,
+        explainer=None,
     ) -> tuple[Dict[str, float], Optional[str]]:
         """HyperSHAP's "ablation" game: how much each hyperparameter's value in
         *config_of_interest* helped or hurt *metric_name*, versus the config
@@ -919,13 +1166,26 @@ class BaseOptimizer(ABC):
         and for the same reason — it was declared but unused here until the
         compute-policy pass, so a local explanation silently ignored the
         experiment's seed.
+
+        *explainer*, when given, is a `_MetricExplainer` for this
+        (config_space, trials, metric_name) whose surrogate is reused instead of
+        a fresh one being fitted — exactly what `_compute_hp_game` already
+        accepts, and for the same reason. Measured: 79 ms per call standalone
+        against 35 ms once plus 43 ms each shared. One trial's explanation
+        barely notices; explaining every trial (see `compute_local_effects`)
+        would otherwise refit an identical forest once per trial.
         """
         from ConfigSpace import Configuration
         from sklearn.ensemble import RandomForestRegressor
 
         params = list(config_space.keys())
-        data = _pair_trials_with_scores(config_space, trials, metric_name)
 
+        if explainer is not None:
+            if explainer.hs is None:
+                return {}, explainer.warning or "No surrogate for a local explanation."
+            return self._ablate(explainer.hs, config_space, config_of_interest, params)
+
+        data = _pair_trials_with_scores(config_space, trials, metric_name)
         if len(data) < 2:
             return {}, "Not enough trials for a local explanation."
 
@@ -942,6 +1202,78 @@ class BaseOptimizer(ABC):
         except Exception as e:
             return {}, f"HyperSHAP (ablation) failed ({e})."
 
+    @staticmethod
+    def _ablate(hs, config_space, config_of_interest, params):
+        """One ablation game against the config space's default, from a
+        HyperSHAP that already exists. The half of `compute_hp_ablation` that
+        does not depend on how the explainer was obtained."""
+        from ConfigSpace import Configuration
+
+        try:
+            iv = hs.ablation(
+                config_of_interest=Configuration(config_space, values=config_of_interest),
+                baseline_config=config_space.get_default_configuration())
+            order1 = iv.get_n_order(order=1).dict_values
+            return {params[idx]: val for (idx,), val in order1.items()}, None
+        except Exception as e:
+            return {}, f"HyperSHAP (ablation) failed ({e})."
+
+    def compute_local_effects(
+        self,
+        config_space,
+        trials: List[TrialResult],
+        metric_name: str,
+        seed: int = 0,
+        max_trials: int = 0,
+    ) -> tuple[List[str], List[dict], Optional[str]]:
+        """Every sampled trial's local ablation, for the beeswarm figure.
+
+        `compute_hp_ablation` answers "what did each hyperparameter's value do
+        for *this* trial". This runs that question across the run, so the figure
+        can show the *spread* of each hyperparameter's effect rather than one
+        trial's or an average. A hyperparameter whose points cluster tightly
+        behaves the same wherever you are in the space; one whose points fan
+        across zero helps in some regions and hurts in others, and no averaged
+        view can tell you that.
+
+        Returns (hyperparameter_names, rows, warning), where each row is
+        `{"index": i, "trial": n, "effects": {hp: signed_value}}` — `index` its
+        position in *trials* and `trial` its number, which differ because the
+        rows are a sample.
+
+        **The expensive one, and the only new figure that is.** One ablation
+        game per trial, each 2^n_hp coalitions. The explainer is built once and
+        shared (see `compute_hp_ablation`'s `explainer` parameter, which exists
+        for this), which takes it from 79 ms per trial to 35 ms once plus 43 ms
+        each — but 43 ms per trial still adds up, so *max_trials* caps how many
+        are asked for, 0 meaning all. Sampled evenly across the run by
+        `_sample_evenly` rather than as a prefix, for the same reason partial
+        dependence does: the front of a run is exploration and the back is
+        exploitation, and a beeswarm of only the exploration half would describe
+        a search that never happened.
+        """
+        explainer = self._build_explainer(config_space, trials, metric_name, seed)
+        if explainer.hs is None:
+            return [], [], (explainer.warning
+                            or "Not enough trials for local explanations.")
+
+        params = list(config_space.keys())
+        rows = []
+        # Positions, not just the trials: the sample skips trials, so a row's
+        # place in this list says nothing about which trial it explains, and the
+        # page's selection is a position in `trials`. See `_selection_meta`.
+        for index, trial in _sample_evenly(list(enumerate(trials)), max_trials):
+            effects, warning = self.compute_hp_ablation(
+                config_space, trials, metric_name, trial.config, seed,
+                explainer=explainer)
+            if warning:
+                return [], [], warning
+            rows.append({"index": index, "trial": trial.trial, "effects": effects})
+
+        if not rows:
+            return [], [], "No trials to explain."
+        return params, rows, None
+
     def compute_partial_dependence(
         self,
         config_space,
@@ -950,6 +1282,7 @@ class BaseOptimizer(ABC):
         hp_name: str,
         seed: int = 0,
         n_points: int = 20,
+        max_ice_curves: int = 0,
     ) -> tuple[list, List[List[Optional[float]]], List[Optional[float]], Optional[str]]:
         """Partial dependence (and per-trial ICE) of *metric_name* on
         *hp_name*, from a `fit_surrogate` fit over *trials* — DeepCave's
@@ -963,8 +1296,20 @@ class BaseOptimizer(ABC):
         is swapped to that grid value — the surrogate's prediction for that
         synthetic configuration is one point on that trial's Individual
         Conditional Expectation (ICE) curve. The Partial Dependence curve is
-        the grid-wise mean across every trial's ICE curve — DeepCave's own
-        definition, and the standard one. A trial whose config plus the
+        the grid-wise mean across every trial's ICE curve, which is the
+        standard definition of the average.
+
+        What it averages *over* is this app's own choice, and is not
+        DeepCave's: the curves here are one per trial, so the mean is weighted
+        by where the search actually went, while DeepCave draws its base
+        configurations at random from the whole config space
+        (`PDP.from_random_points(..., num_samples=10 x n_hp)`, capped at
+        10,000). So this reads as "what the optimizer saw as it explored"
+        rather than "what the space looks like on average" — deliberate, since
+        every other figure on this page describes the run rather than the
+        space, but not interchangeable with DeepCave's.
+
+        A trial whose config plus the
         swapped-in grid value the config space rejects (never happens with
         this app's current registry models, none of which have conditional
         or forbidden-clause hyperparameters, but a future model's might)
@@ -977,6 +1322,27 @@ class BaseOptimizer(ABC):
         was). All three are empty (with a warning) when there are too few
         trials to fit a surrogate, or *hp_name* has no valid configuration
         anywhere on its grid.
+
+        *max_ice_curves* caps how many trials contribute, 0 meaning all of
+        them. Both the work and the answer scale with it: this is a cap on the
+        trials that get predicted, not a cap on what is drawn afterwards, so
+        the partial-dependence curve is the mean over the sampled trials rather
+        than over every one. That is the only version of the cap that is worth
+        having — the cost being capped is `n_trials x n_points` predictions and
+        an equally large payload, and trimming after the fact would save
+        neither.
+
+        The sample is evenly spaced through the run rather than its first *k*
+        trials, so the band still spans early exploration and late exploitation
+        instead of showing only the beginning. It is deterministic, so the same
+        run gives the same picture every time.
+
+        Sampling is in keeping with what this plot means elsewhere: DeepCave's
+        own PDP averages over configurations drawn at random from the config
+        space, and caps what it draws too (`MAX_SHOWN_SAMPLES = 100`). A mean
+        over a hundred trials spread across a run is a perfectly good estimate
+        of a mean over ten thousand; six seconds and four megabytes to compute
+        the exact one is not a good trade.
 
         Every synthetic configuration is predicted in **one** `rf.predict`
         call rather than one call each. That is not a micro-optimization:
@@ -998,6 +1364,8 @@ class BaseOptimizer(ABC):
             return [], [], [], warning
 
         grid = _hp_grid(config_space[hp_name], n_points)
+
+        trials = _sample_evenly(trials, max_ice_curves)
 
         # Build every (trial, grid value) row first, remembering where each one
         # belongs, and leave a hole where the config space rejected it.
@@ -1043,7 +1411,9 @@ class BaseOptimizer(ABC):
         """
         return {game: ({m: {} for m in metrics},
                        {m: reason for m in metrics},
-                       {m: {} for m in metrics})
+                       {m: {} for m in metrics},
+                       {m: [] for m in metrics},
+                       {m: 0.0 for m in metrics})
                 for game in self.HP_GAMES}
 
     def compute_hp_games(
@@ -1060,14 +1430,15 @@ class BaseOptimizer(ABC):
         separately over every metric three times.
 
         Returns `{game: (importance_by_metric, warning_by_metric,
-        interactions_by_metric)}`, the first pair shaped exactly like an
+        interactions_by_metric, moebius_by_metric, total_by_metric)}`, the
+        first pair shaped exactly like an
         `OptimizationResult`'s `hyperparameter_<game>`/`hyperparameter_<game>_warning`
-        fields expect. `interactions_by_metric` is a free byproduct of the
-        same call (see `compute_hp_interactions`) for every game, though only
-        the `"tunability"` entry currently gets stored anywhere
-        (`OptimizationResult.hyperparameter_interactions`) — sensitivity's/
-        mistunability's interaction grids are computed here at zero extra
-        cost but not yet wired to a field or a view.
+        fields expect. `interactions_by_metric` and `moebius_by_metric` are a
+        free byproduct of the same call (see `compute_hp_interactions`) for
+        every game — which is what lets the page's one game selector drive the
+        interaction figures as well as the importance figure: all three games'
+        grids were always computed here, and for a long time two of them were
+        thrown away for want of a field to put them in.
 
         Builds the HyperSHAP explainer once per metric, not once per (game,
         metric) pair: `tunability`/`sensitivity`/`mistunability` all explain
@@ -1075,18 +1446,21 @@ class BaseOptimizer(ABC):
         surrogate underneath them 3 times over is pure waste. See
         `_build_explainer`/`_compute_hp_game`'s `explainer` parameter.
 
-        Declines in two cases, both reported through `_skipped_games`:
+        Declines in three cases, all reported through `_skipped_games`:
 
         - **The run was cancelled.** Pressing Cancel used to still buy you the
           full analytics bill — every optimizer breaks out of its trial loop on
           `cancel_event` and then called this unconditionally, so on a wide model
           you waited minutes for a run you had just stopped. Nothing is lost
           permanently: resuming recomputes over `previous + new` trials.
+        - **Nobody is going to look.** Both figures that display these numbers
+          are switched off for this experiment, so the fields would be filled
+          and never read. See `analytics_wanted`.
         - **The run is too wide to afford.** See
           `eager_analytics_budget_exceeded`.
 
         Checked in that order: a cancelled run shouldn't be told about a budget
-        it never got to spend.
+        it never got to spend, and neither should one nobody asked for.
         """
         if cancel_event is not None and cancel_event.is_set():
             return self._skipped_games(
@@ -1094,19 +1468,28 @@ class BaseOptimizer(ABC):
                 "Importance analytics were skipped because the run was "
                 "cancelled. Resuming the run computes them over every trial.")
 
+        if not self.analytics_wanted:
+            return self._skipped_games(
+                metrics,
+                "Importance analytics were skipped: both figures that show "
+                "them are switched off for this experiment. Switch one on and "
+                "run again to compute them.")
+
         too_wide = self.eager_analytics_budget_exceeded(config_space, metrics)
         if too_wide:
             return self._skipped_games(metrics, too_wide)
 
-        by_game = {game: ({}, {}, {}) for game in self.HP_GAMES}
+        by_game = {game: ({}, {}, {}, {}, {}) for game in self.HP_GAMES}
         for metric_name in metrics:
             explainer = self._build_explainer(config_space, trials, metric_name, seed)
             for game in self.HP_GAMES:
-                importance, warning, interactions = self._compute_hp_game(
+                importance, warning, interactions, moebius, total = self._compute_hp_game(
                     config_space, trials, metric_name, game, seed, explainer=explainer)
                 by_game[game][0][metric_name] = importance
                 by_game[game][1][metric_name] = warning
                 by_game[game][2][metric_name] = interactions
+                by_game[game][3][metric_name] = moebius
+                by_game[game][4][metric_name] = total
         return by_game
 
     def _build_explainer(self, config_space, trials: List[TrialResult], metric_name: str,
@@ -1160,7 +1543,7 @@ class BaseOptimizer(ABC):
         game: str,
         seed: int = 0,
         explainer=None,
-    ) -> tuple[Dict[str, float], Optional[str], Dict[str, Dict[str, float]]]:
+    ) -> tuple[Dict[str, float], Optional[str], Dict[str, Dict[str, float]], list]:
         """Shared scaffolding behind `compute_hp_importance`/`_sensitivity`/
         `_mistunability`/`_interactions`: ask HyperSHAP's *game* for order-1
         (and, as a free byproduct, order-2) values from the built explainer,
@@ -1180,10 +1563,26 @@ class BaseOptimizer(ABC):
         the same object, so a metric whose HyperSHAP call fails fits one forest
         rather than one per game.
 
-        Returns (values_dict, warning_message, interactions_dict).
-        warning_message is None when HyperSHAP succeeds. interactions_dict is
-        `{}` on either fallback rung — a plain feature_importances_ or
-        uniform weights carry no pairwise structure to report.
+        Returns (values_dict, warning_message, interactions_dict, moebius_terms,
+        total). *total* is the sum of the raw order-1 magnitudes, before
+        values_dict was normalised into shares of it — so `share x total`
+        recovers what a hyperparameter is worth in the metric's own units. Kept
+        because a share cannot say whether the whole is worth eight accuracy
+        points or eight thousandths of one, and because "how much of this has
+        already been banked" is a ratio of raw values, not of shares (see
+        `OptimizationResult.hyperparameter_tunability_total`). 0.0 on every rung
+        that did not get a real answer out of HyperSHAP.
+        warning_message is None when HyperSHAP succeeds and found something.
+        interactions_dict is `{}` on either fallback rung — a plain
+        feature_importances_ or uniform weights carry no pairwise structure to
+        report — and values_dict is `{}` too on the one rung where HyperSHAP
+        succeeds but every value it returns is zero, which is a real answer
+        rather than a failure (see the branch itself).
+
+        moebius_terms is the full Möbius decomposition (see `_moebius_terms`),
+        or `[]` — on either fallback rung, and also when only
+        `_shared_exact_computer` failed, in which case the FSII numbers are
+        still HyperSHAP's own and only the views that read Möbius go empty.
         """
         params = list(config_space.keys())
 
@@ -1193,32 +1592,75 @@ class BaseOptimizer(ABC):
 
         if explainer.insufficient:
             uniform = 1.0 / len(params) if params else 0.0
-            return {p: uniform for p in params}, build_warning, {}
+            return {p: uniform for p in params}, build_warning, {}, [], 0.0
 
         warning = None
         if explainer.hs is not None:
             try:
-                iv = getattr(explainer.hs, game)()
+                iv, moebius_iv = self._game_values(explainer, game, seed)
+                moebius = _moebius_terms(moebius_iv, params) if moebius_iv is not None else []
                 order1 = iv.get_n_order(order=1).dict_values
                 raw = {params[idx]: abs(val) for (idx,), val in order1.items()}
-                total = sum(raw.values()) or 1.0
+                total = sum(raw.values())
+                if not total:
+                    # Every contribution was exactly zero — which happens on a
+                    # saturated objective, where the surrogate's aggregate is
+                    # the same whichever hyperparameters a coalition frees.
+                    # That is an answer ("nothing here"), not a failure, and it
+                    # is emphatically not the uniform-weights rung above, which
+                    # means the opposite ("we could not tell"). Reported as
+                    # empty because every consumer already handles empty
+                    # correctly: the plot builder returns None so the figure
+                    # shows its caption, parallel coordinates falls back to
+                    # config order and `top_hp` to the first hyperparameter.
+                    # Normalizing anyway (the `or 1.0` this replaces) produced
+                    # a dict of zeros, which is truthy — so the pie was built
+                    # from it and drew nothing, with no warning to say why.
+                    return {}, (
+                        f"HyperSHAP ({game}) found no signal in this run's trials: "
+                        f"every hyperparameter's contribution was zero. This "
+                        f"usually means the objective is saturated — try a "
+                        f"harder dataset or a wider search space."), {}, [], 0.0
                 importance = {k: v / total for k, v in raw.items()}
                 interactions = self._extract_pairwise(iv, params)
-                return importance, None, interactions
+                return importance, None, interactions, moebius, total
             except Exception as e:
                 warning = f"HyperSHAP ({game}) failed ({e}) — falling back to surrogate feature importances."
         else:
-            warning = f"HyperSHAP ({game}) {build_warning} — falling back to surrogate feature importances."
+            # `build_warning` already names HyperSHAP, so prefixing it with the
+            # game alone avoids "HyperSHAP (tunability) HyperSHAP failed …".
+            warning = f"{build_warning} ({game}) — falling back to surrogate feature importances."
 
         rf, fit_warning = explainer.fallback_surrogate(
             config_space, trials, metric_name, seed)
         if rf is not None:
             importances = rf.feature_importances_
             total = importances.sum() or 1.0
-            return {p: float(importances[i] / total) for i, p in enumerate(params)}, warning, {}
+            return ({p: float(importances[i] / total) for i, p in enumerate(params)},
+                    warning, {}, [], 0.0)
         warning += f" Surrogate fallback also failed ({fit_warning}); showing uniform weights."
         uniform = 1.0 / len(params) if params else 0.0
-        return {p: uniform for p in params}, warning, {}
+        return {p: uniform for p in params}, warning, {}, [], 0.0
+
+    def _game_values(self, explainer, game: str, seed: int = 0):
+        """*game*'s FSII order-2 values and its Möbius decomposition.
+
+        One `shapiq.ExactComputer` gives both for the price of the first — see
+        `_shared_exact_computer`, which explains at length why this doesn't go
+        through `HyperSHAP.<game>()` and what guards that.
+
+        The fallback is the point of keeping this separate: if hypershap's
+        internals move under us, we still get the facade's own FSII and only
+        lose the Möbius-based views, which then show the "no data" caption they
+        already show when a game fails outright. A failure here must not be able
+        to take the importance numbers with it. Both paths are given the
+        experiment's *seed*, so falling back changes what is computed as little
+        as it can.
+        """
+        try:
+            return _shared_exact_computer(explainer, game, seed)
+        except Exception:
+            return getattr(explainer.hs, game)(seed=seed), None
 
     @staticmethod
     def _extract_pairwise(iv, params: List[str]) -> Dict[str, Dict[str, float]]:

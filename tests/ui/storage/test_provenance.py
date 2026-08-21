@@ -21,7 +21,7 @@ import pytest
 from django.core.files.uploadedfile import SimpleUploadedFile
 from django.urls import reverse
 
-from tests.conftest import DATASETS_DIR
+from tests.conftest import DATASETS_DIR, export_ihpo
 from ui.models import Experiment, Run
 
 pytestmark = pytest.mark.django_db
@@ -40,7 +40,8 @@ def no_thread(monkeypatch):
 def _create(client, **overrides):
     data = {
         "name": "recorded", "model_name": "Random Forest",
-        "optimizer_name": "SMAC", "seed": "7", "cv_folds": "3",
+        "optimizer_name": "SMAC", "seed": "7",
+        "evaluation_scheme": "kfold", "evaluation_value": "3",
         "demo_dataset": str(IRIS),
     }
     data.update(overrides)
@@ -50,7 +51,7 @@ def _create(client, **overrides):
 
 def _exported(client, exp) -> dict:
     return json.loads(
-        client.get(reverse("ui:experiment_export", args=[exp.pk])).content)
+        export_ihpo(client, exp.pk).content)
 
 
 def _reimport(client, body):
@@ -115,7 +116,7 @@ def test_a_registry_model_is_named_and_nothing_else(client):
 # ── how a trial was evaluated ────────────────────────────────────────────────
 
 def test_the_evaluation_scheme_is_recorded(client):
-    record = _exported(client, _create(client, cv_folds="3"))["evaluation"]
+    record = _exported(client, _create(client, evaluation_value="3"))["evaluation"]
 
     assert record["scheme"] == "kfold"
     assert record["folds"] == 3
@@ -123,7 +124,8 @@ def test_the_evaluation_scheme_is_recorded(client):
 
 
 def test_a_holdout_records_its_split_size(client):
-    record = _exported(client, _create(client, cv_folds="0"))["evaluation"]
+    record = _exported(client, _create(client, evaluation_scheme="holdout",
+                                     evaluation_value="0.2"))["evaluation"]
 
     assert record == {"scheme": "holdout", "folds": None,
                       "test_size": 0.2, "stratified": True}
@@ -138,7 +140,9 @@ def test_stratification_is_what_happened_not_what_was_asked_for(client):
         "continuous.csv", f"x,y\n{rows}\n".encode(), content_type="text/csv")
 
     discrete = _exported(client, _create(client, name="discrete"))["evaluation"]
-    smooth = _exported(client, _create(client, name="smooth", cv_folds="0",
+    smooth = _exported(client, _create(client, name="smooth",
+                                       evaluation_scheme="holdout",
+                                       evaluation_value="0.2",
                                        demo_dataset="",
                                        dataset_file=continuous))["evaluation"]
 
@@ -543,11 +547,12 @@ def test_exporting_what_was_imported_gives_the_same_record(client):
 
 @pytest.mark.slow
 @pytest.mark.parametrize("label,setup", [
-    ("gaussian process, holdout", {"opt_search_strategy": "gp", "cv_folds": "0"}),
-    ("gaussian process, 3-fold", {"opt_search_strategy": "gp", "cv_folds": "3"}),
-    ("random forest, holdout", {"opt_search_strategy": "rf", "cv_folds": "0",
-                                "opt_rf_trees": "24"}),
-    ("random forest, 3-fold", {"opt_search_strategy": "rf", "cv_folds": "3",
+    ("gaussian process, holdout", {"opt_search_strategy": "gp", "evaluation_scheme": "holdout",
+                                "evaluation_value": "0.2"}),
+    ("gaussian process, 3-fold", {"opt_search_strategy": "gp", "evaluation_value": "3"}),
+    ("random forest, holdout", {"opt_search_strategy": "rf", "evaluation_scheme": "holdout",
+                                "evaluation_value": "0.2", "opt_rf_trees": "24"}),
+    ("random forest, 3-fold", {"opt_search_strategy": "rf", "evaluation_value": "3",
                                "opt_rf_trees": "24"}),
 ])
 def test_an_experiment_recreated_from_its_file_produces_the_same_trials(

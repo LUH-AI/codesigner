@@ -4,6 +4,9 @@
 
 :root {
     --primary: #ff4b4b;
+    /* The blue every figure draws a trial in — see plots.py's MARKER_COLOR. */
+    --action: #636efa;
+    --action-strong: #4353d8;
     --primary-hover: #ff2b2b;
     --bg: #ffffff;
     --secondary-bg: #f0f2f6;
@@ -43,6 +46,7 @@ nav.rail {
     position: sticky;
     top: 0;
     height: 100vh;
+    z-index: 6;  /* over the sidebar, which is over the page — see nav.sidebar */
     display: flex;
     flex-direction: column;
     align-items: center;
@@ -158,11 +162,58 @@ nav.sidebar {
     padding: 1.5rem 1.25rem;
     display: flex;
     flex-direction: column;
-    gap: 1rem;
+    gap: 1.25rem;
+    /* Stays put while the figures scroll. Everything here is a control the
+       figures are an answer to — which experiment, which metric, which trial —
+       and a control that scrolls away is one you have to go and find. Sticky
+       rather than fixed, the same treatment nav.rail already has, so it still
+       sits in the flex row; its own contents scroll if there are more of them
+       than fit. */
+    position: sticky;
+    top: 0;
+    height: 100vh;
+    overflow-y: auto;
+    /* Above the main column. `position: sticky` makes its own stacking context,
+       and without a z-index the whole sidebar paints in document order — which
+       is before main.content, so the page drew over its tooltips. */
+    z-index: 5;
 }
 nav.sidebar h1 { font-size: 1.75rem; font-weight: 700; }
 nav.sidebar .actions { display: flex; gap: 0.5rem; }
 nav.sidebar hr { border: none; border-top: 1px solid var(--border); margin: 0.25rem 0; }
+
+/* One decision each, stacked. The rule above a section is what separates it
+   from the one before, so the first has none. */
+/* flex-shrink: 0 because the sidebar is a flex column with a fixed height:
+   without it the sections are squeezed to fit, and a section whose content
+   clips (the selected configuration's table has `overflow: hidden`) loses rows
+   off the bottom rather than overflowing visibly. The sidebar scrolls instead,
+   which is what its `overflow-y` is for. */
+.side-section { display: flex; flex-direction: column; gap: 0.6rem; flex-shrink: 0; }
+.side-section + .side-section { border-top: 1px solid var(--border); padding-top: 1.25rem; }
+.side-section > h2 {
+    font-size: 0.8rem;
+    font-weight: 700;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    color: var(--muted);
+}
+.side-section .field { margin-bottom: 0; }
+.side-section .metric-value { font-size: 1.75rem; }
+/* What bounds the next run, folded away: it is set once, and the metric above
+   it is chosen constantly. */
+.side-section details.run-config > summary {
+    cursor: pointer;
+    font-size: 0.95rem;
+    font-weight: 600;
+    padding: 0.35rem 0;
+    /* The one thing in the sidebar that *does* something rather than reporting
+       something, so it is the one thing with a colour. */
+    color: var(--action);
+}
+.side-section details.run-config > summary:hover { color: var(--action-strong); }
+.side-section details.run-config > * + * { margin-top: 0.75rem; }
+.side-section #run-status { max-width: none; }
 nav.sidebar .nav-links { display: flex; flex-direction: column; gap: 0.4rem; }
 nav.sidebar .nav-links a { font-size: 0.9rem; color: var(--muted); text-decoration: none; }
 nav.sidebar .nav-links a:hover { color: var(--primary); }
@@ -196,6 +247,10 @@ main.content {
     padding: 3rem 4rem 5rem;
     max-width: 1300px;
     width: 100%;
+    /* Explicitly the bottom layer, so the two sticky navs beside it can be
+       given one above. */
+    position: relative;
+    z-index: 0;
 }
 main.content > * + * { margin-top: 1rem; }
 
@@ -278,6 +333,25 @@ input:focus, select:focus {
     white-space: normal; text-align: left; cursor: auto;
 }
 .info:hover .info-bubble, .info:focus-within .info-bubble { display: block; }
+/* In the sidebar the bubble is fixed rather than absolute.
+
+   The sidebar scrolls its own contents (`overflow-y: auto`), and an absolutely
+   positioned descendant is part of what that scrolls: it does not escape the
+   box, it widens it — which is a horizontal scrollbar on the sidebar rather
+   than a bubble over the page. No amount of `left`/`right`/`max-width` changes
+   that, because the problem is not where the bubble is, it is which box it
+   belongs to. Fixed positioning takes it out of the scroll container
+   altogether; `position: sticky` on the sidebar does not capture it, only
+   transforms and their kin would.
+
+   Offsets left `auto` so it opens at its static position — beside the circled
+   i, where an absolute bubble would have been — and `nav.sidebar`'s own
+   z-index is what puts it over the main column. */
+nav.sidebar .info-bubble {
+    position: fixed;
+    top: auto; left: auto; right: auto;
+    margin-left: 0.5rem;
+}
 .errorlist, .form-error { color: var(--red); font-size: 0.875rem; list-style: none; }
 
 /* ── Bordered container ("st.container(border=True)") ─────────────────── */
@@ -300,22 +374,98 @@ input:focus, select:focus {
 .grid-2x2 { display: grid; grid-template-columns: 1fr 1fr; gap: 1.5rem; }
 .grid-2x2 > .slot { min-width: 0; display: flex; flex-direction: column; }
 .grid-2x2 > .slot > .card { flex: 1; }
+/* A full-width figure spans both columns, and because a spanning grid item
+   always starts a fresh row it also acts as a divider between the tiles above
+   and below it. */
+.grid-2x2 > .slot.wide { grid-column: 1 / -1; }
+/* Two rows as well, for a figure whose content is square rather than wide. The
+   row span is what makes it two rows of the grid; the plot's own height is what
+   makes those rows tall, since the grid's rows are sized by their contents and
+   a spanning item alone in its row has nothing to be sized against. */
+.grid-2x2 > .slot.tall { grid-row: span 2; }
+.grid-2x2 > .slot.tall .plot { min-height: 42rem; }
 @media (max-width: 900px) { .grid-2x2 { grid-template-columns: 1fr; } }
+
+/* The two panes of the figure area: the grid, and the column beside it (see
+   Figure.in_side_column). Stacked by default, which is the layout there has
+   always been — the column's one figure is last in catalog order and full
+   width, so stacking puts it exactly where it already was. */
+.figure-layout { display: flex; flex-direction: column; gap: 1.5rem; }
+.figure-column { min-width: 0; }
+
+/* Wide enough for two panes side by side. Half the width each, so the grid
+   keeps its two columns and the table gets the same two — which is the width a
+   table with a column per metric and one per hyperparameter wants, and never
+   had while it was a row at the bottom of the page. */
+@media (min-width: 1600px) {
+    main.content { max-width: none; }
+    .figure-layout {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        align-items: stretch;
+    }
+    /* Full height, and scrolling inside rather than running past the figures:
+       the point of the column is to have the table beside whatever chart is
+       being read, which it is not if reaching it means scrolling the page. */
+    .figure-column > section {
+        display: flex;
+        flex-direction: column;
+        position: sticky;
+        top: 1.5rem;
+        max-height: calc(100vh - 3rem);
+    }
+    .figure-column .table-wrap { flex: 1; overflow: auto; }
+}
 
 /* ── Metric component (st.metric) ─────────────────────────────────────── */
 .metric-label { font-size: 0.875rem; color: var(--muted); }
 .metric-value { font-size: 2.25rem; font-weight: 600; line-height: 1.2; }
+/* Which metric the number is, said quietly beside it: the score is what is
+   being read, and the metric is chosen once for the whole page. */
+.metric-value .metric-unit { font-size: 0.875rem; font-weight: 400; color: var(--muted); }
 .metric-delta { font-size: 0.875rem; }
 .metric-delta.up { color: var(--green); }
 .metric-delta.down { color: var(--red); }
+/* Neither up nor down: the selected trial is the incumbent. */
+.metric-delta.level { color: var(--muted); }
 
 /* ── Dataframe-style tables ────────────────────────────────────────────── */
 table { width: 100%; border-collapse: collapse; font-size: 0.9rem; }
 table th, table td { padding: 0.4rem 0.75rem; border-bottom: 1px solid var(--border-light); text-align: left; }
 table thead th { background: var(--secondary-bg); font-weight: 600; color: var(--muted); }
 table.config td:last-child, table.trials td:not(:first-child) { text-align: right; font-variant-numeric: tabular-nums; }
+
+/* Every row picks its trial, and the selected one is the trial every figure on
+   the page is showing. A tinted row rather than a border, so a table that is
+   mid-sort doesn't jump by a pixel as the highlight moves. */
+table.trials tbody tr { cursor: pointer; }
+table.trials tbody tr:hover { background: rgba(99, 110, 250, 0.07); }
+table.trials tbody tr.selected { background: rgba(239, 85, 59, 0.13); }
+table.trials tbody tr:focus-visible { outline: 2px solid var(--primary); outline-offset: -2px; }
 .table-wrap { border: 1px solid var(--border); border-radius: var(--radius); overflow: hidden; }
 .table-scroll { overflow-x: auto; }
+
+/* The trials table's footer: which page, and how big a page is. Two controls
+   for one question, so they share a row, with the page selector first because
+   it is the one used constantly. */
+.table-pager {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.75rem;
+    margin-top: 0.6rem;
+    font-size: 0.875rem;
+}
+.table-pager .pager-pages, .table-pager .pager-size {
+    display: flex;
+    align-items: center;
+    gap: 0.4rem;
+}
+.table-pager label { margin-bottom: 0; font-size: inherit; }
+.table-pager select, .table-pager input { width: auto; padding: 0.25rem 0.5rem; }
+.table-pager input[type="number"] { width: 5rem; }
+.table-pager .btn { padding: 0.15rem 0.6rem; line-height: 1.4; }
 
 /* Trials table: a trial's outcome (scores, duration) is separated from the
    configuration that produced it, and the outcome columns sort on click. */
@@ -333,6 +483,47 @@ table.config td:last-child, table.trials td:not(:first-child) { text-align: righ
 .alert.warning { background: rgba(255, 170, 0, 0.15); color: #7a5200; }
 .alert.error   { background: rgba(255, 43, 43, 0.1); color: #7d0000; }
 .alert.success { background: rgba(9, 171, 59, 0.1); color: #005f1e; }
+
+/* Two fields that are one decision — a scheme and the number it needs — read
+   side by side, so the number is obviously the selector's and not a setting of
+   its own. */
+.field-row { display: flex; gap: 1rem; align-items: flex-start; }
+.field-row > .field { flex: 1; min-width: 0; }
+@media (max-width: 600px) { .field-row { flex-direction: column; } }
+
+/* An optimizer setting's accepted range and what leaving it empty would use.
+   Two short facts on one line, the range first because it constrains what you
+   can type and the default only says what happens if you don't. */
+.field-range { display: flex; gap: 0.75rem; margin-top: 0.2rem; font-size: 0.8rem; }
+.field-range .range { font-variant-numeric: tabular-nums; }
+.field-range .default-hint { color: var(--muted); font-variant-numeric: tabular-nums; }
+
+/* A figure's own pickers: one row above the plot, reading as one control for
+   one figure rather than as a stack of unrelated settings. They wrap only when
+   the card is genuinely too narrow to hold them side by side, and they size to
+   their contents — a select stretched to the card's full width reads as a form
+   field, which is what the page's other selects are and these are not. */
+/* A figure's title and its pickers on one line: the pickers say what the title
+   is currently showing, so they are part of the heading rather than a caption
+   under it. They fall below it only when the card is too narrow to hold both. */
+.card-head {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 0.5rem 1rem;
+    margin-bottom: 0.5rem;
+}
+.card-head .subheader { margin-bottom: 0; }
+.card-head .selectors { margin-bottom: 0; }
+.selectors { display: flex; flex-wrap: wrap; gap: 0.5rem; align-items: center; margin-bottom: 0.5rem; }
+.selectors select { width: auto; min-width: 0; max-width: 100%; }
+
+/* The importance table's magnitude columns, which are only filled once the
+   selected trial's ablation has been asked for. Narrower and quieter than the
+   two that are always there: they are the detail behind the share, not a
+   replacement for it. */
+.progress-col { font-size: 0.8125rem; color: var(--muted); font-variant-numeric: tabular-nums; }
 
 /* ── Figures ────────────────────────────────────────────────────────────── */
 .subheader { font-size: 1.25rem; font-weight: 600; margin-bottom: 0.25rem; }

@@ -1,11 +1,11 @@
-{% load static i18n %}
+{% load assets i18n %}
 <!doctype html>
 <html lang="{{ LANGUAGE_CODE }}">
 <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>{% translate "Sign in" %} · Codesigner</title>
-    <link rel="stylesheet" href="{% static 'ui/app.css' %}">
+    <link rel="stylesheet" href="{% asset 'ui/app.css' %}">
 </head>
 {% comment %}
 Deliberately not extending base.html: there is no session yet, so the rail and

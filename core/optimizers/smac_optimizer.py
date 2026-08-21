@@ -397,6 +397,27 @@ class SMACOptimizer(BaseOptimizer):
             return None
         return max(1, int(n_configs))
 
+    @classmethod
+    def strategy_defaults(cls) -> dict:
+        """`{strategy: {param: default}}` for every setting whose default is the
+        search strategy's rather than ours.
+
+        The same lookup `resolved_params` does, exposed per strategy so a form
+        can *show* what an empty field would mean instead of saying "search
+        strategy default" and leaving the reader to go and find out. Both
+        strategies are returned because the form's strategy selector changes
+        client-side, and a placeholder that lied until the page reloaded would
+        be worse than the vague wording it replaces.
+
+        Read from SMAC's own signatures, not copied here — a copy is a second
+        source of truth that goes stale without anything noticing.
+        """
+        return {
+            name: {strategy: _signature_default(getattr(facade, getter), argument)
+                   for strategy, facade in _STRATEGIES.items()}
+            for name, (getter, argument) in _FACADE_DEFAULTS.items()
+        }
+
     def resolved_params(self) -> dict:
         """Every setting with the blanks answered, for the record.
 
@@ -625,6 +646,12 @@ class SMACOptimizer(BaseOptimizer):
             "hyperparameter_mistunability_warning": result.hyperparameter_mistunability_warning,
             "hyperparameter_interactions": result.hyperparameter_interactions,
             "hyperparameter_interactions_warning": result.hyperparameter_interactions_warning,
+            "hyperparameter_moebius": result.hyperparameter_moebius,
+            "hyperparameter_sensitivity_interactions": result.hyperparameter_sensitivity_interactions,
+            "hyperparameter_sensitivity_moebius": result.hyperparameter_sensitivity_moebius,
+            "hyperparameter_mistunability_interactions": result.hyperparameter_mistunability_interactions,
+            "hyperparameter_mistunability_moebius": result.hyperparameter_mistunability_moebius,
+            "hyperparameter_tunability_total": result.hyperparameter_tunability_total,
             "trials_limit": result.trials_limit,
         }
 
@@ -892,6 +919,12 @@ class SMACOptimizer(BaseOptimizer):
             hyperparameter_mistunability_warning=games["mistunability"][1],
             hyperparameter_interactions=games["tunability"][2],
             hyperparameter_interactions_warning=games["tunability"][1],
+            hyperparameter_moebius=games["tunability"][3],
+            hyperparameter_sensitivity_interactions=games["sensitivity"][2],
+            hyperparameter_sensitivity_moebius=games["sensitivity"][3],
+            hyperparameter_mistunability_interactions=games["mistunability"][2],
+            hyperparameter_mistunability_moebius=games["mistunability"][3],
+            hyperparameter_tunability_total=games["tunability"][4],
             metadata={"smac_output_dir": str(output_dir),
                       "stopped_by": collector.stopped_by},
         )

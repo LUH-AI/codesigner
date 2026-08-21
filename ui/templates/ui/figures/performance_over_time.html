@@ -5,19 +5,21 @@ y — see ui/figures/plots.py:performance_over_time_plot and
 experiment_detail.html's payloadFor/redraw for how the two selects below
 compose into one view key.{% endcomment %}
 <section class="card" data-figure="{{ figure.key }}">
-    <div class="subheader">{{ figure.label }}</div>
+    <div class="card-head">
+        <div class="subheader">{{ figure.label }}</div>
+        <p class="selectors">
+            <select id="view-select-{{ figure.key }}-y" aria-label="{% translate 'Y axis' %}">
+                <option value="score">{% translate "score" %}</option>
+                <option value="error">{% translate "error" %}</option>
+            </select>
+            <select id="view-select-{{ figure.key }}-x" aria-label="{% translate 'X axis' %}">
+                <option value="trial">{% translate "vs. trials" %}</option>
+                <option value="time">{% translate "vs. time" %}</option>
+            </select>
+        </p>
+    </div>
     {% comment %}Y before X in the markup, so it reads "score vs. trial" —
     "vs. trial" then "score" reads as one phrase, "trial score".{% endcomment %}
-    <p class="caption" style="margin-bottom: 0.5rem;">
-        <select id="view-select-{{ figure.key }}-y" aria-label="{% translate 'Y axis' %}" style="margin-right: 0.5rem;">
-            <option value="score">{% translate "score" %}</option>
-            <option value="error">{% translate "error" %}</option>
-        </select>
-        <select id="view-select-{{ figure.key }}-x" aria-label="{% translate 'X axis' %}">
-            <option value="trial">{% translate "vs. trial" %}</option>
-            <option value="time">{% translate "vs. time" %}</option>
-        </select>
-    </p>
     <div id="{{ figure.dom_id }}" class="plot"></div>
     <p id="{{ figure.dom_id }}-empty" class="caption" hidden>{% translate "No data available." %}</p>
 </section>

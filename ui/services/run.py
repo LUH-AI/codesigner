@@ -12,10 +12,12 @@ import time
 from pathlib import Path
 
 from django.conf import settings
+
+from .settings import eager_analytics_wanted, resolve_settings
 from django.utils import timezone
 
 from core import io
-from core.io import _load_splits
+from core.io import DEFAULT_TEST_SIZE, _load_splits
 
 from core.optimizers.base import STOPPED_BY_CANCELLED
 
@@ -31,7 +33,8 @@ def resolve_seed(seed_input: int) -> int:
 
 
 def run_experiment(*, model_name, optimizer_name, dataset_path, seed,
-                   primary_metric, n_trials, optimizer_params=None):
+                   primary_metric, n_trials, optimizer_params=None,
+                   test_size=None):
     """Build the split and run the chosen optimizer over all metrics.
 
     Every metric in the registry is scored on each trial; *primary_metric* is
@@ -39,7 +42,8 @@ def run_experiment(*, model_name, optimizer_name, dataset_path, seed,
     """
     model = MODELS[model_name]
     optimizer = type(OPTIMIZERS[optimizer_name])(**(optimizer_params or {}))
-    X_train, X_val, y_train, y_val = _load_splits(Path(dataset_path), seed)
+    X_train, X_val, y_train, y_val = _load_splits(
+        Path(dataset_path), seed, test_size or DEFAULT_TEST_SIZE)
     return optimizer.optimize(
         model, X_train, y_train, X_val, y_val,
         metrics=METRICS, primary_metric=primary_metric,
@@ -181,6 +185,11 @@ def execute_run(run_id):
         # the number counts. 0 means no limit.
         optimizer.analytics_max_coalitions = (
             settings.ANALYTICS_EAGER_MAX_COALITIONS or None)
+        # And whether anything will show them. With both figures that display
+        # the games switched off, computing them fills fields no page reads —
+        # 2^n_hp coalition evaluations per game per metric, for nobody. Read
+        # here rather than in `core/`, same as the budget above.
+        optimizer.analytics_wanted = eager_analytics_wanted(resolve_settings(run.experiment))
         offset = len(built["result"].trials) if built["result"] else 0
         cancel = DbCancelFlag(run_id)
 

@@ -58,6 +58,7 @@ def experiment_from_snapshot(snapshot: dict, dataset_file=None, model_file=None,
         original_metric=snapshot["metrics"].get("original"),
         seed=snapshot["seed"],
         cv_folds=io.folds_of(snapshot),
+        test_size=io.test_size_of(snapshot),
         result=snapshot.get("result"),
         owner=owner,
     )
@@ -156,7 +157,7 @@ def snapshot_from_experiment(exp: Experiment, *, provenance: bool = False) -> di
                     "path": dataset},
         "model": {"kind": "file" if model_path else "registry",
                   "name": exp.model_name, "path": model_path},
-        "evaluation": evaluation(exp.cv_folds),
+        "evaluation": evaluation(exp.cv_folds, test_size=exp.test_size),
         "metrics": {"names": exp.metric_names,
                     "current": exp.current_metric,
                     "original": exp.original_metric},
@@ -179,7 +180,8 @@ def _add_provenance(snapshot: dict, exp: Experiment, dataset: str, model_path: s
         snapshot["dataset"].update(dataset_fingerprint(dataset))
     snapshot["model"].update(
         model_fingerprint(exp.model_name, model_path, exp.env_meta))
-    snapshot["evaluation"].update(evaluation(exp.cv_folds, _target(dataset)))
+    snapshot["evaluation"].update(
+        evaluation(exp.cv_folds, _target(dataset), test_size=exp.test_size))
     snapshot["optimizer"]["defaults_used"] = _defaults_used(exp)
     snapshot["runs"] = [_run_record(index, run)
                         for index, run in enumerate(exp.runs.order_by("id"), start=1)]

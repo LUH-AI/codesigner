@@ -22,7 +22,7 @@ def test_no_model_reports_unavailable_instead_of_crashing():
     """A custom-model experiment viewed read-only has no model to build a
     config space from — a plain warning, not a 500, and no attempt at a
     RandomForest-fallback style guess (there is nothing to guess from)."""
-    figure, warning = _local_ablation_data({"model": None}, "accuracy", 0)
+    figure, warning, _effects = _local_ablation_data({"model": None}, "accuracy", 0)
     assert figure is None
     assert warning and "model" in warning.lower()
 
@@ -46,7 +46,7 @@ def test_explains_a_trial_against_the_default(client):
     assert resp.status_code == 200
     data = resp.json()
     assert data["warning"] is None
-    assert data["figure"]["data"][0]["type"] == "bar"
+    assert data["figure"]["data"][0]["type"] == "waterfall"
 
 
 def test_different_trials_explain_differently(client):

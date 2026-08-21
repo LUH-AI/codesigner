@@ -1,41 +1,53 @@
-{% load i18n %}
-{% comment %}Two independent choices: which HyperSHAP game (tunability /
-sensitivity / mistunability / local — see
-core.optimizers.base.BaseOptimizer.HP_GAMES and compute_hp_ablation) and how
-to draw its numbers (pie / bar / table for the first three; local has only a
-diverging bar, since signed values have no share-of-a-whole reading — its
-rendering select is hidden while it's active, see experiment_detail.html's
-applyImportanceView). The table is rendered here, per metric per game,
-straight from `panels`; pie/bar come from ui/figures/plots.py as usual;
-local's bar is fetched on demand (ui:trial_ablation) rather than sitting in
-the page's initial payload, since it depends on which trial is selected, not
-just the metric — see views.py's plot_json docstring. See
-experiment_detail.html's payloadFor/redraw for how the two selects below
-compose into one view key.{% endcomment %}
+{% load numbers i18n %}
+{% comment %}How to draw the current game's numbers — pie, bar or table. Which
+*game* is not asked here: it is one choice for the whole page, in the sidebar,
+because reading this figure under tunability beside an interaction figure under
+sensitivity would be comparing two different questions. See
+core.optimizers.base.BaseOptimizer.HP_GAMES for what each game answers, and
+experiment_detail.html's `importanceView` for how the two compose into one view
+key.
+
+The table is rendered here, per metric per game, straight from `panels`;
+pie/bar come from ui/figures/plots.py as usual.{% endcomment %}
 <section class="card" data-figure="{{ figure.key }}">
-    <div class="subheader">{{ figure.label }}</div>
-    <p class="caption" style="margin-bottom: 0.5rem;">
-        <select id="view-select-{{ figure.key }}-game" aria-label="{% translate 'Game' %}" style="margin-right: 0.5rem;">
-            <option value="tunability">{% translate "Tunability" %}</option>
-            <option value="sensitivity">{% translate "Sensitivity" %}</option>
-            <option value="mistunability">{% translate "Mistunability" %}</option>
-            <option value="local">{% translate "Local (selected trial)" %}</option>
-        </select>
-        <select id="view-select-{{ figure.key }}-rendering" aria-label="{% translate 'View' %}">
-            <option value="pie">{% translate "Pie" %}</option>
-            <option value="bar">{% translate "Bar" %}</option>
-            <option value="table">{% translate "Table" %}</option>
-        </select>
-    </p>
+    <div class="card-head">
+        <div class="subheader">{{ figure.label }}</div>
+        <p class="selectors">
+            <select id="view-select-{{ figure.key }}-rendering" aria-label="{% translate 'View' %}">
+                <option value="pie">{% translate "Pie" %}</option>
+                <option value="bar">{% translate "Bar" %}</option>
+                <option value="table">{% translate "Table" %}</option>
+            </select>
+            {% comment %}Tunability is what tuning a hyperparameter *could* gain,
+            measured from the config space's default. That is the right question
+            before a search and the wrong one during it: by the time it says a
+            hyperparameter is worth 98%, the optimizer has usually already taken
+            most of that 98%, and the figure is spending itself on a settled
+            question. Ticking this asks the other one — what is left — by
+            subtracting what the selected trial has already banked.
+
+            A request rather than a second precomputed view: what has been banked
+            depends on which trial is selected, so it is fetched, and the page
+            costs nothing extra while the box is clear.{% endcomment %}
+            {% comment %}Wrapped so the page can take the whole control away at
+            once: both halves of "still to gain" are tunability's, so it is
+            hidden under the other two games rather than left there offering an
+            answer it cannot give.{% endcomment %}
+            <span class="remaining-toggle" data-remaining-toggle>
+                <label class="check" for="importance-remaining">
+                    <input type="checkbox" id="importance-remaining"
+                           aria-describedby="importance_remaining_help">
+                    {% translate "Still to gain" %}
+                </label>
+                {% translate "Tunability measures what each hyperparameter could gain you, starting from the search space's default. Ticking this subtracts what the selected trial has already gained, leaving what is still on the table — which is the number worth spending the rest of a budget against. Tunability only: mistunability's achievable value is downside rather than gain, and nothing 'achieves' sensitivity's variance." as remaining_help %}
+                {% include "ui/_info.html" with info_id="importance_remaining_help" info_text=remaining_help %}
+            </span>
+        </p>
+    </div>
     <p id="imp-warning" class="alert warning" hidden></p>
-    {% comment %}Only the "Local" game is fetched rather than shipped with the
-    page, so only it can be waiting to be asked — shown when this experiment's
-    settings turn off "compute automatically" for the local explanation. See
-    experiment_detail.html's refreshLocalAblation.{% endcomment %}
-    <p id="ablation-compute" class="caption" hidden>
-        <button type="button" id="ablation-compute-btn">{% translate "Compute" %}</button>
-        <span>{% translate "Worked out on request for the selected trial." %}</span>
-    </p>
+    {% comment %}Said rather than drawn: with nothing meaningful left, a pie of
+    what remains is a picture of rounding.{% endcomment %}
+    <p id="imp-settled" class="caption" hidden>{% translate "This trial has captured essentially all of the gain the search space had to offer. There is nothing left to tune." %}</p>
     <div id="{{ figure.dom_id }}" class="plot"></div>
     <p id="{{ figure.dom_id }}-empty" class="caption" hidden>{% translate "No importance data available." %}</p>
     {% for panel in panels %}
@@ -44,10 +56,27 @@ compose into one view key.{% endcomment %}
                 {% if data.table %}
                     <div class="table-wrap">
                         <table>
-                            <thead><tr><th>{% translate "Hyperparameter" %}</th><th>{% translate "Importance" %}</th></tr></thead>
+                            {% comment %}The magnitudes, which no other
+                            rendering shows: every one of them is a share of
+                            100%, and a share cannot say whether the whole is
+                            worth eight accuracy points or eight thousandths of
+                            one. Filled in by the page once the selected trial's
+                            ablation is known.{% endcomment %}
+                            <thead><tr>
+                                <th>{% translate "Hyperparameter" %}</th>
+                                <th>{% translate "Importance" %}</th>
+                                <th class="progress-col">{% translate "Achievable" %}</th>
+                                <th class="progress-col">{% translate "Banked" %}</th>
+                                <th class="progress-col">{% translate "Still to gain" %}</th>
+                            </tr></thead>
                             <tbody>
                                 {% for hp, value in data.table %}
-                                    <tr><td>{{ hp }}</td><td>{{ value|floatformat:4 }}</td></tr>
+                                    <tr data-hp="{{ hp }}">
+                                        <td>{{ hp }}</td><td>{{ value|sig }}</td>
+                                        <td class="progress-col"></td>
+                                        <td class="progress-col"></td>
+                                        <td class="progress-col"></td>
+                                    </tr>
                                 {% endfor %}
                             </tbody>
                         </table>

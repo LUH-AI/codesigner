@@ -1,28 +1,63 @@
 {% load i18n %}
-{% comment %}Which hyperparameters sit on which axis is a per-experiment,
-unbounded choice — not a fixed set of views the server can precompute one
-JSON entry per combination for (contrast hyperparameter_importance's
-game/rendering selects, both drawn from a small fixed vocabulary). So the
-server ships one default 2D scatter (see configuration_cube_plot) carrying
-every hyperparameter's values in its trace's `customdata`, and these three
-pickers just tell the client which columns of that same customdata to plot —
-see experiment_detail.html's applyCubeAxes. `hp_names` is already in the page
-context unconditionally (not gated behind the Trials figure's visibility),
-so these options render even if Trials itself is hidden.{% endcomment %}
+{% comment %}Three readings of one question — where the search went. The method
+select picks which; the pickers beside it belong to whichever is showing, so the
+ones that do not apply are hidden rather than left there doing nothing.
+
+**Axes** is the configuration cube: which hyperparameters sit on which axis is a
+per-experiment, unbounded choice — not a fixed set the server can precompute one
+JSON entry per combination for — so it ships one trace carrying every
+hyperparameter's values in its `customdata` and no axis assignment at all, and
+these three pickers say which columns of it to plot. All three start at None,
+and however many are filled is how many dimensions get drawn: none, a strip, a
+plane, a cube. The option says only "None" — what it does to the figure is
+visible in the figure.
+
+**PCA** and **PLS** ship the same shape, with the components in `customdata`
+instead, so the same client code draws them; there is nothing to choose but how
+many, and two is the useful default. See experiment_detail.html's applyCubeAxes,
+and core/projection.py for what each method finds.
+
+`hp_names` is already in the page context unconditionally (not gated behind the
+Trials figure's visibility), so these options render even if Trials itself is
+hidden.{% endcomment %}
 <section class="card" data-figure="{{ figure.key }}">
-    <div class="subheader">{{ figure.label }}</div>
-    <p class="caption" style="margin-bottom: 0.5rem;">
-        <select id="cube-axis-x" aria-label="{% translate 'X axis' %}" style="margin-right: 0.5rem;">
-            {% for h in hp_names %}<option value="{{ h }}"{% if forloop.first %} selected{% endif %}>{{ h }}</option>{% endfor %}
-        </select>
-        <select id="cube-axis-y" aria-label="{% translate 'Y axis' %}" style="margin-right: 0.5rem;">
-            {% for h in hp_names %}<option value="{{ h }}"{% if forloop.counter == 2 %} selected{% endif %}>{{ h }}</option>{% endfor %}
-        </select>
-        <select id="cube-axis-z" aria-label="{% translate 'Z axis' %}">
-            <option value="" selected>{% translate "None (2D)" %}</option>
-            {% for h in hp_names %}<option value="{{ h }}">{{ h }}</option>{% endfor %}
-        </select>
-    </p>
+    <div class="card-head">
+        <div class="subheader">{{ figure.label }}</div>
+        <p class="selectors">
+            <select id="view-select-{{ figure.key }}" aria-label="{% translate 'Method' %}">
+                <option value="axes">{% translate "Axes" %}</option>
+                <option value="pca">{% translate "PCA" %}</option>
+                {% comment %}Opened on, which the catalog also declares —
+                Figure.default_view. A test holds the two together.{% endcomment %}
+                <option value="pls" selected>{% translate "PLS" %}</option>
+            </select>
+            {% comment %}Two dimensions to start, declared rather than left to
+            option order — and reasserted by the script, because a browser
+            restores a select's previous value across a reload and the figure
+            would then open in whatever was last looked at rather than in what
+            it opens in.{% endcomment %}
+            <select id="cube-dimensions" aria-label="{% translate 'Dimensions' %}" hidden>
+                <option value="2" selected>{% translate "2D" %}</option>
+                <option value="3">{% translate "3D" %}</option>
+            </select>
+            <select id="cube-axis-x" aria-label="{% translate 'First axis' %}">
+                <option value="" selected>{% translate "None" %}</option>
+                {% for h in hp_names %}<option value="{{ h }}">{{ h }}</option>{% endfor %}
+            </select>
+            <select id="cube-axis-y" aria-label="{% translate 'Second axis' %}">
+                <option value="" selected>{% translate "None" %}</option>
+                {% for h in hp_names %}<option value="{{ h }}">{{ h }}</option>{% endfor %}
+            </select>
+            <select id="cube-axis-z" aria-label="{% translate 'Third axis' %}">
+                <option value="" selected>{% translate "None" %}</option>
+                {% for h in hp_names %}<option value="{{ h }}">{{ h }}</option>{% endfor %}
+            </select>
+        </p>
+    </div>
     <div id="{{ figure.dom_id }}" class="plot"></div>
-    <p id="{{ figure.dom_id }}-empty" class="caption" hidden>{% translate "Not enough hyperparameters for a cube." %}</p>
+    {% comment %}Two different silences: nothing chosen yet, and nothing to
+    choose from. The first is the figure waiting on the pickers above it, the
+    second is a result with no configurations in it.{% endcomment %}
+    <p id="cube-prompt" class="caption" hidden>{% translate "Pick a hyperparameter for an axis." %}</p>
+    <p id="{{ figure.dom_id }}-empty" class="caption" hidden>{% translate "No configurations to plot." %}</p>
 </section>

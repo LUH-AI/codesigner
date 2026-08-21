@@ -22,30 +22,41 @@ from ui.models import GlobalSettings
 from ui.services.settings import SETTING_DEFAULTS, global_defaults, resolve_settings
 
 
-def test_the_two_deferred_computations_are_declared():
+def test_the_deferred_computations_are_declared():
+    """In catalog order — partial dependence, the local explanation, then the
+    beeswarm, which is the most expensive of the three."""
     assert [name for name, _ in deferred_computations()] == [
-        "local_ablation", "partial_dependence"]
+        "partial_dependence", "local_ablation", "local_effects"]
 
 
-def test_a_deferred_name_is_the_computations_not_always_the_figures():
-    """local_ablation belongs to the importance figure, whose other nine views are
-    precomputed — so the setting cannot be named after the figure."""
-    importance = next(f for f in FIGURES if f.key == "hyperparameter_importance")
-    assert [name for name, _ in importance.deferred] == ["local_ablation"]
-    assert importance.setting_key == "show_hyperparameter_importance"
+def test_a_deferred_name_is_the_computations_not_the_figures():
+    """`local_ablation` is the computation the local-explanation figure fetches,
+    and it keeps that name: it is stored in settings, and it was named for the
+    computation back when the figure was one view of the importance figure.
+    Renaming it to match the figure would be a data migration for nothing."""
+    local = next(f for f in FIGURES if f.key == "local_explanation")
+    assert [name for name, _ in local.deferred] == ["local_ablation"]
+    assert local.setting_key == "show_local_explanation"
 
 
 def test_figures_with_nothing_deferred_declare_nothing():
     deferred_keys = {f.key for f in FIGURES if f.deferred}
-    assert deferred_keys == {"hyperparameter_importance", "partial_dependence"}
+    assert deferred_keys == {"local_explanation", "partial_dependence",
+                             "local_effects"}
 
 
-def test_every_deferred_computation_has_a_setting_defaulting_to_on():
-    """On by default: this is a way to opt out of today's behaviour, not a change
-    to it."""
+def test_every_deferred_computation_has_a_setting_defaulting_to_off():
+    """Off by default, so opening or reloading an experiment page computes
+    nothing at all until it is asked to.
+
+    These were on when the setting shipped, on the argument that it was an
+    opt-out rather than a change. The measurements said otherwise: partial
+    dependence fires on page open and costs 6.9 s and a 4.5 MB response on a
+    10,000-trial run, and local ablation is 1.4 s at the same size. Neither is
+    worth spending on a page the reader may not be looking at."""
     for name, _label in deferred_computations():
-        assert SETTING_DEFAULTS[autocompute_key(name)] is True
-        assert global_defaults()[autocompute_key(name)] is True
+        assert SETTING_DEFAULTS[autocompute_key(name)] is False
+        assert global_defaults()[autocompute_key(name)] is False
 
 
 def test_the_settings_are_booleans():
@@ -64,17 +75,17 @@ def test_both_settings_pages_offer_them(client):
             assert f'name="{autocompute_key(name)}"' in body, name
 
 
-def test_they_start_checked(client):
+def test_they_start_unchecked(client):
     body = client.get(reverse("ui:default_experiment_settings")).content.decode()
     for name, _label in deferred_computations():
         field = body.split(f'name="{autocompute_key(name)}"', 1)[1].split(">", 1)[0]
-        assert "checked" in field, name
+        assert "checked" not in field, name
 
 
 def test_saving_records_each_choice(client):
     """Posting with partial dependence's box unticked stores that one off."""
     client.post(reverse("ui:default_experiment_settings"), {
-        "export_absolute_times": "on",
+        "ice_max_curves": "100",
         **{f.setting_key: "on" for f in FIGURES},
         "autocompute_local_ablation": "on",
         # autocompute_partial_dependence omitted — an unticked checkbox
@@ -95,22 +106,22 @@ def test_an_experiment_can_override_the_default(client):
     exp = adapter.experiment_from_snapshot(
         io.parse((FIXTURES_DIR / "test2.ihpo").read_bytes()))
     exp.use_default_settings = False
-    exp.settings = {"autocompute_partial_dependence": False}
+    exp.settings = {"autocompute_partial_dependence": True}
     exp.save(update_fields=["use_default_settings", "settings"])
 
     resolved = resolve_settings(exp)
-    assert resolved["autocompute_partial_dependence"] is False
-    assert resolved["autocompute_local_ablation"] is True, "the other one is untouched"
+    assert resolved["autocompute_partial_dependence"] is True
+    assert resolved["autocompute_local_ablation"] is False, "the other one is untouched"
 
 
 def test_a_stored_setting_from_before_these_existed_still_resolves():
     """`resolve_settings` backfills, so no migration was needed — every settings
     row written before this phase simply reads as on."""
     gs = GlobalSettings.get_solo()
-    gs.default_experiment_settings = {"export_absolute_times": False}
+    gs.default_experiment_settings = {"show_trials": False}
     gs.save(update_fields=["default_experiment_settings"])
 
     defaults = global_defaults()
-    assert defaults["export_absolute_times"] is False
+    assert defaults["show_trials"] is False
     for name, _label in deferred_computations():
-        assert defaults[autocompute_key(name)] is True
+        assert defaults[autocompute_key(name)] is False

@@ -11,7 +11,11 @@ on its `OptimizerParam`, so adding a setting is never blocked on writing prose
 for it first.
 """
 
+import json
+
 from django.utils.translation import gettext_lazy as _
+
+from .formatting import sigfigs
 
 #: label, and what it means. The label is a *name* — as short as the thing can
 #: be called — and everything that explains it goes in the second string, which
@@ -192,24 +196,89 @@ GROUPS = {
     ),
 }
 
-#: The rest of them.
+#: The rest of them, when the strategy's own default cannot be read (a setting
+#: that belongs to the other strategy, so that strategy has no component with
+#: an opinion about it).
 STRATEGY_DEFAULT = _("search strategy default")
 
 
-def placeholder_for(param):
-    """What to show in *param*'s field while it is empty, if anything."""
+def _number(value):
+    """A default as a field placeholder: short enough to sit in one.
+
+    SMAC's own numbers are not all tidy — the Gaussian process's random-trial
+    rate is 0.08447232371720552 — and a placeholder that long is unreadable and
+    pushes the field wide. The app's one display rule (`ui.formatting`) says
+    four significant figures; the exact value is what gets used, and is recorded
+    in the .ihpo either way.
+    """
+    return sigfigs(value)
+
+
+def placeholder_for(param, strategy_default=None):
+    """What to show in *param*'s field while it is empty, if anything.
+
+    *strategy_default* is the search strategy's own value for this setting,
+    which is what an empty field actually means. Showing it beats naming it:
+    "search strategy default" tells the reader there is a number and declines
+    to say which, and finding out meant reading SMAC's source.
+    """
     if param.default is not None:
         return ""
-    return PLACEHOLDERS.get(param.name, STRATEGY_DEFAULT)
+    if param.name in PLACEHOLDERS:
+        return PLACEHOLDERS[param.name]
+    if strategy_default is None:
+        return STRATEGY_DEFAULT
+    return _number(strategy_default)
 
 
-def described(param, value=None):
-    """One `OptimizerParam` as the template needs it: words, and a value."""
+def range_for(param):
+    """*param*'s accepted range, as a short phrase, or "" if it is unbounded.
+
+    Said rather than left to the `min`/`max` attributes, which only speak up
+    once a value is already wrong. A range is something you want to know while
+    deciding what to type — but it belongs with the rest of what the setting
+    means, behind the circled i, rather than as a second line of prose under
+    every field. See `info_for`.
+    """
+    low, high = param.min, param.max
+    if low is None and high is None:
+        return ""
+    if low is not None and high is not None:
+        return f"{_number(low)}–{_number(high)}"
+    return f"at least {_number(low)}" if low is not None else f"at most {_number(high)}"
+
+
+def info_for(param, help_text: str) -> str:
+    """Everything the circled i beside *param* should say.
+
+    What the setting means and what it will accept, in one bubble. A dozen
+    settings with two lines of prose under each is a wall to read past while
+    filling in a form, and neither line is wanted every time — the range is
+    wanted once, while deciding what to type.
+
+    What an empty field would use is not here: it is the field's own
+    placeholder, which is where it can be read without opening anything.
+    """
+    accepted = range_for(param)
+    if not accepted:
+        return help_text
+    accepted = _("Accepts %(range)s.") % {"range": accepted}
+    return f"{help_text} {accepted}".strip()
+
+
+def described(param, value=None, strategy_defaults=None, strategy_defaults_all=None):
+    """One `OptimizerParam` as the template needs it: words, and a value.
+
+    *strategy_defaults* is `{param: default}` for the strategy currently
+    selected, and *strategy_defaults_all* is `{param: {strategy: default}}` for
+    every one of them — the first fills the placeholder the page renders with,
+    the second lets the page change it when the selector moves.
+    """
     label, help_text = LABELS.get(param.name, (param.label, ""))
     return {
         "name": param.name,
         "label": label,
-        "help": help_text,
+        "help": info_for(param, help_text),
         "type": param.type,
         "min": param.min,
         "max": param.max,
@@ -224,7 +293,18 @@ def described(param, value=None):
         # A setting with a default of its own shows it, and needs no
         # placeholder; one without is empty, and the field says what filling it
         # in would displace.
-        "placeholder": placeholder_for(param),
+        "placeholder": placeholder_for(param, (strategy_defaults or {}).get(param.name)),
+        # Every strategy's default for this setting, so the form can swap the
+        # placeholder when the strategy selector changes without a round trip.
+        # JSON-ready: it goes into a data attribute.
+        "defaults_by_strategy_json": json.dumps(
+            {k: _number(v)
+             for k, v in (strategy_defaults_all or {}).get(param.name, {}).items()
+             if v is not None}),
+        "defaults_by_strategy": {k: _number(v)
+                                 for k, v in (strategy_defaults_all or {}).get(param.name, {}).items()
+                                 if v is not None},
+        "range": range_for(param),
         "value": param.default if value is None else value,
         "checked": bool(param.default if value is None else value),
         "choices": [(v, CHOICES.get(param.name, {}).get(v, v)) for v in param.choices],
@@ -232,9 +312,20 @@ def described(param, value=None):
 
 
 def describe_all(optimizer, stored=None):
-    """Every setting of *optimizer*, with the experiment's stored values applied."""
+    """Every setting of *optimizer*, with the experiment's stored values applied.
+
+    Optimizers that have strategy-dependent defaults say so by offering
+    `strategy_defaults()`; the rest simply have none, and their fields fall back
+    to naming the strategy rather than quoting it.
+    """
     stored = stored or {}
-    return [described(p, stored.get(p.name)) for p in optimizer.params_schema]
+    by_param = (optimizer.strategy_defaults()
+                if hasattr(optimizer, "strategy_defaults") else {})
+    selected = stored.get("search_strategy") or getattr(optimizer, "_search_strategy", None)
+    current = {name: per_strategy.get(selected)
+               for name, per_strategy in by_param.items()}
+    return [described(p, stored.get(p.name), current, by_param)
+            for p in optimizer.params_schema]
 
 
 def grouped(described_params):

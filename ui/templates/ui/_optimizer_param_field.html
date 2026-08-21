@@ -9,8 +9,13 @@ A decimal is a plain text field. `type="number"` puts arrows on it that step by
 one, which on a fraction between zero and one is the whole range — useless in
 themselves, and they make the field look like it wants a whole number. Stepping
 is left to the settings where a step of one is a real increment.
+
+The accepted range is part of what the circled i says (see `info_for`), and what
+an empty field would use is the field's own placeholder. Neither is a line of
+prose under the field: a dozen settings each carrying two is a wall to read past
+while filling in a form.
 {% endcomment %}
-<div class="field"{% if p.when %} data-when="{{ p.when }}"{% endif %}{% if p.enabled_by %} data-enabled-by="{{ p.enabled_by }}"{% endif %}>
+<div class="field"{% if p.when %} data-when="{{ p.when }}"{% endif %}{% if p.enabled_by %} data-enabled-by="{{ p.enabled_by }}"{% endif %}{% if p.defaults_by_strategy %} data-strategy-defaults="{{ p.defaults_by_strategy_json }}"{% endif %}>
     <div class="field-label">
         {% if p.type == "bool" %}
             <label class="check" for="opt_{{ p.name }}">
@@ -53,4 +58,5 @@ is left to the settings where a step of one is a real increment.
                {% if p.max is not None %}max="{{ p.max }}"{% endif %}
                {% if p.placeholder %}placeholder="{{ p.placeholder }}"{% endif %}>
     {% endif %}
+
 </div>

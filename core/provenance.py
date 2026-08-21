@@ -147,7 +147,7 @@ def model_fingerprint(model_name: str, model_path: str, env_meta=None) -> Dict[s
     }
 
 
-def evaluation(cv_folds: int, y=None) -> Dict[str, Any]:
+def evaluation(cv_folds: int, y=None, test_size: float = None) -> Dict[str, Any]:
     """How a trial was evaluated — fixed for the experiment's life.
 
     `stratified` is *resolved*, not intended. Both schemes ask for stratification
@@ -160,7 +160,9 @@ def evaluation(cv_folds: int, y=None) -> Dict[str, Any]:
     return {
         "scheme": "kfold" if folds >= MIN_FOLDS else "holdout",
         "folds": folds if folds >= MIN_FOLDS else None,
-        "test_size": None if folds >= MIN_FOLDS else 0.2,
+        # Null under cross-validation, where nothing is held out — recording a
+        # share there would describe a split the run never made.
+        "test_size": None if folds >= MIN_FOLDS else float(test_size or 0.2),
         "stratified": None if y is None else _stratifiable(y),
     }
 

@@ -1,7 +1,20 @@
 {% extends "base.html" %}
-{% load static i18n %}
+{% load numbers static i18n %}
 
 {% block title %}{{ summary.name }} · Codesigner{% endblock %}
+
+{% comment %}Two of the page's three sidebar sections; the first (which
+experiment) is the sidebar's own, in base.html. Both of these are things the
+figures below are an answer to — what the experiment is scored on, and which
+trial is selected — so they sit where they stay visible while the figures are
+being read.{% endcomment %}
+{% block sidebar_sections %}
+    {% include "ui/_side_evaluation.html" %}
+    {% if has_result %}
+        {% include "ui/_side_explanation.html" %}
+        {% for figure in sidebar_figures %}{% include figure.template %}{% endfor %}
+    {% endif %}
+{% endblock %}
 
 {% block content %}
     <div style="display: flex; justify-content: space-between; align-items: flex-start; gap: 1rem;">
@@ -78,129 +91,8 @@
         </form>
     {% endif %}
 
-    {% if active_run %}
-        {% include "ui/_run_status.html" with run=active_run %}
-        {% if has_result %}
-            <section class="card">
-                <div class="subheader">{% translate "Evaluation metric" %}</div>
-                {% include "ui/_metric_select.html" %}
-            </section>
-        {% endif %}
-    {% elif can_run %}
-        <section class="card">
-            <div class="subheader">{% translate "Run" %}</div>
-            <form method="post" action="{% url 'ui:experiment_run' summary.pk %}">
-                {% csrf_token %}
-                <div class="field">
-                    <label for="metric-select">{% translate "Evaluation metric" %}</label>
-                    {% include "ui/_metric_select.html" with field_name="optimize_metric" %}
-                </div>
-                {% comment %}
-                No field here is required and none is the default. What is
-                required is that at least one be filled in — the run needs
-                something to end on, and which limit that is belongs to whoever
-                is starting it.
-                {% endcomment %}
-                <fieldset class="check-group stopping">
-                    <legend>{% translate "Run until…" %}</legend>
-                    <div class="field">
-                        <label for="max_trials">{% translate "…this many trials have run" %}</label>
-                        <input type="number" id="max_trials" name="max_trials"
-                               value="30" min="1" max="100000">
-                    </div>
-                    <div class="field">
-                        <label for="target_score">{% translate "…performance surpasses" %}</label>
-                        <input type="text" inputmode="decimal" pattern="[0-9]*[.,]?[0-9]*"
-                               id="target_score" name="target_score"
-                               value="{{ incumbent_target }}"
-                               placeholder="{% translate 'e.g. 0.95' %}">
-                    </div>
-                    <div class="field">
-                        <label for="max_seconds">{% translate "…the run has taken this many seconds" %}</label>
-                        <input type="number" id="max_seconds" name="max_seconds" min="1" step="1">
-                    </div>
-                    <div class="field">
-                        <label for="max_trial_seconds">{% translate "…this many seconds have been spent in trials" %}</label>
-                        <input type="number" id="max_trial_seconds" name="max_trial_seconds" min="1" step="1">
-                    </div>
-                    <div class="field">
-                        <label for="no_improvement_trials">{% translate "…this many trials in a row have not improved" %}</label>
-                        <input type="number" id="no_improvement_trials" name="no_improvement_trials" min="1" step="1">
-                    </div>
-                    {% if supports_confidence %}
-                        <div class="field">
-                            <div class="field-label">
-                                <label for="incumbent_confidence">{% translate "…the search is this sure nothing better remains" %}</label>
-                                {% translate "Asks the optimizer how likely its own model of the objective thinks it is that some untried configuration beats the best one so far. Confidence under that model, not a guarantee." as confidence_help %}
-                                {% include "ui/_info.html" with info_id="incumbent_confidence_help" info_text=confidence_help %}
-                            </div>
-                            <input type="text" inputmode="decimal" pattern="[0-9]*[.,]?[0-9]*"
-                                   id="incumbent_confidence" name="incumbent_confidence"
-                                   placeholder="{% translate 'e.g. 0.95' %}"
-                                   aria-describedby="incumbent_confidence_help">
-                        </div>
-                    {% endif %}
-                    <p class="caption stopping-note" hidden>{% translate "These may never happen. Consider a trial or time limit as well, so the run is certain to end." %}</p>
-                </fieldset>
-                <button type="submit" class="btn-primary">{% translate "▶ Run" %}</button>
-            </form>
-            <script>
-                // The two criteria that may never fire. Chosen alone, the run
-                // has no guaranteed end — said quietly, next to the fields,
-                // rather than as a refusal: it is a legitimate thing to want.
-                (function () {
-                    const form = document.currentScript.closest("section").querySelector("form");
-                    const note = form.querySelector(".stopping-note");
-                    const unbounded = ["target_score", "incumbent_confidence"];
-                    const bounded = ["max_trials", "max_seconds", "max_trial_seconds",
-                                     "no_improvement_trials"];
-                    const filled = (name) => {
-                        const el = form.querySelector(`[name="${name}"]`);
-                        return el && el.value.trim() !== "";
-                    };
-                    function apply() {
-                        note.hidden = !(unbounded.some(filled) && !bounded.some(filled));
-                    }
-                    form.addEventListener("input", apply);
-                    apply();
-                })();
-            </script>
-            {{ incumbent_targets|json_script:"incumbent-targets" }}
-            <script>
-                // The target opens at the score there is to beat, and follows
-                // the metric dropdown, because the incumbent is per metric and
-                // a number left over from the previous one would be nonsense.
-                // Typing in the field stops that: at the point someone has
-                // chosen a target, replacing it is not help.
-                (function () {
-                    const form = document.currentScript.closest("section").querySelector("form");
-                    const field = form.querySelector('[name="target_score"]');
-                    const metric = form.querySelector("#metric-select");
-                    const holder = document.getElementById("incumbent-targets");
-                    if (!field || !metric || !holder) return;
-                    const targets = JSON.parse(holder.textContent || "{}");
-                    let untouched = true;
-                    field.addEventListener("input", function () { untouched = false; });
-                    metric.addEventListener("change", function () {
-                        if (untouched) field.value = targets[metric.value] || "";
-                    });
-                })();
-            </script>
-            {% if env.ready and env.summary %}
-                <p class="caption" style="margin-top: 0.75rem;">{% blocktranslate with summary=env.summary %}Environment: {{ summary }}{% endblocktranslate %}</p>
-            {% endif %}
-        </section>
-    {% elif has_result %}
-        <section class="card">
-            <div class="subheader">{% translate "Evaluation metric" %}</div>
-            {% include "ui/_metric_select.html" %}
-        </section>
-    {% else %}
-        <div class="alert info">{% translate "Attach a dataset to run this experiment (loaded read-only)." %}</div>
-    {% endif %}
-
     {% if run_summary %}
-        <p class="caption" style="margin-top: 0.75rem;">{% blocktranslate with count=run_summary.count total=run_summary.total|floatformat:2 trials=run_summary.trials|floatformat:2 overhead=run_summary.overhead|floatformat:2 %}Last run: {{ count }} trials in {{ total }} s — {{ trials }} s in trials, {{ overhead }} s overhead.{% endblocktranslate %}{% if run_summary.stopped_by %} {% blocktranslate with reason=run_summary.stopped_by %}Stopped because {{ reason }}.{% endblocktranslate %}{% endif %}</p>
+        <p class="caption" style="margin-top: 0.75rem;">{% blocktranslate with count=run_summary.count total=run_summary.total|sig trials=run_summary.trials|sig overhead=run_summary.overhead|sig %}Last run: {{ count }} trials in {{ total }} s — {{ trials }} s in trials, {{ overhead }} s overhead.{% endblocktranslate %}{% if run_summary.stopped_by %} {% blocktranslate with reason=run_summary.stopped_by %}Stopped because {{ reason }}.{% endblocktranslate %}{% endif %}</p>
     {% endif %}
 
     {% if not has_result %}
@@ -213,20 +105,39 @@
 
         {% comment %}Figures are declared in ui/figures/catalog.py, one partial
         each under ui/figures/. Each declares its own width and whether it
-        appears at all, so this only has to place them: half-width ones tile
-        two-up in catalog order, full-width ones span the page below.{% endcomment %}
-        {% if half_figures %}
-            <div class="grid-2x2">
-                {% for figure in half_figures %}
-                    <div class="slot">{% include figure.template %}</div>
+        appears at all, so this only has to place them: one grid in catalog
+        order, half-width figures tiling two-up and full-width ones spanning
+        both columns.
+
+        One grid rather than the two this used to be (a tile grid, then every
+        full-width figure stacked below it): with them separated, a full-width
+        figure could never sit beside or beneath a particular half-width one,
+        because it was always after all of them. Now catalog order places
+        everything, and a full-width figure always begins a fresh row whatever
+        the grid's column count is.
+
+        Figures declaring `in_sidebar` are absent from this list — the page put
+        them in the sidebar instead; see `grid_figures` in views.py.
+
+        And one declaring `in_side_column` is beside the grid rather than in it,
+        once the window is wide enough for a second column. On a narrow one the
+        two panes stack, which puts it back exactly where its catalog order
+        already had it — last, full width — so the layout it is leaving is the
+        layout it falls back to.{% endcomment %}
+        {% if grid_figures or column_figures %}
+            <div class="figure-layout">
+                <div class="grid-2x2">
+                    {% for figure in grid_figures %}
+                        <div class="slot{% if figure.width == 'full' %} wide{% endif %}{% if figure.height == 'double' %} tall{% endif %}">
+                            {% include figure.template %}
+                        </div>
+                    {% endfor %}
+                </div>
+                {% for figure in column_figures %}
+                    <div class="figure-column">{% include figure.template %}</div>
                 {% endfor %}
             </div>
         {% endif %}
-
-        {% for figure in full_figures %}
-            <hr class="divider">
-            {% include figure.template %}
-        {% endfor %}
 
         <script>
             // Click-to-sort on the outcome columns. Every sortable cell carries
@@ -249,6 +160,11 @@
                         .forEach(function (row) { tbody.appendChild(row); });
                     headers.forEach(function (h) { h.removeAttribute("aria-sort"); });
                     th.setAttribute("aria-sort", descending ? "descending" : "ascending");
+                    // The pager and the selection both count rows in the order
+                    // they are in, which this just changed. Announced rather
+                    // than called, so the two scripts need know nothing of each
+                    // other.
+                    table.dispatchEvent(new CustomEvent("trials:sorted"));
                 }
 
                 headers.forEach(function (th, i) {
@@ -269,6 +185,8 @@
         {{ figure_views|json_script:"figure-views-data" }}
         {{ panels|json_script:"panels-data" }}
         {{ autocompute|json_script:"autocompute-data" }}
+        {{ selectable_figures|json_script:"selectable-figures-data" }}
+        {{ selection_colors|json_script:"selection-colors-data" }}
         <script src="{% static 'ui/plotly.min.js' %}"></script>
         <script>
             (function () {
@@ -302,21 +220,15 @@
                     if (!views) return raw;
                     return raw[currentView[key] || views[0]];
                 }
-                // metric -> game -> warning-or-null. Which game's warning
-                // applies depends on the importance figure's own game
-                // selector, not just the metric — see syncImportanceWarning.
-                // "local" starts unset (undefined reads the same as "no
-                // warning" — see syncImportanceWarning); refreshLocalAblation
-                // fills it in once something has actually been fetched.
+                // metric -> game -> warning-or-null. Which one applies depends
+                // on the page's game selector as well as the metric, and it
+                // covers the interaction figures too: they come out of the same
+                // HyperSHAP call, so whatever made it fail explains them as well.
                 const warnings = {};
                 // metric -> the array index of that metric's best trial —
                 // what a local-explanation fetch asks for before any click,
                 // same index click-to-select already uses (Plotly's pointIndex).
                 const bestIdxByMetric = {};
-                // metric -> warning-or-null for the interactions figure —
-                // shares tunability's own warning (see views.py), so it's
-                // one flat map, not keyed by game/view like `warnings` above.
-                const interactionsWarnings = {};
                 // metric -> that metric's own top-tunability hyperparameter —
                 // what the partial-dependence picker resets to on a metric
                 // switch, the same "most interesting thing first" instinct
@@ -329,13 +241,14 @@
                             warnings[p.metric][game] = p.importance_by_game[game].warning;
                         });
                         bestIdxByMetric[p.metric] = p.best_idx;
-                        interactionsWarnings[p.metric] = p.interactions_warning;
                         topHpByMetric[p.metric] = p.top_hp;
                     });
                 const select = document.getElementById("metric-select");
                 const trialPanelUrl = "{% url 'ui:trial_panel' summary.pk %}";
                 const trialAblationUrl = "{% url 'ui:trial_ablation' summary.pk %}";
                 const partialDependenceUrl = "{% url 'ui:partial_dependence' summary.pk %}";
+                const metricFiguresUrl = "{% url 'ui:metric_figures' summary.pk %}";
+                const localEffectsUrl = "{% url 'ui:local_effects' summary.pk %}";
                 // Which on-request analytics may fetch themselves, and which wait
                 // to be asked (see Figure.deferred and the autocompute_<name>
                 // settings). With one switched off, opening or reloading the page
@@ -457,41 +370,309 @@
                 // resets the highlight to that metric's best trial (below), and
                 // must also forget any earlier click so a later view switch on
                 // that metric doesn't resurrect it.
-                const lastClickedIdx = {};
+                const selectedIdx = {};
+                // Which figures can take a click naming a trial and show which
+                // one is selected (Figure.selects_trials), and the two colours
+                // the plot builders draw everything else in. Both come from the
+                // server so this script names no figure and restates no colour.
+                const selectableFigures =
+                    JSON.parse(document.getElementById("selectable-figures-data").textContent);
+                const selectionColors =
+                    JSON.parse(document.getElementById("selection-colors-data").textContent);
 
-                function highlightPoint(metric, idx) {
-                    const perfEl = figureEl("performance_over_time");
-                    if (!perfEl) return;
-                    const payload = payloadFor("performance_over_time", metric);
-                    if (!payload) return;
-                    const n = payload.data[0].x.length;
-                    const colors = new Array(n).fill("#636EFA");
-                    const sizes = new Array(n).fill(6);
-                    if (idx >= 0 && idx < n) { colors[idx] = "#EF553B"; sizes[idx] = 13; }
-                    Plotly.restyle(perfEl, {"marker.color": [colors], "marker.size": [sizes]}, [0]);
+                // One trial is selected at a time across the whole page. Which
+                // one, for a metric: the trial clicked since the last metric
+                // switch, or that metric's best.
+                function selectionFor(metric) {
+                    return selectedIdx[metric] !== undefined
+                        ? selectedIdx[metric] : bestIdxByMetric[metric];
                 }
 
-                let perfClickAttached = false;
-                function attachPerfClickOnce() {
-                    if (perfClickAttached) return;
-                    perfClickAttached = true;
-                    figureEl("performance_over_time").on("plotly_click", function (data) {
-                        const pt = data.points && data.points[0];
-                        if (!pt || pt.curveNumber !== 0) return;  // ignore the incumbent/new-incumbent traces
-                        const metric = select.value;
-                        const idx = pt.pointIndex;
-                        lastClickedIdx[metric] = idx;
-                        highlightPoint(metric, idx);
-                        refreshLocalAblation(metric);  // no-op unless "Local" is showing
-                        fetch(trialPanelUrl + "?metric=" + encodeURIComponent(metric) + "&idx=" + idx)
-                            .then(function (r) { return r.ok ? r.text() : Promise.reject(); })
-                            .then(function (html) {
-                                const el = document.getElementById("selected-content-" + metric);
-                                if (el) el.innerHTML = html;
-                            })
-                            .catch(function () {});
+                // Where a plot's per-trial points are — see plots.py's
+                // `_selection_meta` for the contract. Absent for a figure that
+                // draws a summary rather than the trials, and for the trials
+                // table, which has no plot at all.
+                function selectionMeta(key) {
+                    const el = figureEl(key);
+                    const meta = el && el.layout && el.layout.meta;
+                    return (meta && meta.selection) || null;
+                }
+
+                // The trial a point belongs to. One rule for every figure: a
+                // trace not named in the meta is not trials (an incumbent line,
+                // the trace that carries parallel coordinates' colour bar), and
+                // `segment` is how many points make up one trial — 1 everywhere
+                // except parallel coordinates, where a trial is a polyline.
+                function trialAt(sel, curveNumber, pointIndex) {
+                    const inTrace = sel.trials[String(curveNumber)];
+                    if (!inTrace) return undefined;
+                    return inTrace[Math.floor(pointIndex / (sel.segment || 1))];
+                }
+
+                // Show *idx* as selected on one figure, however that figure is
+                // able to show it — which is decided by what its colour already
+                // means, not by taste. See plots.py's RECOLOR / OUTLINE / LINE.
+                function applySelection(key, metric) {
+                    const el = figureEl(key);
+                    const sel = selectionMeta(key);
+                    if (!el || !sel) return;
+                    const idx = selectionFor(metric);
+                    if (sel.style === "overlay") {
+                        // The same idea as "line", one point instead of many:
+                        // the selected trial drawn again on top, in the
+                        // selection colour, sliced out of the trace that is
+                        // already carrying it rather than shipped twice.
+                        const source = el.data[0] || {};
+                        const at = (sel.trials["0"] || []).indexOf(idx);
+                        const pick = function (axis) {
+                            return at >= 0 && source[axis] && source[axis].length > at
+                                ? [source[axis][at]] : [];
+                        };
+                        const update = {x: [pick("x")], y: [pick("y")]};
+                        if (source.z) update.z = [pick("z")];
+                        Plotly.restyle(el, update, [sel.highlight]);
+                        return;
+                    }
+                    if (sel.style === "line") {
+                        // A trial is a whole polyline, so the highlight is a
+                        // trace of its own drawn last — the only way to put one
+                        // line over the others, since trace order is fixed at
+                        // draw time. Its points are sliced out of the trial's
+                        // own trace rather than shipped twice.
+                        let x = [], y = [];
+                        Object.keys(sel.trials).forEach(function (trace) {
+                            const at = sel.trials[trace].indexOf(idx);
+                            if (at < 0 || !el.data[trace]) return;
+                            const from = at * sel.segment;
+                            x = el.data[trace].x.slice(from, from + sel.segment);
+                            y = el.data[trace].y.slice(from, from + sel.segment);
+                        });
+                        Plotly.restyle(el, {x: [x], y: [y]}, [sel.highlight]);
+                        return;
+                    }
+                    Object.keys(sel.trials).forEach(function (trace) {
+                        const trials = sel.trials[trace];
+                        const at = trials.indexOf(idx);
+                        const sizes = trials.map(function () { return 6; });
+                        if (at >= 0) sizes[at] = 13;
+                        const update = {"marker.size": [sizes]};
+                        if (sel.style === "outline") {
+                            // The fill already carries the score or the sign, so
+                            // the selection is a ring around the point instead —
+                            // recolouring it would be a claim about its value.
+                            // Except in 3D, where Plotly draws no marker outline
+                            // at all; there the size on its own is the highlight.
+                            if ((el.data[trace] || {}).type !== "scatter3d") {
+                                update["marker.line.width"] = [trials.map(function (_v, i) {
+                                    return i === at ? 3 : 0;
+                                })];
+                                update["marker.line.color"] = [trials.map(function () {
+                                    return selectionColors.selected;
+                                })];
+                            }
+                        } else {
+                            update["marker.color"] = [trials.map(function (_v, i) {
+                                return i === at ? selectionColors.selected
+                                                : selectionColors.base;
+                            })];
+                        }
+                        Plotly.restyle(el, update, [Number(trace)]);
                     });
                 }
+
+                // A long run's table is one you scroll past rather than read,
+                // so it is paged. Everything here counts rows in the order they
+                // are currently in — the sort reorders the very same nodes — so
+                // a page is a window on the current order, not on the result.
+                const trialsPager = (function () {
+                    const table = document.querySelector("table.trials");
+                    const box = document.querySelector("[data-trials-pager]");
+                    if (!table || !box) return null;
+                    const body = table.tBodies[0];
+                    const sizeField = box.querySelector("[data-page-size]");
+                    const pageSelect = box.querySelector("[data-page-select]");
+                    const pageCount = box.querySelector("[data-page-count]");
+                    const perPage = Number(sizeField.value) || 50;
+                    let page = 0;
+
+                    function size() {
+                        const asked = Number(sizeField.value);
+                        return asked > 0 ? Math.floor(asked) : perPage;
+                    }
+                    function rows() { return Array.from(body.rows); }
+
+                    function render() {
+                        const per = size();
+                        const all = rows();
+                        const pages = Math.max(1, Math.ceil(all.length / per));
+                        page = Math.min(Math.max(0, page), pages - 1);
+                        all.forEach(function (row, at) {
+                            row.hidden = Math.floor(at / per) !== page;
+                        });
+                        // A pager for one page is a control that does nothing.
+                        // Measured against the smaller of the two sizes so that
+                        // raising the field past the row count doesn't take the
+                        // field away with it.
+                        box.hidden = all.length <= Math.min(perPage, per);
+                        pageCount.textContent = pages;
+                        if (pageSelect.options.length !== pages) {
+                            pageSelect.innerHTML = "";
+                            for (let i = 0; i < pages; i++) {
+                                const option = document.createElement("option");
+                                option.value = String(i);
+                                option.textContent = String(i + 1);
+                                pageSelect.appendChild(option);
+                            }
+                        }
+                        pageSelect.value = String(page);
+                    }
+
+                    // Selecting a trial anywhere on the page has to be able to
+                    // show it here, and the row it is on may be on another page.
+                    function reveal(row) {
+                        if (!row) return;
+                        const at = rows().indexOf(row);
+                        if (at < 0) return;
+                        const wanted = Math.floor(at / size());
+                        if (wanted !== page) { page = wanted; render(); }
+                    }
+
+                    function step(by) { page += by; render(); }
+                    box.querySelector("[data-page-prev]")
+                       .addEventListener("click", function () { step(-1); });
+                    box.querySelector("[data-page-next]")
+                       .addEventListener("click", function () { step(1); });
+                    pageSelect.addEventListener("change", function () {
+                        page = Number(pageSelect.value); render();
+                    });
+                    sizeField.addEventListener("input", function () { page = 0; render(); });
+                    table.addEventListener("trials:sorted", function () {
+                        render();
+                        reveal(body.querySelector("tr.selected"));
+                    });
+                    render();
+                    return {render: render, reveal: reveal};
+                })();
+
+                // The trials table highlights a row rather than a point, and
+                // does it by class: the rows reorder on a sort, so the trial a
+                // row stands for is an attribute on it, never its position.
+                // Selecting one also pages to it — a highlight on a page nobody
+                // is looking at is not an answer.
+                function applyTableSelection(metric) {
+                    const idx = selectionFor(metric);
+                    let selected = null;
+                    document.querySelectorAll("table.trials tbody tr").forEach(function (row) {
+                        const mine = Number(row.dataset.trialIdx) === idx;
+                        row.classList.toggle("selected", mine);
+                        if (mine) selected = row;
+                    });
+                    if (trialsPager) trialsPager.reveal(selected);
+                }
+
+                // Everything that shows the selection, in one place, so a figure
+                // arriving late (local effects is fetched) or being redrawn (a
+                // metric or view switch) is one call rather than a list of them.
+                function showSelection(metric) {
+                    selectableFigures.forEach(function (key) {
+                        // Guarded per figure: they are independent answers to one
+                        // question, and one that cannot draw itself is no reason
+                        // for the rest to go unanswered — or, worse, for the
+                        // click that asked to look like it did nothing.
+                        try {
+                            applySelection(key, metric);
+                        } catch (err) {
+                            console.error("selection: " + key, err);
+                        }
+                    });
+                    applyTableSelection(metric);
+                }
+
+                // The only thing that changes the selection. Every figure's
+                // click handler and the table's rows come through here, so they
+                // cannot disagree about what is selected or forget to tell the
+                // panel.
+                function selectTrial(metric, idx) {
+                    if (idx === undefined || idx < 0) return;
+                    selectedIdx[metric] = idx;
+                    showSelection(metric);
+                    refreshLocalAblation(metric);  // its own figure now; a no-op if it is off
+                    fetch(trialPanelUrl + "?metric=" + encodeURIComponent(metric) + "&idx=" + idx)
+                        .then(function (r) { return r.ok ? r.text() : Promise.reject(); })
+                        .then(function (html) {
+                            const el = document.getElementById("selected-content-" + metric);
+                            if (el) el.innerHTML = html;
+                        })
+                        .catch(function () {});
+                }
+
+                // Plotly keeps its handlers across a `react`, so each figure is
+                // wired once and the flag is per figure rather than one for the
+                // page — local effects only exists once it has been fetched.
+                const clicksAttached = {};
+
+                // A click is a DOM click, and *what* was clicked is whatever
+                // Plotly's own hover detection was pointing at.
+                //
+                // Not `plotly_click`, which this needs to work on three kinds of
+                // figure it does not serve equally. On a 3D scene the default
+                // drag is an orbit, and the click is almost always eaten by it,
+                // so the configuration cube stopped selecting the moment a
+                // third axis was chosen. On parallel coordinates the target is
+                // a line, and a click has to land within a few pixels of one of
+                // its points. Hover is the forgiving half of the same
+                // machinery — it has a radius (`hoverdistance`), it works in a
+                // scene, and it is already how the figure says what is under
+                // the pointer.
+                //
+                // A drag is a rotation or a zoom rather than a selection, so a
+                // pointer that travelled between press and release is ignored.
+                const DRAG_SLOP = 4;  // pixels; a steady hand still wobbles
+                function attachSelectionClicks() {
+                    selectableFigures.forEach(function (key) {
+                        const el = figureEl(key);
+                        if (!el || !el.on || clicksAttached[key]) return;
+                        clicksAttached[key] = true;
+                        let hovered = null;
+                        let pressedAt = null;
+                        el.on("plotly_hover", function (data) {
+                            hovered = data.points && data.points[0];
+                        });
+                        el.on("plotly_unhover", function () { hovered = null; });
+                        el.addEventListener("mousedown", function (event) {
+                            pressedAt = [event.clientX, event.clientY];
+                        });
+                        el.addEventListener("click", function (event) {
+                            const moved = pressedAt && Math.hypot(
+                                event.clientX - pressedAt[0],
+                                event.clientY - pressedAt[1]);
+                            if (moved > DRAG_SLOP) return;
+                            const sel = selectionMeta(key);
+                            if (!sel || !hovered) return;  // the modebar, or empty space
+                            // A 3D trace reports `pointNumber` and no `pointIndex`.
+                            const at = hovered.pointIndex !== undefined
+                                ? hovered.pointIndex : hovered.pointNumber;
+                            selectTrial(currentMetric(),
+                                        trialAt(sel, hovered.curveNumber, at));
+                        });
+                    });
+                }
+
+                (function attachTableClicks() {
+                    const tbody = document.querySelector("table.trials tbody");
+                    if (!tbody) return;
+                    function pick(event) {
+                        const row = event.target.closest("tr[data-trial-idx]");
+                        if (!row) return;
+                        selectTrial(currentMetric(), Number(row.dataset.trialIdx));
+                    }
+                    tbody.addEventListener("click", pick);
+                    tbody.addEventListener("keydown", function (event) {
+                        if (event.key !== "Enter" && event.key !== " ") return;
+                        event.preventDefault();
+                        pick(event);
+                    });
+                })();
 
                 // Draw one figure's plot, or show its "no data" note if it has
                 // none. Every figure follows the same contract: the plot mounts
@@ -502,6 +683,9 @@
                     if (!el) return;
                     const empty = document.getElementById("figure-" + key + "-empty");
                     if (!plot) {
+                        // A purge takes the div's event handlers with it, so
+                        // the figure has to be wired again if it comes back.
+                        delete clicksAttached[key];
                         Plotly.purge(el);
                         el.hidden = true;
                         if (empty) empty.hidden = false;
@@ -526,6 +710,7 @@
                     if (!el) return;
                     const empty = document.getElementById("figure-" + key + "-empty");
                     if (empty) empty.hidden = true;
+                    delete clicksAttached[key];  // purged with the plot — see draw()
                     Plotly.purge(el);
                     el.hidden = true;
                 }
@@ -540,10 +725,27 @@
                 // The importance figure's current (game, rendering) pair —
                 // falls back to the default view the same way payloadFor does,
                 // so this agrees with whatever's actually drawn.
+                // Which HyperSHAP game the whole page is showing. One choice,
+                // in the sidebar, because it is a choice about the experiment
+                // rather than about a figure: the importance figure and all five
+                // interaction figures read whichever game it names, and reading
+                // one figure under tunability beside another under sensitivity
+                // would be comparing two different questions.
+                const gameSelect = document.getElementById("explanation-game");
+                function currentGame() {
+                    return gameSelect ? gameSelect.value : "tunability";
+                }
+                // Every figure that answers a game, so the selector can switch
+                // them together. The importance figure composes the game with
+                // its own rendering; the rest take the game as their view.
+                const gameFigures = Object.keys(figureViews).filter(function (key) {
+                    return (figureViews[key] || []).indexOf("tunability") >= 0;
+                });
                 function importanceView() {
-                    const views = figureViews.hyperparameter_importance;
-                    const view = (views && (currentView.hyperparameter_importance || views[0])) || "tunability-pie";
-                    return view.split("-");
+                    const renderings = figureViews.hyperparameter_importance;
+                    const current = currentView.hyperparameter_importance
+                        || (renderings && renderings[0]) || "tunability-pie";
+                    return [currentGame(), current.split("-")[1]];
                 }
 
                 // Importance's table view is server-rendered HTML, not a plot —
@@ -589,20 +791,25 @@
                 // active game, so every call site can call it unconditionally.
                 const localAblationCache = {};  // "metric:idx" -> {figure, warning}
                 function refreshLocalAblation(metric, asked) {
-                    const [game] = importanceView();
-                    if (game !== "local") { setComputePrompt("ablation-compute", false); return; }
-                    const idx = lastClickedIdx[metric] !== undefined
-                        ? lastClickedIdx[metric] : bestIdxByMetric[metric];
+                    if (!figureEl("local_explanation")) return;
+                    const idx = selectionFor(metric);
                     if (idx === undefined) return;
                     const key = metric + ":" + idx;
                     function apply(data) {
                         // Stale by the time it resolves: the user moved on to
-                        // another metric or game while this was in flight.
-                        if (importanceView()[0] !== "local" || currentMetric() !== metric) return;
+                        // another metric while this was in flight.
+                        if (currentMetric() !== metric) return;
                         setComputePrompt("ablation-compute", false);
-                        draw("hyperparameter_importance", data.figure);
-                        warnings[metric].local = data.warning;
-                        syncImportanceWarning(metric);
+                        draw("local_explanation", data.figure);
+                        const warnEl = document.getElementById("local-explanation-warning");
+                        if (warnEl) {
+                            warnEl.textContent = data.warning || "";
+                            warnEl.hidden = !data.warning;
+                        }
+                        // The same request carries what this trial has banked,
+                        // which is the other half of the importance figure's
+                        // "still to gain" — see showTuningProgress.
+                        showTuningProgress(metric, data);
                     }
                     if (localAblationCache[key]) { apply(localAblationCache[key]); return; }
                     // Waiting to be asked. Keyed the same way as the cache, so
@@ -610,9 +817,7 @@
                     // away and only a genuinely new one asks again.
                     if (autocompute.local_ablation === false && !asked) {
                         setComputePrompt("ablation-compute", true);
-                        clearPlot("hyperparameter_importance");
-                        warnings[metric].local = null;
-                        syncImportanceWarning(metric);
+                        clearPlot("local_explanation");
                         return;
                     }
                     setComputePrompt("ablation-compute", false);
@@ -628,15 +833,16 @@
                     });
                 }
 
-                // Unlike syncImportanceWarning, this doesn't depend on which
-                // view (heatmap/bar) is showing — both come from the same
-                // warning, so a view switch never needs to re-sync it.
+                // One warning, five figures. It is the current game's own
+                // caveat — the interactions come out of the same HyperSHAP call
+                // as its importance — so each figure carries a copy and they are
+                // set together.
                 function syncInteractionsWarning(metric) {
-                    const warnEl = document.getElementById("interactions-warning");
-                    if (!warnEl) return;
-                    const msg = interactionsWarnings[metric];
-                    warnEl.textContent = msg || "";
-                    warnEl.hidden = !msg;
+                    const msg = (warnings[metric] || {})[currentGame()];
+                    document.querySelectorAll(".interactions-warning").forEach(function (el) {
+                        el.textContent = msg || "";
+                        el.hidden = !msg;
+                    });
                 }
 
                 // Partial dependence: which hyperparameter is showing changes
@@ -691,6 +897,48 @@
                         refreshPartialDependence(currentMetric());
                     });
                 }
+                // Local effects: one ablation game per trial, so it is the most
+                // expensive thing the page can ask for and never fetches without
+                // being told to (unless its autocompute setting says otherwise).
+                // Keyed by metric alone — unlike partial dependence there is no
+                // second choice to vary, the whole figure is one answer per metric.
+                const localEffectsCache = {};
+                function refreshLocalEffects(metric, asked) {
+                    if (!figureEl("local_effects")) return;
+                    function apply(data) {
+                        if (currentMetric() !== metric) return;  // moved on while in flight
+                        setComputePrompt("local-effects-compute", false);
+                        draw("local_effects", data.figure);
+                        // It arrives after everything else, so it wires and
+                        // highlights itself rather than the page doing it once
+                        // up front and missing this one.
+                        attachSelectionClicks();
+                        applySelection("local_effects", metric);
+                        const warnEl = document.getElementById("local-effects-warning");
+                        if (warnEl) {
+                            warnEl.textContent = data.warning || "";
+                            warnEl.hidden = !data.warning;
+                        }
+                    }
+                    if (localEffectsCache[metric]) { apply(localEffectsCache[metric]); return; }
+                    if (autocompute.local_effects === false && !asked) {
+                        setComputePrompt("local-effects-compute", true);
+                        clearPlot("local_effects");
+                        return;
+                    }
+                    setComputePrompt("local-effects-compute", false);
+                    fetch(localEffectsUrl + "?metric=" + encodeURIComponent(metric))
+                        .then(function (r) { return r.ok ? r.json() : Promise.reject(); })
+                        .then(function (data) { localEffectsCache[metric] = data; apply(data); })
+                        .catch(function () {});
+                }
+                const localEffectsBtn = document.getElementById("local-effects-compute-btn");
+                if (localEffectsBtn) {
+                    localEffectsBtn.addEventListener("click", function () {
+                        refreshLocalEffects(currentMetric(), true);
+                    });
+                }
+
                 const pdpComputeBtn = document.getElementById("pdp-compute-btn");
                 if (pdpComputeBtn) {
                     pdpComputeBtn.addEventListener("click", function () {
@@ -708,90 +956,258 @@
                 // so remapping axes (or flipping 2D/3D, when the Z picker has
                 // a value) is a matter of re-slicing that same array and
                 // handing Plotly a fresh trace/layout. Called after every
-                // redraw (a metric switch redraws with a fresh default
-                // trace) so the user's own axis choice, not just the
-                // server's default pair, survives it.
+                // redraw, because the trace the server ships carries the data
+                // and no axis assignment at all — a metric switch would
+                // otherwise leave the card blank.
                 const cubeAxisSelect = {
                     x: document.getElementById("cube-axis-x"),
                     y: document.getElementById("cube-axis-y"),
                     z: document.getElementById("cube-axis-z"),
                 };
+                const cubeDimensions = document.getElementById("cube-dimensions");
                 function applyCubeAxes() {
                     if (!cubeAxisSelect.x) return;
                     const el = figureEl("configuration_cube");
-                    if (!el || !el.data || !el.data.length) return;
+                    const prompt = document.getElementById("cube-prompt");
+                    // Nothing drawn at all (no trials, or the figure is off) is
+                    // not the same as nothing chosen, and the prompt would be
+                    // claiming the pickers can fix it.
+                    if (!el || !el.data || !el.data.length) {
+                        if (prompt) prompt.hidden = true;
+                        return;
+                    }
                     const trace = el.data[0];
-                    const hpNames = (el.layout.meta && el.layout.meta.hp_names) || [];
-                    const xi = hpNames.indexOf(cubeAxisSelect.x.value);
-                    const yi = hpNames.indexOf(cubeAxisSelect.y.value);
-                    const zi = hpNames.indexOf(cubeAxisSelect.z.value);
-                    if (xi < 0 || yi < 0) return;
+                    const meta = el.layout.meta || {};
+                    // Two kinds of payload, one shape. On the axes view the
+                    // columns of `customdata` are hyperparameters and the reader
+                    // says which to draw; on a projection they are components
+                    // and the reader says only how many. Both end up as "these
+                    // columns, in this order, with these titles", which is all
+                    // the rest of this needs to know.
+                    const projected = !!meta.components;
+                    const names = projected ? meta.components : (meta.hp_names || []);
+                    // Which hyperparameters the search treats logarithmically, so
+                    // an axis keeps the scale the search used — see
+                    // configuration_cube_plot. Linear is the default, a result
+                    // with no config space to ask lists none, and a projection
+                    // has no units to be logarithmic in.
+                    const logHps = meta.log_hps || [];
+                    // Axes: the pickers in slot order, ignoring the ones left at
+                    // None. How many are filled is the number of dimensions
+                    // drawn, so choosing only the third picker draws the same
+                    // strip as choosing only the first — the slots are three
+                    // chances to name a hyperparameter, not three fixed axes.
+                    // Projection: the leading components, as many as asked for
+                    // and as many as there are.
+                    const chosen = projected
+                        ? names.slice(0, Math.min(Number(cubeDimensions.value) || 2,
+                                                  names.length))
+                        : ["x", "y", "z"]
+                            .map(function (axis) { return cubeAxisSelect[axis].value; })
+                            .filter(function (name) { return names.indexOf(name) >= 0; });
                     const customdata = trace.customdata || [];
-                    const is3d = zi >= 0;
+                    const column = function (name) {
+                        const i = names.indexOf(name);
+                        return customdata.map(function (row) { return row[i]; });
+                    };
+                    // Rebuilt from customdata every time rather than edited in
+                    // place: this is the only copy of the values, so a state
+                    // that dropped the trace (an empty `data`) would take them
+                    // with it and no later choice could draw anything.
                     const newTrace = {
-                        type: is3d ? "scatter3d" : "scatter",
+                        type: chosen.length > 2 ? "scatter3d" : "scatter",
                         mode: "markers",
-                        x: customdata.map(function (row) { return row[xi]; }),
-                        y: customdata.map(function (row) { return row[yi]; }),
+                        x: [], y: [],
                         customdata: customdata,
                         text: trace.text,
                         marker: Object.assign({}, trace.marker),
+                    };
+                    // The selected trial, drawn again on top. A trace of its own
+                    // rather than one recoloured point, because the fill here is
+                    // the score and overwriting it would lose the value that
+                    // point was carrying — and because a scene draws no marker
+                    // outline, so the ring this used to be was invisible in the
+                    // view that most needs a landmark. Filled by applySelection,
+                    // which is the only thing that knows what is selected.
+                    const highlight = {
+                        type: newTrace.type, mode: "markers",
+                        x: [], y: [], showlegend: false,
+                        // Out of the way of the pointer, so it never stands
+                        // between the reader and the point underneath it.
+                        hoverinfo: "skip",
+                        marker: {size: 14, color: selectionColors.selected,
+                                 line: {width: 2, color: "#FFFFFF"}},
                     };
                     const layout = { margin: el.layout.margin, meta: el.layout.meta };
                     // { text: ... }, not a bare string — this Plotly.js build
                     // silently drops the shorthand-string form of `title`
                     // (caught by screenshotting the result: the axis simply
                     // had no title at all, no error anywhere to point at it).
-                    if (is3d) {
-                        newTrace.z = customdata.map(function (row) { return row[zi]; });
-                        layout.scene = {
-                            xaxis: { title: { text: cubeAxisSelect.x.value } },
-                            yaxis: { title: { text: cubeAxisSelect.y.value } },
-                            zaxis: { title: { text: cubeAxisSelect.z.value } },
-                        };
-                    } else {
-                        layout.xaxis = { title: { text: cubeAxisSelect.x.value } };
-                        layout.yaxis = { title: { text: cubeAxisSelect.y.value } };
+                    const titled = function (name) {
+                        return { title: { text: name }, type: axisType(name) };
+                    };
+                    function axisType(name) {
+                        return logHps.indexOf(name) >= 0 ? "log" : "linear";
                     }
-                    Plotly.react(el, [newTrace], layout, plotlyConfig);
+                    // The prompt belongs to the axes view alone: a projection
+                    // has nothing to pick, so it draws on arrival.
+                    if (prompt) prompt.hidden = projected || chosen.length > 0;
+                    if (!chosen.length) {
+                        // Nothing chosen is a state, not an error: the points and
+                        // the axes come down so the card isn't an empty frame
+                        // pretending to be a plot, and the prompt says why.
+                        layout.xaxis = { visible: false };
+                        layout.yaxis = { visible: false };
+                    } else if (chosen.length === 1) {
+                        // One hyperparameter is a strip: every trial on the one
+                        // axis that was named, at a constant height. The score is
+                        // the marker colour here exactly as it is at two and three
+                        // axes, so putting it on y would make this the only view
+                        // where the axes mean something different.
+                        newTrace.x = column(chosen[0]);
+                        newTrace.y = customdata.map(function () { return 0; });
+                        layout.xaxis = titled(chosen[0]);
+                        layout.yaxis = { visible: false, range: [-1, 1], fixedrange: true };
+                    } else if (chosen.length === 2) {
+                        newTrace.x = column(chosen[0]);
+                        newTrace.y = column(chosen[1]);
+                        layout.xaxis = titled(chosen[0]);
+                        layout.yaxis = titled(chosen[1]);
+                    } else {
+                        newTrace.x = column(chosen[0]);
+                        newTrace.y = column(chosen[1]);
+                        newTrace.z = column(chosen[2]);
+                        layout.scene = {
+                            xaxis: titled(chosen[0]),
+                            yaxis: titled(chosen[1]),
+                            zaxis: titled(chosen[2]),
+                        };
+                    }
+                    // Set both ways round, not switched off in the empty branch:
+                    // this trace becomes el.data[0], so a flag left false here is
+                    // read back as false on the next call and never recovers.
+                    // With the figure now starting empty, that meant the colour
+                    // bar was gone from the first draw onwards.
+                    newTrace.marker.showscale = chosen.length > 0;
+                    // A third axis moves the figure between a cartesian subplot
+                    // and a gl3d one, which is where `react` is least reliable:
+                    // the two have separate event plumbing, and a click handler
+                    // registered against the old one does not carry over. So a
+                    // change of dimensionality is a fresh plot, and the handler
+                    // is registered again against what is actually there.
+                    if (el.data[0] && el.data[0].type !== newTrace.type) {
+                        delete clicksAttached.configuration_cube;
+                        Plotly.newPlot(el, [newTrace, highlight], layout, plotlyConfig);
+                        attachSelectionClicks();
+                    } else {
+                        Plotly.react(el, [newTrace, highlight], layout, plotlyConfig);
+                    }
+                    applySelection("configuration_cube", currentMetric());
                 }
                 Object.keys(cubeAxisSelect).forEach(function (axis) {
                     if (cubeAxisSelect[axis]) cubeAxisSelect[axis].addEventListener("change", applyCubeAxes);
                 });
+                if (cubeDimensions) cubeDimensions.addEventListener("change", applyCubeAxes);
 
+                // Which pickers apply depends on the method, so the ones that do
+                // not are taken away rather than left there doing nothing. The
+                // method itself is a view, so switching it is the same switch
+                // every other multi-view figure makes — applyCubeAxes runs off
+                // the back of the redraw.
+                const cubeMethodSelect =
+                    document.getElementById("view-select-configuration_cube");
+                // Which pickers the method leaves standing. Separate from the
+                // switch below because startup needs this half on its own —
+                // there is nothing drawn yet to switch.
+                function syncCubePickers() {
+                    if (!cubeMethodSelect || !cubeDimensions) return;
+                    const projected = cubeMethodSelect.value !== "axes";
+                    cubeDimensions.hidden = !projected;
+                    Object.keys(cubeAxisSelect).forEach(function (axis) {
+                        if (cubeAxisSelect[axis]) cubeAxisSelect[axis].hidden = projected;
+                    });
+                }
+                if (cubeMethodSelect && cubeDimensions) {
+                    cubeMethodSelect.addEventListener("change", function () {
+                        syncCubePickers();
+                        switchView("configuration_cube", cubeMethodSelect.value);
+                        // The payload that just arrived carries its numbers and
+                        // no axes, whichever view it is — filling them in is
+                        // this figure's own step, and the generic switch does
+                        // not know about it.
+                        applyCubeAxes();
+                    });
+                }
+
+                // Only the metric the page opened on arrives with it; the rest
+                // are fetched once each, the first time they are selected, and
+                // kept in `metricPlots` alongside it — the same lazy-fetch-and-
+                // cache shape refreshPartialDependence and refreshLocalAblation
+                // already use. Building all of them server-side cost 101ms and
+                // ~300KB per load (over a megabyte at 500 trials) for payloads
+                // most visits never looked at. Which metric is being waited for,
+                // so a fetch that lands after the user has moved on is dropped
+                // rather than drawn over whatever they moved to.
+                let pendingMetric = null;
                 function show(metric) {
-                    const plots = metricPlots[metric] || {};
                     // A metric switch is a fresh start: any earlier click on the
                     // metric being switched to is forgotten (matches the
                     // selected-config panel resetting to that metric's best,
                     // just below), so a later view switch has nothing stale to
                     // reapply.
-                    delete lastClickedIdx[metric];
-                    Object.keys(plots).forEach(function (key) { redraw(key, metric); });
-                    syncImportanceTable(metric);
-                    syncImportanceWarning(metric);
-                    syncInteractionsWarning(metric);
-                    refreshLocalAblation(metric);  // no-op unless "Local" is showing
-                    applyCubeAxes();  // reapplies the user's axis choice over the fresh default trace
-                    // A metric switch resets the picker to the new metric's own
-                    // top hyperparameter, same as lastClickedIdx being forgotten
-                    // above — a fresh start, not last metric's leftover choice.
-                    if (pdpHpSelect && topHpByMetric[metric]) pdpHpSelect.value = topHpByMetric[metric];
-                    refreshPartialDependence(metric);
+                    delete selectedIdx[metric];
+                    // It describes one trial under one metric, and both are
+                    // about to change.
+                    progress = null;
 
-                    // Click-to-select lives on the performance figure only.
-                    if (figureEl("performance_over_time") && plots.performance_over_time) {
-                        attachPerfClickOnce();
-                    }
-
+                    // The server-rendered halves need no payload, so they switch
+                    // straight away rather than waiting on a fetch: the tables
+                    // for every metric are already in the page.
                     const selEl = document.getElementById("selected-content-" + metric);
                     if (selEl && defaultSelectedHTML[metric] !== undefined) {
                         selEl.innerHTML = defaultSelectedHTML[metric];
                     }
-
                     document.querySelectorAll(".panel").forEach(function (el) {
                         el.hidden = el.dataset.metric !== metric;
                     });
+
+                    if (metricPlots[metric]) { pendingMetric = null; showPlots(metric); return; }
+                    pendingMetric = metric;
+                    fetch(metricFiguresUrl + "?metric=" + encodeURIComponent(metric))
+                        .then(function (r) { return r.ok ? r.json() : Promise.reject(); })
+                        .then(function (plots) {
+                            metricPlots[metric] = plots;
+                            if (pendingMetric === metric) { pendingMetric = null; showPlots(metric); }
+                        })
+                        .catch(function () {});
+                }
+
+                // Everything that reads a metric's plot payload, in the order it
+                // has always run in — the fetch above is the only thing that
+                // moved. Order matters here: refreshLocalAblation and
+                // refreshPartialDependence draw into figures the redraw loop
+                // also touches, so they have to come after it, not beside it.
+                function showPlots(metric) {
+                    const plots = metricPlots[metric] || {};
+                    Object.keys(plots).forEach(function (key) { redraw(key, metric); });
+                    // Immediately after the redraws and before anything else:
+                    // every figure that can be clicked has just been drawn, and
+                    // whether the page can be clicked at all should not depend
+                    // on the refreshes below it all succeeding.
+                    attachSelectionClicks();
+                    syncImportanceTable(metric);
+                    syncImportanceWarning(metric);
+                    syncInteractionsWarning(metric);
+                    refreshLocalAblation(metric);  // its own figure now; a no-op if it is off
+                    applyCubeAxes();  // the fresh trace has no axes on it until this runs
+                    // A metric switch resets the picker to the new metric's own
+                    // top hyperparameter, same as the selection being forgotten
+                    // above — a fresh start, not last metric's leftover choice.
+                    if (pdpHpSelect && topHpByMetric[metric]) pdpHpSelect.value = topHpByMetric[metric];
+                    refreshPartialDependence(metric);
+                    refreshLocalEffects(metric);
+
+                    showSelection(metric);
                 }
 
                 // Picking a metric applies it immediately: the figures re-render
@@ -814,32 +1230,161 @@
                     if (key === "hyperparameter_importance") {
                         syncImportanceTable(metric);
                         syncImportanceWarning(metric);
-                        refreshLocalAblation(metric);
                     }
-                    if (key === "performance_over_time" && lastClickedIdx[metric] !== undefined) {
-                        highlightPoint(metric, lastClickedIdx[metric]);
-                    }
+                    // A view is a different way to look at the same selection,
+                    // so the fresh trace gets the highlight put back on it.
+                    applySelection(key, metric);
                 }
-                const impGameSelect = document.getElementById("view-select-hyperparameter_importance-game");
                 const impRenderingSelect = document.getElementById("view-select-hyperparameter_importance-rendering");
-                if (impGameSelect && impRenderingSelect) {
-                    function applyImportanceView() {
-                        const game = impGameSelect.value;
-                        // "Local" has exactly one rendering (a diverging bar —
-                        // pie/table don't apply to signed values), so the
-                        // rendering picker is irrelevant while it's active
-                        // rather than offering two options that do nothing.
-                        impRenderingSelect.hidden = game === "local";
-                        const view = game === "local" ? "local-bar" : (game + "-" + impRenderingSelect.value);
-                        switchView("hyperparameter_importance", view);
+                const impRemaining = document.getElementById("importance-remaining");
+
+                // Tunability is what a hyperparameter *could* gain, measured
+                // from the search space's default — the right question before a
+                // search and the wrong one during it, because by the time it
+                // reads 98% the optimizer has usually taken most of that 98%
+                // already. `progress` is the other half, from the selected
+                // trial's ablation: what has been banked, and what is left.
+                //
+                // Kept per metric because it is per trial and the selection is
+                // per metric, and cleared on a metric switch for the same
+                // reason the selection is.
+                let progress = null;
+                function tunedRemaining() {
+                    return !!(impRemaining && impRemaining.checked);
+                }
+                function showTuningProgress(metric, data) {
+                    if (currentMetric() !== metric) return;
+                    progress = data;
+                    applyImportanceView();   // which fills the columns, if they apply
+                }
+                function fillProgressColumns(rows) {
+                    const by = {};
+                    rows.forEach(function (row) { by[row.name] = row; });
+                    document.querySelectorAll(".importance-table tr[data-hp]").forEach(function (tr) {
+                        const row = by[tr.dataset.hp];
+                        const cells = tr.querySelectorAll(".progress-col");
+                        if (cells.length < 3) return;
+                        if (!row) { cells.forEach(function (c) { c.textContent = ""; }); return; }
+                        cells[0].textContent = format(row.achievable);
+                        // Signed, so an axis this trial made *worse* than the
+                        // default shows as a negative rather than as a floor.
+                        cells[1].textContent = format(row.banked);
+                        // "past the estimate" rather than a bare zero: the
+                        // ceiling comes from 10,000 random draws, and a real
+                        // optimizer beating it is the strongest sign an axis is
+                        // done — not a contradiction to be rounded away.
+                        cells[2].textContent = row.beyond ? "—" : format(row.remaining);
+                        cells[2].title = row.beyond
+                            ? "This trial is already past what 10,000 random draws found reachable here."
+                            : "";
+                    });
+                }
+                function format(value) {
+                    return Number(value).toPrecision(4).replace(/\.?0+$/, "");
+                }
+
+                // Both halves of "still to gain" are tunability's: the
+                // achievable side is its own game, and the banked side is the
+                // ablation, which measures against the same baseline the max
+                // game measures from. There is no reading of the subtraction
+                // under the other two — mistunability's achievable value is
+                // downside rather than gain, and nothing "achieves"
+                // sensitivity's variance — so the control goes away with the
+                // game, the way the cube's axis pickers go when a projection is
+                // showing. Left in place it would draw tunability's headroom
+                // under another game's name, which is worse than not offering it.
+                function syncRemainingControl(startup) {
+                    const tunability = currentGame() === "tunability";
+                    // A browser restores a checkbox across a reload, like it
+                    // restores a select. But this one is a *request* — it asks
+                    // for a computation that has not been made yet — and a
+                    // request is not a preference to be remembered. Left
+                    // restored it comes back ticked with nothing behind it,
+                    // claiming a view the figure is not showing.
+                    if (startup && impRemaining) impRemaining.checked = false;
+                    const toggle = document.querySelector("[data-remaining-toggle]");
+                    if (toggle) toggle.hidden = !tunability;
+                    if (!tunability && impRemaining) impRemaining.checked = false;
+                    // The table's columns are tunability's too, and beside
+                    // another game's shares they would read as that game's.
+                    fillProgressColumns(tunability && progress ? progress.rows || [] : []);
+                }
+
+                function applyImportanceView() {
+                    if (!impRenderingSelect) return;
+                    syncRemainingControl();
+                    const settled = document.getElementById("imp-settled");
+                    const rendering = impRenderingSelect.value;
+                    const tunability = currentGame() === "tunability";
+                    if (settled) {
+                        settled.hidden = !(tunability && tunedRemaining()
+                                           && progress && progress.settled);
                     }
-                    impGameSelect.addEventListener("change", applyImportanceView);
+                    // Neither of these is among the figure's views — both need
+                    // the selected trial's ablation, which cannot be precomputed
+                    // — so they are drawn straight rather than switched to.
+                    //
+                    // Box clear: the same slices the plain figure draws, each
+                    // divided into what has been banked and what has not. Box
+                    // ticked: sized by what is left alone, which reorders it.
+                    // The first is only available once the ablation has been
+                    // asked for, by this box or by the local explanation, so
+                    // until then the plain figure is what shows.
+                    const source = tunability && progress && rendering !== "table"
+                        ? (tunedRemaining()
+                            ? (progress.settled ? null : (progress.headroom || {})[rendering])
+                            : (progress.split || {})[rendering])
+                        : null;
+                    if (source) {
+                        currentView.hyperparameter_importance =
+                            currentGame() + "-" + rendering;
+                        draw("hyperparameter_importance", source);
+                        syncImportanceTable(currentMetric());
+                        return;
+                    }
+                    switchView("hyperparameter_importance",
+                               currentGame() + "-" + rendering);
+                }
+                if (impRenderingSelect) {
                     impRenderingSelect.addEventListener("change", applyImportanceView);
                 }
-                const interactionsSelect = document.getElementById("view-select-hyperparameter_interactions");
-                if (interactionsSelect) {
-                    interactionsSelect.addEventListener("change", function () {
-                        switchView("hyperparameter_interactions", interactionsSelect.value);
+                if (impRemaining) {
+                    // Ticking it is a request: what has been banked comes from
+                    // the selected trial's ablation, which may not have been
+                    // asked for yet. Same fetch the Compute prompt uses, reached
+                    // through a control the reader has already touched.
+                    impRemaining.addEventListener("change", function () {
+                        if (tunedRemaining() && !progress) {
+                            refreshLocalAblation(currentMetric(), true);
+                            return;
+                        }
+                        applyImportanceView();
+                    });
+                }
+                // The one selector that moves every HyperSHAP figure at once.
+                // Each of them already knows how to switch between precomputed
+                // payloads — that is what `views` is — so this is the existing
+                // machinery driven from one place rather than from six.
+                if (gameSelect) {
+                    // What the chosen game asks, under the selector. Three
+                    // questions that sound alike until they are written out,
+                    // and the figures below say nothing about which is being
+                    // answered.
+                    const gameHelpEl = document.querySelector("[data-game-help]");
+                    const gameHelp = JSON.parse(
+                        document.getElementById("explanation-game-help").textContent);
+                    function syncGameHelp() {
+                        if (gameHelpEl) gameHelpEl.textContent = gameHelp[currentGame()] || "";
+                    }
+                    syncGameHelp();
+                    gameSelect.addEventListener("change", function () {
+                        syncGameHelp();
+                        gameFigures.forEach(function (key) {
+                            if (key !== "hyperparameter_importance") {
+                                switchView(key, currentGame());
+                            }
+                        });
+                        applyImportanceView();
                     });
                 }
                 const perfXSelect = document.getElementById("view-select-performance_over_time-x");
@@ -851,6 +1396,41 @@
                     perfXSelect.addEventListener("change", applyPerformanceView);
                     perfYSelect.addEventListener("change", applyPerformanceView);
                 }
+
+                // The controls are the source of truth, and the page reads
+                // them once here — before anything is drawn.
+                //
+                // A browser restores a <select>'s value across a reload, and a
+                // handler bound to `change` never runs for a value the reader
+                // did not just set. So a picker could come back saying one thing
+                // while `currentView` had never heard of it: the method picker
+                // reading "PLS" beside a figure drawing axes, with the axis
+                // pickers still sitting next to it, until it was moved away and
+                // back. Restoring is the browser doing the reader a favour; the
+                // page's job is to agree with it.
+                (function readViewSelectors() {
+                    if (cubeMethodSelect) {
+                        currentView.configuration_cube = cubeMethodSelect.value;
+                        syncCubePickers();
+                    }
+                    if (impRenderingSelect) {
+                        currentView.hyperparameter_importance =
+                            currentGame() + "-" + impRenderingSelect.value;
+                    }
+                    syncRemainingControl(true);
+                    if (perfXSelect && perfYSelect) {
+                        currentView.performance_over_time =
+                            perfXSelect.value + "-" + perfYSelect.value;
+                    }
+                    // The game drives every HyperSHAP figure at once, so a
+                    // restored one has to reach all of them and not just the
+                    // selector it was restored into.
+                    gameFigures.forEach(function (key) {
+                        if (key !== "hyperparameter_importance") {
+                            currentView[key] = currentGame();
+                        }
+                    });
+                })();
 
                 // Figures that don't depend on the metric are drawn once.
                 Object.keys(staticPlots).forEach(function (key) {

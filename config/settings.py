@@ -192,6 +192,7 @@ TEMPLATES = [
                 "ui.context_processors.active_tab",
                 "ui.context_processors.navigation",
                 "ui.context_processors.capabilities",
+                "ui.context_processors.offered_languages",
             ],
         },
     },
@@ -245,6 +246,18 @@ LANGUAGE_CODE = "en"
 # throughout in the meantime, so nothing has to be re-marked.
 LANGUAGES = [
     ("en", "English"),
+]
+
+#: What the rail's language selector offers, which is not the same list. The
+#: selector is back on the page and deliberately inert — it shows the languages
+#: the interface is *going* to have, so the shape of the page is settled before
+#: the catalogs are, and picking one does nothing yet. `LANGUAGES` above is what
+#: Django will actually serve, and stays at English alone until the drafts have
+#: been reviewed: half a translation reaching a user is the thing this avoids.
+OFFERED_LANGUAGES = [
+    ("en", "English"),
+    ("de", "Deutsch"),
+    ("es", "Español"),
 ]
 
 # Translation catalogs live here (locale/<lang>/LC_MESSAGES/django.{po,mo}).

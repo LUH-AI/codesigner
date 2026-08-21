@@ -1,3 +1,5 @@
+from django.conf import settings
+
 from . import navigation as nav
 from .permissions import policy, visible_experiments
 
@@ -37,6 +39,18 @@ def navigation(request):
         "breadcrumbs": nav.breadcrumbs(request),
         "back_link": nav.back_link(request),
     }
+
+
+def offered_languages(request):
+    """The languages the rail's selector shows.
+
+    Not `LANGUAGES`, which is what Django will actually serve and is English
+    alone until the German and Spanish drafts have been reviewed. The selector
+    shows what the interface is going to offer so that its place on the page is
+    settled before the catalogs are; picking one does nothing yet. See
+    `OFFERED_LANGUAGES` in config/settings.py.
+    """
+    return {"offered_languages": settings.OFFERED_LANGUAGES}
 
 
 def capabilities(request):

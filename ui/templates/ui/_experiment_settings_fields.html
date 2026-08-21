@@ -3,13 +3,6 @@
 page and the defaults page so the two stay identical. The per-experiment page
 wraps this in a pane it greys out while the experiment inherits the defaults.
 {% endcomment %}
-<div class="field">
-    <label class="check">
-        <input type="checkbox" name="export_absolute_times" {% if form.export_absolute_times.value %}checked{% endif %}>
-        {{ form.export_absolute_times.label }}
-    </label>
-</div>
-
 <fieldset class="check-group">
     <legend>{% translate "Figures shown on an experiment page" %}</legend>
     {% for field in form.figure_fields %}
@@ -27,11 +20,22 @@ button instead of fetching as soon as the figure needs them — so opening or
 reloading an experiment page computes nothing. Switching the figure itself off
 above suppresses them entirely, which is why these are booleans and not a
 three-way choice.{% endcomment %}
+<div class="field">
+    <label for="{{ form.ice_max_curves.id_for_label }}">{{ form.ice_max_curves.label }}</label>
+    <input type="number" name="ice_max_curves" id="{{ form.ice_max_curves.id_for_label }}"
+           min="0" max="10000" step="1" value="{{ form.ice_max_curves.value|default_if_none:100 }}">
+    <p class="caption">{{ form.ice_max_curves.help_text }}</p>
+</div>
+
+<div class="field">
+    <label for="{{ form.local_effects_max_trials.id_for_label }}">{{ form.local_effects_max_trials.label }}</label>
+    <input type="number" name="local_effects_max_trials" id="{{ form.local_effects_max_trials.id_for_label }}"
+           min="0" max="10000" step="1" value="{{ form.local_effects_max_trials.value|default_if_none:100 }}">
+    <p class="caption">{{ form.local_effects_max_trials.help_text }}</p>
+</div>
+
 <fieldset class="check-group">
-    <legend>{% translate "Compute automatically, without waiting to be asked" %}</legend>
-    <p class="caption">
-        {% translate "These are worked out on request, not stored with the run. Switch one off to have it wait for a button, so opening the page costs nothing." %}
-    </p>
+    <legend>{% translate "Analytics computed as soon as a figure needs them" %}</legend>
     {% for field in form.autocompute_fields %}
         <label class="check">
             <input type="checkbox" name="{{ field.name }}" {% if field.value %}checked{% endif %}>

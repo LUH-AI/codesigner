@@ -17,6 +17,8 @@ from django.urls import reverse
 
 from ui.models import Experiment
 
+from tests.conftest import export_ihpo
+
 pytestmark = pytest.mark.django_db
 
 
@@ -164,7 +166,7 @@ def test_a_shared_experiment_can_be_exported(client, hosted, ana, ben):
     exp = _experiment(owner=ben, shared=True)
     client.force_login(ana)
 
-    assert client.get(reverse("ui:experiment_export", args=[exp.pk])).status_code == 200
+    assert export_ihpo(client, exp.pk).status_code == 200
 
 
 def test_only_the_owner_sees_the_sharing_control(client, hosted, ana, ben):
@@ -262,7 +264,7 @@ def test_an_export_names_no_paths_on_this_server(client, ana):
     exp = _experiment(owner=ana)
     exp.dataset.save("iris.csv", ContentFile((DATASETS_DIR / "iris.csv").read_bytes()))
 
-    body = client.get(reverse("ui:experiment_export", args=[exp.pk])).content
+    body = export_ihpo(client, exp.pk).content
     snapshot = json.loads(body)
 
     assert snapshot["dataset"]["path"] == ""

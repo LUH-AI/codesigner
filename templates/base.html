@@ -1,12 +1,12 @@
-{% load static i18n %}
+{% load assets i18n %}
 <!doctype html>
 <html lang="{{ LANGUAGE_CODE }}">
 <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>{% block title %}Codesigner{% endblock %}</title>
-    <link rel="stylesheet" href="{% static 'ui/app.css' %}">
-    <script src="{% static 'ui/poll.js' %}" defer></script>
+    <link rel="stylesheet" href="{% asset 'ui/app.css' %}">
+    <script src="{% asset 'ui/poll.js' %}" defer></script>
 </head>
 <body>
     <nav class="rail">
@@ -37,23 +37,25 @@
             </form>
         {% endif %}
         {% get_current_language as CURRENT_LANGUAGE %}
-        {% comment %}Hidden while only one language is offered — a dropdown with
-        a single choice is a control that does nothing.{% endcomment %}
-        {% if LANGUAGES|length > 1 %}
-        <form class="locale" action="{% url 'set_language' %}" method="post" title="{% translate 'Language' %}">
-            {% csrf_token %}
-            <input type="hidden" name="next" value="{{ request.path }}">
+        {% comment %}Deliberately inert. It shows the languages the interface is
+        going to offer, so that its place on the rail is settled before the
+        catalogs are — but it submits nothing and changes nothing, because the
+        German and Spanish drafts have not been reviewed and half a translation
+        reaching a reader is worse than none. `offered_languages` is that list;
+        `LANGUAGES` in config/settings.py is what Django would actually serve.
+        Wiring it back up is restoring the form and the `set_language` post.
+        {% endcomment %}
+        <div class="locale" title="{% translate 'Language — not yet switchable' %}">
             <label for="language-select" aria-hidden="true">
                 <span class="locale-icon">🌐</span>
                 <span class="locale-code">{{ CURRENT_LANGUAGE|upper }}</span>
             </label>
-            <select id="language-select" name="language" onchange="this.form.submit()" aria-label="{% translate 'Language' %}">
-                {% for code, label in LANGUAGES %}
+            <select id="language-select" aria-label="{% translate 'Language' %}">
+                {% for code, label in offered_languages %}
                     <option value="{{ code }}"{% if code == CURRENT_LANGUAGE %} selected{% endif %}>{{ label }}</option>
                 {% endfor %}
             </select>
-        </form>
-        {% endif %}
+        </div>
     </nav>
     {% if active_tab == 'settings' %}
         <nav class="sidebar">
@@ -68,24 +70,30 @@
             </div>
         </nav>
     {% else %}
+        {% comment %}The sidebar is a stack of sections, each one a decision the
+        page is waiting on. Which experiment is always the first of them; a page
+        with more to ask adds its own through `sidebar_sections` (see the
+        experiment detail page, which asks two more).{% endcomment %}
         <nav class="sidebar">
-            <h1>{% translate "Experiments" %}</h1>
-            <div class="actions">
-                <a class="btn btn-block" href="{% url 'ui:new_experiment' %}">{% translate "＋ New" %}</a>
-                <a class="btn btn-block" href="{% url 'ui:import_experiment' %}">{% translate "📂 Load" %}</a>
-            </div>
-            <hr>
-            <div class="tab-list experiment-list">
-                {% for e in sidebar_experiments %}
-                    <a class="tab{% if request.resolver_match.kwargs.pk == e.pk %} active{% endif %}"
-                       href="{% url 'ui:experiment_detail' e.pk %}">
-                        {{ e.name }} <span class="exp-id">({{ e.identifier }})</span>{% if e.is_running %} <span class="spinner" title="{% translate 'Running' %}"></span>{% elif e.env_pending %} <span title="{% translate 'Preparing its environment' %}">⏳</span>{% endif %}
-                    </a>
-                {% empty %}
-                    <span class="placeholder">{% translate "No experiments yet." %}</span>
-                {% endfor %}
-            </div>
-            <a class="tab" href="{% url 'ui:experiment_list' %}">{% translate "See all…" %}</a>
+            <section class="side-section">
+                <h2>{% translate "Experiment Selection" %}</h2>
+                <div class="actions">
+                    <a class="btn btn-block" href="{% url 'ui:new_experiment' %}">{% translate "＋ New" %}</a>
+                    <a class="btn btn-block" href="{% url 'ui:import_experiment' %}">{% translate "📂 Load" %}</a>
+                </div>
+                <div class="tab-list experiment-list">
+                    {% for e in sidebar_experiments %}
+                        <a class="tab{% if request.resolver_match.kwargs.pk == e.pk %} active{% endif %}"
+                           href="{% url 'ui:experiment_detail' e.pk %}">
+                            {{ e.name }} <span class="exp-id">({{ e.identifier }})</span>{% if e.is_running %} <span class="spinner" title="{% translate 'Running' %}"></span>{% elif e.env_pending %} <span title="{% translate 'Preparing its environment' %}">⏳</span>{% endif %}
+                        </a>
+                    {% empty %}
+                        <span class="placeholder">{% translate "No experiments yet." %}</span>
+                    {% endfor %}
+                </div>
+                <a class="tab" href="{% url 'ui:experiment_list' %}">{% translate "See all…" %}</a>
+            </section>
+            {% block sidebar_sections %}{% endblock %}
         </nav>
     {% endif %}
     <main class="content">

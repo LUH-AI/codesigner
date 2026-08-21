@@ -1,0 +1,26 @@
+{% extends "ui/_confirm_page.html" %}
+{% load i18n %}
+
+{% comment %}Two ways to export and a way not to, rather than a setting answered
+once for every file the instance will ever send. Which answer is right depends
+on the file and on who is about to receive it, and neither is known when the
+settings page is being filled in.
+
+The default is the safer one, but both are buttons rather than one button and a
+checkbox: a checkbox has a state to notice, and the thing being decided is worth
+a decision each time.{% endcomment %}
+
+{% block confirm_title %}{% translate "Export experiment" %}{% endblock %}
+{% block confirm_heading %}{% blocktranslate with name=experiment.name %}Export {{ name }}{% endblocktranslate %}{% endblock %}
+
+{% block confirm_message %}
+    <p>{% translate "The file records when each trial started and finished. Anyone you send it to can read what time of day you were working, and on which days." %}</p>
+    <p>{% translate "Without them the file is the same in every other way — every score, every configuration, and how long each trial took." %}</p>
+{% endblock %}
+
+{% block confirm_buttons %}
+    <button type="submit" class="btn-primary" name="timestamps" value="strip">{% translate "Export without times" %}</button>
+    <button type="submit" class="btn" name="timestamps" value="keep">{% translate "Export with times" %}</button>
+{% endblock %}
+
+{% block confirm_cancel %}{% url 'ui:experiment_detail' experiment.pk %}{% endblock %}

@@ -66,5 +66,6 @@ def test_detail_page_shows_run_summary(client):
                        trial_seconds=2.0, trial_count=1)
     body = client.get(reverse("ui:experiment_detail", args=[exp.pk])).content.decode()
     assert "overhead" in body.lower()
-    assert "3.0" in body and "2.0" in body   # total 3s, 2s in trials
+    assert ">3 s" in body or " 3 s" in body  # total 3s
+    assert " 2 s" in body                    # 2s of it in trials
     assert "1 trials" in body                # count of trials performed

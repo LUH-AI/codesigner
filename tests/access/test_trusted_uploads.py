@@ -246,7 +246,7 @@ def test_promoting_your_settings_to_the_defaults_is_staff_only(client, hosted, a
     client.force_login(ana)
 
     resp = client.post(reverse("ui:experiment_settings", args=[exp.pk]),
-                       {"save_as_default": "1", "export_absolute_times": "on"})
+                       {"save_as_default": "1", "show_trials": "on"})
 
     assert resp.status_code == 403
 

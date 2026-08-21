@@ -22,17 +22,30 @@ def _detail_html(client):
 
 
 def test_detail_has_a_selected_config_panel_per_metric(client):
-    """Each metric gets a 'Selected configuration' panel, like best-config."""
+    """Each metric gets a 'Selected Configuration' panel, like best-config.
+
+    It sits in the sidebar rather than the figure grid (Figure.in_sidebar) —
+    it is the answer to a click made anywhere on the page, so it has to stay
+    readable while the figures are being clicked.
+    """
     html, exp = _detail_html(client)
-    assert "Selected configuration" in html
+    sidebar = html.split('<nav class="sidebar"', 1)[1].split("</nav>", 1)[0]
+
+    assert "Selected Configuration" in sidebar
     for m in exp.metric_names:
-        assert f'class="card panel selected-config" data-metric="{m}"' in html \
-            or f'data-metric="{m}"' in html
+        assert f'class="panel selected-config" data-figure="selected_configuration"\n             data-metric="{m}"' in sidebar \
+            or f'data-metric="{m}"' in sidebar
 
 
-def test_default_selection_matches_the_best_trial_with_no_delta(client):
+def test_default_selection_matches_the_best_trial_marked_as_the_incumbent(client):
     """Before any click, the selected-config panel shows the best trial (trial 9
-    for accuracy in the fixture) and no delta, matching the best-config panel.
+    for accuracy in the fixture), with a difference of zero marked
+    `(Incumbent)`.
+
+    The row used to be left out entirely for the best trial, which made the
+    panel change height as you clicked from one trial to another — and "no
+    difference" and "a difference of zero" are the same fact said two ways,
+    only one of which you can read off the page.
 
     Distinguishes the selected-config panel from best-config by its distinct
     caption ("click any point on the graph to select"), so this can't pass
@@ -44,7 +57,8 @@ def test_default_selection_matches_the_best_trial_with_no_delta(client):
     window = html[max(0, idx - 400):idx + 400]
     assert "Trial 9" in window
     assert "0.6813" in window or "0.68125" in window
-    assert "metric-delta" not in window
+    assert "metric-delta level" in window
+    assert "(Incumbent)" in window
 
 
 def test_detail_wires_up_click_to_select(client):

@@ -70,6 +70,44 @@ def test_repeated_calls_reuse_one_computation():
     assert r.incumbent_scores("accuracy") is r.incumbent_scores("accuracy")
 
 
+def test_best_index_skips_a_trial_with_no_score_for_the_metric():
+    """`io.parse` refuses such a file (see test_trial_scores_validation.py), so
+    this is the second line of defence for a row stored before that check
+    existed — the argmax used to raise KeyError five frames below the request
+    and 500 the detail page."""
+    r = _result([{"accuracy": 0.4, "f1": 0.9}, {"accuracy": 0.9}])
+    assert r.best_index("f1") == 0, "the only trial that has an f1"
+    assert r.best_index("accuracy") == 1, "unaffected"
+
+
+def test_best_index_is_none_when_no_trial_has_the_metric():
+    r = _result([{"accuracy": 0.4}, {"accuracy": 0.9}])
+    assert r.best_index("f1") is None
+
+
+def test_incumbent_scores_carries_the_running_best_across_a_missing_score():
+    """One entry per trial, whatever happens — every caller indexes this list by
+    trial position, so dropping an entry would silently shift the curve."""
+    r = _result([{"accuracy": 0.4, "f1": 0.5}, {"accuracy": 0.9},
+                 {"accuracy": 0.2, "f1": 0.8}])
+    assert r.incumbent_scores("f1") == [0.5, 0.5, 0.8]
+
+
+def test_incumbent_scores_leads_with_none_until_the_first_real_score():
+    """There is no running best before the first trial that has one, and
+    inventing a floor would draw a line through a value nobody measured."""
+    r = _result([{"accuracy": 0.4}, {"accuracy": 0.9, "f1": 0.6}])
+    assert r.incumbent_scores("f1") == [None, 0.6]
+
+
+def test_has_every_score_is_what_the_figure_builders_ask():
+    """The per-metric builders decline as a whole rather than drawing a partial
+    picture — see ui/figures/plots.py and OptimizationResult.has_every_score."""
+    r = _result([{"accuracy": 0.4, "f1": 0.5}, {"accuracy": 0.9}])
+    assert r.has_every_score("accuracy")
+    assert not r.has_every_score("f1")
+
+
 def test_the_memo_is_not_a_dataclass_field():
     """Deliberate, and worth pinning against a future tidy-up.
 

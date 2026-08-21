@@ -1,0 +1,22 @@
+{% load i18n %}
+{% comment %}The selected trial's score built from the config-space default, one
+hyperparameter at a time — HyperSHAP's ablation game as a waterfall.
+
+Its own figure rather than a fourth option on the page's game selector: the
+other three games explain the search, this explains one trial, and it has no
+interactions to give the five interaction figures. It is also the only one that
+cannot be precomputed — its value depends on which trial is selected, not just
+the metric — so it is fetched, like partial dependence and local effects, and
+waits to be asked unless its autocompute setting says otherwise. See
+experiment_detail.html's refreshLocalAblation.{% endcomment %}
+<section class="card" data-figure="{{ figure.key }}">
+    <div class="card-head">
+        <div class="subheader">{{ figure.label }}</div>
+    </div>
+    <p id="local-explanation-warning" class="alert warning" hidden></p>
+    <p id="ablation-compute" class="caption" hidden>
+        <button type="button" id="ablation-compute-btn">{% translate "Compute" %}</button>
+    </p>
+    <div id="{{ figure.dom_id }}" class="plot"></div>
+    <p id="{{ figure.dom_id }}-empty" class="caption" hidden>{% translate "No local explanation available." %}</p>
+</section>

@@ -77,18 +77,44 @@
             {{ form.dataset_file }}
         </div>
 
-        <div class="field">
-            <div class="field-label">
-                <label for="{{ form.cv_folds.id_for_label }}">{{ form.cv_folds.label }}</label>
-                {# Django points the field's `aria-describedby` at this id. #}
-                {% include "ui/_info.html" with info_id=form.cv_folds.id_for_label|add:"_helptext" info_text=form.cv_folds.help_text %}
+        {% comment %}Two controls, not one menu of preset pairs: the scheme and
+        the number are separate decisions, and folding them together meant
+        7-fold or a 70/30 split could not be asked for at all. The number's
+        label, bounds and default follow the scheme — see EVALUATION_SCHEMES in
+        ui/forms.py, which the script below reads through evaluation-schemes so
+        the two cannot disagree.{% endcomment %}
+        <div class="field-row" data-evaluation>
+            <div class="field">
+                <div class="field-label">
+                    <label for="{{ form.evaluation_scheme.id_for_label }}">{{ form.evaluation_scheme.label }}</label>
+                    {# Django points the field's `aria-describedby` at this id. #}
+                    {% include "ui/_info.html" with info_id=form.evaluation_scheme.id_for_label|add:"_helptext" info_text=form.evaluation_scheme.help_text %}
+                </div>
+                {{ form.evaluation_scheme }}
+                {% if form.evaluation_scheme.errors %}<div class="form-error">{{ form.evaluation_scheme.errors|join:" " }}</div>{% endif %}
             </div>
-            {{ form.cv_folds }}
-            {% if form.cv_folds.errors %}<div class="form-error">{{ form.cv_folds.errors|join:" " }}</div>{% endif %}
+            <div class="field">
+                {% comment %}What the number means and what it will accept both
+                follow the scheme, and both live behind the circled i — a line of
+                prose under a field is read every time the form is filled in,
+                and this is wanted once.{% endcomment %}
+                <div class="field-label">
+                    <label for="{{ form.evaluation_value.id_for_label }}" data-evaluation-label>{{ form.evaluation_value.label }}</label>
+                    {% include "ui/_info.html" with info_id="evaluation_value_helptext" info_text="" %}
+                </div>
+                <input type="number" name="evaluation_value" id="{{ form.evaluation_value.id_for_label }}"
+                       value="{{ form.evaluation_value.value|default_if_none:5 }}"
+                       aria-describedby="evaluation_value_helptext" data-evaluation-value>
+                {% if form.evaluation_value.errors %}<div class="form-error">{{ form.evaluation_value.errors|join:" " }}</div>{% endif %}
+            </div>
         </div>
+        {{ evaluation_schemes|json_script:"evaluation-schemes" }}
 
         <div class="field">
-            <label for="{{ form.seed.id_for_label }}">{{ form.seed.label }}</label>
+            <div class="field-label">
+                <label for="{{ form.seed.id_for_label }}">{{ form.seed.label }}</label>
+                {% include "ui/_info.html" with info_id=form.seed.id_for_label|add:"_helptext" info_text=form.seed.help_text %}
+            </div>
             {{ form.seed }}
             {% if form.seed.errors %}<div class="form-error">{{ form.seed.errors|join:" " }}</div>{% endif %}
         </div>
@@ -97,6 +123,44 @@
     </form>
 
     <script>
+        // The number beside the evaluation selector is a different quantity
+        // under each scheme — a count of folds, or a fraction held out — so its
+        // label, bounds, step and default all follow the selector. Read from
+        // the form's own EVALUATION_SCHEMES rather than restated here, because
+        // a copy would drift.
+        (function () {
+            const row = document.querySelector("[data-evaluation]");
+            if (!row) return;
+            const schemes = JSON.parse(document.getElementById("evaluation-schemes").textContent);
+            const select = row.querySelector("select");
+            const value = row.querySelector("[data-evaluation-value]");
+            const label = row.querySelector("[data-evaluation-label]");
+            const help = document.getElementById("evaluation_value_helptext");
+            // What each scheme was last set to, so switching away and back does
+            // not quietly discard a number that was typed on purpose.
+            const remembered = {};
+            let showing = select.value;
+
+            function apply(resetValue) {
+                const spec = schemes[select.value];
+                if (!spec) return;
+                label.textContent = spec.label;
+                value.min = spec.min; value.max = spec.max; value.step = spec.step;
+                help.textContent = spec.help + " Accepts " + spec.min + "–" + spec.max + ".";
+                if (resetValue) {
+                    value.value = remembered[select.value] !== undefined
+                        ? remembered[select.value] : spec.default;
+                }
+            }
+            select.addEventListener("change", function () {
+                remembered[showing] = value.value;
+                showing = select.value;
+                apply(true);
+            });
+            value.addEventListener("input", function () { remembered[select.value] = value.value; });
+            apply(false);
+        })();
+
         // A checkbox picks the demo source; unchecked (the default) shows the
         // upload instead. The hidden pane's inputs are disabled so they aren't
         // submitted. Without JS both panes stay visible and enabled — the

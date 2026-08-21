@@ -47,6 +47,10 @@ class Experiment(models.Model):
     # trials incomparable with the new ones, the same fault a changed
     # metric used to have. See core.splits.
     cv_folds = models.IntegerField(default=0)
+    # What share of the dataset is held out for validation, when the scheme is a
+    # single split. Meaningless under cross-validation and simply carried, so
+    # that switching an experiment's scheme would have somewhere to start from.
+    test_size = models.FloatField(default=0.2)
     dataset = models.FileField(upload_to="datasets/", blank=True, null=True)
     result = SafeJSONField(blank=True, null=True, default=None)
     created_at = models.DateTimeField(auto_now_add=True)

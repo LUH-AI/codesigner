@@ -78,6 +78,21 @@ keeping.
                         const control = box.querySelector('[name="opt_' + name + '"]');
                         field.hidden = !control || control.value !== wanted;
                     });
+                    // What an empty field would use, for the settings whose
+                    // default belongs to the search strategy rather than to us.
+                    // The two strategies disagree — the random-trial rate is
+                    // 0.08447 under the Gaussian process and 0.2 under the
+                    // random forest — so a placeholder rendered for one of them
+                    // would be wrong the moment the selector moved.
+                    const strategy = box.querySelector('[name="opt_search_strategy"]');
+                    if (strategy) {
+                        box.querySelectorAll("[data-strategy-defaults]").forEach(function (field) {
+                            const byStrategy = JSON.parse(field.dataset.strategyDefaults);
+                            const value = byStrategy[strategy.value];
+                            const input = field.querySelector("input");
+                            if (input) input.placeholder = value === undefined ? "" : value;
+                        });
+                    }
                     // Greyed: switched off by a checkbox that is right there.
                     box.querySelectorAll("[data-enabled-by]").forEach(function (field) {
                         setOff(field, !field.dataset.enabledBy.split(" ").every(checked));

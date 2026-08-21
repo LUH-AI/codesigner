@@ -53,7 +53,7 @@ def test_the_advanced_ones_are_folded_away(client):
     html = client.get(reverse("ui:new_experiment")).content.decode()
 
     assert "<details" in html and "Advanced search settings" in html
-    advanced = html.split("Advanced search settings", 1)[1]
+    advanced = _without_scripts(html).split("Advanced search settings", 1)[1]
     assert 'name="opt_retrain_after"' in advanced
     assert 'name="opt_search_strategy"' not in advanced
 
@@ -163,10 +163,24 @@ def test_a_stored_setting_the_optimizer_no_longer_has_is_ignored(client):
 
 # ── the create page's panel per optimizer ────────────────────────────────────
 
+def _without_scripts(html):
+    """*html* with every `<script>` block removed.
+
+    These tests scrape rendered form fields by looking for `name="opt_…"`, and
+    the panel's own script now selects fields by that same attribute — so a
+    script mentioning a setting would otherwise read as the setting being
+    present. Strip the scripts and the scrape means what it says again.
+    """
+    import re
+
+    return re.sub(r"<script\b.*?</script>", "", html, flags=re.S)
+
+
 def _panels(html):
     """Each `data-optimizer` panel on the page: key → (hidden, field names)."""
     import re
 
+    html = _without_scripts(html)
     starts = list(re.finditer(r'<div data-optimizer="([^"]+)"( hidden)?>', html))
     edges = [m.end() for m in starts] + [len(html)]
     return {
@@ -354,10 +368,18 @@ def test_a_whole_number_field_still_steps_by_one(client):
     assert 'type="number"' in control and 'step="1"' in control
 
 
-def test_an_empty_field_says_what_filling_it_in_would_displace(client):
-    """The placeholder names the search strategy as the source of the default,
-    which is only true of the settings that declare none of their own — and not
-    of every one of those. Grid Search has no strategy at all."""
+def test_an_empty_field_shows_the_value_it_would_actually_use(client):
+    """The placeholder is the default itself, not the words "search strategy
+    default".
+
+    Naming the source told the reader there was a number and declined to say
+    which, and finding out meant reading SMAC's source. The values come from
+    SMAC's own signatures through `SMACOptimizer.strategy_defaults`, so they
+    cannot drift from what a blank field actually does.
+
+    Not every blank is a strategy's, though: some are SMAC's own regardless of
+    strategy, and Grid Search has no strategy at all.
+    """
     html = client.get(reverse("ui:new_experiment")).content.decode()
     panel = _smac_panel(client)
 
@@ -368,11 +390,38 @@ def test_an_empty_field_says_what_filling_it_in_would_displace(client):
         found = re.search(r'placeholder="([^"]*)"', tag)
         return found.group(1) if found else ""
 
-    assert placeholder(panel, "retrain_after") == "search strategy default"
+    assert placeholder(panel, "retrain_after") == "1", "the Gaussian process's own"
     assert placeholder(panel, "share_cap") == "0.25"
     assert placeholder(panel, "trial_cap") == "10 per hyperparameter", (
         "blank here is SMAC's own per-hyperparameter bound, not a strategy default")
     assert placeholder(html[html.index('data-optimizer="Grid Search"'):], "numeric_steps") == ""
+
+
+def test_a_strategy_dependent_default_carries_both_strategies_values(client):
+    """The two strategies disagree — the random-trial rate is 0.08447 under the
+    Gaussian process and 0.2 under the random forest — and the selector changes
+    without a request, so a placeholder rendered for one of them would be wrong
+    the moment it moved. Both travel with the field."""
+    import json
+    import re
+
+    panel = _smac_panel(client)
+    at = panel.index('id="opt_random_probability"')
+    field = panel[panel.rindex('<div class="field"', 0, at):at]
+    found = re.search(r"data-strategy-defaults=\"([^\"]*)\"", field)
+
+    assert found, "the field must carry every strategy's default"
+    assert json.loads(found.group(1).replace("&quot;", '"')) == {"gp": "0.08447", "rf": "0.2"}
+
+
+def test_a_bounded_setting_shows_its_range(client):
+    """`min`/`max` alone only speak up once a value is already wrong. A range is
+    something you want while deciding what to type."""
+    panel = _smac_panel(client)
+    at = panel.index('id="opt_random_probability"')
+    field = panel[panel.rindex('<div class="field"', 0, at):panel.index("</div>", at)]
+
+    assert "0–1" in field
 
 
 # ── the initial-points block ─────────────────────────────────────────────────
