@@ -290,3 +290,50 @@ def sweep_stale_runs():
     return Run.objects.filter(status="running").update(
         status="error", error="Interrupted by a restart.",
     )
+
+
+#: When this process started. In immediate mode it is also when every run this
+#: process could possibly be executing started, which is what `sweep_orphaned_runs`
+#: needs and cannot get any other way.
+PROCESS_STARTED = timezone.now()
+
+#: Once per process, and only because there is no startup hook that may touch the
+#: database — see ui/apps.py for why `ready()` deliberately does not.
+_SWEPT = False
+
+
+def sweep_orphaned_runs():
+    """Finish runs whose executor is provably gone. Returns how many.
+
+    Only meaningful in **immediate mode**, where huey executes a task in the
+    calling process rather than in a consumer — see services/dispatch.py, which
+    puts it on a daemon thread so the request can return. A daemon thread dies
+    with its process, and in development that process is `runserver`, which
+    restarts every time a file is saved. So a run started before this process
+    booted has no one executing it, and never will.
+
+    That is an exact test rather than a timeout: in immediate mode the executor
+    *is* this process, so "older than this process" means orphaned, with no
+    guessing about how long a run ought to take. It is wrong in consumer mode,
+    where the executor is a different process that outlives any web restart —
+    which is why this checks. Consumer restarts are covered by the
+    `sweep_stale_runs` management command at startup.
+
+    Cancelling one of these does nothing, and that is the reported symptom:
+    `cancel_requested` is a flag the *executing* thread polls, so with no thread
+    there is nobody to read it and the run sits at "running" for ever.
+    """
+    global _SWEPT
+    from huey.contrib.djhuey import HUEY
+
+    from ..models import Run
+
+    if _SWEPT or not HUEY.immediate:
+        return 0
+    _SWEPT = True
+    return Run.objects.filter(status="running", started_at__lt=PROCESS_STARTED).update(
+        status="error", finished_at=timezone.now(),
+        error="Interrupted before it finished — the process running it was "
+              "restarted. Saving a file restarts the development server, which "
+              "takes any run in progress with it.",
+    )

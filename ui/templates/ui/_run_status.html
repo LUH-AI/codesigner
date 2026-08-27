@@ -4,8 +4,23 @@
     <div class="alert info" style="display: flex; align-items: center; gap: 0.5rem;">
         <span class="spinner"></span> {% blocktranslate with status=run.get_status_display %}Optimizing… ({{ status }}){% endblocktranslate %}
     </div>
-    <form method="post" action="{% url 'ui:run_cancel' experiment.pk %}" style="margin-top: 0.75rem;">
-        {% csrf_token %}
-        <button type="submit" class="btn">{% translate "Cancel run" %}</button>
-    </form>
+    {% comment %}Cancelling is a request to whatever is executing the run, which
+    polls for it between trials — so the trials already finished are kept. Once
+    it has been asked for there is nothing more to ask, and the only remaining
+    question is whether anything is listening. If nothing is (the process was
+    restarted, the consumer died) the run would sit here for ever, so the
+    escalation appears: give up on it. Second, not first, because a cooperative
+    cancel keeps the work and giving up cannot.{% endcomment %}
+    {% if run.cancel_requested %}
+        <p class="caption" style="margin-top: 0.75rem;">{% translate "Cancelling — it stops after the trial it is on." %}</p>
+        <form method="post" action="{% url 'ui:run_force_stop' experiment.pk %}">
+            {% csrf_token %}
+            <button type="submit" class="btn">{% translate "Give up on it" %}</button>
+        </form>
+    {% else %}
+        <form method="post" action="{% url 'ui:run_cancel' experiment.pk %}" style="margin-top: 0.75rem;">
+            {% csrf_token %}
+            <button type="submit" class="btn">{% translate "Cancel run" %}</button>
+        </form>
+    {% endif %}
 </div>

@@ -369,3 +369,71 @@ def test_an_interrupted_run_says_it_was_interrupted(client):
 
     assert "Stopped because it was interrupted" in html
     assert "requested trials ran" not in html
+
+
+# ── giving up on a run that is not answering ─────────────────────────────────
+
+def _running(exp, **kw):
+    from ui.models import Run
+    fields = dict(experiment=exp, stopping={"max_trials": 3},
+                  primary_metric="accuracy", status="running")
+    fields.update(kw)
+    return Run.objects.create(**fields)
+
+
+@pytest.mark.django_db
+def test_cancelling_comes_first_and_giving_up_only_after(client):
+    """Cancelling is a request to whatever is executing the run, and it keeps
+    the trials that already finished. Giving up cannot, so it is the escalation
+    rather than the thing nearest to hand — it appears only once cancelling has
+    been asked for and has not worked."""
+    exp = _experiment()
+    run = _running(exp)
+
+    before = client.get(reverse("ui:run_status", args=[exp.pk])).content.decode()
+    run.cancel_requested = True
+    run.save(update_fields=["cancel_requested"])
+    after = client.get(reverse("ui:run_status", args=[exp.pk])).content.decode()
+
+    assert reverse("ui:run_cancel", args=[exp.pk]) in before
+    assert reverse("ui:run_force_stop", args=[exp.pk]) not in before
+    assert reverse("ui:run_force_stop", args=[exp.pk]) in after
+    assert "Cancelling" in after
+
+
+@pytest.mark.django_db
+def test_giving_up_finishes_the_row_and_says_why(client):
+    """The experiment stops waiting on it. Nothing is killed and nothing claims
+    to be — the web process has no handle on the worker — so what the row says
+    is what actually happened: it was given up on."""
+    exp = _experiment()
+    run = _running(exp, cancel_requested=True)
+
+    client.post(reverse("ui:run_force_stop", args=[exp.pk]))
+    run.refresh_from_db()
+
+    assert run.status == "error"
+    assert run.finished_at is not None
+    assert "gave up" in run.error.lower() or "given up" in run.error.lower()
+
+
+@pytest.mark.django_db
+def test_a_run_that_was_never_asked_to_stop_is_not_given_up_on(client):
+    """Reaching the URL directly must not skip the step that keeps the work."""
+    exp = _experiment()
+    run = _running(exp)
+
+    client.post(reverse("ui:run_force_stop", args=[exp.pk]))
+    run.refresh_from_db()
+
+    assert run.status == "running"
+
+
+@pytest.mark.django_db
+def test_giving_up_is_post_only(client):
+    """Same reasoning as cancelling: on GET a prefetcher or an <img> pointing
+    here would end someone's run with CSRF never consulted."""
+    exp = _experiment()
+    _running(exp, cancel_requested=True)
+
+    assert client.get(reverse("ui:run_force_stop", args=[exp.pk])).status_code == 405

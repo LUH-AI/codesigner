@@ -18,6 +18,7 @@ urlpatterns = [
     path("experiments/<int:pk>/env-status/", views.env_status, name="env_status"),
     path("experiments/<int:pk>/prepare-env/", views.prepare_env, name="prepare_env"),
     path("experiments/<int:pk>/cancel/", views.run_cancel, name="run_cancel"),
+    path("experiments/<int:pk>/force-stop/", views.run_force_stop, name="run_force_stop"),
     path("experiments/<int:pk>/share/", views.experiment_share, name="experiment_share"),
     path("experiments/<int:pk>/trial-panel/", views.trial_panel, name="trial_panel"),
     path("experiments/<int:pk>/trial-ablation/", views.trial_ablation, name="trial_ablation"),

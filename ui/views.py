@@ -30,6 +30,8 @@ from .models import Experiment, GlobalSettings
 from . import permissions
 from .permissions import DELETE, EDIT, EXPORT, RUN, VIEW, experiment_view
 from .registry import METRICS, MODELS, OPTIMIZERS
+from django.utils import timezone
+
 from .services import run as run_service
 from .services import modelenv
 from .services import snapshot as snapshot_adapter
@@ -591,6 +593,7 @@ def experiment_run(request, exp):
 @experiment_view(VIEW)
 def run_status(request, exp):
     """HTMX poll target: the current run's status, or a refresh when finished."""
+    run_service.sweep_orphaned_runs()
     active = exp.runs.filter(status__in=_ACTIVE).order_by("-id").first()
     if active is None:
         response = HttpResponse("")
@@ -648,10 +651,43 @@ def experiment_share(request, exp):
 def run_cancel(request, exp):
     """Request cancellation of the experiment's active run.
 
+    Cooperative: this sets a flag the running optimizer polls between trials, so
+    the trials already finished are kept and the result is still written. It
+    needs something to be reading the flag — see `run_force_stop` for when
+    nothing is.
+
     POST only: it changes something, and on GET a prefetcher or an <img> tag
     pointing here would cancel someone's run without CSRF ever being consulted.
     """
     exp.runs.filter(status__in=_ACTIVE).update(cancel_requested=True)
+    return redirect("ui:experiment_detail", pk=exp.pk)
+
+
+@require_POST
+@experiment_view(RUN)
+def run_force_stop(request, exp):
+    """Give up on a run that is not answering, and say so on the row.
+
+    Cancelling is a request to whatever is executing the run. When nothing is —
+    the process was restarted, the consumer died — there is nobody to read it,
+    and the experiment sits at "running" with no way out. This is the way out.
+
+    It does not kill anything, and does not pretend to: the web process has no
+    handle on the worker, which is in another thread or another process
+    entirely. What it does is stop the experiment waiting on it. If the worker
+    turns out to be alive after all, it finishes as it always would have — its
+    last act is a filtered update of this same row, which will put back whatever
+    actually happened.
+
+    Offered only once cancelling has been asked for and has not worked, so it is
+    the escalation rather than the first thing to hand: a cooperative cancel
+    keeps the trials that already ran, and this cannot.
+    """
+    exp.runs.filter(status__in=_ACTIVE, cancel_requested=True).update(
+        status="error", finished_at=timezone.now(),
+        error=_("Given up on by hand: it stopped answering, and cancelling it "
+                "had no effect."),
+    )
     return redirect("ui:experiment_detail", pk=exp.pk)
 
 
