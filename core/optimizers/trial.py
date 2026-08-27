@@ -14,6 +14,8 @@ trial still yields one score per metric, so nothing downstream (the figures, the
 incumbent, resume, `.ihpo`) has to know which happened.
 """
 
+import traceback
+
 import numpy as np
 
 from ..metrics import score_all
@@ -26,10 +28,16 @@ def evaluate_trial(model, config, splits, metrics, seed=0):
 
     Returns ``(scores, run_info)``. A trial that failed — the model raised, was
     stopped for exceeding its deadline, or returned something unscoreable —
-    scores 0.0 on every metric, with ``run_info["status"]`` set and the reason
-    under ``additional_info["error"]``. That is a data point (this configuration
-    is unusable), not the end of the run; whether too many failures in a row
-    should stop the search is the collector's decision, not this function's.
+    scores 0.0 on every metric, with ``run_info["status"]`` set, the reason under
+    ``additional_info["error"]`` and, where there is one worth keeping, the
+    traceback under ``additional_info["traceback"]``. That is a data point (this
+    configuration is unusable), not the end of the run; whether too many
+    failures should stop the search is the collector's decision, not this
+    function's.
+
+    The reason is one line, for a reader who wants to know what happened; the
+    traceback is for one who needs to know where. A timeout has no traceback
+    worth storing, since nothing over here is what went wrong.
 
     A fold that fails fails the whole trial. A configuration that works on four
     fifths of the data and dies on the rest is not one to hand the search as a
@@ -42,6 +50,7 @@ def evaluate_trial(model, config, splits, metrics, seed=0):
     produce a run of identical failures.
     """
     failure = None
+    detail = ""
     status = STATUS_CRASHED
     fold_scores = []
     cpu_reported = 0.0
@@ -62,12 +71,17 @@ def evaluate_trial(model, config, splits, metrics, seed=0):
                     splits.X[val_idx], seed=seed)
             except TrialTimeout as exc:
                 failure, status = str(exc), STATUS_TIMEOUT
+                # No traceback worth keeping: the exception is raised here, by
+                # the deadline expiring, so a traceback would show this loop
+                # rather than whatever the model was doing when time ran out.
                 break
             except ModelTrialError as exc:
-                failure = str(exc)
+                # The model's own traceback, from over in its process. A
+                # `format_exc()` here would show this loop receiving the reply.
+                failure, detail = str(exc), getattr(exc, "detail", "")
                 break
             except Exception as exc:  # noqa: BLE001 — a local model may fail any way it likes
-                failure = f"{type(exc).__name__}: {exc}"
+                failure, detail = f"{type(exc).__name__}: {exc}", traceback.format_exc()
                 break
 
             # A model running in its own process timed itself: this thread's CPU
@@ -81,6 +95,7 @@ def evaluate_trial(model, config, splits, metrics, seed=0):
                 fold_scores.append(score_all(splits.y[val_idx], y_pred, metrics))
             except Exception as exc:  # noqa: BLE001 — wrong label type, wrong length
                 failure = f"predictions could not be scored: {type(exc).__name__}: {exc}"
+                detail = traceback.format_exc()
                 break
 
     if cpu_reported:
@@ -92,5 +107,7 @@ def evaluate_trial(model, config, splits, metrics, seed=0):
         scores = {name: 0.0 for name in metrics}
         run_info["status"] = status
         run_info["additional_info"] = {"error": failure}
+        if detail:
+            run_info["additional_info"]["traceback"] = detail
 
     return scores, run_info

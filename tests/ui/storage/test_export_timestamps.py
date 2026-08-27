@@ -57,7 +57,11 @@ def test_asking_comes_before_downloading(client):
     assert page.status_code == 200
     assert "Content-Disposition" not in page
     assert "what time of day you were working" in body
-    assert 'value="strip"' in body and 'value="keep"' in body
+    # A box to tick, unticked, so the safer answer is the one that needs no
+    # decision — and one Export button, since the page asks two independent
+    # questions and two of those do not compose into buttons.
+    assert 'name="timestamps" value="keep"' in body
+    assert "checked" not in body
     assert "Cancel" in body
 
 

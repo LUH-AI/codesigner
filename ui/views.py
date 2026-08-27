@@ -8,12 +8,13 @@ from django.conf import settings
 from django.contrib.auth.decorators import login_not_required
 from django.core.exceptions import PermissionDenied
 from django.core.paginator import Paginator
-from django.http import HttpResponse, HttpResponseBadRequest, JsonResponse
+from django.http import Http404, HttpResponse, HttpResponseBadRequest, JsonResponse
 from django.shortcuts import redirect, render
 from django.utils.translation import gettext as _
 from django.views.decorators.http import require_POST
 
 from core import io, provenance
+from core.optimizers.base import FAILURE_CRITERIA
 
 from .figures import (
     FIGURES, FIGURES_BY_KEY, HP_GAME_FIELDS, HP_GAME_HELP, HP_GAME_LABELS,
@@ -91,6 +92,8 @@ _STOPPING_FIELDS = {
     "max_trial_seconds": (float, 1.0, None),
     "no_improvement_trials": (int, 1, None),
     "incumbent_confidence": (float, 0.0, 1.0),
+    "max_failures": (int, 1, None),
+    "max_consecutive_failures": (int, 1, None),
 }
 
 
@@ -104,7 +107,7 @@ STOPPED_BY_LABELS = {
     "no_improvement_trials": _("the score had stopped improving"),
     "incumbent_confidence": _("the search was confident nothing better remained"),
     "cancelled": _("it was interrupted"),
-    "all_failing": _("every trial was failing"),
+    "all_failing": _("too many trials were failing"),
 }
 
 
@@ -410,7 +413,47 @@ def trial_panel(request, exp):
         return HttpResponseBadRequest("invalid trial index")
 
     return render(request, "ui/_selected_config_inner.html",
-                  {"sel": _selected_panel_data(result, metric, idx)})
+                  {"sel": _selected_panel_data(result, metric, idx),
+                   # The traceback link needs to know which experiment it is
+                   # asking about; on the first render the page context has it,
+                   # and this partial is also served on its own.
+                   "experiment": exp})
+
+
+@experiment_view(VIEW)
+def trial_traceback(request, exp):
+    """The stored traceback for one failed trial, as plain text.
+
+    A file to open rather than a panel to read: a traceback is a dozen lines of
+    paths and frames, which is the wrong shape for a sidebar and the right shape
+    for something you scroll, search and paste elsewhere. Served from the stored
+    result — the traceback was recorded when the trial failed, so this reads and
+    never computes.
+
+    404 for a trial that did not fail and for one that failed without a
+    traceback: a timeout has none worth keeping, an old result predates them
+    being recorded, and an export can have been asked to leave them out.
+    """
+    idx_raw = request.GET.get("idx", "")
+    if not idx_raw.lstrip("-").isdigit():
+        return HttpResponseBadRequest("invalid trial index")
+
+    result = _rebuild_result(exp)
+    idx = int(idx_raw)
+    if result is None or not (0 <= idx < len(result.trials)):
+        return HttpResponseBadRequest("invalid trial index")
+
+    trial = result.trials[idx]
+    if not trial.traceback:
+        raise Http404("no traceback for this trial")
+
+    text = f"Trial {trial.trial} — {trial.failure}\n\n{trial.traceback}"
+    response = HttpResponse(text, content_type="text/plain; charset=utf-8")
+    # Inline, so a click opens it rather than downloading it. A reader wanting
+    # the file can still save it from there.
+    response["Content-Disposition"] = (
+        f'inline; filename="{exp.identifier}-trial-{trial.trial}-traceback.txt"')
+    return response
 
 
 @experiment_view(VIEW)
@@ -562,9 +605,11 @@ def experiment_run(request, exp):
     chosen = request.POST.get("optimize_metric")
     decision = request.POST.get("decision")
 
-    if not stopping:
+    if not any(k not in FAILURE_CRITERIA for k in stopping):
         # A run has to be able to end. Back to the page with the reason rather
-        # than a started run that never finishes.
+        # than a started run that never finishes. The failure limits do not
+        # count: they are how a run notices it is broken, and a run that is
+        # working would never reach them.
         context = _detail_context(request, exp)
         context["run_error"] = _("Set at least one stopping criterion, so the "
                                  "run has something to end on.")
@@ -691,18 +736,26 @@ def run_force_stop(request, exp):
     return redirect("ui:experiment_detail", pk=exp.pk)
 
 
-#: What the export page asks, as the value its two buttons post.
-KEEP_TIMES, STRIP_TIMES = "keep", "strip"
+#: What a ticked box on the export page posts. One value for both of its
+#: questions: they are asked the same way and answered the same way, and a
+#: second constant would only be a second place to change it.
+KEEP = "keep"
 
 
 @experiment_view(EXPORT)
 def experiment_export(request, exp):
     """Download a saved experiment as an .ihpo file, having asked what goes in it.
 
-    Server paths are always blanked. Per-trial `starttime`/`endtime` are the one
-    thing worth a question: they say what time of day someone was working and on
-    which days, which is a fact about a person rather than about a search, and
-    the durations that make the timing figures readable survive without them.
+    Server paths are always blanked. Two things are worth a question, because
+    both are facts about a person or a machine rather than about a search, and
+    the file is complete as a record of the search without either:
+
+    - per-trial `starttime`/`endtime`, which say what time of day someone was
+      working and on which days. The durations that make the timing figures
+      readable survive without them.
+    - a failed trial's stored traceback, which names absolute paths on this
+      machine, the packages installed on it and their versions. The failure
+      itself survives without it, with its one-line reason.
 
     Asked at the point of export rather than kept as a setting. A setting is
     answered once, by whoever set it up, for every file the instance ever sends
@@ -715,18 +768,34 @@ def experiment_export(request, exp):
     re-import.
     """
     if request.method != "POST":
-        return render(request, "ui/export_confirm.html", {"experiment": exp})
+        # How many tracebacks there are to ask about, and so whether to ask.
+        # Counted off the stored result rather than rebuilt through the
+        # optimizer: this needs one key per trial, not an OptimizationResult.
+        entries = ((exp.result or {}).get("data") or [])
+        count = sum(1 for e in entries
+                    if (e.get("additional_info") or {}).get("traceback"))
+        return render(request, "ui/export_confirm.html",
+                      {"experiment": exp, "has_tracebacks": bool(count),
+                       "traceback_count": count})
 
     snapshot = snapshot_adapter.snapshot_from_experiment(exp, provenance=True)
     # The paths name files on this server, which is of no use to whoever opens
     # the file and tells them how the instance is laid out.
     snapshot["dataset"]["path"] = ""
     snapshot["model"]["path"] = ""
-    if request.POST.get("timestamps") != KEEP_TIMES and snapshot.get("result"):
+    keep_times = request.POST.get("timestamps") == KEEP
+    keep_tracebacks = request.POST.get("tracebacks") == KEEP
+    if not (keep_times and keep_tracebacks) and snapshot.get("result"):
         snapshot["result"] = copy.deepcopy(snapshot["result"])
         for entry in snapshot["result"].get("data", []):
-            entry.pop("starttime", None)
-            entry.pop("endtime", None)
+            if not keep_times:
+                entry.pop("starttime", None)
+                entry.pop("endtime", None)
+            # The reason stays either way. It is the trial's own result — this
+            # configuration does not work — while the traceback is a description
+            # of the machine it did not work on.
+            if not keep_tracebacks:
+                (entry.get("additional_info") or {}).pop("traceback", None)
     body = json.dumps(snapshot, ensure_ascii=False, indent=2).encode("utf-8")
     response = HttpResponse(body, content_type="application/octet-stream")
     response["Content-Disposition"] = f'attachment; filename="{exp.name}.ihpo"'
@@ -1165,6 +1234,14 @@ def _selected_panel_data(result, metric, idx):
         "delta": trial.scores[metric] - trials[best_idx].scores[metric],
         "is_best": idx == best_idx,
         "config": list(trial.config.items()),
+        # A trial that produced no measurement: the score above is a
+        # placeholder, and the panel says so rather than presenting a 0.0 as a
+        # result. `idx`, not `trial_n`, because that is what the traceback
+        # endpoint takes — the same index every figure's selection speaks in.
+        "failed": trial.failed,
+        "failure": trial.failure,
+        "idx": idx,
+        "has_traceback": bool(trial.traceback),
     }
 
 
@@ -1385,6 +1462,12 @@ def _detail_context(request, exp):
                 # is there rather than to be the thing that 500s the page.
                 "scores": [t.scores.get(m) for m in metric_names],
                 "duration": t.duration,
+                # A trial that produced no measurement. Its scores are all 0.0
+                # and read as a bad trial rather than as no trial, so the row
+                # has to say which it is — and the reason, since a table has
+                # room for it where a figure does not.
+                "failed": t.failed,
+                "failure": t.failure,
             }
             for i, t in enumerate(result.trials)
         ],

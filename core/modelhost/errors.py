@@ -2,7 +2,17 @@
 
 
 class ModelHostError(Exception):
-    """Base for every failure involving a model in its own process."""
+    """Base for every failure involving a model in its own process.
+
+    `detail` carries the model's own traceback when the failure happened over
+    there and it sent one. A traceback raised on this side would show the client
+    waiting for a reply, which says nothing about why the model failed, so the
+    remote one is the only one worth keeping.
+    """
+
+    def __init__(self, *args, detail: str = ""):
+        super().__init__(*args)
+        self.detail = detail
 
 
 class ModelProcessError(ModelHostError):

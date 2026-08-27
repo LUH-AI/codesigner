@@ -156,14 +156,15 @@ def tiny_splits():
     return X[:2], X[2:], y[:2], y[2:]     # X_train, X_val, y_train, y_val
 
 
-def export_ihpo(client, pk, timestamps="keep"):
-    """Download one experiment's .ihpo, answering the question export asks.
+def export_ihpo(client, pk, timestamps="keep", tracebacks="keep"):
+    """Download one experiment's .ihpo, answering the questions export asks.
 
-    Exporting is a POST rather than a GET because the page asks first whether
-    the per-trial timestamps go in — see `ui.views.experiment_export`. Tests that
-    only want the file take the answer that changes nothing about it.
+    Exporting is a POST rather than a GET because the page asks first what goes
+    in the file: the per-trial timestamps, and a failed trial's stored traceback
+    — see `ui.views.experiment_export`. Both default here to the answer that
+    changes nothing about the file, for tests that only want the file.
     """
     from django.urls import reverse
 
     return client.post(reverse("ui:experiment_export", args=[pk]),
-                       {"timestamps": timestamps})
+                       {"timestamps": timestamps, "tracebacks": tracebacks})

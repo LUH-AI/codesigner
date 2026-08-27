@@ -103,8 +103,8 @@ def test_importance_is_computed_from_the_rebuilt_space(remote_model, iris_splits
     assert "n_neighbors" in result.hyperparameter_importance["accuracy"]
 
 
-def test_a_run_survives_a_model_that_fails_on_one_configuration(tmp_path, iris_splits):
-    """One bad configuration is a data point, not the end of the search."""
+def _flaky_model(tmp_path):
+    """A model that raises on `n_neighbors == 2` and works on the rest."""
     source = textwrap.dedent(MODEL).replace(
         "        clf = KNeighborsClassifier",
         '        if int(config["n_neighbors"]) == 2:\n'
@@ -112,6 +112,40 @@ def test_a_run_survives_a_model_that_fails_on_one_configuration(tmp_path, iris_s
         "        clf = KNeighborsClassifier")
     path = tmp_path / "flaky.py"
     path.write_text(source, encoding="utf-8")
+    return path
+
+
+def test_a_run_survives_a_model_that_fails_on_one_configuration(tmp_path, iris_splits):
+    """One bad configuration is a data point, not the end of the search — which
+    a run has to say it wants, since `max_failures` defaults to 1 and stops at
+    the first one. Surviving is what is being tested here: the trial is
+    recorded, with its reason, and the search carries on to the configurations
+    after it."""
+    path = _flaky_model(tmp_path)
+    X_train, X_val, y_train, y_val = iris_splits
+
+    with model_session(launch_local(sys.executable, path),
+                       holdout(X_train, y_train, X_val, y_val), seed=0) as model:
+        result = GridOptimizer().optimize(
+            model, X_train, y_train, X_val, y_val,
+            metrics=METRICS, primary_metric="accuracy", n_trials=50, seed=0,
+            stopping={"max_trials": 50, "max_failures": 10})
+
+    by_config = {t.config["n_neighbors"]: t for t in result.trials}
+    assert len(by_config) == 3, "the search continued past the failure"
+    assert by_config[2].run_info["status"] == STATUS_CRASHED
+    assert by_config[2].scores["accuracy"] == 0.0
+    assert "two is unlucky" in by_config[2].run_info["additional_info"]["error"]
+    assert by_config[1].run_info["status"] == STATUS_SUCCESS
+
+
+def test_by_default_the_first_failure_ends_the_run(tmp_path, iris_splits):
+    """`DEFAULT_MAX_FAILURES` is 1, so the same search stops where the previous
+    test continues. The trial is still recorded and the run still ends cleanly —
+    tolerating a failure is not the same as carrying on past it."""
+    from core.optimizers.base import STOPPED_BY_ALL_FAILING
+
+    path = _flaky_model(tmp_path)
     X_train, X_val, y_train, y_val = iris_splits
 
     with model_session(launch_local(sys.executable, path),
@@ -120,9 +154,32 @@ def test_a_run_survives_a_model_that_fails_on_one_configuration(tmp_path, iris_s
             model, X_train, y_train, X_val, y_val,
             metrics=METRICS, primary_metric="accuracy", n_trials=50, seed=0)
 
-    by_config = {t.config["n_neighbors"]: t for t in result.trials}
-    assert len(by_config) == 3, "the search continued past the failure"
-    assert by_config[2].run_info["status"] == STATUS_CRASHED
-    assert by_config[2].scores["accuracy"] == 0.0
-    assert "two is unlucky" in by_config[2].run_info["additional_info"]["error"]
-    assert by_config[1].run_info["status"] == STATUS_SUCCESS
+    assert result.metadata["stopped_by"] == STOPPED_BY_ALL_FAILING
+    # The grid is 1, 2, 3 and it stopped on 2, so the third was never run.
+    assert {t.config["n_neighbors"] for t in result.trials} == {1, 2}
+    failed = result.trials[-1]
+    assert failed.failed is True
+    assert "two is unlucky" in failed.failure
+
+
+def test_the_models_own_traceback_crosses_the_process_boundary(tmp_path, iris_splits):
+    """The model failed over there, so the only traceback worth storing is the
+    one from over there — a `format_exc()` on this side would show the client
+    waiting for a reply. The harness sends it; the client keeps it on the
+    exception; `evaluate_trial` stores it."""
+    path = _flaky_model(tmp_path)
+    X_train, X_val, y_train, y_val = iris_splits
+
+    with model_session(launch_local(sys.executable, path),
+                       holdout(X_train, y_train, X_val, y_val), seed=0) as model:
+        result = GridOptimizer().optimize(
+            model, X_train, y_train, X_val, y_val,
+            metrics=METRICS, primary_metric="accuracy", n_trials=50, seed=0,
+            stopping={"max_trials": 50, "max_failures": 10})
+
+    failed = next(t for t in result.trials if t.failed)
+    assert "Traceback (most recent call last)" in failed.traceback
+    # The frame in the *model's* file, which is what makes it the model's
+    # traceback rather than a description of this process.
+    assert "flaky.py" in failed.traceback
+    assert 'raise ValueError("two is unlucky")' in failed.traceback

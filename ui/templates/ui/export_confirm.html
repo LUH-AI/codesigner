@@ -1,26 +1,43 @@
 {% extends "ui/_confirm_page.html" %}
 {% load i18n %}
 
-{% comment %}Two ways to export and a way not to, rather than a setting answered
-once for every file the instance will ever send. Which answer is right depends
-on the file and on who is about to receive it, and neither is known when the
-settings page is being filled in.
+{% comment %}Asked here rather than answered once in settings, for every file the
+instance will ever send: which answer is right depends on the file and on who is
+about to receive it, and neither is known when a settings page is being filled
+in.
 
-The default is the safer one, but both are buttons rather than one button and a
-checkbox: a checkbox has a state to notice, and the thing being decided is worth
-a decision each time.{% endcomment %}
+Checkboxes and one button, where this was two buttons. Two buttons said the
+thing being decided was worth a decision each time, which it is — but there are
+two decisions now, and two independent questions do not compose into buttons
+without becoming four of them. The boxes are unticked, so the default is still
+the safer answer, and the state a checkbox has to be noticed in is here the
+summary of what is about to leave: a reader can see both answers at once before
+committing to either.
+
+The traceback box only appears when the experiment has one to send. Asking about
+something the file does not contain is a question with no answer.{% endcomment %}
 
 {% block confirm_title %}{% translate "Export experiment" %}{% endblock %}
 {% block confirm_heading %}{% blocktranslate with name=experiment.name %}Export {{ name }}{% endblocktranslate %}{% endblock %}
 
 {% block confirm_message %}
-    <p>{% translate "The file records when each trial started and finished. Anyone you send it to can read what time of day you were working, and on which days." %}</p>
-    <p>{% translate "Without them the file is the same in every other way — every score, every configuration, and how long each trial took." %}</p>
+    <p>{% translate "Some of what the file records is about you rather than about the search. Tick what you are willing to send." %}</p>
+    <label class="check">
+        <input type="checkbox" name="timestamps" value="keep">
+        {% translate "When each trial started and finished" %}
+    </label>
+    <p class="caption">{% translate "Anyone you send it to can read what time of day you were working, and on which days. Without them the file is the same in every other way — every score, every configuration, and how long each trial took." %}</p>
+    {% if has_tracebacks %}
+        <label class="check">
+            <input type="checkbox" name="tracebacks" value="keep">
+            {% blocktranslate count n=traceback_count %}The stacktrace from {{ n }} failed trial{% plural %}The stacktraces from {{ n }} failed trials{% endblocktranslate %}
+        </label>
+        <p class="caption">{% translate "A stacktrace names absolute paths on this machine, the packages installed on it and their versions. Without them the failed trials are still in the file, with the one-line reason each of them failed." %}</p>
+    {% endif %}
 {% endblock %}
 
 {% block confirm_buttons %}
-    <button type="submit" class="btn-primary" name="timestamps" value="strip">{% translate "Export without times" %}</button>
-    <button type="submit" class="btn" name="timestamps" value="keep">{% translate "Export with times" %}</button>
+    <button type="submit" class="btn-primary">{% translate "Export" %}</button>
 {% endblock %}
 
 {% block confirm_cancel %}{% url 'ui:experiment_detail' experiment.pk %}{% endblock %}

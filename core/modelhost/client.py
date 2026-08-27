@@ -316,7 +316,9 @@ class RemoteModel:
         )
         if reply.get("t") == protocol.ERROR:
             if reply.get("kind") == protocol.KIND_TRIAL:
-                raise ModelTrialError(reply.get("message") or "the model failed on this trial")
+                raise ModelTrialError(
+                    reply.get("message") or "the model failed on this trial",
+                    detail=reply.get("traceback") or "")
             raise ModelProcessError(ModelProcess._explain(reply))
         if reply.get("t") != protocol.RESULT:
             raise ModelProcessError(f"expected predictions, got {reply.get('t')!r}")

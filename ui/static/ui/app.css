@@ -423,6 +423,9 @@ nav.sidebar .info-bubble {
 /* Which metric the number is, said quietly beside it: the score is what is
    being read, and the metric is chosen once for the whole page. */
 .metric-value .metric-unit { font-size: 0.875rem; font-weight: 400; color: var(--muted); }
+/* Struck through, not hidden: the search really was handed this number, and a
+   reader comparing figures against the panel needs to find the same value. */
+.metric-value.failed { color: var(--muted); text-decoration: line-through; text-decoration-thickness: 2px; }
 .metric-delta { font-size: 0.875rem; }
 .metric-delta.up { color: var(--green); }
 .metric-delta.down { color: var(--red); }
@@ -440,6 +443,11 @@ table.config td:last-child, table.trials td:not(:first-child) { text-align: righ
    mid-sort doesn't jump by a pixel as the highlight moves. */
 table.trials tbody tr { cursor: pointer; }
 table.trials tbody tr:hover { background: rgba(99, 110, 250, 0.07); }
+table.trials tbody tr.failed { background: rgba(255, 43, 43, 0.13); }
+table.trials tbody tr.failed td:first-child { color: #b91c1c; }
+/* After .failed, so selecting a failed trial still shows as selected — the row
+   is one or the other, and which one is selected is the more urgent of the two
+   to be able to see. */
 table.trials tbody tr.selected { background: rgba(239, 85, 59, 0.13); }
 table.trials tbody tr:focus-visible { outline: 2px solid var(--primary); outline-offset: -2px; }
 .table-wrap { border: 1px solid var(--border); border-radius: var(--radius); overflow: hidden; }
@@ -483,6 +491,11 @@ table.trials tbody tr:focus-visible { outline: 2px solid var(--primary); outline
 .alert.warning { background: rgba(255, 170, 0, 0.15); color: #7a5200; }
 .alert.error   { background: rgba(255, 43, 43, 0.1); color: #7d0000; }
 .alert.success { background: rgba(9, 171, 59, 0.1); color: #005f1e; }
+/* The sidebar's width is the constraint: a reason and a link stack rather than
+   sitting on one line, and the reason keeps its own line breaks since it is a
+   message from somewhere else. */
+.trial-failure { margin-top: 0.75rem; display: flex; flex-direction: column; gap: 0.4rem; }
+.trial-failure .failure-reason { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 0.8rem; overflow-wrap: anywhere; }
 
 /* Two fields that are one decision — a scheme and the number it needs — read
    side by side, so the number is obviously the selector's and not a setting of

@@ -71,6 +71,35 @@ class TrialResult:
         """Wall-clock seconds the trial's evaluation took (0.0 if unrecorded)."""
         return self.run_info.get("time") or 0.0
 
+    @property
+    def failed(self) -> bool:
+        """Whether this trial did not produce a measurement.
+
+        The model raised, the trial ran past its deadline, or its predictions
+        could not be scored — see `evaluate_trial`, which is what sets the
+        status. Such a trial still carries a score, 0.0 on every metric, so
+        every figure and every downstream computation reads it as a trial that
+        did badly; this is how something that wants to say otherwise asks.
+
+        Absent status means success, which is what every trial recorded before
+        failures were tracked has.
+        """
+        return self.run_info.get("status", STATUS_SUCCESS) != STATUS_SUCCESS
+
+    @property
+    def failure(self) -> str:
+        """Why it failed, in one line; empty for a trial that did not."""
+        return (self.run_info.get("additional_info") or {}).get("error", "")
+
+    @property
+    def traceback(self) -> str:
+        """The full traceback, for a trial that failed with one.
+
+        Empty for a trial that succeeded, one that failed before tracebacks were
+        recorded, and one whose traceback was stripped on export.
+        """
+        return (self.run_info.get("additional_info") or {}).get("traceback", "")
+
 
 @dataclass
 class OptimizationResult:
@@ -275,7 +304,17 @@ def rebase_history(previous_result, primary_metric: str):
 #: have any combination; the first to fire ends it.
 STOPPING_CRITERIA = ("max_trials", "max_seconds", "max_trial_seconds",
                      "target_score", "no_improvement_trials",
-                     "incumbent_confidence")
+                     "incumbent_confidence", "max_failures",
+                     "max_consecutive_failures")
+
+#: The two of those that answer "when has this gone wrong?" rather than "when is
+#: this done?". They end a run like any other criterion, and they do not count
+#: towards the requirement that a run have one: a run whose only limit is how
+#: many trials may fail has no end anyone chose — it stops when it breaks, and
+#: if nothing breaks it never stops. Both default (see below), so they are also
+#: the two that are set whether or not a caller mentions them, which would make
+#: the requirement unsatisfiable to check if they counted.
+FAILURE_CRITERIA = ("max_failures", "max_consecutive_failures")
 
 #: Default coalition budget for the eager, at-run-completion analytics. See
 #: `BaseOptimizer.eager_analytics_budget_exceeded` for what a coalition costs and
@@ -289,15 +328,27 @@ STOPPING_CRITERIA = ("max_trials", "max_seconds", "max_trial_seconds",
 #: capacity, not about any one experiment's taste.
 EAGER_MAX_COALITIONS = 1024
 
-#: Consecutive failed trials before a run gives up. Not something to configure:
-#: it is not a budget anyone would choose, it is the difference between "this
-#: search is exploring a bad region" and "nothing here can work". A model that
-#: cannot fit the dataset at all fails instantly and identically every time, and
-#: without this it burns the whole budget and reports a tidy run of zeros.
-MAX_CONSECUTIVE_FAILURES = 15
+#: Consecutive failed trials before a run gives up, when the caller named no
+#: `max_consecutive_failures` of their own. A model that cannot fit the dataset
+#: at all fails instantly and identically every time, and without a limit it
+#: burns the whole budget and reports a tidy run of zeros.
+DEFAULT_MAX_CONSECUTIVE_FAILURES = 15
 
-#: Every trial failing is a reason a run ended, like being interrupted: nothing
-#: the caller asked for, but something the page has to be able to say.
+#: Failed trials in total before a run gives up, when the caller named no
+#: `max_failures`. One, because the first failure is the one worth seeing: a
+#: model still being written fails for a reason its author can fix, and there is
+#: nothing to learn from watching it fail forty more times. A search deliberately
+#: probing a region that cannot work is the other case, and raising this is how
+#: someone says that is what they are doing.
+#:
+#: The two count different things and both are criteria. In a row means "nothing
+#: here can work"; in total means "something is wrong and I want to know now".
+DEFAULT_MAX_FAILURES = 1
+
+#: Too many trials failing is a reason a run ended, like being interrupted:
+#: nothing the caller asked for in the sense that a budget is, but something the
+#: page has to be able to say. One name for both counts — which of them fired is
+#: a detail of the arithmetic, and "the trials were failing" is the finding.
 STOPPED_BY_ALL_FAILING = "all_failing"
 
 #: Not a criterion — nothing in the collector can decide it — but it ends runs
@@ -371,6 +422,15 @@ class TrialCollector:
                                  optimizer that fits a surrogate can answer, and
                                  it does so through `note_confidence`; for one
                                  that cannot, this never fires.
+        ``max_failures``         this many trials failed, anywhere in the run
+        ``max_consecutive_failures``  this many failed in a row
+
+        The two failure counts are the one pair here that defaults rather than
+        not applying when absent — to `DEFAULT_MAX_FAILURES` and
+        `DEFAULT_MAX_CONSECUTIVE_FAILURES`. Every other criterion absent means
+        "do not stop for this"; a failing run has to stop for *something*, or a
+        model that cannot fit the dataset spends the whole budget proving it.
+        Pass a large number to say that failures are expected here.
     """
 
     def __init__(
@@ -387,15 +447,19 @@ class TrialCollector:
 
         self._stopping = {k: v for k, v in (stopping or {}).items()
                           if k in STOPPING_CRITERIA and v is not None}
-        if not self._stopping:
+        if not any(k not in FAILURE_CRITERIA for k in self._stopping):
             raise NoStoppingCriterion(
-                "a run needs at least one stopping criterion; got "
-                f"{sorted(stopping or {})}")
+                "a run needs at least one stopping criterion that is not a "
+                f"failure limit; got {sorted(stopping or {})}")
+        self._stopping.setdefault("max_failures", DEFAULT_MAX_FAILURES)
+        self._stopping.setdefault("max_consecutive_failures",
+                                  DEFAULT_MAX_CONSECUTIVE_FAILURES)
 
         self._started = time.monotonic()
         self._trial_seconds = 0.0
         self._since_improvement = 0
         self._consecutive_failures = 0
+        self._failures = 0
         self._confidence: Optional[float] = None
         #: Which criterion ended the run, or None while it is still going.
         self.stopped_by: Optional[str] = None
@@ -444,7 +508,9 @@ class TrialCollector:
             return "max_seconds"
         if self._trial_seconds >= self._stopping.get("max_trial_seconds", float("inf")):
             return "max_trial_seconds"
-        if self._consecutive_failures >= MAX_CONSECUTIVE_FAILURES:
+        if (self._failures >= self._stopping["max_failures"]
+                or self._consecutive_failures
+                >= self._stopping["max_consecutive_failures"]):
             return STOPPED_BY_ALL_FAILING
         stagnant = self._stopping.get("no_improvement_trials")
         if stagnant is not None and self._since_improvement >= stagnant:
@@ -491,6 +557,9 @@ class TrialCollector:
             self._consecutive_failures = 0
         else:
             self._consecutive_failures += 1
+            # Never reset. A run's total is a total, which is what makes it a
+            # different question from how many failed in a row.
+            self._failures += 1
 
         trial = TrialResult(
             trial=self._trial_offset + len(self.results) + 1,

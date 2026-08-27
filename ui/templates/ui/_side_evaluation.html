@@ -79,6 +79,32 @@ you cannot have.
                     {% endif %}
                     <p class="caption stopping-note" hidden>{% translate "These may never happen. Consider a trial or time limit as well, so the run is certain to end." %}</p>
                 </fieldset>
+                {% comment %}Its own fieldset rather than two more "run until…"
+                fields: those are budgets someone chose, and these are the run
+                noticing it is going wrong. Read under the same legend, "run
+                until this many trials have failed" sounds like failing is the
+                objective.{% endcomment %}
+                <fieldset class="check-group stopping">
+                    <legend>{% translate "Give up if…" %}</legend>
+                    <div class="field">
+                        <div class="field-label">
+                            <label for="max_failures">{% translate "…this many trials have failed" %}</label>
+                            {% translate "A trial fails when the model raises on its configuration, runs past its deadline, or returns something that cannot be scored. It is still recorded — with its reason, and its stacktrace where there is one — and it scores zero, so the search learns to avoid that region. Default 1: the first failure is usually the one worth reading. Raise it when a search is deliberately probing a region you expect to break. At least 1." as failures_help %}
+                            {% include "ui/_info.html" with info_id="max_failures_help" info_text=failures_help %}
+                        </div>
+                        <input type="number" id="max_failures" name="max_failures"
+                               value="1" min="1" step="1" aria-describedby="max_failures_help">
+                    </div>
+                    <div class="field">
+                        <div class="field-label">
+                            <label for="max_consecutive_failures">{% translate "…this many have failed in a row" %}</label>
+                            {% translate "A different question from the total: in a row means nothing here can work — a model that cannot fit this dataset at all fails identically every time, and without a limit it spends the whole budget proving it. At least 1." as streak_help %}
+                            {% include "ui/_info.html" with info_id="max_consecutive_failures_help" info_text=streak_help %}
+                        </div>
+                        <input type="number" id="max_consecutive_failures" name="max_consecutive_failures"
+                               value="15" min="1" step="1" aria-describedby="max_consecutive_failures_help">
+                    </div>
+                </fieldset>
                 <button type="submit" class="btn-primary btn-block">{% translate "▶ Run" %}</button>
                 {% if env.ready and env.summary %}
                     <p class="caption">{% blocktranslate with summary=env.summary %}Environment: {{ summary }}{% endblocktranslate %}</p>

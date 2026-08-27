@@ -50,6 +50,74 @@ ACCENT_COLOR = "#10B981"
 NEGATIVE_COLOR = "#FF2B2B"
 
 
+# ── A trial that did not produce a measurement ───────────────────────────────
+#
+# It is still a trial: it ran, it took time, and it says something about the
+# configuration it ran. So it is drawn, and drawn differently — a cross rather
+# than a point, in the colour a figure already uses for "this hurt". `x-thin`
+# has no fill by design: the glyph *is* the outline, so `marker.line` is what
+# makes it visible and what makes it thick.
+#
+# The shape carries the failure and the colour carries the selection, which is
+# why a selected failure keeps its cross and changes colour rather than the
+# other way round: a reader who has clicked one still needs to see that it is
+# the failure they clicked.
+FAILURE_SYMBOL = "x-thin"
+FAILURE_LINE_WIDTH = 3
+#: Big enough that a cross reads as a cross rather than as a smudge.
+FAILURE_SIZE = 11
+#: The tint a failed trial gets where the mark is a fill rather than a glyph — a
+#: table row, a duration bar. Transparent, because there the mark is saying
+#: "this one is different", not "this is not a measurement".
+FAILURE_FILL = "rgba(255, 43, 43, 0.45)"
+
+
+def _translucent(color: str, alpha: float = 0.7) -> str:
+    """A #rrggbb colour as rgba at *alpha*.
+
+    So a trace can fade its ordinary points per point instead of trace-wide,
+    which is what lets a failure's cross sit at full strength among them.
+    """
+    r, g, b = (int(color[i:i + 2], 16) for i in (1, 3, 5))
+    return f"rgba({r}, {g}, {b}, {alpha})"
+
+
+def _failure_marks(trials, *, size, symbol="circle", line_width=1,
+                   line_color="#FFFFFF", selected_idx=None):
+    """Per-point marker styling that marks whichever of *trials* failed.
+
+    Returns keys to merge over a trace's `marker`, or `{}` when nothing failed —
+    so a run without failures keeps its scalar styling and gains no per-point
+    arrays it has no use for.
+
+    Styling the existing trace rather than adding a second one, because a failed
+    trial has to stay selectable: its traceback is reached by clicking it, and
+    every figure's selection contract maps trace positions to trial indices one
+    for one (see `_selection_meta`). A separate trace would need its own entry
+    in that map, and both would then be answering for the same figure.
+    """
+    failed = [t.failed for t in trials]
+    if not any(failed):
+        return {}
+
+    sizes = list(size) if isinstance(size, (list, tuple)) else [size] * len(trials)
+    widths = list(line_width) if isinstance(line_width, (list, tuple)) else [line_width] * len(trials)
+    colors = list(line_color) if isinstance(line_color, (list, tuple)) else [line_color] * len(trials)
+
+    for i, bad in enumerate(failed):
+        if not bad:
+            continue
+        sizes[i] = max(sizes[i], FAILURE_SIZE)
+        widths[i] = FAILURE_LINE_WIDTH
+        colors[i] = (SELECTION_COLOR if i == selected_idx else NEGATIVE_COLOR)
+
+    return {
+        "symbol": [FAILURE_SYMBOL if bad else symbol for bad in failed],
+        "size": sizes,
+        "line": {"width": widths, "color": colors},
+    }
+
+
 #: How a figure is able to show which trial is selected. Not a style choice —
 #: it is decided by what the figure's colour already means.
 RECOLOR = "recolor"   # marker colour is free: paint the selected point with it
@@ -159,10 +227,16 @@ def performance_over_time_plot(result, display_metric, *, x_axis="trial",
 
     improved = [i == 0 or incumbents[i] > incumbents[i - 1] for i in range(len(trials))]
 
+    # Opacity per point rather than per trace: a failure's cross is meant to be
+    # read at full strength, and a trace-wide `opacity` would fade it with
+    # everything else.
+    fills = [_translucent(c) for c in colors]
+    marker = dict(size=sizes, color=fills)
+    marker.update(_failure_marks(trials, size=sizes, selected_idx=selected_idx))
+
     fig = go.Figure()
     fig.add_trace(go.Scatter(
-        x=xs, y=ys, mode="markers", name=outcome_name,
-        marker=dict(size=sizes, color=colors, opacity=0.7),
+        x=xs, y=ys, mode="markers", name=outcome_name, marker=marker,
     ))
     fig.add_trace(go.Scatter(
         x=xs, y=incumbent_ys, mode="lines", name="Incumbent",
@@ -784,19 +858,23 @@ def configuration_cube_plot(result, display_metric, config_space=None):
         return None
     customdata = [[t.config.get(h) for h in hp_names] for t in trials]
     scores = [t.scores[display_metric] for t in trials]
+    cube_marker = dict(size=8, color=scores, colorscale=_INTENSITY_SCALE, showscale=True,
+                       colorbar=dict(title=display_metric.capitalize()),
+                       # Opaque, and each point ringed in the card's own colour.
+                       # Left to blend, two points that nearly overlap composite
+                       # into something darker than either — which on a scale
+                       # where darker means better is a trial that did not
+                       # happen. The ring makes an overlap read as two points
+                       # rather than as one good one. (`opacity` defaults to 1;
+                       # said out loud because it is load-bearing here rather
+                       # than incidental.)
+                       opacity=1, line=dict(width=1, color="#FFFFFF"))
+    # A failure's fill stays on the score scale — 0.0, the worst end, which is
+    # what it scored — and the cross over it says the number was never measured.
+    cube_marker.update(_failure_marks(trials, size=8))
     fig = go.Figure(go.Scatter(
         x=[], y=[], mode="markers", customdata=customdata,
-        text=[f"Trial {t.trial}" for t in trials],
-        marker=dict(size=8, color=scores, colorscale=_INTENSITY_SCALE, showscale=True,
-                    colorbar=dict(title=display_metric.capitalize()),
-                    # Opaque, and each point ringed in the card's own colour.
-                    # Left to blend, two points that nearly overlap composite
-                    # into something darker than either — which on a scale where
-                    # darker means better is a trial that did not happen. The
-                    # ring makes an overlap read as two points rather than as
-                    # one good one. (`opacity` defaults to 1; said out loud
-                    # because it is load-bearing here rather than incidental.)
-                    opacity=1, line=dict(width=1, color="#FFFFFF")),
+        text=[f"Trial {t.trial}" for t in trials], marker=cube_marker,
     ))
     fig.update_layout(
         meta={"hp_names": hp_names,
@@ -847,19 +925,20 @@ def configuration_projection_plot(result, display_metric, method,
     if warning or not labels:
         return None
 
+    marker = dict(size=8, color=scores, colorscale=_INTENSITY_SCALE, showscale=True,
+                  colorbar=dict(title=display_metric.capitalize()),
+                  # Opaque, and each point ringed in the card's own colour.
+                  # Left to blend, two points that nearly overlap composite
+                  # into something darker than either — which on a scale where
+                  # darker means better is a trial that did not happen. The
+                  # ring makes an overlap read as two points rather than as
+                  # one good one. (`opacity` defaults to 1; said out loud
+                  # because it is load-bearing here rather than incidental.)
+                  opacity=1, line=dict(width=1, color="#FFFFFF"))
+    marker.update(_failure_marks(trials, size=8))
     fig = go.Figure(go.Scatter(
         x=[], y=[], mode="markers", customdata=coordinates,
-        text=[f"Trial {t.trial}" for t in trials],
-        marker=dict(size=8, color=scores, colorscale=_INTENSITY_SCALE, showscale=True,
-                    colorbar=dict(title=display_metric.capitalize()),
-                    # Opaque, and each point ringed in the card's own colour.
-                    # Left to blend, two points that nearly overlap composite
-                    # into something darker than either — which on a scale where
-                    # darker means better is a trial that did not happen. The
-                    # ring makes an overlap read as two points rather than as
-                    # one good one. (`opacity` defaults to 1; said out loud
-                    # because it is load-bearing here rather than incidental.)
-                    opacity=1, line=dict(width=1, color="#FFFFFF")),
+        text=[f"Trial {t.trial}" for t in trials], marker=marker,
     ))
     fig.update_layout(
         meta={"components": labels,
@@ -1009,7 +1088,14 @@ def parallel_coordinates_plot(result, display_metric, config_space=None):
     confined to the axes that need it, so every linear axis keeps showing its
     own values directly.
 
-    Returns None with no trials.
+    **A trial that failed is not drawn.** It has no measured score to end its
+    line at, and drawing it at the placeholder would run a line to the floor of
+    the score axis across every other line on the way. So the line count here is
+    the number of trials that produced a measurement, not the number that ran —
+    which is why the figures that *can* mark a point without being redrawn
+    around it are the ones that show them.
+
+    Returns None with no trials, and with no trial that succeeded.
     """
     trials = result.trials
     if not trials or not result.has_every_score(display_metric):
@@ -1056,7 +1142,20 @@ def parallel_coordinates_plot(result, display_metric, config_space=None):
                           xanchor="right", font=dict(size=9, color="#6b6b6b"))
                      for y, text in _dimension_ticks(dimension, place))
 
-    lo, hi = min(scores), max(scores)
+    # Failures are left out. A line here is a claim that this configuration
+    # scored what the last axis says it scored, and a failed trial's score is a
+    # placeholder — so its line would run to the bottom of the score axis and
+    # cross every other line on the way, which is a lot of ink spent drawing
+    # something that was never measured. They are on Trial performance, the
+    # projection, the durations and the table, every one of which can mark a
+    # point without redrawing the figure around it.
+    #
+    # The colour scale is theirs too: anchored to a fabricated 0.0, every trial
+    # that did run would be squeezed into the top of it.
+    live = [i for i in range(len(trials)) if not trials[i].failed]
+    if not live:
+        return None
+    lo, hi = min(scores[i] for i in live), max(scores[i] for i in live)
     span = (hi - lo) or 1.0
 
     fig = go.Figure()
@@ -1065,7 +1164,7 @@ def parallel_coordinates_plot(result, display_metric, config_space=None):
     # ordering is a decision made here: with hundreds of lines crossing, the
     # ones worth following are the ones that should be on top, and in trial
     # order they were simply whichever ran latest.
-    by_score = sorted(range(len(trials)), key=lambda i: scores[i])
+    by_score = sorted(live, key=lambda i: scores[i])
     for i in by_score:
         trial = trials[i]
         x, y = _densified([column[i] for column in columns])
@@ -1112,7 +1211,10 @@ def parallel_coordinates_plot(result, display_metric, config_space=None):
             {trace: [trial] for trace, trial in enumerate(by_score)},
             style=LINE, segment=_densified_length(len(dimensions)),
             # Which trace the highlight is drawn into — the one added last.
-            highlight=len(trials) + 1)},
+            # Counted from what was drawn rather than from what was run: a
+            # failure contributes no trace, so `len(trials)` would point past
+            # the end and the highlight would be written into nothing.
+            highlight=len(by_score) + 1)},
     )
     return fig
 
@@ -1232,14 +1334,21 @@ def local_effects_plot(hp_names: list, rows: list):
 def trial_duration_plot(result):
     """Bar of each trial's evaluation duration (seconds). Metric-independent.
 
+    A trial that failed is tinted rather than crossed. Its duration is a real
+    measurement whatever happened to its score — and often the interesting one,
+    since a crash is usually fast and a timeout is by definition the longest bar
+    on the figure.
+
     Returns None when there are no trials.
     """
     trials = result.trials
     if not trials:
         return None
+    # Tinted rather than crossed: a bar is a fill, and a length is still a
+    # length — a failed trial really did take that long to fail.
     fig = go.Figure(go.Bar(
         x=[t.trial for t in trials], y=[t.duration for t in trials],
-        marker_color=MARKER_COLOR,
+        marker_color=[FAILURE_FILL if t.failed else MARKER_COLOR for t in trials],
     ))
     fig.update_layout(
         xaxis_title="Trial", yaxis_title="Duration (s)",

@@ -2,13 +2,25 @@
 <p class="caption">{% blocktranslate with trial=sel.trial_n %}Trial {{ trial }} — click any point on the graph to select{% endblocktranslate %}</p>
 {% comment %}The metric and its number on one line: two lines said the
 same thing twice, and the label was the smaller half of a heading.{% endcomment %}
-<div class="metric-value">{{ sel.score|sig }} <span class="metric-unit">({{ sel.metric }})</span></div>
+<div class="metric-value{% if sel.failed %} failed{% endif %}">{{ sel.score|sig }} <span class="metric-unit">({{ sel.metric }})</span></div>
 {% comment %}Always shown, including for the incumbent itself — where it is
 zero, and says so rather than disappearing and taking the panel's height with
 it.{% endcomment %}
 <div class="metric-delta {% if sel.is_best %}level{% elif sel.delta > 0 %}up{% else %}down{% endif %}">
     {% if sel.delta > 0 %}+{% endif %}{{ sel.delta|sig }}{% if sel.is_best %} {% translate "(Incumbent)" %}{% endif %}
 </div>
+{% comment %}Said before the configuration rather than after it: the number
+above is a placeholder, and a reader who has just read it needs to know that
+before they read the configuration as the thing that produced it.{% endcomment %}
+{% if sel.failed %}
+    <p class="alert warning trial-failure">
+        {% translate "This trial produced no measurement — the score above is a placeholder the search was given, not a result." %}
+        <span class="failure-reason">{{ sel.failure }}</span>
+        {% if sel.has_traceback %}
+            <a href="{% url 'ui:trial_traceback' experiment.pk %}?idx={{ sel.idx }}" target="_blank" rel="noopener">{% translate "Full traceback →" %}</a>
+        {% endif %}
+    </p>
+{% endif %}
 <div class="table-wrap" style="margin-top: 1rem;">
     <table class="config">
         <thead><tr><th>{% translate "Hyperparameter" %}</th><th>{% translate "Value" %}</th></tr></thead>

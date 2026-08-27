@@ -22,6 +22,7 @@ urlpatterns = [
     path("experiments/<int:pk>/share/", views.experiment_share, name="experiment_share"),
     path("experiments/<int:pk>/trial-panel/", views.trial_panel, name="trial_panel"),
     path("experiments/<int:pk>/trial-ablation/", views.trial_ablation, name="trial_ablation"),
+    path("experiments/<int:pk>/trial-traceback/", views.trial_traceback, name="trial_traceback"),
     path("experiments/<int:pk>/partial-dependence/", views.partial_dependence, name="partial_dependence"),
     path("experiments/<int:pk>/local-effects/", views.local_effects, name="local_effects"),
     path("experiments/<int:pk>/figures/", views.metric_figures, name="metric_figures"),

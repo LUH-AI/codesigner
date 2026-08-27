@@ -11,7 +11,7 @@ hand-chosen numbers so every assertion is exact.
 import pytest
 
 from core.optimizers import OptimizationResult, TrialResult
-from ui.figures.plots import ACCENT_COLOR
+from ui.figures.plots import ACCENT_COLOR, _translucent
 from ui.figures import (
     configuration_cube_plot,
     configuration_projection_plot,
@@ -814,8 +814,12 @@ def test_the_selection_color_says_only_that_a_trial_is_selected():
     fig = performance_over_time_plot(_cube_result(), "accuracy", selected_idx=1)
 
     assert len({SELECTION_COLOR, ACCENT_COLOR, MARKER_COLOR}) == 3
-    assert fig.data[0].marker.color[1] == SELECTION_COLOR
-    assert fig.data[0].marker.color[0] == MARKER_COLOR
+    # Translucent, and the same colour: the points are faded per point rather
+    # than trace-wide, so a failed trial's cross can sit among them at full
+    # strength. What matters here is that it is the selection colour and not
+    # one of the other two.
+    assert fig.data[0].marker.color[1] == _translucent(SELECTION_COLOR)
+    assert fig.data[0].marker.color[0] == _translucent(MARKER_COLOR)
     assert fig.data[1].line.color == ACCENT_COLOR, "the incumbent line"
     assert fig.data[2].marker.color == ACCENT_COLOR, "the trials that improved it"
 

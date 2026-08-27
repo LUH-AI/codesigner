@@ -324,15 +324,61 @@ def test_smac_will_not_stop_on_confidence_before_it_has_evidence(
 
 # ── giving up ────────────────────────────────────────────────────────────────
 
+def _fail(collector, times=1):
+    for _ in range(times):
+        collector.record({"x": 1}, 0.0, {"accuracy": 0.0}, run_info={"status": 2})
+
+
+def test_the_first_failure_ends_the_run_by_default():
+    """`DEFAULT_MAX_FAILURES` is 1, so a failure is something you are told about
+    rather than something the run absorbs. A model still being written fails for
+    a reason its author can fix, and there is nothing to learn from watching it
+    fail another thirty-nine times."""
+    collector = _collector({"max_trials": 500})
+    _fail(collector)
+
+    assert collector.done is True
+    assert collector.stopped_by == "all_failing"
+
+
+def test_a_run_that_expects_failures_says_so_and_keeps_going():
+    """The other case: a search deliberately probing a region that cannot work.
+    Raising the limit is how someone says that is what they are doing."""
+    collector = _collector({"max_trials": 500, "max_failures": 10})
+    _fail(collector, 9)
+
+    assert collector.done is False
+
+    _fail(collector)
+    assert collector.done is True
+    assert collector.stopped_by == "all_failing"
+
+
+def test_the_total_is_not_reset_by_a_success():
+    """Which is the whole difference between it and the consecutive count. Ten
+    failures scattered through a run is the same finding as ten in a row for
+    someone deciding whether to trust the result."""
+    collector = _collector({"max_trials": 500, "max_failures": 3})
+    _fail(collector, 2)
+    collector.record({"x": 2}, 0.9, {"accuracy": 0.9}, run_info={"status": 1})
+
+    assert collector.done is False, "two of three used"
+
+    _fail(collector)
+    assert collector.done is True
+
+
 def test_a_run_whose_every_trial_fails_gives_up():
     """A model that cannot fit the dataset at all fails instantly and
     identically every time. Without this the run burns its whole budget and
-    reports a tidy row of zeros, which is what a broken run looked like."""
-    from core.optimizers.base import MAX_CONSECUTIVE_FAILURES
+    reports a tidy row of zeros, which is what a broken run looked like.
 
-    collector = _collector({"max_trials": 500})
-    for _ in range(MAX_CONSECUTIVE_FAILURES):
-        collector.record({"x": 1}, 0.0, {"accuracy": 0.0}, run_info={"status": 2})
+    The total limit is raised out of the way so this is the consecutive rule
+    being tested and not the total one firing first."""
+    from core.optimizers.base import DEFAULT_MAX_CONSECUTIVE_FAILURES
+
+    collector = _collector({"max_trials": 500, "max_failures": 10_000})
+    _fail(collector, DEFAULT_MAX_CONSECUTIVE_FAILURES)
 
     assert collector.done is True
     assert collector.stopped_by == "all_failing"
@@ -340,17 +386,24 @@ def test_a_run_whose_every_trial_fails_gives_up():
 
 def test_one_good_trial_resets_the_patience():
     """A search exploring a bad region is not a broken run. Only an unbroken
-    streak counts."""
-    from core.optimizers.base import MAX_CONSECUTIVE_FAILURES
+    streak counts — for the consecutive limit; the total is what does not
+    forgive, and it is raised here so the streak is what is being measured."""
+    from core.optimizers.base import DEFAULT_MAX_CONSECUTIVE_FAILURES
 
-    collector = _collector({"max_trials": 500})
-    for _ in range(MAX_CONSECUTIVE_FAILURES - 1):
-        collector.record({"x": 1}, 0.0, {"accuracy": 0.0}, run_info={"status": 2})
+    collector = _collector({"max_trials": 500, "max_failures": 10_000})
+    _fail(collector, DEFAULT_MAX_CONSECUTIVE_FAILURES - 1)
     collector.record({"x": 2}, 0.9, {"accuracy": 0.9}, run_info={"status": 1})
-    for _ in range(MAX_CONSECUTIVE_FAILURES - 1):
-        collector.record({"x": 3}, 0.0, {"accuracy": 0.0}, run_info={"status": 2})
+    _fail(collector, DEFAULT_MAX_CONSECUTIVE_FAILURES - 1)
 
     assert collector.done is False
+
+
+def test_the_failure_defaults_are_not_a_stopping_criterion_on_their_own():
+    """They go in after the check that a run has one, on purpose. A run with
+    nothing but them has no end anyone chose — it stops when it breaks, which is
+    not a plan — so it is still refused."""
+    with pytest.raises(NoStoppingCriterion):
+        _collector({})
 
 
 def test_a_trial_with_no_status_counts_as_a_success():
