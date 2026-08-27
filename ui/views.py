@@ -956,6 +956,21 @@ def _local_ablation_data(built, metric, idx):
     return (json.loads(fig.to_json()) if fig is not None else None), warning, ablation
 
 
+#: Whether the page offers "still to gain" at all.
+#:
+#: Off: the measure is not ready to be read. The presentation problems were the
+#: visible half, but the numbers are not established either — the same run,
+#: same seed, gives tunability +0.096 in one process and +0.070 in another,
+#: while being bit-identical within a process. `_tuning_progress` subtracts one
+#: of those quantities from another, so whatever moves between processes lands
+#: in its result, and a reader would be comparing a difference against a
+#: baseline that does not hold still. The tests below it check the arithmetic is
+#: self-consistent, which is a weaker claim than the measure being sound.
+#:
+#: Everything stays in place and stops being reachable from the page, so the
+#: switch back is this line — once the cross-process drift is understood.
+TUNING_PROGRESS_ENABLED = False
+
 #: Below this share of the achievable gain, "what is left" is rounding rather
 #: than headroom, and a pie of it would be a picture of noise.
 SETTLED = 0.02
@@ -996,6 +1011,9 @@ def _tuning_progress(result, metric, ablation):
     rounding, which is a finding — this trial has taken essentially everything
     there was — and not a figure.
     """
+    if not TUNING_PROGRESS_ENABLED:
+        return [], False
+
     shares = result.hyperparameter_importance.get(metric, {})
     total = result.hyperparameter_tunability_total.get(metric, 0.0)
     if not shares or not total or not ablation:
@@ -1347,6 +1365,11 @@ def _detail_context(request, exp):
         explanation_games=[(game, str(label)) for game, label in HP_GAME_LABELS.items()],
         explanation_game_help={game: str(text) for game, text in HP_GAME_HELP.items()},
         hp_names=hp_names,
+        # Whether the importance figure offers "still to gain" at all. The
+        # server already returns nothing for it when off, which would leave the
+        # box and the table's three columns there offering an answer that never
+        # arrives, so the markup goes too.
+        tuning_progress=TUNING_PROGRESS_ENABLED,
         incumbent_targets=incumbent_targets,
         incumbent_target=incumbent_targets.get(context["run_default_metric"], ""),
         trial_rows=[

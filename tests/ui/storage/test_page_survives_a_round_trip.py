@@ -134,6 +134,7 @@ def test_what_is_left_out_is_about_the_reader_not_the_experiment(client, rf):
     declarations = {"figures", "grid_figures", "column_figures",
                     "sidebar_figures", "selectable_figures", "selection_colors",
                     "autocompute", "explanation_games", "explanation_game_help",
-                    "has_result", "supports_confidence", "trials_page_size"}
+                    "has_result", "supports_confidence", "trials_page_size",
+                    "tuning_progress"}
 
     assert set(context) - set(DISPLAYED) == about_the_instance | declarations

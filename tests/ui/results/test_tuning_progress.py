@@ -12,6 +12,13 @@ trial − default) against the same baseline, in the same units. So the ratio is
 well posed, and the difference is what is still on the table. These cover the
 arithmetic, the two ways it can degenerate, and that asking for it changes
 nothing until it is asked for.
+
+**The measure is switched off** (`ui.views.TUNING_PROGRESS_ENABLED`), because the
+tunability it subtracts from is not stable across processes. So every test here
+but the last turns it back on: they are what says the code still works when the
+flag is flipped, which is the point of leaving it in place rather than deleting
+it. The last one is the only test of the shipped behaviour, and it asserts the
+page offers none of this.
 """
 
 import json
@@ -27,6 +34,12 @@ from ui.views import SETTLED, _tuning_progress
 from tests.conftest import FIXTURES_DIR
 
 
+@pytest.fixture
+def enabled(monkeypatch):
+    """Turn "still to gain" back on for one test."""
+    monkeypatch.setattr("ui.views.TUNING_PROGRESS_ENABLED", True)
+
+
 def _result(shares, total, **kw):
     trial = TrialResult(trial=1, config={}, scores={"accuracy": 0.8}, score=0.8,
                         incumbent_score=0.8, incumbent_config={})
@@ -37,7 +50,7 @@ def _result(shares, total, **kw):
         hyperparameter_tunability_total={"accuracy": total}, **kw)
 
 
-def test_the_share_and_the_scale_reconstruct_the_raw_value():
+def test_the_share_and_the_scale_reconstruct_the_raw_value(enabled):
     """The whole reason the scale is stored. A share cannot be compared against
     the ablation, which is raw and signed; `share x total` can."""
     rows, _settled = _tuning_progress(
@@ -51,7 +64,7 @@ def test_the_share_and_the_scale_reconstruct_the_raw_value():
     assert by["a"]["banked_share"] == 0.5
 
 
-def test_it_is_ordered_by_what_is_left_not_by_size():
+def test_it_is_ordered_by_what_is_left_not_by_size(enabled):
     """The actionable ordering, and deliberately not importance's. The point of
     the view is that the biggest hyperparameter is often the one with nothing
     left in it."""
@@ -63,7 +76,7 @@ def test_it_is_ordered_by_what_is_left_not_by_size():
     assert rows[0]["remaining"] > rows[1]["remaining"]
 
 
-def test_an_axis_the_trial_made_worse_keeps_its_sign():
+def test_an_axis_the_trial_made_worse_keeps_its_sign(enabled):
     """A negative banked value means this trial's setting is worse than the
     default — drift picked up while chasing whichever hyperparameter mattered.
     It is floored out of the share, because "you have overshot" is not somewhere
@@ -76,7 +89,7 @@ def test_an_axis_the_trial_made_worse_keeps_its_sign():
     assert rows[0]["remaining"] == 0.07, "and it counts as headroom, not as loss"
 
 
-def test_beating_the_estimated_ceiling_is_marked_rather_than_floored():
+def test_beating_the_estimated_ceiling_is_marked_rather_than_floored(enabled):
     """Measured, not hypothetical: on a real run the best-tuned hyperparameter
     banked more than tunability said was achievable.
 
@@ -93,7 +106,7 @@ def test_beating_the_estimated_ceiling_is_marked_rather_than_floored():
     assert rows[0]["beyond"] is True
 
 
-def test_falling_short_of_the_ceiling_is_not_marked():
+def test_falling_short_of_the_ceiling_is_not_marked(enabled):
     rows, _settled = _tuning_progress(
         _result({"a": 1.0}, 0.05), "accuracy", {"a": 0.02})
 
@@ -101,7 +114,7 @@ def test_falling_short_of_the_ceiling_is_not_marked():
     assert rows[0]["remaining"] == pytest.approx(0.03)
 
 
-def test_a_trial_that_has_taken_everything_says_so():
+def test_a_trial_that_has_taken_everything_says_so(enabled):
     """Rather than drawing a pie of rounding — the same lesson as the all-zero
     guard in `_compute_hp_game`: an empty answer is a finding, and a normalised
     empty answer is a picture of noise."""
@@ -112,7 +125,7 @@ def test_a_trial_that_has_taken_everything_says_so():
     assert sum(row["remaining"] for row in rows) < SETTLED * 0.10 + 1e-9
 
 
-def test_a_result_with_no_scale_offers_nothing_rather_than_a_wrong_ratio():
+def test_a_result_with_no_scale_offers_nothing_rather_than_a_wrong_ratio(enabled):
     """Every .ihpo written before the scale was stored has shares and no units.
     A ratio against the wrong denominator would be worse than no ratio."""
     rows, settled = _tuning_progress(
@@ -128,7 +141,7 @@ def _experiment():
         io.parse((FIXTURES_DIR / "analytics.ihpo").read_bytes()))
 
 
-def test_the_endpoint_carries_both_halves_and_the_renderings(client):
+def test_the_endpoint_carries_both_halves_and_the_renderings(client, enabled):
     """What is left cannot be precomputed — it depends on which trial is
     selected — so it rides back with the ablation that produced it, both
     renderings at once, and switching rendering afterwards costs no request."""
@@ -147,7 +160,7 @@ def test_the_endpoint_carries_both_halves_and_the_renderings(client):
         assert body["headroom"]["pie"]["data"][0]["type"] == "pie"
 
 
-def test_the_page_offers_it_without_computing_it(client):
+def test_the_page_offers_it_without_computing_it(client, enabled):
     """The box is on the page; what fills it is not, until it is ticked. A
     reader who never asks pays nothing."""
     exp = _experiment()
@@ -187,7 +200,7 @@ def test_the_stored_scale_is_what_the_shares_are_shares_of():
     assert sum(v * total for v in shares.values()) == pytest.approx(total)
 
 
-def test_it_reads_tunability_and_not_whichever_game_is_showing():
+def test_it_reads_tunability_and_not_whichever_game_is_showing(enabled):
     """Both halves are tunability's. The achievable side is its own game, and
     the banked side is the ablation, which measures against the same baseline
     the max game measures from — so the subtraction is only well posed there.
@@ -208,7 +221,7 @@ def test_it_reads_tunability_and_not_whichever_game_is_showing():
     assert by["b"]["achievable"] == 0.0
 
 
-def test_the_control_can_be_taken_away_as_one_thing(client):
+def test_the_control_can_be_taken_away_as_one_thing(client, enabled):
     """The checkbox and its explanation are one control, so the page hides them
     together when the game is not tunability — the same way the cube's axis
     pickers go when a projection is showing, rather than being left there
@@ -268,7 +281,7 @@ def test_both_games_are_measured_from_the_same_zero():
     assert ablation(np.zeros((1, n), bool))[0] == pytest.approx(0.0)
 
 
-def test_the_box_does_not_come_back_ticked(client):
+def test_the_box_does_not_come_back_ticked(client, enabled):
     """A browser restores a checkbox across a reload the way it restores a
     select. But this one is a *request* — it asks for a computation that has not
     been made — and a request is not a preference to remember. Restored, it comes
@@ -282,3 +295,36 @@ def test_the_box_does_not_come_back_ticked(client):
     assert "checked" not in box
     assert "if (startup && impRemaining) impRemaining.checked = false;" in html
     assert "syncRemainingControl(true)" in html, "and the page says so on load"
+
+
+# ── switched off, which is what ships ────────────────────────────────────────
+
+def test_none_of_it_reaches_the_page_while_the_measure_is_off(client):
+    """The shipped behaviour, and the only test here that does not turn the flag
+    back on.
+
+    Off has to mean absent rather than empty. The server returning no rows would
+    on its own leave the box and the table's three columns sitting there offering
+    an answer that never arrives, which reads as a broken feature rather than as
+    one that is not being offered — so the markup goes too, and both halves are
+    checked here: nothing to tick, and no columns to fill.
+    """
+    from ui import views
+
+    assert views.TUNING_PROGRESS_ENABLED is False, "this is what ships"
+
+    exp = _experiment()
+    html = client.get(reverse("ui:experiment_detail", args=[exp.pk])).content.decode()
+
+    assert 'id="importance-remaining"' not in html
+    assert "Still to gain" not in html
+    assert 'id="imp-settled"' not in html
+    table = html.split('class="importance-table"', 1)[1].split("</table>", 1)[0]
+    assert "progress-col" not in table
+
+    # And the endpoint that fed them returns the local explanation alone.
+    payload = json.loads(client.get(
+        f"/experiments/{exp.pk}/trial-ablation/?metric=accuracy&idx=0").content)
+    assert payload["rows"] == []
+    assert payload["split"] == {} and payload["headroom"] == {}
+    assert payload["settled"] is False
