@@ -1,5 +1,6 @@
 import copy
 import json
+import statistics
 import tempfile
 from importlib.metadata import version as dist_version
 from pathlib import Path
@@ -10,15 +11,17 @@ from django.core.exceptions import PermissionDenied
 from django.core.paginator import Paginator
 from django.http import Http404, HttpResponse, HttpResponseBadRequest, JsonResponse
 from django.shortcuts import redirect, render
+from django.template.loader import render_to_string
 from django.utils.translation import gettext as _
 from django.views.decorators.http import require_POST
 
 from core import io, provenance
+from core.modelhost import deadline
 from core.optimizers.base import FAILURE_CRITERIA
 
 from .figures import (
     FIGURES, FIGURES_BY_KEY, HP_GAME_FIELDS, HP_GAME_HELP, HP_GAME_LABELS,
-    MARKER_COLOR, SELECTION_COLOR,
+    MARKER_COLOR, SELECTION_COLOR, UNCERTAINTY_SCALE,
     autocompute_key,
     deferred_computations,
     hyperparameter_ablation_plot, hyperparameter_importance_plot,
@@ -145,6 +148,40 @@ def _posted_stopping(request) -> dict:
             continue
         stopping[key] = min(value, high) if high is not None else value
     return stopping
+
+
+def _posted_trial_timeout(request) -> dict:
+    """How long one call to the model may take, as submitted.
+
+    Read separately from `_posted_stopping` because it is not a stopping
+    criterion: nothing here ends a run, it ends a trial, and the run carries on
+    with that trial recorded as failed. Storing it among the criteria would also
+    mean the collector silently dropped it, since it filters to
+    `STOPPING_CRITERIA`.
+
+    Unlike a criterion, this one always has a value — a blank or unreadable box
+    falls back to the deployment's `MODEL_TRIAL_TIMEOUT` rather than being
+    absent, because "no deadline at all" is a thing to ask for deliberately (0)
+    and not a thing to arrive at by mistyping.
+    """
+    mode = request.POST.get("trial_timeout_mode")
+    if mode not in deadline.MODES:
+        mode = deadline.MODE_FIXED
+    return {
+        "mode": mode,
+        "seconds": _posted_number(request, "trial_timeout_seconds",
+                                  settings.MODEL_TRIAL_TIMEOUT, low=0.0),
+        "factor": _posted_number(request, "trial_timeout_factor",
+                                 deadline.DEFAULT_FACTOR, low=1.0),
+    }
+
+
+def _posted_number(request, key: str, default: float, *, low: float) -> float:
+    raw = (request.POST.get(key) or "").strip()
+    try:
+        return max(low, float(raw.replace(",", ".")))
+    except ValueError:
+        return float(default)
 
 
 #: Optimizer settings are posted with this prefix, so a parameter can be named
@@ -538,6 +575,54 @@ def partial_dependence(request, exp):
 
 
 @experiment_view(VIEW)
+def surrogate_uncertainty(request, exp):
+    """The uncertainty field under the configuration cube's axes view, for one
+    (metric, x, y) — how much the surrogate's own trees disagree across the
+    plane those two hyperparameters span.
+
+    **The axes view only, and only at two axes.** The two projections have no
+    way back: `core.projection.project` returns coordinates and discards the
+    fitted PCA/PLS, so there is no inverse to map a grid in component space
+    back to configurations — and even with one, the points it landed on need not
+    be valid configurations. Three axes would be a volume through a point cloud,
+    which is a worse picture than none. One is a strip, and a field under a strip
+    has no second dimension to vary in.
+
+    Fetched rather than shipped, like partial dependence and for the same
+    reason: it is per *pair*, and a model with six hyperparameters has fifteen
+    pairs of which the reader is looking at one.
+    """
+    metric = request.GET.get("metric", "")
+    x_hp = request.GET.get("x", "")
+    y_hp = request.GET.get("y", "")
+    if metric not in exp.metric_names:
+        return HttpResponseBadRequest("unknown metric")
+
+    built = _rebuild_experiment(exp)
+    result = built["result"] if built else None
+    if result is None or not result.trials:
+        return HttpResponseBadRequest("no result")
+
+    config_space = _config_space_for(built)
+    if config_space is None:
+        return JsonResponse({
+            "x": [], "y": [], "z": [],
+            "warning": _("The model this experiment used is not available here, "
+                         "so its search space cannot be rebuilt."),
+        })
+
+    x_grid, y_grid, z, warning = built["optimizer"].compute_surrogate_uncertainty(
+        config_space, result.trials, metric, x_hp, y_hp, seed=built["seed"])
+    return JsonResponse({
+        "x": x_grid, "y": y_grid, "z": z, "warning": warning,
+        # The ramp travels with the numbers, so what the colour *means* stays
+        # declared once in `plots.py` beside every other colour on the page —
+        # see UNCERTAINTY_SCALE for why it is neither green nor blue.
+        "colorscale": UNCERTAINTY_SCALE,
+    })
+
+
+@experiment_view(VIEW)
 def local_effects(request, exp):
     """The beeswarm of every sampled trial's local effect, for one metric.
 
@@ -602,6 +687,7 @@ def experiment_run(request, exp):
         return redirect("ui:experiment_detail", pk=exp.pk)
 
     stopping = _posted_stopping(request)
+    trial_timeout = _posted_trial_timeout(request)
     chosen = request.POST.get("optimize_metric")
     decision = request.POST.get("decision")
 
@@ -627,24 +713,144 @@ def experiment_run(request, exp):
                 # Carried through the confirmation, or answering it would
                 # silently drop the limits the run was set up with.
                 "stopping": stopping,
+                "trial_timeout": trial_timeout,
             })
 
     run = run_service.create_run(exp, stopping, optimize_metric,
-                                 started_by=_owner(request))
+                                 started_by=_owner(request),
+                                 trial_timeout=trial_timeout)
     run_service.start_background_run(run.id)
     return redirect("ui:experiment_detail", pk=exp.pk)
 
 
+def _stored_trial_count(exp) -> int:
+    """How many trials *exp*'s saved result holds, without rebuilding it.
+
+    Read straight off the JSON rather than through `_rebuild_experiment`,
+    because this is polled every two seconds and the answer is usually "the same
+    as last time" — the whole point of asking is to decide whether it is worth
+    doing any of the expensive work at all.
+    """
+    return len((exp.result or {}).get("data") or [])
+
+
+#: How often the run-status fragment is polled, in seconds. The floor is what a
+#: poll can usefully be — the run writes at most every
+#: `PARTIAL_RESULT_SECONDS`, so anything faster is a request that can only
+#: answer "nothing yet". Above it the interval follows the trials themselves:
+#: polling ten times per trial is ten times the traffic for one new row, and on
+#: a real dataset a trial is minutes rather than milliseconds. The ceiling keeps
+#: a long-trial run from feeling stopped.
+POLL_MIN_SECONDS = 5
+POLL_MAX_SECONDS = 30
+
+
+def _poll_seconds(exp) -> int:
+    """How long the page should wait before asking again.
+
+    Read off the trials already stored — their own recorded durations — so it
+    adapts as a run goes and needs nothing measured on the page. The median of
+    the last few rather than the mean of all of them: a run's first trials are
+    not like its later ones, and one pathological trial should not slow the poll
+    for the rest of the run.
+
+    Rendered into the fragment's own `hx-trigger`, which poll.js re-reads off
+    each replacement — so the interval adapts per swap with no state anywhere
+    and no second mechanism.
+    """
+    data = (exp.result or {}).get("data") or []
+    recent = [entry.get("time") or 0.0 for entry in data[-10:]]
+    typical = statistics.median(recent) if recent else 0.0
+    return int(min(POLL_MAX_SECONDS, max(POLL_MIN_SECONDS, round(typical))))
+
+
+def _live_payloads(exp, since: int = 0):
+    """Fresh plots for every live figure of *exp*, for every metric, and the
+    table rows for the trials the page has not seen.
+
+    Only the figures declaring `Figure.live` — the ones that read nothing but
+    the trials. Every metric rather than only the one being viewed, because the
+    poll has no way to know which that is and the page switches between them
+    without asking the server (see `metric_figures`); a live figure is four
+    cheap Plotly builds, against the surrogate fits this deliberately excludes.
+
+    Shaped to match the page's own two payload maps, so the browser merges
+    rather than translates: `metric_plots[metric][key]` and `static_plots[key]`.
+    """
+    built = _rebuild_experiment(exp)
+    result = built["result"] if built else None
+    if result is None or not result.trials:
+        return {}
+
+    shown = _shown_figures(exp)
+    live = [f for f in shown if f.live]
+    config_space = _config_space_for(built)
+    per_metric = [f for f in live if f.per_metric]
+    static = [f for f in live if not f.per_metric]
+    payload = {
+        "metric_plots": {
+            metric: _figure_plots(result, per_metric, metric, config_space=config_space)
+            for metric in exp.metric_names
+        } if per_metric else {},
+        "static_plots": _figure_plots(result, static, None, config_space=config_space),
+    }
+
+    # The trials table is server-rendered HTML rather than a plot, so it cannot
+    # ride in the payload maps above. It gets the rows it is missing instead —
+    # rendered from the same partial the page built the table from, and appended
+    # rather than swapped, so a sort, a page, a scroll position and a selected
+    # row all survive an update that only adds to the end.
+    if any(f.key == "trials" for f in shown) and len(result.trials) > since:
+        payload["rows_html"] = render_to_string(
+            "ui/figures/_trial_rows.html",
+            {"trial_rows": _trial_rows(result, exp.metric_names,
+                                       _hp_names(result), start=since)})
+    return payload
+
+
 @experiment_view(VIEW)
 def run_status(request, exp):
-    """HTMX poll target: the current run's status, or a refresh when finished."""
+    """HTMX poll target: the current run's status, or a refresh when finished.
+
+    Also the channel for figures that move while the run is still going. There
+    was never a rendering constraint on those — the trial-based figures need
+    nothing but the trials — only a persistence one: the result was written once,
+    at the end. `ui/services/run.py` now writes it periodically, and this hands
+    the page whatever has arrived since it last said what it had.
+
+    No new endpoint and no second poll loop: this fragment is already fetched
+    every two seconds and already replaced wholesale, so the payload rides along
+    inside it. `?trials=` is the page saying how many trials it has drawn, which
+    is what keeps the cost down — build the plots only when that disagrees with
+    what is stored, which under a five-second write interval is at most every
+    third poll.
+
+    A page showing "No results yet" has no figure grid to draw into, so it is
+    sent the count alone and reloads itself once — see `experiment_detail.html`.
+    """
     run_service.sweep_orphaned_runs()
     active = exp.runs.filter(status__in=_ACTIVE).order_by("-id").first()
     if active is None:
         response = HttpResponse("")
         response["HX-Refresh"] = "true"
         return response
-    return render(request, "ui/_run_status.html", {"experiment": exp, "run": active})
+
+    stored = _stored_trial_count(exp)
+    try:
+        seen = int(request.GET.get("trials", stored))
+    except (TypeError, ValueError):
+        seen = stored
+
+    context = {"experiment": exp, "run": active, "trial_count": stored,
+               "poll_seconds": _poll_seconds(exp)}
+    if stored != seen:
+        live = {"trials": stored}
+        # Nothing to merge into on a page that has no figures — it is about to
+        # reload, so building payloads for it would be work thrown away.
+        if seen > 0:
+            live.update(_live_payloads(exp, since=seen))
+        context["live"] = live
+    return render(request, "ui/_run_status.html", context)
 
 
 @experiment_view(VIEW)
@@ -660,6 +866,73 @@ def env_status(request, exp):
         response["HX-Refresh"] = "true"
         return response
     return render(request, "ui/_env_status.html", {"experiment": exp})
+
+
+def _analytics_absent(result) -> bool:
+    """True when a stored result has trials but no explanation games in it.
+
+    Two ways to arrive here, both deliberate. A **cancelled** run skips them:
+    pressing Cancel used to still buy the full analytics bill, so on a wide
+    model you waited minutes for a run you had just stopped. A **partial** write
+    (`ui/services/run.py`) leaves them out for the same reason at finer grain —
+    2^n_hp coalitions per game per metric is not something to pay per trial.
+
+    Both used to be permanent: the numbers were computed once, at run
+    completion, or never. `experiment_compute_analytics` is the way to ask for
+    them afterwards, so declining to compute them eagerly no longer means
+    declining to compute them at all.
+    """
+    return bool(result.trials) and not any(result.hyperparameter_importance.values())
+
+
+@require_POST
+@experiment_view(RUN)
+def experiment_compute_analytics(request, exp):
+    """Compute the explanation games for an experiment that has none.
+
+    Synchronous, and bounded by the same budget the eager computation is held
+    to: `eager_analytics_budget_exceeded` turns away anything wide enough to be
+    a problem, which leaves this in the same range as the local-effects fetch
+    the page already makes. Anything it declines is declined with a reason, on
+    the page, rather than started and waited on.
+
+    Written back onto the result rather than returned as a payload — which is
+    where the three fetched figures differ, and why. Those answer a question
+    that has no small precomputable set of answers (which trial, which
+    hyperparameter), so each one is a fresh request. These are exactly the
+    fields the result already has, computed from the same trials that are
+    already stored, so filling them in makes the result what a completed run
+    would have written — the page renders it with no live-update path of its
+    own, the export carries it, and nobody pays for it twice.
+
+    Refused while a run is in flight: it would race that run's own partial
+    writes, and the run will compute them itself when it finishes.
+    """
+    if exp.is_running:
+        return redirect("ui:experiment_detail", pk=exp.pk)
+
+    built = _rebuild_experiment(exp)
+    result = built["result"] if built else None
+    if result is None or not result.trials:
+        return redirect("ui:experiment_detail", pk=exp.pk)
+
+    optimizer = built["optimizer"]
+    optimizer.analytics_max_coalitions = settings.ANALYTICS_EAGER_MAX_COALITIONS or None
+    games = optimizer.compute_hp_games(
+        _config_space_for(built), result.trials, built["metrics"], seed=built["seed"])
+
+    for game, fields in HP_GAME_FIELDS.items():
+        importance, warning, interactions, moebius, total = games[game]
+        setattr(result, fields["importance"], importance)
+        setattr(result, fields["warning"], warning)
+        setattr(result, fields["interactions"], interactions)
+        setattr(result, fields["moebius"], moebius)
+    result.hyperparameter_interactions_warning = games["tunability"][1]
+    result.hyperparameter_tunability_total = games["tunability"][4]
+
+    Experiment.objects.filter(pk=exp.pk).update(
+        result=optimizer.serialize_result(result))
+    return redirect("ui:experiment_detail", pk=exp.pk)
 
 
 @require_POST
@@ -1166,6 +1439,44 @@ def _config_space_for(built):
     return model.get_config_space(seed=built["seed"]) if model is not None else None
 
 
+def _hp_names(result) -> list:
+    """The hyperparameters a result's trials carry, in config order."""
+    return list(result.trials[0].config.keys()) if result.trials else []
+
+
+def _trial_rows(result, metric_names, hp_names, start: int = 0) -> list:
+    """The trials table's rows, from *start* onwards.
+
+    Module-level and sliceable because it is rendered twice: the whole table
+    when the page is built, and the tail of it when a run adds trials and the
+    poll appends them — from the same partial, so the two cannot drift into
+    formatting a duration or a failure differently.
+    """
+    return [
+        {
+            # Its position in the result, which is what everything that names a
+            # trial uses — the panel endpoint, the local-ablation cache, every
+            # plot's selection meta. `n` is the number shown.
+            "idx": i,
+            "n": t.trial,
+            "config_values": [t.config.get(h) for h in hp_names],
+            # .get, not [m]: a row stored before io.parse checked for it can be
+            # missing a metric, and the table's job is to show what is there
+            # rather than to be the thing that 500s the page.
+            "scores": [t.scores.get(m) for m in metric_names],
+            "duration": t.duration,
+            # A trial that produced no measurement. Its scores are all 0.0 and
+            # read as a bad trial rather than as no trial, so the row has to say
+            # which it is — and the reason, since a table has room for it where
+            # a figure does not.
+            "failed": t.failed,
+            "failure": t.failure,
+        }
+        for i, t in enumerate(result.trials)
+        if i >= start
+    ]
+
+
 def _figure_plots(result, figures, metric=None, config_space=None):
     """`{figure key: plot JSON}` for *figures* at *metric*.
 
@@ -1318,6 +1629,19 @@ def _detail_context(request, exp):
         "supports_confidence": getattr(
             _optimizer_for(exp.optimizer_name), "supports_confidence_stopping", False),
         "run_default_metric": exp.current_metric or (metric_names[0] if metric_names else None),
+        # What the deadline fields open on. The deployment's number, so an
+        # instance that has tuned `MODEL_TRIAL_TIMEOUT` for its own hardware
+        # offers that rather than making everyone retype it.
+        "default_trial_timeout": int(settings.MODEL_TRIAL_TIMEOUT),
+        "default_trial_factor": deadline.DEFAULT_FACTOR,
+        # How many trials this page has drawn, which the run-status poll sends
+        # back so the server can tell whether anything has moved since. 0 here
+        # and overwritten below: the early return means "no figure grid", and
+        # that is exactly what 0 tells `run_status`.
+        "trial_count": 0,
+        # How long the run-status poll waits between asks. Follows the trials'
+        # own durations — see `_poll_seconds`.
+        "poll_seconds": _poll_seconds(exp),
     }
     # A result with no trials is the same story as no result at all — there is
     # nothing to plot and no best trial to describe — so it takes the same early
@@ -1327,6 +1651,16 @@ def _detail_context(request, exp):
     # result that has trials), which is why this went unnoticed.
     if result is None or not result.trials:
         return context
+
+    # Past the early return, so there is a grid: say how much of the run it is
+    # showing. `run_status` compares this against what is stored and only builds
+    # fresh plots when the two disagree.
+    context["trial_count"] = len(result.trials)
+    # And whether the explanations are missing and could be asked for — a
+    # cancelled run's are skipped by design, and a partial write leaves them out
+    # for the same reason. Not while a run is in flight: it will compute them
+    # itself when it ends, and asking now would race its own writes.
+    context["analytics_absent"] = _analytics_absent(result) and not active_run
 
     # Which figures to draw. A figure that is switched off is not rendered and
     # its plot is not built, so nothing is computed or shipped to go unused.
@@ -1431,6 +1765,10 @@ def _detail_context(request, exp):
         # selected (Figure.selects_trials), so the page's selection bus iterates
         # a declaration instead of naming figures.
         selectable_figures=[f.key for f in figures if f.selects_trials],
+        # And which of them a running run can redraw from its trials alone
+        # (Figure.live) — the same declaration `run_status` builds payloads for,
+        # so the page and the poll cannot disagree about which figures move.
+        live_figures=[f.key for f in figures if f.live],
         # The two colours the highlight is drawn in, from the builders that draw
         # everything else in them — the script used to restate them, which is
         # one place for the page and the plots to disagree about what "selected"
@@ -1449,28 +1787,7 @@ def _detail_context(request, exp):
         tuning_progress=TUNING_PROGRESS_ENABLED,
         incumbent_targets=incumbent_targets,
         incumbent_target=incumbent_targets.get(context["run_default_metric"], ""),
-        trial_rows=[
-            {
-                # Its position in the result, which is what everything that
-                # names a trial uses — the panel endpoint, the local-ablation
-                # cache, every plot's selection meta. `n` is the number shown.
-                "idx": i,
-                "n": t.trial,
-                "config_values": [t.config.get(h) for h in hp_names],
-                # .get, not [m]: a row stored before io.parse checked for it
-                # can be missing a metric, and the table's job is to show what
-                # is there rather than to be the thing that 500s the page.
-                "scores": [t.scores.get(m) for m in metric_names],
-                "duration": t.duration,
-                # A trial that produced no measurement. Its scores are all 0.0
-                # and read as a bad trial rather than as no trial, so the row
-                # has to say which it is — and the reason, since a table has
-                # room for it where a figure does not.
-                "failed": t.failed,
-                "failure": t.failure,
-            }
-            for i, t in enumerate(result.trials)
-        ],
+        trial_rows=_trial_rows(result, metric_names, hp_names),
         # The table's own page size, so its field and the script that reads it
         # start from the figure's number rather than each restating one.
         trials_page_size=FIGURES_BY_KEY["trials"].page_size,

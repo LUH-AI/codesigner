@@ -14,6 +14,11 @@
     --muted: rgba(49, 51, 63, 0.6);
     --border: rgba(49, 51, 63, 0.2);
     --border-light: rgba(49, 51, 63, 0.1);
+    /* One trial, one experiment, one row: the shade that means "this is the one
+       you picked", shared with plots.py's SELECTION_COLOR so the page and the
+       figures agree. Deliberately not --primary, which is the brand red and
+       means "this is an action" — two different jobs that looked alike. */
+    --selected: #EC8273;
     --green: #09ab3b;
     --red: #ff2b2b;
     --radius: 0.5rem;
@@ -234,10 +239,15 @@ nav.sidebar .nav-links a:hover { color: var(--primary); }
     font-size: 0.95rem;
 }
 .tab-list .tab:hover { background: rgba(49, 51, 63, 0.06); }
+/* The accent and the tint carry "selected" — in the same shade the figures use
+   for it — while the label stays in the text colour. The shade is a soft coral
+   chosen to sit under a scatter plot, which makes it too light to read a word
+   in: as a 3:1 foreground it was failing contrast before this change and would
+   have failed harder after it. Weight does the work the colour used to. */
 .tab-list .tab.active {
-    background: rgba(255, 75, 75, 0.08);
-    border-left-color: var(--primary);
-    color: var(--primary);
+    background: rgba(236, 130, 115, 0.12);
+    border-left-color: var(--selected);
+    color: var(--text);
     font-weight: 600;
 }
 

@@ -30,7 +30,13 @@ you cannot have.
             {% comment %}The selector stays inside the form so it is still the
             run's own optimize-metric field; only what bounds the run folds
             away.{% endcomment %}
-            <details class="run-config">
+            {% comment %}Open on an experiment that has never run. Folded away is
+            right once there are results — the metric selector above is the
+            control you keep coming back to, and the run settings are a decision
+            taken once — but on a fresh experiment there is nothing else to do
+            with the page yet, and a closed fold makes starting a run look like
+            it needs finding.{% endcomment %}
+            <details class="run-config"{% if not has_result %} open{% endif %}>
                 <summary>{% translate "Next run" %}</summary>
                 {% comment %}
                 No field here is required and none is the default. What is
@@ -105,12 +111,78 @@ you cannot have.
                                value="15" min="1" step="1" aria-describedby="max_consecutive_failures_help">
                     </div>
                 </fieldset>
+                {% comment %}A third fieldset rather than a third "give up if…"
+                field, because this one does not end the run: it ends a trial,
+                and the run carries on with that trial recorded as failed. Which
+                of the two failure limits above then fires is the run's
+                decision, not this one's.
+
+                "Model fit" and not "trial", because the deadline is enforced on
+                one `fit_predict` — and under cross-validation a trial is one of
+                those per fold, so a 5-fold trial is given the deadline five
+                times over. Calling it a trial limit would have been wrong by a
+                factor of `cv_folds` for most experiments here, cross-validation
+                being the default. "One model fit per fold" is already how the
+                new-experiment form describes the same unit.
+
+                Only enforceable on a model that runs in its own process —
+                nothing can interrupt a `fit_predict` running in this thread —
+                so for an in-process model the fields are absent rather than
+                sitting there being ignored.{% endcomment %}
+                {% if not env.in_process %}
+                    <fieldset class="check-group stopping">
+                        <legend>{% translate "Give up on a model fit after…" %}</legend>
+                        <div class="field">
+                            <div class="field-label">
+                                <label for="trial_timeout_mode">{% translate "…a deadline set" %}</label>
+                                {% translate "The limit is on one model fit, not on a whole trial: under cross-validation a trial is one fit per fold, and each fold is given the deadline separately. A fixed deadline is one number for every configuration, and nobody knows the right one before their first run. Predicted fits a forest to how long the fits already measured in this run took, and gives each new one a multiple of what it predicts for that configuration — so a large configuration gets proportionally longer instead of being killed for being large. The seconds below stay the outer bound under either." as timeout_help %}
+                                {% include "ui/_info.html" with info_id="trial_timeout_help" info_text=timeout_help %}
+                            </div>
+                            <select id="trial_timeout_mode" name="trial_timeout_mode"
+                                    aria-describedby="trial_timeout_help">
+                                <option value="fixed" selected>{% translate "a fixed number of seconds" %}</option>
+                                <option value="predicted">{% translate "a multiple of its predicted duration" %}</option>
+                            </select>
+                        </div>
+                        <div class="field">
+                            <label for="trial_timeout_seconds">{% translate "…this many seconds (0 for no limit)" %}</label>
+                            <input type="number" id="trial_timeout_seconds" name="trial_timeout_seconds"
+                                   value="{{ default_trial_timeout }}" min="0" step="1">
+                        </div>
+                        <div class="field" data-timeout-mode="predicted" hidden>
+                            <label for="trial_timeout_factor">{% translate "…this many times the fit's predicted duration" %}</label>
+                            <input type="number" id="trial_timeout_factor" name="trial_timeout_factor"
+                                   value="{{ default_trial_factor }}" min="1" step="0.5">
+                        </div>
+                    </fieldset>
+                {% endif %}
                 <button type="submit" class="btn-primary btn-block">{% translate "▶ Run" %}</button>
                 {% if env.ready and env.summary %}
                     <p class="caption">{% blocktranslate with summary=env.summary %}Environment: {{ summary }}{% endblocktranslate %}</p>
                 {% endif %}
             </details>
         </form>
+        {% if not env.in_process %}
+            <script>
+                // The multiplier only means anything under the predicted mode,
+                // so it appears with it. Hidden rather than disabled: an empty
+                // field that does nothing is a question the form is asking for
+                // no reason. Emitted under the same condition as the fields, so
+                // a page with no deadline to set does not mention one.
+                (function () {
+                    const form = document.currentScript.closest("section").querySelector("form");
+                    const mode = form.querySelector('[name="trial_timeout_mode"]');
+                    const only = form.querySelectorAll("[data-timeout-mode]");
+                    function apply() {
+                        only.forEach(function (el) {
+                            el.hidden = el.dataset.timeoutMode !== mode.value;
+                        });
+                    }
+                    mode.addEventListener("change", apply);
+                    apply();
+                })();
+            </script>
+        {% endif %}
         <script>
             // The two criteria that may never fire. Chosen alone, the run
             // has no guaranteed end — said quietly, next to the fields,

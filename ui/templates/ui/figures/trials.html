@@ -13,25 +13,12 @@ configuration that produced it. The outcome columns sort on click.{% endcomment 
                     {% for h in hp_names %}<th{% if forloop.first %} class="group-start"{% endif %}>{{ h }}</th>{% endfor %}
                 </tr>
             </thead>
-            <tbody>
-                {% for row in trial_rows %}
-                    {% comment %}The trial this row stands for, as an attribute
-                    rather than the row's position: the outcome columns sort by
-                    reordering these nodes, so position is not identity. Every
-                    row is selectable, and the selected one is the same trial
-                    every figure on the page is showing.{% endcomment %}
-                    <tr data-trial-idx="{{ row.idx }}" tabindex="0"{% if row.failed %} class="failed" title="{% blocktranslate with reason=row.failure %}This trial did not produce a measurement: {{ reason }}{% endblocktranslate %}"{% endif %}>
-                        <td data-sort="{{ row.n }}">{{ row.n }}{% if row.failed %} <span aria-label="{% translate 'failed' %}">✕</span>{% endif %}</td>
-                        {% comment %}Its scores are shown as stored — zero — and
-                        the row's tint is what says they were never measured.
-                        Blanking them would leave the columns unsortable and
-                        hide that the search was handed these numbers.{% endcomment %}
-                        {% for score in row.scores %}<td data-sort="{{ score }}">{{ score|sig }}</td>{% endfor %}
-                        <td data-sort="{{ row.duration }}">{{ row.duration|sig }} s</td>
-                        {% for v in row.config_values %}<td{% if forloop.first %} class="group-start"{% endif %}>{{ v|sig }}</td>{% endfor %}
-                    </tr>
-                {% endfor %}
-            </tbody>
+            {% comment %}The rows are their own partial because a run adds to
+            them while it is going: the poll renders the same partial for the
+            trials the page has not seen and appends them. See views.py's
+            `_live_payloads` and experiment_detail.html's `poll:swapped`
+            listener.{% endcomment %}
+            <tbody>{% include "ui/figures/_trial_rows.html" %}</tbody>
         </table>
     </div>
     {% comment %}Paged rather than scrolled once a run is long: a table of five

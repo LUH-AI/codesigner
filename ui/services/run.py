@@ -19,7 +19,7 @@ from django.utils import timezone
 from core import io
 from core.io import DEFAULT_TEST_SIZE, _load_splits
 
-from core.optimizers.base import STOPPED_BY_CANCELLED
+from core.optimizers.base import STOPPED_BY_CANCELLED, OptimizationResult
 
 from .. import permissions, registry
 from ..registry import METRICS, MODELS, OPTIMIZERS
@@ -73,12 +73,16 @@ class DbCancelFlag:
         return self._value
 
 
-def create_run(experiment, stopping, optimize_metric, started_by=None):
+def create_run(experiment, stopping, optimize_metric, started_by=None,
+               trial_timeout=None):
     """Record a pending run and commit its metric onto the experiment.
 
     `current_metric` becomes the optimized metric; original is pinned on the
     first run. *stopping* is the criteria the run ends on — at least one; see
-    `core.optimizers.base.STOPPING_CRITERIA`. Returns the pending Run.
+    `core.optimizers.base.STOPPING_CRITERIA`. *trial_timeout* is how long any
+    one call to the model may take — see `core.modelhost.deadline` — which is a
+    limit on a trial rather than on the run, and so is not one of them. Returns
+    the pending Run.
 
     The optimizer's settings are copied onto the run rather than referenced.
     They are editable between runs, so the experiment's current settings are not
@@ -99,6 +103,7 @@ def create_run(experiment, stopping, optimize_metric, started_by=None):
         status="pending",
         started_by=started_by,
         stopping=dict(stopping),
+        trial_timeout=dict(trial_timeout or {}),
         events=events,
     )
 
@@ -138,6 +143,68 @@ def _metric_change_event(experiment, now):
         "surrogate": ("rebuilt_and_replayed"
                       if getattr(optimizer, "fits_surrogate", False) else "none"),
     }]
+
+
+#: How often a run at most writes what it has so far. Throttled by wall clock
+#: rather than by a trial count, because trial durations span three orders of
+#: magnitude here: at one write per trial a run of 0.07s trials would rewrite the
+#: whole result a dozen times a second, and a count that fixed that would starve
+#: a run of ten-minute trials of updates for an hour. Serializing costs O(bytes
+#: so far), so a time bound is what actually bounds the total — one write per
+#: interval however fast the trials arrive.
+PARTIAL_RESULT_SECONDS = 5.0
+
+
+def _partial_result_writer(experiment_pk, optimizer, previous_result, primary_metric):
+    """A `BaseOptimizer.progress` callback that saves the run's trials so far.
+
+    **The constraint was never rendering, it was persistence.** Every
+    trial-based figure — trial performance, trial duration, the trials table,
+    parallel coordinates, the projection, best and selected configuration —
+    needs nothing but the trials, and the page has always been able to draw
+    them. It simply had nothing to draw: `execute_run` wrote
+    `experiment.result` exactly once, after `_optimize` returned.
+
+    What is deliberately *not* here is the analytics. Importance, interactions,
+    PDP and local effects each cost a surrogate fit or 2^n_hp coalitions, and
+    none of them may run per trial. A partial result leaves those fields empty,
+    which is a state the page already handles — it is what a cancelled run
+    produces (see `BaseOptimizer.compute_hp_games`).
+
+    The channel is the database, not the process: under a real huey consumer the
+    run is in a worker process and nothing in-process could hand the page
+    anything. Written with the same filtered `update()` the final write uses, so
+    an experiment deleted mid-run is not resurrected by its own run finishing a
+    trial.
+    """
+    from ..models import Experiment
+
+    previous_trials = previous_result.trials if previous_result else []
+    state = {"at": time.monotonic()}
+
+    def write(collector) -> bool:
+        now = time.monotonic()
+        if now - state["at"] < PARTIAL_RESULT_SECONDS:
+            return False
+        state["at"] = now
+
+        trials = previous_trials + collector.results
+        partial = OptimizationResult(
+            trials=trials,
+            primary_metric=primary_metric,
+            best_config=collector.incumbent_config or {},
+            best_score=collector.incumbent_score,
+            # Empty, not absent: see above. Every `hyperparameter_*` field
+            # defaults to empty, and the two that do not have defaults are
+            # given them here.
+            hyperparameter_importance={},
+            hyperparameter_importance_warning={},
+        )
+        Experiment.objects.filter(pk=experiment_pk).update(
+            result=optimizer.serialize_result(partial))
+        return True
+
+    return write
 
 
 def execute_run(run_id):
@@ -190,6 +257,11 @@ def execute_run(run_id):
         # 2^n_hp coalition evaluations per game per metric, for nobody. Read
         # here rather than in `core/`, same as the budget above.
         optimizer.analytics_wanted = eager_analytics_wanted(resolve_settings(run.experiment))
+        # And how the page sees any of it before the run ends. Same reasoning
+        # about where this is set: the callback writes to the database, which
+        # `core/` knows nothing about.
+        optimizer.progress = _partial_result_writer(
+            experiment.pk, optimizer, built["result"], run.primary_metric)
         offset = len(built["result"].trials) if built["result"] else 0
         cancel = DbCancelFlag(run_id)
 
@@ -215,7 +287,8 @@ def execute_run(run_id):
 
             with model_session(
                 launch, built["splits"],
-                seed=built["seed"], cancel=cancel, **modelenv.session_kwargs(),
+                seed=built["seed"], cancel=cancel,
+                **modelenv.session_kwargs(run.trial_timeout, seed=built["seed"]),
             ) as model:
                 result = _optimize(model)
     except Exception as exc:  # noqa: BLE001 — any failure is reported on the run

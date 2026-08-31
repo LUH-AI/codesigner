@@ -130,11 +130,31 @@ def test_what_is_left_out_is_about_the_reader_not_the_experiment(client, rf):
     context = _detail_context(request, exp)
 
     about_the_instance = {"experiment", "may", "ownership", "env", "can_run",
-                          "model_refusal", "run_error", "active_run", "result"}
+                          "model_refusal", "run_error", "active_run", "result",
+                          # This deployment's own MODEL_TRIAL_TIMEOUT, which is a
+                          # statement about the machine's patience and means
+                          # nothing on anyone else's.
+                          "default_trial_timeout",
+                          # How often this page should poll, from the trials'
+                          # own durations on this machine.
+                          "poll_seconds"}
     declarations = {"figures", "grid_figures", "column_figures",
                     "sidebar_figures", "selectable_figures", "selection_colors",
                     "autocompute", "explanation_games", "explanation_game_help",
                     "has_result", "supports_confidence", "trials_page_size",
-                    "tuning_progress"}
+                    "tuning_progress",
+                    # A built-in constant the run form opens on, not anything
+                    # this experiment or this instance decided.
+                    "default_trial_factor",
+                    # Which figures a running run can redraw, from the catalog.
+                    "live_figures",
+                    # Whether this instance could compute the explanations this
+                    # result is missing — about what may be done here, not about
+                    # the experiment, which carries the emptiness itself.
+                    "analytics_absent",
+                    # How much of the run this page drew — about this render,
+                    # not about the experiment, and it is what the run-status
+                    # poll sends back to ask whether anything has moved.
+                    "trial_count"}
 
     assert set(context) - set(DISPLAYED) == about_the_instance | declarations

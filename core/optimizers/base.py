@@ -1,10 +1,13 @@
+import math
 import time
 from abc import ABC, abstractmethod
 from dataclasses import dataclass, field, replace
 from typing import Any, Dict, List, Optional
 from hypershap import ExplanationTask, HyperSHAP
 
-from .timing import RUN_INFO_KEYS, STATUS_SUCCESS
+from ..metrics import (
+    METRICS, declarations, describe, from_cost, metric_for, to_cost)
+from .timing import CANCELLED, RUN_INFO_KEYS, STATUS_SUCCESS
 
 
 @dataclass
@@ -108,7 +111,7 @@ class OptimizationResult:
     trials: List[TrialResult]
     primary_metric: str
     best_config: Dict[str, Any]
-    best_score: float
+    best_score: Optional[float]
     hyperparameter_importance: Dict[str, Dict[str, float]]          # metric → {hp: importance}
     hyperparameter_importance_warning: Dict[str, Optional[str]]     # metric → warning or None
     trials_limit: Optional[int] = None    # None = unlimited; set by optimizers with a finite search space
@@ -155,6 +158,25 @@ class OptimizationResult:
     # one. One float per metric rather than a second copy of every value, since
     # `share x total` recovers the rest.
     hyperparameter_tunability_total: Dict[str, float] = field(default_factory=dict)
+    #: Metrics this result carries that the running build does not have in its
+    #: own registry — an imported run's own objective, which exists only inside
+    #: the file it came from. Empty for everything produced here.
+    #:
+    #: A field rather than a global the importer mutates: two experiments open at
+    #: once must be able to disagree about what "cost" means, and a module-level
+    #: registry could not hold both. Carried through `dataclasses.replace`, which
+    #: is what `rebase_history` needs.
+    declared_metrics: Dict[str, Any] = field(default_factory=dict)
+
+    def metric(self, name: str):
+        """What *name* means here: declared by the file, or known to this build.
+
+        Falls back to a higher-is-better [0, 1] reading when neither knows it —
+        which is what every version of this code assumed before metrics could
+        describe themselves, so a file from then is read exactly as it was
+        written.
+        """
+        return self.declared_metrics.get(name) or metric_for(name)
 
     def _derived(self) -> Dict[tuple, Any]:
         """Memo for values derived from `trials`, keyed by (what, metric).
@@ -172,7 +194,11 @@ class OptimizationResult:
         return memo
 
     def best_index(self, metric: str) -> Optional[int]:
-        """Index of the highest-scoring trial by *metric*; None with no trials.
+        """Index of the best-scoring trial by *metric*; None with no trials.
+
+        "Best" is the metric's own direction — the largest accuracy, the
+        smallest RMSE — so this is an argmax or an argmin depending on what is
+        being asked about.
 
         One implementation of this argmax, because there were six: the detail
         page's panels, `_selected_panel_data`, and `PerformanceOverTime.plot`
@@ -193,7 +219,8 @@ class OptimizationResult:
         memo, key = self._derived(), ("best_index", metric)
         if key not in memo:
             scored = [i for i, t in enumerate(self.trials) if metric in t.scores]
-            memo[key] = (max(scored, key=lambda i: self.trials[i].scores[metric])
+            picker = max if self.metric(metric).higher_is_better else min
+            memo[key] = (picker(scored, key=lambda i: self.trials[i].scores[metric])
                          if scored else None)
         return memo[key]
 
@@ -218,7 +245,10 @@ class OptimizationResult:
         return memo[key]
 
     def incumbent_scores(self, metric: str) -> List[float]:
-        """The running best (non-decreasing) score by *metric*, per trial.
+        """The running best score by *metric*, per trial.
+
+        Monotone in the metric's own improving direction: non-decreasing for a
+        higher-is-better metric, non-increasing for one where lower wins.
 
         Recomputed once per view before this — four times per metric for
         `performance_over_time`'s four axis combinations, all identical.
@@ -234,15 +264,38 @@ class OptimizationResult:
         """
         memo, key = self._derived(), ("incumbent_scores", metric)
         if key not in memo:
+            improves = self.metric(metric).better
             best = None
             running = []
             for t in self.trials:
                 score = t.scores.get(metric)
-                if score is not None and (best is None or score > best):
+                if score is not None and (best is None or improves(score, best)):
                     best = score
                 running.append(best)
             memo[key] = running
         return memo[key]
+
+
+def storable_score(score) -> Optional[float]:
+    """*score* as something a file can hold, or None.
+
+    The incumbent starts at the metric's worst end — an infinity — and stays
+    there until a trial succeeds. A run whose opening trials all fail therefore
+    has a best score of `-inf`, and `ui/services/run.py` writes a partial result
+    while that is still true.
+
+    `json.dumps` will emit that as the bare token `-Infinity`, which Python reads
+    back and nothing else does: it is not JSON, so an `.ihpo` carrying one cannot
+    be opened by any strict parser. `None` is both valid and more honest — there
+    is no best yet — and it flows back through `TrialCollector`, which already
+    reads `None` as "nothing to beat".
+    """
+    if score is None:
+        return None
+    try:
+        return float(score) if math.isfinite(score) else None
+    except (TypeError, ValueError):
+        return None
 
 
 def rebase_history(previous_result, primary_metric: str):
@@ -281,11 +334,14 @@ def rebase_history(previous_result, primary_metric: str):
         return previous_result, True
 
     trials: List[TrialResult] = []
-    best_score = float("-inf")
+    # The new metric's own direction: re-reading an accuracy history under an
+    # RMSE means the incumbent trajectory is a running minimum, not a maximum.
+    metric = previous_result.metric(primary_metric)
+    best_score = metric.worst_sentinel
     best_config: Optional[Dict[str, Any]] = None
     for t in previous_result.trials:
         score = t.scores[primary_metric]
-        if score > best_score:
+        if metric.better(score, best_score):
             best_score, best_config = score, t.config
         trials.append(replace(
             t, score=score, incumbent_score=best_score, incumbent_config=best_config or t.config,
@@ -436,13 +492,31 @@ class TrialCollector:
     def __init__(
         self,
         trial_offset: int = 0,
-        initial_best_score: float = float("-inf"),
+        initial_best_score: Optional[float] = None,
         initial_best_config: Optional[Dict[str, Any]] = None,
         stopping: Optional[Dict[str, Any]] = None,
+        on_record=None,
+        metric=None,
     ):
+        #: Called with this collector after each trial is appended, for a caller
+        #: that wants to see a run's results while it is still running. Every
+        #: optimizer gets it without knowing about it — see
+        #: `BaseOptimizer.new_collector`. Never called for a trial that was not
+        #: recorded, so a cancelled attempt does not trigger a write of a result
+        #: it is not in.
+        self._on_record = on_record
+        #: What the score being collected means. Defaults to the reading every
+        #: version of this before metrics described themselves assumed —
+        #: higher-is-better on [0, 1] — so a caller that says nothing (the tests,
+        #: a script) gets exactly the behaviour it always had.
+        self._metric = metric or metric_for("")
         self.results: List[TrialResult] = []
         self._trial_offset = trial_offset
-        self._incumbent_score = initial_best_score
+        #: None means "nothing to beat yet", which is the metric's own worst
+        #: end rather than a hardcoded -inf: for an RMSE every real score is
+        #: *smaller* than the incumbent, not larger.
+        self._incumbent_score = (self._metric.worst_sentinel
+                                 if initial_best_score is None else initial_best_score)
         self._incumbent_config = initial_best_config
 
         self._stopping = {k: v for k, v in (stopping or {}).items()
@@ -487,6 +561,16 @@ class TrialCollector:
         """
         self._confidence = probability
 
+    @property
+    def metric(self):
+        """What the score being collected means — direction and range.
+
+        Read by the optimizers when they assemble the result and when they tell
+        SMAC a cost, so all three agree with the collector rather than each
+        resolving the metric again.
+        """
+        return self._metric
+
     def _fired(self) -> Optional[str]:
         """The first criterion that says to stop, or None to keep going.
 
@@ -494,10 +578,13 @@ class TrialCollector:
         about: the two that mean "we are done" first, then the budgets that mean
         "we ran out", then stagnation, which is a judgement call.
         """
-        # Strictly greater. The target is a score to *surpass*, which is what
-        # makes filling it with the incumbent's own score mean "run until
-        # something does better" rather than "stop immediately".
-        if self._incumbent_score > self._stopping.get("target_score", float("inf")):
+        # Strictly better, in the metric's own direction. The target is a score
+        # to *surpass*, which is what makes filling it with the incumbent's own
+        # score mean "run until something does better" rather than "stop
+        # immediately" — and for a lower-is-better metric surpassing it means
+        # getting under it.
+        target = self._stopping.get("target_score")
+        if target is not None and self._metric.better(self._incumbent_score, target):
             return "target_score"
         wanted = self._stopping.get("incumbent_confidence")
         if wanted is not None and self._confidence is not None and self._confidence >= wanted:
@@ -536,7 +623,7 @@ class TrialCollector:
         all_scores: Dict[str, float],
         run_info: Optional[Dict[str, Any]] = None,
         origin: str = "",
-    ) -> TrialResult:
+    ) -> Optional[TrialResult]:
         """Record one completed trial, update the incumbent, return the TrialResult.
 
         *origin* is where the configuration came from, as the optimizer knew it
@@ -544,8 +631,42 @@ class TrialCollector:
         optimizer afterwards, because by then it may not say the same thing —
         SMAC's local-search maximizer relabels configurations it takes out of
         the runhistory, in place.
+
+        **A cancelled attempt is not recorded at all**, and `None` comes back
+        instead of a trial. The run was stopped while that trial was in flight,
+        so it was never measured: it has no score, and the 0.0 `evaluate_trial`
+        returns for shape's sake would otherwise enter the history as the worst
+        result there is — a trial that never happened, marked failed on four
+        figures, dragged through every surrogate, and counted against
+        `max_failures` so the run reports that it gave up on failures when in
+        fact it was interrupted.
+
+        Here rather than in the three optimizer loops because it is the same
+        decision for all three and all three already call this. Nothing else has
+        to change: SMAC tells its own runhistory before calling this, and
+        `SmacOptimizer.serialize_result` already keeps only the entries that
+        match a recorded trial — for exactly this hazard, "a trial asked for and
+        not told because the run stopped".
         """
-        if score > self._incumbent_score:
+        if (run_info or {}).get(CANCELLED):
+            # Latched here too, so the loop ends on the collector's own terms
+            # rather than relying on each optimizer to re-read the cancel flag,
+            # and so the stored result says it was interrupted.
+            self.stopped_by = STOPPED_BY_CANCELLED
+            return None
+
+        # A trial that produced no measurement can never be the best one. It
+        # scores the metric's null score — what a model that knows nothing gets
+        # — and that is a real number on the scale, not a sentinel: for an RMSE
+        # it beats a genuinely-bad trial outright.
+        #
+        # This was wrong before any of that, and visibly so: with every failure
+        # scoring 0.0 and the incumbent seeded at -inf, the first crash of an
+        # all-failing run passed `0.0 > -inf` and the page reported a crashed
+        # configuration as the best one. Being <= every real score is what kept
+        # it from being noticed, not anything that made it right.
+        failed = (run_info or {}).get("status", STATUS_SUCCESS) != STATUS_SUCCESS
+        if not failed and self._metric.better(score, self._incumbent_score):
             self._incumbent_score = score
             self._incumbent_config = config
             self._since_improvement = 0
@@ -572,6 +693,15 @@ class TrialCollector:
             origin=origin or "",
         )
         self.results.append(trial)
+        if self._on_record is not None:
+            # After the append, so a caller reading `results` sees this trial.
+            # Failures are the caller's problem and never the run's: a partial
+            # write is a convenience, and a run that died because a snapshot
+            # could not be saved would be a bad trade.
+            try:
+                self._on_record(self)
+            except Exception:  # noqa: BLE001 — see above
+                pass
         return trial
 
 
@@ -899,6 +1029,12 @@ class BaseOptimizer(ABC):
             configs[cid] = t.config
             config_id_by_key[tuple(sorted(t.config.items()))] = cid
 
+        # What the optimizer was asked to minimise. Derived from the metric
+        # rather than hardcoded, so that a metric that is already a cost stores
+        # itself unchanged — and so that every metric that predates this stores
+        # exactly the `1.0 - score` it always did. See `core.metrics.to_cost`.
+        cost_of = result.metric(result.primary_metric)
+
         data = []
         for t in result.trials:
             incumbent_key = tuple(sorted(t.incumbent_config.items()))
@@ -906,9 +1042,13 @@ class BaseOptimizer(ABC):
             data.append({
                 **t.run_info,  # SMAC-native fields (timing, seed, status, …); disjoint from the keys below
                 "config_id": t.trial,
-                "cost": 1.0 - t.score,
+                "cost": to_cost(cost_of, t.score),
                 "scores": t.scores,
-                "incumbent_score": t.incumbent_score,
+                # None until something has succeeded: a run whose opening
+                # trials all fail has no incumbent to record, and an infinity is
+                # not JSON. Provenance only — every figure recomputes the
+                # trajectory from the scores (`incumbent_scores`).
+                "incumbent_score": storable_score(t.incumbent_score),
                 "incumbent_config_id": int(incumbent_cid),
             })
 
@@ -929,7 +1069,16 @@ class BaseOptimizer(ABC):
             "config_origins": {str(t.trial): t.origin for t in result.trials},
             "optimizer_state": {},
             "primary_metric": result.primary_metric,
-            "best_score": result.best_score,
+            # Only the ones this build does not already know. A file should not
+            # freeze the registry's own definitions into itself — those are code,
+            # and a later build correcting one must not be overruled by every
+            # file written before the correction.
+            "declared_metrics": {
+                name: describe(metric)
+                for name, metric in result.declared_metrics.items()
+                if name not in METRICS
+            },
+            "best_score": storable_score(result.best_score),
             "best_config_id": best_config_id,
             "hyperparameter_importance": result.hyperparameter_importance,
             "hyperparameter_importance_warning": result.hyperparameter_importance_warning,
@@ -958,17 +1107,26 @@ class BaseOptimizer(ABC):
         data = d.get("data", [])
         origins = d.get("config_origins") or {}
         primary_metric = d.get("primary_metric", "")
+        declared = declarations(d.get("declared_metrics"))
+
+        # The inverse of what `serialize_result` wrote — see `core.metrics`. For
+        # every metric that predates metrics describing themselves this is
+        # exactly `1.0 - cost`, which is what makes every file ever written read
+        # back unchanged. `declared` is what an imported run's own objective is
+        # read through; empty for anything produced here.
+        cost_of = declared.get(primary_metric) or metric_for(primary_metric)
 
         trials = []
         for entry in data:
             cid = str(entry["config_id"])
             incumbent_cid = str(entry.get("incumbent_config_id", entry["config_id"]))
+            from_stored = from_cost(cost_of, entry["cost"])
             trials.append(TrialResult(
                 trial=entry["config_id"],
                 config=configs[cid],
-                scores=entry.get("scores", {primary_metric: 1.0 - entry["cost"]}),
-                score=1.0 - entry["cost"],
-                incumbent_score=entry.get("incumbent_score", 1.0 - entry["cost"]),
+                scores=entry.get("scores", {primary_metric: from_stored}),
+                score=from_stored,
+                incumbent_score=entry.get("incumbent_score", from_stored),
                 incumbent_config=configs.get(incumbent_cid, configs.get(cid, {})),
                 run_info={k: entry[k] for k in RUN_INFO_KEYS if k in entry},
                 origin=str(origins.get(cid) or ""),
@@ -977,9 +1135,10 @@ class BaseOptimizer(ABC):
         best_config_id = str(d.get("best_config_id") or (str(trials[-1].trial) if trials else "0"))
         return OptimizationResult(
             trials=trials,
+            declared_metrics=declared,
             primary_metric=primary_metric,
             best_config=configs.get(best_config_id, {}),
-            best_score=d.get("best_score", 0.0),
+            best_score=storable_score(d.get("best_score", 0.0)),
             hyperparameter_importance=d.get("hyperparameter_importance", {}),
             hyperparameter_importance_warning=d.get("hyperparameter_importance_warning", {}),
             hyperparameter_sensitivity=d.get("hyperparameter_sensitivity", {}),
@@ -1089,6 +1248,35 @@ class BaseOptimizer(ABC):
     #: True: a caller that says nothing gets the analytics, which is what every
     #: direct caller (the tests, a script) means.
     analytics_wanted: bool = True
+
+    #: Called with the run's `TrialCollector` after every recorded trial, or
+    #: None. How the application sees a run's trials while it is still running:
+    #: `ui/services/run.py` sets it to a throttled write of the partial result,
+    #: so the experiment page has something newer than "nothing until it
+    #: finishes" to draw. Set per instance, like the two above, so `core/` stays
+    #: Django-free and a direct caller pays nothing for a feature it is not
+    #: using.
+    progress = None
+
+    def new_collector(self, metric_name: str = "", previous_result=None,
+                      **kwargs) -> TrialCollector:
+        """The `TrialCollector` for one run of this optimizer.
+
+        A factory rather than three constructor calls, so anything every run
+        needs is wired once here instead of being remembered separately in
+        `RandomOptimizer`, `GridOptimizer` and `SmacOptimizer` — which is how
+        `progress` reaches all three without one line about it in any of them,
+        and now what the score *means* as well.
+
+        The metric is resolved from the run being resumed first, because a run
+        imported with its own objective declares that objective in its own file
+        and nowhere else.
+        """
+        declared = getattr(previous_result, "declared_metrics", None) or {}
+        return TrialCollector(
+            on_record=self.progress,
+            metric=declared.get(metric_name) or metric_for(metric_name),
+            **kwargs)
 
     def eager_analytics_budget_exceeded(self, config_space, metrics) -> Optional[str]:
         """Why the global games shouldn't be computed for this run, or None.
@@ -1467,6 +1655,109 @@ class BaseOptimizer(ABC):
             pdp.append(sum(column) / len(column) if column else None)
 
         return grid, ice_lines, pdp, None
+
+    def compute_surrogate_uncertainty(
+        self,
+        config_space,
+        trials: List[TrialResult],
+        metric_name: str,
+        x_hp: str,
+        y_hp: str,
+        seed: int = 0,
+        n_points: int = 20,
+    ) -> tuple[list, list, List[List[Optional[float]]], Optional[str]]:
+        """How unsure the surrogate is across the plane spanned by two
+        hyperparameters — the field drawn under the configuration cube's axes
+        view.
+
+        Returns `(x_grid, y_grid, z_rows, warning)`. `z_rows` is one row per
+        *y_grid* value, each as long as *x_grid*, holding `None` where the
+        config space rejected that combination.
+
+        **The estimate is the spread across the forest's own trees.**
+        `fit_surrogate` fits a `RandomForestRegressor`; each of its trees
+        predicts the same point separately, and the standard deviation of those
+        predictions is how much they disagree. No new fit and no second model —
+        the uncertainty was already sitting inside the one PDP and the games'
+        fallback rung already build.
+
+        Standard deviation rather than variance, which is what makes it
+        readable: it is in the metric's own units, so "the trees disagree by
+        0.04 accuracy here" is a sentence. Squared accuracy is not.
+
+        **What it is not.** Tree disagreement is not a calibrated posterior, and
+        it fails in a specific direction worth knowing about: far outside the
+        region the trials cover, every tree falls into the same extreme leaf and
+        agrees *completely*, so the field goes confident exactly where there is
+        no data. It reads as "where do the trees disagree", which is a real
+        thing to see over a search's own footprint, and not as "where might the
+        truth be".
+
+        **A slice, not an average.** The other hyperparameters are held at the
+        best trial's configuration rather than averaged over every trial the way
+        `compute_partial_dependence` averages its ICE curves. Two reasons: the
+        average would cost `n_trials x n_points^2` rows through every tree
+        rather than `n_points^2`, and — the deciding one — a plane through the
+        incumbent passes through a configuration that was actually evaluated,
+        while a plane through the config-space default may sit somewhere the
+        search never went and report uniform ignorance. The default is what
+        tunability is measured from; this is a different question and takes a
+        different reference.
+        """
+        import numpy as np
+        from ConfigSpace import Configuration
+
+        for name in (x_hp, y_hp):
+            if name not in config_space:
+                return [], [], [], f"No such hyperparameter: {name}."
+        if x_hp == y_hp:
+            return [], [], [], "Two different hyperparameters are needed for a plane."
+
+        rf, warning = fit_surrogate(config_space, trials, metric_name, seed)
+        if rf is None:
+            return [], [], [], warning
+
+        # The metric's own best, and only among trials that have the score: a
+        # `.get(..., 0.0)` default would hand the plane to a trial that was
+        # never measured under this metric, and under a lower-is-better one a
+        # missing score of 0.0 would win outright.
+        metric = metric_for(metric_name)
+        scored = [t for t in trials if metric_name in t.scores]
+        if not scored:
+            return [], [], [], f"No trial carries a score for {metric_name}."
+        picker = max if metric.higher_is_better else min
+        best = picker(scored, key=lambda t: t.scores[metric_name])
+        x_grid = _hp_grid(config_space[x_hp], n_points)
+        y_grid = _hp_grid(config_space[y_hp], n_points)
+        if len(x_grid) < 2 or len(y_grid) < 2:
+            return [], [], [], "A plane needs both axes to take more than one value."
+
+        rows, slots = [], []
+        for j, y_value in enumerate(y_grid):
+            for i, x_value in enumerate(x_grid):
+                try:
+                    values = dict(best.config)
+                    values[x_hp], values[y_hp] = x_value, y_value
+                    rows.append(Configuration(config_space, values=values).get_array())
+                except Exception:  # noqa: BLE001 — conditionals, forbidden clauses
+                    continue
+                slots.append((j, i))
+
+        z: List[List[Optional[float]]] = [[None] * len(x_grid) for _ in y_grid]
+        if not rows:
+            return [], [], [], "No valid configurations on this pair of axes."
+
+        # Every tree over every grid point in one pass each, rather than a call
+        # per point: the same batching `compute_partial_dependence` documents,
+        # for the same reason — sklearn's per-call overhead dwarfs the traversal
+        # at this size. 20x20 points through 100 trees is 40,000 predictions and
+        # 100 calls.
+        grid_rows = np.array(rows)
+        spread = np.stack([tree.predict(grid_rows) for tree in rf.estimators_]).std(axis=0)
+        for (j, i), value in zip(slots, spread):
+            z[j][i] = float(value)
+
+        return x_grid, y_grid, z, None
 
     def _skipped_games(self, metrics, reason: str) -> Dict[str, tuple]:
         """`compute_hp_games`' return shape for "these weren't computed".

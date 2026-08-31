@@ -20,7 +20,9 @@ from smac.runhistory import StatusType
 from smac.runhistory.dataclasses import TrialInfo, TrialValue
 
 from ..paths import is_safe_relative
+from ..metrics import metric_for, to_cost
 from .base import (
+    storable_score,
     BaseOptimizer, OptimizationResult, OptimizerParam, TrialCollector,
     merge_stopping, rebase_history,
 )
@@ -603,7 +605,7 @@ class SMACOptimizer(BaseOptimizer):
             if t is None:
                 continue
             entry["scores"] = t.scores
-            entry["incumbent_score"] = t.incumbent_score
+            entry["incumbent_score"] = storable_score(t.incumbent_score)
             incumbent_key = tuple(sorted(t.incumbent_config.items()))
             entry["incumbent_config_id"] = int(
                 config_key_to_id.get(incumbent_key, str(entry["config_id"]))
@@ -636,7 +638,7 @@ class SMACOptimizer(BaseOptimizer):
             "config_origins": {str(t.trial): t.origin for t in result.trials},
             "optimizer_state": optimizer_state,
             "primary_metric": result.primary_metric,
-            "best_score": result.best_score,
+            "best_score": storable_score(result.best_score),
             "best_config_id": best_config_id,
             "hyperparameter_importance": result.hyperparameter_importance,
             "hyperparameter_importance_warning": result.hyperparameter_importance_warning,
@@ -767,7 +769,8 @@ class SMACOptimizer(BaseOptimizer):
         best_chance = float(_normal_cdf(z).max())
         return 1.0 - best_chance
 
-    def _replay(self, smac, config_space, trials, primary_metric: str, seed: int) -> None:
+    def _replay(self, smac, config_space, trials, primary_metric: str, seed: int,
+                replay_metric=None) -> None:
         """Tell SMAC an earlier run's trials, so a rebuilt surrogate knows them.
 
         Used when the stored SMAC state cannot be resumed — the optimized metric
@@ -780,6 +783,7 @@ class SMACOptimizer(BaseOptimizer):
         runhistory is written and `serialize_result` falls back to rebuilding
         from the trials themselves, which is correct — just without SMAC state.
         """
+        replay_metric = replay_metric or metric_for(primary_metric)
         for t in trials:
             try:
                 config = Configuration(config_space, values=t.config)
@@ -798,7 +802,11 @@ class SMACOptimizer(BaseOptimizer):
             smac.tell(
                 TrialInfo(config=config, seed=seed),
                 TrialValue(
-                    cost=1.0 - t.scores.get(primary_metric, t.score),
+                    # What this metric means as something to minimise — see
+                    # `core.metrics.to_cost`. `1.0 - score` for every metric
+                    # that predates metrics describing themselves, so a replayed
+                    # history tells SMAC exactly what it was told the first time.
+                    cost=to_cost(replay_metric, t.scores.get(primary_metric, t.score)),
                     time=info.get("time", 0.0), cpu_time=info.get("cpu_time", 0.0),
                     starttime=info.get("starttime", 0.0), endtime=info.get("endtime", 0.0),
                     status=StatusType(info.get("status", STATUS_SUCCESS)),
@@ -830,9 +838,13 @@ class SMACOptimizer(BaseOptimizer):
         output_dir = tempfile.mkdtemp()
 
         criteria = merge_stopping(n_trials, stopping)
-        collector = TrialCollector(
+        collector = self.new_collector(
+            metric_name=primary_metric,
+            previous_result=previous_result,
             trial_offset=trial_offset,
-            initial_best_score=previous_result.best_score if previous_result else float("-inf"),
+            # None, not -inf: "nothing to beat yet" is the metric's own worst
+            # end, which for a lower-is-better metric is +inf.
+            initial_best_score=previous_result.best_score if previous_result else None,
             initial_best_config=previous_result.best_config if previous_result else None,
             stopping=criteria,
         )
@@ -863,7 +875,8 @@ class SMACOptimizer(BaseOptimizer):
         # handed to it — otherwise the search would begin from zero while the
         # page still shows the accumulated trials.
         if previous_result is not None:
-            self._replay(smac, config_space, previous_result.trials, primary_metric, seed)
+            self._replay(smac, config_space, previous_result.trials, primary_metric,
+                         seed, replay_metric=collector.metric)
 
         while not collector.done:
             if cancel_event and cancel_event.is_set():
@@ -871,7 +884,7 @@ class SMACOptimizer(BaseOptimizer):
             info = smac.ask()
             config = dict(info.config)
             all_scores, run_info = evaluate_trial(model, config, splits, metrics, seed=seed)
-            cost = 1.0 - all_scores[primary_metric]
+            cost = to_cost(collector.metric, all_scores[primary_metric])
             # Feed the measured timing into SMAC so its runhistory (which the
             # serialize override copies verbatim) carries the real values. The
             # status is passed through rather than assumed: a configuration the
@@ -910,7 +923,8 @@ class SMACOptimizer(BaseOptimizer):
             # From `scores`, not `score`: after a metric change the history has
             # been re-read, and a trial that could not be (an old file with one
             # metric) must not contribute a score for a metric it never had.
-            best_score=max((t.scores.get(primary_metric, t.score) for t in all_trials), default=0.0),
+            best_score=collector.metric.best(
+                (t.scores.get(primary_metric, t.score) for t in all_trials), default=0.0),
             hyperparameter_importance=games["tunability"][0],
             hyperparameter_importance_warning=games["tunability"][1],
             hyperparameter_sensitivity=games["sensitivity"][0],

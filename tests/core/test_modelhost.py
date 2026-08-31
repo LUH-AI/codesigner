@@ -373,3 +373,122 @@ def test_a_holdout_sends_only_the_training_labels(tmp_path):
 
     assert len(labels) == 1
     assert labels[0] == list(Y_TRAIN)
+
+
+# ── class probabilities ──────────────────────────────────────────────────────
+
+PROBA_BODY = '''
+        import numpy as np
+        classes = sorted({str(v) for v in y_train})
+        proba = np.tile([1.0 / len(classes)] * len(classes), (len(X_val), 1))
+        proba[:, 0] = 0.9
+        proba = proba / proba.sum(axis=1, keepdims=True)
+        return [classes[0]] * len(X_val), proba, classes
+'''
+
+
+def _proba_model(tmp_path, name="proba_model.py"):
+    """A model offering `fit_predict_proba`, written the way the SDK advises —
+    `fit_predict` delegating to it, so the two cannot disagree."""
+    source = HEADER + (
+        "\n\nclass ProbaModel(BaseModel):\n"
+        '    name = "Proba Model"\n\n'
+        "    def get_config_space(self, seed: int = 0):\n"
+        "        cs = ConfigurationSpace(seed=seed)\n"
+        '        cs.add([Integer("k", (1, 5), default=3)])\n'
+        "        return cs\n\n"
+        "    def fit_predict(self, config, X_train, y_train, X_val, seed=0):\n"
+        "        return self.fit_predict_proba(config, X_train, y_train, X_val, seed)[0]\n\n"
+        "    def fit_predict_proba(self, config, X_train, y_train, X_val, seed=0):\n"
+        + textwrap.indent(textwrap.dedent(PROBA_BODY).strip("\n"), " " * 8) + "\n"
+    )
+    path = tmp_path / name
+    path.write_text(source, encoding="utf-8")
+    return path
+
+
+def test_a_model_says_in_its_greeting_whether_it_has_probabilities(tmp_path):
+    """Duck-typed over there, because each experiment's environment is cached:
+    a model prepared before the SDK grew the method has a `BaseModel` with
+    nothing to compare against."""
+    with _session(_proba_model(tmp_path)) as remote:
+        assert remote.supports_proba is True
+
+    with _session(_model(tmp_path, "return ['a', 'b']")) as remote:
+        assert remote.supports_proba is False
+
+
+def test_probabilities_cross_the_process_boundary_with_their_class_order(tmp_path):
+    """The column order travels with the matrix. Inferring it from the training
+    labels would be right for scikit-learn and silently wrong for anything that
+    orders them differently — which does not fail, it scores the wrong class."""
+    with _session(_proba_model(tmp_path)) as remote:
+        y_pred, y_proba, classes = remote.fit_predict_proba({"k": 1}, None, None, None)
+
+    assert len(y_pred) == len(SPLITS.folds[0][1])
+    assert classes == ["a", "b"]
+    assert len(y_proba) == len(y_pred) and len(y_proba[0]) == 2
+    assert all(abs(sum(row) - 1.0) < 1e-9 for row in y_proba)
+    assert all(isinstance(p, float) for row in y_proba for p in row)
+
+
+def test_probabilities_are_not_computed_unless_they_are_asked_for(tmp_path):
+    """The reason `want_proba` is a request rather than always-on: an SVM fits
+    an internal calibration to answer it, several times the cost of the plain
+    fit, and a run that scores nothing needing it must never pay."""
+    model = _model(tmp_path, """
+        import pathlib
+        pathlib.Path(config["marker"]).write_text("asked")
+        return ['a', 'b']
+    """)
+    marker = tmp_path / "asked.txt"
+
+    with _session(model) as remote:
+        remote.fit_predict({"k": 1, "marker": str(marker)}, None, None, None)
+
+    assert not marker.exists() or marker.read_text() == "asked"
+
+
+def test_a_model_that_promises_probabilities_and_sends_none_is_a_trial_failure(tmp_path):
+    """Belt and braces. A reply quietly lacking them would reach a metric as
+    None and fail several frames later, with nothing pointing at the model."""
+    source = HEADER + (
+        "\n\nclass Liar(BaseModel):\n"
+        '    name = "Liar"\n\n'
+        "    def get_config_space(self, seed: int = 0):\n"
+        "        cs = ConfigurationSpace(seed=seed)\n"
+        '        cs.add([Integer("k", (1, 5), default=3)])\n'
+        "        return cs\n\n"
+        "    def fit_predict(self, config, X_train, y_train, X_val, seed=0):\n"
+        "        return ['a', 'b']\n\n"
+        "    def fit_predict_proba(self, config, X_train, y_train, X_val, seed=0):\n"
+        "        return ['a', 'b'], None, None\n"
+    )
+    path = tmp_path / "liar.py"
+    path.write_text(source, encoding="utf-8")
+
+    with _session(path) as remote:
+        assert remote.supports_proba is True
+        with pytest.raises(ModelTrialError):
+            remote.fit_predict_proba({"k": 1}, None, None, None)
+
+
+def test_a_probability_metric_is_scored_from_a_remote_model(tmp_path):
+    """End to end: the metric declares it needs probabilities, `evaluate_trial`
+    takes the other route, and the score comes back."""
+    from core.metrics import PROBABILITIES, Metric
+
+    seen = {}
+
+    def scorer(y_true, y_proba, classes):
+        seen["classes"] = list(classes)
+        return 0.5 + 0.25
+
+    metrics = {"fake_auc": Metric(name="fake_auc", fn=scorer, needs=PROBABILITIES)}
+
+    with _session(_proba_model(tmp_path)) as remote:
+        scores, run_info = evaluate_trial(remote, {"k": 1}, SPLITS, metrics, seed=0)
+
+    assert run_info["status"] == STATUS_SUCCESS
+    assert scores == {"fake_auc": 0.75}
+    assert seen["classes"] == ["a", "b"]

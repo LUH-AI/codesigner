@@ -17,13 +17,22 @@ the model's environment, where this package does not exist.
 
 from .client import (
     DEFAULT_START_TIMEOUT,
-    DEFAULT_TRIAL_TIMEOUT,
     HARNESS,
     ModelProcess,
     RemoteModel,
     describe,
     launch_local,
     model_session,
+)
+from .deadline import (
+    DEFAULT_FACTOR,
+    DEFAULT_TRIAL_TIMEOUT,
+    MODE_FIXED,
+    MODE_PREDICTED,
+    MODES,
+    FixedDeadline,
+    PredictedDeadline,
+    as_deadline,
 )
 from .errors import (
     ModelHostError,
@@ -34,16 +43,23 @@ from .errors import (
 )
 
 __all__ = [
+    "DEFAULT_FACTOR",
     "DEFAULT_START_TIMEOUT",
     "DEFAULT_TRIAL_TIMEOUT",
+    "MODES",
+    "MODE_FIXED",
+    "MODE_PREDICTED",
+    "FixedDeadline",
     "HARNESS",
     "ModelHostError",
     "ModelProcess",
     "ModelProcessError",
     "ModelTrialError",
+    "PredictedDeadline",
     "RemoteModel",
     "TrialCancelled",
     "TrialTimeout",
+    "as_deadline",
     "describe",
     "launch_local",
     "model_session",

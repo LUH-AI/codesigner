@@ -54,6 +54,17 @@ hidden.{% endcomment %}
             </select>
         </p>
     </div>
+    {% comment %}How unsure the surrogate is across the plane the two chosen
+    axes span, drawn as a field under the trials. Its own prompt rather than a
+    share of the figure's, because it is an addition to a figure that already
+    draws without it: the trials are there either way, and this says whether the
+    forest agrees with itself where they are. Absent unless exactly two axes are
+    named — see views.surrogate_uncertainty for why the projections and the
+    third axis have none.{% endcomment %}
+    <p id="uncertainty-compute" class="caption" hidden>
+        <button type="button" id="uncertainty-compute-btn">{% translate "Show surrogate uncertainty" %}</button>
+    </p>
+    <p id="uncertainty-warning" class="caption" hidden></p>
     <div id="{{ figure.dom_id }}" class="plot"></div>
     {% comment %}Two different silences: nothing chosen yet, and nothing to
     choose from. The first is the figure waiting on the pickers above it, the

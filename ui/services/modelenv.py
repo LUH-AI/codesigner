@@ -27,6 +27,8 @@ from pathlib import Path
 from django.conf import settings
 from django.utils import timezone
 
+from core.modelhost import deadline
+
 from core.modelhost import describe
 
 #: The PEP 723 block delimiters, named so nothing reformats them by accident.
@@ -417,15 +419,25 @@ def sweep_stale_environments() -> int:
         env_error="Interrupted by a restart. Try preparing it again.")
 
 
-def session_kwargs() -> dict:
+def session_kwargs(trial_timeout=None, seed: int = 0) -> dict:
     """How `core.modelhost.model_session` should be configured here.
 
     A fresh empty working directory per run, so a model that writes
     `./output.csv` does not scribble in the application's own directory.
+
+    *trial_timeout* is the run's own deadline choice — see
+    `core.modelhost.deadline` — which becomes a policy here rather than in
+    `core/`, since only this side knows what the deployment's default is. A run
+    that has none (one started before the field existed, or by a caller that
+    does not care) gets the deployment number it always got.
     """
+    if not trial_timeout:
+        policy = deadline.FixedDeadline(settings.MODEL_TRIAL_TIMEOUT)
+    else:
+        policy = deadline.as_deadline({"seed": seed, **trial_timeout})
     return {
         "env": child_env(),
-        "trial_timeout": settings.MODEL_TRIAL_TIMEOUT,
+        "trial_timeout": policy,
         "cwd": tempfile.mkdtemp(prefix="codesigner-run-"),
     }
 

@@ -21,6 +21,12 @@
     {% for key, value in stopping.items %}
         <input type="hidden" name="{{ key }}" value="{{ value }}">
     {% endfor %}
+    {% comment %}Carried the same way and for the same reason: answering this
+    question should not quietly re-run under a different deadline than the one
+    the form was filled in with.{% endcomment %}
+    <input type="hidden" name="trial_timeout_mode" value="{{ trial_timeout.mode }}">
+    <input type="hidden" name="trial_timeout_seconds" value="{{ trial_timeout.seconds|stringformat:'f' }}">
+    <input type="hidden" name="trial_timeout_factor" value="{{ trial_timeout.factor|stringformat:'f' }}">
 {% endblock %}
 
 {% block confirm_buttons %}

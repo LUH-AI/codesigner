@@ -71,9 +71,15 @@ def test_the_declared_actions_match_what_the_routes_do():
         "partial_dependence": permissions.VIEW,
         "metric_figures": permissions.VIEW,
         "local_effects": permissions.VIEW,
+        "surrogate_uncertainty": permissions.VIEW,
         "run_status": permissions.VIEW,
         "env_status": permissions.VIEW,
         "experiment_run": permissions.RUN,
+        # Computing the explanations a cancelled run skipped: it spends this
+        # machine's CPU and writes to the stored result, which is what RUN
+        # covers. VIEW would have made reading an experiment a way to make it
+        # compute.
+        "experiment_compute_analytics": permissions.RUN,
         "prepare_env": permissions.RUN,
         "run_cancel": permissions.RUN,
         "experiment_settings": permissions.EDIT,

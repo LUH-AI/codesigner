@@ -46,6 +46,24 @@ pie/bar come from ui/figures/plots.py as usual.{% endcomment %}
         </p>
     </div>
     <p id="imp-warning" class="alert warning" hidden></p>
+    {% comment %}These numbers are computed once, at run completion — except when
+    they are not. A cancelled run skips them (pressing Cancel used to still buy
+    the full analytics bill), and so does a partial write during a run, for the
+    same reason: 2^n_hp coalition evaluations per game per metric is not a
+    per-trial cost. Both used to be permanent. This is how to ask afterwards.
+
+    One button rather than one per figure: it is a single computation, and all
+    six figures that read a game — this one and the five interaction figures —
+    are filled by it. Here because this is the figure the game selector is
+    beside.{% endcomment %}
+    {% if analytics_absent and may.run %}
+        <form method="post" action="{% url 'ui:experiment_compute_analytics' summary.pk %}"
+              class="compute-analytics">
+            {% csrf_token %}
+            <p class="caption">{% translate "The explanations were not computed for this run — a run that was cancelled skips them, and one still going has not reached them yet. They can be computed now from the trials it did produce." %}</p>
+            <button type="submit" class="btn">{% translate "Compute the explanations" %}</button>
+        </form>
+    {% endif %}
     {% comment %}Said rather than drawn: with nothing meaningful left, a pie of
     what remains is a picture of rounding.{% endcomment %}
     {% if tuning_progress %}<p id="imp-settled" class="caption" hidden>{% translate "This trial has captured essentially all of the gain the search space had to offer. There is nothing left to tune." %}</p>{% endif %}

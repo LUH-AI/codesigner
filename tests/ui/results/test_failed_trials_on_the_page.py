@@ -206,3 +206,58 @@ def test_a_failure_survives_a_round_trip(client, experiment):
     assert [i for i, t in enumerate(result.trials) if t.failed] == [3, 5]
     assert result.trials[3].traceback == TRACEBACK
     assert result.trials[5].traceback == "", "it never had one"
+
+
+# ── the selection must not paint over the failure marks ─────────────────────
+
+def _script():
+    from pathlib import Path
+
+    return Path("ui/templates/ui/experiment_detail.html").read_text(encoding="utf-8")
+
+
+def _recolor_branch():
+    """The half of `applySelection` that repaints a trace's points."""
+    source = _script()
+    start = source.index("function applySelection(")
+    end = source.index("const trialsPager", start)
+    return source[start:end]
+
+
+def test_the_selection_repaints_from_what_was_drawn_not_from_a_default():
+    """Found by looking at the running app, which is the only way it could have
+    been: selecting any trial anywhere on the page used to flatten every failure
+    mark on the two figures whose selection style is "recolor". The duration bar
+    lost its tint outright — repainted the ordinary blue — and the crosses on
+    trial performance shrank from their own size back to an ordinary point's.
+
+    The repaint has to put back what the server drew, so the guard is that it
+    reads the drawn values rather than painting a constant over everything that
+    is not selected.
+    """
+    branch = _recolor_branch()
+
+    assert "_baseMarkers" in branch, "the repaint no longer restores what was drawn"
+    assert "baseColor" in branch and "baseSize" in branch
+
+
+def test_the_drawn_marker_styling_is_captured_before_anything_touches_it():
+    """From the payload rather than the DOM, which by the time a second
+    selection happens already carries the first one."""
+    source = _script()
+    start = source.index("function draw(key, plot)")
+    end = source.index("function clearPlot", start)
+
+    assert "_baseMarkers" in source[start:end]
+    assert "plot.data" in source[start:end], "captured from the payload, not the element"
+
+
+def test_selecting_a_failure_keeps_its_cross_and_changes_its_colour():
+    """`_failure_marks` says the shape carries the failure and the colour
+    carries the selection. The client has to agree: a cross has no fill, so on a
+    failure it is the outline that has to turn."""
+    branch = _recolor_branch()
+
+    assert "marker.line.color" in branch
+    assert "isFailure" in branch
+

@@ -97,6 +97,37 @@ being read.{% endcomment %}
 
     {% if not has_result %}
         <div class="alert info" style="margin-top: 1rem;">{% translate "No results yet." %}</div>
+        {% if active_run %}
+            <script>
+                // This page has no figure grid — there was nothing to draw when
+                // it was rendered — so it cannot merge the live payloads the
+                // run-status poll starts carrying once the run has written its
+                // first trials. It reloads into a page that can, once.
+                //
+                // "Once" needs a marker that survives the reload, hence
+                // sessionStorage: the alternative is a page that cannot render
+                // a grid (an experiment naming a metric that no longer exists,
+                // say) reloading itself every few seconds for ever. The grid,
+                // when it does render, clears the marker — so a later run of
+                // the same experiment gets its own reload.
+                (function () {
+                    const key = "live-reload-{{ summary.pk }}";
+                    function reloaded() {
+                        try { return sessionStorage.getItem(key); }
+                        catch (e) { return "blocked"; }   // private mode: do not loop
+                    }
+                    document.addEventListener("poll:swapped", function () {
+                        const el = document.getElementById("live-plots-data");
+                        if (!el || reloaded()) return;
+                        const live = JSON.parse(el.textContent || "{}");
+                        if (!live.trials) return;
+                        try { sessionStorage.setItem(key, String(live.trials)); }
+                        catch (e) { return; }
+                        window.location.reload();
+                    });
+                })();
+            </script>
+        {% endif %}
     {% else %}
         <hr class="divider">
         {% if trials_exhausted %}
@@ -167,6 +198,22 @@ being read.{% endcomment %}
                     table.dispatchEvent(new CustomEvent("trials:sorted"));
                 }
 
+                // A run adds rows while it is going, and they arrive at the end
+                // of the tbody whatever order the reader has the table in. So
+                // the current sort is applied again — or, with nothing sorted,
+                // run order is already what appending produced and only the
+                // pager needs telling.
+                table.addEventListener("trials:appended", function () {
+                    const sorted = headers.filter(function (th) {
+                        return th.getAttribute("aria-sort");
+                    })[0];
+                    if (sorted) {
+                        sortBy(sorted, sorted.getAttribute("aria-sort") === "descending");
+                    } else {
+                        table.dispatchEvent(new CustomEvent("trials:sorted"));
+                    }
+                });
+
                 headers.forEach(function (th, i) {
                     // Scores and durations are most useful largest-first; the
                     // trial number reads in run order. Clicking again reverses.
@@ -186,6 +233,7 @@ being read.{% endcomment %}
         {{ panels|json_script:"panels-data" }}
         {{ autocompute|json_script:"autocompute-data" }}
         {{ selectable_figures|json_script:"selectable-figures-data" }}
+        {{ live_figures|json_script:"live-figures-data" }}
         {{ selection_colors|json_script:"selection-colors-data" }}
         <script src="{% static 'ui/plotly.min.js' %}"></script>
         <script>
@@ -453,8 +501,27 @@ being read.{% endcomment %}
                     Object.keys(sel.trials).forEach(function (trace) {
                         const trials = sel.trials[trace];
                         const at = trials.indexOf(idx);
-                        const sizes = trials.map(function () { return 6; });
-                        if (at >= 0) sizes[at] = 13;
+                        // Whatever the server drew, so a point that is not the
+                        // selected one goes back to exactly what it was rather
+                        // than to a default. Without this a selection anywhere
+                        // on the page flattened every failure mark on these
+                        // figures — the duration bar lost its tint outright and
+                        // the crosses shrank to ordinary point size.
+                        const base = (el._baseMarkers || [])[Number(trace)] || {};
+                        const list = function (v) { return Array.isArray(v) ? v : null; };
+                        const baseColor = list(base.color);
+                        const baseSize = list(base.size);
+                        const baseSymbol = list(base.symbol);
+                        const baseLine = list((base.line || {}).color);
+                        const isFailure = function (i) {
+                            return !!baseSymbol && baseSymbol[i] !== "circle";
+                        };
+                        const sizes = trials.map(function (_v, i) {
+                            const was = baseSize ? baseSize[i] : 6;
+                            // Never smaller than it was: a failure is already
+                            // drawn large, and selecting one should not shrink it.
+                            return i === at ? Math.max(13, was) : was;
+                        });
                         const update = {"marker.size": [sizes]};
                         if (sel.style === "outline") {
                             // The fill already carries the score or the sign, so
@@ -472,9 +539,20 @@ being read.{% endcomment %}
                             }
                         } else {
                             update["marker.color"] = [trials.map(function (_v, i) {
-                                return i === at ? selectionColors.selected
-                                                : selectionColors.base;
+                                if (i === at) return selectionColors.selected;
+                                return baseColor ? baseColor[i] : selectionColors.base;
                             })];
+                            if (baseLine) {
+                                // A cross has no fill — the glyph *is* the
+                                // outline — so on a failure the outline is what
+                                // carries the selection. Shape says "this was
+                                // not measured", colour says "this is the one
+                                // you picked"; see plots.py's _failure_marks.
+                                update["marker.line.color"] = [trials.map(function (_v, i) {
+                                    return (i === at && isFailure(i))
+                                        ? selectionColors.selected : baseLine[i];
+                                })];
+                            }
                         }
                         Plotly.restyle(el, update, [Number(trace)]);
                     });
@@ -693,6 +771,18 @@ being read.{% endcomment %}
                     }
                     if (empty) empty.hidden = true;
                     el.hidden = false;
+                    // What the server painted, per trace, before anything on
+                    // this page touched it. The selection repaints points, and
+                    // it has to be able to put back what was under them — a
+                    // failed trial's cross is bigger and its bar is tinted, and
+                    // both used to be lost the moment anything was selected.
+                    // Taken from the payload rather than the DOM, which by then
+                    // may already carry a previous selection.
+                    el._baseMarkers = (plot.data || []).map(function (trace) {
+                        const m = trace.marker || {};
+                        return {color: m.color, size: m.size, symbol: m.symbol,
+                                line: m.line || {}};
+                    });
                     const toggle = scaleToggles[key];
                     Plotly.react(el, plot.data, plot.layout, toggle ? toggle.config : plotlyConfig);
                     if (toggle) toggle.apply(el.id);
@@ -965,6 +1055,83 @@ being read.{% endcomment %}
                     z: document.getElementById("cube-axis-z"),
                 };
                 const cubeDimensions = document.getElementById("cube-dimensions");
+
+                // ── the surrogate's own uncertainty, under the trials ─────────
+                //
+                // How much the forest's trees disagree across the plane two
+                // chosen hyperparameters span. Deferred and cached per
+                // (metric, x, y): it is per *pair*, which is not a small
+                // precomputable set — six hyperparameters make fifteen pairs and
+                // the reader is looking at one — so it follows partial
+                // dependence exactly, down to the autocompute setting.
+                const uncertaintyUrl = "{% url 'ui:surrogate_uncertainty' summary.pk %}";
+                const uncertaintyCache = {};
+                //: The field for whatever is currently on the axes, or null.
+                //: Read by applyCubeAxes when it assembles the traces, so the
+                //: field survives a metric switch, a redraw and a live update
+                //: without being fetched again.
+                let uncertaintyField = null;
+
+                function setUncertaintyWarning(text) {
+                    const el = document.getElementById("uncertainty-warning");
+                    if (!el) return;
+                    el.textContent = text || "";
+                    el.hidden = !text;
+                }
+
+                // The pair currently on the axes, or null when this does not
+                // apply — a projection, or any number of axes other than two.
+                // See views.surrogate_uncertainty for why those have no field.
+                function uncertaintyPair() {
+                    if (!cubeMethodSelect || cubeMethodSelect.value !== "axes") return null;
+                    const chosen = ["x", "y", "z"]
+                        .map(function (axis) { return cubeAxisSelect[axis] && cubeAxisSelect[axis].value; })
+                        .filter(Boolean);
+                    return chosen.length === 2 ? chosen : null;
+                }
+
+                function refreshUncertainty(asked) {
+                    const pair = uncertaintyPair();
+                    if (!pair) {
+                        // Not a state to explain — the figure is simply not
+                        // showing something this could sit under.
+                        uncertaintyField = null;
+                        setComputePrompt("uncertainty-compute", false);
+                        setUncertaintyWarning(null);
+                        return;
+                    }
+                    const metric = currentMetric();
+                    const key = metric + ":" + pair[0] + ":" + pair[1];
+
+                    function apply(data) {
+                        // Stale by the time it resolved: the axes or the metric
+                        // moved on while this was in flight.
+                        const now = uncertaintyPair();
+                        if (currentMetric() !== metric || !now
+                            || now[0] !== pair[0] || now[1] !== pair[1]) return;
+                        setComputePrompt("uncertainty-compute", false);
+                        setUncertaintyWarning(data.warning);
+                        uncertaintyField = (data.z && data.z.length) ? data : null;
+                        applyCubeAxes();
+                    }
+
+                    if (uncertaintyCache[key]) { apply(uncertaintyCache[key]); return; }
+                    if (autocompute.surrogate_uncertainty === false && !asked) {
+                        uncertaintyField = null;
+                        setComputePrompt("uncertainty-compute", true);
+                        setUncertaintyWarning(null);
+                        applyCubeAxes();
+                        return;
+                    }
+                    setComputePrompt("uncertainty-compute", false);
+                    fetch(uncertaintyUrl + "?metric=" + encodeURIComponent(metric)
+                          + "&x=" + encodeURIComponent(pair[0])
+                          + "&y=" + encodeURIComponent(pair[1]))
+                        .then(function (r) { return r.ok ? r.json() : Promise.reject(); })
+                        .then(function (data) { uncertaintyCache[key] = data; apply(data); })
+                        .catch(function () {});
+                }
+
                 function applyCubeAxes() {
                     if (!cubeAxisSelect.x) return;
                     const el = figureEl("configuration_cube");
@@ -1095,19 +1262,63 @@ being read.{% endcomment %}
                     // registered against the old one does not carry over. So a
                     // change of dimensionality is a fresh plot, and the handler
                     // is registered again against what is actually there.
+                    // The uncertainty field, when there is one for exactly this
+                    // pair of axes. Appended *last* and still drawn *underneath*:
+                    // Plotly's cartesian layer order puts heatmaplayer well
+                    // before scatterlayer, so trace order does not decide depth
+                    // here. Appending is what matters — `layout.meta.selection`
+                    // names trace 0 as the trials and trace 1 as the highlight,
+                    // and inserting a trace in front of them would silently
+                    // renumber both.
+                    const traces = [newTrace, highlight];
+                    const field = (chosen.length === 2 && !projected) ? uncertaintyField : null;
+                    if (field && field.x.length && field.y.length) {
+                        // Room for the second colour bar. Restored to the
+                        // figure's own margin whenever there is no field, so a
+                        // pair with nothing to show does not leave a gap.
+                        layout.margin = Object.assign({}, layout.margin, {r: 110});
+                        traces.push({
+                            type: "heatmap",
+                            x: field.x, y: field.y, z: field.z,
+                            colorscale: field.colorscale,
+                            // Its own bar, outside the score's rather than
+                            // opposite it: two ramps on one figure have to be
+                            // told apart, and a bar on the left of a plot reads
+                            // as belonging to the y-axis. Both labelled, and the
+                            // margin below makes room — at the default `r: 20`
+                            // this would simply have been clipped off the page.
+                            showscale: true,
+                            colorbar: {title: {text: "{% translate 'Uncertainty' %}"},
+                                       x: 1.14, thickness: 12},
+                            // Scenery: it must never take a hover away from the
+                            // trial sitting on top of it.
+                            hoverinfo: "skip",
+                            showlegend: false,
+                        });
+                    }
                     if (el.data[0] && el.data[0].type !== newTrace.type) {
                         delete clicksAttached.configuration_cube;
-                        Plotly.newPlot(el, [newTrace, highlight], layout, plotlyConfig);
+                        Plotly.newPlot(el, traces, layout, plotlyConfig);
                         attachSelectionClicks();
                     } else {
-                        Plotly.react(el, [newTrace, highlight], layout, plotlyConfig);
+                        Plotly.react(el, traces, layout, plotlyConfig);
                     }
                     applySelection("configuration_cube", currentMetric());
                 }
                 Object.keys(cubeAxisSelect).forEach(function (axis) {
-                    if (cubeAxisSelect[axis]) cubeAxisSelect[axis].addEventListener("change", applyCubeAxes);
+                    if (cubeAxisSelect[axis]) cubeAxisSelect[axis].addEventListener("change", function () {
+                        // A different pair is a different field, and the old one
+                        // must not be left drawn under the new axes.
+                        uncertaintyField = null;
+                        applyCubeAxes();
+                        refreshUncertainty();
+                    });
                 });
                 if (cubeDimensions) cubeDimensions.addEventListener("change", applyCubeAxes);
+                const uncertaintyBtn = document.getElementById("uncertainty-compute-btn");
+                if (uncertaintyBtn) {
+                    uncertaintyBtn.addEventListener("click", function () { refreshUncertainty(true); });
+                }
 
                 // Which pickers apply depends on the method, so the ones that do
                 // not are taken away rather than left there doing nothing. The
@@ -1136,6 +1347,9 @@ being read.{% endcomment %}
                         // this figure's own step, and the generic switch does
                         // not know about it.
                         applyCubeAxes();
+                        // And a projection has no field, while going back to
+                        // axes with a pair already picked should have one.
+                        refreshUncertainty();
                     });
                 }
 
@@ -1199,7 +1413,13 @@ being read.{% endcomment %}
                     syncImportanceWarning(metric);
                     syncInteractionsWarning(metric);
                     refreshLocalAblation(metric);  // its own figure now; a no-op if it is off
+                    // The field belongs to one metric — it is that metric's
+                    // surrogate disagreeing with itself — so it is dropped here
+                    // and asked for again below, rather than left under a plane
+                    // it was not computed for.
+                    uncertaintyField = null;
                     applyCubeAxes();  // the fresh trace has no axes on it until this runs
+                    refreshUncertainty();
                     // A metric switch resets the picker to the new metric's own
                     // top hyperparameter, same as the selection being forgotten
                     // above — a fresh start, not last metric's leftover choice.
@@ -1235,6 +1455,100 @@ being read.{% endcomment %}
                     // so the fresh trace gets the highlight put back on it.
                     applySelection(key, metric);
                 }
+
+                // ── figures that move while the run does ──────────────────────
+                //
+                // There was never a rendering constraint on this, only a
+                // persistence one: the figures below read nothing but the
+                // trials, and the run now writes what it has every few seconds
+                // (`ui/services/run.py`). What arrives rides inside the
+                // run-status poll — already fetched every two seconds, already
+                // replaced wholesale — so there is no second loop and no new
+                // endpoint; poll.js just says when a swap happened.
+                //
+                // Merged into the payload maps rather than replacing them. Only
+                // the live figures are in it: the analytics are not computed
+                // per trial, and the three fetched figures hold whatever was
+                // last asked for. Both must survive an update that is not about
+                // them.
+                const liveFigures =
+                    JSON.parse(document.getElementById("live-figures-data").textContent);
+                // This page has a grid, so the no-grid branch's one-shot reload
+                // marker has done its job. Cleared here so the next run of this
+                // experiment gets its own.
+                try { sessionStorage.removeItem("live-reload-{{ summary.pk }}"); } catch (e) {}
+
+                document.addEventListener("poll:swapped", function () {
+                    const el = document.getElementById("live-plots-data");
+                    if (!el) return;   // nothing has moved since the page last said what it had
+                    let live;
+                    try { live = JSON.parse(el.textContent || "{}"); } catch (e) { return; }
+
+                    Object.assign(staticPlots, live.static_plots || {});
+                    const byMetric = live.metric_plots || {};
+                    Object.keys(byMetric).forEach(function (metric) {
+                        metricPlots[metric] = Object.assign(
+                            metricPlots[metric] || {}, byMetric[metric]);
+                    });
+
+                    const metric = currentMetric();
+                    liveFigures.forEach(function (key) {
+                        if (payloadFor(key, metric) === undefined) return;
+                        redraw(key, metric);
+                        // A trial clicked before the update is still the trial
+                        // being asked about, so the fresh trace gets the
+                        // highlight put back on it — same as a view switch.
+                        applySelection(key, metric);
+                    });
+                    // The click handlers went with the purged plots, and the
+                    // cube's axes are applied to the trace rather than built
+                    // into it. Both after the loop, for the same reason
+                    // showPlots runs them after its own.
+                    attachSelectionClicks();
+                    applyCubeAxes();
+
+                    // The trials table is HTML, not a plot, so it takes the
+                    // rows the poll rendered for it. Appended rather than
+                    // swapped wholesale: this is the one thing on the page you
+                    // are *using* while you read a chart — sorting it, paging
+                    // it, looking a trial up — and replacing it under someone
+                    // mid-sort would lose the sort, the page, the scroll
+                    // position and the row they had picked. Appending keeps all
+                    // four; only the count in the heading and the order have to
+                    // be put right afterwards.
+                    if (live.rows_html) { appendTrialRows(live.rows_html, live.trials); }
+                });
+
+                function appendTrialRows(html, total) {
+                    const table = document.querySelector("table.trials");
+                    if (!table) return;
+                    const tbody = table.tBodies[0];
+                    const template = document.createElement("template");
+                    // <tr> is only valid inside a table, so it is parsed as one
+                    // — innerHTML on a bare div drops the rows on the floor.
+                    template.innerHTML = "<table><tbody>" + html + "</tbody></table>";
+                    const fresh = template.content.querySelectorAll("tr");
+                    if (!fresh.length) return;
+                    // Guard against a repeat: the poll says what the page has
+                    // seen, but a swap that raced a reload could still deliver
+                    // a row already sitting there, and two rows for one trial
+                    // would break the selection (which finds a row by index).
+                    const have = new Set(Array.from(tbody.rows).map(function (row) {
+                        return row.dataset.trialIdx;
+                    }));
+                    fresh.forEach(function (row) {
+                        if (!have.has(row.dataset.trialIdx)) tbody.appendChild(row);
+                    });
+                    const heading = table.closest("section").querySelector(".subheader");
+                    if (heading && total) {
+                        heading.textContent = heading.textContent.replace(/\d+/, total);
+                    }
+                    // Re-sorts if the reader had sorted, and re-pages either
+                    // way — the pager counts rows and there are now more.
+                    table.dispatchEvent(new CustomEvent("trials:appended"));
+                    applyTableSelection(currentMetric());
+                }
+
                 const impRenderingSelect = document.getElementById("view-select-hyperparameter_importance-rendering");
                 const impRemaining = document.getElementById("importance-remaining");
 

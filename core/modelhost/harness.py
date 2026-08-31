@@ -28,6 +28,10 @@ import traceback
 from pathlib import Path
 
 PROTOCOL_VERSION = 2
+#: Restated rather than imported, like the version above: this file is executed
+#: inside the model's own environment, where `core` does not exist. Kept in step
+#: with `core/modelhost/protocol.py` by a test.
+CAP_PROBA = "proba"
 
 
 def _send(message: dict) -> None:
@@ -105,6 +109,25 @@ def _load_model(model_file: Path):
     return candidates[0]()
 
 
+def _capabilities(model) -> list:
+    """What this model can do beyond returning labels.
+
+    Asked of the function rather than of the class. Every model inherits a
+    `fit_predict_proba` now, so its mere presence says nothing; and comparing
+    against `BaseModel.fit_predict_proba` would raise for the model this most
+    needs to work for, since each experiment's environment is built once and
+    cached and an older one's `BaseModel` has no such attribute at all.
+
+    The SDK marks its own stub with `_is_stub`. An older SDK has neither the
+    method nor the flag, this one has both, and an override has the method and
+    not the flag — so all three read correctly with no reference to the SDK.
+    """
+    fn = getattr(model, "fit_predict_proba", None)
+    if not callable(fn) or getattr(fn, "_is_stub", False):
+        return []
+    return [CAP_PROBA]
+
+
 def _greeting(model, seed: int) -> dict:
     space = model.get_config_space(seed=seed)
     return {
@@ -114,6 +137,7 @@ def _greeting(model, seed: int) -> dict:
         "model_class": type(model).__name__,
         "config_space": space.to_serialized_dict(),
         "python": ".".join(str(v) for v in sys.version_info[:3]),
+        "capabilities": _capabilities(model),
     }
 
 
@@ -201,10 +225,22 @@ def main(argv=None) -> int:
                 _fail("protocol", f"no such fold: {fold}", request_id)
                 return 1
             X_train, y_train, X_val = folds[fold]
+            # Only when a metric about to be computed needs them: an SVM fits an
+            # internal calibration to answer this, several times the cost of the
+            # plain fit, and a run that scores nothing needing probabilities
+            # should never pay it.
+            want_proba = bool(request.get("want_proba"))
             cpu0 = time.process_time()
             try:
-                y_pred = model.fit_predict(
-                    request["config"], X_train, y_train, X_val, seed=request.get("seed", 0))
+                if want_proba:
+                    y_pred, y_proba, classes = model.fit_predict_proba(
+                        request["config"], X_train, y_train, X_val,
+                        seed=request.get("seed", 0))
+                else:
+                    y_pred = model.fit_predict(
+                        request["config"], X_train, y_train, X_val,
+                        seed=request.get("seed", 0))
+                    y_proba = classes = None
             except BaseException as exc:  # noqa: BLE001 — a model may fail any way it likes
                 _fail("trial", f"{type(exc).__name__}: {exc}", request_id)
                 continue
@@ -212,12 +248,17 @@ def main(argv=None) -> int:
 
             try:
                 predictions = [_plain(v) for v in y_pred]
+                reply = {"t": "result", "id": request_id,
+                         "y_pred": predictions, "cpu_time": cpu}
+                if want_proba:
+                    reply["y_proba"] = [[float(p) for p in row] for row in y_proba]
+                    reply["classes"] = [_plain(c) for c in classes]
             except TypeError as exc:
                 _fail("trial", f"the predictions could not be sent: {exc}", request_id)
                 continue
 
             # Measured here because the parent's own CPU clock saw none of this.
-            _send({"t": "result", "id": request_id, "y_pred": predictions, "cpu_time": cpu})
+            _send(reply)
             continue
 
         _fail("protocol", f"unknown request {kind!r}", request_id)

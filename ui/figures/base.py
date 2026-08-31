@@ -109,6 +109,20 @@ class Figure:
     #: — its visibility setting, its per-metric panels, its place in the
     #: catalog — is unchanged; only where the page puts it.
     in_sidebar = False
+    #: True when this figure can be redrawn from the trials alone, and so can be
+    #: updated while a run is still going. Trial performance, trial duration, the
+    #: projection and parallel coordinates all read nothing but `result.trials`;
+    #: importance, interactions, partial dependence and local effects each need a
+    #: surrogate fit or 2^n_hp coalition evaluations, and none of those may run
+    #: per trial. A partial result leaves their fields empty, which every one of
+    #: them already handles — it is what a cancelled run produces.
+    #:
+    #: About *plot* payloads only. A figure rendered as server-side HTML is not
+    #: redrawn by swapping Plotly JSON, so it does not set this even when it
+    #: does update live: the trials table takes rendered rows through the same
+    #: poll and appends them (see `ui/views.py`'s `_live_payloads`), and the two
+    #: configuration panels do not update at all. See `run_status`.
+    live = False
     #: True when this figure moves into a column of its own beside the grid once
     #: the window is wide enough for one. For a figure that is read *against*
     #: the others rather than in sequence with them — the trials table, which

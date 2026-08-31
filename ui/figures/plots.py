@@ -41,13 +41,50 @@ from ..formatting import sigfigs
 #                     between hyperparameters, a value that hurt
 #   _INTENSITY_SCALE  anything scaled to the metric, on every figure that
 #                     scales anything to the metric (see below)
+#   UNCERTAINTY_SCALE a field drawn *under* the marks, saying how much the
+#                     surrogate's trees disagree (see below)
 #
 # The first two are public because the page draws the selection highlight
 # itself — a restyle, not a rebuilt figure — see views.py's `selection_colors`.
 MARKER_COLOR = "#636EFA"
-SELECTION_COLOR = "#EF553B"
+#: The shade as it *appears*, not the one that was being asked for. Trial
+#: performance fades its points to 0.7 so a failure's cross can sit among them
+#: at full strength, and the selected point was fading with them — over
+#: Plotly's own `#E5ECF6` plot background that composited `#EF553B` down to
+#: this, a soft coral. Every other figure painted the same constant at full
+#: opacity and came out visibly redder, so "selected" meant two different
+#: colours depending on which figure you were looking at.
+#:
+#: Resolved towards the softer one, which is the one that had been on screen
+#: in the figure most people click in. Painted at full opacity everywhere now,
+#: including there — see `performance_over_time_plot`, which exempts the
+#: selected point from the fade rather than fading an already-faded colour.
+#: `--selected` in app.css is the same value, for the parts of the page that
+#: are not plots.
+SELECTION_COLOR = "#EC8273"
 ACCENT_COLOR = "#10B981"
 NEGATIVE_COLOR = "#FF2B2B"
+
+#: The configuration cube's surrogate-uncertainty field: how much the forest's
+#: own trees disagree across the plane two hyperparameters span. A background,
+#: so it gets a ramp rather than a colour, and a ramp that belongs to nothing
+#: else on the page.
+#:
+#: **Not green.** `ACCENT_COLOR` means "the best so far" on every figure that
+#: uses it, and a field underneath the points is not that. **Not blue either**,
+#: which is what `_INTENSITY_SCALE` ramps for the metric — on this very figure,
+#: on the points sitting on top of this field. A reader who has learned that
+#: more blue is a better score must not meet a second blue ramp meaning
+#: something else two millimetres below it.
+#:
+#: So violet, which the palette does not otherwise use, and translucent at both
+#: ends: this is scenery behind the trials, and it must never compete with them
+#: for the eye. It ramps *up* with uncertainty — the un-inverted quantity, so
+#: pale is where the trees agree.
+UNCERTAINTY_SCALE = [
+    [0.0, "rgba(124, 58, 237, 0.02)"],
+    [1.0, "rgba(124, 58, 237, 0.42)"],
+]
 
 
 # ── A trial that did not produce a measurement ───────────────────────────────
@@ -230,7 +267,12 @@ def performance_over_time_plot(result, display_metric, *, x_axis="trial",
     # Opacity per point rather than per trace: a failure's cross is meant to be
     # read at full strength, and a trace-wide `opacity` would fade it with
     # everything else.
-    fills = [_translucent(c) for c in colors]
+    # The selected point keeps its colour at full strength. Everything else
+    # fades, which is what the per-point opacity is for; fading the selection
+    # too is what made `SELECTION_COLOR` mean one shade here and a redder one
+    # on every other figure.
+    fills = [c if i == selected_idx else _translucent(c)
+             for i, c in enumerate(colors)]
     marker = dict(size=sizes, color=fills)
     marker.update(_failure_marks(trials, size=sizes, selected_idx=selected_idx))
 

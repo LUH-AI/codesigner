@@ -14,6 +14,7 @@ from .catalog import (
 from .plots import (
     MARKER_COLOR,
     SELECTION_COLOR,
+    UNCERTAINTY_SCALE,
     configuration_cube_plot,
     configuration_projection_plot,
     hyperparameter_ablation_plot,
@@ -36,6 +37,7 @@ __all__ = [
     "FIGURES",
     "MARKER_COLOR",
     "SELECTION_COLOR",
+    "UNCERTAINTY_SCALE",
     "FIGURES_BY_KEY",
     "DOUBLE",
     "FULL",

@@ -244,6 +244,8 @@ class PerformanceOverTime(Figure):
     curve here: trial index or elapsed time on x, score or error on y."""
 
     key = "performance_over_time"
+    # Drawn from the trials alone, so it can be updated mid-run. See Figure.live.
+    live = True
     # Renamed from "Performance over time": every figure here is over time in
     # some sense, and what distinguishes this one is that its unit is the
     # trial. The key is unchanged — it is stored in settings, so renaming that
@@ -307,6 +309,8 @@ class ConfigurationCube(Figure):
     """
 
     key = "configuration_cube"
+    # Drawn from the trials alone, so it can be updated mid-run. See Figure.live.
+    live = True
     # Renamed from "Configuration cube", which now names one of its three views.
     # "Projection" covers all three: each keeps two or three linear coordinates
     # of hyperparameter space and drops the rest, differing only in which
@@ -331,6 +335,13 @@ class ConfigurationCube(Figure):
     # space they were drawn from. The projections need it too, for the same
     # reason one column further back — see `encode_configurations`.
     needs_config_space = True
+    #: How unsure the surrogate is across the plane the axes view spans, drawn
+    #: as a field under the trials. Deferred for the same reason partial
+    #: dependence is: it is per *pair* of hyperparameters, which is not a small
+    #: precomputable set — a model with six of them has fifteen pairs, and the
+    #: reader looks at one. See `BaseOptimizer.compute_surrogate_uncertainty`,
+    #: and `views.surrogate_uncertainty` for why it is the axes view only.
+    deferred = (("surrogate_uncertainty", _("Surrogate uncertainty (axes view)")),)
 
     @classmethod
     def plot(cls, result, metric=None, view=None, config_space=None):
@@ -353,6 +364,8 @@ class ParallelCoordinates(Figure):
     """
 
     key = "parallel_coordinates"
+    # Drawn from the trials alone, so it can be updated mid-run. See Figure.live.
+    live = True
     label = _("Parallel coordinates")
     width = FULL
     selects_trials = True
@@ -423,6 +436,8 @@ class TrialDuration(Figure):
     """One bar per trial. The same for every metric, so it is drawn once."""
 
     key = "trial_duration"
+    # Drawn from the trials alone, so it can be updated mid-run. See Figure.live.
+    live = True
     label = _("Trial duration")
     selects_trials = True
 

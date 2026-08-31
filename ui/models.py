@@ -152,6 +152,13 @@ class Run(models.Model):
     # have any combination; a trial cap is one of them, not the frame the others
     # hang off.
     stopping = models.JSONField(default=dict)
+    # How long any one call to the model may take, and how that number is
+    # arrived at: {"mode": "fixed"|"predicted", "seconds": float, "factor":
+    # float}. Not a stopping criterion and deliberately not stored among them —
+    # nothing here ends the run, it ends a trial, and the collector would filter
+    # it out anyway. Empty for runs that predate the field, which
+    # `core.modelhost.deadline.as_deadline` reads as the fixed default.
+    trial_timeout = models.JSONField(default=dict, blank=True)
     # Which criterion ended it. Empty while running, and for a run that was
     # cancelled or errored rather than stopping on its own terms.
     stopped_by = models.CharField(max_length=40, blank=True, default="")
