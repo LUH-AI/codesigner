@@ -26,4 +26,22 @@ figure.{% endcomment %}
         <p class="caption" data-game-help>{% translate "What a hyperparameter could have gained you, had it been tuned." %}</p>
     </div>
     {{ explanation_game_help|json_script:"explanation-game-help" }}
+    {% comment %}One button, in the section that already owns the choice of game.
+    It is a single computation and it fills all six figures that read one — the
+    importance figure and the five interaction figures — so it belongs beside the
+    selector that drives them rather than inside any one of them.
+
+    Why it is ever needed: a cancelled run skips the games (pressing Cancel used
+    to still buy the full analytics bill), and so does a partial write during a
+    run, for the same reason — 2^n_hp coalitions per game per metric is not a
+    per-trial cost. An imported run has never computed them at all. The figures
+    that are waiting on it say so themselves; this does not need to explain it
+    twice.{% endcomment %}
+    {% if analytics_absent and may.run %}
+        <form method="post" action="{% url 'ui:experiment_compute_analytics' summary.pk %}"
+              class="compute-analytics">
+            {% csrf_token %}
+            <button type="submit" class="btn btn-block">{% translate "Compute explanations" %}</button>
+        </form>
+    {% endif %}
 </section>

@@ -94,3 +94,74 @@ def test_import_rejects_invalid_file(tmp_path):
     with pytest.raises(CommandError, match="not valid JSON"):
         call_command("import_ihpo", str(bad))
     assert Experiment.objects.count() == 0
+
+
+# ── --smac: the same door, for somebody else's run ───────────────────────────
+#
+# *What:* the command reads a SMAC output directory as well as an .ihpo. For an
+# operator with the files already on the machine, where a browser's directory
+# picker is not the way in.
+#
+# *How:* against `tests/fixtures/smac_run`, a real 25-trial run, copied to a
+# tmp_path so the nesting cases can be built around it.
+
+
+@pytest.mark.django_db
+def test_import_smac_directory_creates_a_read_only_experiment():
+    """The run comes in with its trials, its space, and no model to run it."""
+    from ui.models import Experiment
+
+    call_command("import_ihpo", str(FIXTURES_DIR / "smac_run"), smac=True)
+
+    exp = Experiment.objects.get()
+    assert exp.name == "demo-run"
+    assert len(exp.result["data"]) == 25
+    assert exp.config_space is not None
+    assert not exp.dataset
+    assert not exp.model_file
+
+
+@pytest.mark.django_db
+def test_import_smac_finds_a_run_nested_below_the_named_directory(tmp_path):
+    """`smac3_output/<name>/<seed>` is where SMAC actually puts them.
+
+    Naming the top of that tree is at least as natural as naming the run
+    directory, so the search is recursive.
+    """
+    from ui.models import Experiment
+
+    nested = tmp_path / "smac3_output" / "demo-run" / "0"
+    shutil.copytree(FIXTURES_DIR / "smac_run", nested)
+
+    call_command("import_ihpo", str(tmp_path), smac=True)
+
+    assert Experiment.objects.get().name == "demo-run"
+
+
+@pytest.mark.django_db
+def test_import_smac_refuses_two_runs_at_once(tmp_path):
+    """A runhistory read against another run's config space is not a run.
+
+    The importer matches on basenames — it has to, since a browser upload keeps
+    nothing else — so two runs under one directory cannot be told apart.
+    """
+    from ui.models import Experiment
+
+    for seed in ("0", "1"):
+        shutil.copytree(FIXTURES_DIR / "smac_run", tmp_path / "demo-run" / seed)
+
+    with pytest.raises(CommandError, match="more than one run"):
+        call_command("import_ihpo", str(tmp_path), smac=True)
+    assert Experiment.objects.count() == 0
+
+
+@pytest.mark.django_db
+def test_import_smac_refuses_a_directory_that_is_not_one(tmp_path):
+    """With the reason, and no row — the same standard as the .ihpo door."""
+    from ui.models import Experiment
+
+    (tmp_path / "runhistory.json").write_text('{"data": []}')
+
+    with pytest.raises(CommandError, match="configspace.json"):
+        call_command("import_ihpo", str(tmp_path), smac=True)
+    assert Experiment.objects.count() == 0

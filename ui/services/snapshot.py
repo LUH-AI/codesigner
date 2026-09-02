@@ -18,7 +18,7 @@ from core.provenance import (
 )
 
 from ..models import Experiment
-from ..registry import OPTIMIZERS
+from ..registry import MODELS, OPTIMIZERS
 
 
 def experiment_from_snapshot(snapshot: dict, dataset_file=None, model_file=None,
@@ -59,6 +59,7 @@ def experiment_from_snapshot(snapshot: dict, dataset_file=None, model_file=None,
         seed=snapshot["seed"],
         cv_folds=io.folds_of(snapshot),
         test_size=io.test_size_of(snapshot),
+        config_space=snapshot.get("space"),
         result=snapshot.get("result"),
         owner=owner,
     )
@@ -129,6 +130,24 @@ def _restore_runs(exp: Experiment, recorded: list) -> None:
         )
 
 
+def _model_kind(exp: Experiment, model_path: str) -> str:
+    """Which of the three kinds of model this row has.
+
+    Inferred rather than stored, because the three are exactly distinguishable
+    from what the row already holds: an uploaded `.py` is a file, a name the
+    registry knows is a registry model, and a name it does not know with no file
+    behind it is somebody else's — a run imported from a SMAC directory, which
+    never had a model here to begin with.
+
+    Without this, `kind` was recomputed as "registry" on every round trip and an
+    imported run then failed to rebuild at all, since the registry has no such
+    model to resolve.
+    """
+    if model_path:
+        return "file"
+    return "registry" if exp.model_name in MODELS else "external"
+
+
 def snapshot_from_experiment(exp: Experiment, *, provenance: bool = False) -> dict:
     """Build a current-format .ihpo snapshot dict from an Experiment row.
 
@@ -155,7 +174,7 @@ def snapshot_from_experiment(exp: Experiment, *, provenance: bool = False) -> di
         "seed": exp.seed,
         "dataset": {"filename": Path(dataset).name if dataset else "",
                     "path": dataset},
-        "model": {"kind": "file" if model_path else "registry",
+        "model": {"kind": _model_kind(exp, model_path),
                   "name": exp.model_name, "path": model_path},
         "evaluation": evaluation(exp.cv_folds, test_size=exp.test_size),
         "metrics": {"names": exp.metric_names,
@@ -163,6 +182,11 @@ def snapshot_from_experiment(exp: Experiment, *, provenance: bool = False) -> di
                     "original": exp.original_metric},
         "optimizer": {"name": exp.optimizer_name, "params": exp.optimizer_params},
     }
+    # Only when the row has one. An experiment whose model can still be asked
+    # does not need it stored, and writing an absent section as null would make
+    # every file claim to answer a question it does not.
+    if exp.config_space:
+        snapshot["space"] = exp.config_space
     if provenance:
         _add_provenance(snapshot, exp, dataset, model_path)
     snapshot["result"] = exp.result
@@ -179,7 +203,8 @@ def _add_provenance(snapshot: dict, exp: Experiment, dataset: str, model_path: s
     if dataset:
         snapshot["dataset"].update(dataset_fingerprint(dataset))
     snapshot["model"].update(
-        model_fingerprint(exp.model_name, model_path, exp.env_meta))
+        model_fingerprint(exp.model_name, model_path, exp.env_meta,
+                          kind=snapshot["model"]["kind"]))
     snapshot["evaluation"].update(
         evaluation(exp.cv_folds, _target(dataset), test_size=exp.test_size))
     snapshot["optimizer"]["defaults_used"] = _defaults_used(exp)

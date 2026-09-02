@@ -20,6 +20,7 @@ import math
 
 import plotly.graph_objects as go
 
+from core.metrics import to_error
 from core.projection import log_hyperparameters, project
 
 from ..formatting import sigfigs
@@ -101,6 +102,12 @@ UNCERTAINTY_SCALE = [
 # the failure they clicked.
 FAILURE_SYMBOL = "x-thin"
 FAILURE_LINE_WIDTH = 3
+#: Thinner, for the figures whose points already wear a ring. On the cube and
+#: the projection every marker is outlined in the card's colour to keep two
+#: overlapping points from compositing into one, so a cross at the full weight
+#: is the boldest thing on a dense plot — louder than the scores it sits among,
+#: which are what the figure is for.
+FAILURE_LINE_WIDTH_RINGED = 2
 #: Big enough that a cross reads as a cross rather than as a smudge.
 FAILURE_SIZE = 11
 #: The tint a failed trial gets where the mark is a fill rather than a glyph — a
@@ -120,7 +127,8 @@ def _translucent(color: str, alpha: float = 0.7) -> str:
 
 
 def _failure_marks(trials, *, size, symbol="circle", line_width=1,
-                   line_color="#FFFFFF", selected_idx=None):
+                   line_color="#FFFFFF", selected_idx=None,
+                   failure_width=FAILURE_LINE_WIDTH):
     """Per-point marker styling that marks whichever of *trials* failed.
 
     Returns keys to merge over a trace's `marker`, or `{}` when nothing failed —
@@ -145,7 +153,7 @@ def _failure_marks(trials, *, size, symbol="circle", line_width=1,
         if not bad:
             continue
         sizes[i] = max(sizes[i], FAILURE_SIZE)
-        widths[i] = FAILURE_LINE_WIDTH
+        widths[i] = failure_width
         colors[i] = (SELECTION_COLOR if i == selected_idx else NEGATIVE_COLOR)
 
     return {
@@ -246,11 +254,24 @@ def performance_over_time_plot(result, display_metric, *, x_axis="trial",
         xs = [t.trial for t in trials]
         x_title = "Trial"
 
+    metric = result.metric(display_metric)
     incumbents = incumbent_scores(result, display_metric)
     if y_axis == "error":
-        ys = [max(1e-3, 1.0 - t.scores[display_metric]) for t in trials]
-        incumbent_ys = [max(1e-3, 1.0 - v) for v in incumbents]
-        y_title, y_type, outcome_name = "Error", "log", "Trial error"
+        errors = [to_error(metric, t.scores[display_metric]) for t in trials]
+        # An unbounded higher-is-better metric has no distance-from-perfect to
+        # plot (see `core.metrics.to_error`), and this view is the whole figure
+        # — so it declines rather than drawing an axis measured from nowhere.
+        if any(e is None for e in errors):
+            return None
+        incumbent_errors = [to_error(metric, v) for v in incumbents]
+        # The floor keeps a log axis off zero. Applied only when the axis is
+        # actually logarithmic: a metric that is already an error can be
+        # negative or span zero, and clamping those to 1e-3 would move points.
+        y_type = "log" if all(e > 0 for e in errors) else "linear"
+        floor = (lambda e: max(1e-3, e)) if y_type == "log" else (lambda e: e)
+        ys = [floor(e) for e in errors]
+        incumbent_ys = [floor(e) for e in incumbent_errors]
+        y_title, outcome_name = "Error", "Trial error"
     else:
         ys = [t.scores[display_metric] for t in trials]
         incumbent_ys = incumbents
@@ -262,7 +283,9 @@ def performance_over_time_plot(result, display_metric, *, x_axis="trial",
         colors[selected_idx] = SELECTION_COLOR
         sizes[selected_idx] = 13
 
-    improved = [i == 0 or incumbents[i] > incumbents[i - 1] for i in range(len(trials))]
+    # In the metric's own direction: an improvement on an RMSE is a drop.
+    improved = [i == 0 or metric.better(incumbents[i], incumbents[i - 1])
+                for i in range(len(trials))]
 
     # Opacity per point rather than per trace: a failure's cross is meant to be
     # read at full strength, and a trace-wide `opacity` would fade it with
@@ -900,7 +923,12 @@ def configuration_cube_plot(result, display_metric, config_space=None):
         return None
     customdata = [[t.config.get(h) for h in hp_names] for t in trials]
     scores = [t.scores[display_metric] for t in trials]
-    cube_marker = dict(size=8, color=scores, colorscale=_INTENSITY_SCALE, showscale=True,
+    cube_marker = dict(size=8, color=scores, colorscale=_INTENSITY_SCALE,
+                       # Darker is better, whichever end of the metric that is.
+                       # The colour bar keeps the metric's own numbers; only
+                       # which end of the ramp they land on is reversed.
+                       reversescale=not result.metric(display_metric).higher_is_better,
+                       showscale=True,
                        colorbar=dict(title=display_metric.capitalize()),
                        # Opaque, and each point ringed in the card's own colour.
                        # Left to blend, two points that nearly overlap composite
@@ -913,7 +941,8 @@ def configuration_cube_plot(result, display_metric, config_space=None):
                        opacity=1, line=dict(width=1, color="#FFFFFF"))
     # A failure's fill stays on the score scale — 0.0, the worst end, which is
     # what it scored — and the cross over it says the number was never measured.
-    cube_marker.update(_failure_marks(trials, size=8))
+    cube_marker.update(_failure_marks(trials, size=8,
+                                      failure_width=FAILURE_LINE_WIDTH_RINGED))
     fig = go.Figure(go.Scatter(
         x=[], y=[], mode="markers", customdata=customdata,
         text=[f"Trial {t.trial}" for t in trials], marker=cube_marker,
@@ -967,7 +996,10 @@ def configuration_projection_plot(result, display_metric, method,
     if warning or not labels:
         return None
 
-    marker = dict(size=8, color=scores, colorscale=_INTENSITY_SCALE, showscale=True,
+    marker = dict(size=8, color=scores, colorscale=_INTENSITY_SCALE,
+                  # See the cube: darker is better in either direction.
+                  reversescale=not result.metric(display_metric).higher_is_better,
+                  showscale=True,
                   colorbar=dict(title=display_metric.capitalize()),
                   # Opaque, and each point ringed in the card's own colour.
                   # Left to blend, two points that nearly overlap composite
@@ -977,7 +1009,8 @@ def configuration_projection_plot(result, display_metric, method,
                   # one good one. (`opacity` defaults to 1; said out loud
                   # because it is load-bearing here rather than incidental.)
                   opacity=1, line=dict(width=1, color="#FFFFFF"))
-    marker.update(_failure_marks(trials, size=8))
+    marker.update(_failure_marks(trials, size=8,
+                                 failure_width=FAILURE_LINE_WIDTH_RINGED))
     fig = go.Figure(go.Scatter(
         x=[], y=[], mode="markers", customdata=coordinates,
         text=[f"Trial {t.trial}" for t in trials], marker=marker,
@@ -1199,6 +1232,17 @@ def parallel_coordinates_plot(result, display_metric, config_space=None):
         return None
     lo, hi = min(scores[i] for i in live), max(scores[i] for i in live)
     span = (hi - lo) or 1.0
+    metric = result.metric(display_metric)
+
+    def shade(score):
+        """How far along the ramp a score sits — 0 worst, 1 best.
+
+        Both the colour and the z-order below read this rather than the raw
+        score, so the two cannot disagree about which end is good. On a metric
+        where lower wins, the position is simply the other way round.
+        """
+        along = (score - lo) / span
+        return along if metric.higher_is_better else 1.0 - along
 
     fig = go.Figure()
     # Worst first, so the best trials are added last and draw over the rest.
@@ -1206,13 +1250,13 @@ def parallel_coordinates_plot(result, display_metric, config_space=None):
     # ordering is a decision made here: with hundreds of lines crossing, the
     # ones worth following are the ones that should be on top, and in trial
     # order they were simply whichever ran latest.
-    by_score = sorted(live, key=lambda i: scores[i])
+    by_score = sorted(live, key=lambda i: shade(scores[i]))
     for i in by_score:
         trial = trials[i]
         x, y = _densified([column[i] for column in columns])
         fig.add_trace(go.Scatter(
             x=x, y=y, mode="lines+markers",
-            line=dict(color=_scale_color(_INTENSITY_SCALE, (scores[i] - lo) / span),
+            line=dict(color=_scale_color(_INTENSITY_SCALE, shade(scores[i])),
                       width=1.5),
             # Invisible but present: a lines-only trace takes no clicks at all,
             # and this is a figure you click.
@@ -1227,6 +1271,7 @@ def parallel_coordinates_plot(result, display_metric, config_space=None):
         x=[None, None], y=[None, None], mode="markers", showlegend=False,
         hoverinfo="skip",
         marker=dict(color=[lo, hi], colorscale=_INTENSITY_SCALE, cmin=lo, cmax=hi,
+                    reversescale=not metric.higher_is_better,
                     showscale=True, opacity=0,
                     colorbar=dict(title=display_metric.capitalize())),
     ))

@@ -261,15 +261,50 @@ class PerformanceOverTime(Figure):
     width = FULL
     per_metric = True
     views = ("trial-score", "trial-error", "time-score", "time-error")
-    # Keyed by view, since the sensible "absolute" range depends on which
-    # y-axis is showing: scores are bounded 0-1 (linear); error is log, so its
-    # full range 1e-3..1 is log10 -3..0. Same pair for both x-axis choices.
+    # Present so the toggle is offered at all; the ranges in it are the four
+    # original metrics', and `absolute_scale_for` is what actually answers.
     absolute_scale = {
         "trial-score": {"yaxis.range": [0, 1], "yaxis.autorange": False},
         "trial-error": {"yaxis.range": [-3, 0], "yaxis.autorange": False},
         "time-score": {"yaxis.range": [0, 1], "yaxis.autorange": False},
         "time-error": {"yaxis.range": [-3, 0], "yaxis.autorange": False},
     }
+
+    @classmethod
+    def absolute_scale_for(cls, metric):
+        """The four views' absolute ranges under *metric*, or None for none.
+
+        Keyed by view, since the sensible "absolute" range depends on which
+        y-axis is showing — and now by metric too, since a range that is right
+        for an accuracy is a fiction for an RMSE. Both axes resolve from the
+        metric's own bounds, and either can come back empty:
+
+        - **score** is linear over `[low, high]`, and needs both. An unbounded
+          metric has no full range to pin to, so it offers no toggle.
+        - **error** is `core.metrics.error_range`, drawn on a log axis, so the
+          pinned range is its log10. `1e-3` is the floor the figure itself
+          applies to keep a log axis off zero, and it is the same number here.
+
+        A view with no range is dropped rather than set to None, so a metric
+        with neither leaves an empty dict — which the page reads as "no toggle".
+        """
+        import math
+
+        from core.metrics import error_range
+
+        scales = {}
+        if metric.low is not None and metric.high is not None:
+            scales["score"] = {"yaxis.range": [metric.low, metric.high],
+                               "yaxis.autorange": False}
+        span = error_range(metric)
+        if span is not None:
+            lo, hi = span
+            if hi > 0:
+                scales["error"] = {
+                    "yaxis.range": [math.log10(max(1e-3, lo)), math.log10(hi)],
+                    "yaxis.autorange": False}
+        return {view: scales[view.split("-")[1]]
+                for view in cls.views if view.split("-")[1] in scales}
 
     @classmethod
     def plot(cls, result, metric=None, view=None):

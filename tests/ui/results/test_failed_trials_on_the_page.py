@@ -261,3 +261,269 @@ def test_selecting_a_failure_keeps_its_cross_and_changes_its_colour():
     assert "marker.line.color" in branch
     assert "isFailure" in branch
 
+
+
+# ── …including on the figures whose colour already means something ──────────
+#
+# The two projections (the cube's axes view and its PCA/PLS views) style
+# selection as an *outline* rather than a recolour, because the fill is the
+# score. That branch painted a constant over every point's outline — and a
+# failure's glyph is an open cross, so the outline *is* the mark.
+
+
+def _ordinary_point_size():
+    """What the cube draws a trial that succeeded at.
+
+    Read off the builder rather than repeated here, so the size the 3D failure
+    mark has to sit below cannot drift away from the size it is sitting among.
+    """
+    from ui.figures.plots import configuration_cube_plot
+
+    from tests.ui.results.test_failed_trials import _result
+
+    marker = configuration_cube_plot(_result(failed_at=(2,)), "accuracy").data[0].marker
+    return marker.size[0]
+
+
+def _outline_branch():
+    """The half of `applySelection` that rings a trace's selected point."""
+    branch = _recolor_branch()
+    start = branch.index('if (sel.style === "outline")')
+    return branch[start:branch.index("Plotly.restyle(el, update", start)]
+
+
+def test_the_projection_carries_failure_marks_at_all(client, experiment):
+    """Every view of it. The server has to send them before anything can keep
+    them, and this is the figure the marks were missing from."""
+    from ui.figures.plots import configuration_cube_plot
+    from ui.views import _rebuild_experiment
+
+    result = _rebuild_experiment(experiment)["result"]
+    figure = configuration_cube_plot(result, "accuracy")
+
+    symbols = list(figure.data[0].marker.symbol)
+    assert [i for i, s in enumerate(symbols) if s != "circle"] == [3, 5]
+    assert list(figure.data[0].marker.line.color)[3] == "#FF2B2B"
+
+
+def test_the_outline_selection_keeps_a_failures_cross_visible():
+    """The bug: an outline width of 0 erases an open cross entirely.
+
+    Every point that was not the selected one had its outline zeroed, so on the
+    hyperparameter space projection a failed trial looked exactly like a trial
+    that scored badly — and something is always selected, so it was never
+    visible at all.
+    """
+    branch = _outline_branch()
+
+    assert "isFailure" in branch, "the ring no longer knows which points are crosses"
+    assert "baseLineWidth" in branch, "a failure's own outline width is not restored"
+
+
+def test_the_outline_selection_keeps_a_failures_colour():
+    """Red says "not measured"; the selection colour is reserved for the one
+    point that was clicked."""
+    branch = _outline_branch()
+
+    assert "baseLine[i]" in branch
+
+
+def test_a_three_dimensional_view_uses_a_symbol_a_scene_can_draw():
+    """`x-thin` is outline-only, and a 3D scene draws no marker outline.
+
+    So the shape has to change with the dimensionality, or a failure in the 3D
+    view is drawn as nothing at all. The red cannot come with it — the same
+    limitation the selection ring already has in a scene.
+    """
+    branch = _recolor_branch()
+
+    assert 'scene && sym === "x-thin" ? "x"' in branch
+    assert '"marker.symbol"' in branch
+
+
+def test_the_three_dimensional_cross_is_smaller_than_the_points_around_it():
+    """Below the size the ordinary points are drawn at, not above it.
+
+    A filled glyph covers its whole extent where an open one does not, a cross
+    reads wider than a disc of the same nominal size, and in a scene size is a
+    depth cue — an enlarged marker reads as one nearer the camera. The red is
+    what carries the signal in 3D, so the shape does not have to.
+    """
+    import re
+
+    from ui.figures.plots import FAILURE_SIZE
+
+    source = _script()
+    size = int(re.search(r"const FAILURE_SIZE_3D = (\d+);", source).group(1))
+
+    assert size < _ordinary_point_size(), \
+        "a failure should not be the largest thing on the plot"
+    assert size < FAILURE_SIZE, "the flat mark is the one that has to carry itself"
+    assert "Math.min(was, FAILURE_SIZE_3D)" in _recolor_branch()
+
+
+def test_the_cube_rebuilds_its_marker_from_the_payload_not_the_element():
+    """The root cause of two separate disappearing-cross bugs, pinned once.
+
+    `applyCubeAxes` rebuilds the trace on every axis change, and whatever it
+    builds becomes `el.data[0]` — so anything it reads off the element is
+    whatever the *previous* view needed, not what the server drew. Adjusting a
+    marker in place therefore feeds forward and never recovers:
+
+    - substituting the 3D symbol left the open cross filled on the way back;
+    - dropping `marker.line` for 3D (a scene rejects an array width) left the
+      2D cross with no outline at all, which is the whole mark.
+
+    Neither is fixed by undoing the specific adjustment. The fix is that the
+    rebuild starts from the payload every time, which makes both self-correcting
+    and any future one too.
+    """
+    cube = _cube_function()
+
+    assert "baseMarker()" in cube
+    assert "Object.assign({}, trace.marker)," not in cube, \
+        "the marker is being rebuilt from the element again"
+
+
+def test_the_drawn_marker_survives_a_change_of_dimensionality():
+    """2D and 3D are different Plotly subplot types, so switching between them
+    is a `newPlot` rather than a `react` — and `applySelection` runs afterwards
+    and needs what the server drew. Carried across rather than assumed to
+    survive: without it no point is a failure any more, and every cross is
+    repainted as an ordinary ring.
+    """
+    source = _script()
+    start = source.index("function applyCubeAxes(")
+    # To the end of the function, which `_cube_function` stops short of: the
+    # replot is the last thing it does.
+    whole = source[start:source.index('applySelection("configuration_cube"', start)]
+
+    assert "const drawn = el._baseMarkers" in whole
+    assert whole.index("Plotly.newPlot") < whole.index("el._baseMarkers = drawn")
+
+
+def test_the_whole_marker_is_kept_not_only_what_the_selection_repaints():
+    """The rebuild needs the colour scale, the colour bar and the score array
+    too, not just the four keys the repaint touches."""
+    source = _script()
+    start = source.index("function draw(key, plot)")
+    capture = source[start:source.index("function clearPlot", start)]
+
+    assert "JSON.parse(JSON.stringify(trace.marker" in capture
+
+
+def test_the_flat_view_gets_its_open_cross_back_after_a_three_d_one():
+    """The bug this caused: `applyCubeAxes` rebuilds the trace from whatever is
+    on the element, so a symbol substituted in place while 3D was showing came
+    back as the base on the next call and the open cross never returned.
+
+    The guard is that the substitution reads the *payload* every time rather
+    than the element, which is self-correcting in both directions.
+    """
+    source = _script()
+    start = source.index("function applyCubeAxes(")
+    cube = source[start:source.index("Plotly.react(el, traces, layout", start)]
+
+    assert '"x-thin"' not in cube, "applyCubeAxes is substituting symbols again"
+    assert "baseSymbol.map" in _recolor_branch()
+
+
+def _cube_function():
+    source = _script()
+    start = source.index("function applyCubeAxes(")
+    return source[start:source.index("Plotly.react(el, traces, layout", start)]
+
+
+def test_a_scene_is_not_handed_an_array_it_rejects():
+    """`scatter3d.marker.line.width` is scalar-only, and `_failure_marks` makes
+    it an array. Plotly takes the whole trace down over an invalid attribute, so
+    a run with any failure in it drew *nothing at all* in three dimensions —
+    not the crosses, not the other points either.
+
+    Dropped rather than flattened to a scalar: a scene draws no marker outline,
+    so `marker.line` carries nothing there in the first place.
+    """
+    assert "delete newTrace.marker.line" in _cube_function()
+
+
+def test_the_scene_draws_the_crosses_again_in_red():
+    """With no outline to carry it, a failure in a scene is filled with its own
+    score — and a failure scores at the pale end of the ramp, so the crosses
+    come out very nearly white.
+
+    Redrawn on top as scenery, the same pattern the incumbent markers and the
+    uncertainty field use: skipping hover takes it out of hit-testing so a click
+    still reaches the real point underneath.
+    """
+    cube = _cube_function()
+
+    assert "selectionColors.failure" in cube
+    assert 'hoverinfo: "skip"' in cube
+    assert "traces.push" in cube
+
+
+def test_the_extra_trace_goes_after_the_ones_the_selection_names():
+    """`layout.meta.selection` names trace 0 as the trials and trace 1 as the
+    highlight, so anything inserted in front of them renumbers both."""
+    cube = _cube_function()
+
+    assert cube.index("const traces = [newTrace, highlight]") < cube.index(
+        "selectionColors.failure")
+
+
+@pytest.mark.django_db
+def test_the_page_is_told_the_failure_colour(client, experiment):
+    """Sent from the palette rather than repeated in the script, so the page
+    restates no colour it does not own."""
+    import json
+
+    from ui.figures import NEGATIVE_COLOR
+
+    body = client.get(reverse("ui:experiment_detail",
+                              args=[experiment.pk])).content.decode()
+    start = body.index('id="selection-colors-data"')
+    start = body.index(">", start) + 1
+    colors = json.loads(body[start:body.index("</script>", start)])
+
+    assert colors["failure"] == NEGATIVE_COLOR
+
+
+def test_the_three_d_trace_the_page_builds_is_one_plotly_accepts(experiment):
+    """The check that would have caught it, done against Plotly's own schema.
+
+    The client rebuilds the cube's trace as `scatter3d` from the server payload,
+    and a scene's marker validates differently from a plane's — `line.width`
+    array-valued is the one that bit, and an invalid attribute costs the whole
+    trace rather than the attribute. So the payload is put through the same
+    transformation the page performs and handed to the validator.
+    """
+    import plotly.graph_objects as go
+
+    from ui.figures.plots import configuration_cube_plot
+    from ui.views import _rebuild_experiment
+
+    result = _rebuild_experiment(experiment)["result"]
+    marker = configuration_cube_plot(result, "accuracy").data[0].marker.to_plotly_json()
+    assert isinstance(marker["line"]["width"], (list, tuple)), "no failures to carry"
+
+    # What applyCubeAxes does on the way into a scene.
+    marker.pop("line")
+    marker["symbol"] = [("x" if s == "x-thin" else s) for s in marker["symbol"]]
+
+    points = list(range(len(result.trials)))
+    go.Scatter3d(x=points, y=points, z=points, mode="markers", marker=marker)
+
+
+def test_the_same_payload_is_rejected_without_that_transformation(experiment):
+    """Otherwise the test above proves only that some dict validates."""
+    import plotly.graph_objects as go
+
+    from ui.figures.plots import configuration_cube_plot
+    from ui.views import _rebuild_experiment
+
+    result = _rebuild_experiment(experiment)["result"]
+    marker = configuration_cube_plot(result, "accuracy").data[0].marker.to_plotly_json()
+    points = list(range(len(result.trials)))
+
+    with pytest.raises(ValueError):
+        go.Scatter3d(x=points, y=points, z=points, mode="markers", marker=marker)

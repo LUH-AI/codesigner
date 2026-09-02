@@ -22,7 +22,8 @@ import pytest
 from core.optimizers import OptimizationResult, TrialResult
 from core.optimizers.timing import STATUS_CRASHED, STATUS_TIMEOUT
 from ui.figures.plots import (
-    FAILURE_FILL, FAILURE_SIZE, FAILURE_SYMBOL, NEGATIVE_COLOR, SELECTION_COLOR,
+    FAILURE_FILL, FAILURE_LINE_WIDTH, FAILURE_LINE_WIDTH_RINGED, FAILURE_SIZE,
+    FAILURE_SYMBOL, NEGATIVE_COLOR, SELECTION_COLOR,
     configuration_cube_plot, configuration_projection_plot,
     parallel_coordinates_plot, performance_over_time_plot, trial_duration_plot,
 )
@@ -95,16 +96,40 @@ def test_a_timeout_is_a_failure_like_any_other():
     pytest.param(lambda r: configuration_cube_plot(r, "accuracy"), id="cube"),
     pytest.param(lambda r: configuration_projection_plot(r, "accuracy", "pca"), id="projection"),
 ])
-def test_a_failure_is_a_thick_red_cross(build):
+def test_a_failure_is_a_red_cross_heavier_than_the_points_around_it(build):
     """`x-thin` has no fill by design — the glyph *is* the outline — so
-    `marker.line` is what makes it visible and what makes it thick."""
+    `marker.line` is what makes it visible and what makes it read as a mark
+    rather than as a ring.
+
+    Measured against the figure's own ordinary points rather than against a
+    fixed weight: how heavy the cross has to be to stand out depends on what it
+    is standing out from, and the two projections already ring every point.
+    """
     marker = build(_result(failed_at=(2,))).data[0].marker
 
     assert marker.symbol[1] == FAILURE_SYMBOL
     assert marker.symbol[0] != FAILURE_SYMBOL
     assert marker.line.color[1] == NEGATIVE_COLOR
-    assert marker.line.width[1] == 3
+    assert marker.line.width[1] > marker.line.width[0]
     assert marker.size[1] >= FAILURE_SIZE
+
+
+def test_the_ringed_figures_draw_a_lighter_cross():
+    """The cube and the projection outline every point in the card's colour, to
+    keep two that nearly overlap from compositing into one. A cross at trial
+    performance's weight is then the boldest thing on a dense plot — louder than
+    the scores it sits among, which are what the figure is for.
+    """
+    failed = _result(failed_at=(2,))
+
+    performance = performance_over_time_plot(failed, "accuracy").data[0].marker
+    cube = configuration_cube_plot(failed, "accuracy").data[0].marker
+    projection = configuration_projection_plot(failed, "accuracy", "pca").data[0].marker
+
+    assert performance.line.width[1] == FAILURE_LINE_WIDTH
+    assert cube.line.width[1] == FAILURE_LINE_WIDTH_RINGED
+    assert projection.line.width[1] == FAILURE_LINE_WIDTH_RINGED
+    assert FAILURE_LINE_WIDTH_RINGED < FAILURE_LINE_WIDTH
 
 
 def test_a_run_with_no_failures_gains_no_per_point_arrays():

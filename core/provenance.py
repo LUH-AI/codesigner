@@ -124,16 +124,21 @@ def dataset_fingerprint(path, frame=None) -> Dict[str, Any]:
     return record
 
 
-def model_fingerprint(model_name: str, model_path: str, env_meta=None) -> Dict[str, Any]:
+def model_fingerprint(model_name: str, model_path: str, env_meta=None,
+                      kind: str = "") -> Dict[str, Any]:
     """Which model, and what it needed to run.
 
     A registry model is named and nothing else — it ships with the application,
     so its version is the application's. An uploaded one is a file, and what
     matters about it is its digest and the environment that was locked for it.
+    A run imported from somebody else's output has neither, and *kind* is how
+    the caller says so: deriving it from `model_path` alone can only tell those
+    first two apart, and would relabel an imported run as a registry model it
+    would then fail to resolve.
     """
     env_meta = env_meta or {}
     if not model_path:
-        return {"kind": "registry", "name": model_name, "sha256": None,
+        return {"kind": kind or "registry", "name": model_name, "sha256": None,
                 "dependencies": None, "requires_python": None,
                 "python": None, "lock_sha256": None}
     return {

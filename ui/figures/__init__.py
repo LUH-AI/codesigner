@@ -13,6 +13,7 @@ from .catalog import (
 )
 from .plots import (
     MARKER_COLOR,
+    NEGATIVE_COLOR,
     SELECTION_COLOR,
     UNCERTAINTY_SCALE,
     configuration_cube_plot,
@@ -36,6 +37,7 @@ from .plots import (
 __all__ = [
     "FIGURES",
     "MARKER_COLOR",
+    "NEGATIVE_COLOR",
     "SELECTION_COLOR",
     "UNCERTAINTY_SCALE",
     "FIGURES_BY_KEY",

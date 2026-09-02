@@ -64,6 +64,59 @@ def test_the_page_offers_to_compute_what_is_missing(client, cancelled_experiment
 
 
 @pytest.mark.django_db
+def test_the_button_sits_with_the_game_selector_not_inside_a_figure(client,
+                                                                   cancelled_experiment):
+    """One computation fills six figures, so it belongs to the choice that drives
+    them rather than to whichever one it was first put in.
+
+    It used to live in the hyperparameter importance card, which made it look
+    like that figure's own control while it was also filling the five
+    interaction figures beside it.
+    """
+    body = client.get(reverse("ui:experiment_detail",
+                              args=[cancelled_experiment.pk])).content.decode()
+
+    section = body[body.index("Explanation Game"):]
+    section = section[:section.index("</section>")]
+    assert 'class="compute-analytics"' in section
+
+    card = body[body.index('data-figure="hyperparameter_importance"'):]
+    card = card[:card.index("</section>")]
+    assert "compute-analytics" not in card
+
+
+@pytest.mark.django_db
+def test_the_waiting_figures_point_at_the_button_and_say_nothing_else(client,
+                                                                     cancelled_experiment):
+    """A short line, on every figure the button fills — not one long explanation
+    on the figure that used to own it.
+
+    The button is self-evident; what a figure needs to say is only that it is
+    waiting on one.
+    """
+    body = client.get(reverse("ui:experiment_detail",
+                              args=[cancelled_experiment.pk])).content.decode()
+
+    assert body.count("Press Compute explanations to see results.") == 6
+    assert "The explanations were not computed for this run" not in body
+
+
+@pytest.mark.django_db
+def test_a_figure_with_nothing_to_wait_for_says_so_in_its_own_words(client):
+    """The empty caption is not replaced, only redirected. A run that computed
+    its games and still has an empty figure has a different problem, and the
+    button would not be there to press.
+    """
+    from tests.ui.storage.test_page_survives_a_round_trip import _ran_experiment
+
+    exp = _ran_experiment(client)
+    body = client.get(reverse("ui:experiment_detail", args=[exp.pk])).content.decode()
+
+    assert "Press Compute explanations to see results." not in body
+    assert "No interaction data available." in body
+
+
+@pytest.mark.django_db
 def test_a_run_that_computed_them_is_not_offered_it(client):
     """Nothing is missing, so there is nothing to ask for."""
     from tests.ui.storage.test_page_survives_a_round_trip import _ran_experiment

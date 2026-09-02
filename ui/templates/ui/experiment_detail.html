@@ -359,6 +359,11 @@ being read.{% endcomment %}
                     function paint() {
                         const b = btn();
                         if (!b) return;
+                        // Hidden rather than dead when this metric and view have
+                        // no full range — an unbounded metric's only range is
+                        // the one its data happens to occupy, which is what the
+                        // relative scale already shows.
+                        b.style.display = relayout() ? "" : "none";
                         const p = b.querySelector("path");
                         if (p) p.setAttribute("d", state.absolute ? SCALE_FIT : SCALE_EXPAND);
                         b.setAttribute("data-title", state.absolute ? SCALE_TITLE_REL : SCALE_TITLE);
@@ -382,7 +387,15 @@ being read.{% endcomment %}
                     function apply(figureId) {
                         state.figureId = figureId;
                         const gd = document.getElementById(figureId);
-                        if (state.absolute) Plotly.relayout(gd, relayout());
+                        // Switching to a metric with no absolute range while the
+                        // toggle is on would otherwise leave the axis pinned to
+                        // the previous metric's range with no button to undo it.
+                        if (state.absolute && !relayout()) {
+                            state.absolute = false;
+                            Plotly.relayout(gd, {"yaxis.autorange": true});
+                        } else if (state.absolute) {
+                            Plotly.relayout(gd, relayout());
+                        }
                         paint();
                         if (!gd._scaleResetWired) {
                             gd._scaleResetWired = true;
@@ -397,20 +410,33 @@ being read.{% endcomment %}
                     return { config: config, apply: apply };
                 }
 
+                // What "absolute" means for one figure right now. A figure with
+                // views declares one relayout per view, and a per-metric figure
+                // declares one set per metric — the score axis of a bounded
+                // metric has a full range to pin to and an unbounded one does
+                // not — so this resolves both at the moment of the click rather
+                // than fixing a relayout up front. Null at any level means the
+                // toggle has nothing to offer and hides itself.
+                function absoluteScaleFor(key) {
+                    const options = figureOptions[key];
+                    let absolute = options.absoluteScale;
+                    if (!absolute) return null;
+                    if (options.perMetric) absolute = absolute[currentMetric()];
+                    if (!absolute) return null;
+                    if (figureViews[key]) {
+                        absolute = absolute[currentView[key] || figureViews[key][0]];
+                    }
+                    return absolute || null;
+                }
+
                 // One toggle per figure that declared an absolute scale, built
-                // from that declaration rather than hardcoded here. A figure
-                // with views declares one relayout per view instead of a single
-                // fixed one, so its toggle reads the current view every time
-                // rather than being handed a fixed relayout up front.
+                // from that declaration rather than hardcoded here.
                 const scaleToggles = {};
                 Object.keys(figureOptions).forEach(function (key) {
-                    const absolute = figureOptions[key].absoluteScale;
-                    if (!absolute) return;
-                    scaleToggles[key] = figureViews[key]
-                        ? makeScaleToggle(function () {
-                              return absolute[currentView[key] || figureViews[key][0]];
-                          })
-                        : makeScaleToggle(absolute);
+                    if (!figureOptions[key].absoluteScale) return;
+                    scaleToggles[key] = makeScaleToggle(function () {
+                        return absoluteScaleFor(key);
+                    });
                 });
 
                 // Only ever set by an actual click, and only consulted across a
@@ -460,6 +486,23 @@ being read.{% endcomment %}
                 // Show *idx* as selected on one figure, however that figure is
                 // able to show it — which is decided by what its colour already
                 // means, not by taste. See plots.py's RECOLOR / OUTLINE / LINE.
+                // What a failure's cross shrinks to in a 3D scene — below the
+                // 8 the ordinary points are drawn at, not above it.
+                //
+                // In two dimensions the mark is an open cross that has to be
+                // large enough to read as a cross rather than a smudge. None of
+                // that carries over. A scene draws no marker outline, so the
+                // glyph is filled and covers its whole extent; a cross reads
+                // wider than a disc of the same nominal size because its arms
+                // reach the full width where a disc's edge falls away; and size
+                // in a scene is also a depth cue, so a marker enlarged to stand
+                // out instead reads as one nearer the camera. The red is what
+                // carries the signal here, so the shape does not have to.
+                //
+                // Caps the cross on the trials trace and sizes the red overlay
+                // drawn over it, so the two cannot come apart.
+                const FAILURE_SIZE_3D = 4;
+
                 function applySelection(key, metric) {
                     const el = figureEl(key);
                     const sel = selectionMeta(key);
@@ -513,16 +556,29 @@ being read.{% endcomment %}
                         const baseSize = list(base.size);
                         const baseSymbol = list(base.symbol);
                         const baseLine = list((base.line || {}).color);
+                        const baseLineWidth = list((base.line || {}).width);
                         const isFailure = function (i) {
                             return !!baseSymbol && baseSymbol[i] !== "circle";
                         };
+                        const scene = (el.data[trace] || {}).type === "scatter3d";
                         const sizes = trials.map(function (_v, i) {
-                            const was = baseSize ? baseSize[i] : 6;
+                            let was = baseSize ? baseSize[i] : 6;
+                            if (scene && isFailure(i)) was = Math.min(was, FAILURE_SIZE_3D);
                             // Never smaller than it was: a failure is already
                             // drawn large, and selecting one should not shrink it.
                             return i === at ? Math.max(13, was) : was;
                         });
                         const update = {"marker.size": [sizes]};
+                        // Restored from the payload every time, not substituted
+                        // in place, so a 2D view that follows a 3D one gets its
+                        // open cross back. Only when the server sent an array —
+                        // a figure with no failures keeps its scalar symbol and
+                        // gains no per-point array it has no use for.
+                        if (baseSymbol) {
+                            update["marker.symbol"] = [baseSymbol.map(function (sym) {
+                                return scene && sym === "x-thin" ? "x" : sym;
+                            })];
+                        }
                         if (sel.style === "outline") {
                             // The fill already carries the score or the sign, so
                             // the selection is a ring around the point instead —
@@ -531,10 +587,19 @@ being read.{% endcomment %}
                             // at all; there the size on its own is the highlight.
                             if ((el.data[trace] || {}).type !== "scatter3d") {
                                 update["marker.line.width"] = [trials.map(function (_v, i) {
-                                    return i === at ? 3 : 0;
+                                    if (i === at) return 3;
+                                    // A failure keeps the width the server gave
+                                    // it. Its glyph is an open cross — the
+                                    // outline *is* the mark — so zeroing the
+                                    // width here erased every failure on these
+                                    // figures the moment anything was selected.
+                                    return isFailure(i) && baseLineWidth
+                                        ? baseLineWidth[i] : 0;
                                 })];
-                                update["marker.line.color"] = [trials.map(function () {
-                                    return selectionColors.selected;
+                                update["marker.line.color"] = [trials.map(function (_v, i) {
+                                    if (i === at) return selectionColors.selected;
+                                    return isFailure(i) && baseLine
+                                        ? baseLine[i] : selectionColors.selected;
                                 })];
                             }
                         } else {
@@ -778,10 +843,14 @@ being read.{% endcomment %}
                     // both used to be lost the moment anything was selected.
                     // Taken from the payload rather than the DOM, which by then
                     // may already carry a previous selection.
+                    // The whole marker, copied, not just the keys the selection
+                    // repaints: applyCubeAxes rebuilds the cube's trace from
+                    // scratch on every axis change, and it has to start from
+                    // what the server sent rather than from what is on the
+                    // element — which by then carries whatever the last view
+                    // needed. A marker is plain JSON, so a copy is a stringify.
                     el._baseMarkers = (plot.data || []).map(function (trace) {
-                        const m = trace.marker || {};
-                        return {color: m.color, size: m.size, symbol: m.symbol,
-                                line: m.line || {}};
+                        return JSON.parse(JSON.stringify(trace.marker || {}));
                     });
                     const toggle = scaleToggles[key];
                     Plotly.react(el, plot.data, plot.layout, toggle ? toggle.config : plotlyConfig);
@@ -1173,6 +1242,17 @@ being read.{% endcomment %}
                             .map(function (axis) { return cubeAxisSelect[axis].value; })
                             .filter(function (name) { return names.indexOf(name) >= 0; });
                     const customdata = trace.customdata || [];
+                    // What the server drew, fresh each time. Rebuilding from
+                    // `trace.marker` instead meant every adjustment made for one
+                    // view became the starting point for the next: the open
+                    // crosses came back from a 3D detour as filled ones, and
+                    // then — once 3D also had to drop `marker.line` — came back
+                    // with no outline at all, which is a failure mark erased.
+                    const baseMarker = function () {
+                        const base = (el._baseMarkers || [])[0];
+                        return base ? JSON.parse(JSON.stringify(base))
+                                    : Object.assign({}, trace.marker);
+                    };
                     const column = function (name) {
                         const i = names.indexOf(name);
                         return customdata.map(function (row) { return row[i]; });
@@ -1187,8 +1267,15 @@ being read.{% endcomment %}
                         x: [], y: [],
                         customdata: customdata,
                         text: trace.text,
-                        marker: Object.assign({}, trace.marker),
+                        marker: baseMarker(),
                     };
+                    // The failure marks are not adjusted for dimensionality
+                    // here. This rebuilds the trace from whatever is currently
+                    // on the element, so anything substituted in place would be
+                    // read back as the base on the next call and never recover —
+                    // which is exactly what a 3D detour did to the open crosses.
+                    // applySelection runs last and restores them from the
+                    // payload; see FAILURE_SIZE_3D.
                     // The selected trial, drawn again on top. A trace of its own
                     // rather than one recoloured point, because the fill here is
                     // the score and overwriting it would lose the value that
@@ -1256,6 +1343,14 @@ being read.{% endcomment %}
                     // With the figure now starting empty, that meant the colour
                     // bar was gone from the first draw onwards.
                     newTrace.marker.showscale = chosen.length > 0;
+                    const scene = newTrace.type === "scatter3d";
+                    // `scatter3d` rejects an array `marker.line.width` — it is
+                    // scalar-only there — and an invalid attribute takes the
+                    // whole trace down with it, which is why a run with failures
+                    // drew nothing at all in three dimensions. Dropped rather
+                    // than flattened: a scene draws no marker outline, so
+                    // `marker.line` carries nothing here in the first place.
+                    if (scene) delete newTrace.marker.line;
                     // A third axis moves the figure between a cartesian subplot
                     // and a gl3d one, which is where `react` is least reliable:
                     // the two have separate event plumbing, and a click handler
@@ -1296,6 +1391,39 @@ being read.{% endcomment %}
                             showlegend: false,
                         });
                     }
+                    // With no outline to carry it, a failure in a scene is
+                    // filled with its own score — and a failure scores at the
+                    // pale end of the ramp, so the crosses come out very nearly
+                    // white. They are drawn again on top in red instead.
+                    //
+                    // Scenery, like the incumbent markers and the uncertainty
+                    // field: `hoverinfo: "skip"` takes it out of Plotly's
+                    // hit-testing, so a click still reaches the real point
+                    // underneath and the traceback is still one click away.
+                    // Appended last — `layout.meta.selection` names trace 0 as
+                    // the trials and trace 1 as the highlight, and anything
+                    // inserted in front of those would silently renumber both.
+                    // Smaller than the highlight, so a selected failure keeps a
+                    // ring of the selection colour around its cross.
+                    const failedAt = baseMarker().symbol;
+                    if (scene && Array.isArray(failedAt) && chosen.length) {
+                        const at = [];
+                        failedAt.forEach(function (sym, i) {
+                            if (sym !== "circle") at.push(i);
+                        });
+                        if (at.length) {
+                            traces.push({
+                                type: "scatter3d", mode: "markers",
+                                x: at.map(function (i) { return newTrace.x[i]; }),
+                                y: at.map(function (i) { return newTrace.y[i]; }),
+                                z: at.map(function (i) { return newTrace.z[i]; }),
+                                marker: {symbol: "x", size: FAILURE_SIZE_3D,
+                                         color: selectionColors.failure},
+                                hoverinfo: "skip", showlegend: false,
+                            });
+                        }
+                    }
+                    const drawn = el._baseMarkers;
                     if (el.data[0] && el.data[0].type !== newTrace.type) {
                         delete clicksAttached.configuration_cube;
                         Plotly.newPlot(el, traces, layout, plotlyConfig);
@@ -1303,6 +1431,12 @@ being read.{% endcomment %}
                     } else {
                         Plotly.react(el, traces, layout, plotlyConfig);
                     }
+                    // Carried across the replot rather than assumed to survive
+                    // it. A change of dimensionality goes through newPlot, and
+                    // applySelection reads this back to restore what the server
+                    // drew — with it gone, no point is a failure any more and
+                    // every cross is repainted as an ordinary ring.
+                    el._baseMarkers = drawn;
                     applySelection("configuration_cube", currentMetric());
                 }
                 Object.keys(cubeAxisSelect).forEach(function (axis) {

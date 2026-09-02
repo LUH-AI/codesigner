@@ -1,5 +1,6 @@
 import math
 import time
+from collections.abc import Mapping
 from abc import ABC, abstractmethod
 from dataclasses import dataclass, field, replace
 from typing import Any, Dict, List, Optional
@@ -727,6 +728,37 @@ def _pair_trials_with_scores(config_space, trials: List[TrialResult], metric_nam
     return data
 
 
+def _pair_trials_with_oriented_scores(config_space, trials: List[TrialResult],
+                                      metric_name: str, metric=None):
+    """As `_pair_trials_with_scores`, with every score turned so bigger is better.
+
+    `HP_GAMES` map MAX/VAR/MIN onto tunability/sensitivity/mistunability, and
+    those names are only true of a score where bigger wins. Handed an optimizer
+    cost, MAX finds the configuration that performed *worst* and the page calls
+    it the most tunable — a wrong answer presented exactly like a right one.
+
+    The training data is turned rather than the games, so no stored field
+    changes meaning: `hyperparameter_mistunability` is a key in every `.ihpo`
+    ever written, and a build that quietly redefined it would make old files and
+    new ones disagree with nothing to say which is which.
+
+    Negation, not `metric.high - score`, because it needs no bounds and an
+    imported objective has none. Both preserve every difference between two
+    scores, which is what the games are built out of.
+
+    Deliberately separate from `fit_surrogate` rather than a flag on it. That
+    one feeds partial dependence, which labels its axis with the metric and must
+    stay in the metric's own units, and the uncertainty field, whose spread
+    across trees is the same either way. One function with a flag would put the
+    decision at every call site instead of in the two that need it.
+    """
+    metric = metric or metric_for(metric_name)
+    data = _pair_trials_with_scores(config_space, trials, metric_name)
+    if metric.higher_is_better:
+        return data
+    return [(cfg, -score) for cfg, score in data]
+
+
 def fit_surrogate(config_space, trials: List[TrialResult], metric_name: str, seed: int = 0):
     """Fit a cheap `RandomForestRegressor` surrogate over *trials*' recorded
     *metric_name* scores.
@@ -1401,6 +1433,7 @@ class BaseOptimizer(ABC):
         config_of_interest: Dict[str, Any],
         seed: int = 0,
         explainer=None,
+        metric=None,
     ) -> tuple[Dict[str, float], Optional[str]]:
         """HyperSHAP's "ablation" game: how much each hyperparameter's value in
         *config_of_interest* helped or hurt *metric_name*, versus the config
@@ -1442,7 +1475,7 @@ class BaseOptimizer(ABC):
                 return {}, explainer.warning or "No surrogate for a local explanation."
             return self._ablate(explainer.hs, config_space, config_of_interest, params)
 
-        data = _pair_trials_with_scores(config_space, trials, metric_name)
+        data = _pair_trials_with_oriented_scores(config_space, trials, metric_name, metric)
         if len(data) < 2:
             return {}, "Not enough trials for a local explanation."
 
@@ -1482,6 +1515,7 @@ class BaseOptimizer(ABC):
         metric_name: str,
         seed: int = 0,
         max_trials: int = 0,
+        metric=None,
     ) -> tuple[List[str], List[dict], Optional[str]]:
         """Every sampled trial's local ablation, for the beeswarm figure.
 
@@ -1509,7 +1543,8 @@ class BaseOptimizer(ABC):
         exploitation, and a beeswarm of only the exploration half would describe
         a search that never happened.
         """
-        explainer = self._build_explainer(config_space, trials, metric_name, seed)
+        explainer = self._build_explainer(config_space, trials, metric_name, seed,
+                                          metric=metric)
         if explainer.hs is None:
             return [], [], (explainer.warning
                             or "Not enough trials for local explanations.")
@@ -1840,8 +1875,16 @@ class BaseOptimizer(ABC):
             return self._skipped_games(metrics, too_wide)
 
         by_game = {game: ({}, {}, {}, {}, {}) for game in self.HP_GAMES}
+        # *metrics* is a mapping of name to `Metric` from the application and a
+        # bare list of names from plenty of callers that only need the names.
+        # Both iterate the same way, but only a mapping can say which direction
+        # a metric runs — from a list the registry answers, which is right for
+        # every metric this build ships and wrong only for one a file declared.
+        # A caller holding declared metrics has the mapping.
+        directions = metrics if isinstance(metrics, Mapping) else {}
         for metric_name in metrics:
-            explainer = self._build_explainer(config_space, trials, metric_name, seed)
+            explainer = self._build_explainer(config_space, trials, metric_name, seed,
+                                              metric=directions.get(metric_name))
             for game in self.HP_GAMES:
                 importance, warning, interactions, moebius, total = self._compute_hp_game(
                     config_space, trials, metric_name, game, seed, explainer=explainer)
@@ -1853,7 +1896,7 @@ class BaseOptimizer(ABC):
         return by_game
 
     def _build_explainer(self, config_space, trials: List[TrialResult], metric_name: str,
-                         seed: int = 0):
+                         seed: int = 0, metric=None):
         """Pair *trials* with *metric_name* scores and fit the HyperSHAP
         explainer every global game (`tunability`/`sensitivity`/
         `mistunability`) shares for a given metric — the one expensive step
@@ -1881,7 +1924,7 @@ class BaseOptimizer(ABC):
         """
         from sklearn.ensemble import RandomForestRegressor
 
-        data = _pair_trials_with_scores(config_space, trials, metric_name)
+        data = _pair_trials_with_oriented_scores(config_space, trials, metric_name, metric)
         if len(data) < 2:
             return _MetricExplainer(
                 None,

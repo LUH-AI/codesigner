@@ -31,4 +31,23 @@
         {% endif %}
         <button type="submit" class="btn-primary">{% translate "Load" %}</button>
     </form>
+
+    {% comment %}A second form, not a third file on the first one. This reads a
+    set of files with no .ihpo among them, and neither a dataset nor a model may
+    be attached: a SMAC scenario records nothing about what was being optimized,
+    so there is nothing here to check an attached dataset against.{% endcomment %}
+    <h2 style="margin-top: 2.5rem;">{% translate "…or a SMAC run" %}</h2>
+    <p class="caption">{% blocktranslate %}Choose the output directory of a SMAC
+       run — the folder holding its <code>runhistory.json</code>. It loads
+       read-only: the files record what was searched and what it scored, not
+       what was doing the searching.{% endblocktranslate %}</p>
+
+    <form method="post" enctype="multipart/form-data" style="max-width: 34rem; margin-top: 1rem;">
+        {% csrf_token %}
+        <div class="field">
+            <label>{% translate "SMAC output directory" %}</label>
+            <input type="file" name="smac_dir" webkitdirectory directory multiple required>
+        </div>
+        <button type="submit" class="btn-primary">{% translate "Load run" %}</button>
+    </form>
 {% endblock %}

@@ -285,6 +285,45 @@ def score_all(y_true, y_pred, metrics: Mapping[str, Metric],
 # trips through both functions unchanged.
 
 
+def to_error(metric: Optional[Metric], score: float) -> Optional[float]:
+    """*score* as a distance from perfect, or None when it has no such reading.
+
+    Not the same question as `to_cost`, though it agrees with it on two of the
+    three cases. A cost only has to *reverse* the ordering, so negating an
+    unbounded score is a perfectly good cost; an error has to be a distance from
+    a fixed best, and an unbounded metric has no best to measure from. There is
+    no honest number to return there, so there is no number — the figure shows
+    its empty caption rather than an axis measured from nowhere.
+
+    A metric that is already a cost (lower wins) is already an error, and
+    passes through.
+    """
+    if metric is None:
+        # The one convention there was before metrics described themselves.
+        return 1.0 - score
+    if not metric.higher_is_better:
+        return score
+    if metric.high is None:
+        return None
+    return metric.high - score
+
+
+def error_range(metric: Optional[Metric]) -> Optional[tuple[float, float]]:
+    """The span an error axis covers for *metric*, or None if it has no fixed one.
+
+    What the absolute-scale toggle pins to. None means the toggle has nothing to
+    offer and hides — which is the honest answer for an unbounded metric, where
+    the only range there is is the one the data happens to occupy.
+    """
+    if metric is None:
+        return (0.0, 1.0)
+    if metric.low is None or metric.high is None:
+        return None
+    if metric.higher_is_better:
+        return (0.0, metric.high - metric.low)
+    return (metric.low, metric.high)
+
+
 def to_cost(metric: Optional[Metric], score: float) -> float:
     """*score* as something to minimise."""
     if metric is None:

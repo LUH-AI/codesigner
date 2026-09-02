@@ -137,3 +137,68 @@ def test_typing_a_target_stops_the_page_replacing_it(client):
     assert "let untouched = true;" in body
     assert 'field.addEventListener("input", function () { untouched = false; });' in body
     assert "if (untouched) field.value = targets[metric.value]" in body
+
+
+# ── what counts as out of range ──────────────────────────────────────────────
+#
+# The bound is the metric's, not a constant. A target is compared against a
+# score, so 0-to-1 is accuracy's range rather than every metric's — and an
+# unbounded one (an imported optimizer cost) bounds a target not at all.
+
+
+def _posted(metric_name, **fields):
+    """`_posted_stopping` over a form carrying *fields*, optimizing *metric_name*."""
+    from django.test import RequestFactory
+
+    from ui.views import _posted_stopping
+
+    request = RequestFactory().post("/", {k: str(v) for k, v in fields.items()})
+    return _posted_stopping(request, metric_name)
+
+
+def test_a_target_inside_the_metrics_range_is_kept():
+    assert _posted("accuracy", target_score="0.9")["target_score"] == 0.9
+
+
+def test_a_target_above_the_metrics_range_is_clamped():
+    assert _posted("accuracy", target_score="5")["target_score"] == 1.0
+
+
+def test_a_negative_target_is_clamped_rather_than_dropped():
+    """The bug this replaces: below-range meant *absent*.
+
+    A run asking only for a target of -1 was then refused for having no
+    stopping criterion at all — which reports a different problem from the one
+    the reader created, and gives no hint that the number was the issue.
+    """
+    stopping = _posted("accuracy", target_score="-1")
+
+    assert "target_score" in stopping
+    assert stopping["target_score"] == 0.0
+
+
+def test_an_unbounded_metric_accepts_a_negative_target():
+    """Nothing to clamp to, so nothing is clamped.
+
+    A metric this build has never heard of falls back to the one convention
+    there was, so the case is exercised through a metric that *is* declared
+    unbounded — which is what an imported run carries.
+    """
+    from unittest.mock import patch
+
+    from core.metrics import Metric
+
+    cost = Metric(name="smac:cost", fn=None, higher_is_better=False,
+                  bounds=(None, None))
+    with patch("ui.views.metric_for", return_value=cost):
+        stopping = _posted("smac:cost", target_score="-12.5")
+
+    assert stopping["target_score"] == -12.5
+
+
+def test_the_field_takes_a_minus_sign_and_an_exponent(client):
+    """A text input patterned `[0-9]*[.,]?[0-9]*` rejected both."""
+    field, _ = _field(client, _experiment())
+
+    assert 'type="number"' in field
+    assert "pattern=" not in field

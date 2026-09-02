@@ -6,7 +6,7 @@ same thing twice, and the label was the smaller half of a heading.{% endcomment 
 {% comment %}Always shown, including for the incumbent itself — where it is
 zero, and says so rather than disappearing and taking the panel's height with
 it.{% endcomment %}
-<div class="metric-delta {% if sel.is_best %}level{% elif sel.delta > 0 %}up{% else %}down{% endif %}">
+<div class="metric-delta {% if sel.is_best %}level{% elif sel.delta_better %}up{% else %}down{% endif %}">
     {% if sel.delta > 0 %}+{% endif %}{{ sel.delta|sig }}{% if sel.is_best %} {% translate "(Incumbent)" %}{% endif %}
 </div>
 {% comment %}Said before the configuration rather than after it: the number

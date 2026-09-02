@@ -15,13 +15,14 @@ from django.template.loader import render_to_string
 from django.utils.translation import gettext as _
 from django.views.decorators.http import require_POST
 
-from core import io, provenance
+from core import io, provenance, smac_import
+from core.metrics import metric_for
 from core.modelhost import deadline
 from core.optimizers.base import FAILURE_CRITERIA
 
 from .figures import (
     FIGURES, FIGURES_BY_KEY, HP_GAME_FIELDS, HP_GAME_HELP, HP_GAME_LABELS,
-    MARKER_COLOR, SELECTION_COLOR, UNCERTAINTY_SCALE,
+    MARKER_COLOR, NEGATIVE_COLOR, SELECTION_COLOR, UNCERTAINTY_SCALE,
     autocompute_key,
     deferred_computations,
     hyperparameter_ablation_plot, hyperparameter_importance_plot,
@@ -90,7 +91,10 @@ def _ownership(request, exp):
 # no required field, only a requirement that at least one be filled in.
 _STOPPING_FIELDS = {
     "max_trials": (int, 1, 100_000),
-    "target_score": (float, 0.0, 1.0),
+    # None, None: a target is compared against a score, so its range is the
+    # metric's and not a constant here — 0 to 1 is accuracy's range, not every
+    # metric's. Resolved per submission; see `_posted_stopping`.
+    "target_score": (float, None, None),
     "max_seconds": (float, 1.0, None),
     "max_trial_seconds": (float, 1.0, None),
     "no_improvement_trials": (int, 1, None),
@@ -127,13 +131,18 @@ def surpass_target(score: float, places: int = 4) -> str:
     return f"{shown:g}"
 
 
-def _posted_stopping(request) -> dict:
+def _posted_stopping(request, metric_name: str = "") -> dict:
     """The stopping criteria as submitted, ignoring the blanks.
 
     A criterion left empty is absent rather than zero: zero would mean "stop
     immediately", which is never what an empty box asks for. Unparseable input
     is dropped the same way — and if that leaves nothing at all, the caller
     refuses the run rather than starting one that cannot end.
+
+    *metric_name* is the metric the run will optimize, which is what bounds
+    `target_score`: a target is compared against a score, so what counts as out
+    of range is whatever that metric's range is, and an unbounded metric bounds
+    it not at all.
     """
     stopping = {}
     for key, (parse, low, high) in _STOPPING_FIELDS.items():
@@ -144,7 +153,15 @@ def _posted_stopping(request) -> dict:
             value = parse(raw)
         except ValueError:
             continue
-        if value < low:
+        if key == "target_score":
+            low, high = metric_for(metric_name).bounds
+            # Clamped at both ends rather than dropped below the low one.
+            # Dropping made an out-of-range target *absent*, so a run asking for
+            # nothing else was then refused for having no criterion at all —
+            # which names a different problem from the one the reader created.
+            if low is not None:
+                value = max(value, low)
+        elif value < low:
             continue
         stopping[key] = min(value, high) if high is not None else value
     return stopping
@@ -686,9 +703,9 @@ def experiment_run(request, exp):
             or not _model_available(exp)):
         return redirect("ui:experiment_detail", pk=exp.pk)
 
-    stopping = _posted_stopping(request)
-    trial_timeout = _posted_trial_timeout(request)
     chosen = request.POST.get("optimize_metric")
+    stopping = _posted_stopping(request, chosen or exp.current_metric or "")
+    trial_timeout = _posted_trial_timeout(request)
     decision = request.POST.get("decision")
 
     if not any(k not in FAILURE_CRITERIA for k in stopping):
@@ -1069,7 +1086,7 @@ def experiment_export(request, exp):
             # of the machine it did not work on.
             if not keep_tracebacks:
                 (entry.get("additional_info") or {}).pop("traceback", None)
-    body = json.dumps(snapshot, ensure_ascii=False, indent=2).encode("utf-8")
+    body = io.to_bytes(snapshot)
     response = HttpResponse(body, content_type="application/octet-stream")
     response["Content-Disposition"] = f'attachment; filename="{exp.name}.ihpo"'
     return response
@@ -1195,6 +1212,8 @@ def import_experiment(request):
     may_upload = permissions.policy().may_upload_models(request)
     context = {"allow_custom_models": may_upload}
     upload = request.FILES.get("file")
+    if request.method == "POST" and request.FILES.getlist("smac_dir"):
+        return _import_smac_directory(request, context)
     if request.method == "POST" and upload is not None:
         # No Form here to hang a validator off, so the same checks the create
         # form's file fields run are called directly — see ui/validators.py.
@@ -1242,6 +1261,54 @@ def import_experiment(request):
     return render(request, "ui/import.html", context)
 
 
+def _import_smac_directory(request, context):
+    """Create a read-only experiment from an uploaded SMAC output directory.
+
+    Its own branch rather than a third optional file on the `.ihpo` form: this
+    reads a *set* of files with no `.ihpo` among them, and neither a dataset nor
+    a model may be attached to it. A SMAC scenario records nothing about what
+    was being optimized, so there is nothing here to check an attached dataset
+    against — see `core/smac_import.py`, and `import_experiment` on why a
+    dataset that cannot be checked is not accepted.
+    """
+    files = {}
+    for upload in request.FILES.getlist("smac_dir"):
+        size_error = oversized(upload)
+        if size_error:
+            context["error"] = size_error
+            return render(request, "ui/import.html", context)
+        # Django's uploader keeps only the basename, so a directory picker's
+        # relative paths do not survive the post — which is why the importer
+        # matches on basenames, and why two run directories at once cannot be
+        # told apart. Refused rather than blended: SMAC writes one run per
+        # `<name>/<seed>` directory, and a runhistory read against another
+        # run's config space is not a run that happened.
+        name = upload.name
+        if not name.endswith(".json"):
+            continue
+        if name in files:
+            context["error"] = _(
+                "This looks like more than one run — two files here are called "
+                "%(name)s. Choose a single run directory, the one holding its "
+                "runhistory.json.") % {"name": name}
+            return render(request, "ui/import.html", context)
+        try:
+            files[name] = json.loads(upload.read().decode("utf-8"))
+        except (UnicodeDecodeError, ValueError) as exc:
+            context["error"] = _("Could not read %(name)s.") % {"name": name} + f" ({exc})"
+            return render(request, "ui/import.html", context)
+
+    try:
+        snapshot = io.parse(json.dumps(
+            smac_import.snapshot_from_smac(files)).encode("utf-8"))
+    except ValueError as exc:
+        context["error"] = _("This is not a readable SMAC run.") + f" ({exc})"
+        return render(request, "ui/import.html", context)
+
+    exp = snapshot_adapter.experiment_from_snapshot(snapshot, owner=_owner(request))
+    return redirect("ui:experiment_detail", pk=exp.pk)
+
+
 def _rebuild_experiment(exp):
     """Rebuild the full `build_experiment` dict from a saved experiment's
     snapshot (read-only — no dataset needed), or None if it can't be rebuilt
@@ -1276,24 +1343,28 @@ def _local_ablation_data(built, metric, idx):
     HyperSHAP's `ablation` game, explaining that one trial's configuration
     against the config space's default, rather than a global share like the
     other three games. `built` is `_rebuild_experiment`'s full dict, since
-    this needs the model (for its config space) and the optimizer instance,
-    neither of which the stored result carries.
+    this needs the search space and the optimizer instance, neither of which
+    the stored result carries.
 
     Returns (figure_json_or_None, warning_or_None, raw_effects). The effects
     are the signed per-hyperparameter values the figure is drawn from, in the
     metric's own units, which `_tuning_progress` needs and which cannot be read
-    back out of the figure. The figure is None (with a warning) when the model
-    isn't available — a custom-model experiment viewed read-only, where nothing
-    was ever imported to ask.
+    back out of the figure. The figure is None (with a warning) when there is no
+    search space to be had — see `_config_space_for` for the two places one can
+    come from.
     """
-    model = built.get("model")
-    if model is None:
-        return None, _("Local explanation needs the model, which is not "
-                       "available for a custom model viewed read-only."), {}
+    config_space = _config_space_for(built)
+    if config_space is None:
+        return None, _("Local explanation needs the search space, which this "
+                       "experiment does not carry and has no model to ask."), {}
     result = built["result"]
-    config_space = model.get_config_space(seed=built["seed"])
     ablation, warning = built["optimizer"].compute_hp_ablation(
-        config_space, result.trials, metric, result.trials[idx].config, seed=built["seed"])
+        config_space, result.trials, metric, result.trials[idx].config,
+        seed=built["seed"],
+        # From the result, not the registry: an imported run's objective is
+        # declared inside its own file, and the explainer needs its direction
+        # (see `_pair_trials_with_oriented_scores`).
+        metric=result.metric(metric))
     fig = hyperparameter_ablation_plot(ablation)
     return (json.loads(fig.to_json()) if fig is not None else None), warning, ablation
 
@@ -1390,25 +1461,22 @@ def _tuning_progress(result, metric, ablation):
 def _partial_dependence_data(built, metric, hp_name, max_ice_curves=0):
     """The partial-dependence figure + warning for one (metric,
     hyperparameter) — same shape as `_local_ablation_data`, and for the same
-    reason: fitting a surrogate and predicting across a grid needs the model
-    (for its config space), not just the stored result, and depends on which
-    hyperparameter is picked rather than being one of a small precomputable
-    set.
+    reason: fitting a surrogate and predicting across a grid needs the search
+    space, not just the stored result, and depends on which hyperparameter is
+    picked rather than being one of a small precomputable set.
 
     *max_ice_curves* is the experiment's `ice_max_curves` setting: how many
     trials get predicted and drawn, 0 for all of them. It caps the work, not
     just the picture — see `compute_partial_dependence`.
 
     Returns (figure_json_or_None, warning_or_None). The figure is None (with
-    a warning) when the model isn't available — a custom-model experiment
-    viewed read-only, where nothing was ever imported to ask.
+    a warning) when there is no search space to be had.
     """
-    model = built.get("model")
-    if model is None:
-        return None, _("Partial dependence needs the model, which is not "
-                       "available for a custom model viewed read-only.")
+    config_space = _config_space_for(built)
+    if config_space is None:
+        return None, _("Partial dependence needs the search space, which this "
+                       "experiment does not carry and has no model to ask.")
     result = built["result"]
-    config_space = model.get_config_space(seed=built["seed"])
     grid, ice_lines, pdp, warning = built["optimizer"].compute_partial_dependence(
         config_space, result.trials, metric, hp_name, seed=built["seed"],
         max_ice_curves=max_ice_curves)
@@ -1427,15 +1495,42 @@ def _shown_figures(exp):
     return [figure for figure in FIGURES if shown[figure.setting_key]]
 
 
-def _config_space_for(built):
-    """*built*'s model's config space, or None when there's no model to ask.
+def _figure_options(figure, result, metric_names):
+    """One figure's display behaviour, for the page script.
 
-    Only the figures declaring `needs_config_space` want it (see
-    `Figure.needs_config_space`), and None is a supported answer for them — a
-    custom model viewed read-only has nothing to build one from, and those
-    figures fall back to linear axes rather than refusing to draw.
+    `absoluteScale` is the relayout its absolute/relative toggle pins to. For a
+    per-metric figure it is keyed by metric first, because a range that is right
+    for an accuracy is a fiction for a cost — and None when no metric offers one,
+    which is how the toggle knows to stay hidden rather than appear and lie.
     """
-    model = (built or {}).get("model")
+    scale = figure.absolute_scale
+    if figure.per_metric and scale is not None:
+        scale = {name: figure.absolute_scale_for(result.metric(name))
+                 for name in metric_names}
+        scale = {name: views for name, views in scale.items() if views} or None
+    return {"absoluteScale": scale, "perMetric": figure.per_metric}
+
+
+def _config_space_for(built):
+    """*built*'s search space, or None when there is nothing to build one from.
+
+    The stored `space` section first, the model second. Two sources because
+    neither covers everything: an experiment run here can always ask its model,
+    while a run read out of somebody else's output has no model at all — and a
+    custom-model experiment viewed read-only cannot ask either, which is what
+    the stored section fixes for it.
+
+    None is a supported answer throughout. The figures declaring
+    `needs_config_space` fall back to linear axes rather than refusing to draw
+    (see `Figure.needs_config_space`), and the three that genuinely cannot
+    proceed say so in a caption.
+    """
+    built = built or {}
+    stored = io.config_space_from_serialized(built.get("config_space"),
+                                             seed=built.get("seed", 0))
+    if stored is not None:
+        return stored
+    model = built.get("model")
     return model.get_config_space(seed=built["seed"]) if model is not None else None
 
 
@@ -1510,17 +1605,17 @@ def _local_effects_data(built, metric, max_trials=0):
     local ablation, from `compute_local_effects`.
 
     Same shape and same reasoning as `_partial_dependence_data`: it needs the
-    model for its config space, not just the stored result, and it is the one
-    figure whose cost is per *trial*, which is what `max_trials` bounds.
+    search space, not just the stored result, and it is the one figure whose
+    cost is per *trial*, which is what `max_trials` bounds.
     """
-    model = built.get("model")
-    if model is None:
-        return None, _("Local effects need the model, which is not "
-                       "available for a custom model viewed read-only.")
+    config_space = _config_space_for(built)
+    if config_space is None:
+        return None, _("Local effects need the search space, which this "
+                       "experiment does not carry and has no model to ask.")
     result = built["result"]
     hp_names, rows, warning = built["optimizer"].compute_local_effects(
-        model.get_config_space(seed=built["seed"]), result.trials, metric,
-        seed=built["seed"], max_trials=max_trials)
+        config_space, result.trials, metric,
+        seed=built["seed"], max_trials=max_trials, metric=result.metric(metric))
     fig = local_effects_plot(hp_names, rows)
     return (json.loads(fig.to_json()) if fig is not None else None), warning
 
@@ -1538,11 +1633,18 @@ def _selected_panel_data(result, metric, idx):
     trials = result.trials
     best_idx = result.best_index(metric)
     trial = trials[idx]
+    score, best = trial.scores[metric], trials[best_idx].scores[metric]
     return {
         "metric": metric,
         "trial_n": trial.trial,
-        "score": trial.scores[metric],
-        "delta": trial.scores[metric] - trials[best_idx].scores[metric],
+        "score": score,
+        "delta": score - best,
+        # Whether that difference is in the good direction, decided here rather
+        # than by the template comparing it to zero. Against the *best* trial it
+        # never is — but which sign means worse depends on the metric, and on
+        # one where lower wins the sign is the other way round, so a template
+        # reading `delta > 0` as "better" gets it exactly backwards.
+        "delta_better": result.metric(metric).better(score, best),
         "is_best": idx == best_idx,
         "config": list(trial.config.items()),
         # A trial that produced no measurement: the score above is a
@@ -1554,6 +1656,22 @@ def _selected_panel_data(result, metric, idx):
         "idx": idx,
         "has_traceback": bool(trial.traceback),
     }
+
+
+def _evaluation_label(exp):
+    """How a trial was scored, for the run-configuration box.
+
+    "Not recorded" for an experiment imported from somebody else's output: a
+    SMAC scenario says nothing about what was being optimized, so there is no
+    split to report. The columns still hold their defaults — they have to hold
+    something — and reporting those as fact would put a 20% holdout on the page
+    for a run that may have used no such thing.
+    """
+    if exp.model_name not in MODELS and not exp.model_file:
+        return _("Not recorded")
+    if exp.cv_folds >= 2:
+        return _("%(k)s-fold CV") % {"k": exp.cv_folds}
+    return _("%(pct)s%% held out") % {"pct": round(exp.test_size * 100)}
 
 
 def _detail_context(request, exp):
@@ -1592,9 +1710,7 @@ def _detail_context(request, exp):
             "current_metric": exp.current_metric,
             "metric_label": metric_label(exp.current_metric, exp.original_metric),
             "seed": exp.seed,
-            "evaluation": (
-                _("%(k)s-fold CV") % {"k": exp.cv_folds} if exp.cv_folds >= 2
-                else _("%(pct)s%% held out") % {"pct": round(exp.test_size * 100)}),
+            "evaluation": _evaluation_label(exp),
         },
         "metric_names": metric_names,
         # A result with no trials counts as no result: it is what the early
@@ -1746,7 +1862,8 @@ def _detail_context(request, exp):
         metric_plots=metric_plots,
         static_plots=static_plots,
         # Each figure's declared display behavior, for the page script.
-        figure_options={f.key: {"absoluteScale": f.absolute_scale} for f in figures},
+        figure_options={f.key: _figure_options(f, result, metric_names)
+                        for f in figures},
         # Which figures have alternate views, and what they're called — only
         # for those, so the script can tell a plain payload from one keyed by
         # view without guessing from its shape.
@@ -1773,7 +1890,12 @@ def _detail_context(request, exp):
         # everything else in them — the script used to restate them, which is
         # one place for the page and the plots to disagree about what "selected"
         # looks like.
-        selection_colors={"base": MARKER_COLOR, "selected": SELECTION_COLOR},
+        # `failure` for the one place the page has to draw a failure mark
+        # itself: a 3D scene draws no marker outline, so the red cannot ride on
+        # the glyph the way it does everywhere else. Sent rather than repeated
+        # in the script, so the page restates no colour — see NEGATIVE_COLOR.
+        selection_colors={"base": MARKER_COLOR, "selected": SELECTION_COLOR,
+                          "failure": NEGATIVE_COLOR},
         # The one game selector, and what each game asks — resolved here rather
         # than in the template because the labels are lazy translations and
         # `json_script` cannot serialize those.

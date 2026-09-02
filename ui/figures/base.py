@@ -143,6 +143,19 @@ class Figure:
         """The view this figure draws before anything is switched."""
         return cls.default_view or (cls.views[0] if cls.views else None)
 
+    @classmethod
+    def absolute_scale_for(cls, metric):
+        """This figure's absolute scale under *metric*, or None for no toggle.
+
+        The declaration above is the answer for every figure whose axes mean the
+        same thing whatever is being measured. A figure drawing the *score* on
+        an axis has to resolve it instead: "absolute" means the metric's own
+        full range, and an unbounded metric has none — so it overrides this and
+        returns None for those, which hides the toggle rather than pinning the
+        axis to a range invented for a different metric.
+        """
+        return cls.absolute_scale
+
     #: Set by __init_subclass__; declared here so the base class is usable too.
     template = ""
     setting_key = ""

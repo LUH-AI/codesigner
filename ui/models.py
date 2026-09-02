@@ -52,6 +52,16 @@ class Experiment(models.Model):
     # that switching an experiment's scheme would have somewhere to start from.
     test_size = models.FloatField(default=0.2)
     dataset = models.FileField(upload_to="datasets/", blank=True, null=True)
+    # The search space the trials were drawn from, as ConfigSpace's own
+    # serialized dict. Null until something supplies one.
+    #
+    # It is the one thing every surrogate-backed figure needs that `result` does
+    # not carry, and it cannot always be asked for after the fact: a custom
+    # model runs in its own process and a read-only rebuild never imports it, so
+    # a page rendered later has nobody to ask. Filled from the model at the
+    # moment a run has one (see services/run.py), or straight from the file for
+    # an experiment read out of somebody else's run, which has no model at all.
+    config_space = models.JSONField(blank=True, null=True, default=None)
     result = SafeJSONField(blank=True, null=True, default=None)
     created_at = models.DateTimeField(auto_now_add=True)
     # Per-experiment settings overrides; when use_default_settings is True the

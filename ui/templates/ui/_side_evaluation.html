@@ -53,7 +53,14 @@ you cannot have.
                     </div>
                     <div class="field">
                         <label for="target_score">{% translate "…performance surpasses" %}</label>
-                        <input type="text" inputmode="decimal" pattern="[0-9]*[.,]?[0-9]*"
+                        {% comment %}A number field, not a text one with a
+                        digits-and-a-dot pattern: that pattern rejects a minus
+                        sign and exponent notation, which are ordinary ways to
+                        write a target for a metric that is not bounded 0 to 1.
+                        The server bounds this by the metric being optimized —
+                        see `_posted_stopping` — so no min/max is asserted here,
+                        where only one metric's would fit.{% endcomment %}
+                        <input type="number" step="any"
                                id="target_score" name="target_score"
                                value="{{ incumbent_target }}"
                                placeholder="{% translate 'e.g. 0.95' %}">

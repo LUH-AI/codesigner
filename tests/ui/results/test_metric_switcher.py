@@ -90,7 +90,12 @@ def test_run_and_metric_controls_share_one_form_in_the_sidebar(client):
     content = html.split("<main", 1)[-1]
 
     assert "Experiment Evaluation" in sidebar
-    assert sidebar.count("<form") == 1
+    # Counted within the section, not across the sidebar. Other sections have
+    # their own posts to make — the Explanation Game section's Compute button is
+    # one — and the claim here is about these two controls, not about the
+    # sidebar containing a single form.
+    evaluation = sidebar.split("Experiment Evaluation", 1)[1].split("</section>", 1)[0]
+    assert evaluation.count("<form") == 1
     assert 'name="max_trials"' in sidebar
     assert 'id="metric-select"' in sidebar
     # the dropdown doubles as the Run form's optimize-metric field

@@ -14,5 +14,5 @@ game's, and all five read that game — so every one of them carries it.
     </div>
     <p class="alert warning interactions-warning" hidden></p>
     <div id="{{ figure.dom_id }}" class="plot"></div>
-    <p id="{{ figure.dom_id }}-empty" class="caption" hidden>{% translate "No interaction data available." %}</p>
+    <p id="{{ figure.dom_id }}-empty" class="caption" hidden>{% if analytics_absent %}{% translate "Press Compute explanations to see results." %}{% else %}{% translate "No interaction data available." %}{% endif %}</p>
 </section>

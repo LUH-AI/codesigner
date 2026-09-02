@@ -266,6 +266,7 @@ def execute_run(run_id):
         cancel = DbCancelFlag(run_id)
 
         def _optimize(model):
+            _remember_config_space(experiment.pk, model, built["seed"])
             return optimizer.optimize(
                 model,
                 built["X_train"], built["y_train"], built["X_val"], built["y_val"],
@@ -321,6 +322,28 @@ def execute_run(run_id):
         stopped_by=(STOPPED_BY_CANCELLED if cancelled
                     else (result.metadata.get("stopped_by") or "")),
     )
+
+
+def _remember_config_space(experiment_pk, model, seed) -> None:
+    """Store *model*'s search space on the experiment, now that there is a model.
+
+    This is the only moment it is certainly available. A custom model runs in
+    its own process and is gone when the run ends; a page rendered afterwards
+    rebuilds read-only and never imports it, so it has nobody to ask — and
+    every surrogate-backed figure needs a space. Written once per run rather
+    than per trial: a search space does not change under a run.
+
+    A model that cannot describe its space leaves the stored one alone, which
+    puts the experiment back to asking its model on every page — exactly where
+    it was before.
+    """
+    from ..models import Experiment
+
+    try:
+        space = model.get_config_space(seed=seed).to_serialized_dict()
+    except Exception:  # noqa: BLE001 — a run must not fail over its own bookkeeping
+        return
+    Experiment.objects.filter(pk=experiment_pk).update(config_space=space)
 
 
 def _model_launch(experiment):

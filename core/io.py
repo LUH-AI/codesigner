@@ -14,6 +14,11 @@ magnitude:
     evaluation  dict  — scheme, folds, test_size, and (on export) stratified
     metrics     dict  — names, current, original
     optimizer   dict  — name, params, and (on export) defaults_used
+    space       dict | absent — the search space, as ConfigSpace's own
+                        serialized dict; byte-identical to SMAC's
+                        configspace.json. Optional: a file without one falls
+                        back to asking the model, which is what every file
+                        written before this section existed does.
     runs        list  — export only: the history of runs over the trials
     environment dict  — export only: the versions behind the numbers
     result      dict | null — serialized OptimizationResult, a strict superset
@@ -32,6 +37,7 @@ from __future__ import annotations
 import importlib.util
 import inspect
 import json
+import math
 import os
 import tempfile
 from importlib.metadata import version as _dist_version
@@ -42,6 +48,7 @@ import pandas as pd
 from sklearn.model_selection import train_test_split
 
 from . import provenance
+from .metrics import declarations
 from .paths import MAX_STATE_FILES, is_safe_relative
 from .splits import MIN_FOLDS, cross_validation, holdout
 
@@ -192,6 +199,22 @@ def _load_splits(csv_path: Path, seed: int, test_size: float = DEFAULT_TEST_SIZE
 SNAPSHOT_FORMAT = 2
 
 
+def _check_format(snapshot: dict) -> None:
+    """Refuse a file written in a format newer than this build understands.
+
+    Only formats *older* than the current one can be lifted. `normalize`
+    dispatched on exact equality, so anything that was not the current format
+    fell through to the format 1 lifter — which does not fail on a future file.
+    It quietly returns a snapshot with most of its sections empty, and the
+    failure then surfaces several screens later as something else entirely.
+    """
+    written_as = snapshot.get("format")
+    if isinstance(written_as, int) and written_as > SNAPSHOT_FORMAT:
+        raise ValueError(
+            f"this file is in format {written_as}, which is newer than the "
+            f"{SNAPSHOT_FORMAT} this version of codesigner understands")
+
+
 def normalize(snapshot: dict) -> dict:
     """A snapshot of either format, in the current one.
 
@@ -206,6 +229,8 @@ def normalize(snapshot: dict) -> dict:
     """
     if snapshot.get("format") == SNAPSHOT_FORMAT:
         return snapshot
+
+    _check_format(snapshot)
 
     model_path = snapshot.get("model_path", "")
     recorded_model = snapshot.get("model") or {}
@@ -227,7 +252,7 @@ def normalize(snapshot: dict) -> dict:
         "optimizer": {"name": snapshot.get("optimizer_name"),
                       "params": snapshot.get("optimizer_params") or {}},
     }
-    for section in ("runs", "environment"):
+    for section in ("space", "runs", "environment"):
         if snapshot.get(section) is not None:
             lifted[section] = snapshot[section]
     lifted["result"] = snapshot.get("result")
@@ -268,6 +293,45 @@ def test_size_of(snapshot: dict) -> float:
     return float(section.get("test_size") or DEFAULT_TEST_SIZE)
 
 
+def finite(value):
+    """*value* with every non-finite number in it replaced by None, recursively.
+
+    `json.dumps` writes `inf` and `nan` as the bare tokens `Infinity` and `NaN`,
+    which Python reads back and a strict parser refuses — so an `.ihpo`
+    containing one is not the portable file it claims to be. Two sources put
+    them there and neither is a measurement:
+
+    - SMAC's `scenario.json`, carried verbatim in `optimizer_state`, whose
+      `crash_cost` and `walltime_limit` default to infinity. Every `.ihpo` ever
+      written for a SMAC run carries four of them.
+    - a run imported from somebody else's output, where SMAC writes the same
+      tokens itself.
+
+    None rather than a large number: infinity is not a value here, it is the
+    absence of a limit, and nothing reads these fields back. `default=` on
+    `json.dumps` cannot do this — it is never called for a float.
+    """
+    if isinstance(value, bool):
+        return value
+    if isinstance(value, float):
+        return value if math.isfinite(value) else None
+    if isinstance(value, dict):
+        return {k: finite(v) for k, v in value.items()}
+    if isinstance(value, (list, tuple)):
+        return [finite(v) for v in value]
+    return value
+
+
+def to_bytes(snapshot: dict) -> bytes:
+    """*snapshot* as the bytes of an `.ihpo` file.
+
+    The one place a snapshot becomes a file, so `save` and the export view
+    cannot disagree about what one may contain — see `finite`.
+    """
+    return json.dumps(finite(snapshot), ensure_ascii=False, indent=2,
+                      default=_json_default).encode("utf-8")
+
+
 def save(name: str, exp: dict) -> bytes:
     """Serialize *exp* to UTF-8 JSON bytes."""
     model_path = exp.get("model_path", "")
@@ -292,7 +356,9 @@ def save(name: str, exp: dict) -> bytes:
                        "params": exp["optimizer"].get_params()},
         "result":     exp["optimizer"].serialize_result(exp["result"]) if exp["result"] is not None else None,
     }
-    return json.dumps(snapshot, ensure_ascii=False, indent=2, default=_json_default).encode("utf-8")
+    if exp.get("config_space"):
+        snapshot["space"] = exp["config_space"]
+    return to_bytes(snapshot)
 
 
 def parse(data: bytes) -> dict:
@@ -308,6 +374,11 @@ def parse(data: bytes) -> dict:
 
     if not isinstance(raw, dict) or not isinstance(raw.get("version"), str):
         raise ValueError("not a valid .ihpo file or unsupported version")
+
+    # Before the field checks below, which are chosen by format: asked of a
+    # newer file they report whichever format 1 field it happens to lack, which
+    # names a consequence rather than the problem.
+    _check_format(raw)
 
     # Checked before normalizing, against the names the file itself uses: a
     # field missing from a format 1 file should be reported by the name it is
@@ -462,7 +533,15 @@ def build_experiment(
     metric_names = snapshot["metrics"]["names"]
     model_path = snapshot["model"].get("path", "")
 
-    missing_metrics = [m for m in metric_names if m not in available_metrics]
+    # A file may bring its own metric. A run imported from somewhere else names
+    # an objective this build has never heard of, and refusing it would mean the
+    # file cannot be opened at all — so the result's own declarations are
+    # consulted alongside the registry. They are enough to read, compare and
+    # draw the numbers in the file, which is everything except computing new
+    # ones; `undescribe` makes that explicit by refusing to score.
+    declared = declarations((snapshot.get("result") or {}).get("declared_metrics"))
+    missing_metrics = [m for m in metric_names
+                       if m not in available_metrics and m not in declared]
     if missing_metrics:
         raise ValueError(f"unknown metric(s): {', '.join(missing_metrics)}")
 
@@ -480,7 +559,16 @@ def build_experiment(
     seed = snapshot["seed"]
 
     # ── Model ─────────────────────────────────────────────────────────────────
-    if model_path:
+    if snapshot["model"].get("kind") == "external":
+        # A run somebody else produced. There is no model to resolve and no
+        # dataset to run it against — the file records what was searched and
+        # what it scored, not what was doing the searching. `model = None` is
+        # the state a custom-model experiment viewed read-only is already in, so
+        # nothing downstream needs a new branch; `_model_available` reads it as
+        # not runnable, which is the whole of what "read-only" means here.
+        model = None
+        resolved_model = snapshot["model"].get("name") or "External"
+    elif model_path:
         if read_only or not load_model:
             # `load_model=False` means the caller will supply the model itself —
             # a custom model usually runs in its own process now, and importing
@@ -523,7 +611,9 @@ def build_experiment(
         else:
             splits = holdout(X_train, y_train, X_val, y_val)
 
-    metrics   = {m: available_metrics[m] for m in metric_names}
+    # The registry first: a later build correcting what a metric means must not
+    # be overruled by a file written before the correction.
+    metrics   = {m: available_metrics.get(m) or declared[m] for m in metric_names}
     opt_type  = type(opt_entry)
     # Narrowed to what this optimizer still accepts. A withdrawn or renamed
     # parameter would otherwise be an unexpected keyword, raised from whichever
@@ -546,6 +636,34 @@ def build_experiment(
         "cv_folds": cv_folds,
         "test_size": test_size,
         "splits":  splits,
+        # Undecoded. Kept as the serialized dict the file carries, because the
+        # one caller that wants a live object also wants it seeded, and
+        # `config_space_from_serialized` does both.
+        "config_space": snapshot.get("space"),
         "result":  result,
     }
     return snapshot["name"], exp
+
+
+def config_space_from_serialized(space: dict | None, seed: int = 0):
+    """A stored `space` section as a live `ConfigurationSpace`, or None.
+
+    Copied before decoding because `from_serialized_dict` *consumes* what it is
+    given — it pops each hyperparameter's `type` — so a second call on the same
+    dict raises, and the dict here belongs to a snapshot the caller keeps using.
+    The same rule `core/modelhost/client.py`'s `get_config_space` follows, for
+    the same reason.
+
+    Serializing loses the seed, and `RandomOptimizer` samples from this, so it
+    is re-applied rather than inherited. None in, None out: a file without a
+    space is not an error, it is a file that predates the section.
+    """
+    if not space:
+        return None
+    from copy import deepcopy
+
+    from ConfigSpace import ConfigurationSpace
+
+    decoded = ConfigurationSpace.from_serialized_dict(deepcopy(space))
+    decoded.seed(seed)
+    return decoded
