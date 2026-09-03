@@ -4,8 +4,7 @@ These are the choices presented in forms and used to reconstruct experiments
 from a snapshot. Keys are the human-readable names stored in .ihpo files.
 """
 
-from sklearn.metrics import accuracy_score, f1_score, precision_score, recall_score
-
+from core.metrics import METRICS
 from core.models import RandomForestModel, SVMModel
 from core.optimizers import GridOptimizer, RandomOptimizer, SMACOptimizer
 
@@ -20,9 +19,7 @@ OPTIMIZERS = {
     "Grid Search": GridOptimizer(),
 }
 
-METRICS = {
-    "accuracy":      lambda y, yp: accuracy_score(y, yp),
-    "f1":            lambda y, yp: f1_score(y, yp, average="weighted", zero_division=0),
-    "precision":     lambda y, yp: precision_score(y, yp, average="weighted", zero_division=0),
-    "recall(macro)": lambda y, yp: recall_score(y, yp, average="macro", zero_division=0),
-}
+# Re-exported: the metrics belong to the domain layer now that the optimizers
+# do the scoring, but the application's vocabulary keeps them here alongside
+# the models and optimizers it offers.
+__all__ = ["MODELS", "OPTIMIZERS", "METRICS"]

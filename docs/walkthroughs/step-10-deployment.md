@@ -90,8 +90,8 @@ docker compose up --build
 
 ## 5. Final parity walk
 
-Every functional item in [PARITY.md](../../PARITY.md) is implemented and
-covered by the test suite and per-step live smokes: create (registry / uploaded
+Every functional item in [PLAN.md](../PLAN.md)'s parity checklist is implemented
+and covered by the test suite and per-step live smokes: create (registry / uploaded
 / mounted model · demo / uploaded dataset), run (SMAC / Random / Grid), resume,
 cancel, metric-change rules, the four analytics panels + click-to-select +
 metric switching, `.ihpo` export/import (incl. read-only), delete, the sidebar

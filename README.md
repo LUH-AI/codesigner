@@ -6,8 +6,50 @@ results — best/selected configuration, hyperparameter importance, and the
 incumbent's performance over trials. Experiments save to a portable `.ihpo`
 file. A Django rebuild of the InteractiveHPO Streamlit app.
 
-The interface is available in English, German, and Spanish (🌐 selector in the
-sidebar).
+The interface is in English. German and Spanish catalogs exist under `locale/`
+but are shelved while the interface is still moving: everything in them that did
+not come from the InteractiveHPO original is an unreviewed draft, marked fuzzy
+and not compiled, because a wrong translation is worse than an English one. The
+strings stay marked for translation throughout, so re-enabling a language is
+`LANGUAGES` in `config/settings.py` plus `compilemessages`, once someone who
+speaks it has read the drafts.
+
+## The .ihpo file
+
+An experiment exports to one JSON file that carries enough to recreate it: the
+seed, the dataset and model it ran on, how a trial was evaluated, every
+optimizer setting, the trials themselves, and the history of runs that produced
+them. It is a superset of SMAC's own output — `result` mirrors the runhistory
+and embeds `scenario.json`, `intensifier.json`, `optimization.json` and
+`configspace.json` verbatim.
+
+One object per subject, each stating its subject once, and `result` last:
+
+```jsonc
+{ "format": 2, "version", "name", "seed",
+  "dataset":     { "filename", "sha256", "rows", "columns", "column_names", … },
+  "model":       { "kind", "name", "sha256", "dependencies", … },
+  "evaluation":  { "scheme", "folds", "test_size", "stratified" },
+  "metrics":     { "names", "current", "original" },
+  "optimizer":   { "name", "params", "defaults_used" },
+  "runs":        [ … ],
+  "environment": { "codesigner", "python", "packages" },
+  "result":      { … } }
+```
+
+Files written before `format` existed spelled all of this as one flat namespace;
+they are lifted on the way in, so they still open. Files written now do not open
+in a build from before this.
+
+The dataset and any custom model are recorded by **SHA-256, not embedded**, so
+the file stays a record rather than an archive. Importing with a dataset whose
+digest disagrees is refused: trials measured on different data cannot be
+compared with each other, and nothing downstream would notice. Importing with
+*no* dataset is fine — the experiment loads browsable and unrunnable, and the
+check happens when one is attached. Files exported before fingerprints existed
+have nothing to disagree with and still open.
+
+See [docs/walkthroughs/ihpo-provenance.md](docs/walkthroughs/ihpo-provenance.md).
 
 ## Architecture at a glance
 
@@ -24,9 +66,9 @@ sidebar).
 ```bash
 pip install -r requirements.txt
 pip install -e .                   # registers the app version (pyproject.toml)
+pip install -e ./model_sdk         # the model contract (core.models imports it)
 cp .env.example .env               # set SECRET_KEY
 python manage.py migrate
-python manage.py compilemessages -l de -l es   # build the de/es catalogs
 python manage.py runserver
 ```
 
@@ -58,11 +100,184 @@ This starts two processes off one image — the gunicorn **web** server on
 `:8000` and the huey **worker** — sharing a `data` volume (SQLite DB, huey
 queue, uploaded media). The web service has a `/healthz/` healthcheck.
 
+The worker runs `HUEY_WORKERS` jobs at once (default 4). It has to be more than
+one because building a model's environment shares the queue with optimizations
+and can spend minutes downloading; raise it if runs queue up behind each other,
+bearing in mind that each concurrent run costs the memory of one model.
+
 **Demo datasets and mounted models (volume workflow).** `./datasets` and
 `./mounted_models` are bind-mounted into both containers. Drop a `*.csv` into
 `datasets/` and it appears as a **demo dataset**; drop a `BaseModel` subclass
 `*.py` into `mounted_models/` and it appears as a **mounted model** option —
 no upload needed. (Mounted models are gated by `ALLOW_CUSTOM_MODELS`, below.)
+
+## Custom models and their environments
+
+A model you upload declares what it needs in a [PEP 723](https://peps.python.org/pep-0723/)
+header, and runs in an environment built from exactly that — in its own process,
+under an interpreter chosen for it:
+
+```python
+# /// script
+# requires-python = ">=3.11"
+# dependencies = ["scikit-learn", "ConfigSpace", "numpy"]
+# ///
+
+from codesigner_model import BaseModel
+
+
+class MyModel(BaseModel):
+    name = "My Model"
+
+    def get_config_space(self, seed: int = 0):
+        ...                      # a ConfigSpace ConfigurationSpace
+
+    def fit_predict(self, config, X_train, y_train, X_val, seed: int = 0):
+        ...                      # one predicted label per row of X_val
+```
+
+You are never asked for a score. Codesigner keeps the validation labels back,
+calls `fit_predict`, and computes every metric itself — so all models are
+measured by the same code regardless of what they were built with.
+
+**How a trial is evaluated** is chosen when the experiment is created: one 80/20
+holdout, or k-fold cross-validation. It cannot change afterwards, because trials
+evaluated different ways cannot be compared with each other, and an experiment's
+own history has to be. Cross-validation costs k fits per trial and is the
+default at five folds: the tables this is pointed at are small, and a single
+split on a small table is noisy enough that a search can spend its budget
+chasing the split rather than the model.
+
+One consequence worth knowing if you are relying on the isolation. With a single
+holdout the model is never sent a validation label at all. With k folds every
+row trains in k−1 of them, so across one trial the union of what the model
+receives is every label — it is never told which rows it is about to be scored
+on, but a model deliberately caching what it was sent could reconstruct them.
+Closing that would mean one process per fold, k times the memory for the whole
+run. Like the rest of this: dependency isolation, not a sandbox.
+
+The environment is resolved and locked **once**, when the experiment is created;
+the page shows progress while that happens, and every later run of that
+experiment uses the same pinned dependencies. Building it is also when the model
+is first imported, so a file that does not work is reported there.
+
+This needs [uv](https://docs.astral.sh/uv/). Without it a model is imported into
+the application's own environment instead — which is what happened before any of
+this existed, so a local install keeps working — and the experiment page says so.
+A hosted instance (`REQUIRE_LOGIN=True`) refuses rather than falling back.
+
+uv's cache of built environments can get large; one model needing torch is a few
+gigabytes. In Docker it lives on its own `uv-cache` volume, separate from `data`
+so it can be deleted safely. Reclaim space with:
+
+```bash
+python manage.py prune_model_envs
+```
+
+## Hosting it for other people
+
+By default there are no accounts. Codesigner is run locally or on a trusted
+private network at least as often as it is hosted, and in those cases nothing
+about permissions should be in the way — so the default is no login, no users,
+no ownership.
+
+One variable changes that:
+
+```bash
+REQUIRE_LOGIN=True
+```
+
+Every page then requires a signed-in user. Two things stay outside the wall, and
+only two: `/healthz/` (the container runtime has no session, and a healthcheck
+that redirects to a login page reports a healthy instance as down) and the
+language route (the login page carries the switcher when more than one language
+is offered, and choosing a language you can read should not require signing in
+first).
+
+Accounts are created in the Django admin — there is no self-registration, which
+is the right default for an instance hosted for a known set of people:
+
+```bash
+python manage.py createsuperuser     # then add the rest at /admin/
+```
+
+Password reset is not wired up; it needs a mail server, which is an operator
+decision. Until it is asked for, an operator resets a password in the admin.
+
+### TLS
+
+Another variable, independent of `REQUIRE_LOGIN`:
+
+```bash
+SECURE_BEHIND_TLS=True
+```
+
+Off (the default) matches how this runs locally and in the reference
+`docker-compose.yml` — plain HTTP, no reverse proxy. Turn it on only once
+there is a TLS-terminating reverse proxy in front of the instance; it then
+redirects HTTP to HTTPS, marks the session and CSRF cookies secure-only, and
+enables HSTS. Turning it on without a proxy in front breaks the instance —
+there is nothing to answer the HTTPS redirect.
+
+### Who sees what
+
+With accounts, an experiment belongs to whoever created it. There are three
+kinds:
+
+| | Read | Run / edit / delete | Export |
+|---|---|---|---|
+| **Yours** | ✅ | ✅ | ✅ |
+| **Shared with you** | ✅ | ❌ | ✅ |
+| **Nobody's** (`owner` is empty) | ✅ | ✅ | ✅ |
+
+Sharing is an invitation to look, not a transfer of control — a colleague can
+read and download a shared experiment, and cannot run, rename or delete it. The
+owner turns sharing on with a checkbox on the experiment page.
+
+"Nobody's" is every experiment that existed before the instance had accounts.
+They stay fully usable rather than disappearing when you flip the switch; assign
+them owners in the admin if you want the normal rules to apply. Staff see and
+can act on everything. Deleting a user does **not** delete their experiments —
+they become nobody's.
+
+Exported `.ihpo` files never carry server paths, whether or not this instance
+has accounts: the paths name a machine that is not the recipient's, and they
+describe how the instance is laid out.
+
+### Who may upload a model
+
+Uploading a model is arbitrary code execution, so on a hosted instance
+`ALLOW_CUSTOM_MODELS` alone is too blunt — it means every account or none. A
+per-account permission sits on top of it:
+
+> **Access permissions | Can upload and run custom models** — grant it in the
+> admin, per user or via a group.
+
+Without it the upload field and the mounted-model dropdown do not appear, an
+imported `.ihpo`'s model file is not attached, and — the check that actually
+matters — the worker refuses to run the model and says whose account was
+refused. That last one is where the decision is made, because a run is started
+by a background task rather than by the request that rendered a form.
+
+`ALLOW_CUSTOM_MODELS=False` still outranks the permission: off means off for
+everyone, so an operator turning custom models off never has to audit who holds
+what. Being staff does **not** confer the permission — `is_staff` means "can use
+the admin", not "trusted to run arbitrary code" — though a superuser has every
+permission by definition.
+
+### Who may change the defaults
+
+The **default experiment settings** apply to every experiment that inherits
+them, so one person changing them changes what everyone's pages draw. On a
+hosted instance that page, and the "Save settings as default" button on an
+experiment's own settings page, are staff-only; without accounts both are open.
+
+### Other effects of the switch
+
+Media files are no longer served from the app (`MEDIA_ROOT` is one flat
+directory, so that would hand every signed-in user every other user's data at a
+guessable URL), and a model that would run in the application's own process is
+refused rather than falling back — see below.
 
 ## Custom / mounted models — trust model ⚠️
 
@@ -72,7 +287,9 @@ Beyond the built-in models, you can **upload** a model `.py` (a
 running on the server, by design.
 
 This is gated by `ALLOW_CUSTOM_MODELS` (env var), default **on** for local
-single-user use. **Turn it off on any shared or public deployment:**
+single-user use, and on a hosted instance additionally by the per-account
+*Can upload and run custom models* permission (above). **Turn the flag off on
+any shared or public deployment:**
 
 ```bash
 ALLOW_CUSTOM_MODELS=False
@@ -83,12 +300,27 @@ in imported `.ihpo` experiments are not adopted, and a custom-model experiment
 loads read-only. There is no sandboxing — the flag is the boundary. With the
 task queue, this code executes in the **worker** process, not the web process.
 
+**Model environments do not change this.** Giving a model its own environment
+buys *dependency* isolation: it cannot be broken by, or break, what the
+application has installed. It is not a security boundary — the model still runs
+as the same user, with the same filesystem and the same network access. `uv`
+solves "your model needs a library we don't have", not "your model is hostile".
+Real sandboxing is separate work that has not been done.
+
 ## Tests
 
 ```bash
-python -m pytest -m "not slow"     # fast suite
-python -m pytest                    # includes slow SMAC end-to-end tests
+python -m pytest -m "not slow and not uv"   # fast suite, what CI runs per push
+python -m pytest -m slow                     # real SMAC searches, ~10 minutes
+python -m pytest -m uv                       # real environment building
 ```
 
-The i18n catalogs are checked by `tests/ui/i18n` (every marked string must have a
-complete, non-fuzzy de/es translation).
+The slow ones are real searches. They are what checks that a search reaches its
+model rather than sampling throughout, that a resumed run picks up where it left
+off, and that an experiment recreated from its `.ihpo` produces the same trials
+— so run them before changing anything about how a search is configured. CI runs
+them weekly and on demand rather than per push.
+
+The i18n catalogs are checked by `tests/ui/i18n`, which pins that the shelved
+German and Spanish drafts stay shelved and uncompiled — not that they are
+complete.

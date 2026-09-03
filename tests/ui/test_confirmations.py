@@ -16,7 +16,7 @@ from tests.conftest import DATASETS_DIR
 def _exp(**overrides):
     fields = dict(
         name="c", model_name="Random Forest", optimizer_name="Random Search",
-        metric_names=["accuracy", "f1"], primary_metric="accuracy",
+        metric_names=["accuracy", "f1"], current_metric="accuracy",
         original_metric="accuracy", seed=0)
     fields.update(overrides)
     return Experiment.objects.create(**fields)
@@ -31,7 +31,7 @@ def _runnable():
         "primary_metric": "accuracy", "original_metric": "accuracy",
         "metric_names": ["accuracy", "f1"], "seed": 0,
         "dataset_path": str(DATASETS_DIR / "iris.csv"), "result": None,
-    })
+    }, adopt_paths=True)
 
 
 def _confirmations(client):
@@ -43,7 +43,7 @@ def _confirmations(client):
          client.get(reverse("ui:experiment_delete", args=[exp.pk])).content.decode()),
         ("metric change",
          client.post(reverse("ui:experiment_run", args=[runnable.pk]),
-                     {"n_trials": 1, "optimize_metric": "f1"}).content.decode()),
+                     {"max_trials": 1, "optimize_metric": "f1"}).content.decode()),
         ("save as default",
          client.post(reverse("ui:experiment_settings", args=[exp.pk]),
                      {"save_as_default": "1"}).content.decode()),

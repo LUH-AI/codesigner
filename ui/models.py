@@ -1,5 +1,6 @@
 import secrets
 
+from django.conf import settings as django_settings
 from django.db import models
 
 from .fields import SafeJSONField
@@ -30,16 +31,79 @@ class Experiment(models.Model):
     optimizer_name = models.CharField(max_length=200)
     optimizer_params = models.JSONField(default=dict, blank=True)
     metric_names = models.JSONField(default=list)
-    primary_metric = models.CharField(max_length=100, blank=True, null=True)
+    # Which metric the optimizer is optimizing right now, vs. the one the
+    # experiment's first run optimized (`original_metric`, pinned once and
+    # never touched again). Named "current" rather than "primary" so the pair
+    # reads as what it is — the two ends of a timeline — rather than "primary"
+    # sounding like "the main one, as opposed to secondary metrics", which is
+    # a different axis (see `metric_names`). The full history of every change
+    # between them lives per-run, in `Run.primary_metric`/`Run.events`.
+    current_metric = models.CharField(max_length=100, blank=True, null=True)
     original_metric = models.CharField(max_length=100, blank=True, null=True)
     seed = models.IntegerField(default=0)
+    # How a trial is evaluated: 0 is a single holdout, k >= 2 is k-fold
+    # cross-validation. Chosen when the experiment is created and fixed
+    # thereafter — changing it mid-experiment would make the accumulated
+    # trials incomparable with the new ones, the same fault a changed
+    # metric used to have. See core.splits.
+    cv_folds = models.IntegerField(default=0)
+    # What share of the dataset is held out for validation, when the scheme is a
+    # single split. Meaningless under cross-validation and simply carried, so
+    # that switching an experiment's scheme would have somewhere to start from.
+    test_size = models.FloatField(default=0.2)
     dataset = models.FileField(upload_to="datasets/", blank=True, null=True)
+    # The search space the trials were drawn from, as ConfigSpace's own
+    # serialized dict. Null until something supplies one.
+    #
+    # It is the one thing every surrogate-backed figure needs that `result` does
+    # not carry, and it cannot always be asked for after the fact: a custom
+    # model runs in its own process and a read-only rebuild never imports it, so
+    # a page rendered later has nobody to ask. Filled from the model at the
+    # moment a run has one (see services/run.py), or straight from the file for
+    # an experiment read out of somebody else's run, which has no model at all.
+    config_space = models.JSONField(blank=True, null=True, default=None)
     result = SafeJSONField(blank=True, null=True, default=None)
     created_at = models.DateTimeField(auto_now_add=True)
     # Per-experiment settings overrides; when use_default_settings is True the
     # global default experiment settings apply instead (see services/settings.py).
     settings = models.JSONField(default=dict, blank=True)
     use_default_settings = models.BooleanField(default=True)
+
+    # ── Who it belongs to (see access/policy.py) ─────────────────────────────
+    # Null means nobody's, which is every experiment on an install with no
+    # accounts and every experiment that predates them. SET_NULL because
+    # removing a person from an instance must not destroy their results — an
+    # operator can reassign an ownerless experiment in the admin.
+    owner = models.ForeignKey(
+        django_settings.AUTH_USER_MODEL, null=True, blank=True,
+        on_delete=models.SET_NULL, related_name="experiments")
+    # Readable by everyone who can sign in. Not writable by them: sharing is an
+    # invitation to look, not to run, rename or delete.
+    shared = models.BooleanField(default=False)
+
+    # ── The custom model's environment (see services/modelenv.py) ────────────
+    # Pinned per experiment: resolved and locked once, so every run uses the
+    # same dependencies and only the first pays for resolving them.
+    ENV_NONE = "none"            # a registry model — nothing to prepare
+    ENV_PENDING = "pending"      # queued
+    ENV_PREPARING = "preparing"  # resolving and downloading
+    ENV_READY = "ready"          # locked and built
+    ENV_FAILED = "failed"        # see env_error
+    ENV_SKIPPED = "skipped"      # no uv here, so it runs in this process
+    ENV_LEGACY = "legacy"        # predates environments; runs in this process
+    ENV_STATUS_CHOICES = [
+        (ENV_NONE, "Not required"), (ENV_PENDING, "Queued"),
+        (ENV_PREPARING, "Preparing"), (ENV_READY, "Ready"),
+        (ENV_FAILED, "Failed"), (ENV_SKIPPED, "No uv — runs in-process"),
+        (ENV_LEGACY, "Predates environments"),
+    ]
+    env_status = models.CharField(max_length=20, choices=ENV_STATUS_CHOICES, default=ENV_NONE)
+    env_error = models.TextField(blank=True, default="")
+    # Whatever is worth knowing about the environment without adding a column
+    # for each: declared dependencies, requires-python, the resolved interpreter,
+    # the model class, the lock's digest.
+    env_meta = models.JSONField(default=dict, blank=True)
+    env_prepared_at = models.DateTimeField(null=True, blank=True)
 
     class Meta:
         ordering = ["-created_at"]
@@ -51,6 +115,21 @@ class Experiment(models.Model):
     def is_running(self) -> bool:
         """True while a run is pending or executing (drives the sidebar spinner)."""
         return self.runs.filter(status__in=["pending", "running"]).exists()
+
+    @property
+    def env_pending(self) -> bool:
+        """True while an environment is queued or being built."""
+        return self.env_status in (self.ENV_PENDING, self.ENV_PREPARING)
+
+    @property
+    def env_in_process(self) -> bool:
+        """True when this model runs in the application's own interpreter.
+
+        Either uv was missing when it was prepared, or the experiment predates
+        environments entirely. Kept as two states because the page says
+        different things about them, but they run identically.
+        """
+        return self.env_status in (self.ENV_SKIPPED, self.ENV_LEGACY)
 
 
 class Run(models.Model):
@@ -71,8 +150,37 @@ class Run(models.Model):
     ]
 
     experiment = models.ForeignKey(Experiment, on_delete=models.CASCADE, related_name="runs")
-    n_trials = models.IntegerField()
+    # Who pressed Run. Null with no accounts, and after that account is
+    # deleted. The worker needs it to know whose custom-model code it is
+    # about to execute, which the experiment's owner does not always answer
+    # — an unowned experiment is run by whoever is looking at it.
+    started_by = models.ForeignKey(
+        django_settings.AUTH_USER_MODEL, null=True, blank=True,
+        on_delete=models.SET_NULL, related_name="runs_started")
+    # Every stopping criterion, on equal footing — see
+    # core.optimizers.base.STOPPING_CRITERIA. A run needs at least one and may
+    # have any combination; a trial cap is one of them, not the frame the others
+    # hang off.
+    stopping = models.JSONField(default=dict)
+    # How long any one call to the model may take, and how that number is
+    # arrived at: {"mode": "fixed"|"predicted", "seconds": float, "factor":
+    # float}. Not a stopping criterion and deliberately not stored among them —
+    # nothing here ends the run, it ends a trial, and the collector would filter
+    # it out anyway. Empty for runs that predate the field, which
+    # `core.modelhost.deadline.as_deadline` reads as the fixed default.
+    trial_timeout = models.JSONField(default=dict, blank=True)
+    # Which criterion ended it. Empty while running, and for a run that was
+    # cancelled or errored rather than stopping on its own terms.
+    stopped_by = models.CharField(max_length=40, blank=True, default="")
     primary_metric = models.CharField(max_length=100)
+    # How many trials the experiment already had. With `trial_count` this gives
+    # the range this run produced, which is what turns a flat list of trials
+    # back into a history of runs.
+    trial_offset = models.IntegerField(null=True, blank=True)
+    # Things that happened to the search rather than to a trial — so far, the
+    # optimized metric changing, which rescores the whole history and throws
+    # away any fitted surrogate. Appended to, never rewritten.
+    events = models.JSONField(default=list, blank=True)
     status = models.CharField(max_length=20, choices=STATUS_CHOICES, default="pending")
     cancel_requested = models.BooleanField(default=False)
     error = models.TextField(blank=True, default="")
@@ -87,6 +195,12 @@ class Run(models.Model):
 
     def __str__(self) -> str:
         return f"{self.experiment.name} run #{self.pk} ({self.status})"
+
+    @property
+    def max_trials(self):
+        """The trial cap, if this run has one. Read by the pages that report
+        progress as "n of m"; None when the run is bounded some other way."""
+        return self.stopping.get("max_trials")
 
     @property
     def duration(self):

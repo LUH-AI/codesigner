@@ -1,0 +1,23 @@
+{% load numbers i18n %}
+{% comment %}One `<tr>` per trial, and nothing else — no wrapper, because this is
+rendered twice: inside the table when the page is built, and on its own when a
+run adds trials and the poll appends them (see views.py's `_live_payloads`).
+Anything around the rows would arrive a second time in the tbody.
+
+The trial this row stands for is an attribute rather than the row's position:
+the outcome columns sort by reordering these nodes, and appending mid-run
+reorders them again, so position is not identity. Every row is selectable, and
+the selected one is the same trial every figure on the page is showing.
+{% endcomment %}
+{% for row in trial_rows %}
+    <tr data-trial-idx="{{ row.idx }}" tabindex="0"{% if row.failed %} class="failed" title="{% blocktranslate with reason=row.failure %}This trial did not produce a measurement: {{ reason }}{% endblocktranslate %}"{% endif %}>
+        <td data-sort="{{ row.n }}">{{ row.n }}{% if row.failed %} <span aria-label="{% translate 'failed' %}">✕</span>{% endif %}</td>
+        {% comment %}Its scores are shown as stored — zero — and the row's tint
+        is what says they were never measured. Blanking them would leave the
+        columns unsortable and hide that the search was handed these
+        numbers.{% endcomment %}
+        {% for score in row.scores %}<td data-sort="{{ score }}">{{ score|sig }}</td>{% endfor %}
+        <td data-sort="{{ row.duration }}">{{ row.duration|sig }} s</td>
+        {% for v in row.config_values %}<td{% if forloop.first %} class="group-start"{% endif %}>{{ v|sig }}</td>{% endfor %}
+    </tr>
+{% endfor %}

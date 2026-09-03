@@ -1,0 +1,16 @@
+{% load i18n %}
+{% comment %}
+The circled i beside a field's name, and the bubble it opens. Takes `info_id`
+and `info_text`.
+
+A button rather than a marked-up label: it is focusable, so the bubble opens by
+keyboard and by tap as well as by pointer, and it does not steal the click that
+belongs to the label. The bubble itself is what the field's `aria-describedby`
+points at, so the words are announced whether or not anyone opens it.
+{% endcomment %}
+<span class="info">
+    <button type="button" class="info-mark" tabindex="0"
+            aria-label="{% translate 'What this setting means' %}"
+            aria-describedby="{{ info_id }}">i</button>
+    <span class="info-bubble" role="tooltip" id="{{ info_id }}">{{ info_text }}</span>
+</span>

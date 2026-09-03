@@ -8,7 +8,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: PACKAGE VERSION\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2026-07-28 08:21+0000\n"
+"POT-Creation-Date: 2026-08-11 09:47+0000\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
 "Language-Team: LANGUAGE <LL@li.org>\n"
@@ -18,160 +18,559 @@ msgstr ""
 "Content-Transfer-Encoding: 8bit\n"
 "Plural-Forms: nplurals=2; plural=(n != 1);\n"
 
-#: templates/base.html:24
-msgid "Experiments"
-msgstr "Experimentos"
+#: access/policy.py:87
+#, fuzzy, python-format
+msgid "%(user)s is not allowed to run custom models here."
+msgstr "%(user)s no tiene permiso para ejecutar modelos propios aquí."
 
-#: templates/base.html:26
-msgid "＋ New"
-msgstr "＋ Nuevo"
+#: access/policy.py:88
+#, fuzzy
+msgid ""
+"This experiment's custom model has no account behind it, so it cannot be "
+"run. Give the experiment an owner who is allowed to run custom models."
+msgstr ""
+"El modelo propio de este experimento no tiene ninguna cuenta detrás, así que "
+"no se puede ejecutar. Asigna al experimento un propietario con permiso para "
+"ejecutar modelos propios."
 
-#: templates/base.html:27
-msgid "📂 Load"
-msgstr "📂 Cargar"
+#: access/templates/access/login.html:7 access/templates/access/login.html:33
+#, fuzzy
+msgid "Sign in"
+msgstr "Iniciar sesión"
 
-#: templates/base.html:34
-msgid "Running"
-msgstr "En ejecución"
+#: access/templates/access/login.html:22
+#, fuzzy
+msgid "That username and password do not match an account."
+msgstr "Ese nombre de usuario y contraseña no corresponden a ninguna cuenta."
 
-#: templates/base.html:37
-msgid "No experiments yet."
-msgstr "Aún no hay experimentos."
+#: access/templates/access/login.html:25
+#, fuzzy
+msgid "Username"
+msgstr "Nombre de usuario"
 
-#: templates/base.html:41 web/templates/web/experiment_detail.html:20
-msgid "⚙ Settings"
-msgstr "⚙ Configuración"
+#: access/templates/access/login.html:29
+#, fuzzy
+msgid "Password"
+msgstr "Contraseña"
 
-#: templates/base.html:25 templates/base.html:29
+#: access/templates/access/login.html:40 templates/base.html:41
+#: templates/base.html:48
 msgid "Language"
 msgstr "Idioma"
 
-#: templates/base.html:42 ui/templates/ui/appearance.html:4
+#: templates/base.html:15 templates/base.html:17 templates/base.html:69
+#: ui/navigation.py:59
+msgid "Experiments"
+msgstr "Experimentos"
+
+#: templates/base.html:20 templates/base.html:22 templates/base.html:57
+#: ui/navigation.py:35 ui/navigation.py:60
+#: ui/templates/ui/experiment_settings.html:4
+#, fuzzy
+msgid "Settings"
+msgstr "Configuración"
+
+#: templates/base.html:32
+#, fuzzy, python-format
+msgid "Signed in as %(name)s — sign out"
+msgstr "Sesión iniciada como %(name)s: cerrar sesión"
+
+#: templates/base.html:36
+#, fuzzy
+msgid "Sign out"
+msgstr "Cerrar sesión"
+
+#: templates/base.html:60 ui/navigation.py:69 ui/templates/ui/appearance.html:4
 #: ui/templates/ui/appearance.html:7
+#, fuzzy
 msgid "Appearance"
 msgstr "Apariencia"
 
-#: ui/templates/ui/appearance.html:8
-msgid "Display and theme settings."
-msgstr "Configuración de visualización y tema."
-
-#: tests/step8/test_i18n.py:220 tests/step8/test_i18n.py:226
-#: web/templates/web/experiment_detail.html:37
-msgid "Number of trials"
-msgstr "Número de pruebas"
-
-#: web/forms.py:24
-msgid "Experiment name"
-msgstr "Nombre del experimento"
-
-#: web/forms.py:25 web/templates/web/experiment_detail.html:11
-msgid "Model"
-msgstr "Modelo"
-
-#: web/forms.py:26
-msgid "…or upload a model .py"
-msgstr "…o suba un modelo (.py)"
-
-#: web/forms.py:27
-msgid "…or a mounted model .py"
-msgstr "…o un modelo montado (.py)"
-
-#: web/forms.py:28 web/templates/web/experiment_detail.html:12
-msgid "Optimizer"
-msgstr "Optimizador"
-
-#: web/forms.py:29
-msgid "Demo dataset"
-msgstr "Conjunto de datos de demostración"
-
-#: web/forms.py:30
-msgid "…or upload a CSV (last column = target)"
-msgstr "…o suba un CSV (última columna = objetivo)"
-
-#: web/forms.py:31
-msgid "Seed (negative = random)"
-msgstr "Semilla (negativa = aleatoria)"
-
-#: web/forms.py:35
-msgid "— select —"
-msgstr "— seleccionar —"
-
-#: web/forms.py:38 web/forms.py:42
-msgid "— none —"
-msgstr "— ninguno —"
-
-#: web/forms.py:69
-msgid "Choose a model or upload a model .py file."
-msgstr "Elija un modelo o suba un archivo de modelo .py."
-
-#: web/forms.py:72
-msgid "Choose a demo dataset or upload a CSV file."
-msgstr "Elija un conjunto de datos de demostración o suba un archivo CSV."
-
-#: web/forms.py:94
-msgid "Include absolute timestamps in exported .ihpo files"
-msgstr "Incluir marcas de tiempo absolutas en los archivos .ihpo exportados"
-
-#: web/forms.py:106
-msgid "Use default experiment settings"
-msgstr "Usar la configuración de experimento predeterminada"
-
-#: web/templates/web/_run_status.html:5
-#, python-format
-msgid "Optimizing… (%(status)s)"
-msgstr "Optimizando… (%(status)s)"
-
-#: web/templates/web/_run_status.html:9
-msgid "Cancel run"
-msgstr "Cancelar ejecución"
-
-#: web/templates/web/_selected_config_inner.html:2
-#, python-format
-msgid "Trial %(trial)s — click any point on the graph to select"
-msgstr "Prueba %(trial)s — haz clic en un punto del gráfico para seleccionar"
-
-#: web/templates/web/_selected_config_inner.html:3
-#: web/templates/web/experiment_detail.html:90
-#, python-format
-msgid "%(metric)s score"
-msgstr "Puntuación de %(metric)s"
-
-#: web/templates/web/_selected_config_inner.html:12
-#: web/templates/web/experiment_detail.html:94
-msgid "Hyperparameter"
-msgstr "Hiperparámetro"
-
-#: web/templates/web/_selected_config_inner.html:12
-#: web/templates/web/experiment_detail.html:94
-msgid "Value"
-msgstr "Valor"
-
-#: web/templates/web/default_experiment_settings.html:4
-#: web/templates/web/default_experiment_settings.html:7
-#: web/templates/web/global_settings.html:10
+#: templates/base.html:63 ui/navigation.py:71
+#: ui/templates/ui/default_experiment_settings.html:4
+#: ui/templates/ui/default_experiment_settings.html:7
+#, fuzzy
 msgid "Default experiment settings"
 msgstr "Configuración de experimento predeterminada"
 
-#: web/templates/web/default_experiment_settings.html:8
-msgid "New experiments use these unless they override them."
-msgstr "Los experimentos nuevos usan esta configuración salvo que la anulen."
+#: templates/base.html:71
+msgid "＋ New"
+msgstr "＋ Nuevo"
 
-#: web/templates/web/default_experiment_settings.html:18
-msgid "Save defaults"
-msgstr "Guardar valores predeterminados"
+#: templates/base.html:72
+msgid "📂 Load"
+msgstr "📂 Cargar"
 
-#: web/templates/web/delete_confirm.html:4
-#, python-format
+#: templates/base.html:79
+#, fuzzy
+msgid "Running"
+msgstr "En ejecución"
+
+#: templates/base.html:79
+#, fuzzy
+msgid "Preparing its environment"
+msgstr "Preparando su entorno"
+
+#: templates/base.html:82
+#, fuzzy
+msgid "No experiments yet."
+msgstr "Aún no hay experimentos."
+
+#: tests/ui/i18n/test_i18n.py:220 tests/ui/i18n/test_i18n.py:226
+msgid "Number of trials"
+msgstr "Número de pruebas"
+
+#: ui/figures/catalog.py:22
+msgid "Best configuration"
+msgstr "Mejor configuración"
+
+#: ui/figures/catalog.py:29
+msgid "Selected configuration"
+msgstr "Configuración seleccionada"
+
+#: ui/figures/catalog.py:36
+msgid "Hyperparameter importance (HyperSHAP)"
+msgstr "Importancia de hiperparámetros (HyperSHAP)"
+
+#: ui/figures/catalog.py:46
+msgid "Performance of Incumbent"
+msgstr "Rendimiento del Incumbente"
+
+#: ui/figures/catalog.py:63
+#, fuzzy
+msgid "Trial duration"
+msgstr "Duración de la prueba"
+
+#: ui/figures/catalog.py:72
+#, fuzzy
+msgid "Error over time"
+msgstr "Error a lo largo del tiempo"
+
+#: ui/figures/catalog.py:86
+#, fuzzy
+msgid "Trials"
+msgstr "Pruebas"
+
+#: ui/forms.py:29
+msgid "Experiment name"
+msgstr "Nombre del experimento"
+
+#: ui/forms.py:30 ui/templates/ui/experiment_detail.html:11
+msgid "Model"
+msgstr "Modelo"
+
+#: ui/forms.py:31
+#, fuzzy
+msgid "…or upload a model .py"
+msgstr "…o suba un modelo (.py)"
+
+#: ui/forms.py:32
+#, fuzzy
+msgid "…or a mounted model .py"
+msgstr "…o un modelo montado (.py)"
+
+#: ui/forms.py:33 ui/templates/ui/experiment_detail.html:12
+msgid "Optimizer"
+msgstr "Optimizador"
+
+#: ui/forms.py:34
+#, fuzzy
+msgid "Demo dataset"
+msgstr "Conjunto de datos de demostración"
+
+#: ui/forms.py:35
+#, fuzzy
+msgid "…or upload a CSV (last column = target)"
+msgstr "…o suba un CSV (última columna = objetivo)"
+
+#: ui/forms.py:36
+msgid "Seed (negative = random)"
+msgstr "Semilla (negativa = aleatoria)"
+
+#: ui/forms.py:41
+#, fuzzy
+msgid "How each trial is scored"
+msgstr "Cómo se puntúa cada prueba"
+
+#: ui/forms.py:43
+#, fuzzy
+msgid "One 80/20 split — fastest"
+msgstr "Una división 80/20: lo más rápido"
+
+#: ui/forms.py:44
+#, fuzzy
+msgid "3-fold cross-validation"
+msgstr "Validación cruzada de 3 pliegues"
+
+#: ui/forms.py:45
+#, fuzzy
+msgid "5-fold cross-validation — steadier on a small dataset"
+msgstr "Validación cruzada de 5 pliegues: más estable con pocos datos"
+
+#: ui/forms.py:46
+#, fuzzy
+msgid "10-fold cross-validation"
+msgstr "Validación cruzada de 10 pliegues"
+
+#: ui/forms.py:54
+#, fuzzy
+msgid "— select —"
+msgstr "— seleccionar —"
+
+#: ui/forms.py:57 ui/forms.py:61
+#, fuzzy
+msgid "— none —"
+msgstr "— ninguno —"
+
+#: ui/forms.py:83
+#, fuzzy
+msgid "Choose a model or upload a model .py file."
+msgstr "Elija un modelo o suba un archivo de modelo .py."
+
+#: ui/forms.py:86
+#, fuzzy
+msgid "Choose a demo dataset or upload a CSV file."
+msgstr "Elija un conjunto de datos de demostración o suba un archivo CSV."
+
+#: ui/forms.py:99
+#, fuzzy
+msgid "Include absolute timestamps in exported .ihpo files"
+msgstr "Incluir marcas de tiempo absolutas en los archivos .ihpo exportados"
+
+#: ui/forms.py:135
+#, fuzzy
+msgid "Use default experiment settings"
+msgstr "Usar la configuración de experimento predeterminada"
+
+#: ui/navigation.py:36 ui/templates/ui/delete_confirm.html:12
+msgid "Delete"
+msgstr "Eliminar"
+
+#: ui/navigation.py:38 ui/templates/ui/metric_change.html:4
+#, fuzzy
+msgid "Change metric"
+msgstr "Cambiar métrica"
+
+#: ui/navigation.py:65 ui/templates/ui/new_experiment.html:4
+#: ui/templates/ui/new_experiment.html:7
+msgid "New experiment"
+msgstr "Nuevo experimento"
+
+#: ui/navigation.py:67
+#, fuzzy
+msgid "Import experiment"
+msgstr "Importar experimento"
+
+#: ui/optimizer_labels.py:21
+#, fuzzy
+msgid "Search strategy"
+msgstr "Estrategia de búsqueda"
+
+#: ui/optimizer_labels.py:22
+#, fuzzy
+msgid ""
+"How the optimizer models the objective. A Gaussian process is the stronger "
+"choice for a handful of numeric hyperparameters and a short budget; a random "
+"forest copes better with many hyperparameters, categorical choices, and "
+"settings that only apply sometimes."
+msgstr ""
+"Cómo modela el optimizador el objetivo. Un proceso gaussiano es la mejor "
+"opción con pocos hiperparámetros numéricos y un presupuesto corto; un bosque "
+"aleatorio maneja mejor muchos hiperparámetros, opciones categóricas y "
+"ajustes que solo se aplican a veces."
+
+#: ui/optimizer_labels.py:28
+#, fuzzy
+msgid "Exploration before modelling"
+msgstr "Exploración antes de modelar"
+
+#: ui/optimizer_labels.py:29
+#, fuzzy
+msgid ""
+"The share of the run spent sampling the space before the model starts "
+"choosing. Too little and it builds its model from too few points; too much "
+"and it never gets to use what it learned."
+msgstr ""
+"La parte de la ejecución dedicada a muestrear el espacio antes de que el "
+"modelo empiece a elegir. Muy poca y construye su modelo con demasiado pocos "
+"puntos; demasiada y no llega a usar lo aprendido."
+
+#: ui/optimizer_labels.py:34
+#, fuzzy
+msgid "Random configurations"
+msgstr "Configuraciones aleatorias"
+
+#: ui/optimizer_labels.py:35
+#, fuzzy
+msgid ""
+"How often to try a random configuration instead of the model's suggestion, "
+"as a fraction. Guards against the search settling into one region too early."
+msgstr ""
+"Con qué frecuencia probar una configuración aleatoria en vez de la "
+"sugerencia del modelo, como fracción. Evita que la búsqueda se asiente "
+"demasiado pronto en una región."
+
+#: ui/optimizer_labels.py:40
+#, fuzzy
+msgid "Try the model's own defaults first"
+msgstr "Probar primero los valores por defecto del modelo"
+
+#: ui/optimizer_labels.py:41
+#, fuzzy
+msgid ""
+"Evaluate the configuration the model ships with, so the search has a known "
+"reference point to beat."
+msgstr ""
+"Evaluar la configuración que trae el modelo, para que la búsqueda tenga un "
+"punto de referencia conocido que superar."
+
+#: ui/optimizer_labels.py:45
+#, fuzzy
+msgid "How the exploration samples"
+msgstr "Cómo muestrea la exploración"
+
+#: ui/optimizer_labels.py:46
+#, fuzzy
+msgid ""
+"Sobol and Latin hypercube cover the space more evenly than chance does, "
+"which is worth more the shorter the run."
+msgstr ""
+"Sobol y el hipercubo latino cubren el espacio de forma más uniforme que el "
+"azar, lo que vale más cuanto más corta es la ejecución."
+
+#: ui/optimizer_labels.py:50
+#, fuzzy
+msgid "What makes a configuration worth trying"
+msgstr "Qué hace que valga la pena probar una configuración"
+
+#: ui/optimizer_labels.py:51
+#, fuzzy
+msgid ""
+"Expected improvement weighs how much better a candidate might be; "
+"probability of improvement only asks whether it is likely to be better at "
+"all, and explores less."
+msgstr ""
+"La mejora esperada pondera cuánto mejor podría ser un candidato; la "
+"probabilidad de mejora solo pregunta si es probable que sea mejor, y explora "
+"menos."
+
+#: ui/optimizer_labels.py:56
+#, fuzzy
+msgid "Improvement required"
+msgstr "Mejora requerida"
+
+#: ui/optimizer_labels.py:57
+#, fuzzy
+msgid ""
+"How much better than the best so far a candidate must promise to be before "
+"it is worth spending a trial on. Raising it pushes the search to explore."
+msgstr ""
+"Cuánto mejor que lo mejor hasta ahora debe prometer ser un candidato para "
+"que merezca una prueba. Subirlo empuja a la búsqueda a explorar."
+
+#: ui/optimizer_labels.py:62
+#, fuzzy
+msgid "Candidates considered per trial"
+msgstr "Candidatos considerados por prueba"
+
+#: ui/optimizer_labels.py:63
+#, fuzzy
+msgid ""
+"How many configurations the optimizer scores against its model before "
+"picking one. More is a better choice for more time between trials."
+msgstr ""
+"Cuántas configuraciones puntúa el optimizador con su modelo antes de elegir "
+"una. Más es una mejor elección a cambio de más tiempo entre pruebas."
+
+#: ui/optimizer_labels.py:68
+#, fuzzy
+msgid "Candidates refined per trial"
+msgstr "Candidatos refinados por prueba"
+
+#: ui/optimizer_labels.py:69
+#, fuzzy
+msgid ""
+"How many of the best candidates are improved by a local search around them."
+msgstr ""
+"Cuántos de los mejores candidatos se mejoran con una búsqueda local a su "
+"alrededor."
+
+#: ui/optimizer_labels.py:73
+#, fuzzy
+msgid "Trials between model refits"
+msgstr "Pruebas entre reajustes del modelo"
+
+#: ui/optimizer_labels.py:74
+#, fuzzy
+msgid ""
+"Refitting every trial is the most informed and the slowest. Only worth "
+"raising once the model itself has become the expensive part."
+msgstr ""
+"Reajustar en cada prueba es lo más informado y lo más lento. Solo vale la "
+"pena subirlo cuando el propio modelo se ha vuelto la parte cara."
+
+#: ui/optimizer_labels.py:78
+#, fuzzy
+msgid "Grid steps per numeric hyperparameter"
+msgstr "Pasos de rejilla por hiperparámetro numérico"
+
+#: ui/optimizer_labels.py:79
+#, fuzzy
+msgid ""
+"How finely a numeric range is divided. Every combination is tried, so this "
+"multiplies out fast."
+msgstr ""
+"Con qué finura se divide un rango numérico. Se prueba cada combinación, así "
+"que esto se multiplica rápido."
+
+#: ui/optimizer_labels.py:89
+#, fuzzy
+msgid "Gaussian process — a few continuous settings"
+msgstr "Proceso gaussiano: pocos ajustes continuos"
+
+#: ui/optimizer_labels.py:90
+#, fuzzy
+msgid "Random forest — many settings, or categorical ones"
+msgstr "Bosque aleatorio: muchos ajustes, o categóricos"
+
+#: ui/optimizer_labels.py:93
+#, fuzzy
+msgid "Sobol — evenly spread"
+msgstr "Sobol: repartido uniformemente"
+
+#: ui/optimizer_labels.py:94
+#, fuzzy
+msgid "Latin hypercube"
+msgstr "Hipercubo latino"
+
+#: ui/optimizer_labels.py:95
+#, fuzzy
+msgid "Uniformly random"
+msgstr "Uniformemente aleatorio"
+
+#: ui/optimizer_labels.py:96
+#, fuzzy
+msgid "Only the model's defaults"
+msgstr "Solo los valores por defecto del modelo"
+
+#: ui/optimizer_labels.py:99
+#, fuzzy
+msgid "Expected improvement"
+msgstr "Mejora esperada"
+
+#: ui/optimizer_labels.py:100
+#, fuzzy
+msgid "Probability of improvement"
+msgstr "Probabilidad de mejora"
+
+#: ui/templates/ui/_breadcrumbs.html:15
+#, fuzzy
+msgid "Breadcrumb"
+msgstr "Ruta de navegación"
+
+#: ui/templates/ui/_breadcrumbs.html:17
+#, fuzzy, python-format
+msgid "← Back to %(page)s"
+msgstr "← Volver a %(page)s"
+
+#: ui/templates/ui/_confirm_page.html:33
+msgid "Cancel"
+msgstr "Cancelar"
+
+#: ui/templates/ui/_env_status.html:10
+#, fuzzy
+msgid "Preparing this model's environment…"
+msgstr "Preparando el entorno de este modelo…"
+
+#: ui/templates/ui/_env_status.html:14
+#, fuzzy, python-format
+msgid "Installing %(deps)s."
+msgstr "Instalando %(deps)s."
+
+#: ui/templates/ui/_env_status.html:15
+#, fuzzy
+msgid "The first build of an environment can take several minutes."
+msgstr "La primera construcción de un entorno puede tardar varios minutos."
+
+#: ui/templates/ui/_experiment_settings_fields.html:14
+#, fuzzy
+msgid "Figures shown on an experiment page"
+msgstr "Figuras mostradas en la página de un experimento"
+
+#: ui/templates/ui/_optimizer_param_field.html:23
+#, fuzzy
+msgid "the strategy decides"
+msgstr "lo decide la estrategia"
+
+#: ui/templates/ui/_optimizer_params.html:18
+#, fuzzy
+msgid "How the search runs"
+msgstr "Cómo se ejecuta la búsqueda"
+
+#: ui/templates/ui/_optimizer_params.html:26
+#, fuzzy
+msgid "Advanced search settings"
+msgstr "Ajustes avanzados de búsqueda"
+
+#: ui/templates/ui/_run_status.html:5
+#, fuzzy, python-format
+msgid "Optimizing… (%(status)s)"
+msgstr "Optimizando… (%(status)s)"
+
+#: ui/templates/ui/_run_status.html:9
+#, fuzzy
+msgid "Cancel run"
+msgstr "Cancelar ejecución"
+
+#: ui/templates/ui/_selected_config_inner.html:2
+#, fuzzy, python-format
+msgid "Trial %(trial)s — click any point on the graph to select"
+msgstr "Prueba %(trial)s — haz clic en un punto del gráfico para seleccionar"
+
+#: ui/templates/ui/_selected_config_inner.html:3
+#: ui/templates/ui/figures/best_configuration.html:8
+#, fuzzy, python-format
+msgid "%(metric)s score"
+msgstr "Puntuación de %(metric)s"
+
+#: ui/templates/ui/_selected_config_inner.html:12
+#: ui/templates/ui/figures/best_configuration.html:12
+msgid "Hyperparameter"
+msgstr "Hiperparámetro"
+
+#: ui/templates/ui/_selected_config_inner.html:12
+#: ui/templates/ui/figures/best_configuration.html:12
+msgid "Value"
+msgstr "Valor"
+
+#: ui/templates/ui/appearance.html:8
+#, fuzzy
+msgid "Display and theme settings."
+msgstr "Configuración de visualización y tema."
+
+#: ui/templates/ui/default_experiment_settings.html:8
+#, fuzzy
+msgid "Experiments use these unless they have their own."
+msgstr "Los experimentos usan estos salvo que tengan los suyos."
+
+#: ui/templates/ui/default_experiment_settings.html:14
+#: ui/templates/ui/experiment_settings.html:26
+#, fuzzy
+msgid "Save settings"
+msgstr "Guardar configuración"
+
+#: ui/templates/ui/delete_confirm.html:4
+#, fuzzy, python-format
 msgid "Delete %(name)s"
 msgstr "Eliminar %(name)s"
 
-#: web/templates/web/delete_confirm.html:7
-#: web/templates/web/experiment_detail.html:21
+#: ui/templates/ui/delete_confirm.html:5
+#: ui/templates/ui/experiment_detail.html:25
 msgid "Delete experiment"
 msgstr "Eliminar experimento"
 
-#: web/templates/web/delete_confirm.html:9
-#, python-format
+#: ui/templates/ui/delete_confirm.html:8
+#, fuzzy, python-format
 msgid ""
 "Are you sure you want to delete <strong>%(name)s</strong> (<code>%(ref)s</"
 "code>)? This cannot be undone."
@@ -179,187 +578,302 @@ msgstr ""
 "¿Estás seguro de que quieres eliminar <strong>%(name)s</strong> "
 "(<code>%(ref)s</code>)? Esta acción no se puede deshacer."
 
-#: web/templates/web/delete_confirm.html:13
-msgid "Delete"
-msgstr "Eliminar"
-
-#: web/templates/web/delete_confirm.html:14
-#: web/templates/web/metric_change.html:22
-msgid "Cancel"
-msgstr "Cancelar"
-
-#: web/templates/web/experiment_detail.html:9
-#, python-format
+#: ui/templates/ui/experiment_detail.html:9
+#, fuzzy, python-format
 msgid "Experiment: %(name)s"
 msgstr "Experimento: %(name)s"
 
-#: web/templates/web/experiment_detail.html:13
+#: ui/templates/ui/experiment_detail.html:13
 msgid "Metric"
 msgstr "Métrica"
 
-#: web/templates/web/experiment_detail.html:14
+#: ui/templates/ui/experiment_detail.html:14
+#, fuzzy
+msgid "Scoring"
+msgstr "Puntuación"
+
+#: ui/templates/ui/experiment_detail.html:15
+#, fuzzy
 msgid "Seed"
 msgstr "Semilla"
 
-#: web/templates/web/experiment_detail.html:15
+#: ui/templates/ui/experiment_detail.html:16
+#, fuzzy
 msgid "ID"
 msgstr "ID"
 
-#: web/templates/web/experiment_detail.html:19
+#: ui/templates/ui/experiment_detail.html:20
+#, fuzzy
 msgid "Download as .ihpo"
 msgstr "Descargar como .ihpo"
 
-#: web/templates/web/experiment_detail.html:19
+#: ui/templates/ui/experiment_detail.html:20
+#, fuzzy
 msgid "💾 Export"
 msgstr "💾 Exportar"
 
-#: web/templates/web/experiment_detail.html:20
+#: ui/templates/ui/experiment_detail.html:22
+#, fuzzy
 msgid "Experiment settings"
 msgstr "Configuración del experimento"
 
-#: web/templates/web/experiment_detail.html:21
+#: ui/templates/ui/experiment_detail.html:22
+#, fuzzy
+msgid "⚙ Settings"
+msgstr "⚙ Configuración"
+
+#: ui/templates/ui/experiment_detail.html:25
 msgid "🗑 Delete"
 msgstr "🗑 Eliminar"
 
-#: web/templates/web/experiment_detail.html:26
-#, python-format
+#: ui/templates/ui/experiment_detail.html:38
+#, fuzzy
+msgid "Let everyone else read this experiment"
+msgstr "Permitir que los demás lean este experimento"
+
+#: ui/templates/ui/experiment_detail.html:42
+#, fuzzy, python-format
+msgid "Shared with you by %(name)s — read only."
+msgstr "Compartido contigo por %(name)s: solo lectura."
+
+#: ui/templates/ui/experiment_detail.html:44
+#, fuzzy
+msgid "This experiment has no owner, so everyone here can change it."
+msgstr ""
+"Este experimento no tiene propietario, así que cualquiera aquí puede "
+"modificarlo."
+
+#: ui/templates/ui/experiment_detail.html:54
+#, fuzzy, python-format
 msgid "Run failed: %(run_error)s"
 msgstr "La ejecución falló: %(run_error)s"
 
-#: web/templates/web/experiment_detail.html:33
-msgid "Run"
-msgstr "Ejecutar"
+#: ui/templates/ui/experiment_detail.html:64
+#, fuzzy
+msgid "This model's environment could not be built."
+msgstr "No se pudo construir el entorno de este modelo."
 
-#: web/templates/web/experiment_detail.html:41
-#: web/templates/web/experiment_detail.html:58
+#: ui/templates/ui/experiment_detail.html:69
+#, fuzzy
+msgid "Try again"
+msgstr "Intentar de nuevo"
+
+#: ui/templates/ui/experiment_detail.html:73
+#, fuzzy
+msgid ""
+"This model runs inside the application's own Python environment, not one of "
+"its own — so the dependencies it declares are ignored."
+msgstr ""
+"Este modelo se ejecuta en el propio entorno de Python de la aplicación, no "
+"en uno propio, por lo que se ignoran las dependencias que declara."
+
+#: ui/templates/ui/experiment_detail.html:78
+#, fuzzy
+msgid "Prepare an isolated environment"
+msgstr "Preparar un entorno aislado"
+
+#: ui/templates/ui/experiment_detail.html:86
+#: ui/templates/ui/experiment_detail.html:96
+#: ui/templates/ui/experiment_detail.html:169
 msgid "Evaluation metric"
 msgstr "Métrica de evaluación"
 
-#: web/templates/web/experiment_detail.html:49
-#: web/templates/web/experiment_detail.html:65
-msgid "⚖️ Reevaluate"
-msgstr "⚖️ Reevaluar"
+#: ui/templates/ui/experiment_detail.html:92
+#, fuzzy
+msgid "Run"
+msgstr "Ejecutar"
 
-#: web/templates/web/experiment_detail.html:53
+#: ui/templates/ui/experiment_detail.html:107
+#, fuzzy
+msgid "Run until…"
+msgstr "Ejecutar hasta que…"
+
+#: ui/templates/ui/experiment_detail.html:109
+#, fuzzy
+msgid "…this many trials have run"
+msgstr "…se hayan hecho estas pruebas"
+
+#: ui/templates/ui/experiment_detail.html:114
+#, fuzzy
+msgid "…the best score reaches"
+msgstr "…la mejor puntuación alcance"
+
+#: ui/templates/ui/experiment_detail.html:116
+#: ui/templates/ui/experiment_detail.html:134
+#, fuzzy
+msgid "e.g. 0.95"
+msgstr "p. ej. 0,95"
+
+#: ui/templates/ui/experiment_detail.html:119
+#, fuzzy
+msgid "…the run has taken this many seconds"
+msgstr "…la ejecución haya durado estos segundos"
+
+#: ui/templates/ui/experiment_detail.html:123
+#, fuzzy
+msgid "…this many seconds have been spent in trials"
+msgstr "…se hayan dedicado estos segundos a las pruebas"
+
+#: ui/templates/ui/experiment_detail.html:127
+#, fuzzy
+msgid "…this many trials in a row have not improved"
+msgstr "…estas pruebas seguidas no hayan mejorado"
+
+#: ui/templates/ui/experiment_detail.html:132
+#, fuzzy
+msgid "…the search is this sure nothing better remains"
+msgstr "…la búsqueda esté así de segura de que no queda nada mejor"
+
+#: ui/templates/ui/experiment_detail.html:135
+#, fuzzy
+msgid ""
+"Asks this optimizer's own model of the objective how likely it is that any "
+"untried configuration beats the best one so far. Confidence under that "
+"model, not a guarantee."
+msgstr ""
+"Pregunta al propio modelo del objetivo de este optimizador qué probabilidad "
+"hay de que alguna configuración no probada supere a la mejor hasta ahora. "
+"Confianza según ese modelo, no una garantía."
+
+#: ui/templates/ui/experiment_detail.html:138
+#, fuzzy
+msgid ""
+"These may never happen. Consider a trial or time limit as well, so the run "
+"is certain to end."
+msgstr ""
+"Puede que esto no ocurra nunca. Conviene añadir también un límite de pruebas "
+"o de tiempo para que la ejecución termine con seguridad."
+
+#: ui/templates/ui/experiment_detail.html:140
 msgid "▶ Run"
 msgstr "▶ Ejecutar"
 
-#: web/templates/web/experiment_detail.html:69
+#: ui/templates/ui/experiment_detail.html:164
+#, fuzzy, python-format
+msgid "Environment: %(summary)s"
+msgstr "Entorno: %(summary)s"
+
+#: ui/templates/ui/experiment_detail.html:173
+#, fuzzy
 msgid "Attach a dataset to run this experiment (loaded read-only)."
 msgstr ""
 "Adjunte un conjunto de datos para ejecutar este experimento (cargado en modo "
 "de solo lectura)."
 
-#: web/templates/web/experiment_detail.html:73
-msgid "Last run: %(count)s trials in %(total)s s — %(trials)s s in trials, %(overhead)s s overhead."
-msgstr "Última ejecución: %(count)s pruebas en %(total)s s — %(trials)s s en pruebas, %(overhead)s s de sobrecarga."
+#: ui/templates/ui/experiment_detail.html:177
+#, fuzzy, python-format
+msgid ""
+"Last run: %(count)s trials in %(total)s s — %(trials)s s in trials, "
+"%(overhead)s s overhead."
+msgstr ""
+"Última ejecución: %(count)s pruebas en %(total)s s — %(trials)s s en "
+"pruebas, %(overhead)s s de sobrecarga."
 
-#: web/templates/web/experiment_detail.html:77
+#: ui/templates/ui/experiment_detail.html:177
+#, fuzzy, python-format
+msgid "Stopped because %(reason)s."
+msgstr "Detenido porque %(reason)s."
+
+#: ui/templates/ui/experiment_detail.html:181
+#, fuzzy
 msgid "No results yet."
 msgstr "Aún no hay resultados."
 
-#: web/templates/web/experiment_detail.html:81
-#, python-format
+#: ui/templates/ui/experiment_detail.html:185
+#, fuzzy, python-format
 msgid "The search space is exhausted at %(n)s trials."
 msgstr "El espacio de búsqueda se agota tras %(n)s pruebas."
 
-#: web/templates/web/experiment_detail.html:88
-msgid "Best configuration"
-msgstr "Mejor configuración"
-
-#: web/templates/web/experiment_detail.html:89
-#, python-format
-msgid "Best overall (Trial %(trial)s)"
-msgstr "Mejor resultado global (Prueba %(trial)s)"
-
-#: web/templates/web/experiment_detail.html:109
-msgid "Selected configuration"
-msgstr "Configuración seleccionada"
-
-#: web/templates/web/experiment_detail.html:119
-msgid "Hyperparameter importance (HyperSHAP)"
-msgstr "Importancia de hiperparámetros (HyperSHAP)"
-
-#: web/templates/web/experiment_detail.html:122
-msgid "No importance data available."
-msgstr "No hay datos de importancia disponibles."
-
-#: web/templates/web/experiment_detail.html:128
-msgid "Performance of Incumbent"
-msgstr "Rendimiento del Incumbente"
-
-#: web/templates/web/experiment_detail.html:137
-msgid "Trial duration"
-msgstr "Duración de la prueba"
-
-#: web/templates/web/experiment_detail.html:143
-msgid "Gain per unit time"
-msgstr "Ganancia por unidad de tiempo"
-
-#: web/templates/web/experiment_detail.html:145
-msgid "No data available."
-msgstr "No hay datos disponibles."
-
-#: web/templates/web/experiment_detail.html:153
-#, python-format
-msgid "Trials (%(n)s)"
-msgstr "Pruebas (%(n)s)"
-
-#: web/templates/web/experiment_detail.html:161
-msgid "Duration"
-msgstr "Duración"
-
-#: web/templates/web/experiment_detail.html:216
+#: ui/templates/ui/experiment_detail.html:288
+#, fuzzy
 msgid "Absolute scale (0-1)"
 msgstr "Escala absoluta (0-1)"
 
-#: web/templates/web/experiment_detail.html:217
+#: ui/templates/ui/experiment_detail.html:289
+#, fuzzy
 msgid "Relative scale (fit to data)"
 msgstr "Escala relativa (ajustar a los datos)"
 
-#: web/templates/web/experiment_settings.html:4
-msgid "Settings"
-msgstr "Configuración"
-
-#: web/templates/web/experiment_settings.html:7
-#, python-format
+#: ui/templates/ui/experiment_settings.html:7
+#, fuzzy, python-format
 msgid "Settings: %(name)s"
 msgstr "Configuración: %(name)s"
 
-#: web/templates/web/experiment_settings.html:24
-msgid "Save settings"
-msgstr "Guardar configuración"
+#: ui/templates/ui/experiment_settings.html:27
+#, fuzzy
+msgid "Reset to default"
+msgstr "Restablecer al valor predeterminado"
 
-#: web/templates/web/experiment_settings.html:25
-msgid "Reset to default experiment settings"
-msgstr "Restablecer a la configuración de experimento predeterminada"
+#: ui/templates/ui/experiment_settings.html:29
+#, fuzzy
+msgid "Save settings as default"
+msgstr "Guardar la configuración como predeterminada"
 
-#: web/templates/web/experiment_settings.html:30
+#: ui/templates/ui/experiment_settings.html:39
+#, fuzzy, python-format
+msgid ""
+"Settings for %(optimizer)s. They apply from the next run onwards — trials "
+"already recorded stay exactly as they were measured, and the search "
+"continues from them."
+msgstr ""
+"Ajustes de %(optimizer)s. Se aplican a partir de la próxima ejecución: las "
+"pruebas ya registradas permanecen tal como se midieron y la búsqueda "
+"continúa a partir de ellas."
+
+#: ui/templates/ui/experiment_settings.html:42
+#, fuzzy
+msgid "A run is in flight. These can be changed once it finishes."
+msgstr "Hay una ejecución en curso. Podrán cambiarse cuando termine."
+
+#: ui/templates/ui/experiment_settings.html:48
+#, fuzzy
+msgid "Save search settings"
+msgstr "Guardar ajustes de búsqueda"
+
+#: ui/templates/ui/experiment_settings.html:59
+#, fuzzy
 msgid "Change default experiment settings"
 msgstr "Cambiar la configuración de experimento predeterminada"
 
-#: web/templates/web/global_settings.html:4
-#: web/templates/web/global_settings.html:7
-msgid "Global settings"
-msgstr "Configuración global"
+#: ui/templates/ui/figures/best_configuration.html:7
+#, fuzzy, python-format
+msgid "Best overall (Trial %(trial)s)"
+msgstr "Mejor resultado global (Prueba %(trial)s)"
 
-#: web/templates/web/global_settings.html:8
-msgid "Application-wide settings."
-msgstr "Configuración de toda la aplicación."
+#: ui/templates/ui/figures/error_over_time.html:5
+#, fuzzy
+msgid "No data available."
+msgstr "No hay datos disponibles."
 
-#: web/templates/web/home.html:6
+#: ui/templates/ui/figures/hyperparameter_importance.html:6
+msgid "No importance data available."
+msgstr "No hay datos de importancia disponibles."
+
+#: ui/templates/ui/figures/trials.html:6
+#, fuzzy, python-format
+msgid "Trials (%(n)s)"
+msgstr "Pruebas (%(n)s)"
+
+#: ui/templates/ui/figures/trials.html:13
+#, fuzzy
+msgid "Duration"
+msgstr "Duración"
+
+#: ui/templates/ui/home.html:6
 msgid "Use the sidebar to create a new experiment."
 msgstr "Usa la barra lateral para crear un nuevo experimento."
 
-#: web/templates/web/import.html:4
+#: ui/templates/ui/import.html:4
 msgid "Load experiment"
 msgstr "Cargar experimento"
 
-#: web/templates/web/import.html:7
+#: ui/templates/ui/import.html:7
+#, fuzzy
 msgid "Load an experiment"
 msgstr "Cargar un experimento"
 
-#: web/templates/web/import.html:8
+#: ui/templates/ui/import.html:8
+#, fuzzy
 msgid ""
 "Upload an <code>.ihpo</code> file to add it to your saved\n"
 "       experiments. Optionally attach its dataset to make it runnable; "
@@ -370,62 +884,64 @@ msgstr ""
 "guardados. Opcionalmente, adjunte su conjunto de datos para poder "
 "ejecutarlo; de lo contrario, se cargará en modo de solo lectura."
 
-#: web/templates/web/import.html:19
+#: ui/templates/ui/import.html:19
 msgid "Experiment file (.ihpo)"
 msgstr "Archivo de experimento (.ihpo)"
 
-#: web/templates/web/import.html:23
+#: ui/templates/ui/import.html:23
+#, fuzzy
 msgid "Dataset CSV (optional)"
 msgstr "CSV del conjunto de datos (opcional)"
 
-#: web/templates/web/import.html:28
+#: ui/templates/ui/import.html:28
+#, fuzzy
 msgid "Model .py (optional, custom models only)"
 msgstr "Modelo .py (opcional, solo modelos personalizados)"
 
-#: web/templates/web/import.html:32
+#: ui/templates/ui/import.html:32
 msgid "Load"
 msgstr "Cargar"
 
-#: web/templates/web/metric_change.html:4
-msgid "Change metric"
-msgstr "Cambiar métrica"
-
-#: web/templates/web/metric_change.html:7
+#: ui/templates/ui/metric_change.html:5
+#, fuzzy
 msgid "Change the optimized metric?"
 msgstr "¿Cambiar la métrica optimizada?"
 
-#: web/templates/web/metric_change.html:9
-#, python-format
+#: ui/templates/ui/metric_change.html:8
+#, fuzzy, python-format
 msgid ""
 "\n"
-"        This experiment has been optimizing <strong>%(original)s</strong>.\n"
-"        Running now for <strong>%(chosen)s</strong> changes the optimized "
-"metric —\n"
-"        the trials accumulated so far were optimized for %(original)s.\n"
-"        "
+"    These trials were chosen to optimize <strong>%(current)s</strong>. "
+"Their\n"
+"    scores for <strong>%(chosen)s</strong> were recorded too, so the search\n"
+"    continues from them rather than starting over — but they are still a "
+"sample\n"
+"    the old objective picked, and the run inherits that bias.\n"
+"    "
 msgstr ""
 "\n"
-"Este experimento ha estado optimizando <strong>%(original)s</strong>. "
-"Ejecutarlo ahora para <strong>%(chosen)s</strong> cambia la métrica "
-"optimizada — las pruebas acumuladas hasta ahora se optimizaron para "
-"%(original)s."
+"    Estas pruebas se eligieron para optimizar <strong>%(current)s</strong>. "
+"También\n"
+"    se registraron sus valores de <strong>%(chosen)s</strong>, así que la "
+"búsqueda\n"
+"    continúa a partir de ellas en lugar de empezar de cero, pero siguen "
+"siendo una\n"
+"    muestra que eligió el objetivo anterior, y la ejecución hereda ese "
+"sesgo.\n"
+"    "
 
-#: web/templates/web/metric_change.html:20
-#, python-format
+#: ui/templates/ui/metric_change.html:27
+#, fuzzy, python-format
 msgid "Optimize %(chosen)s"
 msgstr "Optimizar %(chosen)s"
 
-#: web/templates/web/metric_change.html:21
-#, python-format
-msgid "Keep optimizing %(original)s"
-msgstr "Seguir optimizando %(original)s"
+#: ui/templates/ui/metric_change.html:28
+#, fuzzy, python-format
+msgid "Keep optimizing %(current)s"
+msgstr "Seguir optimizando %(current)s"
 
-#: web/templates/web/new_experiment.html:4
-#: web/templates/web/new_experiment.html:7
-msgid "New experiment"
-msgstr "Nuevo experimento"
-
-#: web/templates/web/new_experiment.html:8
+#: ui/templates/ui/new_experiment.html:8
+#, fuzzy
 msgid ""
 "Set up an experiment. It is saved but not run — start runs\n"
 "       (and pick the metric and number of trials) on its page."
@@ -433,22 +949,113 @@ msgstr ""
 "Configure un experimento. Se guarda pero no se ejecuta — inicie las "
 "ejecuciones (y elija la métrica y el número de pruebas) en su página."
 
-#: web/templates/web/new_experiment.html:27
+#: ui/templates/ui/new_experiment.html:27
 msgid "Use demo models"
 msgstr "Usar modelos de demostración"
 
-#: web/templates/web/new_experiment.html:58
+#: ui/templates/ui/new_experiment.html:71
 msgid "Use demo datasets"
 msgstr "Usar conjuntos de datos de demostración"
 
-#: web/templates/web/new_experiment.html:75
+#: ui/templates/ui/new_experiment.html:86
+#, fuzzy
+msgid ""
+"Fixed once the experiment exists: trials scored different ways cannot be "
+"compared with each other."
+msgstr ""
+"Fijo una vez creado el experimento: las pruebas puntuadas de distinta forma "
+"no se pueden comparar entre sí."
+
+#: ui/templates/ui/new_experiment.html:95
+#, fuzzy
 msgid "Create experiment"
 msgstr "Crear experimento"
 
-#: web/views.py:48
+#: ui/templates/ui/save_as_default_confirm.html:4
+#: ui/templates/ui/save_as_default_confirm.html:23
+#, fuzzy
+msgid "Save as default"
+msgstr "Guardar como predeterminado"
+
+#: ui/templates/ui/save_as_default_confirm.html:5
+#, fuzzy
+msgid "Make these the default settings?"
+msgstr "¿Establecer esta configuración como predeterminada?"
+
+#: ui/templates/ui/save_as_default_confirm.html:8
+#, fuzzy
+msgid ""
+"These settings become the defaults for every experiment that\n"
+"    uses them, including existing ones. Experiments with their own settings "
+"are\n"
+"    unaffected."
+msgstr ""
+"Esta configuración pasa a ser la predeterminada para todo experimento que\n"
+"    la use, incluidos los existentes. Los experimentos con su propia "
+"configuración no\n"
+"    se ven afectados."
+
+#: ui/views.py:86
+#, fuzzy
+msgid "all the requested trials ran"
+msgstr "se ejecutaron todas las pruebas solicitadas"
+
+#: ui/views.py:87
+#, fuzzy
+msgid "the target score was reached"
+msgstr "se alcanzó la puntuación objetivo"
+
+#: ui/views.py:88
+#, fuzzy
+msgid "the time limit was reached"
+msgstr "se alcanzó el límite de tiempo"
+
+#: ui/views.py:89
+#, fuzzy
+msgid "the compute budget was used up"
+msgstr "se agotó el presupuesto de cómputo"
+
+#: ui/views.py:90
+#, fuzzy
+msgid "the score had stopped improving"
+msgstr "la puntuación dejó de mejorar"
+
+#: ui/views.py:91
+#, fuzzy
+msgid "the search was confident nothing better remained"
+msgstr "la búsqueda tuvo la certeza de que no quedaba nada mejor"
+
+#: ui/views.py:92
+#, fuzzy
+msgid "it was interrupted"
+msgstr "se interrumpió"
+
+#: ui/views.py:93
+#, fuzzy
+msgid "every trial was failing"
+msgstr "todas las pruebas fallaban"
+
+#: ui/views.py:219
 msgid "Inconsistent"
 msgstr "Inconsistente"
 
-#: web/views.py:288
+#: ui/views.py:366
+#, fuzzy
+msgid ""
+"Set at least one stopping criterion, so the run has something to end on."
+msgstr ""
+"Define al menos un criterio de parada para que la ejecución pueda terminar."
+
+#: ui/views.py:591
 msgid "Invalid or unreadable experiment file."
 msgstr "Archivo de experimento inválido o ilegible."
+
+#: ui/views.py:677
+#, fuzzy, python-format
+msgid "%(k)s-fold CV"
+msgstr "VC de %(k)s pliegues"
+
+#: ui/views.py:678
+#, fuzzy
+msgid "holdout"
+msgstr "retención"

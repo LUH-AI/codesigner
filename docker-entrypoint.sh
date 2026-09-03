@@ -13,6 +13,7 @@ case "$1" in
     ;;
   worker)
     python manage.py sweep_stale_runs
+    python manage.py sweep_stale_model_envs
     exec python manage.py run_huey
     ;;
   *)

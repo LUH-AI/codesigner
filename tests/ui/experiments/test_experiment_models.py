@@ -17,7 +17,7 @@ def _snapshot_fields():
         optimizer_name="Random Search",
         optimizer_params={},
         metric_names=["accuracy", "f1"],
-        primary_metric="accuracy",
+        current_metric="accuracy",
         original_metric="accuracy",
         seed=42,
     )
@@ -83,7 +83,7 @@ def test_run_lifecycle_defaults():
     from ui.models import Experiment, Run
 
     exp = Experiment.objects.create(**_snapshot_fields())
-    run = Run.objects.create(experiment=exp, n_trials=10, primary_metric="accuracy")
+    run = Run.objects.create(experiment=exp, stopping={"max_trials": 10}, primary_metric="accuracy")
 
     assert run.status == "pending"
     assert run.cancel_requested is False
@@ -101,7 +101,7 @@ def test_runs_are_deleted_with_their_experiment():
     from ui.models import Experiment, Run
 
     exp = Experiment.objects.create(**_snapshot_fields())
-    Run.objects.create(experiment=exp, n_trials=5, primary_metric="accuracy")
+    Run.objects.create(experiment=exp, stopping={"max_trials": 5}, primary_metric="accuracy")
 
     exp.delete()
     assert Run.objects.count() == 0

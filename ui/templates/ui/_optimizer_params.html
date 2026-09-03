@@ -1,0 +1,118 @@
+{% load i18n %}
+{% comment %}
+One optimizer's settings, as a bordered panel — the same `check-group` box the
+figures checkboxes live in. It carries number inputs and selects rather than
+checkboxes, which the box already supports: the "Run until…" stopping criteria
+on the experiment page are the same fieldset.
+
+Nothing here names an optimizer. The fields come from what the optimizer
+declares in its `params_schema`, so a new setting is one line in `core` and this
+template does not change. An optimizer that declares nothing renders nothing.
+
+`panel_disabled` renders the fieldset inert, which disables every control in it
+without touching them one by one. The create page uses it so an unchosen
+optimizer's settings are never submitted even with no JavaScript running; pages
+showing a single panel leave it unset.
+
+An empty numeric field means "whatever the strategy does by default", the same
+convention the stopping criteria use — the strategies disagree about several of
+these, so imposing one number on both would be worse than saying nothing.
+
+Two kinds of setting are not simply listed. A `group` is a block of settings
+that are only legible together and that lays itself out (`_group_<name>.html`).
+And a setting can declare when it applies, which the script at the bottom acts
+on two different ways:
+
+  `data-when="name=value"`  — belongs to another search strategy, so it is
+                              *hidden*: there is no version of this page where
+                              filling it in would do anything.
+  `data-enabled-by="a b"`   — switched off by its own checkbox, so it is *greyed*
+                              beside the checkbox that would turn it back on.
+
+Hiding never disables, because switching search strategy and back would then
+throw away everything set for the other one and the names do not collide.
+Greying does disable, because a cap that is switched off has no value worth
+keeping.
+{% endcomment %}
+{% if optimizer_layout %}
+    <fieldset class="check-group"{% if panel_disabled %} disabled{% endif %}>
+        <legend>{% translate "Configure optimizer" %}</legend>
+
+        {% for item in optimizer_layout %}
+            {% if item.group %}
+                {% include item.group.template with group=item.group %}
+            {% else %}
+                {% include "ui/_optimizer_param_field.html" with p=item.param %}
+            {% endif %}
+        {% endfor %}
+
+        {% if has_advanced_params %}
+            <details class="advanced-params">
+                <summary>{% translate "Advanced search settings" %}</summary>
+                {% for p in advanced_params %}
+                    {% include "ui/_optimizer_param_field.html" %}
+                {% endfor %}
+            </details>
+        {% endif %}
+
+        <script>
+            // Scoped to this fieldset, so the create page's several panels each
+            // wire their own without knowing about the others.
+            (function () {
+                const box = document.currentScript.closest("fieldset");
+
+                function checked(name) {
+                    const control = box.querySelector('[name="opt_' + name + '"]');
+                    return !control || control.checked;
+                }
+                function setOff(field, off) {
+                    field.classList.toggle("is-off", off);
+                    field.querySelectorAll("input, select, textarea").forEach(
+                        function (control) { control.disabled = off; });
+                }
+
+                function apply() {
+                    // Hidden: belongs to a search strategy that is not chosen.
+                    box.querySelectorAll("[data-when]").forEach(function (field) {
+                        const [name, wanted] = field.dataset.when.split("=");
+                        const control = box.querySelector('[name="opt_' + name + '"]');
+                        field.hidden = !control || control.value !== wanted;
+                    });
+                    // What an empty field would use, for the settings whose
+                    // default belongs to the search strategy rather than to us.
+                    // The two strategies disagree — the random-trial rate is
+                    // 0.08447 under the Gaussian process and 0.2 under the
+                    // random forest — so a placeholder rendered for one of them
+                    // would be wrong the moment the selector moved.
+                    const strategy = box.querySelector('[name="opt_search_strategy"]');
+                    if (strategy) {
+                        box.querySelectorAll("[data-strategy-defaults]").forEach(function (field) {
+                            const byStrategy = JSON.parse(field.dataset.strategyDefaults);
+                            const value = byStrategy[strategy.value];
+                            const input = field.querySelector("input");
+                            if (input) input.placeholder = value === undefined ? "" : value;
+                        });
+                    }
+                    // Greyed: switched off by a checkbox that is right there.
+                    box.querySelectorAll("[data-enabled-by]").forEach(function (field) {
+                        setOff(field, !field.dataset.enabledBy.split(" ").every(checked));
+                    });
+                    // And greyed by its own "use default", which empties it —
+                    // after the pass above, so a cap that is off stays off.
+                    box.querySelectorAll("[data-default-for]").forEach(function (row) {
+                        const toggle = row.querySelector("input");
+                        const target = box.querySelector("#" + row.dataset.defaultFor);
+                        if (!target || toggle.disabled) return;
+                        if (toggle.checked) {
+                            target.value = "";
+                            setOff(target.closest(".field"), true);
+                        }
+                    });
+                }
+
+                box.addEventListener("change", apply);
+                apply();
+            })();
+        </script>
+    </fieldset>
+{% endif %}

@@ -17,8 +17,24 @@ RUN_INFO_KEYS = (
     "status", "starttime", "endtime", "additional_info",
 )
 
-# SMAC's StatusType.SUCCESS as the stored int (base stays SMAC-import-free).
-_STATUS_SUCCESS = 1
+# SMAC's StatusType values as stored ints (base stays SMAC-import-free). A
+# trial that failed is still recorded — with the reason in additional_info —
+# because "this configuration does not work" is a real result for a search.
+STATUS_SUCCESS = 1
+STATUS_CRASHED = 2
+STATUS_TIMEOUT = 3
+
+#: Not a status: a marker in `run_info` saying this attempt was abandoned rather
+#: than measured, read by `TrialCollector.record`, which then records nothing.
+#:
+#: Deliberately not a fourth `STATUS_` int. Those are SMAC's `StatusType` values
+#: and `smac_optimizer` passes them straight to `StatusType(...)`, whose members
+#: are only RUNNING/SUCCESS/CRASHED/TIMEOUT/MEMORYOUT — a number of our own
+#: would raise there. Deliberately outside `RUN_INFO_KEYS` too, so it cannot
+#: reach a file even if some future caller does record the trial.
+CANCELLED = "cancelled"
+
+_STATUS_SUCCESS = STATUS_SUCCESS  # retained: base.py's serializer imports it
 
 
 @contextmanager

@@ -1,4 +1,5 @@
 import json
+from unittest import mock
 
 import numpy as np
 import pytest
@@ -17,7 +18,7 @@ def _fixture_snapshot(name: str, dataset_path: str | None = None) -> dict:
     """
     snapshot = io.parse((FIXTURES_DIR / name).read_bytes())
     if dataset_path is not None:
-        snapshot["dataset_path"] = dataset_path
+        snapshot["dataset"]["path"] = dataset_path
     return snapshot
 
 
@@ -28,7 +29,7 @@ def test_parse_accepts_fixture_files():
     for name in ("test.ihpo", "test2.ihpo"):
         snapshot = io.parse((FIXTURES_DIR / name).read_bytes())
         assert snapshot["name"]
-        assert snapshot["metric_names"]
+        assert snapshot["metrics"]["names"]
 
 
 def test_parse_rejects_invalid_json():
@@ -71,7 +72,7 @@ def test_dataset_path_ok():
     """
     snapshot = _fixture_snapshot("test2.ihpo")
     assert not io.dataset_path_ok(snapshot)
-    snapshot["dataset_path"] = str(DATASETS_DIR / "wine.csv")
+    snapshot["dataset"]["path"] = str(DATASETS_DIR / "wine.csv")
     assert io.dataset_path_ok(snapshot)
 
 
@@ -149,21 +150,29 @@ def test_build_experiment_read_only(metrics, models, optimizers):
     assert exp["result"].best_score == snapshot["result"]["best_score"]
 
 
-def test_build_experiment_smac_restores_optimizer_state(metrics, models, optimizers):
-    """Loading a SMAC experiment materializes its embedded working directory.
+def test_build_experiment_smac_carries_optimizer_state(metrics, models, optimizers):
+    """Loading a SMAC experiment carries its embedded state on the result.
 
     The SMAC fixture (test.ihpo) carries optimizer_state (runhistory,
-    scenario, intensifier...). Expect: deserialization writes those files to
-    a fresh temp dir and records it in result.metadata["smac_output_dir"],
-    which is what makes resuming the run possible.
+    scenario, intensifier...). Expect: deserialization keeps that dict in
+    result.metadata, which is what a later re-serialization passes through and
+    what `_pinned_points` reads the initial design out of.
+
+    This used to assert the files were written to a fresh temp dir. They were —
+    on every rebuild, and this is a read-only page-render path, so that meant
+    one leaked directory per page view. Nothing read them; see
+    `SMACOptimizer.deserialize_result`.
     """
     snapshot = _fixture_snapshot("test.ihpo")
-    _, exp = io.build_experiment(snapshot, metrics, models, optimizers, read_only=True)
+
+    with mock.patch("tempfile.mkdtemp", side_effect=AssertionError("wrote to disk")):
+        _, exp = io.build_experiment(snapshot, metrics, models, optimizers, read_only=True)
 
     assert isinstance(exp["optimizer"], SMACOptimizer)
     assert len(exp["result"].trials) == 30
-    smac_dir = exp["result"].metadata.get("smac_output_dir")
-    assert smac_dir, "optimizer_state should be materialized to a working directory"
+    state = exp["result"].metadata.get("optimizer_state")
+    assert state, "optimizer_state should be carried on the rebuilt result"
+    assert any(key.endswith("scenario.json") for key in state)
 
 
 def test_build_experiment_with_dataset(metrics, models, optimizers):
@@ -177,7 +186,7 @@ def test_build_experiment_unknown_metric(metrics, models, optimizers):
     """build_experiment() rejects snapshots naming metrics the app doesn't have,
     and the error names the offending metric."""
     snapshot = _fixture_snapshot("test2.ihpo")
-    snapshot["metric_names"] = ["accuracy", "nonexistent"]
+    snapshot["metrics"]["names"] = ["accuracy", "nonexistent"]
     with pytest.raises(ValueError, match="unknown metric"):
         io.build_experiment(snapshot, metrics, models, optimizers, read_only=True)
 
@@ -185,7 +194,7 @@ def test_build_experiment_unknown_metric(metrics, models, optimizers):
 def test_build_experiment_unknown_optimizer(metrics, models, optimizers):
     """build_experiment() rejects snapshots naming an unavailable optimizer."""
     snapshot = _fixture_snapshot("test2.ihpo")
-    snapshot["optimizer_name"] = "Simulated Annealing"
+    snapshot["optimizer"]["name"] = "Simulated Annealing"
     with pytest.raises(ValueError, match="optimizer .* not available"):
         io.build_experiment(snapshot, metrics, models, optimizers, read_only=True)
 
@@ -193,7 +202,7 @@ def test_build_experiment_unknown_optimizer(metrics, models, optimizers):
 def test_build_experiment_unknown_model(metrics, models, optimizers):
     """build_experiment() rejects snapshots naming an unavailable registry model."""
     snapshot = _fixture_snapshot("test2.ihpo")
-    snapshot["model_name"] = "Transformer"
+    snapshot["model"]["name"] = "Transformer"
     with pytest.raises(ValueError, match="model .* not available"):
         io.build_experiment(snapshot, metrics, models, optimizers, read_only=True)
 
@@ -224,10 +233,14 @@ def test_save_parse_roundtrip(metrics, models, optimizers):
 
     again = io.parse(io.save(name, exp))
 
-    for key in ("name", "model_name", "model_path", "optimizer_name",
-                "optimizer_params", "primary_metric", "original_metric",
-                "metric_names", "seed"):
-        assert again[key] == snapshot[key], key
+    for path in (("name",), ("seed",), ("model", "name"), ("model", "path"),
+                 ("optimizer", "name"), ("optimizer", "params"),
+                 ("metrics", "names"), ("metrics", "current"),
+                 ("metrics", "original")):
+        left, right = again, snapshot
+        for key in path:
+            left, right = left[key], right[key]
+        assert left == right, path
     assert again["result"]["configs"] == snapshot["result"]["configs"]
     assert len(again["result"]["data"]) == len(snapshot["result"]["data"])
     assert again["result"]["best_score"] == snapshot["result"]["best_score"]

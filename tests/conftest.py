@@ -2,11 +2,11 @@ from pathlib import Path
 
 import pytest
 from ConfigSpace import ConfigurationSpace, Integer
-from sklearn.metrics import accuracy_score, f1_score, precision_score, recall_score
 
 from core.io import _load_splits
+from core.metrics import METRICS
 from core.models import BaseModel, RandomForestModel, SVMModel
-from core.optimizers.timing import timed_evaluation
+from core.optimizers.trial import evaluate_trial
 from core.optimizers import (
     BaseOptimizer,
     GridOptimizer,
@@ -15,6 +15,7 @@ from core.optimizers import (
     SMACOptimizer,
     TrialCollector,
 )
+from core.optimizers.base import merge_stopping
 
 FIXTURES_DIR = Path(__file__).parent / "fixtures"
 DATASETS_DIR = Path(__file__).parent.parent / "datasets"
@@ -23,8 +24,10 @@ DATASETS_DIR = Path(__file__).parent.parent / "datasets"
 class FakeModel(BaseModel):
     """Instant, deterministic model for exercising optimizer loops in tests.
 
-    The "score" is a pure function of the config, so no training happens and
-    results are stable across runs.
+    No training happens: it predicts a pattern chosen by the config, so what it
+    scores is a pure function of that config and stable across runs. It cannot
+    simply return a score — a model never sees the validation labels — so the
+    config decides how often the pattern lines up with them instead.
     """
 
     name = "Fake Model"
@@ -34,10 +37,10 @@ class FakeModel(BaseModel):
         cs.add([Integer("a", (1, 10), default=5), Integer("b", (1, 10), default=5)])
         return cs
 
-    def train_evaluate(self, config, X_train, y_train, X_val, y_val,
-                       metrics: dict, seed: int = 0) -> dict:
-        score = (int(config["a"]) * int(config["b"])) / 100.0
-        return {name: score for name in metrics}
+    def fit_predict(self, config, X_train, y_train, X_val, seed: int = 0):
+        labels = sorted({str(label) for label in y_train})
+        a, b = int(config["a"]), int(config["b"])
+        return [labels[(i * a + b) % len(labels)] for i in range(len(X_val))]
 
 
 class FakeOptimizer(BaseOptimizer):
@@ -49,22 +52,22 @@ class FakeOptimizer(BaseOptimizer):
 
     def optimize(self, model, X_train, y_train, X_val, y_val,
                  metrics: dict, primary_metric: str,
-                 n_trials, previous_result=None, seed: int = 0, cancel_event=None):
+                 n_trials=None, previous_result=None, seed: int = 0, cancel_event=None,
+                 stopping: dict | None = None, splits=None):
+        from core.splits import holdout
+        splits = splits if splits is not None else holdout(X_train, y_train, X_val, y_val)
         config_space = model.get_config_space(seed=seed)
         collector = TrialCollector(
-            target_new_trials=n_trials,
             trial_offset=len(previous_result.trials) if previous_result else 0,
             initial_best_score=previous_result.best_score if previous_result else float("-inf"),
             initial_best_config=previous_result.best_config if previous_result else None,
+            stopping=merge_stopping(n_trials, stopping),
         )
         while not collector.done:
             if cancel_event and cancel_event.is_set():
                 break
             cfg = dict(config_space.sample_configuration())
-            with timed_evaluation(seed=seed) as run_info:
-                all_scores = model.train_evaluate(
-                    cfg, X_train, y_train, X_val, y_val, metrics, seed=seed
-                )
+            all_scores, run_info = evaluate_trial(model, cfg, splits, metrics, seed=seed)
             collector.record(cfg, all_scores[primary_metric], all_scores, run_info=run_info)
 
         all_trials = (previous_result.trials if previous_result else []) + collector.results
@@ -78,6 +81,7 @@ class FakeOptimizer(BaseOptimizer):
             best_score=max((t.scores[primary_metric] for t in all_trials), default=0.0),
             hyperparameter_importance={m: dict(uniform) for m in metrics},
             hyperparameter_importance_warning={m: None for m in metrics},
+            metadata={"stopped_by": collector.stopped_by},
         )
 
 
@@ -106,13 +110,13 @@ def runs_execute_synchronously(settings):
 
 @pytest.fixture
 def metrics() -> dict:
-    """The four standard classification metrics, keyed as the app registers them."""
-    return {
-        "accuracy":      lambda y, yp: accuracy_score(y, yp),
-        "f1":            lambda y, yp: f1_score(y, yp, average="weighted", zero_division=0),
-        "precision":     lambda y, yp: precision_score(y, yp, average="weighted", zero_division=0),
-        "recall(macro)": lambda y, yp: recall_score(y, yp, average="macro", zero_division=0),
-    }
+    """The metrics the application scores with — the real ones, not a copy.
+
+    They used to be redefined here. Now that scoring is the application's job
+    rather than each model's, a copy could drift from what production computes
+    and no test would notice.
+    """
+    return dict(METRICS)
 
 
 @pytest.fixture
@@ -135,3 +139,32 @@ def optimizers() -> dict:
 def iris_splits():
     """(X_train, X_val, y_train, y_val) for datasets/iris.csv with seed 0."""
     return _load_splits(DATASETS_DIR / "iris.csv", seed=0)
+
+
+@pytest.fixture
+def tiny_splits():
+    """A four-row split: enough for a model to predict against and be scored.
+
+    Optimizer-contract tests used to pass None for the arrays, because the fake
+    model invented its own score and never touched them. Scoring is real now, so
+    there has to be something to score.
+    """
+    import numpy as np
+
+    X = np.array([[0.0], [1.0], [2.0], [3.0]])
+    y = np.array(["a", "b", "a", "b"], dtype=object)
+    return X[:2], X[2:], y[:2], y[2:]     # X_train, X_val, y_train, y_val
+
+
+def export_ihpo(client, pk, timestamps="keep", tracebacks="keep"):
+    """Download one experiment's .ihpo, answering the questions export asks.
+
+    Exporting is a POST rather than a GET because the page asks first what goes
+    in the file: the per-trial timestamps, and a failed trial's stored traceback
+    — see `ui.views.experiment_export`. Both default here to the answer that
+    changes nothing about the file, for tests that only want the file.
+    """
+    from django.urls import reverse
+
+    return client.post(reverse("ui:experiment_export", args=[pk]),
+                       {"timestamps": timestamps, "tracebacks": tracebacks})

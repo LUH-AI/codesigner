@@ -1,0 +1,17 @@
+{% load i18n %}
+{% comment %}One ablation game per trial, so this is the one figure whose cost
+grows with the length of the run rather than with the width of the search —
+capped by the experiment's "trials explained" setting and fetched on request,
+never shipped with the page. See views.py's local_effects endpoint and
+experiment_detail.html's refreshLocalEffects.{% endcomment %}
+<section class="card" data-figure="{{ figure.key }}">
+    <div class="card-head">
+        <div class="subheader">{{ figure.label }}</div>
+    </div>
+    <p id="local-effects-warning" class="alert warning" hidden></p>
+    <p id="local-effects-compute" class="caption" hidden>
+        <button type="button" id="local-effects-compute-btn">{% translate "Compute" %}</button>
+    </p>
+    <div id="{{ figure.dom_id }}" class="plot"></div>
+    <p id="{{ figure.dom_id }}-empty" class="caption" hidden>{% translate "No local effects available." %}</p>
+</section>

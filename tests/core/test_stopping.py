@@ -1,0 +1,448 @@
+"""What ends a run.
+
+`TrialCollector.done` is the condition every optimizer loop is written against,
+so it is the one place a stopping rule has to be expressed to apply to all of
+them. Several criteria can be set at once and the first to fire wins; the
+collector records which, because "it stopped at 12 of 30 trials" is only useful
+alongside the reason.
+
+No criterion is privileged — a trial cap is a limit like any other. What is
+required is that there be *at least one*, because a run set up with nothing that
+could end it has no end.
+"""
+
+import time
+
+import pytest
+
+from core.optimizers.base import NoStoppingCriterion, TrialCollector
+
+
+def _collector(stopping, **kwargs):
+    return TrialCollector(stopping=stopping, **kwargs)
+
+
+def _record(collector, score, seconds=0.0, n=1):
+    """Record *n* trials, all scoring *score* and each taking *seconds*."""
+    for _ in range(n):
+        collector.record({"x": score}, score, {"accuracy": score},
+                         run_info={"time": seconds})
+
+
+# ── at least one, and no favourites ──────────────────────────────────────────
+
+def test_a_run_with_no_criteria_is_refused():
+    """Not defaulted to something arbitrary: the caller has to say how this run
+    is meant to end, and there is no longer a trial cap standing in for them."""
+    with pytest.raises(NoStoppingCriterion):
+        TrialCollector()
+
+
+def test_criteria_that_are_none_do_not_count_as_criteria():
+    """A form field left blank arrives as None. Four blanks is still nothing."""
+    with pytest.raises(NoStoppingCriterion):
+        _collector({"max_seconds": None, "target_score": None,
+                    "max_trial_seconds": None, "no_improvement_trials": None})
+
+
+def test_an_unknown_key_is_not_a_criterion():
+    """Only the declared ones have meaning; anything else is a typo, and a typo
+    must not become a stopping rule nobody wrote — nor pass for having set one."""
+    with pytest.raises(NoStoppingCriterion):
+        _collector({"n_trials": 5})          # the old name, and not a criterion
+
+
+def test_any_single_criterion_is_enough_on_its_own():
+    """Including the ones that are not a count. The trial cap is not required."""
+    for stopping in ({"max_trials": 3}, {"max_seconds": 60}, {"target_score": 0.9},
+                     {"max_trial_seconds": 60}, {"no_improvement_trials": 5},
+                     {"incumbent_confidence": 0.95}):
+        assert _collector(stopping).done is False, stopping
+
+
+# ── each criterion on its own ────────────────────────────────────────────────
+
+def test_the_trial_cap_ends_the_run():
+    collector = _collector({"max_trials": 3})
+
+    _record(collector, 0.5, n=2)
+    assert collector.done is False
+
+    _record(collector, 0.5)
+    assert collector.done is True
+    assert collector.stopped_by == "max_trials"
+
+
+def test_the_target_score_ends_the_run():
+    collector = _collector({"target_score": 0.9})
+
+    _record(collector, 0.5)
+    assert collector.done is False
+
+    _record(collector, 0.95)
+    assert collector.done is True
+    assert collector.stopped_by == "target_score"
+
+
+def test_matching_the_target_exactly_is_not_surpassing_it():
+    """Strictly greater. The field is filled with the incumbent's own score, so
+    "equal counts" would end every run after one trial without improving on
+    anything."""
+    collector = _collector({"target_score": 0.9})
+
+    _record(collector, 0.9)
+
+    assert collector.done is False
+
+
+def test_the_target_score_counts_the_incumbent_not_the_last_trial():
+    """A trial that scores worse after the target was reached does not un-reach
+    it — the incumbent is what the run achieved."""
+    collector = _collector({"target_score": 0.9})
+
+    _record(collector, 0.95)
+    _record(collector, 0.1)
+
+    assert collector.done is True
+    assert collector.stopped_by == "target_score"
+
+
+def test_a_resumed_run_can_already_be_at_its_target():
+    """The incumbent carried in from earlier runs counts. Asking for 0.9 when
+    0.95 is already in hand should not spend another trial to discover it."""
+    collector = _collector({"target_score": 0.9}, initial_best_score=0.95)
+
+    assert collector.done is True
+    assert collector.stopped_by == "target_score"
+
+
+def test_the_compute_budget_counts_time_spent_in_trials():
+    """Distinct from wall clock: this is the compute actually consumed, which
+    is what a shared machine is being asked to budget."""
+    collector = _collector({"max_trial_seconds": 5.0})
+
+    _record(collector, 0.5, seconds=2.0, n=2)
+    assert collector.done is False
+
+    _record(collector, 0.5, seconds=2.0)
+    assert collector.done is True
+    assert collector.stopped_by == "max_trial_seconds"
+
+
+def test_the_wall_clock_limit_ends_the_run():
+    collector = _collector({"max_seconds": 0.05})
+
+    assert collector.done is False
+    time.sleep(0.06)
+
+    assert collector.done is True
+    assert collector.stopped_by == "max_seconds"
+
+
+def test_stagnation_ends_the_run():
+    collector = _collector({"no_improvement_trials": 3})
+
+    _record(collector, 0.5)          # the first trial improves on -inf
+    _record(collector, 0.4, n=2)
+    assert collector.done is False
+
+    _record(collector, 0.4)
+    assert collector.done is True
+    assert collector.stopped_by == "no_improvement_trials"
+
+
+def test_an_improvement_resets_the_stagnation_count():
+    collector = _collector({"no_improvement_trials": 3})
+
+    _record(collector, 0.5)
+    _record(collector, 0.4, n=2)
+    _record(collector, 0.9)          # better: the window starts again
+    _record(collector, 0.8, n=2)
+
+    assert collector.done is False
+
+
+# ── the surrogate's confidence ───────────────────────────────────────────────
+
+def test_confidence_ends_the_run_when_the_optimizer_is_sure_enough():
+    collector = _collector({"incumbent_confidence": 0.95})
+
+    collector.note_confidence(0.80)
+    _record(collector, 0.5)
+    assert collector.done is False
+
+    collector.note_confidence(0.97)
+    assert collector.done is True
+    assert collector.stopped_by == "incumbent_confidence"
+
+
+def test_an_optimizer_that_cannot_answer_never_fires_it():
+    """Random and grid search fit no model of the objective. Silence has to read
+    as "no answer", not as certainty — otherwise the run would end at once."""
+    collector = _collector({"incumbent_confidence": 0.95, "max_trials": 3})
+
+    _record(collector, 0.5)
+    assert collector.done is False
+
+    collector.note_confidence(None)
+    _record(collector, 0.5)
+    assert collector.done is False
+
+    _record(collector, 0.5)
+    assert collector.done is True
+    assert collector.stopped_by == "max_trials"
+
+
+def test_falling_below_the_threshold_again_keeps_the_run_going():
+    """A later trial can widen the surrogate's uncertainty. Until `done` latches,
+    the answer is whatever the model currently says."""
+    collector = _collector({"incumbent_confidence": 0.95})
+
+    collector.note_confidence(0.96)
+    collector.note_confidence(0.5)
+
+    assert collector.done is False
+
+
+# ── several at once ──────────────────────────────────────────────────────────
+
+def test_the_first_criterion_to_fire_is_the_one_that_stops_it():
+    """Six trials would satisfy the cap; the target is reached at two."""
+    collector = _collector({"max_trials": 6, "target_score": 0.9,
+                            "no_improvement_trials": 10})
+
+    _record(collector, 0.5)
+    _record(collector, 0.95)
+
+    assert collector.done is True
+    assert collector.stopped_by == "target_score"
+    assert len(collector.results) == 2
+
+
+def test_a_cap_alongside_a_target_that_is_never_reached():
+    """Why pairing an unbounded criterion with a bounded one is worth advising."""
+    collector = _collector({"max_trials": 3, "target_score": 0.99})
+
+    _record(collector, 0.5, n=3)
+
+    assert collector.done is True
+    assert collector.stopped_by == "max_trials"
+
+
+def test_the_reason_is_latched_rather_than_recomputed():
+    """`done` is read once per loop iteration and the wall clock keeps moving,
+    so a run that finished its trials must not be relabelled a timeout on the
+    next read."""
+    collector = _collector({"max_trials": 1, "max_seconds": 0.05})
+
+    _record(collector, 0.5)
+    assert collector.done is True
+    assert collector.stopped_by == "max_trials"
+
+    time.sleep(0.06)
+    assert collector.done is True
+    assert collector.stopped_by == "max_trials"
+
+
+# ── through a real optimizer ─────────────────────────────────────────────────
+
+def test_an_optimizer_stops_early_and_reports_why(optimizers, models, metrics, iris_splits):
+    """The collector is not consulted anywhere else, so this is what proves the
+    criteria reach an actual search."""
+    X_train, X_val, y_train, y_val = iris_splits
+
+    result = optimizers["Random Search"].optimize(
+        models["Random Forest"], X_train, y_train, X_val, y_val,
+        metrics=metrics, primary_metric="accuracy", n_trials=50, seed=0,
+        stopping={"target_score": 0.5})
+
+    assert len(result.trials) < 50
+    assert result.metadata["stopped_by"] == "target_score"
+
+
+def test_n_trials_is_spelling_for_the_trial_cap(optimizers, models, metrics, iris_splits):
+    """Kept on `optimize()` because it is how code asks for a search, but it is
+    the same criterion under a different name — including in what gets reported."""
+    X_train, X_val, y_train, y_val = iris_splits
+
+    result = optimizers["Random Search"].optimize(
+        models["Random Forest"], X_train, y_train, X_val, y_val,
+        metrics=metrics, primary_metric="accuracy", n_trials=4, seed=0)
+
+    assert len(result.trials) == 4
+    assert result.metadata["stopped_by"] == "max_trials"
+
+
+def test_an_explicit_cap_beats_the_shorthand(optimizers, models, metrics, iris_splits):
+    X_train, X_val, y_train, y_val = iris_splits
+
+    result = optimizers["Random Search"].optimize(
+        models["Random Forest"], X_train, y_train, X_val, y_val,
+        metrics=metrics, primary_metric="accuracy", n_trials=50, seed=0,
+        stopping={"max_trials": 3})
+
+    assert len(result.trials) == 3
+
+
+def test_only_an_optimizer_with_a_surrogate_claims_to_support_confidence(optimizers):
+    """What the Run form reads to decide whether to offer the criterion."""
+    assert optimizers["SMAC"].supports_confidence_stopping is True
+    assert optimizers["Random Search"].supports_confidence_stopping is False
+    assert optimizers["Grid Search"].supports_confidence_stopping is False
+
+
+@pytest.mark.slow
+def test_smac_answers_with_its_surrogate_and_stops(optimizers, models, metrics, iris_splits):
+    """End to end: a real GP, asked about a thousand sampled configurations, ends
+    a run that would otherwise have taken 40 trials."""
+    X_train, X_val, y_train, y_val = iris_splits
+
+    result = optimizers["SMAC"].optimize(
+        models["Random Forest"], X_train, y_train, X_val, y_val,
+        metrics=metrics, primary_metric="accuracy", n_trials=40, seed=0,
+        stopping={"max_trials": 40, "incumbent_confidence": 0.6})
+
+    assert result.metadata["stopped_by"] == "incumbent_confidence"
+    assert len(result.trials) < 40
+
+
+@pytest.mark.slow
+def test_smac_will_not_stop_on_confidence_before_it_has_evidence(
+        optimizers, models, metrics, iris_splits):
+    """A GP fitted on a handful of points is confident the way a line through
+    two points is. Below the minimum, the criterion cannot end a run."""
+    X_train, X_val, y_train, y_val = iris_splits
+
+    result = optimizers["SMAC"].optimize(
+        models["Random Forest"], X_train, y_train, X_val, y_val,
+        metrics=metrics, primary_metric="accuracy", n_trials=3, seed=0,
+        stopping={"max_trials": 3, "incumbent_confidence": 0.01})
+
+    assert len(result.trials) == 3
+    assert result.metadata["stopped_by"] == "max_trials"
+
+
+# ── giving up ────────────────────────────────────────────────────────────────
+
+def _fail(collector, times=1):
+    for _ in range(times):
+        collector.record({"x": 1}, 0.0, {"accuracy": 0.0}, run_info={"status": 2})
+
+
+def test_the_first_failure_ends_the_run_by_default():
+    """`DEFAULT_MAX_FAILURES` is 1, so a failure is something you are told about
+    rather than something the run absorbs. A model still being written fails for
+    a reason its author can fix, and there is nothing to learn from watching it
+    fail another thirty-nine times."""
+    collector = _collector({"max_trials": 500})
+    _fail(collector)
+
+    assert collector.done is True
+    assert collector.stopped_by == "all_failing"
+
+
+def test_a_run_that_expects_failures_says_so_and_keeps_going():
+    """The other case: a search deliberately probing a region that cannot work.
+    Raising the limit is how someone says that is what they are doing."""
+    collector = _collector({"max_trials": 500, "max_failures": 10})
+    _fail(collector, 9)
+
+    assert collector.done is False
+
+    _fail(collector)
+    assert collector.done is True
+    assert collector.stopped_by == "all_failing"
+
+
+def test_the_total_is_not_reset_by_a_success():
+    """Which is the whole difference between it and the consecutive count. Ten
+    failures scattered through a run is the same finding as ten in a row for
+    someone deciding whether to trust the result."""
+    collector = _collector({"max_trials": 500, "max_failures": 3})
+    _fail(collector, 2)
+    collector.record({"x": 2}, 0.9, {"accuracy": 0.9}, run_info={"status": 1})
+
+    assert collector.done is False, "two of three used"
+
+    _fail(collector)
+    assert collector.done is True
+
+
+def test_a_run_whose_every_trial_fails_gives_up():
+    """A model that cannot fit the dataset at all fails instantly and
+    identically every time. Without this the run burns its whole budget and
+    reports a tidy row of zeros, which is what a broken run looked like.
+
+    The total limit is raised out of the way so this is the consecutive rule
+    being tested and not the total one firing first."""
+    from core.optimizers.base import DEFAULT_MAX_CONSECUTIVE_FAILURES
+
+    collector = _collector({"max_trials": 500, "max_failures": 10_000})
+    _fail(collector, DEFAULT_MAX_CONSECUTIVE_FAILURES)
+
+    assert collector.done is True
+    assert collector.stopped_by == "all_failing"
+
+
+def test_one_good_trial_resets_the_patience():
+    """A search exploring a bad region is not a broken run. Only an unbroken
+    streak counts — for the consecutive limit; the total is what does not
+    forgive, and it is raised here so the streak is what is being measured."""
+    from core.optimizers.base import DEFAULT_MAX_CONSECUTIVE_FAILURES
+
+    collector = _collector({"max_trials": 500, "max_failures": 10_000})
+    _fail(collector, DEFAULT_MAX_CONSECUTIVE_FAILURES - 1)
+    collector.record({"x": 2}, 0.9, {"accuracy": 0.9}, run_info={"status": 1})
+    _fail(collector, DEFAULT_MAX_CONSECUTIVE_FAILURES - 1)
+
+    assert collector.done is False
+
+
+def test_the_failure_defaults_are_not_a_stopping_criterion_on_their_own():
+    """They go in after the check that a run has one, on purpose. A run with
+    nothing but them has no end anyone chose — it stops when it breaks, which is
+    not a plan — so it is still refused."""
+    with pytest.raises(NoStoppingCriterion):
+        _collector({})
+
+
+def test_a_trial_with_no_status_counts_as_a_success():
+    """Not every caller records run_info, and a missing status must not read as
+    a failure and end the run."""
+    collector = _collector({"max_trials": 500})
+    for _ in range(30):
+        collector.record({"x": 1}, 0.5, {"accuracy": 0.5})
+
+    assert collector.done is False
+
+
+# ── being interrupted ────────────────────────────────────────────────────────
+
+def test_a_trial_that_was_never_run_is_not_serialized(optimizers, models, metrics,
+                                                      iris_splits, monkeypatch):
+    """SMAC's runhistory is its own bookkeeping and can hold entries the run
+    never recorded — a configuration asked for and not told because the run
+    stopped, or one left in a reused output directory. Copied out verbatim they
+    became rows in the trials table with no scores at all: a trial that never
+    happened, reported as one that scored nothing."""
+    import json
+
+    from pathlib import Path
+
+    X_train, X_val, y_train, y_val = iris_splits
+    smac = optimizers["SMAC"]
+    result = smac.optimize(
+        models["Random Forest"], X_train, y_train, X_val, y_val,
+        metrics=metrics, primary_metric="accuracy", n_trials=3, seed=0)
+
+    # Forge exactly that: an entry SMAC knows about and the collector does not.
+    rh_path = next(Path(result.metadata["smac_output_dir"]).rglob("runhistory.json"))
+    rh = json.loads(rh_path.read_text())
+    rh["data"].append({**rh["data"][0], "config_id": 999, "cost": 1.0})
+    rh_path.write_text(json.dumps(rh))
+
+    serialized = smac.serialize_result(result)
+
+    assert [e["config_id"] for e in serialized["data"]] == [1, 2, 3]
+    assert all("scores" in e for e in serialized["data"])
+    assert serialized["stats"]["finished"] == 3

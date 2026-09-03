@@ -9,3 +9,10 @@ huey.sqlite3*
 
 # Editable-install metadata
 *.egg-info/
+
+# Wheel build artefacts
+model_sdk/build/
+wheels/
+
+# One-off scripts for looking at something locally.
+scratch/

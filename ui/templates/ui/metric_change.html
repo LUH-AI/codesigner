@@ -5,10 +5,11 @@
 {% block confirm_heading %}{% translate "Change the optimized metric?" %}{% endblock %}
 
 {% block confirm_message %}
-    {% blocktranslate with original=experiment.original_metric chosen=chosen %}
-    These trials optimize <strong>{{ original }}</strong>. Switching to
-    <strong>{{ chosen }}</strong> mixes two objectives in one experiment, so its
-    results can no longer be reproduced from the seed and setup alone.
+    {% blocktranslate with current=experiment.current_metric chosen=chosen %}
+    These trials were chosen to optimize <strong>{{ current }}</strong>. Their
+    scores for <strong>{{ chosen }}</strong> were recorded too, so the search
+    continues from them rather than starting over — but they are still a sample
+    the old objective picked, and the run inherits that bias.
     {% endblocktranslate %}
 {% endblock %}
 
@@ -17,11 +18,20 @@
 {% block confirm_fields %}
     <input type="hidden" name="optimize_metric" value="{{ chosen }}">
     <input type="hidden" name="n_trials" value="{{ n_trials }}">
+    {% for key, value in stopping.items %}
+        <input type="hidden" name="{{ key }}" value="{{ value }}">
+    {% endfor %}
+    {% comment %}Carried the same way and for the same reason: answering this
+    question should not quietly re-run under a different deadline than the one
+    the form was filled in with.{% endcomment %}
+    <input type="hidden" name="trial_timeout_mode" value="{{ trial_timeout.mode }}">
+    <input type="hidden" name="trial_timeout_seconds" value="{{ trial_timeout.seconds|stringformat:'f' }}">
+    <input type="hidden" name="trial_timeout_factor" value="{{ trial_timeout.factor|stringformat:'f' }}">
 {% endblock %}
 
 {% block confirm_buttons %}
     <button type="submit" name="decision" value="new" class="btn-primary">{% blocktranslate with chosen=chosen %}Optimize {{ chosen }}{% endblocktranslate %}</button>
-    <button type="submit" name="decision" value="old" class="btn">{% blocktranslate with original=experiment.original_metric %}Keep optimizing {{ original }}{% endblocktranslate %}</button>
+    <button type="submit" name="decision" value="old" class="btn">{% blocktranslate with current=experiment.current_metric %}Keep optimizing {{ current }}{% endblocktranslate %}</button>
 {% endblock %}
 
 {% block confirm_cancel %}{% url 'ui:experiment_detail' experiment.pk %}{% endblock %}

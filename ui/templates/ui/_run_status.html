@@ -1,11 +1,33 @@
 {% load static i18n %}
-<div id="run-status" class="card" hx-get="{% url 'ui:run_status' experiment.pk %}"
-     hx-trigger="every 2s" hx-swap="outerHTML" style="max-width: 28rem;">
+{% comment %}`?trials=` is how much of the run the page has already drawn. The
+server builds fresh figure payloads only when that disagrees with what is
+stored, and the answer comes back inside this same fragment — poll.js re-reads
+`hx-get` off the replacement, so each swap carries the next question with it.
+{% endcomment %}
+<div id="run-status" class="card"
+     hx-get="{% url 'ui:run_status' experiment.pk %}?trials={{ trial_count|default:0 }}"
+     hx-trigger="every {{ poll_seconds|default:5 }}s" hx-swap="outerHTML" style="max-width: 28rem;">
+    {% if live %}{{ live|json_script:"live-plots-data" }}{% endif %}
     <div class="alert info" style="display: flex; align-items: center; gap: 0.5rem;">
         <span class="spinner"></span> {% blocktranslate with status=run.get_status_display %}Optimizing… ({{ status }}){% endblocktranslate %}
     </div>
-    <form method="post" action="{% url 'ui:run_cancel' experiment.pk %}" style="margin-top: 0.75rem;">
-        {% csrf_token %}
-        <button type="submit" class="btn">{% translate "Cancel run" %}</button>
-    </form>
+    {% comment %}Cancelling is a request to whatever is executing the run, which
+    polls for it between trials — so the trials already finished are kept. Once
+    it has been asked for there is nothing more to ask, and the only remaining
+    question is whether anything is listening. If nothing is (the process was
+    restarted, the consumer died) the run would sit here for ever, so the
+    escalation appears: give up on it. Second, not first, because a cooperative
+    cancel keeps the work and giving up cannot.{% endcomment %}
+    {% if run.cancel_requested %}
+        <p class="caption" style="margin-top: 0.75rem;">{% translate "Cancelling — it stops after the trial it is on." %}</p>
+        <form method="post" action="{% url 'ui:run_force_stop' experiment.pk %}">
+            {% csrf_token %}
+            <button type="submit" class="btn">{% translate "Give up on it" %}</button>
+        </form>
+    {% else %}
+        <form method="post" action="{% url 'ui:run_cancel' experiment.pk %}" style="margin-top: 0.75rem;">
+            {% csrf_token %}
+            <button type="submit" class="btn">{% translate "Cancel run" %}</button>
+        </form>
+    {% endif %}
 </div>

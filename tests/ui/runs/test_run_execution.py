@@ -36,7 +36,7 @@ def _make_experiment(metric_names=None, primary=None, original=None):
         "dataset_path": str(DATASETS_DIR / "iris.csv"),
         "result": None,
     }
-    return adapter.experiment_from_snapshot(snapshot)
+    return adapter.experiment_from_snapshot(snapshot, adopt_paths=True)
 
 
 # ── create_run ────────────────────────────────────────────────────────────────
@@ -51,15 +51,15 @@ def test_create_run_records_pending_run_and_commits_first_metric():
     from ui.services.run import create_run
 
     exp = _make_experiment()
-    run = create_run(exp, n_trials=3, optimize_metric="f1")
+    run = create_run(exp, {"max_trials": 3}, "f1")
 
     assert run.status == "pending"
     assert run.cancel_requested is False
-    assert run.n_trials == 3
+    assert run.max_trials == 3
     assert run.primary_metric == "f1"
 
     exp.refresh_from_db()
-    assert exp.primary_metric == "f1"
+    assert exp.current_metric == "f1"
     assert exp.original_metric == "f1"
 
 
@@ -69,10 +69,10 @@ def test_create_run_metric_change_moves_primary_not_original():
     from ui.services.run import create_run
 
     exp = _make_experiment(primary="accuracy", original="accuracy")
-    create_run(exp, n_trials=2, optimize_metric="f1")
+    create_run(exp, {"max_trials": 2}, "f1")
 
     exp.refresh_from_db()
-    assert exp.primary_metric == "f1"
+    assert exp.current_metric == "f1"
     assert exp.original_metric == "accuracy"
 
 
@@ -88,7 +88,7 @@ def test_execute_run_completes_and_stores_result():
     from ui.services.run import create_run, execute_run
 
     exp = _make_experiment()
-    run = create_run(exp, n_trials=3, optimize_metric="accuracy")
+    run = create_run(exp, {"max_trials": 3}, "accuracy")
     execute_run(run.id)
 
     run.refresh_from_db()
@@ -109,8 +109,8 @@ def test_execute_run_resumes_from_previous_result():
     from ui.services.run import create_run, execute_run
 
     exp = _make_experiment()
-    execute_run(create_run(exp, n_trials=3, optimize_metric="accuracy").id)
-    execute_run(create_run(exp, n_trials=2, optimize_metric="accuracy").id)
+    execute_run(create_run(exp, {"max_trials": 3}, "accuracy").id)
+    execute_run(create_run(exp, {"max_trials": 2}, "accuracy").id)
 
     exp.refresh_from_db()
     trials = exp.result["data"]
@@ -129,7 +129,7 @@ def test_execute_run_honours_a_preset_cancel():
     from ui.services.run import create_run, execute_run
 
     exp = _make_experiment()
-    run = create_run(exp, n_trials=5, optimize_metric="accuracy")
+    run = create_run(exp, {"max_trials": 5}, "accuracy")
     Run.objects.filter(pk=run.id).update(cancel_requested=True)
 
     execute_run(run.id)
@@ -149,7 +149,7 @@ def test_execute_run_records_errors():
     from ui.services.run import create_run, execute_run
 
     exp = _make_experiment(metric_names=["accuracy", "bogus-metric"])
-    run = create_run(exp, n_trials=3, optimize_metric="accuracy")
+    run = create_run(exp, {"max_trials": 3}, "accuracy")
     execute_run(run.id)
 
     run.refresh_from_db()
@@ -167,7 +167,7 @@ def test_db_cancel_flag_reflects_database():
 
     exp = _make_experiment()
     from ui.services.run import create_run
-    run = create_run(exp, n_trials=3, optimize_metric="accuracy")
+    run = create_run(exp, {"max_trials": 3}, "accuracy")
 
     flag = DbCancelFlag(run.id, ttl=0)
     assert flag.is_set() is False

@@ -36,13 +36,14 @@ def _experiment(**overrides):
     from ui.services import snapshot as adapter
     snapshot = {
         "version": "0.1.0", "name": "exp", "model_name": "Random Forest",
-        "model_path": "", "optimizer_name": "Random Search", "optimizer_params": {},
+        "model_path": "", "optimizer_params": {},
+        "optimizer_name": overrides.get("optimizer_name", "Random Search"),
         "primary_metric": overrides.get("primary_metric"),
         "original_metric": overrides.get("original_metric"),
         "metric_names": ["accuracy", "f1", "precision", "recall(macro)"],
         "seed": 0, "dataset_path": str(DATASETS_DIR / "iris.csv"), "result": None,
     }
-    return adapter.experiment_from_snapshot(snapshot)
+    return adapter.experiment_from_snapshot(snapshot, adopt_paths=True)
 
 
 # ── Create no longer runs ─────────────────────────────────────────────────────
@@ -62,7 +63,7 @@ def test_create_persists_without_running(client):
     assert resp.status_code == 302
     assert resp["Location"] == reverse("ui:experiment_detail", args=[exp.pk])
     assert exp.result is None
-    assert exp.primary_metric is None
+    assert exp.current_metric is None
     assert Run.objects.count() == 0
 
 
@@ -71,7 +72,7 @@ def test_detail_offers_a_run_form_when_idle(client):
     """An idle experiment with a dataset shows a Run form (trials + metric)."""
     exp = _experiment()
     html = client.get(reverse("ui:experiment_detail", args=[exp.pk])).content.decode()
-    assert 'name="n_trials"' in html
+    assert 'name="max_trials"' in html
     assert 'name="optimize_metric"' in html
 
 
@@ -84,13 +85,13 @@ def test_run_launches_a_pending_run(client, no_thread):
 
     exp = _experiment()
     resp = client.post(reverse("ui:experiment_run", args=[exp.pk]),
-                       {"n_trials": 3, "optimize_metric": "accuracy"})
+                       {"max_trials": 3, "optimize_metric": "accuracy"})
 
     assert resp.status_code == 302
     assert resp["Location"] == reverse("ui:experiment_detail", args=[exp.pk])
     run = Run.objects.get(experiment=exp)
     assert run.status == "pending"
-    assert run.n_trials == 3
+    assert run.max_trials == 3
     assert run.primary_metric == "accuracy"
 
 
@@ -104,7 +105,7 @@ def test_run_metric_change_asks_for_confirmation(client, no_thread):
 
     exp = _experiment(primary_metric="accuracy", original_metric="accuracy")
     resp = client.post(reverse("ui:experiment_run", args=[exp.pk]),
-                       {"n_trials": 3, "optimize_metric": "f1"})
+                       {"max_trials": 3, "optimize_metric": "f1"})
 
     assert resp.status_code == 200
     body = resp.content.decode()
@@ -113,19 +114,21 @@ def test_run_metric_change_asks_for_confirmation(client, no_thread):
 
 
 @pytest.mark.django_db
-def test_metric_change_warning_states_the_reproducibility_cost(client, no_thread):
-    """The confirmation warns about the real consequence — the experiment can
-    no longer be reproduced from its seed and setup — and names each metric
-    once rather than restating which one the trials used."""
+def test_metric_change_warning_states_the_real_cost(client, no_thread):
+    """The confirmation states the consequence that actually survives the fix.
+
+    The optimizer now re-reads the accumulated trials under the new metric, so
+    the search does not restart and the old claim — that the experiment is no
+    longer reproducible from its seed and setup — is not what is wrong any
+    more. What remains is selection bias: those trials were *chosen* by the old
+    objective. Each metric is named once."""
     exp = _experiment(primary_metric="accuracy", original_metric="accuracy")
     body = client.post(reverse("ui:experiment_run", args=[exp.pk]),
-                       {"n_trials": 3, "optimize_metric": "f1"}).content.decode()
-    # the consequence is stated in the confirmation page's message block
+                       {"max_trials": 3, "optimize_metric": "f1"}).content.decode()
     assert "confirm-message" in body, "not the shared confirmation page"
     warning = body.split("confirm-message", 1)[1].split("</div>", 1)[0]
 
-    assert "reproduc" in warning.lower()
-    # each metric is named once in the warning; the old copy repeated the original
+    assert "bias" in warning.lower()
     assert warning.count("accuracy") == 1
     assert warning.count("f1") == 1
 
@@ -137,13 +140,13 @@ def test_run_metric_change_confirm_new_launches_with_chosen(client, no_thread):
 
     exp = _experiment(primary_metric="accuracy", original_metric="accuracy")
     resp = client.post(reverse("ui:experiment_run", args=[exp.pk]),
-                       {"n_trials": 3, "optimize_metric": "f1", "decision": "new"})
+                       {"max_trials": 3, "optimize_metric": "f1", "decision": "new"})
 
     assert resp.status_code == 302
     run = Run.objects.get(experiment=exp)
     assert run.primary_metric == "f1"
     exp.refresh_from_db()
-    assert exp.primary_metric == "f1"
+    assert exp.current_metric == "f1"
     assert exp.original_metric == "accuracy"
 
 
@@ -154,7 +157,7 @@ def test_run_metric_change_confirm_old_keeps_original(client, no_thread):
 
     exp = _experiment(primary_metric="accuracy", original_metric="accuracy")
     client.post(reverse("ui:experiment_run", args=[exp.pk]),
-                {"n_trials": 3, "optimize_metric": "f1", "decision": "old"})
+                {"max_trials": 3, "optimize_metric": "f1", "decision": "old"})
 
     run = Run.objects.get(experiment=exp)
     assert run.primary_metric == "accuracy"
@@ -168,7 +171,7 @@ def test_status_partial_reports_running(client):
     from ui.models import Run
 
     exp = _experiment()
-    Run.objects.create(experiment=exp, n_trials=3, primary_metric="accuracy", status="running")
+    Run.objects.create(experiment=exp, stopping={"max_trials": 3}, primary_metric="accuracy", status="running")
     resp = client.get(reverse("ui:run_status", args=[exp.pk]))
 
     assert resp.status_code == 200
@@ -184,7 +187,7 @@ def test_status_partial_refreshes_when_finished(client):
     from ui.models import Run
 
     exp = _experiment()
-    Run.objects.create(experiment=exp, n_trials=3, primary_metric="accuracy", status="done")
+    Run.objects.create(experiment=exp, stopping={"max_trials": 3}, primary_metric="accuracy", status="done")
     resp = client.get(reverse("ui:run_status", args=[exp.pk]))
 
     assert resp.status_code == 200
@@ -199,7 +202,7 @@ def test_cancel_requests_cancellation(client):
     from ui.models import Run
 
     exp = _experiment()
-    run = Run.objects.create(experiment=exp, n_trials=3, primary_metric="accuracy", status="running")
+    run = Run.objects.create(experiment=exp, stopping={"max_trials": 3}, primary_metric="accuracy", status="running")
     resp = client.post(reverse("ui:run_cancel", args=[exp.pk]))
 
     run.refresh_from_db()
@@ -213,7 +216,7 @@ def test_delete_works_with_an_active_run(client):
     from ui.models import Experiment, Run
 
     exp = _experiment()
-    Run.objects.create(experiment=exp, n_trials=3, primary_metric="accuracy", status="running")
+    Run.objects.create(experiment=exp, stopping={"max_trials": 3}, primary_metric="accuracy", status="running")
     resp = client.post(reverse("ui:experiment_delete", args=[exp.pk]))
 
     assert resp.status_code == 302
@@ -229,7 +232,208 @@ def test_sidebar_marks_running_experiments(client):
     from ui.models import Run
 
     exp = _experiment(primary_metric="accuracy", original_metric="accuracy")
-    Run.objects.create(experiment=exp, n_trials=3, primary_metric="accuracy", status="running")
+    Run.objects.create(experiment=exp, stopping={"max_trials": 3}, primary_metric="accuracy", status="running")
     html = client.get(reverse("ui:home")).content.decode()
 
     assert "spinner" in html.lower()
+
+
+@pytest.mark.django_db
+def test_stopping_criteria_reach_the_run(client, no_thread):
+    """Filled-in criteria are stored on the Run, which is what the optimizer
+    reads them from."""
+    from ui.models import Run
+
+    exp = _experiment()
+    client.post(reverse("ui:experiment_run", args=[exp.pk]),
+                {"max_trials": 3, "optimize_metric": "accuracy",
+                 "target_score": "0.9", "no_improvement_trials": "5"})
+
+    run = Run.objects.get()
+    assert run.stopping == {"max_trials": 3, "target_score": 0.9,
+                            "no_improvement_trials": 5}
+
+
+@pytest.mark.django_db
+def test_blank_criteria_are_absent_rather_than_zero(client, no_thread):
+    """An empty box means "this does not apply". Stored as 0 it would mean
+    "stop immediately", and the run would do nothing."""
+    from ui.models import Run
+
+    exp = _experiment()
+    client.post(reverse("ui:experiment_run", args=[exp.pk]),
+                {"max_trials": 3, "optimize_metric": "accuracy",
+                 "target_score": "", "max_seconds": "", "no_improvement_trials": ""})
+
+    assert Run.objects.get().stopping == {"max_trials": 3}
+
+
+@pytest.mark.django_db
+def test_an_unparseable_criterion_costs_the_criterion_not_the_run(client, no_thread):
+    """The trial cap still bounds the run, so a typo should not be an error
+    page in the middle of starting one."""
+    from ui.models import Run
+
+    exp = _experiment()
+    resp = client.post(reverse("ui:experiment_run", args=[exp.pk]),
+                       {"max_trials": 3, "optimize_metric": "accuracy",
+                        "max_seconds": "soon"})
+
+    assert resp.status_code == 302
+    assert Run.objects.get().stopping == {"max_trials": 3}
+
+
+@pytest.mark.django_db
+def test_criteria_survive_the_metric_change_confirmation(client, no_thread):
+    """The confirmation reposts the form, so anything it does not carry is
+    silently dropped on the way through."""
+    from ui.models import Run
+
+    exp = _experiment(primary_metric="accuracy", original_metric="accuracy")
+    body = client.post(reverse("ui:experiment_run", args=[exp.pk]),
+                       {"max_trials": 3, "optimize_metric": "f1",
+                        "target_score": "0.9"}).content.decode()
+
+    assert 'name="target_score" value="0.9"' in body
+
+    client.post(reverse("ui:experiment_run", args=[exp.pk]),
+                {"max_trials": 3, "optimize_metric": "f1", "decision": "new",
+                 "target_score": "0.9"})
+
+    assert Run.objects.latest("id").stopping == {"max_trials": 3, "target_score": 0.9}
+
+
+@pytest.mark.django_db
+def test_a_run_with_no_criteria_is_refused_with_a_reason(client, no_thread):
+    """No field on the form is required, so all of them can be empty — and a run
+    that cannot end must not start. The page says why rather than redirecting to
+    a detail page that looks like nothing happened."""
+    from ui.models import Run
+
+    exp = _experiment()
+    resp = client.post(reverse("ui:experiment_run", args=[exp.pk]),
+                       {"optimize_metric": "accuracy", "max_trials": "",
+                        "target_score": "", "max_seconds": ""})
+
+    assert resp.status_code == 200
+    assert "at least one stopping criterion" in resp.content.decode()
+    assert Run.objects.count() == 0
+
+
+@pytest.mark.django_db
+def test_any_single_criterion_is_enough_to_start_a_run(client, no_thread):
+    """Including one that is not a trial count. The cap has no special status."""
+    from ui.models import Run
+
+    exp = _experiment()
+    client.post(reverse("ui:experiment_run", args=[exp.pk]),
+                {"optimize_metric": "accuracy", "target_score": "0.9"})
+
+    assert Run.objects.get().stopping == {"target_score": 0.9}
+
+
+@pytest.mark.django_db
+def test_the_confidence_criterion_is_offered_only_where_it_can_be_answered(client):
+    """It reads an optimizer's surrogate. Grid search has none, so offering the
+    field would be offering a limit that can never fire."""
+    smac = _experiment(optimizer_name="SMAC")
+    grid = _experiment(optimizer_name="Grid Search")
+
+    def page(exp):
+        return client.get(reverse("ui:experiment_detail", args=[exp.pk])).content.decode()
+
+    assert 'name="incumbent_confidence"' in page(smac)
+    assert 'name="incumbent_confidence"' not in page(grid)
+
+    # And under the name it had before the strategy became a setting, because
+    # every experiment created before that still carries it.
+    assert 'name="incumbent_confidence"' in page(_experiment(optimizer_name="SMAC (BlackBox)"))
+
+
+@pytest.mark.django_db
+def test_an_interrupted_run_says_it_was_interrupted(client):
+    """Being stopped by hand is a reason a run ended, and the page has to be
+    able to say so. Reported through the same field as the criteria, so there
+    is one answer to "why did this stop?" rather than two places to look."""
+    from django.utils import timezone
+
+    from ui.models import Run
+
+    exp = _experiment()
+    Run.objects.create(experiment=exp, stopping={"max_trials": 30},
+                       primary_metric="accuracy", status="cancelled",
+                       stopped_by="cancelled", trial_count=4, trial_seconds=1.0,
+                       started_at=timezone.now(), finished_at=timezone.now())
+
+    html = client.get(reverse("ui:experiment_detail", args=[exp.pk])).content.decode()
+
+    assert "Stopped because it was interrupted" in html
+    assert "requested trials ran" not in html
+
+
+# ── giving up on a run that is not answering ─────────────────────────────────
+
+def _running(exp, **kw):
+    from ui.models import Run
+    fields = dict(experiment=exp, stopping={"max_trials": 3},
+                  primary_metric="accuracy", status="running")
+    fields.update(kw)
+    return Run.objects.create(**fields)
+
+
+@pytest.mark.django_db
+def test_cancelling_comes_first_and_giving_up_only_after(client):
+    """Cancelling is a request to whatever is executing the run, and it keeps
+    the trials that already finished. Giving up cannot, so it is the escalation
+    rather than the thing nearest to hand — it appears only once cancelling has
+    been asked for and has not worked."""
+    exp = _experiment()
+    run = _running(exp)
+
+    before = client.get(reverse("ui:run_status", args=[exp.pk])).content.decode()
+    run.cancel_requested = True
+    run.save(update_fields=["cancel_requested"])
+    after = client.get(reverse("ui:run_status", args=[exp.pk])).content.decode()
+
+    assert reverse("ui:run_cancel", args=[exp.pk]) in before
+    assert reverse("ui:run_force_stop", args=[exp.pk]) not in before
+    assert reverse("ui:run_force_stop", args=[exp.pk]) in after
+    assert "Cancelling" in after
+
+
+@pytest.mark.django_db
+def test_giving_up_finishes_the_row_and_says_why(client):
+    """The experiment stops waiting on it. Nothing is killed and nothing claims
+    to be — the web process has no handle on the worker — so what the row says
+    is what actually happened: it was given up on."""
+    exp = _experiment()
+    run = _running(exp, cancel_requested=True)
+
+    client.post(reverse("ui:run_force_stop", args=[exp.pk]))
+    run.refresh_from_db()
+
+    assert run.status == "error"
+    assert run.finished_at is not None
+    assert "gave up" in run.error.lower() or "given up" in run.error.lower()
+
+
+@pytest.mark.django_db
+def test_a_run_that_was_never_asked_to_stop_is_not_given_up_on(client):
+    """Reaching the URL directly must not skip the step that keeps the work."""
+    exp = _experiment()
+    run = _running(exp)
+
+    client.post(reverse("ui:run_force_stop", args=[exp.pk]))
+    run.refresh_from_db()
+
+    assert run.status == "running"
+
+
+@pytest.mark.django_db
+def test_giving_up_is_post_only(client):
+    """Same reasoning as cancelling: on GET a prefetcher or an <img> pointing
+    here would end someone's run with CSRF never consulted."""
+    exp = _experiment()
+    _running(exp, cancel_requested=True)
+
+    assert client.get(reverse("ui:run_force_stop", args=[exp.pk])).status_code == 405

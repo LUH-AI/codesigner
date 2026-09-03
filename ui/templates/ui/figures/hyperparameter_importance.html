@@ -1,7 +1,95 @@
-{% load i18n %}
+{% load numbers i18n %}
+{% comment %}How to draw the current game's numbers — pie, bar or table. Which
+*game* is not asked here: it is one choice for the whole page, in the sidebar,
+because reading this figure under tunability beside an interaction figure under
+sensitivity would be comparing two different questions. See
+core.optimizers.base.BaseOptimizer.HP_GAMES for what each game answers, and
+experiment_detail.html's `importanceView` for how the two compose into one view
+key.
+
+The table is rendered here, per metric per game, straight from `panels`;
+pie/bar come from ui/figures/plots.py as usual.{% endcomment %}
 <section class="card" data-figure="{{ figure.key }}">
-    <div class="subheader">{{ figure.label }}</div>
+    <div class="card-head">
+        <div class="subheader">{{ figure.label }}</div>
+        <p class="selectors">
+            <select id="view-select-{{ figure.key }}-rendering" aria-label="{% translate 'View' %}">
+                <option value="pie">{% translate "Pie" %}</option>
+                <option value="bar">{% translate "Bar" %}</option>
+                <option value="table">{% translate "Table" %}</option>
+            </select>
+            {% comment %}Tunability is what tuning a hyperparameter *could* gain,
+            measured from the config space's default. That is the right question
+            before a search and the wrong one during it: by the time it says a
+            hyperparameter is worth 98%, the optimizer has usually already taken
+            most of that 98%, and the figure is spending itself on a settled
+            question. Ticking this asks the other one — what is left — by
+            subtracting what the selected trial has already banked.
+
+            A request rather than a second precomputed view: what has been banked
+            depends on which trial is selected, so it is fetched, and the page
+            costs nothing extra while the box is clear.{% endcomment %}
+            {% comment %}Wrapped so the page can take the whole control away at
+            once: both halves of "still to gain" are tunability's, so it is
+            hidden under the other two games rather than left there offering an
+            answer it cannot give. And absent entirely while the measure is
+            switched off — see `TUNING_PROGRESS_ENABLED`.{% endcomment %}
+            {% if tuning_progress %}<span class="remaining-toggle" data-remaining-toggle>
+                <label class="check" for="importance-remaining">
+                    <input type="checkbox" id="importance-remaining"
+                           aria-describedby="importance_remaining_help">
+                    {% translate "Still to gain" %}
+                </label>
+                {% translate "Tunability measures what each hyperparameter could gain you, starting from the search space's default. Ticking this subtracts what the selected trial has already gained, leaving what is still on the table — which is the number worth spending the rest of a budget against. Tunability only: mistunability's achievable value is downside rather than gain, and nothing 'achieves' sensitivity's variance." as remaining_help %}
+                {% include "ui/_info.html" with info_id="importance_remaining_help" info_text=remaining_help %}
+            </span>{% endif %}
+        </p>
+    </div>
     <p id="imp-warning" class="alert warning" hidden></p>
+    {% comment %}Said rather than drawn: with nothing meaningful left, a pie of
+    what remains is a picture of rounding.{% endcomment %}
+    {% if tuning_progress %}<p id="imp-settled" class="caption" hidden>{% translate "This trial has captured essentially all of the gain the search space had to offer. There is nothing left to tune." %}</p>{% endif %}
     <div id="{{ figure.dom_id }}" class="plot"></div>
-    <p id="{{ figure.dom_id }}-empty" class="caption" hidden>{% translate "No importance data available." %}</p>
+    <p id="{{ figure.dom_id }}-empty" class="caption" hidden>{% if analytics_absent %}{% translate "Press Compute explanations to see results." %}{% else %}{% translate "No importance data available." %}{% endif %}</p>
+    {% for panel in panels %}
+        {% for game, data in panel.importance_by_game.items %}
+            <div class="importance-table" data-metric="{{ panel.metric }}" data-game="{{ game }}" hidden>
+                {% if data.table %}
+                    <div class="table-wrap">
+                        <table>
+                            {% comment %}The magnitudes, which no other
+                            rendering shows: every one of them is a share of
+                            100%, and a share cannot say whether the whole is
+                            worth eight accuracy points or eight thousandths of
+                            one. Filled in by the page once the selected trial's
+                            ablation is known.{% endcomment %}
+                            <thead><tr>
+                                <th>{% translate "Hyperparameter" %}</th>
+                                <th>{% translate "Importance" %}</th>
+                                {% if tuning_progress %}
+                                    <th class="progress-col">{% translate "Achievable" %}</th>
+                                    <th class="progress-col">{% translate "Banked" %}</th>
+                                    <th class="progress-col">{% translate "Still to gain" %}</th>
+                                {% endif %}
+                            </tr></thead>
+                            <tbody>
+                                {% for hp, value in data.table %}
+                                    <tr data-hp="{{ hp }}">
+                                        <td>{{ hp }}</td><td>{{ value|sig }}</td>
+                                        {% if tuning_progress %}
+                                            <td class="progress-col"></td>
+                                            <td class="progress-col"></td>
+                                            <td class="progress-col"></td>
+                                        {% endif %}
+                                    </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                {% else %}
+                    <p class="caption">{% translate "No importance data available." %}</p>
+                {% endif %}
+            </div>
+        {% endfor %}
+    {% endfor %}
 </section>

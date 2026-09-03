@@ -1,0 +1,17 @@
+{% load i18n %}
+{% comment %}
+"Use default" for one field: checked, the field below is emptied and greyed, and
+the setting resolves to whatever SMAC would have done. Not submitted and not
+stored — an empty field is already how a setting says "leave it alone", and a
+second record of the same fact could disagree with it.
+
+Greyed itself when the cap it belongs to is switched off, since choosing between
+a default and a value is not a choice worth offering for something not in use.
+{% endcomment %}
+<div class="field use-default"{% if p.enabled_by %} data-enabled-by="{{ p.enabled_by }}"{% endif %}
+     data-default-for="opt_{{ p.name }}">
+    <label class="check">
+        <input type="checkbox"{% if p.value is None %} checked{% endif %}>
+        {% translate "Use default" %}
+    </label>
+</div>

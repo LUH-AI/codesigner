@@ -108,7 +108,7 @@ def test_grid_search_get_params_roundtrip():
 
 # ── Fake optimizer (used by later run-lifecycle tests) ───────────────────────
 
-def test_fake_optimizer_is_instant_and_honours_contract(metrics):
+def test_fake_optimizer_is_instant_and_honours_contract(metrics, tiny_splits):
     """FakeOptimizer implements the full optimize() contract it advertises.
 
     It backs later web-layer run-lifecycle tests, so its behavior is pinned
@@ -116,14 +116,15 @@ def test_fake_optimizer_is_instant_and_honours_contract(metrics):
     lower the best score, and a pre-set cancel flag yields zero trials.
     """
     model = FakeModel()
+    X_train, X_val, y_train, y_val = tiny_splits
     result = FakeOptimizer().optimize(
-        model, None, None, None, None,
+        model, X_train, y_train, X_val, y_val,
         metrics=metrics, primary_metric="accuracy", n_trials=10, seed=0,
     )
     assert [t.trial for t in result.trials] == list(range(1, 11))
 
     resumed = FakeOptimizer().optimize(
-        model, None, None, None, None,
+        model, X_train, y_train, X_val, y_val,
         metrics=metrics, primary_metric="accuracy", n_trials=5,
         previous_result=result, seed=1,
     )
@@ -131,7 +132,7 @@ def test_fake_optimizer_is_instant_and_honours_contract(metrics):
     assert resumed.best_score >= result.best_score
 
     cancelled = FakeOptimizer().optimize(
-        model, None, None, None, None,
+        model, X_train, y_train, X_val, y_val,
         metrics=metrics, primary_metric="accuracy", n_trials=5,
         cancel_event=PreCancelled(), seed=0,
     )
@@ -164,12 +165,16 @@ def test_smac_runs_and_resumes(iris_splits, metrics):
 @pytest.mark.slow
 def test_smac_serialize_embeds_optimizer_state(iris_splits, metrics):
     """Serializing a SMAC result embeds the working directory; deserializing
-    materializes it again.
+    carries it forward.
 
     Expect: optimizer_state holds SMAC's files (scenario.json among them),
     each data entry keeps the extension fields (scores, incumbent_score),
-    and a deserialized copy points at a restored working dir — the mechanism
+    and a deserialized copy carries that state on the result — the mechanism
     that lets a loaded experiment resume SMAC exactly where it stopped.
+
+    A live run still has a real directory (it is where SMAC itself wrote), so
+    serializing reads from disk as before. Only the *deserialize* direction
+    changed: it no longer writes the files back out, since nothing read them.
     """
     opt = SMACOptimizer()
     result = _run(opt, RandomForestModel(), iris_splits, metrics, n_trials=3)
@@ -183,7 +188,7 @@ def test_smac_serialize_embeds_optimizer_state(iris_splits, metrics):
 
     restored = opt.deserialize_result(d)
     assert len(restored.trials) == 3
-    assert restored.metadata.get("smac_output_dir")
+    assert restored.metadata.get("optimizer_state") == d["optimizer_state"]
 
 
 @pytest.mark.slow

@@ -21,8 +21,7 @@ class SVMModel(BaseModel):
         ])
         return cs
 
-    def train_evaluate(self, config, X_train, y_train, X_val, y_val,
-                       metrics: dict, seed: int = 0) -> dict:
+    def _fitted(self, config, X_train, y_train, seed: int, *, probability: bool):
         clf = SVC(
             C=float(config["C"]),
             kernel=config["kernel"],
@@ -31,10 +30,29 @@ class SVMModel(BaseModel):
             tol=float(config["tol"]),
             max_iter=int(config["max_iter"]),
             random_state=seed,
+            probability=probability,
         )
         clf.fit(X_train, y_train)
-        y_pred = clf.predict(X_val)
-        return {name: fn(y_val, y_pred) for name, fn in metrics.items()}
+        return clf
 
+    def fit_predict(self, config, X_train, y_train, X_val, seed: int = 0):
+        return self._fitted(config, X_train, y_train, seed,
+                            probability=False).predict(X_val)
 
-MODEL = SVMModel()
+    def fit_predict_proba(self, config, X_train, y_train, X_val, seed: int = 0):
+        """An SVM has no probabilities of its own — `probability=True` fits an
+        internal five-fold Platt calibration on top, which costs several times
+        what the plain fit costs.
+
+        That price is exactly why this is a separate method rather than a flag
+        on `fit_predict`: a run that never asks for a probability metric never
+        pays it, and the two methods are free to fit differently because they
+        are answering different questions.
+
+        A consequence worth knowing: `predict` on a calibrated SVC can disagree
+        with `argmax` of its own `predict_proba`, so the labels here are the
+        calibrated model's, not the plain one's. They are the labels that go
+        with these probabilities, which is what a trial scoring both needs.
+        """
+        clf = self._fitted(config, X_train, y_train, seed, probability=True)
+        return clf.predict(X_val), clf.predict_proba(X_val), clf.classes_

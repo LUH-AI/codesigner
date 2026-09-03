@@ -1,0 +1,18 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "codesigner-model"
+version = "0.1.0"
+description = "The contract a Codesigner model implements"
+# Deliberately empty, and it must stay that way. This package is installed into
+# every model's environment; anything it required would become a constraint on
+# what a model is allowed to use, which is the coupling the whole design removes.
+dependencies = []
+# Looser than the application's own floor: a model may pin an older Python
+# because something it needs has no wheels for the newest one.
+requires-python = ">=3.9"
+
+[tool.setuptools.packages.find]
+include = ["codesigner_model*"]

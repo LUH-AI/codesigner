@@ -1,0 +1,31 @@
+{% load i18n %}
+{% comment %}Which hyperparameter is showing changes what's being explained,
+not just how the same data is drawn — so unlike the importance/interactions/
+performance figures, there's nothing here for the server to precompute per
+option. Every option would mean fitting a surrogate and predicting across a
+grid for every hyperparameter on every page load, for a figure that only
+ever shows one at a time — so, like the importance figure's "Local" game,
+this is fetched lazily instead, including its own default hyperparameter
+(this metric's top-tunability one — see views.py's `top_hp`), and there is
+no server-rendered plot here at all to start from; see
+experiment_detail.html's refreshPartialDependence.{% endcomment %}
+<section class="card" data-figure="{{ figure.key }}">
+    <div class="card-head">
+        <div class="subheader">{{ figure.label }}</div>
+        <p class="selectors">
+            <select id="pdp-hp-select" aria-label="{% translate 'Hyperparameter' %}">
+                {% for h in hp_names %}<option value="{{ h }}">{{ h }}</option>{% endfor %}
+            </select>
+        </p>
+    </div>
+    <p id="pdp-warning" class="alert warning" hidden></p>
+    {% comment %}Shown instead of fetching when this experiment's settings turn
+    off "compute automatically" for partial dependence — so opening or reloading
+    the page fits nothing until asked. See experiment_detail.html's
+    refreshPartialDependence and the `autocompute` context entry.{% endcomment %}
+    <p id="pdp-compute" class="caption" hidden>
+        <button type="button" id="pdp-compute-btn">{% translate "Compute" %}</button>
+    </p>
+    <div id="{{ figure.dom_id }}" class="plot"></div>
+    <p id="{{ figure.dom_id }}-empty" class="caption" hidden>{% translate "No partial dependence data available." %}</p>
+</section>

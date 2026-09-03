@@ -19,8 +19,7 @@ class RandomForestModel(BaseModel):
         ])
         return cs
 
-    def train_evaluate(self, config, X_train, y_train, X_val, y_val,
-                       metrics: dict, seed: int = 0) -> dict:
+    def _fitted(self, config, X_train, y_train, seed: int):
         clf = RandomForestClassifier(
             n_estimators=int(config["n_estimators"]),
             max_depth=int(config["max_depth"]),
@@ -30,9 +29,18 @@ class RandomForestModel(BaseModel):
             n_jobs=-1,
         )
         clf.fit(X_train, y_train)
-        y_pred = clf.predict(X_val)
-        return {name: fn(y_val, y_pred) for name, fn in metrics.items()}
+        return clf
 
+    def fit_predict(self, config, X_train, y_train, X_val, seed: int = 0):
+        return self._fitted(config, X_train, y_train, seed).predict(X_val)
 
-# Module-level sentinel — the loader looks for this name.
-MODEL = RandomForestModel()
+    def fit_predict_proba(self, config, X_train, y_train, X_val, seed: int = 0):
+        """A forest votes, so the probabilities come free — one fit answers both.
+
+        `classes_` rather than the sorted training labels: it is the column order
+        `predict_proba` actually used, and reading it off the estimator is the
+        difference between a metric scoring the right class and one silently
+        scoring a different one.
+        """
+        clf = self._fitted(config, X_train, y_train, seed)
+        return clf.predict(X_val), clf.predict_proba(X_val), clf.classes_

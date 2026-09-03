@@ -1,30 +1,15 @@
-from abc import ABC, abstractmethod
+"""The model contract, re-exported from the SDK.
 
-from ConfigSpace import ConfigurationSpace
+The contract lives in the standalone, dependency-free ``codesigner_model``
+package (``model_sdk/`` in this repo) because a model file is imported in *its
+own* environment, where ``core`` does not exist and cannot be reached for.
+Defining the class twice would give two unrelated ABCs and ``issubclass`` would
+be False across the seam — so there is exactly one class, and this module only
+preserves the import path the application has always used.
 
+New model files should ``from codesigner_model import BaseModel``.
+"""
 
-class BaseModel(ABC):
-    """Interface for classifier models used in HPO experiments."""
+from codesigner_model import BaseModel
 
-    @property
-    @abstractmethod
-    def name(self) -> str:
-        """Display name shown in the UI and stored in .ihpo files."""
-        ...
-
-    @abstractmethod
-    def get_config_space(self, seed: int = 0) -> ConfigurationSpace:
-        """Return the hyperparameter search space for this model."""
-        ...
-
-    @abstractmethod
-    def train_evaluate(
-        self,
-        config: dict,
-        X_train, y_train,
-        X_val, y_val,
-        metrics: dict,   # {metric_name: callable}
-        seed: int = 0,
-    ) -> dict:           # {metric_name: score}
-        """Train on the given split with config and return scores for all metrics."""
-        ...
+__all__ = ["BaseModel"]

@@ -69,7 +69,7 @@ def test_serialized_dict_mirrors_runhistory_shape():
     This pins the stored format itself (not just round-trip consistency), so
     accidental schema drift fails loudly. Checks: stats counters, config_id
     set, the cost = 1 - score convention, best_config_id recovery, and
-    config_origins mapping every trial to the optimizer name.
+    config_origins recording where each configuration came from.
     """
     opt = RandomOptimizer()
     d = opt.serialize_result(_synthetic_result())
@@ -79,7 +79,11 @@ def test_serialized_dict_mirrors_runhistory_shape():
     by_id = {e["config_id"]: e for e in d["data"]}
     assert by_id[3]["cost"] == approx(0.2)
     assert d["best_config_id"] == "3"
-    assert d["config_origins"] == {"1": "Random Search", "2": "Random Search", "3": "Random Search"}
+    # The synthetic trials were built without one, and an unrecorded origin is
+    # written through as empty rather than filled in with the optimizer's name:
+    # "we do not know where this came from" and "the model chose it" are
+    # different facts, and the resume logic reads them apart.
+    assert d["config_origins"] == {"1": "", "2": "", "3": ""}
 
 
 def test_fixture_result_roundtrips_through_base_format():

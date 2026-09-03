@@ -1,0 +1,36 @@
+{% load i18n %}
+{% comment %}
+The initial-points block, laid out by hand because its five settings are only
+legible together: two caps, each of which can be switched off or left at SMAC's
+own value, and a choice of which one binds.
+
+Two columns because the caps are alternatives to each other, and reading them
+side by side is what makes "the smaller of these" mean anything. Each column
+goes: use this cap at all, use its default, and the value if not.
+
+"Use default" is not a stored setting — an empty field already means "SMAC's
+own", and a second thing recording the same fact could disagree with it. It is a
+control over whether the field is filled in, which is why it has no name and is
+never submitted. Without JavaScript it simply does not do anything, and an empty
+field still means the default.
+{% endcomment %}
+<fieldset class="param-group">
+    <legend>
+        {% include "ui/_info_label.html" with text=group.label info_id="group-initial-points" info_text=group.help %}
+    </legend>
+
+    <div class="param-columns">
+        <div class="param-column">
+            {% include "ui/_optimizer_param_field.html" with p=group.params.use_share_cap %}
+            {% include "ui/_use_default.html" with p=group.params.share_cap %}
+            {% include "ui/_optimizer_param_field.html" with p=group.params.share_cap %}
+        </div>
+        <div class="param-column">
+            {% include "ui/_optimizer_param_field.html" with p=group.params.use_trial_cap %}
+            {% include "ui/_use_default.html" with p=group.params.trial_cap %}
+            {% include "ui/_optimizer_param_field.html" with p=group.params.trial_cap %}
+        </div>
+    </div>
+
+    {% include "ui/_optimizer_param_field.html" with p=group.params.initial_points_use_max %}
+</fieldset>

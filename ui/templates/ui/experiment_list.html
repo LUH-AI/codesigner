@@ -1,0 +1,44 @@
+{% extends "base.html" %}
+{% load i18n %}
+
+{% block title %}{% translate "All experiments" %} · Codesigner{% endblock %}
+
+{% block content %}
+    <h1>{% translate "All experiments" %}</h1>
+    <div class="table-wrap table-scroll">
+        <table>
+            <thead>
+                <tr>
+                    <th>{% translate "Name" %}</th>
+                    <th>{% translate "Model" %}</th>
+                    <th>{% translate "Optimizer" %}</th>
+                    <th>{% translate "Created" %}</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for e in page %}
+                    <tr>
+                        <td><a href="{% url 'ui:experiment_detail' e.pk %}">{{ e.name }}</a>
+                            <span class="exp-id">({{ e.identifier }})</span>{% if e.is_running %} <span class="spinner" title="{% translate 'Running' %}"></span>{% endif %}</td>
+                        <td>{{ e.model_name }}</td>
+                        <td>{{ e.optimizer_name }}</td>
+                        <td>{{ e.created_at }}</td>
+                    </tr>
+                {% empty %}
+                    <tr><td colspan="4">{% translate "No experiments yet." %}</td></tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+    {% if page.has_other_pages %}
+        <p class="caption" style="margin-top: 0.75rem;">
+            {% if page.has_previous %}
+                <a class="btn" href="?page={{ page.previous_page_number }}">{% translate "← Previous" %}</a>
+            {% endif %}
+            {% blocktranslate with current=page.number total=page.paginator.num_pages %}Page {{ current }} of {{ total }}{% endblocktranslate %}
+            {% if page.has_next %}
+                <a class="btn" href="?page={{ page.next_page_number }}">{% translate "Next →" %}</a>
+            {% endif %}
+        </p>
+    {% endif %}
+{% endblock %}

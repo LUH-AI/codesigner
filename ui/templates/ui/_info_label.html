@@ -1,0 +1,9 @@
+{% load i18n %}
+{% comment %}
+A name with its explanation behind the circled i, for the places that are not a
+form field — a group's legend, so far.
+{% endcomment %}
+<span class="field-label">
+    {{ text }}
+    {% if info_text %}{% include "ui/_info.html" with info_id=info_id info_text=info_text %}{% endif %}
+</span>

@@ -1,4 +1,4 @@
-{% load i18n %}
+{% load numbers i18n %}
 {% comment %}Every trial: its outcome (scores, duration) first, then the
 configuration that produced it. The outcome columns sort on click.{% endcomment %}
 <section data-figure="{{ figure.key }}">
@@ -13,16 +13,35 @@ configuration that produced it. The outcome columns sort on click.{% endcomment 
                     {% for h in hp_names %}<th{% if forloop.first %} class="group-start"{% endif %}>{{ h }}</th>{% endfor %}
                 </tr>
             </thead>
-            <tbody>
-                {% for row in trial_rows %}
-                    <tr>
-                        <td data-sort="{{ row.n }}">{{ row.n }}</td>
-                        {% for score in row.scores %}<td data-sort="{{ score }}">{{ score|floatformat:4 }}</td>{% endfor %}
-                        <td data-sort="{{ row.duration }}">{{ row.duration|floatformat:3 }} s</td>
-                        {% for v in row.config_values %}<td{% if forloop.first %} class="group-start"{% endif %}>{{ v }}</td>{% endfor %}
-                    </tr>
-                {% endfor %}
-            </tbody>
+            {% comment %}The rows are their own partial because a run adds to
+            them while it is going: the poll renders the same partial for the
+            trials the page has not seen and appends them. See views.py's
+            `_live_payloads` and experiment_detail.html's `poll:swapped`
+            listener.{% endcomment %}
+            <tbody>{% include "ui/figures/_trial_rows.html" %}</tbody>
         </table>
+    </div>
+    {% comment %}Paged rather than scrolled once a run is long: a table of five
+    hundred rows is one you scroll past, not one you read. Hidden until the
+    table is longer than a page, since a page selector for a single page is a
+    control that does nothing — and the rows-per-page field lives beside it
+    because it is the same decision at a different scale. Both are wired in
+    experiment_detail.html, which is also where the sort and the selection are,
+    and all three have to agree on what order the rows are in.{% endcomment %}
+    <div class="table-pager" data-trials-pager hidden>
+        <span class="pager-pages">
+            <button type="button" class="btn" data-page-prev
+                    aria-label="{% translate 'Previous page' %}">‹</button>
+            <label for="trials-page">{% translate "Page" %}</label>
+            <select id="trials-page" data-page-select></select>
+            <span class="caption">{% translate "of" %} <span data-page-count></span></span>
+            <button type="button" class="btn" data-page-next
+                    aria-label="{% translate 'Next page' %}">›</button>
+        </span>
+        <span class="pager-size">
+            <label for="trials-page-size">{% translate "Rows per page" %}</label>
+            <input type="number" id="trials-page-size" data-page-size
+                   min="1" max="10000" step="1" value="{{ trials_page_size }}">
+        </span>
     </div>
 </section>

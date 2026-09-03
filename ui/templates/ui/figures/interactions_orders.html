@@ -1,0 +1,19 @@
+{% load i18n %}
+{% comment %}Where each hyperparameter's attributed value comes from: itself, its pairs,
+or larger groups. Answers a question no other reading does — does this matter
+alone, or only in combination?
+
+One of five figures over one computation (see ui/figures/catalog.py's
+_Interactions). Five figures rather than five views of one, because they answer
+different questions and are wanted side by side; behind a selector only one
+could be on the page at a time. The warning is shared — it is the tunability
+game's, and all five read that game — so every one of them carries it.
+{% endcomment %}
+<section class="card" data-figure="{{ figure.key }}">
+    <div class="card-head">
+        <div class="subheader">{{ figure.label }}</div>
+    </div>
+    <p class="alert warning interactions-warning" hidden></p>
+    <div id="{{ figure.dom_id }}" class="plot"></div>
+    <p id="{{ figure.dom_id }}-empty" class="caption" hidden>{% if analytics_absent %}{% translate "Press Compute explanations to see results." %}{% else %}{% translate "No interaction data available." %}{% endif %}</p>
+</section>

@@ -38,12 +38,12 @@ def _experiment(**overrides):
         seed=0, dataset_path=str(DATASETS_DIR / "iris.csv"), result=None,
     )
     fields.update(overrides)
-    return adapter.experiment_from_snapshot(fields)
+    return adapter.experiment_from_snapshot(fields, adopt_paths=True)
 
 
 def _experiment_with_result():
     exp = _experiment(result=_RESULT)
-    exp.primary_metric = "accuracy"
+    exp.current_metric = "accuracy"
     exp.original_metric = "accuracy"
     exp.save()
     return exp
@@ -69,25 +69,40 @@ def test_metric_select_present_before_first_run(client):
     """A fresh, never-run experiment shows the Run form with its metric dropdown."""
     exp = _experiment()
     html = client.get(reverse("ui:experiment_detail", args=[exp.pk])).content.decode()
-    assert 'name="n_trials"' in html
+    assert 'name="max_trials"' in html
     assert 'name="optimize_metric"' in html
 
 
 @pytest.mark.django_db
-def test_run_and_metric_controls_share_one_card(client):
-    """Once a result exists, the Run form and the metric dropdown live in the
-    same card (one 'Run' subheader), not two separate boxes."""
+def test_run_and_metric_controls_share_one_form_in_the_sidebar(client):
+    """The metric dropdown and what bounds the next run are one form, in the
+    sidebar's Experiment Evaluation section.
+
+    One form because the dropdown *is* the run's optimize-metric field; in the
+    sidebar because the metric drives every figure on the page and a selector
+    that scrolls away is one you have to go and find. Only what bounds the run
+    folds away beneath it.
+    """
     exp = _experiment_with_result()
 
     html = client.get(reverse("ui:experiment_detail", args=[exp.pk])).content.decode()
-    # Count forms in the page body only — the sidebar's language switcher is a
-    # separate form and must not be conflated with the run/metric controls.
+    sidebar = html.split('<nav class="sidebar"', 1)[1].split("</nav>", 1)[0]
     content = html.split("<main", 1)[-1]
-    assert content.count("<form") == 1
-    assert 'name="n_trials"' in html
-    assert 'id="metric-select"' in html
+
+    assert "Experiment Evaluation" in sidebar
+    # Counted within the section, not across the sidebar. Other sections have
+    # their own posts to make — the Explanation Game section's Compute button is
+    # one — and the claim here is about these two controls, not about the
+    # sidebar containing a single form.
+    evaluation = sidebar.split("Experiment Evaluation", 1)[1].split("</section>", 1)[0]
+    assert evaluation.count("<form") == 1
+    assert 'name="max_trials"' in sidebar
+    assert 'id="metric-select"' in sidebar
     # the dropdown doubles as the Run form's optimize-metric field
-    assert 'name="optimize_metric"' in html
+    assert 'name="optimize_metric"' in sidebar
+    # and it is not left behind in the main column as well
+    assert 'id="metric-select"' not in content
+    assert "<details class=\"run-config\">" in sidebar
 
 
 @pytest.mark.django_db
@@ -98,7 +113,7 @@ def test_readonly_experiment_keeps_metric_selector_without_run_form(client):
     html = client.get(reverse("ui:experiment_detail", args=[exp.pk])).content.decode()
 
     assert 'id="metric-select"' in html
-    assert 'name="n_trials"' not in html
+    assert 'name="max_trials"' not in html
 
 
 @pytest.mark.django_db
@@ -109,12 +124,12 @@ def test_metric_selector_present_while_a_run_is_in_flight(client):
     from ui.models import Run
 
     exp = _experiment_with_result()
-    Run.objects.create(experiment=exp, n_trials=3, primary_metric="accuracy", status="running")
+    Run.objects.create(experiment=exp, stopping={"max_trials": 3}, primary_metric="accuracy", status="running")
 
     html = client.get(reverse("ui:experiment_detail", args=[exp.pk])).content.decode()
     assert 'id="metric-select"' in html
     # the run form itself is gone while running
-    assert 'name="n_trials"' not in html
+    assert 'name="max_trials"' not in html
 
 
 @pytest.mark.django_db

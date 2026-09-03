@@ -1,10 +1,10 @@
-"""Step 9: NewExperimentForm gains a gated custom-model upload.
+"""NewExperimentForm accepts a gated custom-model upload.
 
 The form accepts *either* a registry model (as before) *or* an uploaded model
-.py file, when the ALLOW_CUSTOM_MODELS feature flag is on. An uploaded file is
-validated by actually loading it (core.io.load_model_from_path); a valid file
-resolves the experiment's model_name to the model's own .name. With the flag
-off, the upload field is absent and only registry models are offered.
+.py file, when the ALLOW_CUSTOM_MODELS feature flag is on. The upload is
+*read*, not run (core.model_source): a valid file resolves the experiment's
+model_name from the literal name in its class. With the flag off, the upload
+field is absent and only registry models are offered.
 """
 
 import pytest
@@ -75,3 +75,61 @@ def test_upload_ignored_when_flag_off(settings, model_upload):
     settings.ALLOW_CUSTOM_MODELS = False
     form = NewExperimentForm(_data(), {"model_file": model_upload})
     assert not form.is_valid()
+
+
+# ── the file is read, never run ──────────────────────────────────────────────
+
+def test_a_valid_upload_is_not_executed(tmp_path):
+    """The point of reading the source instead of importing it.
+
+    Validating by import meant an upload ran arbitrary code in the web process,
+    for as long as its imports took, before anyone had agreed to anything. This
+    model writes a file when its module body runs; submitting the form must
+    leave that file uncreated.
+    """
+    from django.core.files.uploadedfile import SimpleUploadedFile
+
+    sentinel = tmp_path / "i-ran.txt"
+    source = f'''
+# /// script
+# dependencies = []
+# ///
+import pathlib
+pathlib.Path({str(sentinel)!r}).write_text("executed")
+
+class Sneaky(BaseModel):
+    name = "Sneaky"
+    def get_config_space(self, seed=0): return None
+    def fit_predict(self, config, X_train, y_train, X_val, seed=0): return []
+'''
+    upload = SimpleUploadedFile("sneaky.py", source.encode(), content_type="text/x-python")
+
+    form = NewExperimentForm(_data(), {"model_file": upload})
+
+    assert form.is_valid(), form.errors
+    assert form.cleaned_data["model_name"] == "Sneaky"
+    assert not sentinel.exists(), "the uploaded file was executed during form validation"
+
+
+def test_a_file_that_would_crash_on_import_is_still_accepted(tmp_path):
+    """Whether a model imports cleanly is settled later, in its own
+    environment. The form's job is only to tell whether it *is* a model."""
+    from django.core.files.uploadedfile import SimpleUploadedFile
+
+    source = '''
+# /// script
+# dependencies = ["a-package-that-does-not-exist"]
+# ///
+import a_package_that_does_not_exist
+
+class Later(BaseModel):
+    name = "Later"
+    def get_config_space(self, seed=0): return None
+    def fit_predict(self, config, X_train, y_train, X_val, seed=0): return []
+'''
+    upload = SimpleUploadedFile("later.py", source.encode(), content_type="text/x-python")
+
+    form = NewExperimentForm(_data(), {"model_file": upload})
+
+    assert form.is_valid(), form.errors
+    assert form.cleaned_data["model_name"] == "Later"

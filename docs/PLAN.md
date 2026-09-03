@@ -2,8 +2,8 @@
 
 > Approved 2026-07-17. Project name chosen after approval: **codesigner**
 > (product branding "Codesigner" replaces "Interactive HPO" in all UI text).
-> Progress is tracked in [PARITY.md](../PARITY.md); per-step write-ups live in
-> [docs/walkthroughs/](walkthroughs/).
+> Progress is tracked per-epic in each walkthrough's own Status line; per-step
+> write-ups live in [docs/walkthroughs/](walkthroughs/).
 
 ## Context
 
@@ -151,7 +151,7 @@ Streamlit app; `import_ihpo` a fixture and browse to its detail page.
 
 > **Status / deviations.** Delivered in two parts: part 1 the huey task-queue swap ([walkthroughs/step-10-task-queue.md](walkthroughs/step-10-task-queue.md)), part 2 static/healthcheck/Docker + the mounted-model source ([walkthroughs/step-10-deployment.md](walkthroughs/step-10-deployment.md)). Full suite green (209). **Not executed in the build environment (no Docker daemon):** `docker build`/`docker run` and the final one-sitting side-by-side against a live Streamlit instance — both are set up and documented, pending a Docker host. WhiteNoise uses non-manifest compressed storage (manifest/hashed storage errors in tests/runserver without a prior collectstatic). The stale-run sweep runs in the *worker* entrypoint (a "running" row is only stale when its consumer died = a worker restart).
 
-## Parity checklist (maintained as `PARITY.md` in the new repo, ticked per step)
+## Parity checklist (met by Step 10; see each walkthrough's Status line for what shipped since)
 
 Create experiment (registry model / custom model / demo dataset / uploaded dataset) · load `.ihpo` (incl. read-only when dataset missing) · save/export `.ihpo` (Streamlit-interoperable) · delete with confirm · run N trials (SMAC/grid/random) · resume with continuing trial numbers · cancel mid-run · metric change with confirmation rules · best-config panel · selected-config panel · HP-importance pie (+ warning text) · performance scatter with incumbent line and click-to-select · display-metric switching · sidebar with running spinner · en/de/es · demo mounts in Docker.
 

@@ -23,8 +23,8 @@ def test_smac_run_completes_and_stores_result():
         "metric_names": ["accuracy", "f1", "precision", "recall(macro)"],
         "seed": 0, "dataset_path": str(DATASETS_DIR / "iris.csv"), "result": None,
     }
-    exp = adapter.experiment_from_snapshot(snapshot)
-    run = create_run(exp, n_trials=3, optimize_metric="accuracy")
+    exp = adapter.experiment_from_snapshot(snapshot, adopt_paths=True)
+    run = create_run(exp, {"max_trials": 3}, "accuracy")
     execute_run(run.id)
 
     run.refresh_from_db()
@@ -58,14 +58,14 @@ def test_smac_resume_through_the_web_engine_keeps_all_trials():
         "metric_names": ["accuracy", "f1", "precision", "recall(macro)"],
         "seed": 0, "dataset_path": str(DATASETS_DIR / "iris.csv"), "result": None,
     }
-    exp = adapter.experiment_from_snapshot(snapshot)
+    exp = adapter.experiment_from_snapshot(snapshot, adopt_paths=True)
 
-    run1 = create_run(exp, n_trials=3, optimize_metric="accuracy")
+    run1 = create_run(exp, {"max_trials": 3}, "accuracy")
     execute_run(run1.id)
     exp.refresh_from_db()
     assert [e["config_id"] for e in exp.result["data"]] == [1, 2, 3]
 
-    run2 = create_run(exp, n_trials=2, optimize_metric="accuracy")
+    run2 = create_run(exp, {"max_trials": 2}, "accuracy")
     execute_run(run2.id)
     run2.refresh_from_db()
     exp.refresh_from_db()

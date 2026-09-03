@@ -30,8 +30,13 @@ def _panel_url(pk, metric, idx):
     return reverse("ui:trial_panel", args=[pk]) + f"?metric={metric}&idx={idx}"
 
 
-def test_selecting_the_best_trial_shows_no_delta(client):
-    """The best trial for a metric renders its score with no delta indicator."""
+def test_selecting_the_best_trial_shows_a_zero_delta_marked_incumbent(client):
+    """The best trial renders its score and a difference of zero, named.
+
+    The row used to be absent for this one trial, which made the panel change
+    height as you clicked around it — and a difference of zero is a fact worth
+    stating, not the absence of one.
+    """
     exp = _experiment_with_result()
     resp = client.get(_panel_url(exp.pk, "accuracy", 8))
 
@@ -39,7 +44,8 @@ def test_selecting_the_best_trial_shows_no_delta(client):
     body = resp.content.decode()
     assert "Trial 9" in body
     assert "0.6813" in body or "0.68125" in body
-    assert "metric-delta" not in body
+    assert "metric-delta level" in body
+    assert "(Incumbent)" in body
 
 
 def test_selecting_a_non_best_trial_shows_a_negative_delta(client):

@@ -15,3 +15,15 @@ def run_experiment_task(run_id):
     optimizer with a DB-backed cancel flag, write result and status back — lives
     in `execute_run`; this just runs it in the consumer process."""
     execute_run(run_id)
+
+
+@db_task(priority=10)
+def prepare_model_env_task(experiment_id):
+    """Build one experiment's model environment out of band.
+
+    Higher priority than a run: a freshly uploaded model should not wait behind
+    a queue of optimizations before its page stops saying "preparing".
+    """
+    from .services.modelenv import prepare_environment
+
+    prepare_environment(experiment_id)

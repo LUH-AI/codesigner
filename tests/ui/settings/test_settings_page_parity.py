@@ -73,12 +73,11 @@ def test_saving_an_override_records_every_setting(client):
     """An experiment's own settings are a full copy, not a partial patch."""
     exp = _exp()
     client.post(reverse("ui:experiment_settings", args=[exp.pk]),
-                {"export_absolute_times": "on", "show_trials": "on"})
+                { "show_trials": "on"})
     exp.refresh_from_db()
 
     assert exp.use_default_settings is False
     assert set(exp.settings) == set(SETTING_DEFAULTS)
-    assert exp.settings["export_absolute_times"] is True
     assert exp.settings["show_trials"] is True
     assert exp.settings["show_trial_duration"] is False   # box wasn't ticked
 
@@ -86,7 +85,7 @@ def test_saving_an_override_records_every_setting(client):
 def test_reset_restores_inheritance(client):
     exp = _exp()
     exp.use_default_settings = False
-    exp.settings = {"export_absolute_times": False}
+    exp.settings = {"show_trials": False}
     exp.save()
     client.post(reverse("ui:experiment_settings", args=[exp.pk]), {"reset": "1"})
     exp.refresh_from_db()

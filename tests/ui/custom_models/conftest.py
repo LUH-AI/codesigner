@@ -5,8 +5,12 @@ from django.core.files.uploadedfile import SimpleUploadedFile
 
 # A minimal valid custom model: one integer hyperparameter, constant scores so
 # a run is instant and deterministic. Mirrors the fixture in
-# tests/core/test_model_loading.py.
+# tests/core/test_model_loading.py. The PEP 723 header is what a real model
+# needs to declare the environment it runs in.
 VALID_MODEL_SRC = textwrap.dedent("""
+    # /// script
+    # dependencies = ["ConfigSpace"]
+    # ///
     from ConfigSpace import ConfigurationSpace, Integer
     from core.models import BaseModel
 
@@ -16,8 +20,8 @@ VALID_MODEL_SRC = textwrap.dedent("""
             cs = ConfigurationSpace(seed=seed)
             cs.add([Integer("k", (1, 5), default=3)])
             return cs
-        def train_evaluate(self, config, X_train, y_train, X_val, y_val, metrics, seed=0):
-            return {m: 0.5 for m in metrics}
+        def fit_predict(self, config, X_train, y_train, X_val, seed=0):
+            return [next(iter(y_train))] * len(X_val)
 """)
 
 # A .py with no BaseModel subclass — must be rejected at upload time.

@@ -1,0 +1,50 @@
+{% load assets i18n %}
+<!doctype html>
+<html lang="{{ LANGUAGE_CODE }}">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>{% translate "Sign in" %} · Codesigner</title>
+    <link rel="stylesheet" href="{% asset 'ui/app.css' %}">
+</head>
+{% comment %}
+Deliberately not extending base.html: there is no session yet, so the rail and
+the experiment sidebar would render empty and offer links that bounce straight
+back here. The language switcher is kept, because choosing a language you can
+read should not require signing in first.
+{% endcomment %}
+<body class="signin">
+    <main class="signin-panel">
+        <h1>Codesigner</h1>
+        <form method="post" class="card">
+            {% csrf_token %}
+            {% if form.errors %}
+                <p class="alert error">{% translate "That username and password do not match an account." %}</p>
+            {% endif %}
+            <div class="field">
+                <label for="{{ form.username.id_for_label }}">{% translate "Username" %}</label>
+                {{ form.username }}
+            </div>
+            <div class="field">
+                <label for="{{ form.password.id_for_label }}">{% translate "Password" %}</label>
+                {{ form.password }}
+            </div>
+            <input type="hidden" name="next" value="{{ next }}">
+            <button type="submit" class="btn-block">{% translate "Sign in" %}</button>
+        </form>
+
+        {% get_current_language as CURRENT_LANGUAGE %}
+        {% if LANGUAGES|length > 1 %}
+        <form class="signin-locale" action="{% url 'set_language' %}" method="post">
+            {% csrf_token %}
+            <input type="hidden" name="next" value="{{ request.get_full_path }}">
+            <select name="language" onchange="this.form.submit()" aria-label="{% translate 'Language' %}">
+                {% for code, label in LANGUAGES %}
+                    <option value="{{ code }}"{% if code == CURRENT_LANGUAGE %} selected{% endif %}>{{ label }}</option>
+                {% endfor %}
+            </select>
+        </form>
+        {% endif %}
+    </main>
+</body>
+</html>
