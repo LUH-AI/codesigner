@@ -1,10 +1,10 @@
 FROM python:3.12-slim
 
-# System deps: swig + a compiler to build SMAC's pyrfr (random-forest) backend;
-# git to pip-install SMAC from source; gettext for compilemessages; libgomp for
+# System deps: swig + a compiler to build SMAC's pyrfr (random-forest) backend,
+# which ships no wheel; gettext for compilemessages; libgomp for
 # numpy/scikit-learn's OpenMP runtime.
 RUN apt-get update && apt-get install -y --no-install-recommends \
-        build-essential swig git gettext libgomp1 \
+        build-essential swig gettext libgomp1 \
     && rm -rf /var/lib/apt/lists/*
 
 ENV PYTHONUNBUFFERED=1 \
@@ -34,7 +34,7 @@ COPY . .
 
 # Register the project's own package metadata so importlib.metadata can read the
 # app version (the single source in pyproject.toml). Deps are already installed
-# above, so skip re-resolving them (avoids rebuilding the git-pinned SMAC).
+# above, so skip re-resolving them (avoids rebuilding pyrfr).
 RUN pip install -e . --no-deps
 
 # The model contract, as its own dependency-free distribution: core.models
