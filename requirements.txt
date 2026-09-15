@@ -6,9 +6,11 @@ huey>=3.3           # background task queue (SqliteHuey; run via `manage.py run_
 gunicorn>=23
 whitenoise>=6.6
 
-# HPO core. The PyPI smac 2.4.0 release has a bug; install the fixed build from
-# git (pinned). Building its pyrfr dependency needs swig — see the Dockerfile.
-smac @ git+https://github.com/automl/SMAC3.git@620e2876fc79dc596c1adac959adde695e399d4a
+# HPO core. 2.4.1 is the first release carrying the fixes this project used to
+# install from a git branch for — scikit-learn 1.9's random-forest import among
+# them — so it is a plain requirement again. Building its pyrfr dependency needs
+# swig, which has no wheel; see the Dockerfile.
+smac>=2.4.1
 hypershap>=0.0.6
 pandas>=2.3
 scikit-learn>=1.9
