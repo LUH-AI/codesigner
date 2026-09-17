@@ -216,16 +216,27 @@ def test_the_instance_flag_still_outranks_the_permission(client, settings, hoste
 
 # ── the defaults everyone follows ────────────────────────────────────────────
 
-def test_only_staff_can_change_the_default_experiment_settings(client, hosted, ana,
-                                                               django_user_model):
+def test_changing_the_defaults_needs_the_permission_for_it(client, hosted, ana,
+                                                           django_user_model):
     """One person changing these changes what every inheriting experiment on the
-    instance draws."""
+    instance draws — so it is its own grant rather than something that arrives
+    bundled with being able to open /admin/.
+    """
+    from django.contrib.auth.models import Permission
+
     client.force_login(ana)
     assert client.get(reverse("ui:default_experiment_settings")).status_code == 403
 
-    root = django_user_model.objects.create_user(
-        username="root", password="pw", is_staff=True)
-    client.force_login(root)
+    # `is_staff` alone is deliberately not enough: it is Django's flag for
+    # reaching the admin site, and it used to carry this by accident.
+    clerk = django_user_model.objects.create_user(
+        username="deskclerk", password="pw", is_staff=True)
+    client.force_login(clerk)
+    assert client.get(reverse("ui:default_experiment_settings")).status_code == 403
+
+    ana.user_permissions.add(Permission.objects.get(
+        content_type__app_label="access", codename="change_defaults"))
+    client.force_login(django_user_model.objects.get(pk=ana.pk))
     assert client.get(reverse("ui:default_experiment_settings")).status_code == 200
 
 
@@ -237,7 +248,7 @@ def test_an_ordinary_user_is_not_shown_the_defaults_link(client, hosted, ana):
     assert reverse("ui:default_experiment_settings") not in html
 
 
-def test_promoting_your_settings_to_the_defaults_is_staff_only(client, hosted, ana):
+def test_promoting_your_settings_to_the_defaults_needs_it_too(client, hosted, ana):
     """The other way into the same global state, from an experiment's own
     settings page."""
     exp = Experiment.objects.create(

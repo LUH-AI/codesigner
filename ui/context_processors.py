@@ -20,13 +20,25 @@ def sidebar_experiments(request):
     return {"sidebar_experiments": visible_experiments(request)[:SIDEBAR_LIMIT]}
 
 
-_SETTINGS_URL_NAMES = {"appearance", "default_experiment_settings"}
+_SETTINGS_URL_NAMES = {"appearance", "account", "default_experiment_settings"}
+_GROUP_URL_NAMES = {"group_people", "group_add_person", "group_remove_person",
+                    "group_work"}
+_SITE_URL_NAMES = {"site_groups", "site_group_save", "site_usage", "site_jobs",
+                   "site_job_stop"}
 
 
 def active_tab(request):
     """Which icon-rail tab is selected, driving which inner sidebar renders."""
     url_name = getattr(request.resolver_match, "url_name", None)
-    return {"active_tab": "settings" if url_name in _SETTINGS_URL_NAMES else "experiments"}
+    if url_name in _SETTINGS_URL_NAMES:
+        tab = "settings"
+    elif url_name in _GROUP_URL_NAMES:
+        tab = "group"
+    elif url_name in _SITE_URL_NAMES:
+        tab = "site"
+    else:
+        tab = "experiments"
+    return {"active_tab": tab}
 
 
 def navigation(request):
@@ -60,4 +72,14 @@ def capabilities(request):
     link to the default experiment settings, and the button that promotes an
     experiment's settings to be those defaults.
     """
-    return {"may_change_defaults": policy().may_change_defaults(request)}
+    from access.policy import is_lead, is_site_admin
+
+    user = getattr(request, "user", None)
+    return {
+        "may_change_defaults": policy().may_change_defaults(request),
+        # Which rail tabs exist for this person. Computed here rather than in
+        # the template so the layout asks one question rather than reaching
+        # into the policy through three.
+        "is_group_lead": is_lead(user),
+        "is_site_admin": is_site_admin(user),
+    }

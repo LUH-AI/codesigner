@@ -16,6 +16,23 @@
                 <span aria-hidden="true">🧪</span>
                 <span class="visually-hidden">{% translate "Experiments" %}</span>
             </a>
+            {% comment %}The two management tabs, each present only for whoever
+            it belongs to. A group lead gets their group; a site admin gets the
+            instance and, deliberately, no experiments anywhere.{% endcomment %}
+            {% if is_group_lead %}
+                <a class="rail-icon{% if active_tab == 'group' %} active{% endif %}"
+                   href="{% url 'ui:group_people' %}" title="{% translate 'Group' %}">
+                    <span aria-hidden="true">👥</span>
+                    <span class="visually-hidden">{% translate "Group" %}</span>
+                </a>
+            {% endif %}
+            {% if is_site_admin %}
+                <a class="rail-icon{% if active_tab == 'site' %} active{% endif %}"
+                   href="{% url 'ui:site_groups' %}" title="{% translate 'Site' %}">
+                    <span aria-hidden="true">🏛</span>
+                    <span class="visually-hidden">{% translate "Site" %}</span>
+                </a>
+            {% endif %}
             <a class="rail-icon{% if active_tab == 'settings' %} active{% endif %}"
                href="{% url 'ui:appearance' %}" title="{% translate 'Settings' %}">
                 <span aria-hidden="true">⚙</span>
@@ -63,10 +80,39 @@
             <div class="tab-list">
                 <a class="tab{% if request.resolver_match.url_name == 'appearance' %} active{% endif %}"
                    href="{% url 'ui:appearance' %}">{% translate "Appearance" %}</a>
+                {% comment %}Only with accounts: without them there is nothing to
+                describe and every permission on that page is an unconditional
+                yes.{% endcomment %}
+                {% if user.is_authenticated %}
+                    <a class="tab{% if request.resolver_match.url_name == 'account' %} active{% endif %}"
+                       href="{% url 'ui:account' %}">{% translate "Account" %}</a>
+                {% endif %}
                 {% if may_change_defaults %}
                     <a class="tab{% if request.resolver_match.url_name == 'default_experiment_settings' %} active{% endif %}"
                        href="{% url 'ui:default_experiment_settings' %}">{% translate "Default experiment settings" %}</a>
                 {% endif %}
+            </div>
+        </nav>
+    {% elif active_tab == 'group' %}
+        <nav class="sidebar">
+            <h1>{% translate "Group" %}</h1>
+            <div class="tab-list">
+                <a class="tab{% if request.resolver_match.url_name == 'group_people' %} active{% endif %}"
+                   href="{% url 'ui:group_people' %}">{% translate "People" %}</a>
+                <a class="tab{% if request.resolver_match.url_name == 'group_work' %} active{% endif %}"
+                   href="{% url 'ui:group_work' %}">{% translate "Their experiments" %}</a>
+            </div>
+        </nav>
+    {% elif active_tab == 'site' %}
+        <nav class="sidebar">
+            <h1>{% translate "Site" %}</h1>
+            <div class="tab-list">
+                <a class="tab{% if request.resolver_match.url_name == 'site_groups' %} active{% endif %}"
+                   href="{% url 'ui:site_groups' %}">{% translate "Groups" %}</a>
+                <a class="tab{% if request.resolver_match.url_name == 'site_usage' %} active{% endif %}"
+                   href="{% url 'ui:site_usage' %}">{% translate "Usage" %}</a>
+                <a class="tab{% if request.resolver_match.url_name == 'site_jobs' %} active{% endif %}"
+                   href="{% url 'ui:site_jobs' %}">{% translate "Jobs" %}</a>
             </div>
         </nav>
     {% else %}
@@ -98,6 +144,15 @@
     {% endif %}
     <main class="content">
         {% include "ui/_breadcrumbs.html" %}
+        {% comment %}Anything a view said in passing — "added Ana", "that group
+        is full". Rendered here rather than per page so a view can report
+        without its template having to know it might.{% endcomment %}
+        {% if messages %}
+            {% for message in messages %}
+                <div class="alert {% if message.tags == 'error' %}error{% else %}info{% endif %}"
+                     style="max-width: 46rem;">{{ message }}</div>
+            {% endfor %}
+        {% endif %}
         {% block content %}{% endblock %}
     </main>
 </body>

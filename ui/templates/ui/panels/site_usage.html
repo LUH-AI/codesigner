@@ -1,0 +1,65 @@
+{% extends "base.html" %}
+{% load i18n %}
+
+{% block title %}{% translate "Usage" %} · Codesigner{% endblock %}
+
+{% block content %}
+    <h1>{% translate "Usage" %}</h1>
+    {% comment %}Totals, and nothing about what they were spent on: no
+    experiment name, no model, no metric, no score. How much somebody has used
+    is a thing a site admin may need to know; what they used it for is not.
+    {% endcomment %}
+    <p class="caption">{% translate "Counted from finished runs. Compute time is time spent in trials, not wall clock." %}</p>
+
+    <table class="trials" style="max-width: 52rem; margin-top: 1rem;">
+        <thead>
+            <tr>
+                <th>{% translate "Group" %}</th>
+                <th>{% translate "People" %}</th>
+                <th>{% translate "Runs" %}</th>
+                <th>{% translate "Trials" %}</th>
+                <th>{% translate "Compute" %}</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for g in groups %}
+                <tr>
+                    <td>{{ g.name }}{% if not g.is_active %} <span class="caption">— {% translate "restricted" %}</span>{% endif %}</td>
+                    <td>{{ g.members }}</td>
+                    <td>{{ g.runs }}</td>
+                    <td>{{ g.trials|default:0 }}</td>
+                    <td>{{ g.seconds|default:0|floatformat:0 }}s</td>
+                </tr>
+            {% empty %}
+                <tr><td colspan="5" class="caption">{% translate "No groups yet." %}</td></tr>
+            {% endfor %}
+        </tbody>
+    </table>
+
+    <h2 style="margin-top: 2rem;">{% translate "By person" %}</h2>
+    <p class="caption">{% translate "The same totals, for a conversation about one account." %}</p>
+    <table class="trials" style="max-width: 52rem; margin-top: 0.5rem;">
+        <thead>
+            <tr>
+                <th>{% translate "Who" %}</th>
+                <th>{% translate "Group" %}</th>
+                <th>{% translate "Email" %}</th>
+                <th>{% translate "Runs" %}</th>
+                <th>{% translate "Trials" %}</th>
+                <th>{% translate "Compute" %}</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for m in people %}
+                <tr>
+                    <td>{{ m.user.get_username }}</td>
+                    <td>{{ m.group.name }}</td>
+                    <td>{{ m.user.email|default:"—" }}</td>
+                    <td>{{ m.runs }}</td>
+                    <td>{{ m.trials|default:0 }}</td>
+                    <td>{{ m.seconds|default:0|floatformat:0 }}s</td>
+                </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+{% endblock %}

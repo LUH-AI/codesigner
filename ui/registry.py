@@ -2,24 +2,13 @@
 
 These are the choices presented in forms and used to reconstruct experiments
 from a snapshot. Keys are the human-readable names stored in .ihpo files.
+
+Defined in `core.registry` and re-exported here. The application's vocabulary is
+unchanged; what moved is where the definitions live, so that a run executing
+outside this process — a cluster job with no Django — resolves the same names
+from the same place rather than from a copy that can drift.
 """
 
-from core.metrics import METRICS
-from core.models import RandomForestModel, SVMModel
-from core.optimizers import GridOptimizer, RandomOptimizer, SMACOptimizer
+from core.registry import METRICS, MODELS, OPTIMIZERS
 
-MODELS = {
-    "Random Forest": RandomForestModel(),
-    "SVM Classifier": SVMModel(),
-}
-
-OPTIMIZERS = {
-    "SMAC": SMACOptimizer(),
-    "Random Search": RandomOptimizer(),
-    "Grid Search": GridOptimizer(),
-}
-
-# Re-exported: the metrics belong to the domain layer now that the optimizers
-# do the scoring, but the application's vocabulary keeps them here alongside
-# the models and optimizers it offers.
 __all__ = ["MODELS", "OPTIMIZERS", "METRICS"]

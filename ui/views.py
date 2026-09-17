@@ -1,5 +1,6 @@
 import copy
 import json
+import logging
 import statistics
 import tempfile
 from importlib.metadata import version as dist_version
@@ -48,6 +49,12 @@ from .services.settings import (
 from .validators import dataset_upload_error, model_upload_error, oversized
 
 _ACTIVE = ["pending", "running"]
+
+
+#: Reaches the console handler configured in settings.LOGGING. Used only where
+#: something went wrong that the reader cannot be told about, because the thing
+#: they asked for succeeded anyway — see `_abandon_cluster_job`.
+logger = logging.getLogger(__name__)
 
 
 def _model_available(exp):
@@ -1007,23 +1014,49 @@ def run_force_stop(request, exp):
     the process was restarted, the consumer died — there is nobody to read it,
     and the experiment sits at "running" with no way out. This is the way out.
 
-    It does not kill anything, and does not pretend to: the web process has no
-    handle on the worker, which is in another thread or another process
-    entirely. What it does is stop the experiment waiting on it. If the worker
-    turns out to be alive after all, it finishes as it always would have — its
-    last act is a filtered update of this same row, which will put back whatever
-    actually happened.
+    For a run in this process it does not kill anything, and does not pretend
+    to: the web process has no handle on the worker, which is in another thread
+    or another process entirely. What it does is stop the experiment waiting on
+    it. If the worker turns out to be alive after all, it finishes as it always
+    would have — its last act is a filtered update of this same row, which will
+    put back whatever actually happened.
+
+    A run on a cluster is the exception, because there *is* a handle: the job
+    id. Abandoning the row alone would leave the job running to its wall-clock
+    limit with nobody listening, holding an allocation nobody wants — so it is
+    cancelled with the scheduler too. That loses whatever it had not written,
+    which is what this escalation always costs.
 
     Offered only once cancelling has been asked for and has not worked, so it is
     the escalation rather than the first thing to hand: a cooperative cancel
     keeps the trials that already ran, and this cannot.
     """
-    exp.runs.filter(status__in=_ACTIVE, cancel_requested=True).update(
+    stuck = exp.runs.filter(status__in=_ACTIVE, cancel_requested=True)
+    for job_id in stuck.exclude(job_id="").values_list("job_id", flat=True):
+        _abandon_cluster_job(job_id)
+    stuck.update(
         status="error", finished_at=timezone.now(),
         error=_("Given up on by hand: it stopped answering, and cancelling it "
                 "had no effect."),
     )
     return redirect("ui:experiment_detail", pk=exp.pk)
+
+
+def _abandon_cluster_job(job_id: str) -> None:
+    """`scancel` a job whose run is being given up on.
+
+    Best-effort and deliberately quiet. This runs inside a request, and the
+    cluster being unreachable is a likely reason the run stopped answering in
+    the first place — so failing here must not stop the row being freed, which
+    is the thing the reader actually asked for. A job that outlives this is
+    bounded by its own wall-clock limit.
+    """
+    from .services import cluster
+
+    try:
+        cluster.kill(cluster.SshTransport(settings.CLUSTER_HOST, timeout=15.0), job_id)
+    except Exception:  # noqa: BLE001 — see above
+        logger.warning("could not scancel job %s", job_id, exc_info=True)
 
 
 #: What a ticked box on the export page posts. One value for both of its
@@ -1173,6 +1206,40 @@ def experiment_settings(request, exp):
 def appearance(request):
     """Appearance settings (display/theme options; currently a placeholder)."""
     return render(request, "ui/appearance.html", {})
+
+
+def account(request):
+    """Who you are signed in as, and what you may do here.
+
+    Assembled rather than looked up: the answer now comes from four separate
+    grants, held directly or through a group, and before this there was no page
+    anywhere that could say what they added up to. An operator reading a bug
+    report needs it as much as the person does.
+
+    Absent without accounts — `REQUIRE_LOGIN` off means there is no account to
+    describe and every answer would be an unconditional yes.
+    """
+    if not settings.REQUIRE_LOGIN:
+        raise Http404
+    policy = permissions.policy()
+    return render(request, "ui/account.html", {
+        # Each paired with what it lets you do rather than its codename, which
+        # names the grant and not the consequence.
+        "powers": [
+            (_("See every experiment on this instance"),
+             request.user.has_perm("access.view_all_experiments")),
+            (_("Run, edit and delete other people's experiments"),
+             request.user.has_perm("access.manage_experiments")),
+            (_("Change the settings every experiment inherits"),
+             policy.may_change_defaults(request)),
+            (_("Upload and run custom models"),
+             policy.may_upload_models(request)),
+        ],
+        # Its own line because it is an instance-wide floor rather than
+        # something about this account: off means off, for everyone.
+        "custom_models_off": not settings.ALLOW_CUSTOM_MODELS,
+        "is_administrator": request.user.is_superuser,
+    })
 
 
 def default_experiment_settings(request):

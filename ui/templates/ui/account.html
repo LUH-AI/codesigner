@@ -1,0 +1,58 @@
+{% extends "base.html" %}
+{% load i18n %}
+
+{% block title %}{% translate "Account" %} · Codesigner{% endblock %}
+
+{% block content %}
+    <h1>{% translate "Account" %}</h1>
+    <p class="caption">
+        {% blocktranslate with name=user.get_username %}Signed in as {{ name }}.{% endblocktranslate %}
+        {% if user.email %}{{ user.email }}{% endif %}
+    </p>
+
+    {% comment %}Said plainly because a superuser holds every permission below
+    without any of them appearing as a grant — Django gives them all four — and a
+    page listing four ticks with nothing explaining why would read as though
+    somebody had ticked them.{% endcomment %}
+    {% if is_administrator %}
+        <div class="alert info" style="max-width: 34rem; margin-top: 1rem;">
+            {% translate "You are a superuser, so everything below is yours whether or not it was granted." %}
+        </div>
+    {% endif %}
+
+    <section class="card" style="max-width: 34rem; margin-top: 1rem;">
+        <div class="subheader">{% translate "What you may do here" %}</div>
+        <table class="trials" style="margin-top: 0.5rem;">
+            <tbody>
+                {% for what, allowed in powers %}
+                    <tr>
+                        <td>{{ what }}</td>
+                        <td style="text-align: right;">
+                            {% if allowed %}<span aria-hidden="true">✓</span>
+                                <span class="visually-hidden">{% translate "yes" %}</span>
+                            {% else %}<span class="caption" aria-hidden="true">—</span>
+                                <span class="visually-hidden">{% translate "no" %}</span>
+                            {% endif %}
+                        </td>
+                    </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+        {% if custom_models_off %}
+            <p class="caption" style="margin-top: 0.5rem;">
+                {% translate "Custom models are switched off for this whole instance, so nobody may run one — including administrators." %}
+            </p>
+        {% endif %}
+        <p class="caption" style="margin-top: 0.5rem;">
+            {% translate "An administrator grants these, individually or through a group." %}
+        </p>
+    </section>
+
+    <section class="card" style="max-width: 34rem; margin-top: 1rem;">
+        <div class="subheader">{% translate "Password" %}</div>
+        <p class="caption">{% translate "Changing it here needs the one you have now. If you have forgotten it, an administrator can set a new one." %}</p>
+        <p style="margin-top: 0.75rem;">
+            <a class="btn" href="{% url 'access:password_change' %}">{% translate "Change password" %}</a>
+        </p>
+    </section>
+{% endblock %}

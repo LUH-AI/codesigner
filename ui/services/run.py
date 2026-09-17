@@ -7,6 +7,7 @@ it out of band rebuilding everything from the stored experiment, and writes the
 result and status back so the page can poll and cancel.
 """
 
+import math
 import random
 import time
 from pathlib import Path
@@ -208,6 +209,19 @@ def _partial_result_writer(experiment_pk, optimizer, previous_result, primary_me
 
 
 def execute_run(run_id):
+    """Run one optimization, writing status and result to the DB.
+
+    Branches once, on where the work goes. `local` is this process, which is
+    what every install did before there was a choice and what the whole test
+    suite exercises. `slurm` hands the optimization to a cluster and watches it
+    from here; the rows it writes at the end are the same rows.
+    """
+    if settings.RUN_BACKEND == "slurm":
+        return execute_run_on_cluster(run_id)
+    return _execute_run_locally(run_id)
+
+
+def _execute_run_locally(run_id):
     """Run one optimization, synchronously, writing status and result to the DB.
 
     Rebuilds the experiment from its stored snapshot (so the worker needs only a
@@ -322,6 +336,164 @@ def execute_run(run_id):
         stopped_by=(STOPPED_BY_CANCELLED if cancelled
                     else (result.metadata.get("stopped_by") or "")),
     )
+
+
+def execute_run_on_cluster(run_id):
+    """Hand one optimization to the cluster, and watch it from here.
+
+    The same three moments as the local path, reached differently. The job
+    cannot touch this database — it starts minutes later on a node with no route
+    back — so each is a file on the cluster's own filesystem and this loop is
+    what carries them across:
+
+    - its `partial.json` becomes `Experiment.result`, which is all the page
+      needs: `run_status` already polls and the figures already redraw from it,
+      so a run on another machine is live for free;
+    - a Cancel here becomes a `CANCEL` file there, which stops the run *and
+      keeps its trials* — `scancel` would throw them away and is kept for
+      `force_stop`;
+    - its `result.json` and `status.json` become the same final writes
+      `_execute_run_locally` makes.
+
+    Errors are reported on the run rather than raised, exactly as the local path
+    does: a consumer that crashed would leave the row saying "running" for ever.
+    """
+    from ..models import Experiment, Run
+    from . import cluster
+
+    run = Run.objects.get(pk=run_id)
+    experiment = run.experiment
+    Run.objects.filter(pk=run_id).update(
+        status="running", started_at=timezone.now(), backend="slurm")
+
+    try:
+        if not experiment.dataset:
+            raise RuntimeError(
+                "this experiment has no dataset stored, so there is nothing to "
+                "send to the cluster")
+
+        ssh = cluster.transport()
+        snapshot = snapshot_adapter.snapshot_from_experiment(experiment)
+        workdir = cluster.stage(
+            ssh, run_id, snapshot,
+            {
+                "stopping": run.stopping,
+                "primary_metric": run.primary_metric,
+                "trial_timeout": run.trial_timeout,
+                "analytics_max_coalitions": settings.ANALYTICS_EAGER_MAX_COALITIONS,
+                "analytics_wanted": eager_analytics_wanted(resolve_settings(experiment)),
+            },
+            dataset=Path(experiment.dataset.path),
+            model=Path(experiment.model_file.path) if experiment.model_file else None,
+        )
+        job_id = cluster.submit(ssh, run_id, workdir, hours=_hours_for(run))
+        Run.objects.filter(pk=run_id).update(job_id=job_id)
+
+        status = _watch(ssh, run_id, experiment.pk, workdir, job_id)
+    except Exception as exc:  # noqa: BLE001 — any failure is reported on the run
+        Run.objects.filter(pk=run_id).update(
+            status="error", error=str(exc), finished_at=timezone.now())
+        return
+
+    _finish_cluster_run(run_id, experiment.pk, status)
+
+
+def _watch(ssh, run_id, experiment_pk, workdir, job_id) -> dict:
+    """Follow the job until it ends, copying what it writes into the database.
+
+    Returns the job's own `status.json`, or one written here when the scheduler
+    ended the job before it could write its own — out of time, out of memory,
+    killed. Those leave no status at all, and a run that simply stopped being
+    watched is indistinguishable from one still going, so the absence is turned
+    into an answer here.
+    """
+    from ..models import Experiment, Run
+    from . import cluster
+
+    cancelled = False
+    while True:
+        state = cluster.poll(ssh, job_id)
+
+        if not cancelled and Run.objects.filter(
+                pk=run_id, cancel_requested=True).exists():
+            # Asked, not killed: the run breaks out between trials and still
+            # writes what it has. Requested once — the file is already there.
+            cluster.request_cancel(ssh, workdir)
+            cancelled = True
+
+        if state in (cluster.DONE, cluster.FAILED, cluster.GONE):
+            break
+
+        # Only while it is actually running: a queued job has written nothing,
+        # and asking costs an ssh round trip per poll for a file that cannot
+        # exist yet.
+        if state == cluster.RUNNING:
+            partial = cluster.fetch(ssh, workdir, "partial.json")
+            if partial:
+                Experiment.objects.filter(pk=experiment_pk).update(result=partial)
+
+        time.sleep(settings.CLUSTER_POLL_SECONDS)
+
+    status = cluster.fetch(ssh, workdir, "status.json")
+    if status is None:
+        reason = cluster.tail_error(ssh, workdir)
+        status = {"state": "error", "offset": 0, "stopped_by": "",
+                  "config_space": None,
+                  "error": (f"the job ended without finishing ({state})"
+                            + (f": {reason}" if reason else ""))}
+    status["result"] = cluster.fetch(ssh, workdir, "result.json")
+    return status
+
+
+def _finish_cluster_run(run_id, experiment_pk, status: dict) -> None:
+    """Write what the job produced, in the shape the local path writes it.
+
+    Deliberately the same fields and the same filtered `update()`: the page,
+    the run history and the export cannot tell where a run happened, and should
+    not be able to.
+    """
+    from ..models import Experiment, Run
+
+    if status["state"] == "error":
+        Run.objects.filter(pk=run_id).update(
+            status="error", error=status.get("error") or "the run failed on the cluster",
+            finished_at=timezone.now())
+        return
+
+    result = status.get("result")
+    trials = (result or {}).get("data") or []
+    offset = int(status.get("offset") or 0)
+    new_trials = trials[offset:]
+
+    fields = {"result": result} if result else {}
+    if status.get("config_space"):
+        fields["config_space"] = status["config_space"]
+    if fields:
+        Experiment.objects.filter(pk=experiment_pk).update(**fields)
+
+    Run.objects.filter(pk=run_id).update(
+        status="cancelled" if status["state"] == "cancelled" else "done",
+        finished_at=timezone.now(),
+        trial_seconds=sum(float(t.get("time") or 0.0) for t in new_trials),
+        trial_count=len(new_trials),
+        trial_offset=offset,
+        stopped_by=(STOPPED_BY_CANCELLED if status["state"] == "cancelled"
+                    else (status.get("stopped_by") or "")),
+    )
+
+
+def _hours_for(run) -> int:
+    """How long to ask the scheduler for.
+
+    From the run's own time limit when it set one, rounded up and given an
+    hour's headroom for staging and the analytics computed at the end; otherwise
+    the deployment's ceiling. A job that outlives its allocation is killed
+    mid-write, which is the one failure that loses trials.
+    """
+    seconds = (run.stopping or {}).get("max_seconds")
+    if not seconds:
+        return settings.CLUSTER_MAX_HOURS
+    return max(1, math.ceil(float(seconds) / 3600.0) + 1)
 
 
 def _remember_config_space(experiment_pk, model, seed) -> None:

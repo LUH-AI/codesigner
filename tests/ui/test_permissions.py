@@ -30,9 +30,52 @@ def _experiment(name="perm") -> Experiment:
 
 # ── the audit ────────────────────────────────────────────────────────────────
 
+#: `<int:pk>` routes whose pk is **not** an experiment, and what it is instead.
+#:
+#: Named one at a time on purpose. The audit's whole value is that a new route
+#: is guilty until somebody says otherwise, so the way past it is an entry here
+#: — which is a line in a diff — rather than a pattern loose enough to let the
+#: next one through unnoticed.
+NOT_EXPERIMENTS = {
+    "group_remove_person": "a membership, removed by that group's lead",
+    "site_job_stop": "a run, stopped by a site admin from outside its group",
+}
+
+
 def _experiment_routes():
     """Every route that names an experiment in its path."""
-    return [p for p in urls.urlpatterns if "<int:pk>" in str(p.pattern)]
+    return [p for p in urls.urlpatterns
+            if "<int:pk>" in str(p.pattern) and p.name not in NOT_EXPERIMENTS]
+
+
+def test_the_exceptions_are_real_routes():
+    """So the list cannot rot into a blanket excuse.
+
+    A name that no longer exists would sit here forever quietly widening what
+    the audit skips, and the next route to be called the same thing would
+    inherit the exemption.
+    """
+    names = {p.name for p in urls.urlpatterns if "<int:pk>" in str(p.pattern)}
+
+    missing = set(NOT_EXPERIMENTS) - names
+    assert not missing, f"no such route(s): {sorted(missing)}"
+
+
+def test_the_exceptions_do_not_reach_an_experiment_through_the_pk():
+    """The reason they are allowed out: their pk addresses something else.
+
+    `site_job_stop` takes a run because a site admin has no experiment
+    visibility for `@experiment_view` to check — and giving them some so a
+    decorator would fit would defeat the separation it exists for.
+    """
+    from ui import panels
+
+    assert {p.name: p.callback for p in urls.urlpatterns
+            if p.name in NOT_EXPERIMENTS}.keys() == NOT_EXPERIMENTS.keys()
+    for name in NOT_EXPERIMENTS:
+        route = next(p for p in urls.urlpatterns if p.name == name)
+        assert route.callback.__module__ == panels.__name__, (
+            f"{name} is not a panel route any more; re-check what its pk means")
 
 
 def test_there_are_experiment_routes_to_audit():

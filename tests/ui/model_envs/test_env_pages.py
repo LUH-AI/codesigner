@@ -179,9 +179,12 @@ def test_an_in_process_model_cannot_be_run_on_a_hosted_instance(client, settings
     in is what makes this a hosted instance's *user* rather than a stranger, and
     the refusal has to hold for them too."""
     settings.REQUIRE_LOGIN = True
-    django_user_model.objects.create_user(username="someone", password="pw")
+    someone = django_user_model.objects.create_user(username="someone", password="pw")
     client.login(username="someone", password="pw")
-    exp = _experiment(env_status=Experiment.ENV_LEGACY)
+    # Theirs, so the refusal is the thing being tested. An unowned experiment is
+    # reachable by nobody now that experiments belong to groups, and this would
+    # be a 404 for a reason that has nothing to do with in-process models.
+    exp = _experiment(env_status=Experiment.ENV_LEGACY, owner=someone)
 
     assert client.get(reverse("ui:experiment_detail", args=[exp.pk])).context["can_run"] is False
 

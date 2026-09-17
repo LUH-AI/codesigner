@@ -1,0 +1,13 @@
+# What a run needs where there is no web server: the six packages `core/`
+# actually imports, and nothing else.
+#
+# Not requirements.txt, because none of Django, gunicorn, whitenoise, plotly,
+# huey or django-environ is reachable from `core/` — the cluster runs no web
+# stack, has no database and has no MEDIA_ROOT. Kept in step with the versions
+# in requirements.txt; `cluster/deploy.sh` installs this one.
+smac>=2.4.1
+hypershap>=0.0.6
+ConfigSpace>=1.2
+scikit-learn>=1.9
+pandas>=2.3
+numpy>=2.4

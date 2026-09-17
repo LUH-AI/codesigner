@@ -1,0 +1,19 @@
+# Configuration C only — a hosted instance whose web process and consumer are
+# separate, possibly on different machines. Layered on requirements.txt:
+#
+#   pip install -r requirements.txt -r requirements-hosted.txt
+#
+# Kept apart so the default install stays as small as it is. Nothing here is
+# imported by the application; each is a driver a *setting* reaches for, so a
+# single-machine instance that never names them never needs them installed.
+
+# Broker, when HUEY_CLASS=huey.RedisHuey. See the HUEY block in settings.
+redis>=5.0
+
+# Database, when DATABASE_URL names postgres. The binary wheel avoids needing
+# libpq and a compiler at install time.
+psycopg[binary]>=3.2
+
+# Uploads, when DEFAULT_FILE_STORAGE names S3Storage. Only needed when the two
+# processes cannot share a filesystem — a shared mount needs none of this.
+django-storages[s3]>=1.14

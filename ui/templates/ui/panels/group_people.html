@@ -1,0 +1,71 @@
+{% extends "base.html" %}
+{% load i18n %}
+
+{% block title %}{% translate "People" %} · Codesigner{% endblock %}
+
+{% block content %}
+    <h1>{{ group.name }}</h1>
+    <p class="caption">
+        {% blocktranslate count seats=seats_left %}{{ seats }} seat left.{% plural %}{{ seats }} seats left.{% endblocktranslate %}
+        {% translate "A site administrator sets how many." %}
+    </p>
+
+    <table class="trials" style="max-width: 46rem; margin-top: 1rem;">
+        <thead>
+            <tr>
+                <th>{% translate "Who" %}</th>
+                <th>{% translate "Role" %}</th>
+                <th>{% translate "Experiments" %}</th>
+                <th></th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for m in memberships %}
+                <tr>
+                    <td>{{ m.user.get_username }}{% if m.user == user %} <span class="caption">({% translate "you" %})</span>{% endif %}
+                        {% if not m.user.is_active %} <span class="caption">— {% translate "deactivated" %}</span>{% endif %}</td>
+                    <td>{{ m.get_role_display }}</td>
+                    <td>{{ m.user.experiments.count }}</td>
+                    <td style="text-align: right;">
+                        {% if m.user != user %}
+                            <form method="post" action="{% url 'ui:group_remove_person' m.pk %}">
+                                {% csrf_token %}
+                                <button type="submit" class="btn">{% translate "Remove" %}</button>
+                            </form>
+                        {% endif %}
+                    </td>
+                </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+
+    {% comment %}A lead creates an account and hands over the first password.
+    There is no registration surface and no mail server anywhere in this: an
+    account exists because somebody with a group decided it should.{% endcomment %}
+    <section class="card" style="max-width: 34rem; margin-top: 1.5rem;">
+        <div class="subheader">{% translate "Add somebody" %}</div>
+        {% if seats_left %}
+            <form method="post" action="{% url 'ui:group_add_person' %}">
+                {% csrf_token %}
+                <div class="field">
+                    <label for="username">{% translate "Username" %}</label>
+                    <input type="text" id="username" name="username" required>
+                </div>
+                <div class="field">
+                    <label for="password">{% translate "First password" %}</label>
+                    <input type="text" id="password" name="password" required>
+                    <p class="caption">{% translate "Hand this over; they can change it under Settings → Account." %}</p>
+                </div>
+                <div class="field">
+                    <label for="role">{% translate "Role" %}</label>
+                    <select id="role" name="role">
+                        {% for value, label in roles %}<option value="{{ value }}">{{ label }}</option>{% endfor %}
+                    </select>
+                </div>
+                <button type="submit" class="btn-primary">{% translate "Add" %}</button>
+            </form>
+        {% else %}
+            <p class="caption">{% translate "This group is full. A site administrator can raise the limit." %}</p>
+        {% endif %}
+    </section>
+{% endblock %}

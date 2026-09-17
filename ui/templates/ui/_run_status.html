@@ -11,6 +11,18 @@ stored, and the answer comes back inside this same fragment — poll.js re-reads
     <div class="alert info" style="display: flex; align-items: center; gap: 0.5rem;">
         <span class="spinner"></span> {% blocktranslate with status=run.get_status_display %}Optimizing… ({{ status }}){% endblocktranslate %}
     </div>
+    {% comment %}A run on a cluster waits in somebody else's queue before it
+    starts, and that wait can be longer than the run. Without saying so the page
+    shows a spinner and nothing happening, which reads as a run that has hung
+    rather than one that has not been given a node yet. The job id is here
+    because it is what an operator needs to ask the scheduler anything at all.
+    {% endcomment %}
+    {% if run.job_id %}
+        <p class="caption" style="margin-top: 0.5rem;">
+            {% blocktranslate with job=run.job_id %}Running on the cluster as job {{ job }}.{% endblocktranslate %}
+            {% if not run.started_at %}{% translate "Waiting for a node." %}{% endif %}
+        </p>
+    {% endif %}
     {% comment %}Cancelling is a request to whatever is executing the run, which
     polls for it between trials — so the trials already finished are kept. Once
     it has been asked for there is nothing more to ask, and the only remaining

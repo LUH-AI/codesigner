@@ -1,0 +1,48 @@
+{% extends "base.html" %}
+{% load i18n %}
+
+{% block title %}{% translate "Jobs" %} · Codesigner{% endblock %}
+
+{% block content %}
+    <h1>{% translate "Running jobs" %}</h1>
+    {% comment %}Identified by the experiment's own short code rather than its
+    name. Enough to talk about a job in a support conversation, and it says
+    nothing about what the job is.{% endcomment %}
+    <p class="caption">{% translate "Across every group. Stopping one here is forcible — whatever it had not written is lost." %}</p>
+
+    <table class="trials" style="margin-top: 1rem;">
+        <thead>
+            <tr>
+                <th>{% translate "Job" %}</th>
+                <th>{% translate "Experiment" %}</th>
+                <th>{% translate "Who" %}</th>
+                <th>{% translate "Group" %}</th>
+                <th>{% translate "Status" %}</th>
+                <th>{% translate "Elapsed" %}</th>
+                <th>{% translate "Trials" %}</th>
+                <th></th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for run in runs %}
+                <tr>
+                    <td>{{ run.job_id|default:"—" }}<br><span class="caption">{{ run.backend }}</span></td>
+                    <td><span class="exp-id">{{ run.identifier }}</span></td>
+                    <td>{{ run.who }}{% if run.email %}<br><span class="caption">{{ run.email }}</span>{% endif %}</td>
+                    <td>{{ run.group|default:"—" }}</td>
+                    <td>{{ run.status }}</td>
+                    <td>{% if run.duration %}{{ run.duration|floatformat:0 }}s{% else %}—{% endif %}</td>
+                    <td>{{ run.trial_count|default:0 }}</td>
+                    <td style="text-align: right;">
+                        <form method="post" action="{% url 'ui:site_job_stop' run.pk %}">
+                            {% csrf_token %}
+                            <button type="submit" class="btn">{% translate "Stop" %}</button>
+                        </form>
+                    </td>
+                </tr>
+            {% empty %}
+                <tr><td colspan="8" class="caption">{% translate "Nothing is running." %}</td></tr>
+            {% endfor %}
+        </tbody>
+    </table>
+{% endblock %}

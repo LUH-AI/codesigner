@@ -108,6 +108,28 @@ def runs_execute_synchronously(settings):
     settings.RUN_IMMEDIATE_IN_THREAD = False
 
 
+@pytest.fixture(autouse=True)
+def suite_runs_in_its_own_configuration(settings):
+    """Pin the settings that decide *what kind of instance this is*.
+
+    `config/settings.py` reads `.env`, which is a developer's own file — so
+    without this the suite inherits whatever they last left in it. Two of those
+    settings change what the tests are even testing:
+
+    * `REQUIRE_LOGIN` decides whether accounts exist at all. Left on, every test
+      that does not ask for accounts silently becomes a test of the login wall.
+    * `RUN_BACKEND` decides where a run executes. Left at `slurm`, the run
+      tests would submit real jobs to a real cluster — slowly, and only on a
+      machine that can reach it.
+
+    Pinned to the defaults rather than to anything clever: these are what a
+    fresh checkout has, and a test that wants the other mode says so (the
+    `hosted` fixtures, and `tests/ui/runs/test_cluster_backend.py`).
+    """
+    settings.REQUIRE_LOGIN = False
+    settings.RUN_BACKEND = "local"
+
+
 @pytest.fixture
 def metrics() -> dict:
     """The metrics the application scores with — the real ones, not a copy.

@@ -1,0 +1,62 @@
+{% extends "base.html" %}
+{% load i18n %}
+
+{% block title %}{% translate "Groups" %} · Codesigner{% endblock %}
+
+{% block content %}
+    <h1>{% translate "Groups" %}</h1>
+    {% comment %}No experiments on this page or the two beside it. A site admin
+    manages groups; showing them colleagues' work is the thing the separation
+    exists to prevent.{% endcomment %}
+    <p class="caption">{% translate "How many people each may hold, and whether it is active. Deactivating stops its members signing in and leaves every experiment where it is." %}</p>
+
+    <table class="trials" style="max-width: 52rem; margin-top: 1rem;">
+        <thead>
+            <tr>
+                <th>{% translate "Group" %}</th>
+                <th>{% translate "Seats" %}</th>
+                <th>{% translate "Active" %}</th>
+                <th></th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for g in groups %}
+                <tr>
+                    <form method="post" action="{% url 'ui:site_group_save' %}">
+                        {% csrf_token %}
+                        <input type="hidden" name="pk" value="{{ g.pk }}">
+                        <td><input type="text" name="name" value="{{ g.name }}"></td>
+                        <td>
+                            <input type="number" name="user_limit" min="0" value="{{ g.user_limit }}"
+                                   style="width: 5rem;">
+                            <span class="caption">{% blocktranslate with n=g.members %}{{ n }} used{% endblocktranslate %}</span>
+                        </td>
+                        <td><input type="checkbox" name="is_active" {% if g.is_active %}checked{% endif %}></td>
+                        <td style="text-align: right;">
+                            <button type="submit" class="btn">{% translate "Save" %}</button>
+                        </td>
+                    </form>
+                </tr>
+            {% empty %}
+                <tr><td colspan="4" class="caption">{% translate "No groups yet." %}</td></tr>
+            {% endfor %}
+        </tbody>
+    </table>
+
+    <section class="card" style="max-width: 34rem; margin-top: 1.5rem;">
+        <div class="subheader">{% translate "New group" %}</div>
+        <form method="post" action="{% url 'ui:site_group_save' %}">
+            {% csrf_token %}
+            <div class="field">
+                <label for="new-name">{% translate "Name" %}</label>
+                <input type="text" id="new-name" name="name" required>
+            </div>
+            <div class="field">
+                <label for="new-limit">{% translate "Seats" %}</label>
+                <input type="number" id="new-limit" name="user_limit" min="0" value="5">
+                <p class="caption">{% translate "How many accounts its group lead may create. Theirs to fill, not theirs to raise." %}</p>
+            </div>
+            <button type="submit" class="btn-primary">{% translate "Create" %}</button>
+        </form>
+    </section>
+{% endblock %}

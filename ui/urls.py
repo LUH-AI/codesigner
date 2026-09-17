@@ -1,6 +1,6 @@
 from django.urls import path
 
-from . import views
+from . import panels, views
 
 app_name = "ui"
 
@@ -8,6 +8,19 @@ urlpatterns = [
     path("", views.home, name="home"),
     path("experiments/", views.experiment_list, name="experiment_list"),
     path("healthz/", views.healthz, name="healthz"),
+    path("settings/account/", views.account, name="account"),
+    # The two management surfaces. Neither goes through `@experiment_view`: a
+    # group lead reaches their colleagues' work through the policy's queryset,
+    # and a site admin reaches no experiment at all. See ui/panels.py.
+    path("group/", panels.group_people, name="group_people"),
+    path("group/add/", panels.group_add_person, name="group_add_person"),
+    path("group/<int:pk>/remove/", panels.group_remove_person, name="group_remove_person"),
+    path("group/experiments/", panels.group_work, name="group_work"),
+    path("site/", panels.site_groups, name="site_groups"),
+    path("site/groups/save/", panels.site_group_save, name="site_group_save"),
+    path("site/usage/", panels.site_usage, name="site_usage"),
+    path("site/jobs/", panels.site_jobs, name="site_jobs"),
+    path("site/jobs/<int:pk>/stop/", panels.site_job_stop, name="site_job_stop"),
     path("settings/appearance/", views.appearance, name="appearance"),
     path("settings/experiment-defaults/", views.default_experiment_settings, name="default_experiment_settings"),
     path("experiments/new/", views.new_experiment, name="new_experiment"),

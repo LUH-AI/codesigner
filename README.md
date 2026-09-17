@@ -202,7 +202,105 @@ python manage.py createsuperuser     # then add the rest at /admin/
 ```
 
 Password reset is not wired up; it needs a mail server, which is an operator
-decision. Until it is asked for, an operator resets a password in the admin.
+decision. Until it is asked for, an operator resets a password in the admin. A
+signed-in user *can* change their own password — Settings → Account → Change
+password — which needs no mail server because it asks for the current one.
+
+That Account page is also where somebody can see what they are allowed to do
+here, which is worth having now that the answer comes from four separate grants.
+
+### Groups and the three roles
+
+An instance hosted for several research groups exists so that the groups do
+**not** see each other. An experiment's group is its owner's; nothing moves one
+between groups except changing who owns it.
+
+| | |
+| --- | --- |
+| **Member** | creates and runs experiments, and chooses for each whether it is shared with their group, with named colleagues, or with nobody |
+| **Group lead** | a member who also manages their group's people, and can see and act on anything in it |
+| **Site admin** | manages groups — their size, whether they are active, what they are using — and is shown no experiments at all |
+
+What each can reach:
+
+| | own | shared with the group | shared by name | the rest of their group | another group |
+| --- | --- | --- | --- | --- | --- |
+| Member | act | view | view | — | — |
+| Group lead | act | act | act | act, in a panel of its own | — |
+| Site admin | — | — | — | — | — |
+
+Sharing **by name** deliberately crosses the group boundary: an invitation the
+owner made person by person is an act of judgement rather than a property of a
+group. Sharing with the *group* does not.
+
+A group lead's own experiments stay on their Experiments tab; their colleagues'
+are under **Group → Their experiments**. Being a lead should not quietly turn
+the everyday list into everyone's.
+
+#### Making people
+
+```bash
+python manage.py create_site_admin alice              # + a group of their own
+python manage.py create_site_admin alice --users 0    # no group at all
+```
+
+`--users` is the seat limit of the group created for them, defaulting to 1 — a
+site admin with somewhere to put an experiment of their own and no room to grow
+a group underneath themselves by accident. **0 creates no group**, which is the
+cleaner reading of the role.
+
+Note it does **not** make them a Django superuser. A superuser can read every
+experiment through `/admin/`, which is exactly what this role is meant not to
+do; pass `--superuser` only if you want both.
+
+After that, a group lead creates their own group's accounts under **Group →
+People**, up to the seat limit a site admin set. There is still no registration
+surface anywhere and no mail server.
+
+#### The permissions underneath
+
+`is_staff` is Django's flag for reaching `/admin/`, and it means only that.
+Roles carry what codesigner asks for, and two permissions sit outside them:
+
+| permission | grants |
+| --- | --- |
+| `access.manage_site` | the Site tab — groups, usage, jobs. This *is* being a site admin. |
+| `access.use_custom_models` | may upload and run custom models — arbitrary code execution |
+| `access.change_defaults` | may change the settings every inheriting experiment follows |
+| `access.view_all_experiments` | **escape hatch.** Every experiment, across every group. |
+| `access.manage_experiments` | **escape hatch.** Act on every experiment, across every group. |
+
+The last two cut straight through the boundary everything else here draws. They
+are granted to nobody, and are meant to be handed out for a support case and
+taken back — not to describe a role. A group lead gets the same reach *inside
+their own group* from their membership, which is the ordinary way.
+
+`ALLOW_CUSTOM_MODELS=False` remains the floor under custom models: off means
+off, for everyone.
+
+#### An instance to look at
+
+```bash
+python manage.py seed_demo          # --reset to rebuild
+```
+
+Builds a site admin, two groups at different seat limits, a lead and members in
+each, experiments at all three sharing levels, finished runs for the usage
+totals, and one job left running so Stop has a target. Every password is the
+username, so it refuses to run unless `DEBUG` is on.
+
+### When somebody leaves
+
+**Deactivate them; do not delete them.** Clear "Active" in the admin: they can no
+longer sign in, and every experiment stays owned by the person who made it.
+
+Deleting the account instead would set its experiments' owner to null, and an
+ownerless experiment on this instance is *everyone's* — visible, runnable,
+editable and deletable by any signed-in account. That rule exists for the
+experiments that predate accounts, where there is no owner whose wishes are being
+overridden; applied to somebody's unpublished work it is a quiet leak. The admin
+therefore refuses to delete a user who still owns experiments, and says so on
+their account page. Reassign the experiments first if the account really must go.
 
 ### TLS
 
@@ -219,26 +317,78 @@ redirects HTTP to HTTPS, marks the session and CSRF cookies secure-only, and
 enables HSTS. Turning it on without a proxy in front breaks the instance —
 there is nothing to answer the HTTPS redirect.
 
-### Who sees what
+Behind a proxy you also need the public origin named, or every form post is
+refused as a CSRF failure — which reads like a broken page rather than a
+missing setting:
 
-With accounts, an experiment belongs to whoever created it. There are three
-kinds:
+```bash
+CSRF_TRUSTED_ORIGINS=https://codesigner.example.org
+```
+
+It defaults to `https://` each `ALLOWED_HOSTS` entry, so an instance whose hosts
+are already correct usually needs nothing here.
+
+### Where the web server and the worker run
+
+Runs execute in a separate `manage.py run_huey` consumer, not in the web
+process. Whether the two can be on **different machines** is decided by three
+settings, and by nothing else — each defaults to a file on local disk, which is
+what ties them to one box:
+
+| | one machine (default) | separate |
+| --- | --- | --- |
+| queue | `huey.SqliteHuey` — a file | `HUEY_CLASS=huey.RedisHuey` + `REDIS_URL` |
+| database | SQLite — a file | `DATABASE_URL=postgres://…` |
+| uploads | `MEDIA_ROOT` — a directory | `DEFAULT_FILE_STORAGE` → object storage |
+
+This is the ordinary way to separate a web server from its background work — a
+task queue over a network broker, a shared database, shared file storage — and
+it needs no code, only the three drivers:
+
+```bash
+pip install -r requirements.txt -r requirements-hosted.txt
+```
+
+`docker-compose.hosted.yml` is a worked example, layered on the base file:
+
+```bash
+docker compose -f docker-compose.yml -f docker-compose.hosted.yml up
+```
+
+It adds Redis and Postgres, turns `REQUIRE_LOGIN` on and `ALLOW_CUSTOM_MODELS`
+off. It does **not** turn on `SECURE_BEHIND_TLS`, for the reason above: there is
+no proxy in it to answer an HTTPS redirect.
+
+Two things do not travel over the broker and still need shared storage when the
+processes are split: uploaded datasets and uploaded model `.py` files. Either
+give both processes the same mount, or set `DEFAULT_FILE_STORAGE`. A worker that
+cannot read a dataset fails the run rather than corrupting anything, but it
+fails every run.
+
+### What sharing actually grants
+
+Who can reach an experiment is the table under *Groups and the three roles*
+above. What they can then *do* with it is this:
 
 | | Read | Run / edit / delete | Export |
 |---|---|---|---|
 | **Yours** | ✅ | ✅ | ✅ |
-| **Shared with you** | ✅ | ❌ | ✅ |
-| **Nobody's** (`owner` is empty) | ✅ | ✅ | ✅ |
+| **Shared with you**, by the group or by name | ✅ | ❌ | ✅ |
+| **Anything in your group**, if you are its lead | ✅ | ✅ | ✅ |
 
 Sharing is an invitation to look, not a transfer of control — a colleague can
-read and download a shared experiment, and cannot run, rename or delete it. The
-owner turns sharing on with a checkbox on the experiment page.
+read and download a shared experiment, and cannot run, rename or delete it. An
+owner's results should not change because somebody else pressed Run. A group
+lead is the exception, and deliberately: stopping a run that is going wrong
+should not need its owner to be awake.
 
-"Nobody's" is every experiment that existed before the instance had accounts.
-They stay fully usable rather than disappearing when you flip the switch; assign
-them owners in the admin if you want the normal rules to apply. Staff see and
-can act on everything. Deleting a user does **not** delete their experiments —
-they become nobody's.
+**An experiment with no owner is reachable by nobody.** It used to be
+everyone's, which was right while the instance was one flat pool of accounts —
+the only ownerless experiments were the ones predating them. With groups the
+same rule is a leak by construction, so it is gone, and the migration that
+introduced groups gave the existing ones an owner. A row can still end up
+ownerless if an account is deleted, which is why the admin refuses to delete one
+that owns anything — see *When somebody leaves*.
 
 Exported `.ihpo` files never carry server paths, whether or not this instance
 has accounts: the paths name a machine that is not the recipient's, and they
@@ -251,7 +401,9 @@ Uploading a model is arbitrary code execution, so on a hosted instance
 per-account permission sits on top of it:
 
 > **Access permissions | Can upload and run custom models** — grant it in the
-> admin, per user or via a group.
+> admin, per user or via a group. It is the oldest of the permissions in
+> *Groups and the three roles* above: the rest were split out of `is_staff`
+> later, following the pattern this one set.
 
 Without it the upload field and the mounted-model dropdown do not appear, an
 imported `.ihpo`'s model file is not attached, and — the check that actually
@@ -270,7 +422,12 @@ permission by definition.
 The **default experiment settings** apply to every experiment that inherits
 them, so one person changing them changes what everyone's pages draw. On a
 hosted instance that page, and the "Save settings as default" button on an
-experiment's own settings page, are staff-only; without accounts both are open.
+experiment's own settings page, need `access.change_defaults` (see *Groups and
+the three roles* above); without accounts both are open.
+
+This used to be staff-only, which meant anyone who could reach `/admin/` could
+also change what every page on the instance draws — two powers that have no
+reason to arrive together.
 
 ### Other effects of the switch
 
@@ -278,6 +435,60 @@ Media files are no longer served from the app (`MEDIA_ROOT` is one flat
 directory, so that would hand every signed-in user every other user's data at a
 guessable URL), and a model that would run in the application's own process is
 refused rather than falling back — see below.
+
+## Running the optimizations on a cluster
+
+A run does not have to execute where the web server is. With `RUN_BACKEND=slurm`
+the consumer stages the experiment onto a cluster, submits a Slurm job, follows
+it, and writes the result back — the page, the run history and the export cannot
+tell the difference.
+
+This is a separate choice from where the *consumer* runs. A consumer on your own
+machine can submit to a cluster, and a consumer on another machine can run
+in-process; the two compose.
+
+First put the run half on the cluster:
+
+```bash
+CLUSTER_HOST=kisski ./cluster/deploy.sh
+```
+
+That copies `core/`, `model_sdk/` and `cluster/` — not `ui/`, not `config/`, no
+database and no media — and builds a virtualenv there with
+`cluster/requirements-cluster.txt`. Six packages: `core/` imports no Django, so
+the cluster runs no web stack and needs neither a database nor a `MEDIA_ROOT`.
+It is idempotent, and safe to run while jobs are in flight.
+
+Then point the consumer at it:
+
+```bash
+RUN_BACKEND=slurm
+CLUSTER_HOST=kisski            # a name ssh already understands
+CLUSTER_ROOT=codesigner        # where deploy.sh put it
+CLUSTER_PARTITION=kisski-inference
+```
+
+The host is resolved by `ssh` itself, so a key, a user and any `ProxyJump` stay
+in `~/.ssh/config` where the rest of the system can see them too.
+
+**What crosses, per run.** A directory on the cluster's filesystem holding the
+experiment's snapshot, the dataset it was measured on, and what bounds the run;
+the job writes its result back into the same directory. `cluster/job.sbatch` is
+the script it becomes — edit that to change how work is submitted.
+
+**While it runs**, the job rewrites a partial result every few seconds and the
+consumer copies it into the experiment, so the figures move exactly as they do
+for a local run.
+
+**Cancelling asks rather than kills**: a file the run checks between trials, so
+the trials already paid for are kept. "Give up on it" is the escalation, and
+that one does `scancel` — losing whatever had not been written.
+
+Note that a cluster is not automatically faster. For the models codesigner ships
+— scikit-learn on a few thousand rows — staging and queueing cost more than the
+run does, and the expensive half is SMAC's own search rather than the model. The
+reason to do this is models that genuinely need a cluster, and keeping long runs
+off your own machine.
 
 ## Custom / mounted models — trust model ⚠️
 

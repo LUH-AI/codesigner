@@ -77,9 +77,21 @@ class Experiment(models.Model):
     owner = models.ForeignKey(
         django_settings.AUTH_USER_MODEL, null=True, blank=True,
         on_delete=models.SET_NULL, related_name="experiments")
-    # Readable by everyone who can sign in. Not writable by them: sharing is an
+    # Readable by the owner's group. Not writable by them: sharing is an
     # invitation to look, not to run, rename or delete.
+    #
+    # This used to mean "everyone who can sign in", which was the same thing
+    # while the instance was one flat pool of accounts. With groups it is the
+    # group's — narrower, and the direction that cannot leak.
     shared = models.BooleanField(default=False)
+    # And the other axis: shared with these people in particular, whoever they
+    # are. Separate from `shared` rather than replacing it because "my group"
+    # and "these three" are different intentions, and a group that gains a
+    # member should not silently gain their colleagues' experiments — which is
+    # what a single list of names would do if it were maintained by hand.
+    shared_with = models.ManyToManyField(
+        django_settings.AUTH_USER_MODEL, blank=True,
+        related_name="experiments_shared_with")
 
     # ── The custom model's environment (see services/modelenv.py) ────────────
     # Pinned per experiment: resolved and locked once, so every run uses the
@@ -182,6 +194,16 @@ class Run(models.Model):
     # away any fitted surrogate. Appended to, never rewritten.
     events = models.JSONField(default=list, blank=True)
     status = models.CharField(max_length=20, choices=STATUS_CHOICES, default="pending")
+    # Where this run executed, and what the scheduler called it while it did.
+    #
+    # Recorded per run rather than read from the setting, for two reasons. An
+    # experiment can be resumed months later under a different arrangement, and
+    # the history should say what actually happened rather than what is
+    # configured now. And a consumer that restarts while a job is still on the
+    # cluster needs the id to re-attach to it — without that the job runs on
+    # with nobody listening, and the row is swept to "error" beside it.
+    backend = models.CharField(max_length=20, default="local")
+    job_id = models.CharField(max_length=64, blank=True, default="")
     cancel_requested = models.BooleanField(default=False)
     error = models.TextField(blank=True, default="")
     started_at = models.DateTimeField(null=True, blank=True)

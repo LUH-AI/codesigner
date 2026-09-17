@@ -1,0 +1,76 @@
+# Configuration C — the same two processes, over network services instead of
+# files. Layered on the base file, which already runs web and worker separately:
+#
+#   docker compose -f docker-compose.yml -f docker-compose.hosted.yml up
+#
+# What changes is only where the three shared things live. The base file keeps
+# them in one volume, which is what ties the two processes to one machine; here
+# the queue is Redis, the database is Postgres, and only uploads still travel by
+# volume. Point DEFAULT_FILE_STORAGE at object storage and nothing is shared at
+# all — at which point the worker can be on another host entirely, with no
+# further change to the image or the code.
+#
+# TLS is deliberately NOT switched on here. SECURE_BEHIND_TLS makes Django
+# redirect to HTTPS, and there is nothing in this file to answer that; it goes
+# on when a real TLS-terminating proxy sits in front, together with
+# CSRF_TRUSTED_ORIGINS naming the public origin. See the README's hosting
+# section and the settings block itself.
+services:
+  redis:
+    image: redis:7-alpine
+    # Append-only so a restart does not lose queued work. A run that vanished
+    # between enqueue and execution would leave a row saying "pending" for ever.
+    command: ["redis-server", "--appendonly", "yes"]
+    volumes:
+      - redis-data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+
+  db:
+    image: postgres:17-alpine
+    environment:
+      POSTGRES_DB: codesigner
+      POSTGRES_USER: codesigner
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in .env}
+    volumes:
+      - db-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U codesigner -d codesigner"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+
+  web:
+    environment:
+      DATABASE_URL: "postgres://codesigner:${POSTGRES_PASSWORD}@db:5432/codesigner"
+      HUEY_CLASS: "huey.RedisHuey"
+      REDIS_URL: "redis://redis:6379/0"
+      # Hosted means several people, so ownership is enforced and uploaded
+      # models — which are arbitrary code execution — are refused.
+      REQUIRE_LOGIN: "True"
+      ALLOW_CUSTOM_MODELS: "False"
+    depends_on:
+      redis:
+        condition: service_healthy
+      db:
+        condition: service_healthy
+
+  worker:
+    environment:
+      DATABASE_URL: "postgres://codesigner:${POSTGRES_PASSWORD}@db:5432/codesigner"
+      HUEY_CLASS: "huey.RedisHuey"
+      REDIS_URL: "redis://redis:6379/0"
+      REQUIRE_LOGIN: "True"
+      ALLOW_CUSTOM_MODELS: "False"
+    depends_on:
+      redis:
+        condition: service_healthy
+      db:
+        condition: service_healthy
+
+volumes:
+  redis-data:
+  db-data:

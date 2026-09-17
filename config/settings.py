@@ -38,11 +38,11 @@ REQUIRE_LOGIN = env.bool("REQUIRE_LOGIN", default=False)
 # OFF on any shared or public deployment (see README).
 ALLOW_CUSTOM_MODELS = env.bool("ALLOW_CUSTOM_MODELS", default=True)
 
-# Who may see and do what to an experiment. The default enforces ownership when
-# REQUIRE_LOGIN is on and says "everyone, everything" when it is off, so that
-# stays the only switch. Point this at ui.permissions.OpenPolicy to disable
-# ownership on an instance that has accounts, or at a policy of your own.
-EXPERIMENT_POLICY = env.str("EXPERIMENT_POLICY", default="access.policy.OwnerPolicy")
+# Who may see and do what to an experiment. The default enforces groups and
+# ownership when REQUIRE_LOGIN is on and says "everyone, everything" when it is
+# off, so that stays the only switch. Point this at ui.permissions.OpenPolicy to
+# drop the boundary on an instance that has accounts, or at a policy of your own.
+EXPERIMENT_POLICY = env.str("EXPERIMENT_POLICY", default="access.policy.GroupPolicy")
 
 # Where the login wall sends an unauthenticated request, and where signing in
 # and out land. Set even when REQUIRE_LOGIN is off, so turning it on is one
@@ -108,12 +108,50 @@ MODEL_ENV_DENYLIST = (
     "MEDIA_ROOT", "ALLOWED_HOSTS", "REQUIRE_LOGIN", "ALLOW_CUSTOM_MODELS",
 )
 
+# ── Where a run executes ─────────────────────────────────────────────────────
+# `local` runs the optimization in the consumer process, which is what every
+# install has always done. `slurm` hands it to a cluster: the consumer stages the
+# experiment, submits a job, watches it, and brings the result back. The web
+# process is unaffected either way — it only ever enqueues.
+#
+# This is a different axis from where the *consumer* runs (the queue and database
+# settings below decide that). A consumer on this machine can submit to a
+# cluster, and a consumer on another machine can run in-process; the two choices
+# compose.
+RUN_BACKEND = env.str("RUN_BACKEND", default="local")
+
+# How to reach the cluster, when RUN_BACKEND is `slurm`. The host is a name
+# `ssh` already understands, so a ProxyJump, a key and a user stay in
+# ~/.ssh/config where the rest of the system can see them too.
+CLUSTER_HOST = env.str("CLUSTER_HOST", default="")
+CLUSTER_ROOT = env.str("CLUSTER_ROOT", default="codesigner")
+CLUSTER_PARTITION = env.str("CLUSTER_PARTITION", default="")
+# Cores asked for, and told to the thread pools inside the job — see
+# cluster/job.sbatch for why the second half matters.
+CLUSTER_CPUS = env.int("CLUSTER_CPUS", default=8)
+# The wall-clock ceiling on a job, in hours, when the run's own criteria do not
+# imply a shorter one. A queue will refuse a job asking for longer than its
+# partition allows, so this is a number an operator matches to their cluster.
+CLUSTER_MAX_HOURS = env.int("CLUSTER_MAX_HOURS", default=24)
+# How often the consumer asks the cluster what is happening. Each poll is an ssh
+# round trip, and it is also how often a page's figures can move, so it trades
+# liveness against load on the login node.
+CLUSTER_POLL_SECONDS = env.float("CLUSTER_POLL_SECONDS", default=5.0)
+
 # Background task queue. Runs execute in a separate `manage.py run_huey`
 # consumer process; run state lives in the database, so the web process only
-# enqueues (polling and cancellation are DB-based and unaffected). SqliteHuey
-# keeps everything on-box — no Redis. `immediate` runs tasks inline instead of
-# via the consumer; it defaults to DEBUG so a lone `runserver` works in
-# development, and is off in production where the consumer runs.
+# enqueues (polling and cancellation are DB-based and unaffected). `immediate`
+# runs tasks inline instead of via the consumer; it defaults to DEBUG so a lone
+# `runserver` works in development, and is off in production where the consumer
+# runs.
+#
+# **Which broker is the topology decision.** SqliteHuey is a file, so the
+# consumer has to share a filesystem with the web process — one machine, which
+# is the default and what development wants. RedisHuey is a network service,
+# which is what lets the two run on different machines. That is the whole of the
+# difference: a task queue over a network broker is the standard way to separate
+# a web server from its background work, and it needs no code here beyond naming
+# the class. The database has the same shape of switch already (`DATABASE_URL`).
 #
 # The consumer defaults to a single worker, which would mean one queue for two
 # very different jobs: an optimization, and building a model's environment. The
@@ -121,10 +159,10 @@ MODEL_ENV_DENYLIST = (
 # nothing on the instance could run. Both spend nearly all their time waiting on
 # a subprocess, so threads are the right kind of worker; the count is what needs
 # to be greater than one.
+HUEY_CLASS = env.str("HUEY_CLASS", default="huey.SqliteHuey")
 HUEY = {
-    "huey_class": "huey.SqliteHuey",
-    "name": "codesigner",
-    "filename": env.str("HUEY_FILENAME", default=str(BASE_DIR / "huey.sqlite3")),
+    "huey_class": HUEY_CLASS,
+    "name": env.str("HUEY_NAME", default="codesigner"),
     "immediate": env.bool("HUEY_IMMEDIATE", default=DEBUG),
     "results": False,
     "consumer": {
@@ -132,6 +170,17 @@ HUEY = {
         "worker_type": "thread",
     },
 }
+
+# The broker's own argument, which differs by class: a path for SqliteHuey, a
+# URL for RedisHuey. Only the one belonging to the chosen class is set, so a
+# misconfigured Redis fails at startup rather than quietly falling back to a
+# local file that the other machine cannot see — which would look like a queue
+# that accepts work and never runs it.
+if HUEY_CLASS.endswith("RedisHuey"):
+    HUEY["url"] = env.str("REDIS_URL", default="redis://localhost:6379/0")
+else:
+    HUEY["filename"] = env.str("HUEY_FILENAME",
+                               default=str(BASE_DIR / "huey.sqlite3"))
 
 # Immediate mode executes a task in the caller — which, for a run launched from
 # the page, is the request itself: the browser would wait out the whole
@@ -277,7 +326,15 @@ STATIC_URL = "static/"
 # `collectstatic` gathers files here for WhiteNoise to serve in production.
 STATIC_ROOT = BASE_DIR / "staticfiles"
 STORAGES = {
-    "default": {"BACKEND": "django.core.files.storage.FileSystemStorage"},
+    # Where uploads live. A filesystem by default, which is right whenever the
+    # web process and the consumer share one; env-selectable because they do not
+    # have to. Pointing this at object storage (django-storages' S3Storage, say)
+    # is the third of the three switches that separate the two processes, beside
+    # the broker and `DATABASE_URL` — and, like those, it is a setting rather
+    # than a change here.
+    "default": {"BACKEND": env.str(
+        "DEFAULT_FILE_STORAGE",
+        default="django.core.files.storage.FileSystemStorage")},
     # Non-manifest WhiteNoise storage: compresses files at collectstatic and
     # serves them with cache headers, but keeps plain filenames — so
     # {% static %} needs no manifest and works in tests / `runserver` without a
@@ -322,6 +379,18 @@ if SECURE_BEHIND_TLS:
     # with reality. Only trust this header from a proxy that overwrites it
     # rather than passing a client-supplied one through.
     SECURE_PROXY_SSL_HEADER = ("HTTP_X_FORWARDED_PROTO", "https")
+
+# Origins whose POSTs Django will accept. Django matches the Origin header
+# against this list for any request it considers secure, and an empty list means
+# every form on a hosted instance is rejected with "CSRF verification failed" —
+# a failure that looks like a bug in the page rather than a missing setting.
+# Set outside the block above because a proxy can terminate TLS without this
+# instance being told to harden anything else, and defaulted from ALLOWED_HOSTS
+# so the common case needs no second list saying the same names twice.
+CSRF_TRUSTED_ORIGINS = env.list(
+    "CSRF_TRUSTED_ORIGINS",
+    default=[f"https://{host}" for host in ALLOWED_HOSTS if host != "*"],
+)
 
 
 # ── Logging ────────────────────────────────────────────────────────────────────

@@ -1,21 +1,24 @@
 """Who owns an experiment, and what sharing one actually grants.
 
-Three kinds of experiment once an instance has accounts — yours, shared with
-you, and nobody's — and the interesting cases are the boundaries between them.
 The distinction that carries the most weight is that **sharing is an invitation
 to look, not a transfer of control**: a colleague can read and export a shared
 experiment, and cannot run, edit or delete it. An owner's results should not
 change because someone else pressed Run.
 
-`OwnerPolicy` is the default policy, so these also pin that it stays completely
+`GroupPolicy` is the default policy, so these also pin that it stays completely
 transparent while `REQUIRE_LOGIN` is off — the same inert-by-default contract
 the login wall has.
+
+Ana and Ben are in one group here, because `shared` means *shared with my group*
+and outside one it grants nothing. What happens **between** groups is
+`test_groups.py`; this file is about what happens inside one.
 """
 
 import pytest
 from django.urls import reverse
 
 from ui.models import Experiment
+from ui.permissions import DELETE, EXPORT, RUN
 
 from tests.conftest import export_ihpo
 
@@ -28,19 +31,67 @@ def hosted(settings):
 
 
 @pytest.fixture
-def ana(django_user_model):
-    return django_user_model.objects.create_user(username="ana", password="pw")
+def group():
+    """The one group everybody in this module belongs to."""
+    from access.models import Group
+
+    return Group.objects.create(name="lab", user_limit=10)
+
+
+def _member(django_user_model, name, group, role="member"):
+    from access.models import Membership
+
+    user = django_user_model.objects.create_user(username=name, password="pw")
+    Membership.objects.create(user=user, group=group, role=role)
+    return django_user_model.objects.get(pk=user.pk)
 
 
 @pytest.fixture
-def ben(django_user_model):
-    return django_user_model.objects.create_user(username="ben", password="pw")
+def ana(django_user_model, group):
+    return _member(django_user_model, "ana", group)
+
+
+@pytest.fixture
+def ben(django_user_model, group):
+    return _member(django_user_model, "ben", group)
+
+
+@pytest.fixture
+def administrator(django_user_model, group):
+    """A group lead — which is what "can act on everything here" means now.
+
+    It used to be membership of an `Administrators` group carrying instance-wide
+    permissions. Roles replaced that: the reach a lead has is bounded by their
+    group, which is the point, and `test_groups.py` is where that bound is
+    checked.
+    """
+    return _member(django_user_model, "root", group, role="lead")
 
 
 @pytest.fixture
 def staff(django_user_model):
+    """`is_staff` and nothing else — able to reach /admin/, and that is all.
+
+    Kept as its own fixture because the point of naming the permissions was that
+    this person is *not* an administrator of experiments.
+    """
     return django_user_model.objects.create_user(
-        username="root", password="pw", is_staff=True)
+        username="deskclerk", password="pw", is_staff=True)
+
+
+def _granted(django_user_model, username, *codenames):
+    """A user holding exactly *codenames*, granted directly.
+
+    Re-fetched because permissions are cached on the instance the moment
+    anything asks, and every one of these tests asks.
+    """
+    from django.contrib.auth.models import Permission
+
+    user = django_user_model.objects.create_user(username=username, password="pw")
+    user.user_permissions.set(
+        Permission.objects.filter(content_type__app_label="access",
+                                  codename__in=codenames))
+    return django_user_model.objects.get(pk=user.pk)
 
 
 def _experiment(owner=None, shared=False, name="owned") -> Experiment:
@@ -55,15 +106,25 @@ def _detail(client, exp):
 
 # ── inert without accounts ───────────────────────────────────────────────────
 
-def test_the_default_policy_is_the_owner_policy():
-    """One switch, not two. REQUIRE_LOGIN turning ownership on is the whole
+def test_the_default_policy_is_the_group_policy():
+    """One switch, not two. REQUIRE_LOGIN turning the boundary on is the whole
     configuration; there is no second variable to remember."""
     from django.conf import settings as django_settings
 
     from ui.permissions import policy
 
-    assert django_settings.EXPERIMENT_POLICY == "access.policy.OwnerPolicy"
-    assert type(policy()).__name__ == "OwnerPolicy"
+    assert django_settings.EXPERIMENT_POLICY == "access.policy.GroupPolicy"
+    assert type(policy()).__name__ == "GroupPolicy"
+
+
+def test_the_old_policy_name_still_resolves():
+    """`OwnerPolicy` is an alias now. An operator who pinned EXPERIMENT_POLICY
+    to the old path in their .env should not find the app refusing to start."""
+    from django.utils.module_loading import import_string
+
+    from access.policy import GroupPolicy
+
+    assert import_string("access.policy.OwnerPolicy") is GroupPolicy
 
 
 def test_ownership_is_invisible_without_accounts(client, settings):
@@ -205,25 +266,23 @@ def test_nobody_else_can_share_your_experiment_out_from_under_you(client, hosted
 
 # ── nobody's ─────────────────────────────────────────────────────────────────
 
-def test_an_ownerless_experiment_belongs_to_everyone(client, hosted, ana):
-    """These predate accounts, so there is no owner whose wishes are being
-    overridden — and hiding them would swallow an operator's existing work the
-    moment they turned the switch on."""
+def test_an_ownerless_experiment_belongs_to_nobody(client, hosted, ana):
+    """It used to belong to *everyone*, and that was right at the time.
+
+    The only ownerless experiments were the ones predating accounts: no owner's
+    wishes were being overridden, and hiding them would have swallowed an
+    operator's existing work the moment they turned the switch on. Once there
+    are groups the same rule is a leak by construction — every member of every
+    group would see them — so it is gone, and the migration that introduced
+    groups gave the existing ones an owner rather than leaving them to this.
+
+    What is left is a row nobody can reach, which is a state to notice rather
+    than to rely on: `access/admin.py` stops an account being deleted into it.
+    """
     exp = _experiment(owner=None)
     client.force_login(ana)
 
-    resp = _detail(client, exp)
-
-    assert resp.status_code == 200
-    assert resp.context["may"] == {"run": True, "edit": True,
-                                   "delete": True, "export": True}
-
-
-def test_the_page_says_an_ownerless_experiment_is_unowned(client, hosted, ana):
-    exp = _experiment(owner=None)
-    client.force_login(ana)
-
-    assert "no owner" in _detail(client, exp).content.decode()
+    assert _detail(client, exp).status_code == 404
 
 
 def test_deleting_a_user_keeps_their_experiments(hosted, ana):
@@ -237,16 +296,78 @@ def test_deleting_a_user_keeps_their_experiments(hosted, ana):
     assert exp.owner is None
 
 
-# ── staff ────────────────────────────────────────────────────────────────────
+# ── administrators, and the powers they are made of ─────────────────────────
+#
+# These used to be one flag. `is_staff` meant "may open /admin/" *and* "sees
+# everyone's experiments" *and* "may act on them" — so there was no way to let
+# somebody administer accounts without also handing them everyone's unpublished
+# results. Each is its own permission now, and these pin them apart.
 
-def test_staff_see_and_can_act_on_everything(client, hosted, ben, staff):
+
+def test_an_administrator_sees_and_can_act_on_everything(client, hosted, ben,
+                                                         administrator):
+    """The group the migration creates carries what `is_staff` used to."""
     exp = _experiment(owner=ben)
-    client.force_login(staff)
+    client.force_login(administrator)
 
     resp = _detail(client, exp)
 
     assert resp.status_code == 200
     assert all(resp.context["may"].values())
+
+
+def test_is_staff_alone_grants_nothing_here(client, hosted, ben, staff):
+    """The whole point of the split, and the thing a later refactor could
+    quietly undo by reaching for `is_staff` again because it is nearer to hand.
+
+    Reaching /admin/ is Django's business and is untouched; what this pins is
+    that it buys nothing in codesigner.
+    """
+    exp = _experiment(owner=ben)
+    client.force_login(staff)
+
+    assert _detail(client, exp).status_code == 404
+
+
+def test_seeing_everything_is_not_being_allowed_to_touch_it(client, hosted, ben,
+                                                            django_user_model):
+    """A supervisor who should read results without being able to spend compute
+    or delete anything. Impossible to express before."""
+    reader = _granted(django_user_model, "reader", "view_all_experiments")
+    exp = _experiment(owner=ben)
+    client.force_login(reader)
+
+    resp = _detail(client, exp)
+
+    # Reaching the page at all *is* the view check — `may` carries only the
+    # actions offered on it.
+    assert resp.status_code == 200, "they should be able to see it"
+    assert resp.context["may"][EXPORT], "reading includes taking a copy"
+    assert not resp.context["may"][RUN]
+    assert not resp.context["may"][DELETE]
+
+
+def test_managing_implies_seeing(client, hosted, ben, django_user_model):
+    """Being able to act on a row you cannot see is not a state worth having,
+    so the queryset returns everything for either permission."""
+    manager = _granted(django_user_model, "manager", "manage_experiments")
+    exp = _experiment(owner=ben)
+    client.force_login(manager)
+
+    resp = _detail(client, exp)
+
+    assert resp.status_code == 200
+    assert resp.context["may"][RUN]
+
+
+def test_a_superuser_needs_no_grant(client, hosted, ben, django_user_model):
+    """Django gives an active superuser every permission, so an operator keeps
+    all of this through an upgrade without touching anything."""
+    root = django_user_model.objects.create_superuser(username="su", password="pw")
+    exp = _experiment(owner=ben)
+    client.force_login(root)
+
+    assert all(_detail(client, exp).context["may"].values())
 
 
 # ── what leaves the instance ─────────────────────────────────────────────────

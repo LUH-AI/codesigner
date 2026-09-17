@@ -27,8 +27,12 @@ ENV UV_CACHE_DIR=/uv-cache \
     UV_PYTHON_INSTALL_DIR=/uv-cache/python
 
 # Install Python deps first for layer caching (pyrfr/SMAC build is slow).
-COPY requirements.txt .
-RUN pip install -r requirements.txt
+# Both layers: the hosted drivers (redis, psycopg, s3) are three small packages,
+# and an image that lacked them would have to be rebuilt to change a *setting* —
+# which is exactly what the configurations are meant to avoid. A plain pip
+# install outside a container still gets only requirements.txt.
+COPY requirements.txt requirements-hosted.txt ./
+RUN pip install -r requirements.txt -r requirements-hosted.txt
 
 COPY . .
 

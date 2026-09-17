@@ -51,6 +51,17 @@ class OpenPolicy:
         """The experiments this request may see, as a queryset."""
         return Experiment.objects.all()
 
+    def for_listing(self, request):
+        """The experiments a page should *list*, which need not be all of them.
+
+        Authorization and presentation are different questions: something may be
+        reachable without belonging on the front page. A policy that draws no
+        distinction — this one — answers both the same way, and a policy that
+        does (a group lead's own work, versus their whole group's) overrides
+        this without touching what may be *reached*.
+        """
+        return self.experiments(request)
+
     def may(self, request, experiment, action):
         """Whether this request may perform *action* on a visible experiment."""
         return True
@@ -100,8 +111,13 @@ def policy():
 
 def visible_experiments(request):
     """The experiments to list for this request — for the sidebar and anything
-    else that enumerates rather than looking one up."""
-    return policy().experiments(request)
+    else that enumerates rather than looking one up.
+
+    `for_listing`, not `experiments`: enumerating is the presentation question,
+    and the two part company for a group lead, whose everyday list stays their
+    own work while their group's is a panel of its own.
+    """
+    return policy().for_listing(request)
 
 
 def experiment_view(action):

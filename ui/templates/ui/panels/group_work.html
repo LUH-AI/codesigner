@@ -1,0 +1,36 @@
+{% extends "base.html" %}
+{% load i18n numbers %}
+
+{% block title %}{% translate "Their experiments" %} · Codesigner{% endblock %}
+
+{% block content %}
+    <h1>{% translate "Experiments in this group" %}</h1>
+    {% comment %}Everyone else's, not everyone's: the lead's own stay on the
+    Experiments tab, so being a lead does not quietly turn the everyday list
+    into the whole group's.{% endcomment %}
+    <p class="caption">{% blocktranslate with group=group.name %}Everybody else's work in {{ group }}. Yours is under Experiments.{% endblocktranslate %}</p>
+
+    <table class="trials" style="margin-top: 1rem;">
+        <thead>
+            <tr>
+                <th>{% translate "Experiment" %}</th>
+                <th>{% translate "Owner" %}</th>
+                <th>{% translate "Shared" %}</th>
+                <th>{% translate "Created" %}</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for exp in experiments %}
+                <tr>
+                    <td><a href="{% url 'ui:experiment_detail' exp.pk %}">{{ exp.name }}</a>
+                        <span class="exp-id">({{ exp.identifier }})</span></td>
+                    <td>{{ exp.owner.get_username }}</td>
+                    <td>{% if exp.shared %}{% translate "with the group" %}{% else %}—{% endif %}</td>
+                    <td>{{ exp.created_at|date:"Y-m-d" }}</td>
+                </tr>
+            {% empty %}
+                <tr><td colspan="4" class="caption">{% translate "Nobody else in this group has an experiment yet." %}</td></tr>
+            {% endfor %}
+        </tbody>
+    </table>
+{% endblock %}
