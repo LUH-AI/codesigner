@@ -21,9 +21,15 @@ env = environ.Env(
 # Values already present in the process environment win over .env entries.
 environ.Env.read_env(BASE_DIR / ".env")
 
-SECRET_KEY = env("SECRET_KEY")
-
 DEBUG = env("DEBUG")
+
+# Running locally needs no .env at all. Outside DEBUG it is required and has no
+# default: a deployment that forgets to set one should fail loudly rather than
+# sign its cookies with a value that is in the repository.
+if DEBUG:
+    SECRET_KEY = env("SECRET_KEY", default="django-insecure-local-development-only")
+else:
+    SECRET_KEY = env("SECRET_KEY")
 
 ALLOWED_HOSTS = env.list("ALLOWED_HOSTS", default=["localhost", "127.0.0.1"])
 
