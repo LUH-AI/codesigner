@@ -815,6 +815,25 @@ def fit_surrogate(config_space, trials: List[TrialResult], metric_name: str, see
         return None, f"Surrogate fit failed ({e})."
 
 
+def predict_mean_std(surrogate, rows):
+    """`(mean, std)` over *rows* from whichever surrogate this is.
+
+    A SMAC model answers through `predict_marginalized`, which is the belief
+    the search itself consulted. Anything else is a scikit-learn forest, whose
+    band is tree disagreement — see `_predict_with_spread` for what that does
+    and does not license.
+    """
+    import numpy as np
+
+    predict = getattr(surrogate, "predict_marginalized", None)
+    if predict is None:
+        return _predict_with_spread(surrogate, rows)
+
+    mean, var = predict(np.asarray(rows))
+    return (np.asarray(mean, dtype=float).ravel(),
+            np.sqrt(np.clip(np.asarray(var, dtype=float), 0.0, None)).ravel())
+
+
 def _predict_with_spread(rf, rows):
     """The forest's own mean prediction over *rows*, and how much its trees
     disagree there — `(mean, std)`, each as long as *rows*.
@@ -1059,6 +1078,24 @@ class BaseOptimizer(ABC):
     @property
     @abstractmethod
     def name(self) -> str: ...
+
+    def refit_surrogate(self, config_space, trials, metric_name: str, seed: int = 0,
+                        values=None):
+        """The model *this optimizer* would have fitted, refit on *trials*.
+
+        Returns `(surrogate, warning)`, or `(None, None)` for an optimizer that
+        has no surrogate to speak of — random and grid search fit nothing, and
+        a caller wanting a picture of some belief should fall back to a generic
+        one rather than be told a search that models nothing modelled this.
+
+        Refit rather than retained deliberately. The fitted model does not
+        outlive the run that made it, and keeping one would mean a versioned
+        binary in a JSON snapshot that also has to cross the boundary to
+        whichever host ran the search. Its class and settings do survive, and
+        so do the trials, which is enough to build the same belief again — and
+        unlike a stored blob it is reproducible from what is already recorded.
+        """
+        return None, None
 
     #: Whether this optimizer fits a model of the objective it can be asked how
     #: sure it is. Only such an optimizer can answer `incumbent_confidence`, and
@@ -1885,7 +1922,16 @@ class BaseOptimizer(ABC):
         if hp_name not in config_space:
             return [], [], [], [], None, f"No such hyperparameter: {hp_name}."
 
-        rf, warning = fit_surrogate(config_space, trials, metric_name, seed, values=values)
+        # The run's own model class where the optimizer can rebuild one, so a
+        # Gaussian-process run is read through a Gaussian process rather than
+        # through a stand-in forest that never saw the search. The object itself
+        # does not survive `optimize()`, but its class and settings do, and the
+        # trials it was fitted on are recorded — so it is refitted, not
+        # recovered. Anything that cannot (random search, grid search, a refit
+        # that raises) keeps the forest.
+        rf, warning = self.refit_surrogate(config_space, trials, metric_name, seed, values=values)
+        if rf is None:
+            rf, warning = fit_surrogate(config_space, trials, metric_name, seed, values=values)
         if rf is None:
             return [], [], [], [], None, warning
 
@@ -1925,7 +1971,7 @@ class BaseOptimizer(ABC):
         if len(rows) < 2:
             return [], [], [], [], None, f"No valid configurations along {hp_name}."
 
-        mu, sigma = _predict_with_spread(rf, np.array(rows))
+        mu, sigma = predict_mean_std(rf, np.array(rows))
 
         observed = [v for _, v in _pair_trials_with_scores(
             config_space, trials, metric_name, values=values)]

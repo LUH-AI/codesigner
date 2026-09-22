@@ -208,3 +208,75 @@ def test_a_values_callable_that_raises_loses_only_that_trial(space, trials):
     data = _pair_trials_with_scores(space, trials, "accuracy", values=sometimes)
 
     assert len(data) == len([t for t in trials if t.trial % 5])
+
+
+# ── Whose surrogate ──────────────────────────────────────────────────────────
+#
+# The figure says "Predicted" and means the search's own belief. Fitting a
+# generic forest instead makes every run look alike and denies that the choice
+# of surrogate mattered at all.
+
+def test_a_search_that_models_nothing_has_no_surrogate_to_rebuild(optimizer, space, trials):
+    """Random search fits nothing, so there is nothing of its own to show and
+    the caller is told so rather than handed a stand-in dressed up as one."""
+    assert optimizer.refit_surrogate(space, trials, "accuracy") == (None, None)
+
+
+def test_the_slice_still_draws_without_one(optimizer, space, trials):
+    """... and losing the fidelity must not cost the figure."""
+    _, positions, mu, sigma, _, _ = optimizer.compute_incumbent_slice(
+        space, trials, "accuracy", "depth")
+
+    assert len(positions) == len(mu) == len(sigma) > 1
+
+
+@pytest.mark.parametrize("strategy,expected", [("rf", "RandomForest"),
+                                               ("gp", "GaussianProcess")])
+def test_a_run_is_read_through_its_own_model(space, trials, strategy, expected):
+    """A Gaussian-process run is read through a Gaussian process. The object
+    does not survive the run, but its class and settings do."""
+    from core.optimizers.smac_optimizer import SMACOptimizer
+
+    surrogate, warning = SMACOptimizer(search_strategy=strategy).refit_surrogate(
+        space, trials, "accuracy")
+
+    assert warning is None
+    assert type(surrogate._model).__name__ == expected
+
+
+def test_the_forest_is_not_told_its_targets_are_already_logged(space, trials):
+    """SMAC's own `get_model` hardcodes `log_y=True`, and a forest believing
+    that exponentiates what it is given. Costs are negative under a metric with
+    no upper bound, so refitting on them needs it off."""
+    from core.optimizers.smac_optimizer import SMACOptimizer
+
+    surrogate, _ = SMACOptimizer(search_strategy="rf").refit_surrogate(
+        space, trials, "accuracy")
+
+    assert surrogate._model._log_y is False
+
+
+def test_predictions_come_back_in_the_metrics_units(space, trials):
+    """The model learns cost; the panel is labelled with the metric. An
+    accuracy slice that came back as cost would be upside down."""
+    from core.optimizers.smac_optimizer import SMACOptimizer
+
+    optimizer = SMACOptimizer(search_strategy="rf")
+    _, _, mu, _, eta, _ = optimizer.compute_incumbent_slice(
+        space, trials, "accuracy", "depth")
+
+    observed = [t.scores["accuracy"] for t in trials]
+    assert min(observed) - 0.5 <= min(mu) <= max(mu) <= max(observed) + 0.5
+    assert min(observed) <= eta <= max(observed)
+
+
+def test_a_measured_output_that_is_not_a_metric_keeps_its_own_units(space, trials):
+    """What the constraint panel needs: a surrogate over trial duration, which
+    no metric reports and which must not be run through a metric's conversion."""
+    from core.optimizers.smac_optimizer import SMACOptimizer
+
+    _, _, mu, _, _, _ = SMACOptimizer(search_strategy="rf").compute_incumbent_slice(
+        space, trials, "accuracy", "depth", values=lambda t: t.duration)
+
+    durations = [t.duration for t in trials]
+    assert min(durations) - 1 <= min(mu) <= max(mu) <= max(durations) + 1

@@ -133,6 +133,32 @@ def _normal_cdf(z):
     return np.vectorize(lambda v: 0.5 * (1.0 + erf(v / sqrt(2.0))))(z)
 
 
+class _RunSurrogate:
+    """A trained SMAC model, answering in the units the reader sees.
+
+    The model learned cost. Everything drawn from it is a metric, so the mean
+    comes back through `from_cost` and the spread does not: both conversions
+    are a negation or a subtraction, which moves a mean and leaves a width
+    alone.
+    """
+
+    def __init__(self, model, metric):
+        self._model = model
+        self._metric = metric
+
+    def predict_marginalized(self, rows):
+        """`(mean, variance)`, the shape `predict_mean_std` dispatches on."""
+        import numpy as np
+
+        from core.metrics import from_cost
+
+        mean, var = self._model.predict_marginalized(np.asarray(rows))
+        mean = np.asarray(mean, dtype=float).ravel()
+        if self._metric is not None:
+            mean = np.array([from_cost(self._metric, float(m)) for m in mean])
+        return mean, np.asarray(var, dtype=float).ravel()
+
+
 class SMACOptimizer(BaseOptimizer):
     """Bayesian optimization via SMAC.
 
@@ -445,7 +471,54 @@ class SMACOptimizer(BaseOptimizer):
             filled["gp_restarts"] = _signature_default(GaussianProcess.__init__, "n_restarts")
         return filled
 
-    def _surrogate(self, facade, scenario):
+    def refit_surrogate(self, config_space, trials, metric_name: str, seed: int = 0,
+                        values=None):
+        """The search's own model class, refit on what the search recorded.
+
+        The figure that reads this is showing *the surrogate's* belief, so a
+        Gaussian-process run has to be read through a Gaussian process. Fitting
+        a generic forest instead makes every run look alike and quietly denies
+        that the choice of surrogate mattered.
+
+        Trained on cost, because that is the direction SMAC optimises, and
+        handed back in the metric's own units — `to_cost`/`from_cost` negate or
+        subtract, so the mean maps straight back and the spread is unchanged by
+        the conversion. With *values* there is no metric and no orientation to
+        undo, so the target is used as given.
+
+        Returns `(None, warning)` rather than raising: a refit that fails
+        should cost the caller its fidelity, not its figure.
+        """
+        import tempfile
+        from pathlib import Path
+
+        import numpy as np
+
+        from core.metrics import from_cost, metric_for, to_cost
+        from core.optimizers.base import _pair_trials_with_scores
+
+        data = _pair_trials_with_scores(config_space, trials, metric_name, values=values)
+        if len(data) < 2:
+            return None, "Not enough trials to fit a surrogate."
+
+        metric = None if values is not None else metric_for(metric_name)
+        X = np.array([config.get_array() for config, _ in data])
+        y = np.array([float(target) if metric is None else to_cost(metric, target)
+                      for _, target in data])
+
+        try:
+            with tempfile.TemporaryDirectory() as directory:
+                scenario = Scenario(config_space, n_trials=max(len(y), 1), seed=seed,
+                                    deterministic=True, output_directory=Path(directory))
+                model = self._surrogate(_STRATEGIES[self._search_strategy], scenario,
+                                        log_y=False)
+                model.train(X, y)
+        except Exception as error:  # noqa: BLE001 — any refit failure falls back
+            return None, f"Could not rebuild this run's surrogate: {error}"
+
+        return _RunSurrogate(model, metric), None
+
+    def _surrogate(self, facade, scenario, log_y=None):
         """The model the search fits, with whatever was set on it.
 
         Asked for through the facade's own `get_model` where that will take the
@@ -470,9 +543,22 @@ class SMACOptimizer(BaseOptimizer):
                 "ratio_features": (None if self._rf_feature_ratio is None
                                    else min(float(self._rf_feature_ratio), 1.0)),
             }
-            return facade.get_model(
-                scenario, bootstrapping=self._rf_bootstrapping,
-                **{k: v for k, v in given.items() if v is not None})
+            given = {k: v for k, v in given.items() if v is not None}
+            if log_y is None:
+                return facade.get_model(
+                    scenario, bootstrapping=self._rf_bootstrapping, **given)
+            # `get_model` hardcodes log_y=True, and a forest told its targets
+            # are already logged exponentiates them. Refitting on raw costs -
+            # which are negative under a metric with no upper bound - needs it
+            # off, so the forest is built here instead, with those same settings.
+            from smac.model.random_forest.random_forest import RandomForest
+            defaults = dict(n_trees=10, ratio_features=1.0, min_samples_split=2,
+                            min_samples_leaf=1, max_depth=2 ** 20)
+            return RandomForest(
+                log_y=log_y, bootstrapping=self._rf_bootstrapping,
+                **{**defaults, **given},
+                configspace=scenario.configspace,
+                instance_features=scenario.instance_features, seed=scenario.seed)
 
         kernel = facade.get_kernel(scenario)
         if self._gp_model_type == "mcmc":
