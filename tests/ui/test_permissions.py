@@ -112,6 +112,7 @@ def test_the_declared_actions_match_what_the_routes_do():
         "trial_ablation": permissions.VIEW,
         "trial_traceback": permissions.VIEW,
         "partial_dependence": permissions.VIEW,
+        "acquisition_slice": permissions.VIEW,
         "metric_figures": permissions.VIEW,
         "local_effects": permissions.VIEW,
         "surrogate_uncertainty": permissions.VIEW,

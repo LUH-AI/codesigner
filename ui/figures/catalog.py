@@ -445,6 +445,46 @@ class PartialDependence(Figure):
     deferred = (("partial_dependence", _("Partial dependence (PDP/ICE)")),)
 
 
+class AcquisitionSlice(Figure):
+    """What the optimizer would look at next along one hyperparameter, and how a
+    stated belief changes that.
+
+    Three panels over a slice through the incumbent: the surrogate's prediction,
+    the belief weighting it, and the resulting acquisition function. A belief
+    does not move the prediction — it leaves the surrogate untouched and
+    multiplies the acquisition — so the middle and bottom panels are where its
+    effect actually is; the dashed curve on the top panel is the *fiction*, the
+    surrogate that would have produced the same acquisition on its own, which is
+    the only sense in which a belief moves a performance curve.
+
+    Deferred and fetched per (metric, hyperparameter), for partial dependence's
+    reason exactly: it fits a surrogate and predicts across a grid, and a model
+    with six hyperparameters would pay that six times on every page load for a
+    panel that shows one.
+
+    Three attributes deliberately unset. `needs_config_space` would do nothing,
+    since `plot()` is never called here — the endpoint does that work itself, as
+    `surrogate_uncertainty` does. `views` would be the wrong shape: which
+    hyperparameter is shown is not another way of looking at the same data, the
+    argument `PartialDependence` makes above. And `absolute_scale` would give
+    the reader a toggle that rescales one panel of three, since the page's scale
+    toggle only ever relayouts `yaxis`.
+
+    Unlike every other figure here, this one's drawing is owned by its own
+    script rather than by experiment_detail.html — see
+    `ui/static/ui/acquisition.js`. The belief is dragged, so its traces depend
+    on state the server never sees; shipping expected improvement in Python as
+    well would mean maintaining it twice.
+    """
+
+    key = "acquisition_slice"
+    label = _("Acquisition and beliefs")
+    width = FULL
+    height = DOUBLE
+    per_metric = True
+    deferred = (("acquisition_slice", _("Acquisition and beliefs")),)
+
+
 class LocalEffects(Figure):
     """Every sampled trial's local ablation as a beeswarm — the spread of each
     hyperparameter's effect, rather than one trial's or an average.
@@ -530,6 +570,10 @@ FIGURES = (
     # a time — the same run at three magnifications, in that order.
     ParallelCoordinates,
     PartialDependence,
+    # Beside partial dependence: the same slice through the same surrogate, read
+    # forwards instead of backwards — what the run learned, then what it would
+    # do next with it.
+    AcquisitionSlice,
     LocalExplanation,
     LocalEffects,
     Trials,

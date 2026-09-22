@@ -1349,6 +1349,127 @@ def partial_dependence_plot(hp_name, grid, ice_lines, pdp):
     return fig
 
 
+#: Where a user belief is drawn, and the one colour on the page that means
+#: "something a person asserted" rather than "something the run measured".
+#:
+#: Amber because every other slot is taken by a claim about the data:
+#: ACCENT_COLOR is the best so far, MARKER_COLOR is a trial, NEGATIVE_COLOR is
+#: harm, UNCERTAINTY_SCALE is the surrogate's own doubt. A belief is none of
+#: those — it is an input, not a finding — so it gets a hue the palette does
+#: not otherwise use, and keeps it wherever beliefs appear.
+BELIEF_COLOR = "#B26315"
+
+
+def acquisition_slice_plot(hp_name, positions, labels, mu, sigma, metric_label,
+                           eta=None, higher_is_better=True, kind="continuous"):
+    """Three stacked panels over one hyperparameter: what the surrogate predicts
+    along a slice through the incumbent, the belief weighting it, and the
+    acquisition function that results.
+
+    **The skeleton only.** The belief and acquisition traces ship empty, and the
+    browser fills them — see `ui/static/ui/acquisition.js`. That is not a
+    layering accident: their values depend on a belief the user is dragging,
+    which the server never sees, so computing them here would mean writing
+    expected improvement twice and keeping two copies agreeing forever. Instead
+    the page's one implementation lives in the browser, and this function owns
+    what Python is better at — the palette, the axes, the panel structure.
+
+    **x is the normalized position, not the hyperparameter's own value.** A
+    prior over a hyperparameter is a density on ConfigSpace's normalized
+    representation (see `compute_incumbent_slice`), so that is the axis a belief
+    has to be drawn and dragged against; *labels* supplies the native values as
+    tick text, which is what the reader should see. Pinning that axis with an
+    explicit range and `fixedrange` is also what lets the browser convert a
+    pixel to a value with nothing but the panel's bounding box.
+
+    Everything the browser needs to redraw travels in `layout.meta["acquisition"]`,
+    including which trace index holds what — the same contract `_selection_meta`
+    uses, so the script needs no hardcoded figure knowledge.
+
+    Returns None when *positions* is empty (too few trials to fit a surrogate,
+    or no valid configuration along the slice).
+    """
+    if not positions:
+        return None
+
+    from plotly.subplots import make_subplots
+
+    band = "rgba(99, 110, 250, 0.16)"
+    fig = make_subplots(rows=3, cols=1, shared_xaxes=True,
+                        row_heights=[0.46, 0.24, 0.30], vertical_spacing=0.05)
+
+    upper = [m + 2 * s for m, s in zip(mu, sigma)]
+    lower = [m - 2 * s for m, s in zip(mu, sigma)]
+
+    # Traces 0-2: what the run actually supports. These never change as the
+    # belief is dragged, which is why they are drawn here and not in the browser.
+    fig.add_trace(go.Scatter(x=positions, y=lower, mode="lines", hoverinfo="skip",
+                             line=dict(width=0), showlegend=False), row=1, col=1)
+    fig.add_trace(go.Scatter(x=positions, y=upper, mode="lines", hoverinfo="skip",
+                             line=dict(width=0), fill="tonexty", fillcolor=band,
+                             name="Tree disagreement (±2σ)", showlegend=False), row=1, col=1)
+    fig.add_trace(go.Scatter(x=positions, y=mu, mode="lines", name="Predicted",
+                             line=dict(width=2.5, color=ACCENT_COLOR),
+                             hovertemplate="%{y:.4g}<extra></extra>"), row=1, col=1)
+    # Trace 3: the fictional surrogate — the mean that would produce the weighted
+    # acquisition on its own. Empty until a belief exists to bend it.
+    fig.add_trace(go.Scatter(x=positions, y=[None] * len(positions), mode="lines",
+                             name="Implied by the belief", hoverinfo="skip",
+                             line=dict(width=2, color=BELIEF_COLOR, dash="dash")), row=1, col=1)
+
+    # Trace 4: the belief. Log axis, because a sharp density spans orders of
+    # magnitude and a linear panel would show a spike on a flat floor; on a log
+    # axis the decay exponent is a plain vertical squash toward the neutral line.
+    fig.add_trace(go.Scatter(x=positions, y=[None] * len(positions), mode="lines",
+                             name="Belief", fill="tozeroy",
+                             fillcolor="rgba(178, 99, 21, 0.13)",
+                             line=dict(width=2, color=BELIEF_COLOR),
+                             hovertemplate="%{y:.3g}<extra></extra>"), row=2, col=1)
+
+    # Traces 5-6: the decision. Both normalized to their own maximum in the
+    # browser — only the ranking of an acquisition function means anything, and
+    # a belief can scale it by orders of magnitude.
+    fig.add_trace(go.Scatter(x=positions, y=[None] * len(positions), mode="lines",
+                             name="Acquisition", hoverinfo="skip",
+                             line=dict(width=1.4, color=MARKER_COLOR, dash="dash")), row=3, col=1)
+    fig.add_trace(go.Scatter(x=positions, y=[None] * len(positions), mode="lines",
+                             name="Weighted by the belief", hoverinfo="skip",
+                             line=dict(width=2.5, color=BELIEF_COLOR)), row=3, col=1)
+
+    # Tick *indices*, so a label is looked up by position rather than by
+    # searching `positions` for a float that came out of it.
+    if kind == "categorical":
+        span = [min(positions) - 0.5, max(positions) + 0.5]
+        shown = range(len(positions))
+    else:
+        span = [0.0, 1.0]
+        shown = range(0, len(positions), max(1, (len(positions) - 1) // 5))
+    ticks = [positions[i] for i in shown]
+    text = [sigfigs(labels[i]) for i in shown]
+
+    fig.update_xaxes(range=span, fixedrange=True)
+    fig.update_xaxes(tickvals=ticks, ticktext=text, title_text=hp_name, row=3, col=1)
+    fig.update_yaxes(title_text=metric_label, row=1, col=1)
+    fig.update_yaxes(title_text="Belief", type="log", row=2, col=1)
+    fig.update_yaxes(title_text="Acquisition", range=[0, 1.08], fixedrange=True, row=3, col=1)
+    fig.update_layout(
+        # Our own pointer handler owns dragging here; Plotly's would pan the
+        # panels out from under it, and its own shape editing reports only on
+        # mouse-up, which is too late to redraw against.
+        dragmode=False,
+        hovermode="x unified",
+        margin=dict(t=30, b=46, l=60, r=20),
+        legend=dict(orientation="h", yanchor="bottom", y=1.01, xanchor="right", x=1),
+        meta={"acquisition": {
+            "traces": {"fiction": 3, "belief": 4, "acquisition": 5, "weighted": 6},
+            "positions": list(positions), "mu": list(mu), "sigma": list(sigma),
+            "eta": eta, "higherIsBetter": bool(higher_is_better),
+            "span": span, "kind": kind, "hp": hp_name,
+        }},
+    )
+    return fig
+
+
 def local_effects_plot(hp_names: list, rows: list):
     """Beeswarm of every sampled trial's local ablation: one row per
     hyperparameter, one point per trial, placed by what that hyperparameter's

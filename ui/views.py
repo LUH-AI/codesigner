@@ -26,6 +26,7 @@ from .figures import (
     MARKER_COLOR, NEGATIVE_COLOR, SELECTION_COLOR, UNCERTAINTY_SCALE,
     autocompute_key,
     deferred_computations,
+    acquisition_slice_plot,
     hyperparameter_ablation_plot, hyperparameter_importance_plot,
     hyperparameter_progress_plot, local_effects_plot, partial_dependence_plot,
 )
@@ -596,6 +597,50 @@ def partial_dependence(request, exp):
     figure, warning = _partial_dependence_data(
         built, metric, hp_name, resolve_settings(exp)["ice_max_curves"])
     return JsonResponse({"figure": figure, "warning": warning})
+
+
+@experiment_view(VIEW)
+def acquisition_slice(request, exp):
+    """The acquisition-and-beliefs figure for one (metric, hyperparameter).
+
+    Fetched per hyperparameter rather than shipped, for `partial_dependence`'s
+    reason exactly — it fits a surrogate and predicts across a grid, and only
+    one hyperparameter is ever on screen.
+
+    The belief and acquisition traces come back empty; the browser fills them
+    (`ui/static/ui/acquisition.js`). Everything it needs to do that rides in the
+    figure's own `layout.meta`, so the response is the figure plus a warning,
+    the same shape `partial_dependence` returns.
+    """
+    metric = request.GET.get("metric", "")
+    hp_name = request.GET.get("hp", "")
+
+    if metric not in exp.metric_names:
+        return HttpResponseBadRequest("unknown metric")
+
+    built = _rebuild_experiment(exp)
+    result = built["result"] if built else None
+    if (result is None or not result.trials
+            or hp_name not in result.trials[0].config):
+        return HttpResponseBadRequest("invalid hyperparameter")
+
+    config_space = _config_space_for(built)
+    if config_space is None:
+        return JsonResponse({"figure": None, "warning": _(
+            "The model this experiment used is not available here, so its "
+            "search space cannot be rebuilt.")})
+
+    grid, positions, mu, sigma, eta, warning = built["optimizer"].compute_incumbent_slice(
+        config_space, result.trials, metric, hp_name, seed=built["seed"])
+    if not positions:
+        return JsonResponse({"figure": None, "warning": warning})
+
+    figure = acquisition_slice_plot(
+        hp_name, positions, grid, mu, sigma, metric,
+        eta=eta, higher_is_better=metric_for(metric).higher_is_better,
+        kind="categorical" if hasattr(config_space[hp_name], "choices") else "continuous",
+    )
+    return JsonResponse({"figure": _plot_json(figure), "warning": warning})
 
 
 @experiment_view(VIEW)

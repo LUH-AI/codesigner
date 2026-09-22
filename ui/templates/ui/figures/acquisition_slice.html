@@ -1,0 +1,47 @@
+{% load i18n assets %}
+{% comment %}Unlike every other figure, this one's drawing lives in its own
+script rather than in experiment_detail.html's. The belief in the middle panel
+is dragged, so the traces that depend on it are recomputed on every pointer
+move; putting expected improvement in Python as well would mean maintaining it
+twice and keeping the two agreeing forever. So the server ships a styled
+skeleton with its belief and acquisition traces empty (see
+plots.py's acquisition_slice_plot) and ui/static/ui/acquisition.js fills them.
+
+`defer` is load-bearing: this partial is included well above the
+plotly.min.js tag, which is a classic in-body script, so an inline script here
+would run before Plotly existed. A deferred one runs after parsing.{% endcomment %}
+<script src="{% asset 'ui/acquisition.js' %}" defer></script>
+<section class="card" data-figure="{{ figure.key }}"
+         data-acquisition-url="{% url 'ui:acquisition_slice' summary.pk %}">
+    <div class="card-head">
+        <div class="subheader">{{ figure.label }}</div>
+        <p class="selectors">
+            <select id="acq-hp-select" aria-label="{% translate 'Hyperparameter' %}">
+                {% for h in hp_names %}<option value="{{ h }}">{{ h }}</option>{% endfor %}
+            </select>
+        </p>
+    </div>
+    <p id="acq-warning" class="alert warning" hidden></p>
+    {% comment %}Shown instead of fetching when this experiment's settings turn
+    off "compute automatically" for this figure — opening the page then fits
+    nothing until asked, the same bargain partial dependence offers.{% endcomment %}
+    <p id="acq-compute" class="caption" hidden>
+        <button type="button" id="acq-compute-btn">{% translate "Compute" %}</button>
+    </p>
+    <div id="{{ figure.dom_id }}" class="plot"></div>
+    <p id="{{ figure.dom_id }}-empty" class="caption" hidden>{% translate "No acquisition data available." %}</p>
+    <p class="caption">
+        {% blocktranslate trimmed %}
+        A belief does not change what the run measured — it multiplies the acquisition
+        function. The dashed curve on the top panel is the surrogate that would have
+        produced the same acquisition on its own.
+        {% endblocktranslate %}
+    </p>
+    <p class="caption">
+        {% blocktranslate trimmed %}
+        The band is how much the surrogate's trees disagree, not a calibrated posterior:
+        far from any trial the trees agree with each other and the band narrows, so read
+        the bottom panel as relative interest rather than as a probability.
+        {% endblocktranslate %}
+    </p>
+</section>

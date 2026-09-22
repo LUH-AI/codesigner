@@ -40,6 +40,8 @@ EXPECTED_KEYS = [
     # a time.
     "parallel_coordinates",
     "partial_dependence",
+    # Beside it: the same slice through the same surrogate, read forwards.
+    "acquisition_slice",
     # The ablation game, as its own figure: the other three games explain the
     # search, this explains one trial, and it has no interactions to give the
     # figures that read them.
@@ -136,7 +138,8 @@ def test_only_metric_dependent_figures_are_marked_per_metric():
         "interactions_heatmap", "interactions_top_pairs", "interactions_graph",
         "interactions_coalitions", "interactions_orders",
         "performance_over_time", "configuration_cube", "parallel_coordinates",
-        "partial_dependence", "local_explanation", "local_effects",
+        "partial_dependence", "acquisition_slice", "local_explanation",
+        "local_effects",
     }
 
 
@@ -332,15 +335,16 @@ def test_the_page_reads_in_the_declared_order(client):
         "interactions_heatmap", "interactions_top_pairs",
         "interactions_graph", "interactions_coalitions",
         "interactions_orders", "trial_duration",
-        "parallel_coordinates", "partial_dependence", "local_explanation",
-        "local_effects",
+        "parallel_coordinates", "partial_dependence", "acquisition_slice",
+        "local_explanation", "local_effects",
     ]
     spans = {key for key in drawn
              if "wide" in grid[grid.rindex('<div class="slot', 0,
                                            grid.index(f'data-figure="{key}"')):
                                 grid.index(f'data-figure="{key}"')]}
     assert spans == {"performance_over_time", "configuration_cube",
-                     "partial_dependence", "local_explanation", "local_effects",
+                     "partial_dependence", "acquisition_slice",
+                     "local_explanation", "local_effects",
                      "parallel_coordinates"}
 
 
@@ -402,9 +406,12 @@ def test_a_square_figure_gets_two_rows_as_well_as_two_columns(client):
 
     assert FIGURES_BY_KEY["configuration_cube"].height == "double"
     assert "wide" in slot and "tall" in slot
-    assert [f.key for f in FIGURES if f.height == "double"] == ["configuration_cube"]
-    # and nothing else grew a second row by accident
-    assert grid.count(" tall") == 1
+    assert [f.key for f in FIGURES if f.height == "double"] == [
+        "configuration_cube", "acquisition_slice"]
+    # and nothing else grew a second row by accident. Two now: the cube, whose
+    # content is square, and the acquisition slice, whose three stacked panels
+    # are genuinely tall — both declared, neither incidental.
+    assert grid.count(" tall") == 2
 
 
 def test_a_projection_opens_flat(client):

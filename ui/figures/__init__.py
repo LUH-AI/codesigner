@@ -12,12 +12,14 @@ from .catalog import (
     FIGURES, FIGURES_BY_KEY, HP_GAME_FIELDS, HP_GAME_HELP, HP_GAME_LABELS,
 )
 from .plots import (
+    BELIEF_COLOR,
     MARKER_COLOR,
     NEGATIVE_COLOR,
     SELECTION_COLOR,
     UNCERTAINTY_SCALE,
     configuration_cube_plot,
     configuration_projection_plot,
+    acquisition_slice_plot,
     hyperparameter_ablation_plot,
     hyperparameter_importance_plot,
     hyperparameter_interactions_bar_plot,
@@ -36,6 +38,7 @@ from .plots import (
 
 __all__ = [
     "FIGURES",
+    "BELIEF_COLOR",
     "MARKER_COLOR",
     "NEGATIVE_COLOR",
     "SELECTION_COLOR",
@@ -64,6 +67,7 @@ __all__ = [
     "incumbent_scores",
     "local_effects_plot",
     "parallel_coordinates_plot",
+    "acquisition_slice_plot",
     "partial_dependence_plot",
     "performance_over_time_plot",
     "trial_duration_plot",

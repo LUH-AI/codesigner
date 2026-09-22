@@ -1562,6 +1562,17 @@ being read.{% endcomment %}
                     refreshLocalEffects(metric);
 
                     showSelection(metric);
+
+                    // Announced rather than called, so a figure that draws
+                    // itself needs no entry here and this script needs to know
+                    // nothing about it — the same bargain `poll:swapped` and
+                    // `trials:sorted` already make. It matters for a figure
+                    // that ships no server-rendered plot: `redraw` above purges
+                    // every key whose payload is null, which would otherwise
+                    // wipe such a figure at a moment its own script cannot
+                    // predict. See ui/static/ui/acquisition.js.
+                    document.dispatchEvent(new CustomEvent("figures:redrawn",
+                                                           {detail: {metric: metric}}));
                 }
 
                 // Picking a metric applies it immediately: the figures re-render
