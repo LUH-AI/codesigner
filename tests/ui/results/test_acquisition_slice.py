@@ -108,6 +108,39 @@ def test_the_x_axis_is_pinned(client):
         assert list(layout[axis]["range"]) == list(layout["meta"]["acquisition"]["span"])
 
 
+def test_each_panel_names_only_its_own_traces(client):
+    """One legend for all three panels puts names from three different pictures
+    in a single strip, with nothing saying which panel a name belongs to. Each
+    panel gets its own, and each legend sits above the panel it describes."""
+    exp = _experiment()
+    hp = _hp_names(exp)[0]
+    _, data = _slice(client, exp, hp)
+    figure = data["figure"]
+    layout = figure["layout"]
+
+    # Which legend each named trace was assigned to, by the panel it is drawn on
+    panel_of = {"y": "legend", "y2": "legend2", "y3": "legend3"}
+    named = [t for t in figure["data"] if t.get("name")]
+    assert named, "nothing to put in a legend"
+    for trace in named:
+        expected = panel_of[trace.get("yaxis", "y")]
+        assert trace["legend"] == expected, (trace["name"], trace.get("yaxis"))
+
+    # Every panel that has a named trace has a legend of its own
+    for legend in {panel_of[t.get("yaxis", "y")] for t in named}:
+        assert legend in layout, legend
+
+    # ... and each sits above its own panel rather than all at the top
+    for axis, legend in (("yaxis", "legend"), ("yaxis2", "legend2"), ("yaxis3", "legend3")):
+        if legend not in layout:
+            continue
+        top = layout[axis]["domain"][1]
+        assert layout[legend]["y"] >= top, (legend, layout[legend]["y"], top)
+
+    tops = [layout[l]["y"] for l in ("legend", "legend2", "legend3") if l in layout]
+    assert tops == sorted(tops, reverse=True), tops
+
+
 def test_every_hyperparameter_answers(client):
     exp = _experiment()
     for hp in _hp_names(exp):

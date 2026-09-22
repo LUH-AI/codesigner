@@ -1396,7 +1396,16 @@ def acquisition_slice_plot(hp_name, positions, labels, mu, sigma, metric_label,
 
     band = "rgba(99, 110, 250, 0.16)"
     fig = make_subplots(rows=3, cols=1, shared_xaxes=True,
-                        row_heights=[0.46, 0.24, 0.30], vertical_spacing=0.05)
+                        row_heights=[0.46, 0.24, 0.30], vertical_spacing=0.075)
+
+    # One legend per panel, sitting just above it. A single legend for all three
+    # names traces from three different pictures in one strip, and nothing says
+    # which panel a name belongs to. Read the domains back rather than
+    # recomputing them, so changing `row_heights` moves the legends with them.
+    def _legend_over(axis):
+        bottom, top = fig.layout[axis].domain
+        return dict(orientation="h", yanchor="bottom", y=top + 0.012,
+                    xanchor="right", x=1)
 
     upper = [m + 2 * s for m, s in zip(mu, sigma)]
     lower = [m - 2 * s for m, s in zip(mu, sigma)]
@@ -1407,21 +1416,22 @@ def acquisition_slice_plot(hp_name, positions, labels, mu, sigma, metric_label,
                              line=dict(width=0), showlegend=False), row=1, col=1)
     fig.add_trace(go.Scatter(x=positions, y=upper, mode="lines", hoverinfo="skip",
                              line=dict(width=0), fill="tonexty", fillcolor=band,
-                             name="Tree disagreement (±2σ)", showlegend=False), row=1, col=1)
+                             name="Tree disagreement (±2σ)", showlegend=False,
+                             legend="legend"), row=1, col=1)
     fig.add_trace(go.Scatter(x=positions, y=mu, mode="lines", name="Predicted",
-                             line=dict(width=2.5, color=ACCENT_COLOR),
+                             line=dict(width=2.5, color=ACCENT_COLOR), legend="legend",
                              hovertemplate="%{y:.4g}<extra></extra>"), row=1, col=1)
     # Trace 3: the fictional surrogate — the mean that would produce the weighted
     # acquisition on its own. Empty until a belief exists to bend it.
     fig.add_trace(go.Scatter(x=positions, y=[None] * len(positions), mode="lines",
-                             name="Implied by the belief", hoverinfo="skip",
+                             name="Implied by the belief", hoverinfo="skip", legend="legend",
                              line=dict(width=2, color=BELIEF_COLOR, dash="dash")), row=1, col=1)
 
     # Trace 4: the belief. Log axis, because a sharp density spans orders of
     # magnitude and a linear panel would show a spike on a flat floor; on a log
     # axis the decay exponent is a plain vertical squash toward the neutral line.
     fig.add_trace(go.Scatter(x=positions, y=[None] * len(positions), mode="lines",
-                             name="Belief", fill="tozeroy",
+                             name="Belief", fill="tozeroy", legend="legend2",
                              fillcolor="rgba(178, 99, 21, 0.13)",
                              line=dict(width=2, color=BELIEF_COLOR),
                              hovertemplate="%{y:.3g}<extra></extra>"), row=2, col=1)
@@ -1430,10 +1440,10 @@ def acquisition_slice_plot(hp_name, positions, labels, mu, sigma, metric_label,
     # browser — only the ranking of an acquisition function means anything, and
     # a belief can scale it by orders of magnitude.
     fig.add_trace(go.Scatter(x=positions, y=[None] * len(positions), mode="lines",
-                             name="Acquisition", hoverinfo="skip",
+                             name="Acquisition", hoverinfo="skip", legend="legend3",
                              line=dict(width=1.4, color=MARKER_COLOR, dash="dash")), row=3, col=1)
     fig.add_trace(go.Scatter(x=positions, y=[None] * len(positions), mode="lines",
-                             name="Weighted by the belief", hoverinfo="skip",
+                             name="Weighted by the belief", hoverinfo="skip", legend="legend3",
                              line=dict(width=2.5, color=BELIEF_COLOR)), row=3, col=1)
 
     # Tick *indices*, so a label is looked up by position rather than by
@@ -1459,7 +1469,9 @@ def acquisition_slice_plot(hp_name, positions, labels, mu, sigma, metric_label,
         dragmode=False,
         hovermode="x unified",
         margin=dict(t=30, b=46, l=60, r=20),
-        legend=dict(orientation="h", yanchor="bottom", y=1.01, xanchor="right", x=1),
+        legend=_legend_over("yaxis"),
+        legend2=_legend_over("yaxis2"),
+        legend3=_legend_over("yaxis3"),
         meta={"acquisition": {
             "traces": {"fiction": 3, "belief": 4, "acquisition": 5, "weighted": 6},
             "positions": list(positions), "mu": list(mu), "sigma": list(sigma),
