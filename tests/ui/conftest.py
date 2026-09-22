@@ -17,8 +17,9 @@ import pytest
 def db_and_isolated_media(db, settings, tmp_path):
     """Database access plus a per-test MEDIA_ROOT, for every web-layer test."""
     settings.MEDIA_ROOT = str(tmp_path / "media")
-    # Default-on in the app; pinned here so a test never depends on the ambient
-    # value, and the tests that need it off can turn it off explicitly.
+    # Off by default in the app now — a container is where model code is
+    # isolated — so this is pinned on rather than merely agreeing with the
+    # ambient value, and the tests that need it off turn it off explicitly.
     settings.ALLOW_CUSTOM_MODELS = True
 
 

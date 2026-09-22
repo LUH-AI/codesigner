@@ -113,6 +113,10 @@ def test_a_superuser_is_told_why_everything_is_ticked(client, hosted,
     """Django grants them every permission without any of them being a grant, so
     four ticks with no explanation would read as though somebody had ticked
     them."""
+    # One of the four is gated by the instance-wide flag, which is off by
+    # default, so "everything is ticked" needs the floor raised first. The test
+    # below is the one about that floor being legible when it is not.
+    hosted.ALLOW_CUSTOM_MODELS = True
     root = django_user_model.objects.create_superuser(username="su", password="pw")
     client.force_login(root)
 

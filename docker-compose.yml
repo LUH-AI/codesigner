@@ -20,6 +20,9 @@ services:
       HUEY_FILENAME: "/app/data/huey.sqlite3"
       MEDIA_ROOT: "/app/data/media"
       ALLOWED_HOSTS: "*"
+      # On here and off on bare metal: this is the configuration where an
+      # uploaded model executes with a container between it and the host.
+      ALLOW_CUSTOM_MODELS: "True"
     ports:
       - "8000:8000"
     volumes:
@@ -43,6 +46,7 @@ services:
       DATABASE_URL: "sqlite:////app/data/db.sqlite3"
       HUEY_FILENAME: "/app/data/huey.sqlite3"
       MEDIA_ROOT: "/app/data/media"
+      ALLOW_CUSTOM_MODELS: "True"
     volumes:
       - data:/app/data
       - uv-cache:/uv-cache

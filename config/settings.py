@@ -34,9 +34,16 @@ ALLOWED_HOSTS = env.list("ALLOWED_HOSTS", default=["localhost", "127.0.0.1"])
 REQUIRE_LOGIN = env.bool("REQUIRE_LOGIN", default=False)
 
 # When on, users may upload a model .py that the app imports and executes to
-# run experiments. That is arbitrary code execution by design, so it must be
-# OFF on any shared or public deployment (see README).
-ALLOW_CUSTOM_MODELS = env.bool("ALLOW_CUSTOM_MODELS", default=True)
+# run experiments. That is arbitrary code execution by design.
+#
+# Off by default, because a container is the only place model code runs with
+# anything at all between it and the host account: `modelenv.resolve_runner`
+# falls back to importing an unprepared model into this very process, and on a
+# laptop that process holds the developer's filesystem and ssh keys.
+# docker-compose.yml turns it on for the containers; `./run.sh --custom-models`
+# is the deliberate escape hatch outside one. A shared or public deployment
+# leaves it off — see the README's trust model.
+ALLOW_CUSTOM_MODELS = env.bool("ALLOW_CUSTOM_MODELS", default=False)
 
 # Who may see and do what to an experiment. The default enforces groups and
 # ownership when REQUIRE_LOGIN is on and says "everyone, everything" when it is

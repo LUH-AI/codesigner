@@ -63,30 +63,49 @@ See [docs/walkthroughs/ihpo-provenance.md](docs/walkthroughs/ihpo-provenance.md)
 
 ## Running locally
 
+Install once:
+
 ```bash
 pip install -r requirements.txt
 pip install -e .                   # registers the app version (pyproject.toml)
 pip install -e ./model_sdk         # the model contract (core.models imports it)
 cp .env.example .env               # set SECRET_KEY
+```
+
+Then `./run.sh`, which takes one argument per configuration — the same shape as
+`docker-entrypoint.sh`, which dispatches the container's two roles:
+
+```bash
+./run.sh                    # transparent: no accounts, runs execute in-process
+./run.sh auth               # the login wall, ownership and groups
+./run.sh auth --demo        # ... plus a worked instance to sign in to
+./run.sh queue              # the real queue instead of in-process runs
+./run.sh docker             # web + worker in containers
+./run.sh docker --hosted    # ... over Redis and Postgres (configuration C)
+```
+
+Every bare-metal mode applies migrations and clears runs orphaned by a previous
+hard kill before starting. Both are idempotent, fast, and only ever noticed by
+their absence — a missing column, or a row stuck at `running`. Trailing
+arguments reach `runserver`, so `./run.sh 8001` moves the port.
+
+`REQUIRE_LOGIN` arrives as a process variable rather than through `.env` on
+purpose: `config/settings.py` reads `.env`, so a value left there is inherited
+by the test suite and every account-agnostic test silently becomes a login-wall
+test.
+
+By default (`DEBUG=True`) there is no consumer: runs execute in-process on a
+background thread, and the page comes back as soon as you press Run rather than
+waiting out the optimization. `./run.sh queue` switches to the real queue, which
+needs a consumer in a second terminal — the script prints the line.
+
+By hand, if you would rather not use the script:
+
+```bash
 python manage.py migrate
+python manage.py sweep_stale_runs                # after a hard kill
 python manage.py runserver
-```
-
-By default (`DEBUG=True`) there is no consumer, so `runserver` alone is enough:
-runs execute in-process on a background thread, and the page comes back as soon
-as you press Run rather than waiting out the optimization. Stopping the server
-mid-run leaves that run marked `running`; clear it with
-
-```bash
-python manage.py sweep_stale_runs
-```
-
-To exercise the real queue locally, set `HUEY_IMMEDIATE=false` and run the
-consumer in a second terminal:
-
-```bash
-HUEY_IMMEDIATE=false python manage.py runserver     # terminal 1
-HUEY_IMMEDIATE=false python manage.py run_huey       # terminal 2
+REQUIRE_LOGIN=True python manage.py runserver    # with accounts
 ```
 
 ## Running with Docker
@@ -497,14 +516,17 @@ Beyond the built-in models, you can **upload** a model `.py` (a
 `mounted_models/` directory. **Loading either executes it** — arbitrary Python
 running on the server, by design.
 
-This is gated by `ALLOW_CUSTOM_MODELS` (env var), default **on** for local
-single-user use, and on a hosted instance additionally by the per-account
-*Can upload and run custom models* permission (above). **Turn the flag off on
-any shared or public deployment:**
+This is gated by `ALLOW_CUSTOM_MODELS` (env var), **off by default**, and on a
+hosted instance additionally by the per-account *Can upload and run custom
+models* permission (above). Model code is isolated from the host account only
+inside a container, so that is where it is switched on:
 
 ```bash
-ALLOW_CUSTOM_MODELS=False
+./run.sh docker            # containers; compose sets the flag
+./run.sh --custom-models   # bare metal, deliberately, at your own risk
 ```
+
+Leave it off on any shared or public deployment.
 
 With it off, the upload field and mounted-model dropdown disappear, model files
 in imported `.ihpo` experiments are not adopted, and a custom-model experiment

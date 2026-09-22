@@ -41,6 +41,11 @@ MODEL_SOURCE = textwrap.dedent('''
 @pytest.fixture
 def hosted(settings):
     settings.REQUIRE_LOGIN = True
+    # The floor, raised. Every test here is about the per-account permission
+    # that sits on top of the instance-wide flag, and the flag is off by default
+    # now — so without this there is nothing for the permission to sit on. The
+    # one test about the floor itself takes `settings` and lowers it again.
+    settings.ALLOW_CUSTOM_MODELS = True
 
 
 def _trust(user):
