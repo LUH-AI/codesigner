@@ -838,16 +838,24 @@ def evaluate_prior(request, exp):
     # catalog to translate against. What crosses from there is the verdict and a
     # reason for the log; what reaches the page is a sentence.
     verdict = outcome.get("verdict", "unjudged")
+    # Said as a finding about the belief, because that is what a reader asked
+    # for. What the model actually computes — a mean acquisition over samples
+    # from the belief against samples from the incumbent's neighbourhood — is
+    # the reason for the finding and not the finding itself, and leading with it
+    # left the answer to the question buried at the end of a sentence about
+    # regions and neighbourhoods.
     if verdict == "accepted":
-        message = _("The model does not think this region is worse than where "
-                    "the search is already looking.")
+        message = _("This prior is potentially informative: the model rates the "
+                    "region it points at as promising as where the search is "
+                    "already headed.")
     elif verdict == "rejected":
-        message = _("The model scores this region more than %(tolerance)s below "
-                    "where the search is already looking. Acting on it would "
+        message = _("This prior is unlikely to be helpful: the model rates the "
+                    "region it points at more than %(tolerance)s worse than "
+                    "where the search is already headed, so acting on it would "
                     "cost trials.") % {"tolerance": tolerance}
     else:
         logger.info("A prior could not be judged: %s", outcome.get("reason", ""))
-        message = _("This belief could not be judged, so it stands as stated.")
+        message = _("This prior could not be judged, so it stands as stated.")
     return JsonResponse({"verdict": verdict, "message": message,
                          "tolerance": tolerance})
 
@@ -2456,7 +2464,6 @@ def _prior_only_context(exp, built):
         # From the space rather than from a trial's configuration, which is the
         # whole point: there are no trials.
         "hp_names": list(config_space.keys()),
-        "acq_metric": exp.current_metric or (exp.metric_names or [""])[0],
         "beta_min": BETA_RATIO_MIN,
         "beta_max": BETA_RATIO_MAX,
     }
@@ -2731,7 +2738,6 @@ def _detail_context(request, exp):
         # anything this experiment decided, so they are declarations.
         beta_min=BETA_RATIO_MIN,
         beta_max=BETA_RATIO_MAX,
-        acq_metric=exp.current_metric or (exp.metric_names or [""])[0],
         # Whether the importance figure offers "still to gain" at all. The
         # server already returns nothing for it when off, which would leave the
         # box and the table's three columns there offering an answer that never

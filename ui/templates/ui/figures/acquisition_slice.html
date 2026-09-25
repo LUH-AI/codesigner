@@ -20,7 +20,11 @@ else here submits a real form and gets the token from `{% csrf_token %}`.
          data-prior-url="{% url 'ui:save_prior' summary.pk %}"
          data-evaluate-url="{% url 'ui:evaluate_prior' summary.pk %}"
          data-reset-url="{% url 'ui:reset_prior' summary.pk %}"
-         data-metric="{{ acq_metric }}"
+         {% comment %}The experiment's own metric, for the case where the page
+         has no metric switcher — which is the case where it has no results.
+         `run_default_metric` is what the rest of the page opens on, so the card
+         cannot disagree with it.{% endcomment %}
+         data-metric="{{ run_default_metric|default:'' }}"
          {% comment %}Set when the card is on a page that has no run behind it.
          The prior panel is all there is then — the other two are the
          surrogate's — so the script asks for the density alone and never for a
@@ -247,7 +251,7 @@ else here submits a real form and gets the token from `{% csrf_token %}`.
     or two, and its two answers are "keep" and "discard" rather than "ok" and
     "cancel".{% endcomment %}
     <dialog id="acq-verdict-dialog" class="card">
-        <div class="subheader">{% translate "The model disagrees with this prior" %}</div>
+        <div class="subheader">{% translate "This prior is unlikely to be helpful" %}</div>
         <p id="acq-verdict-detail" class="caption"></p>
         <p class="caption">{% translate "Keeping it means the search will be weighted by it anyway. Discarding it leaves the search unweighted for this hyperparameter." %}</p>
         <p class="selectors">

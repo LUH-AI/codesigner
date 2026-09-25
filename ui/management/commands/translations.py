@@ -286,12 +286,27 @@ class Command(BaseCommand):
         `msgstr` that differs from its `msgid` is somebody's wording and is left
         exactly alone.
 
-        Plural entries are skipped — `msgstr[0]`/`msgstr[1]` need a rule per
-        language and there are two of them in the whole catalog, so they keep
-        gettext's own fallback to the source.
+        A plural entry is filled the same way, from both of its sources: form 0
+        from `msgid`, form 1 from `msgid_plural`. That needs a rule per
+        language in general and needs none here — English has two forms and
+        they are exactly the two the source already states. Left empty they were
+        the only strings in the interface this file could not reword, which is
+        the one thing it exists to be able to do.
         """
         if "msgid_plural" in block:
-            return block
+            plural = re.search(
+                r'(?ms)^msgid ((?:".*"\n?)+)^msgid_plural ((?:".*"\n?)+)'
+                r'^msgstr\[0\] ((?:".*"\n?)+)^msgstr\[1\] ((?:".*"\n?)+)',
+                block + "\n")
+            if not plural:
+                return block
+            filled = (plural.group(3).strip() not in ('""', "")
+                      and plural.group(4).strip() not in ('""', ""))
+            if filled and not reset:
+                return block
+            return (block[:plural.start(3) - len("msgstr[0] ")]
+                    + "msgstr[0] " + plural.group(1).rstrip("\n") + "\n"
+                    + "msgstr[1] " + plural.group(2)).rstrip("\n")
 
         match = re.search(r'(?ms)^msgid ((?:".*"\n?)+)^msgstr ((?:".*"\n?)+)', block + "\n")
         if not match:

@@ -1386,6 +1386,12 @@ def _rgba(hex_colour: str, alpha: float) -> str:
     return "rgba({}, {}, {}, {})".format(*(int(h[i:i + 2], 16) for i in (0, 2, 4)), alpha)
 
 
+#: The top of the prior panel's y axis, above the 1 a belief peaks at. The
+#: browser holds the same number (`PRIOR_AXIS_TOP` in acquisition.js) because it
+#: converts pointer positions against it; the two must not drift.
+PRIOR_AXIS_TOP = 1.25
+
+
 def acquisition_slice_plots(hp_name, positions, labels, mu, sigma, metric_label,
                             eta=None, higher_is_better=True, kind="continuous",
                             incumbent=None, cloud=None):
@@ -1570,7 +1576,13 @@ def acquisition_slice_plots(hp_name, positions, labels, mu, sigma, metric_label,
     # Linear and pinned. The curve is peak-normalized in the browser, so every
     # shape shares one axis and the scale never moves under the reader — see
     # `applyPriorAxis`.
-    prior.update_yaxes(type="linear", range=[0, 1.06], autorange=False)
+    # Headroom above the strongest a belief can be stated. 1.06 was enough to
+    # keep a knot at full height from being clipped and no more, which put a
+    # uniform prior — a flat line at 1 — within a few pixels of the top edge,
+    # where it reads as the frame rather than as a curve. The panel then looked
+    # empty until a shape was chosen, which is the opposite of what a resting
+    # state should say. `PRIOR_AXIS_TOP` in acquisition.js is the same number.
+    prior.update_yaxes(type="linear", range=[0, PRIOR_AXIS_TOP], autorange=False)
 
     # ── what the run measured ────────────────────────────────────────────────
     surrogate = go.Figure()

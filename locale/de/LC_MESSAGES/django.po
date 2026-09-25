@@ -8,7 +8,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: PACKAGE VERSION\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2026-09-25 15:23+0000\n"
+"POT-Creation-Date: 2026-09-25 15:50+0000\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
 "Language-Team: LANGUAGE <LL@li.org>\n"
@@ -117,7 +117,7 @@ msgstr "Abmelden"
 
 #: templates/base.html:80
 msgid "Go"
-msgstr ""
+msgstr "Wechseln"
 
 #: templates/base.html:88 ui/navigation.py:71 ui/templates/ui/appearance.html:4
 #: ui/templates/ui/appearance.html:7
@@ -161,7 +161,7 @@ msgstr "Aufträge"
 #: templates/base.html:124 ui/templates/ui/panels/site_trash.html:4
 #: ui/templates/ui/panels/site_trash.html:7
 msgid "Bin"
-msgstr ""
+msgstr "Papierkorb"
 
 #: templates/base.html:135
 msgid "Experiment Selection"
@@ -169,7 +169,7 @@ msgstr "Experimentauswahl"
 
 #: templates/base.html:137
 msgid "＋ New"
-msgstr "＋ Neu"
+msgstr "＋ Neues"
 
 #: templates/base.html:138
 msgid "📂 Load"
@@ -299,7 +299,7 @@ msgstr ""
 
 #: ui/figures/catalog.py:112
 msgid "Hyperparameter importance (HyperSHAP)"
-msgstr "Bedeutung der Hyperparameter (HyperSHAP)"
+msgstr "Hyperparameter-Wichtigkeit (HyperSHAP)"
 
 #: ui/figures/catalog.py:145 ui/figures/catalog.py:151
 msgid "Local explanation (selected trial)"
@@ -363,10 +363,10 @@ msgstr "Versuchsdauer"
 msgid "Trials"
 msgstr "Versuche"
 
-#: ui/figures/plots.py:312 ui/figures/plots.py:1506 ui/figures/plots.py:1509
-#: ui/figures/plots.py:1600 ui/figures/plots.py:1603
+#: ui/figures/plots.py:312 ui/figures/plots.py:1512 ui/figures/plots.py:1515
+#: ui/figures/plots.py:1612 ui/figures/plots.py:1615
 msgid "Incumbent"
-msgstr "Amtsinhaber"
+msgstr "Incumbent"
 
 #: ui/figures/plots.py:318
 msgid "New incumbent"
@@ -399,7 +399,7 @@ msgid "Interaction strength"
 msgstr "Stärke der Wechselwirkung"
 
 #: ui/figures/plots.py:724 ui/templates/ui/_selected_config_inner.html:29
-#: ui/templates/ui/figures/acquisition_slice.html:35
+#: ui/templates/ui/figures/acquisition_slice.html:40
 #: ui/templates/ui/figures/best_configuration.html:13
 #: ui/templates/ui/figures/hyperparameter_importance.html:72
 #: ui/templates/ui/figures/partial_dependence.html:17
@@ -427,53 +427,51 @@ msgstr "Partielle Abhängigkeit"
 msgid "Predicted score"
 msgstr "Vorhergesagter Wert"
 
-#: ui/figures/plots.py:1473
+#: ui/figures/plots.py:1479
 msgid "Best sampled, unweighted"
 msgstr "Beste Stichprobe, ungewichtet"
 
-#: ui/figures/plots.py:1478
+#: ui/figures/plots.py:1484
 msgid "Best sampled, weighted"
 msgstr "Beste Stichprobe, gewichtet"
 
-#: ui/figures/plots.py:1488 ui/figures/plots.py:1536
+#: ui/figures/plots.py:1494 ui/figures/plots.py:1542
 msgid "Acquisition"
 msgstr "Akquisition"
 
-#: ui/figures/plots.py:1492
+#: ui/figures/plots.py:1498
 msgid "Weighted by the prior"
 msgstr "Mit dem Prior gewichtet"
 
-#: ui/figures/plots.py:1529
-#, fuzzy
-#| msgid "Optimizer"
+#: ui/figures/plots.py:1535
 msgid "Optimizer's Candidate"
-msgstr "Optimierer"
+msgstr "Kandidat des Optimierers"
 
-#: ui/figures/plots.py:1557 ui/figures/plots.py:1569
+#: ui/figures/plots.py:1563 ui/figures/plots.py:1575
 msgid "Prior"
 msgstr "Prior"
 
-#: ui/figures/plots.py:1566
+#: ui/figures/plots.py:1572
 msgid "Control points"
 msgstr "Kontrollpunkte"
 
-#: ui/figures/plots.py:1590
+#: ui/figures/plots.py:1602
 msgid "Predicted"
 msgstr "Vorhergesagt"
 
-#: ui/figures/plots.py:1625
+#: ui/figures/plots.py:1637
 msgid "Implied by the prior"
 msgstr "Vom Prior impliziert"
 
-#: ui/figures/plots.py:1704
+#: ui/figures/plots.py:1716
 msgid "Effect vs. default  (left: hurt, right: helped)"
 msgstr "Effekt ggü. Standard  (links: schadet, rechts: hilft)"
 
-#: ui/figures/plots.py:1739
+#: ui/figures/plots.py:1751
 msgid "Trial"
 msgstr "Versuch"
 
-#: ui/figures/plots.py:1739
+#: ui/figures/plots.py:1751
 msgid "Duration (s)"
 msgstr "Dauer (s)"
 
@@ -487,39 +485,39 @@ msgstr "Dieser Versuch lieferte keine Messung: %(reason)s"
 msgid "failed"
 msgstr "fehlgeschlagen"
 
-#: ui/templates/ui/figures/acquisition_slice.html:46
+#: ui/templates/ui/figures/acquisition_slice.html:51
 msgid "Mean"
 msgstr "Mittelwert"
 
-#: ui/templates/ui/figures/acquisition_slice.html:47
+#: ui/templates/ui/figures/acquisition_slice.html:52
 msgid "Standard deviation"
 msgstr "Standardabweichung"
 
-#: ui/templates/ui/figures/acquisition_slice.html:48
+#: ui/templates/ui/figures/acquisition_slice.html:53
 msgid "First shape parameter"
 msgstr "Erster Formparameter"
 
-#: ui/templates/ui/figures/acquisition_slice.html:49
+#: ui/templates/ui/figures/acquisition_slice.html:54
 msgid "Second shape parameter"
 msgstr "Zweiter Formparameter"
 
-#: ui/templates/ui/figures/acquisition_slice.html:67
+#: ui/templates/ui/figures/acquisition_slice.html:72
 msgid "Asking…"
 msgstr "Wird erfragt…"
 
-#: ui/templates/ui/figures/acquisition_slice.html:68
+#: ui/templates/ui/figures/acquisition_slice.html:73
 msgid "Could not save this prior."
 msgstr "Dieser Prior konnte nicht gespeichert werden."
 
-#: ui/templates/ui/figures/acquisition_slice.html:69
+#: ui/templates/ui/figures/acquisition_slice.html:74
 msgid "Could not compute the acquisition slice."
 msgstr "Der Akquisitionsschnitt konnte nicht berechnet werden."
 
-#: ui/templates/ui/figures/acquisition_slice.html:70
+#: ui/templates/ui/figures/acquisition_slice.html:75
 msgid "The optimizer could not be asked for this run."
 msgstr "Der Optimierer konnte für diesen Lauf nicht befragt werden."
 
-#: ui/templates/ui/figures/acquisition_slice.html:71
+#: ui/templates/ui/figures/acquisition_slice.html:76
 #, python-brace-format
 msgid ""
 "Trial {trials} of {size} in the initial design ({name}). These are drawn "
@@ -530,63 +528,58 @@ msgstr ""
 "gezogen, bevor ein Surrogat angepasst ist, daher kann ein hier gesetzter "
 "Prior sie nicht beeinflussen — er zählt erst, wenn das Design erschöpft ist."
 
-#: ui/templates/ui/figures/acquisition_slice.html:72
+#: ui/templates/ui/figures/acquisition_slice.html:77
 #, python-brace-format
 msgid "Rank {rank} of {total}"
 msgstr "Rang {rank} von {total}"
 
-#: ui/templates/ui/figures/acquisition_slice.html:73
+#: ui/templates/ui/figures/acquisition_slice.html:78
 msgid "runs next"
 msgstr "läuft als Nächstes"
 
-#: ui/templates/ui/figures/acquisition_slice.html:74
+#: ui/templates/ui/figures/acquisition_slice.html:79
 #, python-brace-format
 msgid "{count} candidates here"
 msgstr "{count} Kandidaten hier"
 
-#: ui/templates/ui/figures/acquisition_slice.html:75
+#: ui/templates/ui/figures/acquisition_slice.html:80
 #, python-brace-format
 msgid "Ranks {ranks} of {total}"
 msgstr "Ränge {ranks} von {total}"
 
-#: ui/templates/ui/figures/acquisition_slice.html:76
+#: ui/templates/ui/figures/acquisition_slice.html:81
 #, python-brace-format
 msgid "Rank {rank}(most promising):"
-msgstr ""
-
-#: ui/templates/ui/figures/acquisition_slice.html:77
-#, fuzzy, python-brace-format
-#| msgid "Interaction strength"
-msgid "counts at {strength}"
-msgstr "Stärke der Wechselwirkung"
-
-#: ui/templates/ui/figures/acquisition_slice.html:78
-#, fuzzy
-#| msgid "Asking…"
-msgid "Asking the model…"
-msgstr "Wird erfragt…"
-
-#: ui/templates/ui/figures/acquisition_slice.html:79
-#, fuzzy
-#| msgid "Could not save this prior."
-msgid "Could not ask the model about this prior."
-msgstr "Dieser Prior konnte nicht gespeichert werden."
-
-#: ui/templates/ui/figures/acquisition_slice.html:80
-#, fuzzy
-#| msgid "Could not save this prior."
-msgid "Could not reset this prior."
-msgstr "Dieser Prior konnte nicht gespeichert werden."
-
-#: ui/templates/ui/figures/acquisition_slice.html:81
-msgid "Put back to what the last run searched under."
-msgstr ""
+msgstr "Rang {rank} (am vielversprechendsten):"
 
 #: ui/templates/ui/figures/acquisition_slice.html:82
+#, python-brace-format
+msgid "counts at {strength}"
+msgstr "zählt mit {strength}"
+
+#: ui/templates/ui/figures/acquisition_slice.html:83
+msgid "Asking the model…"
+msgstr "Modell wird gefragt…"
+
+#: ui/templates/ui/figures/acquisition_slice.html:84
+msgid "Could not ask the model about this prior."
+msgstr "Das Modell konnte zu diesem Prior nicht befragt werden."
+
+#: ui/templates/ui/figures/acquisition_slice.html:85
+msgid "Could not reset this prior."
+msgstr "Dieser Prior konnte nicht zurückgesetzt werden."
+
+#: ui/templates/ui/figures/acquisition_slice.html:86
+msgid "Put back to what the last run searched under."
+msgstr "Auf den Stand des letzten Laufs zurückgesetzt."
+
+#: ui/templates/ui/figures/acquisition_slice.html:87
 msgid "Reset. No earlier run stated one for this hyperparameter."
 msgstr ""
+"Zurückgesetzt. Kein früherer Lauf hat für diesen Hyperparameter einen Prior "
+"angegeben."
 
-#: ui/templates/ui/figures/acquisition_slice.html:108
+#: ui/templates/ui/figures/acquisition_slice.html:113
 #: ui/templates/ui/figures/local_effects.html:14
 #: ui/templates/ui/figures/local_explanation.html:19
 #: ui/templates/ui/figures/partial_dependence.html:29
@@ -595,59 +588,59 @@ msgstr ""
 msgid "Compute"
 msgstr "Berechnen"
 
-#: ui/templates/ui/figures/acquisition_slice.html:130
+#: ui/templates/ui/figures/acquisition_slice.html:135
 msgid "Acquisition with incumbent hyperparameters"
 msgstr "Akquisition mit den Hyperparametern des Amtsinhabers"
 
-#: ui/templates/ui/figures/acquisition_slice.html:138
+#: ui/templates/ui/figures/acquisition_slice.html:143
 msgid "Requery Next Trials"
 msgstr "Nächste Versuche neu abfragen"
 
-#: ui/templates/ui/figures/acquisition_slice.html:159
+#: ui/templates/ui/figures/acquisition_slice.html:164
 msgid "Prior distribution"
 msgstr "Prior-Verteilung"
 
-#: ui/templates/ui/figures/acquisition_slice.html:160
+#: ui/templates/ui/figures/acquisition_slice.html:165
 msgid "Uniform"
 msgstr "Gleichverteilt"
 
-#: ui/templates/ui/figures/acquisition_slice.html:161
+#: ui/templates/ui/figures/acquisition_slice.html:166
 msgid "Normal"
 msgstr "Normal"
 
-#: ui/templates/ui/figures/acquisition_slice.html:162
+#: ui/templates/ui/figures/acquisition_slice.html:167
 msgid "Beta"
 msgstr "Beta"
 
-#: ui/templates/ui/figures/acquisition_slice.html:168
+#: ui/templates/ui/figures/acquisition_slice.html:173
 msgid "Freeform"
 msgstr "Freihand"
 
-#: ui/templates/ui/figures/acquisition_slice.html:174
+#: ui/templates/ui/figures/acquisition_slice.html:179
 msgid "Decay"
 msgstr "Abklingen"
 
-#: ui/templates/ui/figures/acquisition_slice.html:175
+#: ui/templates/ui/figures/acquisition_slice.html:180
 msgid "No decay"
 msgstr "Kein Abklingen"
 
-#: ui/templates/ui/figures/acquisition_slice.html:176
+#: ui/templates/ui/figures/acquisition_slice.html:181
 msgid "Logarithmic decay"
 msgstr "Logarithmisches Abklingen"
 
-#: ui/templates/ui/figures/acquisition_slice.html:177
+#: ui/templates/ui/figures/acquisition_slice.html:182
 msgid "Linear decay"
 msgstr "Lineares Abklingen"
 
-#: ui/templates/ui/figures/acquisition_slice.html:178
+#: ui/templates/ui/figures/acquisition_slice.html:183
 msgid "Quadratic decay"
 msgstr "Quadratisches Abklingen"
 
-#: ui/templates/ui/figures/acquisition_slice.html:179
+#: ui/templates/ui/figures/acquisition_slice.html:184
 msgid "Cubic decay"
 msgstr "Kubisches Abklingen"
 
-#: ui/templates/ui/figures/acquisition_slice.html:187
+#: ui/templates/ui/figures/acquisition_slice.html:192
 msgid ""
 "Decay factor as a fraction of the trial budget (β = ratio × N). Larger keeps "
 "the prior influential for longer: better for an accurate prior, worse for a "
@@ -657,67 +650,75 @@ msgstr ""
 "den Prior länger wirksam: besser für einen zutreffenden Prior, schlechter "
 "für einen irreführenden."
 
-#: ui/templates/ui/figures/acquisition_slice.html:191
+#: ui/templates/ui/figures/acquisition_slice.html:196
 msgid "Decay factor as a fraction of the trial budget"
 msgstr "Abklingfaktor als Anteil des Versuchsbudgets"
 
-#: ui/templates/ui/figures/acquisition_slice.html:230
+#: ui/templates/ui/figures/acquisition_slice.html:235
 msgid ""
 "The initial design is drawn before any surrogate is fitted, so nothing "
 "stated here can reach those trials. Waiting means the belief arrives at full "
 "strength on the first trial it can actually influence."
 msgstr ""
+"Das Initialdesign wird gezogen, bevor ein Surrogat angepasst ist, sodass "
+"nichts hier Angegebenes diese Versuche erreicht. Zu warten bedeutet, dass "
+"der Prior beim ersten Versuch, den er tatsächlich beeinflussen kann, mit "
+"voller Stärke ankommt."
 
-#: ui/templates/ui/figures/acquisition_slice.html:232
+#: ui/templates/ui/figures/acquisition_slice.html:237
 msgid "Delay decay until after the initial design"
-msgstr ""
+msgstr "Abklingen erst nach dem Initialdesign beginnen"
 
-#: ui/templates/ui/figures/acquisition_slice.html:234
-#, fuzzy
-#| msgid "Evaluation"
+#: ui/templates/ui/figures/acquisition_slice.html:239
 msgid "Evaluate Prior"
-msgstr "Bewertung"
+msgstr "Prior bewerten"
 
-#: ui/templates/ui/figures/acquisition_slice.html:242
+#: ui/templates/ui/figures/acquisition_slice.html:247
 msgid ""
 "Put this belief back to what the last run searched under, or to uniform if "
 "there was none."
 msgstr ""
+"Diesen Prior auf den Stand des letzten Laufs zurücksetzen, oder auf uniform, "
+"wenn es keinen gab."
 
-#: ui/templates/ui/figures/acquisition_slice.html:242
+#: ui/templates/ui/figures/acquisition_slice.html:247
 msgid "Reset"
-msgstr ""
+msgstr "Zurücksetzen"
 
-#: ui/templates/ui/figures/acquisition_slice.html:244
+#: ui/templates/ui/figures/acquisition_slice.html:249
 msgid ""
 "A decaying prior weights the acquisition by its density raised to this "
 "exponent, which falls as the run proceeds. At 1 the belief counts in full; "
 "near 0 it states nothing and the search proceeds unweighted."
 msgstr ""
+"Ein abklingender Prior gewichtet die Akquisitionsfunktion mit seiner Dichte, "
+"potenziert mit diesem Exponenten, der im Verlauf des Laufs fällt. Bei 1 "
+"zählt der Prior vollständig; nahe 0 sagt er nichts aus und die Suche "
+"verläuft ungewichtet."
 
-#: ui/templates/ui/figures/acquisition_slice.html:260
+#: ui/templates/ui/figures/acquisition_slice.html:265
 msgid "No acquisition data available."
 msgstr "Keine Akquisitionsdaten verfügbar."
 
-#: ui/templates/ui/figures/acquisition_slice.html:271
-msgid "The model disagrees with this prior"
-msgstr ""
+#: ui/templates/ui/figures/acquisition_slice.html:276
+msgid "This prior is unlikely to be helpful"
+msgstr "Dieser Prior ist vermutlich nicht hilfreich"
 
-#: ui/templates/ui/figures/acquisition_slice.html:273
+#: ui/templates/ui/figures/acquisition_slice.html:278
 msgid ""
 "Keeping it means the search will be weighted by it anyway. Discarding it "
 "leaves the search unweighted for this hyperparameter."
 msgstr ""
+"Ihn zu behalten bedeutet, dass die Suche trotzdem damit gewichtet wird. Ihn "
+"zu verwerfen lässt die Suche für diesen Hyperparameter ungewichtet."
 
-#: ui/templates/ui/figures/acquisition_slice.html:275
-#, fuzzy
-#| msgid "Weighted by the prior"
+#: ui/templates/ui/figures/acquisition_slice.html:280
 msgid "Keep the prior"
-msgstr "Mit dem Prior gewichtet"
+msgstr "Prior behalten"
 
-#: ui/templates/ui/figures/acquisition_slice.html:276
+#: ui/templates/ui/figures/acquisition_slice.html:281
 msgid "Discard it"
-msgstr ""
+msgstr "Verwerfen"
 
 #: ui/templates/ui/figures/best_configuration.html:9
 #, python-format
@@ -835,7 +836,7 @@ msgstr "Drücken Sie „Erklärungen berechnen“, um Ergebnisse zu sehen."
 #: ui/templates/ui/figures/hyperparameter_importance.html:57
 #: ui/templates/ui/figures/hyperparameter_importance.html:95
 msgid "No importance data available."
-msgstr "Keine Daten zur Bedeutung verfügbar."
+msgstr "Keine Wichtigkeitsdaten verfügbar."
 
 #: ui/templates/ui/figures/hyperparameter_importance.html:73
 msgid "Importance"
@@ -879,7 +880,7 @@ msgstr "Y-Achse"
 
 #: ui/templates/ui/figures/performance_over_time.html:13
 msgid "score"
-msgstr "Wert"
+msgstr "Bewertung"
 
 #: ui/templates/ui/figures/performance_over_time.html:14
 msgid "error"
@@ -1183,7 +1184,7 @@ msgstr "…dieses Vielfache der vorhergesagten Dauer der Anpassung"
 
 #: ui/templates/ui/_side_evaluation.html:172
 msgid "▶ Run"
-msgstr "▶ Ausführen"
+msgstr "▶ Starten"
 
 #: ui/templates/ui/_side_evaluation.html:174
 #, python-format
@@ -1370,7 +1371,7 @@ msgstr ""
 
 #: ui/forms.py:52
 msgid "Experiment name"
-msgstr "Name des Experiments"
+msgstr "Experimentname"
 
 #: ui/forms.py:53 ui/templates/ui/experiment_detail.html:25
 #: ui/templates/ui/experiment_list.html:13
@@ -1461,7 +1462,7 @@ msgstr "Auf der Abbildung der lokalen Effekte erklärte Versuche"
 
 #: ui/forms.py:176
 msgid "Prior acceptance tolerance"
-msgstr ""
+msgstr "Toleranz für die Prior-Annahme"
 
 #: ui/forms.py:192
 msgid ""
@@ -1487,6 +1488,11 @@ msgid ""
 "units, so it means different things for different objectives; 0 refuses "
 "anything the model does not think is an improvement."
 msgstr ""
+"Um wie viel schlechter die Region eines angegebenen Priors abschneiden darf "
+"als dort, wo die Suche bereits sucht, bevor „Prior bewerten“ ihn ablehnt. In "
+"den Einheiten der Zielfunktion, bedeutet also für verschiedene "
+"Zielfunktionen Unterschiedliches; 0 lehnt alles ab, was das Modell nicht für "
+"eine Verbesserung hält."
 
 #: ui/forms.py:238
 msgid "Use default experiment settings"
@@ -1889,7 +1895,7 @@ msgstr ""
 
 #: ui/panels.py:146
 msgid "You cannot add somebody with that role."
-msgstr ""
+msgstr "Sie können niemanden mit dieser Rolle hinzufügen."
 
 #: ui/panels.py:150
 #, python-format
@@ -1906,6 +1912,8 @@ msgid ""
 "%(name)s is the primary lead. The role has to be transferred before they can "
 "leave."
 msgstr ""
+"%(name)s ist die Hauptleitung. Die Rolle muss übertragen werden, bevor diese "
+"Person die Gruppe verlassen kann."
 
 #: ui/panels.py:176
 #, python-format
@@ -1926,22 +1934,21 @@ msgid ""
 "You cannot change your own role. Transfer the primary lead role to somebody "
 "else instead."
 msgstr ""
+"Sie können Ihre eigene Rolle nicht ändern. Übertragen Sie stattdessen die "
+"Rolle der Hauptleitung an jemand anderen."
 
 #: ui/panels.py:205
-#, fuzzy
-#| msgid "That is not a role."
 msgid "That is not a role you can set."
-msgstr "Das ist keine Rolle."
+msgstr "Das ist keine Rolle, die Sie setzen können."
 
 #: ui/panels.py:209
-#, fuzzy, python-format
-#| msgid "%(name)s must be a .%(ext)s file."
+#, python-format
 msgid "%(name)s is now a %(role)s."
-msgstr "%(name)s muss eine .%(ext)s-Datei sein."
+msgstr "%(name)s ist jetzt %(role)s."
 
 #: ui/panels.py:234
 msgid "You already hold it."
-msgstr ""
+msgstr "Sie haben sie bereits."
 
 #: ui/panels.py:237
 #, python-format
@@ -1949,11 +1956,14 @@ msgid ""
 "The primary lead role can only go to a group lead. Make %(name)s a lead "
 "first."
 msgstr ""
+"Die Rolle der Hauptleitung kann nur an eine Gruppenleitung gehen. Machen Sie "
+"%(name)s zuerst zur Gruppenleitung."
 
 #: ui/panels.py:246
 #, python-format
 msgid "%(name)s is now the primary lead of %(group)s. You are a group lead."
 msgstr ""
+"%(name)s ist jetzt die Hauptleitung von %(group)s. Sie sind Gruppenleitung."
 
 #: ui/panels.py:294
 msgid "A group needs a name and a seat limit of zero or more."
@@ -1978,24 +1988,23 @@ msgstr "%(name)s erstellt."
 #: ui/panels.py:332
 #, python-format
 msgid "%(name)s still has people in it. Remove them first."
-msgstr ""
+msgstr "In %(name)s sind noch Personen. Entfernen Sie sie zuerst."
 
 #: ui/panels.py:334
 #, python-format
 msgid "Deleted %(name)s. Anything it held is in the bin."
 msgstr ""
+"%(name)s gelöscht. Alles, was die Gruppe enthielt, liegt im Papierkorb."
 
 #: ui/panels.py:374
-#, fuzzy, python-format
-#| msgid "Added %(name)s to %(group)s."
+#, python-format
 msgid "Moved experiment %(pk)s into %(group)s."
-msgstr "%(name)s zu %(group)s hinzugefügt."
+msgstr "Experiment %(pk)s nach %(group)s verschoben."
 
 #: ui/panels.py:387
-#, fuzzy, python-format
-#| msgid "Delete experiment"
+#, python-format
 msgid "Deleted experiment %(pk)s."
-msgstr "Experiment löschen"
+msgstr "Experiment %(pk)s gelöscht."
 
 #: ui/panels.py:491
 msgid "Stopped by a site administrator."
@@ -2022,6 +2031,9 @@ msgid ""
 "You are this group's primary lead: you decide who else leads it. Handing "
 "that on is the only way to stop — it always goes to somebody."
 msgstr ""
+"Sie sind die Hauptleitung dieser Gruppe: Sie entscheiden, wer sie sonst noch "
+"leitet. Sie abzugeben ist der einzige Weg aufzuhören — sie geht immer an "
+"jemanden über."
 
 #: ui/templates/ui/panels/group_people.html:23
 #: ui/templates/ui/panels/site_jobs.html:19
@@ -2044,14 +2056,12 @@ msgid "deactivated"
 msgstr "deaktiviert"
 
 #: ui/templates/ui/panels/group_people.html:48
-#, fuzzy
-#| msgid "Seats"
 msgid "Set"
-msgstr "Plätze"
+msgstr "Setzen"
 
 #: ui/templates/ui/panels/group_people.html:63
 msgid "Make primary lead"
-msgstr ""
+msgstr "Zur Hauptleitung machen"
 
 #: ui/templates/ui/panels/group_people.html:69
 msgid "Remove"
@@ -2196,10 +2206,12 @@ msgid ""
 "Experiments whose group was deleted. Put one into another group, or discard "
 "it for good."
 msgstr ""
+"Experimente, deren Gruppe gelöscht wurde. Verschieben Sie eines in eine "
+"andere Gruppe oder verwerfen Sie es endgültig."
 
 #: ui/templates/ui/panels/site_trash.html:24
 msgid "Was owned by"
-msgstr ""
+msgstr "Gehörte"
 
 #: ui/templates/ui/panels/site_trash.html:25
 #: ui/templates/ui/panels/site_usage.html:20
@@ -2209,23 +2221,23 @@ msgstr "Läufe"
 
 #: ui/templates/ui/panels/site_trash.html:26
 msgid "Binned"
-msgstr ""
+msgstr "Im Papierkorb seit"
 
 #: ui/templates/ui/panels/site_trash.html:34
 msgid "nobody"
-msgstr ""
+msgstr "niemandem"
 
 #: ui/templates/ui/panels/site_trash.html:43
 msgid "Move here"
-msgstr ""
+msgstr "Hierhin verschieben"
 
 #: ui/templates/ui/panels/site_trash.html:47
 msgid "Delete for good"
-msgstr ""
+msgstr "Endgültig löschen"
 
 #: ui/templates/ui/panels/site_trash.html:52
 msgid "The bin is empty."
-msgstr ""
+msgstr "Der Papierkorb ist leer."
 
 #: ui/templates/ui/panels/site_usage.html:13
 msgid ""
@@ -2286,38 +2298,50 @@ msgstr "zu viele Versuche fehlschlugen"
 
 #: ui/views.py:323
 msgid "Inconsistent"
-msgstr "Uneinheitlich"
+msgstr "Inkonsistent"
 
 #: ui/views.py:819
 msgid ""
 "Nothing has been run yet, so there is no model to judge this against. A "
 "belief stated now is acted on in full."
 msgstr ""
+"Es wurde noch nichts ausgeführt, also gibt es kein Modell, an dem sich das "
+"beurteilen ließe. Ein jetzt angegebener Prior wird vollständig angewendet."
 
 #: ui/views.py:825
 msgid ""
 "This optimizer fits no model of the objective, so it has no opinion about "
 "where the optimum is."
 msgstr ""
+"Dieser Optimierer passt kein Modell der Zielfunktion an und hat daher keine "
+"Meinung dazu, wo das Optimum liegt."
 
-#: ui/views.py:842
+#: ui/views.py:848
 msgid ""
-"The model does not think this region is worse than where the search is "
-"already looking."
+"This prior is potentially informative: the model rates the region it points "
+"at as promising as where the search is already headed."
 msgstr ""
+"Dieser Prior ist potenziell informativ: Das Modell bewertet die Region, auf "
+"die er zeigt, als ebenso vielversprechend wie die, auf die die Suche bereits "
+"zusteuert."
 
-#: ui/views.py:845
+#: ui/views.py:852
 #, python-format
 msgid ""
-"The model scores this region more than %(tolerance)s below where the search "
-"is already looking. Acting on it would cost trials."
+"This prior is unlikely to be helpful: the model rates the region it points "
+"at more than %(tolerance)s worse than where the search is already headed, so "
+"acting on it would cost trials."
 msgstr ""
+"Dieser Prior ist vermutlich nicht hilfreich: Das Modell bewertet die Region, "
+"auf die er zeigt, um mehr als %(tolerance)s schlechter als die, auf die die "
+"Suche bereits zusteuert; ihn anzuwenden würde Versuche kosten."
 
-#: ui/views.py:850
-msgid "This belief could not be judged, so it stands as stated."
+#: ui/views.py:858
+msgid "This prior could not be judged, so it stands as stated."
 msgstr ""
+"Dieser Prior konnte nicht beurteilt werden und bleibt daher wie angegeben."
 
-#: ui/views.py:1122 ui/views.py:1339
+#: ui/views.py:1130 ui/views.py:1347
 msgid ""
 "The model this experiment used is not available here, so its search space "
 "cannot be rebuilt."
@@ -2325,7 +2349,7 @@ msgstr ""
 "Das von diesem Experiment verwendete Modell ist hier nicht verfügbar, daher "
 "lässt sich sein Suchraum nicht rekonstruieren."
 
-#: ui/views.py:1300
+#: ui/views.py:1308
 msgid ""
 "This SMAC has no acquisition weight layer, so a stated prior does not affect "
 "the search or the candidates below. Install the version requirements.txt "
@@ -2335,41 +2359,41 @@ msgstr ""
 "Prior beeinflusst also weder die Suche noch die Kandidaten unten. "
 "Installieren Sie die in requirements.txt festgelegte Version."
 
-#: ui/views.py:1429
+#: ui/views.py:1437
 msgid ""
 "Set at least one stopping criterion, so the run has something to end on."
 msgstr ""
 "Setzen Sie mindestens ein Abbruchkriterium, damit der Lauf etwas hat, woran "
 "er endet."
 
-#: ui/views.py:1744
+#: ui/views.py:1752
 msgid ""
 "Given up on by hand: it stopped answering, and cancelling it had no effect."
 msgstr ""
 "Von Hand endgültig aufgegeben: Er antwortete nicht mehr, und ein Abbruch "
 "blieb wirkungslos."
 
-#: ui/views.py:1937
+#: ui/views.py:1945
 msgid "See every experiment on this instance"
 msgstr "Jedes Experiment auf dieser Instanz sehen"
 
-#: ui/views.py:1939
+#: ui/views.py:1947
 msgid "Run, edit and delete other people's experiments"
 msgstr "Experimente anderer ausführen, ändern und löschen"
 
-#: ui/views.py:1941
+#: ui/views.py:1949
 msgid "Change the settings every experiment inherits"
 msgstr "Die Einstellungen ändern, die jedes Experiment erbt"
 
-#: ui/views.py:1943
+#: ui/views.py:1951
 msgid "Upload and run custom models"
 msgstr "Eigene Modelle hochladen und ausführen"
 
-#: ui/views.py:2002
+#: ui/views.py:2010
 msgid "Invalid or unreadable experiment file."
-msgstr "Ungültige oder unlesbare Experimentdatei."
+msgstr "Ungültige oder unleserliche Experimentdatei."
 
-#: ui/views.py:2066
+#: ui/views.py:2074
 #, python-format
 msgid ""
 "This looks like more than one run — two files here are called %(name)s. "
@@ -2378,16 +2402,16 @@ msgstr ""
 "Das sieht nach mehr als einem Lauf aus — zwei Dateien hier heißen %(name)s. "
 "Wählen Sie ein einzelnes Laufverzeichnis, das mit der runhistory.json darin."
 
-#: ui/views.py:2073
+#: ui/views.py:2081
 #, python-format
 msgid "Could not read %(name)s."
 msgstr "%(name)s konnte nicht gelesen werden."
 
-#: ui/views.py:2080
+#: ui/views.py:2088
 msgid "This is not a readable SMAC run."
 msgstr "Dies ist kein lesbarer SMAC-Lauf."
 
-#: ui/views.py:2133
+#: ui/views.py:2141
 msgid ""
 "Local explanation needs the search space, which this experiment does not "
 "carry and has no model to ask."
@@ -2395,7 +2419,7 @@ msgstr ""
 "Die lokale Erklärung braucht den Suchraum, den dieses Experiment nicht "
 "mitbringt und für den es kein Modell zu fragen gibt."
 
-#: ui/views.py:2252
+#: ui/views.py:2260
 msgid ""
 "Partial dependence needs the search space, which this experiment does not "
 "carry and has no model to ask."
@@ -2403,7 +2427,7 @@ msgstr ""
 "Die partielle Abhängigkeit braucht den Suchraum, den dieses Experiment nicht "
 "mitbringt und für den es kein Modell zu fragen gibt."
 
-#: ui/views.py:2388
+#: ui/views.py:2396
 msgid ""
 "Local effects need the search space, which this experiment does not carry "
 "and has no model to ask."
@@ -2411,16 +2435,16 @@ msgstr ""
 "Lokale Effekte brauchen den Suchraum, den dieses Experiment nicht mitbringt "
 "und für den es kein Modell zu fragen gibt."
 
-#: ui/views.py:2475
+#: ui/views.py:2482
 msgid "Not recorded"
 msgstr "Nicht aufgezeichnet"
 
-#: ui/views.py:2477
+#: ui/views.py:2484
 #, python-format
 msgid "%(k)s-fold CV"
 msgstr "%(k)s-fache Kreuzvalidierung"
 
-#: ui/views.py:2478
+#: ui/views.py:2485
 #, python-format
 msgid "%(pct)s%% held out"
 msgstr "%(pct)s%% zurückgehalten"
@@ -2529,7 +2553,7 @@ msgstr "Exportieren"
 
 #: ui/templates/ui/home.html:6
 msgid "Use the sidebar to create a new experiment."
-msgstr "Legen Sie über die Seitenleiste ein neues Experiment an."
+msgstr "Erstellen Sie über die Seitenleiste ein neues Experiment."
 
 #: ui/templates/ui/import.html:4
 msgid "Load experiment"

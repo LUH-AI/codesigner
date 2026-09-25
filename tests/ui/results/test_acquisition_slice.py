@@ -1455,3 +1455,28 @@ def test_the_script_writes_no_english_of_its_own():
     leftover = [m for m in re.findall(r'"([A-Z][a-z]+(?: [a-z]+){2,}[^"]*)"', stripped)]
 
     assert not leftover, leftover
+
+
+def test_the_prior_panel_leaves_room_above_a_full_strength_belief(client):
+    """A uniform prior is a flat line at 1, and it is the resting state — what
+    the panel shows before anybody has said anything.
+
+    With the axis stopping just above 1 that line sat against the top edge and
+    read as the frame, so the panel looked empty until a shape was chosen. The
+    headroom is what makes "no belief stated" look like a statement rather than
+    like a figure that failed to draw.
+
+    *How:* the server's range and the browser's constant are asserted together,
+    because the browser reasserts the axis whenever the shape changes and the
+    pointer arithmetic converts against it — three places, one number.
+    """
+    from ui.figures.plots import PRIOR_AXIS_TOP
+
+    exp = _experiment()
+    _, data = _slice(client, exp, _hp_names(exp)[0])
+    axis = _panel(data, "prior")["layout"]["yaxis"]
+
+    assert axis["range"] == [0, PRIOR_AXIS_TOP]
+    assert PRIOR_AXIS_TOP >= 1.2, "a flat line at 1 has to sit clear of the edge"
+    assert f"PRIOR_AXIS_TOP = {PRIOR_AXIS_TOP}" in _script(), (
+        "the browser converts pointer positions against this; it cannot drift")

@@ -27,12 +27,17 @@
     //: page-width slot is actually used.
     var PLOT_CONFIG = {displaylogo: false, responsive: true, displayModeBar: false};
 
-    /* The top of the prior panel's y axis. Above 1 so a knot placed at full
-     * height is drawn whole rather than clipped by the edge, and named because
-     * two places have to agree about it: the layout that sets the range, and
-     * the pointer arithmetic that converts between a position on screen and a
-     * height in [0, 1]. */
-    var PRIOR_AXIS_TOP = 1.06;
+    /* The top of the prior panel's y axis, and the same number
+     * `plots.PRIOR_AXIS_TOP` gives the layout — three places have to agree
+     * about it: the server's range, the range this file reasserts when the
+     * shape changes, and the pointer arithmetic that converts between a
+     * position on screen and a height in [0, 1].
+     *
+     * Well above 1, not just clear of it. A uniform prior is a flat line at 1,
+     * and with barely any headroom it sat against the top edge reading as the
+     * frame — so the panel looked empty until a shape was chosen, which is the
+     * opposite of what the resting state should say. */
+    var PRIOR_AXIS_TOP = 1.25;
 
     /* Abramowitz & Stegun 7.1.26. Accurate to ~1.5e-7, which is several orders
      * better than anything here needs: the acquisition function is only ever
@@ -1677,10 +1682,18 @@
               + "&hp=" + encodeURIComponent(hp))
             .then(function (r) { return r.ok ? r.json() : Promise.reject(); })
             .then(function (data) {
-                /* Dropped if the reader moved on, or if the full slice already
-                 * landed: this is the cheaper half of a race it must not win. */
+                /* Dropped if the reader moved on: this is the cheaper half of
+                 * a race it must not win. */
                 if (metric() !== m || hpSelect.value !== hp) return;
-                if (state && state.figures && state.figures.acquisition) return;
+                /* And dropped if the full slice for *this* hyperparameter has
+                 * already landed, which is the race. Not if one landed for any
+                 * hyperparameter at all: after pressing Compute once, every
+                 * hyperparameter switched to afterwards found a stale
+                 * `figures.acquisition` here and drew no prior, so the panel
+                 * stayed behind the Compute prompt for the rest of the session
+                 * — which is exactly what the prompt is not supposed to gate. */
+                if (state && state.hp === hp
+                        && state.figures && state.figures.acquisition) return;
                 if (data && data.figures) show(data, hp);
             })
             .catch(function () { /* the full fetch reports for both */ })
