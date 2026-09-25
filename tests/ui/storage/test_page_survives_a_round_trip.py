@@ -17,6 +17,8 @@ a file that gets sent to someone else.
 
 import json
 
+import pytest
+
 from django.urls import reverse
 
 from core import io
@@ -140,6 +142,12 @@ def test_what_is_left_out_is_about_the_reader_not_the_experiment(client, rf):
                           "poll_seconds"}
     declarations = {"figures", "grid_figures", "column_figures",
                     "sidebar_figures", "selectable_figures", "selection_colors",
+                    # The full-width bucket, alongside the other three the
+                    # catalog sorts figures into by their declared width.
+                    "page_figures",
+                    # The β field's bounds on the acquisition figure — two
+                    # constants, not anything this experiment decided.
+                    "beta_min", "beta_max",
                     "autocompute", "explanation_games", "explanation_game_help",
                     "has_result", "supports_confidence", "trials_page_size",
                     "tuning_progress",
@@ -158,3 +166,40 @@ def test_what_is_left_out_is_about_the_reader_not_the_experiment(client, rf):
                     "trial_count"}
 
     assert set(context) - set(DISPLAYED) == about_the_instance | declarations
+
+
+def test_a_stated_prior_survives_a_round_trip(client):
+    """Goal one of the file format, as a test: everything but the dataset needed
+    to replicate the optimization. A prior steers what the next run searches, so
+    an experiment reopened from its file without one would search unweighted
+    while the page still showed the belief.
+
+    The knots are deliberately not in the file — they are a few hundred samples
+    restating what `kind` and `params` say exactly — so this also checks the
+    prior still reaches a real optimizer on the far side, where nothing has ever
+    drawn it (`core.priors` rebuilds the density)."""
+    exp = _ran_experiment(client)
+    hp = next(iter(exp.result["configs"].values()))
+    name = list(hp.keys())[0]
+
+    exp.priors = {name: {"kind": "normal", "params": {"mu": 0.6, "sigma": 0.2},
+                         "decay": {"shape": "quadratic", "beta": 7.5},
+                         "at_trial": 3}}
+    exp.save(update_fields=["priors"])
+
+    copy = _reimported(client, exp)
+
+    assert copy.priors == exp.priors
+    assert "knots" not in copy.priors[name]
+
+    # And not merely stored: what came back is enough to rebuild the density
+    # the optimizer weights by, which is the whole reason the knots can be left
+    # out. Peaking at the stated mean is the cheapest proof that the numbers
+    # survived meaning intact rather than just surviving.
+    from core.priors import density_from
+
+    stated = copy.priors[name]
+    grid = [i / 256 for i in range(257)]
+    values = density_from(stated["kind"], stated["params"], grid)
+
+    assert max(values, key=lambda point: point[1])[0] == pytest.approx(0.6, abs=1 / 256)

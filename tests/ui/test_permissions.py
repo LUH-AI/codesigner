@@ -126,6 +126,9 @@ def test_the_declared_actions_match_what_the_routes_do():
         "experiment_compute_analytics": permissions.RUN,
         "prepare_env": permissions.RUN,
         "run_cancel": permissions.RUN,
+        # A prior is not a way of looking at a run, it is a statement about what
+        # the next one searches — so stating one edits the experiment.
+        "save_prior": permissions.EDIT,
         "experiment_settings": permissions.EDIT,
         "experiment_share": permissions.EDIT,
         "experiment_delete": permissions.DELETE,

@@ -6,11 +6,20 @@ huey>=3.3           # background task queue (SqliteHuey; run via `manage.py run_
 gunicorn>=23
 whitenoise>=6.6
 
-# HPO core. 2.4.1 is the first release carrying the fixes this project used to
-# install from a git branch for — scikit-learn 1.9's random-forest import among
-# them — so it is a plain requirement again. Building its pyrfr dependency needs
-# swig, which has no wheel; see the Dockerfile.
-smac>=2.4.1
+# HPO core, pinned to a branch again — deliberately, and this is the second
+# time, so the reason matters.
+#
+# 2.4.1 carries the fixes the previous pin existed for and would be enough to
+# *run*. What it does not carry is the acquisition weight layer: `add_prior`,
+# `TabulatedPrior`, `DECAY_SHAPES`. A prior stated on the acquisition figure
+# reaches the search through those, so on a released SMAC the figure still draws
+# but `SMACOptimizer._apply_priors` logs that it cannot apply anything and the
+# run proceeds unweighted — which is a working install with a silently inert
+# feature, and is why this is a pin rather than an optional extra.
+#
+# Building its pyrfr dependency needs swig, which has no wheel; see the
+# Dockerfile.
+smac @ git+https://github.com/automl/SMAC3.git@feature/output-constraints
 hypershap>=0.0.6
 pandas>=2.3
 scikit-learn>=1.9

@@ -1349,102 +1349,63 @@ def partial_dependence_plot(hp_name, grid, ice_lines, pdp):
     return fig
 
 
-#: Where a user belief is drawn, and the one colour on the page that means
+#: Where a user prior is drawn, and the one colour on the page that means
 #: "something a person asserted" rather than "something the run measured".
 #:
 #: Amber because every other slot is taken by a claim about the data:
 #: ACCENT_COLOR is the best so far, MARKER_COLOR is a trial, NEGATIVE_COLOR is
-#: harm, UNCERTAINTY_SCALE is the surrogate's own doubt. A belief is none of
+#: harm, UNCERTAINTY_SCALE is the surrogate's own doubt. A prior is none of
 #: those — it is an input, not a finding — so it gets a hue the palette does
-#: not otherwise use, and keeps it wherever beliefs appear.
-BELIEF_COLOR = "#B26315"
+#: not otherwise use, and keeps it wherever priors appear.
+PRIOR_COLOR = "#B26315"
+
+#: The σ multiples the surrogate's band steps through, widest first so the
+#: narrower and darker ones draw over them.
+SIGMA_STEPS = (3, 2, 1)
+_BAND_ALPHA = {3: 0.14, 2: 0.22, 1: 0.32}
+
+#: The implied curve gets one band rather than three, and a far fainter one.
+#: It is an inference about a surrogate nobody fitted — read off an acquisition
+#: function by inverting it — so giving it the stepped treatment the measured
+#: model's spread gets would lend it the same standing. It should read as a
+#: ghost of the curve above it.
+FICTION_SIGMA = 1
+_GHOST_ALPHA = 0.05
 
 
-def acquisition_slice_plot(hp_name, positions, labels, mu, sigma, metric_label,
-                           eta=None, higher_is_better=True, kind="continuous"):
-    """Three stacked panels over one hyperparameter: what the surrogate predicts
-    along a slice through the incumbent, the belief weighting it, and the
-    acquisition function that results.
+def _rgba(hex_colour: str, alpha: float) -> str:
+    """`#RRGGBB` at *alpha*, because Plotly fills take a colour and an opacity
+    together and the palette is stored as hex."""
+    h = hex_colour.lstrip("#")
+    return "rgba({}, {}, {}, {})".format(*(int(h[i:i + 2], 16) for i in (0, 2, 4)), alpha)
 
-    **The skeleton only.** The belief and acquisition traces ship empty, and the
-    browser fills them — see `ui/static/ui/acquisition.js`. That is not a
-    layering accident: their values depend on a belief the user is dragging,
-    which the server never sees, so computing them here would mean writing
-    expected improvement twice and keeping two copies agreeing forever. Instead
-    the page's one implementation lives in the browser, and this function owns
-    what Python is better at — the palette, the axes, the panel structure.
 
-    **x is the normalized position, not the hyperparameter's own value.** A
-    prior over a hyperparameter is a density on ConfigSpace's normalized
-    representation (see `compute_incumbent_slice`), so that is the axis a belief
-    has to be drawn and dragged against; *labels* supplies the native values as
-    tick text, which is what the reader should see. Pinning that axis with an
-    explicit range and `fixedrange` is also what lets the browser convert a
-    pixel to a value with nothing but the panel's bounding box.
+def acquisition_slice_plots(hp_name, positions, labels, mu, sigma, metric_label,
+                            eta=None, higher_is_better=True, kind="continuous",
+                            incumbent=None, cloud=None):
+    """Three figures over one hyperparameter — not three panels of one figure.
 
-    Everything the browser needs to redraw travels in `layout.meta["acquisition"]`,
-    including which trace index holds what — the same contract `_selection_meta`
-    uses, so the script needs no hardcoded figure knowledge.
+    Separate figures so each can carry its own controls directly beneath it: the
+    distribution and decay pickers belong under the prior, not in a bar at the
+    top of a card that also holds two other pictures. That is the whole reason
+    for the split, and it costs the shared x axis — which is recovered by
+    construction here, since all three are given the same `span`, the same
+    ticks, and the same `positions`.
 
-    Returns None when *positions* is empty (too few trials to fit a surrogate,
-    or no valid configuration along the slice).
+    Returns `(figures, meta)`. `figures` is keyed `acquisition`, `prior`,
+    `surrogate`, in the order they are read. `meta` is shared and carries the
+    data every figure is drawn from plus, per figure, which trace index holds
+    what — the browser fills the traces that depend on a stated prior, and
+    addresses them through that map rather than by counting.
+
+    Returns `(None, None)` when *positions* is empty: too few trials to fit a
+    surrogate, or no valid configuration along the slice.
     """
     if not positions:
-        return None
+        return None, None
 
-    from plotly.subplots import make_subplots
-
-    band = "rgba(99, 110, 250, 0.16)"
-    fig = make_subplots(rows=3, cols=1, shared_xaxes=True,
-                        row_heights=[0.46, 0.24, 0.30], vertical_spacing=0.075)
-
-    # One legend per panel, sitting just above it. A single legend for all three
-    # names traces from three different pictures in one strip, and nothing says
-    # which panel a name belongs to. Read the domains back rather than
-    # recomputing them, so changing `row_heights` moves the legends with them.
-    def _legend_over(axis):
-        bottom, top = fig.layout[axis].domain
-        return dict(orientation="h", yanchor="bottom", y=top + 0.012,
-                    xanchor="right", x=1)
-
-    upper = [m + 2 * s for m, s in zip(mu, sigma)]
-    lower = [m - 2 * s for m, s in zip(mu, sigma)]
-
-    # Traces 0-2: what the run actually supports. These never change as the
-    # belief is dragged, which is why they are drawn here and not in the browser.
-    fig.add_trace(go.Scatter(x=positions, y=lower, mode="lines", hoverinfo="skip",
-                             line=dict(width=0), showlegend=False), row=1, col=1)
-    fig.add_trace(go.Scatter(x=positions, y=upper, mode="lines", hoverinfo="skip",
-                             line=dict(width=0), fill="tonexty", fillcolor=band,
-                             name="Tree disagreement (±2σ)", showlegend=False,
-                             legend="legend"), row=1, col=1)
-    fig.add_trace(go.Scatter(x=positions, y=mu, mode="lines", name="Predicted",
-                             line=dict(width=2.5, color=ACCENT_COLOR), legend="legend",
-                             hovertemplate="%{y:.4g}<extra></extra>"), row=1, col=1)
-    # Trace 3: the fictional surrogate — the mean that would produce the weighted
-    # acquisition on its own. Empty until a belief exists to bend it.
-    fig.add_trace(go.Scatter(x=positions, y=[None] * len(positions), mode="lines",
-                             name="Implied by the belief", hoverinfo="skip", legend="legend",
-                             line=dict(width=2, color=BELIEF_COLOR, dash="dash")), row=1, col=1)
-
-    # Trace 4: the belief. Log axis, because a sharp density spans orders of
-    # magnitude and a linear panel would show a spike on a flat floor; on a log
-    # axis the decay exponent is a plain vertical squash toward the neutral line.
-    fig.add_trace(go.Scatter(x=positions, y=[None] * len(positions), mode="lines",
-                             name="Belief", fill="tozeroy", legend="legend2",
-                             fillcolor="rgba(178, 99, 21, 0.13)",
-                             line=dict(width=2, color=BELIEF_COLOR),
-                             hovertemplate="%{y:.3g}<extra></extra>"), row=2, col=1)
-
-    # Traces 5-6: the decision. Both normalized to their own maximum in the
-    # browser — only the ranking of an acquisition function means anything, and
-    # a belief can scale it by orders of magnitude.
-    fig.add_trace(go.Scatter(x=positions, y=[None] * len(positions), mode="lines",
-                             name="Acquisition", hoverinfo="skip", legend="legend3",
-                             line=dict(width=1.4, color=MARKER_COLOR, dash="dash")), row=3, col=1)
-    fig.add_trace(go.Scatter(x=positions, y=[None] * len(positions), mode="lines",
-                             name="Weighted by the belief", hoverinfo="skip", legend="legend3",
-                             line=dict(width=2.5, color=BELIEF_COLOR)), row=3, col=1)
+    blank = [None] * len(positions)
+    traces = {"acquisition": {}, "prior": {}, "surrogate": {}}
 
     # Tick *indices*, so a label is looked up by position rather than by
     # searching `positions` for a float that came out of it.
@@ -1457,29 +1418,178 @@ def acquisition_slice_plot(hp_name, positions, labels, mu, sigma, metric_label,
     ticks = [positions[i] for i in shown]
     text = [sigfigs(labels[i]) for i in shown]
 
-    fig.update_xaxes(range=span, fixedrange=True)
-    fig.update_xaxes(tickvals=ticks, ticktext=text, title_text=hp_name, row=3, col=1)
-    fig.update_yaxes(title_text=metric_label, row=1, col=1)
-    fig.update_yaxes(title_text="Belief", type="log", row=2, col=1)
-    fig.update_yaxes(title_text="Acquisition", range=[0, 1.08], fixedrange=True, row=3, col=1)
-    fig.update_layout(
-        # Our own pointer handler owns dragging here; Plotly's would pan the
-        # panels out from under it, and its own shape editing reports only on
-        # mouse-up, which is too late to redraw against.
-        dragmode=False,
-        hovermode="x unified",
-        margin=dict(t=30, b=46, l=60, r=20),
-        legend=_legend_over("yaxis"),
-        legend2=_legend_over("yaxis2"),
-        legend3=_legend_over("yaxis3"),
-        meta={"acquisition": {
-            "traces": {"fiction": 3, "belief": 4, "acquisition": 5, "weighted": 6},
-            "positions": list(positions), "mu": list(mu), "sigma": list(sigma),
-            "eta": eta, "higherIsBetter": bool(higher_is_better),
-            "span": span, "kind": kind, "hp": hp_name,
-        }},
-    )
-    return fig
+    def _dress(fig, *, title, height, show_x_title=False):
+        """What every one of the three shares: a pinned axis and no modebar.
+
+        Pinned because the only interaction this figure offers is the prior
+        drag, hand-rolled on the prior figure's drag layer. Plotly's own zoom
+        and pan would be a second, accidental one.
+        """
+        fig.update_xaxes(range=span, fixedrange=True, tickvals=ticks,
+                         ticktext=text, showticklabels=True)
+        if show_x_title:
+            fig.update_xaxes(title_text=hp_name)
+        fig.update_yaxes(fixedrange=True, title_text=title)
+        fig.update_layout(
+            dragmode=False, hovermode="x unified", height=height,
+            margin=dict(t=18, b=42 if show_x_title else 24, l=64, r=24),
+            legend=dict(orientation="h", yanchor="top", y=0.99, xanchor="right",
+                        x=1, bgcolor="rgba(255, 255, 255, 0.72)", borderwidth=0),
+        )
+        return fig
+
+    # ── what would be tried next ─────────────────────────────────────────────
+    acquisition = go.Figure()
+    # What the slice cannot see. The curve below holds every hyperparameter but
+    # one at the incumbent's value; SMAC's maximizer moves all of them, and the
+    # first thing it does is score a large random sample of the whole space.
+    #
+    # Named for what it is, not what it approximates: a maximum over a sample is
+    # a slack lower bound on the true profile maximum. Measured on a
+    # four-hyperparameter Gaussian-process run, going from 2,000 samples to
+    # 50,000 moved it from 0.17 to 0.34 and it never approached the slice's own
+    # peak of 1.0.
+    if cloud is not None:
+        traces["acquisition"]["cloud"] = len(acquisition.data)
+        acquisition.add_trace(go.Scatter(
+            x=positions, y=list(blank), mode="lines", connectgaps=False,
+            name="Best found by random sampling", hoverinfo="skip",
+            line=dict(width=1.2, color=MARKER_COLOR), fill="tozeroy",
+            fillcolor=_rgba(MARKER_COLOR, 0.10)))
+
+    # Both through one divisor in the browser, with the weight normalized to its
+    # own peak first. Only the ranking of an acquisition function means
+    # anything, so that constant is free — and it is what lets the curves be
+    # read against each other instead of each filling the panel on its own.
+    traces["acquisition"]["acquisition"] = len(acquisition.data)
+    acquisition.add_trace(go.Scatter(
+        x=positions, y=list(blank), mode="lines", name="Acquisition",
+        hoverinfo="skip", line=dict(width=1.4, color=MARKER_COLOR, dash="dash")))
+    traces["acquisition"]["weighted"] = len(acquisition.data)
+    acquisition.add_trace(go.Scatter(
+        x=positions, y=list(blank), mode="lines", name="Weighted by the prior",
+        hoverinfo="skip", line=dict(width=2.5, color=PRIOR_COLOR)))
+    # What the optimizer would ask for next, as a rug along the top rather than
+    # at a height.
+    #
+    # A height would have to be an acquisition value, and the figure computes
+    # those in the browser while the *rank* comes from the search itself. The
+    # two disagree in the last few percent, which is enough to reorder
+    # candidates sitting within a fraction of a percent of each other — and then
+    # the marker for "this one runs next" sits on visibly not-the-tallest point
+    # and reads as a bug. Position and rank are both honest; a height is not.
+    _RUG_Y = 1.03
+    #: A marker's width on the axis, which is what decides whether two
+    #: candidates can be told apart at all. The browser converts it to axis
+    #: units against the panel it actually got, and merges anything closer.
+    _MARKER_PX = 13
+    traces["acquisition"]["candidates"] = len(acquisition.data)
+    acquisition.add_trace(go.Scatter(
+        # One trace, one appearance. Ranking them by eye was the job the height
+        # was doing, and the height had to go; a second marker style would only
+        # bring the same claim back in another form.
+        x=[], y=[], mode="markers+text", name="Asked of the optimizer",
+        customdata=[], text=[], textposition="top center",
+        textfont=dict(size=10, color=ACCENT_COLOR),
+        marker=dict(size=_MARKER_PX, symbol="diamond", color=ACCENT_COLOR,
+                    line=dict(width=1.5, color="#FFFFFF")),
+        hovertemplate="%{customdata[0]}<extra></extra>"))
+
+    _dress(acquisition, title="Acquisition", height=330)
+    acquisition.update_yaxes(range=[0, 1.12])
+
+    # ── what you believe ─────────────────────────────────────────────────────
+    prior = go.Figure()
+    # Log axis, because a sharp density spans orders of magnitude and a linear
+    # panel would show a spike on a flat floor; on a log axis the decay exponent
+    # is a plain vertical squash toward the neutral line. A tabulated prior
+    # switches this to linear in the browser — see `applyPriorAxis`.
+    traces["prior"]["prior"] = len(prior.data)
+    prior.add_trace(go.Scatter(
+        x=positions, y=list(blank), mode="lines", name="Prior", fill="tozeroy",
+        fillcolor=_rgba(PRIOR_COLOR, 0.13), line=dict(width=2, color=PRIOR_COLOR),
+        hovertemplate="%{y:.3g}<extra></extra>"))
+    # The control points of a tabulated prior — a density given by its values
+    # rather than by parameters. The one trace whose x moves, because a point is
+    # dragged along the axis as well as up it. A categorical uses the same
+    # editor with its points pinned to the choice indices.
+    traces["prior"]["priorPoints"] = len(prior.data)
+    prior.add_trace(go.Scatter(
+        x=[], y=[], mode="markers", name="Control points", showlegend=False,
+        marker=dict(size=9, color=PRIOR_COLOR, line=dict(width=1.5, color="#FFFFFF")),
+        hovertemplate="%{y:.3g}<extra></extra>"))
+    _dress(prior, title="Prior", height=260)
+    prior.update_yaxes(type="log")
+
+    # ── what the run measured ────────────────────────────────────────────────
+    surrogate = go.Figure()
+    # Nested bands rather than a single ±2σ ribbon. One ribbon says "somewhere
+    # in here" and nothing about where the mass sits; three say it at a glance,
+    # on the σ multiples a reader already thinks in. Widest first, so the
+    # narrower and darker ones draw over them.
+    for k in SIGMA_STEPS:
+        surrogate.add_trace(go.Scatter(
+            x=positions, y=[m - k * sd for m, sd in zip(mu, sigma)], mode="lines",
+            hoverinfo="skip", line=dict(width=0), showlegend=False))
+        surrogate.add_trace(go.Scatter(
+            x=positions, y=[m + k * sd for m, sd in zip(mu, sigma)], mode="lines",
+            hoverinfo="skip", line=dict(width=0), fill="tonexty",
+            fillcolor=_rgba(ACCENT_COLOR, _BAND_ALPHA[k]), showlegend=False))
+    surrogate.add_trace(go.Scatter(
+        x=positions, y=mu, mode="lines", name="Predicted",
+        line=dict(width=2.5, color=ACCENT_COLOR),
+        hovertemplate="%{y:.4g}<extra></extra>"))
+
+    # The one configuration on this line that was measured. The slice holds
+    # every other hyperparameter at the incumbent's value, so it passes through
+    # exactly this point and nothing else on the grid is an observation — which
+    # is why the other trials are not marked: they are not on this line.
+    if incumbent is not None:
+        surrogate.add_trace(go.Scatter(
+            x=[incumbent[0]], y=[incumbent[1]], mode="markers", name="Incumbent",
+            marker=dict(size=9, color=MARKER_COLOR,
+                        line=dict(width=1.5, color="#FFFFFF")),
+            hovertemplate="Incumbent: %{y:.4g}<extra></extra>"))
+
+    # The fiction — the surrogate that would have produced the weighted
+    # acquisition on its own — with one faint band rather than the measured
+    # model's three. It is an inference about a surrogate nobody fitted, so
+    # stepping it the same way would lend it the same standing.
+    #
+    # `connectgaps=False` matters here and nowhere else: the inversion returns
+    # nothing where a prior claims more improvement than any finite mean could
+    # justify, and bridging that gap would draw a plateau the function
+    # deliberately refuses to invent.
+    lo = len(surrogate.data)
+    surrogate.add_trace(go.Scatter(
+        x=positions, y=list(blank), mode="lines", hoverinfo="skip",
+        line=dict(width=0), connectgaps=False, showlegend=False))
+    surrogate.add_trace(go.Scatter(
+        x=positions, y=list(blank), mode="lines", hoverinfo="skip",
+        line=dict(width=0), fill="tonexty", fillcolor=_rgba(PRIOR_COLOR, _GHOST_ALPHA),
+        connectgaps=False, showlegend=False))
+    traces["surrogate"]["fictionBand"] = [lo, lo + 1]
+    traces["surrogate"]["fiction"] = len(surrogate.data)
+    surrogate.add_trace(go.Scatter(
+        x=positions, y=list(blank), mode="lines", name="Implied by the prior",
+        hoverinfo="skip", connectgaps=False,
+        line=dict(width=1.6, color=_rgba(PRIOR_COLOR, 0.5), dash="dot")))
+    _dress(surrogate, title=metric_label, height=330, show_x_title=True)
+
+    meta = {
+        "traces": traces, "sigmas": list(SIGMA_STEPS), "fictionSigma": FICTION_SIGMA,
+        "rugY": _RUG_Y, "markerPx": _MARKER_PX,
+        # The sample itself, not an acquisition value: the browser owns that
+        # arithmetic, so it computes expected improvement with the same function
+        # it uses for the curve rather than a second one that would have to
+        # agree with it forever.
+        "cloud": ({"positions": cloud[0], "mu": cloud[1], "sigma": cloud[2]}
+                  if cloud is not None else None),
+        "positions": list(positions), "mu": list(mu), "sigma": list(sigma),
+        "eta": eta, "higherIsBetter": bool(higher_is_better),
+        "span": span, "kind": kind, "hp": hp_name,
+    }
+    return {"acquisition": acquisition, "prior": prior, "surrogate": surrogate}, meta
 
 
 def local_effects_plot(hp_names: list, rows: list):

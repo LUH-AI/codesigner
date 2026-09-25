@@ -40,6 +40,7 @@ urlpatterns = [
     path("experiments/<int:pk>/acquisition-slice/", views.acquisition_slice,
          name="acquisition_slice"),
     path("experiments/<int:pk>/local-effects/", views.local_effects, name="local_effects"),
+    path("experiments/<int:pk>/prior/", views.save_prior, name="save_prior"),
     path("experiments/<int:pk>/surrogate-uncertainty/", views.surrogate_uncertainty,
          name="surrogate_uncertainty"),
     path("experiments/<int:pk>/figures/", views.metric_figures, name="metric_figures"),

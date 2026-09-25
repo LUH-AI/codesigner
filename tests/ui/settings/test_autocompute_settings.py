@@ -27,8 +27,8 @@ def test_the_deferred_computations_are_declared():
     the acquisition slice beside it, the local explanation, then the beeswarm,
     which is the most expensive."""
     assert [name for name, _ in deferred_computations()] == [
-        "surrogate_uncertainty", "partial_dependence", "acquisition_slice",
-        "local_ablation", "local_effects"]
+        "surrogate_uncertainty", "partial_dependence",
+        "local_ablation", "local_effects", "acquisition_slice"]
 
 
 def test_a_deferred_name_is_the_computations_not_the_figures():

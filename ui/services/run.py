@@ -291,6 +291,10 @@ def _execute_run_locally(run_id):
                 cancel_event=cancel,
                 stopping=run.stopping,
                 splits=built["splits"],
+                # What the reader stated on the acquisition figure. Passed in
+                # rather than read here, because `core/` imports no Django and
+                # must not learn what an Experiment is.
+                priors=experiment.priors or None,
             )
 
         if launch is None:
@@ -382,6 +386,10 @@ def execute_run_on_cluster(run_id):
                 "trial_timeout": run.trial_timeout,
                 "analytics_max_coalitions": settings.ANALYTICS_EAGER_MAX_COALITIONS,
                 "analytics_wanted": eager_analytics_wanted(resolve_settings(experiment)),
+                # Stated priors cross to the cluster with everything else that
+                # bounds the run — the snapshot carries the search space, and a
+                # prior is a statement about it.
+                "priors": experiment.priors or None,
             },
             dataset=Path(experiment.dataset.path),
             model=Path(experiment.model_file.path) if experiment.model_file else None,

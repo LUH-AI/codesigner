@@ -60,6 +60,7 @@ def experiment_from_snapshot(snapshot: dict, dataset_file=None, model_file=None,
         cv_folds=io.folds_of(snapshot),
         test_size=io.test_size_of(snapshot),
         config_space=snapshot.get("space"),
+        priors=snapshot.get("priors") or {},
         result=snapshot.get("result"),
         owner=owner,
     )
@@ -187,10 +188,44 @@ def snapshot_from_experiment(exp: Experiment, *, provenance: bool = False) -> di
     # every file claim to answer a question it does not.
     if exp.config_space:
         snapshot["space"] = exp.config_space
+    # Beside `space`, because a prior is a statement about the search space and
+    # it steers the *next* run rather than describing a past one. Without it a
+    # re-imported experiment searches unweighted while the page still shows the
+    # prior, which is the one failure this file exists to prevent.
+    #
+    # Additive and optional, so `format` stays where it is: an older file simply
+    # has no `priors`, and `_check_format` only refuses formats above the
+    # current one. A bump is for a change to required structure.
+    if exp.priors:
+        snapshot["priors"] = {name: _prior_record(stated)
+                              for name, stated in sorted(exp.priors.items())}
     if provenance:
         _add_provenance(snapshot, exp, dataset, model_path)
     snapshot["result"] = exp.result
     return snapshot
+
+
+#: What a prior is, on disk. Four things and no more: the shape, the numbers
+#: that define it, how it fades, and when it was stated.
+#:
+#: `knots` is deliberately absent. The browser sends a density evaluated on the
+#: grid so that what SMAC gets is literally what was drawn, but that is
+#: transport between two halves of one request — on disk it would be a few
+#: hundred numbers restating what `kind` and `params` already say exactly, and a
+#: second representation able to disagree with the first.
+_PRIOR_FIELDS = ("kind", "params", "decay", "at_trial")
+
+
+def _prior_record(stated: dict) -> dict:
+    """One prior, reduced to what defines it.
+
+    `exponent` is dropped on the way out, and that is the point of doing this
+    by allow-list rather than copying the dict. It is a function of the decay
+    shape, β, the anchor and the trial count, recomputed on every request; a
+    stored copy could only ever be a number that contradicts the schedule
+    beside it.
+    """
+    return {key: stated[key] for key in _PRIOR_FIELDS if key in stated}
 
 
 def _add_provenance(snapshot: dict, exp: Experiment, dataset: str, model_path: str) -> None:

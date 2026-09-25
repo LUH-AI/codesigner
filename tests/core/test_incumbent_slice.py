@@ -1,7 +1,7 @@
 """`compute_incumbent_slice` — the surrogate along one hyperparameter.
 
-The figure it backs lets a reader state a belief about where the optimum is by
-dragging a curve, and a belief is a density on ConfigSpace's *normalized*
+The figure it backs lets a reader state a prior about where the optimum is by
+dragging a curve, and a prior is a density on ConfigSpace's *normalized*
 representation. So the thing most worth pinning here is not the predictions —
 those are a random forest's and are allowed to move — but the **axis**: that
 each grid value comes back with the normalized coordinate SMAC would evaluate a
@@ -60,11 +60,12 @@ def test_a_log_hyperparameters_positions_are_evenly_spaced(optimizer, space, tri
     its *positions* are not: they are evenly spaced across [0, 1], because that
     is the representation a prior is evaluated in.
 
-    Drawing a belief against the native values instead would put its mass
+    Drawing a prior against the native values instead would put its mass
     somewhere else entirely — the midpoint of this axis is lr ≈ 3e-3, not 0.05.
     """
-    values, positions, _, _, _, warning = optimizer.compute_incumbent_slice(
+    sl = optimizer.compute_incumbent_slice(
         space, trials, "accuracy", "lr", n_points=5)
+    values, positions, warning = sl.grid, sl.positions, sl.warning
 
     assert warning is None
     assert positions == pytest.approx([0.0, 0.25, 0.5, 0.75, 1.0])
@@ -80,8 +81,9 @@ def test_an_integer_hyperparameters_positions_are_not_evenly_spaced(optimizer, s
     Positions are therefore computed per value rather than assumed to be a
     `linspace` — this test is what fails if that assumption creeps back.
     """
-    values, positions, mu, _, _, _ = optimizer.compute_incumbent_slice(
+    sl = optimizer.compute_incumbent_slice(
         space, trials, "accuracy", "depth", n_points=9)
+    values, positions, mu = sl.grid, sl.positions, sl.mu
 
     assert values == sorted(set(values)), "distinct and ordered"
     assert len(positions) == len(values) == len(mu)
@@ -95,8 +97,9 @@ def test_a_categoricals_positions_are_its_choice_indices(optimizer, space, trial
     """ConfigSpace encodes a categorical as its index, so that is what comes
     back. A categorical has no curve to drag — the figure draws bars — and this
     is the signal the caller reads to know that."""
-    values, positions, _, _, _, _ = optimizer.compute_incumbent_slice(
+    sl = optimizer.compute_incumbent_slice(
         space, trials, "accuracy", "kern")
+    values, positions = sl.grid, sl.positions
 
     assert values == ["rbf", "linear", "poly"]
     assert positions == [0.0, 1.0, 2.0]
@@ -106,14 +109,16 @@ def test_a_categoricals_positions_are_its_choice_indices(optimizer, space, trial
 
 def test_every_returned_list_has_the_same_length(optimizer, space, trials):
     for name in ("lr", "depth", "kern"):
-        values, positions, mu, sigma, _, _ = optimizer.compute_incumbent_slice(
+        sl = optimizer.compute_incumbent_slice(
             space, trials, "accuracy", name, n_points=17)
+        values, positions, mu, sigma = sl.grid, sl.positions, sl.mu, sl.sigma
         assert len(values) == len(positions) == len(mu) == len(sigma) > 1, name
 
 
 def test_the_spread_is_never_negative(optimizer, space, trials):
-    _, _, _, sigma, _, _ = optimizer.compute_incumbent_slice(
+    sl = optimizer.compute_incumbent_slice(
         space, trials, "accuracy", "lr", n_points=31)
+    sigma = sl.sigma
 
     assert all(s >= 0 for s in sigma)
 
@@ -123,8 +128,9 @@ def test_the_spread_is_never_negative(optimizer, space, trials):
 def test_the_slice_finds_the_peak_it_was_given(optimizer, space, trials):
     """A sanity check on the surrogate rather than on the plumbing: the trials
     carry a peak near lr = 1e-2, and the slice should show one there."""
-    values, _, mu, _, _, _ = optimizer.compute_incumbent_slice(
+    sl = optimizer.compute_incumbent_slice(
         space, trials, "accuracy", "lr", n_points=61)
+    values, mu = sl.grid, sl.mu
 
     peak = values[mu.index(max(mu))]
     assert 1e-3 < peak < 1e-1
@@ -135,10 +141,12 @@ def test_a_second_slice_cuts_through_the_same_configuration(optimizer, space, tr
     has to be read against the objective panel above it, so both must cut the
     same line. The incumbent is picked by the metric either way, never by
     whatever is being modelled."""
-    a_values, a_positions, a_mu, _, _, _ = optimizer.compute_incumbent_slice(
+    sl = optimizer.compute_incumbent_slice(
         space, trials, "accuracy", "lr", n_points=21)
-    b_values, b_positions, b_mu, _, _, _ = optimizer.compute_incumbent_slice(
+    a_values, a_positions, a_mu = sl.grid, sl.positions, sl.mu
+    sl = optimizer.compute_incumbent_slice(
         space, trials, "accuracy", "lr", n_points=21, values=lambda t: t.duration)
+    b_values, b_positions, b_mu = sl.grid, sl.positions, sl.mu
 
     assert a_values == b_values
     assert a_positions == b_positions
@@ -148,8 +156,9 @@ def test_a_second_slice_cuts_through_the_same_configuration(optimizer, space, tr
 def test_duration_is_modellable_although_no_metric_reports_it(optimizer, space, trials):
     """`duration` lives on TrialResult as a property, not in `scores` — the
     reason `values=` is a callable rather than a second metric name."""
-    _, _, mu, _, _, warning = optimizer.compute_incumbent_slice(
+    sl = optimizer.compute_incumbent_slice(
         space, trials, "accuracy", "depth", n_points=9, values=lambda t: t.duration)
+    mu, warning = sl.mu, sl.warning
 
     assert warning is None
     assert all(v > 0 for v in mu), "seconds, so positive"
@@ -158,24 +167,27 @@ def test_duration_is_modellable_although_no_metric_reports_it(optimizer, space, 
 # ── degrading rather than raising ────────────────────────────────────────────
 
 def test_an_unknown_hyperparameter_is_a_warning(optimizer, space, trials):
-    values, positions, _, _, _, warning = optimizer.compute_incumbent_slice(
+    sl = optimizer.compute_incumbent_slice(
         space, trials, "accuracy", "nonesuch")
+    values, positions, warning = sl.grid, sl.positions, sl.warning
 
     assert (values, positions) == ([], [])
     assert "nonesuch" in warning
 
 
 def test_too_few_trials_is_a_warning(optimizer, space, trials):
-    values, _, _, _, _, warning = optimizer.compute_incumbent_slice(
+    sl = optimizer.compute_incumbent_slice(
         space, trials[:1], "accuracy", "lr")
+    values, warning = sl.grid, sl.warning
 
     assert values == []
     assert warning
 
 
 def test_a_metric_no_trial_carries_is_a_warning(optimizer, space, trials):
-    values, _, _, _, _, warning = optimizer.compute_incumbent_slice(
+    sl = optimizer.compute_incumbent_slice(
         space, trials, "f1", "lr")
+    values, warning = sl.grid, sl.warning
 
     assert values == []
     assert warning
@@ -224,8 +236,9 @@ def test_a_search_that_models_nothing_has_no_surrogate_to_rebuild(optimizer, spa
 
 def test_the_slice_still_draws_without_one(optimizer, space, trials):
     """... and losing the fidelity must not cost the figure."""
-    _, positions, mu, sigma, _, _ = optimizer.compute_incumbent_slice(
+    sl = optimizer.compute_incumbent_slice(
         space, trials, "accuracy", "depth")
+    positions, mu, sigma = sl.positions, sl.mu, sl.sigma
 
     assert len(positions) == len(mu) == len(sigma) > 1
 
@@ -262,8 +275,9 @@ def test_predictions_come_back_in_the_metrics_units(space, trials):
     from core.optimizers.smac_optimizer import SMACOptimizer
 
     optimizer = SMACOptimizer(search_strategy="rf")
-    _, _, mu, _, eta, _ = optimizer.compute_incumbent_slice(
+    sl = optimizer.compute_incumbent_slice(
         space, trials, "accuracy", "depth")
+    mu, eta = sl.mu, sl.eta
 
     observed = [t.scores["accuracy"] for t in trials]
     assert min(observed) - 0.5 <= min(mu) <= max(mu) <= max(observed) + 0.5
@@ -275,8 +289,68 @@ def test_a_measured_output_that_is_not_a_metric_keeps_its_own_units(space, trial
     no metric reports and which must not be run through a metric's conversion."""
     from core.optimizers.smac_optimizer import SMACOptimizer
 
-    _, _, mu, _, _, _ = SMACOptimizer(search_strategy="rf").compute_incumbent_slice(
+    sl = SMACOptimizer(search_strategy="rf").compute_incumbent_slice(
         space, trials, "accuracy", "depth", values=lambda t: t.duration)
+    mu = sl.mu
 
     durations = [t.duration for t in trials]
     assert min(durations) - 1 <= min(mu) <= max(mu) <= max(durations) + 1
+
+
+# ── the incumbent, the one measured point on the line ────────────────────────
+#
+# The slice holds every other hyperparameter at the incumbent's value, so it
+# passes through exactly one evaluated configuration and nothing else on the
+# grid is an observation. That is why the figure marks this point and not the
+# other trials: they do not lie on this line.
+
+
+def _best(trials, metric="accuracy"):
+    return max((t for t in trials if metric in t.scores),
+               key=lambda t: t.scores[metric])
+
+
+def test_the_incumbent_is_the_one_measured_point_on_the_slice(optimizer, space, trials):
+    sliced = optimizer.compute_incumbent_slice(space, trials, "accuracy", "lr")
+
+    assert sliced.incumbent is not None
+    position, value = sliced.incumbent
+    assert 0.0 <= position <= 1.0
+    assert value == pytest.approx(_best(trials).scores["accuracy"])
+
+
+def test_the_incumbents_position_is_its_own_value_not_a_grid_point(optimizer, space, trials):
+    """The grid is evenly spaced in normalized space and the incumbent is
+    wherever the search put it, so snapping the marker to the nearest grid point
+    would move it off the configuration it names."""
+    sliced = optimizer.compute_incumbent_slice(space, trials, "accuracy", "lr", n_points=5)
+    position, _ = sliced.incumbent
+
+    expected = float(space["lr"].to_vector(_best(trials).config["lr"]))
+    assert position == pytest.approx(expected)
+
+
+def test_there_is_no_incumbent_to_mark_without_the_metric(optimizer, space, trials):
+    sliced = optimizer.compute_incumbent_slice(space, trials, "f1", "lr")
+
+    assert sliced.incumbent is None
+
+
+def test_under_values_the_incumbent_carries_what_was_modelled(optimizer, space, trials):
+    """`eta` becomes the best observed *duration* while the incumbent is still
+    chosen by accuracy, so the two part company — and the marker belongs to the
+    configuration the slice actually passes through."""
+    sliced = optimizer.compute_incumbent_slice(
+        space, trials, "accuracy", "lr", values=lambda t: t.duration)
+
+    _, value = sliced.incumbent
+    assert value == pytest.approx(_best(trials).duration)
+
+
+def test_a_categoricals_incumbent_sits_at_its_choice_index(optimizer, space, trials):
+    sliced = optimizer.compute_incumbent_slice(space, trials, "accuracy", "kern")
+    position, _ = sliced.incumbent
+
+    choices = list(space["kern"].choices)
+    assert position == pytest.approx(choices.index(_best(trials).config["kern"]))
+    assert position in [pytest.approx(p) for p in sliced.positions]

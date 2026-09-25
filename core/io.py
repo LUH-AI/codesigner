@@ -19,6 +19,12 @@ magnitude:
                         configspace.json. Optional: a file without one falls
                         back to asking the model, which is what every file
                         written before this section existed does.
+    priors      dict | absent — beliefs stated about the search space, by
+                        hyperparameter: `kind`, `params`, `decay`
+                        (`{shape, beta}`) and `at_trial`, the trial the belief
+                        was stated at. These steer the *next* run rather than
+                        describing a past one, which is why they are here and
+                        not under `runs`. Absent when nothing was stated.
     runs        list  — export only: the history of runs over the trials
     environment dict  — export only: the versions behind the numbers
     result      dict | null — serialized OptimizationResult, a strict superset

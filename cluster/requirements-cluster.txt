@@ -5,7 +5,9 @@
 # huey or django-environ is reachable from `core/` — the cluster runs no web
 # stack, has no database and has no MEDIA_ROOT. Kept in step with the versions
 # in requirements.txt; `cluster/deploy.sh` installs this one.
-smac>=2.4.1
+# The branch, for the same reason requirements.txt pins it: a run on the cluster
+# has to weight its acquisition function by whatever prior was stated here.
+smac @ git+https://github.com/automl/SMAC3.git@feature/output-constraints
 hypershap>=0.0.6
 ConfigSpace>=1.2
 scikit-learn>=1.9

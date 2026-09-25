@@ -63,6 +63,23 @@ class Experiment(models.Model):
     # an experiment read out of somebody else's run, which has no model at all.
     config_space = models.JSONField(blank=True, null=True, default=None)
     result = SafeJSONField(blank=True, null=True, default=None)
+    # What the reader believes about where the optimum lies, by hyperparameter:
+    # `{hp_name: {kind, params, exponent, decay, knots}}`. Stated on the
+    # acquisition figure and applied to the next run (see
+    # `SMACOptimizer._apply_priors`).
+    #
+    # `knots` is the density already evaluated on the grid, in ConfigSpace's
+    # vectorized representation, and it is what actually reaches SMAC. The kind
+    # and its parameters ride along only so the figure can put the controls back
+    # where the reader left them. That split is the point: the density is
+    # computed once, in the browser, and the server never re-implements it —
+    # otherwise a Normal would mean one thing on the page and another in the
+    # search, and the two would drift apart silently.
+    #
+    # SafeJSONField rather than JSONField for the reason that field exists: a
+    # ruled-out region is a zero, and nothing stops a reader producing an
+    # infinity by asking for a spike.
+    priors = SafeJSONField(default=dict, blank=True)
     created_at = models.DateTimeField(auto_now_add=True)
     # Per-experiment settings overrides; when use_default_settings is True the
     # global default experiment settings apply instead (see services/settings.py).

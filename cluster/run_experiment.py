@@ -13,7 +13,7 @@ has to be copied here is `core/` and `model_sdk/`.
 
     snapshot.json   in    the experiment, in the .ihpo format it already has
     dataset.csv     in    what the snapshot's trials were measured on
-    run.json        in    what bounds this run: criteria, metric, timeout
+    run.json        in    what bounds this run: criteria, metric, timeout, priors
     CANCEL          in    created by the submitter; asks for a clean stop
     partial.json    out   the result so far, rewritten as trials land
     result.json     out   the finished result, in `Experiment.result` shape
@@ -154,6 +154,7 @@ def run(workdir: Path) -> int:
         seed=built["seed"],
         cancel_event=cancel,
         stopping=settings["stopping"],
+        priors=settings.get("priors"),
         splits=built["splits"],
     )
 

@@ -8,7 +8,7 @@ from django.utils.translation import gettext_lazy as _
 
 from core.projection import METHODS
 
-from .base import DOUBLE, FULL, HALF, Figure
+from .base import DOUBLE, FULL, HALF, PAGE, Figure
 from .plots import (
     configuration_cube_plot,
     configuration_projection_plot,
@@ -447,15 +447,15 @@ class PartialDependence(Figure):
 
 class AcquisitionSlice(Figure):
     """What the optimizer would look at next along one hyperparameter, and how a
-    stated belief changes that.
+    stated prior changes that.
 
     Three panels over a slice through the incumbent: the surrogate's prediction,
-    the belief weighting it, and the resulting acquisition function. A belief
+    the prior weighting it, and the resulting acquisition function. A prior
     does not move the prediction — it leaves the surrogate untouched and
     multiplies the acquisition — so the middle and bottom panels are where its
     effect actually is; the dashed curve on the top panel is the *fiction*, the
     surrogate that would have produced the same acquisition on its own, which is
-    the only sense in which a belief moves a performance curve.
+    the only sense in which a prior moves a performance curve.
 
     Deferred and fetched per (metric, hyperparameter), for partial dependence's
     reason exactly: it fits a surrogate and predicts across a grid, and a model
@@ -472,17 +472,20 @@ class AcquisitionSlice(Figure):
 
     Unlike every other figure here, this one's drawing is owned by its own
     script rather than by experiment_detail.html — see
-    `ui/static/ui/acquisition.js`. The belief is dragged, so its traces depend
+    `ui/static/ui/acquisition.js`. The prior is dragged, so its traces depend
     on state the server never sees; shipping expected improvement in Python as
     well would mean maintaining it twice.
     """
 
     key = "acquisition_slice"
-    label = _("Acquisition and beliefs")
-    width = FULL
+    label = _("Acquisition and priors")
+    #: The whole content area. Three stacked panels read together need the
+    #: page's full width to be legible, and FULL would only span the grid —
+    #: which on a wide window is half of it, with the trials table alongside.
+    width = PAGE
     height = DOUBLE
     per_metric = True
-    deferred = (("acquisition_slice", _("Acquisition and beliefs")),)
+    deferred = (("acquisition_slice", _("Acquisition and priors")),)
 
 
 class LocalEffects(Figure):
@@ -570,12 +573,14 @@ FIGURES = (
     # a time — the same run at three magnifications, in that order.
     ParallelCoordinates,
     PartialDependence,
-    # Beside partial dependence: the same slice through the same surrogate, read
-    # forwards instead of backwards — what the run learned, then what it would
-    # do next with it.
-    AcquisitionSlice,
     LocalExplanation,
     LocalEffects,
+    # Last in the grid, and full width: three stacked panels read together, which
+    # take the whole section to be legible. `Trials` still follows it in this
+    # tuple because that table moves into a column beside the grid on a wide
+    # window — so on the page this is the last thing in the main section, and on
+    # a narrow one the lookup table sensibly ends the scroll.
+    AcquisitionSlice,
     Trials,
 )
 
