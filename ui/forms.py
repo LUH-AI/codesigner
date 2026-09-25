@@ -173,6 +173,7 @@ class NewExperimentForm(forms.Form):
 
 _ICE_LABEL = _("Trials drawn on the partial-dependence figure")
 _LOCAL_EFFECTS_LABEL = _("Trials explained on the local-effects figure")
+_PRIOR_TOLERANCE_LABEL = _("Prior acceptance tolerance")
 
 
 class ExperimentSettingsFields(forms.Form):
@@ -195,6 +196,14 @@ class ExperimentSettingsFields(forms.Form):
         label=_LOCAL_EFFECTS_LABEL, required=False, min_value=0, max_value=10_000,
         help_text=_("0 explains every trial. Each one costs its own explanation, "
                     "so this is the setting that decides how long the figure takes."))
+    prior_acceptance_tolerance = forms.FloatField(
+        label=_PRIOR_TOLERANCE_LABEL, required=False, min_value=0.0,
+        max_value=1_000.0,
+        help_text=_("How much worse than where the search is already looking a "
+                    "stated belief's region may score before “Evaluate prior” "
+                    "refuses it. In the objective's own units, so it means "
+                    "different things for different objectives; 0 refuses "
+                    "anything the model does not think is an improvement."))
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)

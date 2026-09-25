@@ -9,6 +9,12 @@
         {% blocktranslate count seats=seats_left %}{{ seats }} seat left.{% plural %}{{ seats }} seats left.{% endblocktranslate %}
         {% translate "A site administrator sets how many." %}
     </p>
+    {% comment %}Said once, on the page where it has consequences: the role is
+    a lead's plus the power to appoint the others, and there is exactly one of
+    it per group.{% endcomment %}
+    {% if is_primary %}
+        <p class="caption">{% translate "You are this group's primary lead: you decide who else leads it. Handing that on is the only way to stop — it always goes to somebody." %}</p>
+    {% endif %}
 
     <table class="trials" style="max-width: 46rem; margin-top: 1rem;">
         <thead>
@@ -24,10 +30,37 @@
                 <tr>
                     <td>{{ m.user.get_username }}{% if m.user == user %} <span class="caption">({% translate "you" %})</span>{% endif %}
                         {% if not m.user.is_active %} <span class="caption">— {% translate "deactivated" %}</span>{% endif %}</td>
-                    <td>{{ m.get_role_display }}</td>
+                    {% comment %}Editable only for the primary lead, and never
+                    their own row: standing down is a transfer, which names a
+                    successor, rather than a role anybody can simply drop.
+                    {% endcomment %}
+                    <td>
+                        {% if is_primary and m.user != user and not m.is_primary_lead %}
+                            <form method="post" action="{% url 'ui:group_set_role' m.pk %}" class="selectors">
+                                {% csrf_token %}
+                                <select name="role" aria-label="{% translate 'Role' %}">
+                                    {% for value, label in roles %}
+                                        <option value="{{ value }}"{% if m.role == value %} selected{% endif %}>{{ label }}</option>
+                                    {% endfor %}
+                                </select>
+                                <button type="submit" class="btn">{% translate "Set" %}</button>
+                            </form>
+                        {% else %}
+                            {{ m.get_role_display }}
+                        {% endif %}
+                    </td>
                     <td>{{ m.user.experiments.count }}</td>
                     <td style="text-align: right;">
-                        {% if m.user != user %}
+                        {% comment %}To a lead only. Handing it to a member would
+                        promote and appoint in one step, which is two decisions
+                        wearing one button.{% endcomment %}
+                        {% if is_primary and m.is_lead and not m.is_primary_lead %}
+                            <form method="post" action="{% url 'ui:group_transfer_primary' m.pk %}">
+                                {% csrf_token %}
+                                <button type="submit" class="btn">{% translate "Make primary lead" %}</button>
+                            </form>
+                        {% endif %}
+                        {% if m.user != user and not m.is_primary_lead %}
                             <form method="post" action="{% url 'ui:group_remove_person' m.pk %}">
                                 {% csrf_token %}
                                 <button type="submit" class="btn">{% translate "Remove" %}</button>

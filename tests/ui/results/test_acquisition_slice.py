@@ -29,9 +29,37 @@ def _experiment():
 
 
 def _slice(client, exp, hp, metric="accuracy"):
+    """The endpoint's answer, with the figures it builds but does not send
+    added back under `figures`, and what it actually sent under `shipped`.
+
+    The surrogate panel is switched off, so its figure no longer crosses the
+    wire — but it is still built, and how it is built is still this project's
+    behaviour. Splitting the two lets a test about a figure's construction go on
+    asking about all three, while `test_the_payload_ships_only_what_is_drawn`
+    pins the narrower question of what a request actually costs.
+    """
     response = client.get(reverse("ui:acquisition_slice", args=[exp.pk]),
                           {"metric": metric, "hp": hp})
-    return response, (json.loads(response.content) if response.status_code == 200 else None)
+    if response.status_code != 200:
+        return response, None
+    data = json.loads(response.content)
+    if isinstance(data.get("figures"), dict):
+        data["shipped"] = set(data["figures"])
+        # Sent wins over built, so every assertion about a shipped figure is
+        # still about the bytes that arrived.
+        data["figures"] = dict(_built_figures(exp, hp, metric), **data["figures"])
+    return response, data
+
+
+def _built_figures(exp, hp, metric="accuracy"):
+    """Every figure the slice builds, through the same seam the endpoint uses."""
+    from ui.views import (_config_space_for, _plot_json, _rebuild_experiment,
+                          _slice_figures)
+
+    built = _rebuild_experiment(exp)
+    figures, _meta, _sliced = _slice_figures(
+        exp, built, _config_space_for(built), hp, metric)
+    return {name: _plot_json(fig) for name, fig in (figures or {}).items()}
 
 
 def _panel(data, name):
@@ -186,7 +214,11 @@ def test_the_skeleton_leaves_the_prior_traces_empty(client):
 
     assert set(meta["traces"]) == {"acquisition", "prior", "surrogate"}
     assert set(meta["traces"]["acquisition"]) == {"acquisition", "weighted", "cloud",
-                                                 "cloudBare", "candidates"}
+                                                 "cloudBare", "candidates",
+                                                 # A point on the slice curves,
+                                                 # so it is filled and emptied
+                                                 # with them.
+                                                 "incumbent"}
     assert set(meta["traces"]["prior"]) == {"prior", "priorPoints"}
     assert set(meta["traces"]["surrogate"]) == {"fiction", "fictionBand"}
 
@@ -340,6 +372,110 @@ def test_a_new_trial_invalidates_the_cached_fit(client, monkeypatch):
 
 def _script():
     return (Path(__file__).parents[3] / "ui" / "static" / "ui" / "acquisition.js").read_text()
+
+
+# ── what the acquisition panel shows ─────────────────────────────────────────
+
+def test_the_incumbent_is_marked_along_the_acquisition_curve(client):
+    """The one configuration on this line anybody measured.
+
+    *How:* the payload has to carry two things for the browser to place it — the
+    incumbent's position in `meta`, and an empty trace on the acquisition panel
+    to put it in. The height is not the server's to send: this panel's y is an
+    acquisition value, and the browser is what computes those.
+    """
+    exp = _experiment()
+    hp = _hp_names(exp)[0]
+    response, data = _slice(client, exp, hp)
+
+    assert response.status_code == 200
+    meta = data["meta"]
+
+    assert meta["incumbent"] is not None, "nowhere to put the marker"
+    assert len(meta["incumbent"]) == 2, "a position and the score beside it"
+    index = meta["traces"]["acquisition"]["incumbent"]
+    assert _panel(data, "acquisition")["data"][index]["x"] == []
+
+
+def test_the_prior_only_payload_has_no_incumbent(client):
+    """It is drawn without fitting a model, and the incumbent's place on the
+    curve is something only the fit knows. `None` rather than absent, so the
+    browser's check is about the value and not about the key."""
+    exp = _experiment()
+    hp = _hp_names(exp)[0]
+    response = client.get(reverse("ui:acquisition_slice", args=[exp.pk]),
+                          {"metric": "accuracy", "hp": hp, "prior_only": "1"})
+    meta = json.loads(response.content)["meta"]
+
+    assert meta.get("incumbent") is None
+
+
+def test_the_slice_curves_start_switched_off(client):
+    """They answer a narrower question than the sampled envelope beside them —
+    one line through the incumbent rather than what the search can reach — so
+    the panel opens on the broader answer and the narrower one is asked for."""
+    exp = _experiment()
+    html = client.get(reverse("ui:experiment_detail", args=[exp.pk])).content.decode()
+    at = html.index('id="acq-show-slice"')
+
+    assert "checked" not in html[at:at + 60]
+
+
+def test_a_decaying_prior_says_how_much_of_it_is_left(client):
+    """The exponent drew the curve all along and was never on the page, so a
+    faded belief looked like a differently-shaped one.
+
+    *How:* at the page, because the readout is a template string the script
+    fills — a number written in JavaScript would reach no translator."""
+    exp = _experiment()
+    html = client.get(reverse("ui:experiment_detail", args=[exp.pk])).content.decode()
+
+    assert 'id="acq-prior-strength"' in html
+    assert "data-strength=" in html, "the wording belongs to the template"
+    assert "showStrength" in _script(), "and something has to fill it"
+
+
+def test_the_knots_are_drawn_where_the_curve_is(client):
+    """A freeform prior's knots are stated heights and the curve through them is
+    what the search weights by — the same density raised to the decay exponent.
+    Drawn raw against that curve they would sit below the line they pin.
+
+    *How:* at the source, since the arithmetic is the browser's. Both the marker
+    and the hit test have to pass through the same conversion, or a knot is
+    drawn in one place and grabbed in another."""
+    source = _script()
+
+    assert "pts.y.push(decayed(" in source, "markers follow the exponent"
+    assert "decayed(points[i][1], decayExponent())" in source, "and so does the grab"
+    assert "stated(Math.min(" in source, "and a drop converts back"
+
+
+def test_the_payload_ships_only_what_is_drawn(client):
+    """The surrogate figure is built and not sent. Its traces are a few thousand
+    points per request, and with no panel to draw them into they would be paid
+    for on every hyperparameter switch for nobody.
+
+    The fit behind it is not saved — the acquisition curve is computed from the
+    same mean and spread — so this is about the wire, not about the work."""
+    exp = _experiment()
+    hp = _hp_names(exp)[0]
+    response, data = _slice(client, exp, hp)
+
+    assert response.status_code == 200
+    assert data["shipped"] == {"acquisition", "prior"}
+    assert "surrogate" in _built_figures(exp, hp), "still built, just not sent"
+
+
+def test_the_surrogate_panel_is_not_on_the_page(client):
+    """Switched off for now. The figure is still built and still sent — the fit
+    behind it is shared with the acquisition curve either way — and `render`
+    simply has no div to react it into, which is the whole of the mechanism."""
+    exp = _experiment()
+    html = client.get(reverse("ui:experiment_detail", args=[exp.pk])).content.decode()
+
+    assert 'id="acq-plot-surrogate"' not in html
+    assert 'id="acq-plot-acquisition"' in html, "the other two are still drawn"
+    assert 'id="acq-plot-prior"' in html
 
 
 # ── stating a prior ─────────────────────────────────────────────────────────
@@ -729,9 +865,12 @@ def test_a_stated_prior_is_kept(client):
     assert hp in exp.priors
     assert exp.priors[hp]["kind"] == "normal"
     assert exp.priors[hp]["params"] == {"mu": 0.8, "sigma": 0.1}
-    # Four fields, and no evaluated curve. The density is computed where it is
-    # needed, from these numbers, so a stored copy could only go stale.
-    assert set(exp.priors[hp]) == {"kind", "params", "decay", "at_trial"}
+    # What defines the belief, and no evaluated curve. The density is computed
+    # where it is needed, from these numbers, so a stored copy could only go
+    # stale. `delay_decay` belongs here for the opposite reason: it is the
+    # reader's answer to a question, derivable from nothing else in the row.
+    assert set(exp.priors[hp]) == {"kind", "params", "decay", "at_trial",
+                                   "delay_decay"}
 
 
 def test_uniform_is_stored_as_nothing(client):
@@ -1296,7 +1435,7 @@ def test_a_pile_of_candidates_does_not_spell_every_one_out(client):
     html = client.get(reverse("ui:experiment_detail", args=[exp.pk])).content.decode()
 
     assert "candidates here" in html
-    assert "the best of them" in html
+    assert "most promising" in html
     # The old shape: every member spelled out, capped by a count.
     assert "HOVER_MEMBERS" not in _script()
 

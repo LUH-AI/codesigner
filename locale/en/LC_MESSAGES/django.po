@@ -21,7 +21,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: PACKAGE VERSION\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2026-09-25 18:20+0000\n"
+"POT-Creation-Date: 2026-09-25 15:23+0000\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
 "Language-Team: LANGUAGE <LL@li.org>\n"
@@ -32,12 +32,12 @@ msgstr ""
 "Plural-Forms: nplurals=2; plural=(n != 1);\n"
 
 #. == Site chrome — navigation, base template, account ==================
-#: access/policy.py:197
+#: access/policy.py:230
 #, python-format
 msgid "%(user)s is not allowed to run custom models here."
 msgstr "%(user)s is not allowed to run custom models here."
 
-#: access/policy.py:198
+#: access/policy.py:231
 msgid ""
 "This experiment's custom model has no account behind it, so it cannot be "
 "run. Give the experiment an owner who is allowed to run custom models."
@@ -54,7 +54,7 @@ msgid "That username and password do not match an account."
 msgstr "That username and password do not match an account."
 
 #: access/templates/access/login.html:25
-#: ui/templates/ui/panels/group_people.html:52
+#: ui/templates/ui/panels/group_people.html:88
 msgid "Username"
 msgstr "Username"
 
@@ -62,7 +62,7 @@ msgstr "Username"
 msgid "Password"
 msgstr "Password"
 
-#: access/templates/access/login.html:41 templates/base.html:83
+#: access/templates/access/login.html:41 templates/base.html:74
 msgid "Language"
 msgstr "Language"
 
@@ -95,23 +95,24 @@ msgid "Back to your account"
 msgstr "Back to your account"
 
 #: templates/base.html:15 templates/base.html:17 ui/navigation.py:59
-#: ui/templates/ui/panels/group_people.html:18
+#: ui/templates/ui/panels/group_people.html:25
 msgid "Experiments"
 msgstr "Experiments"
 
-#: templates/base.html:25 templates/base.html:27 templates/base.html:114
+#: templates/base.html:25 templates/base.html:27 templates/base.html:105
 #: ui/templates/ui/panels/site_groups.html:17
 #: ui/templates/ui/panels/site_jobs.html:20
+#: ui/templates/ui/panels/site_trash.html:40
 #: ui/templates/ui/panels/site_usage.html:18
 #: ui/templates/ui/panels/site_usage.html:46
 msgid "Group"
 msgstr "Group"
 
-#: templates/base.html:32 templates/base.html:34 templates/base.html:124
+#: templates/base.html:32 templates/base.html:34 templates/base.html:115
 msgid "Site"
 msgstr "Site"
 
-#: templates/base.html:38 templates/base.html:40 templates/base.html:94
+#: templates/base.html:38 templates/base.html:40 templates/base.html:85
 #: ui/navigation.py:35 ui/navigation.py:60
 #: ui/templates/ui/experiment_settings.html:4
 msgid "Settings"
@@ -126,78 +127,84 @@ msgstr "Signed in as %(name)s — sign out"
 msgid "Sign out"
 msgstr "Sign out"
 
-#: templates/base.html:89
+#: templates/base.html:80
 msgid "Go"
 msgstr "Go"
 
-#: templates/base.html:97 ui/navigation.py:71 ui/templates/ui/appearance.html:4
+#: templates/base.html:88 ui/navigation.py:71 ui/templates/ui/appearance.html:4
 #: ui/templates/ui/appearance.html:7
 msgid "Appearance"
 msgstr "Appearance"
 
-#: templates/base.html:104 ui/templates/ui/account.html:4
+#: templates/base.html:95 ui/templates/ui/account.html:4
 #: ui/templates/ui/account.html:7
 msgid "Account"
 msgstr "Account"
 
-#: templates/base.html:108 ui/navigation.py:73
+#: templates/base.html:99 ui/navigation.py:73
 #: ui/templates/ui/default_experiment_settings.html:4
 #: ui/templates/ui/default_experiment_settings.html:7
 msgid "Default experiment settings"
 msgstr "Default experiment settings"
 
-#: templates/base.html:117 ui/templates/ui/panels/group_people.html:4
+#: templates/base.html:108 ui/templates/ui/panels/group_people.html:4
 #: ui/templates/ui/panels/site_usage.html:19
 msgid "People"
 msgstr "People"
 
-#: templates/base.html:119 ui/templates/ui/panels/group_work.html:4
+#: templates/base.html:110 ui/templates/ui/panels/group_work.html:4
 msgid "Their experiments"
 msgstr "Their experiments"
 
-#: templates/base.html:127 ui/templates/ui/panels/site_groups.html:4
+#: templates/base.html:118 ui/templates/ui/panels/site_groups.html:4
 #: ui/templates/ui/panels/site_groups.html:7
 msgid "Groups"
 msgstr "Groups"
 
-#: templates/base.html:129 ui/templates/ui/panels/site_usage.html:4
+#: templates/base.html:120 ui/templates/ui/panels/site_usage.html:4
 #: ui/templates/ui/panels/site_usage.html:7
 msgid "Usage"
 msgstr "Usage"
 
-#: templates/base.html:131 ui/templates/ui/panels/site_jobs.html:4
+#: templates/base.html:122 ui/templates/ui/panels/site_jobs.html:4
 msgid "Jobs"
 msgstr "Jobs"
 
-#: templates/base.html:142
+#: templates/base.html:124 ui/templates/ui/panels/site_trash.html:4
+#: ui/templates/ui/panels/site_trash.html:7
+msgid "Bin"
+msgstr "Bin"
+
+#: templates/base.html:135
 msgid "Experiment Selection"
 msgstr "Experiment Selection"
 
-#: templates/base.html:144
+#: templates/base.html:137
 msgid "＋ New"
 msgstr "＋ New"
 
-#: templates/base.html:145
+#: templates/base.html:138
 msgid "📂 Load"
 msgstr "📂 Load"
 
-#: templates/base.html:151 ui/templates/ui/experiment_list.html:22
+#: templates/base.html:144 ui/templates/ui/experiment_list.html:22
 msgid "Running"
 msgstr "Running"
 
-#: templates/base.html:151
+#: templates/base.html:144
 msgid "Preparing its environment"
 msgstr "Preparing its environment"
 
-#: templates/base.html:154 ui/templates/ui/experiment_list.html:28
+#: templates/base.html:147 ui/templates/ui/experiment_list.html:28
 msgid "No experiments yet."
 msgstr "No experiments yet."
 
-#: templates/base.html:157
+#: templates/base.html:150
 msgid "See all…"
 msgstr "See all…"
 
 #: ui/navigation.py:36 ui/templates/ui/delete_confirm.html:12
+#: ui/templates/ui/panels/site_groups.html:49
 msgid "Delete"
 msgstr "Delete"
 
@@ -363,7 +370,8 @@ msgstr "Trial duration"
 msgid "Trials"
 msgstr "Trials"
 
-#: ui/figures/plots.py:312 ui/figures/plots.py:1584 ui/figures/plots.py:1587
+#: ui/figures/plots.py:312 ui/figures/plots.py:1506 ui/figures/plots.py:1509
+#: ui/figures/plots.py:1600 ui/figures/plots.py:1603
 msgid "Incumbent"
 msgstr "Incumbent"
 
@@ -398,7 +406,7 @@ msgid "Interaction strength"
 msgstr "Interaction strength"
 
 #: ui/figures/plots.py:724 ui/templates/ui/_selected_config_inner.html:29
-#: ui/templates/ui/figures/acquisition_slice.html:26
+#: ui/templates/ui/figures/acquisition_slice.html:35
 #: ui/templates/ui/figures/best_configuration.html:13
 #: ui/templates/ui/figures/hyperparameter_importance.html:72
 #: ui/templates/ui/figures/partial_dependence.html:17
@@ -434,7 +442,7 @@ msgstr "Best sampled, unweighted"
 msgid "Best sampled, weighted"
 msgstr "Best sampled, weighted"
 
-#: ui/figures/plots.py:1488 ui/figures/plots.py:1520
+#: ui/figures/plots.py:1488 ui/figures/plots.py:1536
 msgid "Acquisition"
 msgstr "Acquisition"
 
@@ -442,35 +450,35 @@ msgstr "Acquisition"
 msgid "Weighted by the prior"
 msgstr "Weighted by the prior"
 
-#: ui/figures/plots.py:1513
-msgid "Asked of the optimizer"
-msgstr "Asked of the optimizer"
+#: ui/figures/plots.py:1529
+msgid "Optimizer's Candidate"
+msgstr "Optimizer's Candidate"
 
-#: ui/figures/plots.py:1541 ui/figures/plots.py:1553
+#: ui/figures/plots.py:1557 ui/figures/plots.py:1569
 msgid "Prior"
 msgstr "Prior"
 
-#: ui/figures/plots.py:1550
+#: ui/figures/plots.py:1566
 msgid "Control points"
 msgstr "Control points"
 
-#: ui/figures/plots.py:1574
+#: ui/figures/plots.py:1590
 msgid "Predicted"
 msgstr "Predicted"
 
-#: ui/figures/plots.py:1609
+#: ui/figures/plots.py:1625
 msgid "Implied by the prior"
 msgstr "Implied by the prior"
 
-#: ui/figures/plots.py:1684
+#: ui/figures/plots.py:1704
 msgid "Effect vs. default  (left: hurt, right: helped)"
 msgstr "Effect vs. default  (left: hurt, right: helped)"
 
-#: ui/figures/plots.py:1719
+#: ui/figures/plots.py:1739
 msgid "Trial"
 msgstr "Trial"
 
-#: ui/figures/plots.py:1719
+#: ui/figures/plots.py:1739
 msgid "Duration (s)"
 msgstr "Duration (s)"
 
@@ -484,39 +492,39 @@ msgstr "This trial did not produce a measurement: %(reason)s"
 msgid "failed"
 msgstr "failed"
 
-#: ui/templates/ui/figures/acquisition_slice.html:37
+#: ui/templates/ui/figures/acquisition_slice.html:46
 msgid "Mean"
 msgstr "Mean"
 
-#: ui/templates/ui/figures/acquisition_slice.html:38
+#: ui/templates/ui/figures/acquisition_slice.html:47
 msgid "Standard deviation"
 msgstr "Standard deviation"
 
-#: ui/templates/ui/figures/acquisition_slice.html:39
+#: ui/templates/ui/figures/acquisition_slice.html:48
 msgid "First shape parameter"
 msgstr "First shape parameter"
 
-#: ui/templates/ui/figures/acquisition_slice.html:40
+#: ui/templates/ui/figures/acquisition_slice.html:49
 msgid "Second shape parameter"
 msgstr "Second shape parameter"
 
-#: ui/templates/ui/figures/acquisition_slice.html:58
+#: ui/templates/ui/figures/acquisition_slice.html:67
 msgid "Asking…"
 msgstr "Asking…"
 
-#: ui/templates/ui/figures/acquisition_slice.html:59
+#: ui/templates/ui/figures/acquisition_slice.html:68
 msgid "Could not save this prior."
 msgstr "Could not save this prior."
 
-#: ui/templates/ui/figures/acquisition_slice.html:60
+#: ui/templates/ui/figures/acquisition_slice.html:69
 msgid "Could not compute the acquisition slice."
 msgstr "Could not compute the acquisition slice."
 
-#: ui/templates/ui/figures/acquisition_slice.html:61
+#: ui/templates/ui/figures/acquisition_slice.html:70
 msgid "The optimizer could not be asked for this run."
 msgstr "The optimizer could not be asked for this run."
 
-#: ui/templates/ui/figures/acquisition_slice.html:62
+#: ui/templates/ui/figures/acquisition_slice.html:71
 #, python-brace-format
 msgid ""
 "Trial {trials} of {size} in the initial design ({name}). These are drawn "
@@ -527,31 +535,57 @@ msgstr ""
 "before any surrogate is fitted, so a prior set here cannot affect them — it "
 "starts to count once the design is exhausted."
 
-#: ui/templates/ui/figures/acquisition_slice.html:63
+#: ui/templates/ui/figures/acquisition_slice.html:72
 #, python-brace-format
 msgid "Rank {rank} of {total}"
 msgstr "Rank {rank} of {total}"
 
-#: ui/templates/ui/figures/acquisition_slice.html:64
+#: ui/templates/ui/figures/acquisition_slice.html:73
 msgid "runs next"
 msgstr "runs next"
 
-#: ui/templates/ui/figures/acquisition_slice.html:65
+#: ui/templates/ui/figures/acquisition_slice.html:74
 #, python-brace-format
 msgid "{count} candidates here"
 msgstr "{count} candidates here"
 
-#: ui/templates/ui/figures/acquisition_slice.html:66
+#: ui/templates/ui/figures/acquisition_slice.html:75
 #, python-brace-format
 msgid "Ranks {ranks} of {total}"
 msgstr "Ranks {ranks} of {total}"
 
-#: ui/templates/ui/figures/acquisition_slice.html:67
+#: ui/templates/ui/figures/acquisition_slice.html:76
 #, python-brace-format
-msgid "Rank {rank}, the best of them:"
-msgstr "Rank {rank}, the best of them:"
+msgid "Rank {rank}(most promising):"
+msgstr "Rank {rank}(most promising):"
+
+#: ui/templates/ui/figures/acquisition_slice.html:77
+#, python-brace-format
+msgid "counts at {strength}"
+msgstr "counts at {strength}"
+
+#: ui/templates/ui/figures/acquisition_slice.html:78
+msgid "Asking the model…"
+msgstr "Asking the model…"
+
+#: ui/templates/ui/figures/acquisition_slice.html:79
+msgid "Could not ask the model about this prior."
+msgstr "Could not ask the model about this prior."
 
 #: ui/templates/ui/figures/acquisition_slice.html:80
+#| msgid "Could not save this prior."
+msgid "Could not reset this prior."
+msgstr "Could not reset this prior."
+
+#: ui/templates/ui/figures/acquisition_slice.html:81
+msgid "Put back to what the last run searched under."
+msgstr "Put back to what the last run searched under."
+
+#: ui/templates/ui/figures/acquisition_slice.html:82
+msgid "Reset. No earlier run stated one for this hyperparameter."
+msgstr "Reset. No earlier run stated one for this hyperparameter."
+
+#: ui/templates/ui/figures/acquisition_slice.html:108
 #: ui/templates/ui/figures/local_effects.html:14
 #: ui/templates/ui/figures/local_explanation.html:19
 #: ui/templates/ui/figures/partial_dependence.html:29
@@ -560,59 +594,59 @@ msgstr "Rank {rank}, the best of them:"
 msgid "Compute"
 msgstr "Compute"
 
-#: ui/templates/ui/figures/acquisition_slice.html:99
+#: ui/templates/ui/figures/acquisition_slice.html:130
 msgid "Acquisition with incumbent hyperparameters"
 msgstr "Acquisition with incumbent hyperparameters"
 
-#: ui/templates/ui/figures/acquisition_slice.html:107
+#: ui/templates/ui/figures/acquisition_slice.html:138
 msgid "Requery Next Trials"
 msgstr "Requery Next Trials"
 
-#: ui/templates/ui/figures/acquisition_slice.html:121
+#: ui/templates/ui/figures/acquisition_slice.html:159
 msgid "Prior distribution"
 msgstr "Prior distribution"
 
-#: ui/templates/ui/figures/acquisition_slice.html:122
+#: ui/templates/ui/figures/acquisition_slice.html:160
 msgid "Uniform"
 msgstr "Uniform"
 
-#: ui/templates/ui/figures/acquisition_slice.html:123
+#: ui/templates/ui/figures/acquisition_slice.html:161
 msgid "Normal"
 msgstr "Normal"
 
-#: ui/templates/ui/figures/acquisition_slice.html:124
+#: ui/templates/ui/figures/acquisition_slice.html:162
 msgid "Beta"
 msgstr "Beta"
 
-#: ui/templates/ui/figures/acquisition_slice.html:130
+#: ui/templates/ui/figures/acquisition_slice.html:168
 msgid "Freeform"
 msgstr "Freeform"
 
-#: ui/templates/ui/figures/acquisition_slice.html:136
+#: ui/templates/ui/figures/acquisition_slice.html:174
 msgid "Decay"
 msgstr "Decay"
 
-#: ui/templates/ui/figures/acquisition_slice.html:137
+#: ui/templates/ui/figures/acquisition_slice.html:175
 msgid "No decay"
 msgstr "No decay"
 
-#: ui/templates/ui/figures/acquisition_slice.html:138
+#: ui/templates/ui/figures/acquisition_slice.html:176
 msgid "Logarithmic decay"
 msgstr "Logarithmic decay"
 
-#: ui/templates/ui/figures/acquisition_slice.html:139
+#: ui/templates/ui/figures/acquisition_slice.html:177
 msgid "Linear decay"
 msgstr "Linear decay"
 
-#: ui/templates/ui/figures/acquisition_slice.html:140
+#: ui/templates/ui/figures/acquisition_slice.html:178
 msgid "Quadratic decay"
 msgstr "Quadratic decay"
 
-#: ui/templates/ui/figures/acquisition_slice.html:141
+#: ui/templates/ui/figures/acquisition_slice.html:179
 msgid "Cubic decay"
 msgstr "Cubic decay"
 
-#: ui/templates/ui/figures/acquisition_slice.html:149
+#: ui/templates/ui/figures/acquisition_slice.html:187
 msgid ""
 "Decay factor as a fraction of the trial budget (β = ratio × N). Larger keeps "
 "the prior influential for longer: better for an accurate prior, worse for a "
@@ -622,13 +656,73 @@ msgstr ""
 "the prior influential for longer: better for an accurate prior, worse for a "
 "misleading one."
 
-#: ui/templates/ui/figures/acquisition_slice.html:153
+#: ui/templates/ui/figures/acquisition_slice.html:191
 msgid "Decay factor as a fraction of the trial budget"
 msgstr "Decay factor as a fraction of the trial budget"
 
-#: ui/templates/ui/figures/acquisition_slice.html:174
+#: ui/templates/ui/figures/acquisition_slice.html:230
+msgid ""
+"The initial design is drawn before any surrogate is fitted, so nothing "
+"stated here can reach those trials. Waiting means the belief arrives at full "
+"strength on the first trial it can actually influence."
+msgstr ""
+"The initial design is drawn before any surrogate is fitted, so nothing "
+"stated here can reach those trials. Waiting means the belief arrives at full "
+"strength on the first trial it can actually influence."
+
+#: ui/templates/ui/figures/acquisition_slice.html:232
+msgid "Delay decay until after the initial design"
+msgstr "Delay decay until after the initial design"
+
+#: ui/templates/ui/figures/acquisition_slice.html:234
+msgid "Evaluate Prior"
+msgstr "Evaluate Prior"
+
+#: ui/templates/ui/figures/acquisition_slice.html:242
+msgid ""
+"Put this belief back to what the last run searched under, or to uniform if "
+"there was none."
+msgstr ""
+"Put this belief back to what the last run searched under, or to uniform if "
+"there was none."
+
+#: ui/templates/ui/figures/acquisition_slice.html:242
+msgid "Reset"
+msgstr "Reset"
+
+#: ui/templates/ui/figures/acquisition_slice.html:244
+msgid ""
+"A decaying prior weights the acquisition by its density raised to this "
+"exponent, which falls as the run proceeds. At 1 the belief counts in full; "
+"near 0 it states nothing and the search proceeds unweighted."
+msgstr ""
+"A decaying prior weights the acquisition by its density raised to this "
+"exponent, which falls as the run proceeds. At 1 the belief counts in full; "
+"near 0 it states nothing and the search proceeds unweighted."
+
+#: ui/templates/ui/figures/acquisition_slice.html:260
 msgid "No acquisition data available."
 msgstr "No acquisition data available."
+
+#: ui/templates/ui/figures/acquisition_slice.html:271
+msgid "The model disagrees with this prior"
+msgstr "The model disagrees with this prior"
+
+#: ui/templates/ui/figures/acquisition_slice.html:273
+msgid ""
+"Keeping it means the search will be weighted by it anyway. Discarding it "
+"leaves the search unweighted for this hyperparameter."
+msgstr ""
+"Keeping it means the search will be weighted by it anyway. Discarding it "
+"leaves the search unweighted for this hyperparameter."
+
+#: ui/templates/ui/figures/acquisition_slice.html:275
+msgid "Keep the prior"
+msgstr "Keep the prior"
+
+#: ui/templates/ui/figures/acquisition_slice.html:276
+msgid "Discard it"
+msgstr "Discard it"
 
 #: ui/templates/ui/figures/best_configuration.html:9
 #, python-format
@@ -871,7 +965,7 @@ msgstr "The first build of an environment can take several minutes."
 msgid "Figures shown on an experiment page"
 msgstr "Figures shown on an experiment page"
 
-#: ui/templates/ui/_experiment_settings_fields.html:39
+#: ui/templates/ui/_experiment_settings_fields.html:51
 msgid "Analytics computed as soon as a figure needs them"
 msgstr "Analytics computed as soon as a figure needs them"
 
@@ -1226,20 +1320,20 @@ msgstr "Stopped because %(reason)s."
 msgid "No results yet."
 msgstr "No results yet."
 
-#: ui/templates/ui/experiment_detail.html:136
+#: ui/templates/ui/experiment_detail.html:157
 #, python-format
 msgid "The search space is exhausted at %(n)s trials."
 msgstr "The search space is exhausted at %(n)s trials."
 
-#: ui/templates/ui/experiment_detail.html:356
+#: ui/templates/ui/experiment_detail.html:377
 msgid "Absolute scale (0-1)"
 msgstr "Absolute scale (0-1)"
 
-#: ui/templates/ui/experiment_detail.html:357
+#: ui/templates/ui/experiment_detail.html:378
 msgid "Relative scale (fit to data)"
 msgstr "Relative scale (fit to data)"
 
-#: ui/templates/ui/experiment_detail.html:1415
+#: ui/templates/ui/experiment_detail.html:1436
 msgid "Uncertainty"
 msgstr "Uncertainty"
 
@@ -1356,7 +1450,11 @@ msgstr "Trials drawn on the partial-dependence figure"
 msgid "Trials explained on the local-effects figure"
 msgstr "Trials explained on the local-effects figure"
 
-#: ui/forms.py:191
+#: ui/forms.py:176
+msgid "Prior acceptance tolerance"
+msgstr "Prior acceptance tolerance"
+
+#: ui/forms.py:192
 msgid ""
 "0 draws every trial. The curve is the mean of whatever is drawn, so a "
 "smaller number is faster and lighter but a coarser average."
@@ -1364,7 +1462,7 @@ msgstr ""
 "0 draws every trial. The curve is the mean of whatever is drawn, so a "
 "smaller number is faster and lighter but a coarser average."
 
-#: ui/forms.py:196
+#: ui/forms.py:197
 msgid ""
 "0 explains every trial. Each one costs its own explanation, so this is the "
 "setting that decides how long the figure takes."
@@ -1372,7 +1470,19 @@ msgstr ""
 "0 explains every trial. Each one costs its own explanation, so this is the "
 "setting that decides how long the figure takes."
 
-#: ui/forms.py:229
+#: ui/forms.py:202
+msgid ""
+"How much worse than where the search is already looking a stated belief's "
+"region may score before “Evaluate prior” refuses it. In the objective's own "
+"units, so it means different things for different objectives; 0 refuses "
+"anything the model does not think is an improvement."
+msgstr ""
+"How much worse than where the search is already looking a stated belief's "
+"region may score before “Evaluate prior” refuses it. In the objective's own "
+"units, so it means different things for different objectives; 0 refuses "
+"anything the model does not think is an improvement."
+
+#: ui/forms.py:238
 msgid "Use default experiment settings"
 msgstr "Use default experiment settings"
 
@@ -1746,16 +1856,16 @@ msgid "Change default experiment settings"
 msgstr "Change default experiment settings"
 
 #. == Panels — groups, jobs, site administration ========================
-#: ui/panels.py:91
+#: ui/panels.py:131
 msgid "A username and a first password are needed."
 msgstr "A username and a first password are needed."
 
-#: ui/panels.py:93
+#: ui/panels.py:133
 #, python-format
 msgid "There is already an account called “%(name)s”."
 msgstr "There is already an account called “%(name)s”."
 
-#: ui/panels.py:99
+#: ui/panels.py:139
 #, python-format
 msgid ""
 "%(group)s is full: %(limit)s of %(limit)s seats used. A site admin can raise "
@@ -1764,20 +1874,29 @@ msgstr ""
 "%(group)s is full: %(limit)s of %(limit)s seats used. A site admin can raise "
 "the limit."
 
-#: ui/panels.py:103
-msgid "That is not a role."
-msgstr "That is not a role."
+#: ui/panels.py:146
+msgid "You cannot add somebody with that role."
+msgstr "You cannot add somebody with that role."
 
-#: ui/panels.py:107
+#: ui/panels.py:150
 #, python-format
 msgid "Added %(name)s to %(group)s."
 msgstr "Added %(name)s to %(group)s."
 
-#: ui/panels.py:123
+#: ui/panels.py:166
 msgid "You cannot remove yourself from your own group."
 msgstr "You cannot remove yourself from your own group."
 
-#: ui/panels.py:126
+#: ui/panels.py:172
+#, python-format
+msgid ""
+"%(name)s is the primary lead. The role has to be transferred before they can "
+"leave."
+msgstr ""
+"%(name)s is the primary lead. The role has to be transferred before they can "
+"leave."
+
+#: ui/panels.py:176
 #, python-format
 msgid ""
 "%(name)s still owns experiments. Out of the group nobody could reach them — "
@@ -1786,35 +1905,90 @@ msgstr ""
 "%(name)s still owns experiments. Out of the group nobody could reach them — "
 "reassign them first."
 
-#: ui/panels.py:131
+#: ui/panels.py:181
 #, python-format
 msgid "Removed %(name)s from the group."
 msgstr "Removed %(name)s from the group."
 
-#: ui/panels.py:177
+#: ui/panels.py:202
+msgid ""
+"You cannot change your own role. Transfer the primary lead role to somebody "
+"else instead."
+msgstr ""
+"You cannot change your own role. Transfer the primary lead role to somebody "
+"else instead."
+
+#: ui/panels.py:205
+msgid "That is not a role you can set."
+msgstr "That is not a role you can set."
+
+#: ui/panels.py:209
+#, python-format
+msgid "%(name)s is now a %(role)s."
+msgstr "%(name)s is now a %(role)s."
+
+#: ui/panels.py:234
+msgid "You already hold it."
+msgstr "You already hold it."
+
+#: ui/panels.py:237
+#, python-format
+msgid ""
+"The primary lead role can only go to a group lead. Make %(name)s a lead "
+"first."
+msgstr ""
+"The primary lead role can only go to a group lead. Make %(name)s a lead "
+"first."
+
+#: ui/panels.py:246
+#, python-format
+msgid "%(name)s is now the primary lead of %(group)s. You are a group lead."
+msgstr "%(name)s is now the primary lead of %(group)s. You are a group lead."
+
+#: ui/panels.py:294
 msgid "A group needs a name and a seat limit of zero or more."
 msgstr "A group needs a name and a seat limit of zero or more."
 
-#: ui/panels.py:186
+#: ui/panels.py:303
 #, python-format
 msgid "Saved %(name)s."
 msgstr "Saved %(name)s."
 
-#: ui/panels.py:188
+#: ui/panels.py:305
 #, python-format
 msgid "There is already a group called “%(name)s”."
 msgstr "There is already a group called “%(name)s”."
 
-#: ui/panels.py:192
+#: ui/panels.py:309
 #, python-format
 msgid "Created %(name)s."
 msgstr "Created %(name)s."
 
-#: ui/panels.py:296
+#: ui/panels.py:332
+#, python-format
+msgid "%(name)s still has people in it. Remove them first."
+msgstr "%(name)s still has people in it. Remove them first."
+
+#: ui/panels.py:334
+#, python-format
+msgid "Deleted %(name)s. Anything it held is in the bin."
+msgstr "Deleted %(name)s. Anything it held is in the bin."
+
+#: ui/panels.py:374
+#, python-format
+msgid "Moved experiment %(pk)s into %(group)s."
+msgstr "Moved experiment %(pk)s into %(group)s."
+
+#: ui/panels.py:387
+#, python-format
+msgid "Deleted experiment %(pk)s."
+msgstr "Deleted experiment %(pk)s."
+
+#: ui/panels.py:491
 msgid "Stopped by a site administrator."
 msgstr "Stopped by a site administrator."
 
-#: ui/panels.py:297
+#: ui/panels.py:492
 #, python-format
 msgid "Stopped job %(job)s."
 msgstr "Stopped job %(job)s."
@@ -1830,46 +2004,63 @@ msgstr[1] ""
 msgid "A site administrator sets how many."
 msgstr "A site administrator sets how many."
 
-#: ui/templates/ui/panels/group_people.html:16
+#: ui/templates/ui/panels/group_people.html:17
+msgid ""
+"You are this group's primary lead: you decide who else leads it. Handing "
+"that on is the only way to stop — it always goes to somebody."
+msgstr ""
+"You are this group's primary lead: you decide who else leads it. Handing "
+"that on is the only way to stop — it always goes to somebody."
+
+#: ui/templates/ui/panels/group_people.html:23
 #: ui/templates/ui/panels/site_jobs.html:19
 #: ui/templates/ui/panels/site_usage.html:45
 msgid "Who"
 msgstr "Who"
 
-#: ui/templates/ui/panels/group_people.html:17
-#: ui/templates/ui/panels/group_people.html:61
+#: ui/templates/ui/panels/group_people.html:24
+#: ui/templates/ui/panels/group_people.html:43
+#: ui/templates/ui/panels/group_people.html:97
 msgid "Role"
 msgstr "Role"
 
-#: ui/templates/ui/panels/group_people.html:25
+#: ui/templates/ui/panels/group_people.html:32
 msgid "you"
 msgstr "you"
 
-#: ui/templates/ui/panels/group_people.html:26
+#: ui/templates/ui/panels/group_people.html:33
 msgid "deactivated"
 msgstr "deactivated"
 
-#: ui/templates/ui/panels/group_people.html:33
+#: ui/templates/ui/panels/group_people.html:48
+msgid "Set"
+msgstr "Set"
+
+#: ui/templates/ui/panels/group_people.html:63
+msgid "Make primary lead"
+msgstr "Make primary lead"
+
+#: ui/templates/ui/panels/group_people.html:69
 msgid "Remove"
 msgstr "Remove"
 
-#: ui/templates/ui/panels/group_people.html:47
+#: ui/templates/ui/panels/group_people.html:83
 msgid "Add somebody"
 msgstr "Add somebody"
 
-#: ui/templates/ui/panels/group_people.html:56
+#: ui/templates/ui/panels/group_people.html:92
 msgid "First password"
 msgstr "First password"
 
-#: ui/templates/ui/panels/group_people.html:58
+#: ui/templates/ui/panels/group_people.html:94
 msgid "Hand this over; they can change it under Settings → Account."
 msgstr "Hand this over; they can change it under Settings → Account."
 
-#: ui/templates/ui/panels/group_people.html:66
+#: ui/templates/ui/panels/group_people.html:102
 msgid "Add"
 msgstr "Add"
 
-#: ui/templates/ui/panels/group_people.html:69
+#: ui/templates/ui/panels/group_people.html:105
 msgid "This group is full. A site administrator can raise the limit."
 msgstr "This group is full. A site administrator can raise the limit."
 
@@ -1884,6 +2075,7 @@ msgstr "Everybody else's work in %(group)s. Yours is under Experiments."
 
 #: ui/templates/ui/panels/group_work.html:17
 #: ui/templates/ui/panels/site_jobs.html:18
+#: ui/templates/ui/panels/site_trash.html:23
 msgid "Experiment"
 msgstr "Experiment"
 
@@ -1912,7 +2104,7 @@ msgstr ""
 "its members signing in and leaves every experiment where it is."
 
 #: ui/templates/ui/panels/site_groups.html:18
-#: ui/templates/ui/panels/site_groups.html:56
+#: ui/templates/ui/panels/site_groups.html:68
 msgid "Seats"
 msgstr "Seats"
 
@@ -1920,25 +2112,25 @@ msgstr "Seats"
 msgid "Active"
 msgstr "Active"
 
-#: ui/templates/ui/panels/site_groups.html:33
+#: ui/templates/ui/panels/site_groups.html:34
 #, python-format
 msgid "%(n)s used"
 msgstr "%(n)s used"
 
-#: ui/templates/ui/panels/site_groups.html:37
+#: ui/templates/ui/panels/site_groups.html:38
 msgid "Save"
 msgstr "Save"
 
-#: ui/templates/ui/panels/site_groups.html:42
+#: ui/templates/ui/panels/site_groups.html:54
 #: ui/templates/ui/panels/site_usage.html:35
 msgid "No groups yet."
 msgstr "No groups yet."
 
-#: ui/templates/ui/panels/site_groups.html:48
+#: ui/templates/ui/panels/site_groups.html:60
 msgid "New group"
 msgstr "New group"
 
-#: ui/templates/ui/panels/site_groups.html:58
+#: ui/templates/ui/panels/site_groups.html:70
 msgid ""
 "How many accounts its group lead may create. Theirs to fill, not theirs to "
 "raise."
@@ -1946,7 +2138,7 @@ msgstr ""
 "How many accounts its group lead may create. Theirs to fill, not theirs to "
 "raise."
 
-#: ui/templates/ui/panels/site_groups.html:60
+#: ui/templates/ui/panels/site_groups.html:72
 msgid "Create"
 msgstr "Create"
 
@@ -1982,6 +2174,44 @@ msgstr "Stop"
 msgid "Nothing is running."
 msgstr "Nothing is running."
 
+#: ui/templates/ui/panels/site_trash.html:18
+msgid ""
+"Experiments whose group was deleted. Put one into another group, or discard "
+"it for good."
+msgstr ""
+"Experiments whose group was deleted. Put one into another group, or discard "
+"it for good."
+
+#: ui/templates/ui/panels/site_trash.html:24
+msgid "Was owned by"
+msgstr "Was owned by"
+
+#: ui/templates/ui/panels/site_trash.html:25
+#: ui/templates/ui/panels/site_usage.html:20
+#: ui/templates/ui/panels/site_usage.html:48
+msgid "Runs"
+msgstr "Runs"
+
+#: ui/templates/ui/panels/site_trash.html:26
+msgid "Binned"
+msgstr "Binned"
+
+#: ui/templates/ui/panels/site_trash.html:34
+msgid "nobody"
+msgstr "nobody"
+
+#: ui/templates/ui/panels/site_trash.html:43
+msgid "Move here"
+msgstr "Move here"
+
+#: ui/templates/ui/panels/site_trash.html:47
+msgid "Delete for good"
+msgstr "Delete for good"
+
+#: ui/templates/ui/panels/site_trash.html:52
+msgid "The bin is empty."
+msgstr "The bin is empty."
+
 #: ui/templates/ui/panels/site_usage.html:13
 msgid ""
 "Counted from finished runs. Compute time is time spent in trials, not wall "
@@ -1989,11 +2219,6 @@ msgid ""
 msgstr ""
 "Counted from finished runs. Compute time is time spent in trials, not wall "
 "clock."
-
-#: ui/templates/ui/panels/site_usage.html:20
-#: ui/templates/ui/panels/site_usage.html:48
-msgid "Runs"
-msgstr "Runs"
 
 #: ui/templates/ui/panels/site_usage.html:28
 msgid "restricted"
@@ -2048,7 +2273,44 @@ msgstr "too many trials were failing"
 msgid "Inconsistent"
 msgstr "Inconsistent"
 
-#: ui/views.py:966 ui/views.py:1143
+#: ui/views.py:819
+msgid ""
+"Nothing has been run yet, so there is no model to judge this against. A "
+"belief stated now is acted on in full."
+msgstr ""
+"Nothing has been run yet, so there is no model to judge this against. A "
+"belief stated now is acted on in full."
+
+#: ui/views.py:825
+msgid ""
+"This optimizer fits no model of the objective, so it has no opinion about "
+"where the optimum is."
+msgstr ""
+"This optimizer fits no model of the objective, so it has no opinion about "
+"where the optimum is."
+
+#: ui/views.py:842
+msgid ""
+"The model does not think this region is worse than where the search is "
+"already looking."
+msgstr ""
+"The model does not think this region is worse than where the search is "
+"already looking."
+
+#: ui/views.py:845
+#, python-format
+msgid ""
+"The model scores this region more than %(tolerance)s below where the search "
+"is already looking. Acting on it would cost trials."
+msgstr ""
+"The model scores this region more than %(tolerance)s below where the search "
+"is already looking. Acting on it would cost trials."
+
+#: ui/views.py:850
+msgid "This belief could not be judged, so it stands as stated."
+msgstr "This belief could not be judged, so it stands as stated."
+
+#: ui/views.py:1122 ui/views.py:1339
 msgid ""
 "The model this experiment used is not available here, so its search space "
 "cannot be rebuilt."
@@ -2056,7 +2318,7 @@ msgstr ""
 "The model this experiment used is not available here, so its search space "
 "cannot be rebuilt."
 
-#: ui/views.py:1104
+#: ui/views.py:1300
 msgid ""
 "This SMAC has no acquisition weight layer, so a stated prior does not affect "
 "the search or the candidates below. Install the version requirements.txt "
@@ -2066,39 +2328,39 @@ msgstr ""
 "the search or the candidates below. Install the version requirements.txt "
 "pins."
 
-#: ui/views.py:1233
+#: ui/views.py:1429
 msgid ""
 "Set at least one stopping criterion, so the run has something to end on."
 msgstr ""
 "Set at least one stopping criterion, so the run has something to end on."
 
-#: ui/views.py:1548
+#: ui/views.py:1744
 msgid ""
 "Given up on by hand: it stopped answering, and cancelling it had no effect."
 msgstr ""
 "Given up on by hand: it stopped answering, and cancelling it had no effect."
 
-#: ui/views.py:1738
+#: ui/views.py:1937
 msgid "See every experiment on this instance"
 msgstr "See every experiment on this instance"
 
-#: ui/views.py:1740
+#: ui/views.py:1939
 msgid "Run, edit and delete other people's experiments"
 msgstr "Run, edit and delete other people's experiments"
 
-#: ui/views.py:1742
+#: ui/views.py:1941
 msgid "Change the settings every experiment inherits"
 msgstr "Change the settings every experiment inherits"
 
-#: ui/views.py:1744
+#: ui/views.py:1943
 msgid "Upload and run custom models"
 msgstr "Upload and run custom models"
 
-#: ui/views.py:1803
+#: ui/views.py:2002
 msgid "Invalid or unreadable experiment file."
 msgstr "Invalid or unreadable experiment file."
 
-#: ui/views.py:1867
+#: ui/views.py:2066
 #, python-format
 msgid ""
 "This looks like more than one run — two files here are called %(name)s. "
@@ -2107,16 +2369,16 @@ msgstr ""
 "This looks like more than one run — two files here are called %(name)s. "
 "Choose a single run directory, the one holding its runhistory.json."
 
-#: ui/views.py:1874
+#: ui/views.py:2073
 #, python-format
 msgid "Could not read %(name)s."
 msgstr "Could not read %(name)s."
 
-#: ui/views.py:1881
+#: ui/views.py:2080
 msgid "This is not a readable SMAC run."
 msgstr "This is not a readable SMAC run."
 
-#: ui/views.py:1934
+#: ui/views.py:2133
 msgid ""
 "Local explanation needs the search space, which this experiment does not "
 "carry and has no model to ask."
@@ -2124,7 +2386,7 @@ msgstr ""
 "Local explanation needs the search space, which this experiment does not "
 "carry and has no model to ask."
 
-#: ui/views.py:2053
+#: ui/views.py:2252
 msgid ""
 "Partial dependence needs the search space, which this experiment does not "
 "carry and has no model to ask."
@@ -2132,7 +2394,7 @@ msgstr ""
 "Partial dependence needs the search space, which this experiment does not "
 "carry and has no model to ask."
 
-#: ui/views.py:2189
+#: ui/views.py:2388
 msgid ""
 "Local effects need the search space, which this experiment does not carry "
 "and has no model to ask."
@@ -2140,16 +2402,16 @@ msgstr ""
 "Local effects need the search space, which this experiment does not carry "
 "and has no model to ask."
 
-#: ui/views.py:2247
+#: ui/views.py:2475
 msgid "Not recorded"
 msgstr "Not recorded"
 
-#: ui/views.py:2249
+#: ui/views.py:2477
 #, python-format
 msgid "%(k)s-fold CV"
 msgstr "%(k)s-fold CV"
 
-#: ui/views.py:2250
+#: ui/views.py:2478
 #, python-format
 msgid "%(pct)s%% held out"
 msgstr "%(pct)s%% held out"
@@ -2180,7 +2442,7 @@ msgstr ""
 "code>)? This cannot be undone."
 
 #: ui/templates/ui/experiment_list.html:12
-#: ui/templates/ui/panels/site_groups.html:52
+#: ui/templates/ui/panels/site_groups.html:64
 msgid "Name"
 msgstr "Name"
 

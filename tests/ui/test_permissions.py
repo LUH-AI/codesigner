@@ -38,14 +38,36 @@ def _experiment(name="perm") -> Experiment:
 #: next one through unnoticed.
 NOT_EXPERIMENTS = {
     "group_remove_person": "a membership, removed by that group's lead",
+    "group_set_role": "a membership, whose role the primary lead sets",
+    "group_transfer_primary": "a membership, receiving the primary lead role",
     "site_job_stop": "a run, stopped by a site admin from outside its group",
+}
+
+#: Routes whose pk *is* an experiment, reached through `GroupPolicy.trash`
+#: instead of `@experiment_view`.
+#:
+#: A separate list rather than more of the one above, because the reason is
+#: different and the difference matters. These are not addressing something
+#: else; they are addressing an experiment through the one other queryset that
+#: decides existence. The decorator resolves through `policy().experiments()`,
+#: and a binned experiment is deliberately not in it — it is out of every group,
+#: so every rule there would need a special case for something that is nobody's
+#: until a site admin settles it.
+#:
+#: Named one at a time for the same reason as the list above: the next route to
+#: reach an experiment outside the decorator should have to argue for itself.
+THROUGH_THE_BIN = {
+    "site_trash_rehome": "put back into a group by a site admin",
+    "site_trash_delete": "discarded for good by a site admin",
 }
 
 
 def _experiment_routes():
-    """Every route that names an experiment in its path."""
+    """Every route that names an experiment in its path and resolves it through
+    `@experiment_view` — which is every one of them but the bin's two."""
+    exempt = set(NOT_EXPERIMENTS) | set(THROUGH_THE_BIN)
     return [p for p in urls.urlpatterns
-            if "<int:pk>" in str(p.pattern) and p.name not in NOT_EXPERIMENTS]
+            if "<int:pk>" in str(p.pattern) and p.name not in exempt]
 
 
 def test_the_exceptions_are_real_routes():
@@ -76,6 +98,35 @@ def test_the_exceptions_do_not_reach_an_experiment_through_the_pk():
         route = next(p for p in urls.urlpatterns if p.name == name)
         assert route.callback.__module__ == panels.__name__, (
             f"{name} is not a panel route any more; re-check what its pk means")
+
+
+def test_the_bin_routes_resolve_through_the_bin(client):
+    """The reason *those* are allowed out: they still go through a policy
+    queryset, just not the one the decorator uses.
+
+    Asserted at the source, because what is being checked is that the lookup
+    was not hand-rolled — an exemption that stopped asking a policy anything
+    would look exactly like one that never did.
+    """
+    import inspect
+
+    from ui import panels
+
+    for name in THROUGH_THE_BIN:
+        route = next(p for p in urls.urlpatterns if p.name == name)
+        assert route.callback.__module__ == panels.__name__, (
+            f"{name} is not a panel route any more; re-check what its pk means")
+        source = inspect.getsource(route.callback)
+        assert "policy().trash(request)" in source, (
+            f"{name} no longer resolves its experiment through the bin's "
+            f"queryset, so nothing is deciding whether it exists")
+
+
+def test_the_bin_routes_are_real_routes():
+    """The same rot guard the list above gets."""
+    names = {p.name for p in urls.urlpatterns if "<int:pk>" in str(p.pattern)}
+
+    assert not set(THROUGH_THE_BIN) - names
 
 
 def test_there_are_experiment_routes_to_audit():
@@ -125,6 +176,14 @@ def test_the_declared_actions_match_what_the_routes_do():
         # compute.
         "experiment_compute_analytics": permissions.RUN,
         "prepare_env": permissions.RUN,
+        # Judging a stated belief against the surrogate: a model fit and two
+        # hundred acquisition evaluations, written nowhere. RUN for the same
+        # reason as computing skipped analytics — VIEW would make reading an
+        # experiment a way to spend seconds of this machine on it.
+        "evaluate_prior": permissions.RUN,
+        # Putting a belief back to what the last run searched under changes what
+        # the next one will, exactly as stating one does.
+        "reset_prior": permissions.EDIT,
         "run_cancel": permissions.RUN,
         # A prior is not a way of looking at a run, it is a statement about what
         # the next one searches — so stating one edits the experiment.

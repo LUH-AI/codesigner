@@ -27,6 +27,13 @@
     //: page-width slot is actually used.
     var PLOT_CONFIG = {displaylogo: false, responsive: true, displayModeBar: false};
 
+    /* The top of the prior panel's y axis. Above 1 so a knot placed at full
+     * height is drawn whole rather than clipped by the edge, and named because
+     * two places have to agree about it: the layout that sets the range, and
+     * the pointer arithmetic that converts between a position on screen and a
+     * height in [0, 1]. */
+    var PRIOR_AXIS_TOP = 1.06;
+
     /* Abramowitz & Stegun 7.1.26. Accurate to ~1.5e-7, which is several orders
      * better than anything here needs: the acquisition function is only ever
      * ranked, and it is drawn 400 pixels wide. */
@@ -281,15 +288,23 @@
          * where the prior is strongest, and the gap elsewhere is what the
          * prior has written off. */
         peak = maxOf(weights) || 1;
-        /* The weight, and the curve drawn from it, share the normalization.
-         * The prior panel used to draw the raw density on an auto-ranged log
-         * axis, so its scale moved every time a parameter did — a σ nudge
-         * relabelled the axis and the curve appeared not to have changed.
-         * Peaking every shape at 1 puts them all on one fixed axis, where what
-         * moves is the shape and only the shape. */
         for (i = 0; i < n; i++) {
             weighted[i] = weighted[i] / peak;
-            weights[i] = weights[i] / peak;
+        }
+        /* The panel curve takes the same normalization, for every shape whose
+         * height has no units of its own: a Gaussian's density depends on its
+         * σ, so undivided it would move the axis every time a parameter did.
+         *
+         * A freeform prior is the exception, and `applyPriorAxis` says why —
+         * its heights *are* the panel's units, put there by hand on the same
+         * [0, 1] the knots are stored in. Normalizing it draws the curve
+         * somewhere the knots are not, which for the flat starting shape meant
+         * a row of knots at half height under a curve pinned at one. The
+         * weighting above is untouched: that division is what keeps the
+         * weighted acquisition comparable to the unweighted one, and it is
+         * ranking-invariant either way. */
+        if (!(stated && prior.kind === "tabulated")) {
+            for (i = 0; i < n; i++) weights[i] = weights[i] / peak;
         }
 
         /* The fiction's own spread, from the same σ the surrogate reports: the
@@ -315,13 +330,20 @@
 
         /* The control points, back in axis coordinates so the marker trace can
          * carry them. Empty for every shape that is not tabulated, which is how
-         * the trace disappears without being removed. */
+         * the trace disappears without being removed.
+         *
+         * Raised to the decay exponent, which is what the curve beside them is:
+         * the freeform curve is left un-normalized above so that the two share
+         * one scale, and the exponent is the only thing between a stated height
+         * and a drawn one. `_through` is monotone (Fritsch-Carlson) and does
+         * not overshoot its control points, so the density at a knot's x is
+         * that knot's own height and the marker lands on the line. */
         pts = {x: [], y: []};
         if (stated && prior.kind === "tabulated" && prior.params.points) {
             for (i = 0; i < prior.params.points.length; i++) {
                 pts.x.push(meta.span[0] + prior.params.points[i][0] *
                            ((meta.span[1] - meta.span[0]) || 1));
-                pts.y.push(prior.params.points[i][1]);
+                pts.y.push(decayed(prior.params.points[i][1], prior.exponent));
             }
         }
 
@@ -428,6 +450,33 @@
      *
      * Indices come from `meta.traces`, never from counting: the server adds
      * bands and a marker conditionally, so the numbers move. */
+    /* The incumbent's place on the acquisition curve: the grid point nearest
+     * its own value, at that point's acquisition.
+     *
+     * Nearest rather than interpolated. The curve is drawn as straight segments
+     * between grid points, so a marker at an interpolated height sits off the
+     * line wherever the grid is coarse — which is exactly where it would be
+     * noticed.
+     *
+     * Empty when the slice is switched off, when the server sent no incumbent
+     * (a prior-only payload has none), or before there is a curve to sit on.
+     * An empty marker trace draws nothing and keeps its name out of the legend
+     * the same way the hidden curves do. */
+    function incumbentAt(meta, values, showing) {
+        var pos = meta.positions || [], best = -1, gap, closest = Infinity, i;
+        if (!showing || !meta.incumbent || !values.acquisition
+                || !values.acquisition.length) {
+            return {x: [], y: []};
+        }
+        for (i = 0; i < pos.length; i++) {
+            gap = Math.abs(pos[i] - meta.incumbent[0]);
+            if (gap < closest) { closest = gap; best = i; }
+        }
+        if (best < 0) return {x: [], y: []};
+        return {x: [pos[best]], y: [values.acquisition[best]]};
+    }
+
+
     /* What a stated prior changes, grouped by the figure that owns it — one
      * entry per figure, so each is redrawn in a single call.
      *
@@ -439,7 +488,7 @@
      * along the axis as well as up it — so x travels with y. Everything else
      * re-sends the grid it already had, which costs a copy and keeps one path. */
     function priorTraces(meta, values) {
-        var t = meta.traces, grid = meta.positions, showing,
+        var t = meta.traces, grid = meta.positions, showing, at,
             out = {acquisition: {indices: [], xs: [], ys: []},
                    prior: {indices: [], xs: [], ys: []},
                    surrogate: {indices: [], xs: [], ys: []}},
@@ -459,6 +508,11 @@
             grid, showing ? values.acquisition : []);
         add("acquisition", t.acquisition.weighted,
             grid, showing ? values.weighted : []);
+        /* With the slice curves, because it is a point on them. */
+        if (typeof t.acquisition.incumbent === "number") {
+            at = incumbentAt(meta, values, showing);
+            add("acquisition", t.acquisition.incumbent, at.x, at.y);
+        }
         if (typeof t.acquisition.cloud === "number" && values.cloud) {
             add("acquisition", t.acquisition.cloud, grid, values.cloud);
         }
@@ -506,6 +560,19 @@
         initialEl = document.getElementById("acq-initial"),
         sliceToggle = document.getElementById("acq-show-slice"),
         betaField = document.getElementById("acq-prior-beta"),
+        strengthEl = document.getElementById("acq-prior-strength"),
+        delayToggle = document.getElementById("acq-prior-delay"),
+        delayWrap = document.getElementById("acq-delay-wrap"),
+        evaluateBtn = document.getElementById("acq-evaluate"),
+        resetBtn = document.getElementById("acq-reset"),
+        resetUrl = section.getAttribute("data-reset-url"),
+        verdictEl = document.getElementById("acq-verdict"),
+        verdictDialog = document.getElementById("acq-verdict-dialog"),
+        verdictDetail = document.getElementById("acq-verdict-detail"),
+        evaluateUrl = section.getAttribute("data-evaluate-url"),
+        /* No run behind this page: the prior panel is all there is, and the
+         * only request worth making is the one that needs no model. */
+        priorOnlyPage = section.getAttribute("data-prior-only") === "1",
         metricSelect = document.getElementById("metric-select"),
         cache = {},
         defaultBeta = null,
@@ -518,7 +585,14 @@
         if (flags && flags.acquisition_slice === false) autocompute = false;
     } catch (e) { /* no settings shipped: compute, which is the default */ }
 
-    function metric() { return metricSelect ? metricSelect.value : ""; }
+    /* The page's selector where there is one. Without a run there is no metric
+     * switcher on the page at all, so the card carries the experiment's own —
+     * a prior is stated against a hyperparameter, and the metric only decides
+     * which surrogate would have been fitted. */
+    function metric() {
+        return metricSelect ? metricSelect.value
+                            : (section.getAttribute("data-metric") || "");
+    }
 
     function setWarning(text) {
         if (!warnEl) return;
@@ -730,10 +804,51 @@
      * property the x axis already had.
      */
 
+    /* A freeform prior's knots are stated heights; the curve through them is
+     * what the search currently weights by, which is that density raised to the
+     * decay exponent. The knots are drawn decayed too, so the picture is one
+     * statement rather than two: where the curve runs now, and the points that
+     * put it there, on the same scale.
+     *
+     * Which makes the drag a conversion in both directions — the pointer is a
+     * position on the decayed curve, and what gets stored is the stated height
+     * underneath it. Below `DECAY_FLOOR` that inversion stops meaning anything:
+     * the exponent is near zero, every height draws at nearly 1, and the root
+     * that would undo it sends the smallest difference in pointer position to
+     * the whole of [0, 1]. A prior that faded that far states nothing, and the
+     * flat curve says so; editing it moves the knots as though it had not
+     * faded, which is the one reading that stays usable. */
+    var DECAY_FLOOR = 0.02;
+
+    function decayExponent() {
+        var e = state && state.prior ? state.prior.exponent : 1;
+        return typeof e === "number" && e >= DECAY_FLOOR ? e : 1;
+    }
+
+    /* A stated height, as it is drawn. */
+    function decayed(h, exponent) {
+        return Math.pow(h + 1e-12, exponent);
+    }
+
+    /* And back: a height read off the panel, as it would have to be stated. */
+    function stated(v, exponent) {
+        return Math.min(Math.max(Math.pow(v, 1 / exponent), 0), 1);
+    }
+
+
+    /* The panel's y axis runs to PRIOR_AXIS_TOP, not to 1: a knot at full
+     * height needs headroom above it or its marker is drawn half outside the
+     * plotting area. Both directions of the conversion have to know that, or
+     * the pointer lands a few per cent away from where Plotly put the knot —
+     * near enough to look like a jitter, far enough to miss a grab. */
     function pointerUnit(box, ev) {
         return {
             u: Math.min(Math.max((ev.clientX - box.left) / box.width, 0), 1),
-            v: Math.min(Math.max((box.bottom - ev.clientY) / box.height, 0), 1)
+            /* Where the pointer is on the drawn curve, converted to the
+             * height that would have to be stated to put it there. */
+            v: stated(Math.min(Math.max(
+                ((box.bottom - ev.clientY) / box.height) * PRIOR_AXIS_TOP, 0), 1),
+                decayExponent())
         };
     }
 
@@ -742,7 +857,8 @@
             best = -1, bestDistance = POINT_PX, i, dx, dy, d;
         for (i = 0; i < points.length; i++) {
             dx = (box.left + points[i][0] * box.width) - ev.clientX;
-            dy = (box.bottom - points[i][1] * box.height) - ev.clientY;
+            dy = (box.bottom - (decayed(points[i][1], decayExponent())
+                                / PRIOR_AXIS_TOP) * box.height) - ev.clientY;
             d = Math.sqrt(dx * dx + dy * dy);
             if (d < bestDistance) { bestDistance = d; best = i; }
         }
@@ -815,7 +931,7 @@
          * being opened out by the logarithm. That is what a very sharp prior
          * is, and a moving axis was a worse way to say it. */
         var layout = state && state.figures ? state.figures.prior.layout : null,
-            wanted = {type: "linear", range: [0, 1.06],
+            wanted = {type: "linear", range: [0, PRIOR_AXIS_TOP],
                       fixedrange: true, autorange: false};
         if (!layout) return;
         layout.yaxis = layout.yaxis || {};
@@ -1123,6 +1239,11 @@
 
     function postPrior(rewalk) {
         if (!priorUrl || !state || !state.hp) return;
+        /* The verdict was about the belief as it stood. Any save means it has
+         * moved, so the old answer goes rather than sitting under a curve it no
+         * longer describes — a stale approval is the one outcome here that
+         * could mislead somebody into not asking again. */
+        setVerdict(null);
         var meta = currentMeta(),
             stated = !!(state.prior && state.prior.kind !== "uniform"),
             body = {hp: state.hp, prior: null, rewalk: !!rewalk};
@@ -1130,7 +1251,11 @@
         if (stated) {
             body.prior = {kind: state.prior.kind, params: state.prior.params,
                           decay: {shape: state.prior.decay,
-                                  beta_ratio: state.prior.betaRatio}};
+                                  beta_ratio: state.prior.betaRatio},
+                          /* The server refuses it once the design is over, so
+                           * this is what was asked for rather than what will
+                           * hold — see `_inside_initial_design`. */
+                          delay_decay: !!(delayToggle && delayToggle.checked)};
         }
         /* Where the density is wanted back. The server evaluates it at these
          * positions and returns it in this same response, so a save and a
@@ -1169,6 +1294,166 @@
         rewalkBtn.textContent = on ? text("asking") : rewalkLabel;
     }
 
+    /* ── judging a belief ──────────────────────────────────────────────────
+     *
+     * DynaBO's safeguard, asked for rather than continuous. It costs a model
+     * fit and two hundred acquisition evaluations, so it is a button for the
+     * same reason the re-walk is one.
+     *
+     * The verdict is SMAC's: the server offers the prior to `add_prior` behind
+     * an `IncumbentComparisonPolicy` and reports whether it was registered.
+     * Nothing here re-decides it, and nothing here is written — a refused
+     * belief stays exactly where the reader left it until they say otherwise.
+     */
+
+    function setVerdict(message, kind) {
+        if (!verdictEl) return;
+        if (!message) {
+            verdictEl.textContent = "";
+            verdictEl.hidden = true;
+            return;
+        }
+        /* One element, three tones. `alert` carries the shape; the modifier
+         * says whether this is a finding, a refusal or neither. */
+        verdictEl.className = "alert" + (kind ? " " + kind : "");
+        verdictEl.textContent = message;
+        verdictEl.hidden = false;
+    }
+
+    /* Withdrawing, through the control that already does it: setting the shape
+     * to uniform is what "no prior" means everywhere else in this file, and
+     * dispatching the event runs the same handler a reader would. One path, so
+     * a discard cannot drift from a withdrawal. */
+    function discardPrior() {
+        if (!kindSelect) return;
+        kindSelect.value = "uniform";
+        kindSelect.dispatchEvent(new Event("change"));
+    }
+
+    function judgePrior() {
+        if (!evaluateUrl || !state || !state.hp || !evaluateBtn) return;
+        var body = new FormData();
+        body.append("hp", state.hp);
+        evaluateBtn.disabled = true;
+        setVerdict(text("judging"), "");
+        fetch(evaluateUrl, {method: "POST", headers: {"X-CSRFToken": csrf},
+                            body: body})
+            .then(function (r) { return r.ok ? r.json() : Promise.reject(); })
+            .then(function (data) {
+                setVerdict(data.message,
+                           data.verdict === "rejected" ? "warning" : "");
+                /* Only a refusal asks a question. Approval and "could not be
+                 * judged" are both things to read, not things to answer. */
+                if (data.verdict === "rejected" && verdictDialog) {
+                    if (verdictDetail) verdictDetail.textContent = data.message;
+                    if (verdictDialog.showModal) verdictDialog.showModal();
+                }
+            })
+            .catch(function () { setVerdict(text("judge-failed"), "warning"); })
+            .then(function () { evaluateBtn.disabled = false; });
+    }
+
+    if (delayToggle) {
+        delayToggle.addEventListener("change", function () {
+            if (!state || !state.prior) return;
+            state.prior.delayDecay = delayToggle.checked;
+            /* A save, because it changes what the search will do — and the
+             * response brings back the strength the belief now reports, which
+             * is the whole visible difference. */
+            savePrior();
+        });
+    }
+    /* Back to what the last run searched under, or to uniform when there was
+     * nothing. The server decides which — it is the side that knows what each
+     * run recorded — and hands back the restored belief, so the panel is redrawn
+     * from the same answer every other request gives it rather than from a
+     * second reconstruction here. */
+    function resetPrior() {
+        if (!resetUrl || !state || !state.hp || !resetBtn) return;
+        var body = new FormData();
+        body.append("hp", state.hp);
+        resetBtn.disabled = true;
+        fetch(resetUrl, {method: "POST", headers: {"X-CSRFToken": csrf},
+                         body: body})
+            .then(function (r) { return r.ok ? r.json() : Promise.reject(); })
+            .then(function (data) {
+                var restored = data.prior && data.prior.kind;
+                state.prior = restored
+                    ? {kind: data.prior.kind,
+                       params: data.prior.params || {},
+                       exponent: data.prior.exponent || 1,
+                       decay: (data.prior.decay || {}).shape || "none",
+                       delayDecay: data.prior.delay_decay !== false,
+                       betaRatio: (data.prior.decay || {}).beta_ratio != null
+                                  ? (data.prior.decay || {}).beta_ratio : defaultBeta}
+                    : {kind: "uniform", params: defaultsFor("uniform"),
+                       exponent: 1, decay: "none", delayDecay: true,
+                       betaRatio: defaultBeta};
+                /* Said out loud, because the two outcomes look the same on an
+                 * untouched panel and mean different things: put back to
+                 * something, or put back to nothing because there was nothing. */
+                setVerdict(text(data.restored ? "reset-to-last" : "reset-to-uniform"), "");
+                syncControls();
+                scheduleRedraw();
+                /* No save. The server has already written it — this is what it
+                 * wrote — and posting it back would re-anchor a belief that was
+                 * restored precisely to keep its anchor. */
+                showCandidates(null);
+            })
+            .catch(function () { setVerdict(text("reset-failed"), "warning"); })
+            .then(function () { resetBtn.disabled = false; });
+    }
+
+    if (resetBtn) {
+        resetBtn.addEventListener("click", resetPrior);
+    }
+    if (evaluateBtn) {
+        evaluateBtn.addEventListener("click", judgePrior);
+    }
+    if (verdictDialog) {
+        var keepBtn = document.getElementById("acq-verdict-keep"),
+            discardBtn = document.getElementById("acq-verdict-discard");
+        if (keepBtn) {
+            keepBtn.addEventListener("click", function () { verdictDialog.close(); });
+        }
+        if (discardBtn) {
+            discardBtn.addEventListener("click", function () {
+                verdictDialog.close();
+                discardPrior();
+                /* The banner goes with the belief it was about. */
+                setVerdict(null);
+            });
+        }
+    }
+
+
+    /* What the stated belief currently counts for.
+     *
+     * The exponent has always been here — it is what the curve is drawn from,
+     * and what the knots are now drawn from too — and the panel never said what
+     * it was, so a decayed prior looked like a differently-shaped one. The
+     * number comes from the server with the payload (`_decayed_prior`), because
+     * the schedules are SMAC's; nothing here recomputes it.
+     *
+     * Only while it is doing something. Without a decay the exponent is 1 for
+     * the whole run, and a line saying so on every panel is noise; a uniform
+     * prior states nothing to fade in the first place. */
+    function showStrength(kind) {
+        var e = state && state.prior ? state.prior.exponent : null,
+            shape = (state && state.prior && state.prior.decay) || "none";
+        if (!strengthEl) return;
+        if (kind === "uniform" || shape === "none" || typeof e !== "number") {
+            strengthEl.textContent = "";
+            strengthEl.hidden = true;
+            return;
+        }
+        /* Two decimals: the exponent moves slowly and the reader is watching
+         * for "most of it" against "hardly any of it", not for a fourth digit. */
+        strengthEl.textContent = text("strength", {strength: e.toFixed(2)});
+        strengthEl.hidden = false;
+    }
+
+
     /* The whole row, after anything that changes the shape. */
     function syncControls() {
         var kind = (state && state.prior && state.prior.kind) || "uniform";
@@ -1189,6 +1474,16 @@
                         ? state.prior.betaRatio : defaultBeta;
             if (ratio != null) betaField.value = ratio;
         }
+        showStrength(kind);
+        if (delayWrap) {
+            /* Nothing to wait for once the design is over, and nothing to fade
+             * when no prior is stated. */
+            delayWrap.hidden = !(state && state.insideDesign) || kind === "uniform";
+        }
+        if (delayToggle && state && state.prior) {
+            delayToggle.checked = state.prior.delayDecay !== false;
+        }
+        if (evaluateBtn) evaluateBtn.disabled = kind === "uniform";
         offerKinds();
         applyPriorAxis(kind);
         renderParams();
@@ -1289,6 +1584,10 @@
             kept = {kind: data.prior.kind, params: data.prior.params || {},
                     exponent: data.prior.exponent || 1,
                     decay: (data.prior.decay || {}).shape || "none",
+                    /* Absent means the belief predates the choice, and the
+                     * choice is on by default — but a stored `false` is an
+                     * answer and has to survive the round trip. */
+                    delayDecay: data.prior.delay_decay !== false,
                     betaRatio: (data.prior.decay || {}).beta_ratio};
         }
         /* β opens on DynaBO's initialisation — the trial budget over ten — for
@@ -1305,7 +1604,12 @@
             kept.exponent = data.prior.exponent;
         }
         state = {figures: data.figures, meta: data.meta, prior: kept, hp: hp,
-                 candidates: null, density: data.density || null};
+                 candidates: null, density: data.density || null,
+                 /* Whether there is still a design to wait for, which decides
+                  * whether the wait is worth offering. Said by the server
+                  * rather than read off `initialDesign`, which is also null for
+                  * a run whose optimizer records no design at all. */
+                 insideDesign: !!data.insideDesign};
         /* Deliberately not carried over. A candidate's position is a coordinate
          * on one hyperparameter's axis, and what is drawn below is now a
          * different axis or a different metric's surrogate. Re-ask. */
@@ -1332,6 +1636,11 @@
         }
 
         if (cache[key]) { apply(cache[key]); return; }
+        /* Nothing to fit and nothing to wait for. Asking for the full slice
+         * would be asking the server for a surrogate over no trials, which it
+         * refuses — correctly, and the reader would see the refusal rather
+         * than the panel they came for. */
+        if (priorOnlyPage) { drawPriorOnly(m, hp); return; }
         if (!autocompute && !asked) {
             setPrompt(true);
             setWarning(null);

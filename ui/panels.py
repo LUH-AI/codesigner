@@ -20,6 +20,9 @@ from django.shortcuts import get_object_or_404, redirect, render
 from django.utils.translation import gettext as _
 from django.views.decorators.http import require_POST
 
+from django.db.models.deletion import ProtectedError
+from django.utils import timezone
+
 from access.models import Group, Membership
 from access.policy import is_lead, is_site_admin, membership_of
 
@@ -33,6 +36,22 @@ def lead_required(view):
     def wrapped(request, *args, **kwargs):
         membership = membership_of(request.user)
         if membership is None or not membership.is_lead:
+            raise Http404
+        return view(request, membership, *args, **kwargs)
+    return wrapped
+
+
+def primary_lead_required(view):
+    """The one lead in a group who may appoint and unmake the others.
+
+    A separate decorator rather than a check inside `lead_required`, because the
+    difference is the whole point of the role: everything a lead does stays open
+    to every lead, and only these two views narrow to one person.
+    """
+    @wraps(view)
+    def wrapped(request, *args, **kwargs):
+        membership = membership_of(request.user)
+        if membership is None or not membership.is_primary_lead:
             raise Http404
         return view(request, membership, *args, **kwargs)
     return wrapped
@@ -65,8 +84,29 @@ def group_people(request, membership):
         "group": group,
         "memberships": group.memberships.select_related("user").all(),
         "seats_left": group.seats_left,
-        "roles": Membership.ROLES,
+        # What this person may hand out, which is not the whole list. Primary
+        # is never here: it is transferred from whoever holds it, never granted
+        # alongside a new account, or a group would end up with two.
+        "roles": _grantable_roles(membership),
+        "is_primary": membership.is_primary_lead,
+        # Who the primary role could go to: the group's other leads. Empty
+        # until there is one, which is the honest answer — the transfer hands
+        # it to a lead, so somebody has to be made a lead first.
+        "transfer_to": (group.memberships.select_related("user")
+                        .filter(role=Membership.LEAD)
+                        if membership.is_primary_lead else []),
     })
+
+
+def _grantable_roles(membership):
+    """The roles *this* lead may give somebody.
+
+    A primary lead may create leads; an ordinary lead may not, or the one
+    restriction the role carries would be one form post away from meaningless.
+    """
+    if membership.is_primary_lead:
+        return [(Membership.MEMBER, "Member"), (Membership.LEAD, "Group lead")]
+    return [(Membership.MEMBER, "Member")]
 
 
 @require_POST
@@ -99,8 +139,11 @@ def group_add_person(request, membership):
             "%(group)s is full: %(limit)s of %(limit)s seats used. A site admin "
             "can raise the limit.") % {"group": group.name,
                                        "limit": group.user_limit})
-    elif role not in dict(Membership.ROLES):
-        messages.error(request, _("That is not a role."))
+    elif role not in dict(_grantable_roles(membership)):
+        # Covers both a role that does not exist and one this lead may not
+        # give. Checked here and not only in the form, because the form is not
+        # what arrives.
+        messages.error(request, _("You cannot add somebody with that role."))
     else:
         user = User.objects.create_user(username=username, password=password)
         Membership.objects.create(user=user, group=group, role=role)
@@ -121,6 +164,13 @@ def group_remove_person(request, membership, pk):
     target = get_object_or_404(Membership, pk=pk, group=membership.group)
     if target.pk == membership.pk:
         messages.error(request, _("You cannot remove yourself from your own group."))
+    elif target.is_primary_lead:
+        # Only reachable by a second lead trying it, since the primary lead
+        # cannot remove themselves by the branch above. Either way the group
+        # would be left with nobody able to appoint a lead.
+        messages.error(request, _(
+            "%(name)s is the primary lead. The role has to be transferred "
+            "before they can leave.") % {"name": target.user.get_username()})
     elif target.user.experiments.exists():
         messages.error(request, _(
             "%(name)s still owns experiments. Out of the group nobody could "
@@ -129,6 +179,73 @@ def group_remove_person(request, membership, pk):
         name = target.user.get_username()
         target.delete()
         messages.success(request, _("Removed %(name)s from the group.") % {"name": name})
+    return redirect("ui:group_people")
+
+
+@require_POST
+@primary_lead_required
+def group_set_role(request, membership, pk):
+    """Make somebody a lead, or make them an ordinary member again.
+
+    The one thing a primary lead can do that a lead cannot. Primary is not
+    among the roles this will set — that one moves by transfer, from the person
+    who holds it, so that a group can never be left with two or with none.
+    """
+    target = get_object_or_404(Membership, pk=pk, group=membership.group)
+    role = request.POST.get("role") or ""
+
+    if target.pk == membership.pk:
+        # Standing down is `group_transfer_primary`, which hands the role to a
+        # named successor. Doing it here would leave the group with no primary
+        # lead and nobody able to appoint one.
+        messages.error(request, _(
+            "You cannot change your own role. Transfer the primary lead role "
+            "to somebody else instead."))
+    elif role not in (Membership.MEMBER, Membership.LEAD):
+        messages.error(request, _("That is not a role you can set."))
+    else:
+        target.role = role
+        target.save(update_fields=["role"])
+        messages.success(request, _("%(name)s is now a %(role)s.") % {
+            "name": target.user.get_username(),
+            "role": target.get_role_display().lower()})
+    return redirect("ui:group_people")
+
+
+@require_POST
+@primary_lead_required
+def group_transfer_primary(request, membership, pk):
+    """Hand the primary lead role to another lead in this group.
+
+    To a lead rather than to anybody: the role is a lead's with one addition,
+    so handing it to a member would promote and appoint in a single unexplained
+    step. Make them a lead first, then hand it over — two decisions, which is
+    what it is.
+
+    Both rows are written in one transaction. The constraint allows one primary
+    lead per group, so the order matters and a half-applied transfer would
+    either leave two or leave none.
+    """
+    from django.db import transaction
+
+    target = get_object_or_404(Membership, pk=pk, group=membership.group)
+
+    if target.pk == membership.pk:
+        messages.error(request, _("You already hold it."))
+    elif target.role != Membership.LEAD:
+        messages.error(request, _(
+            "The primary lead role can only go to a group lead. Make "
+            "%(name)s a lead first.") % {"name": target.user.get_username()})
+    else:
+        with transaction.atomic():
+            membership.role = Membership.LEAD
+            membership.save(update_fields=["role"])
+            target.role = Membership.PRIMARY_LEAD
+            target.save(update_fields=["role"])
+        messages.success(request, _(
+            "%(name)s is now the primary lead of %(group)s. You are a group "
+            "lead.") % {"name": target.user.get_username(),
+                        "group": membership.group.name})
     return redirect("ui:group_people")
 
 
@@ -191,6 +308,84 @@ def site_group_save(request):
         Group.objects.create(name=name, user_limit=limit)
         messages.success(request, _("Created %(name)s.") % {"name": name})
     return redirect("ui:site_groups")
+
+
+@require_POST
+@site_admin_required
+def site_group_delete(request):
+    """Remove a group, setting its work aside rather than destroying it.
+
+    `Group.delete()` empties the group's experiments into the bin first — see
+    `access/models.py` on why that rather than taking them with it.
+
+    A group that still has people in it is refused. `Membership.group` is
+    PROTECT and always has been: emptying a group of its accounts is a separate
+    decision, made person by person on the group panel, and doing it as a side
+    effect of one button would delete accounts nobody asked to delete.
+    """
+    group = get_object_or_404(Group, pk=request.POST.get("pk") or 0)
+    name = group.name
+    try:
+        group.delete()
+    except ProtectedError:
+        messages.error(request, _(
+            "%(name)s still has people in it. Remove them first.") % {"name": name})
+    else:
+        messages.success(request, _("Deleted %(name)s. Anything it held is in "
+                                    "the bin.") % {"name": name})
+    return redirect("ui:site_groups")
+
+
+@site_admin_required
+def site_trash(request):
+    """What group deletions left behind, and the two things to do about it.
+
+    Shown with the same discipline as the jobs panel: an opaque identifier, who
+    used to own it and how much it cost, and nothing about what it was *for*.
+    Deciding whether work should be rehomed or discarded does not require
+    reading it, and a bin that listed experiment names would be a way around the
+    boundary rather than a consequence of one.
+    """
+    trashed = (policy().trash(request)
+               .select_related("owner")
+               .annotate(runs=Count("runs", distinct=True))
+               .order_by("-trashed_at"))
+    return render(request, "ui/panels/site_trash.html", {
+        "experiments": trashed,
+        "groups": Group.objects.all(),
+    })
+
+
+@require_POST
+@site_admin_required
+def site_trash_rehome(request, pk):
+    """Put a trashed experiment into a group again.
+
+    Which makes it that group's — its lead can reach it, and its members can if
+    the owner had shared it. The owner is left as it was, including when that is
+    nobody: an experiment can outlive the account that made it, and a group is
+    what decides who may see it.
+    """
+    experiment = get_object_or_404(policy().trash(request), pk=pk)
+    group = get_object_or_404(Group, pk=request.POST.get("group") or 0)
+    experiment.group = group
+    experiment.trashed_at = None
+    experiment.save(update_fields=["group", "trashed_at"])
+    messages.success(request, _("Moved experiment %(pk)s into %(group)s.")
+                     % {"pk": experiment.pk, "group": group.name})
+    return redirect("ui:site_trash")
+
+
+@require_POST
+@site_admin_required
+def site_trash_delete(request, pk):
+    """Discard one for good. The only route by which a group's deletion
+    eventually destroys anything, and it is a second, separate decision."""
+    experiment = get_object_or_404(policy().trash(request), pk=pk)
+    number = experiment.pk
+    experiment.delete()
+    messages.success(request, _("Deleted experiment %(pk)s.") % {"pk": number})
+    return redirect("ui:site_trash")
 
 
 @site_admin_required

@@ -128,6 +128,26 @@ being read.{% endcomment %}
                 })();
             </script>
         {% endif %}
+
+        {% comment %}The one figure that does not need a run behind it. A prior
+        is a statement about the search space, and the space exists before the
+        search does — so somebody who has just created an experiment can say
+        where they think the optimum is before spending a single trial on
+        finding out.
+
+        Only the prior panel: the acquisition curve, the candidates and the
+        incumbent are all the surrogate's, and there is no surrogate yet. The
+        partial leaves them out on `has_result`.
+
+        Plotly is loaded here because the grid below — which normally loads it —
+        is not rendered on this branch. A classic in-body script, so it executes
+        during parsing and is there by the time the figure's own deferred script
+        runs.{% endcomment %}
+        {% if prior_only_figure %}
+            <hr class="divider">
+            <script src="{% static 'ui/plotly.min.js' %}"></script>
+            {% include prior_only_figure.template with figure=prior_only_figure %}
+        {% endif %}
     {% else %}
         <hr class="divider">
         {% if trials_exhausted %}

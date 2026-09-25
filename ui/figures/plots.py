@@ -1491,6 +1491,22 @@ def acquisition_slice_plots(hp_name, positions, labels, mu, sigma, metric_label,
     acquisition.add_trace(go.Scatter(
         x=positions, y=list(blank), mode="lines", name=_("Weighted by the prior"),
         hoverinfo="skip", line=dict(width=2.5, color=PRIOR_COLOR)))
+    # The one configuration on this line that was measured. The slice holds
+    # every other hyperparameter at the incumbent's value, so the curve passes
+    # through exactly this point and nothing else on the grid is an observation
+    # — which is why the other trials are not marked: they are not on this line.
+    #
+    # Filled by the browser, and only while the slice curves are shown: it is a
+    # point *on* them, and left drawn beside a hidden curve it would mark a line
+    # that is not there. Its height is an acquisition value, computed where the
+    # curves are, rather than the incumbent's score — that belongs to a
+    # different axis.
+    traces["acquisition"]["incumbent"] = len(acquisition.data)
+    acquisition.add_trace(go.Scatter(
+        x=[], y=[], mode="markers", name=_("Incumbent"),
+        marker=dict(size=9, color=MARKER_COLOR,
+                    line=dict(width=1.5, color="#FFFFFF")),
+        hovertemplate=_("Incumbent") + "<extra></extra>"))
     # What the optimizer would ask for next, as a rug along the top rather than
     # at a height.
     #
@@ -1510,7 +1526,7 @@ def acquisition_slice_plots(hp_name, positions, labels, mu, sigma, metric_label,
         # One trace, one appearance. Ranking them by eye was the job the height
         # was doing, and the height had to go; a second marker style would only
         # bring the same claim back in another form.
-        x=[], y=[], mode="markers+text", name=_("Asked of the optimizer"),
+        x=[], y=[], mode="markers+text", name=_("Optimizer's Candidate"),
         customdata=[], text=[], textposition="top center",
         textfont=dict(size=10, color=ACCENT_COLOR),
         marker=dict(size=_MARKER_PX, symbol="diamond", color=ACCENT_COLOR,
@@ -1621,6 +1637,10 @@ def acquisition_slice_plots(hp_name, positions, labels, mu, sigma, metric_label,
         "cloud": ({"positions": cloud[0], "mu": cloud[1], "sigma": cloud[2]}
                   if cloud is not None else None),
         "positions": list(positions), "mu": list(mu), "sigma": list(sigma),
+        # Where the measured configuration sits on this axis. The score beside
+        # it is what the surrogate panel used; the acquisition panel takes only
+        # the position and finds its own height.
+        "incumbent": list(incumbent) if incumbent is not None else None,
         "eta": eta, "higherIsBetter": bool(higher_is_better),
         "span": span, "kind": kind, "hp": hp_name,
     }

@@ -22,9 +22,10 @@ def sidebar_experiments(request):
 
 _SETTINGS_URL_NAMES = {"appearance", "account", "default_experiment_settings"}
 _GROUP_URL_NAMES = {"group_people", "group_add_person", "group_remove_person",
-                    "group_work"}
-_SITE_URL_NAMES = {"site_groups", "site_group_save", "site_usage", "site_jobs",
-                   "site_job_stop"}
+                    "group_set_role", "group_transfer_primary", "group_work"}
+_SITE_URL_NAMES = {"site_groups", "site_group_save", "site_group_delete",
+                   "site_usage", "site_jobs", "site_job_stop",
+                   "site_trash", "site_trash_rehome", "site_trash_delete"}
 
 
 def active_tab(request):

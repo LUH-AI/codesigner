@@ -22,6 +22,11 @@ the site panel on why that distinction carries weight.
 from django.conf import settings as django_settings
 from django.db import models
 
+#: `Membership.PRIMARY_LEAD`, at module scope because the constraint that keeps
+#: it unique is declared in `Membership.Meta`, and a class body's own names are
+#: not visible from there.
+_PRIMARY_LEAD = "primary_lead"
+
 
 class Group(models.Model):
     """A research group: the boundary experiments are not visible across.
@@ -51,6 +56,28 @@ class Group(models.Model):
     def member_count(self) -> int:
         return self.memberships.count()
 
+    def delete(self, *args, **kwargs):
+        """Empty the group's work into the bin, then go.
+
+        `Experiment.group` is PROTECT, so without this a group that still holds
+        anything cannot be deleted at all. Taking the experiments down with it
+        is the other obvious answer and the wrong one: a group is removed once
+        its people have gone, which is exactly the moment nobody is left to say
+        whether the results still matter. So they are set aside for a site admin
+        to rehome or discard, and the deletion goes through.
+
+        A queryset delete does not come through here and will raise
+        `ProtectedError` instead, which is the safe way round: it refuses rather
+        than quietly taking a different route.
+        """
+        from django.utils import timezone
+
+        from ui.models import Experiment
+
+        Experiment.objects.filter(group=self).update(
+            group=None, trashed_at=timezone.now())
+        return super().delete(*args, **kwargs)
+
     @property
     def seats_left(self) -> int:
         """How many more people may be added. Never negative.
@@ -72,7 +99,18 @@ class Membership(models.Model):
 
     MEMBER = "member"
     LEAD = "lead"
-    ROLES = [(MEMBER, "Member"), (LEAD, "Group lead")]
+    #: A lead with one thing more: leads are theirs to appoint and to unmake.
+    #:
+    #: A separate role rather than a flag on the group, because it is a fact
+    #: about a person *within* a group in exactly the way the other two are, and
+    #: the answer to "what is this person here" should come from one field. The
+    #: constraint below is what makes it at most one.
+    PRIMARY_LEAD = _PRIMARY_LEAD
+    ROLES = [(MEMBER, "Member"), (LEAD, "Group lead"),
+             (PRIMARY_LEAD, "Primary group lead")]
+    #: The roles that carry a lead's reach over the group. Named rather than
+    #: written out at each test, so adding a fourth role is one edit here.
+    LEAD_ROLES = (LEAD, PRIMARY_LEAD)
 
     user = models.OneToOneField(
         django_settings.AUTH_USER_MODEL, on_delete=models.CASCADE,
@@ -86,13 +124,35 @@ class Membership(models.Model):
 
     class Meta:
         ordering = ["group__name", "user__username"]
+        constraints = [
+            # One per group, enforced in the database rather than in the views
+            # that appoint one: a second primary lead is not a state the
+            # application should be able to reach by any route, including the
+            # admin and a data migration. Partial, so the other two roles are
+            # unaffected — a group has many members and may have many leads.
+            models.UniqueConstraint(
+                fields=["group"],
+                condition=models.Q(role=_PRIMARY_LEAD),
+                name="one_primary_lead_per_group"),
+        ]
 
     def __str__(self) -> str:
         return f"{self.user} in {self.group} ({self.get_role_display()})"
 
     @property
     def is_lead(self) -> bool:
-        return self.role == self.LEAD
+        """Whether this membership carries a lead's reach over the group.
+
+        True for the primary lead as well: they are a lead who can also appoint
+        them, not a different thing that happens to sit above one. Every rule
+        about what a lead may see and do reads this, so the extra power stays
+        confined to `is_primary_lead` and the two views that ask for it.
+        """
+        return self.role in self.LEAD_ROLES
+
+    @property
+    def is_primary_lead(self) -> bool:
+        return self.role == self.PRIMARY_LEAD
 
 
 class AccessPermissions(models.Model):

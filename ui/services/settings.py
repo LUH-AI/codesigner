@@ -29,6 +29,16 @@ from ..models import GlobalSettings
 SETTING_DEFAULTS = {
     "ice_max_curves": 100,
     "local_effects_max_trials": 100,
+    # How much worse than where the search is already looking a stated belief's
+    # region may score before "Evaluate prior" refuses it. DynaBO's safeguard
+    # states this as a negative threshold; here it is the positive slack, which
+    # is the direction it reads as a preference — larger is more forgiving, and
+    # 0 refuses anything the model does not think is an improvement.
+    #
+    # In raw objective units, so it means different things for different
+    # objectives, which is why it is a setting at all rather than a constant.
+    # The default is SMAC's, from a benchmark whose objective lives in [0, 1].
+    "prior_acceptance_tolerance": 0.15,
     **{figure.setting_key: True for figure in FIGURES},
     **{autocompute_key(name): False for name, _label in deferred_computations()},
 }
@@ -40,6 +50,10 @@ SETTING_DEFAULTS = {
 SETTING_BOUNDS = {
     "ice_max_curves": (0, 10_000),
     "local_effects_max_trials": (0, 10_000),
+    # No upper bound worth naming — the units are the objective's — so this is
+    # wide enough to cover any of them and closed at zero, where it means
+    # "accept nothing the model scores below the incumbent's neighbourhood".
+    "prior_acceptance_tolerance": (0.0, 1_000.0),
 }
 
 #: The figures that *display* the eager HyperSHAP games. With every one of them

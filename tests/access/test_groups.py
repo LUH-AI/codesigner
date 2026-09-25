@@ -186,25 +186,36 @@ def test_a_member_may_not(hosted, world):
 
 # ── the site admin ───────────────────────────────────────────────────────────
 
-def test_a_site_admin_sees_no_experiments_at_all(hosted, world):
-    """The role is defined by not seeing them."""
+def test_a_site_admin_in_no_group_sees_no_experiments(hosted, world):
+    """Not because of the role — because there is nothing of theirs to see.
+
+    `manage_site` says what they may administer, and their membership says what
+    they may read. The site admin in `world` has none, so the second answer is
+    empty and the first never enters into it.
+    """
     assert _visible(None, world["site"]) == set()
 
 
-def test_a_site_admin_cannot_reach_one_by_url(client, hosted, world):
+def test_a_site_admin_cannot_reach_another_groups_by_url(client, hosted, world):
     client.force_login(world["site"])
 
     assert _detail(client, world["ana_group"]).status_code == 404
 
 
-def test_even_with_a_group_of_their_own(hosted, world, django_user_model):
-    """`create_site_admin` gives them one by default, and it must not become a
-    way to see that group's work."""
+def test_a_site_admin_with_a_group_sees_that_group(hosted, world, django_user_model):
+    """`create_site_admin` gives them a group of one by default, and that group
+    is theirs to work in.
+
+    Administering the instance and belonging to a group are separate facts, so
+    holding `manage_site` neither grants reach nor withdraws it: this reads
+    exactly like any other lead of vision-lab, and nlp-group stays invisible.
+    """
     Membership.objects.create(user=world["site"], group=world["vision"],
-                              role=Membership.LEAD)
+                              role=Membership.PRIMARY_LEAD)
     site = django_user_model.objects.get(pk=world["site"].pk)
 
-    assert _visible(None, site) == set()
+    assert _visible(None, site) == {"ana private", "ana group", "ana named"}
+    assert "cleo group" not in _visible(None, site)
 
 
 # ── what ownerless means now ─────────────────────────────────────────────────

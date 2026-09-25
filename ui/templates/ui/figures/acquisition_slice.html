@@ -18,6 +18,14 @@ else here submits a real form and gets the token from `{% csrf_token %}`.
 <section class="card" data-figure="{{ figure.key }}"
          data-acquisition-url="{% url 'ui:acquisition_slice' summary.pk %}"
          data-prior-url="{% url 'ui:save_prior' summary.pk %}"
+         data-evaluate-url="{% url 'ui:evaluate_prior' summary.pk %}"
+         data-reset-url="{% url 'ui:reset_prior' summary.pk %}"
+         data-metric="{{ acq_metric }}"
+         {% comment %}Set when the card is on a page that has no run behind it.
+         The prior panel is all there is then — the other two are the
+         surrogate's — so the script asks for the density alone and never for a
+         slice there is no model to compute.{% endcomment %}
+         data-prior-only="{% if not has_result %}1{% endif %}"
          data-csrf="{{ csrf_token }}">
     <div class="card-head">
         <div class="subheader">{{ figure.label }}</div>
@@ -61,8 +69,26 @@ else here submits a real form and gets the token from `{% csrf_token %}`.
          data-runs-next="{% translate 'runs next' %}"
          data-pile="{% translate '{count} candidates here' %}"
          data-pile-ranks="{% translate 'Ranks {ranks} of {total}' %}"
-         data-pile-best="{% translate 'Rank {rank}, the best of them:' %}"></div>
+         data-pile-best="{% translate 'Rank {rank}(most promising):' %}"
+         data-strength="{% translate 'counts at {strength}' %}"
+         data-judging="{% translate 'Asking the model…' %}"
+         data-judge-failed="{% translate 'Could not ask the model about this prior.' %}"
+         data-reset-failed="{% translate 'Could not reset this prior.' %}"
+         data-reset-to-last="{% translate 'Put back to what the last run searched under.' %}"
+         data-reset-to-uniform="{% translate 'Reset. No earlier run stated one for this hyperparameter.' %}"></div>
     <p id="acq-warning" class="alert warning" hidden></p>
+    {% comment %}What the model made of the stated belief, once somebody has
+    asked. DynaBO's safeguard: a belief pointing somewhere the surrogate already
+    thinks is bad costs trials, and the model usually has an opinion about the
+    region it names.
+
+    Asked for rather than continuous, and this is the reason it is a button —
+    the judgement costs a model fit and two hundred acquisition evaluations, the
+    same bargain "Requery Next Trials" makes. It also only means anything once
+    there is a model: before the first run the policy is required to accept,
+    and the banner says so rather than reporting approval that was never
+    earned.{% endcomment %}
+    <p id="acq-verdict" class="alert" hidden></p>
     {% comment %}Shown while the run is still drawing its initial design, which
     happens before any surrogate exists — so nothing stated on this figure can
     reach those trials. Filled by the script from the recorded design size,
@@ -75,20 +101,23 @@ else here submits a real form and gets the token from `{% csrf_token %}`.
         <button type="button" id="acq-compute-btn">{% translate "Compute" %}</button>
     </p>
     {% comment %}Three figures rather than three panels of one, so each can
-    carry its own controls directly beneath it. The wrapper keeps the figure's
+    carry its own controls directly above it. The wrapper keeps the figure's
     dom_id because the page's own draw() hides and shows a figure by that id,
     and this one ships no server-rendered payload for it to draw.{% endcomment %}
     <div id="{{ figure.dom_id }}" class="acq-stack">
-        <div id="acq-plot-acquisition" class="acq-panel"></div>
         {% comment %}The two curves computed along the slice, with every other
         hyperparameter frozen at the incumbent's. They answer a narrower question
-        than the sampled curve beside them — what this one line looks like, not
-        what the search can reach — so they can be put away. On by default:
-        hiding something the reader has not asked to hide is worse than showing
-        something they can switch off.{% endcomment %}
+        than the sampled curve below them — what this one line looks like, not
+        what the search can reach — so they are off unless asked for, and the
+        panel opens on what the search can actually reach.
+
+        Switched on, the incumbent is marked along them: it is the one
+        configuration on that line anybody measured, and the line is drawn
+        through it.{% endcomment %}
+        {% if has_result %}
         <p class="selectors acq-controls">
             <label class="acq-toggle">
-                <input type="checkbox" id="acq-show-slice" checked>
+                <input type="checkbox" id="acq-show-slice">
                 {% translate "Acquisition with incumbent hyperparameters" %}
             </label>
             {% comment %}Not a redraw. This saves the prior and then asks a real
@@ -98,17 +127,24 @@ else here submits a real form and gets the token from `{% csrf_token %}`.
             every drag.{% endcomment %}
             <button type="button" id="acq-rewalk">{% translate "Requery Next Trials" %}</button>
         </p>
+        <div id="acq-plot-acquisition" class="acq-panel"></div>
+        {% endif %}
 
-        <div id="acq-plot-prior" class="acq-panel"></div>
-        {% comment %}Under the prior, not in a bar at the top of a card that
-        also holds two other pictures. Both are SMAC's own vocabulary: a prior
-        is an AbstractInputPrior and the decay is one of DECAY_SHAPES, so what
-        is chosen here is what would be handed to add_prior.
+        {% comment %}Everything that states the prior, on one row above the panel
+        it describes: the shape, its decay, the decay's factor, and whatever
+        parameters the shape itself has. One row rather than two because they are
+        one statement — reading the curve means reading all of it at once, and a
+        parameter that sat on a second row below the picture was separated from
+        the shape that decided it existed.
+
+        Both selects are SMAC's own vocabulary: a prior is an AbstractInputPrior
+        and the decay is one of DECAY_SHAPES, so what is chosen here is what
+        would be handed to add_prior.
 
         Uniform is the resting state: it multiplies the acquisition by a
         constant, which cannot change a ranking, so it says exactly what stating
         no prior says.{% endcomment %}
-        <p class="selectors acq-controls">
+        <p class="selectors acq-controls acq-prior-bar">
             <select id="acq-prior-kind" aria-label="{% translate 'Prior distribution' %}">
                 <option value="uniform">{% translate "Uniform" %}</option>
                 <option value="normal">{% translate "Normal" %}</option>
@@ -148,14 +184,75 @@ else here submits a real form and gets the token from `{% csrf_token %}`.
                     <option value="0.4"></option>
                 </datalist>
             </label>
-        </p>
-        {% comment %}Filled by the script from whichever distribution is chosen:
-        a number field and a slider per parameter, bound both ways so dragging
-        the curve moves the numbers and typing a number moves the curve.
-        {% endcomment %}
-        <div id="acq-prior-params" class="selectors acq-params"></div>
+            {% comment %}Filled by the script from whichever distribution is
+            chosen: a number field and a slider per parameter, bound both ways so
+            dragging the curve moves the numbers and typing a number moves the
+            curve. `display: contents` in the stylesheet, so those fields join
+            this row rather than forming one of their own.{% endcomment %}
+            <span id="acq-prior-params" class="acq-params"></span>
+            {% comment %}How much of the stated belief still counts. A decaying
+            prior weights the acquisition by its density raised to an exponent
+            that falls as the run proceeds, and the exponent is the one number
+            on this panel that moves without anybody touching a control — the
+            curve had been redrawn from it all along without ever saying what it
+            was. Shown only while it is doing something: with no decay it is 1
+            for the whole run, and saying so every time would be noise.
+            {% endcomment %}
+            {% comment %}Only while there is a design still to finish, and on by
+            default. The initial design is drawn before any surrogate exists, so
+            a belief cannot reach those trials — anchored before them it spends
+            the whole phase fading while doing nothing and arrives at the first
+            trial it can influence already weakened. Waiting is what the figure
+            has always said happens; this is the control that makes it true.
 
-        <div id="acq-plot-surrogate" class="acq-panel"></div>
+            Hidden rather than absent once the design is over: there is nothing
+            left to wait for then, and a checkbox offering to wait for it would
+            be a control that cannot do anything.{% endcomment %}
+            <label class="acq-toggle" id="acq-delay-wrap" hidden
+                   title="{% translate 'The initial design is drawn before any surrogate is fitted, so nothing stated here can reach those trials. Waiting means the belief arrives at full strength on the first trial it can actually influence.' %}">
+                <input type="checkbox" id="acq-prior-delay" checked>
+                {% translate "Delay decay until after the initial design" %}
+            </label>
+            <button type="button" id="acq-evaluate">{% translate "Evaluate Prior" %}</button>
+            {% comment %}The undo for an afternoon of dragging. Every change on
+            this panel saves as it is made, so there is no other way back to the
+            statement the trials on screen actually came out of — and to uniform
+            when there is nothing to go back to, which is the same thing as
+            never having stated one.{% endcomment %}
+            <button type="button" id="acq-reset"
+                    title="{% translate 'Put this belief back to what the last run searched under, or to uniform if there was none.' %}">{% translate "Reset" %}</button>
+            <span id="acq-prior-strength" class="caption" hidden
+                  title="{% translate 'A decaying prior weights the acquisition by its density raised to this exponent, which falls as the run proceeds. At 1 the belief counts in full; near 0 it states nothing and the search proceeds unweighted.' %}"></span>
+        </p>
+        <div id="acq-plot-prior" class="acq-panel"></div>
+
+        {% comment %}The surrogate panel is not drawn, and its figure is not
+        sent — see `_NOT_SHIPPED` in views. The model behind it is still fitted,
+        because the acquisition curve is computed from that same mean and
+        spread, and the figure is still built; only the sending is skipped, and
+        `render` reacts one panel per figure it has a div for.
+
+        Putting it back is this one div and that one set. Left as a comment
+        rather than deleted because the traces, the stepped spread and the ghost
+        band are all still under test — the only thing that changed is whether a
+        reader sees them.{% endcomment %}
     </div>
     <p id="{{ figure.dom_id }}-empty" class="caption" hidden>{% translate "No acquisition data available." %}</p>
+    {% comment %}A refusal is not an instruction. The model's opinion is worth
+    hearing and is not worth more than the reader's — they may know something it
+    does not, which is the entire reason for stating a belief in the first place
+    — so a rejected prior is left exactly where it was and this asks.
+
+    A native `<dialog>` rather than `confirm()`: the question takes a sentence
+    or two, and its two answers are "keep" and "discard" rather than "ok" and
+    "cancel".{% endcomment %}
+    <dialog id="acq-verdict-dialog" class="card">
+        <div class="subheader">{% translate "The model disagrees with this prior" %}</div>
+        <p id="acq-verdict-detail" class="caption"></p>
+        <p class="caption">{% translate "Keeping it means the search will be weighted by it anyway. Discarding it leaves the search unweighted for this hyperparameter." %}</p>
+        <p class="selectors">
+            <button type="button" id="acq-verdict-keep" class="btn-primary">{% translate "Keep the prior" %}</button>
+            <button type="button" id="acq-verdict-discard" class="btn">{% translate "Discard it" %}</button>
+        </p>
+    </dialog>
 </section>

@@ -94,6 +94,28 @@ class Experiment(models.Model):
     owner = models.ForeignKey(
         django_settings.AUTH_USER_MODEL, null=True, blank=True,
         on_delete=models.SET_NULL, related_name="experiments")
+    # Which group it is in, recorded here rather than read off the owner's
+    # membership. The two answered the same question while every experiment had
+    # an owner who was in a group, and they stop agreeing at exactly the moments
+    # that matter: an account is deleted and `owner` goes null, or somebody
+    # moves group and takes a colleague's work out of sight with them. The group
+    # is the boundary, so the boundary is the thing stored.
+    #
+    # PROTECT, so a group cannot be deleted out from under work that is in it.
+    # `Group.delete()` empties it into the bin first — see `access.models`.
+    #
+    # Null means one of two things, and `trashed_at` is what separates them:
+    # set, the group was deleted under it and it is in the bin; unset, this is
+    # an install with no accounts, where there are no groups to be in. Every
+    # rule about the bin asks about `trashed_at`, never about this being empty.
+    group = models.ForeignKey(
+        "access.Group", null=True, blank=True,
+        on_delete=models.PROTECT, related_name="experiments")
+    # When its group was deleted under it. Set together with `group = None`, and
+    # cleared by rehoming. A site admin decides what happens next; until they
+    # do, the policy shows it to nobody, which is the same thing deletion would
+    # have done except that it is reversible.
+    trashed_at = models.DateTimeField(null=True, blank=True)
     # Readable by the owner's group. Not writable by them: sharing is an
     # invitation to look, not to run, rename or delete.
     #
@@ -139,6 +161,27 @@ class Experiment(models.Model):
 
     def __str__(self) -> str:
         return self.name
+
+    def save(self, *args, **kwargs):
+        """Put a new experiment in its owner's group.
+
+        Here rather than in the views that create one, because there are
+        several — the create page, an imported `.ihpo`, the demo seed — and
+        "every experiment is in a group" is a property of the model, not a step
+        each of them has to remember. Only on the way in: afterwards the field
+        is the record, and an owner who later changes group does not drag their
+        old work across the boundary with them.
+
+        Silent when the owner has no membership, which is an install with no
+        accounts. The policy already shows those to everyone or to nobody
+        depending on `REQUIRE_LOGIN`, and inventing a group for them here would
+        be inventing the boundary as well.
+        """
+        if self._state.adding and self.group_id is None and self.owner_id:
+            membership = getattr(self.owner, "membership", None)
+            if membership is not None:
+                self.group_id = membership.group_id
+        return super().save(*args, **kwargs)
 
     @property
     def is_running(self) -> bool:
@@ -198,6 +241,19 @@ class Run(models.Model):
     # it out anyway. Empty for runs that predate the field, which
     # `core.modelhost.deadline.as_deadline` reads as the fixed default.
     trial_timeout = models.JSONField(default=dict, blank=True)
+    # The beliefs this run searched under, copied from the experiment when the
+    # run was created.
+    #
+    # `Experiment.priors` is the live, editable statement — it moves as soon as
+    # somebody drags the curve. This is what was actually true when the trials
+    # were spent, which is a different fact and the only one a reader can go
+    # back to. The per-run `events` already record what the prior *did*
+    # (applied, skipped, with which decay); this records what it *was*, which
+    # none of them carry and nothing else can reconstruct.
+    #
+    # Empty for runs that predate the field, and for runs that stated nothing.
+    # The two are the same thing to every reader of it: nothing to go back to.
+    priors = models.JSONField(default=dict, blank=True)
     # Which criterion ended it. Empty while running, and for a run that was
     # cancelled or errored rather than stopping on its own terms.
     stopped_by = models.CharField(max_length=40, blank=True, default="")

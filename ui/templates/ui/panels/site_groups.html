@@ -17,6 +17,7 @@
                 <th>{% translate "Seats" %}</th>
                 <th>{% translate "Active" %}</th>
                 <th></th>
+                <th></th>
             </tr>
         </thead>
         <tbody>
@@ -36,9 +37,19 @@
                             <button type="submit" class="btn">{% translate "Save" %}</button>
                         </td>
                     </form>
+                    <td style="text-align: right;">
+                        {% comment %}Refused while the group still has people in
+                        it. What it holds goes to the bin rather than being
+                        destroyed — see the Bin tab.{% endcomment %}
+                        <form method="post" action="{% url 'ui:site_group_delete' %}">
+                            {% csrf_token %}
+                            <input type="hidden" name="pk" value="{{ g.pk }}">
+                            <button type="submit" class="btn">{% translate "Delete" %}</button>
+                        </form>
+                    </td>
                 </tr>
             {% empty %}
-                <tr><td colspan="4" class="caption">{% translate "No groups yet." %}</td></tr>
+                <tr><td colspan="5" class="caption">{% translate "No groups yet." %}</td></tr>
             {% endfor %}
         </tbody>
     </table>

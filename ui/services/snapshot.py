@@ -213,7 +213,7 @@ def snapshot_from_experiment(exp: Experiment, *, provenance: bool = False) -> di
 #: transport between two halves of one request — on disk it would be a few
 #: hundred numbers restating what `kind` and `params` already say exactly, and a
 #: second representation able to disagree with the first.
-_PRIOR_FIELDS = ("kind", "params", "decay", "at_trial")
+_PRIOR_FIELDS = ("kind", "params", "decay", "at_trial", "delay_decay")
 
 
 def _prior_record(stated: dict) -> dict:
@@ -224,6 +224,15 @@ def _prior_record(stated: dict) -> dict:
     shape, β, the anchor and the trial count, recomputed on every request; a
     stored copy could only ever be a number that contradicts the schedule
     beside it.
+
+    `delay_decay` is kept, for the opposite reason. It is not derivable from
+    anything else in the file: it records that the reader asked for the belief
+    to start counting at the end of the initial design rather than when they
+    stated it. A file written mid-design and read back without it would have
+    the prior fading through a phase it cannot reach, which is the thing the
+    flag exists to prevent — and the size it waits for is the *reading* run's
+    design, not the writing one's, so the wait is carried rather than the
+    number it resolved to.
     """
     return {key: stated[key] for key in _PRIOR_FIELDS if key in stated}
 

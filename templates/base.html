@@ -116,6 +116,8 @@
                    href="{% url 'ui:site_usage' %}">{% translate "Usage" %}</a>
                 <a class="tab{% if request.resolver_match.url_name == 'site_jobs' %} active{% endif %}"
                    href="{% url 'ui:site_jobs' %}">{% translate "Jobs" %}</a>
+                <a class="tab{% if request.resolver_match.url_name == 'site_trash' %} active{% endif %}"
+                   href="{% url 'ui:site_trash' %}">{% translate "Bin" %}</a>
             </div>
         </nav>
     {% else %}

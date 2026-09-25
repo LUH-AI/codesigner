@@ -105,6 +105,12 @@ def create_run(experiment, stopping, optimize_metric, started_by=None,
         started_by=started_by,
         stopping=dict(stopping),
         trial_timeout=dict(trial_timeout or {}),
+        # Copied, not referenced: what this run searched under has to stay put
+        # while the experiment's own statement goes on moving. Taken here rather
+        # than when the run finishes, because by then the reader may have
+        # changed it — and what is being recorded is what the trials came out
+        # of.
+        priors=dict(experiment.priors or {}),
         events=events,
     )
 

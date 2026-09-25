@@ -1,8 +1,10 @@
-"""Create somebody who manages groups rather than experiments.
+"""Create somebody who manages groups, and give them one of their own.
 
 A site admin holds `manage_site`: they create groups, set how many people each
-may hold, see what each is using, and stop a job that is going wrong. They are
-shown no experiments — that is the separation the role exists for.
+may hold, see what each is using, and stop a job that is going wrong. What they
+are shown is decided by their membership like anybody else's — managing groups
+and being in one are separate facts — so by default they get a group of one with
+themselves as its primary lead, and see that group and no other.
 
     manage.py create_site_admin alice            # + a group of their own
     manage.py create_site_admin alice --users 0  # no group at all
@@ -37,7 +39,7 @@ from access.models import Group, Membership
 
 
 class Command(BaseCommand):
-    help = "Create a site admin, who manages groups and sees no experiments."
+    help = "Create a site admin, with a group of their own to work in."
 
     def add_arguments(self, parser):
         parser.add_argument("username")
@@ -82,8 +84,11 @@ class Command(BaseCommand):
         if seats:
             group = Group.objects.create(name=_free_name(username),
                                          user_limit=seats)
+            # Primary, not merely lead: they are the only person in it, so
+            # there is nobody else who could appoint one, and a group whose
+            # leads cannot be appointed is a group that cannot grow.
             Membership.objects.create(user=user, group=group,
-                                      role=Membership.LEAD)
+                                      role=Membership.PRIMARY_LEAD)
             self.stdout.write(self.style.SUCCESS(
                 f"Created site admin {username!r} and group {group.name!r} "
                 f"({seats} seat{'s' if seats != 1 else ''})."))

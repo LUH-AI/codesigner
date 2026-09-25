@@ -19,8 +19,14 @@ What a signed-in person can reach:
   act of judgement by the owner rather than a property of a group.
 * **Everything in their group**, if they are its lead. Which the lead sees
   *where* is the view's business, not this one's — see `for_listing`.
-* **Nothing at all**, if they are a site admin: that role manages groups, and
-  showing it colleagues' experiments is the thing the separation is for.
+
+A site admin is not a fourth case. Managing groups and being in one are separate
+facts, so the role is read from `manage_site` and the reach from the membership,
+exactly as for anybody else: a site admin with a group of their own sees that
+group and no other, and one with no membership sees nothing because there is
+nothing of theirs to see. This used to be a rule — site admins were shown
+nothing whatever they belonged to — and it made the ordinary case, an operator
+who also runs experiments, impossible to express.
 
 Two things that are not rules here and are worth saying so:
 
@@ -28,6 +34,9 @@ Two things that are not rules here and are worth saying so:
 ownerless experiments were the ones predating accounts. With groups it is a leak
 by construction, so it means *nobody's* now, and the migration that introduced
 groups gave the existing ones an owner rather than leaving them to this.
+
+An experiment's group is `Experiment.group`, not its owner's membership. The two
+agreed until an owner was deleted or moved group; see `ui/migrations/0024`.
 
 `view_all_experiments` and `manage_experiments` still cut across every group.
 They are an escape hatch, granted to nobody; see `access/models.py`.
@@ -71,6 +80,16 @@ def is_lead(user) -> bool:
     return bool(membership and membership.is_lead)
 
 
+def is_primary_lead(user) -> bool:
+    """The one lead per group who decides who else is one.
+
+    Every other question about reach asks `is_lead`, which this implies. Only
+    the two views that appoint and unmake leads ask for this.
+    """
+    membership = membership_of(user)
+    return bool(membership and membership.is_primary_lead)
+
+
 class GroupPolicy(OpenPolicy):
     """Experiments belong to their owner, and are visible within a group."""
 
@@ -95,31 +114,45 @@ class GroupPolicy(OpenPolicy):
             # data leak.
             return Experiment.objects.none()
 
+        # The escape hatch, and the only thing that reaches the bin: a support
+        # case is exactly when somebody needs to see what was set aside.
         if _holds(user, VIEW_ALL) or _holds(user, MANAGE_ALL):
             return Experiment.objects.all()
 
-        # Checked before the membership, because a site admin who also happened
-        # to have one would otherwise see that group's work — and the role is
-        # defined by not seeing anyone's.
-        if is_site_admin(user):
-            return Experiment.objects.none()
+        # Everything below is about live work. An experiment whose group was
+        # deleted is nobody's to reach until a site admin rehomes it, which is
+        # the one thing the bin is for; `trash()` is where it is looked at.
+        live = Experiment.objects.filter(trashed_at__isnull=True)
 
         membership = membership_of(user)
         if membership is None:
-            # In no group and not a site admin: their own, and whatever has
-            # been shared with them by name. Not "everything unowned", which is
-            # what this used to fall through to.
-            return Experiment.objects.filter(
-                Q(owner=user) | Q(shared_with=user)).distinct()
+            # In no group: their own, and whatever has been shared with them by
+            # name. Not "everything unowned", which is what this used to fall
+            # through to. A site admin with no group of their own lands here and
+            # sees nothing, which is right — there is nothing of theirs to see.
+            return live.filter(Q(owner=user) | Q(shared_with=user)).distinct()
 
         if membership.is_lead:
-            reach = Q(owner__membership__group=membership.group)
+            reach = Q(group=membership.group)
         else:
-            reach = (Q(owner=user)
-                     | Q(shared=True, owner__membership__group=membership.group))
+            reach = Q(owner=user) | Q(shared=True, group=membership.group)
         # By name, from anyone at all: an invitation the owner made deliberately
         # is not bounded by the group, or it would not be an invitation.
-        return Experiment.objects.filter(reach | Q(shared_with=user)).distinct()
+        return live.filter(reach | Q(shared_with=user)).distinct()
+
+    def trash(self, request):
+        """What a group's deletion left behind, for a site admin to settle.
+
+        Not part of `experiments()` and deliberately not reachable from it: a
+        trashed experiment is out of every group, so every rule above would have
+        to special-case it. It is its own question, asked by its own panel, and
+        answered for one role.
+        """
+        if not settings.REQUIRE_LOGIN:
+            return Experiment.objects.none()
+        if not is_site_admin(getattr(request, "user", None)):
+            return Experiment.objects.none()
+        return Experiment.objects.filter(trashed_at__isnull=False)
 
     def for_listing(self, request):
         """The experiments a page should *list* — the sidebar, the index.
@@ -140,8 +173,9 @@ class GroupPolicy(OpenPolicy):
         membership = membership_of(getattr(request, "user", None))
         if membership is None or not membership.is_lead:
             return Experiment.objects.none()
-        return Experiment.objects.filter(
-            owner__membership__group=membership.group).exclude(owner=request.user)
+        return (Experiment.objects
+                .filter(group=membership.group, trashed_at__isnull=True)
+                .exclude(owner=request.user))
 
     # ── and what may be done to one ──────────────────────────────────────────
 
@@ -166,9 +200,8 @@ class GroupPolicy(OpenPolicy):
         # role: stopping a run that is going wrong should not need its owner.
         membership = membership_of(user)
         if membership and membership.is_lead:
-            owner_membership = membership_of(experiment.owner)
-            return bool(owner_membership
-                        and owner_membership.group_id == membership.group_id)
+            return bool(experiment.group_id
+                        and experiment.group_id == membership.group_id)
         return False
 
     # ── questions that are not about one experiment ──────────────────────────

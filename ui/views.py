@@ -695,10 +695,18 @@ def save_prior(request, exp):
         built = _rebuild_experiment(exp)
         at_trial = len((built["result"].trials if built and built["result"] else []))
         previous = (exp.priors or {}).get(hp_name) or {}
+        result_now = built["result"] if built else None
         priors[hp_name] = {
             "kind": prior.get("kind") or "uniform",
             "params": prior.get("params") or {},
             "decay": _decay_record(prior.get("decay"), exp, at_trial),
+            # Whether the decay waits for the initial design to finish. Only
+            # ever true while there is a design still to finish: stated after
+            # it, there is nothing to wait for and carrying the flag would
+            # invite a later reader to think there was. The page offers the
+            # choice in the same situation and defaults it on.
+            "delay_decay": bool(prior.get("delay_decay")
+                                and _inside_initial_design(result_now)),
             # Kept across an edit of the same shape: re-typing a sigma is not
             # restating the belief, and re-anchoring on every keystroke would
             # hold the decay at zero forever.
@@ -726,6 +734,122 @@ def save_prior(request, exp):
         density = _prior_densities(priors.get(hp_name), body["meta"])
     return JsonResponse({"saved": sorted(priors), "candidates": ranked,
                          "density": density})
+
+
+@experiment_view(EDIT)
+@require_POST
+def reset_prior(request, exp):
+    """Put one hyperparameter's belief back to what the last run searched under.
+
+    The undo for an afternoon of dragging. A prior on this figure is edited
+    live — every drag saves — so there is no other way back to the statement the
+    trials on screen actually came out of, and "what I had before I started
+    fiddling" is the thing a reader wants and cannot otherwise reconstruct.
+
+    To uniform when there is nothing to go back to: no run yet, or a last run
+    that stated nothing for this hyperparameter. Uniform *is* stating nothing —
+    it multiplies the acquisition by a constant, which cannot change a ranking —
+    so it is stored as absence, the same as withdrawing one by hand.
+
+    `EDIT`, like `save_prior`, and for the same reason: this changes what the
+    next run searches.
+    """
+    hp_name = (request.POST.get("hp") or "").strip()
+    if not hp_name:
+        return HttpResponseBadRequest("no hyperparameter named")
+
+    # The last run that got as far as recording anything. A pending one has
+    # searched under nothing yet, and going back to its priors would be going
+    # back to the very edits this is meant to undo.
+    last = (exp.runs.exclude(status="pending")
+            .order_by("-id").values_list("priors", flat=True).first())
+    restored = (last or {}).get(hp_name)
+
+    priors = dict(exp.priors or {})
+    if restored:
+        priors[hp_name] = restored
+    else:
+        priors.pop(hp_name, None)
+    exp.priors = priors
+    exp.save(update_fields=["priors"])
+
+    # Handed straight back, so the figure redraws from the same answer every
+    # other request gives it rather than recomputing the decay in the browser.
+    result = _rebuild_result(exp)
+    return JsonResponse({
+        "restored": bool(restored),
+        "prior": _decayed_prior(exp, hp_name,
+                                len(result.trials) if result else 0,
+                                _inside_initial_design(result)),
+    })
+
+
+@experiment_view(RUN)
+@require_POST
+def evaluate_prior(request, exp):
+    """Ask this run's optimizer whether the stated belief is worth acting on.
+
+    DynaBO's safeguard, on demand. It builds the real facade, replays the
+    recorded trials and offers the prior to `add_prior` behind an
+    `IncumbentComparisonPolicy` — so the answer is the one the run itself would
+    give, made by SMAC rather than by a lookalike here.
+
+    `RUN` rather than `VIEW`, for `experiment_compute_analytics`' reason: it
+    costs a model fit and two hundred acquisition evaluations, and a diagnostic
+    that anybody who can read an experiment can make it spend seconds on is a
+    diagnostic that reading an experiment pays for.
+
+    Nothing is written either way. A refused belief stays exactly where the
+    reader left it — whether to keep it is their decision, and the page asks.
+    """
+    hp_name = (request.POST.get("hp") or "").strip()
+    metric = exp.current_metric or (exp.metric_names or [None])[0]
+    settings_now = resolve_settings(exp)
+    tolerance = settings_now.get("prior_acceptance_tolerance", 0.15)
+
+    def unjudged(message):
+        """One shape for every answer, so the page has one thing to read."""
+        return JsonResponse({"verdict": "unjudged", "message": message,
+                             "tolerance": tolerance})
+
+    built = _rebuild_experiment(exp)
+    result = built["result"] if built else None
+    config_space = _config_space_for(built)
+    if result is None or not result.trials or config_space is None:
+        return unjudged(_("Nothing has been run yet, so there is no model to "
+                          "judge this against. A belief stated now is acted on "
+                          "in full."))
+
+    optimizer = built["optimizer"]
+    if not hasattr(optimizer, "evaluate_prior"):
+        return unjudged(_("This optimizer fits no model of the objective, so it "
+                          "has no opinion about where the optimum is."))
+
+    outcome = optimizer.evaluate_prior(
+        config_space, result.trials, metric, built["seed"],
+        priors=exp.priors or None,
+        tolerance=float(tolerance),
+        previous_result=result,
+        # The same anchor the figure draws with, so the belief is judged at the
+        # strength it is actually being applied at.
+        budget=_run_budget(exp, int(((exp.priors or {}).get(hp_name) or {})
+                                    .get("at_trial") or 0)))
+    # The wording is made here, not in `core`, which has no Django and so no
+    # catalog to translate against. What crosses from there is the verdict and a
+    # reason for the log; what reaches the page is a sentence.
+    verdict = outcome.get("verdict", "unjudged")
+    if verdict == "accepted":
+        message = _("The model does not think this region is worse than where "
+                    "the search is already looking.")
+    elif verdict == "rejected":
+        message = _("The model scores this region more than %(tolerance)s below "
+                    "where the search is already looking. Acting on it would "
+                    "cost trials.") % {"tolerance": tolerance}
+    else:
+        logger.info("A prior could not be judged: %s", outcome.get("reason", ""))
+        message = _("This belief could not be judged, so it stands as stated.")
+    return JsonResponse({"verdict": verdict, "message": message,
+                         "tolerance": tolerance})
 
 
 #: β as a fraction of the trial budget, which is how the literature states it.
@@ -935,6 +1059,42 @@ def _initial_design_notice(result):
             "name": recorded.get("name") or "", "done": len(result.trials) >= size}
 
 
+#: Figures built but not sent. The surrogate panel is switched off — see the
+#: acquisition template — and its traces are a few thousand points per request
+#: that nothing draws. Still *built*, because the model behind it is fitted
+#: either way (the acquisition curve is computed from the same mean and spread)
+#: and because the figure's own behaviour is still under test; only the sending
+#: is skipped. Putting the panel back is this set and the template's div.
+_NOT_SHIPPED = frozenset({"surrogate"})
+
+
+def _slice_figures(exp, built, config_space, hp_name, metric):
+    """The three slice figures, their `meta`, and the slice they came from.
+
+    Split out of the view so that what is *built* and what is *shipped* are two
+    decisions in two places. The surrogate figure is no longer sent, and a test
+    that asks whether its spread is stepped or its ghost band faint is asking
+    about the machinery rather than about the payload — so it asks here.
+
+    Returns `(None, None, sliced)` when the slice has no positions, which is the
+    one case the caller answers differently.
+    """
+    surrogate, cloud = _slice_model(exp, built, config_space, metric)
+    sliced = built["optimizer"].compute_incumbent_slice(
+        config_space, built["result"].trials, metric, hp_name, seed=built["seed"],
+        surrogate=surrogate, cloud=cloud)
+    if not sliced.positions:
+        return None, None, sliced
+
+    figures, meta = acquisition_slice_plots(
+        hp_name, sliced.positions, sliced.grid, sliced.mu, sliced.sigma, metric,
+        eta=sliced.eta, incumbent=sliced.incumbent, cloud=sliced.cloud,
+        higher_is_better=metric_for(metric).higher_is_better,
+        kind="categorical" if hasattr(config_space[hp_name], "choices") else "continuous",
+    )
+    return figures, meta, sliced
+
+
 @experiment_view(VIEW)
 def acquisition_slice(request, exp):
     """The acquisition-and-priors figure for one (metric, hyperparameter).
@@ -956,15 +1116,24 @@ def acquisition_slice(request, exp):
 
     built = _rebuild_experiment(exp)
     result = built["result"] if built else None
-    if (result is None or not result.trials
-            or hp_name not in result.trials[0].config):
-        return HttpResponseBadRequest("invalid hyperparameter")
-
     config_space = _config_space_for(built)
     if config_space is None:
         return JsonResponse({"figure": None, "warning": _(
             "The model this experiment used is not available here, so its "
             "search space cannot be rebuilt.")})
+
+    # Checked against the search space rather than against a trial's
+    # configuration. A prior is a statement about the space, and the space
+    # exists before the search does — asked for on an experiment that has never
+    # been run there is no trial to read a name off, and that is exactly when
+    # somebody is most likely to be stating a belief.
+    if hp_name not in config_space:
+        return HttpResponseBadRequest("invalid hyperparameter")
+
+    # Everything else on this figure is the surrogate's, and there is no
+    # surrogate without trials. The prior panel is the one part that needs none.
+    if (result is None or not result.trials) and not request.GET.get("prior_only"):
+        return HttpResponseBadRequest("no result")
 
     # A prior is a statement about the search space, so the space is all it
     # takes to draw one. Asked for on its own, it skips the surrogate entirely —
@@ -986,8 +1155,13 @@ def acquisition_slice(request, exp):
             # flat acquisition function as though it were a finding.
             "figures": {"prior": _plot_json(figures["prior"])},
             "meta": {k: v for k, v in meta.items() if k != "cloud"},
+            "insideDesign": _inside_initial_design(result),
             "warning": "",
-            "prior": _decayed_prior(exp, hp_name, len(result.trials)),
+            # Zero trials when there has never been a run, which is the honest
+            # step count: nothing has happened to this belief yet.
+            "prior": _decayed_prior(exp, hp_name,
+                                    len(result.trials) if result else 0,
+                                    _inside_initial_design(result)),
             "betaRatioDefault": BETA_RATIO_DEFAULT,
             "betaRatiosAblated": list(BETA_RATIOS_ABLATED),
             "density": {"grid": _prior_density(stated, positions,
@@ -995,28 +1169,22 @@ def acquisition_slice(request, exp):
                         "cloud": None},
         })
 
-    surrogate, cloud = _slice_model(exp, built, config_space, metric)
-    sliced = built["optimizer"].compute_incumbent_slice(
-        config_space, result.trials, metric, hp_name, seed=built["seed"],
-        surrogate=surrogate, cloud=cloud)
-    if not sliced.positions:
+    figures, meta, sliced = _slice_figures(exp, built, config_space, hp_name, metric)
+    if figures is None:
         return JsonResponse({"figure": None, "warning": sliced.warning})
 
-    figures, meta = acquisition_slice_plots(
-        hp_name, sliced.positions, sliced.grid, sliced.mu, sliced.sigma, metric,
-        eta=sliced.eta, incumbent=sliced.incumbent, cloud=sliced.cloud,
-        higher_is_better=metric_for(metric).higher_is_better,
-        kind="categorical" if hasattr(config_space[hp_name], "choices") else "continuous",
-    )
     # Three figures and one `meta`, rather than the meta repeated on each: it
     # carries the sampled cloud, which is two thousand points, and all three are
     # drawn from the same numbers anyway.
     return JsonResponse({"figures": {name: _plot_json(fig)
-                                     for name, fig in (figures or {}).items()},
+                                     for name, fig in figures.items()
+                                     if name not in _NOT_SHIPPED},
                          "meta": meta,
                          "warning": sliced.warning or _weighting_warning(exp),
                          "initialDesign": _initial_design_notice(result),
-                         "prior": _decayed_prior(exp, hp_name, len(result.trials)),
+                         "insideDesign": _inside_initial_design(result),
+                         "prior": _decayed_prior(exp, hp_name, len(result.trials),
+                                                 _inside_initial_design(result)),
                          # What the β field should open on when nothing is
                          # stated yet: DynaBO's own initialisation.
                          "betaRatioDefault": BETA_RATIO_DEFAULT,
@@ -1024,6 +1192,25 @@ def acquisition_slice(request, exp):
                          # So the first draw needs no second request.
                          "density": _prior_densities(
                              (exp.priors or {}).get(hp_name), meta)})
+
+
+def _inside_initial_design(result) -> bool:
+    """Whether a belief stated now would be stated before the search starts.
+
+    True for an experiment that has never been run, and for one still drawing
+    its initial design. Both are the same situation for a prior: the design is
+    drawn before any surrogate exists, so nothing stated can reach those trials
+    — see `_initial_design_notice`.
+
+    False when there is no recorded design size but there are trials, which is
+    random or grid search or a file from somebody else's output. Those have no
+    design phase to be inside of, and guessing one is what
+    `_initial_design_notice` already refuses to do.
+    """
+    if result is None or not result.trials:
+        return True
+    notice = _initial_design_notice(result)
+    return bool(notice and not notice["done"])
 
 
 def _run_budget(exp, offset):
@@ -1047,7 +1234,7 @@ def _run_budget(exp, offset):
     return scenario_budget(offset, (last.stopping or {}).get("max_trials") if last else None)
 
 
-def _decayed_prior(exp, hp_name, trials):
+def _decayed_prior(exp, hp_name, trials, inside_design=False):
     """What was stated, and how strongly it still counts.
 
     A prior does not weight the acquisition by its own density but by that
@@ -1085,6 +1272,15 @@ def _decayed_prior(exp, hp_name, trials):
         # is already telling the reader the prior cannot bite at all.
         out["exponent"] = 1.0
     out["steps"] = steps
+    # Stated to wait, and the wait is not over: the belief has not started
+    # counting, so it has not started fading either. Reported rather than
+    # quietly computed as 1, because the page says which of the two it is —
+    # "not yet counting" and "counting in full" look identical as a number and
+    # mean different things about what happens next.
+    if stated.get("delay_decay") and inside_design:
+        out["exponent"] = 1.0
+        out["steps"] = 0
+        out["delayed"] = True
     return out
 
 
@@ -1638,14 +1834,17 @@ def _posted_settings(request):
     """The settings as submitted, coerced to the type of each default.
 
     Almost every setting is a checkbox, where absent means off. The exceptions
-    are the numeric ones (`ice_max_curves`), which are read as integers and
-    clamped to `SETTING_BOUNDS` — a display preference typed into a box is not
-    worth failing a form over, and anything unreadable falls back to the
+    are the numeric ones — counts like `ice_max_curves`, and
+    `prior_acceptance_tolerance`, which is a fraction of an objective's own
+    scale — clamped to `SETTING_BOUNDS`. A display preference typed into a box
+    is not worth failing a form over, and anything unreadable falls back to the
     built-in default rather than to zero, which would mean something specific
-    and wrong ("no limit").
+    and wrong ("no limit", or "refuse every prior").
 
     Keyed off `type(default)` rather than a second list of which settings are
-    numbers, so declaring one in `SETTING_DEFAULTS` is all it takes.
+    numbers, so declaring one in `SETTING_DEFAULTS` is all it takes — and that
+    type is what each is read as, so a count stays a count and a tolerance
+    keeps its decimals.
     """
     posted = {}
     for key, default in SETTING_DEFAULTS.items():
@@ -1653,7 +1852,7 @@ def _posted_settings(request):
             posted[key] = bool(request.POST.get(key))
             continue
         try:
-            value = int(request.POST.get(key, ""))
+            value = type(default)(request.POST.get(key, ""))
         except (TypeError, ValueError):
             value = default
         low, high = SETTING_BOUNDS.get(key, (None, None))
@@ -2234,6 +2433,35 @@ def _selected_panel_data(result, metric, idx):
     }
 
 
+def _prior_only_context(exp, built):
+    """What the acquisition card needs when there is nothing to acquire yet.
+
+    The prior panel and no more: no acquisition curve, no candidates, no
+    incumbent, because all three are the surrogate's and there are no trials to
+    fit one to. The card renders its own controls and asks the server for the
+    density, the same `prior_only` request it already makes when a figure is
+    waiting behind its Compute prompt.
+
+    Empty when the figure is switched off or the space cannot be rebuilt, and
+    the page then looks exactly as it did before — an empty dict updates
+    nothing, so the caller needs no second branch.
+    """
+    figure = next((f for f in _shown_figures(exp)
+                   if f.key == "acquisition_slice"), None)
+    config_space = _config_space_for(built)
+    if figure is None or config_space is None:
+        return {}
+    return {
+        "prior_only_figure": figure,
+        # From the space rather than from a trial's configuration, which is the
+        # whole point: there are no trials.
+        "hp_names": list(config_space.keys()),
+        "acq_metric": exp.current_metric or (exp.metric_names or [""])[0],
+        "beta_min": BETA_RATIO_MIN,
+        "beta_max": BETA_RATIO_MAX,
+    }
+
+
 def _evaluation_label(exp):
     """How a trial was scored, for the run-configuration box.
 
@@ -2341,7 +2569,14 @@ def _detail_context(request, exp):
     # an empty `data`, and importing one used to 500 the detail page (an argmax
     # over an empty range). A run never stores one (`run.py` only writes a
     # result that has trials), which is why this went unnoticed.
+    #
+    # One figure goes out through this return rather than being stopped by it.
+    # A prior is a statement about the *search space*, which exists before the
+    # search does — and before the first run is exactly when somebody has
+    # something to say about where the optimum might be. Everything else on
+    # that card needs a surrogate and is left out; see `_prior_only_context`.
     if result is None or not result.trials:
+        context.update(_prior_only_context(exp, built))
         return context
 
     # Past the early return, so there is a grid: say how much of the run it is
@@ -2362,6 +2597,15 @@ def _detail_context(request, exp):
     panels = []
     for m in metric_names:
         best_idx = result.best_index(m)
+        # No trial carries a score for this metric, so there is no best trial to
+        # describe and no selection to open on — `best_index` documents None as
+        # the answer a caller handles. The panel is left out rather than built
+        # around a trial that isn't there, which is the same decline the
+        # per-metric figures make through `has_every_score`. The page script
+        # keys its maps by metric and the Run form's incumbent target is built
+        # from these panels, so both simply have nothing for this one.
+        if best_idx is None:
+            continue
         best = result.trials[best_idx]
         panels.append({
             "metric": m,
@@ -2487,6 +2731,7 @@ def _detail_context(request, exp):
         # anything this experiment decided, so they are declarations.
         beta_min=BETA_RATIO_MIN,
         beta_max=BETA_RATIO_MAX,
+        acq_metric=exp.current_metric or (exp.metric_names or [""])[0],
         # Whether the importance figure offers "still to gain" at all. The
         # server already returns nothing for it when off, which would leave the
         # box and the table's three columns there offering an answer that never

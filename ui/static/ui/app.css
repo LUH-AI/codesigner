@@ -563,8 +563,10 @@ table.trials tbody tr:focus-visible { outline: 2px solid var(--primary); outline
    anything is in them. Controls that appear and disappear move the figure under
    the reader's pointer, which is worse than a row of empty space. */
 .acq-controls { min-height: 2.25rem; }
-.acq-params { min-height: 2.25rem; margin-bottom: 0.25rem; }
-.acq-params:empty { margin-bottom: 0.25rem; }
+/* The prior's parameter fields belong to the row that states the shape, not to
+   a row of their own: the container is only somewhere for the script to write,
+   and its children are the flex items of the bar above the panel. */
+.acq-prior-bar #acq-prior-params { display: contents; }
 .prior-param { display: inline-flex; align-items: center; gap: 0.35rem; font-size: 0.85rem; }
 .prior-param input[type="number"] { width: 5.5rem; }
 .prior-param input[type="range"] { width: 8rem; }

@@ -2,8 +2,10 @@
 
 *What:* a group lead gets a Group tab — their group's people, and their
 colleagues' experiments in a pane of their own. A site admin gets a Site tab —
-groups, usage and running jobs, and **no experiments anywhere**, which is the
-claim this file exists to hold.
+groups, usage, running jobs and the bin, and **nobody else's experiments
+anywhere on it**, which is the claim this file exists to hold. What a site admin
+may read is their own membership's business and is checked in `test_groups.py`;
+these panels show none of it either way.
 
 *How:* through the pages as each role, including the cases that should 404. A
 panel nobody may open is not an error page; it is a page that is not there, so

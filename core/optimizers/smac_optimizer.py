@@ -74,6 +74,17 @@ def decay_beta(n_trials) -> float:
 _UNBOUNDED_BUDGET = 100
 
 
+def _waits_for_the_design(priors) -> bool:
+    """Whether any stated belief asked to start counting after the design.
+
+    Any, not all: one weight carries the whole statement — `_apply_priors`
+    tabulates every hyperparameter into a single prior — so there is one moment
+    to apply it at, and a belief that asked to wait is the one that decides it.
+    """
+    return any(bool((stated or {}).get("delay_decay"))
+               for stated in (priors or {}).values())
+
+
 def scenario_budget(trial_offset, max_trials=None) -> int:
     """The budget a run is given, which is also what its prior's decay is
     factored from.
@@ -684,6 +695,85 @@ class SMACOptimizer(BaseOptimizer):
             logger.warning("Could not ask this run's optimizer what is next: %s", error)
             return None
 
+    def evaluate_prior(self, config_space, trials, metric_name: str, seed: int = 0,
+                       priors=None, tolerance: float = 0.15, previous_result=None,
+                       budget=None):
+        """Ask this run's optimizer whether the stated belief is worth acting on.
+
+        DynaBO's safeguard, run on demand rather than at launch. A belief that
+        points somewhere bad costs trials, and the surrogate usually has an
+        opinion about the region it names: configurations are drawn from the
+        belief and from a belief-shaped neighbourhood of the incumbent, both are
+        scored under the model, and the belief is refused when its region scores
+        worse by more than *tolerance*.
+
+        Built the same way `slice_challengers` builds it — the real facade, the
+        recorded trials replayed, the stated prior applied — because the
+        judgement has to be made against the model the run would actually have,
+        not against a reconstruction that resembles it. What differs is only
+        that nothing is `ask`ed afterwards: the verdict comes from `add_prior`
+        itself, which is where SMAC makes it.
+
+        *tolerance* is stated positive and handed over negated, which is the
+        direction the policy reads: it is how much worse than the incumbent's
+        neighbourhood the belief's region may look and still be accepted. In raw
+        objective units, so it means different things for different objectives —
+        which is exactly why it is the reader's to set.
+
+        Returns `{"verdict": "accepted" | "rejected" | "unjudged", "reason": str}`.
+        **unjudged** is not a failure: the policy is required to accept when
+        there is nothing to judge on — no fitted model, or no finished trials —
+        and reporting that as approval would be claiming a check that never ran.
+        """
+        import tempfile
+        from pathlib import Path as _Path
+
+        if not priors:
+            return {"verdict": "unjudged", "reason": "no prior is stated"}
+        if not trials:
+            return {"verdict": "unjudged",
+                    "reason": "nothing has been run yet, so there is no model to "
+                              "judge this against"}
+        try:
+            from smac.acquisition.weight import IncumbentComparisonPolicy
+        except ImportError:
+            return {"verdict": "unjudged",
+                    "reason": "this SMAC has no acquisition weight layer"}
+
+        try:
+            recorded = ((getattr(previous_result, "metadata", None) or {})
+                        .get("initial_design") or {}).get("n_configs")
+            with tempfile.TemporaryDirectory() as directory:
+                scenario = Scenario(
+                    config_space, name="ihpo", n_trials=len(trials) + 1,
+                    deterministic=True, seed=seed,
+                    output_directory=_Path(directory), **self._scenario_extras())
+
+                def _unreachable(config, seed: int = 0) -> float:
+                    raise RuntimeError("target_function called while judging a prior")
+
+                smac = self._facade(scenario, _unreachable, None,
+                                    initial_points=recorded)
+                self._replay(smac, config_space, trials, metric_name, seed)
+                applied = self._apply_priors(
+                    smac, scenario, config_space, priors, budget=budget,
+                    acceptance=IncumbentComparisonPolicy(threshold=-abs(tolerance)))
+        except Exception as error:  # noqa: BLE001 — a diagnostic must not cost the figure
+            logger.warning("Could not judge the stated prior: %s", error)
+            return {"verdict": "unjudged", "reason": str(error)}
+
+        if applied is None:
+            return {"verdict": "unjudged", "reason": "no prior is stated"}
+        if applied.get("applied"):
+            return {"verdict": "accepted",
+                    "reason": "the surrogate does not think this region is worse "
+                              "than where the search is already looking"}
+        if applied.get("rejected"):
+            return {"verdict": "rejected", "reason": applied.get("reason", "")}
+        # Applied cleanly is one thing and could-not-be-applied is another; the
+        # second is not a judgement about the belief and must not read as one.
+        return {"verdict": "unjudged", "reason": applied.get("reason", "")}
+
     @staticmethod
     def _prior_grid(hyperparameter):
         """Where to evaluate a density: `(vector positions, unit positions)`.
@@ -709,7 +799,8 @@ class SMACOptimizer(BaseOptimizer):
         grid = [i / (_PRIOR_GRID - 1) for i in range(_PRIOR_GRID)]
         return grid, grid
 
-    def _apply_priors(self, smac, scenario, config_space, priors, budget=None):
+    def _apply_priors(self, smac, scenario, config_space, priors, budget=None,
+                      acceptance=None):
         """Hand whatever the reader stated to the search, before it asks.
 
         *priors* is `{hyperparameter: {knots, exponent, decay}}` — the density
@@ -809,13 +900,29 @@ class SMACOptimizer(BaseOptimizer):
         try:
             prior = TabulatedPrior(config_space, tables)
             prior.validate_against(config_space)
-            smac.add_prior(prior, key="codesigner",
-                           decay=get_decay_schedule(shape, beta))
+            # `add_prior` returns the key it registered the belief under, or
+            # None when an acceptance policy refused it — that is the whole of
+            # the verdict, and it is SMAC's to give. Without a policy the
+            # default accepts everything and this is always a key.
+            key = smac.add_prior(prior, key="codesigner",
+                                 decay=get_decay_schedule(shape, beta),
+                                 acceptance_policy=acceptance)
         except Exception as error:  # noqa: BLE001 — a prior must not cost a run
             logger.warning("Could not apply the stated prior, continuing without it: %s", error)
             return {"applied": False, "reason": str(error)}
 
-        return {"applied": True, "key": "codesigner", "hyperparameters": sorted(tables),
+        if key is None:
+            # Refused, not broken. Distinguished from every other "not applied"
+            # because it is the one the reader asked for and the one they may
+            # disagree with: the search proceeds unweighted either way, but only
+            # this one is a judgement about their belief rather than a fault.
+            return {"applied": False, "rejected": True,
+                    "hyperparameters": sorted(tables), "decay": shape, "beta": beta,
+                    "reason": "the surrogate scores this region worse than the "
+                              "incumbent's neighbourhood by more than the "
+                              "tolerance allows"}
+
+        return {"applied": True, "key": key, "hyperparameters": sorted(tables),
                 "decay": shape, "beta": beta}
 
     def _facade(self, scenario, target_function, previous_result=None,
@@ -1199,7 +1306,6 @@ class SMACOptimizer(BaseOptimizer):
             raise RuntimeError("SMAC called target_function unexpectedly in ask/tell mode")
 
         smac = self._facade(scenario, _unreachable, previous_result)
-        prior_report = self._apply_priors(smac, scenario, config_space, priors)
 
         wants_confidence = "incumbent_confidence" in criteria
 
@@ -1210,9 +1316,46 @@ class SMACOptimizer(BaseOptimizer):
             self._replay(smac, config_space, previous_result.trials, primary_metric,
                          seed, replay_metric=collector.metric)
 
+        # After the replay, and not before it. `add_prior` anchors the decay at
+        # however many finished trials it can see, and refuses to be re-anchored
+        # afterwards — so applying a prior to a runhistory that is still empty
+        # fixes a resumed run's anchor at zero. It would then be weighted as
+        # though it had been fading since the first trial of the first run,
+        # while the figure above draws it fading from where it was stated. The
+        # two have to agree, and where it was stated is the answer both the
+        # figure and `slice_challengers` already give.
+        #
+        # Later still when the belief asked to wait. The initial design is drawn
+        # before any surrogate exists, so a prior cannot reach those trials —
+        # and anchored before them it would spend the whole phase fading while
+        # doing nothing, arriving at the first trial it can influence already
+        # weakened. Held back until the design is exhausted, the anchor SMAC
+        # takes is the end of the design, which is what the figure has always
+        # said happens: "it starts to count once the design is exhausted".
+        #
+        # `anchor` refusing to move is what forces this to be a matter of *when*
+        # `add_prior` is called rather than what it is passed.
+        waiting = _waits_for_the_design(priors)
+        # An absolute count from the start of the whole search, not from this
+        # run's offset: the design is the first N trials the search ever draws,
+        # and a resume picks up inside it rather than starting another one.
+        design_end = (self._initial_points(scenario, previous_result)
+                      if waiting else 0)
+        prior_report = None
+        if not waiting:
+            prior_report = self._apply_priors(smac, scenario, config_space, priors)
+
         while not collector.done:
             if cancel_event and cancel_event.is_set():
                 break
+            # Checked before the ask, so the first trial the model has any say
+            # in is already weighted. After it, the belief would miss exactly
+            # the one trial it waited for.
+            # Against SMAC's own runhistory, because that is the count
+            # `add_prior` will take the anchor from — comparing anything else
+            # would be comparing to a number the anchor is not.
+            if prior_report is None and len(smac.runhistory) >= design_end:
+                prior_report = self._apply_priors(smac, scenario, config_space, priors)
             info = smac.ask()
             config = dict(info.config)
             all_scores, run_info = evaluate_trial(model, config, splits, metrics, seed=seed)
