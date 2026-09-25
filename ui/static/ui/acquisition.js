@@ -1209,7 +1209,15 @@
                   && state.meta.traces.acquisition,
             y = (state && state.meta && state.meta.rugY) || 1.03,
             trace, sorted, groups, i, g;
-        if (!state || !idx || idx.candidates === undefined) return false;
+        /* The figure, not only the index of a trace in it. `meta` describes all
+         * three panels whatever was sent, so a prior-only payload has
+         * `traces.acquisition.candidates` while carrying no acquisition figure
+         * at all — and reading `.data` off it threw, inside a `.then` whose
+         * `.catch` says nothing. That is the whole of why a stated prior stayed
+         * invisible until Compute was pressed: the draw that would have shown
+         * it died one line into `show`, silently, every time. */
+        if (!state || !idx || idx.candidates === undefined
+                || !state.figures || !state.figures.acquisition) return false;
 
         state.candidates = (list && list.length) ? list : null;
         trace = state.figures.acquisition.data[idx.candidates];
@@ -1696,7 +1704,16 @@
                         && state.figures && state.figures.acquisition) return;
                 if (data && data.figures) show(data, hp);
             })
-            .catch(function () { /* the full fetch reports for both */ })
+            .catch(function (error) {
+                /* A failed request is the full fetch's to report — it asks for
+                 * the same thing and says so on the page. An exception thrown
+                 * while drawing is not: it means this code is broken, and
+                 * swallowing it is how a silent failure survives a release.
+                 * Told to the console rather than the page, because the reader
+                 * can do nothing about it and the panel beside it already
+                 * shows nothing. */
+                if (error) window.console.error("acquisition: drawing the prior failed", error);
+            })
             .then(function () { delete inflight[key]; });
     }
 

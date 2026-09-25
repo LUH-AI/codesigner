@@ -1480,3 +1480,53 @@ def test_the_prior_panel_leaves_room_above_a_full_strength_belief(client):
     assert PRIOR_AXIS_TOP >= 1.2, "a flat line at 1 has to sit clear of the edge"
     assert f"PRIOR_AXIS_TOP = {PRIOR_AXIS_TOP}" in _script(), (
         "the browser converts pointer positions against this; it cannot drift")
+
+
+def test_a_prior_only_payload_describes_figures_it_does_not_carry(client):
+    """The shape that broke the panel, pinned so it cannot break it quietly again.
+
+    `meta` describes all three panels whatever was sent — the trace indices are
+    a property of how the figures are built, not of which ones travelled — while
+    a prior-only payload carries the prior figure alone. So
+    `meta.traces.acquisition.candidates` exists with no acquisition figure
+    behind it, and anything that reads the second after checking the first
+    reaches for `undefined`.
+
+    That is not a bug in the payload; it is the payload's whole point. It is a
+    standing trap for the browser, and this states it.
+    """
+    exp = _experiment()
+    hp = _hp_names(exp)[0]
+    response = client.get(reverse("ui:acquisition_slice", args=[exp.pk]),
+                          {"metric": "accuracy", "hp": hp, "prior_only": "1"})
+    data = json.loads(response.content)
+
+    assert set(data["figures"]) == {"prior"}
+    assert "candidates" in data["meta"]["traces"]["acquisition"]
+
+
+def test_the_candidate_trace_is_guarded_on_the_figure_not_the_index():
+    """`setCandidates` is reached by `show` on every payload, including the
+    prior-only one. Guarding on `meta.traces.acquisition` and then reading
+    `state.figures.acquisition.data` threw on every prior-only draw — inside a
+    `.then` whose `.catch` said nothing — so a stated prior stayed invisible
+    until Compute was pressed, with a clean console.
+
+    *How:* at the source, since the arithmetic is the browser's and this project
+    has no JavaScript test runner. What is being pinned is that the check and
+    the dereference are about the same object.
+    """
+    source = _script()
+
+    assert "|| !state.figures || !state.figures.acquisition) return false;" in source
+
+
+def test_a_failed_prior_draw_is_not_swallowed():
+    """A failed *request* is the full fetch's to report — it asks for the same
+    thing and says so on the page. An exception thrown while *drawing* means
+    this code is broken, and a silent catch is how that survives a release."""
+    source = _script()
+    catch = source[source.index("function drawPriorOnly"):]
+    catch = catch[:catch.index("delete inflight[key]")]
+
+    assert "console.error" in catch, "a broken draw has to say so somewhere"
