@@ -24,6 +24,11 @@ Then add it to `FIGURES` in `catalog.py` (order there is page order) and write
 #: ones span the page below them (a table with a column per metric needs it).
 HALF = "half"
 FULL = "full"
+#: The whole content area, across the grid *and* the column beside it. FULL
+#: spans the grid's columns, which on a wide window is only the left pane — the
+#: trials table has the right one. A figure that needs the page's whole width is
+#: rendered under both rather than inside either.
+PAGE = "page"
 
 #: And heights. SINGLE is one row of the grid; DOUBLE is two, for a figure whose
 #: content is square rather than wide — a scatter over a projected space reads as
@@ -43,7 +48,7 @@ class Figure:
     key = ""
     #: The heading shown on the panel, and the label of its settings checkbox.
     label = ""
-    #: HALF or FULL (see above).
+    #: HALF, FULL or PAGE (see above).
     width = HALF
     #: SINGLE or DOUBLE (see above). Height is declared separately from width
     #: because they answer different questions: how much of the page a figure

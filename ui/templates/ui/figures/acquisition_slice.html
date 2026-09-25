@@ -1,0 +1,161 @@
+{% load i18n assets %}
+{% comment %}Unlike every other figure, this one's drawing lives in its own
+script rather than in experiment_detail.html's. The prior in the middle panel
+is dragged, so the traces that depend on it are recomputed on every pointer
+move; putting expected improvement in Python as well would mean maintaining it
+twice and keeping the two agreeing forever. So the server ships a styled
+skeleton with its prior and acquisition traces empty (see
+plots.py's acquisition_slice_plot) and ui/static/ui/acquisition.js fills them.
+
+`defer` is load-bearing: this partial is included well above the
+plotly.min.js tag, which is a classic in-body script, so an inline script here
+would run before Plotly existed. A deferred one runs after parsing.{% endcomment %}
+<script src="{% asset 'ui/acquisition.js' %}" defer></script>
+{% comment %}The token as an attribute rather than a hidden form: this figure
+posts with fetch, and it is the first thing on the page that does — everything
+else here submits a real form and gets the token from `{% csrf_token %}`.
+{% endcomment %}
+<section class="card" data-figure="{{ figure.key }}"
+         data-acquisition-url="{% url 'ui:acquisition_slice' summary.pk %}"
+         data-prior-url="{% url 'ui:save_prior' summary.pk %}"
+         data-csrf="{{ csrf_token }}">
+    <div class="card-head">
+        <div class="subheader">{{ figure.label }}</div>
+        <p class="selectors acq-controls">
+            <select id="acq-hp-select" aria-label="{% translate 'Hyperparameter' %}">
+                {% for h in hp_names %}<option value="{{ h }}">{{ h }}</option>{% endfor %}
+            </select>
+        </p>
+    </div>
+    {% comment %}Parameter names live here rather than in the script so they
+    are translated with everything else — the catalogs are built from templates
+    and Python, and a string written in acquisition.js would never reach
+    them.{% endcomment %}
+    <div id="acq-prior-strings" hidden
+         data-mu="{% translate 'Mean' %}"
+         data-sigma="{% translate 'Standard deviation' %}"
+         data-alpha="{% translate 'First shape parameter' %}"
+         data-beta="{% translate 'Second shape parameter' %}"></div>
+    {% comment %}Everything else the script puts on the page. Same reason as the
+    parameter names above: the catalogs are built from templates and Python, so a
+    string written in acquisition.js reaches no translator and would sit in
+    English inside an otherwise translated figure.
+
+    `{name}` placeholders rather than concatenation, so a translator can move
+    them — "Trial 3 of 12" does not put its numbers in that order in every
+    language.
+
+    Braces rather than `%(name)s`, which is the form Django uses elsewhere:
+    extracting a template doubles every `%` to protect `blocktranslate`'s own
+    interpolation, so the catalog key came out as `%%(rank)s` while the page
+    asked for `%(rank)s` and the entry could never match. gettext has no opinion
+    about a brace. These holes are filled by the script, not by Django, so
+    nothing needs the `%` form.{% endcomment %}
+    <div id="acq-strings" hidden
+         data-asking="{% translate 'Asking…' %}"
+         data-save-failed="{% translate 'Could not save this prior.' %}"
+         data-slice-failed="{% translate 'Could not compute the acquisition slice.' %}"
+         data-no-optimizer="{% translate 'The optimizer could not be asked for this run.' %}"
+         data-initial-design="{% translate 'Trial {trials} of {size} in the initial design ({name}). These are drawn before any surrogate is fitted, so a prior set here cannot affect them — it starts to count once the design is exhausted.' %}"
+         data-rank="{% translate 'Rank {rank} of {total}' %}"
+         data-runs-next="{% translate 'runs next' %}"
+         data-pile="{% translate '{count} candidates here' %}"
+         data-pile-ranks="{% translate 'Ranks {ranks} of {total}' %}"
+         data-pile-best="{% translate 'Rank {rank}, the best of them:' %}"></div>
+    <p id="acq-warning" class="alert warning" hidden></p>
+    {% comment %}Shown while the run is still drawing its initial design, which
+    happens before any surrogate exists — so nothing stated on this figure can
+    reach those trials. Filled by the script from the recorded design size,
+    never from counting origins (see `_initial_design_notice`).{% endcomment %}
+    <p id="acq-initial" class="caption" hidden></p>
+    {% comment %}Shown instead of fetching when this experiment's settings turn
+    off "compute automatically" for this figure — opening the page then fits
+    nothing until asked, the same bargain partial dependence offers.{% endcomment %}
+    <p id="acq-compute" class="caption" hidden>
+        <button type="button" id="acq-compute-btn">{% translate "Compute" %}</button>
+    </p>
+    {% comment %}Three figures rather than three panels of one, so each can
+    carry its own controls directly beneath it. The wrapper keeps the figure's
+    dom_id because the page's own draw() hides and shows a figure by that id,
+    and this one ships no server-rendered payload for it to draw.{% endcomment %}
+    <div id="{{ figure.dom_id }}" class="acq-stack">
+        <div id="acq-plot-acquisition" class="acq-panel"></div>
+        {% comment %}The two curves computed along the slice, with every other
+        hyperparameter frozen at the incumbent's. They answer a narrower question
+        than the sampled curve beside them — what this one line looks like, not
+        what the search can reach — so they can be put away. On by default:
+        hiding something the reader has not asked to hide is worse than showing
+        something they can switch off.{% endcomment %}
+        <p class="selectors acq-controls">
+            <label class="acq-toggle">
+                <input type="checkbox" id="acq-show-slice" checked>
+                {% translate "Acquisition with incumbent hyperparameters" %}
+            </label>
+            {% comment %}Not a redraw. This saves the prior and then asks a real
+            optimizer — built from this run's own settings and replayed over its
+            own trials — what it would hand out next, which is why it takes a
+            moment and why it is a button rather than something that happens on
+            every drag.{% endcomment %}
+            <button type="button" id="acq-rewalk">{% translate "Requery Next Trials" %}</button>
+        </p>
+
+        <div id="acq-plot-prior" class="acq-panel"></div>
+        {% comment %}Under the prior, not in a bar at the top of a card that
+        also holds two other pictures. Both are SMAC's own vocabulary: a prior
+        is an AbstractInputPrior and the decay is one of DECAY_SHAPES, so what
+        is chosen here is what would be handed to add_prior.
+
+        Uniform is the resting state: it multiplies the acquisition by a
+        constant, which cannot change a ranking, so it says exactly what stating
+        no prior says.{% endcomment %}
+        <p class="selectors acq-controls">
+            <select id="acq-prior-kind" aria-label="{% translate 'Prior distribution' %}">
+                <option value="uniform">{% translate "Uniform" %}</option>
+                <option value="normal">{% translate "Normal" %}</option>
+                <option value="beta">{% translate "Beta" %}</option>
+                {% comment %}The same shape and the same editor a categorical
+                hyperparameter uses: a density given by its values, with the
+                points pinned to the choices when there is nothing between
+                them.{% endcomment %}
+                <option value="tabulated">{% translate "Freeform" %}</option>
+            </select>
+            {% comment %}Disabled rather than hidden. A control that vanishes
+            takes its space with it and the figure jumps; one that greys out
+            stays where the reader last saw it.{% endcomment %}
+            <select id="acq-prior-decay" aria-label="{% translate 'Decay' %}" disabled>
+                <option value="none">{% translate "No decay" %}</option>
+                <option value="logarithmic">{% translate "Logarithmic decay" %}</option>
+                <option value="linear">{% translate "Linear decay" %}</option>
+                <option value="quadratic">{% translate "Quadratic decay" %}</option>
+                <option value="cubic">{% translate "Cubic decay" %}</option>
+            </select>
+            {% comment %}β as a fraction of the trial budget, which is how πBO
+            and DynaBO state it: β = N/10, ablated over N/50 … N/2.5 in DynaBO's
+            Appendix F.9. The ratio rather than β itself, so it means the same
+            across budgets. Disabled with the shape, because β is the factor *of*
+            a schedule and has nothing to scale when nothing decays.{% endcomment %}
+            <label class="acq-toggle" title="{% translate 'Decay factor as a fraction of the trial budget (β = ratio × N). Larger keeps the prior influential for longer: better for an accurate prior, worse for a misleading one.' %}">
+                β / N
+                <input type="number" id="acq-prior-beta" step="0.01" list="acq-beta-ablated"
+                       min="{{ beta_min }}" max="{{ beta_max }}" disabled
+                       aria-label="{% translate 'Decay factor as a fraction of the trial budget' %}">
+                {% comment %}The values the paper actually measured, offered as
+                datalist ticks so the reader can see which are evidence and
+                which are merely permitted.{% endcomment %}
+                <datalist id="acq-beta-ablated">
+                    <option value="0.02"></option><option value="0.04"></option>
+                    <option value="0.1"></option><option value="0.2"></option>
+                    <option value="0.4"></option>
+                </datalist>
+            </label>
+        </p>
+        {% comment %}Filled by the script from whichever distribution is chosen:
+        a number field and a slider per parameter, bound both ways so dragging
+        the curve moves the numbers and typing a number moves the curve.
+        {% endcomment %}
+        <div id="acq-prior-params" class="selectors acq-params"></div>
+
+        <div id="acq-plot-surrogate" class="acq-panel"></div>
+    </div>
+    <p id="{{ figure.dom_id }}-empty" class="caption" hidden>{% translate "No acquisition data available." %}</p>
+</section>

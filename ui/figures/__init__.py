@@ -6,18 +6,20 @@ for each figure that draws one. Their templates live in
 """
 
 from .base import (
-    DOUBLE, FULL, HALF, SINGLE, Figure, autocompute_key, deferred_computations,
+    DOUBLE, FULL, HALF, PAGE, SINGLE, Figure, autocompute_key, deferred_computations,
 )
 from .catalog import (
     FIGURES, FIGURES_BY_KEY, HP_GAME_FIELDS, HP_GAME_HELP, HP_GAME_LABELS,
 )
 from .plots import (
+    PRIOR_COLOR,
     MARKER_COLOR,
     NEGATIVE_COLOR,
     SELECTION_COLOR,
     UNCERTAINTY_SCALE,
     configuration_cube_plot,
     configuration_projection_plot,
+    acquisition_slice_plots,
     hyperparameter_ablation_plot,
     hyperparameter_importance_plot,
     hyperparameter_interactions_bar_plot,
@@ -36,6 +38,7 @@ from .plots import (
 
 __all__ = [
     "FIGURES",
+    "PRIOR_COLOR",
     "MARKER_COLOR",
     "NEGATIVE_COLOR",
     "SELECTION_COLOR",
@@ -44,6 +47,7 @@ __all__ = [
     "DOUBLE",
     "FULL",
     "HALF",
+    "PAGE",
     "SINGLE",
     "HP_GAME_FIELDS",
     "HP_GAME_HELP",
@@ -64,6 +68,7 @@ __all__ = [
     "incumbent_scores",
     "local_effects_plot",
     "parallel_coordinates_plot",
+    "acquisition_slice_plots",
     "partial_dependence_plot",
     "performance_over_time_plot",
     "trial_duration_plot",

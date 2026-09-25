@@ -36,6 +36,10 @@ class RandomOptimizer(BaseOptimizer):
         cancel_event=None,
         stopping: Optional[dict] = None,
         splits=None,
+        # Accepted and ignored: a search that fits no model of the objective has
+        # no acquisition function for a prior to weight. The caller passes what
+        # the reader stated without having to know which optimizer will get it.
+        priors=None,
     ) -> OptimizationResult:
         # One fold unless the caller divided the data itself; see core.splits.
         splits = splits if splits is not None else holdout(X_train, y_train, X_val, y_val)

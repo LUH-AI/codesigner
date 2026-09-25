@@ -13,16 +13,33 @@ magnitude:
     model       dict  — kind, name, path, and (on export) digest and lock
     evaluation  dict  — scheme, folds, test_size, and (on export) stratified
     metrics     dict  — names, current, original
-    optimizer   dict  — name, params, and (on export) defaults_used
+    optimizer   dict  — name, params, and (on export) defaults_used. For a run
+                        imported from a SMAC directory, `params` is read back
+                        out of `scenario.json`'s `_meta` (see
+                        `smac_import._optimizer_settings`), so an imported run
+                        says how it was configured rather than coming back as a
+                        bare name with defaults underneath it.
     space       dict | absent — the search space, as ConfigSpace's own
                         serialized dict; byte-identical to SMAC's
                         configspace.json. Optional: a file without one falls
                         back to asking the model, which is what every file
                         written before this section existed does.
+    priors      dict | absent — beliefs stated about the search space, by
+                        hyperparameter: `kind`, `params`, `decay`
+                        (`{shape, beta}`) and `at_trial`, the trial the belief
+                        was stated at. These steer the *next* run rather than
+                        describing a past one, which is why they are here and
+                        not under `runs`. Absent when nothing was stated.
     runs        list  — export only: the history of runs over the trials
     environment dict  — export only: the versions behind the numbers
     result      dict | null — serialized OptimizationResult, a strict superset
                         of SMAC's runhistory.json (see serialize_result)
+
+The superset property is about `result`, not about the file. A runhistory has
+none of `name`, `seed`, `dataset.path`, `model.name` or `metrics.names`, all of
+which `parse` requires — so a runhistory is not an .ihpo, while every .ihpo's
+`result` contains everything a runhistory does. `smac_import` is what bridges
+the two, filling the rest from the directory around the runhistory.
 
 The dataset arrays and model object are NOT stored. On load the two paths are
 resolved from disk; missing files must be re-supplied by the caller (or the

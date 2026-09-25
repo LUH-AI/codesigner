@@ -8,7 +8,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: PACKAGE VERSION\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2026-08-11 09:47+0000\n"
+"POT-Creation-Date: 2026-09-25 18:20+0000\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
 "Language-Team: LANGUAGE <LL@li.org>\n"
@@ -18,458 +18,826 @@ msgstr ""
 "Content-Transfer-Encoding: 8bit\n"
 "Plural-Forms: nplurals=2; plural=(n != 1);\n"
 
-#: access/policy.py:87
-#, fuzzy, python-format
+#. == Site chrome — navigation, base template, account ==================
+#: access/policy.py:197
+#, python-format
 msgid "%(user)s is not allowed to run custom models here."
-msgstr "%(user)s no tiene permiso para ejecutar modelos propios aquí."
+msgstr "%(user)s no puede ejecutar modelos propios aquí."
 
-#: access/policy.py:88
-#, fuzzy
+#: access/policy.py:198
 msgid ""
 "This experiment's custom model has no account behind it, so it cannot be "
 "run. Give the experiment an owner who is allowed to run custom models."
 msgstr ""
 "El modelo propio de este experimento no tiene ninguna cuenta detrás, así que "
-"no se puede ejecutar. Asigna al experimento un propietario con permiso para "
-"ejecutar modelos propios."
+"no puede ejecutarse. Asigne al experimento una persona propietaria con "
+"permiso para ejecutar modelos propios."
 
 #: access/templates/access/login.html:7 access/templates/access/login.html:33
-#, fuzzy
 msgid "Sign in"
 msgstr "Iniciar sesión"
 
 #: access/templates/access/login.html:22
-#, fuzzy
 msgid "That username and password do not match an account."
-msgstr "Ese nombre de usuario y contraseña no corresponden a ninguna cuenta."
+msgstr "Ese usuario y esa contraseña no coinciden con ninguna cuenta."
 
 #: access/templates/access/login.html:25
-#, fuzzy
+#: ui/templates/ui/panels/group_people.html:52
 msgid "Username"
-msgstr "Nombre de usuario"
+msgstr "Usuario"
 
-#: access/templates/access/login.html:29
-#, fuzzy
+#: access/templates/access/login.html:29 ui/templates/ui/account.html:53
 msgid "Password"
 msgstr "Contraseña"
 
-#: access/templates/access/login.html:40 templates/base.html:41
-#: templates/base.html:48
+#: access/templates/access/login.html:41 templates/base.html:83
 msgid "Language"
 msgstr "Idioma"
 
-#: templates/base.html:15 templates/base.html:17 templates/base.html:69
-#: ui/navigation.py:59
+#: access/templates/access/password_change.html:4
+#: access/templates/access/password_change.html:11
+#: access/templates/access/password_change.html:35
+#: ui/templates/ui/account.html:56
+msgid "Change password"
+msgstr "Cambiar contraseña"
+
+#: access/templates/access/password_change.html:12
+msgid "You will stay signed in on this browser."
+msgstr "Seguirá con la sesión iniciada en este navegador."
+
+#: access/templates/access/password_changed.html:4
+#: access/templates/access/password_changed.html:7
+msgid "Password changed"
+msgstr "Contraseña cambiada"
+
+#: access/templates/access/password_changed.html:9
+msgid ""
+"Your password has been changed. Other browsers signed in as you will need it "
+"next time."
+msgstr ""
+"Su contraseña ha cambiado. Los demás navegadores con su sesión iniciada la "
+"necesitarán la próxima vez."
+
+#: access/templates/access/password_changed.html:12
+msgid "Back to your account"
+msgstr "Volver a su cuenta"
+
+#: templates/base.html:15 templates/base.html:17 ui/navigation.py:59
+#: ui/templates/ui/panels/group_people.html:18
 msgid "Experiments"
 msgstr "Experimentos"
 
-#: templates/base.html:20 templates/base.html:22 templates/base.html:57
+#: templates/base.html:25 templates/base.html:27 templates/base.html:114
+#: ui/templates/ui/panels/site_groups.html:17
+#: ui/templates/ui/panels/site_jobs.html:20
+#: ui/templates/ui/panels/site_usage.html:18
+#: ui/templates/ui/panels/site_usage.html:46
+msgid "Group"
+msgstr "Grupo"
+
+#: templates/base.html:32 templates/base.html:34 templates/base.html:124
+msgid "Site"
+msgstr "Sitio"
+
+#: templates/base.html:38 templates/base.html:40 templates/base.html:94
 #: ui/navigation.py:35 ui/navigation.py:60
 #: ui/templates/ui/experiment_settings.html:4
-#, fuzzy
 msgid "Settings"
-msgstr "Configuración"
+msgstr "Ajustes"
 
-#: templates/base.html:32
-#, fuzzy, python-format
+#: templates/base.html:50
+#, python-format
 msgid "Signed in as %(name)s — sign out"
-msgstr "Sesión iniciada como %(name)s: cerrar sesión"
+msgstr "Sesión iniciada como %(name)s — cerrar sesión"
 
-#: templates/base.html:36
-#, fuzzy
+#: templates/base.html:54
 msgid "Sign out"
 msgstr "Cerrar sesión"
 
-#: templates/base.html:60 ui/navigation.py:69 ui/templates/ui/appearance.html:4
+#: templates/base.html:89
+msgid "Go"
+msgstr ""
+
+#: templates/base.html:97 ui/navigation.py:71 ui/templates/ui/appearance.html:4
 #: ui/templates/ui/appearance.html:7
-#, fuzzy
 msgid "Appearance"
 msgstr "Apariencia"
 
-#: templates/base.html:63 ui/navigation.py:71
+#: templates/base.html:104 ui/templates/ui/account.html:4
+#: ui/templates/ui/account.html:7
+msgid "Account"
+msgstr "Cuenta"
+
+#: templates/base.html:108 ui/navigation.py:73
 #: ui/templates/ui/default_experiment_settings.html:4
 #: ui/templates/ui/default_experiment_settings.html:7
-#, fuzzy
 msgid "Default experiment settings"
-msgstr "Configuración de experimento predeterminada"
+msgstr "Ajustes predeterminados de los experimentos"
 
-#: templates/base.html:71
+#: templates/base.html:117 ui/templates/ui/panels/group_people.html:4
+#: ui/templates/ui/panels/site_usage.html:19
+msgid "People"
+msgstr "Personas"
+
+#: templates/base.html:119 ui/templates/ui/panels/group_work.html:4
+msgid "Their experiments"
+msgstr "Sus experimentos"
+
+#: templates/base.html:127 ui/templates/ui/panels/site_groups.html:4
+#: ui/templates/ui/panels/site_groups.html:7
+msgid "Groups"
+msgstr "Grupos"
+
+#: templates/base.html:129 ui/templates/ui/panels/site_usage.html:4
+#: ui/templates/ui/panels/site_usage.html:7
+msgid "Usage"
+msgstr "Uso"
+
+#: templates/base.html:131 ui/templates/ui/panels/site_jobs.html:4
+msgid "Jobs"
+msgstr "Trabajos"
+
+#: templates/base.html:142
+msgid "Experiment Selection"
+msgstr "Selección de experimento"
+
+#: templates/base.html:144
 msgid "＋ New"
 msgstr "＋ Nuevo"
 
-#: templates/base.html:72
+#: templates/base.html:145
 msgid "📂 Load"
 msgstr "📂 Cargar"
 
-#: templates/base.html:79
-#, fuzzy
+#: templates/base.html:151 ui/templates/ui/experiment_list.html:22
 msgid "Running"
 msgstr "En ejecución"
 
-#: templates/base.html:79
-#, fuzzy
+#: templates/base.html:151
 msgid "Preparing its environment"
 msgstr "Preparando su entorno"
 
-#: templates/base.html:82
-#, fuzzy
+#: templates/base.html:154 ui/templates/ui/experiment_list.html:28
 msgid "No experiments yet."
-msgstr "Aún no hay experimentos."
+msgstr "Todavía no hay experimentos."
 
-#: tests/ui/i18n/test_i18n.py:220 tests/ui/i18n/test_i18n.py:226
-msgid "Number of trials"
-msgstr "Número de pruebas"
-
-#: ui/figures/catalog.py:22
-msgid "Best configuration"
-msgstr "Mejor configuración"
-
-#: ui/figures/catalog.py:29
-msgid "Selected configuration"
-msgstr "Configuración seleccionada"
-
-#: ui/figures/catalog.py:36
-msgid "Hyperparameter importance (HyperSHAP)"
-msgstr "Importancia de hiperparámetros (HyperSHAP)"
-
-#: ui/figures/catalog.py:46
-msgid "Performance of Incumbent"
-msgstr "Rendimiento del Incumbente"
-
-#: ui/figures/catalog.py:63
-#, fuzzy
-msgid "Trial duration"
-msgstr "Duración de la prueba"
-
-#: ui/figures/catalog.py:72
-#, fuzzy
-msgid "Error over time"
-msgstr "Error a lo largo del tiempo"
-
-#: ui/figures/catalog.py:86
-#, fuzzy
-msgid "Trials"
-msgstr "Pruebas"
-
-#: ui/forms.py:29
-msgid "Experiment name"
-msgstr "Nombre del experimento"
-
-#: ui/forms.py:30 ui/templates/ui/experiment_detail.html:11
-msgid "Model"
-msgstr "Modelo"
-
-#: ui/forms.py:31
-#, fuzzy
-msgid "…or upload a model .py"
-msgstr "…o suba un modelo (.py)"
-
-#: ui/forms.py:32
-#, fuzzy
-msgid "…or a mounted model .py"
-msgstr "…o un modelo montado (.py)"
-
-#: ui/forms.py:33 ui/templates/ui/experiment_detail.html:12
-msgid "Optimizer"
-msgstr "Optimizador"
-
-#: ui/forms.py:34
-#, fuzzy
-msgid "Demo dataset"
-msgstr "Conjunto de datos de demostración"
-
-#: ui/forms.py:35
-#, fuzzy
-msgid "…or upload a CSV (last column = target)"
-msgstr "…o suba un CSV (última columna = objetivo)"
-
-#: ui/forms.py:36
-msgid "Seed (negative = random)"
-msgstr "Semilla (negativa = aleatoria)"
-
-#: ui/forms.py:41
-#, fuzzy
-msgid "How each trial is scored"
-msgstr "Cómo se puntúa cada prueba"
-
-#: ui/forms.py:43
-#, fuzzy
-msgid "One 80/20 split — fastest"
-msgstr "Una división 80/20: lo más rápido"
-
-#: ui/forms.py:44
-#, fuzzy
-msgid "3-fold cross-validation"
-msgstr "Validación cruzada de 3 pliegues"
-
-#: ui/forms.py:45
-#, fuzzy
-msgid "5-fold cross-validation — steadier on a small dataset"
-msgstr "Validación cruzada de 5 pliegues: más estable con pocos datos"
-
-#: ui/forms.py:46
-#, fuzzy
-msgid "10-fold cross-validation"
-msgstr "Validación cruzada de 10 pliegues"
-
-#: ui/forms.py:54
-#, fuzzy
-msgid "— select —"
-msgstr "— seleccionar —"
-
-#: ui/forms.py:57 ui/forms.py:61
-#, fuzzy
-msgid "— none —"
-msgstr "— ninguno —"
-
-#: ui/forms.py:83
-#, fuzzy
-msgid "Choose a model or upload a model .py file."
-msgstr "Elija un modelo o suba un archivo de modelo .py."
-
-#: ui/forms.py:86
-#, fuzzy
-msgid "Choose a demo dataset or upload a CSV file."
-msgstr "Elija un conjunto de datos de demostración o suba un archivo CSV."
-
-#: ui/forms.py:99
-#, fuzzy
-msgid "Include absolute timestamps in exported .ihpo files"
-msgstr "Incluir marcas de tiempo absolutas en los archivos .ihpo exportados"
-
-#: ui/forms.py:135
-#, fuzzy
-msgid "Use default experiment settings"
-msgstr "Usar la configuración de experimento predeterminada"
+#: templates/base.html:157
+msgid "See all…"
+msgstr "Ver todos…"
 
 #: ui/navigation.py:36 ui/templates/ui/delete_confirm.html:12
 msgid "Delete"
 msgstr "Eliminar"
 
 #: ui/navigation.py:38 ui/templates/ui/metric_change.html:4
-#, fuzzy
 msgid "Change metric"
 msgstr "Cambiar métrica"
 
-#: ui/navigation.py:65 ui/templates/ui/new_experiment.html:4
+#: ui/navigation.py:65 ui/templates/ui/experiment_list.html:4
+#: ui/templates/ui/experiment_list.html:7
+msgid "All experiments"
+msgstr "Todos los experimentos"
+
+#: ui/navigation.py:67 ui/templates/ui/new_experiment.html:4
 #: ui/templates/ui/new_experiment.html:7
 msgid "New experiment"
 msgstr "Nuevo experimento"
 
-#: ui/navigation.py:67
-#, fuzzy
+#: ui/navigation.py:69
 msgid "Import experiment"
 msgstr "Importar experimento"
 
-#: ui/optimizer_labels.py:21
-#, fuzzy
-msgid "Search strategy"
-msgstr "Estrategia de búsqueda"
+#: ui/templates/ui/account.html:9
+#, python-format
+msgid "Signed in as %(name)s."
+msgstr "Sesión iniciada como %(name)s."
 
-#: ui/optimizer_labels.py:22
-#, fuzzy
+#: ui/templates/ui/account.html:20
 msgid ""
-"How the optimizer models the objective. A Gaussian process is the stronger "
-"choice for a handful of numeric hyperparameters and a short budget; a random "
-"forest copes better with many hyperparameters, categorical choices, and "
-"settings that only apply sometimes."
+"You are a superuser, so everything below is yours whether or not it was "
+"granted."
 msgstr ""
-"Cómo modela el optimizador el objetivo. Un proceso gaussiano es la mejor "
-"opción con pocos hiperparámetros numéricos y un presupuesto corto; un bosque "
-"aleatorio maneja mejor muchos hiperparámetros, opciones categóricas y "
-"ajustes que solo se aplican a veces."
+"Es superusuario, así que todo lo de abajo es suyo tanto si se le concedió "
+"como si no."
 
-#: ui/optimizer_labels.py:28
-#, fuzzy
-msgid "Exploration before modelling"
-msgstr "Exploración antes de modelar"
+#: ui/templates/ui/account.html:25
+msgid "What you may do here"
+msgstr "Lo que puede hacer aquí"
 
-#: ui/optimizer_labels.py:29
-#, fuzzy
+#: ui/templates/ui/account.html:33
+msgid "yes"
+msgstr "sí"
+
+#: ui/templates/ui/account.html:35
+msgid "no"
+msgstr "no"
+
+#: ui/templates/ui/account.html:44
 msgid ""
-"The share of the run spent sampling the space before the model starts "
-"choosing. Too little and it builds its model from too few points; too much "
-"and it never gets to use what it learned."
+"Custom models are switched off for this whole instance, so nobody may run "
+"one — including administrators."
 msgstr ""
-"La parte de la ejecución dedicada a muestrear el espacio antes de que el "
-"modelo empiece a elegir. Muy poca y construye su modelo con demasiado pocos "
-"puntos; demasiada y no llega a usar lo aprendido."
+"Los modelos propios están desactivados en toda esta instancia, así que nadie "
+"puede ejecutar ninguno — tampoco la administración."
 
-#: ui/optimizer_labels.py:34
-#, fuzzy
-msgid "Random configurations"
-msgstr "Configuraciones aleatorias"
+#: ui/templates/ui/account.html:48
+msgid "An administrator grants these, individually or through a group."
+msgstr ""
+"La administración concede estos permisos, individualmente o a través de un "
+"grupo."
 
-#: ui/optimizer_labels.py:35
-#, fuzzy
+#: ui/templates/ui/account.html:54
 msgid ""
-"How often to try a random configuration instead of the model's suggestion, "
-"as a fraction. Guards against the search settling into one region too early."
+"Changing it here needs the one you have now. If you have forgotten it, an "
+"administrator can set a new one."
 msgstr ""
-"Con qué frecuencia probar una configuración aleatoria en vez de la "
-"sugerencia del modelo, como fracción. Evita que la búsqueda se asiente "
-"demasiado pronto en una región."
+"Cambiarla aquí exige la que tiene ahora. Si la ha olvidado, la "
+"administración puede establecer una nueva."
 
-#: ui/optimizer_labels.py:40
-#, fuzzy
-msgid "Try the model's own defaults first"
-msgstr "Probar primero los valores por defecto del modelo"
+#. == Figures — titles and descriptions (ui/figures/catalog.py) =========
+#: ui/figures/catalog.py:31
+msgid "Best configuration"
+msgstr "Mejor configuración"
 
-#: ui/optimizer_labels.py:41
-#, fuzzy
+#: ui/figures/catalog.py:43
+msgid "Selected Configuration"
+msgstr "Configuración seleccionada"
+
+#: ui/figures/catalog.py:85
+msgid "Tunability"
+msgstr "Ajustabilidad"
+
+#: ui/figures/catalog.py:86
+msgid "Mistunability"
+msgstr "Desajustabilidad"
+
+#: ui/figures/catalog.py:87
+msgid "Sensitivity"
+msgstr "Sensibilidad"
+
+#: ui/figures/catalog.py:90
+msgid "How much is there to gain by tuning this hyperparameter?"
+msgstr "¿Cuánto hay que ganar ajustando este hiperparámetro?"
+
+#: ui/figures/catalog.py:91
+msgid "How much is there to lose by getting this hyperparameter wrong?"
+msgstr "¿Cuánto hay que perder si este hiperparámetro se equivoca?"
+
+#: ui/figures/catalog.py:92
+msgid "How much does performance move as this hyperparameter moves?"
+msgstr "¿Cuánto se mueve el rendimiento cuando se mueve este hiperparámetro?"
+
+#: ui/figures/catalog.py:112
+msgid "Hyperparameter importance (HyperSHAP)"
+msgstr "Importancia de los hiperparámetros (HyperSHAP)"
+
+#: ui/figures/catalog.py:145 ui/figures/catalog.py:151
+msgid "Local explanation (selected trial)"
+msgstr "Explicación local (prueba seleccionada)"
+
+#: ui/figures/catalog.py:200
+msgid "Interactions: heatmap"
+msgstr "Interacciones: mapa de calor"
+
+#: ui/figures/catalog.py:208
+msgid "Interactions: top pairs"
+msgstr "Interacciones: pares principales"
+
+#: ui/figures/catalog.py:216
+msgid "Interactions: graph"
+msgstr "Interacciones: grafo"
+
+#: ui/figures/catalog.py:226
+msgid "Interactions: coalitions"
+msgstr "Interacciones: coaliciones"
+
+#: ui/figures/catalog.py:236
+msgid "Interactions: by order"
+msgstr "Interacciones: por orden"
+
+#: ui/figures/catalog.py:253
+msgid "Trial performance"
+msgstr "Rendimiento de las pruebas"
+
+#: ui/figures/catalog.py:353
+msgid "Hyperparameter space projection"
+msgstr "Proyección del espacio de hiperparámetros"
+
+#: ui/figures/catalog.py:379
+msgid "Surrogate uncertainty (axes view)"
+msgstr "Incertidumbre del sustituto (vista de ejes)"
+
+#: ui/figures/catalog.py:404
+msgid "Parallel coordinates"
+msgstr "Coordenadas paralelas"
+
+#: ui/figures/catalog.py:439 ui/figures/catalog.py:445
+msgid "Partial dependence (PDP/ICE)"
+msgstr "Dependencia parcial (PDP/ICE)"
+
+#: ui/figures/catalog.py:481 ui/figures/catalog.py:488
+msgid "Acquisition and priors"
+msgstr "Adquisición y priores"
+
+#: ui/figures/catalog.py:503 ui/figures/catalog.py:510
+msgid "Local effects across trials"
+msgstr "Efectos locales a lo largo de las pruebas"
+
+#: ui/figures/catalog.py:519
+msgid "Trial duration"
+msgstr "Duración de la prueba"
+
+#: ui/figures/catalog.py:531 ui/templates/ui/panels/site_jobs.html:23
+#: ui/templates/ui/panels/site_usage.html:21
+#: ui/templates/ui/panels/site_usage.html:49
+msgid "Trials"
+msgstr "Pruebas"
+
+#: ui/figures/plots.py:312 ui/figures/plots.py:1584 ui/figures/plots.py:1587
+msgid "Incumbent"
+msgstr "Titular"
+
+#: ui/figures/plots.py:318
+msgid "New incumbent"
+msgstr "Nuevo titular"
+
+#: ui/figures/plots.py:446
+msgid "Already banked"
+msgstr "Ya obtenido"
+
+#: ui/figures/plots.py:447
+#: ui/templates/ui/figures/hyperparameter_importance.html:44
+#: ui/templates/ui/figures/hyperparameter_importance.html:77 ui/views.py:568
+msgid "Still to gain"
+msgstr "Aún por ganar"
+
+#: ui/figures/plots.py:452
+msgid "Achievable gain"
+msgstr "Ganancia alcanzable"
+
+#: ui/figures/plots.py:532
+msgid "vs. default"
+msgstr "frente al valor por defecto"
+
+#: ui/figures/plots.py:558 ui/figures/plots.py:717 ui/figures/plots.py:807
+msgid "Interaction"
+msgstr "Interacción"
+
+#: ui/figures/plots.py:587
+msgid "Interaction strength"
+msgstr "Fuerza de la interacción"
+
+#: ui/figures/plots.py:724 ui/templates/ui/_selected_config_inner.html:29
+#: ui/templates/ui/figures/acquisition_slice.html:26
+#: ui/templates/ui/figures/best_configuration.html:13
+#: ui/templates/ui/figures/hyperparameter_importance.html:72
+#: ui/templates/ui/figures/partial_dependence.html:17
+msgid "Hyperparameter"
+msgstr "Hiperparámetro"
+
+#: ui/figures/plots.py:876
+msgid "Attributed influence"
+msgstr "Influencia atribuida"
+
+#: ui/figures/plots.py:1269 ui/figures/plots.py:1270
+#, python-format
+msgid "Trial %(n)s"
+msgstr "Prueba %(n)s"
+
+#: ui/figures/plots.py:1344
+msgid "Individual trials (ICE)"
+msgstr "Pruebas individuales (ICE)"
+
+#: ui/figures/plots.py:1347
+msgid "Partial dependence"
+msgstr "Dependencia parcial"
+
+#: ui/figures/plots.py:1351
+msgid "Predicted score"
+msgstr "Puntuación predicha"
+
+#: ui/figures/plots.py:1473
+msgid "Best sampled, unweighted"
+msgstr "Mejor muestreado, sin ponderar"
+
+#: ui/figures/plots.py:1478
+msgid "Best sampled, weighted"
+msgstr "Mejor muestreado, ponderado"
+
+#: ui/figures/plots.py:1488 ui/figures/plots.py:1520
+msgid "Acquisition"
+msgstr "Adquisición"
+
+#: ui/figures/plots.py:1492
+msgid "Weighted by the prior"
+msgstr "Ponderado por el prior"
+
+#: ui/figures/plots.py:1513
+msgid "Asked of the optimizer"
+msgstr "Consultado al optimizador"
+
+#: ui/figures/plots.py:1541 ui/figures/plots.py:1553
+msgid "Prior"
+msgstr "Prior"
+
+#: ui/figures/plots.py:1550
+msgid "Control points"
+msgstr "Puntos de control"
+
+#: ui/figures/plots.py:1574
+msgid "Predicted"
+msgstr "Predicho"
+
+#: ui/figures/plots.py:1609
+msgid "Implied by the prior"
+msgstr "Implicado por el prior"
+
+#: ui/figures/plots.py:1684
+msgid "Effect vs. default  (left: hurt, right: helped)"
+msgstr ""
+"Efecto frente al valor por defecto  (izquierda: perjudica, derecha: ayuda)"
+
+#: ui/figures/plots.py:1719
+msgid "Trial"
+msgstr "Prueba"
+
+#: ui/figures/plots.py:1719
+msgid "Duration (s)"
+msgstr "Duración (s)"
+
+#. == Figures — the figures themselves ==================================
+#: ui/templates/ui/figures/_trial_rows.html:13
+#, python-format
+msgid "This trial did not produce a measurement: %(reason)s"
+msgstr "Esta prueba no produjo ninguna medición: %(reason)s"
+
+#: ui/templates/ui/figures/_trial_rows.html:14
+msgid "failed"
+msgstr "fallida"
+
+#: ui/templates/ui/figures/acquisition_slice.html:37
+msgid "Mean"
+msgstr "Media"
+
+#: ui/templates/ui/figures/acquisition_slice.html:38
+msgid "Standard deviation"
+msgstr "Desviación típica"
+
+#: ui/templates/ui/figures/acquisition_slice.html:39
+msgid "First shape parameter"
+msgstr "Primer parámetro de forma"
+
+#: ui/templates/ui/figures/acquisition_slice.html:40
+msgid "Second shape parameter"
+msgstr "Segundo parámetro de forma"
+
+#: ui/templates/ui/figures/acquisition_slice.html:58
+msgid "Asking…"
+msgstr "Consultando…"
+
+#: ui/templates/ui/figures/acquisition_slice.html:59
+msgid "Could not save this prior."
+msgstr "No se pudo guardar este prior."
+
+#: ui/templates/ui/figures/acquisition_slice.html:60
+msgid "Could not compute the acquisition slice."
+msgstr "No se pudo calcular el corte de adquisición."
+
+#: ui/templates/ui/figures/acquisition_slice.html:61
+msgid "The optimizer could not be asked for this run."
+msgstr "No se pudo consultar al optimizador para esta ejecución."
+
+#: ui/templates/ui/figures/acquisition_slice.html:62
+#, python-brace-format
 msgid ""
-"Evaluate the configuration the model ships with, so the search has a known "
-"reference point to beat."
+"Trial {trials} of {size} in the initial design ({name}). These are drawn "
+"before any surrogate is fitted, so a prior set here cannot affect them — it "
+"starts to count once the design is exhausted."
 msgstr ""
-"Evaluar la configuración que trae el modelo, para que la búsqueda tenga un "
-"punto de referencia conocido que superar."
+"Prueba {trials} de {size} del diseño inicial ({name}). Estas se extraen "
+"antes de ajustar ningún sustituto, así que un prior fijado aquí no puede "
+"afectarlas — empieza a contar cuando el diseño se agota."
 
-#: ui/optimizer_labels.py:45
-#, fuzzy
-msgid "How the exploration samples"
-msgstr "Cómo muestrea la exploración"
+#: ui/templates/ui/figures/acquisition_slice.html:63
+#, python-brace-format
+msgid "Rank {rank} of {total}"
+msgstr "Puesto {rank} de {total}"
 
-#: ui/optimizer_labels.py:46
-#, fuzzy
+#: ui/templates/ui/figures/acquisition_slice.html:64
+msgid "runs next"
+msgstr "se ejecuta a continuación"
+
+#: ui/templates/ui/figures/acquisition_slice.html:65
+#, python-brace-format
+msgid "{count} candidates here"
+msgstr "{count} candidatas aquí"
+
+#: ui/templates/ui/figures/acquisition_slice.html:66
+#, python-brace-format
+msgid "Ranks {ranks} of {total}"
+msgstr "Puestos {ranks} de {total}"
+
+#: ui/templates/ui/figures/acquisition_slice.html:67
+#, python-brace-format
+msgid "Rank {rank}, the best of them:"
+msgstr "Puesto {rank}, la mejor de ellas:"
+
+#: ui/templates/ui/figures/acquisition_slice.html:80
+#: ui/templates/ui/figures/local_effects.html:14
+#: ui/templates/ui/figures/local_explanation.html:19
+#: ui/templates/ui/figures/partial_dependence.html:29
+#: ui/templates/ui/panels/site_usage.html:22
+#: ui/templates/ui/panels/site_usage.html:50
+msgid "Compute"
+msgstr "Calcular"
+
+#: ui/templates/ui/figures/acquisition_slice.html:99
+msgid "Acquisition with incumbent hyperparameters"
+msgstr "Adquisición con los hiperparámetros del titular"
+
+#: ui/templates/ui/figures/acquisition_slice.html:107
+msgid "Requery Next Trials"
+msgstr "Volver a consultar las próximas pruebas"
+
+#: ui/templates/ui/figures/acquisition_slice.html:121
+msgid "Prior distribution"
+msgstr "Distribución del prior"
+
+#: ui/templates/ui/figures/acquisition_slice.html:122
+msgid "Uniform"
+msgstr "Uniforme"
+
+#: ui/templates/ui/figures/acquisition_slice.html:123
+msgid "Normal"
+msgstr "Normal"
+
+#: ui/templates/ui/figures/acquisition_slice.html:124
+msgid "Beta"
+msgstr "Beta"
+
+#: ui/templates/ui/figures/acquisition_slice.html:130
+msgid "Freeform"
+msgstr "Libre"
+
+#: ui/templates/ui/figures/acquisition_slice.html:136
+msgid "Decay"
+msgstr "Decaimiento"
+
+#: ui/templates/ui/figures/acquisition_slice.html:137
+msgid "No decay"
+msgstr "Sin decaimiento"
+
+#: ui/templates/ui/figures/acquisition_slice.html:138
+msgid "Logarithmic decay"
+msgstr "Decaimiento logarítmico"
+
+#: ui/templates/ui/figures/acquisition_slice.html:139
+msgid "Linear decay"
+msgstr "Decaimiento lineal"
+
+#: ui/templates/ui/figures/acquisition_slice.html:140
+msgid "Quadratic decay"
+msgstr "Decaimiento cuadrático"
+
+#: ui/templates/ui/figures/acquisition_slice.html:141
+msgid "Cubic decay"
+msgstr "Decaimiento cúbico"
+
+#: ui/templates/ui/figures/acquisition_slice.html:149
 msgid ""
-"Sobol and Latin hypercube cover the space more evenly than chance does, "
-"which is worth more the shorter the run."
+"Decay factor as a fraction of the trial budget (β = ratio × N). Larger keeps "
+"the prior influential for longer: better for an accurate prior, worse for a "
+"misleading one."
 msgstr ""
-"Sobol y el hipercubo latino cubren el espacio de forma más uniforme que el "
-"azar, lo que vale más cuanto más corta es la ejecución."
+"Factor de decaimiento como fracción del presupuesto de pruebas (β = fracción "
+"× N). Cuanto mayor, más tiempo mantiene el prior su influencia: mejor para "
+"un prior acertado, peor para uno engañoso."
 
-#: ui/optimizer_labels.py:50
-#, fuzzy
-msgid "What makes a configuration worth trying"
-msgstr "Qué hace que valga la pena probar una configuración"
+#: ui/templates/ui/figures/acquisition_slice.html:153
+msgid "Decay factor as a fraction of the trial budget"
+msgstr "Factor de decaimiento como fracción del presupuesto de pruebas"
 
-#: ui/optimizer_labels.py:51
-#, fuzzy
+#: ui/templates/ui/figures/acquisition_slice.html:174
+msgid "No acquisition data available."
+msgstr "No hay datos de adquisición disponibles."
+
+#: ui/templates/ui/figures/best_configuration.html:9
+#, python-format
+msgid "Best overall (Trial %(trial)s)"
+msgstr "Mejor en conjunto (prueba %(trial)s)"
+
+#: ui/templates/ui/figures/configuration_cube.html:28
+msgid "Method"
+msgstr "Método"
+
+#: ui/templates/ui/figures/configuration_cube.html:29
+msgid "Axes"
+msgstr "Ejes"
+
+#: ui/templates/ui/figures/configuration_cube.html:30
+msgid "PCA"
+msgstr "PCA"
+
+#: ui/templates/ui/figures/configuration_cube.html:34
+msgid "PLS"
+msgstr "PLS"
+
+#: ui/templates/ui/figures/configuration_cube.html:42
+msgid "Dimensions"
+msgstr "Dimensiones"
+
+#: ui/templates/ui/figures/configuration_cube.html:43
+msgid "2D"
+msgstr "2D"
+
+#: ui/templates/ui/figures/configuration_cube.html:44
+msgid "3D"
+msgstr "3D"
+
+#: ui/templates/ui/figures/configuration_cube.html:46
+msgid "First axis"
+msgstr "Primer eje"
+
+#: ui/templates/ui/figures/configuration_cube.html:47
+#: ui/templates/ui/figures/configuration_cube.html:51
+#: ui/templates/ui/figures/configuration_cube.html:55
+msgid "None"
+msgstr "Ninguno"
+
+#: ui/templates/ui/figures/configuration_cube.html:50
+msgid "Second axis"
+msgstr "Segundo eje"
+
+#: ui/templates/ui/figures/configuration_cube.html:54
+msgid "Third axis"
+msgstr "Tercer eje"
+
+#: ui/templates/ui/figures/configuration_cube.html:69
+msgid "Show surrogate uncertainty"
+msgstr "Mostrar la incertidumbre del sustituto"
+
+#: ui/templates/ui/figures/configuration_cube.html:77
+msgid "Pick a hyperparameter for an axis."
+msgstr "Elija un hiperparámetro para un eje."
+
+#: ui/templates/ui/figures/configuration_cube.html:78
+msgid "No configurations to plot."
+msgstr "No hay configuraciones que dibujar."
+
+#: ui/templates/ui/figures/hyperparameter_importance.html:17
+msgid "View"
+msgstr "Vista"
+
+#: ui/templates/ui/figures/hyperparameter_importance.html:18
+msgid "Pie"
+msgstr "Sectores"
+
+#: ui/templates/ui/figures/hyperparameter_importance.html:19
+msgid "Bar"
+msgstr "Barras"
+
+#: ui/templates/ui/figures/hyperparameter_importance.html:20
+msgid "Table"
+msgstr "Tabla"
+
+#: ui/templates/ui/figures/hyperparameter_importance.html:46
 msgid ""
-"Expected improvement weighs how much better a candidate might be; "
-"probability of improvement only asks whether it is likely to be better at "
-"all, and explores less."
+"Tunability measures what each hyperparameter could gain you, starting from "
+"the search space's default. Ticking this subtracts what the selected trial "
+"has already gained, leaving what is still on the table — which is the number "
+"worth spending the rest of a budget against. Tunability only: "
+"mistunability's achievable value is downside rather than gain, and nothing "
+"'achieves' sensitivity's variance."
 msgstr ""
-"La mejora esperada pondera cuánto mejor podría ser un candidato; la "
-"probabilidad de mejora solo pregunta si es probable que sea mejor, y explora "
-"menos."
+"La ajustabilidad mide lo que cada hiperparámetro podría aportarle, partiendo "
+"del valor por defecto del espacio de búsqueda. Marcar esto resta lo que la "
+"prueba seleccionada ya ha ganado y deja lo que sigue sobre la mesa — la "
+"cifra contra la que merece la pena gastar el resto de un presupuesto. Solo "
+"para la ajustabilidad: el valor alcanzable de la desajustabilidad es una "
+"pérdida y no una ganancia, y nadie «alcanza» la varianza de la sensibilidad."
 
-#: ui/optimizer_labels.py:56
-#, fuzzy
-msgid "Improvement required"
-msgstr "Mejora requerida"
-
-#: ui/optimizer_labels.py:57
-#, fuzzy
+#: ui/templates/ui/figures/hyperparameter_importance.html:55
 msgid ""
-"How much better than the best so far a candidate must promise to be before "
-"it is worth spending a trial on. Raising it pushes the search to explore."
+"This trial has captured essentially all of the gain the search space had to "
+"offer. There is nothing left to tune."
 msgstr ""
-"Cuánto mejor que lo mejor hasta ahora debe prometer ser un candidato para "
-"que merezca una prueba. Subirlo empuja a la búsqueda a explorar."
+"Esta prueba ha capturado prácticamente toda la ganancia que el espacio de "
+"búsqueda tenía que ofrecer. No queda nada que ajustar."
 
-#: ui/optimizer_labels.py:62
-#, fuzzy
-msgid "Candidates considered per trial"
-msgstr "Candidatos considerados por prueba"
+#: ui/templates/ui/figures/hyperparameter_importance.html:57
+#: ui/templates/ui/figures/interactions_coalitions.html:18
+#: ui/templates/ui/figures/interactions_graph.html:18
+#: ui/templates/ui/figures/interactions_heatmap.html:18
+#: ui/templates/ui/figures/interactions_orders.html:18
+#: ui/templates/ui/figures/interactions_top_pairs.html:17
+msgid "Press Compute explanations to see results."
+msgstr "Pulse «Calcular explicaciones» para ver los resultados."
 
-#: ui/optimizer_labels.py:63
-#, fuzzy
-msgid ""
-"How many configurations the optimizer scores against its model before "
-"picking one. More is a better choice for more time between trials."
-msgstr ""
-"Cuántas configuraciones puntúa el optimizador con su modelo antes de elegir "
-"una. Más es una mejor elección a cambio de más tiempo entre pruebas."
+#: ui/templates/ui/figures/hyperparameter_importance.html:57
+#: ui/templates/ui/figures/hyperparameter_importance.html:95
+msgid "No importance data available."
+msgstr "No hay datos de importancia disponibles."
 
-#: ui/optimizer_labels.py:68
-#, fuzzy
-msgid "Candidates refined per trial"
-msgstr "Candidatos refinados por prueba"
+#: ui/templates/ui/figures/hyperparameter_importance.html:73
+msgid "Importance"
+msgstr "Importancia"
 
-#: ui/optimizer_labels.py:69
-#, fuzzy
-msgid ""
-"How many of the best candidates are improved by a local search around them."
-msgstr ""
-"Cuántos de los mejores candidatos se mejoran con una búsqueda local a su "
-"alrededor."
+#: ui/templates/ui/figures/hyperparameter_importance.html:75
+msgid "Achievable"
+msgstr "Alcanzable"
 
-#: ui/optimizer_labels.py:73
-#, fuzzy
-msgid "Trials between model refits"
-msgstr "Pruebas entre reajustes del modelo"
+#: ui/templates/ui/figures/hyperparameter_importance.html:76
+msgid "Banked"
+msgstr "Obtenido"
 
-#: ui/optimizer_labels.py:74
-#, fuzzy
-msgid ""
-"Refitting every trial is the most informed and the slowest. Only worth "
-"raising once the model itself has become the expensive part."
-msgstr ""
-"Reajustar en cada prueba es lo más informado y lo más lento. Solo vale la "
-"pena subirlo cuando el propio modelo se ha vuelto la parte cara."
+#: ui/templates/ui/figures/interactions_coalitions.html:18
+#: ui/templates/ui/figures/interactions_graph.html:18
+#: ui/templates/ui/figures/interactions_heatmap.html:18
+#: ui/templates/ui/figures/interactions_orders.html:18
+#: ui/templates/ui/figures/interactions_top_pairs.html:17
+msgid "No interaction data available."
+msgstr "No hay datos de interacción disponibles."
 
-#: ui/optimizer_labels.py:78
-#, fuzzy
-msgid "Grid steps per numeric hyperparameter"
-msgstr "Pasos de rejilla por hiperparámetro numérico"
+#: ui/templates/ui/figures/local_effects.html:17
+msgid "No local effects available."
+msgstr "No hay efectos locales disponibles."
 
-#: ui/optimizer_labels.py:79
-#, fuzzy
-msgid ""
-"How finely a numeric range is divided. Every combination is tried, so this "
-"multiplies out fast."
-msgstr ""
-"Con qué finura se divide un rango numérico. Se prueba cada combinación, así "
-"que esto se multiplica rápido."
+#: ui/templates/ui/figures/local_explanation.html:22
+msgid "No local explanation available."
+msgstr "No hay explicación local disponible."
 
-#: ui/optimizer_labels.py:89
-#, fuzzy
-msgid "Gaussian process — a few continuous settings"
-msgstr "Proceso gaussiano: pocos ajustes continuos"
+#: ui/templates/ui/figures/parallel_coordinates.html:12
+msgid "No trials to plot yet."
+msgstr "Todavía no hay pruebas que dibujar."
 
-#: ui/optimizer_labels.py:90
-#, fuzzy
-msgid "Random forest — many settings, or categorical ones"
-msgstr "Bosque aleatorio: muchos ajustes, o categóricos"
+#: ui/templates/ui/figures/partial_dependence.html:32
+msgid "No partial dependence data available."
+msgstr "No hay datos de dependencia parcial disponibles."
 
-#: ui/optimizer_labels.py:93
-#, fuzzy
-msgid "Sobol — evenly spread"
-msgstr "Sobol: repartido uniformemente"
+#: ui/templates/ui/figures/performance_over_time.html:12
+msgid "Y axis"
+msgstr "Eje Y"
 
-#: ui/optimizer_labels.py:94
-#, fuzzy
-msgid "Latin hypercube"
-msgstr "Hipercubo latino"
+#: ui/templates/ui/figures/performance_over_time.html:13
+msgid "score"
+msgstr "puntuación"
 
-#: ui/optimizer_labels.py:95
-#, fuzzy
-msgid "Uniformly random"
-msgstr "Uniformemente aleatorio"
+#: ui/templates/ui/figures/performance_over_time.html:14
+msgid "error"
+msgstr "error"
 
-#: ui/optimizer_labels.py:96
-#, fuzzy
-msgid "Only the model's defaults"
-msgstr "Solo los valores por defecto del modelo"
+#: ui/templates/ui/figures/performance_over_time.html:16
+msgid "X axis"
+msgstr "Eje X"
 
-#: ui/optimizer_labels.py:99
-#, fuzzy
-msgid "Expected improvement"
-msgstr "Mejora esperada"
+#: ui/templates/ui/figures/performance_over_time.html:17
+msgid "vs. trials"
+msgstr "frente a las pruebas"
 
-#: ui/optimizer_labels.py:100
-#, fuzzy
-msgid "Probability of improvement"
-msgstr "Probabilidad de mejora"
+#: ui/templates/ui/figures/performance_over_time.html:18
+msgid "vs. time"
+msgstr "frente al tiempo"
 
+#: ui/templates/ui/figures/performance_over_time.html:26
+msgid "No data available."
+msgstr "No hay datos disponibles."
+
+#: ui/templates/ui/figures/trials.html:6
+#, python-format
+msgid "Trials (%(n)s)"
+msgstr "Pruebas (%(n)s)"
+
+#: ui/templates/ui/figures/trials.html:13
+msgid "Duration"
+msgstr "Duración"
+
+#: ui/templates/ui/figures/trials.html:37
+msgid "Previous page"
+msgstr "Página anterior"
+
+#: ui/templates/ui/figures/trials.html:38
+msgid "Page"
+msgstr "Página"
+
+#: ui/templates/ui/figures/trials.html:40
+msgid "of"
+msgstr "de"
+
+#: ui/templates/ui/figures/trials.html:42
+msgid "Next page"
+msgstr "Página siguiente"
+
+#: ui/templates/ui/figures/trials.html:45
+msgid "Rows per page"
+msgstr "Filas por página"
+
+#. == The experiment page, outside the figures ==========================
 #: ui/templates/ui/_breadcrumbs.html:15
-#, fuzzy
 msgid "Breadcrumb"
 msgstr "Ruta de navegación"
 
 #: ui/templates/ui/_breadcrumbs.html:17
-#, fuzzy, python-format
+#, python-format
 msgid "← Back to %(page)s"
 msgstr "← Volver a %(page)s"
 
@@ -478,290 +846,369 @@ msgid "Cancel"
 msgstr "Cancelar"
 
 #: ui/templates/ui/_env_status.html:10
-#, fuzzy
 msgid "Preparing this model's environment…"
 msgstr "Preparando el entorno de este modelo…"
 
 #: ui/templates/ui/_env_status.html:14
-#, fuzzy, python-format
+#, python-format
 msgid "Installing %(deps)s."
 msgstr "Instalando %(deps)s."
 
 #: ui/templates/ui/_env_status.html:15
-#, fuzzy
 msgid "The first build of an environment can take several minutes."
 msgstr "La primera construcción de un entorno puede tardar varios minutos."
 
-#: ui/templates/ui/_experiment_settings_fields.html:14
-#, fuzzy
+#: ui/templates/ui/_experiment_settings_fields.html:7
 msgid "Figures shown on an experiment page"
 msgstr "Figuras mostradas en la página de un experimento"
 
-#: ui/templates/ui/_optimizer_param_field.html:23
-#, fuzzy
-msgid "the strategy decides"
-msgstr "lo decide la estrategia"
+#: ui/templates/ui/_experiment_settings_fields.html:39
+msgid "Analytics computed as soon as a figure needs them"
+msgstr "Analíticas calculadas en cuanto una figura las necesita"
 
-#: ui/templates/ui/_optimizer_params.html:18
-#, fuzzy
-msgid "How the search runs"
-msgstr "Cómo se ejecuta la búsqueda"
+#: ui/templates/ui/_info.html:13
+msgid "What this setting means"
+msgstr "Qué significa este ajuste"
 
-#: ui/templates/ui/_optimizer_params.html:26
-#, fuzzy
+#: ui/templates/ui/_optimizer_params.html:39
+msgid "Configure optimizer"
+msgstr "Configurar el optimizador"
+
+#: ui/templates/ui/_optimizer_params.html:51
 msgid "Advanced search settings"
 msgstr "Ajustes avanzados de búsqueda"
 
-#: ui/templates/ui/_run_status.html:5
-#, fuzzy, python-format
+#: ui/templates/ui/_run_status.html:12
+#, python-format
 msgid "Optimizing… (%(status)s)"
 msgstr "Optimizando… (%(status)s)"
 
-#: ui/templates/ui/_run_status.html:9
-#, fuzzy
+#: ui/templates/ui/_run_status.html:23
+#, python-format
+msgid "Running on the cluster as job %(job)s."
+msgstr "En ejecución en el clúster como trabajo %(job)s."
+
+#: ui/templates/ui/_run_status.html:24
+msgid "Waiting for a node."
+msgstr "Esperando un nodo."
+
+#: ui/templates/ui/_run_status.html:36
+msgid "Cancelling — it stops after the trial it is on."
+msgstr "Cancelando — se detiene tras la prueba en curso."
+
+#: ui/templates/ui/_run_status.html:39
+msgid "Give up on it"
+msgstr "Abandonarla"
+
+#: ui/templates/ui/_run_status.html:44
 msgid "Cancel run"
-msgstr "Cancelar ejecución"
+msgstr "Cancelar la ejecución"
 
 #: ui/templates/ui/_selected_config_inner.html:2
-#, fuzzy, python-format
+#, python-format
 msgid "Trial %(trial)s — click any point on the graph to select"
-msgstr "Prueba %(trial)s — haz clic en un punto del gráfico para seleccionar"
-
-#: ui/templates/ui/_selected_config_inner.html:3
-#: ui/templates/ui/figures/best_configuration.html:8
-#, fuzzy, python-format
-msgid "%(metric)s score"
-msgstr "Puntuación de %(metric)s"
+msgstr ""
+"Prueba %(trial)s — haga clic en cualquier punto del gráfico para "
+"seleccionarlo"
 
 #: ui/templates/ui/_selected_config_inner.html:12
-#: ui/templates/ui/figures/best_configuration.html:12
-msgid "Hyperparameter"
-msgstr "Hiperparámetro"
+msgid "(Incumbent)"
+msgstr "(Titular)"
 
-#: ui/templates/ui/_selected_config_inner.html:12
-#: ui/templates/ui/figures/best_configuration.html:12
+#: ui/templates/ui/_selected_config_inner.html:20
+msgid ""
+"This trial produced no measurement — the score above is a placeholder the "
+"search was given, not a result."
+msgstr ""
+"Esta prueba no produjo ninguna medición — la puntuación de arriba es un "
+"marcador que se le dio a la búsqueda, no un resultado."
+
+#: ui/templates/ui/_selected_config_inner.html:23
+msgid "Full traceback →"
+msgstr "Traza completa →"
+
+#: ui/templates/ui/_selected_config_inner.html:29
+#: ui/templates/ui/figures/best_configuration.html:13
 msgid "Value"
 msgstr "Valor"
 
-#: ui/templates/ui/appearance.html:8
-#, fuzzy
-msgid "Display and theme settings."
-msgstr "Configuración de visualización y tema."
+#: ui/templates/ui/_side_evaluation.html:13
+msgid "Experiment Evaluation"
+msgstr "Evaluación del experimento"
 
-#: ui/templates/ui/default_experiment_settings.html:8
-#, fuzzy
-msgid "Experiments use these unless they have their own."
-msgstr "Los experimentos usan estos salvo que tengan los suyos."
-
-#: ui/templates/ui/default_experiment_settings.html:14
-#: ui/templates/ui/experiment_settings.html:26
-#, fuzzy
-msgid "Save settings"
-msgstr "Guardar configuración"
-
-#: ui/templates/ui/delete_confirm.html:4
-#, fuzzy, python-format
-msgid "Delete %(name)s"
-msgstr "Eliminar %(name)s"
-
-#: ui/templates/ui/delete_confirm.html:5
-#: ui/templates/ui/experiment_detail.html:25
-msgid "Delete experiment"
-msgstr "Eliminar experimento"
-
-#: ui/templates/ui/delete_confirm.html:8
-#, fuzzy, python-format
-msgid ""
-"Are you sure you want to delete <strong>%(name)s</strong> (<code>%(ref)s</"
-"code>)? This cannot be undone."
-msgstr ""
-"¿Estás seguro de que quieres eliminar <strong>%(name)s</strong> "
-"(<code>%(ref)s</code>)? Esta acción no se puede deshacer."
-
-#: ui/templates/ui/experiment_detail.html:9
-#, fuzzy, python-format
-msgid "Experiment: %(name)s"
-msgstr "Experimento: %(name)s"
-
-#: ui/templates/ui/experiment_detail.html:13
-msgid "Metric"
-msgstr "Métrica"
-
-#: ui/templates/ui/experiment_detail.html:14
-#, fuzzy
-msgid "Scoring"
-msgstr "Puntuación"
-
-#: ui/templates/ui/experiment_detail.html:15
-#, fuzzy
-msgid "Seed"
-msgstr "Semilla"
-
-#: ui/templates/ui/experiment_detail.html:16
-#, fuzzy
-msgid "ID"
-msgstr "ID"
-
-#: ui/templates/ui/experiment_detail.html:20
-#, fuzzy
-msgid "Download as .ihpo"
-msgstr "Descargar como .ihpo"
-
-#: ui/templates/ui/experiment_detail.html:20
-#, fuzzy
-msgid "💾 Export"
-msgstr "💾 Exportar"
-
-#: ui/templates/ui/experiment_detail.html:22
-#, fuzzy
-msgid "Experiment settings"
-msgstr "Configuración del experimento"
-
-#: ui/templates/ui/experiment_detail.html:22
-#, fuzzy
-msgid "⚙ Settings"
-msgstr "⚙ Configuración"
-
-#: ui/templates/ui/experiment_detail.html:25
-msgid "🗑 Delete"
-msgstr "🗑 Eliminar"
-
-#: ui/templates/ui/experiment_detail.html:38
-#, fuzzy
-msgid "Let everyone else read this experiment"
-msgstr "Permitir que los demás lean este experimento"
-
-#: ui/templates/ui/experiment_detail.html:42
-#, fuzzy, python-format
-msgid "Shared with you by %(name)s — read only."
-msgstr "Compartido contigo por %(name)s: solo lectura."
-
-#: ui/templates/ui/experiment_detail.html:44
-#, fuzzy
-msgid "This experiment has no owner, so everyone here can change it."
-msgstr ""
-"Este experimento no tiene propietario, así que cualquiera aquí puede "
-"modificarlo."
-
-#: ui/templates/ui/experiment_detail.html:54
-#, fuzzy, python-format
-msgid "Run failed: %(run_error)s"
-msgstr "La ejecución falló: %(run_error)s"
-
-#: ui/templates/ui/experiment_detail.html:64
-#, fuzzy
-msgid "This model's environment could not be built."
-msgstr "No se pudo construir el entorno de este modelo."
-
-#: ui/templates/ui/experiment_detail.html:69
-#, fuzzy
-msgid "Try again"
-msgstr "Intentar de nuevo"
-
-#: ui/templates/ui/experiment_detail.html:73
-#, fuzzy
-msgid ""
-"This model runs inside the application's own Python environment, not one of "
-"its own — so the dependencies it declares are ignored."
-msgstr ""
-"Este modelo se ejecuta en el propio entorno de Python de la aplicación, no "
-"en uno propio, por lo que se ignoran las dependencias que declara."
-
-#: ui/templates/ui/experiment_detail.html:78
-#, fuzzy
-msgid "Prepare an isolated environment"
-msgstr "Preparar un entorno aislado"
-
-#: ui/templates/ui/experiment_detail.html:86
-#: ui/templates/ui/experiment_detail.html:96
-#: ui/templates/ui/experiment_detail.html:169
+#: ui/templates/ui/_side_evaluation.html:18
+#: ui/templates/ui/_side_evaluation.html:27
+#: ui/templates/ui/_side_evaluation.html:243
 msgid "Evaluation metric"
 msgstr "Métrica de evaluación"
 
-#: ui/templates/ui/experiment_detail.html:92
-#, fuzzy
-msgid "Run"
-msgstr "Ejecutar"
+#: ui/templates/ui/_side_evaluation.html:42
+msgid "Next run"
+msgstr "Próxima ejecución"
 
-#: ui/templates/ui/experiment_detail.html:107
-#, fuzzy
+#: ui/templates/ui/_side_evaluation.html:51
 msgid "Run until…"
 msgstr "Ejecutar hasta que…"
 
-#: ui/templates/ui/experiment_detail.html:109
-#, fuzzy
+#: ui/templates/ui/_side_evaluation.html:53
 msgid "…this many trials have run"
 msgstr "…se hayan hecho estas pruebas"
 
-#: ui/templates/ui/experiment_detail.html:114
-#, fuzzy
-msgid "…the best score reaches"
-msgstr "…la mejor puntuación alcance"
+#: ui/templates/ui/_side_evaluation.html:58
+msgid "…performance surpasses"
+msgstr "…el rendimiento supere"
 
-#: ui/templates/ui/experiment_detail.html:116
-#: ui/templates/ui/experiment_detail.html:134
-#, fuzzy
+#: ui/templates/ui/_side_evaluation.html:70
+#: ui/templates/ui/_side_evaluation.html:93
 msgid "e.g. 0.95"
 msgstr "p. ej. 0,95"
 
-#: ui/templates/ui/experiment_detail.html:119
-#, fuzzy
+#: ui/templates/ui/_side_evaluation.html:73
 msgid "…the run has taken this many seconds"
 msgstr "…la ejecución haya durado estos segundos"
 
-#: ui/templates/ui/experiment_detail.html:123
-#, fuzzy
+#: ui/templates/ui/_side_evaluation.html:77
 msgid "…this many seconds have been spent in trials"
 msgstr "…se hayan dedicado estos segundos a las pruebas"
 
-#: ui/templates/ui/experiment_detail.html:127
-#, fuzzy
+#: ui/templates/ui/_side_evaluation.html:81
 msgid "…this many trials in a row have not improved"
 msgstr "…estas pruebas seguidas no hayan mejorado"
 
-#: ui/templates/ui/experiment_detail.html:132
-#, fuzzy
+#: ui/templates/ui/_side_evaluation.html:87
 msgid "…the search is this sure nothing better remains"
 msgstr "…la búsqueda esté así de segura de que no queda nada mejor"
 
-#: ui/templates/ui/experiment_detail.html:135
-#, fuzzy
+#: ui/templates/ui/_side_evaluation.html:88
 msgid ""
-"Asks this optimizer's own model of the objective how likely it is that any "
-"untried configuration beats the best one so far. Confidence under that "
-"model, not a guarantee."
+"Asks the optimizer how likely its own model of the objective thinks it is "
+"that some untried configuration beats the best one so far. Confidence under "
+"that model, not a guarantee."
 msgstr ""
-"Pregunta al propio modelo del objetivo de este optimizador qué probabilidad "
-"hay de que alguna configuración no probada supere a la mejor hasta ahora. "
-"Confianza según ese modelo, no una garantía."
+"Pregunta al optimizador qué probabilidad le da su propio modelo del objetivo "
+"a que alguna configuración no probada supere a la mejor hasta ahora. "
+"Confianza bajo ese modelo, no una garantía."
 
-#: ui/templates/ui/experiment_detail.html:138
-#, fuzzy
+#: ui/templates/ui/_side_evaluation.html:97
 msgid ""
 "These may never happen. Consider a trial or time limit as well, so the run "
 "is certain to end."
 msgstr ""
-"Puede que esto no ocurra nunca. Conviene añadir también un límite de pruebas "
-"o de tiempo para que la ejecución termine con seguridad."
+"Puede que nunca ocurran. Ponga también un límite de pruebas o de tiempo, "
+"para que la ejecución termine con seguridad."
 
-#: ui/templates/ui/experiment_detail.html:140
+#: ui/templates/ui/_side_evaluation.html:106
+msgid "Give up if…"
+msgstr "Abandonar si…"
+
+#: ui/templates/ui/_side_evaluation.html:109
+msgid "…this many trials have failed"
+msgstr "…han fallado estas pruebas"
+
+#: ui/templates/ui/_side_evaluation.html:110
+msgid ""
+"A trial fails when the model raises on its configuration, runs past its "
+"deadline, or returns something that cannot be scored. It is still recorded — "
+"with its reason, and its stacktrace where there is one — and it scores zero, "
+"so the search learns to avoid that region. Default 1: the first failure is "
+"usually the one worth reading. Raise it when a search is deliberately "
+"probing a region you expect to break. At least 1."
+msgstr ""
+"Una prueba falla cuando el modelo lanza una excepción con su configuración, "
+"supera su plazo o devuelve algo que no se puede puntuar. Se registra "
+"igualmente — con su motivo y, cuando la hay, su traza — y puntúa cero, de "
+"modo que la búsqueda aprende a evitar esa región. Por defecto 1: el primer "
+"fallo suele ser el que merece leerse. Suba el número cuando una búsqueda "
+"sondee a propósito una región que espera que rompa. Al menos 1."
+
+#: ui/templates/ui/_side_evaluation.html:118
+msgid "…this many have failed in a row"
+msgstr "…han fallado estas seguidas"
+
+#: ui/templates/ui/_side_evaluation.html:119
+msgid ""
+"A different question from the total: in a row means nothing here can work — "
+"a model that cannot fit this dataset at all fails identically every time, "
+"and without a limit it spends the whole budget proving it. At least 1."
+msgstr ""
+"Una pregunta distinta de la del total: seguidas significa que aquí no puede "
+"funcionar nada — un modelo que no encaja en absoluto con este conjunto de "
+"datos falla igual cada vez, y sin límite gasta todo el presupuesto "
+"demostrándolo. Al menos 1."
+
+#: ui/templates/ui/_side_evaluation.html:147
+msgid "Give up on a model fit after…"
+msgstr "Abandonar un ajuste del modelo tras…"
+
+#: ui/templates/ui/_side_evaluation.html:150
+msgid "…a deadline set"
+msgstr "…un plazo fijado"
+
+#: ui/templates/ui/_side_evaluation.html:151
+msgid ""
+"The limit is on one model fit, not on a whole trial: under cross-validation "
+"a trial is one fit per fold, and each fold is given the deadline separately. "
+"A fixed deadline is one number for every configuration, and nobody knows the "
+"right one before their first run. Predicted fits a forest to how long the "
+"fits already measured in this run took, and gives each new one a multiple of "
+"what it predicts for that configuration — so a large configuration gets "
+"proportionally longer instead of being killed for being large. The seconds "
+"below stay the outer bound under either."
+msgstr ""
+"El límite se aplica a un ajuste del modelo, no a una prueba entera: bajo "
+"validación cruzada una prueba es un ajuste por pliegue, y a cada pliegue se "
+"le concede el plazo por separado. Un plazo fijo es una sola cifra para toda "
+"configuración, y nadie sabe la correcta antes de su primera ejecución. "
+"«Predicho» ajusta un bosque a lo que tardaron los ajustes ya medidos en esta "
+"ejecución y da a cada nuevo un múltiplo de lo que predice para esa "
+"configuración — así una configuración grande recibe proporcionalmente más "
+"tiempo en vez de morir por ser grande. Los segundos de abajo siguen siendo "
+"el límite exterior en ambos casos."
+
+#: ui/templates/ui/_side_evaluation.html:156
+msgid "a fixed number of seconds"
+msgstr "un número fijo de segundos"
+
+#: ui/templates/ui/_side_evaluation.html:157
+msgid "a multiple of its predicted duration"
+msgstr "un múltiplo de su duración predicha"
+
+#: ui/templates/ui/_side_evaluation.html:161
+msgid "…this many seconds (0 for no limit)"
+msgstr "…estos segundos (0 para no poner límite)"
+
+#: ui/templates/ui/_side_evaluation.html:166
+msgid "…this many times the fit's predicted duration"
+msgstr "…este múltiplo de la duración predicha del ajuste"
+
+#: ui/templates/ui/_side_evaluation.html:172
 msgid "▶ Run"
 msgstr "▶ Ejecutar"
 
-#: ui/templates/ui/experiment_detail.html:164
-#, fuzzy, python-format
+#: ui/templates/ui/_side_evaluation.html:174
+#, python-format
 msgid "Environment: %(summary)s"
 msgstr "Entorno: %(summary)s"
 
-#: ui/templates/ui/experiment_detail.html:173
-#, fuzzy
+#: ui/templates/ui/_side_evaluation.html:247
 msgid "Attach a dataset to run this experiment (loaded read-only)."
 msgstr ""
-"Adjunte un conjunto de datos para ejecutar este experimento (cargado en modo "
-"de solo lectura)."
+"Adjunte un conjunto de datos para ejecutar este experimento (se carga solo "
+"para lectura)."
 
-#: ui/templates/ui/experiment_detail.html:177
-#, fuzzy, python-format
+#: ui/templates/ui/_side_explanation.html:15
+msgid "Explanation Game"
+msgstr "Juego de explicación"
+
+#: ui/templates/ui/_side_explanation.html:18
+msgid "Game"
+msgstr "Juego"
+
+#: ui/templates/ui/_side_explanation.html:19
+msgid ""
+"HyperSHAP treats a finished search as a cooperative game between its "
+"hyperparameters, and splits the outcome between them the way Shapley values "
+"split a payoff. Which game is which question is being asked of the same "
+"trial history — and every figure that explains hyperparameters answers the "
+"one chosen here."
+msgstr ""
+"HyperSHAP trata una búsqueda terminada como un juego cooperativo entre sus "
+"hiperparámetros y reparte el resultado entre ellos como los valores de "
+"Shapley reparten un pago. Qué juego se elige decide qué pregunta se le hace "
+"al mismo historial de pruebas — y toda figura que explique hiperparámetros "
+"responde a la elegida aquí."
+
+#: ui/templates/ui/_side_explanation.html:27
+msgid "What a hyperparameter could have gained you, had it been tuned."
+msgstr "Lo que un hiperparámetro podría haberle aportado, de haberse ajustado."
+
+#: ui/templates/ui/_side_explanation.html:46
+msgid "Compute explanations"
+msgstr "Calcular explicaciones"
+
+#: ui/templates/ui/_use_default.html:15
+msgid "Use default"
+msgstr "Usar el valor por defecto"
+
+#: ui/templates/ui/experiment_detail.html:23
+#, python-format
+msgid "Experiment: %(name)s"
+msgstr "Experimento: %(name)s"
+
+#: ui/templates/ui/experiment_detail.html:27
+msgid "Metric"
+msgstr "Métrica"
+
+#: ui/templates/ui/experiment_detail.html:28
+msgid "Evaluation"
+msgstr "Evaluación"
+
+#: ui/templates/ui/experiment_detail.html:30
+msgid "ID"
+msgstr "ID"
+
+#: ui/templates/ui/experiment_detail.html:34
+msgid "Download as .ihpo"
+msgstr "Descargar como .ihpo"
+
+#: ui/templates/ui/experiment_detail.html:34
+msgid "💾 Export"
+msgstr "💾 Exportar"
+
+#: ui/templates/ui/experiment_detail.html:36
+msgid "Experiment settings"
+msgstr "Ajustes del experimento"
+
+#: ui/templates/ui/experiment_detail.html:36
+msgid "⚙ Settings"
+msgstr "⚙ Ajustes"
+
+#: ui/templates/ui/experiment_detail.html:39
+msgid "🗑 Delete"
+msgstr "🗑 Eliminar"
+
+#: ui/templates/ui/experiment_detail.html:52
+msgid "Let everyone else read this experiment"
+msgstr "Permitir que los demás lean este experimento"
+
+#: ui/templates/ui/experiment_detail.html:56
+#, python-format
+msgid "Shared with you by %(name)s — read only."
+msgstr "Compartido con usted por %(name)s — solo lectura."
+
+#: ui/templates/ui/experiment_detail.html:58
+msgid "This experiment has no owner, so everyone here can change it."
+msgstr ""
+"Este experimento no tiene propietario, así que cualquiera aquí puede "
+"cambiarlo."
+
+#: ui/templates/ui/experiment_detail.html:68
+#, python-format
+msgid "Run failed: %(run_error)s"
+msgstr "La ejecución falló: %(run_error)s"
+
+#: ui/templates/ui/experiment_detail.html:78
+msgid "This model's environment could not be built."
+msgstr "No se pudo construir el entorno de este modelo."
+
+#: ui/templates/ui/experiment_detail.html:83
+msgid "Try again"
+msgstr "Reintentar"
+
+#: ui/templates/ui/experiment_detail.html:87
+msgid ""
+"This model runs inside the application's own Python environment, not one of "
+"its own — so the dependencies it declares are ignored."
+msgstr ""
+"Este modelo se ejecuta dentro del propio entorno de Python de la aplicación, "
+"no en uno propio — por eso se ignoran las dependencias que declara."
+
+#: ui/templates/ui/experiment_detail.html:92
+msgid "Prepare an isolated environment"
+msgstr "Preparar un entorno aislado"
+
+#: ui/templates/ui/experiment_detail.html:97
+#, python-format
 msgid ""
 "Last run: %(count)s trials in %(total)s s — %(trials)s s in trials, "
 "%(overhead)s s overhead."
@@ -769,146 +1216,1128 @@ msgstr ""
 "Última ejecución: %(count)s pruebas en %(total)s s — %(trials)s s en "
 "pruebas, %(overhead)s s de sobrecarga."
 
-#: ui/templates/ui/experiment_detail.html:177
-#, fuzzy, python-format
+#: ui/templates/ui/experiment_detail.html:97
+#, python-format
 msgid "Stopped because %(reason)s."
-msgstr "Detenido porque %(reason)s."
+msgstr "Se detuvo porque %(reason)s."
 
-#: ui/templates/ui/experiment_detail.html:181
-#, fuzzy
+#: ui/templates/ui/experiment_detail.html:101
 msgid "No results yet."
-msgstr "Aún no hay resultados."
+msgstr "Todavía no hay resultados."
 
-#: ui/templates/ui/experiment_detail.html:185
-#, fuzzy, python-format
+#: ui/templates/ui/experiment_detail.html:136
+#, python-format
 msgid "The search space is exhausted at %(n)s trials."
-msgstr "El espacio de búsqueda se agota tras %(n)s pruebas."
+msgstr "El espacio de búsqueda se agota a las %(n)s pruebas."
 
-#: ui/templates/ui/experiment_detail.html:288
-#, fuzzy
+#: ui/templates/ui/experiment_detail.html:356
 msgid "Absolute scale (0-1)"
 msgstr "Escala absoluta (0-1)"
 
-#: ui/templates/ui/experiment_detail.html:289
-#, fuzzy
+#: ui/templates/ui/experiment_detail.html:357
 msgid "Relative scale (fit to data)"
-msgstr "Escala relativa (ajustar a los datos)"
+msgstr "Escala relativa (ajustada a los datos)"
+
+#: ui/templates/ui/experiment_detail.html:1415
+msgid "Uncertainty"
+msgstr "Incertidumbre"
+
+#. == Optimizer and model settings ======================================
+#: ui/forms.py:23 ui/forms.py:93
+msgid "Folds"
+msgstr "Pliegues"
+
+#: ui/forms.py:25
+msgid ""
+"Every row is validated against exactly once. Costs one model fit per fold."
+msgstr ""
+"Cada fila se valida exactamente una vez. Cuesta un ajuste del modelo por "
+"pliegue."
+
+#: ui/forms.py:29
+msgid "Share held out for validation"
+msgstr "Proporción reservada para validación"
+
+#: ui/forms.py:31
+msgid ""
+"One division of the data. Cheapest, and noisier on a small table — the "
+"search can end up chasing the split."
+msgstr ""
+"Una única división de los datos. La más barata, y más ruidosa con una tabla "
+"pequeña — la búsqueda puede acabar persiguiendo la división."
+
+#: ui/forms.py:52
+msgid "Experiment name"
+msgstr "Nombre del experimento"
+
+#: ui/forms.py:53 ui/templates/ui/experiment_detail.html:25
+#: ui/templates/ui/experiment_list.html:13
+msgid "Model"
+msgstr "Modelo"
+
+#: ui/forms.py:54
+msgid "…or upload a model .py"
+msgstr "…o suba un modelo .py"
+
+#: ui/forms.py:56
+msgid "…or a mounted model .py"
+msgstr "…o un modelo .py montado"
+
+#: ui/forms.py:57 ui/templates/ui/experiment_detail.html:26
+#: ui/templates/ui/experiment_list.html:14
+msgid "Optimizer"
+msgstr "Optimizador"
+
+#: ui/forms.py:58
+msgid "Demo dataset"
+msgstr "Conjunto de datos de demostración"
+
+#: ui/forms.py:59
+msgid "…or upload a CSV (last column = target)"
+msgstr "…o suba un CSV (última columna = objetivo)"
+
+#: ui/forms.py:62 ui/templates/ui/experiment_detail.html:29
+msgid "Seed"
+msgstr "Semilla"
+
+#: ui/forms.py:63
+msgid ""
+"Negative picks one at random. Drives every stochastic part of the "
+"experiment: how the data is divided, the model's own randomness, which "
+"configurations the search tries, and the surrogates behind partial "
+"dependence and the explanations."
+msgstr ""
+"Un valor negativo elige una al azar. Gobierna cada parte estocástica del "
+"experimento: cómo se dividen los datos, la aleatoriedad del propio modelo, "
+"qué configuraciones prueba la búsqueda y los sustitutos que hay detrás de la "
+"dependencia parcial y de las explicaciones."
+
+#: ui/forms.py:78
+msgid "Validation method"
+msgstr "Método de validación"
+
+#: ui/forms.py:79
+msgid ""
+"Fixed once the experiment exists: trials evaluated different ways cannot be "
+"compared with each other. Cross-validation costs one fit per fold."
+msgstr ""
+"Queda fijado en cuanto existe el experimento: pruebas evaluadas de formas "
+"distintas no se pueden comparar entre sí. La validación cruzada cuesta un "
+"ajuste por pliegue."
+
+#: ui/forms.py:83
+msgid "Cross-validation"
+msgstr "Validación cruzada"
+
+#: ui/forms.py:84
+msgid "Dataset split"
+msgstr "División de los datos"
+
+#: ui/forms.py:100
+msgid "— select —"
+msgstr "— elegir —"
+
+#: ui/forms.py:103 ui/forms.py:107
+msgid "— none —"
+msgstr "— ninguno —"
+
+#: ui/forms.py:158
+msgid "Choose a model or upload a model .py file."
+msgstr "Elija un modelo o suba un archivo .py de modelo."
+
+#: ui/forms.py:161
+msgid "Choose a demo dataset or upload a CSV file."
+msgstr "Elija un conjunto de datos de demostración o suba un archivo CSV."
+
+#: ui/forms.py:174
+msgid "Trials drawn on the partial-dependence figure"
+msgstr "Pruebas dibujadas en la figura de dependencia parcial"
+
+#: ui/forms.py:175
+msgid "Trials explained on the local-effects figure"
+msgstr "Pruebas explicadas en la figura de efectos locales"
+
+#: ui/forms.py:191
+msgid ""
+"0 draws every trial. The curve is the mean of whatever is drawn, so a "
+"smaller number is faster and lighter but a coarser average."
+msgstr ""
+"0 dibuja todas las pruebas. La curva es la media de lo que se dibuje, así "
+"que un número menor es más rápido y ligero, pero da una media más basta."
+
+#: ui/forms.py:196
+msgid ""
+"0 explains every trial. Each one costs its own explanation, so this is the "
+"setting that decides how long the figure takes."
+msgstr ""
+"0 explica todas las pruebas. Cada una cuesta su propia explicación, así que "
+"este es el ajuste que decide cuánto tarda la figura."
+
+#: ui/forms.py:229
+msgid "Use default experiment settings"
+msgstr "Usar los ajustes predeterminados de los experimentos"
+
+#: ui/optimizer_labels.py:30
+msgid "Search strategy"
+msgstr "Estrategia de búsqueda"
+
+#: ui/optimizer_labels.py:31
+msgid ""
+"Gaussian process suits a few numeric hyperparameters. Random forest suits "
+"many of them, or categorical ones."
+msgstr ""
+"El proceso gaussiano encaja con pocos hiperparámetros numéricos. El bosque "
+"aleatorio encaja con muchos, o con los categóricos."
+
+#: ui/optimizer_labels.py:35
+msgid "Use share cap"
+msgstr "Usar el tope por proporción"
+
+#: ui/optimizer_labels.py:36
+msgid ""
+"Bound the initial points by a fraction of the run's budget, so a longer run "
+"explores for longer."
+msgstr ""
+"Acotar los puntos iniciales con una fracción del presupuesto de la "
+"ejecución, para que una ejecución más larga explore durante más tiempo."
+
+#: ui/optimizer_labels.py:40
+msgid "Share cap"
+msgstr "Tope por proporción"
+
+#: ui/optimizer_labels.py:41
+msgid ""
+"Fraction of the run's trials spent sampling before the model takes over."
+msgstr ""
+"Fracción de las pruebas de la ejecución dedicada al muestreo antes de que el "
+"modelo tome el relevo."
+
+#: ui/optimizer_labels.py:45
+msgid "Use trial cap"
+msgstr "Usar el tope por pruebas"
+
+#: ui/optimizer_labels.py:46
+msgid ""
+"Bound the initial points by a fixed number, whatever the run's budget turns "
+"out to be."
+msgstr ""
+"Acotar los puntos iniciales con un número fijo, sea cual sea el presupuesto "
+"de la ejecución."
+
+#: ui/optimizer_labels.py:50
+msgid "Trial cap"
+msgstr "Tope por pruebas"
+
+#: ui/optimizer_labels.py:51
+msgid "How many points to sample before the model takes over."
+msgstr "Cuántos puntos muestrear antes de que el modelo tome el relevo."
+
+#: ui/optimizer_labels.py:54
+msgid "Use the larger of the two"
+msgstr "Usar el mayor de los dos"
+
+#: ui/optimizer_labels.py:55
+msgid ""
+"With both caps in use, sample up to the larger rather than the smaller. SMAC "
+"itself only ever takes the smaller; the larger is worked out here and handed "
+"to it."
+msgstr ""
+"Con ambos topes en uso, muestrear hasta el mayor en vez de hasta el menor. "
+"SMAC por su cuenta toma siempre el menor; el mayor se calcula aquí y se le "
+"entrega."
+
+#: ui/optimizer_labels.py:60
+msgid "Random trial rate"
+msgstr "Tasa de pruebas aleatorias"
+
+#: ui/optimizer_labels.py:61
+msgid ""
+"How often a trial is drawn at random rather than from the model, once the "
+"model has taken over."
+msgstr ""
+"Con qué frecuencia se extrae una prueba al azar en vez de del modelo, una "
+"vez que el modelo ha tomado el relevo."
+
+#: ui/optimizer_labels.py:65
+msgid "Include the model's defaults"
+msgstr "Incluir los valores por defecto del modelo"
+
+#: ui/optimizer_labels.py:66
+msgid ""
+"Spend one of the exploration trials on the configuration the model ships "
+"with, as a reference point to beat."
+msgstr ""
+"Dedicar una de las pruebas de exploración a la configuración que trae el "
+"modelo, como referencia a batir."
+
+#: ui/optimizer_labels.py:70
+msgid "Sampling method"
+msgstr "Método de muestreo"
+
+#: ui/optimizer_labels.py:71
+msgid ""
+"How the exploration trials are drawn. Sobol and Latin hypercube cover the "
+"space more evenly than chance does."
+msgstr ""
+"Cómo se extraen las pruebas de exploración. Sobol y el hipercubo latino "
+"cubren el espacio de forma más uniforme que el azar."
+
+#: ui/optimizer_labels.py:75
+msgid "Acquisition function"
+msgstr "Función de adquisición"
+
+#: ui/optimizer_labels.py:76
+msgid ""
+"How the model scores a candidate. Expected improvement weighs by how much "
+"better it might be; probability of improvement, only by whether."
+msgstr ""
+"Cómo puntúa el modelo a una candidata. La mejora esperada pondera por cuánto "
+"mejor podría ser; la probabilidad de mejora, solo por si lo es."
+
+#: ui/optimizer_labels.py:80
+msgid "Improvement margin"
+msgstr "Margen de mejora"
+
+#: ui/optimizer_labels.py:81
+msgid ""
+"How much better than the best so far a candidate must promise to be. Higher "
+"explores more."
+msgstr ""
+"Cuánto mejor que la mejor hasta ahora debe prometer ser una candidata. "
+"Cuanto más alto, más explora."
+
+#: ui/optimizer_labels.py:85
+msgid "Candidates per trial"
+msgstr "Candidatas por prueba"
+
+#: ui/optimizer_labels.py:86
+msgid ""
+"How many configurations the model scores before picking one. More is a "
+"better pick and a slower trial."
+msgstr ""
+"Cuántas configuraciones puntúa el modelo antes de elegir una. Más es una "
+"elección mejor y una prueba más lenta."
+
+#: ui/optimizer_labels.py:90
+msgid "Local search iterations"
+msgstr "Iteraciones de búsqueda local"
+
+#: ui/optimizer_labels.py:91
+msgid ""
+"How far the search climbs from each promising candidate before settling on "
+"it."
+msgstr ""
+"Cuánto asciende la búsqueda desde cada candidata prometedora antes de "
+"quedarse con ella."
+
+#: ui/optimizer_labels.py:95
+msgid "Refit interval"
+msgstr "Intervalo de reajuste"
+
+#: ui/optimizer_labels.py:96
+msgid ""
+"Trials between refits of the model. Higher is faster, and picks from staler "
+"information."
+msgstr ""
+"Pruebas entre reajustes del modelo. Más alto es más rápido, y elige con "
+"información más vieja."
+
+#: ui/optimizer_labels.py:100
+msgid "Grid steps"
+msgstr "Pasos de la rejilla"
+
+#: ui/optimizer_labels.py:101
+msgid "Values tried per numeric hyperparameter. Combinations multiply."
+msgstr ""
+"Valores probados por hiperparámetro numérico. Las combinaciones se "
+"multiplican."
+
+#: ui/optimizer_labels.py:109
+msgid "Surrogate trees"
+msgstr "Árboles del sustituto"
+
+#: ui/optimizer_labels.py:110
+msgid ""
+"Trees in the forest the search fits over your trials — not in the model "
+"being tuned. More of them are better calibrated and slower, and the default "
+"of ten is not many."
+msgstr ""
+"Árboles del bosque que la búsqueda ajusta sobre sus pruebas — no del modelo "
+"que se está ajustando. Más árboles están mejor calibrados y son más lentos, "
+"y el valor por defecto de diez no son muchos."
+
+#: ui/optimizer_labels.py:115
+msgid "Surrogate tree depth"
+msgstr "Profundidad de los árboles del sustituto"
+
+#: ui/optimizer_labels.py:116
+msgid "How deep the search's own trees may grow. Blank is no limit."
+msgstr ""
+"Cuánto pueden crecer en profundidad los árboles propios de la búsqueda. En "
+"blanco, sin límite."
+
+#: ui/optimizer_labels.py:119
+msgid "Surrogate split threshold"
+msgstr "Umbral de división del sustituto"
+
+#: ui/optimizer_labels.py:120
+msgid "Fewest trials at a node before the search's trees will split it."
+msgstr ""
+"Menor número de pruebas en un nodo antes de que los árboles de la búsqueda "
+"lo dividan."
+
+#: ui/optimizer_labels.py:123
+msgid "Surrogate leaf size"
+msgstr "Tamaño de hoja del sustituto"
+
+#: ui/optimizer_labels.py:124
+msgid "Fewest trials the search's trees will leave in a leaf."
+msgstr ""
+"Menor número de pruebas que los árboles de la búsqueda dejan en una hoja."
+
+#: ui/optimizer_labels.py:127
+msgid "Surrogate feature ratio"
+msgstr "Proporción de atributos del sustituto"
+
+#: ui/optimizer_labels.py:128
+msgid ""
+"Share of your hyperparameters the search considers at each split of its own "
+"trees."
+msgstr ""
+"Proporción de sus hiperparámetros que la búsqueda considera en cada división "
+"de sus propios árboles."
+
+#: ui/optimizer_labels.py:132
+msgid "Bootstrap the surrogate's trees"
+msgstr "Aplicar bootstrap a los árboles del sustituto"
+
+#: ui/optimizer_labels.py:133
+msgid ""
+"Fit each of the search's trees to a resample of the trials. Off, the trees "
+"agree more, and the confidence the search reports narrows whether or not it "
+"should."
+msgstr ""
+"Ajustar cada árbol de la búsqueda a un remuestreo de las pruebas. "
+"Desactivado, los árboles coinciden más y la confianza que declara la "
+"búsqueda se estrecha, deba hacerlo o no."
+
+#: ui/optimizer_labels.py:138
+msgid "Surrogate fitting"
+msgstr "Ajuste del sustituto"
+
+#: ui/optimizer_labels.py:139
+msgid ""
+"Vanilla fits the process once, by maximum likelihood. MCMC samples the "
+"kernel's own hyperparameters and averages over the result: better "
+"calibrated, and about an order of magnitude slower."
+msgstr ""
+"«Vanilla» ajusta el proceso una vez, por máxima verosimilitud. MCMC muestrea "
+"los propios hiperparámetros del núcleo y promedia el resultado: mejor "
+"calibrado, y alrededor de un orden de magnitud más lento."
+
+#: ui/optimizer_labels.py:144
+msgid "Surrogate fit restarts"
+msgstr "Reinicios del ajuste del sustituto"
+
+#: ui/optimizer_labels.py:145
+msgid ""
+"Attempts at fitting the process, from different starting points. More is a "
+"better fit and a slower trial."
+msgstr ""
+"Intentos de ajustar el proceso, desde distintos puntos de partida. Más es un "
+"ajuste mejor y una prueba más lenta."
+
+#: ui/optimizer_labels.py:149
+msgid "Normalise surrogate targets"
+msgstr "Normalizar los objetivos del sustituto"
+
+#: ui/optimizer_labels.py:150
+msgid "Centre and scale the scores before fitting the process to them."
+msgstr "Centrar y escalar las puntuaciones antes de ajustarles el proceso."
+
+#: ui/optimizer_labels.py:160
+msgid "Gaussian process"
+msgstr "Proceso gaussiano"
+
+#: ui/optimizer_labels.py:161
+msgid "Random forest"
+msgstr "Bosque aleatorio"
+
+#: ui/optimizer_labels.py:164
+msgid "Sobol"
+msgstr "Sobol"
+
+#: ui/optimizer_labels.py:165
+msgid "Latin hypercube"
+msgstr "Hipercubo latino"
+
+#: ui/optimizer_labels.py:166
+msgid "Uniformly random"
+msgstr "Uniformemente aleatorio"
+
+#: ui/optimizer_labels.py:167
+msgid "Defaults only"
+msgstr "Solo los valores por defecto"
+
+#: ui/optimizer_labels.py:170
+msgid "Expected improvement"
+msgstr "Mejora esperada"
+
+#: ui/optimizer_labels.py:171
+msgid "Probability of improvement"
+msgstr "Probabilidad de mejora"
+
+#: ui/optimizer_labels.py:174
+msgid "Vanilla"
+msgstr "Vanilla"
+
+#: ui/optimizer_labels.py:175
+msgid "MCMC (slow)"
+msgstr "MCMC (lento)"
+
+#: ui/optimizer_labels.py:184
+msgid "0.25"
+msgstr "0,25"
+
+#: ui/optimizer_labels.py:185
+msgid "10 per hyperparameter"
+msgstr "10 por hiperparámetro"
+
+#: ui/optimizer_labels.py:186
+msgid "no limit"
+msgstr "sin límite"
+
+#: ui/optimizer_labels.py:193
+msgid "Initial points"
+msgstr "Puntos iniciales"
+
+#: ui/optimizer_labels.py:194
+msgid ""
+"How many configurations are sampled before the model takes over. SMAC bounds "
+"this two ways at once and uses the smaller of them."
+msgstr ""
+"Cuántas configuraciones se muestrean antes de que el modelo tome el relevo. "
+"SMAC acota esto de dos maneras a la vez y usa la menor de ellas."
+
+#: ui/optimizer_labels.py:202
+msgid "search strategy default"
+msgstr "valor por defecto de la estrategia de búsqueda"
+
+#: ui/optimizer_labels.py:265
+#, python-format
+msgid "Accepts %(range)s."
+msgstr "Admite %(range)s."
+
+#: ui/templates/ui/default_experiment_settings.html:8
+msgid "Experiments use these unless they have their own."
+msgstr "Los experimentos usan estos salvo que tengan los suyos."
+
+#: ui/templates/ui/default_experiment_settings.html:14
+#: ui/templates/ui/experiment_settings.html:26
+msgid "Save settings"
+msgstr "Guardar los ajustes"
 
 #: ui/templates/ui/experiment_settings.html:7
-#, fuzzy, python-format
+#, python-format
 msgid "Settings: %(name)s"
-msgstr "Configuración: %(name)s"
+msgstr "Ajustes: %(name)s"
 
 #: ui/templates/ui/experiment_settings.html:27
-#, fuzzy
 msgid "Reset to default"
-msgstr "Restablecer al valor predeterminado"
+msgstr "Restablecer los valores por defecto"
 
 #: ui/templates/ui/experiment_settings.html:29
-#, fuzzy
 msgid "Save settings as default"
-msgstr "Guardar la configuración como predeterminada"
+msgstr "Guardar los ajustes como predeterminados"
 
-#: ui/templates/ui/experiment_settings.html:39
-#, fuzzy, python-format
-msgid ""
-"Settings for %(optimizer)s. They apply from the next run onwards — trials "
-"already recorded stay exactly as they were measured, and the search "
-"continues from them."
-msgstr ""
-"Ajustes de %(optimizer)s. Se aplican a partir de la próxima ejecución: las "
-"pruebas ya registradas permanecen tal como se midieron y la búsqueda "
-"continúa a partir de ellas."
-
-#: ui/templates/ui/experiment_settings.html:42
-#, fuzzy
-msgid "A run is in flight. These can be changed once it finishes."
-msgstr "Hay una ejecución en curso. Podrán cambiarse cuando termine."
-
-#: ui/templates/ui/experiment_settings.html:48
-#, fuzzy
-msgid "Save search settings"
-msgstr "Guardar ajustes de búsqueda"
-
-#: ui/templates/ui/experiment_settings.html:59
-#, fuzzy
+#: ui/templates/ui/experiment_settings.html:43
 msgid "Change default experiment settings"
-msgstr "Cambiar la configuración de experimento predeterminada"
+msgstr "Cambiar los ajustes predeterminados de los experimentos"
 
-#: ui/templates/ui/figures/best_configuration.html:7
-#, fuzzy, python-format
-msgid "Best overall (Trial %(trial)s)"
-msgstr "Mejor resultado global (Prueba %(trial)s)"
+#. == Panels — groups, jobs, site administration ========================
+#: ui/panels.py:91
+msgid "A username and a first password are needed."
+msgstr "Hacen falta un usuario y una primera contraseña."
 
-#: ui/templates/ui/figures/error_over_time.html:5
-#, fuzzy
-msgid "No data available."
-msgstr "No hay datos disponibles."
+#: ui/panels.py:93
+#, python-format
+msgid "There is already an account called “%(name)s”."
+msgstr "Ya existe una cuenta llamada «%(name)s»."
 
-#: ui/templates/ui/figures/hyperparameter_importance.html:6
-msgid "No importance data available."
-msgstr "No hay datos de importancia disponibles."
+#: ui/panels.py:99
+#, python-format
+msgid ""
+"%(group)s is full: %(limit)s of %(limit)s seats used. A site admin can raise "
+"the limit."
+msgstr ""
+"%(group)s está lleno: %(limit)s de %(limit)s plazas ocupadas. La "
+"administración del sitio puede subir el límite."
 
-#: ui/templates/ui/figures/trials.html:6
-#, fuzzy, python-format
-msgid "Trials (%(n)s)"
-msgstr "Pruebas (%(n)s)"
+#: ui/panels.py:103
+msgid "That is not a role."
+msgstr "Eso no es un rol."
 
-#: ui/templates/ui/figures/trials.html:13
-#, fuzzy
-msgid "Duration"
-msgstr "Duración"
+#: ui/panels.py:107
+#, python-format
+msgid "Added %(name)s to %(group)s."
+msgstr "Se añadió %(name)s a %(group)s."
+
+#: ui/panels.py:123
+msgid "You cannot remove yourself from your own group."
+msgstr "No puede quitarse a sí mismo de su propio grupo."
+
+#: ui/panels.py:126
+#, python-format
+msgid ""
+"%(name)s still owns experiments. Out of the group nobody could reach them — "
+"reassign them first."
+msgstr ""
+"%(name)s todavía posee experimentos. Fuera del grupo nadie podría acceder a "
+"ellos — reasígnelos primero."
+
+#: ui/panels.py:131
+#, python-format
+msgid "Removed %(name)s from the group."
+msgstr "Se quitó a %(name)s del grupo."
+
+#: ui/panels.py:177
+msgid "A group needs a name and a seat limit of zero or more."
+msgstr "Un grupo necesita un nombre y un límite de plazas de cero o más."
+
+#: ui/panels.py:186
+#, python-format
+msgid "Saved %(name)s."
+msgstr "Se guardó %(name)s."
+
+#: ui/panels.py:188
+#, python-format
+msgid "There is already a group called “%(name)s”."
+msgstr "Ya existe un grupo llamado «%(name)s»."
+
+#: ui/panels.py:192
+#, python-format
+msgid "Created %(name)s."
+msgstr "Se creó %(name)s."
+
+#: ui/panels.py:296
+msgid "Stopped by a site administrator."
+msgstr "Detenido por la administración del sitio."
+
+#: ui/panels.py:297
+#, python-format
+msgid "Stopped job %(job)s."
+msgstr "Se detuvo el trabajo %(job)s."
+
+#: ui/templates/ui/panels/group_people.html:9
+#, python-format
+msgid "%(seats)s seat left."
+msgid_plural "%(seats)s seats left."
+msgstr[0] "Queda %(seats)s plaza."
+msgstr[1] "Quedan %(seats)s plazas."
+
+#: ui/templates/ui/panels/group_people.html:10
+msgid "A site administrator sets how many."
+msgstr "La administración del sitio decide cuántas."
+
+#: ui/templates/ui/panels/group_people.html:16
+#: ui/templates/ui/panels/site_jobs.html:19
+#: ui/templates/ui/panels/site_usage.html:45
+msgid "Who"
+msgstr "Quién"
+
+#: ui/templates/ui/panels/group_people.html:17
+#: ui/templates/ui/panels/group_people.html:61
+msgid "Role"
+msgstr "Rol"
+
+#: ui/templates/ui/panels/group_people.html:25
+msgid "you"
+msgstr "usted"
+
+#: ui/templates/ui/panels/group_people.html:26
+msgid "deactivated"
+msgstr "desactivada"
+
+#: ui/templates/ui/panels/group_people.html:33
+msgid "Remove"
+msgstr "Quitar"
+
+#: ui/templates/ui/panels/group_people.html:47
+msgid "Add somebody"
+msgstr "Añadir a alguien"
+
+#: ui/templates/ui/panels/group_people.html:56
+msgid "First password"
+msgstr "Primera contraseña"
+
+#: ui/templates/ui/panels/group_people.html:58
+msgid "Hand this over; they can change it under Settings → Account."
+msgstr "Entréguesela; puede cambiarla en Ajustes → Cuenta."
+
+#: ui/templates/ui/panels/group_people.html:66
+msgid "Add"
+msgstr "Añadir"
+
+#: ui/templates/ui/panels/group_people.html:69
+msgid "This group is full. A site administrator can raise the limit."
+msgstr ""
+"Este grupo está lleno. La administración del sitio puede subir el límite."
+
+#: ui/templates/ui/panels/group_work.html:7
+msgid "Experiments in this group"
+msgstr "Experimentos de este grupo"
+
+#: ui/templates/ui/panels/group_work.html:12
+#, python-format
+msgid "Everybody else's work in %(group)s. Yours is under Experiments."
+msgstr ""
+"El trabajo de todos los demás en %(group)s. El suyo está en Experimentos."
+
+#: ui/templates/ui/panels/group_work.html:17
+#: ui/templates/ui/panels/site_jobs.html:18
+msgid "Experiment"
+msgstr "Experimento"
+
+#: ui/templates/ui/panels/group_work.html:18
+msgid "Owner"
+msgstr "Propietario"
+
+#: ui/templates/ui/panels/group_work.html:19
+msgid "Shared"
+msgstr "Compartido"
+
+#: ui/templates/ui/panels/group_work.html:29
+msgid "with the group"
+msgstr "con el grupo"
+
+#: ui/templates/ui/panels/group_work.html:33
+msgid "Nobody else in this group has an experiment yet."
+msgstr "Nadie más en este grupo tiene todavía un experimento."
+
+#: ui/templates/ui/panels/site_groups.html:12
+msgid ""
+"How many people each may hold, and whether it is active. Deactivating stops "
+"its members signing in and leaves every experiment where it is."
+msgstr ""
+"Cuántas personas puede albergar cada uno, y si está activo. Desactivarlo "
+"impide que sus miembros inicien sesión y deja cada experimento donde está."
+
+#: ui/templates/ui/panels/site_groups.html:18
+#: ui/templates/ui/panels/site_groups.html:56
+msgid "Seats"
+msgstr "Plazas"
+
+#: ui/templates/ui/panels/site_groups.html:19
+msgid "Active"
+msgstr "Activo"
+
+#: ui/templates/ui/panels/site_groups.html:33
+#, python-format
+msgid "%(n)s used"
+msgstr "%(n)s en uso"
+
+#: ui/templates/ui/panels/site_groups.html:37
+msgid "Save"
+msgstr "Guardar"
+
+#: ui/templates/ui/panels/site_groups.html:42
+#: ui/templates/ui/panels/site_usage.html:35
+msgid "No groups yet."
+msgstr "Todavía no hay grupos."
+
+#: ui/templates/ui/panels/site_groups.html:48
+msgid "New group"
+msgstr "Nuevo grupo"
+
+#: ui/templates/ui/panels/site_groups.html:58
+msgid ""
+"How many accounts its group lead may create. Theirs to fill, not theirs to "
+"raise."
+msgstr ""
+"Cuántas cuentas puede crear quien dirige el grupo. Suyas para llenarlas, no "
+"para subir el límite."
+
+#: ui/templates/ui/panels/site_groups.html:60
+msgid "Create"
+msgstr "Crear"
+
+#: ui/templates/ui/panels/site_jobs.html:7
+msgid "Running jobs"
+msgstr "Trabajos en ejecución"
+
+#: ui/templates/ui/panels/site_jobs.html:12
+msgid ""
+"Across every group. Stopping one here is forcible — whatever it had not "
+"written is lost."
+msgstr ""
+"De todos los grupos. Detener uno aquí es forzoso — lo que no hubiera escrito "
+"se pierde."
+
+#: ui/templates/ui/panels/site_jobs.html:17
+msgid "Job"
+msgstr "Trabajo"
+
+#: ui/templates/ui/panels/site_jobs.html:21
+msgid "Status"
+msgstr "Estado"
+
+#: ui/templates/ui/panels/site_jobs.html:22
+msgid "Elapsed"
+msgstr "Transcurrido"
+
+#: ui/templates/ui/panels/site_jobs.html:40
+msgid "Stop"
+msgstr "Detener"
+
+#: ui/templates/ui/panels/site_jobs.html:45
+msgid "Nothing is running."
+msgstr "No hay nada en ejecución."
+
+#: ui/templates/ui/panels/site_usage.html:13
+msgid ""
+"Counted from finished runs. Compute time is time spent in trials, not wall "
+"clock."
+msgstr ""
+"Contado a partir de ejecuciones terminadas. El tiempo de cómputo es el "
+"tiempo dedicado a las pruebas, no el del reloj."
+
+#: ui/templates/ui/panels/site_usage.html:20
+#: ui/templates/ui/panels/site_usage.html:48
+msgid "Runs"
+msgstr "Ejecuciones"
+
+#: ui/templates/ui/panels/site_usage.html:28
+msgid "restricted"
+msgstr "restringido"
+
+#: ui/templates/ui/panels/site_usage.html:40
+msgid "By person"
+msgstr "Por persona"
+
+#: ui/templates/ui/panels/site_usage.html:41
+msgid "The same totals, for a conversation about one account."
+msgstr "Los mismos totales, para una conversación sobre una sola cuenta."
+
+#: ui/templates/ui/panels/site_usage.html:47
+msgid "Email"
+msgstr "Correo electrónico"
+
+#. == Views — messages, warnings, refusals ==============================
+#: ui/views.py:120
+msgid "all the requested trials ran"
+msgstr "se hicieron todas las pruebas solicitadas"
+
+#: ui/views.py:121
+msgid "performance surpassed the target"
+msgstr "el rendimiento superó el objetivo"
+
+#: ui/views.py:122
+msgid "the time limit was reached"
+msgstr "se alcanzó el límite de tiempo"
+
+#: ui/views.py:123
+msgid "the compute budget was used up"
+msgstr "se agotó el presupuesto de cómputo"
+
+#: ui/views.py:124
+msgid "the score had stopped improving"
+msgstr "la puntuación había dejado de mejorar"
+
+#: ui/views.py:125
+msgid "the search was confident nothing better remained"
+msgstr "la búsqueda estaba segura de que no quedaba nada mejor"
+
+#: ui/views.py:126
+msgid "it was interrupted"
+msgstr "se interrumpió"
+
+#: ui/views.py:127
+msgid "too many trials were failing"
+msgstr "fallaban demasiadas pruebas"
+
+#: ui/views.py:323
+msgid "Inconsistent"
+msgstr "Incoherente"
+
+#: ui/views.py:966 ui/views.py:1143
+msgid ""
+"The model this experiment used is not available here, so its search space "
+"cannot be rebuilt."
+msgstr ""
+"El modelo que usó este experimento no está disponible aquí, así que no se "
+"puede reconstruir su espacio de búsqueda."
+
+#: ui/views.py:1104
+msgid ""
+"This SMAC has no acquisition weight layer, so a stated prior does not affect "
+"the search or the candidates below. Install the version requirements.txt "
+"pins."
+msgstr ""
+"Este SMAC no tiene capa de ponderación de la adquisición, así que un prior "
+"declarado no afecta ni a la búsqueda ni a las candidatas de abajo. Instale "
+"la versión que fija requirements.txt."
+
+#: ui/views.py:1233
+msgid ""
+"Set at least one stopping criterion, so the run has something to end on."
+msgstr ""
+"Fije al menos un criterio de parada, para que la ejecución tenga algo con lo "
+"que terminar."
+
+#: ui/views.py:1548
+msgid ""
+"Given up on by hand: it stopped answering, and cancelling it had no effect."
+msgstr "Abandonada a mano: dejó de responder y cancelarla no surtió efecto."
+
+#: ui/views.py:1738
+msgid "See every experiment on this instance"
+msgstr "Ver todos los experimentos de esta instancia"
+
+#: ui/views.py:1740
+msgid "Run, edit and delete other people's experiments"
+msgstr "Ejecutar, editar y eliminar experimentos de otras personas"
+
+#: ui/views.py:1742
+msgid "Change the settings every experiment inherits"
+msgstr "Cambiar los ajustes que hereda cada experimento"
+
+#: ui/views.py:1744
+msgid "Upload and run custom models"
+msgstr "Subir y ejecutar modelos propios"
+
+#: ui/views.py:1803
+msgid "Invalid or unreadable experiment file."
+msgstr "Archivo de experimento no válido o ilegible."
+
+#: ui/views.py:1867
+#, python-format
+msgid ""
+"This looks like more than one run — two files here are called %(name)s. "
+"Choose a single run directory, the one holding its runhistory.json."
+msgstr ""
+"Esto parece más de una ejecución — dos archivos de aquí se llaman %(name)s. "
+"Elija un único directorio de ejecución, el que contiene su runhistory.json."
+
+#: ui/views.py:1874
+#, python-format
+msgid "Could not read %(name)s."
+msgstr "No se pudo leer %(name)s."
+
+#: ui/views.py:1881
+msgid "This is not a readable SMAC run."
+msgstr "Esta no es una ejecución de SMAC legible."
+
+#: ui/views.py:1934
+msgid ""
+"Local explanation needs the search space, which this experiment does not "
+"carry and has no model to ask."
+msgstr ""
+"La explicación local necesita el espacio de búsqueda, que este experimento "
+"no lleva consigo y para el que no hay modelo al que preguntar."
+
+#: ui/views.py:2053
+msgid ""
+"Partial dependence needs the search space, which this experiment does not "
+"carry and has no model to ask."
+msgstr ""
+"La dependencia parcial necesita el espacio de búsqueda, que este experimento "
+"no lleva consigo y para el que no hay modelo al que preguntar."
+
+#: ui/views.py:2189
+msgid ""
+"Local effects need the search space, which this experiment does not carry "
+"and has no model to ask."
+msgstr ""
+"Los efectos locales necesitan el espacio de búsqueda, que este experimento "
+"no lleva consigo y para el que no hay modelo al que preguntar."
+
+#: ui/views.py:2247
+msgid "Not recorded"
+msgstr "No registrado"
+
+#: ui/views.py:2249
+#, python-format
+msgid "%(k)s-fold CV"
+msgstr "Validación cruzada de %(k)s pliegues"
+
+#: ui/views.py:2250
+#, python-format
+msgid "%(pct)s%% held out"
+msgstr "%(pct)s%% reservado"
+
+
+#. == Everything else ===================================================
+#: ui/templates/ui/appearance.html:8
+msgid "Display and theme settings."
+msgstr "Ajustes de presentación y tema."
+
+#: ui/templates/ui/delete_confirm.html:4
+#, python-format
+msgid "Delete %(name)s"
+msgstr "Eliminar %(name)s"
+
+#: ui/templates/ui/delete_confirm.html:5
+#: ui/templates/ui/experiment_detail.html:39
+msgid "Delete experiment"
+msgstr "Eliminar el experimento"
+
+#: ui/templates/ui/delete_confirm.html:8
+#, python-format
+msgid ""
+"Are you sure you want to delete <strong>%(name)s</strong> (<code>%(ref)s</"
+"code>)? This cannot be undone."
+msgstr ""
+"¿Seguro que quiere eliminar <strong>%(name)s</strong> (<code>%(ref)s</"
+"code>)? Esto no se puede deshacer."
+
+#: ui/templates/ui/experiment_list.html:12
+#: ui/templates/ui/panels/site_groups.html:52
+msgid "Name"
+msgstr "Nombre"
+
+#: ui/templates/ui/experiment_list.html:15
+#: ui/templates/ui/panels/group_work.html:20
+msgid "Created"
+msgstr "Creado"
+
+#: ui/templates/ui/experiment_list.html:36
+msgid "← Previous"
+msgstr "← Anterior"
+
+#: ui/templates/ui/experiment_list.html:38
+#, python-format
+msgid "Page %(current)s of %(total)s"
+msgstr "Página %(current)s de %(total)s"
+
+#: ui/templates/ui/experiment_list.html:40
+msgid "Next →"
+msgstr "Siguiente →"
+
+#: ui/templates/ui/export_confirm.html:21
+msgid "Export experiment"
+msgstr "Exportar el experimento"
+
+#: ui/templates/ui/export_confirm.html:22
+#, python-format
+msgid "Export %(name)s"
+msgstr "Exportar %(name)s"
+
+#: ui/templates/ui/export_confirm.html:25
+msgid ""
+"Some of what the file records is about you rather than about the search. "
+"Tick what you are willing to send."
+msgstr ""
+"Parte de lo que registra el archivo habla de usted y no de la búsqueda. "
+"Marque lo que esté dispuesto a enviar."
+
+#: ui/templates/ui/export_confirm.html:28
+msgid "When each trial started and finished"
+msgstr "Cuándo empezó y terminó cada prueba"
+
+#: ui/templates/ui/export_confirm.html:30
+msgid ""
+"Anyone you send it to can read what time of day you were working, and on "
+"which days. Without them the file is the same in every other way — every "
+"score, every configuration, and how long each trial took."
+msgstr ""
+"Quien reciba el archivo podrá leer a qué hora del día trabajaba usted, y qué "
+"días. Sin ellos el archivo es idéntico en todo lo demás — cada puntuación, "
+"cada configuración y lo que tardó cada prueba."
+
+#: ui/templates/ui/export_confirm.html:34
+#, python-format
+msgid "The stacktrace from %(n)s failed trial"
+msgid_plural "The stacktraces from %(n)s failed trials"
+msgstr[0] "La traza de %(n)s prueba fallida"
+msgstr[1] "Las trazas de %(n)s pruebas fallidas"
+
+#: ui/templates/ui/export_confirm.html:36
+msgid ""
+"A stacktrace names absolute paths on this machine, the packages installed on "
+"it and their versions. Without them the failed trials are still in the file, "
+"with the one-line reason each of them failed."
+msgstr ""
+"Una traza nombra rutas absolutas de esta máquina, los paquetes instalados en "
+"ella y sus versiones. Sin ellas las pruebas fallidas siguen en el archivo, "
+"con el motivo de una línea por el que falló cada una."
+
+#: ui/templates/ui/export_confirm.html:41
+msgid "Export"
+msgstr "Exportar"
 
 #: ui/templates/ui/home.html:6
 msgid "Use the sidebar to create a new experiment."
-msgstr "Usa la barra lateral para crear un nuevo experimento."
+msgstr "Use la barra lateral para crear un experimento nuevo."
 
 #: ui/templates/ui/import.html:4
 msgid "Load experiment"
-msgstr "Cargar experimento"
+msgstr "Cargar un experimento"
 
 #: ui/templates/ui/import.html:7
-#, fuzzy
 msgid "Load an experiment"
 msgstr "Cargar un experimento"
 
 #: ui/templates/ui/import.html:8
-#, fuzzy
 msgid ""
 "Upload an <code>.ihpo</code> file to add it to your saved\n"
 "       experiments. Optionally attach its dataset to make it runnable; "
 "otherwise\n"
 "       it loads read-only."
 msgstr ""
-"Suba un archivo <code>.ihpo</code> para añadirlo a sus experimentos "
-"guardados. Opcionalmente, adjunte su conjunto de datos para poder "
-"ejecutarlo; de lo contrario, se cargará en modo de solo lectura."
+"Suba un archivo <code>.ihpo</code> para añadirlo a sus experimentos\n"
+"       guardados. Opcionalmente adjunte su conjunto de datos para hacerlo "
+"ejecutable;\n"
+"       si no, se carga solo para lectura."
 
 #: ui/templates/ui/import.html:19
 msgid "Experiment file (.ihpo)"
 msgstr "Archivo de experimento (.ihpo)"
 
 #: ui/templates/ui/import.html:23
-#, fuzzy
 msgid "Dataset CSV (optional)"
 msgstr "CSV del conjunto de datos (opcional)"
 
 #: ui/templates/ui/import.html:28
-#, fuzzy
 msgid "Model .py (optional, custom models only)"
-msgstr "Modelo .py (opcional, solo modelos personalizados)"
+msgstr "Modelo .py (opcional, solo para modelos propios)"
 
 #: ui/templates/ui/import.html:32
 msgid "Load"
 msgstr "Cargar"
 
+#: ui/templates/ui/import.html:40
+msgid "…or a SMAC run"
+msgstr "…o una ejecución de SMAC"
+
+#: ui/templates/ui/import.html:41
+msgid ""
+"Choose the output directory of a SMAC\n"
+"       run — the folder holding its <code>runhistory.json</code>. It loads\n"
+"       read-only: the files record what was searched and what it scored, "
+"not\n"
+"       what was doing the searching."
+msgstr ""
+"Elija el directorio de salida de una ejecución de\n"
+"       SMAC — la carpeta que contiene su <code>runhistory.json</code>. Se "
+"carga solo\n"
+"       para lectura: los archivos registran qué se buscó y cómo puntuó, no "
+"qué estaba\n"
+"       haciendo la búsqueda."
+
+#: ui/templates/ui/import.html:49
+msgid "SMAC output directory"
+msgstr "Directorio de salida de SMAC"
+
+#: ui/templates/ui/import.html:52
+msgid "Load run"
+msgstr "Cargar la ejecución"
+
 #: ui/templates/ui/metric_change.html:5
-#, fuzzy
 msgid "Change the optimized metric?"
 msgstr "¿Cambiar la métrica optimizada?"
 
 #: ui/templates/ui/metric_change.html:8
-#, fuzzy, python-format
+#, python-format
 msgid ""
 "\n"
 "    These trials were chosen to optimize <strong>%(current)s</strong>. "
@@ -921,141 +2350,68 @@ msgid ""
 msgstr ""
 "\n"
 "    Estas pruebas se eligieron para optimizar <strong>%(current)s</strong>. "
-"También\n"
-"    se registraron sus valores de <strong>%(chosen)s</strong>, así que la "
-"búsqueda\n"
-"    continúa a partir de ellas en lugar de empezar de cero, pero siguen "
+"También se\n"
+"    registraron sus puntuaciones para <strong>%(chosen)s</strong>, así que "
+"la búsqueda\n"
+"    continúa a partir de ellas en vez de empezar de cero — pero siguen "
 "siendo una\n"
-"    muestra que eligió el objetivo anterior, y la ejecución hereda ese "
+"    muestra que eligió el objetivo antiguo, y la ejecución hereda ese "
 "sesgo.\n"
 "    "
 
-#: ui/templates/ui/metric_change.html:27
-#, fuzzy, python-format
+#: ui/templates/ui/metric_change.html:34
+#, python-format
 msgid "Optimize %(chosen)s"
 msgstr "Optimizar %(chosen)s"
 
-#: ui/templates/ui/metric_change.html:28
-#, fuzzy, python-format
+#: ui/templates/ui/metric_change.html:35
+#, python-format
 msgid "Keep optimizing %(current)s"
 msgstr "Seguir optimizando %(current)s"
 
 #: ui/templates/ui/new_experiment.html:8
-#, fuzzy
-msgid ""
-"Set up an experiment. It is saved but not run — start runs\n"
-"       (and pick the metric and number of trials) on its page."
-msgstr ""
-"Configure un experimento. Se guarda pero no se ejecuta — inicie las "
-"ejecuciones (y elija la métrica y el número de pruebas) en su página."
+msgid "Set up a new experiment"
+msgstr "Preparar un experimento nuevo"
 
-#: ui/templates/ui/new_experiment.html:27
+#: ui/templates/ui/new_experiment.html:26
 msgid "Use demo models"
 msgstr "Usar modelos de demostración"
 
-#: ui/templates/ui/new_experiment.html:71
+#: ui/templates/ui/new_experiment.html:70
 msgid "Use demo datasets"
 msgstr "Usar conjuntos de datos de demostración"
 
-#: ui/templates/ui/new_experiment.html:86
-#, fuzzy
-msgid ""
-"Fixed once the experiment exists: trials scored different ways cannot be "
-"compared with each other."
-msgstr ""
-"Fijo una vez creado el experimento: las pruebas puntuadas de distinta forma "
-"no se pueden comparar entre sí."
-
-#: ui/templates/ui/new_experiment.html:95
-#, fuzzy
+#: ui/templates/ui/new_experiment.html:125
 msgid "Create experiment"
-msgstr "Crear experimento"
+msgstr "Crear el experimento"
 
 #: ui/templates/ui/save_as_default_confirm.html:4
 #: ui/templates/ui/save_as_default_confirm.html:23
-#, fuzzy
 msgid "Save as default"
-msgstr "Guardar como predeterminado"
+msgstr "Guardar como predeterminados"
 
 #: ui/templates/ui/save_as_default_confirm.html:5
-#, fuzzy
 msgid "Make these the default settings?"
-msgstr "¿Establecer esta configuración como predeterminada?"
+msgstr "¿Hacer que estos sean los ajustes predeterminados?"
 
 #: ui/templates/ui/save_as_default_confirm.html:8
-#, fuzzy
 msgid ""
 "These settings become the defaults for every experiment that\n"
 "    uses them, including existing ones. Experiments with their own settings "
 "are\n"
 "    unaffected."
 msgstr ""
-"Esta configuración pasa a ser la predeterminada para todo experimento que\n"
-"    la use, incluidos los existentes. Los experimentos con su propia "
-"configuración no\n"
+"Estos ajustes pasan a ser los predeterminados de todo experimento\n"
+"    que los use, incluidos los ya existentes. Los experimentos con ajustes "
+"propios no\n"
 "    se ven afectados."
 
-#: ui/views.py:86
-#, fuzzy
-msgid "all the requested trials ran"
-msgstr "se ejecutaron todas las pruebas solicitadas"
+#: ui/validators.py:21
+#, python-format
+msgid "%(name)s is larger than the %(mb)s MB upload limit."
+msgstr "%(name)s supera el límite de subida de %(mb)s MB."
 
-#: ui/views.py:87
-#, fuzzy
-msgid "the target score was reached"
-msgstr "se alcanzó la puntuación objetivo"
-
-#: ui/views.py:88
-#, fuzzy
-msgid "the time limit was reached"
-msgstr "se alcanzó el límite de tiempo"
-
-#: ui/views.py:89
-#, fuzzy
-msgid "the compute budget was used up"
-msgstr "se agotó el presupuesto de cómputo"
-
-#: ui/views.py:90
-#, fuzzy
-msgid "the score had stopped improving"
-msgstr "la puntuación dejó de mejorar"
-
-#: ui/views.py:91
-#, fuzzy
-msgid "the search was confident nothing better remained"
-msgstr "la búsqueda tuvo la certeza de que no quedaba nada mejor"
-
-#: ui/views.py:92
-#, fuzzy
-msgid "it was interrupted"
-msgstr "se interrumpió"
-
-#: ui/views.py:93
-#, fuzzy
-msgid "every trial was failing"
-msgstr "todas las pruebas fallaban"
-
-#: ui/views.py:219
-msgid "Inconsistent"
-msgstr "Inconsistente"
-
-#: ui/views.py:366
-#, fuzzy
-msgid ""
-"Set at least one stopping criterion, so the run has something to end on."
-msgstr ""
-"Define al menos un criterio de parada para que la ejecución pueda terminar."
-
-#: ui/views.py:591
-msgid "Invalid or unreadable experiment file."
-msgstr "Archivo de experimento inválido o ilegible."
-
-#: ui/views.py:677
-#, fuzzy, python-format
-msgid "%(k)s-fold CV"
-msgstr "VC de %(k)s pliegues"
-
-#: ui/views.py:678
-#, fuzzy
-msgid "holdout"
-msgstr "retención"
+#: ui/validators.py:29
+#, python-format
+msgid "%(name)s must be a .%(ext)s file."
+msgstr "%(name)s debe ser un archivo .%(ext)s."

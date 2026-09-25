@@ -25,6 +25,11 @@ from core.projection import log_hyperparameters, project
 
 from ..formatting import sigfigs
 
+# Immediate rather than lazy: a figure is built inside a request and then
+# handed to `to_json`, which has no idea what a lazy translation proxy is.
+# The same reason `views.py` uses the immediate one.
+from django.utils.translation import gettext as _
+
 # ── The palette ──────────────────────────────────────────────────────────────
 #
 # Four colours across every figure, each meaning one thing. Held by convention
@@ -304,13 +309,13 @@ def performance_over_time_plot(result, display_metric, *, x_axis="trial",
         x=xs, y=ys, mode="markers", name=outcome_name, marker=marker,
     ))
     fig.add_trace(go.Scatter(
-        x=xs, y=incumbent_ys, mode="lines", name="Incumbent",
+        x=xs, y=incumbent_ys, mode="lines", name=_("Incumbent"),
         line=dict(width=2, shape="hv", color=ACCENT_COLOR),
     ))
     fig.add_trace(go.Scatter(
         x=[xs[i] for i in range(len(trials)) if improved[i]],
         y=[incumbent_ys[i] for i in range(len(trials)) if improved[i]],
-        mode="markers", name="New incumbent",
+        mode="markers", name=_("New incumbent"),
         marker=dict(size=9, color=ACCENT_COLOR, symbol="diamond"),
         # Out of the way of the pointer. These are drawn over the trials they
         # mark and are bigger than them, so with hover on they sat between the
@@ -438,13 +443,13 @@ def hyperparameter_progress_plot(rows: list, rendering: str = "pie"):
         fig = go.Figure()
         # Banked first, so it is the base of the bar and the remainder sits on
         # top of it — a bar filling up rather than emptying out.
-        for values, label, shade in ((banked, "Already banked", _PROGRESS_SHADES[1]),
-                                     (left, "Still to gain", _PROGRESS_SHADES[0])):
+        for values, label, shade in ((banked, _("Already banked"), _PROGRESS_SHADES[1]),
+                                     (left, _("Still to gain"), _PROGRESS_SHADES[0])):
             fig.add_trace(go.Bar(x=names, y=values, name=label, marker_color=shade,
                                  hovertemplate="%{x}<br>" + label
                                                + " %{y:.4g}<extra></extra>"))
         fig.update_layout(
-            barmode="stack", yaxis_title="Achievable gain",
+            barmode="stack", yaxis_title=_("Achievable gain"),
             margin=dict(t=20, b=20, l=20, r=20),
             legend=dict(orientation="h", yanchor="bottom", y=1.02,
                         xanchor="right", x=1))
@@ -524,7 +529,7 @@ def hyperparameter_ablation_plot(ablation: dict):
         totals=dict(marker=dict(color="#8C9196")),
         connector=dict(line=dict(color="rgba(140,140,140,0.5)", width=1)),
     ))
-    fig.update_layout(yaxis_title="vs. default",
+    fig.update_layout(yaxis_title=_("vs. default"),
                       margin=dict(t=30, b=20, l=20, r=20), showlegend=False)
     return fig
 
@@ -550,7 +555,7 @@ def hyperparameter_interactions_heatmap_plot(interactions: dict):
     z = [[interactions[a][b] for b in params] for a in params]
     fig = go.Figure(go.Heatmap(
         z=z, x=params, y=params, colorscale=_SIGN_SCALE, zmid=0,
-        colorbar=dict(title="Interaction"),
+        colorbar=dict(title=_("Interaction")),
     ))
     fig.update_layout(margin=dict(t=20, b=40, l=80, r=20))
     return fig
@@ -579,7 +584,7 @@ def hyperparameter_interactions_bar_plot(interactions: dict, top_k: int = 10):
     names, values = zip(*pairs[:top_k])
     colors = [MARKER_COLOR if v >= 0 else NEGATIVE_COLOR for v in values]
     fig = go.Figure(go.Bar(x=names, y=values, marker_color=colors))
-    fig.update_layout(yaxis_title="Interaction strength",
+    fig.update_layout(yaxis_title=_("Interaction strength"),
                       margin=dict(t=20, b=20, l=20, r=20), showlegend=False)
     return fig
 
@@ -709,14 +714,14 @@ def hyperparameter_graph_plot(moebius: list, top_k: int = 15):
     # no hover of its own — without this the picture would be unreadable in
     # exactly the cases it exists for, where several edges cross.
     fig.add_trace(go.Scatter(
-        x=hub_x, y=hub_y, mode="markers", name="Interaction",
+        x=hub_x, y=hub_y, mode="markers", name=_("Interaction"),
         marker=dict(size=9, color="rgba(0,0,0,0)",
                     line=dict(width=1, color="rgba(120,120,120,0.5)")),
         text=hub_text, hoverinfo="text", showlegend=False,
     ))
     fig.add_trace(go.Scatter(
         x=[pos[n][0] for n in names], y=[pos[n][1] for n in names],
-        mode="markers+text", name="Hyperparameter",
+        mode="markers+text", name=_("Hyperparameter"),
         marker=dict(size=[14 + 26 * own.get(n, 0.0) / biggest_own for n in names],
                     color=MARKER_COLOR, opacity=0.85),
         text=names, textposition="top center",
@@ -799,7 +804,7 @@ def hyperparameter_upset_plot(moebius: list, top_k: int = 12):
         marker=dict(size=10, color=MARKER_COLOR),
     ), row=2, col=1)
 
-    fig.update_yaxes(title_text="Interaction", row=1, col=1)
+    fig.update_yaxes(title_text=_("Interaction"), row=1, col=1)
     fig.update_yaxes(categoryorder="array", categoryarray=names, row=2, col=1)
     fig.update_xaxes(showticklabels=False, row=1, col=1)
     fig.update_xaxes(showticklabels=False, row=2, col=1)
@@ -868,7 +873,7 @@ def hyperparameter_orders_plot(moebius: list):
             name=label, marker_color=shades[band_index],
         ))
     fig.update_layout(
-        barmode="stack", yaxis_title="Attributed influence",
+        barmode="stack", yaxis_title=_("Attributed influence"),
         legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1),
         margin=dict(t=40, b=40, l=40, r=20),
     )
@@ -1261,9 +1266,10 @@ def parallel_coordinates_plot(result, display_metric, config_space=None):
             # Invisible but present: a lines-only trace takes no clicks at all,
             # and this is a figure you click.
             marker=dict(size=5, opacity=0.01),
-            name=f"Trial {trial.trial}", showlegend=False,
-            hovertemplate=f"Trial {trial.trial}<br>{display_metric} "
-                          f"{sigfigs(scores[i])}<extra></extra>",
+            name=_("Trial %(n)s") % {"n": trial.trial}, showlegend=False,
+            hovertemplate=(_("Trial %(n)s") % {"n": trial.trial})
+                          + f"<br>{display_metric} "
+                          + f"{sigfigs(scores[i])}<extra></extra>",
         ))
     # Nothing drawn, only a colour bar: with a colour per trace there is no
     # array for Plotly to build one from, so one trace carries the scale.
@@ -1335,18 +1341,290 @@ def partial_dependence_plot(hp_name, grid, ice_lines, pdp):
     fig = go.Figure()
     fig.add_trace(go.Scatter(
         x=ice_x, y=ice_y, mode="lines", line=dict(width=1, color=MARKER_COLOR),
-        opacity=0.25, name="Individual trials (ICE)", hoverinfo="skip",
+        opacity=0.25, name=_("Individual trials (ICE)"), hoverinfo="skip",
     ))
     fig.add_trace(go.Scatter(
-        x=grid, y=pdp, mode="lines+markers", name="Partial dependence",
+        x=grid, y=pdp, mode="lines+markers", name=_("Partial dependence"),
         line=dict(width=3, color=ACCENT_COLOR),
     ))
     fig.update_layout(
-        xaxis_title=hp_name, xaxis_type="category", yaxis_title="Predicted score",
+        xaxis_title=hp_name, xaxis_type="category", yaxis_title=_("Predicted score"),
         legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1),
         margin=dict(t=40, b=40, l=40, r=20),
     )
     return fig
+
+
+#: Where a user prior is drawn, and the one colour on the page that means
+#: "something a person asserted" rather than "something the run measured".
+#:
+#: Amber because every other slot is taken by a claim about the data:
+#: ACCENT_COLOR is the best so far, MARKER_COLOR is a trial, NEGATIVE_COLOR is
+#: harm, UNCERTAINTY_SCALE is the surrogate's own doubt. A prior is none of
+#: those — it is an input, not a finding — so it gets a hue the palette does
+#: not otherwise use, and keeps it wherever priors appear.
+PRIOR_COLOR = "#B26315"
+
+#: The σ multiples the surrogate's band steps through, widest first so the
+#: narrower and darker ones draw over them.
+SIGMA_STEPS = (3, 2, 1)
+_BAND_ALPHA = {3: 0.14, 2: 0.22, 1: 0.32}
+
+#: The implied curve gets one band rather than three, and a far fainter one.
+#: It is an inference about a surrogate nobody fitted — read off an acquisition
+#: function by inverting it — so giving it the stepped treatment the measured
+#: model's spread gets would lend it the same standing. It should read as a
+#: ghost of the curve above it.
+FICTION_SIGMA = 1
+_GHOST_ALPHA = 0.05
+
+
+def _rgba(hex_colour: str, alpha: float) -> str:
+    """`#RRGGBB` at *alpha*, because Plotly fills take a colour and an opacity
+    together and the palette is stored as hex."""
+    h = hex_colour.lstrip("#")
+    return "rgba({}, {}, {}, {})".format(*(int(h[i:i + 2], 16) for i in (0, 2, 4)), alpha)
+
+
+def acquisition_slice_plots(hp_name, positions, labels, mu, sigma, metric_label,
+                            eta=None, higher_is_better=True, kind="continuous",
+                            incumbent=None, cloud=None):
+    """Three figures over one hyperparameter — not three panels of one figure.
+
+    Separate figures so each can carry its own controls directly beneath it: the
+    distribution and decay pickers belong under the prior, not in a bar at the
+    top of a card that also holds two other pictures. That is the whole reason
+    for the split, and it costs the shared x axis — which is recovered by
+    construction here, since all three are given the same `span`, the same
+    ticks, and the same `positions`.
+
+    Returns `(figures, meta)`. `figures` is keyed `acquisition`, `prior`,
+    `surrogate`, in the order they are read. `meta` is shared and carries the
+    data every figure is drawn from plus, per figure, which trace index holds
+    what — the browser fills the traces that depend on a stated prior, and
+    addresses them through that map rather than by counting.
+
+    Returns `(None, None)` when *positions* is empty: too few trials to fit a
+    surrogate, or no valid configuration along the slice.
+    """
+    if not positions:
+        return None, None
+
+    blank = [None] * len(positions)
+    traces = {"acquisition": {}, "prior": {}, "surrogate": {}}
+
+    # Tick *indices*, so a label is looked up by position rather than by
+    # searching `positions` for a float that came out of it.
+    if kind == "categorical":
+        span = [min(positions) - 0.5, max(positions) + 0.5]
+        shown = range(len(positions))
+    else:
+        span = [0.0, 1.0]
+        shown = range(0, len(positions), max(1, (len(positions) - 1) // 5))
+    ticks = [positions[i] for i in shown]
+    text = [sigfigs(labels[i]) for i in shown]
+
+    def _dress(fig, *, title, height, show_x_title=False):
+        """What every one of the three shares: a pinned axis and no modebar.
+
+        Pinned because the only interaction this figure offers is the prior
+        drag, hand-rolled on the prior figure's drag layer. Plotly's own zoom
+        and pan would be a second, accidental one.
+        """
+        fig.update_xaxes(range=span, fixedrange=True, tickvals=ticks,
+                         ticktext=text, showticklabels=True)
+        if show_x_title:
+            fig.update_xaxes(title_text=hp_name)
+        fig.update_yaxes(fixedrange=True, title_text=title)
+        fig.update_layout(
+            dragmode=False, hovermode="x unified", height=height,
+            # Room at the top for the legend, which sits above the plot rather
+            # than inside it. Floated over the top-right corner it covered the
+            # curves at their most interesting — a sharp prior peaks near the
+            # top, which is exactly where the legend was.
+            margin=dict(t=44, b=42 if show_x_title else 24, l=64, r=24),
+            legend=dict(orientation="h", yanchor="bottom", y=1.02,
+                        xanchor="right", x=1, borderwidth=0,
+                        font=dict(size=11)),
+        )
+        return fig
+
+    # ── what would be tried next ─────────────────────────────────────────────
+    acquisition = go.Figure()
+    # What the slice cannot see. The curve below holds every hyperparameter but
+    # one at the incumbent's value; SMAC's maximizer moves all of them, and the
+    # first thing it does is score a large random sample of the whole space.
+    #
+    # Named for what it is, not what it approximates: a maximum over a sample is
+    # a slack lower bound on the true profile maximum. Measured on a
+    # four-hyperparameter Gaussian-process run, going from 2,000 samples to
+    # 50,000 moved it from 0.17 to 0.34 and it never approached the slice's own
+    # peak of 1.0.
+    if cloud is not None:
+        # The unweighted twin first, so the weighted curve draws over it rather
+        # than under. Dashed and unfilled: it is what the sampled envelope
+        # looked like before the prior, and the gap between the two is what the
+        # reader's statement actually did to the space the search looks at.
+        # Empty until a prior is stated, where it would lie exactly under the
+        # curve below and say nothing.
+        traces["acquisition"]["cloudBare"] = len(acquisition.data)
+        acquisition.add_trace(go.Scatter(
+            x=positions, y=list(blank), mode="lines", connectgaps=False,
+            name=_("Best sampled, unweighted"), hoverinfo="skip",
+            line=dict(width=1.2, color=MARKER_COLOR, dash="dot")))
+        traces["acquisition"]["cloud"] = len(acquisition.data)
+        acquisition.add_trace(go.Scatter(
+            x=positions, y=list(blank), mode="lines", connectgaps=False,
+            name=_("Best sampled, weighted"), hoverinfo="skip",
+            line=dict(width=1.2, color=MARKER_COLOR), fill="tozeroy",
+            fillcolor=_rgba(MARKER_COLOR, 0.10)))
+
+    # Both through one divisor in the browser, with the weight normalized to its
+    # own peak first. Only the ranking of an acquisition function means
+    # anything, so that constant is free — and it is what lets the curves be
+    # read against each other instead of each filling the panel on its own.
+    traces["acquisition"]["acquisition"] = len(acquisition.data)
+    acquisition.add_trace(go.Scatter(
+        x=positions, y=list(blank), mode="lines", name=_("Acquisition"),
+        hoverinfo="skip", line=dict(width=1.4, color=MARKER_COLOR, dash="dash")))
+    traces["acquisition"]["weighted"] = len(acquisition.data)
+    acquisition.add_trace(go.Scatter(
+        x=positions, y=list(blank), mode="lines", name=_("Weighted by the prior"),
+        hoverinfo="skip", line=dict(width=2.5, color=PRIOR_COLOR)))
+    # What the optimizer would ask for next, as a rug along the top rather than
+    # at a height.
+    #
+    # A height would have to be an acquisition value, and the figure computes
+    # those in the browser while the *rank* comes from the search itself. The
+    # two disagree in the last few percent, which is enough to reorder
+    # candidates sitting within a fraction of a percent of each other — and then
+    # the marker for "this one runs next" sits on visibly not-the-tallest point
+    # and reads as a bug. Position and rank are both honest; a height is not.
+    _RUG_Y = 1.03
+    #: A marker's width on the axis, which is what decides whether two
+    #: candidates can be told apart at all. The browser converts it to axis
+    #: units against the panel it actually got, and merges anything closer.
+    _MARKER_PX = 13
+    traces["acquisition"]["candidates"] = len(acquisition.data)
+    acquisition.add_trace(go.Scatter(
+        # One trace, one appearance. Ranking them by eye was the job the height
+        # was doing, and the height had to go; a second marker style would only
+        # bring the same claim back in another form.
+        x=[], y=[], mode="markers+text", name=_("Asked of the optimizer"),
+        customdata=[], text=[], textposition="top center",
+        textfont=dict(size=10, color=ACCENT_COLOR),
+        marker=dict(size=_MARKER_PX, symbol="diamond", color=ACCENT_COLOR,
+                    line=dict(width=1.5, color="#FFFFFF")),
+        hovertemplate="%{customdata[0]}<extra></extra>"))
+
+    _dress(acquisition, title=_("Acquisition"), height=330)
+    acquisition.update_yaxes(range=[0, 1.12])
+    # Every curve on this panel skips the hover, so "x unified" was only ever
+    # rendering the candidate markers — and rendering them as a combined box
+    # pinned to the cursor's x, which a tall entry pushes off the edge of the
+    # figure. Anchored to the marker instead, Plotly flips the label to keep it
+    # in view, which is the whole complaint.
+    acquisition.update_layout(
+        hovermode="closest",
+        hoverlabel=dict(align="left", font=dict(size=11),
+                        bgcolor="rgba(255, 255, 255, 0.96)",
+                        bordercolor=_rgba(ACCENT_COLOR, 0.5)))
+
+    # ── what you believe ─────────────────────────────────────────────────────
+    prior = go.Figure()
+    # Log axis, because a sharp density spans orders of magnitude and a linear
+    # panel would show a spike on a flat floor; on a log axis the decay exponent
+    # is a plain vertical squash toward the neutral line. A tabulated prior
+    # switches this to linear in the browser — see `applyPriorAxis`.
+    traces["prior"]["prior"] = len(prior.data)
+    prior.add_trace(go.Scatter(
+        x=positions, y=list(blank), mode="lines", name=_("Prior"), fill="tozeroy",
+        fillcolor=_rgba(PRIOR_COLOR, 0.13), line=dict(width=2, color=PRIOR_COLOR),
+        hovertemplate="%{y:.3g}<extra></extra>"))
+    # The control points of a tabulated prior — a density given by its values
+    # rather than by parameters. The one trace whose x moves, because a point is
+    # dragged along the axis as well as up it. A categorical uses the same
+    # editor with its points pinned to the choice indices.
+    traces["prior"]["priorPoints"] = len(prior.data)
+    prior.add_trace(go.Scatter(
+        x=[], y=[], mode="markers", name=_("Control points"), showlegend=False,
+        marker=dict(size=9, color=PRIOR_COLOR, line=dict(width=1.5, color="#FFFFFF")),
+        hovertemplate="%{y:.3g}<extra></extra>"))
+    _dress(prior, title=_("Prior"), height=260)
+    # Linear and pinned. The curve is peak-normalized in the browser, so every
+    # shape shares one axis and the scale never moves under the reader — see
+    # `applyPriorAxis`.
+    prior.update_yaxes(type="linear", range=[0, 1.06], autorange=False)
+
+    # ── what the run measured ────────────────────────────────────────────────
+    surrogate = go.Figure()
+    # Nested bands rather than a single ±2σ ribbon. One ribbon says "somewhere
+    # in here" and nothing about where the mass sits; three say it at a glance,
+    # on the σ multiples a reader already thinks in. Widest first, so the
+    # narrower and darker ones draw over them.
+    for k in SIGMA_STEPS:
+        surrogate.add_trace(go.Scatter(
+            x=positions, y=[m - k * sd for m, sd in zip(mu, sigma)], mode="lines",
+            hoverinfo="skip", line=dict(width=0), showlegend=False))
+        surrogate.add_trace(go.Scatter(
+            x=positions, y=[m + k * sd for m, sd in zip(mu, sigma)], mode="lines",
+            hoverinfo="skip", line=dict(width=0), fill="tonexty",
+            fillcolor=_rgba(ACCENT_COLOR, _BAND_ALPHA[k]), showlegend=False))
+    surrogate.add_trace(go.Scatter(
+        x=positions, y=mu, mode="lines", name=_("Predicted"),
+        line=dict(width=2.5, color=ACCENT_COLOR),
+        hovertemplate="%{y:.4g}<extra></extra>"))
+
+    # The one configuration on this line that was measured. The slice holds
+    # every other hyperparameter at the incumbent's value, so it passes through
+    # exactly this point and nothing else on the grid is an observation — which
+    # is why the other trials are not marked: they are not on this line.
+    if incumbent is not None:
+        surrogate.add_trace(go.Scatter(
+            x=[incumbent[0]], y=[incumbent[1]], mode="markers", name=_("Incumbent"),
+            marker=dict(size=9, color=MARKER_COLOR,
+                        line=dict(width=1.5, color="#FFFFFF")),
+            hovertemplate=_("Incumbent") + ": %{y:.4g}<extra></extra>"))
+
+    # The fiction — the surrogate that would have produced the weighted
+    # acquisition on its own — with one faint band rather than the measured
+    # model's three. It is an inference about a surrogate nobody fitted, so
+    # stepping it the same way would lend it the same standing.
+    #
+    # `connectgaps=False` matters here and nowhere else: the inversion returns
+    # nothing where a prior claims more improvement than any finite mean could
+    # justify, and bridging that gap would draw a plateau the function
+    # deliberately refuses to invent.
+    lo = len(surrogate.data)
+    surrogate.add_trace(go.Scatter(
+        x=positions, y=list(blank), mode="lines", hoverinfo="skip",
+        line=dict(width=0), connectgaps=False, showlegend=False))
+    surrogate.add_trace(go.Scatter(
+        x=positions, y=list(blank), mode="lines", hoverinfo="skip",
+        line=dict(width=0), fill="tonexty", fillcolor=_rgba(PRIOR_COLOR, _GHOST_ALPHA),
+        connectgaps=False, showlegend=False))
+    traces["surrogate"]["fictionBand"] = [lo, lo + 1]
+    traces["surrogate"]["fiction"] = len(surrogate.data)
+    surrogate.add_trace(go.Scatter(
+        x=positions, y=list(blank), mode="lines", name=_("Implied by the prior"),
+        hoverinfo="skip", connectgaps=False,
+        line=dict(width=1.6, color=_rgba(PRIOR_COLOR, 0.5), dash="dot")))
+    _dress(surrogate, title=metric_label, height=330, show_x_title=True)
+
+    meta = {
+        "traces": traces, "sigmas": list(SIGMA_STEPS), "fictionSigma": FICTION_SIGMA,
+        "rugY": _RUG_Y, "markerPx": _MARKER_PX,
+        # The sample itself, not an acquisition value: the browser owns that
+        # arithmetic, so it computes expected improvement with the same function
+        # it uses for the curve rather than a second one that would have to
+        # agree with it forever.
+        "cloud": ({"positions": cloud[0], "mu": cloud[1], "sigma": cloud[2]}
+                  if cloud is not None else None),
+        "positions": list(positions), "mu": list(mu), "sigma": list(sigma),
+        "eta": eta, "higherIsBetter": bool(higher_is_better),
+        "span": span, "kind": kind, "hp": hp_name,
+    }
+    return {"acquisition": acquisition, "prior": prior, "surrogate": surrogate}, meta
 
 
 def local_effects_plot(hp_names: list, rows: list):
@@ -1403,7 +1681,7 @@ def local_effects_plot(hp_names: list, rows: list):
         fig.add_hline(y=index - 0.5,
                       line=dict(color="rgba(140,140,140,0.25)", width=1))
     fig.update_layout(
-        xaxis_title="Effect vs. default  (left: hurt, right: helped)",
+        xaxis_title=_("Effect vs. default  (left: hurt, right: helped)"),
         yaxis=dict(tickmode="array", tickvals=list(range(len(ordered))), ticktext=ordered),
         margin=dict(t=20, b=40, l=110, r=20), showlegend=False,
         # One trace per row, and the selected trial has a point in every one of
@@ -1438,7 +1716,7 @@ def trial_duration_plot(result):
         marker_color=[FAILURE_FILL if t.failed else MARKER_COLOR for t in trials],
     ))
     fig.update_layout(
-        xaxis_title="Trial", yaxis_title="Duration (s)",
+        xaxis_title=_("Trial"), yaxis_title=_("Duration (s)"),
         margin=dict(t=20, b=40, l=40, r=20), showlegend=False,
         meta={"selection": _selection_meta({0: range(len(trials))},
                                            style=RECOLOR)},

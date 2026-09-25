@@ -83,30 +83,33 @@ def _parse_po(path: Path) -> dict[str, str]:
 
 
 @pytest.mark.parametrize("locale", SHELVED)
-def test_nothing_unreviewed_is_compiled(locale):
-    """A `.mo` is the only thing gettext actually reads. While the catalogs hold
-    unreviewed drafts there must not be one, or the drafts are live."""
-    assert not (CODESIGNER_LOCALE / locale / "LC_MESSAGES" / "django.mo").exists()
+def test_every_offered_language_is_compiled(locale):
+    """A `.mo` is the only thing gettext actually reads. A language in the
+    switcher without one is a choice that silently does nothing."""
+    assert (CODESIGNER_LOCALE / locale / "LC_MESSAGES" / "django.mo").exists()
 
 
 @pytest.mark.parametrize("locale", SHELVED)
-def test_the_drafts_are_still_there_to_come_back_to(locale):
-    """Shelved, not discarded. Deleting them would mean redoing the work when
-    the interface settles, and the reviewed ones would go with it."""
+def test_nothing_is_left_untranslated(locale):
+    """The thing worth avoiding is a *stale* catalog, not a translated one: a
+    string whose English moved on while the translation kept saying the old
+    thing. An empty or fuzzy entry is how that shows up, so there are none —
+    and `manage.py translations` is what keeps it that way."""
     catalog = _parse_po(CODESIGNER_LOCALE / locale / "LC_MESSAGES" / "django.po")
 
     assert len(catalog) > 100
+    assert not [k for k, v in catalog.items() if not v], "untranslated strings remain"
 
 
 @pytest.mark.parametrize("locale", SHELVED)
-def test_a_shelved_language_is_not_offered(locale):
-    """The switcher must not list a language with nothing behind it — choosing
-    it would silently do nothing at all."""
-    assert locale not in dict(settings.LANGUAGES)
+def test_every_translated_language_is_offered(locale):
+    """The other direction: a finished catalog nobody can select is work that
+    reaches no one."""
+    assert locale in dict(settings.LANGUAGES)
 
 
-def test_english_is_what_is_offered():
-    assert [code for code, _ in settings.LANGUAGES] == ["en"]
+def test_all_three_are_offered():
+    assert sorted(code for code, _ in settings.LANGUAGES) == ["de", "en", "es"]
 
 
 # --- parity with the reference app, for the strings a person did check --------
@@ -147,15 +150,11 @@ def test_the_interface_renders_its_english_source(client):
     assert "Use the sidebar to create a new experiment." in body
 
 
-def test_the_switcher_is_on_the_page_and_does_nothing(client):
-    """It shows the languages the interface is going to offer, so its place on
-    the rail is settled before the catalogs are.
-
-    Inert on purpose, and this is what says so: no form around it, so there is
-    nothing for it to submit. The German and Spanish drafts have not been read
-    by anyone who speaks them, and half a translation reaching a user is worse
-    than none — see OFFERED_LANGUAGES against LANGUAGES in config/settings.py.
-    """
+def test_the_switcher_offers_every_language_and_works(client):
+    """It was inert while the catalogs were drafts. They are finished and
+    compiled now, so a switcher that still did nothing would be the worse of the
+    two failures: work that reaches nobody, behind a control that looks like it
+    should."""
     from django.conf import settings
 
     body = client.get(reverse("ui:home")).content.decode()
@@ -164,9 +163,19 @@ def test_the_switcher_is_on_the_page_and_does_nothing(client):
 
     for _code, label in settings.OFFERED_LANGUAGES:
         assert label in locale
-    assert len(settings.OFFERED_LANGUAGES) > len(settings.LANGUAGES)
-    assert "<form" not in locale
-    assert "set_language" not in body
+    # Nothing is offered that cannot be served.
+    assert {c for c, _ in settings.OFFERED_LANGUAGES} == {c for c, _ in settings.LANGUAGES}
+    assert reverse("set_language") in locale, "the switcher has somewhere to post to"
+    assert 'name="language"' in locale
+    assert 'method="post"' in locale
+
+
+def test_switching_language_changes_the_page(client):
+    """End to end: the control, the route and the catalogs together."""
+    resp = client.post(reverse("set_language"),
+                       {"language": "de", "next": reverse("ui:home")}, follow=True)
+
+    assert "Experimente" in resp.content.decode()
 
 
 def test_the_language_route_still_exists(client):

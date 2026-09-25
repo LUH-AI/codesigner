@@ -401,6 +401,16 @@ nav.sidebar .info-bubble {
    always been — the column's one figure is last in catalog order and full
    width, so stacking puts it exactly where it already was. */
 .figure-layout { display: flex; flex-direction: column; gap: 1.5rem; }
+/* A page-width figure. In the stacked layout it is simply another block; once
+   the layout becomes two panes it spans them both, which is the whole point of
+   the tier — `wide` only ever spanned the grid. */
+.slot-page { min-width: 0; }
+/* Three figures stacked with their controls between them. Each Plotly figure
+   carries its own height, so the stack needs spacing rather than a minimum. */
+.acq-stack { display: flex; flex-direction: column; gap: 0.5rem; }
+.acq-panel { min-width: 0; }
+.acq-toggle { display: inline-flex; align-items: center; gap: 0.4rem; font-size: 0.85rem; }
+.acq-toggle input { width: auto; margin: 0; }
 .figure-column { min-width: 0; }
 
 /* Wide enough for two panes side by side. Half the width each, so the grid
@@ -414,6 +424,7 @@ nav.sidebar .info-bubble {
         grid-template-columns: 1fr 1fr;
         align-items: stretch;
     }
+    .slot-page { grid-column: 1 / -1; }
     /* Full height, and scrolling inside rather than running past the figures:
        the point of the column is to have the table beside whatever chart is
        being read, which it is not if reaching it means scrolling the page. */
@@ -496,6 +507,10 @@ table.trials tbody tr:focus-visible { outline: 2px solid var(--primary); outline
 .trials th.sortable:hover { color: var(--text); }
 
 /* ── Alerts (st.info/warning/error/success) ───────────────────────────── */
+/* A hidden element takes no space, whatever else claims a display. Without
+   this an `.alert` toggled with the attribute still draws its own padding as a
+   coloured bar with nothing in it. */
+[hidden] { display: none !important; }
 .alert { padding: 0.75rem 1rem; border-radius: var(--radius); font-size: 0.9rem; }
 .alert.info    { background: rgba(0, 104, 201, 0.1); color: #004280; }
 .alert.warning { background: rgba(255, 170, 0, 0.15); color: #7a5200; }
@@ -541,6 +556,18 @@ table.trials tbody tr:focus-visible { outline: 2px solid var(--primary); outline
 .card-head .selectors { margin-bottom: 0; }
 .selectors { display: flex; flex-wrap: wrap; gap: 0.5rem; align-items: center; margin-bottom: 0.5rem; }
 .selectors select { width: auto; min-width: 0; max-width: 100%; }
+/* One prior parameter: its name, an exact field, and a coarse slider. Built by
+   acquisition.js from whichever distribution is chosen, so the rule has to fit
+   any of them rather than a fixed set. */
+/* The acquisition figure's two control rows keep their height whether or not
+   anything is in them. Controls that appear and disappear move the figure under
+   the reader's pointer, which is worse than a row of empty space. */
+.acq-controls { min-height: 2.25rem; }
+.acq-params { min-height: 2.25rem; margin-bottom: 0.25rem; }
+.acq-params:empty { margin-bottom: 0.25rem; }
+.prior-param { display: inline-flex; align-items: center; gap: 0.35rem; font-size: 0.85rem; }
+.prior-param input[type="number"] { width: 5.5rem; }
+.prior-param input[type="range"] { width: 8rem; }
 
 /* The importance table's magnitude columns, which are only filled once the
    selected trial's ablation has been asked for. Narrower and quieter than the

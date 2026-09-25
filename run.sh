@@ -2,7 +2,7 @@
 # Run codesigner locally. One script, one argument per configuration — the same
 # shape as docker-entrypoint.sh, which dispatches the container's two roles.
 #
-#   ./run.sh                    transparent: no accounts, runs execute in-process
+#   ./run.sh                    transparent: no accounts, no queue, no cluster
 #   ./run.sh auth               the login wall, ownership and groups
 #   ./run.sh auth --demo        ... plus a worked instance to sign in to
 #   ./run.sh queue              the real queue instead of in-process runs
@@ -74,6 +74,15 @@ if $CUSTOM_MODELS; then
     echo "!! An uploaded model .py is executed as $(id -un), with this" >&2
     echo "!! filesystem and ~/.ssh in reach. './run.sh docker' isolates it." >&2
 fi
+
+# Every switch the modes below own, set here rather than left to .env. The mode
+# you typed decides what you get; a value left in .env from some earlier session
+# does not. Without this a stale RUN_BACKEND sends a local run to a cluster, and
+# a stale HUEY_IMMEDIATE queues it for a consumer that is not running - both of
+# which look like the app is broken rather than misconfigured.
+export REQUIRE_LOGIN=False
+export RUN_BACKEND=local
+export HUEY_IMMEDIATE=true
 
 if [ "$MODE" = auth ]; then
     export REQUIRE_LOGIN=True

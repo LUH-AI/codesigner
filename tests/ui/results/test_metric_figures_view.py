@@ -38,7 +38,8 @@ def test_it_answers_with_every_per_metric_figure(client):
         "interactions_heatmap", "interactions_top_pairs", "interactions_graph",
         "interactions_coalitions", "interactions_orders",
         "performance_over_time", "configuration_cube", "parallel_coordinates",
-        "partial_dependence", "local_explanation", "local_effects",
+        "partial_dependence", "acquisition_slice", "local_explanation",
+        "local_effects",
     }
 
 

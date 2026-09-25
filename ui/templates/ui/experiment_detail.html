@@ -167,6 +167,16 @@ being read.{% endcomment %}
                 {% for figure in column_figures %}
                     <div class="figure-column">{% include figure.template %}</div>
                 {% endfor %}
+                {% comment %}Under both panes, spanning them. A `full` figure
+                spans the grid's columns, which once the window is wide enough is
+                only the left half — the trials table has the right. One that
+                needs the page's whole width has to sit outside the grid
+                entirely.{% endcomment %}
+                {% for figure in page_figures %}
+                    <div class="slot-page{% if figure.height == 'double' %} tall{% endif %}">
+                        {% include figure.template %}
+                    </div>
+                {% endfor %}
             </div>
         {% endif %}
 
@@ -1159,7 +1169,22 @@ being read.{% endcomment %}
                     return chosen.length === 2 ? chosen : null;
                 }
 
+                // Switched off deliberately, 2026-09-24. The feature works, but
+                // it arrives as a button that appears and disappears with the
+                // axis pair and the autocompute setting, which is the wrong
+                // control for "show me an extra layer" — that is a checkbox.
+                // Left whole rather than removed: flipping this back to false
+                // restores it exactly, and the view, the route, the cache and
+                // the settings entry are all still here for the rewrite.
+                const UNCERTAINTY_DISABLED = true;
+
                 function refreshUncertainty(asked) {
+                    if (UNCERTAINTY_DISABLED) {
+                        uncertaintyField = null;
+                        setComputePrompt("uncertainty-compute", false);
+                        setUncertaintyWarning(null);
+                        return;
+                    }
                     const pair = uncertaintyPair();
                     if (!pair) {
                         // Not a state to explain — the figure is simply not
@@ -1562,6 +1587,17 @@ being read.{% endcomment %}
                     refreshLocalEffects(metric);
 
                     showSelection(metric);
+
+                    // Announced rather than called, so a figure that draws
+                    // itself needs no entry here and this script needs to know
+                    // nothing about it — the same bargain `poll:swapped` and
+                    // `trials:sorted` already make. It matters for a figure
+                    // that ships no server-rendered plot: `redraw` above purges
+                    // every key whose payload is null, which would otherwise
+                    // wipe such a figure at a moment its own script cannot
+                    // predict. See ui/static/ui/acquisition.js.
+                    document.dispatchEvent(new CustomEvent("figures:redrawn",
+                                                           {detail: {metric: metric}}));
                 }
 
                 // Picking a metric applies it immediately: the figures re-render

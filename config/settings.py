@@ -21,9 +21,15 @@ env = environ.Env(
 # Values already present in the process environment win over .env entries.
 environ.Env.read_env(BASE_DIR / ".env")
 
-SECRET_KEY = env("SECRET_KEY")
-
 DEBUG = env("DEBUG")
+
+# Running locally needs no .env at all. Outside DEBUG it is required and has no
+# default: a deployment that forgets to set one should fail loudly rather than
+# sign its cookies with a value that is in the repository.
+if DEBUG:
+    SECRET_KEY = env("SECRET_KEY", default="django-insecure-local-development-only")
+else:
+    SECRET_KEY = env("SECRET_KEY")
 
 ALLOWED_HOSTS = env.list("ALLOWED_HOSTS", default=["localhost", "127.0.0.1"])
 
@@ -291,17 +297,17 @@ LANGUAGE_CODE = "en"
 
 # The languages offered in the switcher (labels shown in their own language).
 #
-# German and Spanish are shelved while the interface is still moving. Their
-# catalogs are still in `locale/`, but every string that was not carried over
-# from InteractiveHPO is marked fuzzy — a draft nobody has checked — and there
-# are no compiled .mo files, so nothing of it can reach a user. An unreviewed
-# translation is worse than an English one; a missing translation is not.
-#
-# Re-enabling is this list plus `compilemessages`, after the drafts have been
-# read by someone who speaks the language. The `{% translate %}` markup stays
-# throughout in the meantime, so nothing has to be re-marked.
+# All three are live: every string in the catalogs is translated, none is left
+# fuzzy, and `manage.py translations` compiles them. What was worth avoiding was
+# a *stale* catalog — one where the English had moved on and the translation
+# quietly kept saying the old thing. That is what the fuzzy flag is for, and
+# what the translation command now keeps on top of: a reworded string comes back
+# flagged, and a flagged string is ignored by gettext, so the page falls back to
+# English rather than asserting something no longer true.
 LANGUAGES = [
     ("en", "English"),
+    ("de", "Deutsch"),
+    ("es", "Español"),
 ]
 
 #: What the rail's language selector offers, which is not the same list. The

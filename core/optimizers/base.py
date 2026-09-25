@@ -3,7 +3,7 @@ import time
 from collections.abc import Mapping
 from abc import ABC, abstractmethod
 from dataclasses import dataclass, field, replace
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, NamedTuple, Optional
 from hypershap import ExplanationTask, HyperSHAP
 
 from ..metrics import (
@@ -706,7 +706,8 @@ class TrialCollector:
         return trial
 
 
-def _pair_trials_with_scores(config_space, trials: List[TrialResult], metric_name: str):
+def _pair_trials_with_scores(config_space, trials: List[TrialResult], metric_name: str,
+                             values=None):
     """Every trial's config, as a `ConfigSpace.Configuration`, paired with its
     *metric_name* score — the input shape both HyperSHAP and a plain
     surrogate fit need, and the one place that pairing happens, so
@@ -715,14 +716,28 @@ def _pair_trials_with_scores(config_space, trials: List[TrialResult], metric_nam
     config_space rejects (e.g. a leftover from before a model's search space
     changed) is skipped rather than raised on — one bad trial should not
     blank out every other one's contribution.
+
+    *values* names what to learn, for the callers that want a surrogate over
+    something other than a metric — `lambda t: t.duration` to model how long a
+    configuration takes, which is a measured output of every trial that no
+    metric reports. It is a callable rather than a second field name because
+    what is modellable lives on `TrialResult` in more than one shape (`scores`
+    is a mapping, `duration` a property), and because a caller that raises on
+    a trial it cannot read should lose that trial the same way a rejected
+    config does, not the whole fit. Default reads *metric_name* out of
+    `scores`, which is what every existing caller means.
     """
     from ConfigSpace import Configuration
+
+    if values is None:
+        def values(t):
+            return t.scores[metric_name]
 
     data = []
     for t in trials:
         try:
             cfg = Configuration(config_space, values=t.config)
-            data.append((cfg, t.scores[metric_name]))
+            data.append((cfg, values(t)))
         except Exception:
             continue
     return data
@@ -759,7 +774,8 @@ def _pair_trials_with_oriented_scores(config_space, trials: List[TrialResult],
     return [(cfg, -score) for cfg, score in data]
 
 
-def fit_surrogate(config_space, trials: List[TrialResult], metric_name: str, seed: int = 0):
+def fit_surrogate(config_space, trials: List[TrialResult], metric_name: str, seed: int = 0,
+                  values=None):
     """Fit a cheap `RandomForestRegressor` surrogate over *trials*' recorded
     *metric_name* scores.
 
@@ -776,11 +792,16 @@ def fit_surrogate(config_space, trials: List[TrialResult], metric_name: str, see
     itself raises — what "no surrogate" means for the caller's own output
     (a further fallback rung, an empty plot, ...) is the caller's call, not
     this function's.
+
+    *values* is passed through to `_pair_trials_with_scores`: a callable
+    naming what to learn, for a surrogate over a measured output that is not a
+    metric (trial duration, say). *metric_name* is then only what the warning
+    text talks about.
     """
     import numpy as np
     from sklearn.ensemble import RandomForestRegressor
 
-    data = _pair_trials_with_scores(config_space, trials, metric_name)
+    data = _pair_trials_with_scores(config_space, trials, metric_name, values=values)
     if len(data) < 2:
         return None, "Not enough trials to fit a surrogate."
 
@@ -792,6 +813,133 @@ def fit_surrogate(config_space, trials: List[TrialResult], metric_name: str, see
         return rf, None
     except Exception as e:
         return None, f"Surrogate fit failed ({e})."
+
+
+class IncumbentSlice(NamedTuple):
+    """What `compute_incumbent_slice` answers with.
+
+    A named type rather than a tuple because this has grown twice — five fields,
+    then six with `positions`, now seven — and every caller unpacked it
+    positionally, so each addition silently rewrote what every name meant. The
+    panels being built on top of it will want more.
+
+    `incumbent` is `(position, value)`, or None where there is nothing measured
+    to mark: the one configuration on the slice that was actually evaluated,
+    since every other hyperparameter is held at its value. `eta` is the best
+    observed value of whatever was modelled, which is a different question and
+    a different number whenever `values=` is in play.
+    """
+
+    grid: list
+    positions: list
+    mu: list
+    sigma: list
+    eta: Optional[float]
+    incumbent: Optional[tuple]
+    #: `(positions, mu, sigma)` for configurations drawn from the *whole* space,
+    #: projected onto this hyperparameter's axis — the shadow the slice cannot
+    #: see, because the slice holds every other hyperparameter fixed. None when
+    #: no cloud was sampled.
+    cloud: Optional[tuple]
+    warning: Optional[str]
+
+
+#: How many configurations the shadow curve is estimated from. SMAC's forest
+#: facade draws 10,000 per maximization and its Gaussian-process facade 1,000;
+#: this is a Monte Carlo estimate of the same surface, and every one of these
+#: points costs a surrogate prediction and a row of JSON. Two thousand is enough
+#: for the envelope to be legible without the payload dominating the response.
+CLOUD_POINTS = 2000
+
+
+def sample_acquisition_cloud(config_space, surrogate, n=CLOUD_POINTS, seed=0):
+    """Configurations drawn from the whole space, with what the surrogate says.
+
+    Returns `(X, mu, sigma)` — the vectorized configurations and the surrogate's
+    mean and spread at each. **Not** an acquisition function: the figure owns
+    that arithmetic and computes it in the browser, so handing back predictions
+    rather than values keeps expected improvement to one implementation.
+
+    This is what the slice cannot show. A slice holds every hyperparameter but
+    one at the incumbent's value; SMAC's maximizer moves all of them, and scores
+    exactly this kind of sample before it does. Projecting these onto one axis
+    shows how much interest is reachable at each value of that hyperparameter
+    when the others are free — which is the gap between what the curve promises
+    and what the search actually does.
+
+    Depends on the metric and the trials but **not** on which hyperparameter is
+    being sliced, so a caller drawing several slices samples once.
+    """
+    import numpy as np
+
+    if surrogate is None:
+        return None
+
+    try:
+        drawn = config_space.sample_configuration(size=n)
+    except Exception:  # noqa: BLE001 — a shadow must not cost anyone the figure
+        return None
+    if not isinstance(drawn, list):
+        drawn = [drawn]
+
+    rows = np.array([c.get_array() for c in drawn], dtype=float)
+    # A conditional hyperparameter is NaN wherever it is inactive. SMAC's own
+    # models impute those; the scikit-learn fallback does not, so the rows are
+    # dropped rather than guessed at — a shadow drawn from invented values would
+    # be worse than a shorter one.
+    rows = rows[~np.isnan(rows).any(axis=1)]
+    if len(rows) < 2:
+        return None
+
+    try:
+        mu, sigma = predict_mean_std(surrogate, rows)
+    except Exception:  # noqa: BLE001
+        return None
+    return rows, np.asarray(mu, dtype=float), np.asarray(sigma, dtype=float)
+
+
+def predict_mean_std(surrogate, rows):
+    """`(mean, std)` over *rows* from whichever surrogate this is.
+
+    A SMAC model answers through `predict_marginalized`, which is the belief
+    the search itself consulted. Anything else is a scikit-learn forest, whose
+    band is tree disagreement — see `_predict_with_spread` for what that does
+    and does not license.
+    """
+    import numpy as np
+
+    predict = getattr(surrogate, "predict_marginalized", None)
+    if predict is None:
+        return _predict_with_spread(surrogate, rows)
+
+    mean, var = predict(np.asarray(rows))
+    return (np.asarray(mean, dtype=float).ravel(),
+            np.sqrt(np.clip(np.asarray(var, dtype=float), 0.0, None)).ravel())
+
+
+def _predict_with_spread(rf, rows):
+    """The forest's own mean prediction over *rows*, and how much its trees
+    disagree there — `(mean, std)`, each as long as *rows*.
+
+    Every tree over every row in one pass each, rather than a call per row:
+    sklearn's per-call overhead dwarfs the traversal at these sizes, so 200
+    points through 100 trees is 100 calls, not 200.
+
+    The mean is what `rf.predict` would return; computing it here from the same
+    stack the spread needs costs nothing and keeps the pair consistent by
+    construction — a caller drawing a band around a mean should never be able to
+    get them from two different passes.
+
+    **The spread is tree disagreement, not a posterior**, and it fails in a
+    specific direction: far outside the region the trials cover, every tree
+    falls into the same extreme leaf and agrees completely, so it reports
+    confidence exactly where there is no data. `compute_surrogate_uncertainty`
+    says more about what that does and does not license.
+    """
+    import numpy as np
+
+    per_tree = np.stack([tree.predict(rows) for tree in rf.estimators_])
+    return per_tree.mean(axis=0), per_tree.std(axis=0)
 
 
 class _MetricExplainer:
@@ -1014,6 +1162,45 @@ class BaseOptimizer(ABC):
     @abstractmethod
     def name(self) -> str: ...
 
+    def refit_surrogate(self, config_space, trials, metric_name: str, seed: int = 0,
+                        values=None):
+        """The model *this optimizer* would have fitted, refit on *trials*.
+
+        Returns `(surrogate, warning)`, or `(None, None)` for an optimizer that
+        has no surrogate to speak of — random and grid search fit nothing, and
+        a caller wanting a picture of some belief should fall back to a generic
+        one rather than be told a search that models nothing modelled this.
+
+        Refit rather than retained deliberately. The fitted model does not
+        outlive the run that made it, and keeping one would mean a versioned
+        binary in a JSON snapshot that also has to cross the boundary to
+        whichever host ran the search. Its class and settings do survive, and
+        so do the trials, which is enough to build the same belief again — and
+        unlike a stored blob it is reproducible from what is already recorded.
+        """
+        return None, None
+
+    def slice_surrogate(self, config_space, trials, metric_name: str, seed: int = 0,
+                        values=None):
+        """The model a slice reads: this run's own, or a generic forest.
+
+        Split out from `compute_incumbent_slice` because it depends on
+        *metric_name* and *values* and **not** on which hyperparameter is being
+        sliced. A caller drawing several slices of one run therefore fits once
+        and hands the result over, instead of refitting per hyperparameter —
+        measured at roughly 300ms for a Gaussian process and 750ms for a random
+        forest over fifteen trials, so a six-hyperparameter model was paying
+        that six times as the reader clicked through.
+
+        Returns `(surrogate, warning)`, the pair `refit_surrogate` returns.
+        """
+        rf, warning = self.refit_surrogate(config_space, trials, metric_name, seed,
+                                           values=values)
+        if rf is None:
+            rf, warning = fit_surrogate(config_space, trials, metric_name, seed,
+                                        values=values)
+        return rf, warning
+
     #: Whether this optimizer fits a model of the objective it can be asked how
     #: sure it is. Only such an optimizer can answer `incumbent_confidence`, and
     #: the Run form uses this to decide whether to offer the criterion at all.
@@ -1040,6 +1227,10 @@ class BaseOptimizer(ABC):
         cancel_event=None,
         stopping: Optional[Dict[str, Any]] = None,
         splits=None,
+        # Accepted and ignored: a search that fits no model of the objective has
+        # no acquisition function for a prior to weight. The caller passes what
+        # the reader stated without having to know which optimizer will get it.
+        priors=None,
     ) -> OptimizationResult: ...
 
     def serialize_result(self, result: "OptimizationResult") -> dict:
@@ -1782,17 +1973,209 @@ class BaseOptimizer(ABC):
         if not rows:
             return [], [], [], "No valid configurations on this pair of axes."
 
-        # Every tree over every grid point in one pass each, rather than a call
-        # per point: the same batching `compute_partial_dependence` documents,
-        # for the same reason — sklearn's per-call overhead dwarfs the traversal
-        # at this size. 20x20 points through 100 trees is 40,000 predictions and
-        # 100 calls.
-        grid_rows = np.array(rows)
-        spread = np.stack([tree.predict(grid_rows) for tree in rf.estimators_]).std(axis=0)
+        _, spread = _predict_with_spread(rf, np.array(rows))
         for (j, i), value in zip(slots, spread):
             z[j][i] = float(value)
 
         return x_grid, y_grid, z, None
+
+    def slice_axis(self, config_space, hp_name: str, n_points: int = 101):
+        """The axis one hyperparameter is drawn on, without fitting anything.
+
+        `compute_incumbent_slice` returns this too, but only after a surrogate
+        exists — it is a model of the objective, and getting one costs a fit.
+        A prior needs none of that. It is a statement about the search space,
+        so the space is all it takes to draw one, and making the reader wait
+        for a model before they can say where they think the optimum is gets
+        the dependency backwards.
+
+        Returns `(grid, positions, kind)`: the values along the hyperparameter's
+        own scale, their coordinates in ConfigSpace's normalized representation
+        (which is the space a prior is evaluated in), and whether it is
+        categorical.
+        """
+        import numpy as np
+
+        if hp_name not in config_space:
+            return [], [], "continuous"
+        hp = config_space[hp_name]
+        grid = _hp_grid(hp, n_points)
+        if len(grid) < 2:
+            return [], [], "continuous"
+
+        positions = np.asarray(hp.to_vector(np.asarray(grid)), dtype=float).ravel()
+        kind = "categorical" if hasattr(hp, "choices") else "continuous"
+        return list(grid), [float(p) for p in positions], kind
+
+    def compute_incumbent_slice(
+        self,
+        config_space,
+        trials: List[TrialResult],
+        metric_name: str,
+        hp_name: str,
+        seed: int = 0,
+        n_points: int = 101,
+        values=None,
+        surrogate=None,
+        cloud=None,
+    ) -> "IncumbentSlice":
+        """The surrogate along one hyperparameter, every other one held at the
+        incumbent — the 1-D restriction of `compute_surrogate_uncertainty`,
+        sharing its surrogate, its grid and its choice of where to slice.
+
+        Returns an `IncumbentSlice`.
+
+        **`positions` is the point of this function**, and the reason it does
+        not simply hand back `linspace(0, 1)`. A prior over a hyperparameter is
+        a density on ConfigSpace's *normalized* representation — the space
+        `get_array` produces and the one SMAC's acquisition weights are
+        evaluated in — so anything drawing or editing such a density needs each
+        grid value's normalized coordinate, not its native one. The two are not
+        the same axis: `lr` spanning 1e-4 to 1e-1 logarithmically has grid
+        values 1e-4, 5.6e-4, 3.2e-3, 1.8e-2, 1e-1 sitting at a perfectly even
+        0, .25, .5, .75, 1. A prior drawn against the native values would put
+        its mass in a different place than the one the optimizer would read.
+
+        Nor is `positions` evenly spaced in general, which is why it is computed
+        rather than assumed: `_hp_grid` collapses an integer hyperparameter's
+        grid to its distinct values, so a 5-point grid over 1..20 comes back as
+        1, 6, 10, 15, 20 at 0, .263, .474, .737, 1. A categorical's positions
+        are its choice indices, ConfigSpace's own encoding for them.
+
+        *values* names what to model, and is passed through to `fit_surrogate` —
+        `lambda t: t.duration` gives the same slice through a model of how long
+        a configuration takes, which is what an output constraint needs to show
+        the probability its bound holds. The incumbent is picked by
+        *metric_name* either way, deliberately: two slices that do not pass
+        through the same configuration cannot be read against each other.
+
+        `eta` is the best *observed* value of whatever was modelled, among the
+        trials that trained the surrogate — the incumbent's own score in the
+        default case, which is what expected improvement improves over. `None`
+        when nothing usable was observed.
+
+        *cloud* is `(X, mu, sigma)` from `sample_acquisition_cloud` — predictions
+        for configurations drawn from the *whole* space. Handed in for the same
+        reason *surrogate* is: it does not depend on which hyperparameter is on
+        the axis, so sampling it per slice would be waste.
+
+        *surrogate* is an already-fitted model from `slice_surrogate`, for a
+        caller slicing several hyperparameters of one run — the fit does not
+        depend on which one, so refitting per hyperparameter is pure waste. Left
+        out, one is fitted here.
+
+        `incumbent` is `(position, value)` for the configuration the slice passes
+        through: the only measured point on it. Under *values* that value is the
+        incumbent's own modelled quantity rather than `eta`, which by then is
+        the best observed value of a different question.
+        """
+        import numpy as np
+        from ConfigSpace import Configuration
+
+        if hp_name not in config_space:
+            return IncumbentSlice([], [], [], [], None, None, None, f"No such hyperparameter: {hp_name}.")
+
+        # The run's own model class where the optimizer can rebuild one, so a
+        # Gaussian-process run is read through a Gaussian process rather than
+        # through a stand-in forest that never saw the search. The object itself
+        # does not survive `optimize()`, but its class and settings do, and the
+        # trials it was fitted on are recorded — so it is refitted, not
+        # recovered. Anything that cannot (random search, grid search, a refit
+        # that raises) keeps the forest.
+        rf, warning = surrogate, None
+        if rf is None:
+            rf, warning = self.slice_surrogate(config_space, trials, metric_name, seed,
+                                               values=values)
+        if rf is None:
+            return IncumbentSlice([], [], [], [], None, None, None, warning)
+
+        # The same incumbent `compute_surrogate_uncertainty` slices through, and
+        # for the same reason: a line through a configuration that was actually
+        # evaluated, rather than through a config-space default the search may
+        # never have visited. Only trials carrying the score count — a
+        # `.get(..., 0.0)` default would hand the slice to an unmeasured trial,
+        # and under a lower-is-better metric a missing 0.0 would win outright.
+        metric = metric_for(metric_name)
+        scored = [t for t in trials if metric_name in t.scores]
+        if not scored:
+            return IncumbentSlice([], [], [], [], None, None, None, f"No trial carries a score for {metric_name}.")
+        picker = max if metric.higher_is_better else min
+        best = picker(scored, key=lambda t: t.scores[metric_name])
+
+        hp = config_space[hp_name]
+        grid = _hp_grid(hp, n_points)
+        if len(grid) < 2:
+            return IncumbentSlice([], [], [], [], None, None, None, "A slice needs the hyperparameter to take more than one value.")
+
+        # Built together so a grid value the config space rejects drops out of
+        # every one of them at once — three lists the browser indexes in
+        # lockstep must not be able to fall out of step here.
+        kept_values, kept_positions, rows = [], [], []
+        positions = np.asarray(hp.to_vector(np.asarray(grid)), dtype=float).ravel()
+        for value, position in zip(grid, positions):
+            try:
+                config = dict(best.config)
+                config[hp_name] = value
+                rows.append(Configuration(config_space, values=config).get_array())
+            except Exception:  # noqa: BLE001 — conditionals, forbidden clauses
+                continue
+            kept_values.append(value)
+            kept_positions.append(float(position))
+
+        if len(rows) < 2:
+            return IncumbentSlice([], [], [], [], None, None, None, f"No valid configurations along {hp_name}.")
+
+        mu, sigma = predict_mean_std(rf, np.array(rows))
+
+        observed = [v for _, v in _pair_trials_with_scores(
+            config_space, trials, metric_name, values=values)]
+        eta = None
+        if observed:
+            eta = float(picker(observed) if values is None else min(observed))
+
+        # The one point on this line that was measured. The slice holds every
+        # other hyperparameter at the incumbent's value, so it passes exactly
+        # through that configuration and nothing else on the grid is an
+        # observation — which is why marking the other trials would assert they
+        # lie on a line they do not.
+        #
+        # Its position is where the incumbent's own value falls on the
+        # normalized axis. That need not be a grid point and must not be snapped
+        # to one: the grid is evenly spaced in normalized space and the
+        # incumbent is wherever the search put it.
+        #
+        # The value is read from `best`, not from `eta`. With *values* the
+        # incumbent is still chosen by *metric_name* while `eta` is the best
+        # observed value of whatever was modelled, so the two part company —
+        # the marker belongs to the configuration the slice passes through.
+        incumbent = None
+        try:
+            position = float(np.asarray(
+                hp.to_vector(np.asarray([best.config[hp_name]]))).ravel()[0])
+            measured = values(best) if values is not None else best.scores.get(metric_name)
+            if measured is not None:
+                incumbent = (position, float(measured))
+        except Exception:  # noqa: BLE001 — a marker must not cost anyone the slice
+            incumbent = None
+
+        # The cloud projected onto this hyperparameter's axis. Only the column
+        # changes per slice, which is why the sampling and the predictions are
+        # done once by the caller and handed in — they do not depend on which
+        # hyperparameter is on the axis.
+        projected = None
+        if cloud is not None:
+            try:
+                column = list(config_space.keys()).index(hp_name)
+                rows, cloud_mu, cloud_sigma = cloud
+                projected = ([float(v) for v in rows[:, column]],
+                             [float(v) for v in cloud_mu],
+                             [float(v) for v in cloud_sigma])
+            except Exception:  # noqa: BLE001 — a shadow must not cost the slice
+                projected = None
+
+        return IncumbentSlice(kept_values, kept_positions,
+                              [float(v) for v in mu], [float(v) for v in sigma],
+                              eta, incumbent, projected, None)
 
     def _skipped_games(self, metrics, reason: str) -> Dict[str, tuple]:
         """`compute_hp_games`' return shape for "these weren't computed".

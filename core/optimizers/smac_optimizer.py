@@ -20,6 +20,7 @@ from smac.runhistory import StatusType
 from smac.runhistory.dataclasses import TrialInfo, TrialValue
 
 from ..paths import is_safe_relative
+from .. import priors as priors_module
 from ..metrics import metric_for, to_cost
 from .base import (
     storable_score,
@@ -32,12 +33,58 @@ from .trial import evaluate_trial
 
 logging.getLogger("smac").setLevel(logging.WARNING)
 
+#: For the few things this module has to say for itself. A prior that could not
+#: be applied is the main one: it must not raise, and it must not be silent.
+logger = logging.getLogger(__name__)
+
+#: How many candidates a slice asks the optimizer for. Also the budget a
+#: reconstructed scenario gets on top of the trials already run, which is why it
+#: is named rather than passed: the decay factor below is derived from that
+#: budget, and the figure has to quote the same number the walk will use.
+SLICE_CANDIDATES = 12
+
+#: How finely a density rebuilt from its parameters is sampled. `TabulatedPrior`
+#: coarsens what it is given anyway — a random forest needs a step function to
+#: split on — so this only has to be fine enough not to miss a narrow peak, and
+#: the narrowest the editor offers is σ = 0.004.
+_PRIOR_GRID = 512
+
+
+def decay_beta(n_trials) -> float:
+    """SMAC's recommended decay factor for a budget of *n_trials*.
+
+    One expression, shared, because two things quote it and they must agree: the
+    search, which raises a prior's density to this schedule's exponent, and the
+    figure, which tells the reader how strongly the prior still counts. A figure
+    computing its own would be free to drift, and the reader has no way to tell
+    a drifting caption from a decaying prior.
+
+    It is a count of trials, so it comes from the budget and not from how many
+    trials have finished. Deriving it from the latter makes it *grow* as the run
+    proceeds, and a decay whose factor grows faster than its denominator does
+    not decay at all.
+    """
+    return max(float(n_trials or 0) / 10.0, 1.0)
+
 # What to tell SMAC the budget is when the run has no trial cap — a deadline or
 # a target score instead. It only sizes the initial design, and a run bounded by
 # time still has to decide how much of itself to spend exploring; this is that
 # guess. Not a setting: the share cap is the knob for the same idea, and two
 # ways to say it would only disagree.
 _UNBOUNDED_BUDGET = 100
+
+
+def scenario_budget(trial_offset, max_trials=None) -> int:
+    """The budget a run is given, which is also what its prior's decay is
+    factored from.
+
+    Shared so that a run, a re-walk of that run, and the figure describing it
+    all quote the same number. They ran on three different numbers before: a run
+    used this, a re-walk used the size of its own reconstruction, and the figure
+    used the count of finished trials — which grows, so a decaying prior was
+    drawn getting *stronger*.
+    """
+    return int(trial_offset) + int(max_trials or _UNBOUNDED_BUDGET)
 
 #: The two search strategies, and the SMAC facade behind each. A facade is a
 #: bundle — surrogate, acquisition function, maximizer, encoder — chosen to work
@@ -131,6 +178,32 @@ def _normal_cdf(z):
     from math import erf, sqrt
 
     return np.vectorize(lambda v: 0.5 * (1.0 + erf(v / sqrt(2.0))))(z)
+
+
+class _RunSurrogate:
+    """A trained SMAC model, answering in the units the reader sees.
+
+    The model learned cost. Everything drawn from it is a metric, so the mean
+    comes back through `from_cost` and the spread does not: both conversions
+    are a negation or a subtraction, which moves a mean and leaves a width
+    alone.
+    """
+
+    def __init__(self, model, metric):
+        self._model = model
+        self._metric = metric
+
+    def predict_marginalized(self, rows):
+        """`(mean, variance)`, the shape `predict_mean_std` dispatches on."""
+        import numpy as np
+
+        from core.metrics import from_cost
+
+        mean, var = self._model.predict_marginalized(np.asarray(rows))
+        mean = np.asarray(mean, dtype=float).ravel()
+        if self._metric is not None:
+            mean = np.array([from_cost(self._metric, float(m)) for m in mean])
+        return mean, np.asarray(var, dtype=float).ravel()
 
 
 class SMACOptimizer(BaseOptimizer):
@@ -445,7 +518,54 @@ class SMACOptimizer(BaseOptimizer):
             filled["gp_restarts"] = _signature_default(GaussianProcess.__init__, "n_restarts")
         return filled
 
-    def _surrogate(self, facade, scenario):
+    def refit_surrogate(self, config_space, trials, metric_name: str, seed: int = 0,
+                        values=None):
+        """The search's own model class, refit on what the search recorded.
+
+        The figure that reads this is showing *the surrogate's* belief, so a
+        Gaussian-process run has to be read through a Gaussian process. Fitting
+        a generic forest instead makes every run look alike and quietly denies
+        that the choice of surrogate mattered.
+
+        Trained on cost, because that is the direction SMAC optimises, and
+        handed back in the metric's own units — `to_cost`/`from_cost` negate or
+        subtract, so the mean maps straight back and the spread is unchanged by
+        the conversion. With *values* there is no metric and no orientation to
+        undo, so the target is used as given.
+
+        Returns `(None, warning)` rather than raising: a refit that fails
+        should cost the caller its fidelity, not its figure.
+        """
+        import tempfile
+        from pathlib import Path
+
+        import numpy as np
+
+        from core.metrics import from_cost, metric_for, to_cost
+        from core.optimizers.base import _pair_trials_with_scores
+
+        data = _pair_trials_with_scores(config_space, trials, metric_name, values=values)
+        if len(data) < 2:
+            return None, "Not enough trials to fit a surrogate."
+
+        metric = None if values is not None else metric_for(metric_name)
+        X = np.array([config.get_array() for config, _ in data])
+        y = np.array([float(target) if metric is None else to_cost(metric, target)
+                      for _, target in data])
+
+        try:
+            with tempfile.TemporaryDirectory() as directory:
+                scenario = Scenario(config_space, n_trials=max(len(y), 1), seed=seed,
+                                    deterministic=True, output_directory=Path(directory))
+                model = self._surrogate(_STRATEGIES[self._search_strategy], scenario,
+                                        log_y=False)
+                model.train(X, y)
+        except Exception as error:  # noqa: BLE001 — any refit failure falls back
+            return None, f"Could not rebuild this run's surrogate: {error}"
+
+        return _RunSurrogate(model, metric), None
+
+    def _surrogate(self, facade, scenario, log_y=None):
         """The model the search fits, with whatever was set on it.
 
         Asked for through the facade's own `get_model` where that will take the
@@ -470,9 +590,22 @@ class SMACOptimizer(BaseOptimizer):
                 "ratio_features": (None if self._rf_feature_ratio is None
                                    else min(float(self._rf_feature_ratio), 1.0)),
             }
-            return facade.get_model(
-                scenario, bootstrapping=self._rf_bootstrapping,
-                **{k: v for k, v in given.items() if v is not None})
+            given = {k: v for k, v in given.items() if v is not None}
+            if log_y is None:
+                return facade.get_model(
+                    scenario, bootstrapping=self._rf_bootstrapping, **given)
+            # `get_model` hardcodes log_y=True, and a forest told its targets
+            # are already logged exponentiates them. Refitting on raw costs -
+            # which are negative under a metric with no upper bound - needs it
+            # off, so the forest is built here instead, with those same settings.
+            from smac.model.random_forest.random_forest import RandomForest
+            defaults = dict(n_trees=10, ratio_features=1.0, min_samples_split=2,
+                            min_samples_leaf=1, max_depth=2 ** 20)
+            return RandomForest(
+                log_y=log_y, bootstrapping=self._rf_bootstrapping,
+                **{**defaults, **given},
+                configspace=scenario.configspace,
+                instance_features=scenario.instance_features, seed=scenario.seed)
 
         kernel = facade.get_kernel(scenario)
         if self._gp_model_type == "mcmc":
@@ -494,7 +627,199 @@ class SMACOptimizer(BaseOptimizer):
         """Settings that belong to the scenario rather than to a component."""
         return {"use_default_config": self._use_default_config}
 
-    def _facade(self, scenario, target_function, previous_result=None):
+    def slice_challengers(self, config_space, trials, metric_name: str, seed: int = 0,
+                          priors=None, count=SLICE_CANDIDATES, previous_result=None,
+                          budget=None):
+        """What this optimizer would ask for next, asked of the optimizer.
+
+        Not a lookalike. The facade is built by `_facade` — the same call a run
+        makes — the recorded trials are replayed into it by `_replay`, any
+        stated prior is applied by `_apply_priors`, and then it is simply
+        `ask()`ed. What comes back is the configuration the next trial would
+        use, followed by the ones behind it in the maximizer's own ranking.
+
+        Returns `(configs, origins)` in rank order, or None.
+
+        **The initial design is pinned to the size this run actually used.** Its
+        size is a fraction of the scenario's budget, and the budget of a run
+        that has not been started yet does not exist — left to guess, a rebuild
+        sized itself for an unbounded budget, wanted twenty-eight Sobol points,
+        and answered "the next trial is a space-filling sample" for a run that
+        had left its own three-point design behind after trial three. Reading
+        the recorded size back is what makes this the same optimizer rather than
+        a differently-configured one.
+
+        Asking repeatedly without telling is deliberate: successive asks walk the
+        maximizer's cached challenger list in order, so the rank is the search's
+        own, including the random interleaves and the duplicates it skips.
+        """
+        import tempfile
+        from pathlib import Path as _Path
+
+        if not trials:
+            return None
+        try:
+            # The same place `_pinned_points` reads it from: the scenario meta
+            # the run left behind, lifted onto the result by deserialize_result.
+            recorded = ((getattr(previous_result, "metadata", None) or {})
+                        .get("initial_design") or {}).get("n_configs")
+            with tempfile.TemporaryDirectory() as directory:
+                scenario = Scenario(
+                    config_space, name="ihpo",
+                    n_trials=len(trials) + max(count, 1),
+                    deterministic=True, seed=seed,
+                    output_directory=_Path(directory), **self._scenario_extras())
+
+                def _unreachable(config, seed: int = 0) -> float:
+                    raise RuntimeError("target_function called while ranking candidates")
+
+                smac = self._facade(scenario, _unreachable, None,
+                                    initial_points=recorded)
+                self._replay(smac, config_space, trials, metric_name, seed)
+                self._apply_priors(smac, scenario, config_space, priors, budget=budget)
+                asked = [smac.ask() for _ in range(count)]
+            return ([dict(info.config) for info in asked],
+                    [info.config.origin or "" for info in asked])
+        except Exception as error:  # noqa: BLE001 — a diagnostic must not cost the figure
+            logger.warning("Could not ask this run's optimizer what is next: %s", error)
+            return None
+
+    @staticmethod
+    def _prior_grid(hyperparameter):
+        """Where to evaluate a density: `(vector positions, unit positions)`.
+
+        Two lists because they are two different things that coincide for the
+        common case. A prior is *evaluated against* vectorized values, which is
+        what a `TabulatedPrior` table is indexed by. A prior is *stated on* the
+        unit interval, because that is the one axis every shape means the same
+        thing on. For a numerical hyperparameter ConfigSpace's vector space is
+        already [0, 1] and the two are identical — log-scaled or not, since the
+        transform lives in the axis rather than in the density.
+
+        A categorical is the case where they differ: it is evaluated at its
+        choices and nowhere else, since there is no "between" two choices for a
+        density to have a value at, while its position on the stated axis is
+        just how far along the choices it is.
+        """
+        choices = getattr(hyperparameter, "choices", None)
+        if choices:
+            vectors = [float(hyperparameter.to_vector(c)) for c in choices]
+            last = max(len(choices) - 1, 1)
+            return vectors, [i / last for i in range(len(choices))]
+        grid = [i / (_PRIOR_GRID - 1) for i in range(_PRIOR_GRID)]
+        return grid, grid
+
+    def _apply_priors(self, smac, scenario, config_space, priors, budget=None):
+        """Hand whatever the reader stated to the search, before it asks.
+
+        *priors* is `{hyperparameter: {knots, exponent, decay}}` — the density
+        already evaluated on the grid, in ConfigSpace's vectorized
+        representation. It is not re-derived from a distribution name here, and
+        that is deliberate: the density was computed once where it was drawn, so
+        there is no second implementation of "a Normal with this σ" to drift
+        away from the first.
+
+        All of them go in as **one** prior over the whole space rather than one
+        per hyperparameter. `AbstractInputPrior.validate_against` requires a
+        prior to name every hyperparameter in column order — a belief about part
+        of the space is written by tabulating that part and leaving the rest
+        uniform — and separate priors would also multiply as an ensemble, which
+        means something different from a single joint statement.
+
+        Reported and skipped rather than raised: a prior that cannot be applied
+        should cost the reader their prior, not their run.
+
+        Returns what happened, for `optimize` to put on the result's metadata
+        and the run record to keep. A file that says a prior was stated but not
+        whether it took can claim a weighted search that never happened — and
+        every way this fails is silent, because all of them end in the run
+        proceeding normally.
+        """
+        if not priors:
+            return None
+        try:
+            from smac.acquisition.weight import TabulatedPrior, get_decay_schedule
+        except ImportError:
+            logger.warning("This SMAC has no TabulatedPrior, so stated priors are ignored. "
+                           "codesigner needs the branch carrying the acquisition weight layer.")
+            return {"applied": False,
+                    "reason": "this SMAC has no acquisition weight layer"}
+
+        tables, shape, stated_beta, stated_ratio = {}, "none", None, None
+        for name, stated in priors.items():
+            if name not in config_space:
+                continue
+            # One implementation, here. The figure asks the server for the
+            # same density through `ui.views._prior_density`, so what is
+            # weighted by and what is drawn come from one function — including
+            # for a log-scaled hyperparameter, where the vectorized axis is
+            # log space and a Gaussian on it is the log-normal such a
+            # hyperparameter deserves.
+            vectors, units = self._prior_grid(config_space[name])
+            values = priors_module.density_from(
+                (stated or {}).get("kind") or "uniform",
+                (stated or {}).get("params") or {}, units) or []
+            if len(values) >= 2:
+                # Positions in vectorized space, which is what the prior is
+                # evaluated against; the density came from the unit interval.
+                tables[name] = [[v, y] for v, (_, y) in zip(vectors, values)]
+                # One weight carries one schedule, and every hyperparameter here
+                # is part of the same statement, so the last one named settles
+                # it. The figure states them together.
+                decay = (stated or {}).get("decay")
+                if isinstance(decay, dict):
+                    shape = decay.get("shape") or "none"
+                    # A ratio of the budget, which is how πBO and DynaBO state
+                    # β — resolved against this run's budget below. An absolute
+                    # `beta` is still honoured, for priors stated before the
+                    # ratio existed.
+                    if decay.get("beta_ratio") is not None:
+                        stated_ratio = float(decay["beta_ratio"])
+                    elif decay.get("beta") is not None:
+                        stated_beta = float(decay["beta"])
+                else:
+                    shape = decay or "none"
+        if not tables:
+            return {"applied": False,
+                    "reason": "no stated prior named a hyperparameter of this "
+                              "search space, or none described a curve"}
+
+        # SMAC's own recommendation for the decay factor, and the only number
+        # available that means anything here: it is a count of trials, so it has
+        # to come from the budget rather than from the reader, who is looking at
+        # a density and not at a schedule. `none` ignores it entirely.
+        # *budget* rather than the scenario's own, for the re-walk: that
+        # scenario is a reconstruction sized to the trials it replays, and
+        # factoring the decay from it would have the prior fade at a rate that
+        # depends on how far along the run happened to be when the reader
+        # looked. The run's configured budget is the fixed number.
+        # πBO states β as a fraction of the trial budget and DynaBO keeps that
+        # (β = N/10, ablated over N/50 … N/2.5 in its Appendix F.9), so a
+        # stated ratio is resolved against the budget here. `decay_beta` is
+        # that same N/10 and stands in when nothing was stated.
+        run_budget = (budget if budget is not None
+                      else getattr(scenario, "n_trials", 0))
+        if stated_ratio is not None:
+            beta = max(float(run_budget or 0) * stated_ratio, 1e-6)
+        elif stated_beta is not None:
+            beta = stated_beta
+        else:
+            beta = decay_beta(run_budget)
+
+        try:
+            prior = TabulatedPrior(config_space, tables)
+            prior.validate_against(config_space)
+            smac.add_prior(prior, key="codesigner",
+                           decay=get_decay_schedule(shape, beta))
+        except Exception as error:  # noqa: BLE001 — a prior must not cost a run
+            logger.warning("Could not apply the stated prior, continuing without it: %s", error)
+            return {"applied": False, "reason": str(error)}
+
+        return {"applied": True, "key": "codesigner", "hyperparameters": sorted(tables),
+                "decay": shape, "beta": beta}
+
+    def _facade(self, scenario, target_function, previous_result=None,
+                initial_points=None):
         """Build the chosen strategy, overriding only what was actually set.
 
         Each component is asked for through the facade's own `get_*`, so an
@@ -512,9 +837,15 @@ class SMACOptimizer(BaseOptimizer):
         # That is what makes the larger of the two caps reachable at all — see
         # `_initial_points`. `DefaultInitialDesign` is a single configuration
         # and ignores both.
+        # *initial_points* overrides the count, for a caller rebuilding a facade
+        # as a finished run had it rather than sizing one for a budget. The size
+        # is a fraction of `n_trials`, so a rebuild that guesses the budget
+        # guesses the design too — and then hands out initial-design points a
+        # run which had exhausted its own would never ask for.
         initial_design = design(
             scenario, max_ratio=1.0,
-            n_configs=self._initial_points(scenario, previous_result))
+            n_configs=(initial_points if initial_points is not None
+                       else self._initial_points(scenario, previous_result)))
 
         acquisition = facade.get_acquisition_function(scenario, xi=self._acquisition_xi)
         if self._acquisition == "pi":
@@ -817,7 +1148,7 @@ class SMACOptimizer(BaseOptimizer):
     def optimize(self, model, X_train, y_train, X_val, y_val,
                  metrics: dict, primary_metric: str,
                  n_trials=None, previous_result=None, seed: int = 0, cancel_event=None,
-                 stopping: dict | None = None, splits=None):
+                 stopping: dict | None = None, splits=None, priors=None):
         # One fold unless the caller divided the data itself; see core.splits.
         splits = splits if splits is not None else holdout(X_train, y_train, X_val, y_val)
 
@@ -857,7 +1188,7 @@ class SMACOptimizer(BaseOptimizer):
             # this, so a budget of "effectively infinite" meant the fraction
             # never bit and every trial of a normal run came out of the initial
             # design — the model was fitted every iteration and never asked.
-            n_trials=trial_offset + (criteria.get("max_trials") or _UNBOUNDED_BUDGET),
+            n_trials=scenario_budget(trial_offset, criteria.get("max_trials")),
             deterministic=True,
             seed=seed,
             output_directory=Path(output_dir),
@@ -868,6 +1199,7 @@ class SMACOptimizer(BaseOptimizer):
             raise RuntimeError("SMAC called target_function unexpectedly in ask/tell mode")
 
         smac = self._facade(scenario, _unreachable, previous_result)
+        prior_report = self._apply_priors(smac, scenario, config_space, priors)
 
         wants_confidence = "incumbent_confidence" in criteria
 
@@ -939,6 +1271,11 @@ class SMACOptimizer(BaseOptimizer):
             hyperparameter_mistunability_interactions=games["mistunability"][2],
             hyperparameter_mistunability_moebius=games["mistunability"][3],
             hyperparameter_tunability_total=games["tunability"][4],
+            # `metadata` is where this kind of in-process reporting already
+            # lives (`stopped_by`, `initial_design`) and is deliberately not
+            # serialized — `core/` knows nothing about a Run, so what the prior
+            # did crosses here and `ui/services/run.py` writes the event.
             metadata={"smac_output_dir": str(output_dir),
-                      "stopped_by": collector.stopped_by},
+                      "stopped_by": collector.stopped_by,
+                      "prior": prior_report},
         )

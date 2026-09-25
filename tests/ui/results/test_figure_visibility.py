@@ -15,7 +15,7 @@ test_figures_view.py for the per-view JSON shape this collapses into.
 from django.urls import reverse
 
 from ui.figures import (
-    FIGURES, FIGURES_BY_KEY, FULL, HALF, HP_GAME_FIELDS, Figure,
+    FIGURES, FIGURES_BY_KEY, FULL, HALF, HP_GAME_FIELDS, PAGE, Figure,
 )
 from ui.models import Experiment, GlobalSettings
 
@@ -40,11 +40,13 @@ EXPECTED_KEYS = [
     # a time.
     "parallel_coordinates",
     "partial_dependence",
+    # Beside it: the same slice through the same surrogate, read forwards.
     # The ablation game, as its own figure: the other three games explain the
     # search, this explains one trial, and it has no interactions to give the
     # figures that read them.
     "local_explanation",
     "local_effects",
+    "acquisition_slice",
     "trials",
 ]
 
@@ -111,9 +113,15 @@ def test_declaring_a_subclass_derives_everything_from_its_key():
 
 
 def test_each_figure_declares_its_width():
-    """Width is declared per figure, and is one of the two supported layouts —
-    a half-page tile or a full-page span."""
-    assert {f.width for f in FIGURES} <= {HALF, FULL}
+    """Width is declared per figure, and is one of the three supported layouts —
+    a half tile, a span of the grid, or the whole content area.
+
+    FULL and PAGE are not the same span once the window is wide enough for two
+    panes: FULL spans the grid, which is then only the left one, while PAGE
+    spans the grid *and* the column beside it."""
+    assert {f.width for f in FIGURES} <= {HALF, FULL, PAGE}
+    assert FIGURES_BY_KEY["acquisition_slice"].width == PAGE
+    assert [f.key for f in FIGURES if f.width == PAGE] == ["acquisition_slice"]
     assert FIGURES_BY_KEY["trials"].width == FULL
     assert FIGURES_BY_KEY["trial_duration"].width == HALF
     # Click-to-select drives the selected-configuration panel, so the chart you
@@ -136,7 +144,8 @@ def test_only_metric_dependent_figures_are_marked_per_metric():
         "interactions_heatmap", "interactions_top_pairs", "interactions_graph",
         "interactions_coalitions", "interactions_orders",
         "performance_over_time", "configuration_cube", "parallel_coordinates",
-        "partial_dependence", "local_explanation", "local_effects",
+        "partial_dependence", "acquisition_slice", "local_explanation",
+        "local_effects",
     }
 
 
@@ -274,8 +283,10 @@ def test_a_figures_pickers_sit_in_one_row_above_it(client):
         if not selects:
             continue
         with_pickers += 1
+        # Modifier classes are allowed beside it — a figure that needs its row
+        # to hold its height still has one row holding its pickers.
         rows = [(m.start(), body.index("</p>", m.start()))
-                for m in re.finditer(r'<p class="selectors">', body)]
+                for m in re.finditer(r'<p class="selectors[^"]*">', body)]
         assert rows, f"{key} has pickers but no row to hold them"
         for at in selects:
             assert any(start < at < end for start, end in rows), \
@@ -332,15 +343,22 @@ def test_the_page_reads_in_the_declared_order(client):
         "interactions_heatmap", "interactions_top_pairs",
         "interactions_graph", "interactions_coalitions",
         "interactions_orders", "trial_duration",
-        "parallel_coordinates", "partial_dependence", "local_explanation",
-        "local_effects",
+        "parallel_coordinates", "partial_dependence",
+        "local_explanation", "local_effects",
     ]
+    # Not in the grid at all: it spans the grid and the column beside it, so it
+    # is rendered under both rather than inside either.
+    assert 'data-figure="acquisition_slice"' not in grid
+    assert 'class="slot-page' in html
     spans = {key for key in drawn
              if "wide" in grid[grid.rindex('<div class="slot', 0,
                                            grid.index(f'data-figure="{key}"')):
                                 grid.index(f'data-figure="{key}"')]}
+    # `acquisition_slice` is absent: it is page-width, so it never enters the
+    # grid to span anything within it.
     assert spans == {"performance_over_time", "configuration_cube",
-                     "partial_dependence", "local_explanation", "local_effects",
+                     "partial_dependence",
+                     "local_explanation", "local_effects",
                      "parallel_coordinates"}
 
 
@@ -402,9 +420,12 @@ def test_a_square_figure_gets_two_rows_as_well_as_two_columns(client):
 
     assert FIGURES_BY_KEY["configuration_cube"].height == "double"
     assert "wide" in slot and "tall" in slot
-    assert [f.key for f in FIGURES if f.height == "double"] == ["configuration_cube"]
-    # and nothing else grew a second row by accident
-    assert grid.count(" tall") == 1
+    assert [f.key for f in FIGURES if f.height == "double"] == [
+        "configuration_cube", "acquisition_slice"]
+    # and nothing else grew a second row by accident. Two now: the cube, whose
+    # content is square, and the acquisition slice, whose three stacked panels
+    # are genuinely tall — both declared, neither incidental.
+    assert grid.count(" tall") == 2
 
 
 def test_a_projection_opens_flat(client):
