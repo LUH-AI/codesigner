@@ -47,8 +47,13 @@ def test_explains_one_hyperparameters_partial_dependence(client):
     data = resp.json()
     assert data["warning"] is None
     assert len(data["figure"]["data"]) == 2
-    assert data["figure"]["data"][0]["name"] == "Individual trials (ICE)"
-    assert data["figure"]["data"][1]["name"] == "Partial dependence"
+    # Told apart by what they are, not by what they are called — those names are
+    # translatable and a rewording should not fail a test about structure. The
+    # per-trial curves are the faint ones; the average is the marked line.
+    ice, pdp = data["figure"]["data"]
+    assert ice["name"] and pdp["name"] and ice["name"] != pdp["name"]
+    assert ice["opacity"] < 0.5, "the individual trials are the faint ones"
+    assert "markers" in pdp["mode"], "the average is the marked line"
 
 
 def test_different_hyperparameters_explain_differently(client):

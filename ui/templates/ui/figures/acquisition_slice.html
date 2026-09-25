@@ -36,12 +36,38 @@ else here submits a real form and gets the token from `{% csrf_token %}`.
          data-sigma="{% translate 'Standard deviation' %}"
          data-alpha="{% translate 'First shape parameter' %}"
          data-beta="{% translate 'Second shape parameter' %}"></div>
+    {% comment %}Everything else the script puts on the page. Same reason as the
+    parameter names above: the catalogs are built from templates and Python, so a
+    string written in acquisition.js reaches no translator and would sit in
+    English inside an otherwise translated figure.
+
+    `{name}` placeholders rather than concatenation, so a translator can move
+    them — "Trial 3 of 12" does not put its numbers in that order in every
+    language.
+
+    Braces rather than `%(name)s`, which is the form Django uses elsewhere:
+    extracting a template doubles every `%` to protect `blocktranslate`'s own
+    interpolation, so the catalog key came out as `%%(rank)s` while the page
+    asked for `%(rank)s` and the entry could never match. gettext has no opinion
+    about a brace. These holes are filled by the script, not by Django, so
+    nothing needs the `%` form.{% endcomment %}
+    <div id="acq-strings" hidden
+         data-asking="{% translate 'Asking…' %}"
+         data-save-failed="{% translate 'Could not save this prior.' %}"
+         data-slice-failed="{% translate 'Could not compute the acquisition slice.' %}"
+         data-no-optimizer="{% translate 'The optimizer could not be asked for this run.' %}"
+         data-initial-design="{% translate 'Trial {trials} of {size} in the initial design ({name}). These are drawn before any surrogate is fitted, so a prior set here cannot affect them — it starts to count once the design is exhausted.' %}"
+         data-rank="{% translate 'Rank {rank} of {total}' %}"
+         data-runs-next="{% translate 'runs next' %}"
+         data-pile="{% translate '{count} candidates here' %}"
+         data-pile-ranks="{% translate 'Ranks {ranks} of {total}' %}"
+         data-pile-best="{% translate 'Rank {rank}, the best of them:' %}"></div>
     <p id="acq-warning" class="alert warning" hidden></p>
     {% comment %}Shown while the run is still drawing its initial design, which
     happens before any surrogate exists — so nothing stated on this figure can
     reach those trials. Filled by the script from the recorded design size,
     never from counting origins (see `_initial_design_notice`).{% endcomment %}
-    <p id="acq-initial" class="alert info" hidden></p>
+    <p id="acq-initial" class="caption" hidden></p>
     {% comment %}Shown instead of fetching when this experiment's settings turn
     off "compute automatically" for this figure — opening the page then fits
     nothing until asked, the same bargain partial dependence offers.{% endcomment %}
@@ -63,14 +89,14 @@ else here submits a real form and gets the token from `{% csrf_token %}`.
         <p class="selectors acq-controls">
             <label class="acq-toggle">
                 <input type="checkbox" id="acq-show-slice" checked>
-                {% translate "Acquisition along this slice (other hyperparameters frozen at the incumbent)" %}
+                {% translate "Acquisition with incumbent hyperparameters" %}
             </label>
             {% comment %}Not a redraw. This saves the prior and then asks a real
             optimizer — built from this run's own settings and replayed over its
             own trials — what it would hand out next, which is why it takes a
             moment and why it is a button rather than something that happens on
             every drag.{% endcomment %}
-            <button type="button" id="acq-rewalk">{% translate "Ask the optimizer" %}</button>
+            <button type="button" id="acq-rewalk">{% translate "Requery Next Trials" %}</button>
         </p>
 
         <div id="acq-plot-prior" class="acq-panel"></div>

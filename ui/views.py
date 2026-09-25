@@ -966,6 +966,35 @@ def acquisition_slice(request, exp):
             "The model this experiment used is not available here, so its "
             "search space cannot be rebuilt.")})
 
+    # A prior is a statement about the search space, so the space is all it
+    # takes to draw one. Asked for on its own, it skips the surrogate entirely —
+    # which is what a reader waits on — so the panel they can actually edit is
+    # there immediately, and stays there when "compute automatically" is off.
+    if request.GET.get("prior_only"):
+        grid, positions, kind = built["optimizer"].slice_axis(config_space, hp_name)
+        if not positions:
+            return JsonResponse({"figures": None, "meta": None, "warning": ""})
+        zeros = [0.0] * len(positions)
+        figures, meta = acquisition_slice_plots(
+            hp_name, positions, grid, zeros, zeros, metric,
+            eta=0.0, incumbent=None, cloud=None,
+            higher_is_better=metric_for(metric).higher_is_better, kind=kind)
+        stated = (exp.priors or {}).get(hp_name)
+        return JsonResponse({
+            # Only the panel that needed nothing. The other two are what the
+            # surrogate is for, and claiming them here with zeros would draw a
+            # flat acquisition function as though it were a finding.
+            "figures": {"prior": _plot_json(figures["prior"])},
+            "meta": {k: v for k, v in meta.items() if k != "cloud"},
+            "warning": "",
+            "prior": _decayed_prior(exp, hp_name, len(result.trials)),
+            "betaRatioDefault": BETA_RATIO_DEFAULT,
+            "betaRatiosAblated": list(BETA_RATIOS_ABLATED),
+            "density": {"grid": _prior_density(stated, positions,
+                                               meta.get("span") or [0.0, 1.0]),
+                        "cloud": None},
+        })
+
     surrogate, cloud = _slice_model(exp, built, config_space, metric)
     sliced = built["optimizer"].compute_incumbent_slice(
         config_space, result.trials, metric, hp_name, seed=built["seed"],

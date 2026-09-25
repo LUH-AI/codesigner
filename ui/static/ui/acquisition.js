@@ -213,7 +213,7 @@
             acq = [], weighted = [], weights = [], fiction = [],
             lo = Infinity, hi = -Infinity,
             band, k, stated, pts, envelope, slots, cloudWeight, j, slot, value,
-            i, w, raw, scale, peak, pad;
+            i, w, raw, scale, peak, pad, bare;
 
         for (i = 0; i < n; i++) {
             if (meta.mu[i] < lo) lo = meta.mu[i];
@@ -281,7 +281,16 @@
          * where the prior is strongest, and the gap elsewhere is what the
          * prior has written off. */
         peak = maxOf(weights) || 1;
-        for (i = 0; i < n; i++) weighted[i] = weighted[i] / peak;
+        /* The weight, and the curve drawn from it, share the normalization.
+         * The prior panel used to draw the raw density on an auto-ranged log
+         * axis, so its scale moved every time a parameter did — a σ nudge
+         * relabelled the axis and the curve appeared not to have changed.
+         * Peaking every shape at 1 puts them all on one fixed axis, where what
+         * moves is the shape and only the shape. */
+        for (i = 0; i < n; i++) {
+            weighted[i] = weighted[i] / peak;
+            weights[i] = weights[i] / peak;
+        }
 
         /* The fiction's own spread, from the same σ the surrogate reports: the
          * fiction is a mean, and a prior does not claim to have narrowed the
@@ -333,19 +342,39 @@
          * so the line breaks instead of interpolating across a gap in the
          * sample. */
         envelope = null;
+        bare = null;
         if (meta.cloud && meta.cloud.mu && meta.cloud.mu.length) {
             slots = cloudSlots(meta);
             cloudWeight = stated ? densityFor("cloud") : null;
             if (stated && !cloudWeight) cloudWeight = null;
             envelope = [];
-            for (i = 0; i < n; i++) envelope.push(null);
+            /* The same envelope with the prior left out, kept alongside it.
+             *
+             * This is the curve the prior is actually acting on. The pair at
+             * the incumbent answers a narrower question — one line through the
+             * space with everything else frozen — while this one is taken over
+             * the whole sampled space, which is where the search really looks.
+             * Drawn without its unweighted twin, a weighted envelope says how
+             * interest is distributed but not what the reader changed.
+             *
+             * Its own maximum, not the weighted one's: the two are separate
+             * maxima over the same points, and a prior can move which sample
+             * wins a slot. */
+            bare = stated && cloudWeight ? [] : null;
+            for (i = 0; i < n; i++) {
+                envelope.push(null);
+                if (bare) bare.push(null);
+            }
             for (j = 0; j < meta.cloud.mu.length; j++) {
                 value = expectedImprovement(meta.cloud.mu[j], meta.cloud.sigma[j],
                                             meta.eta, meta.higherIsBetter);
+                slot = slots[j];
+                if (bare && (bare[slot] === null || value > bare[slot])) {
+                    bare[slot] = value;
+                }
                 if (stated && cloudWeight) {
                     value *= Math.pow(cloudWeight[j] + 1e-12, prior.exponent) / peak;
                 }
-                slot = slots[j];
                 if (envelope[slot] === null || value > envelope[slot]) envelope[slot] = value;
             }
         }
@@ -367,16 +396,23 @@
         scale = maxOf(acq);
         if (maxOf(weighted) > scale) scale = maxOf(weighted);
         if (envelope && maxOf(envelope) > scale) scale = maxOf(envelope);
+        /* The ghost is in the divisor too. Weighting can only lower a sample's
+         * score relative to the peak, so the unweighted envelope is usually the
+         * taller of the two — left out, it would be the one curve on the panel
+         * drawn off the top of a pinned axis. */
+        if (bare && maxOf(bare) > scale) scale = maxOf(bare);
         scale = scale || 1;
 
         for (i = 0; i < n; i++) {
             acq[i] /= scale;
             weighted[i] /= scale;
             if (envelope && envelope[i] !== null) envelope[i] /= scale;
+            if (bare && bare[i] !== null) bare[i] /= scale;
         }
 
         return {acquisition: acq, weighted: weighted, prior: weights,
                 fiction: fiction, fictionBand: band, points: pts, cloud: envelope,
+                cloudBare: bare,
                 /* The bare density, before the floor and the exponent. That is
                  * what a prior *is*; SMAC's own PriorWeight applies the
                  * exponent and the decay, so sending the weight would apply
@@ -425,6 +461,12 @@
             grid, showing ? values.weighted : []);
         if (typeof t.acquisition.cloud === "number" && values.cloud) {
             add("acquisition", t.acquisition.cloud, grid, values.cloud);
+        }
+        /* Empty unless a prior is stated, where it would sit exactly under the
+         * weighted one and say nothing. */
+        if (typeof t.acquisition.cloudBare === "number") {
+            add("acquisition", t.acquisition.cloudBare, grid,
+                values.cloudBare || []);
         }
         add("prior", t.prior.prior, grid, values.prior);
         add("prior", t.prior.priorPoints, values.points.x, values.points.y);
@@ -491,13 +533,15 @@
      * because from then on a prior does reach every trial. */
     function setInitialDesign(info) {
         if (!initialEl) return;
-        if (!info || info.done) { initialEl.hidden = true; return; }
-        initialEl.textContent =
-            "Trial " + info.trials + " of " + info.size + " in the initial design"
-            + (info.name ? " (" + info.name + ")" : "")
-            + ". These are drawn before any surrogate is fitted, so a prior set"
-            + " here cannot affect them — it starts to count once the design is"
-            + " exhausted.";
+        if (!info || info.done) {
+            /* Cleared as well as hidden: an element that keeps its text is one
+             * style rule away from showing it again. */
+            initialEl.textContent = "";
+            initialEl.hidden = true;
+            return;
+        }
+        initialEl.textContent = text("initial-design", {
+            trials: info.trials, size: info.size, name: info.name || "?"});
         initialEl.hidden = false;
     }
 
@@ -513,6 +557,9 @@
          * never a react plus a restyle. */
         for (name in filled) {
             if (!Object.prototype.hasOwnProperty.call(filled, name)) continue;
+            /* A prior-only payload carries one figure. The other two are what
+             * the surrogate is for, and arrive when it has been fitted. */
+            if (!state.figures[name]) continue;
             group = filled[name];
             for (i = 0; i < group.indices.length; i++) {
                 state.figures[name].data[group.indices[i]].y = group.ys[i];
@@ -539,10 +586,14 @@
          * would be dead controls sitting over the figures. The one real
          * interaction is the prior drag, bound after the draw because Plotly
          * builds the drag layer as part of drawing and rebuilds it each time. */
-        Plotly.react(panels.acquisition, state.figures.acquisition.data,
-                     state.figures.acquisition.layout, PLOT_CONFIG);
-        Plotly.react(panels.surrogate, state.figures.surrogate.data,
-                     state.figures.surrogate.layout, PLOT_CONFIG);
+        if (state.figures.acquisition) {
+            Plotly.react(panels.acquisition, state.figures.acquisition.data,
+                         state.figures.acquisition.layout, PLOT_CONFIG);
+        }
+        if (state.figures.surrogate) {
+            Plotly.react(panels.surrogate, state.figures.surrogate.data,
+                         state.figures.surrogate.layout, PLOT_CONFIG);
+        }
         Plotly.react(panels.prior, state.figures.prior.data,
                      state.figures.prior.layout, PLOT_CONFIG).then(bindPrior);
     }
@@ -633,6 +684,7 @@
         for (name in filled) {
             if (!Object.prototype.hasOwnProperty.call(filled, name)) continue;
             group = filled[name];
+            if (!state.figures[name]) continue;
             if (!group.indices.length || !panels[name] || !panels[name].data) continue;
             /* Written back to the payload as well as to the screen: the page
              * purges these on a metric switch and `render` rebuilds from there,
@@ -749,11 +801,22 @@
      * all an unnormalized density means anyway. Every other shape keeps the log
      * axis, where a sharp peak is legible instead of a spike on a flat floor. */
     function applyPriorAxis(kind) {
-        var tabulated = kind === "tabulated",
-            layout = state && state.figures ? state.figures.prior.layout : null,
-            wanted = tabulated
-                ? {type: "linear", range: [0, 1.06], fixedrange: true, autorange: false}
-                : {type: "log", fixedrange: true, autorange: true};
+        /* One axis for every shape, and it never moves.
+         *
+         * A hand-drawn height has no units and a log axis cannot reach zero, so
+         * the freeform prior always needed a plain [0, 1] panel. Every other
+         * shape had a log axis that auto-ranged, which meant the scale changed
+         * under the reader as they adjusted a parameter — the curve would look
+         * identical while the axis labels told a different story. Since the
+         * curve is now peak-normalized (see `compute`), they can all share the
+         * freeform one.
+         *
+         * The cost is that a very sharp prior draws as a spike rather than
+         * being opened out by the logarithm. That is what a very sharp prior
+         * is, and a moving axis was a worse way to say it. */
+        var layout = state && state.figures ? state.figures.prior.layout : null,
+            wanted = {type: "linear", range: [0, 1.06],
+                      fixedrange: true, autorange: false};
         if (!layout) return;
         layout.yaxis = layout.yaxis || {};
         layout.yaxis.type = wanted.type;
@@ -831,6 +894,22 @@
         paramsBox = document.getElementById("acq-prior-params"),
         stringsEl = document.getElementById("acq-prior-strings"),
         fields = {};
+
+    /* The strings this script writes onto the page, read from the template that
+     * can translate them. `text("key", {name: value})` fills `{name}` holes,
+     * which is the form a translator can reorder — "Trial 3 of 12" does not put
+     * its numbers in that order in every language. Braces rather than
+     * `%(name)s`: extracting a template doubles every `%`, so that form could
+     * never match at runtime. */
+    function text(key, values) {
+        var box = document.getElementById("acq-strings"),
+            out = box ? (box.getAttribute("data-" + key) || "") : "";
+        if (!values) return out;
+        return out.replace(/\{(\w+)\}/g, function (whole, name) {
+            return Object.prototype.hasOwnProperty.call(values, name)
+                ? values[name] : whole;
+        });
+    }
 
     function labelFor(name) {
         return (stringsEl && stringsEl.dataset[name]) || name;
@@ -980,23 +1059,28 @@
         return out;
     }
 
-    /* At most this many configurations spelled out in one hover, so a pile of
-     * twelve does not become a wall of text taller than the figure. */
-    var HOVER_MEMBERS = 3;
-
+    /* One marker's hover.
+     *
+     * Every configuration in a pile spelled out was a wall of text taller than
+     * the figure, which Plotly then pushed off the edge — and three near-
+     * identical blocks of hyperparameters are hard to read even when they fit.
+     * A cluster names its ranks on one line and spells out only the best of
+     * them, which is the one that would actually run; the others differ from it
+     * in dimensions this axis is not showing anyway.
+     */
     function hoverFor(group, total) {
-        var lines = [], i, c;
-        for (i = 0; i < group.members.length && i < HOVER_MEMBERS; i++) {
-            c = group.members[i];
-            lines.push("<b>Rank " + c.rank + " of " + total
-                       + (c.rank === 1 ? " — runs next" : "") + "</b>"
-                       + "<br>" + c.origin + "<br>" + c.label);
+        var members = group.members, best = members[0], ranks = [], i;
+        for (i = 0; i < members.length; i++) ranks.push(members[i].rank);
+
+        if (members.length === 1) {
+            return "<b>" + text("rank", {rank: best.rank, total: total})
+                   + (best.rank === 1 ? " — " + text("runs-next") : "") + "</b>"
+                   + "<br>" + best.origin + "<br><br>" + best.label;
         }
-        if (group.members.length > HOVER_MEMBERS) {
-            lines.push("<i>and " + (group.members.length - HOVER_MEMBERS)
-                       + " more here</i>");
-        }
-        return lines.join("<br><br>");
+        return "<b>" + text("pile", {count: members.length}) + "</b><br>"
+               + text("pile-ranks", {ranks: ranks.join(", "), total: total})
+               + "<br><br><b>" + text("pile-best", {rank: best.rank}) + "</b>"
+               + "<br>" + best.label;
     }
 
     function setCandidates(list) {
@@ -1061,7 +1145,7 @@
             headers: {"Content-Type": "application/json", "X-CSRFToken": csrf},
             body: JSON.stringify(body)
         }).then(function (r) {
-            if (!r.ok) { setWarning("Could not save this prior."); return null; }
+            if (!r.ok) { setWarning(text("save-failed")); return null; }
             return r.json().catch(function () { return null; });
         }).then(function (data) {
             /* Only ever applied to the slice that asked for it. The reader can
@@ -1074,15 +1158,15 @@
             if (data.density) { state.density = data.density; render(); }
             if (!rewalk) return;
             if (data.candidates) showCandidates(data.candidates);
-            else setWarning("The optimizer could not be asked for this run.");
-        }).catch(function () { setWarning("Could not save this prior."); })
+            else setWarning(text("no-optimizer"));
+        }).catch(function () { setWarning(text("save-failed")); })
           .then(function () { if (rewalk) setBusy(false); });
     }
 
     function setBusy(on) {
         if (!rewalkBtn) return;
         rewalkBtn.disabled = !!on;
-        rewalkBtn.textContent = on ? "Asking…" : rewalkLabel;
+        rewalkBtn.textContent = on ? text("asking") : rewalkLabel;
     }
 
     /* The whole row, after anything that changes the shape. */
@@ -1136,16 +1220,21 @@
          * saved prior has to be on the server before the optimizer is built
          * from it — a pending timer would have this walk run against the
          * previous prior and quietly return the wrong answer. */
-        rewalkBtn.addEventListener("click", function () {
-            /* Checked here rather than left to `postPrior`, which returns
-             * without a round trip when there is no slice to ask about — and
-             * would leave the button disabled with nothing coming back to
-             * re-enable it. */
-            if (!state || !state.hp) return;
-            if (saveTimer) { clearTimeout(saveTimer); saveTimer = 0; }
-            setBusy(true);
-            postPrior(true);
-        });
+        rewalkBtn.addEventListener("click", requery);
+    }
+
+    /* Save whatever is stated, then ask the optimizer what it would run next.
+     * Straight past the debounce: the reader has just said "now", and a pending
+     * timer would have the walk run against the previous prior and quietly
+     * return the wrong answer. */
+    function requery() {
+        /* Checked here rather than left to `postPrior`, which returns without a
+         * round trip when there is no slice to ask about — and would leave the
+         * button disabled with nothing coming back to re-enable it. */
+        if (!state || !state.hp) return;
+        if (saveTimer) { clearTimeout(saveTimer); saveTimer = 0; }
+        setBusy(true);
+        postPrior(true);
     }
 
     if (kindSelect) {
@@ -1227,7 +1316,7 @@
         render();
     }
 
-    function refresh(asked) {
+    function refresh(asked, andRequery) {
         if (!hpSelect || !plotEl) return;
         var m = metric(), hp = hpSelect.value, key;
         if (!hp) return;
@@ -1239,16 +1328,22 @@
             if (metric() !== m || hpSelect.value !== hp) return;
             setPrompt(false);
             show(data, hp);
+            if (andRequery && rewalkBtn && !rewalkBtn.disabled) requery();
         }
 
         if (cache[key]) { apply(cache[key]); return; }
         if (!autocompute && !asked) {
             setPrompt(true);
-            state = null;
-            clear(false);
             setWarning(null);
+            /* The prompt is about the surrogate, which is the expensive half.
+             * A prior needs no model, so it is drawn rather than withheld
+             * behind a button that is not about it. */
+            drawPriorOnly(m, hp);
             return;
         }
+        /* Drawn first and replaced when the fit lands, so a prior is editable
+         * from the moment the page opens rather than after a model. */
+        if (!state || state.hp !== hp) drawPriorOnly(m, hp);
         /* Already asked for and still in the air. Without this a metric switch
          * would fetch the same slice twice: once because the page announced it
          * had redrawn, and once because this script had not yet cached it. */
@@ -1258,12 +1353,39 @@
         fetch(url + "?metric=" + encodeURIComponent(m) + "&hp=" + encodeURIComponent(hp))
             .then(function (r) { return r.ok ? r.json() : Promise.reject(); })
             .then(function (data) { cache[key] = data; apply(data); })
-            .catch(function () { setWarning("Could not compute the acquisition slice."); })
+            .catch(function () { setWarning(text("slice-failed")); })
+            .then(function () { delete inflight[key]; });
+    }
+
+    /* The prior on its own: no surrogate, no wait. Its payload carries one
+     * figure, and `show` takes it like any other — the acquisition and
+     * surrogate panels are simply not in it yet. */
+    function drawPriorOnly(m, hp) {
+        var key = "prior:" + m + ":" + hp;
+        if (inflight[key]) return;
+        inflight[key] = true;
+        fetch(url + "?prior_only=1&metric=" + encodeURIComponent(m)
+              + "&hp=" + encodeURIComponent(hp))
+            .then(function (r) { return r.ok ? r.json() : Promise.reject(); })
+            .then(function (data) {
+                /* Dropped if the reader moved on, or if the full slice already
+                 * landed: this is the cheaper half of a race it must not win. */
+                if (metric() !== m || hpSelect.value !== hp) return;
+                if (state && state.figures && state.figures.acquisition) return;
+                if (data && data.figures) show(data, hp);
+            })
+            .catch(function () { /* the full fetch reports for both */ })
             .then(function () { delete inflight[key]; });
     }
 
     if (hpSelect) hpSelect.addEventListener("change", function () { refresh(); });
-    if (promptBtn) promptBtn.addEventListener("click", function () { refresh(true); });
+    if (promptBtn) {
+        /* Compute is the reader asking for everything this panel can tell them,
+         * and what the optimizer would run next is part of that. Asking twice —
+         * once for the figure, once for the candidates — is a distinction only
+         * this code knows about. */
+        promptBtn.addEventListener("click", function () { refresh(true, true); });
+    }
 
     /* The page rebuilds every figure when the metric changes, and purges any
      * whose payload is null on the way through — including this one, which

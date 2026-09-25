@@ -109,6 +109,46 @@ def create_run(experiment, stopping, optimize_metric, started_by=None,
     )
 
 
+def _record_prior_event(run_id, result, offset):
+    """Append what the stated prior did, to the run that just finished.
+
+    `runs[].events` is already the append-only per-run log keyed by `at_trial`,
+    so this extends it rather than inventing a second timeline.
+
+    Both outcomes are recorded, and the skip matters as much as the apply.
+    `_apply_priors` reports and continues on every failure — a released SMAC has
+    no weight layer at all, a stored prior can name a hyperparameter the search
+    space no longer has — so without `prior_skipped` a file could say a prior was
+    stated and leave a reader to assume it was searched under.
+
+    Nothing to say when no prior was stated: the metadata carries None, and an
+    event per run announcing the absence of a belief would bury the ones that
+    are about something.
+    """
+    from ..models import Run
+
+    report = (getattr(result, "metadata", None) or {}).get("prior")
+    if not report:
+        return
+
+    if report.get("applied"):
+        event = {"kind": "prior_applied", "at_trial": offset,
+                 "key": report.get("key") or "codesigner",
+                 "hyperparameters": report.get("hyperparameters") or [],
+                 "decay": report.get("decay") or "none",
+                 "beta": report.get("beta")}
+    else:
+        event = {"kind": "prior_skipped", "at_trial": offset,
+                 "reason": report.get("reason") or "unknown"}
+
+    run = Run.objects.filter(pk=run_id).first()
+    if run is None:
+        return
+    # Read and rewritten rather than appended in the database, because the list
+    # is small and this is the only writer at this point in a run's life.
+    Run.objects.filter(pk=run_id).update(events=list(run.events or []) + [event])
+
+
 def _metric_change_event(experiment, now):
     """The record of an experiment changing what it optimizes, if it just did.
 
@@ -329,6 +369,7 @@ def _execute_run_locally(run_id):
     # and total time, so the run box can show trials done, trial time, and the
     # search/bookkeeping overhead.
     new_trials = result.trials[offset:]
+    _record_prior_event(run_id, result, offset)
     Run.objects.filter(pk=run_id).update(
         status="cancelled" if cancelled else "done", finished_at=timezone.now(),
         trial_seconds=sum(t.duration for t in new_trials),

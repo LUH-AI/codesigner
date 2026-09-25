@@ -116,7 +116,7 @@ def snapshot_from_smac(files: Mapping[str, Any], *, name: str = "") -> dict:
                        "stratified": None},
         "metrics": {"names": [metric_name], "current": metric_name,
                     "original": metric_name},
-        "optimizer": {"name": "SMAC", "params": {}},
+        "optimizer": {"name": "SMAC", "params": _optimizer_settings(scenario)},
         "space": found[CONFIGSPACE],
         "result": {
             "stats": {"submitted": len(trials), "finished": len(trials),
@@ -235,6 +235,103 @@ def _trials(runhistory: Mapping[str, Any], metric_name: str) -> list:
         entry["_origin"] = str(origins.get(config_id) or "")
         trials.append(entry)
     return trials
+
+
+#: SMAC's own names for the things codesigner exposes as optimizer settings.
+#: The facade records every one of them in `scenario.json`'s `_meta`, so an
+#: imported run can say how it was configured instead of coming back as a bare
+#: "SMAC" with nothing under it.
+#:
+#: Only the unambiguous ones. `local_search_iterations` is not in the recorded
+#: maximizer at all, and the model's `max_features` is a *count* where
+#: `rf_feature_ratio` is a fraction — guessing either would put a number on the
+#: page that the run never used, which is worse than leaving the field blank.
+_FACADE_STRATEGIES = {
+    "HyperparameterOptimizationFacade": "rf",
+    "BlackBoxFacade": "gp",
+}
+_DESIGNS = {
+    "SobolInitialDesign": "sobol",
+    "LatinHypercubeInitialDesign": "latin_hypercube",
+    "RandomInitialDesign": "random",
+    "DefaultInitialDesign": "default_only",
+}
+#: What SMAC's random forest uses for "no limit". Recorded as a real number, so
+#: it would otherwise import as a depth cap of a million.
+_UNBOUNDED_DEPTH = 2 ** 20
+
+
+def _optimizer_settings(scenario: dict) -> dict:
+    """The settings the run was configured with, read from its own scenario.
+
+    The file already carried all of this — `_carried` copies `scenario.json`
+    verbatim into `optimizer_state` — but under a key nothing reconstructs an
+    optimizer from. So an imported SMAC run displayed as "SMAC" with no
+    settings, and re-running it would have used codesigner's defaults rather
+    than the ones it actually ran with.
+
+    Narrowed through `known_params` at the end, which is the same guard a
+    stored experiment gets: a setting this version no longer has is dropped
+    rather than reaching `__init__` as an unexpected keyword.
+    """
+    from .optimizers.smac_optimizer import SMACOptimizer
+
+    meta = scenario.get("_meta") or {}
+    if not meta:
+        return {}
+
+    def block(name):
+        return meta.get(name) or {}
+
+    out: dict = {}
+    strategy = _FACADE_STRATEGIES.get(block("facade").get("name"))
+    if strategy:
+        out["search_strategy"] = strategy
+
+    acquisition = block("acquisition_function")
+    if acquisition.get("name"):
+        out["acquisition"] = str(acquisition["name"]).lower()
+    if acquisition.get("xi") is not None:
+        out["acquisition_xi"] = float(acquisition["xi"])
+
+    challengers = block("acquisition_maximizer").get("challengers")
+    if challengers is not None:
+        out["challengers"] = int(challengers)
+
+    design = _DESIGNS.get(block("initial_design").get("name"))
+    if design:
+        out["initial_design"] = design
+
+    probability = block("random_design").get("probability")
+    if probability is not None:
+        out["random_probability"] = float(probability)
+
+    retrain = block("config_selector").get("retrain_after")
+    if retrain is not None:
+        out["retrain_after"] = int(retrain)
+
+    if scenario.get("use_default_config") is not None:
+        out["use_default_config"] = bool(scenario["use_default_config"])
+
+    model = block("model")
+    if strategy == "rf":
+        for setting, recorded in (("rf_trees", "n_estimators"),
+                                  ("rf_min_samples_split", "min_samples_split"),
+                                  ("rf_min_samples_leaf", "min_samples_leaf")):
+            if model.get(recorded) is not None:
+                out[setting] = int(model[recorded])
+        depth = model.get("max_depth")
+        if depth is not None and int(depth) < _UNBOUNDED_DEPTH:
+            out["rf_max_depth"] = int(depth)
+        if model.get("bootstrap") is not None:
+            out["rf_bootstrapping"] = bool(model["bootstrap"])
+    elif strategy == "gp":
+        # The two Gaussian-process facades differ by how the kernel's
+        # hyperparameters are fitted, which is what the model's name says.
+        out["gp_model_type"] = ("mcmc" if "MCMC" in str(model.get("name") or "")
+                                else "vanilla")
+
+    return SMACOptimizer.known_params(out)
 
 
 def _record_incumbents(trials: list, metric_name: str) -> None:

@@ -728,15 +728,22 @@ class SMACOptimizer(BaseOptimizer):
 
         Reported and skipped rather than raised: a prior that cannot be applied
         should cost the reader their prior, not their run.
+
+        Returns what happened, for `optimize` to put on the result's metadata
+        and the run record to keep. A file that says a prior was stated but not
+        whether it took can claim a weighted search that never happened — and
+        every way this fails is silent, because all of them end in the run
+        proceeding normally.
         """
         if not priors:
-            return
+            return None
         try:
             from smac.acquisition.weight import TabulatedPrior, get_decay_schedule
         except ImportError:
             logger.warning("This SMAC has no TabulatedPrior, so stated priors are ignored. "
                            "codesigner needs the branch carrying the acquisition weight layer.")
-            return
+            return {"applied": False,
+                    "reason": "this SMAC has no acquisition weight layer"}
 
         tables, shape, stated_beta, stated_ratio = {}, "none", None, None
         for name, stated in priors.items():
@@ -773,7 +780,9 @@ class SMACOptimizer(BaseOptimizer):
                 else:
                     shape = decay or "none"
         if not tables:
-            return
+            return {"applied": False,
+                    "reason": "no stated prior named a hyperparameter of this "
+                              "search space, or none described a curve"}
 
         # SMAC's own recommendation for the decay factor, and the only number
         # available that means anything here: it is a count of trials, so it has
@@ -804,6 +813,10 @@ class SMACOptimizer(BaseOptimizer):
                            decay=get_decay_schedule(shape, beta))
         except Exception as error:  # noqa: BLE001 — a prior must not cost a run
             logger.warning("Could not apply the stated prior, continuing without it: %s", error)
+            return {"applied": False, "reason": str(error)}
+
+        return {"applied": True, "key": "codesigner", "hyperparameters": sorted(tables),
+                "decay": shape, "beta": beta}
 
     def _facade(self, scenario, target_function, previous_result=None,
                 initial_points=None):
@@ -1186,7 +1199,7 @@ class SMACOptimizer(BaseOptimizer):
             raise RuntimeError("SMAC called target_function unexpectedly in ask/tell mode")
 
         smac = self._facade(scenario, _unreachable, previous_result)
-        self._apply_priors(smac, scenario, config_space, priors)
+        prior_report = self._apply_priors(smac, scenario, config_space, priors)
 
         wants_confidence = "incumbent_confidence" in criteria
 
@@ -1258,6 +1271,11 @@ class SMACOptimizer(BaseOptimizer):
             hyperparameter_mistunability_interactions=games["mistunability"][2],
             hyperparameter_mistunability_moebius=games["mistunability"][3],
             hyperparameter_tunability_total=games["tunability"][4],
+            # `metadata` is where this kind of in-process reporting already
+            # lives (`stopped_by`, `initial_design`) and is deliberately not
+            # serialized — `core/` knows nothing about a Run, so what the prior
+            # did crosses here and `ui/services/run.py` writes the event.
             metadata={"smac_output_dir": str(output_dir),
-                      "stopped_by": collector.stopped_by},
+                      "stopped_by": collector.stopped_by,
+                      "prior": prior_report},
         )

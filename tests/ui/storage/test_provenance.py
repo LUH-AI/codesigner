@@ -603,3 +603,85 @@ def test_an_experiment_recreated_from_its_file_produces_the_same_trials(
     assert copy.cv_folds == original.cv_folds
     assert copy.optimizer_params == original.optimizer_params
     assert trials(copy) == trials(original), label
+
+
+# ── whether a stated prior actually took ─────────────────────────────────────
+
+def _prior_event(result_metadata, offset=3):
+    """Run `_record_prior_event` against a stand-in result and read back what
+    it wrote. The event is the unit under test, not the run machinery."""
+    from ui.models import Experiment, Run
+    from ui.services.run import _record_prior_event
+
+    exp = Experiment.objects.create(
+        name="p", model_name="rf", optimizer_name="SMAC",
+        metric_names=["accuracy"], current_metric="accuracy", seed=0)
+    run = Run.objects.create(experiment=exp, primary_metric="accuracy",
+                             status="running", events=[])
+
+    class Stub:
+        metadata = result_metadata
+
+    _record_prior_event(run.pk, Stub, offset)
+    run.refresh_from_db()
+    return run.events
+
+
+def test_a_prior_that_reached_the_search_is_recorded(db):
+    """`runs[].events` already logs what a run did that the trials cannot show.
+    Which hyperparameters were weighted, and how the weight fades, are the two
+    things a reader would need to reproduce the run."""
+    events = _prior_event({"prior": {
+        "applied": True, "key": "codesigner",
+        "hyperparameters": ["lr", "max_depth"], "decay": "quadratic", "beta": 3.0}})
+
+    assert events == [{"kind": "prior_applied", "at_trial": 3, "key": "codesigner",
+                       "hyperparameters": ["lr", "max_depth"],
+                       "decay": "quadratic", "beta": 3.0}]
+
+
+def test_a_prior_that_was_ignored_says_so(db):
+    """This matters as much as the applied case, and is the reason both exist.
+
+    `_apply_priors` reports and continues on every failure — a released SMAC has
+    no weight layer, a stored prior can name a hyperparameter the space no
+    longer has — so all of them end in a normal-looking run. Without this the
+    file would record a stated prior and leave a reader to assume the search
+    was weighted by it.
+    """
+    events = _prior_event({"prior": {
+        "applied": False, "reason": "this SMAC has no acquisition weight layer"}})
+
+    assert events == [{"kind": "prior_skipped", "at_trial": 3,
+                       "reason": "this SMAC has no acquisition weight layer"}]
+
+
+def test_no_prior_stated_writes_no_event(db):
+    """An event per run announcing that nobody stated a belief would bury the
+    ones that are about something."""
+    assert _prior_event({}) == []
+    assert _prior_event({"prior": None}) == []
+
+
+def test_the_prior_event_joins_the_events_already_there(db):
+    """Append-only, and keyed by `at_trial` like everything else in the log —
+    so a run that both changed metric and stated a prior says both."""
+    from ui.models import Experiment, Run
+    from ui.services.run import _record_prior_event
+
+    exp = Experiment.objects.create(
+        name="p", model_name="rf", optimizer_name="SMAC",
+        metric_names=["accuracy"], current_metric="accuracy", seed=0)
+    existing = {"kind": "metric_changed", "from": "accuracy", "to": "f1",
+                "at_trial": 3, "surrogate": "rebuilt_and_replayed"}
+    run = Run.objects.create(experiment=exp, primary_metric="f1",
+                             status="running", events=[existing])
+
+    class Stub:
+        metadata = {"prior": {"applied": False, "reason": "no weight layer"}}
+
+    _record_prior_event(run.pk, Stub, 3)
+    run.refresh_from_db()
+
+    assert run.events[0] == existing
+    assert run.events[1]["kind"] == "prior_skipped"

@@ -99,10 +99,20 @@ def test_every_named_trace_resolves_to_the_trace_it_names(client):
     def name_at(panel, key):
         return _panel(data, panel)["data"][meta["traces"][panel][key]].get("name")
 
-    assert name_at("surrogate", "fiction") == "Implied by the prior"
-    assert name_at("prior", "prior") == "Prior"
-    assert name_at("acquisition", "acquisition") == "Acquisition"
-    assert name_at("acquisition", "weighted") == "Weighted by the prior"
+    # Identified by what each trace *is* rather than by what it is called: the
+    # names are translatable strings a reader can reword from locale/en, so
+    # pinning the prose turns every rewording into a failure. What has to hold
+    # is that each key resolves to a distinct trace that carries a legend entry.
+    for panel in ("acquisition", "prior", "surrogate"):
+        keys = [k for k in meta["traces"][panel] if k != "fictionBand"]
+        seen = [meta["traces"][panel][k] for k in keys]
+        assert len(set(seen)) == len(seen), (panel, "two keys, one trace")
+        for key in keys:
+            assert name_at(panel, key), (panel, key, "no legend entry")
+    # And the two curves on one axis stay tellable apart.
+    assert name_at("acquisition", "acquisition") != name_at("acquisition", "weighted")
+    dashed = _panel(data, "acquisition")["data"][meta["traces"]["acquisition"]["acquisition"]]
+    assert dashed["line"]["dash"] == "dash", "the unweighted one is the dashed one"
     assert len(meta["traces"]["surrogate"]["fictionBand"]) == 2, "a lower and an upper"
 
 
@@ -176,7 +186,7 @@ def test_the_skeleton_leaves_the_prior_traces_empty(client):
 
     assert set(meta["traces"]) == {"acquisition", "prior", "surrogate"}
     assert set(meta["traces"]["acquisition"]) == {"acquisition", "weighted", "cloud",
-                                                 "candidates"}
+                                                 "cloudBare", "candidates"}
     assert set(meta["traces"]["prior"]) == {"prior", "priorPoints"}
     assert set(meta["traces"]["surrogate"]) == {"fiction", "fictionBand"}
 
@@ -229,10 +239,17 @@ def test_each_panel_names_only_its_own_traces(client):
         assert named, f"{panel} has nothing to put in a legend"
         for trace in named:
             assert trace.get("legend") in (None, "legend"), (panel, trace["name"])
-        assert layout["legend"]["yanchor"] == "top", panel
-        assert layout["legend"]["y"] <= 1.0, panel
-        # Inside its own figure, so it cannot land on another panel's title —
-        # which is exactly what it did when all three shared one figure.
+        # Anchored above the plot rather than floated inside it: over the
+        # top-right corner it covered the curves where they matter most, since
+        # a sharp prior peaks near the top of the panel.
+        assert layout["legend"]["yanchor"] == "bottom", panel
+        assert layout["legend"]["y"] > 1, panel
+        # And the margin grew to hold it. Above the plot with no room made for
+        # it, the legend would be clipped by the figure instead of covering the
+        # curves — the same problem moved rather than fixed.
+        assert layout["margin"]["t"] >= 40, (panel, "no room for the legend")
+        # Still its own figure's legend, so it cannot land on another panel's
+        # title — which is exactly what it did when all three shared one figure.
         assert layout["legend"]["xanchor"] == "right", panel
 
 
@@ -844,8 +861,15 @@ def test_the_shadow_is_named_for_what_it_is(client):
     _response, data = _slice(client, exp, _hp_names(exp)[0])
     meta = data["meta"]
 
-    cloud = _panel(data, "acquisition")["data"][meta["traces"]["acquisition"]["cloud"]]
-    assert cloud["name"] == "Best found by random sampling"
+    traces = meta["traces"]["acquisition"]
+    panel = _panel(data, "acquisition")["data"]
+    cloud, ghost = panel[traces["cloud"]], panel[traces["cloudBare"]]
+
+    # The relationship, not the wording. These names are translatable strings a
+    # reader can reword from locale/en, and a test that pins the phrase turns
+    # every rewording into a failure.
+    assert cloud["name"] and ghost["name"]
+    assert cloud["name"] != ghost["name"], "the pair has to be tellable apart"
 
 
 def test_the_controls_keep_their_space(client):
@@ -1214,3 +1238,81 @@ def test_an_old_flat_decay_string_still_loads(client):
     assert out["decay"]["shape"] == "linear"
     assert out["decay"]["beta_ratio"] > 0
     assert out["exponent"] > 0
+
+
+# ── reading the panel ────────────────────────────────────────────────────────
+
+def test_the_sampled_envelope_keeps_an_unweighted_ghost(client):
+    """The pair at the incumbent answers a narrower question — one line with
+    every other hyperparameter frozen — while the sampled envelope is taken
+    over the whole space, which is where the search actually looks. So that is
+    the curve whose unweighted twin is worth drawing: without it a weighted
+    envelope says how interest is distributed but not what the reader changed.
+    """
+    exp = _experiment()
+    _response, data = _slice(client, exp, _hp_names(exp)[0])
+    indices = data["meta"]["traces"]["acquisition"]
+    panel = _panel(data, "acquisition")["data"]
+
+    assert panel[indices["cloudBare"]]["line"]["dash"] == "dot"
+    assert panel[indices["cloud"]]["line"].get("dash") is None
+    # Behind, not in front: the weighted curve is the one being read.
+    assert indices["cloudBare"] < indices["cloud"]
+
+
+def test_the_ghost_is_empty_without_a_prior(client):
+    """With nothing stated it would lie exactly under the weighted curve, which
+    is a second line in the legend claiming to say something."""
+    source = _script()
+
+    assert "bare = stated && cloudWeight ? [] : null;" in source
+    assert "values.cloudBare || []" in source
+
+
+def test_the_candidate_hover_is_anchored_to_its_marker(client):
+    """Every curve on this panel skips the hover, so "x unified" was only ever
+    rendering the candidate markers — as a combined box pinned to the cursor's
+    x, which a tall entry pushes off the edge of the figure. Anchored to the
+    marker, Plotly flips the label to keep it in view."""
+    exp = _experiment()
+    _response, data = _slice(client, exp, _hp_names(exp)[0])
+    layout = _panel(data, "acquisition")["layout"]
+
+    assert layout["hovermode"] == "closest"
+    assert layout["hoverlabel"]["align"] == "left"
+    for name in ("acquisition", "weighted"):
+        index = data["meta"]["traces"]["acquisition"][name]
+        assert _panel(data, "acquisition")["data"][index]["hoverinfo"] == "skip"
+
+
+def test_a_pile_of_candidates_does_not_spell_every_one_out(client):
+    """Three near-identical blocks of hyperparameters are unreadable even when
+    they fit, and they did not fit. A cluster names its ranks on one line and
+    spells out only the best of them — the one that would actually run.
+
+    The wording is asserted against the template, not the script: it is the
+    template that can translate it."""
+    exp = _experiment()
+    html = client.get(reverse("ui:experiment_detail", args=[exp.pk])).content.decode()
+
+    assert "candidates here" in html
+    assert "the best of them" in html
+    # The old shape: every member spelled out, capped by a count.
+    assert "HOVER_MEMBERS" not in _script()
+
+
+def test_the_script_writes_no_english_of_its_own():
+    """The catalogs are built from templates and Python, so a string written in
+    acquisition.js reaches no translator — it would sit in English inside an
+    otherwise translated figure. Every string the script puts on the page comes
+    from the template's `acq-strings` block instead."""
+    import re
+
+    source = _script()
+    # Strip comments and the keys used to look strings up, then look for
+    # anything left that reads like a sentence.
+    stripped = re.sub(r"/\*.*?\*/", "", source, flags=re.S)
+    stripped = re.sub(r'text\("[a-z-]+"', "", stripped)
+    leftover = [m for m in re.findall(r'"([A-Z][a-z]+(?: [a-z]+){2,}[^"]*)"', stripped)]
+
+    assert not leftover, leftover

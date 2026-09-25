@@ -507,6 +507,10 @@ table.trials tbody tr:focus-visible { outline: 2px solid var(--primary); outline
 .trials th.sortable:hover { color: var(--text); }
 
 /* ── Alerts (st.info/warning/error/success) ───────────────────────────── */
+/* A hidden element takes no space, whatever else claims a display. Without
+   this an `.alert` toggled with the attribute still draws its own padding as a
+   coloured bar with nothing in it. */
+[hidden] { display: none !important; }
 .alert { padding: 0.75rem 1rem; border-radius: var(--radius); font-size: 0.9rem; }
 .alert.info    { background: rgba(0, 104, 201, 0.1); color: #004280; }
 .alert.warning { background: rgba(255, 170, 0, 0.15); color: #7a5200; }

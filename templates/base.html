@@ -54,25 +54,28 @@
             </form>
         {% endif %}
         {% get_current_language as CURRENT_LANGUAGE %}
-        {% comment %}Deliberately inert. It shows the languages the interface is
-        going to offer, so that its place on the rail is settled before the
-        catalogs are — but it submits nothing and changes nothing, because the
-        German and Spanish drafts have not been reviewed and half a translation
-        reaching a reader is worse than none. `offered_languages` is that list;
-        `LANGUAGES` in config/settings.py is what Django would actually serve.
-        Wiring it back up is restoring the form and the `set_language` post.
-        {% endcomment %}
-        <div class="locale" title="{% translate 'Language — not yet switchable' %}">
+        {% comment %}Live now that every offered catalog is translated and
+        compiled. Django's own `set_language` writes the cookie and redirects
+        back to where you were, so the switch keeps your place. Submitted on
+        change rather than behind a button: a select with one job does not need
+        a second control to confirm it, and the form still posts without script
+        for anyone who has none.{% endcomment %}
+        <form class="locale" method="post" action="{% url 'set_language' %}">
+            {% csrf_token %}
+            <input type="hidden" name="next" value="{{ request.get_full_path }}">
             <label for="language-select" aria-hidden="true">
                 <span class="locale-icon">🌐</span>
                 <span class="locale-code">{{ CURRENT_LANGUAGE|upper }}</span>
             </label>
-            <select id="language-select" aria-label="{% translate 'Language' %}">
+            <select id="language-select" name="language"
+                    aria-label="{% translate 'Language' %}"
+                    onchange="this.form.submit()">
                 {% for code, label in offered_languages %}
                     <option value="{{ code }}"{% if code == CURRENT_LANGUAGE %} selected{% endif %}>{{ label }}</option>
                 {% endfor %}
             </select>
-        </div>
+            <noscript><button type="submit">{% translate "Go" %}</button></noscript>
+        </form>
     </nav>
     {% if active_tab == 'settings' %}
         <nav class="sidebar">

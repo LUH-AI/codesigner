@@ -1979,6 +1979,34 @@ class BaseOptimizer(ABC):
 
         return x_grid, y_grid, z, None
 
+    def slice_axis(self, config_space, hp_name: str, n_points: int = 101):
+        """The axis one hyperparameter is drawn on, without fitting anything.
+
+        `compute_incumbent_slice` returns this too, but only after a surrogate
+        exists — it is a model of the objective, and getting one costs a fit.
+        A prior needs none of that. It is a statement about the search space,
+        so the space is all it takes to draw one, and making the reader wait
+        for a model before they can say where they think the optimum is gets
+        the dependency backwards.
+
+        Returns `(grid, positions, kind)`: the values along the hyperparameter's
+        own scale, their coordinates in ConfigSpace's normalized representation
+        (which is the space a prior is evaluated in), and whether it is
+        categorical.
+        """
+        import numpy as np
+
+        if hp_name not in config_space:
+            return [], [], "continuous"
+        hp = config_space[hp_name]
+        grid = _hp_grid(hp, n_points)
+        if len(grid) < 2:
+            return [], [], "continuous"
+
+        positions = np.asarray(hp.to_vector(np.asarray(grid)), dtype=float).ravel()
+        kind = "categorical" if hasattr(hp, "choices") else "continuous"
+        return list(grid), [float(p) for p in positions], kind
+
     def compute_incumbent_slice(
         self,
         config_space,

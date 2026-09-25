@@ -276,3 +276,63 @@ def test_the_fixture_run_really_does_contain_one():
 
 def _refuse(constant):
     raise AssertionError(f"bare {constant} in the file")
+
+
+# ── the settings the run was configured with ─────────────────────────────────
+
+def test_an_imported_run_keeps_the_settings_it_ran_with():
+    """The file always carried these — `_carried` copies `scenario.json`
+    verbatim — but under `optimizer_state`, which nothing rebuilds an optimizer
+    from. So an imported run displayed as "SMAC" with nothing under it, and
+    re-running it would have used codesigner's defaults instead of its own.
+    """
+    params = snapshot_from_smac(_files())["optimizer"]["params"]
+
+    assert params["search_strategy"] == "rf"      # HyperparameterOptimizationFacade
+    assert params["initial_design"] == "sobol"
+    assert params["acquisition"] == "ei"
+    assert params["challengers"] == 10000
+    assert params["random_probability"] == 0.2
+    assert params["retrain_after"] == 8
+    assert params["rf_trees"] == 10
+
+
+def test_an_unbounded_tree_depth_is_not_imported_as_a_limit():
+    """SMAC records "no limit" as a real number — 2**20 — so importing it
+    literally would put a depth cap of a million on the page and hand it to the
+    next run as though someone had chosen it."""
+    params = snapshot_from_smac(_files())["optimizer"]["params"]
+
+    assert "rf_max_depth" not in params
+
+
+def test_a_setting_that_cannot_be_read_honestly_is_left_out():
+    """`max_features` is recorded as a count and `rf_feature_ratio` is a
+    fraction; `local_search_iterations` is not in the recorded maximizer at all.
+    A guess would show a number on the page the run never used."""
+    params = snapshot_from_smac(_files())["optimizer"]["params"]
+
+    assert "rf_feature_ratio" not in params
+    assert "local_search_iterations" not in params
+
+
+def test_the_settings_rebuild_an_optimizer():
+    """The point of reading them: they have to be accepted by `__init__`. They
+    go through `known_params`, so a setting this version no longer has is
+    dropped rather than raising from the page that displays the result."""
+    from core.optimizers.smac_optimizer import SMACOptimizer
+
+    params = snapshot_from_smac(_files())["optimizer"]["params"]
+
+    assert SMACOptimizer(**params) is not None
+
+
+def test_a_scenario_with_no_meta_reads_no_settings():
+    """Files written before SMAC embedded `_meta`, and anything else that does
+    not carry it. Empty rather than guessed."""
+    scenario = json.loads((RUN_DIR / "scenario.json").read_text())
+    scenario.pop("_meta", None)
+
+    params = snapshot_from_smac(_files(**{"scenario.json": scenario}))["optimizer"]["params"]
+
+    assert params == {}
