@@ -1,0 +1,50 @@
+{% extends "base.html" %}
+{% load i18n %}
+
+{% block title %}{% translate "Bin" %} · Codesigner{% endblock %}
+
+{% block content %}
+    <h1>{% translate "Bin" %}</h1>
+    <p class="caption">{% translate "Experiments you own or contribute to that somebody deleted. Restoring one puts it back exactly as it was, for everybody." %}</p>
+    <div class="table-wrap table-scroll">
+        <table>
+            <thead>
+                <tr>
+                    <th>{% translate "Experiment" %}</th>
+                    <th>{% translate "Owner" %}</th>
+                    <th>{% translate "Deleted" %}</th>
+                    <th></th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for row in binned %}{% with e=row.experiment %}
+                    <tr>
+                        <td>{{ e.name }} <span class="exp-id">({{ e.identifier }})</span></td>
+                        <td>{% if e.owner %}{{ e.owner.get_username }}{% else %}<span class="caption">{% translate "nobody" %}</span>{% endif %}</td>
+                        <td>{{ e.deleted_at|date:"Y-m-d H:i" }}{% if e.deleted_by %} <span class="caption">{% blocktranslate with name=e.deleted_by.get_username %}by {{ name }}{% endblocktranslate %}</span>{% endif %}</td>
+                        <td class="selectors" style="justify-content: flex-end;">
+                            <form method="post" action="{% url 'ui:bin_restore' e.pk %}">
+                                {% csrf_token %}
+                                <button type="submit" class="btn-primary">{% translate "Restore" %}</button>
+                            </form>
+                            <a class="btn" href="{% url 'ui:bin_download' e.pk %}">{% translate "Download .ihpo" %}</a>
+                            {% comment %}The owner destroys it; anybody else can only
+                            take it out of their own bin, since it is not theirs to
+                            destroy.{% endcomment %}
+                            {% if row.may_purge %}
+                                <a class="btn" href="{% url 'ui:bin_purge' e.pk %}">{% translate "Delete for good" %}</a>
+                            {% elif user.is_authenticated %}
+                                <form method="post" action="{% url 'ui:bin_dismiss' e.pk %}">
+                                    {% csrf_token %}
+                                    <button type="submit" class="btn">{% translate "Remove from my bin" %}</button>
+                                </form>
+                            {% endif %}
+                        </td>
+                    </tr>
+                {% endwith %}{% empty %}
+                    <tr><td colspan="4" class="caption">{% translate "Nothing in the bin." %}</td></tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+{% endblock %}

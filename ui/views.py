@@ -8,12 +8,15 @@ from importlib.metadata import version as dist_version
 from pathlib import Path
 
 from django.conf import settings
+from django.contrib import messages
 from django.contrib.auth.decorators import login_not_required
 from django.core.exceptions import PermissionDenied
 from django.core.paginator import Paginator
+from django.db import transaction
 from django.http import Http404, HttpResponse, HttpResponseBadRequest, JsonResponse
 from django.shortcuts import redirect, render
 from django.template.loader import render_to_string
+from django.urls import reverse
 from django.utils.translation import gettext as _
 from django.views.decorators.http import require_POST
 
@@ -35,21 +38,23 @@ from .formatting import sigfigs
 from .forms import (
     EVALUATION_SCHEMES, DefaultExperimentSettingsForm, ExperimentSettingsForm,
     NewExperimentForm)
-from .models import Experiment, GlobalSettings
+from .models import Experiment, ExperimentData, ExperimentShare, GlobalSettings
 from . import permissions
-from .permissions import DELETE, EDIT, EXPORT, RUN, VIEW, experiment_view
+from .permissions import DELETE, EDIT, EXPORT, RUN, SHARE, VIEW, experiment_view
 from .registry import METRICS, MODELS, OPTIMIZERS
 from django.utils import timezone
 
 from .services import run as run_service
 from .services import modelenv
 from .services import snapshot as snapshot_adapter
+from .services import bin as bin_service
 from .services.run import resolve_seed
 from .services.run_logic import decide_run, resolve_metric_change
 from .optimizer_labels import describe_all, grouped
 from .services.settings import (
     SETTING_BOUNDS, SETTING_DEFAULTS, global_defaults, resolve_settings)
 from .validators import dataset_upload_error, model_upload_error, oversized
+from access.policy import groups_to_choose_from
 
 _ACTIVE = ["pending", "running"]
 
@@ -68,9 +73,9 @@ def _model_available(exp):
     imported into this process. Reads `env_status` — a column — so rendering a
     page never shells out.
     """
-    if exp.model_name in MODELS:
+    if exp.data.model_name in MODELS:
         return True
-    if not (exp.model_file and settings.ALLOW_CUSTOM_MODELS):
+    if not (exp.data.model_file and settings.ALLOW_CUSTOM_MODELS):
         return False
     if exp.env_status == Experiment.ENV_READY:
         return True
@@ -87,13 +92,45 @@ def _owner(request):
     return user if user.is_authenticated else None
 
 
+def _group_by_pk(groups, pk):
+    return next((g for g in groups if g.pk == pk), None)
+
+
+def _chosen_group(request, context):
+    """The group an import goes in, or an error, for the pages with no Form.
+
+    `(group, None)` when it was chosen, or there was nothing to choose — then
+    `Experiment.save` files it in the one group there is. `(None, message)`
+    when a choice was needed and none of this person's groups was given.
+    """
+    groups = groups_to_choose_from(request.user)
+    context["groups"] = groups
+    if not groups:
+        return None, None
+    try:
+        group = _group_by_pk(groups, int(request.POST.get("group", "")))
+    except ValueError:
+        group = None
+    if group is None:
+        return None, _("Choose which group this experiment is in.")
+    return group, None
+
+
 def _ownership(request, exp):
     """Who this experiment belongs to, or None when the instance has no
     accounts and there is nothing to say."""
     if not settings.REQUIRE_LOGIN:
         return None
-    return {"owner": exp.owner, "shared": exp.shared,
-            "mine": exp.owner_id == request.user.pk}
+    from access.policy import membership_in, share_of
+    # Where sharing is done, for somebody who can open it — a member of the
+    # experiment's group. Anybody else would be linked to a 404.
+    in_group = membership_in(request.user, exp.group_id) is not None
+    return {"owner": exp.owner, "mine": exp.owner_id == request.user.pk,
+            "shared_with": exp.shares.count(),
+            "level": share_of(request.user, exp),
+            "group": exp.group if in_group else None,
+            "group_url": (reverse("ui:group_detail", args=[exp.group_id])
+                          + f"#exp-{exp.pk}") if in_group else None}
 
 
 # How each stopping criterion is read off the Run form: its parser and the range
@@ -389,15 +426,16 @@ def new_experiment(request):
     is copied into MEDIA. Running is a separate action on the detail page.
     """
     may_upload = permissions.policy().may_upload_models(request)
+    groups = groups_to_choose_from(request.user)
     if request.method != "POST":
         return render(request, "ui/new_experiment.html", {
-            "form": NewExperimentForm(may_upload_models=may_upload),
+            "form": NewExperimentForm(may_upload_models=may_upload, groups=groups),
             "optimizer_panels": _optimizer_panels(request, _selected_optimizer(request)),
             "evaluation_schemes": _evaluation_schemes(),
         })
 
     form = NewExperimentForm(request.POST, request.FILES,
-                             may_upload_models=may_upload)
+                             may_upload_models=may_upload, groups=groups)
     if not form.is_valid():
         return render(request, "ui/new_experiment.html", {
             "form": form,
@@ -436,7 +474,7 @@ def new_experiment(request):
         # choice, or a temp file written above — so they are ours to adopt.
         exp = snapshot_adapter.experiment_from_snapshot(
             snapshot, model_file=cleaned.get("model_file"), adopt_paths=True,
-            owner=_owner(request),
+            owner=_owner(request), group=_group_by_pk(groups, cleaned.get("group")),
         )
         # A custom model needs an environment before it can run. Resolving it
         # takes minutes, so it happens in the background and the detail page
@@ -466,7 +504,7 @@ def trial_panel(request, exp):
     metric = request.GET.get("metric", "")
     idx_raw = request.GET.get("idx", "")
 
-    if metric not in exp.metric_names:
+    if metric not in exp.data.metric_names:
         return HttpResponseBadRequest("unknown metric")
     if not idx_raw.lstrip("-").isdigit():
         return HttpResponseBadRequest("invalid trial index")
@@ -532,7 +570,7 @@ def trial_ablation(request, exp):
     metric = request.GET.get("metric", "")
     idx_raw = request.GET.get("idx", "")
 
-    if metric not in exp.metric_names:
+    if metric not in exp.data.metric_names:
         return HttpResponseBadRequest("unknown metric")
     if not idx_raw.lstrip("-").isdigit():
         return HttpResponseBadRequest("invalid trial index")
@@ -588,7 +626,7 @@ def partial_dependence(request, exp):
     metric = request.GET.get("metric", "")
     hp_name = request.GET.get("hp", "")
 
-    if metric not in exp.metric_names:
+    if metric not in exp.data.metric_names:
         return HttpResponseBadRequest("unknown metric")
 
     built = _rebuild_experiment(exp)
@@ -637,7 +675,7 @@ def _slice_model(exp, built, config_space, metric):
     # it weights — change the prior and they are a different set, not the same
     # set rescaled. The model and the cloud do not depend on it, but they are
     # cheap beside the walk and not worth a second cache to keep apart.
-    priors = exp.priors or None
+    priors = exp.data.priors or None
     key = (exp.pk, metric, len(result.trials), built["seed"],
            json.dumps(priors, sort_keys=True, default=str))
     if key in _SLICE_SURROGATES:
@@ -681,7 +719,7 @@ def save_prior(request, exp):
     if not hp_name:
         return HttpResponseBadRequest("no hyperparameter named")
 
-    priors = dict(exp.priors or {})
+    priors = dict(exp.data.priors or {})
     prior = body.get("prior")
     if prior is None:
         # Uniform states nothing, so it is stored as nothing rather than as a
@@ -694,7 +732,7 @@ def save_prior(request, exp):
         # inheriting the near-flat exponent an older one has decayed to.
         built = _rebuild_experiment(exp)
         at_trial = len((built["result"].trials if built and built["result"] else []))
-        previous = (exp.priors or {}).get(hp_name) or {}
+        previous = (exp.data.priors or {}).get(hp_name) or {}
         result_now = built["result"] if built else None
         priors[hp_name] = {
             "kind": prior.get("kind") or "uniform",
@@ -718,8 +756,8 @@ def save_prior(request, exp):
         # server evaluates it for both, which makes that guarantee structural
         # rather than something two implementations had to keep agreeing on.
 
-    exp.priors = priors
-    exp.save(update_fields=["priors"])
+    exp.data.priors = priors
+    exp.data.save(update_fields=["priors"])
 
     # Asked for when the reader presses Re-walk. Not cached and not done on the
     # ordinary slice fetch: it rebuilds this run's optimizer and asks it, which
@@ -765,13 +803,13 @@ def reset_prior(request, exp):
             .order_by("-id").values_list("priors", flat=True).first())
     restored = (last or {}).get(hp_name)
 
-    priors = dict(exp.priors or {})
+    priors = dict(exp.data.priors or {})
     if restored:
         priors[hp_name] = restored
     else:
         priors.pop(hp_name, None)
-    exp.priors = priors
-    exp.save(update_fields=["priors"])
+    exp.data.priors = priors
+    exp.data.save(update_fields=["priors"])
 
     # Handed straight back, so the figure redraws from the same answer every
     # other request gives it rather than recomputing the decay in the browser.
@@ -803,7 +841,7 @@ def evaluate_prior(request, exp):
     reader left it — whether to keep it is their decision, and the page asks.
     """
     hp_name = (request.POST.get("hp") or "").strip()
-    metric = exp.current_metric or (exp.metric_names or [None])[0]
+    metric = exp.data.current_metric or (exp.data.metric_names or [None])[0]
     settings_now = resolve_settings(exp)
     tolerance = settings_now.get("prior_acceptance_tolerance", 0.15)
 
@@ -827,12 +865,12 @@ def evaluate_prior(request, exp):
 
     outcome = optimizer.evaluate_prior(
         config_space, result.trials, metric, built["seed"],
-        priors=exp.priors or None,
+        priors=exp.data.priors or None,
         tolerance=float(tolerance),
         previous_result=result,
         # The same anchor the figure draws with, so the belief is judged at the
         # strength it is actually being applied at.
-        budget=_run_budget(exp, int(((exp.priors or {}).get(hp_name) or {})
+        budget=_run_budget(exp, int(((exp.data.priors or {}).get(hp_name) or {})
                                     .get("at_trial") or 0)))
     # The wording is made here, not in `core`, which has no Django and so no
     # catalog to translate against. What crosses from there is the verdict and a
@@ -989,7 +1027,7 @@ def _ranked_candidates(exp, hp_name):
     if config_space is None or hp_name not in config_space:
         return None
 
-    metric = exp.current_metric or (exp.metric_names or [None])[0]
+    metric = exp.data.current_metric or (exp.data.metric_names or [None])[0]
     # Not every optimizer can be asked. Random and grid search have no
     # surrogate and no acquisition function, so there is no ranking to report —
     # and the reader gets told that rather than a 500.
@@ -999,10 +1037,10 @@ def _ranked_candidates(exp, hp_name):
 
     asked = optimizer.slice_challengers(
         config_space, result.trials, metric, built["seed"],
-        priors=exp.priors or None, previous_result=result,
+        priors=exp.data.priors or None, previous_result=result,
         # Anchored where the prior was stated, so the walk weights by the same
         # exponent the figure above it is drawing.
-        budget=_run_budget(exp, int(((exp.priors or {}).get(hp_name) or {})
+        budget=_run_budget(exp, int(((exp.data.priors or {}).get(hp_name) or {})
                                     .get("at_trial") or len(result.trials))))
     if not asked:
         return None
@@ -1119,7 +1157,7 @@ def acquisition_slice(request, exp):
     metric = request.GET.get("metric", "")
     hp_name = request.GET.get("hp", "")
 
-    if metric not in exp.metric_names:
+    if metric not in exp.data.metric_names:
         return HttpResponseBadRequest("unknown metric")
 
     built = _rebuild_experiment(exp)
@@ -1156,7 +1194,7 @@ def acquisition_slice(request, exp):
             hp_name, positions, grid, zeros, zeros, metric,
             eta=0.0, incumbent=None, cloud=None,
             higher_is_better=metric_for(metric).higher_is_better, kind=kind)
-        stated = (exp.priors or {}).get(hp_name)
+        stated = (exp.data.priors or {}).get(hp_name)
         return JsonResponse({
             # Only the panel that needed nothing. The other two are what the
             # surrogate is for, and claiming them here with zeros would draw a
@@ -1199,7 +1237,7 @@ def acquisition_slice(request, exp):
                          "betaRatiosAblated": list(BETA_RATIOS_ABLATED),
                          # So the first draw needs no second request.
                          "density": _prior_densities(
-                             (exp.priors or {}).get(hp_name), meta)})
+                             (exp.data.priors or {}).get(hp_name), meta)})
 
 
 def _inside_initial_design(result) -> bool:
@@ -1254,7 +1292,7 @@ def _decayed_prior(exp, hp_name, trials, inside_design=False):
     curves in the browser would be a second definition of a decay to keep in
     step with the first. One number crosses instead.
     """
-    stated = (exp.priors or {}).get(hp_name)
+    stated = (exp.data.priors or {}).get(hp_name)
     if not stated:
         return None
 
@@ -1300,7 +1338,7 @@ def _weighting_warning(exp):
     say so otherwise, and a belief that silently does nothing is worse than one
     that is refused.
     """
-    if not (exp.priors or {}):
+    if not (exp.data.priors or {}):
         return None
     try:
         import smac.acquisition.weight  # noqa: F401
@@ -1332,7 +1370,7 @@ def surrogate_uncertainty(request, exp):
     metric = request.GET.get("metric", "")
     x_hp = request.GET.get("x", "")
     y_hp = request.GET.get("y", "")
-    if metric not in exp.metric_names:
+    if metric not in exp.data.metric_names:
         return HttpResponseBadRequest("unknown metric")
 
     built = _rebuild_experiment(exp)
@@ -1370,7 +1408,7 @@ def local_effects(request, exp):
     otherwise.
     """
     metric = request.GET.get("metric", "")
-    if metric not in exp.metric_names:
+    if metric not in exp.data.metric_names:
         return HttpResponseBadRequest("unknown metric")
 
     built = _rebuild_experiment(exp)
@@ -1398,7 +1436,7 @@ def metric_figures(request, exp):
     switched off is absent here too rather than reachable by asking directly.
     """
     metric = request.GET.get("metric", "")
-    if metric not in exp.metric_names:
+    if metric not in exp.data.metric_names:
         return HttpResponseBadRequest("unknown metric")
 
     built = _rebuild_experiment(exp)
@@ -1419,12 +1457,12 @@ def experiment_run(request, exp):
     run that would change the optimized metric first shows a confirmation; the
     confirmation posts back with a `decision` of "new" or "old".
     """
-    if (request.method != "POST" or not exp.dataset or exp.is_running
+    if (request.method != "POST" or not exp.data.dataset or exp.is_running
             or not _model_available(exp)):
         return redirect("ui:experiment_detail", pk=exp.pk)
 
     chosen = request.POST.get("optimize_metric")
-    stopping = _posted_stopping(request, chosen or exp.current_metric or "")
+    stopping = _posted_stopping(request, chosen or exp.data.current_metric or "")
     trial_timeout = _posted_trial_timeout(request)
     decision = request.POST.get("decision")
 
@@ -1439,11 +1477,11 @@ def experiment_run(request, exp):
         return render(request, "ui/experiment_detail.html", context)
 
     if decision:
-        optimize_metric = resolve_metric_change(decision, exp.current_metric, chosen)
+        optimize_metric = resolve_metric_change(decision, exp.data.current_metric, chosen)
         if optimize_metric is None:
             return redirect("ui:experiment_detail", pk=exp.pk)
     else:
-        action, optimize_metric = decide_run(exp.original_metric, exp.current_metric, chosen)
+        action, optimize_metric = decide_run(exp.data.original_metric, exp.data.current_metric, chosen)
         if action == "warn":
             return render(request, "ui/metric_change.html", {
                 "experiment": exp, "chosen": chosen,
@@ -1468,7 +1506,7 @@ def _stored_trial_count(exp) -> int:
     as last time" — the whole point of asking is to decide whether it is worth
     doing any of the expensive work at all.
     """
-    return len((exp.result or {}).get("data") or [])
+    return len((exp.data.result or {}).get("data") or [])
 
 
 #: How often the run-status fragment is polled, in seconds. The floor is what a
@@ -1495,7 +1533,7 @@ def _poll_seconds(exp) -> int:
     each replacement — so the interval adapts per swap with no state anywhere
     and no second mechanism.
     """
-    data = (exp.result or {}).get("data") or []
+    data = (exp.data.result or {}).get("data") or []
     recent = [entry.get("time") or 0.0 for entry in data[-10:]]
     typical = statistics.median(recent) if recent else 0.0
     return int(min(POLL_MAX_SECONDS, max(POLL_MIN_SECONDS, round(typical))))
@@ -1527,7 +1565,7 @@ def _live_payloads(exp, since: int = 0):
     payload = {
         "metric_plots": {
             metric: _figure_plots(result, per_metric, metric, config_space=config_space)
-            for metric in exp.metric_names
+            for metric in exp.data.metric_names
         } if per_metric else {},
         "static_plots": _figure_plots(result, static, None, config_space=config_space),
     }
@@ -1540,7 +1578,7 @@ def _live_payloads(exp, since: int = 0):
     if any(f.key == "trials" for f in shown) and len(result.trials) > since:
         payload["rows_html"] = render_to_string(
             "ui/figures/_trial_rows.html",
-            {"trial_rows": _trial_rows(result, exp.metric_names,
+            {"trial_rows": _trial_rows(result, exp.data.metric_names,
                                        _hp_names(result), start=since)})
     return payload
 
@@ -1667,7 +1705,7 @@ def experiment_compute_analytics(request, exp):
     result.hyperparameter_interactions_warning = games["tunability"][1]
     result.hyperparameter_tunability_total = games["tunability"][4]
 
-    Experiment.objects.filter(pk=exp.pk).update(
+    ExperimentData.objects.filter(experiment__pk=exp.pk).update(
         result=optimizer.serialize_result(result))
     return redirect("ui:experiment_detail", pk=exp.pk)
 
@@ -1682,23 +1720,92 @@ def prepare_env(request, exp):
     dependency name needs a new experiment, since there is no way to replace the
     file in place.
     """
-    if exp.model_file and not exp.is_running:
+    if exp.data.model_file and not exp.is_running:
         modelenv.start_preparation(exp)
     return redirect("ui:experiment_detail", pk=exp.pk)
 
 
-@require_POST
-@experiment_view(EDIT)
-def experiment_share(request, exp):
-    """Turn read access for everyone else on or off.
+def _back_to_sharing(request, exp):
+    """Wherever the sharing controls were — the group page, as a rule — or the
+    experiment itself when the form did not say."""
+    from .navigation import safe_next
+    return redirect(safe_next(request) or reverse("ui:experiment_detail", args=[exp.pk]))
 
-    Only reachable on an instance with accounts, and only by the owner (EDIT is
-    refused on someone else's), so an experiment cannot be shared out from under
-    the person it belongs to.
+
+def _colleague(request, exp):
+    """The account a sharing form names, from the experiment's own group.
+
+    Looked up among the group's members and nowhere else, so an id from outside
+    the group is simply not found — the same answer as one that does not exist.
     """
-    exp.shared = bool(request.POST.get("shared"))
-    exp.save(update_fields=["shared"])
-    return redirect("ui:experiment_detail", pk=exp.pk)
+    from django.contrib.auth import get_user_model
+    if not settings.REQUIRE_LOGIN or exp.group_id is None:
+        raise Http404
+    try:
+        pk = int(request.POST.get("user", ""))
+    except ValueError:
+        raise Http404
+    colleague = (get_user_model().objects
+                 .filter(pk=pk, memberships__group_id=exp.group_id).first())
+    if colleague is None or colleague.pk == exp.owner_id:
+        raise Http404
+    return colleague
+
+
+@require_POST
+@experiment_view(SHARE)
+def experiment_share(request, exp):
+    """Set one colleague's access to this experiment: none, viewer or contributor.
+
+    One person at a time, and only somebody in the experiment's group. The
+    owner's alone to decide — a contributor can do everything to the work except
+    choose who else may.
+    """
+    colleague = _colleague(request, exp)
+    level = request.POST.get("level", "")
+    if level not in dict(ExperimentShare.LEVELS) and level != "none":
+        return HttpResponseBadRequest(_("Unknown sharing level."))
+    if level == "none":
+        exp.shares.filter(user=colleague).delete()
+    else:
+        ExperimentShare.objects.update_or_create(
+            experiment=exp, user=colleague,
+            defaults={"level": level, "granted_by": request.user})
+    return _back_to_sharing(request, exp)
+
+
+@require_POST
+@experiment_view(SHARE)
+def experiment_transfer(request, exp):
+    """Hand this experiment to one of its contributors.
+
+    Only a contributor: somebody who can already run and delete it, so the one
+    new power ownership gives them is deciding who else may. The previous owner
+    is left a contributor, not shut out — handing over the work is not the same
+    decision as walking away from it — and both happen together or not at all,
+    so there is never a moment with no owner or with two.
+    """
+    colleague = _colleague(request, exp)
+    grant = exp.shares.filter(user=colleague, level=ExperimentShare.CONTRIBUTOR).first()
+    if grant is None:
+        messages.error(request, _("Only a contributor can be made the owner. "
+                                  "Make %(user)s a contributor first.")
+                       % {"user": colleague.get_username()})
+        return _back_to_sharing(request, exp)
+    previous = exp.owner
+    with transaction.atomic():
+        grant.delete()
+        exp.owner = colleague
+        exp.save(update_fields=["owner"])
+        if previous is not None:
+            ExperimentShare.objects.update_or_create(
+                experiment=exp, user=previous,
+                defaults={"level": ExperimentShare.CONTRIBUTOR,
+                          "granted_by": colleague})
+    messages.success(request, _("%(name)s now belongs to %(user)s. You are a "
+                                "contributor.")
+                     % {"name": exp.name, "user": colleague.get_username()})
+    return _back_to_sharing(request, exp)
 
 
 @require_POST
@@ -1803,16 +1910,20 @@ def experiment_export(request, exp):
     and the run engine are unaffected; deserialize ignores the keys on
     re-import.
     """
+    return _export(request, exp)
+
+
+def _export(request, exp, cancel_url=None):
     if request.method != "POST":
         # How many tracebacks there are to ask about, and so whether to ask.
         # Counted off the stored result rather than rebuilt through the
         # optimizer: this needs one key per trial, not an OptimizationResult.
-        entries = ((exp.result or {}).get("data") or [])
+        entries = ((exp.data.result or {}).get("data") or [])
         count = sum(1 for e in entries
                     if (e.get("additional_info") or {}).get("traceback"))
         return render(request, "ui/export_confirm.html",
                       {"experiment": exp, "has_tracebacks": bool(count),
-                       "traceback_count": count})
+                       "traceback_count": count, "cancel_url": cancel_url})
 
     snapshot = snapshot_adapter.snapshot_from_experiment(exp, provenance=True)
     # The paths name files on this server, which is of no use to whoever opens
@@ -1977,12 +2088,93 @@ def default_experiment_settings(request):
 
 @experiment_view(DELETE)
 def experiment_delete(request, exp):
-    """Confirm (GET) then delete (POST) a saved experiment, stopping any run."""
+    """Confirm (GET) then delete (POST) a saved experiment, stopping any run.
+
+    Into its people's bins, not gone — see `ui/services/bin.py`.
+    """
     if request.method == "POST":
-        exp.runs.filter(status__in=_ACTIVE).update(cancel_requested=True)
-        exp.delete()
+        bin_service.delete(exp, by=request.user)
+        messages.success(request, _("Moved %(name)s to the bin.") % {"name": exp.name})
         return redirect("ui:home")
-    return render(request, "ui/delete_confirm.html", {"experiment": exp})
+    return render(request, "ui/delete_confirm.html", {
+        "experiment": exp,
+        "people": _bin_holders(exp),
+    })
+
+
+def _bin_holders(exp):
+    """Who else will find it in their bin, for the confirmation to name."""
+    from django.contrib.auth import get_user_model
+    if not settings.REQUIRE_LOGIN:
+        return []
+    return list(get_user_model().objects.filter(pk__in=bin_service.its_people(exp))
+                .order_by("username"))
+
+
+# ── the bin ──────────────────────────────────────────────────────────────────
+#
+# Addressed by pk like any experiment, but not through `@experiment_view`: that
+# resolves through `experiments()`, which a deleted experiment is deliberately
+# not in. `bin()` is the other queryset that decides existence, and a pk that
+# is not in this person's bin is a 404 exactly as it would be elsewhere.
+
+def _binned(request, pk):
+    from django.shortcuts import get_object_or_404
+    return get_object_or_404(permissions.policy().bin(request), pk=pk)
+
+
+def _may_purge(request, exp):
+    """Only its owner destroys it — the one step in the bin with no undoing.
+    Anyone, without accounts."""
+    return not settings.REQUIRE_LOGIN or exp.owner_id == request.user.pk
+
+
+def experiment_bin(request):
+    """What this person deleted, or had deleted from under them."""
+    binned = (permissions.policy().bin(request)
+              .select_related("owner", "deleted_by").order_by("-deleted_at"))
+    return render(request, "ui/bin.html", {
+        "binned": [{"experiment": exp, "may_purge": _may_purge(request, exp)}
+                   for exp in binned],
+    })
+
+
+@require_POST
+def bin_restore(request, pk):
+    exp = _binned(request, pk)
+    bin_service.restore(exp)
+    messages.success(request, _("Restored %(name)s.") % {"name": exp.name})
+    return redirect("ui:experiment_detail", pk=exp.pk)
+
+
+def bin_download(request, pk):
+    """The same file an export makes, asked about the same way — deleting it
+    did not change what it would be safe to hand over."""
+    return _export(request, _binned(request, pk),
+                   cancel_url=reverse("ui:experiment_bin"))
+
+
+@require_POST
+def bin_dismiss(request, pk):
+    """Take it out of *my* bin, leaving it in everyone else's. The owner's
+    choice is to destroy it instead; a contributor's is only about their bin."""
+    exp = _binned(request, pk)
+    if settings.REQUIRE_LOGIN:
+        exp.bin_entries.filter(user=request.user).delete()
+    return redirect("ui:experiment_bin")
+
+
+def bin_purge(request, pk):
+    """Confirm (GET) then destroy (POST), runs and files with it."""
+    exp = _binned(request, pk)
+    if not _may_purge(request, exp):
+        raise PermissionDenied
+    if request.method == "POST":
+        name = exp.name
+        bin_service.purge(exp)
+        messages.success(request, _("Deleted %(name)s for good.") % {"name": name})
+        return redirect("ui:experiment_bin")
+    return render(request, "ui/purge_confirm.html", {"experiment": exp})
 
 
 def import_experiment(request):
@@ -1993,7 +2185,8 @@ def import_experiment(request):
     read-only.
     """
     may_upload = permissions.policy().may_upload_models(request)
-    context = {"allow_custom_models": may_upload}
+    context = {"allow_custom_models": may_upload,
+               "groups": groups_to_choose_from(request.user)}
     upload = request.FILES.get("file")
     if request.method == "POST" and request.FILES.getlist("smac_dir"):
         return _import_smac_directory(request, context)
@@ -2026,6 +2219,11 @@ def import_experiment(request):
                 context["error"] = mismatch
                 return render(request, "ui/import.html", context)
 
+        group, error = _chosen_group(request, context)
+        if error:
+            context["error"] = error
+            return render(request, "ui/import.html", context)
+
         model_upload = request.FILES.get("model") if may_upload else None
         if model_upload is not None:
             model_error = model_upload_error(model_upload)
@@ -2034,7 +2232,7 @@ def import_experiment(request):
                 return render(request, "ui/import.html", context)
         exp = snapshot_adapter.experiment_from_snapshot(
             snapshot, dataset_file=dataset_upload, model_file=model_upload,
-            owner=_owner(request),
+            owner=_owner(request), group=group,
         )
         # An imported model is re-locked here rather than trusting pins chosen by
         # whoever exported it.
@@ -2088,7 +2286,12 @@ def _import_smac_directory(request, context):
         context["error"] = _("This is not a readable SMAC run.") + f" ({exc})"
         return render(request, "ui/import.html", context)
 
-    exp = snapshot_adapter.experiment_from_snapshot(snapshot, owner=_owner(request))
+    group, error = _chosen_group(request, context)
+    if error:
+        context["error"] = error
+        return render(request, "ui/import.html", context)
+    exp = snapshot_adapter.experiment_from_snapshot(snapshot, owner=_owner(request),
+                                                    group=group)
     return redirect("ui:experiment_detail", pk=exp.pk)
 
 
@@ -2478,11 +2681,11 @@ def _evaluation_label(exp):
     something — and reporting those as fact would put a 20% holdout on the page
     for a run that may have used no such thing.
     """
-    if exp.model_name not in MODELS and not exp.model_file:
+    if exp.data.model_name not in MODELS and not exp.data.model_file:
         return _("Not recorded")
-    if exp.cv_folds >= 2:
-        return _("%(k)s-fold CV") % {"k": exp.cv_folds}
-    return _("%(pct)s%% held out") % {"pct": round(exp.test_size * 100)}
+    if exp.data.cv_folds >= 2:
+        return _("%(k)s-fold CV") % {"k": exp.data.cv_folds}
+    return _("%(pct)s%% held out") % {"pct": round(exp.data.test_size * 100)}
 
 
 def _detail_context(request, exp):
@@ -2494,7 +2697,7 @@ def _detail_context(request, exp):
     """
     built = _rebuild_experiment(exp)
     result = built["result"] if built else None
-    metric_names = list(exp.metric_names)
+    metric_names = list(exp.data.metric_names)
     active_run = exp.runs.filter(status__in=_ACTIVE).order_by("-id").first()
     last_run = exp.runs.order_by("-id").first()
 
@@ -2516,11 +2719,11 @@ def _detail_context(request, exp):
             "pk": exp.pk,
             "name": exp.name,
             "identifier": exp.identifier,
-            "model_name": exp.model_name,
-            "optimizer_name": exp.optimizer_name,
-            "current_metric": exp.current_metric,
-            "metric_label": metric_label(exp.current_metric, exp.original_metric),
-            "seed": exp.seed,
+            "model_name": exp.data.model_name,
+            "optimizer_name": exp.data.optimizer_name,
+            "current_metric": exp.data.current_metric,
+            "metric_label": metric_label(exp.data.current_metric, exp.data.original_metric),
+            "seed": exp.data.seed,
             "evaluation": _evaluation_label(exp),
         },
         "metric_names": metric_names,
@@ -2530,13 +2733,13 @@ def _detail_context(request, exp):
         # with nothing for it to read.
         "has_result": result is not None and bool(result.trials),
         "active_run": active_run,
-        "can_run": (bool(exp.dataset) and _model_available(exp)
+        "can_run": (bool(exp.data.dataset) and _model_available(exp)
                     and permissions.policy().may(request, exp, RUN)
                     and not model_refusal),
         # What this viewer may do, for the buttons. Read access got them here;
         # the rest depends on whose experiment it is.
         "may": {action: permissions.policy().may(request, exp, action)
-                for action in (RUN, EDIT, DELETE, EXPORT)},
+                for action in (RUN, EDIT, DELETE, EXPORT, SHARE)},
         "ownership": _ownership(request, exp),
         "run_error": last_run.error if (last_run and last_run.status == "error") else None,
         "model_refusal": model_refusal,
@@ -2554,8 +2757,8 @@ def _detail_context(request, exp):
         # Only an optimizer that fits a model of the objective can answer the
         # confidence criterion, so only then is it offered.
         "supports_confidence": getattr(
-            _optimizer_for(exp.optimizer_name), "supports_confidence_stopping", False),
-        "run_default_metric": exp.current_metric or (metric_names[0] if metric_names else None),
+            _optimizer_for(exp.data.optimizer_name), "supports_confidence_stopping", False),
+        "run_default_metric": exp.data.current_metric or (metric_names[0] if metric_names else None),
         # What the deadline fields open on. The deployment's number, so an
         # instance that has tuned `MODEL_TRIAL_TIMEOUT` for its own hardware
         # offers that rather than making everyone retype it.

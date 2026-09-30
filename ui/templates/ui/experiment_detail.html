@@ -43,16 +43,22 @@ being read.{% endcomment %}
     {% if ownership %}
         <p class="caption ownership">
             {% if ownership.mine %}
-                <form method="post" action="{% url 'ui:experiment_share' summary.pk %}">
-                    {% csrf_token %}
-                    <label class="check">
-                        <input type="checkbox" name="shared" onchange="this.form.submit()"
-                               {% if ownership.shared %}checked{% endif %}>
-                        {% translate "Let everyone else read this experiment" %}
-                    </label>
-                </form>
+                {% if ownership.shared_with %}
+                    {% blocktranslate count people=ownership.shared_with %}Yours, shared with {{ people }} person in its group.{% plural %}Yours, shared with {{ people }} people in its group.{% endblocktranslate %}
+                {% else %}
+                    {% translate "Yours, and not shared." %}
+                {% endif %}
+                {% if ownership.group_url %}
+                    <a href="{{ ownership.group_url }}">{% blocktranslate with name=ownership.group.name %}Share it from {{ name }}{% endblocktranslate %}</a>
+                {% endif %}
             {% elif ownership.owner %}
-                {% blocktranslate with name=ownership.owner.get_username %}Shared with you by {{ name }} — read only.{% endblocktranslate %}
+                {% if ownership.level == "contributor" %}
+                    {% blocktranslate with name=ownership.owner.get_username %}{{ name }}'s — you are a contributor, so you can run and delete it too.{% endblocktranslate %}
+                {% elif ownership.level == "viewer" %}
+                    {% blocktranslate with name=ownership.owner.get_username %}Shared with you by {{ name }} — read only.{% endblocktranslate %}
+                {% else %}
+                    {% blocktranslate with name=ownership.owner.get_username %}{{ name }}'s, in a group you lead.{% endblocktranslate %}
+                {% endif %}
             {% else %}
                 {% translate "This experiment has no owner, so everyone here can change it." %}
             {% endif %}

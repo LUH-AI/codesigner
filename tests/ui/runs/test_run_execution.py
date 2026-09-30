@@ -59,8 +59,8 @@ def test_create_run_records_pending_run_and_commits_first_metric():
     assert run.primary_metric == "f1"
 
     exp.refresh_from_db()
-    assert exp.current_metric == "f1"
-    assert exp.original_metric == "f1"
+    assert exp.data.current_metric == "f1"
+    assert exp.data.original_metric == "f1"
 
 
 @pytest.mark.django_db
@@ -72,8 +72,8 @@ def test_create_run_metric_change_moves_primary_not_original():
     create_run(exp, {"max_trials": 2}, "f1")
 
     exp.refresh_from_db()
-    assert exp.current_metric == "f1"
-    assert exp.original_metric == "accuracy"
+    assert exp.data.current_metric == "f1"
+    assert exp.data.original_metric == "accuracy"
 
 
 # ── execute_run ────────────────────────────────────────────────────────────────
@@ -95,8 +95,8 @@ def test_execute_run_completes_and_stores_result():
     exp.refresh_from_db()
     assert run.status == "done"
     assert run.started_at is not None and run.finished_at is not None
-    assert exp.result is not None
-    assert len(exp.result["data"]) == 3
+    assert exp.data.result is not None
+    assert len(exp.data.result["data"]) == 3
 
 
 @pytest.mark.django_db
@@ -113,7 +113,7 @@ def test_execute_run_resumes_from_previous_result():
     execute_run(create_run(exp, {"max_trials": 2}, "accuracy").id)
 
     exp.refresh_from_db()
-    trials = exp.result["data"]
+    trials = exp.data.result["data"]
     assert [t["config_id"] for t in trials] == [1, 2, 3, 4, 5]
 
 

@@ -58,12 +58,12 @@ def test_create_persists_without_running(client):
     from ui.models import Experiment, Run
 
     resp = _create(client, name="fresh")
-    exp = Experiment.objects.get(name="fresh")
+    exp = Experiment.objects.get(data__name="fresh")
 
     assert resp.status_code == 302
     assert resp["Location"] == reverse("ui:experiment_detail", args=[exp.pk])
-    assert exp.result is None
-    assert exp.current_metric is None
+    assert exp.data.result is None
+    assert exp.data.current_metric is None
     assert Run.objects.count() == 0
 
 
@@ -146,8 +146,8 @@ def test_run_metric_change_confirm_new_launches_with_chosen(client, no_thread):
     run = Run.objects.get(experiment=exp)
     assert run.primary_metric == "f1"
     exp.refresh_from_db()
-    assert exp.current_metric == "f1"
-    assert exp.original_metric == "accuracy"
+    assert exp.data.current_metric == "f1"
+    assert exp.data.original_metric == "accuracy"
 
 
 @pytest.mark.django_db
@@ -212,16 +212,20 @@ def test_cancel_requests_cancellation(client):
 
 @pytest.mark.django_db
 def test_delete_works_with_an_active_run(client):
-    """Deleting an experiment mid-run removes it (its runs cascade)."""
-    from ui.models import Experiment, Run
+    """Deleting an experiment mid-run asks the run to stop and bins the
+    experiment with its runs intact, so restoring brings them back."""
+    from ui.models import Run
 
     exp = _experiment()
-    Run.objects.create(experiment=exp, stopping={"max_trials": 3}, primary_metric="accuracy", status="running")
+    run = Run.objects.create(experiment=exp, stopping={"max_trials": 3},
+                             primary_metric="accuracy", status="running")
     resp = client.post(reverse("ui:experiment_delete", args=[exp.pk]))
 
+    exp.refresh_from_db()
+    run.refresh_from_db()
     assert resp.status_code == 302
-    assert not Experiment.objects.filter(pk=exp.pk).exists()
-    assert Run.objects.count() == 0
+    assert exp.deleted_at is not None
+    assert run.cancel_requested
 
 
 # ── Sidebar spinner ──────────────────────────────────────────────────────────

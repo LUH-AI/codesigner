@@ -52,4 +52,4 @@ def test_normal_submission_still_creates(client):
         "seed": "0",
     })
     assert resp.status_code == 302
-    assert Experiment.objects.filter(name="toggle-ok").exists()
+    assert Experiment.objects.filter(data__name="toggle-ok").exists()

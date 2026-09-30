@@ -36,8 +36,8 @@ def experiment():
     """
     exp = adapter.experiment_from_snapshot(
         io.parse((FIXTURES_DIR / "analytics.ihpo").read_bytes()))
-    data = exp.result["data"]
-    metrics = list(exp.metric_names)
+    data = exp.data.result["data"]
+    metrics = list(exp.data.metric_names)
 
     data[3]["status"] = STATUS_CRASHED
     data[3]["cost"] = 1.0
@@ -49,7 +49,7 @@ def experiment():
     data[5]["scores"] = {m: 0.0 for m in metrics}
     data[5]["additional_info"] = {"error": "past its 600s deadline"}
 
-    exp.save(update_fields=["result"])
+    exp.data.save(update_fields=["result"])
     return exp
 
 
@@ -201,7 +201,7 @@ def test_a_failure_survives_a_round_trip(client, experiment):
     body = client.post(reverse("ui:experiment_export", args=[experiment.pk]),
                        {"timestamps": "keep", "tracebacks": "keep"}).content
     reimported = adapter.experiment_from_snapshot(io.parse(body))
-    result = RandomOptimizer().deserialize_result(reimported.result)
+    result = RandomOptimizer().deserialize_result(reimported.data.result)
 
     assert [i for i, t in enumerate(result.trials) if t.failed] == [3, 5]
     assert result.trials[3].traceback == TRACEBACK

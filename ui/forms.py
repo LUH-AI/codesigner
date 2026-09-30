@@ -93,8 +93,15 @@ class NewExperimentForm(forms.Form):
         label=_("Folds"), required=False,
         initial=EVALUATION_SCHEMES[EVALUATION_KFOLD]["default"])
 
-    def __init__(self, *args, may_upload_models=None, **kwargs):
+    def __init__(self, *args, may_upload_models=None, groups=(), **kwargs):
         super().__init__(*args, **kwargs)
+        # Only when there is a choice to make: somebody in one group has their
+        # experiment filed there without being asked. Required when present —
+        # a guess would file work under a boundary nobody chose.
+        if groups:
+            self.fields["group"] = forms.TypedChoiceField(
+                label=_("Group"), coerce=int,
+                choices=[("", _("— select —"))] + [(g.pk, g.name) for g in groups])
         if may_upload_models is None:
             may_upload_models = settings.ALLOW_CUSTOM_MODELS
         self.fields["model_name"].choices = [("", _("— select —"))] + [(k, k) for k in MODELS]

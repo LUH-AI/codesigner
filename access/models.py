@@ -90,11 +90,19 @@ class Group(models.Model):
 
 
 class Membership(models.Model):
-    """Which group somebody is in, and what they are within it.
+    """Which groups somebody is in, and what they are within each.
 
-    One group per person — a OneToOne rather than a many-to-many — because
-    "which group is this experiment in" has to have one answer. An experiment's
-    group is its owner's, and that is the whole of how the boundary is drawn.
+    One row per (person, group). This was a OneToOne while "which group is this
+    experiment in" was answered by reading the owner's membership: one answer
+    was needed, so one row was allowed. `Experiment.group` records that answer
+    now, on the work itself, which is what frees a person to be in two places.
+    The boundary is stored on what it bounds rather than derived from who made
+    it.
+
+    A role is per group and not per person. Somebody can be a member of one
+    group and the primary lead of another, and neither fact leaks into the
+    other — which is the whole reason the role lives here rather than on the
+    account.
     """
 
     MEMBER = "member"
@@ -112,9 +120,9 @@ class Membership(models.Model):
     #: written out at each test, so adding a fourth role is one edit here.
     LEAD_ROLES = (LEAD, PRIMARY_LEAD)
 
-    user = models.OneToOneField(
+    user = models.ForeignKey(
         django_settings.AUTH_USER_MODEL, on_delete=models.CASCADE,
-        related_name="membership")
+        related_name="memberships")
     # PROTECT: a group with people in it is not something to delete by way of
     # tidying up. Restricting it is `is_active`; emptying it is deliberate.
     group = models.ForeignKey(Group, on_delete=models.PROTECT,
@@ -125,6 +133,11 @@ class Membership(models.Model):
     class Meta:
         ordering = ["group__name", "user__username"]
         constraints = [
+            # Being in a group twice is not a state with a meaning: the two rows
+            # would carry two roles and nothing would say which applies.
+            models.UniqueConstraint(
+                fields=["user", "group"],
+                name="one_membership_per_person_per_group"),
             # One per group, enforced in the database rather than in the views
             # that appoint one: a second primary lead is not a state the
             # application should be able to reach by any route, including the

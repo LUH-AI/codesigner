@@ -39,8 +39,9 @@ RUN = "run"          # start, cancel, or prepare the environment for a run
 EDIT = "edit"        # change its settings
 DELETE = "delete"    # destroy it
 EXPORT = "export"    # take a copy of it off the instance
+SHARE = "share"      # decide who else may reach it, or hand it to somebody
 
-ACTIONS = frozenset({VIEW, RUN, EDIT, DELETE, EXPORT})
+ACTIONS = frozenset({VIEW, RUN, EDIT, DELETE, EXPORT, SHARE})
 
 
 class OpenPolicy:
@@ -48,8 +49,20 @@ class OpenPolicy:
     private-network install wants: no accounts, no owners, no refusals."""
 
     def experiments(self, request):
-        """The experiments this request may see, as a queryset."""
-        return Experiment.objects.all()
+        """The experiments this request may see, as a queryset.
+
+        Never a deleted one, under any policy: deleting sets an experiment aside
+        into its people's bins, and from then on `bin` is the only way to it.
+        """
+        return Experiment.objects.filter(deleted_at__isnull=True)
+
+    def bin(self, request):
+        """The deleted experiments this request may restore, as a queryset.
+
+        Every one of them, with no accounts — a bin is somebody's, and without
+        accounts there is one somebody.
+        """
+        return Experiment.objects.filter(deleted_at__isnull=False)
 
     def for_listing(self, request):
         """The experiments a page should *list*, which need not be all of them.

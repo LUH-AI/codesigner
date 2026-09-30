@@ -154,7 +154,7 @@ def experiment(client):
 
 
 def _hps(exp):
-    return list(exp.result["configs"][next(iter(exp.result["configs"]))])
+    return list(exp.data.result["configs"][next(iter(exp.data.result["configs"]))])
 
 
 @pytest.mark.django_db

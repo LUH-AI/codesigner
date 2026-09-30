@@ -74,8 +74,8 @@ def test_a_run_records_what_it_searched_under():
     exp = _experiment(SEARCHED_UNDER)
     run = create_run(exp, {}, "accuracy")
 
-    exp.priors = SINCE_DRAGGED
-    exp.save(update_fields=["priors"])
+    exp.data.priors = SINCE_DRAGGED
+    exp.data.save(update_fields=["priors"])
     run.refresh_from_db()
 
     assert run.priors == SEARCHED_UNDER
@@ -92,7 +92,7 @@ def test_it_goes_back_to_the_last_run(client):
 
     assert response.status_code == 200
     assert data["restored"] is True
-    assert exp.priors["n_estimators"] == SEARCHED_UNDER["n_estimators"]
+    assert exp.data.priors["n_estimators"] == SEARCHED_UNDER["n_estimators"]
 
 
 def test_with_no_run_it_goes_to_uniform(client):
@@ -106,7 +106,7 @@ def test_with_no_run_it_goes_to_uniform(client):
     exp.refresh_from_db()
 
     assert data["restored"] is False
-    assert "n_estimators" not in exp.priors
+    assert "n_estimators" not in exp.data.priors
 
 
 def test_a_run_that_stated_nothing_resets_to_uniform(client):
@@ -119,7 +119,7 @@ def test_a_run_that_stated_nothing_resets_to_uniform(client):
     exp.refresh_from_db()
 
     assert data["restored"] is False
-    assert "n_estimators" not in exp.priors
+    assert "n_estimators" not in exp.data.priors
 
 
 def test_a_pending_run_is_not_what_it_goes_back_to(client):
@@ -132,7 +132,7 @@ def test_a_pending_run_is_not_what_it_goes_back_to(client):
     _, data = _reset(client, exp)
     exp.refresh_from_db()
 
-    assert exp.priors["n_estimators"] == SEARCHED_UNDER["n_estimators"]
+    assert exp.data.priors["n_estimators"] == SEARCHED_UNDER["n_estimators"]
     assert data["restored"] is True
 
 
@@ -148,7 +148,7 @@ def test_the_most_recent_finished_run_wins(client):
     _reset(client, exp)
     exp.refresh_from_db()
 
-    assert exp.priors["n_estimators"]["params"] == {"mu": 0.2, "sigma": 0.05}
+    assert exp.data.priors["n_estimators"]["params"] == {"mu": 0.2, "sigma": 0.05}
 
 
 def test_other_hyperparameters_are_left_alone(client):
@@ -162,7 +162,7 @@ def test_other_hyperparameters_are_left_alone(client):
     _reset(client, exp)
     exp.refresh_from_db()
 
-    assert exp.priors["max_depth"]["kind"] == "beta"
+    assert exp.data.priors["max_depth"]["kind"] == "beta"
 
 
 def test_it_is_a_post(client):

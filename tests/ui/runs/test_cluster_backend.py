@@ -143,7 +143,7 @@ def test_everything_the_job_needs_is_staged(cluster_settings, experiment, monkey
     assert f"{workdir}/snapshot.json" in transport.files
     assert f"{workdir}/run.json" in transport.files
     staged = transport.files[f"{workdir}/dataset.csv"]
-    assert staged == experiment.dataset.read(), "the job got a different dataset"
+    assert staged == experiment.data.dataset.read(), "the job got a different dataset"
 
     sent = json.loads(transport.files[f"{workdir}/run.json"])
     assert sent["stopping"] == {"max_trials": 3}
@@ -178,7 +178,7 @@ def test_a_finished_job_writes_the_rows_a_local_run_writes(cluster_settings,
     assert run.stopped_by == "max_trials"
     assert run.trial_count == 3
     assert run.trial_seconds == pytest.approx(4.5)
-    assert len(experiment.result["data"]) == 3
+    assert len(experiment.data.result["data"]) == 3
 
 
 def test_the_search_space_the_job_saw_is_kept(cluster_settings, experiment, monkeypatch):
@@ -193,7 +193,7 @@ def test_the_search_space_the_job_saw_is_kept(cluster_settings, experiment, monk
          result=_finished_result())
     experiment.refresh_from_db()
 
-    assert experiment.config_space == space
+    assert experiment.data.config_space == space
 
 
 def test_a_resumed_run_counts_only_its_own_trials(cluster_settings, experiment,
@@ -234,7 +234,7 @@ def test_partial_results_reach_the_experiment_while_it_runs(cluster_settings,
 
     def _capture(run_id, experiment_pk, status):
         from ui.models import Experiment
-        seen["mid_run"] = Experiment.objects.get(pk=experiment_pk).result
+        seen["mid_run"] = Experiment.objects.get(pk=experiment_pk).data.result
         return original(run_id, experiment_pk, status)
 
     monkeypatch.setattr(run_service, "_finish_cluster_run", _capture)

@@ -65,13 +65,14 @@ def trusted(django_user_model):
 
 
 def _custom_experiment(owner=None) -> Experiment:
-    exp = Experiment(name="custom", model_name="Mine",
-                     optimizer_name="Random Search", metric_names=["accuracy"],
-                     seed=0, owner=owner, env_status=Experiment.ENV_LEGACY)
-    exp.model_file.save("mine.py", ContentFile(MODEL_SOURCE), save=False)
-    exp.dataset.save("iris.csv", ContentFile((DATASETS_DIR / "iris.csv").read_bytes()),
-                     save=False)
-    exp.save()
+    exp = Experiment.objects.create(
+        name="custom", model_name="Mine", optimizer_name="Random Search",
+        metric_names=["accuracy"], seed=0, owner=owner,
+        env_status=Experiment.ENV_LEGACY)
+    exp.data.model_file.save("mine.py", ContentFile(MODEL_SOURCE), save=False)
+    exp.data.dataset.save("iris.csv", ContentFile((DATASETS_DIR / "iris.csv").read_bytes()),
+                          save=False)
+    exp.data.save()
     return exp
 
 
@@ -127,7 +128,7 @@ def test_a_registry_model_is_never_gated(hosted, ana):
     exp = Experiment.objects.create(
         name="builtin", model_name="Random Forest", optimizer_name="Random Search",
         metric_names=["accuracy"], seed=0, owner=ana)
-    exp.dataset.save("iris.csv", ContentFile((DATASETS_DIR / "iris.csv").read_bytes()))
+    exp.data.dataset.save("iris.csv", ContentFile((DATASETS_DIR / "iris.csv").read_bytes()))
     run = run_service.create_run(exp, {"max_trials": 2}, "accuracy", started_by=ana)
 
     run_service.execute_run(run.id)
@@ -175,7 +176,7 @@ def test_posting_an_upload_anyway_does_not_create_a_custom_model(client, hosted,
                                          content_type="text/x-python"),
     })
 
-    assert not Experiment.objects.filter(name="sneaky").exists()
+    assert not Experiment.objects.filter(data__name="sneaky").exists()
 
 
 def test_an_untrusted_user_cannot_attach_a_model_when_importing(client, hosted, ana):
@@ -193,7 +194,7 @@ def test_an_untrusted_user_cannot_attach_a_model_when_importing(client, hosted, 
         "model": SimpleUploadedFile("mine.py", MODEL_SOURCE),
     })
 
-    assert not Experiment.objects.get(name="imported").model_file
+    assert not Experiment.objects.get(data__name="imported").data.model_file
 
 
 def test_the_page_says_why_it_cannot_be_run(client, hosted, ana):

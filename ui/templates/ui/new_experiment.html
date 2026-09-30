@@ -20,6 +20,14 @@
             {% if form.name.errors %}<div class="form-error">{{ form.name.errors|join:" " }}</div>{% endif %}
         </div>
 
+        {% if form.group %}
+            <div class="field">
+                <label for="{{ form.group.id_for_label }}">{{ form.group.label }}</label>
+                {{ form.group }}
+                {% if form.group.errors %}<div class="form-error">{{ form.group.errors|join:" " }}</div>{% endif %}
+            </div>
+        {% endif %}
+
         {# ── Model: an uploaded .py by default, or a built-in when the box is checked ── #}
         {% if form.model_file %}
             <div class="field">

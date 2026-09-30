@@ -46,8 +46,8 @@ def _experiment(**overrides):
     )
     fields.update(overrides)
     exp = adapter.experiment_from_snapshot(fields, adopt_paths=True)
-    exp.current_metric = "accuracy"
-    exp.save()
+    exp.data.current_metric = "accuracy"
+    exp.data.save()
     return exp
 
 

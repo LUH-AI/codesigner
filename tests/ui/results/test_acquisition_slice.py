@@ -862,14 +862,14 @@ def test_a_stated_prior_is_kept(client):
     exp.refresh_from_db()
 
     assert response.status_code == 200
-    assert hp in exp.priors
-    assert exp.priors[hp]["kind"] == "normal"
-    assert exp.priors[hp]["params"] == {"mu": 0.8, "sigma": 0.1}
+    assert hp in exp.data.priors
+    assert exp.data.priors[hp]["kind"] == "normal"
+    assert exp.data.priors[hp]["params"] == {"mu": 0.8, "sigma": 0.1}
     # What defines the belief, and no evaluated curve. The density is computed
     # where it is needed, from these numbers, so a stored copy could only go
     # stale. `delay_decay` belongs here for the opposite reason: it is the
     # reader's answer to a question, derivable from nothing else in the row.
-    assert set(exp.priors[hp]) == {"kind", "params", "decay", "at_trial",
+    assert set(exp.data.priors[hp]) == {"kind", "params", "decay", "at_trial",
                                    "delay_decay"}
 
 
@@ -884,7 +884,7 @@ def test_uniform_is_stored_as_nothing(client):
     _save(client, exp, hp, None)
     exp.refresh_from_db()
 
-    assert hp not in exp.priors
+    assert hp not in exp.data.priors
 
 
 def test_the_slice_hands_back_what_was_stated(client):
@@ -917,7 +917,7 @@ def test_a_density_cannot_be_posted_at_all(client):
     exp.refresh_from_db()
 
     assert response.status_code == 200
-    assert "knots" not in exp.priors[hp]
+    assert "knots" not in exp.data.priors[hp]
 
 
 def test_the_density_comes_back_with_the_save(client):
@@ -1080,14 +1080,18 @@ def test_a_stated_prior_weakens_as_the_run_goes_on():
     of *finished* trials, so it grew alongside the step count it divides, and a
     prior drawn decaying got steadily stronger instead. Hence a direction
     assertion rather than a value one — the values are SMAC's."""
+    # The decay is SMAC's, carried by the branch pinned in pyproject; a released
+    # SMAC has no weight layer to decay, so there is nothing here to watch.
+    pytest.importorskip("smac.acquisition.weight",
+                        reason="needs the SMAC branch carrying the acquisition weight layer")
     from ui.views import _decayed_prior, _rebuild_experiment
 
     exp = _experiment()
     hp = _hp_names(exp)[0]
     at = len(_rebuild_experiment(exp)["result"].trials)
-    exp.priors = {hp: {"kind": "normal", "params": {}, "decay": "logarithmic",
+    exp.data.priors = {hp: {"kind": "normal", "params": {}, "decay": "logarithmic",
                        "at_trial": at}}
-    exp.save(update_fields=["priors"])
+    exp.data.save(update_fields=["priors"])
 
     seen = [_decayed_prior(exp, hp, at + n)["exponent"] for n in (0, 1, 5, 20, 100)]
 
@@ -1103,9 +1107,9 @@ def test_a_prior_that_does_not_decay_keeps_its_strength():
     exp = _experiment()
     hp = _hp_names(exp)[0]
     at = len(_rebuild_experiment(exp)["result"].trials)
-    exp.priors = {hp: {"kind": "normal", "params": {}, "decay": "none",
+    exp.data.priors = {hp: {"kind": "normal", "params": {}, "decay": "none",
                        "at_trial": at}}
-    exp.save(update_fields=["priors"])
+    exp.data.save(update_fields=["priors"])
 
     assert {_decayed_prior(exp, hp, at + n)["exponent"] for n in (0, 5, 100)} == {1.0}
 
@@ -1306,7 +1310,7 @@ def test_beta_is_stored_as_a_ratio_of_the_budget(client):
     assert _state_beta(client, exp, hp, 0.2).status_code == 200
     exp.refresh_from_db()
 
-    assert exp.priors[hp]["decay"] == {"shape": "quadratic", "beta_ratio": 0.2}
+    assert exp.data.priors[hp]["decay"] == {"shape": "quadratic", "beta_ratio": 0.2}
 
 
 def test_the_ratio_resolves_against_the_budget(client):
@@ -1321,7 +1325,7 @@ def test_the_ratio_resolves_against_the_budget(client):
     exp.refresh_from_db()
 
     out = _decayed_prior(exp, hp, trials)
-    at = exp.priors[hp]["at_trial"]
+    at = exp.data.priors[hp]["at_trial"]
 
     assert out["beta"] == pytest.approx(_run_budget(exp, at) * 0.2)
 
@@ -1338,7 +1342,7 @@ def test_the_ratio_is_held_inside_the_ablated_range(client):
     for asked, expected in ((-5.0, BETA_RATIO_MIN), (100.0, BETA_RATIO_MAX)):
         _state_beta(client, exp, hp, asked)
         exp.refresh_from_db()
-        assert exp.priors[hp]["decay"]["beta_ratio"] == expected
+        assert exp.data.priors[hp]["decay"]["beta_ratio"] == expected
 
 
 def test_an_absolute_beta_is_read_as_the_ratio_it_was(client):
@@ -1351,9 +1355,9 @@ def test_an_absolute_beta_is_read_as_the_ratio_it_was(client):
     hp = _hp_names(exp)[0]
     at = len(_rebuild_experiment(exp)["result"].trials)
     budget = _run_budget(exp, at)
-    exp.priors = {hp: {"kind": "normal", "params": {}, "at_trial": at,
+    exp.data.priors = {hp: {"kind": "normal", "params": {}, "at_trial": at,
                        "decay": {"shape": "linear", "beta": budget * 0.2}}}
-    exp.save(update_fields=["priors"])
+    exp.data.save(update_fields=["priors"])
 
     out = _decayed_prior(exp, hp, at)
 
@@ -1368,9 +1372,9 @@ def test_an_old_flat_decay_string_still_loads(client):
     exp = _experiment()
     hp = _hp_names(exp)[0]
     at = len(_rebuild_experiment(exp)["result"].trials)
-    exp.priors = {hp: {"kind": "normal", "params": {}, "decay": "linear",
+    exp.data.priors = {hp: {"kind": "normal", "params": {}, "decay": "linear",
                        "at_trial": at}}
-    exp.save(update_fields=["priors"])
+    exp.data.save(update_fields=["priors"])
 
     out = _decayed_prior(exp, hp, at + 5)
 

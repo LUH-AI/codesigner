@@ -49,7 +49,7 @@ def test_it_returns_one_row_of_points_per_hyperparameter(client):
     data = client.get(_url(exp.pk, "accuracy")).json()
 
     assert data["warning"] is None
-    hp_count = len(next(iter(exp.result["configs"].values())))
+    hp_count = len(next(iter(exp.data.result["configs"].values())))
     assert len(data["figure"]["data"]) == hp_count
     assert data["figure"]["layout"]["yaxis"]["ticktext"], "rows are named"
 
@@ -60,7 +60,7 @@ def test_every_sampled_trial_becomes_a_point(client):
     exp = _experiment()
     data = client.get(_url(exp.pk, "accuracy")).json()
 
-    n_trials = len(exp.result["data"])
+    n_trials = len(exp.data.result["data"])
     for trace in data["figure"]["data"]:
         assert len(trace["x"]) == n_trials
 
@@ -71,7 +71,7 @@ def test_the_cap_bounds_how_many_trials_are_explained(client):
     exp = _experiment(local_effects_max_trials=2)
     data = client.get(_url(exp.pk, "accuracy")).json()
 
-    assert len(exp.result["data"]) > 2, "the fixture has more than the cap"
+    assert len(exp.data.result["data"]) > 2, "the fixture has more than the cap"
     for trace in data["figure"]["data"]:
         assert len(trace["x"]) == 2
 
@@ -119,7 +119,7 @@ def test_each_row_says_which_trial_it_explains(client):
     data = client.get(_url(exp.pk, "accuracy")).json()
 
     selection = data["figure"]["layout"]["meta"]["selection"]
-    n_trials = len(exp.result["data"])
+    n_trials = len(exp.data.result["data"])
     sampled = selection["trials"]["0"]
 
     assert len(sampled) == 2

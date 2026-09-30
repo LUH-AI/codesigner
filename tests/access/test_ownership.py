@@ -1,24 +1,28 @@
 """Who owns an experiment, and what sharing one actually grants.
 
-The distinction that carries the most weight is that **sharing is an invitation
-to look, not a transfer of control**: a colleague can read and export a shared
-experiment, and cannot run, edit or delete it. An owner's results should not
-change because someone else pressed Run.
+Sharing is per person, at one of two levels, and the distinction between them
+carries the weight: a **viewer** can read and export an experiment and cannot
+run, edit or delete it — an owner's results should not change because somebody
+who was only asked to look pressed Run — while a **contributor** can do all of
+that. Neither can decide who else may, which stays the owner's until they hand
+the experiment to a contributor.
 
 `GroupPolicy` is the default policy, so these also pin that it stays completely
 transparent while `REQUIRE_LOGIN` is off — the same inert-by-default contract
 the login wall has.
 
-Ana and Ben are in one group here, because `shared` means *shared with my group*
-and outside one it grants nothing. What happens **between** groups is
+Ana and Ben are in one group here, because a grant can only name somebody in
+the experiment's group. What happens **between** groups is
 `test_groups.py`; this file is about what happens inside one.
 """
 
 import pytest
 from django.urls import reverse
 
-from ui.models import Experiment
+from ui.models import Experiment, ExperimentShare
 from ui.permissions import DELETE, EXPORT, RUN
+
+VIEWER, CONTRIBUTOR = ExperimentShare.VIEWER, ExperimentShare.CONTRIBUTOR
 
 from tests.conftest import export_ihpo
 
@@ -94,10 +98,17 @@ def _granted(django_user_model, username, *codenames):
     return django_user_model.objects.get(pk=user.pk)
 
 
-def _experiment(owner=None, shared=False, name="owned") -> Experiment:
-    return Experiment.objects.create(
+def _experiment(owner=None, name="owned", **shares) -> Experiment:
+    """An experiment, shared as `ana=VIEWER` and the like."""
+    exp = Experiment.objects.create(
         name=name, model_name="Random Forest", optimizer_name="Random Search",
-        metric_names=["accuracy"], seed=0, owner=owner, shared=shared)
+        metric_names=["accuracy"], seed=0, owner=owner)
+    from django.contrib.auth import get_user_model
+    for username, level in shares.items():
+        ExperimentShare.objects.create(
+            experiment=exp, level=level,
+            user=get_user_model().objects.get(username=username))
+    return exp
 
 
 def _detail(client, exp):
@@ -151,7 +162,7 @@ def test_creating_an_experiment_makes_you_its_owner(client, hosted, ana):
         "demo_dataset": str(DATASETS_DIR / "iris.csv"), "seed": "0",
     })
 
-    assert Experiment.objects.get(name="mine").owner == ana
+    assert Experiment.objects.get(data__name="mine").owner == ana
 
 
 def test_you_can_do_everything_to_your_own(client, hosted, ana):
@@ -162,7 +173,8 @@ def test_you_can_do_everything_to_your_own(client, hosted, ana):
 
     assert resp.status_code == 200
     assert resp.context["may"] == {"run": True, "edit": True,
-                                   "delete": True, "export": True}
+                                   "delete": True, "export": True,
+                                   "share": True}
 
 
 def test_an_experiment_you_do_not_own_is_not_there_at_all(client, hosted, ana, ben):
@@ -180,29 +192,30 @@ def test_someone_elses_experiment_is_not_in_your_sidebar(client, hosted, ana, be
     assert b"bens-private-work" not in client.get(reverse("ui:home")).content
 
 
-# ── shared with you ──────────────────────────────────────────────────────────
+# ── a viewer ─────────────────────────────────────────────────────────────────
 
-def test_a_shared_experiment_can_be_read(client, hosted, ana, ben):
-    exp = _experiment(owner=ben, shared=True)
+def test_a_viewer_can_read_it(client, hosted, ana, ben):
+    exp = _experiment(owner=ben, ana=VIEWER)
     client.force_login(ana)
 
     assert _detail(client, exp).status_code == 200
 
 
-def test_a_shared_experiment_cannot_be_run_or_changed(client, hosted, ana, ben):
-    """The point of the distinction. Reading someone's results should not come
-    with the ability to overwrite them."""
-    exp = _experiment(owner=ben, shared=True)
+def test_a_viewer_cannot_run_change_or_delete_it(client, hosted, ana, ben):
+    """The point of the level. Reading someone's results should not come with
+    the ability to overwrite them."""
+    exp = _experiment(owner=ben, ana=VIEWER)
     client.force_login(ana)
 
     assert _detail(client, exp).context["may"] == {
-        "run": False, "edit": False, "delete": False, "export": True}
+        "run": False, "edit": False, "delete": False, "export": True,
+        "share": False}
 
 
-def test_running_someone_elses_shared_experiment_is_refused(client, hosted, ana, ben):
+def test_a_viewer_running_it_is_refused(client, hosted, ana, ben):
     """Checked at the route, not only hidden in the template — the form can be
     posted without the page that renders it."""
-    exp = _experiment(owner=ben, shared=True)
+    exp = _experiment(owner=ben, ana=VIEWER)
     client.force_login(ana)
 
     resp = client.post(reverse("ui:experiment_run", args=[exp.pk]),
@@ -211,8 +224,8 @@ def test_running_someone_elses_shared_experiment_is_refused(client, hosted, ana,
     assert resp.status_code == 403
 
 
-def test_deleting_someone_elses_shared_experiment_is_refused(client, hosted, ana, ben):
-    exp = _experiment(owner=ben, shared=True)
+def test_a_viewer_deleting_it_is_refused(client, hosted, ana, ben):
+    exp = _experiment(owner=ben, ana=VIEWER)
     client.force_login(ana)
 
     resp = client.post(reverse("ui:experiment_delete", args=[exp.pk]))
@@ -221,47 +234,175 @@ def test_deleting_someone_elses_shared_experiment_is_refused(client, hosted, ana
     assert Experiment.objects.filter(pk=exp.pk).exists()
 
 
-def test_a_shared_experiment_can_be_exported(client, hosted, ana, ben):
+def test_a_viewer_can_export_it(client, hosted, ana, ben):
     """It carries only what the page already shows, so refusing would be
     theatre — and server paths are stripped from every export."""
-    exp = _experiment(owner=ben, shared=True)
+    exp = _experiment(owner=ben, ana=VIEWER)
     client.force_login(ana)
 
     assert export_ihpo(client, exp.pk).status_code == 200
 
 
-def test_only_the_owner_sees_the_sharing_control(client, hosted, ana, ben):
-    exp = _experiment(owner=ben, shared=True)
+# ── a contributor ────────────────────────────────────────────────────────────
 
-    client.force_login(ben)
-    assert reverse("ui:experiment_share", args=[exp.pk]) in _detail(client, exp).content.decode()
-
+def test_a_contributor_can_do_everything_but_share_it(client, hosted, ana, ben):
+    exp = _experiment(owner=ben, ana=CONTRIBUTOR)
     client.force_login(ana)
-    assert reverse("ui:experiment_share", args=[exp.pk]) not in _detail(client, exp).content.decode()
+
+    assert _detail(client, exp).context["may"] == {
+        "run": True, "edit": True, "delete": True, "export": True,
+        "share": False}
 
 
-def test_sharing_can_be_turned_on_and_off(client, hosted, ana):
+def test_a_contributor_can_delete_it(client, hosted, ana, ben):
+    exp = _experiment(owner=ben, ana=CONTRIBUTOR)
+    client.force_login(ana)
+
+    client.post(reverse("ui:experiment_delete", args=[exp.pk]))
+
+    exp.refresh_from_db()
+    assert exp.deleted_at is not None
+
+
+def test_a_contributor_cannot_share_it_on(client, hosted, ana, ben,
+                                          django_user_model):
+    """Who else may reach the work is the one decision that stays the owner's."""
+    cleo = django_user_model.objects.create_user(username="cleo")
+    from access.models import Membership
+    Membership.objects.create(user=cleo, group=ana.memberships.get().group)
+    exp = _experiment(owner=ben, ana=CONTRIBUTOR)
+    client.force_login(ana)
+
+    resp = client.post(reverse("ui:experiment_share", args=[exp.pk]),
+                       {"user": cleo.pk, "level": VIEWER})
+
+    assert resp.status_code == 403
+    assert not exp.shares.filter(user=cleo).exists()
+
+
+# ── the owner decides ────────────────────────────────────────────────────────
+
+def test_the_owner_sets_each_level_and_takes_it_away(client, hosted, ana, ben):
     exp = _experiment(owner=ana)
     client.force_login(ana)
+    share = reverse("ui:experiment_share", args=[exp.pk])
 
-    client.post(reverse("ui:experiment_share", args=[exp.pk]), {"shared": "on"})
-    exp.refresh_from_db()
-    assert exp.shared is True
+    client.post(share, {"user": ben.pk, "level": VIEWER})
+    assert exp.shares.get(user=ben).level == VIEWER
 
-    client.post(reverse("ui:experiment_share", args=[exp.pk]), {})
-    exp.refresh_from_db()
-    assert exp.shared is False
+    client.post(share, {"user": ben.pk, "level": CONTRIBUTOR})
+    assert exp.shares.get(user=ben).level == CONTRIBUTOR
+    assert exp.shares.get(user=ben).granted_by == ana
+
+    client.post(share, {"user": ben.pk, "level": "none"})
+    assert not exp.shares.exists()
 
 
 def test_nobody_else_can_share_your_experiment_out_from_under_you(client, hosted, ana, ben):
     exp = _experiment(owner=ben)
     client.force_login(ana)
 
-    resp = client.post(reverse("ui:experiment_share", args=[exp.pk]), {"shared": "on"})
+    resp = client.post(reverse("ui:experiment_share", args=[exp.pk]),
+                       {"user": ana.pk, "level": CONTRIBUTOR})
 
     assert resp.status_code == 404      # not even visible, let alone editable
+    assert not exp.shares.exists()
+
+
+def test_sharing_goes_back_where_it_was_asked_from(client, hosted, ana, ben):
+    """The controls live on the group page; the answer should too."""
+    exp = _experiment(owner=ana)
+    client.force_login(ana)
+
+    resp = client.post(reverse("ui:experiment_share", args=[exp.pk]),
+                       {"user": ben.pk, "level": VIEWER, "next": "/group/"})
+
+    assert resp["Location"] == "/group/"
+
+
+def test_and_never_off_the_site(client, hosted, ana, ben):
+    exp = _experiment(owner=ana)
+    client.force_login(ana)
+
+    resp = client.post(reverse("ui:experiment_share", args=[exp.pk]),
+                       {"user": ben.pk, "level": VIEWER,
+                        "next": "https://elsewhere.example/"})
+
+    assert resp["Location"] == reverse("ui:experiment_detail", args=[exp.pk])
+
+
+def test_an_unknown_level_is_refused(client, hosted, ana, ben):
+    exp = _experiment(owner=ana)
+    client.force_login(ana)
+
+    resp = client.post(reverse("ui:experiment_share", args=[exp.pk]),
+                       {"user": ben.pk, "level": "owner"})
+
+    assert resp.status_code == 400
+    assert not exp.shares.exists()
+
+
+def test_the_owner_cannot_be_given_a_level(client, hosted, ana):
+    """They already have every kind of access; a grant would only be a second,
+    weaker statement of it."""
+    exp = _experiment(owner=ana)
+    client.force_login(ana)
+
+    resp = client.post(reverse("ui:experiment_share", args=[exp.pk]),
+                       {"user": ana.pk, "level": VIEWER})
+
+    assert resp.status_code == 404
+    assert not exp.shares.exists()
+
+
+# ── handing it over ──────────────────────────────────────────────────────────
+
+def test_ownership_goes_to_a_contributor(client, hosted, ana, ben):
+    """And the previous owner stays on as one, rather than being shut out of
+    work that was theirs a moment ago."""
+    exp = _experiment(owner=ana, ben=CONTRIBUTOR)
+    client.force_login(ana)
+
+    client.post(reverse("ui:experiment_transfer", args=[exp.pk]), {"user": ben.pk})
     exp.refresh_from_db()
-    assert exp.shared is False
+
+    assert exp.owner == ben
+    assert exp.shares.get(user=ana).level == CONTRIBUTOR
+    assert not exp.shares.filter(user=ben).exists(), "an owner holds no grant"
+
+
+def test_ownership_does_not_go_to_a_viewer(client, hosted, ana, ben):
+    """That would make somebody who was asked to look the one who decides."""
+    exp = _experiment(owner=ana, ben=VIEWER)
+    client.force_login(ana)
+
+    client.post(reverse("ui:experiment_transfer", args=[exp.pk]), {"user": ben.pk})
+    exp.refresh_from_db()
+
+    assert exp.owner == ana
+    assert exp.shares.get(user=ben).level == VIEWER
+
+
+def test_only_the_owner_hands_it_over(client, hosted, ana, ben):
+    exp = _experiment(owner=ben, ana=CONTRIBUTOR)
+    client.force_login(ana)
+
+    resp = client.post(reverse("ui:experiment_transfer", args=[exp.pk]),
+                       {"user": ana.pk})
+    exp.refresh_from_db()
+
+    assert resp.status_code == 403
+    assert exp.owner == ben
+
+
+def test_the_new_owner_can_share_it_and_the_old_one_cannot(client, hosted, ana, ben):
+    exp = _experiment(owner=ana, ben=CONTRIBUTOR)
+    client.force_login(ana)
+    client.post(reverse("ui:experiment_transfer", args=[exp.pk]), {"user": ben.pk})
+
+    assert _detail(client, exp).context["may"]["share"] is False
+    client.force_login(ben)
+    assert _detail(client, exp).context["may"]["share"] is True
 
 
 # ── nobody's ─────────────────────────────────────────────────────────────────
@@ -304,16 +445,19 @@ def test_deleting_a_user_keeps_their_experiments(hosted, ana):
 # results. Each is its own permission now, and these pin them apart.
 
 
-def test_an_administrator_sees_and_can_act_on_everything(client, hosted, ben,
-                                                         administrator):
-    """The group the migration creates carries what `is_staff` used to."""
+def test_a_lead_sees_and_can_run_everything_in_their_group(client, hosted, ben,
+                                                           administrator):
+    """What `is_staff` used to carry, now bounded by a group — and short of
+    deleting a colleague's work or deciding who else may reach it, which stay
+    with the people whose work it is."""
     exp = _experiment(owner=ben)
     client.force_login(administrator)
 
     resp = _detail(client, exp)
 
     assert resp.status_code == 200
-    assert all(resp.context["may"].values())
+    assert resp.context["may"] == {"run": True, "edit": True, "export": True,
+                                   "delete": False, "share": False}
 
 
 def test_is_staff_alone_grants_nothing_here(client, hosted, ben, staff):
@@ -383,7 +527,7 @@ def test_an_export_names_no_paths_on_this_server(client, ana):
     from tests.conftest import DATASETS_DIR
 
     exp = _experiment(owner=ana)
-    exp.dataset.save("iris.csv", ContentFile((DATASETS_DIR / "iris.csv").read_bytes()))
+    exp.data.dataset.save("iris.csv", ContentFile((DATASETS_DIR / "iris.csv").read_bytes()))
 
     body = export_ihpo(client, exp.pk).content
     snapshot = json.loads(body)
@@ -401,6 +545,6 @@ def test_the_experiment_itself_still_knows_its_paths(client, ana):
     from ui.services import snapshot as adapter
 
     exp = _experiment(owner=ana)
-    exp.dataset.save("iris.csv", ContentFile((DATASETS_DIR / "iris.csv").read_bytes()))
+    exp.data.dataset.save("iris.csv", ContentFile((DATASETS_DIR / "iris.csv").read_bytes()))
 
     assert adapter.snapshot_from_experiment(exp)["dataset"]["path"] != ""

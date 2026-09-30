@@ -35,13 +35,13 @@ def test_a_run_stores_the_search_space():
     from ui.services.run import create_run, execute_run
 
     exp = _an_experiment()
-    assert exp.config_space is None
+    assert exp.data.config_space is None
 
     execute_run(create_run(exp, {"max_trials": 3}, "accuracy").id)
     exp.refresh_from_db()
 
-    stored = io.config_space_from_serialized(exp.config_space, seed=exp.seed)
-    expected = MODELS["Random Forest"].get_config_space(seed=exp.seed)
+    stored = io.config_space_from_serialized(exp.data.config_space, seed=exp.data.seed)
+    expected = MODELS["Random Forest"].get_config_space(seed=exp.data.seed)
     assert stored is not None
     assert list(stored.keys()) == list(expected.keys())
 
@@ -61,7 +61,7 @@ def test_the_stored_space_reaches_the_figures():
 
     built = _rebuild_experiment(exp)
 
-    assert built["config_space"] == exp.config_space
+    assert built["config_space"] == exp.data.config_space
     assert _config_space_for(built) is not None
 
 
@@ -83,7 +83,7 @@ def test_a_model_that_cannot_describe_its_space_does_not_fail_the_run():
     _remember_config_space(exp.pk, _Mute(), 0)
 
     exp.refresh_from_db()
-    assert exp.config_space is None
+    assert exp.data.config_space is None
 
 
 pytestmark = pytest.mark.django_db

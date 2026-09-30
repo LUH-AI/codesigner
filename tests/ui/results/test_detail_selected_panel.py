@@ -32,7 +32,7 @@ def test_detail_has_a_selected_config_panel_per_metric(client):
     sidebar = html.split('<nav class="sidebar"', 1)[1].split("</nav>", 1)[0]
 
     assert "Selected Configuration" in sidebar
-    for m in exp.metric_names:
+    for m in exp.data.metric_names:
         assert f'class="panel selected-config" data-figure="selected_configuration"\n             data-metric="{m}"' in sidebar \
             or f'data-metric="{m}"' in sidebar
 

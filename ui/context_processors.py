@@ -21,8 +21,9 @@ def sidebar_experiments(request):
 
 
 _SETTINGS_URL_NAMES = {"appearance", "account", "default_experiment_settings"}
-_GROUP_URL_NAMES = {"group_people", "group_add_person", "group_remove_person",
-                    "group_set_role", "group_transfer_primary", "group_work"}
+_GROUP_URL_NAMES = {"group_index", "group_detail", "group_add_person",
+                    "group_remove_person", "group_set_role",
+                    "group_transfer_primary"}
 _SITE_URL_NAMES = {"site_groups", "site_group_save", "site_group_delete",
                    "site_usage", "site_jobs", "site_job_stop",
                    "site_trash", "site_trash_rehome", "site_trash_delete"}
@@ -73,7 +74,7 @@ def capabilities(request):
     link to the default experiment settings, and the button that promotes an
     experiment's settings to be those defaults.
     """
-    from access.policy import is_lead, is_site_admin
+    from access.policy import is_lead, is_site_admin, memberships_of
 
     user = getattr(request, "user", None)
     return {
@@ -83,4 +84,8 @@ def capabilities(request):
         # into the policy through three.
         "is_group_lead": is_lead(user),
         "is_site_admin": is_site_admin(user),
+        # For the Group tab's sidebar: every group this person is in, each its
+        # own page. From the cached memberships, so no query of its own.
+        "my_groups": sorted((m.group for m in memberships_of(user)),
+                            key=lambda g: g.name.lower()),
     }

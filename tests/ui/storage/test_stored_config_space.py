@@ -85,7 +85,7 @@ def test_the_space_survives_the_row():
     row = adapter.experiment_from_snapshot(original)
     again = adapter.snapshot_from_experiment(row)
 
-    assert row.config_space == original["space"]
+    assert row.data.config_space == original["space"]
     assert again["space"] == original["space"]
 
 
@@ -103,7 +103,7 @@ def test_an_experiment_without_a_space_writes_no_section():
 
     row = adapter.experiment_from_snapshot(original)
 
-    assert row.config_space is None
+    assert row.data.config_space is None
     assert "space" not in adapter.snapshot_from_experiment(row)
 
 

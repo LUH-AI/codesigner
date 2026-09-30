@@ -154,6 +154,6 @@ def test_a_belief_stated_now_has_not_started_fading(client):
                           {"metric": "accuracy", "hp": hp, "prior_only": "1"})
     prior = json.loads(response.content)["prior"]
 
-    assert exp.priors[hp]["delay_decay"] is True
+    assert exp.data.priors[hp]["delay_decay"] is True
     assert prior["exponent"] == 1.0
     assert prior["steps"] == 0

@@ -108,7 +108,7 @@ def test_every_trials_row_carries_the_trial_it_stands_for(client):
     body = _trials_body(html)
 
     indices = [int(m) for m in re.findall(r'data-trial-idx="(\d+)"', body)]
-    assert indices == list(range(len(exp.result["data"])))
+    assert indices == list(range(len(exp.data.result["data"])))
 
 
 def test_the_rows_can_be_reached_without_a_mouse(client):

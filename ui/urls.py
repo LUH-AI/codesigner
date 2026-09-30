@@ -12,12 +12,19 @@ urlpatterns = [
     # The two management surfaces. Neither goes through `@experiment_view`: a
     # group lead reaches their colleagues' work through the policy's queryset,
     # and a site admin reaches no experiment at all. See ui/panels.py.
-    path("group/", panels.group_people, name="group_people"),
-    path("group/add/", panels.group_add_person, name="group_add_person"),
-    path("group/<int:pk>/remove/", panels.group_remove_person, name="group_remove_person"),
-    path("group/<int:pk>/role/", panels.group_set_role, name="group_set_role"),
-    path("group/<int:pk>/primary/", panels.group_transfer_primary, name="group_transfer_primary"),
-    path("group/experiments/", panels.group_work, name="group_work"),
+    # A group is named in the URL, because a person may be in several. The
+    # membership routes carry their group as well as their own pk: the view
+    # then looks the membership up *within* that group, which makes the
+    # boundary a lookup rather than a check somebody has to remember.
+    path("group/", panels.group_index, name="group_index"),
+    path("group/<int:group_pk>/", panels.group_detail, name="group_detail"),
+    path("group/<int:group_pk>/add/", panels.group_add_person, name="group_add_person"),
+    path("group/<int:group_pk>/people/<int:pk>/remove/", panels.group_remove_person,
+         name="group_remove_person"),
+    path("group/<int:group_pk>/people/<int:pk>/role/", panels.group_set_role,
+         name="group_set_role"),
+    path("group/<int:group_pk>/people/<int:pk>/primary/", panels.group_transfer_primary,
+         name="group_transfer_primary"),
     path("site/", panels.site_groups, name="site_groups"),
     path("site/groups/save/", panels.site_group_save, name="site_group_save"),
     path("site/groups/delete/", panels.site_group_delete, name="site_group_delete"),
@@ -39,6 +46,12 @@ urlpatterns = [
     path("experiments/<int:pk>/cancel/", views.run_cancel, name="run_cancel"),
     path("experiments/<int:pk>/force-stop/", views.run_force_stop, name="run_force_stop"),
     path("experiments/<int:pk>/share/", views.experiment_share, name="experiment_share"),
+    path("experiments/<int:pk>/transfer/", views.experiment_transfer, name="experiment_transfer"),
+    path("bin/", views.experiment_bin, name="experiment_bin"),
+    path("bin/<int:pk>/restore/", views.bin_restore, name="bin_restore"),
+    path("bin/<int:pk>/download/", views.bin_download, name="bin_download"),
+    path("bin/<int:pk>/dismiss/", views.bin_dismiss, name="bin_dismiss"),
+    path("bin/<int:pk>/delete/", views.bin_purge, name="bin_purge"),
     path("experiments/<int:pk>/trial-panel/", views.trial_panel, name="trial_panel"),
     path("experiments/<int:pk>/trial-ablation/", views.trial_ablation, name="trial_ablation"),
     path("experiments/<int:pk>/trial-traceback/", views.trial_traceback, name="trial_traceback"),

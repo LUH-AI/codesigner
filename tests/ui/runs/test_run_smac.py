@@ -30,8 +30,8 @@ def test_smac_run_completes_and_stores_result():
     run.refresh_from_db()
     exp.refresh_from_db()
     assert run.status == "done"
-    assert len(exp.result["data"]) == 3
-    assert exp.result["optimizer_state"]  # SMAC embeds its working dir
+    assert len(exp.data.result["data"]) == 3
+    assert exp.data.result["optimizer_state"]  # SMAC embeds its working dir
 
 
 @pytest.mark.slow
@@ -63,7 +63,7 @@ def test_smac_resume_through_the_web_engine_keeps_all_trials():
     run1 = create_run(exp, {"max_trials": 3}, "accuracy")
     execute_run(run1.id)
     exp.refresh_from_db()
-    assert [e["config_id"] for e in exp.result["data"]] == [1, 2, 3]
+    assert [e["config_id"] for e in exp.data.result["data"]] == [1, 2, 3]
 
     run2 = create_run(exp, {"max_trials": 2}, "accuracy")
     execute_run(run2.id)
@@ -71,4 +71,4 @@ def test_smac_resume_through_the_web_engine_keeps_all_trials():
     exp.refresh_from_db()
 
     assert run2.status == "done"
-    assert [e["config_id"] for e in exp.result["data"]] == [1, 2, 3, 4, 5]
+    assert [e["config_id"] for e in exp.data.result["data"]] == [1, 2, 3, 4, 5]

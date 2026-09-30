@@ -16,12 +16,13 @@
                 <span aria-hidden="true">🧪</span>
                 <span class="visually-hidden">{% translate "Experiments" %}</span>
             </a>
-            {% comment %}The two management tabs, each present only for whoever
-            it belongs to. A group lead gets their group; a site admin gets the
-            instance and, deliberately, no experiments anywhere.{% endcomment %}
-            {% if is_group_lead %}
+            {% comment %}The Group tab is everybody's who has an account — their
+            groups, who is in them, and sharing. The Site tab only a site
+            admin's: the instance and, deliberately, no experiments anywhere.
+            {% endcomment %}
+            {% if user.is_authenticated %}
                 <a class="rail-icon{% if active_tab == 'group' %} active{% endif %}"
-                   href="{% url 'ui:group_people' %}" title="{% translate 'Group' %}">
+                   href="{% url 'ui:group_index' %}" title="{% translate 'Group' %}">
                     <span aria-hidden="true">👥</span>
                     <span class="visually-hidden">{% translate "Group" %}</span>
                 </a>
@@ -62,7 +63,7 @@
         for anyone who has none.{% endcomment %}
         <form class="locale" method="post" action="{% url 'set_language' %}">
             {% csrf_token %}
-            <input type="hidden" name="next" value="{{ request.get_full_path }}">
+            <input type="hidden" name="next" value="{{ request.path }}">
             <label for="language-select" aria-hidden="true">
                 <span class="locale-icon">🌐</span>
                 <span class="locale-code">{{ CURRENT_LANGUAGE|upper }}</span>
@@ -100,10 +101,12 @@
         <nav class="sidebar">
             <h1>{% translate "Group" %}</h1>
             <div class="tab-list">
-                <a class="tab{% if request.resolver_match.url_name == 'group_people' %} active{% endif %}"
-                   href="{% url 'ui:group_people' %}">{% translate "People" %}</a>
-                <a class="tab{% if request.resolver_match.url_name == 'group_work' %} active{% endif %}"
-                   href="{% url 'ui:group_work' %}">{% translate "Their experiments" %}</a>
+                {% for g in my_groups %}
+                    <a class="tab{% if request.resolver_match.kwargs.group_pk == g.pk %} active{% endif %}"
+                       href="{% url 'ui:group_detail' g.pk %}">{{ g.name }}</a>
+                {% empty %}
+                    <span class="placeholder">{% translate "No groups yet." %}</span>
+                {% endfor %}
             </div>
         </nav>
     {% elif active_tab == 'site' %}
@@ -143,6 +146,8 @@
                     {% endfor %}
                 </div>
                 <a class="tab" href="{% url 'ui:experiment_list' %}">{% translate "See all…" %}</a>
+                <a class="tab{% if request.resolver_match.url_name == 'experiment_bin' %} active{% endif %}"
+                   href="{% url 'ui:experiment_bin' %}">{% translate "🗑 Bin" %}</a>
             </section>
             {% block sidebar_sections %}{% endblock %}
         </nav>

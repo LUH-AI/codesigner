@@ -63,7 +63,7 @@ def test_the_scale_is_keyed_by_metric(client):
     options = _figure_options(client, exp)["performance_over_time"]
 
     assert options["perMetric"] is True
-    assert set(options["absoluteScale"]) == set(exp.metric_names)
+    assert set(options["absoluteScale"]) == set(exp.data.metric_names)
 
 
 def test_an_unbounded_metric_offers_no_absolute_range():

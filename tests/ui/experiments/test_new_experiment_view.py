@@ -51,12 +51,12 @@ def test_post_creates_experiment_and_redirects(client):
     from ui.models import Experiment
 
     resp = client.post(reverse("ui:new_experiment"), _valid_post(name="created"))
-    exp = Experiment.objects.get(name="created")
+    exp = Experiment.objects.get(data__name="created")
 
     assert resp.status_code == 302
     assert resp["Location"] == reverse("ui:experiment_detail", args=[exp.pk])
-    assert exp.result is None
-    assert exp.current_metric is None
+    assert exp.data.result is None
+    assert exp.data.current_metric is None
 
 
 def test_post_with_uploaded_csv_stores_the_dataset(client):
@@ -71,7 +71,7 @@ def test_post_with_uploaded_csv_stores_the_dataset(client):
 
     resp = client.post(reverse("ui:new_experiment"), data)
     assert resp.status_code == 302
-    assert Experiment.objects.get(name="uploaded").dataset
+    assert Experiment.objects.get(data__name="uploaded").data.dataset
 
 
 def test_missing_dataset_is_rejected(client):
@@ -109,7 +109,7 @@ def test_five_fold_cross_validation_is_the_default(client):
 
     assert '<option value="kfold" selected>' in html
     assert 'value="5"\n                       aria-describedby="evaluation_value_helptext" data-evaluation-value' in html
-    assert Experiment.objects.get(name="folded").cv_folds == 5
+    assert Experiment.objects.get(data__name="folded").data.cv_folds == 5
 
 
 def test_a_choice_of_holdout_is_still_honoured(client):
@@ -122,9 +122,9 @@ def test_a_choice_of_holdout_is_still_honoured(client):
                 _valid_post(name="split", evaluation_scheme="holdout",
                             evaluation_value="0.3"))
 
-    exp = Experiment.objects.get(name="split")
-    assert exp.cv_folds == 0
-    assert exp.test_size == 0.3
+    exp = Experiment.objects.get(data__name="split")
+    assert exp.data.cv_folds == 0
+    assert exp.data.test_size == 0.3
 
 
 def test_the_number_beside_the_scheme_is_read_as_that_scheme_asks(client):
@@ -136,9 +136,9 @@ def test_the_number_beside_the_scheme_is_read_as_that_scheme_asks(client):
                 _valid_post(name="sevenfold", evaluation_scheme="kfold",
                             evaluation_value="7"))
 
-    exp = Experiment.objects.get(name="sevenfold")
-    assert exp.cv_folds == 7
-    assert exp.test_size == 0.2
+    exp = Experiment.objects.get(data__name="sevenfold")
+    assert exp.data.cv_folds == 7
+    assert exp.data.test_size == 0.2
 
 
 def test_the_scheme_and_its_number_sit_in_one_row(client):
@@ -185,5 +185,5 @@ def test_an_out_of_range_number_is_clamped_rather_than_refused(client):
                 _valid_post(name="mostly-held-out", evaluation_scheme="holdout",
                             evaluation_value="0.9"))
 
-    assert Experiment.objects.get(name="greedy").cv_folds == 20
-    assert Experiment.objects.get(name="mostly-held-out").test_size == 0.5
+    assert Experiment.objects.get(data__name="greedy").data.cv_folds == 20
+    assert Experiment.objects.get(data__name="mostly-held-out").data.test_size == 0.5

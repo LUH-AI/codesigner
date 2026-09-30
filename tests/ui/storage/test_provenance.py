@@ -46,7 +46,7 @@ def _create(client, **overrides):
     }
     data.update(overrides)
     client.post(reverse("ui:new_experiment"), data)
-    return Experiment.objects.get(name=data["name"])
+    return Experiment.objects.get(data__name=data["name"])
 
 
 def _exported(client, exp) -> dict:
@@ -61,7 +61,7 @@ def _reimport(client, body):
         "file": SimpleUploadedFile("e.ihpo", json.dumps(body).encode()),
         "dataset": SimpleUploadedFile("iris.csv", IRIS.read_bytes()),
     })
-    return Experiment.objects.get(name=body["name"])
+    return Experiment.objects.get(data__name=body["name"])
 
 
 def _run(exp, **overrides):
@@ -92,7 +92,7 @@ def test_an_experiment_with_no_dataset_records_nothing_to_check(client):
     runnable — so the section has to be able to say there is nothing to
     recognise, without a digest that would refuse every dataset offered."""
     exp = _create(client)
-    exp.dataset.delete(save=True)
+    exp.data.dataset.delete(save=True)
 
     record = _exported(client, exp)["dataset"]
 
@@ -161,7 +161,7 @@ def test_the_blanks_are_answered_for_the_reader(client):
 
     record = _exported(client, exp)["optimizer"]
 
-    assert exp.optimizer_params["rf_trees"] is None, "asked for nothing"
+    assert exp.data.optimizer_params["rf_trees"] is None, "asked for nothing"
     assert record["defaults_used"]["rf_trees"] == 10, "and got SMAC's ten"
     assert record["defaults_used"]["retrain_after"] == 8
 
@@ -268,10 +268,10 @@ def test_changing_the_metric_is_recorded_as_an_event(client, no_thread):
     optimizer carrying a fitted model of the objective throws it away, because
     it was fitted to costs from a different question."""
     exp = _create(client)
-    exp.result = {"data": [{"config_id": i} for i in range(6)],
+    exp.data.result = {"data": [{"config_id": i} for i in range(6)],
                   "primary_metric": "accuracy"}
-    exp.current_metric = exp.original_metric = "accuracy"
-    exp.save()
+    exp.data.current_metric = exp.data.original_metric = "accuracy"
+    exp.data.save()
 
     client.post(reverse("ui:experiment_run", args=[exp.pk]),
                 {"optimize_metric": "f1", "max_trials": "4", "decision": "new"})
@@ -286,9 +286,9 @@ def test_an_optimizer_that_fits_nothing_says_so(client, no_thread):
     a rescoring and nothing else. Recording "rebuilt" would be a claim about
     work that never happened."""
     exp = _create(client, optimizer_name="Random Search")
-    exp.result = {"data": [{"config_id": 0}], "primary_metric": "accuracy"}
-    exp.current_metric = exp.original_metric = "accuracy"
-    exp.save()
+    exp.data.result = {"data": [{"config_id": 0}], "primary_metric": "accuracy"}
+    exp.data.current_metric = exp.data.original_metric = "accuracy"
+    exp.data.save()
 
     client.post(reverse("ui:experiment_run", args=[exp.pk]),
                 {"optimize_metric": "f1", "max_trials": "2", "decision": "new"})
@@ -298,9 +298,9 @@ def test_an_optimizer_that_fits_nothing_says_so(client, no_thread):
 
 def test_a_run_that_changes_nothing_records_no_event(client, no_thread):
     exp = _create(client)
-    exp.result = {"data": [{"config_id": 0}], "primary_metric": "accuracy"}
-    exp.current_metric = exp.original_metric = "accuracy"
-    exp.save()
+    exp.data.result = {"data": [{"config_id": 0}], "primary_metric": "accuracy"}
+    exp.data.current_metric = exp.data.original_metric = "accuracy"
+    exp.data.save()
 
     client.post(reverse("ui:experiment_run", args=[exp.pk]),
                 {"optimize_metric": "accuracy", "max_trials": "2"})
@@ -323,9 +323,9 @@ def test_a_metric_change_that_never_ran_is_not_lost_on_retry(client, no_thread):
     change pending and records it correctly.
     """
     exp = _create(client)
-    exp.result = {"data": [{"config_id": 0}], "primary_metric": "accuracy"}
-    exp.current_metric = exp.original_metric = "accuracy"
-    exp.save()
+    exp.data.result = {"data": [{"config_id": 0}], "primary_metric": "accuracy"}
+    exp.data.current_metric = exp.data.original_metric = "accuracy"
+    exp.data.save()
 
     client.post(reverse("ui:experiment_run", args=[exp.pk]),
                 {"optimize_metric": "f1", "max_trials": "2", "decision": "new"})
@@ -372,7 +372,7 @@ def test_importing_against_a_different_dataset_is_refused(client):
 
     assert resp.status_code == 200
     assert "not the dataset the experiment was run on" in resp.content.decode()
-    assert Experiment.objects.filter(name="recorded").count() == 1, "nothing imported"
+    assert Experiment.objects.filter(data__name="recorded").count() == 1, "nothing imported"
 
 
 def test_importing_against_the_recorded_dataset_is_allowed(client):
@@ -384,7 +384,7 @@ def test_importing_against_the_recorded_dataset_is_allowed(client):
     })
 
     assert resp.status_code == 302
-    assert Experiment.objects.filter(name="recorded").count() == 2
+    assert Experiment.objects.filter(data__name="recorded").count() == 2
 
 
 def test_the_upload_survives_being_hashed(client):
@@ -397,8 +397,8 @@ def test_the_upload_survives_being_hashed(client):
         "dataset": SimpleUploadedFile("iris.csv", IRIS.read_bytes()),
     })
 
-    imported = Experiment.objects.filter(name="recorded").order_by("-id").first()
-    assert imported.dataset.size == IRIS.stat().st_size
+    imported = Experiment.objects.filter(data__name="recorded").order_by("-id").first()
+    assert imported.data.dataset.size == IRIS.stat().st_size
 
 
 def test_a_file_with_no_fingerprint_is_still_accepted(client):
@@ -579,7 +579,7 @@ def test_an_experiment_recreated_from_its_file_produces_the_same_trials(
                 {"optimize_metric": "accuracy", "max_trials": "8",
                  "target_score": ""})
     original.refresh_from_db()
-    assert original.result, f"{label}: the original never ran"
+    assert original.data.result, f"{label}: the original never ran"
 
     body = _exported(client, original)
     body["result"] = None          # a fresh experiment, not a resumed one
@@ -588,20 +588,20 @@ def test_an_experiment_recreated_from_its_file_produces_the_same_trials(
         "file": SimpleUploadedFile("e.ihpo", json.dumps(body).encode()),
         "dataset": SimpleUploadedFile("iris.csv", IRIS.read_bytes()),
     })
-    copy = Experiment.objects.get(name="recreated")
+    copy = Experiment.objects.get(data__name="recreated")
     client.post(reverse("ui:experiment_run", args=[copy.pk]),
                 {"optimize_metric": "accuracy", "max_trials": "8",
                  "target_score": ""})
     copy.refresh_from_db()
 
     def trials(exp):
-        result = exp.result
+        result = exp.data.result
         return [(result["configs"][str(e["config_id"])], round(e["cost"], 12))
                 for e in result["data"]]
 
-    assert copy.seed == original.seed == 7
-    assert copy.cv_folds == original.cv_folds
-    assert copy.optimizer_params == original.optimizer_params
+    assert copy.data.seed == original.data.seed == 7
+    assert copy.data.cv_folds == original.data.cv_folds
+    assert copy.data.optimizer_params == original.data.optimizer_params
     assert trials(copy) == trials(original), label
 
 

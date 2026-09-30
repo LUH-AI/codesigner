@@ -115,5 +115,5 @@ def test_the_table_is_paged_with_its_page_size_on_the_page(client, experiment):
     assert f'value="{FIGURES_BY_KEY["trials"].page_size}"' in pager
     assert pager.lstrip().startswith("hidden"), \
         "no pager until the script finds more rows than fit a page"
-    assert body.count("<tr") == len(experiment.result["data"]), \
+    assert body.count("<tr") == len(experiment.data.result["data"]), \
         "every row is in the document; paging hides them, it does not drop them"

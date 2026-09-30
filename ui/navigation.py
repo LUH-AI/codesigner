@@ -63,6 +63,8 @@ def _crumbs_for(request, url_name, kwargs):
         return [experiments]
     if url_name == "experiment_list":
         return [experiments, (_("All experiments"), None)]
+    if url_name == "experiment_bin":
+        return [experiments, (_("Bin"), None)]
     if url_name == "new_experiment":
         return [experiments, (_("New experiment"), None)]
     if url_name == "import_experiment":

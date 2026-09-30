@@ -33,9 +33,9 @@ def _experiment(source: bytes = MODEL_SOURCE, **overrides) -> Experiment:
         name="custom", model_name="Mine", optimizer_name="Random Search",
         metric_names=["accuracy"], seed=0, env_status=Experiment.ENV_PENDING)
     fields.update(overrides)
-    exp = Experiment(**fields)
-    exp.model_file.save("mine.py", ContentFile(source), save=False)
-    exp.save()
+    exp = Experiment.objects.create(**fields)
+    exp.data.model_file.save("mine.py", ContentFile(source), save=False)
+    exp.data.save()
     return exp
 
 
@@ -181,7 +181,7 @@ def test_preparing_corrects_the_name_the_source_only_claimed(fake_uv):
     modelenv.prepare_environment(exp.pk)
     exp.refresh_from_db()
 
-    assert exp.model_name == "Fake Model"
+    assert exp.data.model_name == "Fake Model"
     assert exp.env_meta["name_from_source"] == "Mine"
 
 

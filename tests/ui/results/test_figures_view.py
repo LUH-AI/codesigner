@@ -81,7 +81,7 @@ def test_detail_has_metric_switcher_with_all_metrics(client):
     """A metric selector offers every scored metric."""
     html, exp = _detail(client)
     assert 'id="metric-select"' in html
-    for m in exp.metric_names:
+    for m in exp.data.metric_names:
         assert f'value="{m}"' in html
 
 
@@ -93,14 +93,14 @@ def test_the_page_ships_only_the_metric_it_opens_on(client):
     inline = _json_script(html, "metric-plots-data")
 
     assert list(inline) == ["accuracy"], "the metric the selector opens on"
-    assert len(exp.metric_names) > 1, "and there are others to fetch"
+    assert len(exp.data.metric_names) > 1, "and there are others to fetch"
 
 
 def test_every_metric_has_a_performance_figure_for_the_switcher(client):
     """Whichever way it is served — one entry per declared view, the default
     (trial-score) among them."""
     html, exp = _detail(client)
-    for m in exp.metric_names:
+    for m in exp.data.metric_names:
         plots = _plots(client, exp, html, m)
         assert plots["performance_over_time"]["trial-score"]["data"]
 
@@ -108,7 +108,7 @@ def test_every_metric_has_a_performance_figure_for_the_switcher(client):
 def test_best_config_panel_present_per_metric(client):
     """Each metric gets its own best-configuration panel to toggle between."""
     html, exp = _detail(client)
-    for m in exp.metric_names:
+    for m in exp.data.metric_names:
         assert f'data-metric="{m}"' in html
 
 
@@ -118,7 +118,7 @@ def test_performance_over_time_offers_all_four_views(client):
     assert 'id="view-select-performance_over_time-x"' in html
     assert 'id="view-select-performance_over_time-y"' in html
 
-    for m in exp.metric_names:
+    for m in exp.data.metric_names:
         views = _plots(client, exp, html, m)["performance_over_time"]
         assert set(views) == {"trial-score", "trial-error", "time-score", "time-error"}
         for view in views.values():
@@ -134,7 +134,7 @@ def test_hyperparameter_importance_offers_three_games_and_three_renderings(clien
     assert 'id="view-select-hyperparameter_importance-rendering"' in html
 
     games = ("tunability", "sensitivity", "mistunability")
-    for m in exp.metric_names:
+    for m in exp.data.metric_names:
         views = _plots(client, exp, html, m)["hyperparameter_importance"]
         assert set(views) == {f"{g}-{r}" for g in games for r in ("pie", "bar", "table")}
         for game in games:
@@ -206,7 +206,7 @@ def test_configuration_cube_ships_every_hyperparameter_for_client_side_remap(cli
     assert 'id="cube-axis-x"' in html
     assert 'id="cube-axis-z"' in html
 
-    for m in exp.metric_names:
+    for m in exp.data.metric_names:
         cube = _plots(client, exp, html, m)["configuration_cube"]["axes"]
         hp_names = cube["layout"]["meta"]["hp_names"]
         assert len(hp_names) >= 2
@@ -238,9 +238,9 @@ def test_parallel_coordinates_renders_one_dimension_per_hyperparameter_plus_scor
     cube's, so one precomputed plot per metric is enough."""
     html, exp = _detail(client)
 
-    hp_count = len(next(iter(exp.result["configs"].values())))
+    hp_count = len(next(iter(exp.data.result["configs"].values())))
 
-    for m in exp.metric_names:
+    for m in exp.data.metric_names:
         parcoords = _plots(client, exp, html, m)["parallel_coordinates"]
         labels = parcoords["layout"]["xaxis"]["ticktext"]
         assert len(labels) == hp_count + 1
@@ -257,10 +257,10 @@ def test_partial_dependence_ships_a_picker_but_no_precomputed_data(client):
     client-side (see experiment_detail.html's refreshPartialDependence)."""
     html, exp = _detail(client)
     assert 'id="pdp-hp-select"' in html
-    for h in next(iter(exp.result["configs"].values())):
+    for h in next(iter(exp.data.result["configs"].values())):
         assert f'value="{h}"' in html
 
-    for m in exp.metric_names:
+    for m in exp.data.metric_names:
         assert _plots(client, exp, html, m)["partial_dependence"] is None
 
 
@@ -279,7 +279,7 @@ def test_the_interaction_readings_are_five_figures_not_five_views(client):
     """
     html, exp = _detail_with_analytics(client)
 
-    for m in exp.metric_names:
+    for m in exp.data.metric_names:
         plots = _plots(client, exp, html, m)
         for key in INTERACTION_FIGURES:
             assert f'data-figure="{key}"' in html, key
@@ -298,7 +298,7 @@ def test_hyperparameter_interactions_render_real_order_2_values(client):
     field."""
     html, exp = _detail_with_analytics(client)
 
-    for m in exp.metric_names:
+    for m in exp.data.metric_names:
         plots = _plots(client, exp, html, m)
         heatmap = plots["interactions_heatmap"]["tunability"]["data"][0]
         assert heatmap["type"] == "heatmap"
@@ -314,7 +314,7 @@ def test_the_by_order_figure_renders_from_the_moebius_decomposition(client):
     order-2 FSII grid instead, so this is the reading that exercises it."""
     html, exp = _detail_with_analytics(client)
 
-    for m in exp.metric_names:
+    for m in exp.data.metric_names:
         orders = _plots(client, exp, html, m)["interactions_orders"]["tunability"]
         assert orders["layout"]["barmode"] == "stack"
         assert [t["name"] for t in orders["data"]] == [
@@ -328,7 +328,7 @@ def test_all_three_importance_games_render_real_numbers(client):
     payloads round-trip as None and prove nothing about the games."""
     html, exp = _detail_with_analytics(client)
 
-    for m in exp.metric_names:
+    for m in exp.data.metric_names:
         views = _plots(client, exp, html, m)["hyperparameter_importance"]
         for game in ("tunability", "sensitivity", "mistunability"):
             assert views[f"{game}-pie"]["data"][0]["values"], game
@@ -360,7 +360,7 @@ def test_the_configuration_figure_ships_all_three_of_its_readings(client):
     """
     html, exp = _detail_with_analytics(client)
 
-    for m in exp.metric_names:
+    for m in exp.data.metric_names:
         cube = _plots(client, exp, html, m)["configuration_cube"]
         assert set(cube) == {"axes", "pca", "pls"}
         for view, payload in cube.items():

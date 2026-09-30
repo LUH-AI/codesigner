@@ -10,6 +10,7 @@ from pathlib import Path
 
 from django.conf import settings
 from django.core.files import File
+from django.db import transaction
 from django.utils.dateparse import parse_datetime
 
 from core import io
@@ -17,12 +18,13 @@ from core.provenance import (
     dataset_fingerprint, environment, evaluation, model_fingerprint,
 )
 
-from ..models import Experiment
+from ..models import Experiment, ExperimentData
 from ..registry import MODELS, OPTIMIZERS
 
 
 def experiment_from_snapshot(snapshot: dict, dataset_file=None, model_file=None,
-                             adopt_paths: bool = False, owner=None) -> Experiment:
+                             adopt_paths: bool = False, owner=None,
+                             group=None) -> Experiment:
     """Create and save an Experiment row from a parsed snapshot.
 
     Files are adopted into MEDIA from the uploads passed as *dataset_file* and
@@ -48,7 +50,7 @@ def experiment_from_snapshot(snapshot: dict, dataset_file=None, model_file=None,
     from — an .ihpo has no notion of who made it.
     """
     snapshot = io.normalize(snapshot)
-    exp = Experiment(
+    data = ExperimentData(
         name=snapshot["name"],
         model_name=snapshot["model"]["name"],
         optimizer_name=snapshot["optimizer"]["name"],
@@ -62,29 +64,36 @@ def experiment_from_snapshot(snapshot: dict, dataset_file=None, model_file=None,
         config_space=snapshot.get("space"),
         priors=snapshot.get("priors") or {},
         result=snapshot.get("result"),
-        owner=owner,
     )
 
     if dataset_file is not None:
         name = getattr(dataset_file, "name", None) or _dataset_name(snapshot)
-        exp.dataset.save(Path(name).name, dataset_file, save=False)
+        data.dataset.save(Path(name).name, dataset_file, save=False)
     elif adopt_paths:
         stored = snapshot["dataset"].get("path", "")
         if stored and Path(stored).is_file():
             with open(stored, "rb") as fh:
-                exp.dataset.save(Path(stored).name, File(fh), save=False)
+                data.dataset.save(Path(stored).name, File(fh), save=False)
 
     if model_file is not None:
         name = getattr(model_file, "name", None) or "model.py"
-        exp.model_file.save(Path(name).name, model_file, save=False)
+        data.model_file.save(Path(name).name, model_file, save=False)
     elif adopt_paths and settings.ALLOW_CUSTOM_MODELS:
         stored_model = snapshot["model"].get("path", "")
         if stored_model and Path(stored_model).is_file():
             with open(stored_model, "rb") as fh:
-                exp.model_file.save(Path(stored_model).name, File(fh), save=False)
+                data.model_file.save(Path(stored_model).name, File(fh), save=False)
 
-    exp.save()
-    _restore_runs(exp, snapshot.get("runs") or [])
+    # Both halves or neither. `Experiment.data` is NOT NULL, so a failure
+    # between the two would be refused by the database rather than leaving an
+    # experiment with no search in it — but a `ExperimentData` row with no
+    # experiment pointing at it would survive, and this is the one place that
+    # could produce one.
+    with transaction.atomic():
+        data.save()
+        exp = Experiment(data=data, owner=owner, group=group)
+        exp.save()
+        _restore_runs(exp, snapshot.get("runs") or [])
     return exp
 
 
@@ -131,7 +140,7 @@ def _restore_runs(exp: Experiment, recorded: list) -> None:
         )
 
 
-def _model_kind(exp: Experiment, model_path: str) -> str:
+def _model_kind(data, model_path: str) -> str:
     """Which of the three kinds of model this row has.
 
     Inferred rather than stored, because the three are exactly distinguishable
@@ -146,7 +155,7 @@ def _model_kind(exp: Experiment, model_path: str) -> str:
     """
     if model_path:
         return "file"
-    return "registry" if exp.model_name in MODELS else "external"
+    return "registry" if data.model_name in MODELS else "external"
 
 
 def snapshot_from_experiment(exp: Experiment, *, provenance: bool = False) -> dict:
@@ -166,28 +175,32 @@ def snapshot_from_experiment(exp: Experiment, *, provenance: bool = False) -> di
     page load, and the dataset fingerprint reads and hashes the file. Export
     turns it on; nothing else needs it.
     """
-    dataset = exp.dataset.path if exp.dataset else ""
-    model_path = exp.model_file.path if exp.model_file else ""
+    # Every line below but the last two reads `data`, which is the point of the
+    # split: this function's argument list *is* `ExperimentData`. A field that
+    # has to be added to one and not the other is a change to the file format.
+    data = exp.data
+    dataset = data.dataset.path if data.dataset else ""
+    model_path = data.model_file.path if data.model_file else ""
     snapshot = {
         "format": io.SNAPSHOT_FORMAT,
         "version": dist_version("codesigner"),
-        "name": exp.name,
-        "seed": exp.seed,
+        "name": data.name,
+        "seed": data.seed,
         "dataset": {"filename": Path(dataset).name if dataset else "",
                     "path": dataset},
-        "model": {"kind": _model_kind(exp, model_path),
-                  "name": exp.model_name, "path": model_path},
-        "evaluation": evaluation(exp.cv_folds, test_size=exp.test_size),
-        "metrics": {"names": exp.metric_names,
-                    "current": exp.current_metric,
-                    "original": exp.original_metric},
-        "optimizer": {"name": exp.optimizer_name, "params": exp.optimizer_params},
+        "model": {"kind": _model_kind(data, model_path),
+                  "name": data.model_name, "path": model_path},
+        "evaluation": evaluation(data.cv_folds, test_size=data.test_size),
+        "metrics": {"names": data.metric_names,
+                    "current": data.current_metric,
+                    "original": data.original_metric},
+        "optimizer": {"name": data.optimizer_name, "params": data.optimizer_params},
     }
     # Only when the row has one. An experiment whose model can still be asked
     # does not need it stored, and writing an absent section as null would make
     # every file claim to answer a question it does not.
-    if exp.config_space:
-        snapshot["space"] = exp.config_space
+    if data.config_space:
+        snapshot["space"] = data.config_space
     # Beside `space`, because a prior is a statement about the search space and
     # it steers the *next* run rather than describing a past one. Without it a
     # re-imported experiment searches unweighted while the page still shows the
@@ -196,12 +209,12 @@ def snapshot_from_experiment(exp: Experiment, *, provenance: bool = False) -> di
     # Additive and optional, so `format` stays where it is: an older file simply
     # has no `priors`, and `_check_format` only refuses formats above the
     # current one. A bump is for a change to required structure.
-    if exp.priors:
+    if data.priors:
         snapshot["priors"] = {name: _prior_record(stated)
-                              for name, stated in sorted(exp.priors.items())}
+                              for name, stated in sorted(data.priors.items())}
     if provenance:
         _add_provenance(snapshot, exp, dataset, model_path)
-    snapshot["result"] = exp.result
+    snapshot["result"] = data.result
     return snapshot
 
 
@@ -246,12 +259,17 @@ def _add_provenance(snapshot: dict, exp: Experiment, dataset: str, model_path: s
     """
     if dataset:
         snapshot["dataset"].update(dataset_fingerprint(dataset))
+    # One of the two places the halves meet. The model's identity and the split
+    # it was scored under are the work's; `env_meta` records the environment
+    # *this* machine built for it, and rides along as provenance rather than as
+    # part of what the experiment is.
+    data = exp.data
     snapshot["model"].update(
-        model_fingerprint(exp.model_name, model_path, exp.env_meta,
+        model_fingerprint(data.model_name, model_path, exp.env_meta,
                           kind=snapshot["model"]["kind"]))
     snapshot["evaluation"].update(
-        evaluation(exp.cv_folds, _target(dataset), test_size=exp.test_size))
-    snapshot["optimizer"]["defaults_used"] = _defaults_used(exp)
+        evaluation(data.cv_folds, _target(dataset), test_size=data.test_size))
+    snapshot["optimizer"]["defaults_used"] = _defaults_used(data)
     snapshot["runs"] = [_run_record(index, run)
                         for index, run in enumerate(exp.runs.order_by("id"), start=1)]
     snapshot["environment"] = environment()
@@ -268,7 +286,7 @@ def _target(dataset_path: str):
     return y
 
 
-def _defaults_used(exp: Experiment) -> dict:
+def _defaults_used(data) -> dict:
     """The blanks, and what the installed optimizer filled them with.
 
     A blank setting means "whatever that component already does", which is the
@@ -288,8 +306,8 @@ def _defaults_used(exp: Experiment) -> dict:
     default for them because it has no such component: `BlackBoxFacade` has no
     forest to have a tree count of.
     """
-    optimizer = OPTIMIZERS.get(exp.optimizer_name)
-    params = exp.optimizer_params or {}
+    optimizer = OPTIMIZERS.get(data.optimizer_name)
+    params = data.optimizer_params or {}
     if optimizer is None:
         return {}
     kind = type(optimizer)

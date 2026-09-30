@@ -59,12 +59,18 @@ NOT_EXPERIMENTS = {
 THROUGH_THE_BIN = {
     "site_trash_rehome": "put back into a group by a site admin",
     "site_trash_delete": "discarded for good by a site admin",
+    # And a person's bin, through `policy().bin()` — the same argument: a
+    # deleted experiment is in no list and at no URL `experiments()` answers.
+    "bin_restore": "put back by one of its people",
+    "bin_download": "taken away as an .ihpo by one of its people",
+    "bin_dismiss": "taken out of one person's bin",
+    "bin_purge": "destroyed for good by its owner",
 }
 
 
 def _experiment_routes():
     """Every route that names an experiment in its path and resolves it through
-    `@experiment_view` — which is every one of them but the bin's two."""
+    `@experiment_view` — which is every one of them but the bins'."""
     exempt = set(NOT_EXPERIMENTS) | set(THROUGH_THE_BIN)
     return [p for p in urls.urlpatterns
             if "<int:pk>" in str(p.pattern) and p.name not in exempt]
@@ -110,15 +116,20 @@ def test_the_bin_routes_resolve_through_the_bin(client):
     """
     import inspect
 
-    from ui import panels
+    from ui import panels, views
+
+    # Two bins: a deleted group's, which a site admin settles from the panels,
+    # and a person's, which its people settle from their own.
+    through = {panels.__name__: "policy().trash(request)",
+               views.__name__: "_binned(request, pk)"}
+    assert "policy().bin(request)" in inspect.getsource(views._binned)
 
     for name in THROUGH_THE_BIN:
         route = next(p for p in urls.urlpatterns if p.name == name)
-        assert route.callback.__module__ == panels.__name__, (
-            f"{name} is not a panel route any more; re-check what its pk means")
-        source = inspect.getsource(route.callback)
-        assert "policy().trash(request)" in source, (
-            f"{name} no longer resolves its experiment through the bin's "
+        module = route.callback.__module__
+        assert module in through, f"{name}: re-check what its pk means"
+        assert through[module] in inspect.getsource(route.callback), (
+            f"{name} no longer resolves its experiment through a bin's "
             f"queryset, so nothing is deciding whether it exists")
 
 
@@ -189,7 +200,10 @@ def test_the_declared_actions_match_what_the_routes_do():
         # the next one searches — so stating one edits the experiment.
         "save_prior": permissions.EDIT,
         "experiment_settings": permissions.EDIT,
-        "experiment_share": permissions.EDIT,
+        # Who else may reach it, and who owns it: the one decision a
+        # contributor, who may otherwise do everything, does not get.
+        "experiment_share": permissions.SHARE,
+        "experiment_transfer": permissions.SHARE,
         "experiment_delete": permissions.DELETE,
         "experiment_export": permissions.EXPORT,
         "run_force_stop": permissions.RUN,

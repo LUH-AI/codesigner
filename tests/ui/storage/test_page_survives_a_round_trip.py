@@ -62,7 +62,7 @@ def _ran_experiment(client):
         "demo_dataset": str(DATASETS_DIR / "iris.csv"),
     })
     from ui.models import Experiment
-    exp = Experiment.objects.get(name="round-trip")
+    exp = Experiment.objects.get(data__name="round-trip")
     execute_run(create_run(exp, {"max_trials": 3}, "accuracy").id)
     exp.refresh_from_db()
     return exp
@@ -108,7 +108,7 @@ def test_the_deferred_figures_come_back_too(client, rf):
 
     def fetched(pk):
         base = f"/experiments/{pk}/"
-        hp = next(iter(exp.result["configs"].values()))
+        hp = next(iter(exp.data.result["configs"].values()))
         first = list(hp.keys())[0]
         return [
             client.get(f"{base}partial-dependence/?metric=accuracy&hp={first}").json(),
@@ -179,18 +179,18 @@ def test_a_stated_prior_survives_a_round_trip(client):
     prior still reaches a real optimizer on the far side, where nothing has ever
     drawn it (`core.priors` rebuilds the density)."""
     exp = _ran_experiment(client)
-    hp = next(iter(exp.result["configs"].values()))
+    hp = next(iter(exp.data.result["configs"].values()))
     name = list(hp.keys())[0]
 
-    exp.priors = {name: {"kind": "normal", "params": {"mu": 0.6, "sigma": 0.2},
+    exp.data.priors = {name: {"kind": "normal", "params": {"mu": 0.6, "sigma": 0.2},
                          "decay": {"shape": "quadratic", "beta": 7.5},
                          "at_trial": 3}}
-    exp.save(update_fields=["priors"])
+    exp.data.save(update_fields=["priors"])
 
     copy = _reimported(client, exp)
 
-    assert copy.priors == exp.priors
-    assert "knots" not in copy.priors[name]
+    assert copy.data.priors == exp.data.priors
+    assert "knots" not in copy.data.priors[name]
 
     # And not merely stored: what came back is enough to rebuild the density
     # the optimizer weights by, which is the whole reason the knots can be left
@@ -198,7 +198,7 @@ def test_a_stated_prior_survives_a_round_trip(client):
     # survived meaning intact rather than just surviving.
     from core.priors import density_from
 
-    stated = copy.priors[name]
+    stated = copy.data.priors[name]
     grid = [i / 256 for i in range(257)]
     values = density_from(stated["kind"], stated["params"], grid)
 

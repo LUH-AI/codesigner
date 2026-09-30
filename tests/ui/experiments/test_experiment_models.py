@@ -49,9 +49,9 @@ def test_experiment_defaults_for_fresh_rows():
     from ui.models import Experiment
 
     exp = Experiment.objects.create(**_snapshot_fields())
-    assert exp.result is None
-    assert not exp.dataset
-    assert not exp.model_file
+    assert exp.data.result is None
+    assert not exp.data.dataset
+    assert not exp.data.model_file
     assert exp.created_at is not None
 
 
@@ -68,9 +68,9 @@ def test_experiment_json_fields_round_trip():
     fields["optimizer_params"] = {"numeric_steps": 7}
     Experiment.objects.create(**fields)
 
-    reloaded = Experiment.objects.get(name="exp-1")
-    assert reloaded.optimizer_params == {"numeric_steps": 7}
-    assert reloaded.metric_names == ["accuracy", "f1"]
+    reloaded = Experiment.objects.get(data__name="exp-1")
+    assert reloaded.data.optimizer_params == {"numeric_steps": 7}
+    assert reloaded.data.metric_names == ["accuracy", "f1"]
 
 
 @pytest.mark.django_db

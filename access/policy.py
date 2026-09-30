@@ -13,12 +13,17 @@ moves an experiment between groups except changing who owns it.
 What a signed-in person can reach:
 
 * **Their own.** Anything, always.
-* **Shared with their group**, by somebody in the same group (`shared`).
-* **Shared with them by name** (`shared_with`), whoever that person is — this
-  one deliberately crosses the group boundary, because a named invitation is an
-  act of judgement by the owner rather than a property of a group.
-* **Everything in their group**, if they are its lead. Which the lead sees
-  *where* is the view's business, not this one's — see `for_listing`.
+* **Shared with them** (`ExperimentShare`), by its owner, at a level: a viewer
+  may look and export, a contributor may also run, change and delete it. Only
+  within the experiment's group, and only while they are still in it.
+* **Everything in a group they lead.** They may look at it, run and stop it —
+  stopping a run that is going wrong should not need its owner — but not delete
+  it: that stays with the people whose work it is. Which the lead sees *where*
+  is the view's business, not this one's — see `for_listing`.
+
+Deciding who else may reach an experiment, and handing it to somebody, is the
+owner's alone (`SHARE`). A contributor can do everything to the work but choose
+who else does.
 
 A site admin is not a fourth case. Managing groups and being in one are separate
 facts, so the role is read from `manage_site` and the reach from the membership,
@@ -46,8 +51,8 @@ from django.conf import settings
 from django.db.models import Q
 from django.utils.translation import gettext_lazy as _
 
-from ui.models import Experiment
-from ui.permissions import EXPORT, OpenPolicy, VIEW
+from ui.models import Experiment, ExperimentShare
+from ui.permissions import DELETE, EDIT, EXPORT, OpenPolicy, RUN, SHARE, VIEW
 
 #: Manages groups, their size and their usage. Sees no experiments.
 MANAGE_SITE = "access.manage_site"
@@ -60,15 +65,64 @@ VIEW_ALL = "access.view_all_experiments"
 MANAGE_ALL = "access.manage_experiments"
 
 
-def membership_of(user):
-    """*user*'s membership, or None if they are in no group.
+def memberships_of(user) -> list:
+    """Every membership *user* holds, each with its group, cached on the user.
 
-    None is an ordinary answer, not an error: a site admin has no group by
-    design, and a superuser created with stock `createsuperuser` has none yet.
+    A list rather than a queryset: every caller wants all of them, and a
+    request's `user` is one object for the life of the request, so caching here
+    makes a page one query rather than one per question it asks.
+
+    Empty is an ordinary answer, not an error — a site admin need not be in a
+    group, and a stock `createsuperuser` is in none yet.
     """
     if user is None or not getattr(user, "is_authenticated", False):
-        return None
-    return getattr(user, "membership", None)
+        return []
+    cached = getattr(user, "_memberships", None)
+    if cached is None:
+        cached = list(user.memberships.select_related("group").all())
+        user._memberships = cached
+    return cached
+
+
+def group_ids_of(user) -> set:
+    """The groups *user* belongs to, as ids — the unit every `__in` wants."""
+    return {m.group_id for m in memberships_of(user)}
+
+
+def led_group_ids(user) -> set:
+    """The groups *user* leads. The unit of a lead's reach, everywhere.
+
+    Ids rather than groups, because every consumer is a `group_id__in=` —
+    names are a panel's business, not a rule's.
+    """
+    return {m.group_id for m in memberships_of(user) if m.is_lead}
+
+
+def primary_led_group_ids(user) -> set:
+    return {m.group_id for m in memberships_of(user) if m.is_primary_lead}
+
+
+def membership_in(user, group_id):
+    """*user*'s membership in one named group, or None.
+
+    What `membership_of` used to answer, now that the question has to say which
+    group it is about. Somebody in two groups has no "their membership", and
+    picking one would be deciding for them which boundary applies.
+    """
+    for membership in memberships_of(user):
+        if membership.group_id == group_id:
+            return membership
+    return None
+
+
+def groups_to_choose_from(user) -> list:
+    """The groups a new experiment of *user*'s could go in, when that is a
+    question — two or more. With one, `Experiment.save` files it there; with
+    none, or no accounts, there is nothing to choose."""
+    if not settings.REQUIRE_LOGIN:
+        return []
+    groups = [m.group for m in memberships_of(user)]
+    return sorted(groups, key=lambda g: g.name.lower()) if len(groups) > 1 else []
 
 
 def is_site_admin(user) -> bool:
@@ -76,18 +130,33 @@ def is_site_admin(user) -> bool:
 
 
 def is_lead(user) -> bool:
-    membership = membership_of(user)
-    return bool(membership and membership.is_lead)
+    """Leads *any* group. The question the layout asks, not the rules.
+
+    Whether a tab exists is about whether somebody leads something. Whether
+    they may act on a given experiment is about whether they lead *its* group,
+    and that is `is_lead_of` — the two used to be one function because a
+    person could only lead one thing.
+    """
+    return bool(led_group_ids(user))
+
+
+def is_lead_of(user, group_id) -> bool:
+    """Leads *this* group. Every authorization question asks this one."""
+    return group_id is not None and group_id in led_group_ids(user)
 
 
 def is_primary_lead(user) -> bool:
-    """The one lead per group who decides who else is one.
+    """Primary lead of any group."""
+    return bool(primary_led_group_ids(user))
 
-    Every other question about reach asks `is_lead`, which this implies. Only
-    the two views that appoint and unmake leads ask for this.
+
+def is_primary_lead_of(user, group_id) -> bool:
+    """The one lead of *this* group who decides who else leads it.
+
+    Every other question about reach asks `is_lead_of`, which this implies.
+    Only the views that appoint and unmake leads ask for this.
     """
-    membership = membership_of(user)
-    return bool(membership and membership.is_primary_lead)
+    return group_id is not None and group_id in primary_led_group_ids(user)
 
 
 class GroupPolicy(OpenPolicy):
@@ -105,7 +174,7 @@ class GroupPolicy(OpenPolicy):
         slices of it.
         """
         if not settings.REQUIRE_LOGIN:
-            return Experiment.objects.all()
+            return super().experiments(request).select_related("data")
 
         user = getattr(request, "user", None)
         if user is None or not user.is_authenticated:
@@ -114,31 +183,33 @@ class GroupPolicy(OpenPolicy):
             # data leak.
             return Experiment.objects.none()
 
-        # The escape hatch, and the only thing that reaches the bin: a support
-        # case is exactly when somebody needs to see what was set aside.
+        # The escape hatch, and the only thing that reaches a deleted group's
+        # work: a support case is exactly when somebody needs to see what was
+        # set aside. Not what a person deleted, which is theirs to settle.
         if _holds(user, VIEW_ALL) or _holds(user, MANAGE_ALL):
-            return Experiment.objects.all()
+            return Experiment.objects.filter(deleted_at__isnull=True)
 
         # Everything below is about live work. An experiment whose group was
         # deleted is nobody's to reach until a site admin rehomes it, which is
         # the one thing the bin is for; `trash()` is where it is looked at.
-        live = Experiment.objects.filter(trashed_at__isnull=True)
+        # `data` on every list: reading an experiment's name is not optional
+        # in practice — the sidebar, the index and every breadcrumb do it —
+        # so without the join that is one extra query per row.
+        live = Experiment.objects.select_related("data").filter(
+            trashed_at__isnull=True, deleted_at__isnull=True)
 
-        membership = membership_of(user)
-        if membership is None:
-            # In no group: their own, and whatever has been shared with them by
-            # name. Not "everything unowned", which is what this used to fall
-            # through to. A site admin with no group of their own lands here and
-            # sees nothing, which is right — there is nothing of theirs to see.
-            return live.filter(Q(owner=user) | Q(shared_with=user)).distinct()
-
-        if membership.is_lead:
-            reach = Q(group=membership.group)
-        else:
-            reach = Q(owner=user) | Q(shared=True, group=membership.group)
-        # By name, from anyone at all: an invitation the owner made deliberately
-        # is not bounded by the group, or it would not be an invitation.
-        return live.filter(reach | Q(shared_with=user)).distinct()
+        # Three clauses. A person in no group reaches only their own — not
+        # "everything unowned", which is what this used to fall through to. A
+        # site admin in no group sees nothing, which is right: there is nothing
+        # of theirs.
+        #
+        # The other two are per group, and a person may be in several: a grant
+        # in a group they are in, everything in a group they lead. Asked of
+        # each group separately, so a lead of one group and a member of
+        # another reaches exactly what each role grants in each.
+        return live.filter(Q(owner=user)
+                           | _granted(user)
+                           | Q(group_id__in=led_group_ids(user))).distinct()
 
     def trash(self, request):
         """What a group's deletion left behind, for a site admin to settle.
@@ -152,7 +223,24 @@ class GroupPolicy(OpenPolicy):
             return Experiment.objects.none()
         if not is_site_admin(getattr(request, "user", None)):
             return Experiment.objects.none()
-        return Experiment.objects.filter(trashed_at__isnull=False)
+        # Not what somebody had deleted before the group went: that is in their
+        # bins, and it comes here when one of them restores it.
+        return Experiment.objects.filter(trashed_at__isnull=False,
+                                         deleted_at__isnull=True)
+
+    def bin(self, request):
+        """What this person deleted, or had deleted from under them.
+
+        One `BinEntry` per person, written when it was deleted — see
+        `ui/models.py` on why it is recorded rather than worked out again.
+        """
+        if not settings.REQUIRE_LOGIN:
+            return super().bin(request)
+        user = getattr(request, "user", None)
+        if user is None or not user.is_authenticated:
+            return Experiment.objects.none()
+        return (Experiment.objects.select_related("data")
+                .filter(deleted_at__isnull=False, bin_entries__user=user))
 
     def for_listing(self, request):
         """The experiments a page should *list* — the sidebar, the index.
@@ -166,16 +254,24 @@ class GroupPolicy(OpenPolicy):
         if not settings.REQUIRE_LOGIN or not is_lead(getattr(request, "user", None)):
             return visible
         user = request.user
-        return visible.filter(Q(owner=user) | Q(shared=True) | Q(shared_with=user))
+        return visible.filter(Q(owner=user) | _granted(user))
 
-    def group_experiments(self, request):
-        """A lead's colleagues' experiments — the other half of the split."""
-        membership = membership_of(getattr(request, "user", None))
-        if membership is None or not membership.is_lead:
+    def group_experiments(self, request, group_id=None):
+        """A lead's colleagues' experiments — the other half of the split.
+
+        In one named group, or across every group they lead when none is named.
+        Narrowed to groups they actually lead either way: naming a group is a
+        question about it, not a way into it.
+        """
+        user = getattr(request, "user", None)
+        led = led_group_ids(user)
+        ids = led if group_id is None else led & {group_id}
+        if not ids:
             return Experiment.objects.none()
-        return (Experiment.objects
-                .filter(group=membership.group, trashed_at__isnull=True)
-                .exclude(owner=request.user))
+        return (Experiment.objects.select_related("data")
+                .filter(group_id__in=ids, trashed_at__isnull=True,
+                        deleted_at__isnull=True)
+                .exclude(owner=user))
 
     # ── and what may be done to one ──────────────────────────────────────────
 
@@ -195,14 +291,18 @@ class GroupPolicy(OpenPolicy):
 
         if experiment.owner_id == user.pk:
             return True
+        if action == SHARE:
+            return False
 
-        # A lead may act on anything in their group — which is the point of the
-        # role: stopping a run that is going wrong should not need its owner.
-        membership = membership_of(user)
-        if membership and membership.is_lead:
-            return bool(experiment.group_id
-                        and experiment.group_id == membership.group_id)
-        return False
+        contributor = share_of(user, experiment) == ExperimentShare.CONTRIBUTOR
+        if action == DELETE:
+            # Not a lead, unless they are also one of these: deleting is a
+            # decision about the work, and the work is its people's.
+            return contributor
+        # *Its* group, not theirs: somebody who leads one group and is a member
+        # of another is a lead only where they lead.
+        return contributor or (action in (RUN, EDIT)
+                               and is_lead_of(user, experiment.group_id))
 
     # ── questions that are not about one experiment ──────────────────────────
 
@@ -221,7 +321,7 @@ class GroupPolicy(OpenPolicy):
         instance-wide mechanic the run engine already refuses on. This is only
         the question of *whose* code is about to be executed.
         """
-        if not settings.REQUIRE_LOGIN or not experiment.model_file:
+        if not settings.REQUIRE_LOGIN or not experiment.data.model_file:
             return ""
         if _holds(user, USE_CUSTOM_MODELS):
             return ""
@@ -244,6 +344,24 @@ class GroupPolicy(OpenPolicy):
 #: the old one keeps resolving. The rules are the group rules now; there is no
 #: version of this that is only about ownership any more.
 OwnerPolicy = GroupPolicy
+
+
+def share_of(user, experiment):
+    """The level *user* was granted on *experiment*, or None.
+
+    None as well for a grant whose holder has since left the experiment's
+    group. Leaving deletes the grants in it (`access/signals.py`); asking again
+    here keeps a membership removed some other way from leaving access behind.
+    """
+    if experiment.group_id not in group_ids_of(user):
+        return None
+    return (experiment.shares.filter(user=user)
+            .values_list("level", flat=True).first())
+
+
+def _granted(user):
+    """Shared with *user*, in a group they are still in — see `share_of`."""
+    return Q(shares__user=user, group_id__in=group_ids_of(user))
 
 
 def _holds(user, permission: str) -> bool:

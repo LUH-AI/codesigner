@@ -6,9 +6,12 @@ are shown is decided by their membership like anybody else's — managing groups
 and being in one are separate facts — so by default they get a group of one with
 themselves as its primary lead, and see that group and no other.
 
-    manage.py create_site_admin alice            # + a group of their own
-    manage.py create_site_admin alice --users 0  # no group at all
-    manage.py create_site_admin alice --users 3  # a group they may fill
+    manage.py create_site_admin ana@lab.de            # + a group of their own
+    manage.py create_site_admin ana@lab.de --users 0  # no group at all
+    manage.py create_site_admin ana@lab.de --users 3  # a group they may fill
+
+The email address is the account's key, as everywhere else — see
+`access/services/accounts.py`. The username is derived from it.
 
 `--users` is the new group's seat limit, and defaults to **1**: a site admin
 with somewhere to put an experiment of their own, and no room to grow a group
@@ -42,8 +45,7 @@ class Command(BaseCommand):
     help = "Create a site admin, with a group of their own to work in."
 
     def add_arguments(self, parser):
-        parser.add_argument("username")
-        parser.add_argument("--email", default="")
+        parser.add_argument("email")
         parser.add_argument(
             "--users", type=int, default=1, metavar="N",
             help="seats in the group created for them; 0 creates no group "
@@ -59,30 +61,40 @@ class Command(BaseCommand):
 
     @transaction.atomic
     def handle(self, *args, **options):
-        User = get_user_model()
-        username = options["username"]
+        from django.core.exceptions import ValidationError
+
+        from access.services import accounts
+
+        address = accounts.normalize(options["email"])
         seats = options["users"]
 
         if seats < 0:
             raise CommandError("--users cannot be negative")
-        if User.objects.filter(username=username).exists():
-            raise CommandError(f"there is already a user called {username!r}")
+        # Refused rather than promoted. Granting `manage_site` to an account
+        # that already exists is a real decision about a real person, and a
+        # command called `create_` should not make it as a side effect of a
+        # typo'd address that happened to match somebody.
+        if accounts.find(address) is not None:
+            raise CommandError(f"there is already an account for {address!r}")
 
         password = options["password"] or getpass.getpass("Password: ")
         if not password:
             raise CommandError("a password is required")
 
-        user = User.objects.create_user(
-            username=username, email=options["email"], password=password,
-            is_superuser=options["superuser"],
-            # `is_staff` is Django's flag for reaching /admin/, and reaching it
-            # is reading every experiment. Off unless they asked to be a
-            # superuser, for whom the point is moot.
-            is_staff=options["superuser"])
+        try:
+            user, _, _ = accounts.find_or_create_by_email(address, password=password)
+        except ValidationError:
+            raise CommandError(f"{address!r} is not an email address")
+        # `is_staff` is Django's flag for reaching /admin/, and reaching it is
+        # reading every experiment. Off unless they asked to be a superuser,
+        # for whom the point is moot.
+        user.is_superuser = user.is_staff = options["superuser"]
+        user.save(update_fields=["is_superuser", "is_staff"])
         user.user_permissions.add(_manage_site())
+        username = user.get_username()
 
         if seats:
-            group = Group.objects.create(name=_free_name(username),
+            group = Group.objects.create(name=_free_name(address.split("@", 1)[0]),
                                          user_limit=seats)
             # Primary, not merely lead: they are the only person in it, so
             # there is nobody else who could appoint one, and a group whose

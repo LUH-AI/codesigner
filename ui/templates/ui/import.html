@@ -29,6 +29,7 @@
             <input type="file" name="model" accept=".py">
         </div>
         {% endif %}
+        {% include "ui/_group_picker.html" with picker_id="ihpo" %}
         <button type="submit" class="btn-primary">{% translate "Load" %}</button>
     </form>
 
@@ -48,6 +49,7 @@
             <label>{% translate "SMAC output directory" %}</label>
             <input type="file" name="smac_dir" webkitdirectory directory multiple required>
         </div>
+        {% include "ui/_group_picker.html" with picker_id="smac" %}
         <button type="submit" class="btn-primary">{% translate "Load run" %}</button>
     </form>
 {% endblock %}

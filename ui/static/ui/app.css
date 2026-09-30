@@ -300,7 +300,7 @@ button:disabled { opacity: 0.5; cursor: not-allowed; }
 /* ── Form fields (label above control, full-width) ─────────────────────── */
 .field { margin-bottom: 1rem; }
 .field label, form p label { display: block; font-size: 0.875rem; margin-bottom: 0.25rem; }
-input[type="text"], input[type="number"], input[type="file"], select, form p input, form p select {
+input[type="text"], input[type="email"], input[type="number"], input[type="file"], select, form p input, form p select {
     width: 100%;
     padding: 0.5rem 0.75rem;
     border: 1px solid var(--border);

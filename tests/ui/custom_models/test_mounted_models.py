@@ -77,6 +77,6 @@ def test_create_view_adopts_a_mounted_model(client, mounted_dir):
         "mounted_model": _mounted_path(mounted_dir),
     })
     assert resp.status_code == 302
-    exp = Experiment.objects.get(name="mm-create")
-    assert exp.model_name == "My Custom Model"
-    assert exp.model_file and Path(exp.model_file.path).is_file()
+    exp = Experiment.objects.get(data__name="mm-create")
+    assert exp.data.model_name == "My Custom Model"
+    assert exp.data.model_file and Path(exp.data.model_file.path).is_file()

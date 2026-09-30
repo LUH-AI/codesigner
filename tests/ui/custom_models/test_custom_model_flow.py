@@ -63,10 +63,10 @@ def test_create_view_stores_custom_model(client):
         "model_file": _model_file(),
     })
     assert resp.status_code == 302
-    exp = Experiment.objects.get(name="cm-create")
-    assert exp.model_name == "My Custom Model"
-    assert exp.model_file  # a file was stored
-    assert Path(exp.model_file.path).is_file()
+    exp = Experiment.objects.get(data__name="cm-create")
+    assert exp.data.model_name == "My Custom Model"
+    assert exp.data.model_file  # a file was stored
+    assert Path(exp.data.model_file.path).is_file()
 
 
 # --- snapshot adapter ---------------------------------------------------------
@@ -77,7 +77,7 @@ def test_adapter_adopts_uploaded_model_file():
     exp = snapshot_adapter.experiment_from_snapshot(
         _custom_snapshot(), model_file=_model_file(),
     )
-    assert exp.model_file and Path(exp.model_file.path).is_file()
+    assert exp.data.model_file and Path(exp.data.model_file.path).is_file()
 
 
 def test_snapshot_emits_absolute_loadable_model_path():
@@ -106,8 +106,8 @@ def test_execute_run_optimizes_a_custom_model():
     run.refresh_from_db()
     exp.refresh_from_db()
     assert run.status == "done", run.error
-    assert exp.result is not None
-    assert len(exp.result["data"]) == 3
+    assert exp.data.result is not None
+    assert len(exp.data.result["data"]) == 3
 
 
 # --- read-only / gating -------------------------------------------------------
@@ -125,7 +125,7 @@ def test_custom_model_without_file_is_readonly(client):
     """An experiment naming a non-registry model with no stored file cannot run
     (its model is unavailable) — same treatment as a missing dataset."""
     exp = snapshot_adapter.experiment_from_snapshot(_custom_snapshot(name="cm-missing"))
-    assert not exp.model_file
+    assert not exp.data.model_file
     resp = client.get(reverse("ui:experiment_detail", args=[exp.pk]))
     assert resp.context["can_run"] is False
 

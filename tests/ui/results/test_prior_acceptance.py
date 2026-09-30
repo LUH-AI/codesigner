@@ -90,15 +90,15 @@ def test_judging_writes_nothing(client):
     """The point of asking rather than enforcing. Whatever the model thinks, the
     belief is still the reader's until they withdraw it themselves."""
     exp = _experiment()
-    exp.priors = {"n_estimators": {"kind": "normal", "params": {"mu": 0.5, "sigma": 0.1},
+    exp.data.priors = {"n_estimators": {"kind": "normal", "params": {"mu": 0.5, "sigma": 0.1},
                                    "decay": {"shape": "none"}, "at_trial": 0}}
-    exp.save(update_fields=["priors"])
-    before = json.dumps(exp.priors, sort_keys=True)
+    exp.data.save(update_fields=["priors"])
+    before = json.dumps(exp.data.priors, sort_keys=True)
 
     _evaluate(client, exp, "n_estimators")
     exp.refresh_from_db()
 
-    assert json.dumps(exp.priors, sort_keys=True) == before
+    assert json.dumps(exp.data.priors, sort_keys=True) == before
 
 
 def test_it_is_a_post(client):

@@ -159,11 +159,11 @@ def test_the_run_service_applies_the_deployment_setting(settings):
     execute_run(run.id)
 
     exp.refresh_from_db()
-    assert exp.result["data"], "trials are still stored"
-    assert exp.result["hyperparameter_importance"] == {"accuracy": {}, "f1": {},
+    assert exp.data.result["data"], "trials are still stored"
+    assert exp.data.result["hyperparameter_importance"] == {"accuracy": {}, "f1": {},
                                                       "precision": {},
                                                       "recall(macro)": {}}
-    assert "skipped" in exp.result["hyperparameter_importance_warning"]["accuracy"]
+    assert "skipped" in exp.data.result["hyperparameter_importance_warning"]["accuracy"]
 
 
 @pytest.mark.django_db
@@ -178,7 +178,7 @@ def test_zero_in_the_setting_means_no_limit(settings):
     execute_run(run.id)
 
     exp.refresh_from_db()
-    assert exp.result["hyperparameter_importance"]["accuracy"], "computed, not skipped"
+    assert exp.data.result["hyperparameter_importance"]["accuracy"], "computed, not skipped"
 
 
 # ── When nothing will show them ──────────────────────────────────────────────
@@ -234,9 +234,9 @@ def test_the_run_service_reads_the_experiments_own_figure_settings():
     execute_run(create_run(exp, {"max_trials": 2}, "accuracy").id)
 
     exp.refresh_from_db()
-    assert exp.result["data"], "the trials themselves are still stored"
-    assert exp.result["hyperparameter_importance"]["accuracy"] == {}
-    assert "switched off" in exp.result["hyperparameter_importance_warning"]["accuracy"]
+    assert exp.data.result["data"], "the trials themselves are still stored"
+    assert exp.data.result["hyperparameter_importance"]["accuracy"] == {}
+    assert "switched off" in exp.data.result["hyperparameter_importance_warning"]["accuracy"]
 
 
 @pytest.mark.django_db
@@ -256,4 +256,4 @@ def test_one_display_figure_left_on_is_enough_to_compute_them():
     execute_run(create_run(exp, {"max_trials": 2}, "accuracy").id)
 
     exp.refresh_from_db()
-    assert exp.result["hyperparameter_importance"]["accuracy"], "computed, not skipped"
+    assert exp.data.result["hyperparameter_importance"]["accuracy"], "computed, not skipped"

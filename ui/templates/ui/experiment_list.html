@@ -20,8 +20,8 @@
                     <tr>
                         <td><a href="{% url 'ui:experiment_detail' e.pk %}">{{ e.name }}</a>
                             <span class="exp-id">({{ e.identifier }})</span>{% if e.is_running %} <span class="spinner" title="{% translate 'Running' %}"></span>{% endif %}</td>
-                        <td>{{ e.model_name }}</td>
-                        <td>{{ e.optimizer_name }}</td>
+                        <td>{{ e.data.model_name }}</td>
+                        <td>{{ e.data.optimizer_name }}</td>
                         <td>{{ e.created_at }}</td>
                     </tr>
                 {% empty %}

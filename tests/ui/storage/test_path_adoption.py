@@ -36,13 +36,13 @@ def test_a_snapshot_path_is_not_read_by_default():
     """Even a perfectly real, readable path is ignored: the caller has not said
     the snapshot is one whose paths can be trusted."""
     exp = adapter.experiment_from_snapshot(_snapshot())
-    assert not exp.dataset
+    assert not exp.data.dataset
 
 
 def test_a_caller_that_owns_the_paths_can_adopt_them():
     exp = adapter.experiment_from_snapshot(_snapshot(), adopt_paths=True)
-    assert exp.dataset
-    assert Path(exp.dataset.name).name.startswith("iris")
+    assert exp.data.dataset
+    assert Path(exp.data.dataset.name).name.startswith("iris")
 
 
 def test_an_attached_upload_is_still_adopted_without_the_flag():
@@ -52,8 +52,8 @@ def test_an_attached_upload_is_still_adopted_without_the_flag():
         _snapshot(dataset_path="/nowhere/at/all.csv"),
         dataset_file=SimpleUploadedFile("mine.csv", b"a,b,t\n1,2,0\n"),
     )
-    assert exp.dataset
-    assert exp.dataset.read() == b"a,b,t\n1,2,0\n"
+    assert exp.data.dataset
+    assert exp.data.dataset.read() == b"a,b,t\n1,2,0\n"
 
 
 def test_a_model_path_is_not_read_by_default(tmp_path):
@@ -62,7 +62,7 @@ def test_a_model_path_is_not_read_by_default(tmp_path):
     planted = tmp_path / "evil.py"
     planted.write_text("raise SystemExit\n")
     exp = adapter.experiment_from_snapshot(_snapshot(model_path=str(planted)))
-    assert not exp.model_file
+    assert not exp.data.model_file
 
 
 # ── Through the web importer ─────────────────────────────────────────────────
@@ -84,8 +84,8 @@ def test_uploading_an_ihpo_cannot_take_a_server_file(client, tmp_path):
     assert resp.status_code == 302
 
     from ui.models import Experiment
-    exp = Experiment.objects.get(name="imported")
-    assert not exp.dataset, "the named server file was adopted"
+    exp = Experiment.objects.get(data__name="imported")
+    assert not exp.data.dataset, "the named server file was adopted"
 
 
 def test_importing_with_an_attached_dataset_still_works(client):
@@ -99,4 +99,4 @@ def test_importing_with_an_attached_dataset_still_works(client):
     client.post(reverse("ui:import_experiment"), {"file": ihpo, "dataset": csv})
 
     from ui.models import Experiment
-    assert Experiment.objects.get(name="imported").dataset
+    assert Experiment.objects.get(data__name="imported").data.dataset

@@ -5,7 +5,7 @@
 **The constraint was never rendering — it was persistence.** Every trial-based
 figure reads nothing but `result.trials`, and the page has always been able to
 draw them; there was simply nothing to draw, because `execute_run` wrote
-`experiment.result` exactly once, after `_optimize` returned. So the run writes
+`experiment.data.result` exactly once, after `_optimize` returned. So the run writes
 what it has periodically, and the run-status poll — already fetched every two
 seconds, already replaced wholesale — carries whatever has arrived since the
 page last said what it had.
@@ -142,7 +142,7 @@ def test_a_real_run_writes_its_trials_before_it_finishes(monkeypatch):
     original = type(model).fit_predict
 
     def watched(self, config, X_train, y_train, X_val, seed=0):
-        stored = Experiment.objects.get(pk=exp.pk).result or {}
+        stored = Experiment.objects.get(pk=exp.pk).data.result or {}
         seen.append(len(stored.get("data") or []))
         return original(self, config, X_train, y_train, X_val, seed=seed)
 
@@ -152,7 +152,7 @@ def test_a_real_run_writes_its_trials_before_it_finishes(monkeypatch):
     assert seen[-1] > 0, (
         f"the page could see nothing until the run ended; counts were {seen}")
     assert seen == sorted(seen), "and what it sees only grows"
-    assert len(Experiment.objects.get(pk=exp.pk).result["data"]) == 6
+    assert len(Experiment.objects.get(pk=exp.pk).data.result["data"]) == 6
 
 
 @pytest.mark.django_db
@@ -173,7 +173,7 @@ def test_what_a_run_writes_mid_flight_carries_no_analytics(monkeypatch):
     original = type(model).fit_predict
 
     def watched(self, config, X_train, y_train, X_val, seed=0):
-        seen.append(Experiment.objects.get(pk=exp.pk).result or {})
+        seen.append(Experiment.objects.get(pk=exp.pk).data.result or {})
         return original(self, config, X_train, y_train, X_val, seed=seed)
 
     monkeypatch.setattr(type(model), "fit_predict", watched)
@@ -186,7 +186,7 @@ def test_what_a_run_writes_mid_flight_carries_no_analytics(monkeypatch):
     # And the finished run does have them, so the emptiness above is the
     # partial write's doing and not the analytics being off.
     assert any(Experiment.objects.get(pk=exp.pk)
-               .result["hyperparameter_importance"].values())
+               .data.result["hyperparameter_importance"].values())
 
 
 def _make_experiment():
@@ -207,7 +207,7 @@ def _make_experiment():
 @pytest.mark.django_db
 def test_the_poll_sends_fresh_plots_when_the_page_is_behind(client, ran_experiment):
     exp = ran_experiment
-    stored = len(exp.result["data"])
+    stored = len(exp.data.result["data"])
 
     body = _poll(client, exp, trials=stored - 1)
     live = _live_payload(body)
@@ -222,7 +222,7 @@ def test_the_poll_sends_nothing_when_the_page_is_up_to_date(client, ran_experime
     """The cost control. Building plots on every two-second poll would be work
     thrown away twice over — the result only moves every few seconds."""
     exp = ran_experiment
-    body = _poll(client, exp, trials=len(exp.result["data"]))
+    body = _poll(client, exp, trials=len(exp.data.result["data"]))
 
     assert 'id="live-plots-data"' not in body
 
@@ -232,7 +232,7 @@ def test_the_poll_carries_no_analytics_figure(client, ran_experiment):
     """Whatever is in the payload is redrawn per poll, so an expensive figure
     getting in here would be an expensive figure computed every few seconds."""
     exp = ran_experiment
-    live = _live_payload(_poll(client, exp, trials=0 or len(exp.result["data"]) - 1))
+    live = _live_payload(_poll(client, exp, trials=0 or len(exp.data.result["data"]) - 1))
 
     drawn = set(live["static_plots"]) | set(live["metric_plots"].get("accuracy", {}))
     for expensive in ("hyperparameter_importance", "interactions_heatmap",
@@ -247,7 +247,7 @@ def test_a_page_with_no_figures_is_sent_the_count_alone(client, ran_experiment):
     exp = ran_experiment
     live = _live_payload(_poll(client, exp, trials=0))
 
-    assert live["trials"] == len(exp.result["data"])
+    assert live["trials"] == len(exp.data.result["data"])
     assert "static_plots" not in live
     assert "metric_plots" not in live
 
@@ -261,7 +261,7 @@ def test_the_fragment_asks_its_next_question_with_the_count_it_just_sent(
     exp = ran_experiment
     body = _poll(client, exp, trials=1)
 
-    assert f"?trials={len(exp.result['data'])}" in body
+    assert f"?trials={len(exp.data.result['data'])}" in body
 
 
 @pytest.mark.django_db

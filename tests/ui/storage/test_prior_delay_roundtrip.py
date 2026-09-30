@@ -57,7 +57,7 @@ def test_it_survives_the_round_trip():
     written = adapter.snapshot_from_experiment(exp)
     read_back = adapter.experiment_from_snapshot(written)
 
-    assert read_back.priors["n_estimators"]["delay_decay"] is True
+    assert read_back.data.priors["n_estimators"]["delay_decay"] is True
 
 
 def test_the_anchor_survives_with_it():
@@ -68,8 +68,8 @@ def test_the_anchor_survives_with_it():
     read_back = adapter.experiment_from_snapshot(
         adapter.snapshot_from_experiment(exp))
 
-    assert read_back.priors["n_estimators"]["at_trial"] == 13
-    assert read_back.priors["n_estimators"]["decay"]["shape"] == "logarithmic"
+    assert read_back.data.priors["n_estimators"]["at_trial"] == 13
+    assert read_back.data.priors["n_estimators"]["decay"]["shape"] == "logarithmic"
 
 
 def test_a_belief_that_did_not_ask_says_so():
@@ -82,7 +82,7 @@ def test_a_belief_that_did_not_ask_says_so():
     read_back = adapter.experiment_from_snapshot(
         adapter.snapshot_from_experiment(exp))
 
-    assert read_back.priors["n_estimators"]["delay_decay"] is False
+    assert read_back.data.priors["n_estimators"]["delay_decay"] is False
 
 
 def test_a_file_written_before_the_flag_existed_still_reads():
@@ -96,4 +96,4 @@ def test_a_file_written_before_the_flag_existed_still_reads():
     read_back = adapter.experiment_from_snapshot(
         adapter.snapshot_from_experiment(exp))
 
-    assert "delay_decay" not in read_back.priors["n_estimators"]
+    assert "delay_decay" not in read_back.data.priors["n_estimators"]

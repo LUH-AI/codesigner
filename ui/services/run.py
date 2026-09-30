@@ -93,10 +93,10 @@ def create_run(experiment, stopping, optimize_metric, started_by=None,
     from ..models import Run
 
     events = _metric_change_event(experiment, optimize_metric)
-    current, original = apply_metrics(experiment.original_metric, optimize_metric)
-    experiment.current_metric = current
-    experiment.original_metric = original
-    experiment.save(update_fields=["current_metric", "original_metric"])
+    current, original = apply_metrics(experiment.data.original_metric, optimize_metric)
+    experiment.data.current_metric = current
+    experiment.data.original_metric = original
+    experiment.data.save(update_fields=["current_metric", "original_metric"])
 
     return Run.objects.create(
         experiment=experiment,
@@ -110,7 +110,7 @@ def create_run(experiment, stopping, optimize_metric, started_by=None,
         # than when the run finishes, because by then the reader may have
         # changed it — and what is being recorded is what the trials came out
         # of.
-        priors=dict(experiment.priors or {}),
+        priors=dict(experiment.data.priors or {}),
         events=events,
     )
 
@@ -164,7 +164,7 @@ def _metric_change_event(experiment, now):
     fitted to costs from a different question. That is the one thing an .ihpo
     could not previously say about its own history.
 
-    *was* comes from the stored result rather than `experiment.current_metric`,
+    *was* comes from the stored result rather than `experiment.data.current_metric`,
     which is not the same thing: `create_run` commits `current_metric` onto the
     experiment whether or not the run it is starting ever produces a trial. A
     run that changes the metric and then errors leaves `current_metric` pointed
@@ -175,13 +175,13 @@ def _metric_change_event(experiment, now):
     so reading `was` from it and *trials* from it are the same source agreeing
     with itself, not two clocks that can drift.
     """
-    stored = experiment.result or {}
+    stored = experiment.data.result or {}
     trials = stored.get("data") or []
     was = stored.get("primary_metric")
     if not was or not trials or was == now:
         return []
 
-    optimizer = registry.OPTIMIZERS.get(experiment.optimizer_name)
+    optimizer = registry.OPTIMIZERS.get(experiment.data.optimizer_name)
     return [{
         "kind": "metric_changed",
         "from": was,
@@ -210,7 +210,7 @@ def _partial_result_writer(experiment_pk, optimizer, previous_result, primary_me
     parallel coordinates, the projection, best and selected configuration —
     needs nothing but the trials, and the page has always been able to draw
     them. It simply had nothing to draw: `execute_run` wrote
-    `experiment.result` exactly once, after `_optimize` returned.
+    `experiment.data.result` exactly once, after `_optimize` returned.
 
     What is deliberately *not* here is the analytics. Importance, interactions,
     PDP and local effects each cost a surrogate fit or 2^n_hp coalitions, and
@@ -224,7 +224,7 @@ def _partial_result_writer(experiment_pk, optimizer, previous_result, primary_me
     an experiment deleted mid-run is not resurrected by its own run finishing a
     trial.
     """
-    from ..models import Experiment
+    from ..models import ExperimentData
 
     previous_trials = previous_result.trials if previous_result else []
     state = {"at": time.monotonic()}
@@ -247,7 +247,11 @@ def _partial_result_writer(experiment_pk, optimizer, previous_result, primary_me
             hyperparameter_importance={},
             hyperparameter_importance_warning={},
         )
-        Experiment.objects.filter(pk=experiment_pk).update(
+        # Against the data half, filtered on the experiment that owns it. The
+        # filter is what makes this a no-op when the experiment was deleted
+        # mid-run, and it still is: `ExperimentData` cascades from
+        # `Experiment`, so a destroyed experiment has no row to match.
+        ExperimentData.objects.filter(experiment__pk=experiment_pk).update(
             result=optimizer.serialize_result(partial))
         return True
 
@@ -340,7 +344,7 @@ def _execute_run_locally(run_id):
                 # What the reader stated on the acquisition figure. Passed in
                 # rather than read here, because `core/` imports no Django and
                 # must not learn what an Experiment is.
-                priors=experiment.priors or None,
+                priors=experiment.data.priors or None,
             )
 
         if launch is None:
@@ -362,13 +366,13 @@ def _execute_run_locally(run_id):
         )
         return
 
-    from ..models import Experiment
+    from ..models import ExperimentData
 
     cancelled = Run.objects.filter(pk=run_id, cancel_requested=True).exists()
     if result.trials:  # keep completed trials (progress survives a cancel)
         # filtered update, not .save(): a no-op if the experiment was deleted
         # mid-run (so a cancelled+deleted experiment is never resurrected).
-        Experiment.objects.filter(pk=experiment.pk).update(
+        ExperimentData.objects.filter(experiment__pk=experiment.pk).update(
             result=optimizer.serialize_result(result),
         )
     # The trials this run added (excludes any resumed-from trials): their count
@@ -409,7 +413,7 @@ def execute_run_on_cluster(run_id):
     Errors are reported on the run rather than raised, exactly as the local path
     does: a consumer that crashed would leave the row saying "running" for ever.
     """
-    from ..models import Experiment, Run
+    from ..models import ExperimentData, Run
     from . import cluster
 
     run = Run.objects.get(pk=run_id)
@@ -418,7 +422,7 @@ def execute_run_on_cluster(run_id):
         status="running", started_at=timezone.now(), backend="slurm")
 
     try:
-        if not experiment.dataset:
+        if not experiment.data.dataset:
             raise RuntimeError(
                 "this experiment has no dataset stored, so there is nothing to "
                 "send to the cluster")
@@ -436,10 +440,10 @@ def execute_run_on_cluster(run_id):
                 # Stated priors cross to the cluster with everything else that
                 # bounds the run — the snapshot carries the search space, and a
                 # prior is a statement about it.
-                "priors": experiment.priors or None,
+                "priors": experiment.data.priors or None,
             },
-            dataset=Path(experiment.dataset.path),
-            model=Path(experiment.model_file.path) if experiment.model_file else None,
+            dataset=Path(experiment.data.dataset.path),
+            model=Path(experiment.data.model_file.path) if experiment.data.model_file else None,
         )
         job_id = cluster.submit(ssh, run_id, workdir, hours=_hours_for(run))
         Run.objects.filter(pk=run_id).update(job_id=job_id)
@@ -462,7 +466,7 @@ def _watch(ssh, run_id, experiment_pk, workdir, job_id) -> dict:
     watched is indistinguishable from one still going, so the absence is turned
     into an answer here.
     """
-    from ..models import Experiment, Run
+    from ..models import ExperimentData, Run
     from . import cluster
 
     cancelled = False
@@ -485,7 +489,8 @@ def _watch(ssh, run_id, experiment_pk, workdir, job_id) -> dict:
         if state == cluster.RUNNING:
             partial = cluster.fetch(ssh, workdir, "partial.json")
             if partial:
-                Experiment.objects.filter(pk=experiment_pk).update(result=partial)
+                ExperimentData.objects.filter(
+                    experiment__pk=experiment_pk).update(result=partial)
 
         time.sleep(settings.CLUSTER_POLL_SECONDS)
 
@@ -507,7 +512,7 @@ def _finish_cluster_run(run_id, experiment_pk, status: dict) -> None:
     the run history and the export cannot tell where a run happened, and should
     not be able to.
     """
-    from ..models import Experiment, Run
+    from ..models import ExperimentData, Run
 
     if status["state"] == "error":
         Run.objects.filter(pk=run_id).update(
@@ -524,7 +529,7 @@ def _finish_cluster_run(run_id, experiment_pk, status: dict) -> None:
     if status.get("config_space"):
         fields["config_space"] = status["config_space"]
     if fields:
-        Experiment.objects.filter(pk=experiment_pk).update(**fields)
+        ExperimentData.objects.filter(experiment__pk=experiment_pk).update(**fields)
 
     Run.objects.filter(pk=run_id).update(
         status="cancelled" if status["state"] == "cancelled" else "done",
@@ -564,13 +569,14 @@ def _remember_config_space(experiment_pk, model, seed) -> None:
     puts the experiment back to asking its model on every page — exactly where
     it was before.
     """
-    from ..models import Experiment
+    from ..models import ExperimentData
 
     try:
         space = model.get_config_space(seed=seed).to_serialized_dict()
     except Exception:  # noqa: BLE001 — a run must not fail over its own bookkeeping
         return
-    Experiment.objects.filter(pk=experiment_pk).update(config_space=space)
+    ExperimentData.objects.filter(experiment__pk=experiment_pk).update(
+        config_space=space)
 
 
 def _model_launch(experiment):
@@ -582,7 +588,7 @@ def _model_launch(experiment):
     """
     from . import modelenv
 
-    if not experiment.model_file:
+    if not experiment.data.model_file:
         return None, ""
     return modelenv.resolve_runner(experiment)
 

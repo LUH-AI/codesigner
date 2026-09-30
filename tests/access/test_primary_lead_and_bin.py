@@ -67,6 +67,11 @@ def _membership(user):
     return Membership.objects.get(user=user)
 
 
+def _in_lab(route, lab, who):
+    """A membership route: addressed by the group and the row within it."""
+    return reverse(route, args=[lab["group"].pk, _membership(lab[who]).pk])
+
+
 # ── who may appoint a lead ───────────────────────────────────────────────────
 
 def test_an_ordinary_lead_has_no_role_controls(client, hosted, lab):
@@ -75,7 +80,7 @@ def test_an_ordinary_lead_has_no_role_controls(client, hosted, lab):
     client.force_login(lab["lead"])
 
     response = client.post(
-        reverse("ui:group_set_role", args=[_membership(lab["member"]).pk]),
+        _in_lab("ui:group_set_role", lab, "member"),
         {"role": Membership.LEAD})
 
     assert response.status_code == 404
@@ -85,7 +90,7 @@ def test_an_ordinary_lead_has_no_role_controls(client, hosted, lab):
 def test_the_primary_lead_makes_somebody_a_lead(client, hosted, lab):
     client.force_login(lab["primary"])
 
-    client.post(reverse("ui:group_set_role", args=[_membership(lab["member"]).pk]),
+    client.post(_in_lab("ui:group_set_role", lab, "member"),
                 {"role": Membership.LEAD})
 
     assert _membership(lab["member"]).role == Membership.LEAD
@@ -96,7 +101,7 @@ def test_the_primary_lead_cannot_change_their_own_role(client, hosted, lab):
     would leave the group with nobody able to appoint one."""
     client.force_login(lab["primary"])
 
-    client.post(reverse("ui:group_set_role", args=[_membership(lab["primary"]).pk]),
+    client.post(_in_lab("ui:group_set_role", lab, "primary"),
                 {"role": Membership.MEMBER})
 
     assert _membership(lab["primary"]).role == Membership.PRIMARY_LEAD
@@ -106,7 +111,7 @@ def test_the_role_is_not_settable_to_primary(client, hosted, lab):
     """It moves by transfer and only by transfer, or two rows could claim it."""
     client.force_login(lab["primary"])
 
-    client.post(reverse("ui:group_set_role", args=[_membership(lab["lead"]).pk]),
+    client.post(_in_lab("ui:group_set_role", lab, "lead"),
                 {"role": Membership.PRIMARY_LEAD})
 
     assert _membership(lab["lead"]).role == Membership.LEAD
@@ -118,10 +123,10 @@ def test_an_ordinary_lead_may_only_add_members(client, hosted, lab,
     away from meaningless."""
     client.force_login(lab["lead"])
 
-    client.post(reverse("ui:group_add_person"),
-                {"username": "newbie", "password": "pw", "role": Membership.LEAD})
+    client.post(reverse("ui:group_add_person", args=[lab["group"].pk]),
+                {"email": "newbie@example.org", "role": Membership.LEAD})
 
-    assert not django_user_model.objects.filter(username="newbie").exists()
+    assert not django_user_model.objects.filter(email="newbie@example.org").exists()
 
 
 # ── transferring it ──────────────────────────────────────────────────────────
@@ -131,8 +136,7 @@ def test_the_role_transfers_only_to_a_lead(client, hosted, lab):
     is two decisions wearing one button."""
     client.force_login(lab["primary"])
 
-    client.post(reverse("ui:group_transfer_primary",
-                        args=[_membership(lab["member"]).pk]))
+    client.post(_in_lab("ui:group_transfer_primary", lab, "member"))
 
     assert _membership(lab["primary"]).role == Membership.PRIMARY_LEAD
     assert _membership(lab["member"]).role == Membership.MEMBER
@@ -143,8 +147,7 @@ def test_transferring_leaves_exactly_one_primary_lead(client, hosted, lab):
     never two in between."""
     client.force_login(lab["primary"])
 
-    client.post(reverse("ui:group_transfer_primary",
-                        args=[_membership(lab["lead"]).pk]))
+    client.post(_in_lab("ui:group_transfer_primary", lab, "lead"))
 
     assert _membership(lab["lead"]).role == Membership.PRIMARY_LEAD
     assert _membership(lab["primary"]).role == Membership.LEAD
@@ -169,8 +172,7 @@ def test_the_primary_lead_cannot_be_removed_from_the_group(client, hosted, lab):
     client.force_login(lab["primary"])
     # Another lead trying it, since the primary lead is already barred from
     # removing themselves.
-    client.post(reverse("ui:group_remove_person",
-                        args=[_membership(lab["primary"]).pk]))
+    client.post(_in_lab("ui:group_remove_person", lab, "primary"))
 
     assert Membership.objects.filter(user=lab["primary"]).exists()
 
@@ -242,7 +244,7 @@ def test_binned_work_is_visible_to_nobody(hosted, lab, django_user_model):
 
     for user in (lab["primary"], lab["member"], lab["site"]):
         request = type("R", (), {"user": user})()
-        names = GroupPolicy().experiments(request).values_list("name", flat=True)
+        names = GroupPolicy().experiments(request).values_list("data__name", flat=True)
         assert "left behind" not in set(names)
 
 
@@ -280,7 +282,7 @@ def test_a_rehomed_experiment_is_its_new_groups(client, hosted, lab,
                 {"group": lab["group"].pk})
 
     request = type("R", (), {"user": lab["primary"]})()
-    names = set(GroupPolicy().experiments(request).values_list("name", flat=True))
+    names = set(GroupPolicy().experiments(request).values_list("data__name", flat=True))
 
     assert "left behind" in names
 

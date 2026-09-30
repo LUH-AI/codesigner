@@ -33,7 +33,9 @@ from django.utils import timezone
 
 from access.models import Group, Membership
 
-from ...models import Experiment, Run
+from ...models import Experiment, ExperimentShare, Run
+
+VIEWER, CONTRIBUTOR = ExperimentShare.VIEWER, ExperimentShare.CONTRIBUTOR
 
 #: Groups this command owns. `--reset` removes these and everyone in them, and
 #: nothing else — a demo that deleted an operator's real group would be a worse
@@ -66,25 +68,25 @@ class Command(BaseCommand):
         vision = self._group("vision-lab", limit=5)
         nlp = self._group("nlp-group", limit=3)
 
-        lead_v = self._person("vera", vision, Membership.LEAD)
+        lead_v = self._person("vera", vision, Membership.PRIMARY_LEAD)
         ana = self._person("ana", vision)
         ben = self._person("ben", vision)
-        lead_n = self._person("nils", nlp, Membership.LEAD)
+        lead_n = self._person("nils", nlp, Membership.PRIMARY_LEAD)
         cleo = self._person("cleo", nlp)
 
         # All three sharing levels, on one person's work, so a colleague signing
-        # in sees exactly two of the three and can be asked why.
-        self._experiment(ana, "Wine — shared with the group", shared=True,
+        # in sees exactly two of the three and can be asked what each lets them
+        # do.
+        self._experiment(ana, "Wine — Ben contributes", shares={ben: CONTRIBUTOR},
                          runs=[(24, 41.2), (12, 18.9)])
-        self._experiment(ana, "Wine — shared with Ben", shared_with=[ben],
+        self._experiment(ana, "Wine — Ben may look", shares={ben: VIEWER},
                          runs=[(8, 12.4)])
         self._experiment(ana, "Wine — not shared", runs=[(30, 55.0)])
-        self._experiment(ben, "Iris — shared with the group", shared=True,
+        self._experiment(ben, "Iris — Ana may look", shares={ana: VIEWER},
                          runs=[(15, 9.8)])
         self._experiment(lead_v, "Vera's own", runs=[(6, 7.1)])
         # Another group's, so the boundary has something on the other side.
-        self._experiment(cleo, "Sentiment — shared with the group", shared=True,
-                         runs=[(18, 27.3)])
+        self._experiment(cleo, "Sentiment", runs=[(18, 27.3)])
         self._experiment(lead_n, "Nils's own")
 
         # One left running, with a job id, so the Jobs panel is not empty and
@@ -104,7 +106,9 @@ class Command(BaseCommand):
     def _reset(self) -> None:
         User = get_user_model()
         groups = Group.objects.filter(name__in=DEMO_GROUPS)
-        users = User.objects.filter(membership__group__in=groups)
+        # Distinct, because somebody in two of the demo groups is reached
+        # through both and would otherwise be listed — and deleted — twice.
+        users = User.objects.filter(memberships__group__in=groups).distinct()
         # Experiments first: `Membership.group` is PROTECT and `owner` is
         # SET_NULL, so deleting people first would leave rows nobody can reach,
         # which is the exact state `access/admin.py` refuses to create by hand.
@@ -125,7 +129,7 @@ class Command(BaseCommand):
             content_type__app_label="access", codename="manage_site"))
         group = self._group("site", limit=1)
         Membership.objects.get_or_create(
-            user=user, defaults={"group": group, "role": Membership.LEAD})
+            user=user, group=group, defaults={"role": Membership.PRIMARY_LEAD})
         return user
 
     def _group(self, name, *, limit):
@@ -140,18 +144,27 @@ class Command(BaseCommand):
         if made:
             user.set_password(username)
             user.save(update_fields=["password"])
+        # Keyed on the pair: a person may be in several groups, so "their
+        # membership" is not a thing to look up by person alone.
         Membership.objects.get_or_create(
-            user=user, defaults={"group": group, "role": role})
+            user=user, group=group, defaults={"role": role})
         return user
 
-    def _experiment(self, owner, name, *, shared=False, shared_with=(), runs=()):
-        exp, _ = Experiment.objects.get_or_create(
-            name=name, owner=owner,
-            defaults={"model_name": "Random Forest",
-                      "optimizer_name": "SMAC",
-                      "metric_names": ["accuracy"], "current_metric": "accuracy",
-                      "seed": 0, "shared": shared})
-        exp.shared_with.set(shared_with)
+    def _experiment(self, owner, name, *, shares=None, runs=()):
+        # Looked up by name across the join, and created through the manager so
+        # both halves are written. `get_or_create` cannot do either: its lookup
+        # names a column this row does not have, and its create would write only
+        # the instance half.
+        exp = Experiment.objects.filter(data__name=name, owner=owner).first()
+        if exp is None:
+            exp = Experiment.objects.create(
+                name=name, owner=owner, model_name="Random Forest",
+                optimizer_name="SMAC", metric_names=["accuracy"],
+                current_metric="accuracy", seed=0)
+        for user, level in (shares or {}).items():
+            ExperimentShare.objects.update_or_create(
+                experiment=exp, user=user,
+                defaults={"level": level, "granted_by": owner})
         for trials, seconds in runs:
             Run.objects.get_or_create(
                 experiment=exp, trial_count=trials,
@@ -169,9 +182,9 @@ class Command(BaseCommand):
         out.write(f"  {'site':10s} site admin — Site tab, and no experiments anywhere")
         for group, lead, members in groups:
             out.write(f"\n  {group.name} ({group.member_count}/{group.user_limit} seats)")
-            out.write(f"  {'  ' + lead.get_username():10s} group lead — Group tab, "
-                      "sees everyone here")
+            out.write(f"  {'  ' + lead.get_username():10s} group lead — "
+                      "sees and runs everyone's here, deletes only their own")
             for member in members:
                 out.write(f"  {'  ' + member.get_username():10s} member")
         out.write("\nTry: sign in as ben and look for ana's three experiments — "
-                  "he should see two.\n")
+                  "he should see two, and be able to run only one of them.\n")

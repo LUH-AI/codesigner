@@ -78,9 +78,9 @@ def test_detail_shows_identity_and_result_summary(client):
     html = response.content.decode()
 
     assert exp.name in html
-    assert exp.model_name in html
-    assert exp.optimizer_name in html
-    assert str(exp.seed) in html
+    assert exp.data.model_name in html
+    assert exp.data.optimizer_name in html
+    assert str(exp.data.seed) in html
     assert str(len(snapshot["result"]["data"])) in html
 
 

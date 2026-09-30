@@ -43,9 +43,9 @@ def _experiment(**overrides):
 
 def _experiment_with_result():
     exp = _experiment(result=_RESULT)
-    exp.current_metric = "accuracy"
-    exp.original_metric = "accuracy"
-    exp.save()
+    exp.data.current_metric = "accuracy"
+    exp.data.original_metric = "accuracy"
+    exp.data.save()
     return exp
 
 

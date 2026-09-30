@@ -71,8 +71,8 @@ def experiment():
     exp = Experiment(
         name="real-uv", model_name="Counter", optimizer_name="Random Search",
         metric_names=["accuracy", "f1", "precision", "recall(macro)"], seed=0)
-    exp.model_file.save("counter.py", ContentFile(MODEL), save=False)
-    exp.dataset.save("iris.csv", ContentFile((DATASETS_DIR / "iris.csv").read_bytes()),
+    exp.data.model_file.save("counter.py", ContentFile(MODEL), save=False)
+    exp.data.dataset.save("iris.csv", ContentFile((DATASETS_DIR / "iris.csv").read_bytes()),
                      save=False)
     exp.save()
     return exp
@@ -124,6 +124,6 @@ def test_a_real_run_goes_through_the_built_environment(experiment, sdk_wheel):
     experiment.refresh_from_db()
     assert run.status == "done", run.error
     assert run.trial_count == 3
-    assert len(experiment.result["data"]) == 3
+    assert len(experiment.data.result["data"]) == 3
     # scored here, from predictions made over there
-    assert all(0.0 <= t["scores"]["accuracy"] <= 1.0 for t in experiment.result["data"])
+    assert all(0.0 <= t["scores"]["accuracy"] <= 1.0 for t in experiment.data.result["data"])

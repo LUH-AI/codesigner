@@ -1,10 +1,10 @@
 """Step 5: .ihpo export (download) and import (upload) through the browser,
-plus delete.
+plus delete (into the bin — `tests/ui/test_the_bin.py` has the rest).
 
 Export streams a parseable, Streamlit-loadable .ihpo built by the snapshot
 adapter. Import parses an uploaded file (reusing core.io.parse's validation and
 messages), creates an experiment, and lands on its detail page. Delete removes
-the experiment after a confirmation.
+the experiment after a confirmation, into the bin.
 """
 
 import json
@@ -132,10 +132,10 @@ def test_cross_app_round_trip(client):
     reups = SimpleUploadedFile("reimported.ihpo", json.dumps(snapshot).encode("utf-8"))
     client.post(reverse("ui:import_experiment"), {"file": reups})
 
-    reimported = Experiment.objects.get(name="reimported")
-    assert reimported.optimizer_name == exp.optimizer_name
-    assert reimported.metric_names == exp.metric_names
-    assert reimported.result == exp.result
+    reimported = Experiment.objects.get(data__name="reimported")
+    assert reimported.data.optimizer_name == exp.data.optimizer_name
+    assert reimported.data.metric_names == exp.data.metric_names
+    assert reimported.data.result == exp.data.result
 
 
 # ── Delete ──────────────────────────────────────────────────────────────────
@@ -150,11 +150,13 @@ def test_delete_confirmation_page(client):
 
 
 @pytest.mark.django_db
-def test_delete_removes_and_redirects_home(client):
-    """POST to the delete URL removes the experiment and redirects home."""
-    from ui.models import Experiment
+def test_delete_bins_and_redirects_home(client):
+    """POST to the delete URL takes the experiment off every page — its own URL
+    included — and redirects home. It is in the bin, not gone."""
     exp = _make()
     resp = client.post(reverse("ui:experiment_delete", args=[exp.pk]))
+    exp.refresh_from_db()
     assert resp.status_code == 302
     assert resp["Location"] == reverse("ui:home")
-    assert not Experiment.objects.filter(pk=exp.pk).exists()
+    assert exp.deleted_at is not None
+    assert client.get(reverse("ui:experiment_detail", args=[exp.pk])).status_code == 404

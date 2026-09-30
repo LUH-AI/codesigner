@@ -73,8 +73,8 @@ def test_uploading_a_run_creates_an_experiment(client):
     assert response.status_code == 302
     assert response["Location"] == reverse("ui:experiment_detail", args=[exp.pk])
     assert exp.name == "demo-run"
-    assert exp.metric_names == [COST]
-    assert len(exp.result["data"]) == 25
+    assert exp.data.metric_names == [COST]
+    assert len(exp.data.result["data"]) == 25
 
 
 def test_two_runs_at_once_are_refused_rather_than_blended(client):
@@ -159,12 +159,12 @@ def test_the_analytics_can_be_computed_afterwards(client):
     everything HyperSHAP needs — no dataset, no model.
     """
     exp = _imported()
-    assert not exp.result.get("hyperparameter_importance")
+    assert not exp.data.result.get("hyperparameter_importance")
 
     client.post(reverse("ui:experiment_compute_analytics", args=[exp.pk]))
     exp.refresh_from_db()
 
-    importance = exp.result["hyperparameter_importance"][COST]
+    importance = exp.data.result["hyperparameter_importance"][COST]
     assert set(importance) == {"depth", "kind", "rate"}
     assert sum(importance.values()) > 0
 

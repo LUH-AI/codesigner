@@ -1,0 +1,12 @@
+{% load i18n %}
+{% comment %}Which group an imported experiment goes in, for somebody in more
+than one. Absent otherwise: one group needs no asking.{% endcomment %}
+{% if groups %}
+    <div class="field">
+        <label for="group-{{ picker_id|default:'import' }}">{% translate "Group" %}</label>
+        <select id="group-{{ picker_id|default:'import' }}" name="group" required>
+            <option value="">{% translate "— select —" %}</option>
+            {% for g in groups %}<option value="{{ g.pk }}"{% if request.POST.group == g.pk|stringformat:"d" %} selected{% endif %}>{{ g.name }}</option>{% endfor %}
+        </select>
+    </div>
+{% endif %}

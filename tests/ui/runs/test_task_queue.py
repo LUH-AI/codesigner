@@ -44,8 +44,8 @@ def test_start_background_run_executes_via_the_queue():
     run.refresh_from_db()
     exp.refresh_from_db()
     assert run.status == "done", run.error
-    assert exp.result is not None
-    assert len(exp.result["data"]) == 3
+    assert exp.data.result is not None
+    assert len(exp.data.result["data"]) == 3
 
 
 def test_run_experiment_task_is_a_registered_huey_task():

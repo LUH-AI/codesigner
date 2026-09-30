@@ -30,9 +30,9 @@ def test_import_creates_experiment_with_result():
     exp = Experiment.objects.get()
     original = json.loads((FIXTURES_DIR / "test2.ihpo").read_text(encoding="utf-8"))
     assert exp.name == original["name"]
-    assert exp.optimizer_name == original["optimizer_name"]
-    assert exp.result == original["result"]
-    assert not exp.dataset
+    assert exp.data.optimizer_name == original["optimizer_name"]
+    assert exp.data.result == original["result"]
+    assert not exp.data.dataset
 
 
 @pytest.mark.django_db
@@ -55,9 +55,9 @@ def test_import_adopts_existing_dataset_into_media(tmp_path, settings):
     call_command("import_ihpo", str(ihpo))
 
     exp = Experiment.objects.get()
-    assert exp.dataset
-    assert exp.dataset.path.startswith(settings.MEDIA_ROOT)
-    with exp.dataset.open("rb") as stored, open(DATASETS_DIR / "wine.csv", "rb") as src:
+    assert exp.data.dataset
+    assert exp.data.dataset.path.startswith(settings.MEDIA_ROOT)
+    with exp.data.dataset.open("rb") as stored, open(DATASETS_DIR / "wine.csv", "rb") as src:
         assert stored.read() == src.read()
 
 
@@ -115,10 +115,10 @@ def test_import_smac_directory_creates_a_read_only_experiment():
 
     exp = Experiment.objects.get()
     assert exp.name == "demo-run"
-    assert len(exp.result["data"]) == 25
-    assert exp.config_space is not None
-    assert not exp.dataset
-    assert not exp.model_file
+    assert len(exp.data.result["data"]) == 25
+    assert exp.data.config_space is not None
+    assert not exp.data.dataset
+    assert not exp.data.model_file
 
 
 @pytest.mark.django_db

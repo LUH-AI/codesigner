@@ -40,8 +40,8 @@ def test_identifier_is_stable_across_updates():
     must not change the identifier — it is a fixed handle."""
     exp = _make("a")
     original = exp.identifier
-    exp.result = {"data": []}
-    exp.save()
+    exp.data.result = {"data": []}
+    exp.data.save()
     exp.refresh_from_db()
     assert exp.identifier == original
 

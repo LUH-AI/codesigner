@@ -40,4 +40,4 @@ something the file does not contain is a question with no answer.{% endcomment %
     <button type="submit" class="btn-primary">{% translate "Export" %}</button>
 {% endblock %}
 
-{% block confirm_cancel %}{% url 'ui:experiment_detail' experiment.pk %}{% endblock %}
+{% block confirm_cancel %}{% if cancel_url %}{{ cancel_url }}{% else %}{% url 'ui:experiment_detail' experiment.pk %}{% endif %}{% endblock %}

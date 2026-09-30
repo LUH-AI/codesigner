@@ -30,7 +30,8 @@ def test_it_builds_the_whole_shape(debugging):
 
     assert set(Group.objects.values_list("name", flat=True)) == {
         "site", "vision-lab", "nlp-group"}
-    assert Membership.objects.filter(role=Membership.LEAD).count() == 3
+    # One primary lead per group, or nobody could appoint its other leads.
+    assert Membership.objects.filter(role=Membership.PRIMARY_LEAD).count() == 3
     assert Run.objects.filter(status="running").exists(), \
         "the Jobs panel needs something to stop"
 
@@ -40,9 +41,11 @@ def test_all_three_sharing_levels_are_represented(debugging):
     with only the easy one would not be worth having."""
     call_command("seed_demo", verbosity=0)
 
-    assert Experiment.objects.filter(shared=True).exists()
-    assert Experiment.objects.filter(shared_with__isnull=False).exists()
-    assert Experiment.objects.filter(shared=False, shared_with__isnull=True).exists()
+    from ui.models import ExperimentShare
+
+    assert Experiment.objects.filter(shares__level=ExperimentShare.VIEWER).exists()
+    assert Experiment.objects.filter(shares__level=ExperimentShare.CONTRIBUTOR).exists()
+    assert Experiment.objects.filter(shares__isnull=True).exists()
 
 
 def test_running_it_twice_changes_nothing(debugging):

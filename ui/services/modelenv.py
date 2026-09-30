@@ -43,7 +43,7 @@ _PROBE_TIMEOUT = 15.0
 
 def script_path(exp) -> Path:
     """The model file uv operates on."""
-    return Path(exp.model_file.path)
+    return Path(exp.data.model_file.path)
 
 
 def runner_path(exp) -> Path:
@@ -238,7 +238,7 @@ def prepare_environment(experiment_id) -> None:
     from ..models import Experiment
 
     exp = Experiment.objects.filter(pk=experiment_id).first()
-    if exp is None or not exp.model_file:
+    if exp is None or not exp.data.model_file:
         return
 
     mode, explanation = decide_mode()
@@ -275,15 +275,19 @@ def prepare_environment(experiment_id) -> None:
     # The name in the source is what the form read before anything ran. Now that
     # the class has actually been built, its own name is the authority.
     declared = hello.get("name")
-    if declared and declared != exp.model_name:
-        meta["name_from_source"] = exp.model_name
-        exp.model_name = declared
+    if declared and declared != exp.data.model_name:
+        meta["name_from_source"] = exp.data.model_name
+        exp.data.model_name = declared
+        # Which half each fact belongs to, written out: the class's real name
+        # is what was searched and travels in the file; everything the build
+        # produced describes what *this* machine made of it and does not.
+        exp.data.save(update_fields=["model_name"])
 
     exp.env_status = Experiment.ENV_READY
     exp.env_error = ""
     exp.env_meta = meta
     exp.env_prepared_at = timezone.now()
-    exp.save(update_fields=["model_name", "env_status", "env_error", "env_meta",
+    exp.save(update_fields=["env_status", "env_error", "env_meta",
                             "env_prepared_at"])
 
 
@@ -391,7 +395,7 @@ def start_preparation(exp, info=None) -> None:
     from ..tasks import prepare_model_env_task
     from .dispatch import enqueue
 
-    if not (exp.model_file and settings.ALLOW_CUSTOM_MODELS):
+    if not (exp.data.model_file and settings.ALLOW_CUSTOM_MODELS):
         return
 
     meta = dict(exp.env_meta or {})

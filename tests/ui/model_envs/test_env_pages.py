@@ -34,11 +34,11 @@ def _experiment(**overrides) -> Experiment:
         name="custom", model_name="Mine", optimizer_name="Random Search",
         metric_names=["accuracy"], seed=0)
     fields.update(overrides)
-    exp = Experiment(**fields)
-    exp.model_file.save("mine.py", ContentFile(MODEL_SOURCE), save=False)
-    exp.dataset.save("iris.csv", ContentFile((DATASETS_DIR / "iris.csv").read_bytes()),
+    exp = Experiment.objects.create(**fields)
+    exp.data.model_file.save("mine.py", ContentFile(MODEL_SOURCE), save=False)
+    exp.data.dataset.save("iris.csv", ContentFile((DATASETS_DIR / "iris.csv").read_bytes()),
                      save=False)
-    exp.save()
+    exp.data.save()
     return exp
 
 
@@ -59,7 +59,7 @@ def test_uploading_a_model_queues_its_environment(client, fake_uv):
     })
 
     assert resp.status_code == 302
-    exp = Experiment.objects.get(name="queued")
+    exp = Experiment.objects.get(data__name="queued")
     # the fake uv resolves instantly, and tests run tasks inline
     assert exp.env_status == Experiment.ENV_READY
     # what the source declared was recorded before anything was built
@@ -73,7 +73,7 @@ def test_a_registry_model_needs_no_environment(client):
         "demo_dataset": str(DATASETS_DIR / "iris.csv"), "seed": "0",
     })
 
-    assert Experiment.objects.get(name="plain").env_status == Experiment.ENV_NONE
+    assert Experiment.objects.get(data__name="plain").env_status == Experiment.ENV_NONE
 
 
 # ── while it is building ─────────────────────────────────────────────────────

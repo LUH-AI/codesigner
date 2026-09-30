@@ -41,7 +41,8 @@ def test_the_interval_follows_the_trials(durations, expected):
     from ui import views
 
     class _Exp:
-        result = {"data": [{"time": d} for d in durations]}
+        class data:
+            result = {"data": [{"time": d} for d in durations]}
 
     assert views._poll_seconds(_Exp()) == expected
 
@@ -51,7 +52,8 @@ def test_one_pathological_trial_does_not_slow_the_whole_run():
     from ui import views
 
     class _Exp:
-        result = {"data": [{"time": 6.0}] * 9 + [{"time": 4000.0}]}
+        class data:
+            result = {"data": [{"time": 6.0}] * 9 + [{"time": 4000.0}]}
 
     assert views._poll_seconds(_Exp()) == 6
 
@@ -89,7 +91,7 @@ def test_the_poll_carries_only_the_rows_the_page_is_missing(client, ran_experime
     reading a chart, and replacing it under someone mid-sort would lose the
     sort, the page, the scroll position and the row they had picked."""
     exp = ran_experiment
-    stored = len(exp.result["data"])
+    stored = len(exp.data.result["data"])
 
     live = _live_payload(_poll(client, exp, trials=stored - 2))
 
@@ -104,7 +106,7 @@ def test_the_rows_come_from_the_same_partial_the_table_was_built_from(
     """One template, so the two cannot drift into formatting a duration or a
     failure differently."""
     exp = ran_experiment
-    live = _live_payload(_poll(client, exp, trials=len(exp.result["data"]) - 1))
+    live = _live_payload(_poll(client, exp, trials=len(exp.data.result["data"]) - 1))
     page = client.get(reverse("ui:experiment_detail", args=[exp.pk])).content.decode()
 
     last = live["rows_html"].strip()

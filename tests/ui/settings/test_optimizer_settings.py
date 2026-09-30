@@ -67,7 +67,7 @@ def test_creating_stores_what_was_chosen(client):
         "opt_use_default_config": "on",
     })
 
-    stored = Experiment.objects.get(name="configured").optimizer_params
+    stored = Experiment.objects.get(data__name="configured").data.optimizer_params
     assert stored["search_strategy"] == "rf"
     assert stored["share_cap"] == 0.4
     assert stored["use_default_config"] is True
@@ -80,7 +80,7 @@ def test_creating_without_touching_them_stores_the_defaults(client):
         "demo_dataset": str(DATASETS_DIR / "iris.csv"),
     })
 
-    stored = Experiment.objects.get(name="plain").optimizer_params
+    stored = Experiment.objects.get(data__name="plain").data.optimizer_params
     assert stored["search_strategy"] == "gp"
     # Unset stays unset rather than becoming a number of ours: the two
     # strategies disagree about these, and the one in use should decide.
@@ -95,7 +95,7 @@ def _create(client, **overrides):
             "demo_dataset": str(DATASETS_DIR / "iris.csv")}
     data.update(overrides)
     client.post(reverse("ui:new_experiment"), data)
-    return Experiment.objects.get(name=data["name"]).optimizer_params
+    return Experiment.objects.get(data__name=data["name"]).data.optimizer_params
 
 
 def test_the_settings_page_does_not_offer_them(client):
@@ -120,7 +120,7 @@ def test_posting_them_at_the_settings_page_changes_nothing(client):
                 {"save_search": "1", "opt_search_strategy": "rf"})
     exp.refresh_from_db()
 
-    assert exp.optimizer_params["search_strategy"] == "gp"
+    assert exp.data.optimizer_params["search_strategy"] == "gp"
 
 
 def test_a_value_out_of_range_is_clamped_rather_than_refused(client):
@@ -231,8 +231,8 @@ def test_creating_with_grid_search_stores_what_its_panel_said(client):
         "opt_numeric_steps": "9",
     })
 
-    exp = Experiment.objects.get(name="gridded")
-    assert exp.optimizer_params == {"numeric_steps": 9}
+    exp = Experiment.objects.get(data__name="gridded")
+    assert exp.data.optimizer_params == {"numeric_steps": 9}
 
 
 def test_the_hidden_panels_settings_do_not_leak_into_the_chosen_one(client):
@@ -245,7 +245,7 @@ def test_the_hidden_panels_settings_do_not_leak_into_the_chosen_one(client):
         "opt_numeric_steps": "4", "opt_search_strategy": "rf",
     })
 
-    assert Experiment.objects.get(name="clean").optimizer_params == {"numeric_steps": 4}
+    assert Experiment.objects.get(data__name="clean").data.optimizer_params == {"numeric_steps": 4}
 
 
 def test_an_optimizer_whose_panel_was_hidden_gets_its_own_defaults(client):
@@ -258,7 +258,7 @@ def test_an_optimizer_whose_panel_was_hidden_gets_its_own_defaults(client):
         "demo_dataset": str(DATASETS_DIR / "iris.csv"),
     })
 
-    assert Experiment.objects.get(name="untouched").optimizer_params == {"numeric_steps": 5}
+    assert Experiment.objects.get(data__name="untouched").data.optimizer_params == {"numeric_steps": 5}
 
 
 def test_a_validation_error_keeps_the_optimizer_and_its_values(client):
@@ -477,7 +477,7 @@ def test_creating_stores_the_caps(client):
         "opt_initial_points_use_max": "on",
     })
 
-    params = Experiment.objects.get(name="capped").optimizer_params
+    params = Experiment.objects.get(data__name="capped").data.optimizer_params
     assert params["share_cap"] == 0.4
     assert params["trial_cap"] == 12
     assert params["initial_points_use_max"] is True
@@ -493,7 +493,7 @@ def test_a_cap_switched_off_is_stored_as_off(client):
         "opt_use_trial_cap": "on",
     })
 
-    params = Experiment.objects.get(name="uncapped").optimizer_params
+    params = Experiment.objects.get(data__name="uncapped").data.optimizer_params
     assert params["use_share_cap"] is False
     assert params["use_trial_cap"] is True
 
@@ -578,7 +578,7 @@ def test_creating_stores_the_surrogate_settings(client):
         "opt_rf_feature_ratio": "0.5",
     })
 
-    params = Experiment.objects.get(name="forested").optimizer_params
+    params = Experiment.objects.get(data__name="forested").data.optimizer_params
     assert params["rf_trees"] == 64
     assert params["rf_feature_ratio"] == 0.5
 
@@ -594,7 +594,7 @@ def test_a_feature_ratio_above_one_is_clamped_on_the_way_in(client):
         "opt_search_strategy": "rf", "opt_rf_feature_ratio": "5",
     })
 
-    assert Experiment.objects.get(name="greedy").optimizer_params["rf_feature_ratio"] == 1.0
+    assert Experiment.objects.get(data__name="greedy").data.optimizer_params["rf_feature_ratio"] == 1.0
 
 
 def test_the_slow_fitting_method_says_so_where_it_is_chosen(client):

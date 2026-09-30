@@ -8,7 +8,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: PACKAGE VERSION\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2026-09-25 15:50+0000\n"
+"POT-Creation-Date: 2026-09-30 13:46+0000\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
 "Language-Team: LANGUAGE <LL@li.org>\n"
@@ -19,12 +19,12 @@ msgstr ""
 "Plural-Forms: nplurals=2; plural=(n != 1);\n"
 
 #. == Site chrome — navigation, base template, account ==================
-#: access/policy.py:230
+#: access/policy.py:330
 #, python-format
 msgid "%(user)s is not allowed to run custom models here."
 msgstr "%(user)s no puede ejecutar modelos propios aquí."
 
-#: access/policy.py:231
+#: access/policy.py:331
 msgid ""
 "This experiment's custom model has no account behind it, so it cannot be "
 "run. Give the experiment an owner who is allowed to run custom models."
@@ -42,7 +42,6 @@ msgid "That username and password do not match an account."
 msgstr "Ese usuario y esa contraseña no coinciden con ninguna cuenta."
 
 #: access/templates/access/login.html:25
-#: ui/templates/ui/panels/group_people.html:88
 msgid "Username"
 msgstr "Usuario"
 
@@ -50,7 +49,7 @@ msgstr "Usuario"
 msgid "Password"
 msgstr "Contraseña"
 
-#: access/templates/access/login.html:41 templates/base.html:74
+#: access/templates/access/login.html:41 templates/base.html:75
 msgid "Language"
 msgstr "Idioma"
 
@@ -83,11 +82,14 @@ msgid "Back to your account"
 msgstr "Volver a su cuenta"
 
 #: templates/base.html:15 templates/base.html:17 ui/navigation.py:59
-#: ui/templates/ui/panels/group_people.html:25
+#: ui/templates/ui/panels/group.html:142
 msgid "Experiments"
 msgstr "Experimentos"
 
-#: templates/base.html:25 templates/base.html:27 templates/base.html:105
+#: templates/base.html:26 templates/base.html:28 templates/base.html:106
+#: ui/forms.py:103 ui/templates/ui/_group_picker.html:7
+#: ui/templates/ui/panels/group_none.html:4
+#: ui/templates/ui/panels/group_none.html:7
 #: ui/templates/ui/panels/site_groups.html:17
 #: ui/templates/ui/panels/site_jobs.html:20
 #: ui/templates/ui/panels/site_trash.html:40
@@ -96,102 +98,103 @@ msgstr "Experimentos"
 msgid "Group"
 msgstr "Grupo"
 
-#: templates/base.html:32 templates/base.html:34 templates/base.html:115
+#: templates/base.html:33 templates/base.html:35 templates/base.html:118
 msgid "Site"
 msgstr "Sitio"
 
-#: templates/base.html:38 templates/base.html:40 templates/base.html:85
+#: templates/base.html:39 templates/base.html:41 templates/base.html:86
 #: ui/navigation.py:35 ui/navigation.py:60
 #: ui/templates/ui/experiment_settings.html:4
 msgid "Settings"
 msgstr "Ajustes"
 
-#: templates/base.html:50
+#: templates/base.html:51
 #, python-format
 msgid "Signed in as %(name)s — sign out"
 msgstr "Sesión iniciada como %(name)s — cerrar sesión"
 
-#: templates/base.html:54
+#: templates/base.html:55
 msgid "Sign out"
 msgstr "Cerrar sesión"
 
-#: templates/base.html:80
+#: templates/base.html:81
 msgid "Go"
 msgstr "Cambiar"
 
-#: templates/base.html:88 ui/navigation.py:71 ui/templates/ui/appearance.html:4
+#: templates/base.html:89 ui/navigation.py:73 ui/templates/ui/appearance.html:4
 #: ui/templates/ui/appearance.html:7
 msgid "Appearance"
 msgstr "Apariencia"
 
-#: templates/base.html:95 ui/templates/ui/account.html:4
+#: templates/base.html:96 ui/templates/ui/account.html:4
 #: ui/templates/ui/account.html:7
 msgid "Account"
 msgstr "Cuenta"
 
-#: templates/base.html:99 ui/navigation.py:73
+#: templates/base.html:100 ui/navigation.py:75
 #: ui/templates/ui/default_experiment_settings.html:4
 #: ui/templates/ui/default_experiment_settings.html:7
 msgid "Default experiment settings"
 msgstr "Ajustes predeterminados de los experimentos"
 
-#: templates/base.html:108 ui/templates/ui/panels/group_people.html:4
-#: ui/templates/ui/panels/site_usage.html:19
-msgid "People"
-msgstr "Personas"
+#: templates/base.html:112 ui/templates/ui/panels/site_groups.html:54
+#: ui/templates/ui/panels/site_usage.html:35
+msgid "No groups yet."
+msgstr "Todavía no hay grupos."
 
-#: templates/base.html:110 ui/templates/ui/panels/group_work.html:4
-msgid "Their experiments"
-msgstr "Sus experimentos"
-
-#: templates/base.html:118 ui/templates/ui/panels/site_groups.html:4
+#: templates/base.html:121 ui/templates/ui/panels/site_groups.html:4
 #: ui/templates/ui/panels/site_groups.html:7
 msgid "Groups"
 msgstr "Grupos"
 
-#: templates/base.html:120 ui/templates/ui/panels/site_usage.html:4
+#: templates/base.html:123 ui/templates/ui/panels/site_usage.html:4
 #: ui/templates/ui/panels/site_usage.html:7
 msgid "Usage"
 msgstr "Uso"
 
-#: templates/base.html:122 ui/templates/ui/panels/site_jobs.html:4
+#: templates/base.html:125 ui/templates/ui/panels/site_jobs.html:4
 msgid "Jobs"
 msgstr "Trabajos"
 
-#: templates/base.html:124 ui/templates/ui/panels/site_trash.html:4
+#: templates/base.html:127 ui/navigation.py:67 ui/templates/ui/bin.html:4
+#: ui/templates/ui/bin.html:7 ui/templates/ui/panels/site_trash.html:4
 #: ui/templates/ui/panels/site_trash.html:7
 msgid "Bin"
 msgstr "Papelera"
 
-#: templates/base.html:135
+#: templates/base.html:138
 msgid "Experiment Selection"
 msgstr "Selección de experimento"
 
-#: templates/base.html:137
+#: templates/base.html:140
 msgid "＋ New"
 msgstr "＋ Nuevo"
 
-#: templates/base.html:138
+#: templates/base.html:141
 msgid "📂 Load"
 msgstr "📂 Cargar"
 
-#: templates/base.html:144 ui/templates/ui/experiment_list.html:22
+#: templates/base.html:147 ui/templates/ui/experiment_list.html:22
 msgid "Running"
 msgstr "En ejecución"
 
-#: templates/base.html:144
+#: templates/base.html:147
 msgid "Preparing its environment"
 msgstr "Preparando su entorno"
 
-#: templates/base.html:147 ui/templates/ui/experiment_list.html:28
+#: templates/base.html:150 ui/templates/ui/experiment_list.html:28
 msgid "No experiments yet."
 msgstr "Todavía no hay experimentos."
 
-#: templates/base.html:150
+#: templates/base.html:153
 msgid "See all…"
 msgstr "Ver todos…"
 
-#: ui/navigation.py:36 ui/templates/ui/delete_confirm.html:12
+#: templates/base.html:155
+msgid "🗑 Bin"
+msgstr "🗑 Papelera"
+
+#: ui/navigation.py:36 ui/templates/ui/delete_confirm.html:16
 #: ui/templates/ui/panels/site_groups.html:49
 msgid "Delete"
 msgstr "Eliminar"
@@ -205,12 +208,12 @@ msgstr "Cambiar métrica"
 msgid "All experiments"
 msgstr "Todos los experimentos"
 
-#: ui/navigation.py:67 ui/templates/ui/new_experiment.html:4
+#: ui/navigation.py:69 ui/templates/ui/new_experiment.html:4
 #: ui/templates/ui/new_experiment.html:7
 msgid "New experiment"
 msgstr "Nuevo experimento"
 
-#: ui/navigation.py:69
+#: ui/navigation.py:71
 msgid "Import experiment"
 msgstr "Importar experimento"
 
@@ -375,7 +378,7 @@ msgstr "Ya obtenido"
 
 #: ui/figures/plots.py:447
 #: ui/templates/ui/figures/hyperparameter_importance.html:44
-#: ui/templates/ui/figures/hyperparameter_importance.html:77 ui/views.py:568
+#: ui/templates/ui/figures/hyperparameter_importance.html:77 ui/views.py:606
 msgid "Still to gain"
 msgstr "Aún por ganar"
 
@@ -1263,35 +1266,58 @@ msgstr "⚙ Ajustes"
 msgid "🗑 Delete"
 msgstr "🗑 Eliminar"
 
-#: ui/templates/ui/experiment_detail.html:52
-msgid "Let everyone else read this experiment"
-msgstr "Permitir que los demás lean este experimento"
+#: ui/templates/ui/experiment_detail.html:48
+#, python-format
+msgid "Yours, shared with %(people)s person in its group."
+msgid_plural "Yours, shared with %(people)s people in its group."
+msgstr[0] "Suyo, compartido con %(people)s persona de su grupo."
+msgstr[1] "Suyo, compartido con %(people)s personas de su grupo."
 
-#: ui/templates/ui/experiment_detail.html:56
+#: ui/templates/ui/experiment_detail.html:50
+msgid "Yours, and not shared."
+msgstr "Suyo, y sin compartir."
+
+#: ui/templates/ui/experiment_detail.html:53
+#, python-format
+msgid "Share it from %(name)s"
+msgstr "Compartirlo desde %(name)s"
+
+#: ui/templates/ui/experiment_detail.html:57
+#, python-format
+msgid "%(name)s's — you are a contributor, so you can run and delete it too."
+msgstr ""
+"De %(name)s — usted colabora, así que también puede ejecutarlo y eliminarlo."
+
+#: ui/templates/ui/experiment_detail.html:59
 #, python-format
 msgid "Shared with you by %(name)s — read only."
 msgstr "Compartido con usted por %(name)s — solo lectura."
 
-#: ui/templates/ui/experiment_detail.html:58
+#: ui/templates/ui/experiment_detail.html:61
+#, python-format
+msgid "%(name)s's, in a group you lead."
+msgstr "De %(name)s, en un grupo que usted dirige."
+
+#: ui/templates/ui/experiment_detail.html:64
 msgid "This experiment has no owner, so everyone here can change it."
 msgstr ""
 "Este experimento no tiene propietario, así que cualquiera aquí puede "
 "cambiarlo."
 
-#: ui/templates/ui/experiment_detail.html:68
+#: ui/templates/ui/experiment_detail.html:74
 #, python-format
 msgid "Run failed: %(run_error)s"
 msgstr "La ejecución falló: %(run_error)s"
 
-#: ui/templates/ui/experiment_detail.html:78
+#: ui/templates/ui/experiment_detail.html:84
 msgid "This model's environment could not be built."
 msgstr "No se pudo construir el entorno de este modelo."
 
-#: ui/templates/ui/experiment_detail.html:83
+#: ui/templates/ui/experiment_detail.html:89
 msgid "Try again"
 msgstr "Reintentar"
 
-#: ui/templates/ui/experiment_detail.html:87
+#: ui/templates/ui/experiment_detail.html:93
 msgid ""
 "This model runs inside the application's own Python environment, not one of "
 "its own — so the dependencies it declares are ignored."
@@ -1299,11 +1325,11 @@ msgstr ""
 "Este modelo se ejecuta dentro del propio entorno de Python de la aplicación, "
 "no en uno propio — por eso se ignoran las dependencias que declara."
 
-#: ui/templates/ui/experiment_detail.html:92
+#: ui/templates/ui/experiment_detail.html:98
 msgid "Prepare an isolated environment"
 msgstr "Preparar un entorno aislado"
 
-#: ui/templates/ui/experiment_detail.html:97
+#: ui/templates/ui/experiment_detail.html:103
 #, python-format
 msgid ""
 "Last run: %(count)s trials in %(total)s s — %(trials)s s in trials, "
@@ -1312,29 +1338,29 @@ msgstr ""
 "Última ejecución: %(count)s pruebas en %(total)s s — %(trials)s s en "
 "pruebas, %(overhead)s s de sobrecarga."
 
-#: ui/templates/ui/experiment_detail.html:97
+#: ui/templates/ui/experiment_detail.html:103
 #, python-format
 msgid "Stopped because %(reason)s."
 msgstr "Se detuvo porque %(reason)s."
 
-#: ui/templates/ui/experiment_detail.html:101
+#: ui/templates/ui/experiment_detail.html:107
 msgid "No results yet."
 msgstr "Todavía no hay resultados."
 
-#: ui/templates/ui/experiment_detail.html:157
+#: ui/templates/ui/experiment_detail.html:163
 #, python-format
 msgid "The search space is exhausted at %(n)s trials."
 msgstr "El espacio de búsqueda se agota a las %(n)s pruebas."
 
-#: ui/templates/ui/experiment_detail.html:377
+#: ui/templates/ui/experiment_detail.html:383
 msgid "Absolute scale (0-1)"
 msgstr "Escala absoluta (0-1)"
 
-#: ui/templates/ui/experiment_detail.html:378
+#: ui/templates/ui/experiment_detail.html:384
 msgid "Relative scale (fit to data)"
 msgstr "Escala relativa (ajustada a los datos)"
 
-#: ui/templates/ui/experiment_detail.html:1436
+#: ui/templates/ui/experiment_detail.html:1442
 msgid "Uncertainty"
 msgstr "Incertidumbre"
 
@@ -1429,35 +1455,35 @@ msgstr "Validación cruzada"
 msgid "Dataset split"
 msgstr "División de los datos"
 
-#: ui/forms.py:100
+#: ui/forms.py:104 ui/forms.py:107 ui/templates/ui/_group_picker.html:9
 msgid "— select —"
 msgstr "— elegir —"
 
-#: ui/forms.py:103 ui/forms.py:107
+#: ui/forms.py:110 ui/forms.py:114
 msgid "— none —"
 msgstr "— ninguno —"
 
-#: ui/forms.py:158
+#: ui/forms.py:165
 msgid "Choose a model or upload a model .py file."
 msgstr "Elija un modelo o suba un archivo .py de modelo."
 
-#: ui/forms.py:161
+#: ui/forms.py:168
 msgid "Choose a demo dataset or upload a CSV file."
 msgstr "Elija un conjunto de datos de demostración o suba un archivo CSV."
 
-#: ui/forms.py:174
+#: ui/forms.py:181
 msgid "Trials drawn on the partial-dependence figure"
 msgstr "Pruebas dibujadas en la figura de dependencia parcial"
 
-#: ui/forms.py:175
+#: ui/forms.py:182
 msgid "Trials explained on the local-effects figure"
 msgstr "Pruebas explicadas en la figura de efectos locales"
 
-#: ui/forms.py:176
+#: ui/forms.py:183
 msgid "Prior acceptance tolerance"
 msgstr "Tolerancia de aceptación del prior"
 
-#: ui/forms.py:192
+#: ui/forms.py:199
 msgid ""
 "0 draws every trial. The curve is the mean of whatever is drawn, so a "
 "smaller number is faster and lighter but a coarser average."
@@ -1465,7 +1491,7 @@ msgstr ""
 "0 dibuja todas las pruebas. La curva es la media de lo que se dibuje, así "
 "que un número menor es más rápido y ligero, pero da una media más basta."
 
-#: ui/forms.py:197
+#: ui/forms.py:204
 msgid ""
 "0 explains every trial. Each one costs its own explanation, so this is the "
 "setting that decides how long the figure takes."
@@ -1473,7 +1499,7 @@ msgstr ""
 "0 explica todas las pruebas. Cada una cuesta su propia explicación, así que "
 "este es el ajuste que decide cuánto tarda la figura."
 
-#: ui/forms.py:202
+#: ui/forms.py:209
 msgid ""
 "How much worse than where the search is already looking a stated belief's "
 "region may score before “Evaluate prior” refuses it. In the objective's own "
@@ -1485,7 +1511,7 @@ msgstr ""
 "del propio objetivo, así que significa cosas distintas para objetivos "
 "distintos; 0 rechaza todo lo que el modelo no considere una mejora."
 
-#: ui/forms.py:238
+#: ui/forms.py:245
 msgid "Use default experiment settings"
 msgstr "Usar los ajustes predeterminados de los experimentos"
 
@@ -1867,16 +1893,11 @@ msgid "Change default experiment settings"
 msgstr "Cambiar los ajustes predeterminados de los experimentos"
 
 #. == Panels — groups, jobs, site administration ========================
-#: ui/panels.py:131
-msgid "A username and a first password are needed."
-msgstr "Hacen falta un usuario y una primera contraseña."
+#: ui/panels.py:221
+msgid "An email address is needed."
+msgstr "Se necesita una dirección de correo electrónico."
 
-#: ui/panels.py:133
-#, python-format
-msgid "There is already an account called “%(name)s”."
-msgstr "Ya existe una cuenta llamada «%(name)s»."
-
-#: ui/panels.py:139
+#: ui/panels.py:226
 #, python-format
 msgid ""
 "%(group)s is full: %(limit)s of %(limit)s seats used. A site admin can raise "
@@ -1885,20 +1906,41 @@ msgstr ""
 "%(group)s está lleno: %(limit)s de %(limit)s plazas ocupadas. La "
 "administración del sitio puede subir el límite."
 
-#: ui/panels.py:146
+#: ui/panels.py:233
 msgid "You cannot add somebody with that role."
 msgstr "No puede añadir a nadie con ese rol."
 
-#: ui/panels.py:150
+#: ui/panels.py:235
 #, python-format
-msgid "Added %(name)s to %(group)s."
-msgstr "Se añadió %(name)s a %(group)s."
+msgid "%(email)s is already in %(group)s."
+msgstr "%(email)s ya está en %(group)s."
 
-#: ui/panels.py:166
+#: ui/panels.py:243 ui/panels.py:435
+#, python-format
+msgid "“%(email)s” is not an email address."
+msgstr "«%(email)s» no es una dirección de correo electrónico."
+
+#: ui/panels.py:250
+#, python-format
+msgid ""
+"Created an account for %(email)s and added it to %(group)s. Its first "
+"password is %(password)s — hand it over; they can change it under Settings → "
+"Account."
+msgstr ""
+"Se creó una cuenta para %(email)s y se añadió a %(group)s. Su primera "
+"contraseña es %(password)s — entréguela; se puede cambiar en Ajustes → "
+"Cuenta."
+
+#: ui/panels.py:255
+#, python-format
+msgid "Added %(email)s to %(group)s."
+msgstr "Se añadió %(email)s a %(group)s."
+
+#: ui/panels.py:271
 msgid "You cannot remove yourself from your own group."
 msgstr "No puede quitarse a sí mismo de su propio grupo."
 
-#: ui/panels.py:172
+#: ui/panels.py:277
 #, python-format
 msgid ""
 "%(name)s is the primary lead. The role has to be transferred before they can "
@@ -1907,7 +1949,7 @@ msgstr ""
 "%(name)s es la dirección principal. El rol debe transferirse antes de que "
 "pueda salir."
 
-#: ui/panels.py:176
+#: ui/panels.py:283
 #, python-format
 msgid ""
 "%(name)s still owns experiments. Out of the group nobody could reach them — "
@@ -1916,12 +1958,12 @@ msgstr ""
 "%(name)s todavía posee experimentos. Fuera del grupo nadie podría acceder a "
 "ellos — reasígnelos primero."
 
-#: ui/panels.py:181
+#: ui/panels.py:288
 #, python-format
 msgid "Removed %(name)s from the group."
 msgstr "Se quitó a %(name)s del grupo."
 
-#: ui/panels.py:202
+#: ui/panels.py:309
 msgid ""
 "You cannot change your own role. Transfer the primary lead role to somebody "
 "else instead."
@@ -1929,20 +1971,20 @@ msgstr ""
 "No puede cambiar su propio rol. Transfiera el rol de dirección principal a "
 "otra persona."
 
-#: ui/panels.py:205
+#: ui/panels.py:312
 msgid "That is not a role you can set."
 msgstr "Ese no es un rol que pueda asignar."
 
-#: ui/panels.py:209
+#: ui/panels.py:316
 #, python-format
 msgid "%(name)s is now a %(role)s."
 msgstr "%(name)s es ahora %(role)s."
 
-#: ui/panels.py:234
+#: ui/panels.py:341
 msgid "You already hold it."
 msgstr "Ya lo tiene."
 
-#: ui/panels.py:237
+#: ui/panels.py:344
 #, python-format
 msgid ""
 "The primary lead role can only go to a group lead. Make %(name)s a lead "
@@ -1951,73 +1993,92 @@ msgstr ""
 "El rol de dirección principal solo puede ir a una dirección de grupo. Haga "
 "primero que %(name)s sea dirección de grupo."
 
-#: ui/panels.py:246
+#: ui/panels.py:353
 #, python-format
 msgid "%(name)s is now the primary lead of %(group)s. You are a group lead."
 msgstr ""
 "%(name)s es ahora la dirección principal de %(group)s. Usted es dirección de "
 "grupo."
 
-#: ui/panels.py:294
+#: ui/panels.py:386
 msgid "A group needs a name and a seat limit of zero or more."
 msgstr "Un grupo necesita un nombre y un límite de plazas de cero o más."
 
-#: ui/panels.py:303
+#: ui/panels.py:395
 #, python-format
 msgid "Saved %(name)s."
 msgstr "Se guardó %(name)s."
 
-#: ui/panels.py:305
+#: ui/panels.py:397
 #, python-format
 msgid "There is already a group called “%(name)s”."
 msgstr "Ya existe un grupo llamado «%(name)s»."
 
-#: ui/panels.py:309
-#, python-format
-msgid "Created %(name)s."
-msgstr "Se creó %(name)s."
+#: ui/panels.py:422
+msgid "A new group needs a primary lead's email address."
+msgstr ""
+"Un grupo nuevo necesita la dirección de correo de su dirección principal."
 
-#: ui/panels.py:332
+#: ui/panels.py:425
+msgid "A new group needs at least one seat, for its primary lead."
+msgstr ""
+"Un grupo nuevo necesita al menos una plaza, para su dirección principal."
+
+#: ui/panels.py:440
+#, python-format
+msgid ""
+"Created %(name)s, and an account for %(email)s as its primary lead. Its "
+"first password is %(password)s — hand it over."
+msgstr ""
+"Se creó %(name)s, y una cuenta para %(email)s como su dirección principal. "
+"Su primera contraseña es %(password)s — entréguela."
+
+#: ui/panels.py:444
+#, python-format
+msgid "Created %(name)s, with %(email)s as its primary lead."
+msgstr "Se creó %(name)s, con %(email)s como su dirección principal."
+
+#: ui/panels.py:467
 #, python-format
 msgid "%(name)s still has people in it. Remove them first."
 msgstr "%(name)s todavía tiene personas. Elimínelas primero."
 
-#: ui/panels.py:334
+#: ui/panels.py:469
 #, python-format
 msgid "Deleted %(name)s. Anything it held is in the bin."
 msgstr "%(name)s eliminado. Todo lo que contenía está en la papelera."
 
-#: ui/panels.py:374
+#: ui/panels.py:509
 #, python-format
 msgid "Moved experiment %(pk)s into %(group)s."
 msgstr "Experimento %(pk)s movido a %(group)s."
 
-#: ui/panels.py:387
+#: ui/panels.py:522
 #, python-format
 msgid "Deleted experiment %(pk)s."
 msgstr "Experimento %(pk)s eliminado."
 
-#: ui/panels.py:491
+#: ui/panels.py:660
 msgid "Stopped by a site administrator."
 msgstr "Detenido por la administración del sitio."
 
-#: ui/panels.py:492
+#: ui/panels.py:661
 #, python-format
 msgid "Stopped job %(job)s."
 msgstr "Se detuvo el trabajo %(job)s."
 
-#: ui/templates/ui/panels/group_people.html:9
+#: ui/templates/ui/panels/group.html:10
 #, python-format
 msgid "%(seats)s seat left."
 msgid_plural "%(seats)s seats left."
 msgstr[0] "Queda %(seats)s plaza."
 msgstr[1] "Quedan %(seats)s plazas."
 
-#: ui/templates/ui/panels/group_people.html:10
+#: ui/templates/ui/panels/group.html:11
 msgid "A site administrator sets how many."
 msgstr "La administración del sitio decide cuántas."
 
-#: ui/templates/ui/panels/group_people.html:17
+#: ui/templates/ui/panels/group.html:19
 msgid ""
 "You are this group's primary lead: you decide who else leads it. Handing "
 "that on is the only way to stop — it always goes to somebody."
@@ -2025,90 +2086,165 @@ msgstr ""
 "Usted es la dirección principal de este grupo: decide quién más lo dirige. "
 "Cederla es la única forma de dejarlo — siempre pasa a alguien."
 
-#: ui/templates/ui/panels/group_people.html:23
+#: ui/templates/ui/panels/group.html:23
+msgid "Your experiments"
+msgstr "Sus experimentos"
+
+#: ui/templates/ui/panels/group.html:24
+msgid ""
+"A viewer can look at an experiment and download it. A contributor can also "
+"run, change and delete it. Only you decide who else may, and you can hand an "
+"experiment to one of its contributors."
+msgstr ""
+"Quien lo ve puede consultar un experimento y descargarlo. Quien colabora "
+"también puede ejecutarlo, cambiarlo y eliminarlo. Solo usted decide quién "
+"más puede, y puede entregar un experimento a una de las personas que "
+"colaboran en él."
+
+#: ui/templates/ui/panels/group.html:29
+msgid "Shared with"
+msgstr "Compartido con"
+
+#: ui/templates/ui/panels/group.html:44
+msgid "Nobody"
+msgstr "Nadie"
+
+#: ui/templates/ui/panels/group.html:54
+msgid "Not shared"
+msgstr "Sin compartir"
+
+#: ui/templates/ui/panels/group.html:59 ui/templates/ui/panels/group.html:165
+msgid "Set"
+msgstr "Aplicar"
+
+#: ui/templates/ui/panels/group.html:66
+msgid "Make owner"
+msgstr "Hacer propietario"
+
+#: ui/templates/ui/panels/group.html:71
+msgid "Nobody else is in this group yet."
+msgstr "Todavía no hay nadie más en este grupo."
+
+#: ui/templates/ui/panels/group.html:77
+msgid "You have no experiments in this group."
+msgstr "No tiene experimentos en este grupo."
+
+#: ui/templates/ui/panels/group.html:83
+msgid "Shared with you"
+msgstr "Compartido con usted"
+
+#: ui/templates/ui/panels/group.html:89
+msgid "You are"
+msgstr "Usted"
+
+#: ui/templates/ui/panels/group.html:98
+msgid "a contributor"
+msgstr "colabora"
+
+#: ui/templates/ui/panels/group.html:98
+msgid "a viewer"
+msgstr "puede verlo"
+
+#: ui/templates/ui/panels/group.html:101
+msgid "Nothing in this group has been shared with you."
+msgstr "En este grupo no se ha compartido nada con usted."
+
+#: ui/templates/ui/panels/group.html:108
+msgid "Everybody else's"
+msgstr "Los de los demás"
+
+#: ui/templates/ui/panels/group.html:109
+msgid ""
+"As a lead you can open, run and stop any of these. Deleting one, or deciding "
+"who it is shared with, stays with its owner."
+msgstr ""
+"Como dirección puede abrir, ejecutar y detener cualquiera de estos. Eliminar "
+"uno, o decidir con quién se comparte, le corresponde a su propietario."
+
+#: ui/templates/ui/panels/group.html:115
+msgid "Shared"
+msgstr "Compartido"
+
+#: ui/templates/ui/panels/group.html:125
+#, python-format
+msgid "with %(people)s person"
+msgid_plural "with %(people)s people"
+msgstr[0] "con %(people)s persona"
+msgstr[1] "con %(people)s personas"
+
+#: ui/templates/ui/panels/group.html:129
+msgid "Nobody else in this group has an experiment yet."
+msgstr "Nadie más en este grupo tiene todavía un experimento."
+
+#: ui/templates/ui/panels/group.html:136
+#: ui/templates/ui/panels/site_usage.html:19
+msgid "People"
+msgstr "Personas"
+
+#: ui/templates/ui/panels/group.html:140
 #: ui/templates/ui/panels/site_jobs.html:19
 #: ui/templates/ui/panels/site_usage.html:45
 msgid "Who"
 msgstr "Quién"
 
-#: ui/templates/ui/panels/group_people.html:24
-#: ui/templates/ui/panels/group_people.html:43
-#: ui/templates/ui/panels/group_people.html:97
+#: ui/templates/ui/panels/group.html:141 ui/templates/ui/panels/group.html:160
+#: ui/templates/ui/panels/group.html:223
 msgid "Role"
 msgstr "Rol"
 
-#: ui/templates/ui/panels/group_people.html:32
-msgid "you"
-msgstr "usted"
-
-#: ui/templates/ui/panels/group_people.html:33
+#: ui/templates/ui/panels/group.html:150
 msgid "deactivated"
 msgstr "desactivada"
 
-#: ui/templates/ui/panels/group_people.html:48
-msgid "Set"
-msgstr "Aplicar"
-
-#: ui/templates/ui/panels/group_people.html:63
+#: ui/templates/ui/panels/group.html:181
 msgid "Make primary lead"
 msgstr "Hacer dirección principal"
 
-#: ui/templates/ui/panels/group_people.html:69
+#: ui/templates/ui/panels/group.html:187
 msgid "Remove"
 msgstr "Quitar"
 
-#: ui/templates/ui/panels/group_people.html:83
+#: ui/templates/ui/panels/group.html:203
 msgid "Add somebody"
 msgstr "Añadir a alguien"
 
-#: ui/templates/ui/panels/group_people.html:92
-msgid "First password"
-msgstr "Primera contraseña"
+#: ui/templates/ui/panels/group.html:208
+msgid "Email address"
+msgstr "Correo electrónico"
 
-#: ui/templates/ui/panels/group_people.html:94
-msgid "Hand this over; they can change it under Settings → Account."
-msgstr "Entréguesela; puede cambiarla en Ajustes → Cuenta."
+#: ui/templates/ui/panels/group.html:210
+msgid ""
+"If somebody here already has this address, they are added to the group. "
+"Otherwise an account is created for it."
+msgstr ""
+"Si alguien aquí ya tiene esta dirección, se añade al grupo. Si no, se crea "
+"una cuenta para ella."
 
-#: ui/templates/ui/panels/group_people.html:102
+#: ui/templates/ui/panels/group.html:218
+#: ui/templates/ui/panels/site_groups.html:82
+msgid "First password (optional)"
+msgstr "Primera contraseña (opcional)"
+
+#: ui/templates/ui/panels/group.html:220
+#: ui/templates/ui/panels/site_groups.html:84
+msgid "Only for a new account. Leave it empty and one is made up for you."
+msgstr "Solo para una cuenta nueva. Déjela vacía y se generará una."
+
+#: ui/templates/ui/panels/group.html:228
 msgid "Add"
 msgstr "Añadir"
 
-#: ui/templates/ui/panels/group_people.html:105
+#: ui/templates/ui/panels/group.html:231
 msgid "This group is full. A site administrator can raise the limit."
 msgstr ""
 "Este grupo está lleno. La administración del sitio puede subir el límite."
 
-#: ui/templates/ui/panels/group_work.html:7
-msgid "Experiments in this group"
-msgstr "Experimentos de este grupo"
-
-#: ui/templates/ui/panels/group_work.html:12
-#, python-format
-msgid "Everybody else's work in %(group)s. Yours is under Experiments."
+#: ui/templates/ui/panels/group_none.html:8
+msgid ""
+"You are not in a group yet. A group's lead can add you by your email address."
 msgstr ""
-"El trabajo de todos los demás en %(group)s. El suyo está en Experimentos."
-
-#: ui/templates/ui/panels/group_work.html:17
-#: ui/templates/ui/panels/site_jobs.html:18
-#: ui/templates/ui/panels/site_trash.html:23
-msgid "Experiment"
-msgstr "Experimento"
-
-#: ui/templates/ui/panels/group_work.html:18
-msgid "Owner"
-msgstr "Propietario"
-
-#: ui/templates/ui/panels/group_work.html:19
-msgid "Shared"
-msgstr "Compartido"
-
-#: ui/templates/ui/panels/group_work.html:29
-msgid "with the group"
-msgstr "con el grupo"
-
-#: ui/templates/ui/panels/group_work.html:33
-msgid "Nobody else in this group has an experiment yet."
-msgstr "Nadie más en este grupo tiene todavía un experimento."
+"Todavía no está en ningún grupo. La dirección de un grupo puede añadirle con "
+"su dirección de correo."
 
 #: ui/templates/ui/panels/site_groups.html:12
 msgid ""
@@ -2136,11 +2272,6 @@ msgstr "%(n)s en uso"
 msgid "Save"
 msgstr "Guardar"
 
-#: ui/templates/ui/panels/site_groups.html:54
-#: ui/templates/ui/panels/site_usage.html:35
-msgid "No groups yet."
-msgstr "Todavía no hay grupos."
-
 #: ui/templates/ui/panels/site_groups.html:60
 msgid "New group"
 msgstr "Nuevo grupo"
@@ -2153,7 +2284,19 @@ msgstr ""
 "Cuántas cuentas puede crear quien dirige el grupo. Suyas para llenarlas, no "
 "para subir el límite."
 
-#: ui/templates/ui/panels/site_groups.html:72
+#: ui/templates/ui/panels/site_groups.html:77
+msgid "Primary lead's email address"
+msgstr "Correo de la dirección principal"
+
+#: ui/templates/ui/panels/site_groups.html:79
+msgid ""
+"An existing account becomes its primary lead. An unknown address creates the "
+"account."
+msgstr ""
+"Una cuenta existente pasa a ser su dirección principal. Para una dirección "
+"desconocida se crea la cuenta."
+
+#: ui/templates/ui/panels/site_groups.html:86
 msgid "Create"
 msgstr "Crear"
 
@@ -2211,17 +2354,9 @@ msgstr "Ejecuciones"
 msgid "Binned"
 msgstr "En la papelera desde"
 
-#: ui/templates/ui/panels/site_trash.html:34
-msgid "nobody"
-msgstr "nadie"
-
 #: ui/templates/ui/panels/site_trash.html:43
 msgid "Move here"
 msgstr "Mover aquí"
-
-#: ui/templates/ui/panels/site_trash.html:47
-msgid "Delete for good"
-msgstr "Eliminar definitivamente"
 
 #: ui/templates/ui/panels/site_trash.html:52
 msgid "The bin is empty."
@@ -2252,43 +2387,47 @@ msgid "Email"
 msgstr "Correo electrónico"
 
 #. == Views — messages, warnings, refusals ==============================
-#: ui/views.py:120
+#: ui/views.py:115
+msgid "Choose which group this experiment is in."
+msgstr "Elija en qué grupo está este experimento."
+
+#: ui/views.py:157
 msgid "all the requested trials ran"
 msgstr "se hicieron todas las pruebas solicitadas"
 
-#: ui/views.py:121
+#: ui/views.py:158
 msgid "performance surpassed the target"
 msgstr "el rendimiento superó el objetivo"
 
-#: ui/views.py:122
+#: ui/views.py:159
 msgid "the time limit was reached"
 msgstr "se alcanzó el límite de tiempo"
 
-#: ui/views.py:123
+#: ui/views.py:160
 msgid "the compute budget was used up"
 msgstr "se agotó el presupuesto de cómputo"
 
-#: ui/views.py:124
+#: ui/views.py:161
 msgid "the score had stopped improving"
 msgstr "la puntuación había dejado de mejorar"
 
-#: ui/views.py:125
+#: ui/views.py:162
 msgid "the search was confident nothing better remained"
 msgstr "la búsqueda estaba segura de que no quedaba nada mejor"
 
-#: ui/views.py:126
+#: ui/views.py:163
 msgid "it was interrupted"
 msgstr "se interrumpió"
 
-#: ui/views.py:127
+#: ui/views.py:164
 msgid "too many trials were failing"
 msgstr "fallaban demasiadas pruebas"
 
-#: ui/views.py:323
+#: ui/views.py:360
 msgid "Inconsistent"
 msgstr "Inconsistente"
 
-#: ui/views.py:819
+#: ui/views.py:857
 msgid ""
 "Nothing has been run yet, so there is no model to judge this against. A "
 "belief stated now is acted on in full."
@@ -2296,7 +2435,7 @@ msgstr ""
 "Todavía no se ha ejecutado nada, así que no hay ningún modelo con el que "
 "juzgarlo. Un prior indicado ahora se aplica por completo."
 
-#: ui/views.py:825
+#: ui/views.py:863
 msgid ""
 "This optimizer fits no model of the objective, so it has no opinion about "
 "where the optimum is."
@@ -2304,7 +2443,7 @@ msgstr ""
 "Este optimizador no ajusta ningún modelo del objetivo, así que no tiene "
 "opinión sobre dónde está el óptimo."
 
-#: ui/views.py:848
+#: ui/views.py:886
 msgid ""
 "This prior is potentially informative: the model rates the region it points "
 "at as promising as where the search is already headed."
@@ -2313,7 +2452,7 @@ msgstr ""
 "que apunta tan prometedora como aquella hacia la que ya se dirige la "
 "búsqueda."
 
-#: ui/views.py:852
+#: ui/views.py:890
 #, python-format
 msgid ""
 "This prior is unlikely to be helpful: the model rates the region it points "
@@ -2324,12 +2463,12 @@ msgstr ""
 "apunta más de %(tolerance)s por debajo de aquella hacia la que ya se dirige "
 "la búsqueda, así que aplicarlo costaría pruebas."
 
-#: ui/views.py:858
+#: ui/views.py:896
 msgid "This prior could not be judged, so it stands as stated."
 msgstr ""
 "Este prior no se ha podido juzgar, así que se mantiene tal como se indicó."
 
-#: ui/views.py:1130 ui/views.py:1347
+#: ui/views.py:1168 ui/views.py:1385
 msgid ""
 "The model this experiment used is not available here, so its search space "
 "cannot be rebuilt."
@@ -2337,7 +2476,7 @@ msgstr ""
 "El modelo que usó este experimento no está disponible aquí, así que no se "
 "puede reconstruir su espacio de búsqueda."
 
-#: ui/views.py:1308
+#: ui/views.py:1346
 msgid ""
 "This SMAC has no acquisition weight layer, so a stated prior does not affect "
 "the search or the candidates below. Install the version requirements.txt "
@@ -2347,39 +2486,71 @@ msgstr ""
 "declarado no afecta ni a la búsqueda ni a las candidatas de abajo. Instale "
 "la versión que fija requirements.txt."
 
-#: ui/views.py:1437
+#: ui/views.py:1475
 msgid ""
 "Set at least one stopping criterion, so the run has something to end on."
 msgstr ""
 "Fije al menos un criterio de parada, para que la ejecución tenga algo con lo "
 "que terminar."
 
-#: ui/views.py:1752
+#: ui/views.py:1767
+msgid "Unknown sharing level."
+msgstr "Nivel de acceso desconocido."
+
+#: ui/views.py:1791
+#, python-format
+msgid ""
+"Only a contributor can be made the owner. Make %(user)s a contributor first."
+msgstr ""
+"Solo quien colabora puede pasar a ser propietario. Haga primero colaborador "
+"a %(user)s."
+
+#: ui/views.py:1805
+#, python-format
+msgid "%(name)s now belongs to %(user)s. You are a contributor."
+msgstr "%(name)s ahora pertenece a %(user)s. Usted colabora."
+
+#: ui/views.py:1859
 msgid ""
 "Given up on by hand: it stopped answering, and cancelling it had no effect."
 msgstr "Abandonada a mano: dejó de responder y cancelarla no surtió efecto."
 
-#: ui/views.py:1945
+#: ui/views.py:2056
 msgid "See every experiment on this instance"
 msgstr "Ver todos los experimentos de esta instancia"
 
-#: ui/views.py:1947
+#: ui/views.py:2058
 msgid "Run, edit and delete other people's experiments"
 msgstr "Ejecutar, editar y eliminar experimentos de otras personas"
 
-#: ui/views.py:1949
+#: ui/views.py:2060
 msgid "Change the settings every experiment inherits"
 msgstr "Cambiar los ajustes que hereda cada experimento"
 
-#: ui/views.py:1951
+#: ui/views.py:2062
 msgid "Upload and run custom models"
 msgstr "Subir y ejecutar modelos propios"
 
-#: ui/views.py:2010
+#: ui/views.py:2097
+#, python-format
+msgid "Moved %(name)s to the bin."
+msgstr "%(name)s se movió a la papelera."
+
+#: ui/views.py:2146
+#, python-format
+msgid "Restored %(name)s."
+msgstr "%(name)s se restauró."
+
+#: ui/views.py:2175
+#, python-format
+msgid "Deleted %(name)s for good."
+msgstr "%(name)s se eliminó definitivamente."
+
+#: ui/views.py:2203
 msgid "Invalid or unreadable experiment file."
 msgstr "Archivo de experimento inválido o ilegible."
 
-#: ui/views.py:2074
+#: ui/views.py:2272
 #, python-format
 msgid ""
 "This looks like more than one run — two files here are called %(name)s. "
@@ -2388,16 +2559,16 @@ msgstr ""
 "Esto parece más de una ejecución — dos archivos de aquí se llaman %(name)s. "
 "Elija un único directorio de ejecución, el que contiene su runhistory.json."
 
-#: ui/views.py:2081
+#: ui/views.py:2279
 #, python-format
 msgid "Could not read %(name)s."
 msgstr "No se pudo leer %(name)s."
 
-#: ui/views.py:2088
+#: ui/views.py:2286
 msgid "This is not a readable SMAC run."
 msgstr "Esta no es una ejecución de SMAC legible."
 
-#: ui/views.py:2141
+#: ui/views.py:2344
 msgid ""
 "Local explanation needs the search space, which this experiment does not "
 "carry and has no model to ask."
@@ -2405,7 +2576,7 @@ msgstr ""
 "La explicación local necesita el espacio de búsqueda, que este experimento "
 "no lleva consigo y para el que no hay modelo al que preguntar."
 
-#: ui/views.py:2260
+#: ui/views.py:2463
 msgid ""
 "Partial dependence needs the search space, which this experiment does not "
 "carry and has no model to ask."
@@ -2413,7 +2584,7 @@ msgstr ""
 "La dependencia parcial necesita el espacio de búsqueda, que este experimento "
 "no lleva consigo y para el que no hay modelo al que preguntar."
 
-#: ui/views.py:2396
+#: ui/views.py:2599
 msgid ""
 "Local effects need the search space, which this experiment does not carry "
 "and has no model to ask."
@@ -2421,25 +2592,100 @@ msgstr ""
 "Los efectos locales necesitan el espacio de búsqueda, que este experimento "
 "no lleva consigo y para el que no hay modelo al que preguntar."
 
-#: ui/views.py:2482
+#: ui/views.py:2685
 msgid "Not recorded"
 msgstr "No registrado"
 
-#: ui/views.py:2484
+#: ui/views.py:2687
 #, python-format
 msgid "%(k)s-fold CV"
 msgstr "Validación cruzada de %(k)s pliegues"
 
-#: ui/views.py:2485
+#: ui/views.py:2688
 #, python-format
 msgid "%(pct)s%% held out"
 msgstr "%(pct)s%% reservado"
 
 
 #. == Everything else ===================================================
+#: ui/models.py:320
+msgid "Viewer"
+msgstr "Lector"
+
+#: ui/models.py:323
+msgid "Contributor"
+msgstr "Colaborador"
+
+#: ui/models.py:359
+msgid "The owner already has every kind of access."
+msgstr "El propietario ya tiene todo tipo de acceso."
+
+#: ui/models.py:363
+#, python-format
+msgid ""
+"%(user)s is not in this experiment's group, so it cannot be shared with them."
+msgstr ""
+"%(user)s no está en el grupo de este experimento, así que no se puede "
+"compartir con esa persona."
+
 #: ui/templates/ui/appearance.html:8
 msgid "Display and theme settings."
 msgstr "Ajustes de presentación y tema."
+
+#: ui/templates/ui/bin.html:8
+msgid ""
+"Experiments you own or contribute to that somebody deleted. Restoring one "
+"puts it back exactly as it was, for everybody."
+msgstr ""
+"Experimentos suyos o en los que colabora que alguien eliminó. Restaurar uno "
+"lo devuelve exactamente como estaba, para todos."
+
+#: ui/templates/ui/bin.html:13 ui/templates/ui/panels/group.html:28
+#: ui/templates/ui/panels/group.html:87 ui/templates/ui/panels/group.html:113
+#: ui/templates/ui/panels/site_jobs.html:18
+#: ui/templates/ui/panels/site_trash.html:23
+msgid "Experiment"
+msgstr "Experimento"
+
+#: ui/templates/ui/bin.html:14 ui/templates/ui/panels/group.html:88
+#: ui/templates/ui/panels/group.html:114
+msgid "Owner"
+msgstr "Propietario"
+
+#: ui/templates/ui/bin.html:15
+msgid "Deleted"
+msgstr "Eliminado"
+
+#: ui/templates/ui/bin.html:23 ui/templates/ui/panels/group.html:124
+#: ui/templates/ui/panels/site_trash.html:34
+msgid "nobody"
+msgstr "nadie"
+
+#: ui/templates/ui/bin.html:24
+#, python-format
+msgid "by %(name)s"
+msgstr "por %(name)s"
+
+#: ui/templates/ui/bin.html:28
+msgid "Restore"
+msgstr "Restaurar"
+
+#: ui/templates/ui/bin.html:30
+msgid "Download .ihpo"
+msgstr "Descargar .ihpo"
+
+#: ui/templates/ui/bin.html:36 ui/templates/ui/panels/site_trash.html:47
+#: ui/templates/ui/purge_confirm.html:5 ui/templates/ui/purge_confirm.html:13
+msgid "Delete for good"
+msgstr "Eliminar definitivamente"
+
+#: ui/templates/ui/bin.html:40
+msgid "Remove from my bin"
+msgstr "Quitar de mi papelera"
+
+#: ui/templates/ui/bin.html:46
+msgid "Nothing in the bin."
+msgstr "La papelera está vacía."
 
 #: ui/templates/ui/delete_confirm.html:4
 #, python-format
@@ -2454,11 +2700,21 @@ msgstr "Eliminar experimento"
 #: ui/templates/ui/delete_confirm.html:8
 #, python-format
 msgid ""
-"Are you sure you want to delete <strong>%(name)s</strong> (<code>%(ref)s</"
-"code>)? This cannot be undone."
+"Delete <strong>%(name)s</strong> (<code>%(ref)s</code>)? Any run still going "
+"is stopped, and it moves to the bin, where it can be restored exactly as it "
+"is now."
 msgstr ""
-"¿Seguro que quiere eliminar <strong>%(name)s</strong> (<code>%(ref)s</"
-"code>)? Esto no se puede deshacer."
+"¿Eliminar <strong>%(name)s</strong> (<code>%(ref)s</code>)? Cualquier "
+"ejecución en curso se detiene, y pasa a la papelera, desde donde se puede "
+"restaurar exactamente como está ahora."
+
+#: ui/templates/ui/delete_confirm.html:10
+msgid "It will be in the bin of:"
+msgstr "Estará en la papelera de:"
+
+#: ui/templates/ui/delete_confirm.html:11 ui/templates/ui/panels/group.html:149
+msgid "you"
+msgstr "usted"
 
 #: ui/templates/ui/experiment_list.html:12
 #: ui/templates/ui/panels/site_groups.html:64
@@ -2466,7 +2722,7 @@ msgid "Name"
 msgstr "Nombre"
 
 #: ui/templates/ui/experiment_list.html:15
-#: ui/templates/ui/panels/group_work.html:20
+#: ui/templates/ui/panels/group.html:116
 msgid "Created"
 msgstr "Creado"
 
@@ -2571,15 +2827,15 @@ msgstr "CSV del conjunto de datos (opcional)"
 msgid "Model .py (optional, custom models only)"
 msgstr "Modelo .py (opcional, solo para modelos propios)"
 
-#: ui/templates/ui/import.html:32
+#: ui/templates/ui/import.html:33
 msgid "Load"
 msgstr "Cargar"
 
-#: ui/templates/ui/import.html:40
+#: ui/templates/ui/import.html:41
 msgid "…or a SMAC run"
 msgstr "…o una ejecución de SMAC"
 
-#: ui/templates/ui/import.html:41
+#: ui/templates/ui/import.html:42
 msgid ""
 "Choose the output directory of a SMAC\n"
 "       run — the folder holding its <code>runhistory.json</code>. It loads\n"
@@ -2594,11 +2850,11 @@ msgstr ""
 "qué estaba\n"
 "       haciendo la búsqueda."
 
-#: ui/templates/ui/import.html:49
+#: ui/templates/ui/import.html:50
 msgid "SMAC output directory"
 msgstr "Directorio de salida de SMAC"
 
-#: ui/templates/ui/import.html:52
+#: ui/templates/ui/import.html:54
 msgid "Load run"
 msgstr "Cargar la ejecución"
 
@@ -2643,17 +2899,35 @@ msgstr "Seguir optimizando %(current)s"
 msgid "Set up a new experiment"
 msgstr "Preparar un experimento nuevo"
 
-#: ui/templates/ui/new_experiment.html:26
+#: ui/templates/ui/new_experiment.html:34
 msgid "Use demo models"
 msgstr "Usar modelos de demostración"
 
-#: ui/templates/ui/new_experiment.html:70
+#: ui/templates/ui/new_experiment.html:78
 msgid "Use demo datasets"
 msgstr "Usar conjuntos de datos de demostración"
 
-#: ui/templates/ui/new_experiment.html:125
+#: ui/templates/ui/new_experiment.html:133
 msgid "Create experiment"
 msgstr "Crear el experimento"
+
+#: ui/templates/ui/purge_confirm.html:4
+#, python-format
+msgid "Delete %(name)s for good"
+msgstr "Eliminar %(name)s definitivamente"
+
+#: ui/templates/ui/purge_confirm.html:8
+#, python-format
+msgid ""
+"<strong>%(name)s</strong> (<code>%(ref)s</code>) and every run in it will be "
+"destroyed, and it will leave everybody's bin. This cannot be undone."
+msgstr ""
+"<strong>%(name)s</strong> (<code>%(ref)s</code>) y todas sus ejecuciones se "
+"destruirán, y desaparecerá de todas las papeleras. Esto no se puede deshacer."
+
+#: ui/templates/ui/purge_confirm.html:12
+msgid "Download .ihpo first"
+msgstr "Descargar .ihpo primero"
 
 #: ui/templates/ui/save_as_default_confirm.html:4
 #: ui/templates/ui/save_as_default_confirm.html:23

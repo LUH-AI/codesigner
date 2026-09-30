@@ -33,11 +33,11 @@ def test_creating_persists_the_experiment(client):
     from ui.models import Experiment
 
     resp = _post(client, name="persisted")
-    exp = Experiment.objects.get(name="persisted")
+    exp = Experiment.objects.get(data__name="persisted")
 
     assert resp.status_code == 302
-    assert exp.dataset
-    assert exp.result is None
+    assert exp.data.dataset
+    assert exp.data.result is None
     assert client.get(reverse("ui:experiment_detail", args=[exp.pk])).status_code == 200
 
 
@@ -48,7 +48,7 @@ def test_persisted_experiment_appears_in_sidebar(client):
     html = client.get(reverse("ui:home")).content.decode()
     assert "listed-exp" in html
     from ui.models import Experiment
-    pk = Experiment.objects.get(name="listed-exp").pk
+    pk = Experiment.objects.get(data__name="listed-exp").pk
     assert reverse("ui:experiment_detail", args=[pk]) in html
 
 
@@ -62,4 +62,4 @@ def test_duplicate_name_is_allowed(client):
     resp = _post(client, name="dup")
 
     assert resp.status_code == 302  # created and redirected, not re-rendered with an error
-    assert Experiment.objects.filter(name="dup").count() == 2
+    assert Experiment.objects.filter(data__name="dup").count() == 2
