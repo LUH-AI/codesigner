@@ -372,12 +372,17 @@ def test_ownership_goes_to_a_contributor(client, hosted, ana, ben):
 
 
 def test_ownership_does_not_go_to_a_viewer(client, hosted, ana, ben):
-    """That would make somebody who was asked to look the one who decides."""
+    """That would make somebody who was asked to look the one who decides.
+
+    The page only offers it for contributors, so a request for anybody else is
+    one it never made, and is not found rather than explained."""
     exp = _experiment(owner=ana, ben=VIEWER)
     client.force_login(ana)
 
-    client.post(reverse("ui:experiment_transfer", args=[exp.pk]), {"user": ben.pk})
+    resp = client.post(reverse("ui:experiment_transfer", args=[exp.pk]), {"user": ben.pk})
     exp.refresh_from_db()
+
+    assert resp.status_code == 404
 
     assert exp.owner == ana
     assert exp.shares.get(user=ben).level == VIEWER

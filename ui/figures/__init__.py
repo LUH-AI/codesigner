@@ -6,7 +6,8 @@ for each figure that draws one. Their templates live in
 """
 
 from .base import (
-    DOUBLE, FULL, HALF, PAGE, SINGLE, Figure, autocompute_key, deferred_computations,
+    ACQUISITION, HYPERSHAP, LONG, MISC, OVERVIEW, SHAPES, SQUAT, STACK, TABLE, TABS,
+    Figure, autocompute_key, deferred_computations,
 )
 from .catalog import (
     FIGURES, FIGURES_BY_KEY, HP_GAME_FIELDS, HP_GAME_HELP, HP_GAME_LABELS,
@@ -44,11 +45,16 @@ __all__ = [
     "SELECTION_COLOR",
     "UNCERTAINTY_SCALE",
     "FIGURES_BY_KEY",
-    "DOUBLE",
-    "FULL",
-    "HALF",
-    "PAGE",
-    "SINGLE",
+    "ACQUISITION",
+    "HYPERSHAP",
+    "LONG",
+    "MISC",
+    "OVERVIEW",
+    "SHAPES",
+    "SQUAT",
+    "STACK",
+    "TABLE",
+    "TABS",
     "HP_GAME_FIELDS",
     "HP_GAME_HELP",
     "HP_GAME_LABELS",

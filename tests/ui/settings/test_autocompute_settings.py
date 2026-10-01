@@ -23,12 +23,12 @@ from ui.services.settings import SETTING_DEFAULTS, global_defaults, resolve_sett
 
 
 def test_the_deferred_computations_are_declared():
-    """In catalog (page) order: the cube's uncertainty field, partial dependence,
-    the acquisition slice beside it, the local explanation, then the beeswarm,
-    which is the most expensive."""
+    """In catalog order: partial dependence, the local explanation, the
+    beeswarm, the acquisition slice, then the projection's uncertainty field,
+    which is on the acquisition tab now."""
     assert [name for name, _ in deferred_computations()] == [
-        "surrogate_uncertainty", "partial_dependence",
-        "local_ablation", "local_effects", "acquisition_slice"]
+        "partial_dependence", "local_ablation", "local_effects",
+        "acquisition_slice", "surrogate_uncertainty"]
 
 
 def test_a_deferred_name_is_the_computations_not_the_figures():

@@ -19,12 +19,77 @@
        figures agree. Deliberately not --primary, which is the brand red and
        means "this is an action" — two different jobs that looked alike. */
     --selected: #EC8273;
+    /* The same, laid under a selected row or tab. Neither changes with the
+       theme: "selected" is one colour everywhere, in light and in dark. */
+    --selected-tint: rgba(236, 130, 115, 0.16);
+    /* Checked boxes and radios are a selection too. */
+    accent-color: var(--selected);
     --green: #09ab3b;
     --red: #ff2b2b;
     --radius: 0.5rem;
     --rail-bg: #e4e7ec;
+    /* Shades laid over a surface: a hovered row or icon, the selected tab. */
+    --hover: rgba(49, 51, 63, 0.08);
+    --hover-light: rgba(49, 51, 63, 0.06);
+    --shadow: rgba(0, 0, 0, 0.18);
+    /* Alerts: a tint behind, a darker shade of the same hue for the words. */
+    --info-bg: rgba(0, 104, 201, 0.1);      --info-fg: #004280;
+    --warning-bg: rgba(255, 170, 0, 0.15);  --warning-fg: #7a5200;
+    --error-bg: rgba(255, 43, 43, 0.1);     --error-fg: #7d0000;
+    --success-bg: rgba(9, 171, 59, 0.1);    --success-fg: #005f1e;
+    --failed-fg: #b91c1c;
+    /* Native controls — selects, scrollbars, number fields — drawn to match. */
+    color-scheme: light;
     --font: "Source Sans Pro", "Source Sans 3", -apple-system, BlinkMacSystemFont,
             "Segoe UI", Roboto, sans-serif;
+}
+
+/* Dark, chosen under Settings → Appearance: the page carries the choice as
+   `data-theme` on <html> — see `ui/context_processors.py`'s `theme`. "system"
+   follows the operating system's own setting. The same values twice, because
+   a media query cannot share a block with a selector. Plots take theirs from
+   ui/static/ui/theme.js, which reads the same attribute. */
+:root[data-theme="dark"] {
+    --bg: #0e1117;
+    --secondary-bg: #1b1e27;
+    --text: #e6e7eb;
+    --muted: rgba(230, 231, 235, 0.6);
+    --border: rgba(230, 231, 235, 0.18);
+    --border-light: rgba(230, 231, 235, 0.09);
+    --rail-bg: #161922;
+    --action: #8a92ff;
+    --action-strong: #a5abff;
+    --hover: rgba(230, 231, 235, 0.08);
+    --hover-light: rgba(230, 231, 235, 0.05);
+    --shadow: rgba(0, 0, 0, 0.55);
+    --info-bg: rgba(28, 131, 225, 0.2);    --info-fg: #b9dcff;
+    --warning-bg: rgba(255, 170, 0, 0.18); --warning-fg: #ffd98a;
+    --error-bg: rgba(255, 43, 43, 0.2);    --error-fg: #ffbcbc;
+    --success-bg: rgba(9, 171, 59, 0.2);   --success-fg: #b4f0c6;
+    --failed-fg: #ff8f8f;
+    color-scheme: dark;
+}
+@media (prefers-color-scheme: dark) {
+    :root[data-theme="system"] {
+        --bg: #0e1117;
+        --secondary-bg: #1b1e27;
+        --text: #e6e7eb;
+        --muted: rgba(230, 231, 235, 0.6);
+        --border: rgba(230, 231, 235, 0.18);
+        --border-light: rgba(230, 231, 235, 0.09);
+        --rail-bg: #161922;
+        --action: #8a92ff;
+        --action-strong: #a5abff;
+        --hover: rgba(230, 231, 235, 0.08);
+        --hover-light: rgba(230, 231, 235, 0.05);
+        --shadow: rgba(0, 0, 0, 0.55);
+        --info-bg: rgba(28, 131, 225, 0.2);    --info-fg: #b9dcff;
+        --warning-bg: rgba(255, 170, 0, 0.18); --warning-fg: #ffd98a;
+        --error-bg: rgba(255, 43, 43, 0.2);    --error-fg: #ffbcbc;
+        --success-bg: rgba(9, 171, 59, 0.2);   --success-fg: #b4f0c6;
+        --failed-fg: #ff8f8f;
+        color-scheme: dark;
+    }
 }
 
 * { box-sizing: border-box; margin: 0; padding: 0; }
@@ -70,8 +135,8 @@ nav.rail .rail-icon {
     color: var(--muted);
     text-decoration: none;
 }
-nav.rail .rail-icon:hover { background: rgba(49, 51, 63, 0.08); color: var(--text); }
-nav.rail .rail-icon.active { background: var(--bg); color: var(--primary); box-shadow: inset 0 0 0 1px var(--border); }
+nav.rail .rail-icon:hover { background: var(--hover); color: var(--text); }
+nav.rail .rail-icon.active { background: var(--bg); color: var(--selected); box-shadow: inset 0 0 0 1px var(--border); }
 /* Sign-out, above the language switcher which owns the very bottom. Rendered
    only when there is a session, so the rail is unchanged without accounts. */
 nav.rail .account { position: absolute; bottom: 4rem; }
@@ -119,7 +184,7 @@ nav.rail .locale {
     border-radius: var(--radius);
     color: var(--muted);
 }
-nav.rail .locale:hover { background: rgba(49, 51, 63, 0.08); color: var(--text); }
+nav.rail .locale:hover { background: var(--hover); color: var(--text); }
 nav.rail .locale label {
     pointer-events: none;
     display: flex;
@@ -248,14 +313,14 @@ nav.sidebar .nav-links a:hover { color: var(--primary); }
     text-decoration: none;
     font-size: 0.95rem;
 }
-.tab-list .tab:hover { background: rgba(49, 51, 63, 0.06); }
+.tab-list .tab:hover { background: var(--hover-light); }
 /* The accent and the tint carry "selected" — in the same shade the figures use
    for it — while the label stays in the text colour. The shade is a soft coral
    chosen to sit under a scatter plot, which makes it too light to read a word
    in: as a 3:1 foreground it was failing contrast before this change and would
    have failed harder after it. Weight does the work the colour used to. */
 .tab-list .tab.active {
-    background: rgba(236, 130, 115, 0.12);
+    background: var(--selected-tint);
     border-left-color: var(--selected);
     color: var(--text);
     font-weight: 600;
@@ -348,7 +413,7 @@ input:focus, select:focus {
     padding: 0.5rem 0.65rem;
     border: 1px solid var(--border); border-radius: var(--radius);
     background: var(--bg); color: var(--text);
-    box-shadow: 0 2px 10px rgba(0, 0, 0, 0.18);
+    box-shadow: 0 2px 10px var(--shadow);
     font-size: 0.8125rem; font-weight: 400; font-style: normal; line-height: 1.45;
     white-space: normal; text-align: left; cursor: auto;
 }
@@ -387,65 +452,161 @@ nav.sidebar .info-bubble {
 .grid-2 > .col { flex: 1; display: flex; flex-direction: column; gap: 1.5rem; min-width: 0; }
 @media (max-width: 900px) { .grid-2 { flex-direction: column; } }
 
-/* ── 2x2 analytics grid: best-config | selected-config
-                           importance  | performance
-   Grid's default align-items:stretch means both cells in a row always match
-   that row's height, independent of the other row. ─────────────────────── */
-.grid-2x2 { display: grid; grid-template-columns: 1fr 1fr; gap: 1.5rem; }
-.grid-2x2 > .slot { min-width: 0; display: flex; flex-direction: column; }
-.grid-2x2 > .slot > .card { flex: 1; }
-/* A full-width figure spans both columns, and because a spanning grid item
-   always starts a fresh row it also acts as a divider between the tiles above
-   and below it. */
-.grid-2x2 > .slot.wide { grid-column: 1 / -1; }
-/* Two rows as well, for a figure whose content is square rather than wide. The
-   row span is what makes it two rows of the grid; the plot's own height is what
-   makes those rows tall, since the grid's rows are sized by their contents and
-   a spanning item alone in its row has nothing to be sized against. */
-.grid-2x2 > .slot.tall { grid-row: span 2; }
-.grid-2x2 > .slot.tall .plot { min-height: 42rem; }
-@media (max-width: 900px) { .grid-2x2 { grid-template-columns: 1fr; } }
+/* ── The experiment page's figure tabs ─────────────────────────────────────
+   A bar of tabs, and under it one grid per tab. See ui/layout.py for how the
+   tabs are arranged and ui/static/ui/layout.js for how they are sized. */
+/* Close under the experiment's heading: it says what the tabs are of. The
+   content area otherwise spaces every block 1rem apart. */
+main.content > .fig-area { margin-top: 0.25rem; }
+.fig-tabbar { border-bottom: 1px solid var(--border); margin: 0 0 1.5rem; }
+.fig-tabs { display: flex; gap: 0.25rem; flex-wrap: wrap; }
+/* The last run's summary, on the same line as what the experiment is. */
+.last-run { margin-left: 1.5rem; }
+.fig-tab {
+    background: none; border: none; border-bottom: 2px solid transparent;
+    margin-bottom: -1px; padding: 0.5rem 1rem; font: inherit; color: var(--muted);
+    cursor: pointer;
+}
+.fig-tab:hover { color: var(--text); }
+/* "Selected" as the sidebar says it: the selected colour under the tab, and the
+   label in the text colour and bold — the coral is too light to read a word in
+   on a light page (see `.tab-list .tab.active`). */
+.fig-tab[aria-selected="true"] { color: var(--text); border-bottom-color: var(--selected); font-weight: 600; }
 
-/* The two panes of the figure area: the grid, and the column beside it (see
-   Figure.in_side_column). Stacked by default, which is the layout there has
-   always been — the column's one figure is last in catalog order and full
-   width, so stacking puts it exactly where it already was. */
-.figure-layout { display: flex; flex-direction: column; gap: 1.5rem; }
-/* A page-width figure. In the stacked layout it is simply another block; once
-   the layout becomes two panes it spans them both, which is the whole point of
-   the tier — `wide` only ever spanned the grid. */
-.slot-page { min-width: 0; }
+/* Four columns where there is room for them, two below that, one on a narrow
+   window. Rows are as tall as what is in them; a figure's height comes from
+   its width — see `.fig-slot`. Aligned to the top of the row, so a shorter
+   figure keeps its proportions rather than stretching to a taller neighbour. */
+/* A tab not being shown is still laid out, off-screen at the shown one's
+   width: a figure that finishes loading while its tab is in the background is
+   drawn at the size it will have, where with `display: none` Plotly would be
+   drawing into nothing. `inert` takes it out of focus and the tree. */
+.fig-area { position: relative; }
+.fig-panel.is-inactive {
+    position: absolute; top: 0; left: 0; width: 100%;
+    visibility: hidden; pointer-events: none;
+    /* No height of its own, and what is in it clipped: laid out at full width
+       all the same, but adding nothing to how far the page scrolls — that is
+       the tab being shown's alone. */
+    height: 0; overflow: hidden;
+}
+.fig-grid {
+    --cols: 4;
+    --gap: 1.5rem;
+    display: grid;
+    grid-template-columns: repeat(var(--cols), minmax(0, 1fr));
+    grid-auto-flow: row;
+    align-items: start;
+    gap: var(--gap);
+}
+@media (max-width: 1599px) { .fig-grid { --cols: 2; } }
+@media (max-width: 900px) { .fig-grid { --cols: 1; } }
+.fig-empty-tab { grid-column: 1 / -1; }
+
+/* A slot is a place on the grid; the element in it is the figure, which fills
+   the slot, with its plot filling what its heading leaves.
+
+   Its size is CSS, from its width in columns (`data-w`: 1, 2 or 4, set by the
+   server and by the resize buttons) and its shape, so the page script's first
+   draw already lands in a slot of the right size. Each shape keeps one
+   proportion at every width:
+
+     squat   3:2   wider than tall, about a screen tall across the whole row
+     long    3:1   the same height at two columns as a squat one at one
+     table   a fixed block, about a screen tall, scrolling inside
+     stack   as tall as what it holds
+
+   and a figure with nothing to draw yet is as tall as what it holds, too. On a
+   grid narrower than four columns a slot is as wide as fits. */
+.fig-slot { min-width: 0; min-height: 0; display: flex; flex-direction: column; }
+.fig-slot[data-w="1"] { grid-column: span 1; }
+.fig-slot[data-w="2"] { grid-column: span 2; }
+.fig-slot[data-w="4"] { grid-column: span 4; }
+.fig-slot.shape-squat { aspect-ratio: 3 / 2; }
+.fig-slot.shape-long { aspect-ratio: 3 / 1; }
+.fig-slot.is-empty { aspect-ratio: auto; }
+/* Placed by layout.js: each figure as high as it can go in the columns it
+   needs, which a grid's rows cannot do. The rules above are what the page
+   looks like before that — and are what makes the first draw the right size. */
+.fig-grid.is-arranged { display: block; position: relative; }
+.fig-grid.is-arranged > .fig-slot { position: absolute; aspect-ratio: auto; }
+.fig-grid.is-arranged > .fig-empty-tab { position: static; }
+/* Measuring a figure's own height: nothing inside it may scroll or clip. */
+.is-measured, .is-measured .table-wrap { overflow: visible !important; flex: none !important; }
+@media (max-width: 1599px) {
+    .fig-slot[data-w="4"] { grid-column: span 2; }
+}
+@media (max-width: 900px) {
+    .fig-slot[data-w] { grid-column: span 1; }
+    /* One column is the window's width, and 3:1 of that is a strip. */
+    .fig-slot.shape-long { aspect-ratio: 3 / 2; }
+}
+
+.fig-slot > [data-figure] {
+    flex: 1; min-height: 0; display: flex; flex-direction: column; overflow: auto;
+}
+.fig-slot > [data-figure] .plot { flex: 1; min-height: 0; }
+/* Sized by what it holds — a figure that is several panels with controls
+   between them, or any figure with nothing to draw yet. layout.js gives the
+   slot as many rows as the figure's natural height needs. */
+.fig-slot.shape-stack > [data-figure],
+.fig-slot.is-content > [data-figure] { overflow: visible; }
+.fig-slot.is-content > [data-figure] .plot { flex: none; }
+/* A slot's own controls, in its corners and inside the card's padding: a
+   grip to drag it by (top left), a pin (top right), narrower and wider
+   (bottom right). Faint until the figure is pointed at, so a page being read
+   is not a page of buttons. */
+.fig-slot { position: relative; }
+.fig-grip, .fig-pin, .fig-size button {
+    position: absolute; z-index: 2;
+    width: 1.375rem; height: 1.375rem; padding: 0; line-height: 1;
+    border: 1px solid transparent; border-radius: 4px;
+    background: none; color: var(--muted); font-size: 0.875rem; cursor: pointer;
+    opacity: 0.35; transition: opacity 0.15s;
+}
+.fig-slot:hover .fig-grip, .fig-slot:hover .fig-pin, .fig-slot:hover .fig-size button,
+.fig-grip:focus-visible, .fig-pin:focus-visible, .fig-size button:focus-visible { opacity: 1; }
+.fig-grip:hover, .fig-pin:hover, .fig-size button:hover { border-color: var(--border); background: var(--bg); }
+.fig-grip { top: 2px; left: 2px; cursor: grab; }
+/* The heading starts level with the grip and the pin rather than under them:
+   a card here keeps only enough top padding to line its title up with them,
+   and its heading row keeps clear of the two corners they sit in. The trials
+   table has no card padding of its own, so its heading is inset the same way. */
+.fig-slot > .card { padding-top: 0.375rem; }
+.fig-slot > [data-figure] > .card-head { padding-right: 0.75rem; }
+.fig-slot > [data-figure] > .subheader { padding: 0 1.75rem; }
+.fig-grip:active { cursor: grabbing; }
+.fig-pin { top: 2px; right: 2px; filter: grayscale(1); }
+.fig-pin[aria-pressed="true"] { filter: none; opacity: 0.8; }
+.fig-size { position: absolute; right: 2px; bottom: 2px; display: flex; gap: 2px; z-index: 2; }
+.fig-size button { position: static; }
+/* Where a dragged figure would land, and the figure being dragged. */
+.fig-ghost { opacity: 0.35; }
+.fig-chosen > [data-figure] { box-shadow: 0 6px 24px var(--shadow); }
+
+/* The table is as tall as its rows. Its slot is rounded up to whole figure
+   heights so what is placed under it lines up with the figures beside it; the
+   rest of the slot is space below the table, not inside it. */
+.fig-slot.shape-table > [data-figure] { flex: none; }
+
 /* Three figures stacked with their controls between them. Each Plotly figure
    carries its own height, so the stack needs spacing rather than a minimum. */
 .acq-stack { display: flex; flex-direction: column; gap: 0.5rem; }
-.acq-panel { min-width: 0; }
+.acq-panel { min-width: 0; min-height: 16rem; }
+/* On the figure grid the plot fills what its slot leaves under the controls,
+   as every other figure's does. Never so short that its axes have no room. */
+.fig-slot .acq-stack { flex: 1; min-height: 0; }
+.fig-slot .acq-panel { flex: 1; min-height: 7.5rem; }
+/* The controls keep their full height however many lines they wrap to; only
+   the plot gives way. Shrunk, a wrapped row's second line ran under the plot,
+   which then took the clicks meant for the buttons on it. */
+.fig-slot .acq-stack > :not(.acq-panel) { flex-shrink: 0; }
 .acq-toggle { display: inline-flex; align-items: center; gap: 0.4rem; font-size: 0.85rem; }
 .acq-toggle input { width: auto; margin: 0; }
-.figure-column { min-width: 0; }
-
-/* Wide enough for two panes side by side. Half the width each, so the grid
-   keeps its two columns and the table gets the same two — which is the width a
-   table with a column per metric and one per hyperparameter wants, and never
-   had while it was a row at the bottom of the page. */
+/* Wide enough for the figure grid's four columns: the content area stops
+   capping its width, so the four have the room they were sized for. */
 @media (min-width: 1600px) {
     main.content { max-width: none; }
-    .figure-layout {
-        display: grid;
-        grid-template-columns: 1fr 1fr;
-        align-items: stretch;
-    }
-    .slot-page { grid-column: 1 / -1; }
-    /* Full height, and scrolling inside rather than running past the figures:
-       the point of the column is to have the table beside whatever chart is
-       being read, which it is not if reaching it means scrolling the page. */
-    .figure-column > section {
-        display: flex;
-        flex-direction: column;
-        position: sticky;
-        top: 1.5rem;
-        max-height: calc(100vh - 3rem);
-    }
-    .figure-column .table-wrap { flex: 1; overflow: auto; }
 }
 
 /* ── Metric component (st.metric) ─────────────────────────────────────── */
@@ -475,11 +636,11 @@ table.config td:last-child, table.trials td:not(:first-child) { text-align: righ
 table.trials tbody tr { cursor: pointer; }
 table.trials tbody tr:hover { background: rgba(99, 110, 250, 0.07); }
 table.trials tbody tr.failed { background: rgba(255, 43, 43, 0.13); }
-table.trials tbody tr.failed td:first-child { color: #b91c1c; }
+table.trials tbody tr.failed td:first-child { color: var(--failed-fg); }
 /* After .failed, so selecting a failed trial still shows as selected — the row
    is one or the other, and which one is selected is the more urgent of the two
    to be able to see. */
-table.trials tbody tr.selected { background: rgba(239, 85, 59, 0.13); }
+table.trials tbody tr.selected { background: var(--selected-tint); }
 table.trials tbody tr:focus-visible { outline: 2px solid var(--primary); outline-offset: -2px; }
 .table-wrap { border: 1px solid var(--border); border-radius: var(--radius); overflow: hidden; }
 .table-scroll { overflow-x: auto; }
@@ -522,10 +683,10 @@ table.trials tbody tr:focus-visible { outline: 2px solid var(--primary); outline
    coloured bar with nothing in it. */
 [hidden] { display: none !important; }
 .alert { padding: 0.75rem 1rem; border-radius: var(--radius); font-size: 0.9rem; }
-.alert.info    { background: rgba(0, 104, 201, 0.1); color: #004280; }
-.alert.warning { background: rgba(255, 170, 0, 0.15); color: #7a5200; }
-.alert.error   { background: rgba(255, 43, 43, 0.1); color: #7d0000; }
-.alert.success { background: rgba(9, 171, 59, 0.1); color: #005f1e; }
+.alert.info    { background: var(--info-bg); color: var(--info-fg); }
+.alert.warning { background: var(--warning-bg); color: var(--warning-fg); }
+.alert.error   { background: var(--error-bg); color: var(--error-fg); }
+.alert.success { background: var(--success-bg); color: var(--success-fg); }
 /* The sidebar's width is the constraint: a reason and a link stack rather than
    sitting on one line, and the reason keeps its own line breaks since it is a
    message from somewhere else. */
@@ -590,6 +751,8 @@ table.trials tbody tr:focus-visible { outline: 2px solid var(--primary); outline
 /* ── Figures ────────────────────────────────────────────────────────────── */
 .subheader { font-size: 1.25rem; font-weight: 600; margin-bottom: 0.25rem; }
 .plot { width: 100%; min-height: 320px; }
+/* On the figure grid a plot is as tall as its slot makes it. */
+.fig-slot .plot { min-height: 0; }
 hr.divider { border: none; border-top: 1px solid var(--border); margin: 1.5rem 0; }
 
 /* ── Spinner (running runs) ─────────────────────────────────────────────── */
@@ -648,6 +811,8 @@ hr.divider { border: none; border-top: 1px solid var(--border); margin: 1.5rem 0
     padding: 0.75rem 1rem 1rem;
     margin-bottom: 1rem;
 }
+.settings-form fieldset.field { border: none; display: flex; flex-direction: column; gap: 0.4rem; }
+.settings-form fieldset.field legend { margin-bottom: 0.4rem; }
 .check-group legend { font-size: 0.875rem; color: var(--muted); padding: 0 0.35rem; }
 .check-group label.check {
     display: flex;

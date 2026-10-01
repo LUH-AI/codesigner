@@ -1,5 +1,5 @@
 {% extends "base.html" %}
-{% load numbers static i18n %}
+{% load assets numbers static i18n %}
 
 {% block title %}{{ summary.name }} · Codesigner{% endblock %}
 
@@ -27,6 +27,7 @@ being read.{% endcomment %}
                 {% translate "Evaluation" %}: <strong>{{ summary.evaluation }}</strong> ·
                 {% translate "Seed" %}: <strong>{{ summary.seed }}</strong> ·
                 {% translate "ID" %}: <strong>{{ summary.identifier }}</strong>
+                {% if run_summary %}<span class="last-run">{% blocktranslate with count=run_summary.count total=run_summary.total|sig trials=run_summary.trials|sig overhead=run_summary.overhead|sig %}Last run: {{ count }} trials in {{ total }} s — {{ trials }} s in trials, {{ overhead }} s overhead.{% endblocktranslate %}{% if run_summary.stopped_by %} {% blocktranslate with reason=run_summary.stopped_by %}Stopped because {{ reason }}.{% endblocktranslate %}{% endif %}</span>{% endif %}
             </p>
         </div>
         <div class="actions" style="flex-shrink: 0;">
@@ -97,9 +98,6 @@ being read.{% endcomment %}
         </form>
     {% endif %}
 
-    {% if run_summary %}
-        <p class="caption" style="margin-top: 0.75rem;">{% blocktranslate with count=run_summary.count total=run_summary.total|sig trials=run_summary.trials|sig overhead=run_summary.overhead|sig %}Last run: {{ count }} trials in {{ total }} s — {{ trials }} s in trials, {{ overhead }} s overhead.{% endblocktranslate %}{% if run_summary.stopped_by %} {% blocktranslate with reason=run_summary.stopped_by %}Stopped because {{ reason }}.{% endblocktranslate %}{% endif %}</p>
-    {% endif %}
 
     {% if not has_result %}
         <div class="alert info" style="margin-top: 1rem;">{% translate "No results yet." %}</div>
@@ -151,60 +149,70 @@ being read.{% endcomment %}
         runs.{% endcomment %}
         {% if prior_only_figure %}
             <hr class="divider">
-            <script src="{% static 'ui/plotly.min.js' %}"></script>
+            <script src="{% static 'ui/plotly.min.js' %}"></script><script src="{% asset 'ui/theme.js' %}"></script>
             {% include prior_only_figure.template with figure=prior_only_figure %}
         {% endif %}
     {% else %}
-        <hr class="divider">
         {% if trials_exhausted %}
             <div class="alert warning">{% blocktranslate with n=result.trials|length %}The search space is exhausted at {{ n }} trials.{% endblocktranslate %}</div>
         {% endif %}
 
         {% comment %}Figures are declared in ui/figures/catalog.py, one partial
-        each under ui/figures/. Each declares its own width and whether it
-        appears at all, so this only has to place them: one grid in catalog
-        order, half-width figures tiling two-up and full-width ones spanning
-        both columns.
+        each under ui/figures/, and arranged by ui/layout.py: each tab an ordered
+        list of slots, each slot a figure and how many of the grid's four
+        columns it takes.
 
-        One grid rather than the two this used to be (a tile grid, then every
-        full-width figure stacked below it): with them separated, a full-width
-        figure could never sit beside or beneath a particular half-width one,
-        because it was always after all of them. Now catalog order places
-        everything, and a full-width figure always begins a fresh row whatever
-        the grid's column count is.
+        Every figure is rendered once, into the slot on its home tab, so its
+        `#figure-<key>` id is unique and the page script below draws into it
+        without knowing about tabs. A figure pinned to Overview also has an
+        empty slot there; `layout.js` moves the figure into whichever of its
+        slots is on the tab being shown. Without script, the home tabs are what
+        shows — all of them, one after another.
 
-        Figures declaring `in_sidebar` are absent from this list — the page put
-        them in the sidebar instead; see `grid_figures` in views.py.
-
-        And one declaring `in_side_column` is beside the grid rather than in it,
-        once the window is wide enough for a second column. On a narrow one the
-        two panes stack, which puts it back exactly where its catalog order
-        already had it — last, full width — so the layout it is leaving is the
-        layout it falls back to.{% endcomment %}
-        {% if grid_figures or column_figures %}
-            <div class="figure-layout">
-                <div class="grid-2x2">
-                    {% for figure in grid_figures %}
-                        <div class="slot{% if figure.width == 'full' %} wide{% endif %}{% if figure.height == 'double' %} tall{% endif %}">
-                            {% include figure.template %}
-                        </div>
-                    {% endfor %}
-                </div>
-                {% for figure in column_figures %}
-                    <div class="figure-column">{% include figure.template %}</div>
-                {% endfor %}
-                {% comment %}Under both panes, spanning them. A `full` figure
-                spans the grid's columns, which once the window is wide enough is
-                only the left half — the trials table has the right. One that
-                needs the page's whole width has to sit outside the grid
-                entirely.{% endcomment %}
-                {% for figure in page_figures %}
-                    <div class="slot-page{% if figure.height == 'double' %} tall{% endif %}">
-                        {% include figure.template %}
-                    </div>
+        Figures declaring `in_sidebar` are in no tab — the page put them in the
+        sidebar instead.{% endcomment %}
+        {% comment %}The controls on each slot are layout.js's — a grip to drag
+        it by, a pin, and narrower/wider — built from these strings, so a slot
+        it creates (pinning to Overview) gets the same ones as a rendered one.
+        {% endcomment %}
+        <div class="fig-area"
+             data-save-url="{% url 'ui:save_layout' summary.pk %}"
+             data-csrf="{{ csrf_token }}"
+             data-drag="{% translate 'Drag to move' %}"
+             data-pin="{% translate 'Pin to Overview' %}"
+             data-unpin="{% translate 'Remove from Overview' %}"
+             data-wider="{% translate 'Wider' %}"
+             data-narrower="{% translate 'Narrower' %}"
+             data-nothing-pinned="{% translate 'Nothing is pinned here yet.' %}">
+        <div class="fig-tabbar">
+            <div class="fig-tabs" role="tablist" aria-label="{% translate 'Figures' %}">
+                {% for tab in figure_tabs %}
+                    <button type="button" role="tab" class="fig-tab" id="fig-tab-{{ tab.tab }}"
+                            data-tab="{{ tab.tab }}" aria-controls="fig-panel-{{ tab.tab }}"
+                            aria-selected="false">{{ tab.label }}</button>
                 {% endfor %}
             </div>
-        {% endif %}
+        </div>
+        {{ figure_layout|json_script:"figure-layout-data" }}
+        {% for tab in figure_tabs %}
+            <div class="fig-panel" id="fig-panel-{{ tab.tab }}" role="tabpanel"
+                 aria-labelledby="fig-tab-{{ tab.tab }}" data-tab="{{ tab.tab }}">
+                <div class="fig-grid">
+                    {% for slot in tab.slots %}{% with figure=slot.figure %}
+                        <div class="fig-slot shape-{{ figure.shape }}" data-key="{{ figure.key }}"
+                             data-w="{{ slot.w }}" data-widths="{{ slot.widths }}"
+                             {% if slot.c is not None %}data-c="{{ slot.c }}"{% endif %}
+                             data-home="{{ figure.home_tab }}">
+                            {% if tab.tab == figure.home_tab %}{% include figure.template %}{% endif %}
+                        </div>
+                    {% endwith %}
+                    {% empty %}
+                        <p class="caption fig-empty-tab">{% if tab.tab == "overview" %}{% translate "Nothing is pinned here yet." %}{% else %}{% translate "No figures on this tab are switched on for this experiment." %}{% endif %}</p>
+                    {% endfor %}
+                </div>
+            </div>
+        {% endfor %}
+        </div>
 
         <script>
             // Click-to-sort on the outcome columns. Every sortable cell carries
@@ -271,7 +279,9 @@ being read.{% endcomment %}
         {{ selectable_figures|json_script:"selectable-figures-data" }}
         {{ live_figures|json_script:"live-figures-data" }}
         {{ selection_colors|json_script:"selection-colors-data" }}
-        <script src="{% static 'ui/plotly.min.js' %}"></script>
+        {{ computed_version|json_script:"computed-version" }}
+        <script src="{% asset 'ui/computed.js' %}"></script>
+        <script src="{% static 'ui/plotly.min.js' %}"></script><script src="{% asset 'ui/theme.js' %}"></script>
         <script>
             (function () {
                 // Plots keyed by figure: per-metric ones for the viewed metric,
@@ -984,7 +994,17 @@ being read.{% endcomment %}
                 // (a different metric needs its own best trial, not the one
                 // just left behind). A no-op whenever "Local" is not the
                 // active game, so every call site can call it unconditionally.
-                const localAblationCache = {};  // "metric:idx" -> {figure, warning}
+                // Every figure behind a Compute button keeps its answers in the
+                // one store, so they outlive this page and are dropped together
+                // when the results they came from change — see computed.js.
+                const computed = window.codesignerComputed;
+                // Whether a figure may fetch without its button being pressed:
+                // its setting says so, and no run is adding trials under it.
+                function mayFetch(name) {
+                    return autocompute[name] !== false && !(computed && computed.running);
+                }
+                function cacheFor(name) { return computed ? computed.cache(name) : {}; }
+                const localAblationCache = cacheFor("local_ablation");  // "metric:idx" -> {figure, warning}
                 function refreshLocalAblation(metric, asked) {
                     if (!figureEl("local_explanation")) return;
                     const idx = selectionFor(metric);
@@ -1010,7 +1030,7 @@ being read.{% endcomment %}
                     // Waiting to be asked. Keyed the same way as the cache, so
                     // selecting a trial that *has* been computed shows it straight
                     // away and only a genuinely new one asks again.
-                    if (autocompute.local_ablation === false && !asked) {
+                    if (!mayFetch("local_ablation") && !asked) {
                         setComputePrompt("ablation-compute", true);
                         clearPlot("local_explanation");
                         return;
@@ -1050,7 +1070,7 @@ being read.{% endcomment %}
                 // first — see topHpByMetric — so this always fetches for a
                 // hyperparameter that's actually valid for the new metric).
                 const pdpHpSelect = document.getElementById("pdp-hp-select");
-                const pdpCache = {};  // "metric:hp" -> {figure, warning}
+                const pdpCache = cacheFor("partial_dependence");  // "metric:hp" -> {figure, warning}
                 function setPdpWarning(msg) {
                     const warnEl = document.getElementById("pdp-warning");
                     if (warnEl) {
@@ -1075,7 +1095,7 @@ being read.{% endcomment %}
                     // Waiting to be asked. Keyed the same way as the cache, so
                     // going back to an already-computed hyperparameter shows it
                     // immediately and only a new one asks again.
-                    if (autocompute.partial_dependence === false && !asked) {
+                    if (!mayFetch("partial_dependence") && !asked) {
                         setComputePrompt("pdp-compute", true);
                         clearPlot("partial_dependence");
                         setPdpWarning(null);
@@ -1097,7 +1117,7 @@ being read.{% endcomment %}
                 // being told to (unless its autocompute setting says otherwise).
                 // Keyed by metric alone — unlike partial dependence there is no
                 // second choice to vary, the whole figure is one answer per metric.
-                const localEffectsCache = {};
+                const localEffectsCache = cacheFor("local_effects");
                 function refreshLocalEffects(metric, asked) {
                     if (!figureEl("local_effects")) return;
                     function apply(data) {
@@ -1116,7 +1136,7 @@ being read.{% endcomment %}
                         }
                     }
                     if (localEffectsCache[metric]) { apply(localEffectsCache[metric]); return; }
-                    if (autocompute.local_effects === false && !asked) {
+                    if (!mayFetch("local_effects") && !asked) {
                         setComputePrompt("local-effects-compute", true);
                         clearPlot("local_effects");
                         return;
@@ -1170,7 +1190,7 @@ being read.{% endcomment %}
                 // the reader is looking at one — so it follows partial
                 // dependence exactly, down to the autocompute setting.
                 const uncertaintyUrl = "{% url 'ui:surrogate_uncertainty' summary.pk %}";
-                const uncertaintyCache = {};
+                const uncertaintyCache = cacheFor("surrogate_uncertainty");
                 //: The field for whatever is currently on the axes, or null.
                 //: Read by applyCubeAxes when it assembles the traces, so the
                 //: field survives a metric switch, a redraw and a live update
@@ -1236,7 +1256,7 @@ being read.{% endcomment %}
                     }
 
                     if (uncertaintyCache[key]) { apply(uncertaintyCache[key]); return; }
-                    if (autocompute.surrogate_uncertainty === false && !asked) {
+                    if (!mayFetch("surrogate_uncertainty") && !asked) {
                         uncertaintyField = null;
                         setComputePrompt("uncertainty-compute", true);
                         setUncertaintyWarning(null);
@@ -1343,7 +1363,11 @@ being read.{% endcomment %}
                         marker: {size: 14, color: selectionColors.selected,
                                  line: {width: 2, color: "#FFFFFF"}},
                     };
-                    const layout = { margin: el.layout.margin, meta: el.layout.meta };
+                    // The figure's own margin, kept from its first draw: a 3D
+                    // view below replaces it, and switching back to 2D has to
+                    // find the one the axes were laid out for.
+                    if (!el._baseMargin) el._baseMargin = Object.assign({}, el.layout.margin);
+                    const layout = { margin: el._baseMargin, meta: el.layout.meta };
                     // { text: ... }, not a bare string — this Plotly.js build
                     // silently drops the shorthand-string form of `title`
                     // (caught by screenshotting the result: the axis simply
@@ -1386,7 +1410,19 @@ being read.{% endcomment %}
                             xaxis: titled(chosen[0]),
                             yaxis: titled(chosen[1]),
                             zaxis: titled(chosen[2]),
+                            // Closer than Plotly's default eye of (1.25, 1.25,
+                            // 1.25), which leaves the cube a small object in the
+                            // middle of its own panel. Still far enough that a
+                            // full turn does not clip a corner.
+                            camera: {eye: {x: 1.35, y: 1.35, z: 0.9}},
                         };
+                        // A scene has no axis labels outside it to make room
+                        // for — its titles are on the cube — so the 2D margin
+                        // is only space around it. A little is kept at the
+                        // bottom, where the nearest corner's titles reach. The
+                        // colour bar still gets its room: Plotly widens the
+                        // right margin for it.
+                        layout.margin = {l: 0, r: 0, t: 0, b: 24};
                     }
                     // Set both ways round, not switched off in the empty branch:
                     // this trace becomes el.data[0], so a flag left false here is
@@ -1674,11 +1710,31 @@ being read.{% endcomment %}
                 // experiment gets its own.
                 try { sessionStorage.removeItem("live-reload-{{ summary.pk }}"); } catch (e) {}
 
+                let trialsSeen = {{ result.trials|length }};
+                // The computed figures, told their answers are gone: each shows
+                // its Compute button again, or fetches if it is allowed to.
+                document.addEventListener("computed:forgotten", function () {
+                    const metric = currentMetric();
+                    refreshLocalAblation(metric);
+                    refreshPartialDependence(metric);
+                    refreshLocalEffects(metric);
+                    refreshUncertainty();
+                });
                 document.addEventListener("poll:swapped", function () {
                     const el = document.getElementById("live-plots-data");
                     if (!el) return;   // nothing has moved since the page last said what it had
                     let live;
                     try { live = JSON.parse(el.textContent || "{}"); } catch (e) { return; }
+
+                    // New trials mean every computed answer was fitted to fewer
+                    // than there now are. Dropped, and nothing refits on its own
+                    // until the run is over: a poll every few seconds would
+                    // otherwise refit every figure every few seconds.
+                    if (computed && live.trials && live.trials !== trialsSeen) {
+                        trialsSeen = live.trials;
+                        computed.running = true;
+                        computed.forget();
+                    }
 
                     Object.assign(staticPlots, live.static_plots || {});
                     const byMetric = live.metric_plots || {};
@@ -1713,7 +1769,22 @@ being read.{% endcomment %}
                     // four; only the count in the heading and the order have to
                     // be put right afterwards.
                     if (live.rows_html) { appendTrialRows(live.rows_html, live.trials); }
+                    if (live.best_html) { swapBestConfiguration(live.best_html); }
                 });
+
+                // A new best trial changes the card, not which card is showing:
+                // each metric's card keeps its element, its place and whether
+                // it is the one in view, and only what it says is replaced.
+                function swapBestConfiguration(html) {
+                    const template = document.createElement("template");
+                    template.innerHTML = html;
+                    template.content.querySelectorAll("section.best-config[data-metric]").forEach(function (fresh) {
+                        const metric = fresh.dataset.metric;
+                        const card = document.querySelector(
+                            'section.best-config[data-metric="' + CSS.escape(metric) + '"]');
+                        if (card) card.innerHTML = fresh.innerHTML;
+                    });
+                }
 
                 function appendTrialRows(html, total) {
                     const table = document.querySelector("table.trials");
@@ -1954,5 +2025,9 @@ being read.{% endcomment %}
                 }
             })();
         </script>
+        {% comment %}After the script above has drawn every figure where its
+        home tab put it: this only moves and sizes them.{% endcomment %}
+        <script src="{% static 'ui/Sortable.min.js' %}"></script>
+        <script src="{% asset 'ui/layout.js' %}"></script>
     {% endif %}
 {% endblock %}

@@ -1433,6 +1433,9 @@ def acquisition_slice_plots(hp_name, positions, labels, mu, sigma, metric_label,
     def _dress(fig, *, title, height, show_x_title=False):
         """What every one of the three shares: a pinned axis and no modebar.
 
+        *height* None for the two that are figures of their own on the page:
+        they fill whatever their slot leaves under their controls.
+
         Pinned because the only interaction this figure offers is the prior
         drag, hand-rolled on the prior figure's drag layer. Plotly's own zoom
         and pan would be a second, accidental one.
@@ -1539,7 +1542,7 @@ def acquisition_slice_plots(hp_name, positions, labels, mu, sigma, metric_label,
                     line=dict(width=1.5, color="#FFFFFF")),
         hovertemplate="%{customdata[0]}<extra></extra>"))
 
-    _dress(acquisition, title=_("Acquisition"), height=330)
+    _dress(acquisition, title=_("Acquisition"), height=None)
     acquisition.update_yaxes(range=[0, 1.12])
     # Every curve on this panel skips the hover, so "x unified" was only ever
     # rendering the candidate markers — and rendering them as a combined box
@@ -1572,7 +1575,7 @@ def acquisition_slice_plots(hp_name, positions, labels, mu, sigma, metric_label,
         x=[], y=[], mode="markers", name=_("Control points"), showlegend=False,
         marker=dict(size=9, color=PRIOR_COLOR, line=dict(width=1.5, color="#FFFFFF")),
         hovertemplate="%{y:.3g}<extra></extra>"))
-    _dress(prior, title=_("Prior"), height=260)
+    _dress(prior, title=_("Prior"), height=None)
     # Linear and pinned. The curve is peak-normalized in the browser, so every
     # shape shares one axis and the scale never moves under the reader — see
     # `applyPriorAxis`.

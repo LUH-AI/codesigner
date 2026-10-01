@@ -46,6 +46,7 @@ pie/bar come from ui/figures/plots.py as usual.{% endcomment %}
         </p>
     </div>
     <p id="imp-warning" class="alert warning" hidden></p>
+    {% include "ui/figures/_before_this_run.html" %}
     {% comment %}Said rather than drawn: with nothing meaningful left, a pie of
     what remains is a picture of rounding.{% endcomment %}
     {% if tuning_progress %}<p id="imp-settled" class="caption" hidden>{% translate "This trial has captured essentially all of the gain the search space had to offer. There is nothing left to tune." %}</p>{% endif %}

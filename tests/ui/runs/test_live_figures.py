@@ -291,6 +291,51 @@ def test_the_page_declares_which_figures_move(client, ran_experiment):
 
 # ── helpers ─────────────────────────────────────────────────────────────────
 
+@pytest.mark.django_db
+def test_the_poll_carries_the_best_configuration(client, ran_experiment):
+    """It moves whenever a trial beats it, so it is sent with the plots: every
+    metric's card, from the partial the page drew them from, naming the best
+    trial so far."""
+    exp = ran_experiment
+    body = _poll(client, exp, trials=1)
+    live = _live_payload(body)
+
+    html = live["best_html"]
+    for metric in exp.data.metric_names:
+        assert f'data-metric="{metric}"' in html, metric
+    assert "Best overall (Trial" in html
+
+
+@pytest.mark.django_db
+def test_the_poll_leaves_the_best_configuration_out_when_it_is_off(client, ran_experiment):
+    exp = ran_experiment
+    exp.settings = {**(exp.settings or {}), "show_best_configuration": False}
+    exp.use_default_settings = False
+    exp.save(update_fields=["settings", "use_default_settings"])
+
+    live = _live_payload(_poll(client, exp, trials=1))
+
+    assert "best_html" not in live
+
+
+@pytest.mark.django_db
+def test_the_hypershap_figures_say_they_predate_the_run(client, ran_experiment):
+    """Computed when a run finishes, so while one is going they show the trials
+    before it — and say so, on each of them."""
+    body = client.get(reverse("ui:experiment_detail", args=[ran_experiment.pk])).content.decode()
+
+    assert body.count("before-this-run") == 6
+
+
+@pytest.mark.django_db
+def test_and_say_nothing_once_it_is_over(client, ran_experiment):
+    ran_experiment.runs.all().update(status="done")
+
+    body = client.get(reverse("ui:experiment_detail", args=[ran_experiment.pk])).content.decode()
+
+    assert "before-this-run" not in body
+
+
 def _poll(client, exp, *, trials):
     url = reverse("ui:run_status", args=[exp.pk]) + f"?trials={trials}"
     return client.get(url).content.decode()

@@ -30,6 +30,21 @@
         </div>
     </form>
 
+    {% comment %}How this reader has arranged the experiment's page: theirs,
+    not the experiment's, so it is not among the settings above and is not
+    saved with them. An experiment they have not arranged opens on their
+    default, and their default is the site's until they set one.{% endcomment %}
+    <section class="settings-form" style="margin-top: 1.5rem;">
+        <div class="subheader">{% translate "Figure layout" %}</div>
+        <p class="caption">{% translate "How you have arranged the figures on this experiment's page. Nobody else's is affected. Experiments you have not arranged open on your default layout." %}</p>
+        <form method="post" action="{% url 'ui:save_layout' experiment.pk %}" class="actions">
+            {% csrf_token %}
+            <button type="submit" name="reset" value="1" class="btn">{% translate "Reset layout" %}</button>
+            <button type="submit" name="make_default" value="1" class="btn">{% translate "Make this my default layout" %}</button>
+            <button type="submit" name="reset_default" value="1" class="btn">{% translate "Reset my default to the site's" %}</button>
+        </form>
+    </section>
+
     {% comment %}How the search runs is not on this page. Those settings are
     chosen when the experiment is created and fixed for its life.{% endcomment %}
 

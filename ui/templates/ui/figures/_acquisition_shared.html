@@ -1,0 +1,63 @@
+{% load i18n assets %}
+{% comment %}What the acquisition figure and the prior figure share, rendered
+inside each of them: the script that draws both, and the strings it puts on the
+page. In each rather than once, because either can be on the page without the
+other — one switched off, or one pinned to a tab the other is not on — and the
+script loads once however many times it is included.
+
+`defer` is load-bearing: the figures are included well above the plotly.min.js
+tag, which is a classic in-body script, so an inline script here would run
+before Plotly existed. A deferred one runs after parsing.{% endcomment %}
+<script src="{% asset 'ui/acquisition.js' %}" defer></script>
+    {% comment %}Parameter names live here rather than in the script so they
+    are translated with everything else — the catalogs are built from templates
+    and Python, and a string written in acquisition.js would never reach
+    them.{% endcomment %}
+    <div data-acq-prior-strings hidden
+         data-mu="{% translate 'Mean' %}"
+         data-sigma="{% translate 'Standard deviation' %}"
+         data-alpha="{% translate 'First shape parameter' %}"
+         data-beta="{% translate 'Second shape parameter' %}"></div>
+    {% comment %}Everything else the script puts on the page. Same reason as the
+    parameter names above: the catalogs are built from templates and Python, so a
+    string written in acquisition.js reaches no translator and would sit in
+    English inside an otherwise translated figure.
+
+    `{name}` placeholders rather than concatenation, so a translator can move
+    them — "Trial 3 of 12" does not put its numbers in that order in every
+    language.
+
+    Braces rather than `%(name)s`, which is the form Django uses elsewhere:
+    extracting a template doubles every `%` to protect `blocktranslate`'s own
+    interpolation, so the catalog key came out as `%%(rank)s` while the page
+    asked for `%(rank)s` and the entry could never match. gettext has no opinion
+    about a brace. These holes are filled by the script, not by Django, so
+    nothing needs the `%` form.{% endcomment %}
+    <div data-acq-strings hidden
+         data-asking="{% translate 'Asking…' %}"
+         data-save-failed="{% translate 'Could not save this prior' %}"
+         data-slice-failed="{% translate 'Could not compute the acquisition function' %}"
+         data-no-optimizer="{% translate 'The optimizer could not be asked for this run.' %}"
+         data-initial-design="{% translate 'Trial {trials} of {size} in the initial design ({name}). These are drawn before any surrogate is fitted, so a prior set here cannot affect them — it starts to count once the design is exhausted.' %}"
+         data-rank="{% translate 'Rank {rank} of {total}' %}"
+         data-runs-next="{% translate 'runs next' %}"
+         data-pile="{% translate '{count} candidates here' %}"
+         data-pile-ranks="{% translate 'Ranks {ranks} of {total}' %}"
+         data-pile-best="{% translate 'Rank {rank}(most promising):' %}"
+         data-strength="{% translate 'counts at {strength}' %}"
+         data-judging="{% translate 'Asking the model…' %}"
+         data-judge-failed="{% translate 'Could not ask the model about this prior' %}"
+         data-reset-failed="{% translate 'Could not reset this prior' %}"
+         data-failure="{% translate '{what}: {why}.' %}"
+         data-why-not-edit="{% translate 'you can view this experiment but not change it' %}"
+         data-why-not-run="{% translate 'you can view this experiment but not run it' %}"
+         data-why-signed-out="{% translate 'you have been signed out — sign in again and reload the page' %}"
+         data-why-token="{% translate 'you signed in or out in another tab — reload the page' %}"
+         data-why-gone="{% translate 'this experiment is no longer available to you' %}"
+         data-why-server="{% translate 'the server hit an error ({status})' %}"
+         data-why-refused="{% translate 'the server refused it ({status})' %}"
+         data-why-offline="{% translate 'the server could not be reached' %}"
+         data-why-unreadable="{% translate 'the server sent back something unexpected' %}"
+         data-login-url="{% url 'access:login' %}"
+         data-reset-to-last="{% translate 'Put back to what the last run searched under.' %}"
+         data-reset-to-uniform="{% translate 'Reset. No earlier run stated one for this hyperparameter.' %}"></div>

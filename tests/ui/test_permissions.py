@@ -198,6 +198,9 @@ def test_the_declared_actions_match_what_the_routes_do():
         # A prior is not a way of looking at a run, it is a statement about what
         # the next one searches — so stating one edits the experiment.
         "save_prior": permissions.EDIT,
+        # Arranging the page: this reader's own row, never the experiment, so
+        # anybody who may look may also tidy what they look at.
+        "save_layout": permissions.VIEW,
         "experiment_settings": permissions.EDIT,
         # Who else may reach it, and who owns it: the one decision a
         # contributor, who may otherwise do everything, does not get.

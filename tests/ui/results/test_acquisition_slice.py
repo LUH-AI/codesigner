@@ -421,6 +421,20 @@ def test_the_slice_curves_start_switched_off(client):
     assert "checked" not in html[at:at + 60]
 
 
+def test_its_controls_wait_for_the_curve(client):
+    """The incumbent toggle and Requery are both about the acquisition curve,
+    which nothing has computed when the page opens — so the row they share is
+    hidden until the script draws one."""
+    exp = _experiment()
+    html = client.get(reverse("ui:experiment_detail", args=[exp.pk])).content.decode()
+    row = html[html.index('id="acq-slice-controls"'):]
+    row = row[:row.index(">")]
+
+    assert "hidden" in row
+    assert html.index('id="acq-slice-controls"') < html.index('id="acq-show-slice"')
+    assert html.index('id="acq-slice-controls"') < html.index('id="acq-rewalk"')
+
+
 def test_a_decaying_prior_says_how_much_of_it_is_left(client):
     """The exponent drew the curve all along and was never on the page, so a
     faded belief looked like a differently-shaped one.
@@ -705,8 +719,8 @@ def test_the_parameters_are_labelled_with_their_symbols(client):
 
     assert '\u03bc' in source and '\u03c3' in source, "mu and sigma as symbols"
     assert '\u03b1' in source and '\u03b2' in source, "alpha and beta as symbols"
-    assert 'id="acq-prior-strings"' in html
-    strings = html[html.index('id="acq-prior-strings"'):]
+    assert "data-acq-prior-strings" in html
+    strings = html[html.index("data-acq-prior-strings"):]
     strings = strings[:strings.index("</div>")]
     assert 'data-mu="Mean"' in strings
     assert 'data-sigma="Standard deviation"' in strings

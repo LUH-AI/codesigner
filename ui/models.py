@@ -364,6 +364,51 @@ class ExperimentShare(models.Model):
                   "shared with them.") % {"user": self.user.get_username()})
 
 
+class FigureLayout(models.Model):
+    """How one reader has arranged one experiment's page — see `ui/layout.py`.
+
+    Per reader because it is a reading of the work, not the work: two people
+    looking at the same experiment want different figures to hand. Not in the
+    `.ihpo` for the same reason. A reader who has never rearranged a page has
+    no row and sees the site default.
+
+    `user` is null on an install without accounts, where there is one reader;
+    the partial constraint keeps that to one row per experiment, which the
+    plain unique one cannot, since NULLs never collide.
+    """
+
+    experiment = models.ForeignKey("Experiment", on_delete=models.CASCADE,
+                                   related_name="figure_layouts")
+    user = models.ForeignKey(django_settings.AUTH_USER_MODEL, null=True, blank=True,
+                             on_delete=models.CASCADE, related_name="figure_layouts")
+    layout = SafeJSONField(default=dict, blank=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        constraints = [
+            models.UniqueConstraint(fields=["experiment", "user"],
+                                    name="one_layout_per_reader_per_experiment"),
+            models.UniqueConstraint(fields=["experiment"],
+                                    condition=models.Q(user__isnull=True),
+                                    name="one_layout_per_experiment_without_accounts"),
+        ]
+
+
+class DefaultFigureLayout(models.Model):
+    """How one reader wants an experiment page arranged until they arrange it.
+
+    Between their own arrangement of an experiment (`FigureLayout`) and the
+    site's (`GlobalSettings.default_figure_layout`): what an experiment they
+    have not touched opens on. Accounts only — without them there is one
+    reader, and their default is the site's.
+    """
+
+    user = models.OneToOneField(django_settings.AUTH_USER_MODEL, on_delete=models.CASCADE,
+                                related_name="default_figure_layout")
+    layout = SafeJSONField(default=dict, blank=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+
 class BinEntry(models.Model):
     """A deleted experiment, in one person's bin.
 
@@ -496,6 +541,9 @@ class GlobalSettings(models.Model):
     new/inheriting experiments fall back to. Use `GlobalSettings.get_solo()`."""
 
     default_experiment_settings = models.JSONField(default=dict, blank=True)
+    # How an experiment page is arranged for a reader who has not arranged it
+    # themselves. Empty means the catalog's own order — see `ui/layout.py`.
+    default_figure_layout = models.JSONField(default=dict, blank=True)
 
     class Meta:
         verbose_name_plural = "Global settings"

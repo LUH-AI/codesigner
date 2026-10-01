@@ -21,7 +21,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: PACKAGE VERSION\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2026-10-01 09:00+0000\n"
+"POT-Creation-Date: 2026-10-01 10:48+0000\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
 "Language-Team: LANGUAGE <LL@li.org>\n"
@@ -276,95 +276,95 @@ msgstr ""
 msgid "Best configuration"
 msgstr "Best configuration"
 
-#: ui/figures/catalog.py:43
+#: ui/figures/catalog.py:45
 msgid "Selected Configuration"
 msgstr "Selected Configuration"
 
-#: ui/figures/catalog.py:85
+#: ui/figures/catalog.py:87
 msgid "Tunability"
 msgstr "Tunability"
 
-#: ui/figures/catalog.py:86
+#: ui/figures/catalog.py:88
 msgid "Mistunability"
 msgstr "Mistunability"
 
-#: ui/figures/catalog.py:87
+#: ui/figures/catalog.py:89
 msgid "Sensitivity"
 msgstr "Sensitivity"
 
-#: ui/figures/catalog.py:90
+#: ui/figures/catalog.py:92
 msgid "How much is there to gain by tuning this hyperparameter?"
 msgstr "How much is there to gain by tuning this hyperparameter?"
 
-#: ui/figures/catalog.py:91
+#: ui/figures/catalog.py:93
 msgid "How much is there to lose by getting this hyperparameter wrong?"
 msgstr "How much is there to lose by getting this hyperparameter wrong?"
 
-#: ui/figures/catalog.py:92
+#: ui/figures/catalog.py:94
 msgid "How much does performance move as this hyperparameter moves?"
 msgstr "How much does performance move as this hyperparameter moves?"
 
-#: ui/figures/catalog.py:112
+#: ui/figures/catalog.py:114
 msgid "Hyperparameter importance (HyperSHAP)"
 msgstr "Hyperparameter importance (HyperSHAP)"
 
-#: ui/figures/catalog.py:145 ui/figures/catalog.py:151
+#: ui/figures/catalog.py:149 ui/figures/catalog.py:156
 msgid "Local explanation (selected trial)"
 msgstr "Local explanation (selected trial)"
 
-#: ui/figures/catalog.py:200
+#: ui/figures/catalog.py:207
 msgid "Interactions: heatmap"
 msgstr "Interactions: heatmap"
 
-#: ui/figures/catalog.py:208
+#: ui/figures/catalog.py:215
 msgid "Interactions: top pairs"
 msgstr "Interactions: top pairs"
 
-#: ui/figures/catalog.py:216
+#: ui/figures/catalog.py:223
 msgid "Interactions: graph"
 msgstr "Interactions: graph"
 
-#: ui/figures/catalog.py:226
+#: ui/figures/catalog.py:233
 msgid "Interactions: coalitions"
 msgstr "Interactions: coalitions"
 
-#: ui/figures/catalog.py:236
+#: ui/figures/catalog.py:243
 msgid "Interactions: by order"
 msgstr "Interactions: by order"
 
-#: ui/figures/catalog.py:253
+#: ui/figures/catalog.py:263
 msgid "Trial performance"
 msgstr "Trial performance"
 
-#: ui/figures/catalog.py:353
+#: ui/figures/catalog.py:367
 msgid "Hyperparameter space projection"
 msgstr "Hyperparameter space projection"
 
-#: ui/figures/catalog.py:379
+#: ui/figures/catalog.py:391
 msgid "Surrogate uncertainty (axes view)"
 msgstr "Surrogate uncertainty (axes view)"
 
-#: ui/figures/catalog.py:404
+#: ui/figures/catalog.py:418
 msgid "Parallel coordinates"
 msgstr "Parallel coordinates"
 
-#: ui/figures/catalog.py:439 ui/figures/catalog.py:445
+#: ui/figures/catalog.py:452 ui/figures/catalog.py:459
 msgid "Partial dependence (PDP/ICE)"
 msgstr "Partial dependence (PDP/ICE)"
 
-#: ui/figures/catalog.py:481 ui/figures/catalog.py:488
+#: ui/figures/catalog.py:495 ui/figures/catalog.py:503
 msgid "Acquisition and priors"
 msgstr "Acquisition and priors"
 
-#: ui/figures/catalog.py:503 ui/figures/catalog.py:510
+#: ui/figures/catalog.py:518 ui/figures/catalog.py:526
 msgid "Local effects across trials"
 msgstr "Local effects across trials"
 
-#: ui/figures/catalog.py:519
+#: ui/figures/catalog.py:536
 msgid "Trial duration"
 msgstr "Trial duration"
 
-#: ui/figures/catalog.py:531 ui/templates/ui/panels/site_jobs.html:23
+#: ui/figures/catalog.py:548 ui/templates/ui/panels/site_jobs.html:23
 #: ui/templates/ui/panels/site_usage.html:21
 #: ui/templates/ui/panels/site_usage.html:49
 msgid "Trials"
@@ -385,7 +385,7 @@ msgstr "Already banked"
 
 #: ui/figures/plots.py:447
 #: ui/templates/ui/figures/hyperparameter_importance.html:44
-#: ui/templates/ui/figures/hyperparameter_importance.html:77 ui/views.py:606
+#: ui/templates/ui/figures/hyperparameter_importance.html:77 ui/views.py:607
 msgid "Still to gain"
 msgstr "Still to gain"
 
@@ -442,7 +442,7 @@ msgstr "Best sampled, unweighted"
 msgid "Best sampled, weighted"
 msgstr "Best sampled, weighted"
 
-#: ui/figures/plots.py:1494 ui/figures/plots.py:1542
+#: ui/figures/plots.py:1494 ui/figures/plots.py:1542 ui/views.py:2711
 msgid "Acquisition"
 msgstr "Acquisition"
 
@@ -1346,15 +1346,68 @@ msgstr "No results yet."
 msgid "The search space is exhausted at %(n)s trials."
 msgstr "The search space is exhausted at %(n)s trials."
 
-#: ui/templates/ui/experiment_detail.html:383
+#: ui/templates/ui/experiment_detail.html:189
+msgid "Drag to move"
+msgstr "Drag to move"
+
+#: ui/templates/ui/experiment_detail.html:190
+msgid "Pin to Overview"
+msgstr "Pin to Overview"
+
+#: ui/templates/ui/experiment_detail.html:191
+msgid "Remove from Overview"
+msgstr "Remove from Overview"
+
+#: ui/templates/ui/experiment_detail.html:192
+msgid "Wider"
+msgstr "Wider"
+
+#: ui/templates/ui/experiment_detail.html:193
+msgid "Narrower"
+msgstr "Narrower"
+
+#: ui/templates/ui/experiment_detail.html:194
+#: ui/templates/ui/experiment_detail.html:231
+msgid "Nothing is pinned here yet."
+msgstr "Nothing is pinned here yet."
+
+#: ui/templates/ui/experiment_detail.html:196
+msgid "Figures"
+msgstr "Figures"
+
+#: ui/templates/ui/experiment_detail.html:210
+msgid "Go back to the default arrangement"
+msgstr "Go back to the default arrangement"
+
+#: ui/templates/ui/experiment_detail.html:210
+msgid "Reset layout"
+msgstr "Reset layout"
+
+#: ui/templates/ui/experiment_detail.html:213
+msgid "Saved"
+msgstr "Saved"
+
+#: ui/templates/ui/experiment_detail.html:214
+msgid "Use this arrangement for everybody who has not arranged their own"
+msgstr "Use this arrangement for everybody who has not arranged their own"
+
+#: ui/templates/ui/experiment_detail.html:214
+msgid "Make site default"
+msgstr "Make site default"
+
+#: ui/templates/ui/experiment_detail.html:231
+msgid "No figures on this tab are switched on for this experiment."
+msgstr "No figures on this tab are switched on for this experiment."
+
+#: ui/templates/ui/experiment_detail.html:407
 msgid "Absolute scale (0-1)"
 msgstr "Absolute scale (0-1)"
 
-#: ui/templates/ui/experiment_detail.html:384
+#: ui/templates/ui/experiment_detail.html:408
 msgid "Relative scale (fit to data)"
 msgstr "Relative scale (fit to data)"
 
-#: ui/templates/ui/experiment_detail.html:1442
+#: ui/templates/ui/experiment_detail.html:1466
 msgid "Uncertainty"
 msgstr "Uncertainty"
 
@@ -2378,47 +2431,47 @@ msgid "Email"
 msgstr "Email"
 
 #. == Views — messages, warnings, refusals ==============================
-#: ui/views.py:115
+#: ui/views.py:116
 msgid "Choose which group this experiment is in."
 msgstr "Choose which group this experiment is in."
 
-#: ui/views.py:157
+#: ui/views.py:158
 msgid "all the requested trials ran"
 msgstr "all the requested trials ran"
 
-#: ui/views.py:158
+#: ui/views.py:159
 msgid "performance surpassed the target"
 msgstr "performance surpassed the target"
 
-#: ui/views.py:159
+#: ui/views.py:160
 msgid "the time limit was reached"
 msgstr "the time limit was reached"
 
-#: ui/views.py:160
+#: ui/views.py:161
 msgid "the compute budget was used up"
 msgstr "the compute budget was used up"
 
-#: ui/views.py:161
+#: ui/views.py:162
 msgid "the score had stopped improving"
 msgstr "the score had stopped improving"
 
-#: ui/views.py:162
+#: ui/views.py:163
 msgid "the search was confident nothing better remained"
 msgstr "the search was confident nothing better remained"
 
-#: ui/views.py:163
+#: ui/views.py:164
 msgid "it was interrupted"
 msgstr "it was interrupted"
 
-#: ui/views.py:164
+#: ui/views.py:165
 msgid "too many trials were failing"
 msgstr "too many trials were failing"
 
-#: ui/views.py:360
+#: ui/views.py:361
 msgid "Inconsistent"
 msgstr "Inconsistent"
 
-#: ui/views.py:868
+#: ui/views.py:869
 msgid ""
 "Nothing has been run yet, so there is no model to judge this against. A "
 "belief stated now is acted on in full."
@@ -2426,7 +2479,7 @@ msgstr ""
 "Nothing has been run yet, so there is no model to judge this against. A "
 "belief stated now is acted on in full."
 
-#: ui/views.py:874
+#: ui/views.py:875
 msgid ""
 "This optimizer fits no model of the objective, so it has no opinion about "
 "where the optimum is."
@@ -2434,7 +2487,7 @@ msgstr ""
 "This optimizer fits no model of the objective, so it has no opinion about "
 "where the optimum is."
 
-#: ui/views.py:897
+#: ui/views.py:898
 msgid ""
 "This prior is potentially informative: the model rates the region it points "
 "at as promising as where the search is already headed."
@@ -2442,7 +2495,7 @@ msgstr ""
 "This prior is potentially informative: the model rates the region it points "
 "at as promising as where the search is already headed."
 
-#: ui/views.py:901
+#: ui/views.py:902
 #, python-format
 msgid ""
 "This prior is unlikely to be helpful: the model rates the region it points "
@@ -2453,11 +2506,11 @@ msgstr ""
 "at more than %(tolerance)s worse than where the search is already headed, so "
 "acting on it would cost trials."
 
-#: ui/views.py:907
+#: ui/views.py:908
 msgid "This prior could not be judged, so it stands as stated."
 msgstr "This prior could not be judged, so it stands as stated."
 
-#: ui/views.py:1179 ui/views.py:1396
+#: ui/views.py:1180 ui/views.py:1397
 msgid ""
 "The model this experiment used is not available here, so its search space "
 "cannot be rebuilt."
@@ -2465,7 +2518,7 @@ msgstr ""
 "The model this experiment used is not available here, so its search space "
 "cannot be rebuilt."
 
-#: ui/views.py:1357
+#: ui/views.py:1358
 msgid ""
 "This SMAC has no acquisition weight layer, so a stated prior does not affect "
 "the search or the candidates below. Install the version requirements.txt "
@@ -2475,75 +2528,75 @@ msgstr ""
 "the search or the candidates below. Install the version requirements.txt "
 "pins."
 
-#: ui/views.py:1486
+#: ui/views.py:1487
 msgid ""
 "Set at least one stopping criterion, so the run has something to end on."
 msgstr ""
 "Set at least one stopping criterion, so the run has something to end on."
 
-#: ui/views.py:1778
+#: ui/views.py:1779
 msgid "Unknown sharing level."
 msgstr "Unknown sharing level."
 
-#: ui/views.py:1802
+#: ui/views.py:1803
 #, python-format
 msgid ""
 "Only a contributor can be made the owner. Make %(user)s a contributor first."
 msgstr ""
 "Only a contributor can be made the owner. Make %(user)s a contributor first."
 
-#: ui/views.py:1816
+#: ui/views.py:1817
 #, python-format
 msgid "%(name)s now belongs to %(user)s. You are a contributor."
 msgstr "%(name)s now belongs to %(user)s. You are a contributor."
 
-#: ui/views.py:1870
+#: ui/views.py:1871
 msgid ""
 "Given up on by hand: it stopped answering, and cancelling it had no effect."
 msgstr ""
 "Given up on by hand: it stopped answering, and cancelling it had no effect."
 
-#: ui/views.py:2067
+#: ui/views.py:2068
 msgid "See every experiment on this instance"
 msgstr "See every experiment on this instance"
 
-#: ui/views.py:2069
+#: ui/views.py:2070
 msgid "Run, edit and delete other people's experiments"
 msgstr "Run, edit and delete other people's experiments"
 
-#: ui/views.py:2071
+#: ui/views.py:2072
 msgid "Change the settings every experiment inherits"
 msgstr "Change the settings every experiment inherits"
 
-#: ui/views.py:2073
+#: ui/views.py:2074
 msgid "Upload and run custom models"
 msgstr "Upload and run custom models"
 
-#: ui/views.py:2108
+#: ui/views.py:2109
 #, python-format
 msgid "Moved %(name)s to the bin."
 msgstr "Moved %(name)s to the bin."
 
-#: ui/views.py:2156
+#: ui/views.py:2157
 #, python-format
 msgid "Restored %(name)s."
 msgstr "Restored %(name)s."
 
-#: ui/views.py:2182
+#: ui/views.py:2183
 #, python-format
 msgid "Removed %(name)s from your bin."
 msgstr "Removed %(name)s from your bin."
 
-#: ui/views.py:2185
+#: ui/views.py:2186
 #, python-format
 msgid "Deleted %(name)s for good."
 msgstr "Deleted %(name)s for good."
 
-#: ui/views.py:2218
+#: ui/views.py:2219
 msgid "Invalid or unreadable experiment file."
 msgstr "Invalid or unreadable experiment file."
 
-#: ui/views.py:2287
+#: ui/views.py:2288
 #, python-format
 msgid ""
 "This looks like more than one run — two files here are called %(name)s. "
@@ -2552,16 +2605,16 @@ msgstr ""
 "This looks like more than one run — two files here are called %(name)s. "
 "Choose a single run directory, the one holding its runhistory.json."
 
-#: ui/views.py:2294
+#: ui/views.py:2295
 #, python-format
 msgid "Could not read %(name)s."
 msgstr "Could not read %(name)s."
 
-#: ui/views.py:2301
+#: ui/views.py:2302
 msgid "This is not a readable SMAC run."
 msgstr "This is not a readable SMAC run."
 
-#: ui/views.py:2359
+#: ui/views.py:2360
 msgid ""
 "Local explanation needs the search space, which this experiment does not "
 "carry and has no model to ask."
@@ -2569,7 +2622,7 @@ msgstr ""
 "Local explanation needs the search space, which this experiment does not "
 "carry and has no model to ask."
 
-#: ui/views.py:2478
+#: ui/views.py:2479
 msgid ""
 "Partial dependence needs the search space, which this experiment does not "
 "carry and has no model to ask."
@@ -2577,7 +2630,7 @@ msgstr ""
 "Partial dependence needs the search space, which this experiment does not "
 "carry and has no model to ask."
 
-#: ui/views.py:2614
+#: ui/views.py:2615
 msgid ""
 "Local effects need the search space, which this experiment does not carry "
 "and has no model to ask."
@@ -2585,19 +2638,31 @@ msgstr ""
 "Local effects need the search space, which this experiment does not carry "
 "and has no model to ask."
 
-#: ui/views.py:2700
+#: ui/views.py:2701
 msgid "Not recorded"
 msgstr "Not recorded"
 
-#: ui/views.py:2702
+#: ui/views.py:2703
 #, python-format
 msgid "%(k)s-fold CV"
 msgstr "%(k)s-fold CV"
 
-#: ui/views.py:2703
+#: ui/views.py:2704
 #, python-format
 msgid "%(pct)s%% held out"
 msgstr "%(pct)s%% held out"
+
+#: ui/views.py:2709
+msgid "Overview"
+msgstr "Overview"
+
+#: ui/views.py:2710
+msgid "HyperSHAP"
+msgstr "HyperSHAP"
+
+#: ui/views.py:2712
+msgid "Misc"
+msgstr "Misc"
 
 
 #. == Everything else ===================================================
