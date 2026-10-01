@@ -21,6 +21,11 @@
 (function () {
     "use strict";
 
+    /* Included by both the acquisition figure and the prior figure, so that
+     * either works without the other on the page. One copy runs. */
+    if (window.codesignerAcquisition) return;
+    window.codesignerAcquisition = true;
+
     var SQ2PI = Math.sqrt(2 * Math.PI);
 
     //: Every figure here draws the same way: no modebar, and responsive so a
@@ -539,7 +544,8 @@
 
     /* ── wiring ─────────────────────────────────────────────────────────── */
 
-    var section = document.querySelector('[data-figure="acquisition_slice"]');
+    /* Either card carries the same settings; whichever is on the page. */
+    var section = document.querySelector('[data-figure="acquisition_slice"], [data-figure="prior"]');
     if (!section) return;
 
     var url = section.getAttribute("data-acquisition-url"),
@@ -556,6 +562,7 @@
         saving = null,
         queued = null,
         plotEl = document.getElementById("figure-acquisition_slice"),
+        priorEl = document.getElementById("figure-prior"),
         /* The three figures, in reading order. Separate divs so each can carry
          * its own controls underneath; they share an x axis by construction,
          * since the server gives all three the same span, ticks and positions. */
@@ -565,12 +572,18 @@
             surrogate: document.getElementById("acq-plot-surrogate")
         },
         emptyEl = document.getElementById("figure-acquisition_slice-empty"),
-        warnEl = document.getElementById("acq-warning"),
+        warnEl = document.getElementById("acq-warning") || document.getElementById("acq-prior-warning"),
         promptEl = document.getElementById("acq-compute"),
         promptBtn = document.getElementById("acq-compute-btn"),
-        hpSelect = document.getElementById("acq-hp-select"),
+        /* One on each card, so either can be read on its own; they are one
+         * choice and are kept in step — see `hpSelects` below. */
+        hpSelects = Array.prototype.slice.call(document.querySelectorAll(".acq-hp-select")),
+        hpSelect = hpSelects[0] || null,
         initialEl = document.getElementById("acq-initial"),
         sliceToggle = document.getElementById("acq-show-slice"),
+        /* The incumbent-slice toggle and Requery: shown only while there is an
+         * acquisition curve for them to be about. */
+        sliceControls = document.getElementById("acq-slice-controls"),
         betaField = document.getElementById("acq-prior-beta"),
         strengthEl = document.getElementById("acq-prior-strength"),
         delayToggle = document.getElementById("acq-prior-delay"),
@@ -586,7 +599,15 @@
          * only request worth making is the one that needs no model. */
         priorOnlyPage = section.getAttribute("data-prior-only") === "1",
         metricSelect = document.getElementById("metric-select"),
-        cache = {},
+        /* The fitted slice per metric and hyperparameter, in the store every
+         * computed figure keeps its answers in — see computed.js. */
+        computed = window.codesignerComputed || null,
+        cache = computed ? computed.cache("acquisition_slice") : {},
+        /* The belief last stated on each hyperparameter, and its density, as
+         * this page last knew them. A cached slice carries the prior as it was
+         * when the slice was fitted; coming back to a hyperparameter has to
+         * show the one stated since, not that. */
+        latest = {},
         defaultBeta = null,
         inflight = {},
         state = null,
@@ -635,7 +656,7 @@
      * a redraw after the page purges this plot (see the `figures:redrawn`
      * listener) rebuilds it from the same source as the first draw. */
     function render() {
-        if (!state || !plotEl) return;
+        if (!state || !(plotEl || priorEl)) return;
         var values = compute(state.meta, state.prior),
             filled = priorTraces(state.meta, values), name, group, i;
 
@@ -664,7 +685,8 @@
          *
          * And before, not after: a hidden element has no width, so Plotly would
          * size each plot to nothing and keep that size once it was revealed. */
-        plotEl.hidden = false;
+        if (plotEl) plotEl.hidden = false;
+        if (priorEl) priorEl.hidden = false;
         if (emptyEl) emptyEl.hidden = true;
 
         /* No modebar. Its zoom and pan were the only working interaction these
@@ -672,16 +694,24 @@
          * would be dead controls sitting over the figures. The one real
          * interaction is the prior drag, bound after the draw because Plotly
          * builds the drag layer as part of drawing and rebuilds it each time. */
-        if (state.figures.acquisition) {
+        /* A payload without the acquisition curve is the prior alone — this
+         * hyperparameter has not been computed, or not yet. Whatever the panel
+         * last showed was another hyperparameter's, and goes. */
+        if (state.figures.acquisition && panels.acquisition) {
             Plotly.react(panels.acquisition, state.figures.acquisition.data,
                          state.figures.acquisition.layout, PLOT_CONFIG);
+        } else if (panels.acquisition && panels.acquisition.data) {
+            Plotly.purge(panels.acquisition);
         }
-        if (state.figures.surrogate) {
+        if (sliceControls) sliceControls.hidden = !(state.figures.acquisition && panels.acquisition);
+        if (state.figures.surrogate && panels.surrogate) {
             Plotly.react(panels.surrogate, state.figures.surrogate.data,
                          state.figures.surrogate.layout, PLOT_CONFIG);
         }
-        Plotly.react(panels.prior, state.figures.prior.data,
-                     state.figures.prior.layout, PLOT_CONFIG).then(bindPrior);
+        if (panels.prior) {
+            Plotly.react(panels.prior, state.figures.prior.data,
+                         state.figures.prior.layout, PLOT_CONFIG).then(bindPrior);
+        }
     }
 
     /* The mirror of `render`, and of the page's own `draw(key, null)`: empty the
@@ -696,6 +726,8 @@
             if (panels[name] && panels[name].data) Plotly.purge(panels[name]);
         }
         if (plotEl) plotEl.hidden = true;
+        if (priorEl) priorEl.hidden = true;
+        if (sliceControls) sliceControls.hidden = true;
         if (emptyEl) emptyEl.hidden = !showEmpty;
     }
 
@@ -1020,7 +1052,7 @@
     var kindSelect = document.getElementById("acq-prior-kind"),
         decaySelect = document.getElementById("acq-prior-decay"),
         paramsBox = document.getElementById("acq-prior-params"),
-        stringsEl = document.getElementById("acq-prior-strings"),
+        stringsEl = document.querySelector("[data-acq-prior-strings]"),
         fields = {};
 
     /* The strings this script writes onto the page, read from the template that
@@ -1030,12 +1062,60 @@
      * `%(name)s`: extracting a template doubles every `%`, so that form could
      * never match at runtime. */
     function text(key, values) {
-        var box = document.getElementById("acq-strings"),
+        var box = document.querySelector("[data-acq-strings]"),
             out = box ? (box.getAttribute("data-" + key) || "") : "";
         if (!values) return out;
         return out.replace(/\{(\w+)\}/g, function (whole, name) {
             return Object.prototype.hasOwnProperty.call(values, name)
                 ? values[name] : whole;
+        });
+    }
+
+    /* What came back from the server, as the JSON it should be — or a
+     * rejection carrying the response, for `failed` to read the cause from.
+     * Signed out counts as a failure even though it arrives as a page: the
+     * login wall redirects, and fetch follows the redirect to the sign-in
+     * form, so a check on `ok` alone would read it as an answer. */
+    function answer(r) {
+        var login = text("login-url");
+        if (!r.ok || (r.redirected && login && r.url.indexOf(login) !== -1)) {
+            return Promise.reject(r);
+        }
+        return r.json();
+    }
+
+    /* Why a request failed, as one short clause: what the reader can do about
+     * it is different for each, so "could not" alone told them nothing.
+     * *needs* is what the endpoint asks permission for, which is what a
+     * refusal is about. */
+    function why(err, needs) {
+        var login = text("login-url");
+        if (typeof Response !== "undefined" && err instanceof Response) {
+            if (err.redirected && login && err.url.indexOf(login) !== -1) {
+                return Promise.resolve(text("why-signed-out"));
+            }
+            if (err.status === 403) {
+                /* Django's CSRF refusal is a 403 too, and says so in its page;
+                 * anything else that is a 403 here is the policy. */
+                return err.text().then(function (page) {
+                    if (/CSRF/.test(page)) return text("why-token");
+                    return text(needs === "run" ? "why-not-run" : "why-not-edit");
+                }, function () { return text("why-not-edit"); });
+            }
+            if (err.status === 404) return Promise.resolve(text("why-gone"));
+            if (err.status >= 500) {
+                return Promise.resolve(text("why-server", {status: err.status}));
+            }
+            return Promise.resolve(text("why-refused", {status: err.status}));
+        }
+        /* fetch rejects with a TypeError when there was no response at all; a
+         * response that is not the JSON it should be fails to parse. */
+        return Promise.resolve(text(err instanceof TypeError ? "why-offline" : "why-unreadable"));
+    }
+
+    function failed(what, err, needs) {
+        return why(err, needs).then(function (reason) {
+            return text("failure", {what: text(what), why: reason});
         });
     }
 
@@ -1297,12 +1377,14 @@
             headers: {"Content-Type": "application/json", "X-CSRFToken": csrf},
             body: JSON.stringify(body)
         }).then(function (r) {
-            if (!r.ok) { setWarning(text("save-failed")); return null; }
-            return r.json().catch(function () { return null; });
+            return answer(r);
         }).then(function (data) {
             /* Only ever applied to the slice that asked for it. The reader can
              * change hyperparameter while a walk is in flight, and these
              * positions are coordinates on the axis they were computed for. */
+            /* The density belongs with the belief it was computed for, even
+             * when the reader has moved to another hyperparameter meanwhile. */
+            if (data && data.density && latest[body.hp]) latest[body.hp].density = data.density;
             if (!data || !state || state.hp !== body.hp) return;
             /* The density for what was just stated. Held on `state` so
              * `render` draws from it, the same way every other server-supplied
@@ -1311,8 +1393,9 @@
             if (!rewalk) return;
             if (data.candidates) showCandidates(data.candidates);
             else setWarning(text("no-optimizer"));
-        }).catch(function () { setWarning(text("save-failed")); })
-          .then(function () {
+        }).catch(function (err) {
+            failed("save-failed", err, "edit").then(setWarning);
+        }).then(function () {
               if (rewalk) setBusy(false);
               saving = null;
               if (queued) {
@@ -1373,7 +1456,7 @@
         setVerdict(text("judging"), "");
         fetch(evaluateUrl, {method: "POST", headers: {"X-CSRFToken": csrf},
                             body: body})
-            .then(function (r) { return r.ok ? r.json() : Promise.reject(); })
+            .then(answer)
             .then(function (data) {
                 setVerdict(data.message,
                            data.verdict === "rejected" ? "warning" : "");
@@ -1384,7 +1467,9 @@
                     if (verdictDialog.showModal) verdictDialog.showModal();
                 }
             })
-            .catch(function () { setVerdict(text("judge-failed"), "warning"); })
+            .catch(function (err) {
+                failed("judge-failed", err, "run").then(function (msg) { setVerdict(msg, "warning"); });
+            })
             .then(function () { evaluateBtn.disabled = false; });
     }
 
@@ -1423,7 +1508,7 @@
                 return fetch(resetUrl, {method: "POST", headers: {"X-CSRFToken": csrf},
                                         body: body});
             })
-            .then(function (r) { return r.ok ? r.json() : Promise.reject(); })
+            .then(answer)
             .then(function (data) {
                 if (!state || state.hp !== hp) return;
                 if (data.density) state.density = data.density;
@@ -1450,7 +1535,9 @@
                  * restored precisely to keep its anchor. */
                 showCandidates(null);
             })
-            .catch(function () { setVerdict(text("reset-failed"), "warning"); })
+            .catch(function (err) {
+                failed("reset-failed", err, "edit").then(function (msg) { setVerdict(msg, "warning"); });
+            })
             .then(function () { resetBtn.disabled = false; });
     }
 
@@ -1625,7 +1712,8 @@
          * a metric switch, which redraws this figure from cache underneath the
          * reader, and is dropped on a move to a different hyperparameter, where
          * the same centre and width would mean something else entirely. */
-        var kept = state && state.hp === hp ? state.prior : null;
+        var kept = state && state.hp === hp ? state.prior
+                   : (latest[hp] ? latest[hp].prior : null);
         /* Nothing held over from this session, but something was stated in an
          * earlier one: put the controls back where they were left. Only the
          * shape and its parameters are restored — the knots are recomputed from
@@ -1654,7 +1742,9 @@
             kept.exponent = data.prior.exponent;
         }
         state = {figures: data.figures, meta: data.meta, prior: kept, hp: hp,
-                 candidates: null, density: data.density || null,
+                 candidates: null,
+                 density: (state && state.hp === hp && state.density)
+                          || (latest[hp] && latest[hp].density) || data.density || null,
                  /* Whether there is still a design to wait for, which decides
                   * whether the wait is worth offering. Said by the server
                   * rather than read off `initialDesign`, which is also null for
@@ -1671,7 +1761,7 @@
     }
 
     function refresh(asked, andRequery) {
-        if (!hpSelect || !plotEl) return;
+        if (!hpSelect || !(plotEl || priorEl)) return;
         var m = metric(), hp = hpSelect.value, key;
         if (!hp) return;
         key = m + ":" + hp;
@@ -1685,13 +1775,22 @@
             if (andRequery && rewalkBtn && !rewalkBtn.disabled) requery();
         }
 
-        if (cache[key]) { apply(cache[key]); return; }
+        if (cache[key]) {
+            /* A slice kept from an earlier visit to this page carries the prior
+             * as it was then. The current one comes first — it needs no model,
+             * so it is quick — and the kept slice is drawn under it. */
+            if ((state && state.hp === hp) || latest[hp]) apply(cache[key]);
+            else drawPriorOnly(m, hp, function () { apply(cache[key]); });
+            return;
+        }
         /* Nothing to fit and nothing to wait for. Asking for the full slice
          * would be asking the server for a surrogate over no trials, which it
          * refuses — correctly, and the reader would see the refusal rather
          * than the panel they came for. */
         if (priorOnlyPage) { drawPriorOnly(m, hp); return; }
-        if (!autocompute && !asked) {
+        /* Not on its own while a run is adding trials: every poll would
+         * otherwise refit the surrogate. */
+        if ((!autocompute || (computed && computed.running)) && !asked) {
             setPrompt(true);
             setWarning(null);
             /* The prompt is about the surrogate, which is the expensive half.
@@ -1710,18 +1809,20 @@
         inflight[key] = true;
         setPrompt(false);
         fetch(url + "?metric=" + encodeURIComponent(m) + "&hp=" + encodeURIComponent(hp))
-            .then(function (r) { return r.ok ? r.json() : Promise.reject(); })
+            .then(answer)
             .then(function (data) { cache[key] = data; apply(data); })
-            .catch(function () { setWarning(text("slice-failed")); })
+            .catch(function (err) {
+                failed("slice-failed", err, "view").then(setWarning);
+            })
             .then(function () { delete inflight[key]; });
     }
 
     /* The prior on its own: no surrogate, no wait. Its payload carries one
      * figure, and `show` takes it like any other — the acquisition and
      * surrogate panels are simply not in it yet. */
-    function drawPriorOnly(m, hp) {
+    function drawPriorOnly(m, hp, then) {
         var key = "prior:" + m + ":" + hp;
-        if (inflight[key]) return;
+        if (inflight[key]) { if (then) then(); return; }
         inflight[key] = true;
         fetch(url + "?prior_only=1&metric=" + encodeURIComponent(m)
               + "&hp=" + encodeURIComponent(hp))
@@ -1740,6 +1841,7 @@
                 if (state && state.hp === hp
                         && state.figures && state.figures.acquisition) return;
                 if (data && data.figures) show(data, hp);
+                if (then) then();
             })
             .catch(function (error) {
                 /* A failed request is the full fetch's to report — it asks for
@@ -1754,7 +1856,31 @@
             .then(function () { delete inflight[key]; });
     }
 
-    if (hpSelect) hpSelect.addEventListener("change", function () { refresh(); });
+    /* The two pickers are one choice: either changes both, and the redraw
+     * happens once. */
+    /* The belief stated on the hyperparameter being left, so that coming back
+     * to it shows that rather than whatever its cached slice was fitted with. */
+    function remember() {
+        if (state && state.hp) latest[state.hp] = {prior: state.prior, density: state.density};
+    }
+
+    hpSelects.forEach(function (select) {
+        select.addEventListener("change", function () {
+            hpSelects.forEach(function (other) {
+                if (other !== select) other.value = select.value;
+            });
+            remember();
+            refresh();
+        });
+    });
+
+    /* A run has added trials: the slices fitted before it are of fewer trials
+     * than there are. Back to the Compute button, or a fresh fit if allowed. */
+    document.addEventListener("computed:forgotten", function () {
+        remember();
+        state = null;
+        refresh();
+    });
     if (promptBtn) {
         /* Compute is the reader asking for everything this panel can tell them,
          * and what the optimizer would run next is part of that. Asking twice —
@@ -1805,18 +1931,6 @@
             resizeTimer = 0;
             if (state && state.candidates) showCandidates(state.candidates);
         }, 150);
-    });
-
-    document.addEventListener("poll:swapped", function () {
-        /* Carried into `refresh` as though the reader had just pressed Compute,
-         * and only when this panel is actually showing something. Emptying the
-         * cache puts an autocompute-off figure back behind its prompt
-         * otherwise: the reader asked once, got a picture, and would watch it
-         * vanish on the next poll. Having computed it once is the asking. */
-        var showing = !!state;
-        cache = {};
-        if (showing) showCandidates(null);
-        refresh(showing);
     });
 
     refresh();

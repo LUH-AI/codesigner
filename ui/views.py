@@ -18,6 +18,7 @@ from django.shortcuts import redirect, render
 from django.template.loader import render_to_string
 from django.urls import reverse
 from django.utils.translation import gettext as _
+from django.utils.translation import gettext_lazy
 from django.views.decorators.http import require_POST
 
 from core import io, provenance, smac_import
@@ -1550,6 +1551,21 @@ def _poll_seconds(exp) -> int:
     return int(min(POLL_MAX_SECONDS, max(POLL_MIN_SECONDS, round(typical))))
 
 
+def _best_panels(result, metric_names):
+    """Each metric's best trial so far, as the best-configuration cards show
+    it. A metric no trial has scored has no card — see `_detail_context`."""
+    panels = []
+    for m in metric_names:
+        best_idx = result.best_index(m)
+        if best_idx is None:
+            continue
+        best = result.trials[best_idx]
+        panels.append({"metric": m, "best_n": best.trial, "best_idx": best_idx,
+                       "best_score": best.scores[m],
+                       "best_config": list(best.config.items())})
+    return panels
+
+
 def _live_payloads(exp, since: int = 0):
     """Fresh plots for every live figure of *exp*, for every metric, and the
     table rows for the trials the page has not seen.
@@ -1586,6 +1602,16 @@ def _live_payloads(exp, since: int = 0):
     # rendered from the same partial the page built the table from, and appended
     # rather than swapped, so a sort, a page, a scroll position and a selected
     # row all survive an update that only adds to the end.
+    # The best configuration is server-rendered too, and moves whenever a trial
+    # beats it. Rendered whole, every metric's card, from the same partial the
+    # page drew them from; the page swaps each card's contents in place, so the
+    # one being viewed stays the one showing.
+    if any(f.key == "best_configuration" for f in shown):
+        payload["best_html"] = render_to_string(
+            "ui/figures/best_configuration.html",
+            {"panels": _best_panels(result, exp.data.metric_names),
+             "figure": FIGURES_BY_KEY["best_configuration"]})
+
     if any(f.key == "trials" for f in shown) and len(result.trials) > since:
         payload["rows_html"] = render_to_string(
             "ui/figures/_trial_rows.html",
@@ -1798,11 +1824,10 @@ def experiment_transfer(request, exp):
     """
     colleague = _colleague(request, exp)
     grant = exp.shares.filter(user=colleague, level=ExperimentShare.CONTRIBUTOR).first()
+    # The page offers this for contributors only, so anybody else is a request
+    # it never made — not found, the same answer as a stranger.
     if grant is None:
-        messages.error(request, _("Only a contributor can be made the owner. "
-                                  "Make %(user)s a contributor first.")
-                       % {"user": colleague.get_username()})
-        return _back_to_sharing(request, exp)
+        raise Http404
     previous = exp.owner
     with transaction.atomic():
         grant.delete()
@@ -2042,8 +2067,23 @@ def experiment_settings(request, exp):
 
 
 def appearance(request):
-    """Appearance settings (display/theme options; currently a placeholder)."""
-    return render(request, "ui/appearance.html", {})
+    """How the pages look in this browser: light, dark, or as the system is.
+
+    Kept in a cookie for a year — see `context_processors.theme` on why there
+    and not on the account. A choice that is not one of the three is ignored.
+    """
+    from .context_processors import THEME_COOKIE, THEMES
+    if request.method == "POST":
+        response = redirect("ui:appearance")
+        chosen = request.POST.get("theme")
+        if chosen in THEMES:
+            response.set_cookie(THEME_COOKIE, chosen, max_age=365 * 24 * 3600,
+                                samesite="Lax", secure=request.is_secure())
+        return response
+    return render(request, "ui/appearance.html", {
+        "themes": [("light", _("Light")), ("dark", _("Dark")),
+                   ("system", _("Same as my system"))],
+    })
 
 
 def account(request):
@@ -2176,13 +2216,10 @@ def bin_dismiss(request, pk):
     """
     exp = _binned(request, pk)
     if request.method == "POST":
-        name = exp.name
         if settings.REQUIRE_LOGIN:
             bin_service.dismiss(exp, request.user)
-            messages.success(request, _("Removed %(name)s from your bin.") % {"name": name})
         else:
             bin_service.purge(exp)
-            messages.success(request, _("Deleted %(name)s for good.") % {"name": name})
         return redirect("ui:experiment_bin")
     # Who will still have it — the bin, not the grants, since that is what
     # decides whether it moves to the site's.
@@ -2660,20 +2697,19 @@ def _selected_panel_data(result, metric, idx):
 
 
 def _prior_only_context(exp, built):
-    """What the acquisition card needs when there is nothing to acquire yet.
+    """What the prior figure needs when there is nothing to acquire yet.
 
-    The prior panel and no more: no acquisition curve, no candidates, no
-    incumbent, because all three are the surrogate's and there are no trials to
-    fit one to. The card renders its own controls and asks the server for the
-    density, the same `prior_only` request it already makes when a figure is
-    waiting behind its Compute prompt.
+    The prior and no more: no acquisition curve, no candidates, no incumbent,
+    because all three are the surrogate's and there are no trials to fit one
+    to. The figure renders its own controls and asks the server for the
+    density, the same `prior_only` request it already makes when the
+    acquisition figure is waiting behind its Compute prompt.
 
     Empty when the figure is switched off or the space cannot be rebuilt, and
     the page then looks exactly as it did before — an empty dict updates
     nothing, so the caller needs no second branch.
     """
-    figure = next((f for f in _shown_figures(exp)
-                   if f.key == "acquisition_slice"), None)
+    figure = next((f for f in _shown_figures(exp) if f.key == "prior"), None)
     config_space = _config_space_for(built)
     if figure is None or config_space is None:
         return {}
@@ -2701,6 +2737,80 @@ def _evaluation_label(exp):
     if exp.data.cv_folds >= 2:
         return _("%(k)s-fold CV") % {"k": exp.data.cv_folds}
     return _("%(pct)s%% held out") % {"pct": round(exp.data.test_size * 100)}
+
+
+#: What each tab is called on the page.
+TAB_LABELS = {
+    "overview": gettext_lazy("Overview"),
+    "hypershap": gettext_lazy("HyperSHAP"),
+    "acquisition": gettext_lazy("Acquisition"),
+    "misc": gettext_lazy("Misc"),
+}
+
+
+def _computed_version(exp, result):
+    """The state of the results a computed figure's answer came from.
+
+    Every figure behind a Compute button fits a model to this experiment's
+    trials under its settings, so an answer is good for exactly as long as the
+    trials, the run they came from and the settings stay as they were. Anything
+    else — the reader's prior, the selected trial, the hyperparameter shown — is
+    part of the question each figure asks, and is in its own key.
+    """
+    import hashlib
+    last = exp.runs.order_by("-id").values_list("pk", "status").first()
+    digest = hashlib.sha1(json.dumps(resolve_settings(exp), sort_keys=True,
+                                     default=str).encode()).hexdigest()[:12]
+    return {"experiment": exp.pk,
+            "version": f"{len(result.trials)}:{last}:{digest}"}
+
+
+def _figure_tabs(layout, figures):
+    """The page's tabs, arranged per *layout* — see ui/layout.py."""
+    from .layout import placed
+    return [dict(tab, label=TAB_LABELS[tab["tab"]]) for tab in placed(layout, figures)]
+
+
+@experiment_view(VIEW)
+@require_POST
+def save_layout(request, exp):
+    """Keep how this reader has arranged this experiment's page.
+
+    `VIEW`, because arranging what you can see is not changing the experiment:
+    it writes this reader's own row and nobody else's, and a viewer has as much
+    use for a tidy page as its owner. From the page's script, a JSON body:
+
+        {"layout": {...}}    keep this as mine
+        {"reset": true}      forget mine, use my default
+
+    answered with the arrangement now in force, normalised, so the page can
+    redraw from what was actually kept. And from the settings page's three
+    buttons — reset this one, make this my default, reset my default — ordinary
+    forms, answered by going back to the experiment.
+    """
+    from . import layout as layouts
+    # The settings page's three buttons: ordinary forms, each answered by going
+    # back to the experiment, where the result can be seen.
+    if request.POST.get("reset"):
+        layouts.reset(exp, request.user)
+        return redirect("ui:experiment_detail", pk=exp.pk)
+    if request.POST.get("make_default"):
+        layouts.save_user_default(request.user, layouts.layout_for(exp, request.user))
+        return redirect("ui:experiment_detail", pk=exp.pk)
+    if request.POST.get("reset_default"):
+        layouts.reset_user_default(request.user)
+        return redirect("ui:experiment_detail", pk=exp.pk)
+    try:
+        body = json.loads(request.body or b"{}")
+    except ValueError:
+        return HttpResponseBadRequest("not JSON")
+    if not isinstance(body, dict):
+        return HttpResponseBadRequest("not an object")
+    if body.get("reset"):
+        return JsonResponse({"layout": layouts.reset(exp, request.user)})
+    if not isinstance(body.get("layout"), dict):
+        return HttpResponseBadRequest("no layout")
+    return JsonResponse({"layout": layouts.save(exp, request.user, body["layout"])})
 
 
 def _detail_context(request, exp):
@@ -2817,6 +2927,8 @@ def _detail_context(request, exp):
     # Which figures to draw. A figure that is switched off is not rendered and
     # its plot is not built, so nothing is computed or shipped to go unused.
     figures = _shown_figures(exp)
+    from .layout import layout_for
+    figure_layout = layout_for(exp, request.user)
     shown = resolve_settings(exp)
 
     panels = []
@@ -2913,20 +3025,17 @@ def _detail_context(request, exp):
         # for those, so the script can tell a plain payload from one keyed by
         # view without guessing from its shape.
         figure_views={f.key: list(f.views) for f in figures if f.views},
-        # Three lists, all in catalog order: the grid lays out the first,
-        # reading each figure's own width to decide whether it tiles or spans;
-        # the second gets a column beside it once the window is wide enough
-        # (Figure.in_side_column); the sidebar renders the third
+        # The tabs, each an ordered list of (figure, columns) — see
+        # ui/layout.py — and the sidebar's, which are in none of them
         # (Figure.in_sidebar).
         figures=figures,
-        grid_figures=[f for f in figures
-                      if not f.in_sidebar and not f.in_side_column
-                      and f.width != "page"],
-        column_figures=[f for f in figures if f.in_side_column],
-        # Under the grid *and* the column beside it, rather than inside either.
-        page_figures=[f for f in figures
-                      if not f.in_sidebar and not f.in_side_column
-                      and f.width == "page"],
+        figure_tabs=_figure_tabs(figure_layout, figures),
+        # What the computed figures' answers are labelled with in the browser
+        # — see ui/static/ui/computed.js.
+        computed_version=_computed_version(exp, result),
+        # The whole arrangement, figures switched off included, for layout.js
+        # to edit and send back.
+        figure_layout=figure_layout,
         sidebar_figures=[f for f in figures if f.in_sidebar],
         # Which of them take a click naming a trial and show which one is
         # selected (Figure.selects_trials), so the page's selection bus iterates

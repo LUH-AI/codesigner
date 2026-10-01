@@ -45,9 +45,11 @@ def _hp(exp):
 # ── the page ─────────────────────────────────────────────────────────────────
 
 def test_the_card_is_there_before_any_run(client):
+    """The prior figure, alone: the acquisition function is the surrogate's."""
     html = _page(client, _unrun())
 
-    assert 'data-figure="acquisition_slice"' in html
+    assert 'data-figure="prior"' in html
+    assert 'data-figure="acquisition_slice"' not in html
     assert 'id="acq-plot-prior"' in html, "the panel it exists for"
 
 

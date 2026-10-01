@@ -89,3 +89,18 @@ def capabilities(request):
         "my_groups": sorted((m.group for m in memberships_of(user)),
                             key=lambda g: g.name.lower()),
     }
+
+
+#: The themes Settings → Appearance offers, and the cookie that remembers which.
+#: A cookie rather than a setting on the account, because it is a fact about
+#: this browser — the same person may want a dark laptop and a light projector
+#: — and because the page has to know it before it draws anything, which a
+#: cookie allows on an install without accounts too.
+THEMES = ("light", "dark", "system")
+THEME_COOKIE = "codesigner-theme"
+
+
+def theme(request):
+    """Which theme to draw the page in: the one chosen, or the system's."""
+    chosen = request.COOKIES.get(THEME_COOKIE)
+    return {"theme": chosen if chosen in THEMES else "system"}

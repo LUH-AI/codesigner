@@ -59,6 +59,7 @@ urlpatterns = [
          name="acquisition_slice"),
     path("experiments/<int:pk>/local-effects/", views.local_effects, name="local_effects"),
     path("experiments/<int:pk>/prior/", views.save_prior, name="save_prior"),
+    path("experiments/<int:pk>/layout/", views.save_layout, name="save_layout"),
     path("experiments/<int:pk>/prior/evaluate/", views.evaluate_prior,
          name="evaluate_prior"),
     path("experiments/<int:pk>/prior/reset/", views.reset_prior,

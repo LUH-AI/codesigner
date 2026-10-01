@@ -140,11 +140,14 @@ def test_what_is_left_out_is_about_the_reader_not_the_experiment(client, rf):
                           # How often this page should poll, from the trials'
                           # own durations on this machine.
                           "poll_seconds"}
-    declarations = {"figures", "grid_figures", "column_figures",
-                    "sidebar_figures", "selectable_figures", "selection_colors",
-                    # The full-width bucket, alongside the other three the
-                    # catalog sorts figures into by their declared width.
-                    "page_figures",
+    declarations = {"figures", "sidebar_figures", "selectable_figures",
+                    "selection_colors",
+                    # The tabs and where each figure sits on them: how this
+                    # reader arranged the page, not anything the experiment is.
+                    "figure_tabs", "figure_layout",
+                    # What this browser's kept answers are labelled with: the
+                    # results' state on this instance, not part of them.
+                    "computed_version",
                     # The β field's bounds on the acquisition figure — two
                     # constants, not anything this experiment decided.
                     "beta_min", "beta_max",

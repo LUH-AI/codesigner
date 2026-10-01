@@ -5,5 +5,22 @@
 
 {% block content %}
     <h1>{% translate "Appearance" %}</h1>
-    <p class="caption">{% translate "Display and theme settings." %}</p>
+    {% comment %}Saved for this browser rather than for the account: the same
+    person may want a dark laptop and a light projector.{% endcomment %}
+    <form method="post" class="settings-form" style="max-width: 34rem; margin-top: 1rem;">
+        {% csrf_token %}
+        <fieldset class="field">
+            <legend class="subheader">{% translate "Theme" %}</legend>
+            {% for value, label in themes %}
+                <label class="check">
+                    <input type="radio" name="theme" value="{{ value }}"
+                           {% if theme == value %}checked{% endif %}
+                           onchange="this.form.submit()">
+                    {{ label }}
+                </label>
+            {% endfor %}
+            <p class="caption">{% translate "Saved for this browser." %}</p>
+        </fieldset>
+        <noscript><button type="submit" class="btn-primary">{% translate "Save" %}</button></noscript>
+    </form>
 {% endblock %}

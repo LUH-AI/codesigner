@@ -12,10 +12,13 @@ score/error axes) — see test_plots.py for the view builder itself and
 test_figures_view.py for the per-view JSON shape this collapses into.
 """
 
+import re
+
 from django.urls import reverse
 
 from ui.figures import (
-    FIGURES, FIGURES_BY_KEY, FULL, HALF, HP_GAME_FIELDS, PAGE, Figure,
+    ACQUISITION, FIGURES, FIGURES_BY_KEY, HP_GAME_FIELDS, HYPERSHAP, LONG, MISC,
+    OVERVIEW, SHAPES, SQUAT, TABLE, TABS, Figure,
 )
 from ui.models import Experiment, GlobalSettings
 
@@ -26,8 +29,6 @@ EXPECTED_KEYS = [
     "best_configuration",
     "hyperparameter_importance",
     "performance_over_time",
-    # Directly under it: the same run read along its other axis.
-    "configuration_cube",
     # Five readings of one computation, each its own figure so they can be read
     # side by side and switched off one at a time.
     "interactions_heatmap",
@@ -46,7 +47,13 @@ EXPECTED_KEYS = [
     # figures that read them.
     "local_explanation",
     "local_effects",
+    # The acquisition function and the prior that weights it: one script and
+    # one request, two figures.
     "acquisition_slice",
+    "prior",
+    # On the acquisition tab: where the search has been, beside where it would
+    # go next.
+    "configuration_cube",
     "trials",
 ]
 
@@ -106,33 +113,43 @@ def test_declaring_a_subclass_derives_everything_from_its_key():
     assert Whatever.setting_key == "show_whatever"
     assert Whatever.dom_id == "figure-whatever"
     # unspecified display characteristics fall back to the common case
-    assert Whatever.width == HALF
+    assert (Whatever.home_tab, Whatever.shape, Whatever.pinned) == (MISC, SQUAT, False)
+    assert Whatever.opening_columns() == 1
     assert Whatever.per_metric is False
     assert Whatever.absolute_scale is None
     assert Whatever.plot(result=None) is None
 
 
-def test_each_figure_declares_its_width():
-    """Width is declared per figure, and is one of the three supported layouts —
-    a half tile, a span of the grid, or the whole content area.
+def test_each_figure_declares_a_tab_and_a_shape():
+    """Every figure has a home tab and one of the four shapes, and opens at a
+    width its shape allows — one, two or four columns, never three.
 
-    FULL and PAGE are not the same span once the window is wide enough for two
-    panes: FULL spans the grid, which is then only the left one, while PAGE
-    spans the grid *and* the column beside it."""
-    assert {f.width for f in FIGURES} <= {HALF, FULL, PAGE}
-    assert FIGURES_BY_KEY["acquisition_slice"].width == PAGE
-    assert [f.key for f in FIGURES if f.width == PAGE] == ["acquisition_slice"]
-    assert FIGURES_BY_KEY["trials"].width == FULL
-    assert FIGURES_BY_KEY["trial_duration"].width == HALF
-    # Click-to-select drives the selected-configuration panel, so the chart you
-    # click wants the width and the adjacency.
-    assert FIGURES_BY_KEY["performance_over_time"].width == FULL
-    # Axis pickers (and a potential 3D plot) need the room a half-tile lacks.
-    assert FIGURES_BY_KEY["configuration_cube"].width == FULL
-    # One line per trial across every hyperparameter needs the same room.
-    assert FIGURES_BY_KEY["parallel_coordinates"].width == FULL
-    # ICE lines for a whole trial history need the same room too.
-    assert FIGURES_BY_KEY["partial_dependence"].width == FULL
+    The tabs gather what is read together: the HyperSHAP explanations, the
+    acquisition function and its prior, and the rest of the run."""
+    for figure in FIGURES:
+        if figure.in_sidebar:
+            continue
+        assert figure.home_tab in TABS and figure.home_tab != OVERVIEW, figure.key
+        assert figure.shape in SHAPES, figure.key
+        assert figure.opening_columns() in figure.columns(), figure.key
+        assert 3 not in figure.columns(), "one, two or the whole row"
+
+    by_tab = {tab: [f.key for f in FIGURES if f.home_tab == tab and not f.in_sidebar]
+              for tab in TABS}
+    assert by_tab[HYPERSHAP] == [
+        "hyperparameter_importance", "interactions_heatmap", "interactions_top_pairs",
+        "interactions_graph", "interactions_coalitions", "interactions_orders",
+        "local_explanation", "local_effects"]
+    assert by_tab[ACQUISITION] == ["acquisition_slice", "prior", "configuration_cube"]
+    assert by_tab[OVERVIEW] == []
+    # Read along an axis, so wider than tall and never narrower than two.
+    assert [f.key for f in FIGURES if f.shape == LONG] == [
+        "performance_over_time", "parallel_coordinates", "partial_dependence",
+        "local_effects", "acquisition_slice", "prior"]
+    assert FIGURES_BY_KEY["trials"].shape == TABLE
+    assert SHAPES[TABLE] == (2,), "the trials table is always two columns"
+    # A scatter over a projected space is a plane, not a tile.
+    assert FIGURES_BY_KEY["configuration_cube"].opening_columns() == 2
 
 
 def test_only_metric_dependent_figures_are_marked_per_metric():
@@ -216,49 +233,59 @@ def test_a_hidden_figure_ships_no_plot_data(client):
     assert "hyperparameter_importance" in per_metric
 
 
-def test_the_selected_configuration_panel_is_not_in_the_grid(client):
+def _panel(html, tab):
+    """One tab's panel of the page."""
+    return html.split(f'id="fig-panel-{tab}"', 1)[1].split('class="fig-panel"', 1)[0]
+
+
+def test_the_selected_configuration_panel_is_not_in_a_tab(client):
     """It answers a click made anywhere on the page, so it lives in the sidebar
     (Figure.in_sidebar) where it stays readable while the figures are being
     clicked. It is still a figure — still in the catalog, still with a
     visibility setting — only somewhere else."""
     html = _page(client, _experiment())
-    grid = html.split('class="grid-2x2"', 1)[1]
+    panels = html.split('class="fig-tabs"', 1)[1]
     sidebar = html.split('<nav class="sidebar"', 1)[1].split("</nav>", 1)[0]
 
     assert FIGURES_BY_KEY["selected_configuration"].in_sidebar
     assert [f.key for f in FIGURES if f.in_sidebar] == ["selected_configuration"]
     assert 'data-figure="selected_configuration"' in sidebar
-    assert 'data-figure="selected_configuration"' not in grid
-    assert 'data-figure="best_configuration"' in grid, "the other panel stays"
+    assert 'data-key="selected_configuration"' not in panels
+    assert 'data-figure="best_configuration"' in panels, "the other panel stays"
 
 
-def test_trial_performance_begins_a_row_of_its_own(client):
-    """The chart every other figure is read against gets the full width of the
-    grid, whatever the grid's column count is — and because a spanning item
-    always starts a fresh row, it lands below the tiles ahead of it however
-    many of them are switched off."""
+def test_there_is_a_tab_bar_under_the_run_summary(client):
     html = _page(client, _experiment())
-    grid = html.split('class="grid-2x2"', 1)[1]
 
-    best = grid.index('data-figure="best_configuration"')
-    performance = grid.index('data-figure="performance_over_time"')
+    bar = html.split('class="fig-tabs"', 1)[1].split("</div>", 1)[0]
 
-    assert best < performance
-    slot = grid.rindex('<div class="slot', 0, performance)
-    assert "wide" in grid[slot:performance], "spans every column"
+    assert re.findall(r'data-tab="([a-z]+)"', bar) == list(TABS)
+    assert html.index("Seed") < html.index('class="fig-tabs"'), "under the heading"
 
 
-def test_hiding_the_figure_above_it_keeps_it_spanning(client):
-    """The case an ordering would get wrong: with the tile above it gone the
-    grid reflows, and only the spanning row still behaves."""
-    _hide("best_configuration")
+def test_each_figure_is_drawn_once_on_its_home_tab(client):
+    """Rendered into one tab only, so its `#figure-<key>` id is unique and the
+    page script draws into it without knowing about tabs."""
     html = _page(client, _experiment())
-    grid = html.split('class="grid-2x2"', 1)[1]
 
-    performance = grid.index('data-figure="performance_over_time"')
-    slot = grid.rindex('<div class="slot', 0, performance)
+    for figure in FIGURES:
+        if figure.in_sidebar:
+            continue
+        holding = [tab for tab in TABS
+                   if f'data-figure="{figure.key}"' in _panel(html, tab)]
+        assert holding == [figure.home_tab], figure.key
+        assert html.count(f'id="{figure.dom_id}"') <= 1, figure.key
 
-    assert "wide" in grid[slot:performance]
+
+def test_overview_holds_empty_slots_for_what_is_pinned(client):
+    """Filled by layout.js, which moves each figure into the slot on whichever
+    tab is showing."""
+    html = _page(client, _experiment())
+    overview = _panel(html, OVERVIEW)
+
+    assert re.findall(r'data-key="([a-z_]+)"', overview) == [
+        f.key for f in FIGURES if f.pinned]
+    assert "data-figure=" not in overview
 
 
 def test_a_figures_pickers_sit_in_one_row_above_it(client):
@@ -328,38 +355,37 @@ def test_one_warning_reaches_every_reading_of_the_interactions(client):
     assert html.count('class="alert warning interactions-warning"') == len(keys)
 
 
-def test_the_page_reads_in_the_declared_order(client):
-    """Catalog order is page order, and the widths pair the figures up: two
-    half-width figures share a row, a full-width one takes the row to itself."""
+def test_each_tab_reads_in_the_declared_order(client):
+    """Catalog order is each tab's order until a reader rearranges it, and
+    every slot carries the width its figure opens at."""
     html = _page(client, _experiment())
-    # Bounded at the column beside it, or the trials table would count as the
-    # grid's last row — it is in neither the grid nor after it, it is next to it.
-    grid = html.split('class="grid-2x2"', 1)[1].split('class="figure-column"', 1)[0]
-    drawn = [key for key in EXPECTED_KEYS if f'data-figure="{key}"' in grid]
+    misc = _panel(html, MISC)
 
-    assert drawn == [
-        "best_configuration", "hyperparameter_importance",
-        "performance_over_time", "configuration_cube",
-        "interactions_heatmap", "interactions_top_pairs",
-        "interactions_graph", "interactions_coalitions",
-        "interactions_orders", "trial_duration",
-        "parallel_coordinates", "partial_dependence",
-        "local_explanation", "local_effects",
-    ]
-    # Not in the grid at all: it spans the grid and the column beside it, so it
-    # is rendered under both rather than inside either.
-    assert 'data-figure="acquisition_slice"' not in grid
-    assert 'class="slot-page' in html
-    spans = {key for key in drawn
-             if "wide" in grid[grid.rindex('<div class="slot', 0,
-                                           grid.index(f'data-figure="{key}"')):
-                                grid.index(f'data-figure="{key}"')]}
-    # `acquisition_slice` is absent: it is page-width, so it never enters the
-    # grid to span anything within it.
-    assert spans == {"performance_over_time", "configuration_cube",
-                     "partial_dependence",
-                     "local_explanation", "local_effects",
-                     "parallel_coordinates"}
+    assert re.findall(r'data-key="([a-z_]+)"', misc) == [
+        "best_configuration", "performance_over_time", "trial_duration",
+        "parallel_coordinates", "partial_dependence", "trials"]
+    for key, w in re.findall(r'data-key="([a-z_]+)"\s+data-w="(\d)"', html):
+        assert int(w) == FIGURES_BY_KEY[key].opening_columns(), key
+
+
+def test_a_slot_says_its_shape(client):
+    """layout.js turns shape and width into rows and columns."""
+    html = _page(client, _experiment())
+
+    found = dict((key, shape) for shape, key in
+                 re.findall(r'class="fig-slot shape-(\w+)" data-key="([a-z_]+)"', html))
+    assert found["configuration_cube"] == SQUAT
+    assert found["parallel_coordinates"] == LONG
+    assert found["acquisition_slice"] == LONG
+    assert found["prior"] == LONG
+    assert found["trials"] == TABLE
+
+
+def test_a_tab_whose_figures_are_all_off_says_so(client):
+    _hide("acquisition_slice", "prior", "configuration_cube")
+    html = _page(client, _experiment())
+
+    assert "No figures on this tab" in _panel(html, ACQUISITION)
 
 
 def test_a_figures_title_and_its_pickers_share_a_line(client):
@@ -379,53 +405,6 @@ def test_a_figures_title_and_its_pickers_share_a_line(client):
         assert "subheader" in head, key
         if "<select" in body:
             assert "<select" in head, f"{key} keeps its pickers out of its heading"
-
-
-def test_the_trials_table_is_a_column_beside_the_grid(client):
-    """It is the figure you look things up in while reading a chart, so on a
-    wide enough window it sits beside them rather than after them.
-
-    Two panes in the markup, one layout in CSS: the grid, and the column. On a
-    narrow window they stack, which puts the table exactly where its catalog
-    order already had it — last, full width — so the layout it leaves is the
-    layout it falls back to, and nothing here has to know which is showing.
-    """
-    html = _page(client, _experiment())
-    layout = html.split('class="figure-layout"', 1)[1]
-    grid = layout.split('class="grid-2x2"', 1)[1].split('class="figure-column"', 1)[0]
-    column = layout.split('class="figure-column"', 1)[1]
-
-    assert FIGURES_BY_KEY["trials"].in_side_column
-    assert [f.key for f in FIGURES if f.in_side_column] == ["trials"]
-    assert 'data-figure="trials"' in column
-    assert 'data-figure="trials"' not in grid
-    assert 'data-figure="performance_over_time"' in grid
-    # and it is still last, so stacking is the layout it already had
-    assert FIGURES[-1].key == "trials"
-
-
-def test_a_square_figure_gets_two_rows_as_well_as_two_columns(client):
-    """Height is declared separately from width because they answer different
-    questions: how much room a figure needs beside it, and how much under it.
-
-    The projection figure is the one that needs both. Every one of its three
-    views is a scatter over a space with no privileged direction, and a scatter
-    in a single row is a strip — the vertical axis gets a fifth of the room the
-    horizontal one does and reports a fifth of what it has to say.
-    """
-    html = _page(client, _experiment())
-    grid = html.split('class="grid-2x2"', 1)[1]
-    at = grid.index('data-figure="configuration_cube"')
-    slot = grid[grid.rindex('<div class="slot', 0, at):at]
-
-    assert FIGURES_BY_KEY["configuration_cube"].height == "double"
-    assert "wide" in slot and "tall" in slot
-    assert [f.key for f in FIGURES if f.height == "double"] == [
-        "configuration_cube", "acquisition_slice"]
-    # and nothing else grew a second row by accident. Two now: the cube, whose
-    # content is square, and the acquisition slice, whose three stacked panels
-    # are genuinely tall — both declared, neither incidental.
-    assert grid.count(" tall") == 2
 
 
 def test_a_projection_opens_flat(client):

@@ -8,7 +8,7 @@ from django.utils.translation import gettext_lazy as _
 
 from core.projection import METHODS
 
-from .base import DOUBLE, FULL, HALF, PAGE, Figure
+from .base import ACQUISITION, HYPERSHAP, LONG, MISC, SQUAT, TABLE, Figure
 from .plots import (
     configuration_cube_plot,
     configuration_projection_plot,
@@ -29,6 +29,8 @@ class BestConfiguration(Figure):
 
     key = "best_configuration"
     label = _("Best configuration")
+    home_tab = MISC
+    pinned = True
 
 
 class SelectedConfiguration(Figure):
@@ -110,6 +112,8 @@ class HyperparameterImportance(Figure):
     # rewording it would orphan the de/es entries for no visible gain.
     key = "hyperparameter_importance"
     label = _("Hyperparameter importance (HyperSHAP)")
+    home_tab = HYPERSHAP
+    pinned = True
     per_metric = True
     # Two independent choices compose into one flat view key: which game — now
     # chosen once for the whole page, in the sidebar — and how to draw it, which
@@ -143,7 +147,8 @@ class LocalExplanation(Figure):
 
     key = "local_explanation"
     label = _("Local explanation (selected trial)")
-    width = FULL
+    home_tab = HYPERSHAP
+    default_columns = 2
     per_metric = True
     # The computation's name, not the figure's, and unchanged: it is stored in
     # settings, and it was already named for the computation back when this was
@@ -176,6 +181,8 @@ class _Interactions(Figure):
     Nothing switches them individually — the sidebar's selector switches all of
     them at once (see experiment_detail.html).
     """
+
+    home_tab = HYPERSHAP
 
     per_metric = True
     views = tuple(HP_GAME_FIELDS)
@@ -244,6 +251,9 @@ class PerformanceOverTime(Figure):
     curve here: trial index or elapsed time on x, score or error on y."""
 
     key = "performance_over_time"
+    home_tab = MISC
+    shape = LONG
+    pinned = True
     # Drawn from the trials alone, so it can be updated mid-run. See Figure.live.
     live = True
     # Renamed from "Performance over time": every figure here is over time in
@@ -258,7 +268,6 @@ class PerformanceOverTime(Figure):
     # most often clicked. A spanning grid item always begins a fresh row, so it
     # lands below whatever tiles precede it however many are switched off —
     # which an ordering alone would not guarantee.
-    width = FULL
     per_metric = True
     views = ("trial-score", "trial-error", "time-score", "time-error")
     # Present so the toggle is offered at all; the ranges in it are the four
@@ -344,6 +353,11 @@ class ConfigurationCube(Figure):
     """
 
     key = "configuration_cube"
+    home_tab = ACQUISITION
+    # Squat, but a plane rather than a tile: a scatter over a projected space
+    # needs the room to be read as one.
+    default_columns = 2
+    pinned = True
     # Drawn from the trials alone, so it can be updated mid-run. See Figure.live.
     live = True
     # Renamed from "Configuration cube", which now names one of its three views.
@@ -351,12 +365,10 @@ class ConfigurationCube(Figure):
     # of hyperparameter space and drops the rest, differing only in which
     # subspace they keep. The key is unchanged — it is stored in settings.
     label = _("Hyperparameter space projection")
-    width = FULL
     # Two rows as well as two columns. Every one of its three views is a scatter
     # over a space with no privileged direction, and a scatter squeezed into a
     # single row is a strip: the vertical axis gets a fifth of the room the
     # horizontal one does and reports a fifth of what it has to say.
-    height = DOUBLE
     per_metric = True
     selects_trials = True
     # Listed simplest first, because that is how they read in the selector, and
@@ -399,10 +411,11 @@ class ParallelCoordinates(Figure):
     """
 
     key = "parallel_coordinates"
+    home_tab = MISC
+    shape = LONG
     # Drawn from the trials alone, so it can be updated mid-run. See Figure.live.
     live = True
     label = _("Parallel coordinates")
-    width = FULL
     selects_trials = True
     per_metric = True
     # Same reason as the cube's, different remedy — Parcoords has no log axis,
@@ -437,7 +450,8 @@ class PartialDependence(Figure):
 
     key = "partial_dependence"
     label = _("Partial dependence (PDP/ICE)")
-    width = FULL
+    home_tab = MISC
+    shape = LONG
     per_metric = True
     # The whole figure is deferred, so the computation's name matches the key
     # here — unlike local ablation, which is one view of a figure whose other
@@ -449,13 +463,11 @@ class AcquisitionSlice(Figure):
     """What the optimizer would look at next along one hyperparameter, and how a
     stated prior changes that.
 
-    Three panels over a slice through the incumbent: the surrogate's prediction,
-    the prior weighting it, and the resulting acquisition function. A prior
-    does not move the prediction — it leaves the surrogate untouched and
-    multiplies the acquisition — so the middle and bottom panels are where its
-    effect actually is; the dashed curve on the top panel is the *fiction*, the
-    surrogate that would have produced the same acquisition on its own, which is
-    the only sense in which a prior moves a performance curve.
+    The acquisition function along that hyperparameter, weighted by the prior
+    stated on `Prior` beside it. A prior does not move the surrogate's
+    prediction — it multiplies the acquisition — so this curve is where its
+    effect actually is. The two are separate figures so each can be placed and
+    sized on its own; one script draws both, and one request feeds them.
 
     Deferred and fetched per (metric, hyperparameter), for partial dependence's
     reason exactly: it fits a surrogate and predicts across a grid, and a model
@@ -467,8 +479,8 @@ class AcquisitionSlice(Figure):
     `surrogate_uncertainty` does. `views` would be the wrong shape: which
     hyperparameter is shown is not another way of looking at the same data, the
     argument `PartialDependence` makes above. And `absolute_scale` would give
-    the reader a toggle that rescales one panel of three, since the page's scale
-    toggle only ever relayouts `yaxis`.
+    the reader a toggle the script redraws over, since the page's scale toggle
+    only ever relayouts `yaxis`.
 
     Unlike every other figure here, this one's drawing is owned by its own
     script rather than by experiment_detail.html — see
@@ -478,14 +490,35 @@ class AcquisitionSlice(Figure):
     """
 
     key = "acquisition_slice"
-    label = _("Acquisition and priors")
-    #: The whole content area. Three stacked panels read together need the
-    #: page's full width to be legible, and FULL would only span the grid —
-    #: which on a wide window is half of it, with the trials table alongside.
-    width = PAGE
-    height = DOUBLE
+    label = _("Acquisition function")
+    home_tab = ACQUISITION
+    shape = LONG
+    default_columns = 4
     per_metric = True
+    # The computation feeds `Prior` as well, and keeps its name: it is stored in
+    # settings.
     deferred = (("acquisition_slice", _("Acquisition and priors")),)
+
+
+class Prior(Figure):
+    """A belief about where one hyperparameter's good values are, and what the
+    model makes of it.
+
+    Stated by a distribution and its parameters, or drawn freehand by dragging
+    the curve, with a decay that weakens it as the run proceeds. It weights the
+    acquisition on `AcquisitionSlice` and is drawn by the same script, from the
+    same request — so it has no `plot()` and nothing deferred of its own.
+
+    Not per metric: a belief is about the search space, and is the same
+    whichever score is being read. And usable before any run, when it is the
+    only figure the page has.
+    """
+
+    key = "prior"
+    label = _("Prior")
+    home_tab = ACQUISITION
+    shape = LONG
+    default_columns = 4
 
 
 class LocalEffects(Figure):
@@ -501,7 +534,10 @@ class LocalEffects(Figure):
 
     key = "local_effects"
     label = _("Local effects across trials")
-    width = FULL
+    # One HyperSHAP ablation game per sampled trial: local explanation's game,
+    # across the run rather than for one trial.
+    home_tab = HYPERSHAP
+    shape = LONG
     # Sampled, so most trials have no point here to click or to light up — see
     # `_selection_meta`, which is why a plot names its trials rather than
     # letting position imply them.
@@ -514,6 +550,7 @@ class TrialDuration(Figure):
     """One bar per trial. The same for every metric, so it is drawn once."""
 
     key = "trial_duration"
+    home_tab = MISC
     # Drawn from the trials alone, so it can be updated mid-run. See Figure.live.
     live = True
     label = _("Trial duration")
@@ -529,12 +566,11 @@ class Trials(Figure):
 
     key = "trials"
     label = _("Trials")
-    width = FULL
-    # On a wide window it becomes a column of its own beside everything else:
-    # it is the figure you look things up in while reading a chart, and doing
-    # that by scrolling to the bottom of the page and back is the reason it
-    # wants to be beside them rather than after them.
-    in_side_column = True
+    home_tab = MISC
+    shape = TABLE
+    # On Overview from the start: it is the figure you look things up in while
+    # reading a chart, so it belongs beside the charts rather than a tab away.
+    pinned = True
     #: Rows to a page. A long run's table is one you scroll past rather than
     #: read, so it is paged; the page holds enough that a short run never sees a
     #: pager at all, and the reader can change it on the page. Declared here so
@@ -545,24 +581,21 @@ class Trials(Figure):
     selects_trials = True
 
 
-#: Page order, and — through `Figure.width` — the page layout: half-width
-#: figures pair up across the grid's two columns and a full-width one spans it,
-#: so a pair listed together here is a pair read together.
+#: The default order of each tab, read per `Figure.home_tab`, and of Overview,
+#: read among the pinned ones. A reader rearranges either from there — see
+#: `ui/layout.py`.
 #:
 #: The two configuration panels first, then the chart everything else is read
 #: against, then the interactions in the order they get harder (a grid, a
-#: ranking, a shape, a list, a breakdown), then the figures that need the whole
-#: width. `SelectedConfiguration` is in this list for its settings checkbox and
-#: its per-metric panels; the page renders it into the sidebar rather than the
-#: grid (`Figure.in_sidebar`), so its position here is not a position on it.
+#: ranking, a shape, a list, a breakdown). `SelectedConfiguration` is in this
+#: list for its settings checkbox and its per-metric panels; the page renders it
+#: into the sidebar rather than a tab (`Figure.in_sidebar`), so its position
+#: here is not a position on one.
 FIGURES = (
     SelectedConfiguration,
     BestConfiguration,
     HyperparameterImportance,
     PerformanceOverTime,
-    # Directly under the chart of what the search achieved: where it went. The
-    # two are the same run read along its two axes — time, and space.
-    ConfigurationCube,
     InteractionsHeatmap,
     InteractionsTopPairs,
     InteractionsGraph,
@@ -575,12 +608,11 @@ FIGURES = (
     PartialDependence,
     LocalExplanation,
     LocalEffects,
-    # Last in the grid, and full width: three stacked panels read together, which
-    # take the whole section to be legible. `Trials` still follows it in this
-    # tuple because that table moves into a column beside the grid on a wide
-    # window — so on the page this is the last thing in the main section, and on
-    # a narrow one the lookup table sensibly ends the scroll.
     AcquisitionSlice,
+    Prior,
+    # Under the acquisition function and its prior, on their tab: where the
+    # search has been, beside where it would go next.
+    ConfigurationCube,
     Trials,
 )
 

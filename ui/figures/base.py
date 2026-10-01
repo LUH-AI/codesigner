@@ -2,7 +2,8 @@
 
 A **figure** is one analytics panel on an experiment page. Subclass `Figure` to
 declare a new one; the class *is* the declaration — its attributes say how the
-figure is named, how wide it sits, whether it is per-metric, and how it draws.
+figure is named, which tab it is on, what shape it is, whether it is per-metric,
+and how it draws.
 Nothing outside the class needs editing: the visibility setting, its checkbox on
 the settings pages, its slot on the page and the id its plot is drawn into are
 all derived from `key`.
@@ -10,31 +11,48 @@ all derived from `key`.
     class TrialDuration(Figure):
         key = "trial_duration"
         label = _("Trial duration")
-        width = HALF
+        home_tab = MISC
 
         @classmethod
         def plot(cls, result, metric=None):
             return trial_duration_plot(result)
 
-Then add it to `FIGURES` in `catalog.py` (order there is page order) and write
-`ui/templates/ui/figures/trial_duration.html`.
+Then add it to `FIGURES` in `catalog.py` (order there is its default order on
+its tab) and write `ui/templates/ui/figures/trial_duration.html`.
 """
 
-#: Widths a figure can take. HALF figures tile two-up in reading order; FULL
-#: ones span the page below them (a table with a column per metric needs it).
-HALF = "half"
-FULL = "full"
-#: The whole content area, across the grid *and* the column beside it. FULL
-#: spans the grid's columns, which on a wide window is only the left pane — the
-#: trials table has the right one. A figure that needs the page's whole width is
-#: rendered under both rather than inside either.
-PAGE = "page"
+#: The tabs of an experiment page, in the order the tab bar shows them. Every
+#: figure lives on exactly one of the last three; Overview holds whichever of
+#: them a reader pinned there — see `ui/layout.py`.
+OVERVIEW = "overview"
+HYPERSHAP = "hypershap"
+ACQUISITION = "acquisition"
+MISC = "misc"
+TABS = (OVERVIEW, HYPERSHAP, ACQUISITION, MISC)
 
-#: And heights. SINGLE is one row of the grid; DOUBLE is two, for a figure whose
-#: content is square rather than wide — a scatter over a projected space reads as
-#: a strip at one row and as a plane at two.
-SINGLE = "single"
-DOUBLE = "double"
+#: The shapes a figure can take on the page's four-column grid. Each says which
+#: widths it may be given, in columns — one, two or the whole row, never three
+#: — and `app.css` gives each shape a height at each width.
+#:
+#: SQUAT is a tile a little taller than it is wide at one column, growing with
+#: each step until, the whole row wide, it is about a screen tall: importance,
+#: the interaction figures, a projected space. LONG is for anything read along
+#: an axis — a run over time, one coordinate per hyperparameter — so it starts
+#: at two columns and the height of a one-column squat figure. STACK is sized by
+#: its own content, for a figure that is several panels and the controls between
+#: them. TABLE is a fixed block, about a screen tall, that scrolls inside itself.
+SQUAT = "squat"
+LONG = "long"
+STACK = "stack"
+TABLE = "table"
+
+#: shape -> the widths it may be, in grid columns, narrowest first.
+SHAPES = {
+    SQUAT: (1, 2, 4),
+    LONG: (2, 4),
+    STACK: (2, 4),
+    TABLE: (2,),
+}
 
 
 class Figure:
@@ -48,12 +66,16 @@ class Figure:
     key = ""
     #: The heading shown on the panel, and the label of its settings checkbox.
     label = ""
-    #: HALF, FULL or PAGE (see above).
-    width = HALF
-    #: SINGLE or DOUBLE (see above). Height is declared separately from width
-    #: because they answer different questions: how much of the page a figure
-    #: needs beside it, and how much it needs under it.
-    height = SINGLE
+    #: Which tab the figure lives on (see above). Not Overview: that tab holds
+    #: figures pinned from the others.
+    home_tab = MISC
+    #: SQUAT, LONG, STACK or TABLE (see above).
+    shape = SQUAT
+    #: How many columns it opens at before anybody resizes it. None means the
+    #: narrowest its shape allows.
+    default_columns = None
+    #: True when the figure is on Overview until a reader unpins it.
+    pinned = False
     #: True when the figure is drawn per evaluation metric, so it is rebuilt
     #: when the metric selector changes; False when one plot covers the run.
     per_metric = False
@@ -128,12 +150,6 @@ class Figure:
     #: poll and appends them (see `ui/views.py`'s `_live_payloads`), and the two
     #: configuration panels do not update at all. See `run_status`.
     live = False
-    #: True when this figure moves into a column of its own beside the grid once
-    #: the window is wide enough for one. For a figure that is read *against*
-    #: the others rather than in sequence with them — the trials table, which
-    #: you look things up in while reading a chart. It has no effect on a narrow
-    #: window, where it simply renders where its catalog order puts it.
-    in_side_column = False
 
     def __init_subclass__(cls, **kwargs):
         """Derive everything that follows from the key, once per subclass."""
@@ -142,6 +158,24 @@ class Figure:
             cls.template = f"ui/figures/{cls.key}.html"
             cls.setting_key = f"show_{cls.key}"
             cls.dom_id = f"figure-{cls.key}"
+
+    @classmethod
+    def columns(cls):
+        """The widths this figure may be, in grid columns, narrowest first."""
+        return SHAPES[cls.shape]
+
+    @classmethod
+    def fit(cls, columns):
+        """*columns* made a width this figure may be: the widest allowed that
+        is no wider, or the narrowest if it is narrower than all of them."""
+        allowed = cls.columns()
+        fitting = [w for w in allowed if w <= columns]
+        return fitting[-1] if fitting else allowed[0]
+
+    @classmethod
+    def opening_columns(cls):
+        """How wide it is before anybody resizes it."""
+        return cls.fit(cls.default_columns or cls.columns()[0])
 
     @classmethod
     def opening_view(cls):

@@ -185,6 +185,38 @@ def test_the_sidebar_no_longer_marks_the_current_experiment_in_the_brand_red():
     assert "var(--primary)" not in active
 
 
+def test_selected_is_one_colour_in_both_themes():
+    """The dark theme replaces the page's colours but not this one: a selection
+    looks the same whichever theme it is made in, and the figures draw theirs
+    in the same shade either way."""
+    import re
+    from pathlib import Path
+
+    css = Path("ui/static/ui/app.css").read_text(encoding="utf-8")
+    dark_blocks = re.findall(r':root\[data-theme="(?:dark|system)"\]\s*\{([^}]*)\}', css)
+
+    assert dark_blocks, "the dark theme's colours are where this expects them"
+    for block in dark_blocks:
+        assert "--selected" not in block
+
+
+@pytest.mark.parametrize("rule", [
+    '.fig-tab[aria-selected="true"]',
+    "nav.rail .rail-icon.active",
+    "table.trials tbody tr.selected",
+])
+def test_every_selected_state_uses_it(rule):
+    """Not the brand red, which means "this is an action"."""
+    from pathlib import Path
+
+    css = Path("ui/static/ui/app.css").read_text(encoding="utf-8")
+    body = css[css.index(rule + " {"):]
+    body = body[:body.index("}")]
+
+    assert "var(--selected" in body
+    assert "var(--primary)" not in body
+
+
 # ── the fold ────────────────────────────────────────────────────────────────
 
 @pytest.mark.django_db

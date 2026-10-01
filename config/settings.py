@@ -262,6 +262,7 @@ TEMPLATES = [
                 "ui.context_processors.navigation",
                 "ui.context_processors.capabilities",
                 "ui.context_processors.offered_languages",
+                "ui.context_processors.theme",
             ],
         },
     },
