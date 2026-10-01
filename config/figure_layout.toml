@@ -1,0 +1,52 @@
+# How an experiment page is arranged until somebody arranges it.
+#
+# The site's default, and the only one: every experiment opens on this until a
+# reader rearranges it, and a reader's own default (Settings → Figure layout)
+# starts from it. Required — the app refuses to start without it, or with it
+# wrong (see `ui/layout.py`'s `check`). Adding a figure to the catalog means
+# placing it here.
+#
+# One list per tab, in the order the figures come on it. Each figure lives on
+# one tab (its `home_tab` in ui/figures/catalog.py) and must be on that tab here
+# exactly once; Overview holds whichever of them should be pinned there.
+#
+#   figure  the figure's key
+#   width   columns it takes on the four-column grid: 1, 2 or 4, as its shape
+#           allows (two at the least for the long figures; the trials table is
+#           always 2)
+#   column  the column it starts in, 1 to 4: a two-wide figure starts in 1 or
+#           3, a four-wide one in 1
+
+overview = [
+    { figure = "best_configuration",        width = 1, column = 1 },
+    { figure = "hyperparameter_importance", width = 1, column = 2 },
+    { figure = "trials",                    width = 2, column = 3 },
+    { figure = "performance_over_time",     width = 2, column = 1 },
+    { figure = "configuration_cube",        width = 2, column = 1 },
+]
+
+hypershap = [
+    { figure = "hyperparameter_importance", width = 2, column = 1 },
+    { figure = "interactions_top_pairs",    width = 1, column = 3 },
+    { figure = "interactions_orders",       width = 1, column = 4 },
+    { figure = "interactions_graph",        width = 1, column = 3 },
+    { figure = "interactions_coalitions",   width = 1, column = 4 },
+    { figure = "interactions_heatmap",      width = 1, column = 1 },
+    { figure = "local_effects",             width = 2, column = 3 },
+    { figure = "local_explanation",         width = 1, column = 2 },
+]
+
+acquisition = [
+    { figure = "acquisition_slice",  width = 2, column = 1 },
+    { figure = "configuration_cube", width = 2, column = 3 },
+    { figure = "prior",              width = 2, column = 1 },
+]
+
+misc = [
+    { figure = "best_configuration",    width = 1, column = 1 },
+    { figure = "trials",                width = 2, column = 3 },
+    { figure = "trial_duration",        width = 1, column = 2 },
+    { figure = "performance_over_time", width = 2, column = 1 },
+    { figure = "parallel_coordinates",  width = 2, column = 1 },
+    { figure = "partial_dependence",    width = 2, column = 1 },
+]

@@ -113,8 +113,7 @@ def test_declaring_a_subclass_derives_everything_from_its_key():
     assert Whatever.setting_key == "show_whatever"
     assert Whatever.dom_id == "figure-whatever"
     # unspecified display characteristics fall back to the common case
-    assert (Whatever.home_tab, Whatever.shape, Whatever.pinned) == (MISC, SQUAT, False)
-    assert Whatever.opening_columns() == 1
+    assert (Whatever.home_tab, Whatever.shape) == (MISC, SQUAT)
     assert Whatever.per_metric is False
     assert Whatever.absolute_scale is None
     assert Whatever.plot(result=None) is None
@@ -131,7 +130,6 @@ def test_each_figure_declares_a_tab_and_a_shape():
             continue
         assert figure.home_tab in TABS and figure.home_tab != OVERVIEW, figure.key
         assert figure.shape in SHAPES, figure.key
-        assert figure.opening_columns() in figure.columns(), figure.key
         assert 3 not in figure.columns(), "one, two or the whole row"
 
     by_tab = {tab: [f.key for f in FIGURES if f.home_tab == tab and not f.in_sidebar]
@@ -148,8 +146,6 @@ def test_each_figure_declares_a_tab_and_a_shape():
         "local_effects", "acquisition_slice", "prior"]
     assert FIGURES_BY_KEY["trials"].shape == TABLE
     assert SHAPES[TABLE] == (2,), "the trials table is always two columns"
-    # A scatter over a projected space is a plane, not a tile.
-    assert FIGURES_BY_KEY["configuration_cube"].opening_columns() == 2
 
 
 def test_only_metric_dependent_figures_are_marked_per_metric():
@@ -283,8 +279,10 @@ def test_overview_holds_empty_slots_for_what_is_pinned(client):
     html = _page(client, _experiment())
     overview = _panel(html, OVERVIEW)
 
+    from ui.layout import default_layout
+
     assert re.findall(r'data-key="([a-z_]+)"', overview) == [
-        f.key for f in FIGURES if f.pinned]
+        s["key"] for s in default_layout()["tabs"][OVERVIEW]]
     assert "data-figure=" not in overview
 
 
@@ -356,16 +354,16 @@ def test_one_warning_reaches_every_reading_of_the_interactions(client):
 
 
 def test_each_tab_reads_in_the_declared_order(client):
-    """Catalog order is each tab's order until a reader rearranges it, and
-    every slot carries the width its figure opens at."""
-    html = _page(client, _experiment())
-    misc = _panel(html, MISC)
+    """The site's default layout file is each tab's order and widths until a
+    reader rearranges it — see config/figure_layout.toml."""
+    from ui.layout import default_layout
 
-    assert re.findall(r'data-key="([a-z_]+)"', misc) == [
-        "best_configuration", "performance_over_time", "trial_duration",
-        "parallel_coordinates", "partial_dependence", "trials"]
-    for key, w in re.findall(r'data-key="([a-z_]+)"\s+data-w="(\d)"', html):
-        assert int(w) == FIGURES_BY_KEY[key].opening_columns(), key
+    html = _page(client, _experiment())
+
+    for tab, slots in default_layout()["tabs"].items():
+        panel = _panel(html, tab)
+        found = re.findall(r'data-key="([a-z_]+)"\s+data-w="(\d)"', panel)
+        assert [(k, int(w)) for k, w in found] == [(s["key"], s["w"]) for s in slots], tab
 
 
 def test_a_slot_says_its_shape(client):

@@ -69,13 +69,10 @@ class Figure:
     #: Which tab the figure lives on (see above). Not Overview: that tab holds
     #: figures pinned from the others.
     home_tab = MISC
-    #: SQUAT, LONG, STACK or TABLE (see above).
+    #: SQUAT, LONG, STACK or TABLE (see above). Where on its tab it goes, how
+    #: wide it opens and whether it is pinned to Overview are not the figure's
+    #: to say: that is the site's default layout, `config/figure_layout.toml`.
     shape = SQUAT
-    #: How many columns it opens at before anybody resizes it. None means the
-    #: narrowest its shape allows.
-    default_columns = None
-    #: True when the figure is on Overview until a reader unpins it.
-    pinned = False
     #: True when the figure is drawn per evaluation metric, so it is rebuilt
     #: when the metric selector changes; False when one plot covers the run.
     per_metric = False
@@ -171,11 +168,6 @@ class Figure:
         allowed = cls.columns()
         fitting = [w for w in allowed if w <= columns]
         return fitting[-1] if fitting else allowed[0]
-
-    @classmethod
-    def opening_columns(cls):
-        """How wide it is before anybody resizes it."""
-        return cls.fit(cls.default_columns or cls.columns()[0])
 
     @classmethod
     def opening_view(cls):

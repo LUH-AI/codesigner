@@ -398,13 +398,14 @@ class DefaultFigureLayout(models.Model):
     """How one reader wants an experiment page arranged until they arrange it.
 
     Between their own arrangement of an experiment (`FigureLayout`) and the
-    site's (`GlobalSettings.default_figure_layout`): what an experiment they
-    have not touched opens on. Accounts only — without them there is one
-    reader, and their default is the site's.
+    site's default (`config/figure_layout.toml`): what an experiment they have
+    not touched opens on. `user` is null on an install without accounts, where
+    there is one reader and so one row, which `layout.save_user_default` keeps
+    to one by updating it rather than adding another.
     """
 
-    user = models.OneToOneField(django_settings.AUTH_USER_MODEL, on_delete=models.CASCADE,
-                                related_name="default_figure_layout")
+    user = models.OneToOneField(django_settings.AUTH_USER_MODEL, null=True, blank=True,
+                                on_delete=models.CASCADE, related_name="default_figure_layout")
     layout = SafeJSONField(default=dict, blank=True)
     updated_at = models.DateTimeField(auto_now=True)
 
@@ -543,7 +544,6 @@ class GlobalSettings(models.Model):
     default_experiment_settings = models.JSONField(default=dict, blank=True)
     # How an experiment page is arranged for a reader who has not arranged it
     # themselves. Empty means the catalog's own order — see `ui/layout.py`.
-    default_figure_layout = models.JSONField(default=dict, blank=True)
 
     class Meta:
         verbose_name_plural = "Global settings"

@@ -30,7 +30,6 @@ class BestConfiguration(Figure):
     key = "best_configuration"
     label = _("Best configuration")
     home_tab = MISC
-    pinned = True
 
 
 class SelectedConfiguration(Figure):
@@ -113,7 +112,6 @@ class HyperparameterImportance(Figure):
     key = "hyperparameter_importance"
     label = _("Hyperparameter importance (HyperSHAP)")
     home_tab = HYPERSHAP
-    pinned = True
     per_metric = True
     # Two independent choices compose into one flat view key: which game — now
     # chosen once for the whole page, in the sidebar — and how to draw it, which
@@ -148,7 +146,6 @@ class LocalExplanation(Figure):
     key = "local_explanation"
     label = _("Local explanation (selected trial)")
     home_tab = HYPERSHAP
-    default_columns = 2
     per_metric = True
     # The computation's name, not the figure's, and unchanged: it is stored in
     # settings, and it was already named for the computation back when this was
@@ -253,7 +250,6 @@ class PerformanceOverTime(Figure):
     key = "performance_over_time"
     home_tab = MISC
     shape = LONG
-    pinned = True
     # Drawn from the trials alone, so it can be updated mid-run. See Figure.live.
     live = True
     # Renamed from "Performance over time": every figure here is over time in
@@ -354,10 +350,6 @@ class ConfigurationCube(Figure):
 
     key = "configuration_cube"
     home_tab = ACQUISITION
-    # Squat, but a plane rather than a tile: a scatter over a projected space
-    # needs the room to be read as one.
-    default_columns = 2
-    pinned = True
     # Drawn from the trials alone, so it can be updated mid-run. See Figure.live.
     live = True
     # Renamed from "Configuration cube", which now names one of its three views.
@@ -493,7 +485,6 @@ class AcquisitionSlice(Figure):
     label = _("Acquisition function")
     home_tab = ACQUISITION
     shape = LONG
-    default_columns = 4
     per_metric = True
     # The computation feeds `Prior` as well, and keeps its name: it is stored in
     # settings.
@@ -518,7 +509,6 @@ class Prior(Figure):
     label = _("Prior")
     home_tab = ACQUISITION
     shape = LONG
-    default_columns = 4
 
 
 class LocalEffects(Figure):
@@ -568,9 +558,6 @@ class Trials(Figure):
     label = _("Trials")
     home_tab = MISC
     shape = TABLE
-    # On Overview from the start: it is the figure you look things up in while
-    # reading a chart, so it belongs beside the charts rather than a tab away.
-    pinned = True
     #: Rows to a page. A long run's table is one you scroll past rather than
     #: read, so it is paged; the page holds enough that a short run never sees a
     #: pager at all, and the reader can change it on the page. Declared here so

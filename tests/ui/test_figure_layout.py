@@ -19,7 +19,7 @@ from django.urls import reverse
 from access.models import Group, Membership
 from ui import layout as layouts
 from ui.figures import FIGURES, FIGURES_BY_KEY, OVERVIEW, SHAPES, TABS
-from ui.models import Experiment, FigureLayout, GlobalSettings
+from ui.models import DefaultFigureLayout, Experiment, FigureLayout
 
 pytestmark = pytest.mark.django_db
 
@@ -40,15 +40,46 @@ def test_every_figure_has_a_home_and_a_shape():
         assert figure.shape in SHAPES, figure.key
 
 
-def test_the_default_puts_each_figure_on_its_home_tab_in_catalog_order():
+def test_the_default_is_the_file():
+    """config/figure_layout.toml, figure for figure, columns counted from 1
+    there and from 0 here. It ships with the code, so every install opens on
+    it; there is no other default."""
+    import tomllib
+
+    raw = tomllib.loads(layouts.DEFAULT_PATH.read_text(encoding="utf-8"))
     layout = layouts.default_layout()
 
     for tab in TABS:
-        if tab == OVERVIEW:
-            continue
-        assert _keys(layout, tab) == [f.key for f in FIGURES
-                                      if f.home_tab == tab and not f.in_sidebar]
-    assert _keys(layout, OVERVIEW) == [f.key for f in FIGURES if f.pinned]
+        assert [(s["key"], s["w"], s["c"] + 1) for s in layout["tabs"][tab]] == [
+            (e["figure"], e["width"], e["column"]) for e in raw[tab]], tab
+
+
+def test_the_file_places_every_figure():
+    """The rot guard the app itself applies at start-up: a figure added to the
+    catalog and not placed in the file stops the app, rather than turning up
+    wherever some other order would put it."""
+    assert layouts.check() == []
+
+
+def test_the_app_refuses_a_file_that_is_missing_or_wrong(tmp_path):
+    good = layouts.DEFAULT_PATH.read_text(encoding="utf-8")
+    cases = {
+        "missing": None,
+        "unreadable": "overview = [",
+        "a figure left out": good.replace('{ figure = "prior",', '# { figure = "prior",'),
+        "on the wrong tab": good.replace('figure = "partial_dependence"', 'figure = "prior"'),
+        "too wide": good.replace('{ figure = "trials",                width = 2, column = 3 }',
+                                 '{ figure = "trials", width = 4, column = 1 }'),
+        "across the middle": good.replace(
+            '{ figure = "local_effects",             width = 2, column = 3 }',
+            '{ figure = "local_effects", width = 2, column = 2 }'),
+    }
+    for name, text in cases.items():
+        path = tmp_path / f"{name}.toml"
+        if text is not None:
+            path.write_text(text, encoding="utf-8")
+        with pytest.raises(layouts.LayoutFileError):
+            layouts.read_default(path)
 
 
 # ── what normalising repairs ─────────────────────────────────────────────────
@@ -136,6 +167,8 @@ def test_the_page_carries_each_column(client):
     for slot in layout["tabs"]["misc"]:
         if slot["key"] == "trial_duration":
             slot["c"] = 3
+        if slot["key"] == "best_configuration":
+            slot.pop("c")
     layouts.save(exp, None, layout)
 
     html = client.get(reverse("ui:experiment_detail", args=[exp.pk])).content.decode()
@@ -156,7 +189,7 @@ def test_a_figure_new_to_the_catalog_is_added_where_it_belongs():
     fixed = layouts.normalize(layout)
 
     assert _keys(fixed, "misc")[-1] == "trials"
-    assert "trials" in _keys(fixed, OVERVIEW), "it is pinned by default"
+    assert "trials" in _keys(fixed, OVERVIEW), "the default file pins it"
 
 
 def test_but_one_missing_only_from_overview_was_unpinned():
@@ -261,7 +294,7 @@ def test_the_page_opens_as_it_was_left(client, hosted, lab):
     page = client.get(reverse("ui:experiment_detail", args=[exp.pk])).context
 
     misc = next(t for t in page["figure_tabs"] if t["tab"] == "misc")
-    assert misc["slots"][0]["figure"].key == "trials"
+    assert misc["slots"][0]["figure"].key == _narrowed()["tabs"]["misc"][0]["key"]
 
 
 def test_reset_goes_back_to_the_site_default(client, hosted, lab):
@@ -275,9 +308,7 @@ def test_reset_goes_back_to_the_site_default(client, hosted, lab):
 
 
 def test_the_site_default_is_what_a_new_reader_sees(client, hosted, lab):
-    GlobalSettings.objects.update_or_create(pk=1, defaults={"default_figure_layout": _narrowed()})
-
-    assert layouts.layout_for(lab["exp"], lab["ben"]) == layouts.normalize(_narrowed())
+    assert layouts.layout_for(lab["exp"], lab["ben"]) == layouts.default_layout()
 
 
 def test_the_page_cannot_set_the_site_default(client, hosted, lab):
@@ -287,7 +318,7 @@ def test_the_page_cannot_set_the_site_default(client, hosted, lab):
 
     _save(client, lab["exp"], {"layout": _narrowed(), "site_default": True})
 
-    assert not GlobalSettings.get_solo().default_figure_layout
+    assert layouts.site_default() == layouts.default_layout()
     assert layouts.layout_for(lab["exp"], lab["ana"]) == layouts.normalize(_narrowed())
 
 
@@ -343,7 +374,6 @@ def test_resetting_an_experiment_goes_to_the_readers_default(client, hosted, lab
 
 
 def test_resetting_the_default_goes_back_to_the_sites(client, hosted, lab, second):
-    GlobalSettings.objects.update_or_create(pk=1, defaults={"default_figure_layout": _narrowed()})
     client.force_login(lab["ana"])
     mine = layouts.default_layout()
     mine["tabs"]["hypershap"].reverse()
@@ -351,21 +381,25 @@ def test_resetting_the_default_goes_back_to_the_sites(client, hosted, lab, secon
 
     _settings_post(client, lab["exp"], "reset_default")
 
-    assert layouts.layout_for(second, lab["ana"]) == layouts.normalize(_narrowed())
+    assert layouts.layout_for(second, lab["ana"]) == layouts.default_layout()
 
 
-def test_without_accounts_the_default_is_the_sites(client):
-    """One reader, so their default is everybody's."""
+def test_without_accounts_there_is_one_readers_default(client):
+    """One reader, one row — and the site's default, the file, is untouched by
+    it either way."""
     exp = Experiment.objects.create(
         name="solo", model_name="Random Forest", optimizer_name="Random Search",
         metric_names=["accuracy"], seed=0)
     _save(client, exp, {"layout": _narrowed()})
 
     _settings_post(client, exp, "make_default")
+    _settings_post(client, exp, "make_default")
 
-    assert layouts.site_default() == layouts.normalize(_narrowed())
-    _settings_post(client, exp, "reset_default")
+    assert DefaultFigureLayout.objects.get().user is None
+    assert layouts.user_default(None) == layouts.normalize(_narrowed())
     assert layouts.site_default() == layouts.default_layout()
+    _settings_post(client, exp, "reset_default")
+    assert not DefaultFigureLayout.objects.exists()
 
 
 def test_the_settings_page_offers_all_three(client, hosted, lab):
