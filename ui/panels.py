@@ -473,7 +473,11 @@ def site_group_delete(request):
 
 @site_admin_required
 def site_trash(request):
-    """What group deletions left behind, and the two things to do about it.
+    """The site's bin, and the two things to do about what is in it.
+
+    Two ways in: a deleted group's work, and what somebody deleted that none of
+    its people kept — see `ui/services/bin.py`. Settled the same way either way,
+    so listed together, each saying which it is.
 
     Shown with the same discipline as the jobs panel: an opaque identifier, who
     used to own it and how much it cost, and nothing about what it was *for*.
@@ -483,8 +487,9 @@ def site_trash(request):
     """
     trashed = (policy().trash(request)
                .select_related("owner")
-               .annotate(run_count=Count("runs", distinct=True))
-               .order_by("-trashed_at"))
+               .annotate(run_count=Count("runs", distinct=True)))
+    # Newest first, by whichever of the two put it here.
+    trashed = sorted(trashed, key=lambda e: e.deleted_at or e.trashed_at, reverse=True)
     return render(request, "ui/panels/site_trash.html", {
         "experiments": trashed,
         "groups": Group.objects.all(),
@@ -494,18 +499,18 @@ def site_trash(request):
 @require_POST
 @site_admin_required
 def site_trash_rehome(request, pk):
-    """Put a trashed experiment into a group again.
+    """Put an experiment from the site's bin into a group again.
 
-    Which makes it that group's — its lead can reach it, and its members can if
-    the owner had shared it. The owner is left as it was, including when that is
+    Which makes it that group's — its lead can reach it, and whoever it was
+    shared with can again. The owner is left as it was, including when that is
     nobody: an experiment can outlive the account that made it, and a group is
-    what decides who may see it.
+    what decides who may see it. See `bin.put_back`.
     """
+    from .services import bin as bin_service
+
     experiment = get_object_or_404(policy().trash(request), pk=pk)
     group = get_object_or_404(Group, pk=request.POST.get("group") or 0)
-    experiment.group = group
-    experiment.trashed_at = None
-    experiment.save(update_fields=["group", "trashed_at"])
+    bin_service.put_back(experiment, group)
     messages.success(request, _("Moved experiment %(pk)s into %(group)s.")
                      % {"pk": experiment.pk, "group": group.name})
     return redirect("ui:site_trash")

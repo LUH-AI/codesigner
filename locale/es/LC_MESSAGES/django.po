@@ -8,7 +8,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: PACKAGE VERSION\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2026-09-30 14:24+0000\n"
+"POT-Creation-Date: 2026-10-01 09:00+0000\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
 "Language-Team: LANGUAGE <LL@li.org>\n"
@@ -19,12 +19,12 @@ msgstr ""
 "Plural-Forms: nplurals=2; plural=(n != 1);\n"
 
 #. == Site chrome — navigation, base template, account ==================
-#: access/policy.py:330
+#: access/policy.py:337
 #, python-format
 msgid "%(user)s is not allowed to run custom models here."
 msgstr "%(user)s no puede ejecutar modelos propios aquí."
 
-#: access/policy.py:331
+#: access/policy.py:338
 msgid ""
 "This experiment's custom model has no account behind it, so it cannot be "
 "run. Give the experiment an owner who is allowed to run custom models."
@@ -92,7 +92,7 @@ msgstr "Experimentos"
 #: ui/templates/ui/panels/group_none.html:7
 #: ui/templates/ui/panels/site_groups.html:17
 #: ui/templates/ui/panels/site_jobs.html:20
-#: ui/templates/ui/panels/site_trash.html:40
+#: ui/templates/ui/panels/site_trash.html:42
 #: ui/templates/ui/panels/site_usage.html:18
 #: ui/templates/ui/panels/site_usage.html:46
 msgid "Group"
@@ -2045,21 +2045,21 @@ msgstr "%(name)s todavía tiene personas. Elimínelas primero."
 msgid "Deleted %(name)s. Anything it held is in the bin."
 msgstr "%(name)s eliminado. Todo lo que contenía está en la papelera."
 
-#: ui/panels.py:509
+#: ui/panels.py:514
 #, python-format
 msgid "Moved experiment %(pk)s into %(group)s."
 msgstr "Experimento %(pk)s movido a %(group)s."
 
-#: ui/panels.py:522
+#: ui/panels.py:527
 #, python-format
 msgid "Deleted experiment %(pk)s."
 msgstr "Experimento %(pk)s eliminado."
 
-#: ui/panels.py:660
+#: ui/panels.py:665
 msgid "Stopped by a site administrator."
 msgstr "Detenido por la administración del sitio."
 
-#: ui/panels.py:661
+#: ui/panels.py:666
 #, python-format
 msgid "Stopped job %(job)s."
 msgstr "Se detuvo el trabajo %(job)s."
@@ -2331,11 +2331,13 @@ msgstr "No hay nada en ejecución."
 
 #: ui/templates/ui/panels/site_trash.html:18
 msgid ""
-"Experiments whose group was deleted. Put one into another group, or discard "
-"it for good."
+"Experiments whose group was deleted, and experiments somebody deleted that "
+"none of their people kept. Put one back into a group, or discard it for "
+"good. Nothing here expires."
 msgstr ""
-"Experimentos cuyo grupo se eliminó. Mueva uno a otro grupo o descártelo "
-"definitivamente."
+"Experimentos cuyo grupo se eliminó y experimentos que alguien eliminó y que "
+"ninguna de sus personas conservó. Devuelva uno a un grupo o descártelo "
+"definitivamente. Aquí nada caduca."
 
 #: ui/templates/ui/panels/site_trash.html:24
 msgid "Was owned by"
@@ -2348,14 +2350,26 @@ msgid "Runs"
 msgstr "Ejecuciones"
 
 #: ui/templates/ui/panels/site_trash.html:26
+msgid "Why it is here"
+msgstr "Por qué está aquí"
+
+#: ui/templates/ui/panels/site_trash.html:27
 msgid "Binned"
 msgstr "En la papelera desde"
 
-#: ui/templates/ui/panels/site_trash.html:43
-msgid "Move here"
-msgstr "Mover aquí"
+#: ui/templates/ui/panels/site_trash.html:37
+msgid "Nobody kept it"
+msgstr "Nadie lo conservó"
 
-#: ui/templates/ui/panels/site_trash.html:52
+#: ui/templates/ui/panels/site_trash.html:37
+msgid "Its group was deleted"
+msgstr "Su grupo se eliminó"
+
+#: ui/templates/ui/panels/site_trash.html:45
+msgid "Put back"
+msgstr "Devolver"
+
+#: ui/templates/ui/panels/site_trash.html:54
 msgid "The bin is empty."
 msgstr "La papelera está vacía."
 
@@ -2424,7 +2438,7 @@ msgstr "fallaban demasiadas pruebas"
 msgid "Inconsistent"
 msgstr "Inconsistente"
 
-#: ui/views.py:857
+#: ui/views.py:868
 msgid ""
 "Nothing has been run yet, so there is no model to judge this against. A "
 "belief stated now is acted on in full."
@@ -2432,7 +2446,7 @@ msgstr ""
 "Todavía no se ha ejecutado nada, así que no hay ningún modelo con el que "
 "juzgarlo. Un prior indicado ahora se aplica por completo."
 
-#: ui/views.py:863
+#: ui/views.py:874
 msgid ""
 "This optimizer fits no model of the objective, so it has no opinion about "
 "where the optimum is."
@@ -2440,7 +2454,7 @@ msgstr ""
 "Este optimizador no ajusta ningún modelo del objetivo, así que no tiene "
 "opinión sobre dónde está el óptimo."
 
-#: ui/views.py:886
+#: ui/views.py:897
 msgid ""
 "This prior is potentially informative: the model rates the region it points "
 "at as promising as where the search is already headed."
@@ -2449,7 +2463,7 @@ msgstr ""
 "que apunta tan prometedora como aquella hacia la que ya se dirige la "
 "búsqueda."
 
-#: ui/views.py:890
+#: ui/views.py:901
 #, python-format
 msgid ""
 "This prior is unlikely to be helpful: the model rates the region it points "
@@ -2460,12 +2474,12 @@ msgstr ""
 "apunta más de %(tolerance)s por debajo de aquella hacia la que ya se dirige "
 "la búsqueda, así que aplicarlo costaría pruebas."
 
-#: ui/views.py:896
+#: ui/views.py:907
 msgid "This prior could not be judged, so it stands as stated."
 msgstr ""
 "Este prior no se ha podido juzgar, así que se mantiene tal como se indicó."
 
-#: ui/views.py:1168 ui/views.py:1385
+#: ui/views.py:1179 ui/views.py:1396
 msgid ""
 "The model this experiment used is not available here, so its search space "
 "cannot be rebuilt."
@@ -2473,7 +2487,7 @@ msgstr ""
 "El modelo que usó este experimento no está disponible aquí, así que no se "
 "puede reconstruir su espacio de búsqueda."
 
-#: ui/views.py:1346
+#: ui/views.py:1357
 msgid ""
 "This SMAC has no acquisition weight layer, so a stated prior does not affect "
 "the search or the candidates below. Install the version requirements.txt "
@@ -2483,18 +2497,18 @@ msgstr ""
 "declarado no afecta ni a la búsqueda ni a las candidatas de abajo. Instale "
 "la versión que fija requirements.txt."
 
-#: ui/views.py:1475
+#: ui/views.py:1486
 msgid ""
 "Set at least one stopping criterion, so the run has something to end on."
 msgstr ""
 "Fije al menos un criterio de parada, para que la ejecución tenga algo con lo "
 "que terminar."
 
-#: ui/views.py:1767
+#: ui/views.py:1778
 msgid "Unknown sharing level."
 msgstr "Nivel de acceso desconocido."
 
-#: ui/views.py:1791
+#: ui/views.py:1802
 #, python-format
 msgid ""
 "Only a contributor can be made the owner. Make %(user)s a contributor first."
@@ -2502,52 +2516,57 @@ msgstr ""
 "Solo quien colabora puede pasar a ser propietario. Haga primero colaborador "
 "a %(user)s."
 
-#: ui/views.py:1805
+#: ui/views.py:1816
 #, python-format
 msgid "%(name)s now belongs to %(user)s. You are a contributor."
 msgstr "%(name)s ahora pertenece a %(user)s. Usted colabora."
 
-#: ui/views.py:1859
+#: ui/views.py:1870
 msgid ""
 "Given up on by hand: it stopped answering, and cancelling it had no effect."
 msgstr "Abandonada a mano: dejó de responder y cancelarla no surtió efecto."
 
-#: ui/views.py:2056
+#: ui/views.py:2067
 msgid "See every experiment on this instance"
 msgstr "Ver todos los experimentos de esta instancia"
 
-#: ui/views.py:2058
+#: ui/views.py:2069
 msgid "Run, edit and delete other people's experiments"
 msgstr "Ejecutar, editar y eliminar experimentos de otras personas"
 
-#: ui/views.py:2060
+#: ui/views.py:2071
 msgid "Change the settings every experiment inherits"
 msgstr "Cambiar los ajustes que hereda cada experimento"
 
-#: ui/views.py:2062
+#: ui/views.py:2073
 msgid "Upload and run custom models"
 msgstr "Subir y ejecutar modelos propios"
 
-#: ui/views.py:2097
+#: ui/views.py:2108
 #, python-format
 msgid "Moved %(name)s to the bin."
 msgstr "%(name)s se movió a la papelera."
 
-#: ui/views.py:2146
+#: ui/views.py:2156
 #, python-format
 msgid "Restored %(name)s."
 msgstr "%(name)s se restauró."
 
-#: ui/views.py:2175
+#: ui/views.py:2182
+#, python-format
+msgid "Removed %(name)s from your bin."
+msgstr "%(name)s se quitó de su papelera."
+
+#: ui/views.py:2185
 #, python-format
 msgid "Deleted %(name)s for good."
 msgstr "%(name)s se eliminó definitivamente."
 
-#: ui/views.py:2203
+#: ui/views.py:2218
 msgid "Invalid or unreadable experiment file."
 msgstr "Archivo de experimento inválido o ilegible."
 
-#: ui/views.py:2272
+#: ui/views.py:2287
 #, python-format
 msgid ""
 "This looks like more than one run — two files here are called %(name)s. "
@@ -2556,16 +2575,16 @@ msgstr ""
 "Esto parece más de una ejecución — dos archivos de aquí se llaman %(name)s. "
 "Elija un único directorio de ejecución, el que contiene su runhistory.json."
 
-#: ui/views.py:2279
+#: ui/views.py:2294
 #, python-format
 msgid "Could not read %(name)s."
 msgstr "No se pudo leer %(name)s."
 
-#: ui/views.py:2286
+#: ui/views.py:2301
 msgid "This is not a readable SMAC run."
 msgstr "Esta no es una ejecución de SMAC legible."
 
-#: ui/views.py:2344
+#: ui/views.py:2359
 msgid ""
 "Local explanation needs the search space, which this experiment does not "
 "carry and has no model to ask."
@@ -2573,7 +2592,7 @@ msgstr ""
 "La explicación local necesita el espacio de búsqueda, que este experimento "
 "no lleva consigo y para el que no hay modelo al que preguntar."
 
-#: ui/views.py:2463
+#: ui/views.py:2478
 msgid ""
 "Partial dependence needs the search space, which this experiment does not "
 "carry and has no model to ask."
@@ -2581,7 +2600,7 @@ msgstr ""
 "La dependencia parcial necesita el espacio de búsqueda, que este experimento "
 "no lleva consigo y para el que no hay modelo al que preguntar."
 
-#: ui/views.py:2599
+#: ui/views.py:2614
 msgid ""
 "Local effects need the search space, which this experiment does not carry "
 "and has no model to ask."
@@ -2589,16 +2608,16 @@ msgstr ""
 "Los efectos locales necesitan el espacio de búsqueda, que este experimento "
 "no lleva consigo y para el que no hay modelo al que preguntar."
 
-#: ui/views.py:2685
+#: ui/views.py:2700
 msgid "Not recorded"
 msgstr "No registrado"
 
-#: ui/views.py:2687
+#: ui/views.py:2702
 #, python-format
 msgid "%(k)s-fold CV"
 msgstr "Validación cruzada de %(k)s pliegues"
 
-#: ui/views.py:2688
+#: ui/views.py:2703
 #, python-format
 msgid "%(pct)s%% held out"
 msgstr "%(pct)s%% reservado"
@@ -2632,57 +2651,124 @@ msgstr "Ajustes de presentación y tema."
 #: ui/templates/ui/bin.html:8
 msgid ""
 "Experiments you own or contribute to that somebody deleted. Restoring one "
-"puts it back exactly as it was, for everybody."
+"puts it back exactly as it was, for everybody who still has it in their bin."
 msgstr ""
 "Experimentos suyos o en los que colabora que alguien eliminó. Restaurar uno "
-"lo devuelve exactamente como estaba, para todos."
+"lo devuelve exactamente como estaba, para todos los que aún lo tienen en su "
+"papelera."
 
-#: ui/templates/ui/bin.html:13 ui/templates/ui/panels/group.html:28
+#: ui/templates/ui/bin.html:9
+#, python-format
+msgid ""
+"Each stays here for %(days)s day, then goes to the site administrators' bin."
+msgid_plural ""
+"Each stays here for %(days)s days, then goes to the site administrators' bin."
+msgstr[0] ""
+"Cada uno se queda aquí %(days)s día y luego pasa a la papelera de la "
+"administración del sitio."
+msgstr[1] ""
+"Cada uno se queda aquí %(days)s días y luego pasa a la papelera de la "
+"administración del sitio."
+
+#: ui/templates/ui/bin.html:14 ui/templates/ui/panels/group.html:28
 #: ui/templates/ui/panels/group.html:87 ui/templates/ui/panels/group.html:113
 #: ui/templates/ui/panels/site_jobs.html:18
 #: ui/templates/ui/panels/site_trash.html:23
 msgid "Experiment"
 msgstr "Experimento"
 
-#: ui/templates/ui/bin.html:14 ui/templates/ui/panels/group.html:88
+#: ui/templates/ui/bin.html:15 ui/templates/ui/panels/group.html:88
 #: ui/templates/ui/panels/group.html:114
 msgid "Owner"
 msgstr "Propietario"
 
-#: ui/templates/ui/bin.html:15
+#: ui/templates/ui/bin.html:16
 msgid "Deleted"
 msgstr "Eliminado"
 
-#: ui/templates/ui/bin.html:23 ui/templates/ui/panels/group.html:124
-#: ui/templates/ui/panels/site_trash.html:34
+#: ui/templates/ui/bin.html:17
+msgid "Leaves your bin"
+msgstr "Sale de su papelera"
+
+#: ui/templates/ui/bin.html:25 ui/templates/ui/panels/group.html:124
+#: ui/templates/ui/panels/site_trash.html:35
 msgid "nobody"
 msgstr "nadie"
 
-#: ui/templates/ui/bin.html:24
+#: ui/templates/ui/bin.html:26
 #, python-format
 msgid "by %(name)s"
 msgstr "por %(name)s"
 
-#: ui/templates/ui/bin.html:28
+#: ui/templates/ui/bin.html:31
 msgid "Restore"
 msgstr "Restaurar"
 
-#: ui/templates/ui/bin.html:30
+#: ui/templates/ui/bin.html:33
 msgid "Download .ihpo"
 msgstr "Descargar .ihpo"
 
-#: ui/templates/ui/bin.html:36 ui/templates/ui/panels/site_trash.html:47
-#: ui/templates/ui/purge_confirm.html:5 ui/templates/ui/purge_confirm.html:13
-msgid "Delete for good"
-msgstr "Eliminar definitivamente"
-
-#: ui/templates/ui/bin.html:40
+#: ui/templates/ui/bin.html:37 ui/templates/ui/bin_dismiss_confirm.html:21
 msgid "Remove from my bin"
 msgstr "Quitar de mi papelera"
 
-#: ui/templates/ui/bin.html:46
+#: ui/templates/ui/bin.html:37 ui/templates/ui/bin_dismiss_confirm.html:5
+#: ui/templates/ui/bin_dismiss_confirm.html:21
+#: ui/templates/ui/panels/site_trash.html:49
+msgid "Delete for good"
+msgstr "Eliminar definitivamente"
+
+#: ui/templates/ui/bin.html:41
 msgid "Nothing in the bin."
 msgstr "La papelera está vacía."
+
+#: ui/templates/ui/bin_dismiss_confirm.html:4
+#, python-format
+msgid "Remove %(name)s from your bin"
+msgstr "Quitar %(name)s de su papelera"
+
+#: ui/templates/ui/bin_dismiss_confirm.html:5
+msgid "Remove from your bin"
+msgstr "Quitar de su papelera"
+
+#: ui/templates/ui/bin_dismiss_confirm.html:9
+#, python-format
+msgid ""
+"<strong>%(name)s</strong> (<code>%(ref)s</code>) and every run in it will be "
+"destroyed. This cannot be undone."
+msgstr ""
+"<strong>%(name)s</strong> (<code>%(ref)s</code>) y todas sus ejecuciones se "
+"destruirán. Esto no se puede deshacer."
+
+#: ui/templates/ui/bin_dismiss_confirm.html:11
+#, python-format
+msgid ""
+"<strong>%(name)s</strong> (<code>%(ref)s</code>) leaves your bin and is no "
+"longer shared with you. It stays in the bin of the people below, and if one "
+"of them restores it you will not get it back."
+msgstr ""
+"<strong>%(name)s</strong> (<code>%(ref)s</code>) sale de su papelera y deja "
+"de estar compartido con usted. Sigue en la papelera de las personas de "
+"abajo, y si una de ellas lo restaura, usted no lo recuperará."
+
+#: ui/templates/ui/bin_dismiss_confirm.html:12
+msgid "Still in the bin of:"
+msgstr "Sigue en la papelera de:"
+
+#: ui/templates/ui/bin_dismiss_confirm.html:15
+#, python-format
+msgid ""
+"<strong>%(name)s</strong> (<code>%(ref)s</code>) leaves your bin. Nobody "
+"else has it in theirs, so it goes to the site administrators' bin, and only "
+"they can put it back."
+msgstr ""
+"<strong>%(name)s</strong> (<code>%(ref)s</code>) sale de su papelera. Nadie "
+"más lo tiene en la suya, así que pasa a la papelera de la administración del "
+"sitio, y solo ella puede devolverlo."
+
+#: ui/templates/ui/bin_dismiss_confirm.html:20
+msgid "Download .ihpo first"
+msgstr "Descargar .ihpo primero"
 
 #: ui/templates/ui/delete_confirm.html:4
 #, python-format
@@ -2907,24 +2993,6 @@ msgstr "Usar conjuntos de datos de demostración"
 #: ui/templates/ui/new_experiment.html:133
 msgid "Create experiment"
 msgstr "Crear el experimento"
-
-#: ui/templates/ui/purge_confirm.html:4
-#, python-format
-msgid "Delete %(name)s for good"
-msgstr "Eliminar %(name)s definitivamente"
-
-#: ui/templates/ui/purge_confirm.html:8
-#, python-format
-msgid ""
-"<strong>%(name)s</strong> (<code>%(ref)s</code>) and every run in it will be "
-"destroyed, and it will leave everybody's bin. This cannot be undone."
-msgstr ""
-"<strong>%(name)s</strong> (<code>%(ref)s</code>) y todas sus ejecuciones se "
-"destruirán, y desaparecerá de todas las papeleras. Esto no se puede deshacer."
-
-#: ui/templates/ui/purge_confirm.html:12
-msgid "Download .ihpo first"
-msgstr "Descargar .ihpo primero"
 
 #: ui/templates/ui/save_as_default_confirm.html:4
 #: ui/templates/ui/save_as_default_confirm.html:23

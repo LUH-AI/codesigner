@@ -212,7 +212,8 @@ class GroupPolicy(OpenPolicy):
                            | Q(group_id__in=led_group_ids(user))).distinct()
 
     def trash(self, request):
-        """What a group's deletion left behind, for a site admin to settle.
+        """The site's bin: what a group's deletion left behind, and what
+        somebody deleted that nobody kept, for a site admin to settle.
 
         Not part of `experiments()` and deliberately not reachable from it: a
         trashed experiment is out of every group, so every rule above would have
@@ -223,10 +224,14 @@ class GroupPolicy(OpenPolicy):
             return Experiment.objects.none()
         if not is_site_admin(getattr(request, "user", None)):
             return Experiment.objects.none()
-        # Not what somebody had deleted before the group went: that is in their
-        # bins, and it comes here when one of them restores it.
-        return Experiment.objects.filter(trashed_at__isnull=False,
-                                         deleted_at__isnull=True)
+        # Two ways in. A deleted group's work, unless somebody had deleted it
+        # first — that is still in their bins, and comes here when one of them
+        # restores it. And what somebody deleted that nobody's bin holds any
+        # more: every one of its people took it out, or it waited too long.
+        from ui.services.bin import orphaned
+        group_gone = Experiment.objects.filter(trashed_at__isnull=False,
+                                               deleted_at__isnull=True)
+        return (group_gone | orphaned()).distinct()
 
     def bin(self, request):
         """What this person deleted, or had deleted from under them.
@@ -239,8 +244,10 @@ class GroupPolicy(OpenPolicy):
         user = getattr(request, "user", None)
         if user is None or not user.is_authenticated:
             return Experiment.objects.none()
+        # Only for as long as a bin keeps it — see `ui/services/bin.py`.
+        from ui.services.bin import cutoff
         return (Experiment.objects.select_related("data")
-                .filter(deleted_at__isnull=False, bin_entries__user=user))
+                .filter(deleted_at__gte=cutoff(), bin_entries__user=user))
 
     def for_listing(self, request):
         """The experiments a page should *list* — the sidebar, the index.

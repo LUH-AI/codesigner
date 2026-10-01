@@ -51,7 +51,6 @@ urlpatterns = [
     path("bin/<int:pk>/restore/", views.bin_restore, name="bin_restore"),
     path("bin/<int:pk>/download/", views.bin_download, name="bin_download"),
     path("bin/<int:pk>/dismiss/", views.bin_dismiss, name="bin_dismiss"),
-    path("bin/<int:pk>/delete/", views.bin_purge, name="bin_purge"),
     path("experiments/<int:pk>/trial-panel/", views.trial_panel, name="trial_panel"),
     path("experiments/<int:pk>/trial-ablation/", views.trial_ablation, name="trial_ablation"),
     path("experiments/<int:pk>/trial-traceback/", views.trial_traceback, name="trial_traceback"),

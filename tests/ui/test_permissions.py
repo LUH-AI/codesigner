@@ -64,7 +64,6 @@ THROUGH_THE_BIN = {
     "bin_restore": "put back by one of its people",
     "bin_download": "taken away as an .ihpo by one of its people",
     "bin_dismiss": "taken out of one person's bin",
-    "bin_purge": "destroyed for good by its owner",
 }
 
 

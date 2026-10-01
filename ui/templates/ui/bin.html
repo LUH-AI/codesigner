@@ -5,7 +5,8 @@
 
 {% block content %}
     <h1>{% translate "Bin" %}</h1>
-    <p class="caption">{% translate "Experiments you own or contribute to that somebody deleted. Restoring one puts it back exactly as it was, for everybody." %}</p>
+    <p class="caption">{% translate "Experiments you own or contribute to that somebody deleted. Restoring one puts it back exactly as it was, for everybody who still has it in their bin." %}
+        {% if user.is_authenticated %}{% blocktranslate count days=retention_days %}Each stays here for {{ days }} day, then goes to the site administrators' bin.{% plural %}Each stays here for {{ days }} days, then goes to the site administrators' bin.{% endblocktranslate %}{% endif %}</p>
     <div class="table-wrap table-scroll">
         <table>
             <thead>
@@ -13,6 +14,7 @@
                     <th>{% translate "Experiment" %}</th>
                     <th>{% translate "Owner" %}</th>
                     <th>{% translate "Deleted" %}</th>
+                    {% if user.is_authenticated %}<th>{% translate "Leaves your bin" %}</th>{% endif %}
                     <th></th>
                 </tr>
             </thead>
@@ -22,27 +24,20 @@
                         <td>{{ e.name }} <span class="exp-id">({{ e.identifier }})</span></td>
                         <td>{% if e.owner %}{{ e.owner.get_username }}{% else %}<span class="caption">{% translate "nobody" %}</span>{% endif %}</td>
                         <td>{{ e.deleted_at|date:"Y-m-d H:i" }}{% if e.deleted_by %} <span class="caption">{% blocktranslate with name=e.deleted_by.get_username %}by {{ name }}{% endblocktranslate %}</span>{% endif %}</td>
+                        {% if row.expires_at %}<td>{{ row.expires_at|date:"Y-m-d" }}</td>{% endif %}
                         <td class="selectors" style="justify-content: flex-end;">
                             <form method="post" action="{% url 'ui:bin_restore' e.pk %}">
                                 {% csrf_token %}
                                 <button type="submit" class="btn-primary">{% translate "Restore" %}</button>
                             </form>
                             <a class="btn" href="{% url 'ui:bin_download' e.pk %}">{% translate "Download .ihpo" %}</a>
-                            {% comment %}The owner destroys it; anybody else can only
-                            take it out of their own bin, since it is not theirs to
-                            destroy.{% endcomment %}
-                            {% if row.may_purge %}
-                                <a class="btn" href="{% url 'ui:bin_purge' e.pk %}">{% translate "Delete for good" %}</a>
-                            {% elif user.is_authenticated %}
-                                <form method="post" action="{% url 'ui:bin_dismiss' e.pk %}">
-                                    {% csrf_token %}
-                                    <button type="submit" class="btn">{% translate "Remove from my bin" %}</button>
-                                </form>
-                            {% endif %}
+                            {% comment %}Out of *my* bin. Everyone else's keeps it; once
+                            nobody's does, it goes to the site admins'.{% endcomment %}
+                            <a class="btn" href="{% url 'ui:bin_dismiss' e.pk %}">{% if user.is_authenticated %}{% translate "Remove from my bin" %}{% else %}{% translate "Delete for good" %}{% endif %}</a>
                         </td>
                     </tr>
                 {% endwith %}{% empty %}
-                    <tr><td colspan="4" class="caption">{% translate "Nothing in the bin." %}</td></tr>
+                    <tr><td colspan="5" class="caption">{% translate "Nothing in the bin." %}</td></tr>
                 {% endfor %}
             </tbody>
         </table>

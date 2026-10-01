@@ -3,9 +3,12 @@
 *What:* deleting sets an experiment aside rather than destroying it. It leaves
 every list and every URL, and lands in the bins of the people it belonged to —
 its owner and its contributors, and nobody else. Any of them can restore it
-exactly as it was or download it as an `.ihpo`; only its owner can destroy it,
-and a contributor can take it out of their own bin without touching anybody
-else's. Without accounts there is one bin, and it holds everything.
+exactly as it was or download it as an `.ihpo`. Taking it out of your own bin
+touches nobody else's, and gives up your access with it, so a colleague's
+restore does not hand it back. Once nobody's bin holds it — all of them took it
+out, or `BIN_RETENTION_DAYS` passed — it is in the site admins' bin, which never
+expires and is the only place anything is destroyed. Without accounts there is
+one bin, and it holds everything.
 
 *How:* through the pages as each role, and at the row for what restoring has to
 bring back: both halves of the experiment, its runs, its grants and its model
@@ -204,36 +207,209 @@ def test_but_not_by_somebody_whose_bin_it_is_not_in(client, hosted, lab):
     assert client.get(reverse("ui:bin_download", args=[lab["exp"].pk])).status_code == 404
 
 
-# ── destroying it ────────────────────────────────────────────────────────────
+# ── taking it out of your own bin ────────────────────────────────────────────
 
-def test_the_owner_can_delete_it_for_good(client, hosted, lab):
+def _dismiss(client, user, exp):
+    client.force_login(user)
+    return client.post(reverse("ui:bin_dismiss", args=[exp.pk]))
+
+
+def _site_bin(lab):
+    from access.policy import GroupPolicy
+    from django.contrib.auth.models import Permission
+
+    site = lab.get("site")
+    if site is None:
+        site = type(lab["ana"]).objects.create_user(username="site")
+        site.user_permissions.add(Permission.objects.get(
+            content_type__app_label="access", codename="manage_site"))
+        lab["site"] = site = type(site).objects.get(pk=site.pk)
+    return list(GroupPolicy().trash(type("R", (), {"user": site})())
+                .values_list("pk", flat=True))
+
+
+def test_taking_it_out_of_your_bin_leaves_everyone_elses(client, hosted, lab):
     _delete(client, lab)
 
-    client.post(reverse("ui:bin_purge", args=[lab["exp"].pk]))
+    _dismiss(client, lab["ben"], lab["exp"])
+
+    assert _in_bin(client, lab["ben"]) == []
+    assert _in_bin(client, lab["ana"]) == ["wine"]
+    assert Experiment.objects.filter(pk=lab["exp"].pk).exists()
+
+
+def test_the_owner_taking_it_out_destroys_nothing_either(client, hosted, lab):
+    """It used to: the owner's button was "delete for good", for everybody."""
+    _delete(client, lab)
+
+    _dismiss(client, lab["ana"], lab["exp"])
+
+    assert _in_bin(client, lab["ben"]) == ["wine"]
+    assert Run.objects.filter(experiment=lab["exp"]).exists()
+
+
+def test_and_a_colleague_restoring_it_does_not_reshare_it(client, hosted, lab):
+    """Taking it out of your bin is deciding to be done with it. A restore by
+    somebody else puts everything else back, but not you."""
+    _delete(client, lab)
+    _dismiss(client, lab["ben"], lab["exp"])
+
+    client.force_login(lab["ana"])
+    client.post(reverse("ui:bin_restore", args=[lab["exp"].pk]))
+    exp = Experiment.objects.get(pk=lab["exp"].pk)
+
+    assert exp.deleted_at is None
+    assert dict(exp.shares.values_list("user__username", "level")) == {"cleo": VIEWER}
+    client.force_login(lab["ben"])
+    assert client.get(reverse("ui:experiment_detail", args=[exp.pk])).status_code == 404
+
+
+def test_if_the_owner_gave_it_up_whoever_restores_it_owns_it(client, hosted, lab):
+    """Somebody has to decide who else may reach it, and the person bringing it
+    back is a contributor — who ownership can be handed to anyway."""
+    _delete(client, lab)
+    _dismiss(client, lab["ana"], lab["exp"])
+
+    client.force_login(lab["ben"])
+    client.post(reverse("ui:bin_restore", args=[lab["exp"].pk]))
+    exp = Experiment.objects.get(pk=lab["exp"].pk)
+
+    assert exp.owner == lab["ben"]
+    assert not exp.shares.filter(user__in=[lab["ana"], lab["ben"]]).exists()
+    client.force_login(lab["ana"])
+    assert client.get(reverse("ui:experiment_detail", args=[exp.pk])).status_code == 404
+
+
+def test_the_confirmation_says_who_still_has_it(client, hosted, lab):
+    _delete(client, lab)
+    client.force_login(lab["ben"])
+
+    page = client.get(reverse("ui:bin_dismiss", args=[lab["exp"].pk]))
+
+    assert [u.username for u in page.context["others"]] == ["ana"]
+    assert Experiment.objects.get(pk=lab["exp"].pk).bin_entries.count() == 2, \
+        "asking is not doing it"
+
+
+# ── the site's bin ───────────────────────────────────────────────────────────
+
+def test_once_nobody_keeps_it_it_is_the_site_admins(client, hosted, lab):
+    _delete(client, lab)
+    _dismiss(client, lab["ben"], lab["exp"])
+    assert _site_bin(lab) == [], "Ana still has it"
+
+    _dismiss(client, lab["ana"], lab["exp"])
+
+    assert _site_bin(lab) == [lab["exp"].pk]
+    assert Experiment.objects.filter(pk=lab["exp"].pk).exists()
+
+
+def test_after_the_retention_it_leaves_its_peoples_bins(client, hosted, lab, settings):
+    from datetime import timedelta
+
+    from django.utils import timezone
+
+    _delete(client, lab)
+    Experiment.objects.filter(pk=lab["exp"].pk).update(
+        deleted_at=timezone.now() - timedelta(days=settings.BIN_RETENTION_DAYS, minutes=1))
+
+    assert _in_bin(client, lab["ana"]) == []
+    assert _in_bin(client, lab["ben"]) == []
+    assert _site_bin(lab) == [lab["exp"].pk]
+
+
+def test_but_not_a_day_before(client, hosted, lab, settings):
+    from datetime import timedelta
+
+    from django.utils import timezone
+
+    _delete(client, lab)
+    Experiment.objects.filter(pk=lab["exp"].pk).update(
+        deleted_at=timezone.now() - timedelta(days=settings.BIN_RETENTION_DAYS - 1))
+
+    assert _in_bin(client, lab["ana"]) == ["wine"]
+    assert _site_bin(lab) == []
+
+
+def test_the_bin_says_when_it_leaves(client, hosted, lab, settings):
+    from datetime import timedelta
+
+    _delete(client, lab)
+    client.force_login(lab["ana"])
+
+    row = client.get(reverse("ui:experiment_bin")).context["binned"][0]
+
+    assert row["expires_at"] == lab["exp"].deleted_at + timedelta(days=settings.BIN_RETENTION_DAYS)
+
+
+def test_a_site_admin_puts_it_back(client, hosted, lab):
+    """For whoever had not given it up: Ben's bin expired rather than him
+    taking it out, so he keeps his grant."""
+    from datetime import timedelta
+
+    from django.utils import timezone
+
+    _delete(client, lab)
+    _dismiss(client, lab["ana"], lab["exp"])
+    Experiment.objects.filter(pk=lab["exp"].pk).update(
+        deleted_at=timezone.now() - timedelta(days=60))
+    _site_bin(lab)
+    client.force_login(lab["site"])
+
+    client.post(reverse("ui:site_trash_rehome", args=[lab["exp"].pk]),
+                {"group": lab["group"].pk})
+    exp = Experiment.objects.get(pk=lab["exp"].pk)
+
+    assert exp.deleted_at is None and not exp.bin_entries.exists()
+    assert exp.owner == lab["ana"], "the owner of record, by the site admin's decision"
+    assert dict(exp.shares.values_list("user__username", "level")) == {
+        "ben": CONTRIBUTOR, "cleo": VIEWER}
+
+
+def test_and_is_the_only_one_who_destroys_it(client, hosted, lab):
+    _delete(client, lab)
+    for who in ("ana", "ben"):
+        _dismiss(client, lab[who], lab["exp"])
+    _site_bin(lab)
+    client.force_login(lab["site"])
+
+    client.post(reverse("ui:site_trash_delete", args=[lab["exp"].pk]))
 
     assert not Experiment.objects.filter(pk=lab["exp"].pk).exists()
     assert not Run.objects.exists()
 
 
-def test_a_contributor_cannot(client, hosted, lab):
-    """The one step in the bin with no undoing, on work that is not theirs."""
+def test_the_site_bin_does_not_take_what_somebody_still_has(client, hosted, lab):
     _delete(client, lab)
-    client.force_login(lab["ben"])
+    _site_bin(lab)
+    client.force_login(lab["site"])
 
-    resp = client.post(reverse("ui:bin_purge", args=[lab["exp"].pk]))
+    resp = client.post(reverse("ui:site_trash_delete", args=[lab["exp"].pk]))
 
-    assert resp.status_code == 403
+    assert resp.status_code == 404
     assert Experiment.objects.filter(pk=lab["exp"].pk).exists()
 
 
-def test_a_contributor_takes_it_out_of_their_own_bin_only(client, hosted, lab):
+def test_the_site_bin_page_lists_both_kinds(client, hosted, lab, django_user_model):
     _delete(client, lab)
-    client.force_login(lab["ben"])
+    for who in ("ana", "ben"):
+        _dismiss(client, lab[who], lab["exp"])
+    gone = Group.objects.create(name="gone", user_limit=1)
+    owner = _person(django_user_model, "olaf", gone)
+    other = Experiment.objects.create(
+        name="left", model_name="Random Forest", optimizer_name="Random Search",
+        metric_names=["accuracy"], seed=0, owner=owner)
+    Membership.objects.filter(user=owner).delete()
+    gone.delete()
+    _site_bin(lab)
+    client.force_login(lab["site"])
 
-    client.post(reverse("ui:bin_dismiss", args=[lab["exp"].pk]))
+    resp = client.get(reverse("ui:site_trash"))
+    body = resp.content.decode()
 
-    assert _in_bin(client, lab["ben"]) == []
-    assert _in_bin(client, lab["ana"]) == ["wine"]
+    assert resp.status_code == 200
+    assert {e.pk for e in resp.context["experiments"]} == {lab["exp"].pk, other.pk}
+    assert "Nobody kept it" in body and "Its group was deleted" in body
 
 
 # ── without accounts ─────────────────────────────────────────────────────────
@@ -251,12 +427,13 @@ def test_without_accounts_there_is_one_bin(client):
     assert client.get(reverse("ui:experiment_detail", args=[exp.pk])).status_code == 200
 
 
-def test_without_accounts_anybody_can_destroy_it(client):
+def test_without_accounts_removing_it_destroys_it(client):
+    """One bin, nobody else to keep it for, and no site admin to hand it to."""
     exp = Experiment.objects.create(
         name="solo", model_name="Random Forest", optimizer_name="Random Search",
         metric_names=["accuracy"], seed=0)
     client.post(reverse("ui:experiment_delete", args=[exp.pk]))
 
-    client.post(reverse("ui:bin_purge", args=[exp.pk]))
+    client.post(reverse("ui:bin_dismiss", args=[exp.pk]))
 
     assert not Experiment.objects.exists()

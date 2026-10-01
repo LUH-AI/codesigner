@@ -39,6 +39,13 @@ ALLOWED_HOSTS = env.list("ALLOWED_HOSTS", default=["localhost", "127.0.0.1"])
 # package, and the README's hosting section.
 REQUIRE_LOGIN = env.bool("REQUIRE_LOGIN", default=False)
 
+# How long a deleted experiment waits in its people's bins. After that, or once
+# every one of them has taken it out of theirs, it is nobody's and moves to the
+# site admins' bin, which keeps it until one of them decides — there is no
+# expiry there. Only with accounts: without them there is one bin, kept for as
+# long as whoever runs the instance leaves it.
+BIN_RETENTION_DAYS = env.int("BIN_RETENTION_DAYS", default=30)
+
 # When on, users may upload a model .py that the app imports and executes to
 # run experiments. That is arbitrary code execution by design.
 #

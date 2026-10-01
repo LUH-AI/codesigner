@@ -2134,26 +2134,25 @@ def _binned(request, pk):
     return get_object_or_404(permissions.policy().bin(request), pk=pk)
 
 
-def _may_purge(request, exp):
-    """Only its owner destroys it — the one step in the bin with no undoing.
-    Anyone, without accounts."""
-    return not settings.REQUIRE_LOGIN or exp.owner_id == request.user.pk
-
-
 def experiment_bin(request):
     """What this person deleted, or had deleted from under them."""
     binned = (permissions.policy().bin(request)
               .select_related("owner", "deleted_by").order_by("-deleted_at"))
     return render(request, "ui/bin.html", {
-        "binned": [{"experiment": exp, "may_purge": _may_purge(request, exp)}
+        "binned": [{"experiment": exp,
+                    # Without accounts there is no site bin for it to move to,
+                    # so it stays until somebody removes it.
+                    "expires_at": (bin_service.expires_at(exp)
+                                   if settings.REQUIRE_LOGIN else None)}
                    for exp in binned],
+        "retention_days": settings.BIN_RETENTION_DAYS,
     })
 
 
 @require_POST
 def bin_restore(request, pk):
     exp = _binned(request, pk)
-    bin_service.restore(exp)
+    bin_service.restore(exp, by=request.user)
     messages.success(request, _("Restored %(name)s.") % {"name": exp.name})
     return redirect("ui:experiment_detail", pk=exp.pk)
 
@@ -2165,27 +2164,32 @@ def bin_download(request, pk):
                    cancel_url=reverse("ui:experiment_bin"))
 
 
-@require_POST
 def bin_dismiss(request, pk):
-    """Take it out of *my* bin, leaving it in everyone else's. The owner's
-    choice is to destroy it instead; a contributor's is only about their bin."""
-    exp = _binned(request, pk)
-    if settings.REQUIRE_LOGIN:
-        exp.bin_entries.filter(user=request.user).delete()
-    return redirect("ui:experiment_bin")
+    """Confirm (GET) then take it out of *my* bin (POST).
 
+    Only mine: everyone else's bin keeps it, and any of them can still restore
+    it — without me, since my access goes too. When the last of its people has
+    done this it moves to the site admins' bin rather than being destroyed.
 
-def bin_purge(request, pk):
-    """Confirm (GET) then destroy (POST), runs and files with it."""
+    Without accounts there is one bin and nobody else to keep it for, so there
+    this is what it says: deleting it for good.
+    """
     exp = _binned(request, pk)
-    if not _may_purge(request, exp):
-        raise PermissionDenied
     if request.method == "POST":
         name = exp.name
-        bin_service.purge(exp)
-        messages.success(request, _("Deleted %(name)s for good.") % {"name": name})
+        if settings.REQUIRE_LOGIN:
+            bin_service.dismiss(exp, request.user)
+            messages.success(request, _("Removed %(name)s from your bin.") % {"name": name})
+        else:
+            bin_service.purge(exp)
+            messages.success(request, _("Deleted %(name)s for good.") % {"name": name})
         return redirect("ui:experiment_bin")
-    return render(request, "ui/purge_confirm.html", {"experiment": exp})
+    # Who will still have it — the bin, not the grants, since that is what
+    # decides whether it moves to the site's.
+    others = [entry.user for entry in exp.bin_entries.select_related("user")
+              .exclude(user_id=request.user.pk).order_by("user__username")]
+    return render(request, "ui/bin_dismiss_confirm.html",
+                  {"experiment": exp, "others": others})
 
 
 def import_experiment(request):

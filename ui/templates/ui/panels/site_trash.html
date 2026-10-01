@@ -14,7 +14,7 @@
     and discarding does not need the experiment read, and a bin that named them
     would be a way around the boundary rather than a consequence of one.
     {% endcomment %}
-    <p class="caption">{% translate "Experiments whose group was deleted. Put one into another group, or discard it for good." %}</p>
+    <p class="caption">{% translate "Experiments whose group was deleted, and experiments somebody deleted that none of their people kept. Put one back into a group, or discard it for good. Nothing here expires." %}</p>
 
     <table class="trials" style="max-width: 56rem; margin-top: 1rem;">
         <thead>
@@ -22,6 +22,7 @@
                 <th>{% translate "Experiment" %}</th>
                 <th>{% translate "Was owned by" %}</th>
                 <th>{% translate "Runs" %}</th>
+                <th>{% translate "Why it is here" %}</th>
                 <th>{% translate "Binned" %}</th>
                 <th></th>
             </tr>
@@ -32,14 +33,15 @@
                     <td>#{{ e.pk }}</td>
                     <td>{% if e.owner %}{{ e.owner.get_username }}{% else %}<span class="caption">{% translate "nobody" %}</span>{% endif %}</td>
                     <td>{{ e.run_count }}</td>
-                    <td>{{ e.trashed_at|date:"Y-m-d H:i" }}</td>
+                    <td>{% if e.deleted_at %}{% translate "Nobody kept it" %}{% else %}{% translate "Its group was deleted" %}{% endif %}</td>
+                    <td>{% firstof e.deleted_at|date:"Y-m-d H:i" e.trashed_at|date:"Y-m-d H:i" %}</td>
                     <td style="text-align: right;">
                         <form method="post" action="{% url 'ui:site_trash_rehome' e.pk %}" class="selectors">
                             {% csrf_token %}
                             <select name="group" aria-label="{% translate 'Group' %}">
-                                {% for g in groups %}<option value="{{ g.pk }}">{{ g.name }}</option>{% endfor %}
+                                {% for g in groups %}<option value="{{ g.pk }}"{% if g.pk == e.group_id %} selected{% endif %}>{{ g.name }}</option>{% endfor %}
                             </select>
-                            <button type="submit" class="btn">{% translate "Move here" %}</button>
+                            <button type="submit" class="btn">{% translate "Put back" %}</button>
                         </form>
                         <form method="post" action="{% url 'ui:site_trash_delete' e.pk %}">
                             {% csrf_token %}
@@ -48,7 +50,7 @@
                     </td>
                 </tr>
             {% empty %}
-                <tr><td colspan="5" class="caption">{% translate "The bin is empty." %}</td></tr>
+                <tr><td colspan="6" class="caption">{% translate "The bin is empty." %}</td></tr>
             {% endfor %}
         </tbody>
     </table>

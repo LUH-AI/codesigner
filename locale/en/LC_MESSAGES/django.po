@@ -21,7 +21,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: PACKAGE VERSION\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2026-09-30 14:24+0000\n"
+"POT-Creation-Date: 2026-10-01 09:00+0000\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
 "Language-Team: LANGUAGE <LL@li.org>\n"
@@ -32,12 +32,12 @@ msgstr ""
 "Plural-Forms: nplurals=2; plural=(n != 1);\n"
 
 #. == Site chrome — navigation, base template, account ==================
-#: access/policy.py:330
+#: access/policy.py:337
 #, python-format
 msgid "%(user)s is not allowed to run custom models here."
 msgstr "%(user)s is not allowed to run custom models here."
 
-#: access/policy.py:331
+#: access/policy.py:338
 msgid ""
 "This experiment's custom model has no account behind it, so it cannot be "
 "run. Give the experiment an owner who is allowed to run custom models."
@@ -104,7 +104,7 @@ msgstr "Experiments"
 #: ui/templates/ui/panels/group_none.html:7
 #: ui/templates/ui/panels/site_groups.html:17
 #: ui/templates/ui/panels/site_jobs.html:20
-#: ui/templates/ui/panels/site_trash.html:40
+#: ui/templates/ui/panels/site_trash.html:42
 #: ui/templates/ui/panels/site_usage.html:18
 #: ui/templates/ui/panels/site_usage.html:46
 msgid "Group"
@@ -2028,21 +2028,21 @@ msgstr "%(name)s still has people in it. Remove them first."
 msgid "Deleted %(name)s. Anything it held is in the bin."
 msgstr "Deleted %(name)s. Anything it held is in the bin."
 
-#: ui/panels.py:509
+#: ui/panels.py:514
 #, python-format
 msgid "Moved experiment %(pk)s into %(group)s."
 msgstr "Moved experiment %(pk)s into %(group)s."
 
-#: ui/panels.py:522
+#: ui/panels.py:527
 #, python-format
 msgid "Deleted experiment %(pk)s."
 msgstr "Deleted experiment %(pk)s."
 
-#: ui/panels.py:660
+#: ui/panels.py:665
 msgid "Stopped by a site administrator."
 msgstr "Stopped by a site administrator."
 
-#: ui/panels.py:661
+#: ui/panels.py:666
 #, python-format
 msgid "Stopped job %(job)s."
 msgstr "Stopped job %(job)s."
@@ -2311,11 +2311,13 @@ msgstr "Nothing is running."
 
 #: ui/templates/ui/panels/site_trash.html:18
 msgid ""
-"Experiments whose group was deleted. Put one into another group, or discard "
-"it for good."
+"Experiments whose group was deleted, and experiments somebody deleted that "
+"none of their people kept. Put one back into a group, or discard it for "
+"good. Nothing here expires."
 msgstr ""
-"Experiments whose group was deleted. Put one into another group, or discard "
-"it for good."
+"Experiments whose group was deleted, and experiments somebody deleted that "
+"none of their people kept. Put one back into a group, or discard it for "
+"good. Nothing here expires."
 
 #: ui/templates/ui/panels/site_trash.html:24
 msgid "Was owned by"
@@ -2328,14 +2330,26 @@ msgid "Runs"
 msgstr "Runs"
 
 #: ui/templates/ui/panels/site_trash.html:26
+msgid "Why it is here"
+msgstr "Why it is here"
+
+#: ui/templates/ui/panels/site_trash.html:27
 msgid "Binned"
 msgstr "Binned"
 
-#: ui/templates/ui/panels/site_trash.html:43
-msgid "Move here"
-msgstr "Move here"
+#: ui/templates/ui/panels/site_trash.html:37
+msgid "Nobody kept it"
+msgstr "Nobody kept it"
 
-#: ui/templates/ui/panels/site_trash.html:52
+#: ui/templates/ui/panels/site_trash.html:37
+msgid "Its group was deleted"
+msgstr "Its group was deleted"
+
+#: ui/templates/ui/panels/site_trash.html:45
+msgid "Put back"
+msgstr "Put back"
+
+#: ui/templates/ui/panels/site_trash.html:54
 msgid "The bin is empty."
 msgstr "The bin is empty."
 
@@ -2404,7 +2418,7 @@ msgstr "too many trials were failing"
 msgid "Inconsistent"
 msgstr "Inconsistent"
 
-#: ui/views.py:857
+#: ui/views.py:868
 msgid ""
 "Nothing has been run yet, so there is no model to judge this against. A "
 "belief stated now is acted on in full."
@@ -2412,7 +2426,7 @@ msgstr ""
 "Nothing has been run yet, so there is no model to judge this against. A "
 "belief stated now is acted on in full."
 
-#: ui/views.py:863
+#: ui/views.py:874
 msgid ""
 "This optimizer fits no model of the objective, so it has no opinion about "
 "where the optimum is."
@@ -2420,7 +2434,7 @@ msgstr ""
 "This optimizer fits no model of the objective, so it has no opinion about "
 "where the optimum is."
 
-#: ui/views.py:886
+#: ui/views.py:897
 msgid ""
 "This prior is potentially informative: the model rates the region it points "
 "at as promising as where the search is already headed."
@@ -2428,7 +2442,7 @@ msgstr ""
 "This prior is potentially informative: the model rates the region it points "
 "at as promising as where the search is already headed."
 
-#: ui/views.py:890
+#: ui/views.py:901
 #, python-format
 msgid ""
 "This prior is unlikely to be helpful: the model rates the region it points "
@@ -2439,11 +2453,11 @@ msgstr ""
 "at more than %(tolerance)s worse than where the search is already headed, so "
 "acting on it would cost trials."
 
-#: ui/views.py:896
+#: ui/views.py:907
 msgid "This prior could not be judged, so it stands as stated."
 msgstr "This prior could not be judged, so it stands as stated."
 
-#: ui/views.py:1168 ui/views.py:1385
+#: ui/views.py:1179 ui/views.py:1396
 msgid ""
 "The model this experiment used is not available here, so its search space "
 "cannot be rebuilt."
@@ -2451,7 +2465,7 @@ msgstr ""
 "The model this experiment used is not available here, so its search space "
 "cannot be rebuilt."
 
-#: ui/views.py:1346
+#: ui/views.py:1357
 msgid ""
 "This SMAC has no acquisition weight layer, so a stated prior does not affect "
 "the search or the candidates below. Install the version requirements.txt "
@@ -2461,70 +2475,75 @@ msgstr ""
 "the search or the candidates below. Install the version requirements.txt "
 "pins."
 
-#: ui/views.py:1475
+#: ui/views.py:1486
 msgid ""
 "Set at least one stopping criterion, so the run has something to end on."
 msgstr ""
 "Set at least one stopping criterion, so the run has something to end on."
 
-#: ui/views.py:1767
+#: ui/views.py:1778
 msgid "Unknown sharing level."
 msgstr "Unknown sharing level."
 
-#: ui/views.py:1791
+#: ui/views.py:1802
 #, python-format
 msgid ""
 "Only a contributor can be made the owner. Make %(user)s a contributor first."
 msgstr ""
 "Only a contributor can be made the owner. Make %(user)s a contributor first."
 
-#: ui/views.py:1805
+#: ui/views.py:1816
 #, python-format
 msgid "%(name)s now belongs to %(user)s. You are a contributor."
 msgstr "%(name)s now belongs to %(user)s. You are a contributor."
 
-#: ui/views.py:1859
+#: ui/views.py:1870
 msgid ""
 "Given up on by hand: it stopped answering, and cancelling it had no effect."
 msgstr ""
 "Given up on by hand: it stopped answering, and cancelling it had no effect."
 
-#: ui/views.py:2056
+#: ui/views.py:2067
 msgid "See every experiment on this instance"
 msgstr "See every experiment on this instance"
 
-#: ui/views.py:2058
+#: ui/views.py:2069
 msgid "Run, edit and delete other people's experiments"
 msgstr "Run, edit and delete other people's experiments"
 
-#: ui/views.py:2060
+#: ui/views.py:2071
 msgid "Change the settings every experiment inherits"
 msgstr "Change the settings every experiment inherits"
 
-#: ui/views.py:2062
+#: ui/views.py:2073
 msgid "Upload and run custom models"
 msgstr "Upload and run custom models"
 
-#: ui/views.py:2097
+#: ui/views.py:2108
 #, python-format
 msgid "Moved %(name)s to the bin."
 msgstr "Moved %(name)s to the bin."
 
-#: ui/views.py:2146
+#: ui/views.py:2156
 #, python-format
 msgid "Restored %(name)s."
 msgstr "Restored %(name)s."
 
-#: ui/views.py:2175
+#: ui/views.py:2182
+#, python-format
+msgid "Removed %(name)s from your bin."
+msgstr "Removed %(name)s from your bin."
+
+#: ui/views.py:2185
 #, python-format
 msgid "Deleted %(name)s for good."
 msgstr "Deleted %(name)s for good."
 
-#: ui/views.py:2203
+#: ui/views.py:2218
 msgid "Invalid or unreadable experiment file."
 msgstr "Invalid or unreadable experiment file."
 
-#: ui/views.py:2272
+#: ui/views.py:2287
 #, python-format
 msgid ""
 "This looks like more than one run — two files here are called %(name)s. "
@@ -2533,16 +2552,16 @@ msgstr ""
 "This looks like more than one run — two files here are called %(name)s. "
 "Choose a single run directory, the one holding its runhistory.json."
 
-#: ui/views.py:2279
+#: ui/views.py:2294
 #, python-format
 msgid "Could not read %(name)s."
 msgstr "Could not read %(name)s."
 
-#: ui/views.py:2286
+#: ui/views.py:2301
 msgid "This is not a readable SMAC run."
 msgstr "This is not a readable SMAC run."
 
-#: ui/views.py:2344
+#: ui/views.py:2359
 msgid ""
 "Local explanation needs the search space, which this experiment does not "
 "carry and has no model to ask."
@@ -2550,7 +2569,7 @@ msgstr ""
 "Local explanation needs the search space, which this experiment does not "
 "carry and has no model to ask."
 
-#: ui/views.py:2463
+#: ui/views.py:2478
 msgid ""
 "Partial dependence needs the search space, which this experiment does not "
 "carry and has no model to ask."
@@ -2558,7 +2577,7 @@ msgstr ""
 "Partial dependence needs the search space, which this experiment does not "
 "carry and has no model to ask."
 
-#: ui/views.py:2599
+#: ui/views.py:2614
 msgid ""
 "Local effects need the search space, which this experiment does not carry "
 "and has no model to ask."
@@ -2566,16 +2585,16 @@ msgstr ""
 "Local effects need the search space, which this experiment does not carry "
 "and has no model to ask."
 
-#: ui/views.py:2685
+#: ui/views.py:2700
 msgid "Not recorded"
 msgstr "Not recorded"
 
-#: ui/views.py:2687
+#: ui/views.py:2702
 #, python-format
 msgid "%(k)s-fold CV"
 msgstr "%(k)s-fold CV"
 
-#: ui/views.py:2688
+#: ui/views.py:2703
 #, python-format
 msgid "%(pct)s%% held out"
 msgstr "%(pct)s%% held out"
@@ -2608,57 +2627,121 @@ msgstr "Display and theme settings."
 #: ui/templates/ui/bin.html:8
 msgid ""
 "Experiments you own or contribute to that somebody deleted. Restoring one "
-"puts it back exactly as it was, for everybody."
+"puts it back exactly as it was, for everybody who still has it in their bin."
 msgstr ""
 "Experiments you own or contribute to that somebody deleted. Restoring one "
-"puts it back exactly as it was, for everybody."
+"puts it back exactly as it was, for everybody who still has it in their bin."
 
-#: ui/templates/ui/bin.html:13 ui/templates/ui/panels/group.html:28
+#: ui/templates/ui/bin.html:9
+#, python-format
+msgid ""
+"Each stays here for %(days)s day, then goes to the site administrators' bin."
+msgid_plural ""
+"Each stays here for %(days)s days, then goes to the site administrators' bin."
+msgstr[0] ""
+"Each stays here for %(days)s day, then goes to the site administrators' bin."
+msgstr[1] ""
+"Each stays here for %(days)s days, then goes to the site administrators' bin."
+
+#: ui/templates/ui/bin.html:14 ui/templates/ui/panels/group.html:28
 #: ui/templates/ui/panels/group.html:87 ui/templates/ui/panels/group.html:113
 #: ui/templates/ui/panels/site_jobs.html:18
 #: ui/templates/ui/panels/site_trash.html:23
 msgid "Experiment"
 msgstr "Experiment"
 
-#: ui/templates/ui/bin.html:14 ui/templates/ui/panels/group.html:88
+#: ui/templates/ui/bin.html:15 ui/templates/ui/panels/group.html:88
 #: ui/templates/ui/panels/group.html:114
 msgid "Owner"
 msgstr "Owner"
 
-#: ui/templates/ui/bin.html:15
+#: ui/templates/ui/bin.html:16
 msgid "Deleted"
 msgstr "Deleted"
 
-#: ui/templates/ui/bin.html:23 ui/templates/ui/panels/group.html:124
-#: ui/templates/ui/panels/site_trash.html:34
+#: ui/templates/ui/bin.html:17
+msgid "Leaves your bin"
+msgstr "Leaves your bin"
+
+#: ui/templates/ui/bin.html:25 ui/templates/ui/panels/group.html:124
+#: ui/templates/ui/panels/site_trash.html:35
 msgid "nobody"
 msgstr "nobody"
 
-#: ui/templates/ui/bin.html:24
+#: ui/templates/ui/bin.html:26
 #, python-format
 msgid "by %(name)s"
 msgstr "by %(name)s"
 
-#: ui/templates/ui/bin.html:28
+#: ui/templates/ui/bin.html:31
 msgid "Restore"
 msgstr "Restore"
 
-#: ui/templates/ui/bin.html:30
+#: ui/templates/ui/bin.html:33
 msgid "Download .ihpo"
 msgstr "Download .ihpo"
 
-#: ui/templates/ui/bin.html:36 ui/templates/ui/panels/site_trash.html:47
-#: ui/templates/ui/purge_confirm.html:5 ui/templates/ui/purge_confirm.html:13
-msgid "Delete for good"
-msgstr "Delete for good"
-
-#: ui/templates/ui/bin.html:40
+#: ui/templates/ui/bin.html:37 ui/templates/ui/bin_dismiss_confirm.html:21
 msgid "Remove from my bin"
 msgstr "Remove from my bin"
 
-#: ui/templates/ui/bin.html:46
+#: ui/templates/ui/bin.html:37 ui/templates/ui/bin_dismiss_confirm.html:5
+#: ui/templates/ui/bin_dismiss_confirm.html:21
+#: ui/templates/ui/panels/site_trash.html:49
+msgid "Delete for good"
+msgstr "Delete for good"
+
+#: ui/templates/ui/bin.html:41
 msgid "Nothing in the bin."
 msgstr "Nothing in the bin."
+
+#: ui/templates/ui/bin_dismiss_confirm.html:4
+#, python-format
+msgid "Remove %(name)s from your bin"
+msgstr "Remove %(name)s from your bin"
+
+#: ui/templates/ui/bin_dismiss_confirm.html:5
+msgid "Remove from your bin"
+msgstr "Remove from your bin"
+
+#: ui/templates/ui/bin_dismiss_confirm.html:9
+#, python-format
+msgid ""
+"<strong>%(name)s</strong> (<code>%(ref)s</code>) and every run in it will be "
+"destroyed. This cannot be undone."
+msgstr ""
+"<strong>%(name)s</strong> (<code>%(ref)s</code>) and every run in it will be "
+"destroyed. This cannot be undone."
+
+#: ui/templates/ui/bin_dismiss_confirm.html:11
+#, python-format
+msgid ""
+"<strong>%(name)s</strong> (<code>%(ref)s</code>) leaves your bin and is no "
+"longer shared with you. It stays in the bin of the people below, and if one "
+"of them restores it you will not get it back."
+msgstr ""
+"<strong>%(name)s</strong> (<code>%(ref)s</code>) leaves your bin and is no "
+"longer shared with you. It stays in the bin of the people below, and if one "
+"of them restores it you will not get it back."
+
+#: ui/templates/ui/bin_dismiss_confirm.html:12
+msgid "Still in the bin of:"
+msgstr "Still in the bin of:"
+
+#: ui/templates/ui/bin_dismiss_confirm.html:15
+#, python-format
+msgid ""
+"<strong>%(name)s</strong> (<code>%(ref)s</code>) leaves your bin. Nobody "
+"else has it in theirs, so it goes to the site administrators' bin, and only "
+"they can put it back."
+msgstr ""
+"<strong>%(name)s</strong> (<code>%(ref)s</code>) leaves your bin. Nobody "
+"else has it in theirs, so it goes to the site administrators' bin, and only "
+"they can put it back."
+
+#: ui/templates/ui/bin_dismiss_confirm.html:20
+msgid "Download .ihpo first"
+msgstr "Download .ihpo first"
 
 #: ui/templates/ui/delete_confirm.html:4
 #, python-format
@@ -2880,24 +2963,6 @@ msgstr "Use demo datasets"
 #: ui/templates/ui/new_experiment.html:133
 msgid "Create experiment"
 msgstr "Create experiment"
-
-#: ui/templates/ui/purge_confirm.html:4
-#, python-format
-msgid "Delete %(name)s for good"
-msgstr "Delete %(name)s for good"
-
-#: ui/templates/ui/purge_confirm.html:8
-#, python-format
-msgid ""
-"<strong>%(name)s</strong> (<code>%(ref)s</code>) and every run in it will be "
-"destroyed, and it will leave everybody's bin. This cannot be undone."
-msgstr ""
-"<strong>%(name)s</strong> (<code>%(ref)s</code>) and every run in it will be "
-"destroyed, and it will leave everybody's bin. This cannot be undone."
-
-#: ui/templates/ui/purge_confirm.html:12
-msgid "Download .ihpo first"
-msgstr "Download .ihpo first"
 
 #: ui/templates/ui/save_as_default_confirm.html:4
 #: ui/templates/ui/save_as_default_confirm.html:23
