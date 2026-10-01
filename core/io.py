@@ -51,6 +51,7 @@ all of this as one flat namespace — is lifted rather than refused.
 
 from __future__ import annotations
 
+import copy
 import importlib.util
 import inspect
 import json
@@ -64,7 +65,7 @@ from typing import Any
 import pandas as pd
 from sklearn.model_selection import train_test_split
 
-from . import provenance
+from . import provenance, tasks
 from .metrics import declarations
 from .paths import MAX_STATE_FILES, is_safe_relative
 from .splits import MIN_FOLDS, cross_validation, holdout
@@ -183,6 +184,23 @@ def _read_csv(csv_path: Path):
     return pd.read_csv(csv_path, sep=sep)
 
 
+def target_of(source) -> tuple[str, Any]:
+    """The target column of a dataset — its name and its values.
+
+    *source* is a path or the file's bytes: the create form has an upload in
+    hand and should not have to write it out to read one column.
+    """
+    if isinstance(source, (bytes, bytearray)):
+        from io import BytesIO
+
+        sample = bytes(source[:2048]).decode("utf-8", errors="replace")
+        sep = ";" if sample.count(";") > sample.count(",") else ","
+        df = pd.read_csv(BytesIO(source), sep=sep)
+    else:
+        df = _read_csv(Path(source))
+    return str(df.columns[-1]), df.iloc[:, -1].to_numpy()
+
+
 def _load_frame(csv_path: Path):
     """The dataset as (X, y). The last column is the target."""
     df = _read_csv(csv_path)
@@ -195,15 +213,24 @@ def _load_frame(csv_path: Path):
 DEFAULT_TEST_SIZE = 0.2
 
 
-def _load_splits(csv_path: Path, seed: int, test_size: float = DEFAULT_TEST_SIZE):
+def _load_splits(csv_path: Path, seed: int, test_size: float = DEFAULT_TEST_SIZE,
+                 task: str = tasks.DEFAULT):
     """Reconstruct the identical train/val split from a CSV path, seed and
-    validation share."""
+    validation share.
+
+    A classification split is stratified when the classes allow it. A
+    regression one never is: `train_test_split` would happily stratify a
+    numeric target whose values each occur twice, treating every distinct
+    number as a class.
+    """
     X, y = _load_frame(csv_path)
     size = float(test_size or DEFAULT_TEST_SIZE)
-    try:
-        return train_test_split(X, y, test_size=size, random_state=seed, stratify=y)
-    except ValueError:
-        return train_test_split(X, y, test_size=size, random_state=seed)
+    if task == tasks.CLASSIFICATION:
+        try:
+            return train_test_split(X, y, test_size=size, random_state=seed, stratify=y)
+        except ValueError:
+            pass
+    return train_test_split(X, y, test_size=size, random_state=seed)
 
 
 # ── Public API ────────────────────────────────────────────────────────────────
@@ -365,7 +392,8 @@ def save(name: str, exp: dict) -> bytes:
         # kfold/holdout decision has exactly one place to look, not two that
         # can quietly disagree.
         "evaluation": provenance.evaluation(exp.get("cv_folds") or 0,
-                                            test_size=exp.get("test_size")),
+                                            test_size=exp.get("test_size"),
+                                            task=exp.get("task", tasks.DEFAULT)),
         "metrics":    {"names": list(exp["metrics"].keys()),
                        "current": exp["current_metric"],
                        "original": exp["original_metric"]},
@@ -494,7 +522,9 @@ def attach_dataset(exp: dict, dataset_path: str) -> None:
     path = Path(dataset_path)
     if not path.is_file():
         raise ValueError(f"dataset not found: {dataset_path}")
-    X_train, X_val, y_train, y_val = _load_splits(path, exp["seed"])
+    X_train, X_val, y_train, y_val = _load_splits(
+        path, exp["seed"], exp.get("test_size") or DEFAULT_TEST_SIZE,
+        exp.get("task", tasks.DEFAULT))
     exp["X_train"]      = X_train
     exp["y_train"]      = y_train
     exp["X_val"]        = X_val
@@ -549,6 +579,7 @@ def build_experiment(
     snapshot = normalize(snapshot)
     metric_names = snapshot["metrics"]["names"]
     model_path = snapshot["model"].get("path", "")
+    task = tasks.task_of(snapshot)
 
     # A file may bring its own metric. A run imported from somewhere else names
     # an objective this build has never heard of, and refusing it would mean the
@@ -595,16 +626,24 @@ def build_experiment(
             model, err = load_model_from_path(model_path)
             if err:
                 raise ValueError(f"custom model error: {err}")
+            tell_task(model, task)
         resolved_model = snapshot["model"]["name"]
     else:
         stored_model = model_name if model_name is not None else snapshot["model"]["name"]
         model_entry = (
             available_models.get(stored_model)
-            or next((m for m in available_models.values() if m.name == stored_model), None)
+            or next((m for m in available_models.values()
+                     if m.name == stored_model or stored_model in getattr(m, "aliases", ())),
+                    None)
         )
         if model_entry is None:
             raise ValueError(f"model '{stored_model}' is not available")
-        model = model_entry
+        if task not in tasks.supported(model_entry):
+            raise ValueError(f"model '{stored_model}' does not do {task}")
+        # A copy, told its task: the registry's instance is shared by every
+        # experiment in the process, and the task is this one's.
+        model = copy.copy(model_entry)
+        model.task = task
         resolved_model = stored_model
 
     # ── Dataset ───────────────────────────────────────────────────────────────
@@ -621,10 +660,10 @@ def build_experiment(
         path = Path(dataset_path)
         if not path.is_file():
             raise ValueError(f"dataset not found: {dataset_path}")
-        X_train, X_val, y_train, y_val = _load_splits(path, seed, test_size)
+        X_train, X_val, y_train, y_val = _load_splits(path, seed, test_size, task)
         if cv_folds >= MIN_FOLDS:
             X_all, y_all = _load_frame(path)
-            splits = cross_validation(X_all, y_all, cv_folds, seed)
+            splits = cross_validation(X_all, y_all, cv_folds, seed, task)
         else:
             splits = holdout(X_train, y_train, X_val, y_val)
 
@@ -652,6 +691,7 @@ def build_experiment(
         "X_val":   X_val,   "y_val":   y_val,
         "cv_folds": cv_folds,
         "test_size": test_size,
+        "task":    task,
         "splits":  splits,
         # Undecoded. Kept as the serialized dict the file carries, because the
         # one caller that wants a live object also wants it seeded, and
@@ -660,6 +700,19 @@ def build_experiment(
         "result":  result,
     }
     return snapshot["name"], exp
+
+
+def tell_task(model, task: str) -> None:
+    """Tell *model* which task it is being run for.
+
+    A model written before tasks existed may not take the attribute — a
+    `task` property with no setter, say — and is left as it is: it was written
+    for classification, which is the only task it can have been offered for.
+    """
+    try:
+        model.task = task
+    except AttributeError:
+        pass
 
 
 def config_space_from_serialized(space: dict | None, seed: int = 0):

@@ -45,6 +45,7 @@ IN_THE_FILE = {
     "original_metric": ("metrics", "original"),
     "cv_folds": ("evaluation", "folds"),
     "test_size": ("evaluation", "test_size"),
+    "task": ("evaluation", "task"),
     "config_space": ("space",),
     "priors": ("priors",),
     "result": ("result",),

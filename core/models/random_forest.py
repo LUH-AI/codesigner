@@ -1,13 +1,19 @@
+# /// script
+# requires-python = ">=3.11"
+# dependencies = ["scikit-learn", "ConfigSpace"]
+# ///
 from ConfigSpace import ConfigurationSpace, Integer, Float
-from sklearn.ensemble import RandomForestClassifier
+from sklearn.ensemble import RandomForestClassifier, RandomForestRegressor
 
 from .base import BaseModel
 
 
 class RandomForestModel(BaseModel):
-    """Demo model: sklearn RandomForestClassifier with a 4-parameter search space."""
+    """scikit-learn's random forest, classifying or regressing, with a
+    4-parameter search space."""
 
     name = "Random Forest"
+    tasks = ("classification", "regression")
 
     def get_config_space(self, seed: int = 0) -> ConfigurationSpace:
         cs = ConfigurationSpace(seed=seed)
@@ -19,8 +25,10 @@ class RandomForestModel(BaseModel):
         ])
         return cs
 
-    def _fitted(self, config, X_train, y_train, seed: int):
-        clf = RandomForestClassifier(
+    def fit(self, config, X_train, y_train, seed: int = 0):
+        """The forest *config* describes, trained on all of ``(X_train, y_train)``."""
+        forest = RandomForestRegressor if self.task == "regression" else RandomForestClassifier
+        clf = forest(
             n_estimators=int(config["n_estimators"]),
             max_depth=int(config["max_depth"]),
             min_samples_split=float(config["min_samples_split"]),
@@ -32,7 +40,7 @@ class RandomForestModel(BaseModel):
         return clf
 
     def fit_predict(self, config, X_train, y_train, X_val, seed: int = 0):
-        return self._fitted(config, X_train, y_train, seed).predict(X_val)
+        return self.fit(config, X_train, y_train, seed).predict(X_val)
 
     def fit_predict_proba(self, config, X_train, y_train, X_val, seed: int = 0):
         """A forest votes, so the probabilities come free — one fit answers both.
@@ -42,5 +50,7 @@ class RandomForestModel(BaseModel):
         difference between a metric scoring the right class and one silently
         scoring a different one.
         """
-        clf = self._fitted(config, X_train, y_train, seed)
+        if self.task == "regression":
+            raise NotImplementedError("a regression forest has no class probabilities")
+        clf = self.fit(config, X_train, y_train, seed)
         return clf.predict(X_val), clf.predict_proba(X_val), clf.classes_

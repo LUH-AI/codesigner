@@ -32,6 +32,7 @@ from django.db import transaction
 from django.utils import timezone
 
 from access.models import Group, Membership
+from core.metrics import metrics_for
 
 from ...models import Experiment, ExperimentShare, Run
 
@@ -82,6 +83,7 @@ class Command(BaseCommand):
         self._experiment(ana, "Wine — Ben may look", shares={ben: VIEWER},
                          runs=[(8, 12.4)])
         self._experiment(ana, "Wine — not shared", runs=[(30, 55.0)])
+        self._experiment(ana, "Diabetes — regression", runs=[(20, 14.6)], task="regression")
         self._experiment(ben, "Iris — Ana may look", shares={ana: VIEWER},
                          runs=[(15, 9.8)])
         self._experiment(lead_v, "Vera's own", runs=[(6, 7.1)])
@@ -150,17 +152,18 @@ class Command(BaseCommand):
             user=user, group=group, defaults={"role": role})
         return user
 
-    def _experiment(self, owner, name, *, shares=None, runs=()):
+    def _experiment(self, owner, name, *, shares=None, runs=(), task="classification"):
         # Looked up by name across the join, and created through the manager so
         # both halves are written. `get_or_create` cannot do either: its lookup
         # names a column this row does not have, and its create would write only
         # the instance half.
         exp = Experiment.objects.filter(data__name=name, owner=owner).first()
         if exp is None:
+            metric = metrics_for(task)[0]
             exp = Experiment.objects.create(
                 name=name, owner=owner, model_name="Random Forest",
-                optimizer_name="SMAC", metric_names=["accuracy"],
-                current_metric="accuracy", seed=0)
+                optimizer_name="SMAC", metric_names=metrics_for(task),
+                current_metric=metric, task=task, seed=0)
         for user, level in (shares or {}).items():
             ExperimentShare.objects.update_or_create(
                 experiment=exp, user=user,
@@ -168,7 +171,8 @@ class Command(BaseCommand):
         for trials, seconds in runs:
             Run.objects.get_or_create(
                 experiment=exp, trial_count=trials,
-                defaults={"primary_metric": "accuracy", "status": "done",
+                defaults={"primary_metric": exp.data.current_metric or "accuracy",
+                          "status": "done",
                           "stopping": {"max_trials": trials},
                           "started_by": owner, "trial_seconds": seconds,
                           "trial_offset": 0, "stopped_by": "max_trials",

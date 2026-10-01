@@ -17,6 +17,7 @@ from django.core.exceptions import PermissionDenied
 from django.test import RequestFactory
 from django.urls import reverse
 
+from datahandling import urls as datahandling_urls
 from ui import permissions, urls
 from ui.models import Experiment
 from ui.permissions import OpenPolicy, experiment_view
@@ -71,7 +72,7 @@ def _experiment_routes():
     """Every route that names an experiment in its path and resolves it through
     `@experiment_view` — which is every one of them but the bins'."""
     exempt = set(NOT_EXPERIMENTS) | set(THROUGH_THE_BIN)
-    return [p for p in urls.urlpatterns
+    return [p for p in urls.urlpatterns + datahandling_urls.urlpatterns
             if "<int:pk>" in str(p.pattern) and p.name not in exempt]
 
 
@@ -208,7 +209,13 @@ def test_the_declared_actions_match_what_the_routes_do():
         "experiment_transfer": permissions.SHARE,
         "experiment_delete": permissions.DELETE,
         "experiment_export": permissions.EXPORT,
+        # The model, tuned to a trial: what the experiment is, taken away.
+        "experiment_export_model": permissions.EXPORT,
         "run_force_stop": permissions.RUN,
+        # Looking at the data an experiment is tuned on is looking at the
+        # experiment. Changing it, once these pages can, will be EDIT.
+        "data_overview": permissions.VIEW,
+        "data_section": permissions.VIEW,
     }
 
 

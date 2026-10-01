@@ -1,0 +1,39 @@
+{% extends "base.html" %}
+{% load i18n %}
+
+{% block title %}{{ section.title }} · {% translate "Data" %} · {{ experiment.name }}{% endblock %}
+
+{% comment %}The experiment list gives way to this section's own tabs, as the
+Settings and Site pages' do: on these pages the decision being made is which
+part of the data to look at, not which experiment.{% endcomment %}
+{% block sidebar %}
+    <nav class="sidebar">
+        <h1>{% translate "Data Handling" %}</h1>
+        <div class="nav-links">
+            <a href="{% url 'ui:experiment_detail' experiment.pk %}">{% blocktranslate with name=experiment.name %}← Back to {{ name }}{% endblocktranslate %}</a>
+        </div>
+        <div class="tab-list">
+            {% for s in sections %}
+                <a class="tab{% if s.slug == section.slug %} active{% endif %}"
+                   href="{% if forloop.first %}{% url 'datahandling:data_overview' experiment.pk %}{% else %}{% url 'datahandling:data_section' experiment.pk s.slug %}{% endif %}">{{ s.title }}</a>
+            {% endfor %}
+        </div>
+    </nav>
+{% endblock %}
+
+{% block content %}
+    <h1>{{ section.title }}</h1>
+    <p class="caption" style="max-width: 46rem;">{{ section.purpose }}</p>
+
+    <div class="planned-list">
+        {% for capability in section.planned %}
+            <div class="card planned">
+                <div class="planned-head">
+                    <span class="planned-title">{{ capability.title }}</span>
+                    <span class="planned-badge">{% translate "Planned" %}</span>
+                </div>
+                <p class="caption">{{ capability.description }}</p>
+            </div>
+        {% endfor %}
+    </div>
+{% endblock %}

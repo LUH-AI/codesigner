@@ -82,6 +82,19 @@ def _crumbs_for(request, url_name, kwargs):
         page = _EXPERIMENT_PAGES[url_name]
         return [experiments, itself] if page is None else [experiments, itself, (page, None)]
 
+    if url_name in ("data_overview", "data_section"):
+        exp = _experiment(request, kwargs.get("pk"))
+        if exp is None:
+            return [experiments]
+        itself = (exp.name, reverse("ui:experiment_detail", args=[exp.pk]))
+        if url_name == "data_overview":
+            return [experiments, itself, (_("Data"), None)]
+        from datahandling.sections import BY_SLUG
+
+        section = BY_SLUG.get(kwargs.get("section"))
+        data = (_("Data"), reverse("datahandling:data_overview", args=[exp.pk]))
+        return [experiments, itself, data] + ([(section.title, None)] if section else [])
+
     return []
 
 

@@ -34,7 +34,22 @@ class BaseModel(ABC):
     One instance is built per run and reused for every trial in it, so keep
     :meth:`fit_predict` stateless: the same ``(config, seed)`` should give the
     same predictions whenever it is called, in whatever order.
+
+    A model says which kinds of problem it can be tuned for in :attr:`tasks`,
+    and is told which one it is being run for in :attr:`task` before the first
+    trial.
     """
+
+    #: The tasks this model can be tuned for: ``"classification"`` (predict a
+    #: label), ``"regression"`` (predict a number), or both. A plain literal,
+    #: like :attr:`name` — it is read from the source before the file runs, to
+    #: decide which experiments may use the model.
+    tasks: tuple = ("classification",)
+
+    #: The task this run is for, one of :attr:`tasks`. Set by Codesigner on the
+    #: instance before the first trial; a model that supports one task can
+    #: ignore it.
+    task: str = "classification"
 
     @property
     @abstractmethod
@@ -61,9 +76,9 @@ class BaseModel(ABC):
     ) -> Sequence[Any]:
         """Train on ``(X_train, y_train)`` with *config*, then predict ``X_val``.
 
-        Return one predicted label per row of ``X_val``, in order — a numpy
-        array, a pandas Series or a plain list, holding whatever label type the
-        dataset uses. Use *seed* for every source of randomness you have, so
+        Return one prediction per row of ``X_val``, in order — a numpy array, a
+        pandas Series or a plain list. For classification that is a label, of
+        whatever type the dataset uses; for regression, a number. Use *seed* for every source of randomness you have, so
         that repeating a trial reproduces it.
         """
 

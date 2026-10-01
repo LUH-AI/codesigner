@@ -13,13 +13,13 @@ from django.core.files import File
 from django.db import transaction
 from django.utils.dateparse import parse_datetime
 
-from core import io
+from core import io, tasks
 from core.provenance import (
     dataset_fingerprint, environment, evaluation, model_fingerprint,
 )
 
 from ..models import Experiment, ExperimentData
-from ..registry import MODELS, OPTIMIZERS
+from ..registry import MODELS, OPTIMIZERS, canonical_model_name
 
 
 def experiment_from_snapshot(snapshot: dict, dataset_file=None, model_file=None,
@@ -52,7 +52,10 @@ def experiment_from_snapshot(snapshot: dict, dataset_file=None, model_file=None,
     snapshot = io.normalize(snapshot)
     data = ExperimentData(
         name=snapshot["name"],
-        model_name=snapshot["model"]["name"],
+        # A built-in renamed since the file was written is stored under the
+        # name it has now. An uploaded model's name is its own.
+        model_name=(snapshot["model"]["name"] if snapshot["model"].get("kind") == "file"
+                    else canonical_model_name(snapshot["model"]["name"])),
         optimizer_name=snapshot["optimizer"]["name"],
         optimizer_params=snapshot["optimizer"].get("params") or {},
         metric_names=snapshot["metrics"]["names"],
@@ -61,6 +64,7 @@ def experiment_from_snapshot(snapshot: dict, dataset_file=None, model_file=None,
         seed=snapshot["seed"],
         cv_folds=io.folds_of(snapshot),
         test_size=io.test_size_of(snapshot),
+        task=tasks.task_of(snapshot),
         config_space=snapshot.get("space"),
         priors=snapshot.get("priors") or {},
         result=snapshot.get("result"),
@@ -190,7 +194,7 @@ def snapshot_from_experiment(exp: Experiment, *, provenance: bool = False) -> di
                     "path": dataset},
         "model": {"kind": _model_kind(data, model_path),
                   "name": data.model_name, "path": model_path},
-        "evaluation": evaluation(data.cv_folds, test_size=data.test_size),
+        "evaluation": evaluation(data.cv_folds, test_size=data.test_size, task=data.task),
         "metrics": {"names": data.metric_names,
                     "current": data.current_metric,
                     "original": data.original_metric},
@@ -268,7 +272,7 @@ def _add_provenance(snapshot: dict, exp: Experiment, dataset: str, model_path: s
         model_fingerprint(data.model_name, model_path, exp.env_meta,
                           kind=snapshot["model"]["kind"]))
     snapshot["evaluation"].update(
-        evaluation(data.cv_folds, _target(dataset), test_size=data.test_size))
+        evaluation(data.cv_folds, _target(dataset), test_size=data.test_size, task=data.task))
     snapshot["optimizer"]["defaults_used"] = _defaults_used(data)
     snapshot["runs"] = [_run_record(index, run)
                         for index, run in enumerate(exp.runs.order_by("id"), start=1)]

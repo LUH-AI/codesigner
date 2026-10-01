@@ -31,6 +31,8 @@ from typing import Any, List, Tuple
 
 import numpy as np
 
+from .tasks import CLASSIFICATION
+
 #: Below this many folds it is not cross-validation. Stored as 0 on an
 #: experiment that uses a single holdout.
 MIN_FOLDS = 2
@@ -68,24 +70,28 @@ def holdout(X_train, y_train, X_val, y_val) -> Splits:
     return Splits(X=X, y=y, folds=[(train_idx, val_idx)])
 
 
-def cross_validation(X, y, folds: int, seed: int) -> Splits:
+def cross_validation(X, y, folds: int, seed: int, task: str = CLASSIFICATION) -> Splits:
     """*folds*-fold cross-validation over the whole dataset.
 
-    Stratified when the labels allow it, and a plain shuffle when they do not —
-    which in practice means a continuous target, since sklearn refuses to
-    stratify one. A class with fewer members than there are folds only earns a
-    warning and is still stratified. Seeded, so the same experiment divides the
-    same way every run.
+    For classification, stratified when the labels allow it and a plain
+    shuffle when they do not. A class with fewer members than there are folds
+    only earns a warning and is still stratified. For regression, always a
+    plain shuffle. Seeded, so the same experiment divides the same way every
+    run.
     """
     from sklearn.model_selection import KFold, StratifiedKFold
 
     X = np.asarray(X)
     y = np.asarray(y)          # dtype preserved — see `holdout` for why
 
-    try:
-        splitter = StratifiedKFold(n_splits=folds, shuffle=True, random_state=seed)
-        divided = list(splitter.split(X, y))
-    except ValueError:
+    divided = None
+    if task == CLASSIFICATION:
+        try:
+            splitter = StratifiedKFold(n_splits=folds, shuffle=True, random_state=seed)
+            divided = list(splitter.split(X, y))
+        except ValueError:
+            pass
+    if divided is None:
         splitter = KFold(n_splits=folds, shuffle=True, random_state=seed)
         divided = list(splitter.split(X))
 

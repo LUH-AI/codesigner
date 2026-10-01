@@ -4,7 +4,8 @@ from django import forms
 from django.conf import settings
 from django.utils.translation import gettext_lazy as _
 
-from core.io import DEFAULT_TEST_SIZE, demo_datasets, mounted_models
+from core import tasks
+from core.io import DEFAULT_TEST_SIZE, demo_datasets, mounted_models, target_of
 from core.splits import MIN_FOLDS
 from core.model_source import inspect_model_source
 
@@ -58,6 +59,19 @@ class NewExperimentForm(forms.Form):
     demo_dataset = forms.ChoiceField(label=_("Demo dataset"), required=False)
     dataset_file = forms.FileField(label=_("…or upload a CSV (last column = target)"), required=False,
                                     validators=[validate_dataset_upload])
+    #: Blank is "guess": the target column decides, the way `core.tasks.guess`
+    #: reads it, and the page says what it decided.
+    task = forms.ChoiceField(
+        label=_("Task"), required=False, initial="",
+        help_text=_("What the experiment predicts. Classification predicts one of "
+                    "a set of labels, regression a number. Fixed once the "
+                    "experiment exists. Left on guess, text or a handful of whole "
+                    "numbers in the target column is read as classes, anything "
+                    "else as a number."),
+        choices=[("", _("Guess from the target column")),
+                 (tasks.CLASSIFICATION, _("Classification")),
+                 (tasks.REGRESSION, _("Regression"))],
+    )
     seed = forms.IntegerField(
         label=_("Seed"), initial=0,
         help_text=_("Negative picks one at random. Drives every stochastic part "
@@ -166,7 +180,41 @@ class NewExperimentForm(forms.Form):
 
         if not cleaned.get("demo_dataset") and not cleaned.get("dataset_file"):
             raise forms.ValidationError(_("Choose a demo dataset or upload a CSV file."))
+        self._resolve_task(cleaned)
         return cleaned
+
+    def _resolve_task(self, cleaned) -> None:
+        """Settle the task — the one asked for, or the target column's guess —
+        and check that the target and the model can both do it."""
+        upload = cleaned.get("dataset_file")
+        try:
+            if upload:
+                source = upload.read()
+                upload.seek(0)
+            else:
+                source = Path(cleaned["demo_dataset"])
+            column, y = target_of(source)
+        except Exception as exc:  # noqa: BLE001 — any unreadable file is the same problem
+            self.add_error(None, _("The dataset could not be read: %(error)s") % {"error": exc})
+            return
+
+        task = cleaned.get("task") or tasks.guess(y)
+        cleaned["task"] = task
+        if tasks.target_problem(y, task):
+            self.add_error("task", _("The target column, “%(column)s”, is not numbers, so it "
+                                     "cannot be regressed on. Choose classification, or put "
+                                     "the column to predict last.") % {"column": column})
+            return
+
+        info = cleaned.get("model_source")
+        name = cleaned.get("model_name")
+        supported = (info.tasks if info is not None
+                     else tasks.supported(MODELS[name]) if name in MODELS else None)
+        if supported is not None and task not in supported:
+            field = ("model_file" if cleaned.get("model_file") else
+                     "mounted_model" if cleaned.get("mounted_model") else "model_name")
+            self.add_error(field, _("%(model)s does not do %(task)s.") % {
+                "model": name, "task": TASK_LABELS[task]})
 
     def _read_model_source(self, cleaned, source: bytes, field: str) -> None:
         """Inspect a custom model's source, recording its name or an error."""
@@ -176,6 +224,10 @@ class NewExperimentForm(forms.Form):
             return
         cleaned["model_name"] = info.name
         cleaned["model_source"] = info
+
+
+#: What to call each task where a sentence names one.
+TASK_LABELS = {tasks.CLASSIFICATION: _("classification"), tasks.REGRESSION: _("regression")}
 
 
 _ICE_LABEL = _("Trials drawn on the partial-dependence figure")

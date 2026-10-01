@@ -21,8 +21,8 @@ from django.utils.translation import gettext as _
 from django.utils.translation import gettext_lazy
 from django.views.decorators.http import require_POST
 
-from core import io, provenance, smac_import
-from core.metrics import metric_for
+from core import io, provenance, smac_import, tasks
+from core.metrics import metric_for, metrics_for
 from core.modelhost import deadline
 from core.optimizers.base import FAILURE_CRITERIA
 
@@ -49,6 +49,7 @@ from .services import run as run_service
 from .services import modelenv
 from .services import snapshot as snapshot_adapter
 from .services import bin as bin_service
+from .services import model_export
 from .services.run import resolve_seed
 from .services.run_logic import decide_run, resolve_metric_change
 from .optimizer_labels import describe_all, grouped
@@ -433,6 +434,7 @@ def new_experiment(request):
             "form": NewExperimentForm(may_upload_models=may_upload, groups=groups),
             "optimizer_panels": _optimizer_panels(request, _selected_optimizer(request)),
             "evaluation_schemes": _evaluation_schemes(),
+            "model_tasks": {name: list(tasks.supported(model)) for name, model in MODELS.items()},
         })
 
     form = NewExperimentForm(request.POST, request.FILES,
@@ -442,6 +444,7 @@ def new_experiment(request):
             "form": form,
             "optimizer_panels": _optimizer_panels(request, _selected_optimizer(request)),
             "evaluation_schemes": _evaluation_schemes(),
+            "model_tasks": {name: list(tasks.supported(model)) for name, model in MODELS.items()},
         })
 
     cleaned = form.cleaned_data
@@ -466,8 +469,11 @@ def new_experiment(request):
             "dataset": {"filename": Path(dataset_path).name, "path": dataset_path},
             "model": {"kind": "file" if model_path else "registry",
                       "name": cleaned["model_name"], "path": model_path},
-            "evaluation": provenance.evaluation(folds, test_size=test_size),
-            "metrics": {"names": list(METRICS), "current": None, "original": None},
+            "evaluation": provenance.evaluation(folds, test_size=test_size,
+                                                task=cleaned["task"]),
+            # Every metric for the task is computed on every trial; which one is
+            # optimized is chosen per run.
+            "metrics": {"names": metrics_for(cleaned["task"]), "current": None, "original": None},
             "optimizer": {"name": optimizer.name, "params": optimizer.get_params()},
             "result": None,
         }
@@ -1949,6 +1955,41 @@ def experiment_export(request, exp):
     return _export(request, exp)
 
 
+@experiment_view(EXPORT)
+def experiment_export_model(request, exp):
+    """Download the experiment's model as a runnable script, tuned to one trial.
+
+    The trial is the one the page has selected, named the way every figure
+    names it — `?metric=&idx=`, the index into the result's trials. Without
+    them it is the best trial on the metric being viewed. See
+    core/model_export.py for what the file holds.
+    """
+    reason = model_export.unavailable(exp)
+    if reason:
+        raise Http404(reason)
+    result = _rebuild_result(exp)
+    if result is None or not result.trials:
+        raise Http404("no trials to export a configuration from")
+
+    metric = request.GET.get("metric") or exp.data.current_metric or exp.data.metric_names[0]
+    if metric not in exp.data.metric_names:
+        return HttpResponseBadRequest("unknown metric")
+    idx_raw = request.GET.get("idx")
+    if idx_raw is None:
+        idx = result.best_index(metric)
+    elif idx_raw.lstrip("-").isdigit() and 0 <= int(idx_raw) < len(result.trials):
+        idx = int(idx_raw)
+    else:
+        return HttpResponseBadRequest("invalid trial index")
+
+    trial = result.trials[idx]
+    body = model_export.build(exp, trial, metric)
+    response = HttpResponse(body, content_type="text/x-python; charset=utf-8")
+    response["Content-Disposition"] = (
+        f'attachment; filename="{model_export.filename(exp, trial.trial)}"')
+    return response
+
+
 def _export(request, exp, cancel_url=None):
     if request.method != "POST":
         # How many tracebacks there are to ask about, and so whether to ask.
@@ -2866,6 +2907,7 @@ def _detail_context(request, exp):
         "may": {action: permissions.policy().may(request, exp, action)
                 for action in (RUN, EDIT, DELETE, EXPORT, SHARE)},
         "ownership": _ownership(request, exp),
+        "model_export_unavailable": model_export.unavailable(exp),
         "run_error": last_run.error if (last_run and last_run.status == "error") else None,
         "model_refusal": model_refusal,
         # The model's environment, for the branches on the detail page.

@@ -88,9 +88,15 @@ class ModelProcess:
     def alive(self) -> bool:
         return self._proc is not None and self._proc.poll() is None
 
-    def start(self, *, seed: int = 0, describe: bool = False) -> dict:
-        """Spawn the child and return its greeting."""
+    def start(self, *, seed: int = 0, describe: bool = False, task: str | None = None) -> dict:
+        """Spawn the child and return its greeting.
+
+        *task* is told to the model before it is asked for its search space,
+        which may depend on it.
+        """
         argv = [*self._launch, "--seed", str(seed)]
+        if task:
+            argv += ["--task", task]
         if describe:
             argv.append("--describe")
 
@@ -435,7 +441,7 @@ def _jsonable(config: dict) -> dict:
             for key, value in config.items()}
 
 
-def describe(launch, *, seed: int = 0, env=None,
+def describe(launch, *, seed: int = 0, env=None, task: str | None = None,
              start_timeout: float = DEFAULT_START_TIMEOUT) -> dict:
     """Start a model, read its greeting, stop. Its name and search space.
 
@@ -445,7 +451,7 @@ def describe(launch, *, seed: int = 0, env=None,
     """
     process = ModelProcess(launch, start_timeout=start_timeout, env=env)
     try:
-        return process.start(seed=seed, describe=True)
+        return process.start(seed=seed, describe=True, task=task)
     finally:
         process.close()
 
@@ -459,12 +465,13 @@ class model_session:
     """
 
     def __init__(self, launch, splits, *,
-                 seed: int = 0, cancel=None, env=None, cwd=None,
+                 seed: int = 0, task: str = "classification", cancel=None, env=None, cwd=None,
                  trial_timeout: float = DEFAULT_TRIAL_TIMEOUT,
                  start_timeout: float = DEFAULT_START_TIMEOUT):
         self._launch = launch
         self._splits = splits
         self._seed = seed
+        self._task = task
         self._cancel = cancel
         self._env = env
         self._cwd = cwd
@@ -485,7 +492,7 @@ class model_session:
         process = ModelProcess(
             self._launch, start_timeout=self._start_timeout,
             env=self._env, cwd=self._cwd)
-        hello = process.start(seed=self._seed)
+        hello = process.start(seed=self._seed, task=self._task)
 
         reply = process.request(
             {"t": protocol.INIT,

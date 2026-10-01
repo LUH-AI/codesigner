@@ -356,7 +356,7 @@ def _execute_run_locally(run_id):
 
             with model_session(
                 launch, built["splits"],
-                seed=built["seed"], cancel=cancel,
+                seed=built["seed"], task=built["task"], cancel=cancel,
                 **modelenv.session_kwargs(run.trial_timeout, seed=built["seed"]),
             ) as model:
                 result = _optimize(model)

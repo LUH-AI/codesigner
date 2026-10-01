@@ -21,6 +21,7 @@ urlpatterns = [
     # signing in first.
     path("i18n/setlang/", login_not_required(set_language), name="set_language"),
     path("", include("ui.urls")),
+    path("", include("datahandling.urls")),
 ]
 
 # Uploaded datasets and models, served straight from disk for convenience while

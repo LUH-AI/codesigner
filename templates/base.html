@@ -127,7 +127,10 @@
         {% comment %}The sidebar is a stack of sections, each one a decision the
         page is waiting on. Which experiment is always the first of them; a page
         with more to ask adds its own through `sidebar_sections` (see the
-        experiment detail page, which asks two more).{% endcomment %}
+        experiment detail page, which asks two more). A page with a sidebar
+        of its own replaces the whole of it through `sidebar` (see Data
+        Handling's pages).{% endcomment %}
+        {% block sidebar %}
         <nav class="sidebar">
             <section class="side-section">
                 <h2>{% translate "Experiment Selection" %}</h2>
@@ -158,6 +161,7 @@
             </section>
             {% block sidebar_sections %}{% endblock %}
         </nav>
+        {% endblock %}
     {% endif %}
     <main class="content">
         {% include "ui/_breadcrumbs.html" %}

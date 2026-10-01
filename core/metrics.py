@@ -24,7 +24,13 @@ from collections.abc import Callable, Iterable, Mapping
 from dataclasses import dataclass, field
 from typing import Any, Optional
 
-from sklearn.metrics import accuracy_score, f1_score, precision_score, recall_score
+import numpy as np
+from sklearn.metrics import (
+    accuracy_score, f1_score, mean_absolute_error, precision_score, r2_score, recall_score,
+    root_mean_squared_error,
+)
+
+from .tasks import CLASSIFICATION, REGRESSION
 
 #: What a metric needs handed to it. `LABELS` is one predicted label per row —
 #: what `fit_predict` has always returned. `PROBABILITIES` is a per-class
@@ -84,6 +90,10 @@ class Metric:
     #: than invented, and for all four original metrics it is exactly the 0.0
     #: they have always scored.
     null_score: Callable[[Any], float] = field(default=_zero)
+    #: Which tasks this metric scores (`core.tasks`). A metric of the wrong
+    #: task is not merely uninformative but meaningless — the accuracy of a
+    #: regression is the share of exactly-right real numbers.
+    tasks: tuple[str, ...] = (CLASSIFICATION,)
 
     # ── what the rest of the application asks ────────────────────────────────
 
@@ -151,7 +161,41 @@ METRICS: dict[str, Metric] = {
         name="recall(macro)",
         fn=lambda y, yp: float(recall_score(y, yp, average="macro", zero_division=0)),
     ),
+    # Regression. A trial that produced nothing scores what predicting the
+    # mean scores: the error of a model that knows only the target's average,
+    # which is what R² measures every model against anyway.
+    "rmse": Metric(
+        name="rmse",
+        fn=lambda y, yp: float(root_mean_squared_error(y, yp)),
+        higher_is_better=False,
+        bounds=(0.0, None),
+        null_score=lambda y: float(np.std(np.asarray(y, dtype=float))),
+        tasks=(REGRESSION,),
+    ),
+    "mae": Metric(
+        name="mae",
+        fn=lambda y, yp: float(mean_absolute_error(y, yp)),
+        higher_is_better=False,
+        bounds=(0.0, None),
+        null_score=lambda y: float(np.mean(np.abs(np.asarray(y, dtype=float)
+                                                  - np.mean(np.asarray(y, dtype=float))))),
+        tasks=(REGRESSION,),
+    ),
+    "r2": Metric(
+        name="r2",
+        fn=lambda y, yp: float(r2_score(y, yp)),
+        bounds=(None, 1.0),
+        tasks=(REGRESSION,),
+    ),
 }
+
+
+def metrics_for(task: str) -> list[str]:
+    """The names of the metrics that score *task*, in the order they are listed.
+
+    The first is what a new experiment optimizes unless told otherwise.
+    """
+    return [name for name, metric in METRICS.items() if task in metric.tasks]
 
 
 def _unscoreable(*_args):
@@ -257,9 +301,7 @@ def score_all(y_true, y_pred, metrics: Mapping[str, Metric],
 
     *y_proba* and *classes* are the probability matrix and its column order,
     supplied only when the model can produce them. A metric that needs them and
-    is asked to score without them raises — `usable()` exists so that never
-    happens on a real run: what can be scored is settled before the first trial,
-    not discovered on one.
+    is asked to score without them raises.
     """
     scores = {}
     for name, metric in metrics.items():

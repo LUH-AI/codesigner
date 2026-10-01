@@ -85,6 +85,16 @@
             {{ form.dataset_file }}
         </div>
 
+        <div class="field">
+            <div class="field-label">
+                <label for="{{ form.task.id_for_label }}">{{ form.task.label }}</label>
+                {% include "ui/_info.html" with info_id=form.task.id_for_label|add:"_helptext" info_text=form.task.help_text %}
+            </div>
+            {{ form.task }}
+            {% if form.task.errors %}<div class="form-error">{{ form.task.errors|join:" " }}</div>{% endif %}
+        </div>
+        {{ model_tasks|json_script:"model-tasks" }}
+
         {% comment %}Two controls, not one menu of preset pairs: the scheme and
         the number are separate decisions, and folding them together meant
         7-fold or a 70/30 split could not be asked for at all. The number's
@@ -167,6 +177,25 @@
             });
             value.addEventListener("input", function () { remembered[select.value] = value.value; });
             apply(false);
+        })();
+
+        // A built-in that cannot do the chosen task is not offered for it. On
+        // "guess" every model is, and the server says if the guess and the
+        // model disagree.
+        (function () {
+            const task = document.getElementById("{{ form.task.id_for_label }}");
+            const model = document.getElementById("{{ form.model_name.id_for_label }}");
+            const supported = JSON.parse(document.getElementById("model-tasks").textContent);
+            if (!task || !model) return;
+            function apply() {
+                Array.from(model.options).forEach(function (option) {
+                    const can = supported[option.value];
+                    option.disabled = !!(task.value && can && can.indexOf(task.value) < 0);
+                });
+                if (model.selectedOptions[0] && model.selectedOptions[0].disabled) model.value = "";
+            }
+            task.addEventListener("change", apply);
+            apply();
         })();
 
         // A checkbox picks the demo source; unchecked (the default) shows the

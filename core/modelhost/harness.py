@@ -169,6 +169,9 @@ def main(argv=None) -> int:
     parser.add_argument("--seed", type=int, default=0)
     parser.add_argument("--describe", action="store_true",
                         help="print the model's name and search space, then exit")
+    parser.add_argument("--task", default="classification",
+                        help="the task the model is run for; told to it before it is asked "
+                             "for its search space")
     args = parser.parse_args(argv)
 
     _apply_limits()
@@ -180,6 +183,12 @@ def main(argv=None) -> int:
 
     try:
         model = _load_model(Path(args.model_file).resolve())
+        # A model that cannot take the attribute was written before there was
+        # more than one task, and is a classifier.
+        try:
+            model.task = args.task
+        except AttributeError:
+            pass
         greeting = _greeting(model, args.seed)
     except BaseException as exc:  # noqa: BLE001 — report anything, including SystemExit
         _fail("load", f"{type(exc).__name__}: {exc}")

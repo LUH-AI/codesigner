@@ -9,6 +9,12 @@ figures below are an answer to — what the experiment is scored on, and which
 trial is selected — so they sit where they stay visible while the figures are
 being read.{% endcomment %}
 {% block sidebar_sections %}
+    <section class="side-section">
+        <h2>{% translate "Data" %}</h2>
+        <div class="tab-list">
+            <a class="tab" href="{% url 'datahandling:data_overview' summary.pk %}">{% translate "Data Handling" %}</a>
+        </div>
+    </section>
     {% include "ui/_side_evaluation.html" %}
     {% if has_result %}
         {% include "ui/_side_explanation.html" %}
@@ -32,6 +38,18 @@ being read.{% endcomment %}
         </div>
         <div class="actions" style="flex-shrink: 0;">
             <a class="btn" href="{% url 'ui:experiment_export' summary.pk %}" title="{% translate 'Download as .ihpo' %}">{% translate "💾 Export" %}</a>
+            {% comment %}The selected trial's configuration, in a script that trains
+            the model on new data. Its link follows the selection: the page
+            script rewrites it whenever a trial is picked or the metric
+            changes, and as rendered it names the best trial.{% endcomment %}
+            {% if has_result %}
+                {% if model_export_unavailable %}
+                    <span class="btn disabled" aria-disabled="true" title="{{ model_export_unavailable }}">{% translate "📦 Export model" %}</span>
+                {% else %}
+                    <a class="btn" id="export-model" href="{% url 'ui:experiment_export_model' summary.pk %}"
+                       title="{% translate 'Download the model, tuned to the selected trial, as a runnable script' %}">{% translate "📦 Export model" %}</a>
+                {% endif %}
+            {% endif %}
             {% if may.edit %}
                 <a class="btn" href="{% url 'ui:experiment_settings' summary.pk %}" title="{% translate 'Experiment settings' %}">{% translate "⚙ Settings" %}</a>
             {% endif %}
@@ -781,9 +799,19 @@ being read.{% endcomment %}
                 // click handler and the table's rows come through here, so they
                 // cannot disagree about what is selected or forget to tell the
                 // panel.
+                // The export button names the trial the sidebar shows.
+                const exportModelUrl = "{% url 'ui:experiment_export_model' summary.pk %}";
+                function pointExportAt(metric) {
+                    const link = document.getElementById("export-model");
+                    const idx = selectionFor(metric);
+                    if (!link || idx === undefined) return;
+                    link.href = exportModelUrl + "?metric=" + encodeURIComponent(metric) + "&idx=" + idx;
+                }
+
                 function selectTrial(metric, idx) {
                     if (idx === undefined || idx < 0) return;
                     selectedIdx[metric] = idx;
+                    pointExportAt(metric);
                     showSelection(metric);
                     refreshLocalAblation(metric);  // its own figure now; a no-op if it is off
                     fetch(trialPanelUrl + "?metric=" + encodeURIComponent(metric) + "&idx=" + idx)
@@ -1591,6 +1619,7 @@ being read.{% endcomment %}
                     // just below), so a later view switch has nothing stale to
                     // reapply.
                     delete selectedIdx[metric];
+                    pointExportAt(metric);
                     // It describes one trial under one metric, and both are
                     // about to change.
                     progress = null;

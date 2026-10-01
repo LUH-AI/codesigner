@@ -362,8 +362,8 @@ button, .btn {
     cursor: pointer;
     transition: color 0.1s, border-color 0.1s, background 0.1s;
 }
-button:hover:not(:disabled), .btn:hover { border-color: var(--primary); color: var(--primary); }
-button:disabled { opacity: 0.5; cursor: not-allowed; }
+button:hover:not(:disabled), .btn:hover:not(.disabled) { border-color: var(--primary); color: var(--primary); }
+button:disabled, .btn.disabled { opacity: 0.5; cursor: not-allowed; }
 .btn-primary, button[type="submit"] {
     background: var(--primary); border-color: var(--primary); color: #fff; font-weight: 600;
 }
@@ -445,6 +445,28 @@ nav.sidebar .info-bubble {
     border-radius: var(--radius);
     padding: 1.25rem 1.5rem;
     background: var(--bg);
+}
+
+/* ── Data Handling's planned capabilities ─────────────────────────────── */
+.planned-list {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(18rem, 1fr));
+    gap: 1rem;
+    max-width: 60rem;
+}
+.planned { display: flex; flex-direction: column; gap: 0.4rem; }
+.planned-head { display: flex; justify-content: space-between; align-items: baseline; gap: 0.75rem; }
+.planned-title { font-weight: 600; }
+.planned-badge {
+    flex-shrink: 0;
+    font-size: 0.7rem;
+    font-weight: 700;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    color: var(--muted);
+    border: 1px solid var(--border);
+    border-radius: 999px;
+    padding: 0.05rem 0.5rem;
 }
 
 /* ── Two-column analytics grid (st.columns(2)) ────────────────────────── */

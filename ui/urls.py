@@ -70,6 +70,8 @@ urlpatterns = [
     path("experiments/<int:pk>/compute-analytics/", views.experiment_compute_analytics,
          name="experiment_compute_analytics"),
     path("experiments/<int:pk>/export/", views.experiment_export, name="experiment_export"),
+    path("experiments/<int:pk>/export-model/", views.experiment_export_model,
+         name="experiment_export_model"),
     path("experiments/<int:pk>/settings/", views.experiment_settings, name="experiment_settings"),
     path("experiments/<int:pk>/delete/", views.experiment_delete, name="experiment_delete"),
 ]

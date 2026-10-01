@@ -260,7 +260,7 @@ def prepare_environment(experiment_id) -> None:
         # materialises the environment to run this, and answering means the model
         # imported and instantiated. Everything the create form stopped doing is
         # done here, where a failure need not hold a request open.
-        hello = describe(run_command(uv, runner), env=child_env(),
+        hello = describe(run_command(uv, runner), env=child_env(), task=exp.data.task,
                          start_timeout=settings.MODEL_ENV_PREPARE_TIMEOUT)
     except Exception as exc:  # noqa: BLE001 — whatever went wrong, the page shows it
         _settle(exp, Experiment.ENV_FAILED, error=str(exc))

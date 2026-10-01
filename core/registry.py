@@ -19,8 +19,18 @@ from .optimizers import GridOptimizer, RandomOptimizer, SMACOptimizer
 
 MODELS = {
     "Random Forest": RandomForestModel(),
-    "SVM Classifier": SVMModel(),
+    "SVM": SVMModel(),
 }
+
+
+def canonical_model_name(name: str) -> str:
+    """*name* as the registry calls it now: a renamed model answers to what it
+    was called before, through its `aliases`. A name the registry does not
+    know is returned as it is."""
+    if name in MODELS:
+        return name
+    return next((key for key, model in MODELS.items()
+                 if name in getattr(model, "aliases", ())), name)
 
 OPTIMIZERS = {
     "SMAC": SMACOptimizer(),
@@ -28,4 +38,4 @@ OPTIMIZERS = {
     "Grid Search": GridOptimizer(),
 }
 
-__all__ = ["MODELS", "OPTIMIZERS", "METRICS"]
+__all__ = ["MODELS", "OPTIMIZERS", "METRICS", "canonical_model_name"]

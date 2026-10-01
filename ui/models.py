@@ -4,6 +4,8 @@ from django.conf import settings as django_settings
 from django.db import models, transaction
 from django.utils.translation import gettext_lazy as _
 
+from core import tasks
+
 from .fields import SafeJSONField
 
 
@@ -61,6 +63,11 @@ class ExperimentData(models.Model):
     # single split. Meaningless under cross-validation and simply carried, so
     # that switching an experiment's scheme would have somewhere to start from.
     test_size = models.FloatField(default=0.2)
+    # What the experiment predicts — a class or a number (see core.tasks).
+    # Fixed for the experiment's life, like how it is evaluated: the metrics it
+    # is scored with and the models it can use both follow from it.
+    task = models.CharField(max_length=20, default=tasks.DEFAULT,
+                            choices=[(t, t) for t in tasks.TASKS])
     dataset = models.FileField(upload_to="datasets/", blank=True, null=True)
     # The search space the trials were drawn from, as ConfigSpace's own
     # serialized dict. Null until something supplies one.

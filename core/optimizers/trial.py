@@ -129,9 +129,7 @@ def evaluate_trial(model, config, splits, metrics, seed=0):
     # run scoring nothing that needs probabilities must never take this path.
     #
     # `supports_proba` is False for a model in another process that did not say
-    # it could; a local model is asked directly. Which metrics can be scored at
-    # all is settled before the run starts (`core.metrics.usable`), so by here
-    # the two agree and this is a route, not a fallback.
+    # it could; a local model is asked directly.
     wants_proba = any(m.needs == PROBABILITIES for m in metrics.values())
     can_proba = (model.supports_proba if hasattr(model, "supports_proba")
                  else _offers_proba(model))

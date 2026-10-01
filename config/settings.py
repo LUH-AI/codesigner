@@ -222,6 +222,7 @@ INSTALLED_APPS = [
     "huey.contrib.djhuey",
     "access",
     "ui",
+    "datahandling",
 ]
 
 MIDDLEWARE = [

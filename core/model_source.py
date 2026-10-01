@@ -69,6 +69,10 @@ class ModelSourceInfo:
     requires_python: str | None = None
     #: Whether the file carried a PEP 723 header at all.
     has_header: bool = False
+    #: The tasks the class says it supports — a literal `tasks = (...)` in its
+    #: body. A class that says nothing is a classifier, which is all a model
+    #: could be before tasks existed.
+    tasks: tuple = ("classification",)
 
 
 def inspect_model_source(source: bytes) -> tuple[ModelSourceInfo | None, str | None]:
@@ -109,9 +113,14 @@ def inspect_model_source(source: bytes) -> tuple[ModelSourceInfo | None, str | N
     if err := _check_undeclared_imports(tree, deps, has_header):
         return None, err
 
+    tasks, err = _literal_tasks(model_class)
+    if err:
+        return None, err
+
     return ModelSourceInfo(
         name=name,
         class_name=model_class.name,
+        tasks=tasks,
         dependencies=deps,
         requires_python=requires_python,
         has_header=has_header,
@@ -163,6 +172,33 @@ def _literal_name(cls: ast.ClassDef) -> str | None:
         if isinstance(value, str) and value.strip():
             return value
     return None
+
+
+def _literal_tasks(cls: ast.ClassDef) -> tuple[tuple, str | None]:
+    """The class's `tasks = (...)`, if it sets one. Returns (tasks, error)."""
+    from .tasks import TASKS
+
+    for node in cls.body:
+        target = None
+        if isinstance(node, ast.Assign) and len(node.targets) == 1:
+            target = node.targets[0]
+        elif isinstance(node, ast.AnnAssign):
+            target = node.target
+        if not isinstance(target, ast.Name) or target.id != "tasks":
+            continue
+        try:
+            value = ast.literal_eval(node.value)
+        except (ValueError, SyntaxError):
+            return (), (f"'{cls.name}' must set tasks as a literal, "
+                        f'for example: tasks = ("classification", "regression").')
+        value = (value,) if isinstance(value, str) else tuple(value or ())
+        unknown = [t for t in value if t not in TASKS]
+        if unknown or not value:
+            return (), (f"'{cls.name}' names tasks Codesigner does not know: "
+                        f"{', '.join(map(repr, unknown)) or 'none'}. "
+                        f"Choose from {', '.join(map(repr, TASKS))}.")
+        return value, None
+    return ("classification",), None
 
 
 def _declared_dependencies(text: str) -> tuple[list[str], str | None, bool, str | None]:
