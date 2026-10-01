@@ -813,12 +813,23 @@ def reset_prior(request, exp):
 
     # Handed straight back, so the figure redraws from the same answer every
     # other request gives it rather than recomputing the decay in the browser.
+    # The curve too, where the page said where it wants it — as a save does.
+    # Without it the restored knots would be drawn over the curve of the belief
+    # they replaced.
     result = _rebuild_result(exp)
+    density = None
+    try:
+        meta = json.loads(request.POST.get("meta") or "null")
+    except ValueError:
+        meta = None
+    if isinstance(meta, dict):
+        density = _prior_densities(priors.get(hp_name), meta)
     return JsonResponse({
         "restored": bool(restored),
         "prior": _decayed_prior(exp, hp_name,
                                 len(result.trials) if result else 0,
                                 _inside_initial_design(result)),
+        "density": density,
     })
 
 

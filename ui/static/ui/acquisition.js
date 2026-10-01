@@ -548,6 +548,13 @@
         rewalkLabel = "",
         csrf = section.getAttribute("data-csrf"),
         saveTimer = 0,
+        /* One save in flight at a time. Each save writes the prior *and* hands
+         * back the curve for it, so two racing each other could come back in
+         * either order — an older curve drawn under newer knots, and an older
+         * belief left as the stored one. An edit made while a save is out
+         * waits for it; only the latest waiting edit is sent. */
+        saving = null,
+        queued = null,
         plotEl = document.getElementById("figure-acquisition_slice"),
         /* The three figures, in reading order. Separate divs so each can carry
          * its own controls underneath; they share an x axis by construction,
@@ -1252,6 +1259,13 @@
 
     function postPrior(rewalk) {
         if (!priorUrl || !state || !state.hp) return;
+        if (saving) {
+            /* Read when it is sent, not now, so it carries whatever the
+             * controls say by then. A requery waiting behind a save stays a
+             * requery. */
+            queued = {rewalk: !!rewalk || !!(queued && queued.rewalk)};
+            return;
+        }
         /* The verdict was about the belief as it stood. Any save means it has
          * moved, so the old answer goes rather than sitting under a curve it no
          * longer describes — a stale approval is the one outcome here that
@@ -1278,7 +1292,7 @@
         body.meta = {positions: meta.positions, span: meta.span,
                      cloud: {positions: (meta.cloud || {}).positions || []}};
 
-        fetch(priorUrl, {
+        saving = fetch(priorUrl, {
             method: "POST",
             headers: {"Content-Type": "application/json", "X-CSRFToken": csrf},
             body: JSON.stringify(body)
@@ -1298,7 +1312,15 @@
             if (data.candidates) showCandidates(data.candidates);
             else setWarning(text("no-optimizer"));
         }).catch(function () { setWarning(text("save-failed")); })
-          .then(function () { if (rewalk) setBusy(false); });
+          .then(function () {
+              if (rewalk) setBusy(false);
+              saving = null;
+              if (queued) {
+                  var next = queued;
+                  queued = null;
+                  postPrior(next.rewalk);
+              }
+          });
     }
 
     function setBusy(on) {
@@ -1383,13 +1405,28 @@
      * second reconstruction here. */
     function resetPrior() {
         if (!resetUrl || !state || !state.hp || !resetBtn) return;
-        var body = new FormData();
-        body.append("hp", state.hp);
+        var hp = state.hp, meta = currentMeta(), body = new FormData();
+        body.append("hp", hp);
+        /* Where the restored belief's curve is wanted, as a save asks for it:
+         * the knots come back in `prior`, and without the curve to go with
+         * them the panel would draw the new knots over the old line. */
+        body.append("meta", JSON.stringify({
+            positions: meta.positions, span: meta.span,
+            cloud: {positions: (meta.cloud || {}).positions || []}}));
         resetBtn.disabled = true;
-        fetch(resetUrl, {method: "POST", headers: {"X-CSRFToken": csrf},
-                         body: body})
+        /* After any save still out, and instead of any waiting: a save landing
+         * after the reset would put back the very edit being undone. */
+        if (saveTimer) { clearTimeout(saveTimer); saveTimer = 0; }
+        queued = null;
+        (saving || Promise.resolve())
+            .then(function () {
+                return fetch(resetUrl, {method: "POST", headers: {"X-CSRFToken": csrf},
+                                        body: body});
+            })
             .then(function (r) { return r.ok ? r.json() : Promise.reject(); })
             .then(function (data) {
+                if (!state || state.hp !== hp) return;
+                if (data.density) state.density = data.density;
                 var restored = data.prior && data.prior.kind;
                 state.prior = restored
                     ? {kind: data.prior.kind,

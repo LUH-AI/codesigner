@@ -185,6 +185,16 @@ nav.sidebar {
 }
 nav.sidebar h1 { font-size: 1.75rem; font-weight: 700; }
 nav.sidebar .actions { display: flex; gap: 0.5rem; }
+/* Three to a row in a sidebar 232px wide, so tighter than a button elsewhere.
+   One line each: a label that still does not fit (a long translation) ends in
+   an ellipsis rather than wrapping or pushing the icon button out of the row. */
+nav.sidebar .actions .btn {
+    padding-inline: 0.5rem; white-space: nowrap;
+    min-width: 0; overflow: hidden; text-overflow: ellipsis;
+}
+/* A button that is only an icon: as wide as the icon, leaving the row to the
+   labelled ones beside it. */
+nav.sidebar .actions .btn-icon { flex: 0 0 auto; overflow: visible; }
 nav.sidebar hr { border: none; border-top: 1px solid var(--border); margin: 0.25rem 0; }
 
 /* One decision each, stacked. The rule above a section is what separates it

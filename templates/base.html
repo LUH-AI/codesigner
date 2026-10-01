@@ -134,6 +134,15 @@
                 <div class="actions">
                     <a class="btn btn-block" href="{% url 'ui:new_experiment' %}">{% translate "＋ New" %}</a>
                     <a class="btn btn-block" href="{% url 'ui:import_experiment' %}">{% translate "📂 Load" %}</a>
+                    {% comment %}An icon rather than a third labelled button: three
+                    equal ones do not fit the sidebar's width without wrapping,
+                    and "Papierkorb" would not fit at all. The word is still its
+                    tooltip and what a screen reader says.{% endcomment %}
+                    <a class="btn btn-icon{% if request.resolver_match.url_name == 'experiment_bin' %} active{% endif %}"
+                       href="{% url 'ui:experiment_bin' %}" title="{% translate 'Bin' %}">
+                        <span aria-hidden="true">🗑</span>
+                        <span class="visually-hidden">{% translate "Bin" %}</span>
+                    </a>
                 </div>
                 <div class="tab-list experiment-list">
                     {% for e in sidebar_experiments %}
@@ -146,8 +155,6 @@
                     {% endfor %}
                 </div>
                 <a class="tab" href="{% url 'ui:experiment_list' %}">{% translate "See all…" %}</a>
-                <a class="tab{% if request.resolver_match.url_name == 'experiment_bin' %} active{% endif %}"
-                   href="{% url 'ui:experiment_bin' %}">{% translate "🗑 Bin" %}</a>
             </section>
             {% block sidebar_sections %}{% endblock %}
         </nav>

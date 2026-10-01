@@ -18,7 +18,7 @@ from django.db import IntegrityError, transaction
 from django.urls import reverse
 
 from access.models import Group, Membership
-from ui.models import Experiment
+from ui.models import Experiment, Run
 
 pytestmark = pytest.mark.django_db
 
@@ -246,6 +246,22 @@ def test_binned_work_is_visible_to_nobody(hosted, lab, django_user_model):
         request = type("R", (), {"user": user})()
         names = GroupPolicy().experiments(request).values_list("data__name", flat=True)
         assert "left behind" not in set(names)
+
+
+def test_a_site_admin_opens_the_bin(client, hosted, lab, django_user_model):
+    """With something in it, and saying how much work each one holds. It used
+    to fail outright: the run count was named after the `runs` relation it
+    counts, and Django refuses an annotation that shadows a field."""
+    group, exp = _emptied_group_holding_work(django_user_model)
+    Run.objects.create(experiment=exp, primary_metric="accuracy", status="done",
+                       stopping={"max_trials": 1}, trial_offset=0)
+    group.delete()
+    client.force_login(lab["site"])
+
+    resp = client.get(reverse("ui:site_trash"))
+
+    assert resp.status_code == 200
+    assert [e.run_count for e in resp.context["experiments"]] == [1]
 
 
 def test_only_a_site_admin_sees_the_bin(client, hosted, lab):

@@ -360,8 +360,14 @@ def share_of(user, experiment):
 
 
 def _granted(user):
-    """Shared with *user*, in a group they are still in — see `share_of`."""
-    return Q(shares__user=user, group_id__in=group_ids_of(user))
+    """Shared with *user*, in a group they are still in — see `share_of`.
+
+    A subquery rather than a join through `shares`: joining yields one row per
+    grant on the experiment, so any queryset built on this without its own
+    `distinct()` lists a shared experiment once per person it is shared with.
+    """
+    return Q(pk__in=ExperimentShare.objects.filter(user=user).values("experiment_id"),
+             group_id__in=group_ids_of(user))
 
 
 def _holds(user, permission: str) -> bool:

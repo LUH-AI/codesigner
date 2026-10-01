@@ -95,6 +95,36 @@ def test_it_goes_back_to_the_last_run(client):
     assert exp.data.priors["n_estimators"] == SEARCHED_UNDER["n_estimators"]
 
 
+def test_it_sends_back_the_curve_of_what_it_restored(client):
+    """The knots come back in `prior`, and the panel draws them over whatever
+    curve it holds. Without the restored belief's own curve alongside them they
+    landed off the line — the curve still being the dragged one's."""
+    from ui.views import _prior_densities
+
+    exp = _experiment(SINCE_DRAGGED)
+    _run(exp, SEARCHED_UNDER)
+    meta = {"positions": [0.0, 0.2, 0.5, 1.0], "span": [0.0, 1.0],
+            "cloud": {"positions": [0.1]}}
+
+    response = client.post(reverse("ui:reset_prior", args=[exp.pk]),
+                           {"hp": "n_estimators", "meta": json.dumps(meta)})
+    data = json.loads(response.content)
+
+    assert data["density"] == _prior_densities(SEARCHED_UNDER["n_estimators"], meta)
+    assert data["density"] != _prior_densities(SINCE_DRAGGED["n_estimators"], meta)
+
+
+def test_without_positions_it_sends_no_curve(client):
+    """The page always says where it wants one. Anything else asking gets the
+    prior and nothing computed on a guessed grid."""
+    exp = _experiment(SINCE_DRAGGED)
+    _run(exp, SEARCHED_UNDER)
+
+    _, data = _reset(client, exp)
+
+    assert data["density"] is None
+
+
 def test_with_no_run_it_goes_to_uniform(client):
     """Which is stored as absence. Uniform multiplies the acquisition by a
     constant and cannot change a ranking, so it says exactly what stating

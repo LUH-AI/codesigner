@@ -31,7 +31,7 @@
                 <tr>
                     <td>#{{ e.pk }}</td>
                     <td>{% if e.owner %}{{ e.owner.get_username }}{% else %}<span class="caption">{% translate "nobody" %}</span>{% endif %}</td>
-                    <td>{{ e.runs }}</td>
+                    <td>{{ e.run_count }}</td>
                     <td>{{ e.trashed_at|date:"Y-m-d H:i" }}</td>
                     <td style="text-align: right;">
                         <form method="post" action="{% url 'ui:site_trash_rehome' e.pk %}" class="selectors">

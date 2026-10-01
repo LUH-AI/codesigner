@@ -21,7 +21,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: PACKAGE VERSION\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2026-09-30 13:46+0000\n"
+"POT-Creation-Date: 2026-09-30 14:24+0000\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
 "Language-Team: LANGUAGE <LL@li.org>\n"
@@ -168,8 +168,9 @@ msgstr "Usage"
 msgid "Jobs"
 msgstr "Jobs"
 
-#: templates/base.html:127 ui/navigation.py:67 ui/templates/ui/bin.html:4
-#: ui/templates/ui/bin.html:7 ui/templates/ui/panels/site_trash.html:4
+#: templates/base.html:127 templates/base.html:148 templates/base.html:150
+#: ui/navigation.py:67 ui/templates/ui/bin.html:4 ui/templates/ui/bin.html:7
+#: ui/templates/ui/panels/site_trash.html:4
 #: ui/templates/ui/panels/site_trash.html:7
 msgid "Bin"
 msgstr "Bin"
@@ -186,25 +187,21 @@ msgstr "＋ New"
 msgid "📂 Load"
 msgstr "📂 Load"
 
-#: templates/base.html:147 ui/templates/ui/experiment_list.html:22
+#: templates/base.html:157 ui/templates/ui/experiment_list.html:22
 msgid "Running"
 msgstr "Running"
 
-#: templates/base.html:147
+#: templates/base.html:157
 msgid "Preparing its environment"
 msgstr "Preparing its environment"
 
-#: templates/base.html:150 ui/templates/ui/experiment_list.html:28
+#: templates/base.html:160 ui/templates/ui/experiment_list.html:28
 msgid "No experiments yet."
 msgstr "No experiments yet."
 
-#: templates/base.html:153
+#: templates/base.html:163
 msgid "See all…"
 msgstr "See all…"
-
-#: templates/base.html:155
-msgid "🗑 Bin"
-msgstr "🗑 Bin"
 
 #: ui/navigation.py:36 ui/templates/ui/delete_confirm.html:16
 #: ui/templates/ui/panels/site_groups.html:49

@@ -483,7 +483,7 @@ def site_trash(request):
     """
     trashed = (policy().trash(request)
                .select_related("owner")
-               .annotate(runs=Count("runs", distinct=True))
+               .annotate(run_count=Count("runs", distinct=True))
                .order_by("-trashed_at"))
     return render(request, "ui/panels/site_trash.html", {
         "experiments": trashed,

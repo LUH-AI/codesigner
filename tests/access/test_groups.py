@@ -208,6 +208,24 @@ def test_but_their_everyday_list_stays_their_own(hosted, world):
     assert listed == set(), "a colleague's work is on the group page, not here"
 
 
+def test_a_shared_experiment_is_listed_once(client, hosted, world):
+    """Not once per person it is shared with. It was, for a superuser who
+    leads a group: their reach has no `distinct()`, and the listing joined the
+    grants to find what was shared with them."""
+    ExperimentShare.objects.create(experiment=world["ana_viewer"],
+                                   user=world["lead_v"], level=VIEWER)
+    world["ana"].is_superuser = True
+    world["ana"].save(update_fields=["is_superuser"])
+    Membership.objects.filter(user=world["ana"]).update(role=Membership.PRIMARY_LEAD)
+    client.force_login(world["ana"])
+
+    listed = [e.name for e in client.get(reverse("ui:home")).context["sidebar_experiments"]]
+    paged = [e.name for e in client.get(reverse("ui:experiment_list")).context["page"]]
+
+    assert sorted(listed) == sorted(set(listed)) and "ana viewer" in listed
+    assert sorted(paged) == sorted(set(paged))
+
+
 def test_the_group_panel_is_the_other_half(hosted, world):
     from access.policy import GroupPolicy
 
