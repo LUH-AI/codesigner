@@ -5,6 +5,16 @@
 
 {% block content %}
     <h1>{{ group.name }}</h1>
+    {% comment %}Everyone in the group sees what it stores: a dataset anyone
+    uploads can replace the trial models anyone kept.{% endcomment %}
+    <div class="storage-usage" style="max-width: 34rem;">
+        <p class="caption">
+            {% blocktranslate with used=storage.used limit=storage.limit models=storage.models %}Storage: {{ used }} of {{ limit }}, of which {{ models }} is kept trial models. Datasets come first: when the group is full, a new dataset replaces the stalest kept trial models.{% endblocktranslate %}
+        </p>
+        <div class="usage-bar" role="meter" aria-valuemin="0" aria-valuemax="100" aria-valuenow="{{ storage.percent }}">
+            <span style="width: {{ storage.percent }}%;"></span>
+        </div>
+    </div>
     {% if is_lead %}
         <p class="caption">
             {% blocktranslate count seats=seats_left %}{{ seats }} seat left.{% plural %}{{ seats }} seats left.{% endblocktranslate %}

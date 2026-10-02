@@ -59,7 +59,7 @@ def _ran_experiment(client):
         "name": "round-trip", "model_name": "Random Forest",
         "optimizer_name": "Random Search", "seed": "7",
         "evaluation_scheme": "kfold", "evaluation_value": "3",
-        "demo_dataset": str(DATASETS_DIR / "iris.csv"),
+        "demo_dataset": str(DATASETS_DIR / "iris.csv"), "task": "classification",
     })
     from ui.models import Experiment
     exp = Experiment.objects.get(data__name="round-trip")
@@ -139,7 +139,10 @@ def test_what_is_left_out_is_about_the_reader_not_the_experiment(client, rf):
                           "default_trial_timeout",
                           # How often this page should poll, from the trials'
                           # own durations on this machine.
-                          "poll_seconds"}
+                          "poll_seconds",
+                          # Whether this instance holds the model file to
+                          # write out: a reader who imported the run does not.
+                          "model_export_unavailable"}
     declarations = {"figures", "sidebar_figures", "selectable_figures",
                     "selection_colors",
                     # The tabs and where each figure sits on them: how this

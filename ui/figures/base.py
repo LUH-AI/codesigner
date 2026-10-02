@@ -147,6 +147,16 @@ class Figure:
     #: poll and appends them (see `ui/views.py`'s `_live_payloads`), and the two
     #: configuration panels do not update at all. See `run_status`.
     live = False
+    #: Whether this figure only means something for a forecast — an experiment
+    #: evaluated by backtests. Left off every other page entirely rather than
+    #: shown empty. See `applies`.
+    forecast_only = False
+
+    @classmethod
+    def applies(cls, data) -> bool:
+        """Whether this figure belongs on the page of the experiment *data*
+        (an `ExperimentData`) describes."""
+        return not cls.forecast_only or data.forecasts
 
     def __init_subclass__(cls, **kwargs):
         """Derive everything that follows from the key, once per subclass."""

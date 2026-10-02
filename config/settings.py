@@ -103,6 +103,15 @@ MODEL_MAX_FILE_BYTES = env.int("MODEL_MAX_FILE_BYTES", default=1024 * 1024 * 102
 # writes, not what a person hands the form. See ui/validators.py.
 MAX_UPLOAD_BYTES = env.int("MAX_UPLOAD_BYTES", default=100 * 1024 * 1024)
 
+# How much disk a group's experiments may take — datasets, model files, the
+# trial models kept for export — unless a site admin sets a group's own limit.
+# The bundled demo datasets are shared and count against nobody. See
+# ui/services/storage.py.
+GROUP_STORAGE_LIMIT_BYTES = env.int("GROUP_STORAGE_LIMIT_BYTES", default=20 * 1024 ** 3)
+
+# The share of a group's limit past which every member is warned, on every page.
+STORAGE_WARNING_SHARE = env.float("STORAGE_WARNING_SHARE", default=0.9)
+
 # How much the importance analytics computed at run completion may spend, in
 # shapiq coalition evaluations (2^hyperparameters x 3 games x metrics). Past it
 # they are skipped and every metric carries the reason, which the experiment page
@@ -264,6 +273,7 @@ TEMPLATES = [
                 "ui.context_processors.capabilities",
                 "ui.context_processors.offered_languages",
                 "ui.context_processors.theme",
+                "ui.context_processors.storage",
             ],
         },
     },

@@ -129,3 +129,73 @@ def test_the_section_slugs_are_unique():
     How: compares the number of slugs with the number of distinct ones."""
     slugs = [s.slug for s in SECTIONS]
     assert len(slugs) == len(set(slugs))
+
+
+def _section(slug):
+    return next(s for s in SECTIONS if s.slug == slug)
+
+
+def test_processing_choices_are_controls_and_default_to_the_models_needs(client):
+    """What: Cleaning and Features show the processing choices as controls,
+    defaulting to what the experiment's model needs, and say what that is.
+    How: fetches both pages for a Random Forest experiment."""
+    exp = _exp()
+    cleaning = client.get(_url(exp, _section("cleaning"))).content.decode()
+    features = client.get(_url(exp, _section("features"))).content.decode()
+
+    assert 'name="missing"' in cleaning and "Random Forest: leave for the model" in cleaning
+    assert 'name="scale"' in features and 'name="labels"' in features
+    assert "Random Forest: one column per label" in features
+
+
+def test_a_processing_choice_is_saved_and_travels_in_the_file(client):
+    """What: choosing "standardize" on Features is stored, and the experiment's
+    .ihpo records it in its dataset section. How: posts the form, then builds
+    the snapshot."""
+    from ui.services.snapshot import snapshot_from_experiment
+
+    exp = _exp()
+    client.post(_url(exp, _section("features")), {"scale": "standardize", "labels": "auto"})
+    exp.refresh_from_db()
+
+    assert exp.data.processing["scale"] == "standardize"
+    assert snapshot_from_experiment(exp)["dataset"]["processing"] == {
+        "missing": "auto", "scale": "standardize", "labels": "auto"}
+
+
+def test_processing_is_fixed_once_there_are_trials(client):
+    """What: an experiment with trials keeps the processing they were scored
+    under — the controls are disabled and a post changes nothing.
+    How: gives the experiment a result with one trial and posts a change."""
+    exp = _exp()
+    exp.data.result = {"data": [[1, 0, 0, 0.5, 0.1, 1, 0, 0, 0]]}
+    exp.data.save()
+    url = _url(exp, _section("features"))
+
+    assert "disabled" in client.get(url).content.decode()
+    client.post(url, {"scale": "standardize"})
+    exp.refresh_from_db()
+    assert not exp.data.processing
+
+
+@pytest.mark.django_db
+def test_a_run_is_given_the_experiments_processing(client):
+    """What: the model a run builds is told the experiment's processing, so the
+    choice on the page is the one its trials are scored under.
+    How: creates iris with an SVM, sets scaling off, and builds the run's model."""
+    from core import io
+    from ui.registry import METRICS, MODELS, OPTIMIZERS
+    from ui.services.snapshot import snapshot_from_experiment
+
+    from tests.conftest import DATASETS_DIR
+
+    client.post(reverse("ui:new_experiment"), {
+        "name": "svm", "task": "classification", "model_name": "SVM",
+        "optimizer_name": "Random Search", "demo_dataset": str(DATASETS_DIR / "iris.csv"),
+        "seed": 0})
+    exp = Experiment.objects.get(data__name="svm")
+    exp.data.processing = {"scale": "none"}
+    exp.data.save()
+
+    _, built = io.build_experiment(snapshot_from_experiment(exp), METRICS, MODELS, OPTIMIZERS)
+    assert built["model"].processing == {"missing": "auto", "scale": "none", "labels": "auto"}

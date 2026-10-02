@@ -21,7 +21,7 @@ from tests.conftest import DATASETS_DIR, FIXTURES_DIR
 def _valid_post(**overrides):
     data = {"name": "my-exp", "model_name": "Random Forest",
             "optimizer_name": "Random Search",
-            "demo_dataset": str(DATASETS_DIR / "iris.csv"), "seed": 0}
+            "demo_dataset": str(DATASETS_DIR / "iris.csv"), "task": "classification", "seed": 0}
     data.update(overrides)
     return data
 

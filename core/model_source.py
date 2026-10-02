@@ -73,6 +73,14 @@ class ModelSourceInfo:
     #: body. A class that says nothing is a classifier, which is all a model
     #: could be before tasks existed.
     tasks: tuple = ("classification",)
+    #: Whether the class forecasts — a literal `forecaster = True` in its body.
+    #: Only a forecaster can be evaluated by backtests: an upload runs in its
+    #: own process, where nothing can make it into one.
+    forecaster: bool = False
+    #: Whether the class defines `fit_predict_proba` itself — read from the
+    #: source, so a run can be offered the metrics scored on probabilities
+    #: before anything has run the file.
+    has_proba: bool = False
 
 
 def inspect_model_source(source: bytes) -> tuple[ModelSourceInfo | None, str | None]:
@@ -121,6 +129,9 @@ def inspect_model_source(source: bytes) -> tuple[ModelSourceInfo | None, str | N
         name=name,
         class_name=model_class.name,
         tasks=tasks,
+        forecaster=_literal_flag(model_class, "forecaster"),
+        has_proba=any(isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef))
+                      and node.name == "fit_predict_proba" for node in model_class.body),
         dependencies=deps,
         requires_python=requires_python,
         has_header=has_header,
@@ -199,6 +210,22 @@ def _literal_tasks(cls: ast.ClassDef) -> tuple[tuple, str | None]:
                         f"Choose from {', '.join(map(repr, TASKS))}.")
         return value, None
     return ("classification",), None
+
+
+def _literal_flag(cls: ast.ClassDef, attribute: str) -> bool:
+    """Whether the class sets *attribute* to a literal true value."""
+    for node in cls.body:
+        target = None
+        if isinstance(node, ast.Assign) and len(node.targets) == 1:
+            target = node.targets[0]
+        elif isinstance(node, ast.AnnAssign) and node.value is not None:
+            target = node.target
+        if isinstance(target, ast.Name) and target.id == attribute:
+            try:
+                return bool(ast.literal_eval(node.value))
+            except (ValueError, SyntaxError):
+                return False
+    return False
 
 
 def _declared_dependencies(text: str) -> tuple[list[str], str | None, bool, str | None]:

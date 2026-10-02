@@ -25,7 +25,7 @@ def _create(client, **overrides):
         "name": "exp",
         "model_name": "Random Forest",
         "optimizer_name": "Random Search",
-        "demo_dataset": str(DATASETS_DIR / "iris.csv"),
+        "demo_dataset": str(DATASETS_DIR / "iris.csv"), "task": "classification",
         "seed": 0,
     }
     data.update(overrides)

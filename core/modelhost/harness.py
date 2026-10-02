@@ -163,6 +163,15 @@ def _load_dataset(arrays_dir: Path, fold_labels):
     return folds
 
 
+def _argument(value: str):
+    """A JSON launch argument, or the file it was put in when it was long
+    (``@path`` — see the client's `_argument`)."""
+    if value.startswith("@"):
+        with open(value[1:], encoding="utf-8") as f:
+            return json.load(f)
+    return json.loads(value)
+
+
 def main(argv=None) -> int:
     parser = argparse.ArgumentParser(description="Run one Codesigner model.")
     parser.add_argument("--model-file", required=True)
@@ -172,6 +181,10 @@ def main(argv=None) -> int:
     parser.add_argument("--task", default="classification",
                         help="the task the model is run for; told to it before it is asked "
                              "for its search space")
+    parser.add_argument("--feature-kinds", default="",
+                        help="a JSON list: what kind each column of X is")
+    parser.add_argument("--forecast", default="",
+                        help="a JSON object: the forecast a forecasting model is run for")
     args = parser.parse_args(argv)
 
     _apply_limits()
@@ -189,6 +202,16 @@ def main(argv=None) -> int:
             model.task = args.task
         except AttributeError:
             pass
+        if args.feature_kinds:
+            try:
+                model.feature_kinds = tuple(_argument(args.feature_kinds))
+            except AttributeError:
+                pass
+        if args.forecast:
+            try:
+                model.forecast = _argument(args.forecast)
+            except AttributeError:
+                pass
         greeting = _greeting(model, args.seed)
     except BaseException as exc:  # noqa: BLE001 — report anything, including SystemExit
         _fail("load", f"{type(exc).__name__}: {exc}")

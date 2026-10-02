@@ -13,8 +13,13 @@ from ui.models import Experiment
 
 
 def _demo_dataset_path():
+    """Path of the iris demo, to satisfy the form's dataset rule.
+
+    Named rather than the first demo: the demos include a regression one now,
+    and the models here only classify.
+    """
     from core import io
-    return next(iter(io.demo_datasets().values()))
+    return io.demo_datasets()["iris"]
 
 
 def test_dataset_toggle_present(client):
@@ -48,7 +53,7 @@ def test_normal_submission_still_creates(client):
         "name": "toggle-ok",
         "model_name": "Random Forest",
         "optimizer_name": "Random Search",
-        "demo_dataset": _demo_dataset_path(),
+        "demo_dataset": _demo_dataset_path(), "task": "classification",
         "seed": "0",
     })
     assert resp.status_code == 302

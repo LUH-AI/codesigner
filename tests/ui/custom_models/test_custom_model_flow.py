@@ -16,6 +16,7 @@ from django.core.files.uploadedfile import SimpleUploadedFile
 from django.urls import reverse
 
 from core import io
+from core.metrics import metrics_for
 from ui.models import Experiment
 from ui.services import run as run_service
 from ui.services import snapshot as snapshot_adapter
@@ -24,7 +25,12 @@ from tests.ui.custom_models.conftest import VALID_MODEL_SRC
 
 
 def _demo_dataset_path():
-    return next(iter(io.demo_datasets().values()))
+    """Path of the iris demo, to satisfy the form's dataset rule.
+
+    Named rather than the first demo: the demos include a regression one now,
+    and the models here only classify.
+    """
+    return io.demo_datasets()["iris"]
 
 
 def _custom_snapshot(name="cm", dataset_path=None):
@@ -37,7 +43,7 @@ def _custom_snapshot(name="cm", dataset_path=None):
         "optimizer_params": {},
         "primary_metric": None,
         "original_metric": None,
-        "metric_names": list(run_service.METRICS),
+        "metric_names": metrics_for("classification"),
         "seed": 0,
         "dataset_path": dataset_path or _demo_dataset_path(),
         "result": None,
@@ -58,7 +64,7 @@ def test_create_view_stores_custom_model(client):
         "name": "cm-create",
         "model_name": "",
         "optimizer_name": "Random Search",
-        "demo_dataset": _demo_dataset_path(),
+        "demo_dataset": _demo_dataset_path(), "task": "classification",
         "seed": "0",
         "model_file": _model_file(),
     })

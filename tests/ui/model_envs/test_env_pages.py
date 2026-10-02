@@ -54,7 +54,7 @@ def test_uploading_a_model_queues_its_environment(client, fake_uv):
 
     resp = client.post(reverse("ui:new_experiment"), {
         "name": "queued", "model_name": "", "optimizer_name": "Random Search",
-        "demo_dataset": str(DATASETS_DIR / "iris.csv"), "seed": "0",
+        "demo_dataset": str(DATASETS_DIR / "iris.csv"), "task": "classification", "seed": "0",
         "model_file": upload,
     })
 
@@ -70,7 +70,7 @@ def test_a_registry_model_needs_no_environment(client):
     client.post(reverse("ui:new_experiment"), {
         "name": "plain", "model_name": "Random Forest",
         "optimizer_name": "Random Search",
-        "demo_dataset": str(DATASETS_DIR / "iris.csv"), "seed": "0",
+        "demo_dataset": str(DATASETS_DIR / "iris.csv"), "task": "classification", "seed": "0",
     })
 
     assert Experiment.objects.get(data__name="plain").env_status == Experiment.ENV_NONE

@@ -1,11 +1,13 @@
+import copy
 from pathlib import Path
 
 import pytest
 from ConfigSpace import ConfigurationSpace, Integer
 
 from core.io import _load_splits
-from core.metrics import METRICS
-from core.models import BaseModel, RandomForestModel, SVMModel
+from core.metrics import METRICS, metrics_for
+from core.models import BaseModel
+from core.registry import MODELS
 from core.optimizers.trial import evaluate_trial
 from core.optimizers import (
     BaseOptimizer,
@@ -97,6 +99,17 @@ class PreCancelled:
 
 
 @pytest.fixture(autouse=True)
+def media_stays_out_of_the_repo(settings, tmp_path):
+    """A throwaway MEDIA_ROOT for every test, not only the web layer's.
+
+    Any test that creates an experiment stores what it uploads; left to the
+    default, that is the developer's own media/ directory, where it outlives
+    the test and counts against nobody's idea of what is stored there.
+    """
+    settings.MEDIA_ROOT = str(tmp_path / "media")
+
+
+@pytest.fixture(autouse=True)
 def runs_execute_synchronously(settings):
     """Keep inline runs synchronous for the whole suite.
 
@@ -132,19 +145,24 @@ def suite_runs_in_its_own_configuration(settings):
 
 @pytest.fixture
 def metrics() -> dict:
-    """The metrics the application scores with — the real ones, not a copy.
+    """The classification metrics the application scores with — the real ones,
+    not a copy.
 
     They used to be redefined here. Now that scoring is the application's job
     rather than each model's, a copy could drift from what production computes
-    and no test would notice.
+    and no test would notice. Only the classification ones: the fixtures'
+    datasets have class labels, and a regression metric scored on them fails
+    every trial. A regression test asks for `metrics_for("regression")` itself.
     """
-    return dict(METRICS)
+    return {name: METRICS[name] for name in metrics_for("classification")}
 
 
 @pytest.fixture
 def models() -> dict:
-    """The registry models, keyed as the app registers them."""
-    return {"Random Forest": RandomForestModel(), "SVM Classifier": SVMModel()}
+    """The registry models, keyed as the app registers them — read from the
+    registry, so a model added to it is tested without anyone listing it here.
+    Copies, so a test that tells one its task does not tell every later test."""
+    return {name: copy.copy(model) for name, model in MODELS.items()}
 
 
 @pytest.fixture

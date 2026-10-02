@@ -18,21 +18,35 @@ import traceback
 
 import numpy as np
 
-from ..metrics import PROBABILITIES, score_all
+from ..metrics import HISTORY, PROBABILITIES, score_all
 from ..modelhost.errors import ModelTrialError, TrialCancelled, TrialTimeout
-from .timing import CANCELLED, STATUS_CRASHED, STATUS_TIMEOUT, timed_evaluation
+from .timing import CANCELLED, FITTED, STATUS_CRASHED, STATUS_TIMEOUT, timed_evaluation
 
 
-def _offers_proba(model) -> bool:
+def offers_probabilities(model) -> bool:
     """Whether a model *in this process* actually implements probabilities.
 
     Every model inherits the SDK's stub, so presence says nothing — the stub
-    marks itself. See `core.modelhost.harness._capabilities`, which asks the
+    marks itself. A built-in's method is never the stub (see
+    `core.models.base.Tunable`), so it says with `probabilities` instead. See `core.modelhost.harness._capabilities`, which asks the
     same question of a model in its own process and has to survive a cached
     environment holding an older SDK.
     """
     fn = getattr(model, "fit_predict_proba", None)
-    return callable(fn) and not getattr(fn, "_is_stub", False)
+    return (callable(fn) and not getattr(fn, "_is_stub", False)
+            and bool(getattr(model, "probabilities", True)))
+
+
+def _history(splits, train_idx, metrics):
+    """What a forecast in this fold was made from, for the metrics that ask —
+    the fold's training values, their series and the season length — or None
+    when nothing being scored needs it."""
+    if not any(m.needs == HISTORY for m in metrics.values()):
+        return None
+    series = getattr(splits, "series", None)
+    return {"y": splits.y[train_idx],
+            "series": None if series is None else series[train_idx],
+            "season": getattr(splits, "season", 1)}
 
 
 def _null_scores(metrics, splits) -> dict:
@@ -67,8 +81,22 @@ def _null_scores(metrics, splits) -> dict:
     return scores
 
 
-def evaluate_trial(model, config, splits, metrics, seed=0):
+def keeps_its_fit(model) -> bool:
+    """Whether *model* can hand over what a trial fitted: a built-in, fitted
+    and asked in this process through its own `fit` and `predict` — not a model
+    in another process, whose fitted state never crosses back."""
+    from codesigner_model import OptimizableBaseModel, OutputBaseModel
+
+    return isinstance(model, OutputBaseModel) and isinstance(model, OptimizableBaseModel)
+
+
+def evaluate_trial(model, config, splits, metrics, seed=0, keep=False):
     """Run *config* through *model* over every fold of *splits*, and score it.
+
+    With *keep*, a model that can (`keeps_its_fit`) is fitted on the last fold
+    through its own `fit` — the same one fit `fit_predict` makes — and what it
+    fitted is handed back as ``run_info[FITTED]``, for a trial worth keeping:
+    partially trained, on that fold's training rows only.
 
     Returns ``(scores, run_info)``. A trial that failed — the model raised, was
     stopped for exceeding its deadline, or returned something unscoreable —
@@ -132,7 +160,7 @@ def evaluate_trial(model, config, splits, metrics, seed=0):
     # it could; a local model is asked directly.
     wants_proba = any(m.needs == PROBABILITIES for m in metrics.values())
     can_proba = (model.supports_proba if hasattr(model, "supports_proba")
-                 else _offers_proba(model))
+                 else offers_probabilities(model))
     use_proba = wants_proba and can_proba
 
     with timed_evaluation(seed=seed) as run_info:
@@ -140,8 +168,17 @@ def evaluate_trial(model, config, splits, metrics, seed=0):
             if select_fold is not None:
                 select_fold(index)
             y_proba = classes = None
+            last = index == len(splits.folds) - 1
             try:
-                if use_proba:
+                if keep and last and keeps_its_fit(model):
+                    fitted = model.fit(config, splits.X[train_idx], splits.y[train_idx],
+                                       seed, probabilities=use_proba)
+                    y_pred = model.predict(fitted, splits.X[val_idx])
+                    if use_proba:
+                        y_proba = model.predict_proba(fitted, splits.X[val_idx])
+                        classes = fitted.classes_
+                    run_info[FITTED] = fitted
+                elif use_proba:
                     y_pred, y_proba, classes = model.fit_predict_proba(
                         config, splits.X[train_idx], splits.y[train_idx],
                         splits.X[val_idx], seed=seed)
@@ -180,7 +217,8 @@ def evaluate_trial(model, config, splits, metrics, seed=0):
 
             try:
                 fold_scores.append(score_all(splits.y[val_idx], y_pred, metrics,
-                                             y_proba=y_proba, classes=classes))
+                                             y_proba=y_proba, classes=classes,
+                                             history=_history(splits, train_idx, metrics)))
             except Exception as exc:  # noqa: BLE001 — wrong label type, wrong length
                 failure = f"predictions could not be scored: {type(exc).__name__}: {exc}"
                 detail = traceback.format_exc()
@@ -193,6 +231,7 @@ def evaluate_trial(model, config, splits, metrics, seed=0):
         scores = {name: float(np.mean([s[name] for s in fold_scores])) for name in metrics}
     else:
         scores = _null_scores(metrics, splits)
+        run_info.pop(FITTED, None)
         run_info["status"] = status
         run_info["additional_info"] = {"error": failure}
         if detail:

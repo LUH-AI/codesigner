@@ -1,9 +1,10 @@
 """What Data Handling is to do, section by section.
 
 The pages render from this list and from nothing else: the sidebar's tabs, each
-page's heading and purpose, and the capabilities it lists as planned. None of
-them is built. Reshaping a section — adding an idea, dropping one, moving one
-somewhere it fits better — is an edit here.
+page's heading and purpose, and the capabilities it lists. Most are planned. A
+capability with a `step` is built: it is one of the experiment's processing
+choices (`core.processing`), shown as a control. Reshaping a section — adding
+an idea, dropping one, moving one somewhere it fits better — is an edit here.
 """
 
 from dataclasses import dataclass
@@ -15,6 +16,9 @@ from django.utils.translation import gettext_lazy as _
 class Capability:
     title: str
     description: str
+    #: The processing step this capability sets (a key of
+    #: `core.processing.CHOICES`), or "" while it is only planned.
+    step: str = ""
 
 
 @dataclass(frozen=True)
@@ -89,8 +93,12 @@ SECTIONS = (
         _("Fixing what Quality found, as steps in the dataset's recipe — the "
           "uploaded file itself is never changed."),
         (
-            Capability(_("Imputation"), _("Fill gaps with a column's mean, median or most frequent "
-                                          "value, a constant, or from the nearest rows.")),
+            Capability(_("Missing values"), _("Fill each gap in — a number with its column's median, a "
+                                              "label with its commonest label — or leave it for the "
+                                              "model. A model that cannot take a gap always has its "
+                                              "gaps filled."), step="missing"),
+            Capability(_("Imputation"), _("Fill gaps with a column's mean, a constant, or from the "
+                                          "nearest rows.")),
             Capability(_("Drop rows or columns"), _("Leave out rows or columns over a threshold of "
                                                     "missing values, or by hand.")),
             Capability(_("De-duplication"), _("Keep one of each duplicate, or none of those that "
@@ -107,9 +115,15 @@ SECTIONS = (
         _("New columns made from the existing ones. Some can be tuned along "
           "with the model rather than fixed in advance."),
         (
-            Capability(_("Encodings"), _("One-hot, ordinal, target or frequency encoding for "
-                                         "categorical columns.")),
-            Capability(_("Scaling"), _("Standard, min-max or robust scaling.")),
+            Capability(_("Label columns"), _("One column per label, or the labels as categories of their "
+                                             "own for a model that takes them so — codes for a booster, "
+                                             "words for CatBoost."), step="labels"),
+            Capability(_("Scaling"), _("Standardize the numbers — zero mean, unit variance — for a "
+                                       "model that measures distances, or leave them as they "
+                                       "are."), step="scale"),
+            Capability(_("Encodings"), _("Ordinal, target or frequency encoding for categorical "
+                                         "columns.")),
+            Capability(_("Other scaling"), _("Min-max or robust scaling.")),
             Capability(_("Transforms"), _("Log, Box-Cox or Yeo-Johnson; binning a numeric column "
                                           "into ranges.")),
             Capability(_("Calendar features"), _("Year, month, weekday, hour, holidays from a datetime "

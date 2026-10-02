@@ -159,7 +159,7 @@ def test_creating_an_experiment_makes_you_its_owner(client, hosted, ana):
     client.post(reverse("ui:new_experiment"), {
         "name": "mine", "model_name": "Random Forest",
         "optimizer_name": "Random Search",
-        "demo_dataset": str(DATASETS_DIR / "iris.csv"), "seed": "0",
+        "demo_dataset": str(DATASETS_DIR / "iris.csv"), "task": "classification", "seed": "0",
     })
 
     assert Experiment.objects.get(data__name="mine").owner == ana

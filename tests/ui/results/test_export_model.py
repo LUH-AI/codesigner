@@ -28,14 +28,14 @@ def _url(exp, **params):
 def _config(body):
     tree = ast.parse(body)
     node = next(n for n in tree.body if isinstance(n, ast.Assign)
-                and getattr(n.targets[0], "id", None) == "CONFIG")
+                and getattr(n.targets[0], "id", None) == "HYPERPARAMETERS")
     return ast.literal_eval(node.value)
 
 
 def test_the_selected_trial_is_exported(client):
     """What: the file is an attachment named for the model and trial, holding
-    that trial's configuration. How: exports index 3 and compares CONFIG with
-    the stored trial."""
+    that trial's configuration. How: exports index 3 and compares
+    HYPERPARAMETERS with the stored trial."""
     from ui.views import _rebuild_result
 
     exp = _experiment()
@@ -97,7 +97,7 @@ def test_a_custom_model_exports_from_its_file(client):
 
     body = client.get(_url(exp)).content.decode()
     assert "class Mine(BaseModel)" in body
-    assert "MODEL_CLASS = Mine" in body
+    assert "model = Mine()" in body and "get_config_space" not in body
 
 
 def test_the_page_offers_the_export(client):

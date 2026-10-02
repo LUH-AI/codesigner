@@ -1,22 +1,54 @@
-# /// script
-# requires-python = ">=3.11"
-# dependencies = ["scikit-learn", "ConfigSpace"]
-# ///
+"""Support vector machine: scikit-learn's, classifying or regressing."""
+
 from ConfigSpace import Categorical, ConfigurationSpace, Float, Integer
-from sklearn.svm import SVC, SVR
 
-from .base import BaseModel
+from .base import OutputBaseModel, Tunable
 
 
-class SVMModel(BaseModel):
+class SVM(OutputBaseModel):
     """scikit-learn's support vector machine: `SVC` for classification, `SVR`
-    for regression, which also tunes the width of its insensitive tube."""
+    for regression. It refuses gaps and measures distances, so its columns are
+    filled in and scaled first.
+
+    An SVM has no probabilities of its own: asked for them, it fits an internal
+    five-fold Platt calibration on top, which costs several times what the
+    plain fit costs, so `build` adds it only when ``data["probabilities"]``
+    says they will be asked for. A calibrated SVC's labels can disagree with
+    the argmax of its own probabilities; they are the labels that go with
+    those probabilities, which is what a trial scoring both needs.
+    """
 
     name = "SVM"
+    tasks = ("classification", "regression")
+    dependencies = ("scikit-learn",)
+    accepts_missing = False
+    scale_sensitive = True
+
+    def build(self, hyperparameters, data, seed=0):
+        from sklearn.svm import SVC, SVR
+
+        shared = dict(
+            C=float(hyperparameters["C"]),
+            kernel=hyperparameters["kernel"],
+            gamma=hyperparameters["gamma"],
+            degree=int(hyperparameters["degree"]),
+            tol=float(hyperparameters["tol"]),
+            max_iter=int(hyperparameters["max_iter"]),
+        )
+        if self.task == "regression":
+            svm = SVR(epsilon=float(hyperparameters.get("epsilon", 0.1)), **shared)
+        else:
+            svm = SVC(random_state=seed, probability=bool(data.get("probabilities")), **shared)
+        return svm
+
+
+class SVMModel(Tunable, SVM):
+    """The SVM, tuned over its kernel and penalties; for a regression also the
+    width of its insensitive tube."""
+
     #: What it was called while it could only classify, which every `.ihpo`
     #: written then still says.
     aliases = ("SVM Classifier",)
-    tasks = ("classification", "regression")
 
     def get_config_space(self, seed: int = 0) -> ConfigurationSpace:
         cs = ConfigurationSpace(seed=seed)
@@ -31,44 +63,3 @@ class SVMModel(BaseModel):
         if self.task == "regression":
             cs.add(Float("epsilon", (1e-3, 1.0), default=0.1, log=True))
         return cs
-
-    def fit(self, config, X_train, y_train, seed: int = 0, *, probability: bool = False):
-        """The SVM *config* describes, trained on all of ``(X_train, y_train)``."""
-        shared = dict(
-            C=float(config["C"]),
-            kernel=config["kernel"],
-            gamma=config["gamma"],
-            degree=int(config["degree"]),
-            tol=float(config["tol"]),
-            max_iter=int(config["max_iter"]),
-        )
-        if self.task == "regression":
-            clf = SVR(epsilon=float(config.get("epsilon", 0.1)), **shared)
-        else:
-            clf = SVC(random_state=seed, probability=probability, **shared)
-        clf.fit(X_train, y_train)
-        return clf
-
-    def fit_predict(self, config, X_train, y_train, X_val, seed: int = 0):
-        return self.fit(config, X_train, y_train, seed,
-                        probability=False).predict(X_val)
-
-    def fit_predict_proba(self, config, X_train, y_train, X_val, seed: int = 0):
-        """An SVM has no probabilities of its own — `probability=True` fits an
-        internal five-fold Platt calibration on top, which costs several times
-        what the plain fit costs.
-
-        That price is exactly why this is a separate method rather than a flag
-        on `fit_predict`: a run that never asks for a probability metric never
-        pays it, and the two methods are free to fit differently because they
-        are answering different questions.
-
-        A consequence worth knowing: `predict` on a calibrated SVC can disagree
-        with `argmax` of its own `predict_proba`, so the labels here are the
-        calibrated model's, not the plain one's. They are the labels that go
-        with these probabilities, which is what a trial scoring both needs.
-        """
-        if self.task == "regression":
-            raise NotImplementedError("a support vector regression has no class probabilities")
-        clf = self.fit(config, X_train, y_train, seed, probability=True)
-        return clf.predict(X_val), clf.predict_proba(X_val), clf.classes_

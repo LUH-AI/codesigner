@@ -5,20 +5,28 @@ from django.conf import settings
 from django.utils.translation import gettext_lazy as _
 
 from core import tasks
-from core.io import DEFAULT_TEST_SIZE, demo_datasets, mounted_models, target_of
+from core.io import (
+    DEFAULT_TEST_SIZE, demo_datasets, forecast_problem, mounted_models, orderable_columns,
+    read_dataset, target_of, time_order_problem,
+)
 from core.splits import MIN_FOLDS
 from core.model_source import inspect_model_source
+from core.optimizers.trial import offers_probabilities
 
 from .figures import FIGURES, autocompute_key, deferred_computations
 from .registry import MODELS, OPTIMIZERS
 from .validators import validate_dataset_upload, validate_model_upload
 
 
-#: The two ways a trial can be evaluated, and what the number beside the
-#: selector means under each. One place, so the form, the template and the
-#: script cannot disagree about the bounds or what to call it.
+#: The ways a trial can be evaluated, and what the number beside the selector
+#: means under each. One place, so the form, the template and the script cannot
+#: disagree about the bounds or what to call it.
 EVALUATION_KFOLD = "kfold"
 EVALUATION_HOLDOUT = "holdout"
+#: A forecast: each fold trains on a series' past and predicts its next steps
+#: (`core.splits.backtest`). Either task can be forecast — the next labels or
+#: the next numbers — so it is a way of evaluating, not a task.
+EVALUATION_BACKTEST = "backtest"
 EVALUATION_SCHEMES = {
     EVALUATION_KFOLD: {
         "label": _("Folds"),
@@ -31,6 +39,14 @@ EVALUATION_SCHEMES = {
         "min": 0.05, "max": 0.5, "step": "0.05", "default": DEFAULT_TEST_SIZE,
         "help": _("One division of the data. Cheapest, and noisier on a small "
                   "table — the search can end up chasing the split."),
+    },
+    EVALUATION_BACKTEST: {
+        "label": _("Backtests"),
+        "min": 1, "max": 20, "step": "1", "default": 3,
+        "help": _("Each backtest trains on everything before an origin and "
+                  "forecasts the horizon after it, the latest origin one horizon "
+                  "before the end and each earlier one a horizon before that. "
+                  "Costs one model fit per backtest."),
     },
 }
 
@@ -59,19 +75,27 @@ class NewExperimentForm(forms.Form):
     demo_dataset = forms.ChoiceField(label=_("Demo dataset"), required=False)
     dataset_file = forms.FileField(label=_("…or upload a CSV (last column = target)"), required=False,
                                     validators=[validate_dataset_upload])
-    #: Blank is "guess": the target column decides, the way `core.tasks.guess`
-    #: reads it, and the page says what it decided.
+    #: Asked, never guessed: a column of whole numbers is classes to one
+    #: person and a quantity to the next, and which models are offered follows
+    #: from the answer.
     task = forms.ChoiceField(
-        label=_("Task"), required=False, initial="",
-        help_text=_("What the experiment predicts. Classification predicts one of "
-                    "a set of labels, regression a number. Fixed once the "
-                    "experiment exists. Left on guess, text or a handful of whole "
-                    "numbers in the target column is read as classes, anything "
-                    "else as a number."),
-        choices=[("", _("Guess from the target column")),
+        label=_("Task"),
+        help_text=_("What the experiment predicts: one of a set of labels, or a "
+                    "number. Only the models that can do it are offered. Fixed "
+                    "once the experiment exists. To predict a series' next labels "
+                    "or numbers, choose backtests as the validation method."),
+        choices=[("", _("— select —")),
                  (tasks.CLASSIFICATION, _("Classification")),
                  (tasks.REGRESSION, _("Regression"))],
     )
+    #: Off by default: these metrics need probabilities, which not every model
+    #: gives, and an SVM pays for with an internal calibration on every trial.
+    probability_metrics = forms.BooleanField(
+        label=_("Also score ROC AUC and log loss"), required=False,
+        help_text=_("Classification only. Both are scored on the model's class "
+                    "probabilities, so the model has to give them; some models, an "
+                    "SVM among them, fit several times over to do so, which makes "
+                    "every trial slower."))
     seed = forms.IntegerField(
         label=_("Seed"), initial=0,
         help_text=_("Negative picks one at random. Drives every stochastic part "
@@ -92,10 +116,13 @@ class NewExperimentForm(forms.Form):
         label=_("Validation method"), initial=EVALUATION_KFOLD, required=False,
         help_text=_("Fixed once the experiment exists: trials evaluated "
                     "different ways cannot be compared with each other. "
-                    "Cross-validation costs one fit per fold."),
+                    "Cross-validation costs one fit per fold. Backtests make the "
+                    "experiment a forecast: each predicts the next steps of a "
+                    "series from its past."),
         choices=[
             (EVALUATION_KFOLD, _("Cross-validation")),
             (EVALUATION_HOLDOUT, _("Dataset split")),
+            (EVALUATION_BACKTEST, _("Backtests")),
         ],
     )
     #: The number the scheme needs: folds under cross-validation, the share held
@@ -106,6 +133,38 @@ class NewExperimentForm(forms.Form):
     evaluation_value = forms.FloatField(
         label=_("Folds"), required=False,
         initial=EVALUATION_SCHEMES[EVALUATION_KFOLD]["default"])
+
+    #: Empty is a random division, as before. Named rather than chosen from a
+    #: list because the columns are the dataset's, and the dataset is chosen on
+    #: the same form; the page suggests the ones that can be ordered by.
+    time_column = forms.CharField(
+        label=_("Order by"), required=False, max_length=255,
+        help_text=_("A date or number column to divide the rows in time order by: "
+                    "every trial trains on earlier rows and is validated on later "
+                    "ones, as it would be used. Leave empty to divide at random. "
+                    "Rows without a value in this column are left out."))
+    time_gap = forms.IntegerField(
+        label=_("Gap (rows)"), required=False, min_value=0, initial=0,
+        help_text=_("Only with an order: rows left out between training and "
+                    "validation, for labels that arrive late."))
+
+    #: Backtests only. The validation method's number is then how many
+    #: backtests there are, each one horizon later than the last.
+    horizon = forms.IntegerField(
+        label=_("Horizon (steps)"), required=False, min_value=1, initial=12,
+        help_text=_("How many time steps ahead each forecast predicts. Each "
+                    "backtest forecasts this many steps from an origin one "
+                    "horizon later than the last."))
+    series_column = forms.CharField(
+        label=_("Series column"), required=False, max_length=255,
+        help_text=_("A column naming which series each row belongs to, when the "
+                    "file holds several — one per store, say. Each is forecast "
+                    "from its own history. Leave empty for one series."))
+    season = forms.IntegerField(
+        label=_("Season length (steps)"), required=False, min_value=1,
+        help_text=_("How many steps make a season — 12 for monthly data, 7 for "
+                    "daily. Leave empty to infer it from the order column's "
+                    "spacing."))
 
     def __init__(self, *args, may_upload_models=None, groups=(), **kwargs):
         super().__init__(*args, **kwargs)
@@ -145,13 +204,17 @@ class NewExperimentForm(forms.Form):
         typo here worth failing a form over.
         """
         scheme = cleaned.get("evaluation_scheme") or self.fields["evaluation_scheme"].initial
+        cleaned["evaluation_scheme"] = scheme
         spec = EVALUATION_SCHEMES[scheme]
         value = cleaned.get("evaluation_value")
         if value is None:
             value = spec["default"]
         value = max(spec["min"], min(spec["max"], value))
 
-        if scheme == EVALUATION_KFOLD:
+        if scheme in (EVALUATION_KFOLD, EVALUATION_BACKTEST):
+            # Backtests are counted in the same place as folds: one backtest
+            # is stored as 1, which reads as no cross-validation everywhere
+            # that does not forecast and as one backtest where it does.
             cleaned["cv_folds"] = str(int(round(value)))
             cleaned["test_size"] = DEFAULT_TEST_SIZE
         else:
@@ -181,11 +244,15 @@ class NewExperimentForm(forms.Form):
         if not cleaned.get("demo_dataset") and not cleaned.get("dataset_file"):
             raise forms.ValidationError(_("Choose a demo dataset or upload a CSV file."))
         self._resolve_task(cleaned)
+        self._resolve_time_order(cleaned)
         return cleaned
 
     def _resolve_task(self, cleaned) -> None:
-        """Settle the task — the one asked for, or the target column's guess —
-        and check that the target and the model can both do it."""
+        """Check that the target and the model can both do the task asked for,
+        evaluated the way asked."""
+        task = cleaned.get("task")
+        if not task:
+            return
         upload = cleaned.get("dataset_file")
         try:
             if upload:
@@ -198,8 +265,6 @@ class NewExperimentForm(forms.Form):
             self.add_error(None, _("The dataset could not be read: %(error)s") % {"error": exc})
             return
 
-        task = cleaned.get("task") or tasks.guess(y)
-        cleaned["task"] = task
         if tasks.target_problem(y, task):
             self.add_error("task", _("The target column, “%(column)s”, is not numbers, so it "
                                      "cannot be regressed on. Choose classification, or put "
@@ -210,11 +275,77 @@ class NewExperimentForm(forms.Form):
         name = cleaned.get("model_name")
         supported = (info.tasks if info is not None
                      else tasks.supported(MODELS[name]) if name in MODELS else None)
+        field = ("model_file" if cleaned.get("model_file") else
+                 "mounted_model" if cleaned.get("mounted_model") else "model_name")
         if supported is not None and task not in supported:
-            field = ("model_file" if cleaned.get("model_file") else
-                     "mounted_model" if cleaned.get("mounted_model") else "model_name")
             self.add_error(field, _("%(model)s does not do %(task)s.") % {
                 "model": name, "task": TASK_LABELS[task]})
+            return
+        # Every built-in forecasts through `core.forecasting`; an upload runs
+        # in its own process, so it forecasts only if it says it does.
+        backtests = cleaned.get("evaluation_scheme") == EVALUATION_BACKTEST
+        forecaster = (info.forecaster if info is not None
+                      else tasks.forecaster(MODELS[name]) if name in MODELS else None)
+        if forecaster and not backtests:
+            self.add_error(field, _("%(model)s only forecasts: choose backtests as the "
+                                    "validation method.") % {"model": name})
+            return
+        if info is not None and backtests and not forecaster:
+            self.add_error(field, _("%(model)s does not forecast, so it cannot be "
+                                    "backtested. A model file that does says so with "
+                                    "forecaster = True.") % {"model": name})
+            return
+
+        if cleaned.get("probability_metrics") and task == tasks.CLASSIFICATION:
+            offers = (info.has_proba if info is not None
+                      else offers_probabilities(MODELS[name]) if name in MODELS else True)
+            if not offers:
+                self.add_error("probability_metrics", _(
+                    "%(model)s does not give class probabilities, so ROC AUC and log "
+                    "loss cannot be scored for it.") % {"model": name})
+
+    def _resolve_time_order(self, cleaned) -> None:
+        """Check the rows can be divided in time order the way the evaluation
+        asks, by the column named."""
+        column = (cleaned.get("time_column") or "").strip()
+        cleaned["time_column"] = column
+        cleaned["time_gap"] = int(cleaned.get("time_gap") or 0) if column else 0
+        forecasting = cleaned.get("evaluation_scheme") == EVALUATION_BACKTEST
+        cleaned["horizon"] = int(cleaned.get("horizon") or 0) if forecasting else 0
+        cleaned["series_column"] = (cleaned.get("series_column") or "").strip() if forecasting else ""
+        cleaned["season"] = int(cleaned.get("season") or 0) if forecasting else 0
+        if forecasting and not column:
+            self.add_error("time_column", _("A forecast needs the column its rows are "
+                                            "ordered in time by."))
+            return
+        if forecasting and not cleaned["horizon"]:
+            self.add_error("horizon", _("A forecast needs a horizon of at least one step."))
+            return
+        if not column:
+            return
+        upload = cleaned.get("dataset_file")
+        try:
+            if upload:
+                frame = read_dataset(upload.read())
+                upload.seek(0)
+            else:
+                frame = read_dataset(Path(cleaned["demo_dataset"]))
+        except Exception:  # noqa: BLE001 — `_resolve_task` reports an unreadable file
+            return
+        if forecasting:
+            problem = forecast_problem(frame, column, cleaned["series_column"],
+                                       cleaned["horizon"], int(cleaned.get("cv_folds") or 0),
+                                       cleaned["time_gap"])
+        else:
+            problem = time_order_problem(frame, column, int(cleaned.get("cv_folds") or 0),
+                                         cleaned.get("test_size") or DEFAULT_TEST_SIZE,
+                                         cleaned["time_gap"])
+        if problem:
+            orderable = orderable_columns(frame)
+            self.add_error("time_column", _("This dataset cannot be ordered that way: "
+                                            "%(problem)s. Columns it can be ordered by: "
+                                            "%(columns)s.") % {
+                "problem": problem, "columns": ", ".join(orderable) or _("none")})
 
     def _read_model_source(self, cleaned, source: bytes, field: str) -> None:
         """Inspect a custom model's source, recording its name or an error."""
@@ -263,6 +394,15 @@ class ExperimentSettingsFields(forms.Form):
                     "refuses it. In the objective's own units, so it means "
                     "different things for different objectives; 0 refuses "
                     "anything the model does not think is an improvement."))
+    keep_best_trial_models = forms.IntegerField(
+        label=_("Trial models kept for export"), required=False, min_value=0, max_value=100,
+        help_text=_("A run keeps the fitted model of the best this many trials, by the metric it "
+                    "optimizes, for Export trial parameters — fitted on one fold's training rows, "
+                    "a starting point rather than a final model. 0 keeps none. They count "
+                    "against the group's storage, after its datasets."))
+    keep_last_run_trial_models = forms.BooleanField(
+        label=_("Also keep every trial of the last run"), required=False,
+        help_text=_("Until the next run starts; then only the best are kept."))
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)

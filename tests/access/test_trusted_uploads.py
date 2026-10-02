@@ -171,7 +171,7 @@ def test_posting_an_upload_anyway_does_not_create_a_custom_model(client, hosted,
     client.force_login(ana)
     client.post(reverse("ui:new_experiment"), {
         "name": "sneaky", "model_name": "", "optimizer_name": "Random Search",
-        "demo_dataset": str(DATASETS_DIR / "iris.csv"), "seed": "0",
+        "demo_dataset": str(DATASETS_DIR / "iris.csv"), "task": "classification", "seed": "0",
         "model_file": SimpleUploadedFile("mine.py", MODEL_SOURCE,
                                          content_type="text/x-python"),
     })

@@ -15,29 +15,7 @@ from core.splits import cross_validation
 from tests.conftest import DATASETS_DIR
 
 
-# ── guessing ─────────────────────────────────────────────────────────────────
-
-@pytest.mark.parametrize("y, expected", [
-    (["a", "b", "a"], tasks.CLASSIFICATION),
-    ([3, 5, 6, 5, 4], tasks.CLASSIFICATION),
-    ([1.5, 2.25, 3.0, 8.1], tasks.REGRESSION),
-    (list(range(100)), tasks.REGRESSION),
-    ([0.0, 1.0, 1.0, 0.0], tasks.CLASSIFICATION),
-])
-def test_the_guess_reads_the_target(y, expected):
-    """What: text and a handful of whole numbers are classes; anything else is
-    a quantity. How: guesses from small hand-made targets."""
-    assert tasks.guess(np.asarray(y)) == expected
-
-
-def test_the_bundled_datasets_guess_as_they_have_always_been_tuned():
-    """What: iris and wine stay classification; diabetes is regression.
-    How: guesses from each bundled dataset's target column."""
-    guessed = {name: tasks.guess(io.target_of(DATASETS_DIR / f"{name}.csv")[1])
-               for name in ("iris", "wine", "diabetes")}
-    assert guessed == {"iris": tasks.CLASSIFICATION, "wine": tasks.CLASSIFICATION,
-                       "diabetes": tasks.REGRESSION}
-
+# ── the target ───────────────────────────────────────────────────────────────
 
 def test_regression_needs_a_numeric_target():
     """What: a text target cannot be regressed on; a numeric one can be either.
@@ -58,9 +36,11 @@ def test_a_snapshot_without_a_task_is_classification():
 # ── metrics ──────────────────────────────────────────────────────────────────
 
 def test_each_task_has_its_own_metrics():
-    """What: classification keeps its four metrics, in their order; regression
-    gets RMSE, MAE and R². How: compares `metrics_for` for each task."""
-    assert metrics_for(tasks.CLASSIFICATION) == ["accuracy", "f1", "precision", "recall(macro)"]
+    """What: classification keeps its four metrics, in their order, then
+    balanced accuracy; regression gets RMSE, MAE and R². How: compares
+    `metrics_for` for each task."""
+    assert metrics_for(tasks.CLASSIFICATION) == [
+        "accuracy", "f1", "precision", "recall(macro)", "balanced_accuracy"]
     assert metrics_for(tasks.REGRESSION) == ["rmse", "mae", "r2"]
 
 

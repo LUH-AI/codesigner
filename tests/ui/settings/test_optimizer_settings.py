@@ -62,7 +62,7 @@ def test_creating_stores_what_was_chosen(client):
     client.post(reverse("ui:new_experiment"), {
         "name": "configured", "model_name": "Random Forest",
         "optimizer_name": "SMAC", "seed": "0",
-        "demo_dataset": str(DATASETS_DIR / "iris.csv"),
+        "demo_dataset": str(DATASETS_DIR / "iris.csv"), "task": "classification",
         "opt_search_strategy": "rf", "opt_share_cap": "0.4",
         "opt_use_default_config": "on",
     })
@@ -77,7 +77,7 @@ def test_creating_without_touching_them_stores_the_defaults(client):
     client.post(reverse("ui:new_experiment"), {
         "name": "plain", "model_name": "Random Forest",
         "optimizer_name": "SMAC", "seed": "0",
-        "demo_dataset": str(DATASETS_DIR / "iris.csv"),
+        "demo_dataset": str(DATASETS_DIR / "iris.csv"), "task": "classification",
     })
 
     stored = Experiment.objects.get(data__name="plain").data.optimizer_params
@@ -92,7 +92,7 @@ def test_creating_without_touching_them_stores_the_defaults(client):
 def _create(client, **overrides):
     data = {"name": "created", "model_name": "Random Forest",
             "optimizer_name": "SMAC", "seed": "0",
-            "demo_dataset": str(DATASETS_DIR / "iris.csv")}
+            "demo_dataset": str(DATASETS_DIR / "iris.csv"), "task": "classification"}
     data.update(overrides)
     client.post(reverse("ui:new_experiment"), data)
     return Experiment.objects.get(data__name=data["name"]).data.optimizer_params
@@ -227,7 +227,7 @@ def test_creating_with_grid_search_stores_what_its_panel_said(client):
     client.post(reverse("ui:new_experiment"), {
         "name": "gridded", "model_name": "Random Forest",
         "optimizer_name": "Grid Search", "seed": "0",
-        "demo_dataset": str(DATASETS_DIR / "iris.csv"),
+        "demo_dataset": str(DATASETS_DIR / "iris.csv"), "task": "classification",
         "opt_numeric_steps": "9",
     })
 
@@ -241,7 +241,7 @@ def test_the_hidden_panels_settings_do_not_leak_into_the_chosen_one(client):
     client.post(reverse("ui:new_experiment"), {
         "name": "clean", "model_name": "Random Forest",
         "optimizer_name": "Grid Search", "seed": "0",
-        "demo_dataset": str(DATASETS_DIR / "iris.csv"),
+        "demo_dataset": str(DATASETS_DIR / "iris.csv"), "task": "classification",
         "opt_numeric_steps": "4", "opt_search_strategy": "rf",
     })
 
@@ -255,7 +255,7 @@ def test_an_optimizer_whose_panel_was_hidden_gets_its_own_defaults(client):
     client.post(reverse("ui:new_experiment"), {
         "name": "untouched", "model_name": "Random Forest",
         "optimizer_name": "Grid Search", "seed": "0",
-        "demo_dataset": str(DATASETS_DIR / "iris.csv"),
+        "demo_dataset": str(DATASETS_DIR / "iris.csv"), "task": "classification",
     })
 
     assert Experiment.objects.get(data__name="untouched").data.optimizer_params == {"numeric_steps": 5}
@@ -267,7 +267,7 @@ def test_a_validation_error_keeps_the_optimizer_and_its_values(client):
     html = client.post(reverse("ui:new_experiment"), {
         "name": "", "model_name": "Random Forest",
         "optimizer_name": "Grid Search", "seed": "0",
-        "demo_dataset": str(DATASETS_DIR / "iris.csv"),
+        "demo_dataset": str(DATASETS_DIR / "iris.csv"), "task": "classification",
         "opt_numeric_steps": "8",
     }).content.decode()
 
@@ -471,7 +471,7 @@ def test_creating_stores_the_caps(client):
     client.post(reverse("ui:new_experiment"), {
         "name": "capped", "model_name": "Random Forest",
         "optimizer_name": "SMAC", "seed": "0",
-        "demo_dataset": str(DATASETS_DIR / "iris.csv"),
+        "demo_dataset": str(DATASETS_DIR / "iris.csv"), "task": "classification",
         "opt_use_share_cap": "on", "opt_share_cap": "0.4",
         "opt_use_trial_cap": "on", "opt_trial_cap": "12",
         "opt_initial_points_use_max": "on",
@@ -489,7 +489,7 @@ def test_a_cap_switched_off_is_stored_as_off(client):
     client.post(reverse("ui:new_experiment"), {
         "name": "uncapped", "model_name": "Random Forest",
         "optimizer_name": "SMAC", "seed": "0",
-        "demo_dataset": str(DATASETS_DIR / "iris.csv"),
+        "demo_dataset": str(DATASETS_DIR / "iris.csv"), "task": "classification",
         "opt_use_trial_cap": "on",
     })
 
@@ -573,7 +573,7 @@ def test_creating_stores_the_surrogate_settings(client):
     client.post(reverse("ui:new_experiment"), {
         "name": "forested", "model_name": "Random Forest",
         "optimizer_name": "SMAC", "seed": "0",
-        "demo_dataset": str(DATASETS_DIR / "iris.csv"),
+        "demo_dataset": str(DATASETS_DIR / "iris.csv"), "task": "classification",
         "opt_search_strategy": "rf", "opt_rf_trees": "64",
         "opt_rf_feature_ratio": "0.5",
     })
@@ -590,7 +590,7 @@ def test_a_feature_ratio_above_one_is_clamped_on_the_way_in(client):
     client.post(reverse("ui:new_experiment"), {
         "name": "greedy", "model_name": "Random Forest",
         "optimizer_name": "SMAC", "seed": "0",
-        "demo_dataset": str(DATASETS_DIR / "iris.csv"),
+        "demo_dataset": str(DATASETS_DIR / "iris.csv"), "task": "classification",
         "opt_search_strategy": "rf", "opt_rf_feature_ratio": "5",
     })
 

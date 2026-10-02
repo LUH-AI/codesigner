@@ -21,7 +21,7 @@ def _valid_post(**overrides):
         "name": "my-exp",
         "model_name": "Random Forest",
         "optimizer_name": "Random Search",
-        "demo_dataset": str(DATASETS_DIR / "iris.csv"),
+        "demo_dataset": str(DATASETS_DIR / "iris.csv"), "task": "classification",
         "seed": 0,
     }
     data.update(overrides)
@@ -159,13 +159,13 @@ def test_the_page_carries_the_bounds_the_selector_switches_between(client):
     the template is exactly the drift it exists to prevent."""
     import json
 
-    from ui.forms import EVALUATION_HOLDOUT, EVALUATION_KFOLD
+    from ui.forms import EVALUATION_BACKTEST, EVALUATION_HOLDOUT, EVALUATION_KFOLD
 
     html = client.get(reverse("ui:new_experiment")).content.decode()
     body = html.split('id="evaluation-schemes"', 1)[1].split(">", 1)[1]
     schemes = json.loads(body.split("</script>", 1)[0])
 
-    assert set(schemes) == {EVALUATION_KFOLD, EVALUATION_HOLDOUT}
+    assert set(schemes) == {EVALUATION_KFOLD, EVALUATION_HOLDOUT, EVALUATION_BACKTEST}
     assert schemes[EVALUATION_KFOLD]["default"] == 5
     assert schemes[EVALUATION_HOLDOUT]["default"] == 0.2
     assert schemes[EVALUATION_KFOLD]["label"] != schemes[EVALUATION_HOLDOUT]["label"]

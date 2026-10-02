@@ -42,7 +42,7 @@ def _create(client, **overrides):
         "name": "recorded", "model_name": "Random Forest",
         "optimizer_name": "SMAC", "seed": "7",
         "evaluation_scheme": "kfold", "evaluation_value": "3",
-        "demo_dataset": str(IRIS),
+        "demo_dataset": str(IRIS), "task": "classification",
     }
     data.update(overrides)
     client.post(reverse("ui:new_experiment"), data)
@@ -128,7 +128,10 @@ def test_a_holdout_records_its_split_size(client):
                                      evaluation_value="0.2"))["evaluation"]
 
     assert record == {"scheme": "holdout", "folds": None,
-                      "test_size": 0.2, "stratified": True}
+                      "test_size": 0.2, "stratified": True,
+                      "task": "classification",
+                      "time_column": None, "gap": None,
+                      "horizon": None, "series_column": None, "season": None}
 
 
 def test_stratification_is_what_happened_not_what_was_asked_for(client):

@@ -1,123 +1,57 @@
 """A tuned model as a file someone can take away and use.
 
-`export_model` turns a model's source and one trial's configuration into a
-single runnable script:
+What Codesigner delivers at the end of a search is a model and the
+hyperparameters that suited this dataset. The exported file is exactly that,
+in three parts, and nothing of the search:
 
-    # /// script                 the model's own PEP 723 header, plus pandas
-    # ...
-    # ///
-    TASK = "classification"      what Codesigner tuned it for
-    SEED = 0
-    CONFIG = {...}               the selected trial's hyperparameters
-    <the model's source>         unchanged but for where BaseModel comes from
-    <a command-line runner>      train on a CSV, predict another, save the fit
+    # /// script                  what it needs installed
+    a docstring                   what it predicts; where the hyperparameters
+                                  came from
+    # ── The model ──             the model as Codesigner runs it: its
+                                  delivered class (codesigner_model's
+                                  OutputBaseModel and the model's own class)
+    # ── The hyperparameters ──   HYPERPARAMETERS = {...}, the selected trial's
+    # ── The data processing ──   Process: the dataset's columns read as
+                                  Codesigner read them, then processed as the
+                                  experiment says, fitted on the training rows
+    # ── Running it ──            train on a CSV, predict another
 
-`uv run model.py train.csv --predict new.csv` reads the header, builds an
-environment with what the model needs and runs it — no Codesigner involved. The
-file is still a Codesigner model too: the class still inherits `BaseModel`
-where the SDK is installed, so the same file can be uploaded again.
+`uv run model.py train.csv --predict new.csv` builds an environment with what
+the header lists and runs it; Codesigner is not involved. No search space, no
+SDK, no trial machinery: those are how the hyperparameters were found, not
+part of what they are for.
 
-Built-in models export from their own module source, which is why each of
-those modules is one self-contained class with a header of its own: what is
-exported is exactly the code that ran here.
+The model's code is copied from where it runs here — the SDK's two classes and
+the model's own module — so the delivered model is the same code that was
+tuned, not a second rendering of it. A model uploaded by a person is their
+own code: it is delivered as they wrote it, its search space taken out
+(`export_upload`).
 """
 
 from __future__ import annotations
 
+import ast
+import inspect
 import math
 import pprint
 import re
+import sys
+import textwrap
 
+from codesigner_model import ModelBase, OptimizableBaseModel, OutputBaseModel
+
+from . import encoding, forecasters, processing
 from .model_source import _PEP723_BLOCK
+from .models import parts
 
-#: Where `BaseModel` comes from in an exported file: the SDK when it is
-#: installed, so the class is still a Codesigner model, and nothing when it is
-#: not, since nothing outside Codesigner looks at the base class.
-SHIM = '''\
-try:
-    from codesigner_model import BaseModel
-except ImportError:  # Outside Codesigner the model needs no base class.
-    BaseModel = object
-'''
+#: The imports the delivered model's own code needs, before any module's.
+_PREAMBLE_IMPORTS = ("from __future__ import annotations", "",
+                     "from abc import ABC, abstractmethod", "from typing import Any", "",
+                     "import numpy as np")
 
-#: The import lines the shim replaces: a built-in's relative one, and the one
-#: every uploaded model is told to write.
-_BASE_IMPORT = re.compile(
-    r"(?m)^from (?:\.base|\.models\.base|codesigner_model) import BaseModel[ \t]*$\n?")
-
-#: `from __future__` imports, which have to stay the first statement of the file.
-_FUTURE = re.compile(r"(?m)^from __future__ import [^\n]*\n")
-
-#: What the runner needs beyond the model's own dependencies.
-RUNNER_DEPENDENCIES = ("pandas",)
-
-RUNNER = '''
-
-# ── Running it ───────────────────────────────────────────────────────────────
-#
-# Reads CSVs the way Codesigner did: `;` or `,`, whichever the first lines use
-# more of, with the last column as the target.
-
-def _read_csv(path):
-    import pandas as pd
-
-    with open(path, "rb") as f:
-        sample = f.read(2048).decode("utf-8", errors="replace")
-    sep = ";" if sample.count(";") > sample.count(",") else ","
-    return pd.read_csv(path, sep=sep)
-
-
-def _name():
-    name = getattr(MODEL_CLASS, "name", None)
-    return name if isinstance(name, str) else MODEL_CLASS.__name__
-
-
-def main(argv=None):
-    import argparse
-    import pickle
-    import sys
-
-    parser = argparse.ArgumentParser(
-        description=f"{_name()}, with the configuration Codesigner tuned "
-                    f"for {TASK}. Trains on the whole of TRAIN.")
-    parser.add_argument("train", help="CSV to train on; the last column is the target")
-    parser.add_argument("--predict", metavar="CSV",
-                        help="CSV to predict. Its last column is ignored if it has as "
-                             "many columns as TRAIN (the target), used otherwise.")
-    parser.add_argument("--out", metavar="CSV",
-                        help="where to write the predictions (default: standard output)")
-    parser.add_argument("--save", metavar="FILE",
-                        help="pickle the fitted model to FILE")
-    args = parser.parse_args(argv)
-    if not (args.predict or args.save):
-        parser.error("nothing to do: give --predict, --save, or both")
-
-    train = _read_csv(args.train)
-    X, y = train.iloc[:, :-1].to_numpy(), train.iloc[:, -1].to_numpy()
-    model = MODEL_CLASS()
-    model.task = TASK
-
-    if args.save:
-        if not hasattr(model, "fit"):
-            sys.exit(f"{_name()} has no fit(config, X, y, seed) method, so "
-                     f"there is no fitted model to save. --predict still works.")
-        with open(args.save, "wb") as f:
-            pickle.dump(model.fit(CONFIG, X, y, SEED), f)
-
-    if args.predict:
-        new = _read_csv(args.predict)
-        if new.shape[1] == train.shape[1]:
-            new = new.iloc[:, :-1]
-        predictions = model.fit_predict(CONFIG, X, y, new.to_numpy(), SEED)
-        import pandas as pd
-
-        frame = pd.DataFrame({train.columns[-1]: list(predictions)})
-        frame.to_csv(args.out or sys.stdout, index=False)
-
-
-if __name__ == "__main__":
-    main()
-'''
+#: Top-level packages whose imports an exported file drops: it defines what it
+#: needs of them itself, or (the search space) does not need it at all.
+_DEFINED_HERE = ("core", "codesigner_model", "ConfigSpace")
 
 
 def plain(value):
@@ -136,7 +70,7 @@ def configuration(config: dict) -> dict:
     from. Absent is what a model reading it with `.get` expects.
     """
     out = {}
-    for key, value in config.items():
+    for key, value in dict(config).items():
         value = plain(value)
         if isinstance(value, float) and math.isnan(value):
             continue
@@ -144,66 +78,482 @@ def configuration(config: dict) -> dict:
     return out
 
 
-def _with_dependencies(source: str, needed) -> str:
-    """*source* with *needed* among its header's dependencies, adding a header
-    if it has none."""
-    match = _PEP723_BLOCK.search(source)
-    if match is None:
-        listed = ", ".join(f'"{d}"' for d in needed)
-        header = ("# /// script\n"
-                  '# requires-python = ">=3.11"\n'
-                  f"# dependencies = [{listed}]\n"
-                  "# ///\n")
-        return header + source
+# ── Collecting the delivered model's code ──────────────────────────────────
 
-    block = match.group(0)
-    missing = [d for d in needed
-               if not re.search(r'["\']%s(?:["\'\s<>=!~\[;])' % re.escape(d), block)]
-    if not missing:
-        return source
-    listed = "".join(f'"{d}", ' for d in missing)
-    if re.search(r"(?m)^#\s*dependencies\s*=\s*\[", block):
-        updated = re.sub(r"(?m)^(#\s*dependencies\s*=\s*\[)", lambda m: m.group(1) + listed,
-                         block, count=1)
-    else:
-        updated = block[:-len("# ///")] + f"# dependencies = [{listed.rstrip(', ')}]\n# ///"
-    return source[:match.start()] + updated + source[match.end():]
+def output_class(model) -> type:
+    """The class *model* is delivered as: the one its tuned class adds a search
+    space to (`core.models.base.Tunable`)."""
+    for cls in type(model).__mro__:
+        if (issubclass(cls, OutputBaseModel) and not issubclass(cls, OptimizableBaseModel)
+                and cls is not OutputBaseModel):
+            return cls
+    raise ValueError(f"{type(model).__name__} has no delivered class")
 
 
-def _split_header(source: str) -> tuple[str, str]:
-    """(the PEP 723 header and anything before it, everything after it)."""
-    match = _PEP723_BLOCK.search(source)
-    if match is None:
-        return "", source
-    end = match.end()
-    if source[end:end + 1] == "\n":
-        end += 1
-    return source[:end], source[end:]
+def _is_local_import(node) -> bool:
+    return isinstance(node, ast.ImportFrom) and bool(
+        node.level or (node.module or "").split(".")[0] in _DEFINED_HERE)
 
 
-def export_model(source: str, *, class_name: str, task: str, config: dict,
-                 seed: int = 0, description: str = "") -> str:
-    """The runnable file for *source*'s *class_name*, tuned to *config*.
+def _module_body(module, only=None) -> tuple[list[str], str]:
+    """*module*'s source as (its imports, the rest), without its docstring or
+    any import of what the exported file defines itself — and, given *only*,
+    without any definition not named in it."""
+    text = inspect.getsource(module)
+    tree, lines = ast.parse(text), text.splitlines()
+    imports, keep = [], []
+    for node in tree.body:
+        chunk = "\n".join(lines[node.lineno - 1:node.end_lineno])
+        if node is tree.body[0] and isinstance(node, ast.Expr) \
+                and isinstance(node.value, ast.Constant) and isinstance(node.value.value, str):
+            continue
+        if isinstance(node, (ast.Import, ast.ImportFrom)):
+            if not _is_local_import(node):
+                imports.append(chunk)
+            continue
+        if only is not None and getattr(node, "name", None) not in only:
+            continue
+        start = node.lineno - 1
+        while start > 0 and lines[start - 1].lstrip().startswith("#"):
+            start -= 1
+        keep.append("\n".join(lines[start:node.end_lineno]))
+    return imports, "\n\n\n".join(keep)
 
-    *description* is a line or two said at the top of the file — which
-    experiment and trial this came from.
+
+def _names_in(source: str) -> set[str]:
+    """Every name *source* refers to."""
+    return {node.id for node in ast.walk(ast.parse(textwrap.dedent(source)))
+            if isinstance(node, ast.Name)}
+
+
+def _class_and_constants(cls) -> tuple[list[str], str]:
+    """*cls*'s source with the module-level constants it names, and its
+    module's imports."""
+    module_text = inspect.getsource(sys.modules[cls.__module__])
+    tree, lines = ast.parse(module_text), module_text.splitlines()
+    source = textwrap.dedent(inspect.getsource(cls))
+    named = {node.id for node in ast.walk(ast.parse(source)) if isinstance(node, ast.Name)}
+    constants, imports = [], []
+    for node in tree.body:
+        chunk = "\n".join(lines[node.lineno - 1:node.end_lineno])
+        if isinstance(node, ast.Assign) and any(
+                isinstance(t, ast.Name) and t.id in named for t in node.targets):
+            start = node.lineno - 1
+            while start > 0 and lines[start - 1].lstrip().startswith("#:"):
+                start -= 1
+            constants.append("\n".join(lines[start:node.end_lineno]))
+        elif isinstance(node, (ast.Import, ast.ImportFrom)) and not _is_local_import(node):
+            imports.append(chunk)
+    return imports, "\n\n".join(constants + [source])
+
+
+def _sdk_classes() -> str:
+    """The SDK's root and delivered-model classes, as the exported file's own."""
+    return "\n\n\n".join(textwrap.dedent(inspect.getsource(cls))
+                         for cls in (ModelBase, OutputBaseModel))
+
+
+def _header(dependencies) -> str:
+    listed = ", ".join(f'"{d}"' for d in dict.fromkeys(dependencies))
+    return ("# /// script\n"
+            '# requires-python = ">=3.11"\n'
+            f"# dependencies = [{listed}]\n"
+            "# ///\n")
+
+
+def _literal(name: str, value) -> str:
+    return f"{name} = {pprint.pformat(value, sort_dicts=False)}"
+
+
+def _section(title: str) -> str:
+    return f"# ── {title} " + "─" * max(3, 74 - len(title)) + "\n\n"
+
+
+def _docstring(about: str) -> str:
+    return f'"""{about.strip()}\n"""\n\n' if about else ""
+
+
+# ── Exporting a built-in ────────────────────────────────────────────────────
+
+def export_model(model, *, config: dict, task: str, seed: int = 0, columns: dict | None = None,
+                 plan: dict | None = None, about: str = "", forecast: dict | None = None,
+                 time_column: str = "", series_column: str = "") -> str:
+    """The runnable file for built-in *model* tuned to *config*.
+
+    *model* is the model as the registry has it — a tuned built-in, or one
+    forecasting by reduction (`core.forecasting.Reduced`). *columns* is how the
+    dataset's columns are read (`core.encoding.fit`; None for a dataset of
+    numbers), *plan* the experiment's processing as resolved for this model
+    (`core.processing.resolve`). *about* is the docstring: what it predicts and
+    where the hyperparameters came from. A forecast (*forecast* given, see
+    `core.forecasting.context`) gets the forecasting runner.
     """
-    source = _with_dependencies(source, RUNNER_DEPENDENCIES)
-    header, body = _split_header(source)
+    from .forecasting import PREFIX, Reduced
+
+    reduced = isinstance(model, Reduced)
+    inner = model.model if reduced else model
+    cls = output_class(inner)
+    hyperparameters = configuration(config)
+    lags = int(hyperparameters.pop(f"{PREFIX}lags", 3)) if reduced else None
+
+    # The processing's two classes only: choosing a plan is the experiment's
+    # business, and the plan is written out below.
+    modules = [(processing, ("Processing", "TextCategories"))]
+    used = _names_in(inspect.getsource(cls))
+    shared = [name for name, _ in inspect.getmembers(parts) if name in used
+              and getattr(getattr(parts, name), "__module__", "") == parts.__name__]
+    if shared:
+        modules.append((parts, tuple(shared)))
+    if forecast is not None:
+        modules.append((forecasters, None))
+    class_imports, class_source = _class_and_constants(cls)
+    imports, bodies = list(class_imports), []
+    for module, only in modules:
+        more, body = _module_body(module, only)
+        imports += more
+        bodies.append(body)
+    imports = [line for line in dict.fromkeys(imports) if line != "import numpy as np"]
+
+    dependencies = ["numpy", "pandas", "scikit-learn"] + list(getattr(inner, "dependencies", ()))
+    out = [_header(dependencies), _docstring(about),
+           "\n".join(_PREAMBLE_IMPORTS + tuple(imports)) + "\n\n\n"]
+
+    out.append(_section("The model"))
+    out.append(_sdk_classes() + "\n\n\n")
+    for body in bodies[1:]:
+        out.append(body + "\n\n\n")
+    out.append(class_source + "\n\n")
+
+    out.append(_section("The hyperparameters"))
+    out.append(_literal("HYPERPARAMETERS", hyperparameters) + "\n")
+    if reduced:
+        out.append("#: How many of a series' last values each forecast is made from.\n"
+                   f"LAGS = {lags}\n")
+    out.append("\n\n")
+
+    out.append(_section("The data processing"))
+    out.append("# The dataset's columns read as Codesigner read them (text as label codes,\n"
+               "# dates as calendar parts), then processed as the experiment said, fitted\n"
+               "# on the training rows only.\n\n")
+    out.append(_literal("COLUMNS", columns if columns and not encoding.is_plain(columns) else None)
+               + "\n")
+    out.append(_literal("PROCESSING", dict(plan or {})) + "\n")
+    if forecast is not None:
+        out.append(_literal("FORECAST", dict(forecast)) + "\n")
+        out.append(f"TIME_COLUMN = {time_column!r}\nSERIES_COLUMN = {series_column!r}\n")
+    out.append("\n\n" + bodies[0] + "\n\n\n")
+    out.append(textwrap.dedent(inspect.getsource(encoding.encode)) + "\n")
+    out.append(PROCESS.replace("{forecast}", "True" if forecast is not None else "False"))
+
+    out.append("\n\n" + _section("Running it"))
+    runner = FORECAST_RUNNER if forecast is not None else RUNNER
+    build = (REDUCED_FORECASTER if reduced else SERIES_FORECASTER) if forecast is not None else ""
+    out.append(runner.replace("{build}", build).replace("{cls}", cls.__name__)
+               .replace("{task}", repr(task)).replace("{seed}", repr(int(seed))))
+    return "".join(out)
+
+
+#: The third part: the dataset's columns as the model was tuned on them.
+PROCESS = '''
+
+def _kinds(columns, n):
+    """The kind of each column `encode` returns for *columns*: a label's code
+    is categorical, everything else — a calendar part included — numeric."""
+    if columns is None:
+        return ("numeric",) * n
+    kinds = []
+    for column in columns["columns"]:
+        kinds += (["numeric"] * len(column["parts"]) if column["kind"] == "datetime"
+                  else [column["kind"]])
+    return tuple(kinds)
+
+
+class Process:
+    """The data processing these hyperparameters were tuned with.
+
+    `fit` learns it from the training rows — the medians, the scale, the
+    labels — and `transform` applies it to any rows with the same columns,
+    matched by name. `kinds` is what each processed column is, for the model.
+    """
+
+    forecast = {forecast}
+
+    def _columns(self, frame):
+        if COLUMNS is None:
+            return frame.to_numpy(dtype=float)
+        return encode(COLUMNS, frame)
+
+    def fit(self, frame):
+        X = self._columns(frame)
+        kinds = _kinds(COLUMNS, X.shape[1])
+        # A forecast's own columns are a series' times: what is processed is
+        # the examples the forecaster makes from them (ReducedForecaster).
+        self.steps = Processing({} if self.forecast else PROCESSING, kinds).fit(X)
+        self.kinds = self.steps.kinds_out() or ("numeric",) * self.steps.transform(X).shape[1]
+        return self
+
+    def transform(self, frame):
+        return self.steps.transform(self._columns(frame))
+'''
+
+_READ_CSV = '''
+def _read_csv(path):
+    """A CSV read the way Codesigner read it: `;` or `,`, whichever the first
+    lines use more of."""
+    import pandas as pd
+
+    with open(path, "rb") as f:
+        sample = f.read(2048).decode("utf-8", errors="replace")
+    sep = ";" if sample.count(";") > sample.count(",") else ","
+    return pd.read_csv(path, sep=sep)
+'''
+
+#: Train on a CSV, predict another.
+RUNNER = _READ_CSV + '''
+
+def main(argv=None):
+    import argparse
+    import sys
+
+    import pandas as pd
+
+    parser = argparse.ArgumentParser(description=__doc__.strip().splitlines()[0]
+                                     + " Trains on the whole of TRAIN.")
+    parser.add_argument("train", help="CSV to train on; the last column is the target")
+    parser.add_argument("--predict", metavar="CSV", required=True,
+                        help="CSV to predict. Its last column is ignored if it has as "
+                             "many columns as TRAIN (the target), used otherwise.")
+    parser.add_argument("--out", metavar="CSV",
+                        help="where to write the predictions (default: standard output)")
+    args = parser.parse_args(argv)
+
+    train = _read_csv(args.train)
+    train = train[train.iloc[:, -1].notna()]
+    process = Process().fit(train.iloc[:, :-1])
+    model = {cls}()
+    model.task = {task}
+    fitted = model.fit(HYPERPARAMETERS, process.transform(train.iloc[:, :-1]),
+                       train.iloc[:, -1].to_numpy(), seed={seed}, kinds=process.kinds)
+
+    new = _read_csv(args.predict)
+    if new.shape[1] == train.shape[1]:
+        new = new.iloc[:, :-1]
+    predictions = model.predict(fitted, process.transform(new))
+    pd.DataFrame({train.columns[-1]: list(predictions)}).to_csv(args.out or sys.stdout,
+                                                              index=False)
+
+
+if __name__ == "__main__":
+    main()
+'''
+
+#: The forecaster for a model that forecasts by itself (ETS, Seasonal Naive).
+SERIES_FORECASTER = '''
+
+def forecaster(forecast, kinds):
+    model = {cls}()
+    model.task = {task}
+    model.forecast = forecast
+    return model.build(HYPERPARAMETERS, {"kinds": kinds}, seed={seed})
+'''
+
+#: The forecaster for a model that forecasts by reduction.
+REDUCED_FORECASTER = '''
+
+def forecaster(forecast, kinds):
+    model = {cls}()
+    model.task = {task}
+    model.feature_kinds = kinds
+    return ReducedForecaster(model=model, hyperparameters=HYPERPARAMETERS, lags=LAGS,
+                             forecast=forecast, plan=PROCESSING, task={task}, seed={seed})
+'''
+
+#: Read a history, forecast what comes after it.
+FORECAST_RUNNER = _READ_CSV + '''
+
+def _times(values):
+    import pandas as pd
+
+    if pd.api.types.is_numeric_dtype(values):
+        return pd.to_numeric(values, errors="coerce")
+    return pd.to_datetime(values, errors="coerce", format="mixed")
+
+
+def _next_times(times, horizon):
+    """The *horizon* times after the last of *times*, at their spacing."""
+    import pandas as pd
+
+    times = pd.Series(times).dropna().drop_duplicates().sort_values()
+    if pd.api.types.is_numeric_dtype(times):
+        step = times.diff().median() if len(times) > 1 else 1
+        return [times.iloc[-1] + step * (k + 1) for k in range(horizon)]
+    index = pd.DatetimeIndex(times)
+    frequency = pd.infer_freq(index) if len(index) >= 3 else None
+    if frequency:
+        return list(pd.date_range(index[-1], periods=horizon + 1, freq=frequency)[1:])
+    step = index.to_series().diff().median()
+    return [index[-1] + step * (k + 1) for k in range(horizon)]
+{build}
+
+def main(argv=None):
+    import argparse
+    import sys
+
+    import pandas as pd
+
+    parser = argparse.ArgumentParser(description=__doc__.strip().splitlines()[0]
+                                     + " Learns from all of HISTORY and forecasts what "
+                                       "comes after it.")
+    parser.add_argument("history", help="CSV of the series so far; the last column is "
+                                        "the target, " + repr(TIME_COLUMN) + " its time")
+    parser.add_argument("--horizon", type=int, default=FORECAST["horizon"],
+                        help="how many steps ahead to forecast (default: the tuned %(default)s)")
+    parser.add_argument("--out", metavar="CSV",
+                        help="where to write the forecast (default: standard output)")
+    args = parser.parse_args(argv)
+
+    history = _read_csv(args.history)
+    history = history[history.iloc[:, -1].notna()]
+    when = _times(history[TIME_COLUMN])
+    history = history[when.notna()].iloc[when[when.notna()].argsort(kind="stable")]
+    target = history.columns[-1]
+
+    # Columns other than the time and the series are not known in the future:
+    # they are left empty, and the forecast is made without them.
+    groups = (history.groupby(SERIES_COLUMN, sort=False) if SERIES_COLUMN
+              else [(None, history)])
+    future = []
+    for key, rows in groups:
+        for moment in _next_times(_times(rows[TIME_COLUMN]), args.horizon):
+            row = {column: None for column in history.columns[:-1]}
+            row[TIME_COLUMN] = moment
+            if SERIES_COLUMN:
+                row[SERIES_COLUMN] = key
+            future.append(row)
+    future = pd.DataFrame(future, columns=history.columns[:-1])
+
+    process = Process().fit(history.iloc[:, :-1])
+    # From the end of the history: nothing is skipped between it and the forecast.
+    model = forecaster(dict(FORECAST, horizon=args.horizon, gap=0), process.kinds)
+    model.fit(process.transform(history.iloc[:, :-1]), history.iloc[:, -1].to_numpy())
+    forecast = model.predict(process.transform(future))
+
+    out = future[[TIME_COLUMN] + ([SERIES_COLUMN] if SERIES_COLUMN else [])].copy()
+    out[target] = list(forecast)
+    out.to_csv(args.out or sys.stdout, index=False)
+
+
+if __name__ == "__main__":
+    main()
+'''
+
+
+# ── Exporting an uploaded model ─────────────────────────────────────────────
+
+#: Where `BaseModel` comes from in an exported upload: the SDK when it is
+#: installed, and nothing when it is not, since nothing outside Codesigner
+#: looks at the base class.
+SHIM = '''\
+try:
+    from codesigner_model import BaseModel
+except ImportError:  # Outside Codesigner the model needs no base class.
+    BaseModel = object
+'''
+
+#: The import line the shim replaces, the one every uploaded model is told to write.
+_BASE_IMPORT = re.compile(r"(?m)^from codesigner_model import BaseModel[ \t]*$\n?")
+
+#: `from __future__` imports, which have to stay the first statement of the file.
+_FUTURE = re.compile(r"(?m)^from __future__ import [^\n]*\n")
+
+UPLOAD_RUNNER = _READ_CSV + '''
+
+def _features(frame):
+    if COLUMNS is None:
+        return frame.to_numpy()
+    return encode(COLUMNS, frame)
+
+
+def main(argv=None):
+    import argparse
+    import sys
+
+    import pandas as pd
+
+    parser = argparse.ArgumentParser(description=__doc__.strip().splitlines()[0]
+                                     + " Trains on the whole of TRAIN.")
+    parser.add_argument("train", help="CSV to train on; the last column is the target")
+    parser.add_argument("--predict", metavar="CSV", required=True,
+                        help="CSV to predict. Its last column is ignored if it has as "
+                             "many columns as TRAIN (the target), used otherwise.")
+    parser.add_argument("--out", metavar="CSV",
+                        help="where to write the predictions (default: standard output)")
+    args = parser.parse_args(argv)
+
+    train = _read_csv(args.train)
+    train = train[train.iloc[:, -1].notna()]
+    X, y = _features(train.iloc[:, :-1]), train.iloc[:, -1].to_numpy()
+    model = {cls}()
+    model.task = {task}
+    model.feature_kinds = _kinds(COLUMNS, X.shape[1])
+
+    new = _read_csv(args.predict)
+    if new.shape[1] == train.shape[1]:
+        new = new.iloc[:, :-1]
+    predictions = model.fit_predict(HYPERPARAMETERS, X, y, _features(new), {seed})
+    pd.DataFrame({train.columns[-1]: list(predictions)}).to_csv(args.out or sys.stdout,
+                                                              index=False)
+
+
+if __name__ == "__main__":
+    main()
+'''
+
+
+def _without_search_space(body: str, class_name: str) -> str:
+    """*body* with *class_name*'s `get_config_space` taken out."""
+    tree = ast.parse(body)
+    lines = body.splitlines(keepends=True)
+    for node in ast.walk(tree):
+        if isinstance(node, ast.ClassDef) and node.name == class_name:
+            for item in node.body:
+                if isinstance(item, ast.FunctionDef) and item.name == "get_config_space":
+                    start = (item.decorator_list[0].lineno if item.decorator_list
+                             else item.lineno) - 1
+                    del lines[start:item.end_lineno]
+                    return "".join(lines)
+    return body
+
+
+def export_upload(source: str, *, class_name: str, task: str, config: dict, seed: int = 0,
+                  columns: dict | None = None, about: str = "") -> str:
+    """The runnable file for a person's own model, tuned to *config*: their
+    code as they wrote it, its search space taken out, the hyperparameters and
+    how the columns are read beside it."""
+    match = _PEP723_BLOCK.search(source)
+    if match:
+        header, body = source[:match.end()] + "\n", source[match.end():]
+        if not re.search(r"""["']pandas["'\s<>=!~\[;]""", header):
+            if re.search(r"(?m)^#\s*dependencies\s*=\s*\[", header):
+                header = re.sub(r"(?m)^(#\s*dependencies\s*=\s*\[)", r'\1"pandas", ', header,
+                                count=1)
+            else:
+                header = header.replace("# ///\n\n", '# dependencies = ["pandas"]\n# ///\n\n', 1)
+    else:
+        header, body = _header(["pandas", "numpy"]), source
     body = _BASE_IMPORT.sub("", body)
     futures = "".join(_FUTURE.findall(body))
-    body = _FUTURE.sub("", body)
-
-    lines = []
-    if description:
-        lines += [f"# {line}".rstrip() for line in description.splitlines()]
-        lines.append("")
-    lines += [
-        f"TASK = {task!r}",
-        f"SEED = {int(seed)!r}",
-        f"CONFIG = {pprint.pformat(configuration(config), sort_dicts=False)}",
-        "",
-    ]
-    preamble = "\n".join(lines) + "\n" + SHIM + "\n"
-    return (header + futures + "\n" + preamble + body.lstrip("\n").rstrip("\n") + "\n"
-            + f"\n\nMODEL_CLASS = {class_name}\n" + RUNNER)
+    body = _without_search_space(_FUTURE.sub("", body), class_name)
+    # The docstring first: it may come before `from __future__`, and is only
+    # the module's docstring if it does.
+    return (header + _docstring(about) + futures + "\n"
+            + SHIM + "\n" + body.strip("\n") + "\n\n\n"
+            + _section("The hyperparameters")
+            + _literal("HYPERPARAMETERS", configuration(config)) + "\n\n\n"
+            + _section("The data processing")
+            + _literal("COLUMNS", columns if columns and not encoding.is_plain(columns) else None)
+            + "\n\n\n" + textwrap.dedent(inspect.getsource(encoding.encode))
+            + PROCESS.split("class Process:")[0]
+            + "\n" + _section("Running it")
+            + UPLOAD_RUNNER.replace("{cls}", class_name).replace("{task}", repr(task))
+            .replace("{seed}", repr(int(seed))))

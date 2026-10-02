@@ -16,17 +16,13 @@ import numpy as np
 CLASSIFICATION = "classification"
 REGRESSION = "regression"
 
-#: Every task, in the order the form offers them.
+#: Every task, in the order the form offers them. Forecasting is not one of
+#: them: it is a way of evaluating either — a label or a number, predicted for
+#: the next steps of a series from the steps before — see `core.forecasting`.
 TASKS = (CLASSIFICATION, REGRESSION)
 
 #: What a model or a file that says nothing about its task means.
 DEFAULT = CLASSIFICATION
-
-#: An integer target with at most this many distinct values is guessed to be
-#: classes rather than a quantity. Wine's `quality` (six values) is the case
-#: this is for: it has always been tuned as classes here, and nothing about the
-#: column says otherwise.
-MAX_GUESSED_CLASSES = 20
 
 
 def is_numeric(y) -> bool:
@@ -39,24 +35,6 @@ def is_numeric(y) -> bool:
     except (TypeError, ValueError):
         return False
     return True
-
-
-def guess(y) -> str:
-    """The task a target column most plausibly asks for.
-
-    Text is classes. So is a handful of whole numbers. Anything else is a
-    quantity. Only ever a default: the form shows it and the person creating
-    the experiment can say otherwise.
-    """
-    y = np.asarray(y)
-    if not is_numeric(y):
-        return CLASSIFICATION
-    values = np.asarray(y, dtype=float)
-    values = values[~np.isnan(values)]
-    whole = bool(np.all(np.mod(values, 1) == 0))
-    if whole and len(np.unique(values)) <= MAX_GUESSED_CLASSES:
-        return CLASSIFICATION
-    return REGRESSION
 
 
 def target_problem(y, task: str) -> str | None:
@@ -72,6 +50,13 @@ def supported(model) -> tuple[str, ...]:
     if isinstance(tasks, str):
         return (tasks,)
     return tuple(tasks) if tasks else (DEFAULT,)
+
+
+def forecaster(model) -> bool:
+    """Whether *model* forecasts by itself (`core.forecasting`): offered only
+    for an experiment evaluated by backtests, where every other model of this
+    build is made into a forecaster for it."""
+    return bool(getattr(model, "forecaster", False))
 
 
 def task_of(snapshot: dict) -> str:

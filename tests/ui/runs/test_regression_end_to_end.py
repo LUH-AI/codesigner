@@ -17,7 +17,7 @@ def _create(client, **overrides):
         "name": "diabetes",
         "model_name": "Random Forest",
         "optimizer_name": "Random Search",
-        "demo_dataset": str(DATASETS_DIR / "diabetes.csv"),
+        "demo_dataset": str(DATASETS_DIR / "diabetes.csv"), "task": "regression",
         "evaluation_scheme": "holdout",
         "evaluation_value": 0.2,
         "seed": 0,
@@ -27,10 +27,10 @@ def _create(client, **overrides):
 
 
 @pytest.mark.django_db
-def test_the_task_is_guessed_from_the_target(client):
-    """What: left on guess, diabetes' numeric target makes a regression
-    experiment scored with the regression metrics.
-    How: creates one and reads back what was stored."""
+def test_a_regression_is_scored_on_the_regression_metrics(client):
+    """What: diabetes created as a regression is stored as one and scored
+    with the regression metrics. How: creates it and reads back what was
+    stored."""
     from ui.models import Experiment
 
     assert _create(client).status_code == 302
@@ -40,16 +40,20 @@ def test_the_task_is_guessed_from_the_target(client):
 
 
 @pytest.mark.django_db
-def test_asking_for_classification_overrides_the_guess(client):
-    """What: the guess is only a default. How: creates iris as classification
-    explicitly, and wine's integer target likewise stays classification."""
+def test_the_task_is_asked_never_guessed(client):
+    """What: a form without a task is refused rather than guessed from the
+    target, and a whole-number target is whatever the person says it is —
+    wine's quality as classes, or as a quantity. How: posts diabetes with no
+    task, then wine both ways."""
     from ui.models import Experiment
 
-    _create(client, name="iris", demo_dataset=str(DATASETS_DIR / "iris.csv"),
+    resp = _create(client, name="unsaid", task="")
+    assert resp.status_code == 200 and not Experiment.objects.filter(data__name="unsaid").exists()
+    _create(client, name="wine classes", demo_dataset=str(DATASETS_DIR / "wine.csv"),
             task="classification")
-    assert Experiment.objects.get(data__name="iris").data.task == "classification"
-    _create(client, name="wine", demo_dataset=str(DATASETS_DIR / "wine.csv"))
-    assert Experiment.objects.get(data__name="wine").data.task == "classification"
+    _create(client, name="wine quantity", demo_dataset=str(DATASETS_DIR / "wine.csv"))
+    assert Experiment.objects.get(data__name="wine classes").data.task == "classification"
+    assert Experiment.objects.get(data__name="wine quantity").data.task == "regression"
 
 
 @pytest.mark.django_db
@@ -88,7 +92,6 @@ def test_a_regression_run_finds_a_low_error_and_exports_it(client):
     assert client.get(reverse("ui:experiment_detail", args=[exp.pk])).status_code == 200
 
     body = client.get(reverse("ui:experiment_export_model", args=[exp.pk])).content.decode()
-    tree = ast.parse(body)
-    task = next(n for n in tree.body if isinstance(n, ast.Assign)
-                and getattr(n.targets[0], "id", None) == "TASK")
-    assert ast.literal_eval(task.value) == "regression"
+    ast.parse(body)
+    assert "model.task = 'regression'" in body
+    assert body.split('"""')[1].startswith("Random Forest predicting progression (regression).")

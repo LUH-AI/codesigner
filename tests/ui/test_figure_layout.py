@@ -293,8 +293,14 @@ def test_the_page_opens_as_it_was_left(client, hosted, lab):
 
     page = client.get(reverse("ui:experiment_detail", args=[exp.pk])).context
 
+    from ui.figures import FIGURES_BY_KEY
+
     misc = next(t for t in page["figure_tabs"] if t["tab"] == "misc")
-    assert misc["slots"][0]["figure"].key == _narrowed()["tabs"]["misc"][0]["key"]
+    # The first of the reader's order that this experiment shows: a figure for
+    # forecasts only (Figure.forecast_only) has no slot on its page.
+    first = next(s["key"] for s in _narrowed()["tabs"]["misc"]
+                 if not FIGURES_BY_KEY[s["key"]].forecast_only)
+    assert misc["slots"][0]["figure"].key == first
 
 
 def test_reset_goes_back_to_the_site_default(client, hosted, lab):

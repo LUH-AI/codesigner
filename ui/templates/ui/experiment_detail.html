@@ -49,6 +49,15 @@ being read.{% endcomment %}
                     <a class="btn" id="export-model" href="{% url 'ui:experiment_export_model' summary.pk %}"
                        title="{% translate 'Download the model, tuned to the selected trial, as a runnable script' %}">{% translate "📦 Export model" %}</a>
                 {% endif %}
+                {% comment %}The selected trial's fitted model, kept by its run —
+                partially trained, a warm start. Follows the selection like the
+                button above, and is only a link for a trial whose model was
+                kept; otherwise it says why not.{% endcomment %}
+                <a class="btn" id="export-trial-parameters"
+                   href="{% url 'ui:experiment_export_trial_model' summary.pk %}"
+                   data-title="{% translate 'Download the selected trial’s fitted model, in its library’s own format: partially trained, fitted on one fold’s training rows' %}"
+                   data-reason="{{ trial_models_reason }}">{% translate "🧮 Export trial parameters" %}</a>
+                {{ kept_trial_indices|json_script:"kept-trial-indices" }}
             {% endif %}
             {% if may.edit %}
                 <a class="btn" href="{% url 'ui:experiment_settings' summary.pk %}" title="{% translate 'Experiment settings' %}">{% translate "⚙ Settings" %}</a>
@@ -361,6 +370,7 @@ being read.{% endcomment %}
                 const partialDependenceUrl = "{% url 'ui:partial_dependence' summary.pk %}";
                 const metricFiguresUrl = "{% url 'ui:metric_figures' summary.pk %}";
                 const localEffectsUrl = "{% url 'ui:local_effects' summary.pk %}";
+                const forecastUrl = "{% url 'ui:forecast' summary.pk %}";
                 // Which on-request analytics may fetch themselves, and which wait
                 // to be asked (see Figure.deferred and the autocompute_<name>
                 // settings). With one switched off, opening or reloading the page
@@ -801,12 +811,29 @@ being read.{% endcomment %}
                 // panel.
                 // The export button names the trial the sidebar shows.
                 const exportModelUrl = "{% url 'ui:experiment_export_model' summary.pk %}";
+                const exportParametersUrl = "{% url 'ui:experiment_export_trial_model' summary.pk %}";
+                const keptTrials = new Set(JSON.parse(
+                    (document.getElementById("kept-trial-indices") || {}).textContent || "[]"));
                 function pointExportAt(metric) {
                     const link = document.getElementById("export-model");
                     const idx = selectionFor(metric);
-                    if (!link || idx === undefined) return;
-                    link.href = exportModelUrl + "?metric=" + encodeURIComponent(metric) + "&idx=" + idx;
+                    if (idx === undefined) return;
+                    const query = "?metric=" + encodeURIComponent(metric) + "&idx=" + idx;
+                    if (link) link.href = exportModelUrl + query;
+                    // A trial whose model was not kept has nothing to download:
+                    // the button stays, disabled, saying why.
+                    const params = document.getElementById("export-trial-parameters");
+                    if (!params) return;
+                    const kept = keptTrials.has(idx);
+                    params.classList.toggle("disabled", !kept);
+                    params.setAttribute("aria-disabled", kept ? "false" : "true");
+                    params.title = kept ? params.dataset.title : params.dataset.reason;
+                    if (kept) params.href = exportParametersUrl + query;
+                    else params.removeAttribute("href");
                 }
+                // As rendered, both buttons name the best trial; say at once
+                // whether its model was kept.
+                pointExportAt(currentMetric());
 
                 function selectTrial(metric, idx) {
                     if (idx === undefined || idx < 0) return;
@@ -814,6 +841,7 @@ being read.{% endcomment %}
                     pointExportAt(metric);
                     showSelection(metric);
                     refreshLocalAblation(metric);  // its own figure now; a no-op if it is off
+                    if (typeof refreshForecast === "function") refreshForecast(metric);
                     fetch(trialPanelUrl + "?metric=" + encodeURIComponent(metric) + "&idx=" + idx)
                         .then(function (r) { return r.ok ? r.text() : Promise.reject(); })
                         .then(function (html) {
@@ -1179,6 +1207,63 @@ being read.{% endcomment %}
                 if (localEffectsBtn) {
                     localEffectsBtn.addEventListener("click", function () {
                         refreshLocalEffects(currentMetric(), true);
+                    });
+                }
+
+                // Forecast: the selected trial's configuration run on every
+                // backtest, so it is fetched per trial — and per series when the
+                // forecast has several, one drawn at a time.
+                // `var`, and filled on first use: `selectTrial` above calls this,
+                // and a `const` here would not exist yet if it ran first.
+                var forecastCache, forecastSeries;
+                function refreshForecast(metric, asked) {
+                    if (!figureEl("forecast")) return;
+                    forecastCache = forecastCache || cacheFor("forecast");
+                    forecastSeries = forecastSeries || document.getElementById("forecast-series-select");
+                    const idx = selectionFor(metric);
+                    if (idx === undefined) return;
+                    const series = forecastSeries && forecastSeries.value ? forecastSeries.value : "";
+                    const key = metric + ":" + idx + ":" + series;
+                    function apply(data) {
+                        if (currentMetric() !== metric || selectionFor(metric) !== idx) return;
+                        setComputePrompt("forecast-compute", false);
+                        if (forecastSeries && data.series && data.series.length > 1
+                                && forecastSeries.options.length === 0) {
+                            data.series.forEach(function (name) {
+                                const option = document.createElement("option");
+                                option.value = name;
+                                option.textContent = name;
+                                forecastSeries.appendChild(option);
+                            });
+                            forecastSeries.hidden = false;
+                        }
+                        if (data.figure) draw("forecast", data.figure); else clearPlot("forecast");
+                        const warnEl = document.getElementById("forecast-warning");
+                        if (warnEl) { warnEl.textContent = data.warning || ""; warnEl.hidden = !data.warning; }
+                    }
+                    if (forecastCache[key]) { apply(forecastCache[key]); return; }
+                    if (!mayFetch("forecast") && !asked) {
+                        setComputePrompt("forecast-compute", true);
+                        clearPlot("forecast");
+                        return;
+                    }
+                    setComputePrompt("forecast-compute", false);
+                    fetch(forecastUrl + "?metric=" + encodeURIComponent(metric) + "&idx=" + idx
+                          + (series ? "&series=" + encodeURIComponent(series) : ""))
+                        .then(function (r) { return r.ok ? r.json() : Promise.reject(); })
+                        .then(function (data) { forecastCache[key] = data; apply(data); })
+                        .catch(function () {});
+                }
+                const forecastBtn = document.getElementById("forecast-compute-btn");
+                if (forecastBtn) {
+                    forecastBtn.addEventListener("click", function () {
+                        refreshForecast(currentMetric(), true);
+                    });
+                }
+                forecastSeries = document.getElementById("forecast-series-select");
+                if (forecastSeries) {
+                    forecastSeries.addEventListener("change", function () {
+                        refreshForecast(currentMetric(), true);
                     });
                 }
 
@@ -1676,6 +1761,7 @@ being read.{% endcomment %}
                     if (pdpHpSelect && topHpByMetric[metric]) pdpHpSelect.value = topHpByMetric[metric];
                     refreshPartialDependence(metric);
                     refreshLocalEffects(metric);
+                    refreshForecast(metric);
 
                     showSelection(metric);
 
@@ -1747,6 +1833,7 @@ being read.{% endcomment %}
                     refreshLocalAblation(metric);
                     refreshPartialDependence(metric);
                     refreshLocalEffects(metric);
+                    refreshForecast(metric);
                     refreshUncertainty();
                 });
                 document.addEventListener("poll:swapped", function () {

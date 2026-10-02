@@ -15,7 +15,7 @@ from django.urls import reverse
 
 from tests.conftest import DATASETS_DIR
 
-SECTIONS = ["Experiment Selection", "Experiment Evaluation",
+SECTIONS = ["Experiment Selection", "Data", "Experiment Evaluation",
             "Explanation Game", "Selected Configuration"]
 
 
@@ -57,8 +57,8 @@ def _sidebar(client, exp):
 
 
 def test_the_sidebar_has_its_sections_in_order(client):
-    """Which experiment, then what it is scored on, then what is selected —
-    each one narrowing the last."""
+    """Which experiment, then the data it learns from, then what it is scored
+    on, then what is selected — each one narrowing the last."""
     sidebar = _sidebar(client, _experiment())
     headings = re.findall(r"<h2>([^<]+)</h2>", sidebar)
 

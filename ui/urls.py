@@ -55,6 +55,7 @@ urlpatterns = [
     path("experiments/<int:pk>/trial-ablation/", views.trial_ablation, name="trial_ablation"),
     path("experiments/<int:pk>/trial-traceback/", views.trial_traceback, name="trial_traceback"),
     path("experiments/<int:pk>/partial-dependence/", views.partial_dependence, name="partial_dependence"),
+    path("experiments/<int:pk>/forecast/", views.forecast_figure, name="forecast"),
     path("experiments/<int:pk>/acquisition-slice/", views.acquisition_slice,
          name="acquisition_slice"),
     path("experiments/<int:pk>/local-effects/", views.local_effects, name="local_effects"),
@@ -72,6 +73,8 @@ urlpatterns = [
     path("experiments/<int:pk>/export/", views.experiment_export, name="experiment_export"),
     path("experiments/<int:pk>/export-model/", views.experiment_export_model,
          name="experiment_export_model"),
+    path("experiments/<int:pk>/export-trial-parameters/", views.experiment_export_trial_model,
+         name="experiment_export_trial_model"),
     path("experiments/<int:pk>/settings/", views.experiment_settings, name="experiment_settings"),
     path("experiments/<int:pk>/delete/", views.experiment_delete, name="experiment_delete"),
 ]

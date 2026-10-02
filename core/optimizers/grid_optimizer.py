@@ -111,7 +111,8 @@ class GridOptimizer(BaseOptimizer):
                 break
             if collector.done:
                 break
-            all_scores, run_info = evaluate_trial(model, cfg, splits, metrics, seed=seed)
+            all_scores, run_info = evaluate_trial(model, cfg, splits, metrics, seed=seed,
+                                                   keep=self.keep_model is not None)
             collector.record(cfg, all_scores[primary_metric], all_scores,
                              run_info=run_info, origin=_ORIGIN)
 

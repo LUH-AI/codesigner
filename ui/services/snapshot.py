@@ -14,6 +14,7 @@ from django.db import transaction
 from django.utils.dateparse import parse_datetime
 
 from core import io, tasks
+from core.processing import choices_of
 from core.provenance import (
     dataset_fingerprint, environment, evaluation, model_fingerprint,
 )
@@ -64,15 +65,23 @@ def experiment_from_snapshot(snapshot: dict, dataset_file=None, model_file=None,
         seed=snapshot["seed"],
         cv_folds=io.folds_of(snapshot),
         test_size=io.test_size_of(snapshot),
+        time_column=io.time_column_of(snapshot),
+        time_gap=io.gap_of(snapshot),
+        **io.forecast_of(snapshot),
         task=tasks.task_of(snapshot),
+        processing=io.processing_of(snapshot),
         config_space=snapshot.get("space"),
         priors=snapshot.get("priors") or {},
         result=snapshot.get("result"),
     )
 
+    demo = _demo_named(snapshot, adopt_paths)
     if dataset_file is not None:
         name = getattr(dataset_file, "name", None) or _dataset_name(snapshot)
         data.dataset.save(Path(name).name, dataset_file, save=False)
+    elif demo:
+        # A bundled demo is shared, never copied.
+        data.demo_dataset = demo
     elif adopt_paths:
         stored = snapshot["dataset"].get("path", "")
         if stored and Path(stored).is_file():
@@ -162,6 +171,22 @@ def _model_kind(data, model_path: str) -> str:
     return "registry" if data.model_name in MODELS else "external"
 
 
+def _demo_named(snapshot, adopt_paths) -> str:
+    """The bundled demo this snapshot's dataset is, by name, or "": one it
+    names that this instance has, or — for a path the caller produced itself —
+    one whose file it is."""
+    section = snapshot.get("dataset") or {}
+    demos = io.demo_datasets()
+    named = section.get("demo")
+    if named and named in demos:
+        return named
+    stored = section.get("path", "")
+    if adopt_paths and stored:
+        resolved = Path(stored).resolve()
+        return next((name for name, path in demos.items() if Path(path).resolve() == resolved), "")
+    return ""
+
+
 def snapshot_from_experiment(exp: Experiment, *, provenance: bool = False) -> dict:
     """Build a current-format .ihpo snapshot dict from an Experiment row.
 
@@ -183,7 +208,7 @@ def snapshot_from_experiment(exp: Experiment, *, provenance: bool = False) -> di
     # split: this function's argument list *is* `ExperimentData`. A field that
     # has to be added to one and not the other is a change to the file format.
     data = exp.data
-    dataset = data.dataset.path if data.dataset else ""
+    dataset = str(data.dataset_path() or "")
     model_path = data.model_file.path if data.model_file else ""
     snapshot = {
         "format": io.SNAPSHOT_FORMAT,
@@ -191,10 +216,17 @@ def snapshot_from_experiment(exp: Experiment, *, provenance: bool = False) -> di
         "name": data.name,
         "seed": data.seed,
         "dataset": {"filename": Path(dataset).name if dataset else "",
-                    "path": dataset},
+                    "path": dataset,
+                    # A bundled demo, by name: another instance reads it as its
+                    # own copy of the same demo rather than needing the file.
+                    "demo": data.demo_dataset or None,
+                    "processing": choices_of(data.processing)},
         "model": {"kind": _model_kind(data, model_path),
                   "name": data.model_name, "path": model_path},
-        "evaluation": evaluation(data.cv_folds, test_size=data.test_size, task=data.task),
+        "evaluation": evaluation(data.cv_folds, test_size=data.test_size, task=data.task,
+                                 time_column=data.time_column, gap=data.time_gap,
+                                 horizon=data.horizon, series_column=data.series_column,
+                                 season=data.season),
         "metrics": {"names": data.metric_names,
                     "current": data.current_metric,
                     "original": data.original_metric},
@@ -272,7 +304,9 @@ def _add_provenance(snapshot: dict, exp: Experiment, dataset: str, model_path: s
         model_fingerprint(data.model_name, model_path, exp.env_meta,
                           kind=snapshot["model"]["kind"]))
     snapshot["evaluation"].update(
-        evaluation(data.cv_folds, _target(dataset), test_size=data.test_size, task=data.task))
+        evaluation(data.cv_folds, _target(dataset), test_size=data.test_size, task=data.task,
+                   time_column=data.time_column, gap=data.time_gap, horizon=data.horizon,
+                   series_column=data.series_column, season=data.season))
     snapshot["optimizer"]["defaults_used"] = _defaults_used(data)
     snapshot["runs"] = [_run_record(index, run)
                         for index, run in enumerate(exp.runs.order_by("id"), start=1)]

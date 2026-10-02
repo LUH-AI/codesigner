@@ -104,3 +104,18 @@ def theme(request):
     """Which theme to draw the page in: the one chosen, or the system's."""
     chosen = request.COOKIES.get(THEME_COOKIE)
     return {"theme": chosen if chosen in THEMES else "system"}
+
+
+def storage(request):
+    """The groups the signed-in person belongs to that are nearly out of room,
+    for the warning banner on every page (see ui/services/storage.py)."""
+    from .services.storage import human, warnings_for
+
+    try:
+        nearly_full = warnings_for(getattr(request, "user", None))
+    except Exception:  # noqa: BLE001 — a page must never fail over its banner
+        nearly_full = []
+    return {"storage_warnings": [
+        {"group": w["group"], "used": human(w["total"]), "limit": human(w["limit"]),
+         "percent": round(100 * w["share"]), "full": w["share"] >= 1}
+        for w in nearly_full]}

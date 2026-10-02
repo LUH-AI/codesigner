@@ -28,6 +28,26 @@
             </div>
         {% endif %}
 
+        {% comment %}Asked before the model, because it decides which models
+        are offered: the script below disables the ones that cannot do the task
+        chosen, evaluated the way chosen.{% endcomment %}
+        <div class="field">
+            <div class="field-label">
+                <label for="{{ form.task.id_for_label }}">{{ form.task.label }}</label>
+                {% include "ui/_info.html" with info_id=form.task.id_for_label|add:"_helptext" info_text=form.task.help_text %}
+            </div>
+            {{ form.task }}
+            {% if form.task.errors %}<div class="form-error">{{ form.task.errors|join:" " }}</div>{% endif %}
+        </div>
+        <div class="field" data-probability-metrics>
+            <div class="field-label">
+                <label class="check" for="{{ form.probability_metrics.id_for_label }}">{{ form.probability_metrics }} {{ form.probability_metrics.label }}</label>
+                {% include "ui/_info.html" with info_id=form.probability_metrics.id_for_label|add:"_helptext" info_text=form.probability_metrics.help_text %}
+            </div>
+            {% if form.probability_metrics.errors %}<div class="form-error">{{ form.probability_metrics.errors|join:" " }}</div>{% endif %}
+        </div>
+        {{ model_tasks|json_script:"model-tasks" }}
+
         {# ── Model: an uploaded .py by default, or a built-in when the box is checked ── #}
         {% if form.model_file %}
             <div class="field">
@@ -55,23 +75,6 @@
         {% if form.model_file.errors %}<div class="form-error">{{ form.model_file.errors|join:" " }}</div>{% endif %}
         {% if form.mounted_model.errors %}<div class="form-error">{{ form.mounted_model.errors|join:" " }}</div>{% endif %}
 
-        <div class="field">
-            <label for="{{ form.optimizer_name.id_for_label }}">{{ form.optimizer_name.label }}</label>
-            {{ form.optimizer_name }}
-        </div>
-
-        {% comment %}
-        Every optimizer's panel is rendered and all but the chosen one is hidden
-        and disabled, so the dropdown swaps them with no request. A disabled
-        input is not submitted and the parser reads a missing value as that
-        setting's default, which is exactly right for an optimizer nobody chose.
-        {% endcomment %}
-        {% for panel in optimizer_panels %}
-            <div data-optimizer="{{ panel.key }}"{% if not panel.selected %} hidden{% endif %}>
-                {% include "ui/_optimizer_params.html" with optimizer_layout=panel.optimizer_layout advanced_params=panel.advanced_params has_advanced_params=panel.has_advanced_params panel_disabled=panel.disabled %}
-            </div>
-        {% endfor %}
-
         {# ── Dataset: an uploaded CSV by default, or a demo when the box is checked ── #}
         <div class="field">
             <label class="check"><input type="checkbox" name="use_demo_dataset"> {% translate "Use demo datasets" %}</label>
@@ -84,16 +87,6 @@
             <label for="{{ form.dataset_file.id_for_label }}">{{ form.dataset_file.label }}</label>
             {{ form.dataset_file }}
         </div>
-
-        <div class="field">
-            <div class="field-label">
-                <label for="{{ form.task.id_for_label }}">{{ form.task.label }}</label>
-                {% include "ui/_info.html" with info_id=form.task.id_for_label|add:"_helptext" info_text=form.task.help_text %}
-            </div>
-            {{ form.task }}
-            {% if form.task.errors %}<div class="form-error">{{ form.task.errors|join:" " }}</div>{% endif %}
-        </div>
-        {{ model_tasks|json_script:"model-tasks" }}
 
         {% comment %}Two controls, not one menu of preset pairs: the scheme and
         the number are separate decisions, and folding them together meant
@@ -127,6 +120,79 @@
             </div>
         </div>
         {{ evaluation_schemes|json_script:"evaluation-schemes" }}
+
+        {% comment %}Named, not picked from a list: the columns belong to the
+        dataset chosen above. The script below suggests the ones that can be
+        ordered by — a demo's from the server, an upload's from its header.{% endcomment %}
+        <div class="field-row" data-time-order>
+            <div class="field">
+                <div class="field-label">
+                    <label for="{{ form.time_column.id_for_label }}">{{ form.time_column.label }}</label>
+                    {% include "ui/_info.html" with info_id=form.time_column.id_for_label|add:"_helptext" info_text=form.time_column.help_text %}
+                </div>
+                <input type="text" name="time_column" id="{{ form.time_column.id_for_label }}"
+                       value="{{ form.time_column.value|default_if_none:'' }}" list="time-column-options"
+                       autocomplete="off" aria-describedby="{{ form.time_column.id_for_label }}_helptext">
+                <datalist id="time-column-options"></datalist>
+                {% if form.time_column.errors %}<div class="form-error">{{ form.time_column.errors|join:" " }}</div>{% endif %}
+            </div>
+            <div class="field">
+                <div class="field-label">
+                    <label for="{{ form.time_gap.id_for_label }}">{{ form.time_gap.label }}</label>
+                    {% include "ui/_info.html" with info_id=form.time_gap.id_for_label|add:"_helptext" info_text=form.time_gap.help_text %}
+                </div>
+                {{ form.time_gap }}
+                {% if form.time_gap.errors %}<div class="form-error">{{ form.time_gap.errors|join:" " }}</div>{% endif %}
+            </div>
+        </div>
+        {{ demo_time_columns|json_script:"demo-time-columns" }}
+
+        {% comment %}Only for backtests; the script below hides them for the
+        other validation methods. Without it they stay visible and are ignored
+        unless the method is backtests.{% endcomment %}
+        <div class="field-row" data-forecast>
+            <div class="field">
+                <div class="field-label">
+                    <label for="{{ form.horizon.id_for_label }}">{{ form.horizon.label }}</label>
+                    {% include "ui/_info.html" with info_id=form.horizon.id_for_label|add:"_helptext" info_text=form.horizon.help_text %}
+                </div>
+                {{ form.horizon }}
+                {% if form.horizon.errors %}<div class="form-error">{{ form.horizon.errors|join:" " }}</div>{% endif %}
+            </div>
+            <div class="field">
+                <div class="field-label">
+                    <label for="{{ form.series_column.id_for_label }}">{{ form.series_column.label }}</label>
+                    {% include "ui/_info.html" with info_id=form.series_column.id_for_label|add:"_helptext" info_text=form.series_column.help_text %}
+                </div>
+                {{ form.series_column }}
+                {% if form.series_column.errors %}<div class="form-error">{{ form.series_column.errors|join:" " }}</div>{% endif %}
+            </div>
+            <div class="field">
+                <div class="field-label">
+                    <label for="{{ form.season.id_for_label }}">{{ form.season.label }}</label>
+                    {% include "ui/_info.html" with info_id=form.season.id_for_label|add:"_helptext" info_text=form.season.help_text %}
+                </div>
+                {{ form.season }}
+                {% if form.season.errors %}<div class="form-error">{{ form.season.errors|join:" " }}</div>{% endif %}
+            </div>
+        </div>
+
+        <div class="field">
+            <label for="{{ form.optimizer_name.id_for_label }}">{{ form.optimizer_name.label }}</label>
+            {{ form.optimizer_name }}
+        </div>
+
+        {% comment %}
+        Every optimizer's panel is rendered and all but the chosen one is hidden
+        and disabled, so the dropdown swaps them with no request. A disabled
+        input is not submitted and the parser reads a missing value as that
+        setting's default, which is exactly right for an optimizer nobody chose.
+        {% endcomment %}
+        {% for panel in optimizer_panels %}
+            <div data-optimizer="{{ panel.key }}"{% if not panel.selected %} hidden{% endif %}>
+                {% include "ui/_optimizer_params.html" with optimizer_layout=panel.optimizer_layout advanced_params=panel.advanced_params has_advanced_params=panel.has_advanced_params panel_disabled=panel.disabled %}
+            </div>
+        {% endfor %}
 
         <div class="field">
             <div class="field-label">
@@ -179,22 +245,68 @@
             apply(false);
         })();
 
-        // A built-in that cannot do the chosen task is not offered for it. On
-        // "guess" every model is, and the server says if the guess and the
-        // model disagree.
+        // The columns the rows could be ordered by in time, suggested for the
+        // dataset in hand. A demo's are known to the server, and are its dates
+        // and numbers; an upload's are read from its header line, all but the
+        // target, and the server says if the one named cannot be ordered by.
+        (function () {
+            const options = document.getElementById("time-column-options");
+            const demo = document.getElementById("{{ form.demo_dataset.id_for_label }}");
+            const upload = document.getElementById("{{ form.dataset_file.id_for_label }}");
+            const demos = JSON.parse(document.getElementById("demo-time-columns").textContent);
+            if (!options) return;
+            function offer(names) {
+                options.replaceChildren(...names.map(function (name) {
+                    const option = document.createElement("option");
+                    option.value = name;
+                    return option;
+                }));
+            }
+            if (demo) demo.addEventListener("change", function () { offer(demos[demo.value] || []); });
+            if (upload) upload.addEventListener("change", function () {
+                const file = upload.files && upload.files[0];
+                if (!file) return offer([]);
+                file.slice(0, 65536).text().then(function (text) {
+                    const header = text.split(/\r?\n/)[0];
+                    const sep = (header.split(";").length > header.split(",").length) ? ";" : ",";
+                    offer(header.split(sep).slice(0, -1).map(function (name) {
+                        return name.trim().replace(/^"|"$/g, "");
+                    }));
+                });
+            });
+            if (demo && demo.value) offer(demos[demo.value] || []);
+        })();
+
+        // What follows from the task and the validation method: the forecast's
+        // own fields under backtests, the probability metrics for a
+        // classification, and only the built-ins that can do the task evaluated
+        // that way. Every built-in can be backtested — it forecasts through
+        // core.forecasting — but one that only forecasts cannot be anything
+        // else. Without a task chosen no model is offered: there is nothing to
+        // check one against.
         (function () {
             const task = document.getElementById("{{ form.task.id_for_label }}");
+            const scheme = document.getElementById("{{ form.evaluation_scheme.id_for_label }}");
             const model = document.getElementById("{{ form.model_name.id_for_label }}");
-            const supported = JSON.parse(document.getElementById("model-tasks").textContent);
-            if (!task || !model) return;
+            const forecastRow = document.querySelector("[data-forecast]");
+            const probability = document.querySelector("[data-probability-metrics]");
+            const models = JSON.parse(document.getElementById("model-tasks").textContent);
+            if (!task || !scheme) return;
             function apply() {
+                const backtests = scheme.value === "backtest";
+                if (forecastRow) forecastRow.hidden = !backtests;
+                if (probability) probability.hidden = task.value !== "classification";
+                if (!model) return;
                 Array.from(model.options).forEach(function (option) {
-                    const can = supported[option.value];
-                    option.disabled = !!(task.value && can && can.indexOf(task.value) < 0);
+                    const spec = models[option.value];
+                    if (!spec) return;
+                    option.disabled = !task.value || spec.tasks.indexOf(task.value) < 0
+                        || (spec.forecaster && !backtests);
                 });
                 if (model.selectedOptions[0] && model.selectedOptions[0].disabled) model.value = "";
             }
             task.addEventListener("change", apply);
+            scheme.addEventListener("change", apply);
             apply();
         })();
 

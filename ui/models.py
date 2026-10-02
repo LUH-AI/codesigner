@@ -63,12 +63,34 @@ class ExperimentData(models.Model):
     # single split. Meaningless under cross-validation and simply carried, so
     # that switching an experiment's scheme would have somewhere to start from.
     test_size = models.FloatField(default=0.2)
+    # The column the rows are divided in time order by, or "" for a division
+    # that ignores time; and how many rows such a division leaves between
+    # training and validation. Fixed with the rest of the evaluation — see
+    # core.splits.time_holdout.
+    time_column = models.CharField(max_length=255, blank=True, default="")
+    time_gap = models.PositiveIntegerField(default=0)
+    # A forecast's shape: how many time steps ahead it predicts, the column
+    # naming each row's series ("" for one series), and how many steps make a
+    # season (0 until inferred from the time column). A horizon is what makes
+    # an experiment a forecast, evaluated by backtests — see core.forecasting.
+    horizon = models.PositiveIntegerField(default=0)
+    series_column = models.CharField(max_length=255, blank=True, default="")
+    season = models.PositiveIntegerField(default=0)
     # What the experiment predicts — a class or a number (see core.tasks).
     # Fixed for the experiment's life, like how it is evaluated: the metrics it
     # is scored with and the models it can use both follow from it.
     task = models.CharField(max_length=20, default=tasks.DEFAULT,
                             choices=[(t, t) for t in tasks.TASKS])
     dataset = models.FileField(upload_to="datasets/", blank=True, null=True)
+    # A bundled demo dataset, by name, used in place of a stored file. A demo
+    # is shared by every experiment on the instance, so it is never copied —
+    # and another instance with the same demo resolves the name to its own.
+    demo_dataset = models.CharField(max_length=200, blank=True, default="")
+    # How the dataset's columns are processed before the model sees them —
+    # gaps, scale, label columns (see core.processing). Part of the work, so
+    # part of the file: the same model on differently processed columns is a
+    # different experiment. Empty is every step as the model needs it.
+    processing = models.JSONField(default=dict, blank=True)
     # The search space the trials were drawn from, as ConfigSpace's own
     # serialized dict. Null until something supplies one.
     #
@@ -100,6 +122,30 @@ class ExperimentData(models.Model):
 
     def __str__(self) -> str:
         return self.name
+
+    def dataset_path(self):
+        """The dataset's file, as a `Path`: the bundled demo it names, else the
+        stored copy — or None when there is neither on this instance."""
+        from pathlib import Path
+
+        from core.io import demo_datasets
+
+        if self.demo_dataset:
+            path = demo_datasets().get(self.demo_dataset)
+            return Path(path) if path else None
+        if self.dataset:
+            return Path(self.dataset.path)
+        return None
+
+    @property
+    def has_dataset(self) -> bool:
+        """Whether this experiment names a dataset, demo or stored."""
+        return bool(self.demo_dataset or self.dataset)
+
+    @property
+    def forecasts(self) -> bool:
+        """Whether this experiment is a forecast, evaluated by backtests."""
+        return self.horizon > 0
 
 
 class ExperimentManager(models.Manager):
@@ -542,6 +588,33 @@ class Run(models.Model):
         if self.started_at and self.finished_at:
             return (self.finished_at - self.started_at).total_seconds()
         return None
+
+
+class TrialModel(models.Model):
+    """One trial's fitted model, kept for export as its parameters.
+
+    A ledger row per kept model, so what a group stores is a sum rather than a
+    walk of the disk, and so the stalest can be found when room is needed for
+    a dataset: `last_used_at` is when it was kept or last exported. The files
+    themselves live under `directory` (see ui/services/trial_models.py).
+    """
+
+    experiment = models.ForeignKey("Experiment", on_delete=models.CASCADE,
+                                   related_name="trial_models")
+    run = models.ForeignKey("Run", on_delete=models.SET_NULL, null=True, blank=True,
+                            related_name="trial_models")
+    trial = models.PositiveIntegerField()
+    directory = models.CharField(max_length=500)
+    bytes = models.PositiveBigIntegerField(default=0)
+    created_at = models.DateTimeField(auto_now_add=True)
+    last_used_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        constraints = [models.UniqueConstraint(fields=["experiment", "trial"],
+                                               name="one_kept_model_per_trial")]
+
+    def __str__(self) -> str:
+        return f"{self.experiment_id} trial {self.trial}"
 
 
 class GlobalSettings(models.Model):

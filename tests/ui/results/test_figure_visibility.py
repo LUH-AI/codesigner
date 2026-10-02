@@ -37,6 +37,8 @@ EXPECTED_KEYS = [
     "interactions_coalitions",
     "interactions_orders",
     "trial_duration",
+    # Only on a forecast's page (Figure.forecast_only).
+    "forecast",
     # Every trial at once, then one hyperparameter at a time, then one trial at
     # a time.
     "parallel_coordinates",
@@ -142,7 +144,7 @@ def test_each_figure_declares_a_tab_and_a_shape():
     assert by_tab[OVERVIEW] == []
     # Read along an axis, so wider than tall and never narrower than two.
     assert [f.key for f in FIGURES if f.shape == LONG] == [
-        "performance_over_time", "parallel_coordinates", "partial_dependence",
+        "performance_over_time", "forecast", "parallel_coordinates", "partial_dependence",
         "local_effects", "acquisition_slice", "prior"]
     assert FIGURES_BY_KEY["trials"].shape == TABLE
     assert SHAPES[TABLE] == (2,), "the trials table is always two columns"
@@ -178,10 +180,23 @@ def test_the_scale_toggle_is_declared_not_hardcoded():
     assert FIGURES_BY_KEY["trials"].absolute_scale is None
 
 
+def _applies(figure):
+    """Whether *figure* belongs on the page `_experiment()` makes — one that is
+    not a forecast. A figure only for a forecast (Figure.forecast_only) does
+    not."""
+    return not figure.forecast_only
+
+
+def _applying_slots(slots):
+    return [s for s in slots if _applies(FIGURES_BY_KEY[s["key"]])]
+
+
 def test_all_figures_show_by_default(client):
+    """Every figure for the experiment's task is on its page; one for another
+    task — the forecast, on a classification page — is not."""
     html = _page(client, _experiment())
     for figure in FIGURES:
-        assert f'data-figure="{figure.key}"' in html, figure.key
+        assert (f'data-figure="{figure.key}"' in html) == _applies(figure), figure.key
 
 
 def test_unchecking_a_figure_removes_it_from_the_page(client):
@@ -265,7 +280,7 @@ def test_each_figure_is_drawn_once_on_its_home_tab(client):
     html = _page(client, _experiment())
 
     for figure in FIGURES:
-        if figure.in_sidebar:
+        if figure.in_sidebar or not _applies(figure):
             continue
         holding = [tab for tab in TABS
                    if f'data-figure="{figure.key}"' in _panel(html, tab)]
@@ -282,7 +297,7 @@ def test_overview_holds_empty_slots_for_what_is_pinned(client):
     from ui.layout import default_layout
 
     assert re.findall(r'data-key="([a-z_]+)"', overview) == [
-        s["key"] for s in default_layout()["tabs"][OVERVIEW]]
+        s["key"] for s in _applying_slots(default_layout()["tabs"][OVERVIEW])]
     assert "data-figure=" not in overview
 
 
@@ -363,7 +378,8 @@ def test_each_tab_reads_in_the_declared_order(client):
     for tab, slots in default_layout()["tabs"].items():
         panel = _panel(html, tab)
         found = re.findall(r'data-key="([a-z_]+)"\s+data-w="(\d)"', panel)
-        assert [(k, int(w)) for k, w in found] == [(s["key"], s["w"]) for s in slots], tab
+        assert [(k, int(w)) for k, w in found] == [
+            (s["key"], s["w"]) for s in _applying_slots(slots)], tab
 
 
 def test_a_slot_says_its_shape(client):

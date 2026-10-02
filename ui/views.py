@@ -7,6 +7,8 @@ from collections import OrderedDict
 from importlib.metadata import version as dist_version
 from pathlib import Path
 
+import numpy as np
+
 from django.conf import settings
 from django.contrib import messages
 from django.contrib.auth.decorators import login_not_required
@@ -18,7 +20,7 @@ from django.shortcuts import redirect, render
 from django.template.loader import render_to_string
 from django.urls import reverse
 from django.utils.translation import gettext as _
-from django.utils.translation import gettext_lazy
+from django.utils.translation import gettext_lazy, ngettext
 from django.views.decorators.http import require_POST
 
 from core import io, provenance, smac_import, tasks
@@ -33,7 +35,7 @@ from .figures import (
     deferred_computations,
     acquisition_slice_plots,
     hyperparameter_ablation_plot, hyperparameter_importance_plot,
-    hyperparameter_progress_plot, local_effects_plot, partial_dependence_plot,
+    forecast_plot, hyperparameter_progress_plot, local_effects_plot, partial_dependence_plot,
 )
 from .formatting import sigfigs
 from .forms import (
@@ -50,6 +52,7 @@ from .services import modelenv
 from .services import snapshot as snapshot_adapter
 from .services import bin as bin_service
 from .services import model_export
+from .services import storage
 from .services.run import resolve_seed
 from .services.run_logic import decide_run, resolve_metric_change
 from .optimizer_labels import describe_all, grouped
@@ -164,6 +167,7 @@ STOPPED_BY_LABELS = {
     "incumbent_confidence": _("the search was confident nothing better remained"),
     "cancelled": _("it was interrupted"),
     "all_failing": _("too many trials were failing"),
+    "exhausted": _("every configuration had been tried"),
 }
 
 
@@ -395,18 +399,54 @@ def healthz(request):
     return HttpResponse("ok", content_type="text/plain")
 
 
+def _settle_storage(request, exp) -> bool:
+    """Make room in *exp*'s group for what creating it stored, or undo it.
+
+    Datasets and model files come first: kept trial models are deleted, the
+    stalest first, until the group is within its limit, and the person is told
+    how many. Only when the datasets and model files alone are over is the
+    experiment refused — deleted again, files and all. See
+    ui/services/storage.py.
+    """
+    group = exp.group
+    if group is None or (not exp.data.dataset and not exp.data.model_file):
+        return True
+    within, deleted = storage.make_room(group)
+    now = storage.usage(group)
+    numbers = {"group": group.name, "used": storage.human(now["total"]),
+               "limit": storage.human(now["limit"])}
+    if not within:
+        storage.delete_experiment_files(exp)
+        messages.error(request, _(
+            "%(group)s has no room for this: its datasets and model files alone would take "
+            "%(used)s of its %(limit)s. Delete experiments it no longer needs, or ask a site "
+            "administrator for more.") % numbers)
+        return False
+    if deleted:
+        messages.warning(request, ngettext(
+            "To make room in %(group)s, %(n)s kept trial model was deleted, the stalest "
+            "first. It now uses %(used)s of %(limit)s.",
+            "To make room in %(group)s, %(n)s kept trial models were deleted, the stalest "
+            "first. It now uses %(used)s of %(limit)s.", deleted) % dict(numbers, n=deleted))
+    return True
+
+
 def _dataset_path_from(form, tmp_paths):
     """Resolve the chosen dataset to a filesystem path (temp file for uploads)."""
     demo = form.cleaned_data.get("demo_dataset")
     if demo:
         return demo
     upload = form.cleaned_data["dataset_file"]
-    tmp = tempfile.NamedTemporaryFile(suffix=".csv", delete=False)
-    for chunk in upload.chunks():
-        tmp.write(chunk)
-    tmp.close()
-    tmp_paths.append(tmp.name)
-    return tmp.name
+    # Under its own name, in a directory of its own: the stored copy, the
+    # file and everything exported from it are called what the person
+    # uploaded, not what a temporary file happened to be called.
+    folder = Path(tempfile.mkdtemp(prefix="codesigner-upload-"))
+    path = folder / (Path(upload.name).name or "dataset.csv")
+    with open(path, "wb") as out:
+        for chunk in upload.chunks():
+            out.write(chunk)
+    tmp_paths.append(str(path))
+    return str(path)
 
 
 def _evaluation_schemes():
@@ -434,7 +474,8 @@ def new_experiment(request):
             "form": NewExperimentForm(may_upload_models=may_upload, groups=groups),
             "optimizer_panels": _optimizer_panels(request, _selected_optimizer(request)),
             "evaluation_schemes": _evaluation_schemes(),
-            "model_tasks": {name: list(tasks.supported(model)) for name, model in MODELS.items()},
+            "model_tasks": _model_tasks(),
+            "demo_time_columns": _demo_time_columns(),
         })
 
     form = NewExperimentForm(request.POST, request.FILES,
@@ -444,7 +485,8 @@ def new_experiment(request):
             "form": form,
             "optimizer_panels": _optimizer_panels(request, _selected_optimizer(request)),
             "evaluation_schemes": _evaluation_schemes(),
-            "model_tasks": {name: list(tasks.supported(model)) for name, model in MODELS.items()},
+            "model_tasks": _model_tasks(),
+            "demo_time_columns": _demo_time_columns(),
         })
 
     cleaned = form.cleaned_data
@@ -470,10 +512,19 @@ def new_experiment(request):
             "model": {"kind": "file" if model_path else "registry",
                       "name": cleaned["model_name"], "path": model_path},
             "evaluation": provenance.evaluation(folds, test_size=test_size,
-                                                task=cleaned["task"]),
+                                                task=cleaned["task"],
+                                                time_column=cleaned.get("time_column", ""),
+                                                gap=cleaned.get("time_gap", 0),
+                                                horizon=cleaned.get("horizon", 0),
+                                                series_column=cleaned.get("series_column", ""),
+                                                season=cleaned.get("season", 0)),
             # Every metric for the task is computed on every trial; which one is
-            # optimized is chosen per run.
-            "metrics": {"names": metrics_for(cleaned["task"]), "current": None, "original": None},
+            # optimized is chosen per run. The probability ones only when asked
+            # for, which the form has checked the model can answer.
+            "metrics": {"names": metrics_for(cleaned["task"],
+                                             probabilities=bool(cleaned.get("probability_metrics")),
+                                             forecast=bool(cleaned.get("horizon"))),
+                        "current": None, "original": None},
             "optimizer": {"name": optimizer.name, "params": optimizer.get_params()},
             "result": None,
         }
@@ -483,6 +534,8 @@ def new_experiment(request):
             snapshot, model_file=cleaned.get("model_file"), adopt_paths=True,
             owner=_owner(request), group=_group_by_pk(groups, cleaned.get("group")),
         )
+        if not _settle_storage(request, exp):
+            return redirect("ui:new_experiment")
         # A custom model needs an environment before it can run. Resolving it
         # takes minutes, so it happens in the background and the detail page
         # reports progress.
@@ -490,6 +543,8 @@ def new_experiment(request):
     finally:
         for path in tmp_paths:
             Path(path).unlink(missing_ok=True)
+            if Path(path).parent.name.startswith("codesigner-upload-"):
+                Path(path).parent.rmdir()
 
     return redirect("ui:experiment_detail", pk=exp.pk)
 
@@ -644,6 +699,66 @@ def partial_dependence(request, exp):
     figure, warning = _partial_dependence_data(
         built, metric, hp_name, resolve_settings(exp)["ice_max_curves"])
     return JsonResponse({"figure": figure, "warning": warning})
+
+
+@experiment_view(VIEW)
+def forecast_figure(request, exp):
+    """The Forecast figure for one trial: the series, and what the trial's
+    configuration forecast at every backtest.
+
+    Deferred like partial dependence, and for a stronger reason — it runs the
+    model, once per backtest, as the trial did. *idx* names the trial (the
+    selected one on the page), *series* which series to draw when there are
+    several.
+    """
+    metric = request.GET.get("metric", "")
+    if not exp.data.forecasts or metric not in exp.data.metric_names:
+        return HttpResponseBadRequest("not a forecast")
+    result = _rebuild_result(exp)
+    try:
+        idx = int(request.GET.get("idx", ""))
+        trial = result.trials[idx]
+    except (TypeError, ValueError, IndexError, AttributeError):
+        return HttpResponseBadRequest("unknown trial")
+    if exp.data.model_file:
+        return JsonResponse({"figure": None, "series": [], "warning": _(
+            "The forecast is drawn for built-in models only: an uploaded model runs in "
+            "its own environment, which this page does not start.")})
+    try:
+        built = io.build_experiment(snapshot_adapter.snapshot_from_experiment(exp),
+                                    METRICS, MODELS, OPTIMIZERS, read_only=False)[1]
+    except ValueError as exc:
+        return JsonResponse({"figure": None, "series": [], "warning": str(exc)})
+
+    splits, model = built["splits"], built["model"]
+    labels = exp.data.task == tasks.CLASSIFICATION
+    names = sorted({str(s) for s in splits.series}) if splits.series is not None else []
+    chosen = request.GET.get("series") or (names[0] if names else "")
+    rows = (np.arange(len(splits.y)) if not names
+            else np.flatnonzero(np.asarray(splits.series).astype(str) == chosen))
+    backtests = []
+    try:
+        for train_idx, val_idx in splits.folds:
+            predicted = np.asarray(model.fit_predict(trial.config, splits.X[train_idx],
+                                                     splits.y[train_idx], splits.X[val_idx],
+                                                     seed=built["seed"]),
+                                   dtype=object if labels else float)
+            mine = np.isin(val_idx, rows)
+            backtests.append((built["times"][val_idx[mine]], predicted[mine]))
+    except Exception as exc:  # noqa: BLE001 — the model's failure is the figure's message
+        return JsonResponse({"figure": None, "series": names, "warning": _(
+            "This configuration failed to forecast: %(error)s") % {"error": exc}})
+    figure = forecast_plot(built["times"][rows], splits.y[rows], backtests,
+                           target=_target_name(exp), series=chosen, labels=labels)
+    return JsonResponse({"figure": _plot_json(figure), "series": names, "warning": None})
+
+
+def _target_name(exp):
+    """The dataset's target column, for the forecast's axis."""
+    try:
+        return io.target_of(exp.data.dataset_path())[0]
+    except Exception:  # noqa: BLE001 — an axis title is not worth an error
+        return ""
 
 
 #: Fitted slice surrogates, keyed by everything they depend on.
@@ -1475,7 +1590,7 @@ def experiment_run(request, exp):
     run that would change the optimized metric first shows a confirmation; the
     confirmation posts back with a `decision` of "new" or "old".
     """
-    if (request.method != "POST" or not exp.data.dataset or exp.is_running
+    if (request.method != "POST" or not exp.data.has_dataset or exp.is_running
             or not _model_available(exp)):
         return redirect("ui:experiment_detail", pk=exp.pk)
 
@@ -1967,10 +2082,25 @@ def experiment_export_model(request, exp):
     reason = model_export.unavailable(exp)
     if reason:
         raise Http404(reason)
+    picked = _picked_trial(request, exp)
+    if isinstance(picked, HttpResponse):
+        return picked
+    result, trial, metric = picked
+    body = model_export.build(exp, trial, metric, result)
+    response = HttpResponse(body, content_type="text/x-python; charset=utf-8")
+    response["Content-Disposition"] = (
+        f'attachment; filename="{model_export.filename(exp, trial.trial)}"')
+    return response
+
+
+def _picked_trial(request, exp):
+    """The trial a download names — `?metric=&idx=`, the index into the
+    result's trials, as every figure names one; without them the best on the
+    metric being viewed — as (result, trial, metric), or the response refusing
+    the request."""
     result = _rebuild_result(exp)
     if result is None or not result.trials:
-        raise Http404("no trials to export a configuration from")
-
+        raise Http404("no trials to export")
     metric = request.GET.get("metric") or exp.data.current_metric or exp.data.metric_names[0]
     if metric not in exp.data.metric_names:
         return HttpResponseBadRequest("unknown metric")
@@ -1981,13 +2111,75 @@ def experiment_export_model(request, exp):
         idx = int(idx_raw)
     else:
         return HttpResponseBadRequest("invalid trial index")
+    return result, result.trials[idx], metric
 
-    trial = result.trials[idx]
-    body = model_export.build(exp, trial, metric)
-    response = HttpResponse(body, content_type="text/x-python; charset=utf-8")
-    response["Content-Disposition"] = (
-        f'attachment; filename="{model_export.filename(exp, trial.trial)}"')
+
+@experiment_view(EXPORT)
+def experiment_export_trial_model(request, exp):
+    """Download the selected trial's fitted model — its parameters, in its
+    library's own format, with a note of what it is — as a zip.
+
+    Only for a trial whose model the run kept (see ui/services/trial_models.py):
+    nothing is trained here. What comes back is partially trained, fitted on
+    one fold's training rows, and its note says so.
+    """
+    import io as bytes_io
+    import zipfile
+
+    from .models import TrialModel
+
+    picked = _picked_trial(request, exp)
+    if isinstance(picked, HttpResponse):
+        return picked
+    _result, trial, _metric = picked
+    kept = TrialModel.objects.filter(experiment=exp, trial=trial.trial).first()
+    folder = Path(kept.directory) if kept else None
+    if folder is None or not folder.is_dir():
+        raise Http404(trial_models_reason(exp))
+
+    buffer = bytes_io.BytesIO()
+    stem = model_export.filename(exp, trial.trial).removesuffix(".py") + "-parameters"
+    with zipfile.ZipFile(buffer, "w", zipfile.ZIP_DEFLATED) as archive:
+        for path in sorted(folder.iterdir()):
+            if path.is_file():
+                archive.write(path, f"{stem}/{path.name}")
+    TrialModel.objects.filter(pk=kept.pk).update(last_used_at=timezone.now())
+    response = HttpResponse(buffer.getvalue(), content_type="application/zip")
+    response["Content-Disposition"] = f'attachment; filename="{stem}.zip"'
     return response
+
+
+def _kept_trial_indices(exp, result):
+    """The indices into *result*'s trials of those whose model was kept."""
+    from .models import TrialModel
+
+    if result is None or not result.trials:
+        return []
+    kept = set(TrialModel.objects.filter(experiment=exp).values_list("trial", flat=True))
+    return [i for i, trial in enumerate(result.trials) if trial.trial in kept]
+
+
+def trial_models_reason(exp):
+    """Why a trial of *exp* has no kept model to export."""
+    from core.optimizers.trial import keeps_its_fit
+
+    model = MODELS.get(exp.data.model_name)
+    if exp.data.model_file or model is None or not keeps_its_fit(model):
+        return _("Trial parameters are kept for the built-in models only: an uploaded model "
+                 "is fitted in its own environment, which nothing is brought back from.")
+    if not getattr(model, "has_parameters", True):
+        return _("%(model)s has no fitted parameters to keep: its forecast is its history "
+                 "replayed.") % {"model": model.name}
+    best = resolve_settings(exp).get("keep_best_trial_models") or 0
+    if not best and not resolve_settings(exp).get("keep_last_run_trial_models"):
+        return _("This experiment keeps no trial models. Turn it on in Settings; a new run "
+                 "keeps them from then on.")
+    return ngettext(
+        "This trial's model was not kept: a run keeps only the best %(n)s trial's model "
+        "(and with the option on, its own), or its group had no room. Change it in Settings.",
+        "This trial's model was not kept: a run keeps only the best %(n)s trials' models "
+        "(and with the option on, its own), or its group had no room. Change it in Settings.",
+        best) % {"n": best}
 
 
 def _export(request, exp, cancel_url=None):
@@ -2327,6 +2519,8 @@ def import_experiment(request):
             snapshot, dataset_file=dataset_upload, model_file=model_upload,
             owner=_owner(request), group=group,
         )
+        if not _settle_storage(request, exp):
+            return render(request, "ui/import.html", context)
         # An imported model is re-locked here rather than trusting pins chosen by
         # whoever exported it.
         modelenv.start_preparation(exp)
@@ -2571,7 +2765,8 @@ def _shown_figures(exp):
     fetch what the page deliberately did not build.
     """
     shown = resolve_settings(exp)
-    return [figure for figure in FIGURES if shown[figure.setting_key]]
+    return [figure for figure in FIGURES if shown[figure.setting_key]
+            and figure.applies(exp.data)]
 
 
 def _figure_options(figure, result, metric_names):
@@ -2764,6 +2959,25 @@ def _prior_only_context(exp, built):
     }
 
 
+def _demo_time_columns():
+    """{demo dataset path: the columns it could be ordered by in time}, for the
+    create form to suggest. An uploaded file's columns are read in the page."""
+    out = {}
+    for path in io.demo_datasets().values():
+        try:
+            out[path] = io.orderable_columns(io.read_dataset(Path(path)))
+        except Exception:  # noqa: BLE001 — an unreadable demo just suggests nothing
+            out[path] = []
+    return out
+
+
+def _model_tasks():
+    """What the form's script needs to offer only the models that fit: each
+    built-in's tasks, and whether it only forecasts."""
+    return {name: {"tasks": list(tasks.supported(model)), "forecaster": tasks.forecaster(model)}
+            for name, model in MODELS.items()}
+
+
 def _evaluation_label(exp):
     """How a trial was scored, for the run-configuration box.
 
@@ -2775,6 +2989,17 @@ def _evaluation_label(exp):
     """
     if exp.data.model_name not in MODELS and not exp.data.model_file:
         return _("Not recorded")
+    if exp.data.forecasts:
+        return ngettext("%(k)s backtest of %(h)s steps by %(column)s",
+                        "%(k)s backtests of %(h)s steps by %(column)s",
+                        max(exp.data.cv_folds, 1)) % {
+            "k": max(exp.data.cv_folds, 1), "h": exp.data.horizon, "column": exp.data.time_column}
+    if exp.data.time_column:
+        if exp.data.cv_folds >= 2:
+            return _("%(k)s time-ordered folds by %(column)s") % {
+                "k": exp.data.cv_folds, "column": exp.data.time_column}
+        return _("latest %(pct)s%% by %(column)s held out") % {
+            "pct": round(exp.data.test_size * 100), "column": exp.data.time_column}
     if exp.data.cv_folds >= 2:
         return _("%(k)s-fold CV") % {"k": exp.data.cv_folds}
     return _("%(pct)s%% held out") % {"pct": round(exp.data.test_size * 100)}
@@ -2899,7 +3124,7 @@ def _detail_context(request, exp):
         # with nothing for it to read.
         "has_result": result is not None and bool(result.trials),
         "active_run": active_run,
-        "can_run": (bool(exp.data.dataset) and _model_available(exp)
+        "can_run": (exp.data.has_dataset and _model_available(exp)
                     and permissions.policy().may(request, exp, RUN)
                     and not model_refusal),
         # What this viewer may do, for the buttons. Read access got them here;
@@ -2908,6 +3133,11 @@ def _detail_context(request, exp):
                 for action in (RUN, EDIT, DELETE, EXPORT, SHARE)},
         "ownership": _ownership(request, exp),
         "model_export_unavailable": model_export.unavailable(exp),
+        # Which trials' fitted models were kept, by their place in the result —
+        # the button for their parameters follows the selected trial, and is
+        # only a link for one of these.
+        "kept_trial_indices": _kept_trial_indices(exp, result),
+        "trial_models_reason": trial_models_reason(exp),
         "run_error": last_run.error if (last_run and last_run.status == "error") else None,
         "model_refusal": model_refusal,
         # The model's environment, for the branches on the detail page.

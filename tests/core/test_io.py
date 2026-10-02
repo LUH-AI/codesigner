@@ -136,8 +136,9 @@ def test_build_experiment_read_only(metrics, models, optimizers):
     """read_only=True builds a browsable experiment without touching any files.
 
     Expect: no dataset arrays, but the optimizer is reconstructed with the
-    right type, the registry model is resolved, and the stored 30-trial
-    result is fully deserialized with its best score intact.
+    right type, the registry model is resolved — as a copy told the file's
+    task, since the registry's instance is shared by every experiment — and
+    the stored 30-trial result is fully deserialized with its best score intact.
     """
     snapshot = _fixture_snapshot("test2.ihpo")
     name, exp = io.build_experiment(snapshot, metrics, models, optimizers, read_only=True)
@@ -145,7 +146,9 @@ def test_build_experiment_read_only(metrics, models, optimizers):
     assert name == snapshot["name"]
     assert exp["X_train"] is None
     assert isinstance(exp["optimizer"], RandomOptimizer)
-    assert exp["model"] is models["Random Forest"]
+    assert type(exp["model"]) is type(models["Random Forest"])
+    assert exp["model"] is not models["Random Forest"]
+    assert exp["model"].task == "classification"
     assert len(exp["result"].trials) == 30
     assert exp["result"].best_score == snapshot["result"]["best_score"]
 

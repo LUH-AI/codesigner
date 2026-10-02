@@ -77,6 +77,17 @@ def test_a_dataset_is_described_by_shape_as_well_as_digest(tmp_path):
     assert record["target_column"] == "target"
 
 
+def test_a_dataset_says_how_each_feature_was_read(tmp_path):
+    """What: the record names each feature column's kind, so a reader without
+    the file knows a label from a number from a date. How: a three-column CSV
+    with one of each, and a target."""
+    csv = tmp_path / "d.csv"
+    csv.write_text("city,rooms,listed,y\nBerlin,2,2024-01-05,a\nHamburg,3,2024-02-11,b\n")
+
+    assert provenance.dataset_fingerprint(csv)["column_kinds"] == {
+        "city": "categorical", "rooms": "numeric", "listed": "datetime"}
+
+
 def test_a_semicolon_separated_dataset_is_read_the_same_way_the_app_reads_it(tmp_path):
     """`wine.csv` ships with semicolons. A record that described it as one
     column would be describing a file the application never saw."""

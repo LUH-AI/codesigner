@@ -7,6 +7,7 @@ it out of band rebuilding everything from the stored experiment, and writes the
 result and status back so the page can poll and cancel.
 """
 
+import copy
 import math
 import random
 import time
@@ -16,15 +17,19 @@ from django.conf import settings
 
 from .settings import eager_analytics_wanted, resolve_settings
 from django.utils import timezone
+from django.utils.translation import gettext as _
 
-from core import io
+from core import encoding, io, tasks
 from core.io import DEFAULT_TEST_SIZE, _load_splits
+from core.metrics import metric_for, metrics_for, usable
+from core.optimizers.trial import offers_probabilities
 
 from core.optimizers.base import STOPPED_BY_CANCELLED, OptimizationResult
 
 from .. import permissions, registry
 from ..registry import METRICS, MODELS, OPTIMIZERS
 from . import snapshot as snapshot_adapter
+from . import trial_models
 from .run_logic import apply_metrics
 
 
@@ -35,21 +40,47 @@ def resolve_seed(seed_input: int) -> int:
 
 def run_experiment(*, model_name, optimizer_name, dataset_path, seed,
                    primary_metric, n_trials, optimizer_params=None,
-                   test_size=None):
-    """Build the split and run the chosen optimizer over all metrics.
+                   test_size=None, task=tasks.DEFAULT):
+    """Build the split and run the chosen optimizer over the task's metrics.
 
-    Every metric in the registry is scored on each trial; *primary_metric* is
-    the one the optimizer optimizes. Returns the OptimizationResult.
+    Every metric that scores *task* is scored on each trial; *primary_metric*
+    is the one the optimizer optimizes. The model is a copy of the registry's,
+    told its task and its columns' kinds, as `io.build_experiment` does: the
+    registry instance is shared by everything in the process. Returns the
+    OptimizationResult.
     """
-    model = MODELS[model_name]
+    model = copy.copy(MODELS[model_name])
+    io.tell_task(model, task)
+    io.tell_feature_kinds(
+        model, encoding.feature_kinds(io.dataset_encoding(Path(dataset_path))))
     optimizer = type(OPTIMIZERS[optimizer_name])(**(optimizer_params or {}))
     X_train, X_val, y_train, y_val = _load_splits(
-        Path(dataset_path), seed, test_size or DEFAULT_TEST_SIZE)
+        Path(dataset_path), seed, test_size or DEFAULT_TEST_SIZE, task)
     return optimizer.optimize(
         model, X_train, y_train, X_val, y_val,
-        metrics=METRICS, primary_metric=primary_metric,
+        metrics={name: METRICS[name] for name in metrics_for(task)},
+        primary_metric=primary_metric,
         n_trials=n_trials, previous_result=None, seed=seed, cancel_event=None,
     )
+
+
+def scoreable(metrics, model, primary_metric):
+    """*metrics* without those *model* cannot score, before the first trial.
+
+    The create form only lists the metrics scored on probabilities for a model
+    that gives them, but a model file can be replaced after that. Without the
+    probabilities those metrics fail every trial, so they are left out of the
+    run — unless one of them is what the run optimizes, which makes the run
+    impossible rather than partial.
+    """
+    can = (model.supports_proba if hasattr(model, "supports_proba")
+           else offers_probabilities(model))
+    keep = usable(metrics, probabilities=can)
+    if primary_metric not in keep:
+        raise ValueError(_(
+            "%(metric)s is scored on class probabilities, and this model does not "
+            "give them. Optimize another metric.") % {"metric": primary_metric})
+    return {name: metrics[name] for name in keep}
 
 
 # ── Background run engine ──────────────────────────────────────────────────────
@@ -153,6 +184,15 @@ def _record_prior_event(run_id, result, offset):
     # Read and rewritten rather than appended in the database, because the list
     # is small and this is the only writer at this point in a run's life.
     Run.objects.filter(pk=run_id).update(events=list(run.events or []) + [event])
+
+
+def _record_event(run_id, event):
+    """Append *event* to the run's log (`Run.events`)."""
+    from ..models import Run
+
+    run = Run.objects.filter(pk=run_id).first()
+    if run is not None:
+        Run.objects.filter(pk=run_id).update(events=list(run.events or []) + [event])
 
 
 def _metric_change_event(experiment, now):
@@ -328,13 +368,18 @@ def _execute_run_locally(run_id):
             experiment.pk, optimizer, built["result"], run.primary_metric)
         offset = len(built["result"].trials) if built["result"] else 0
         cancel = DbCancelFlag(run_id)
+        # And which trials' fitted models to keep for export: only a model
+        # fitted in this process can hand one over (see trial_models.keeper_for).
+        keeper = (trial_models.keeper_for(run, built, metric_for(run.primary_metric))
+                  if launch is None else None)
+        optimizer.keep_model = keeper
 
         def _optimize(model):
             _remember_config_space(experiment.pk, model, built["seed"])
             return optimizer.optimize(
                 model,
                 built["X_train"], built["y_train"], built["X_val"], built["y_val"],
-                metrics=built["metrics"],
+                metrics=scoreable(built["metrics"], model, run.primary_metric),
                 primary_metric=run.primary_metric,
                 previous_result=built["result"],
                 seed=built["seed"],
@@ -356,7 +401,9 @@ def _execute_run_locally(run_id):
 
             with model_session(
                 launch, built["splits"],
-                seed=built["seed"], task=built["task"], cancel=cancel,
+                seed=built["seed"], task=built["task"],
+                feature_kinds=built["feature_kinds"], forecast=built["forecast"],
+                cancel=cancel,
                 **modelenv.session_kwargs(run.trial_timeout, seed=built["seed"]),
             ) as model:
                 result = _optimize(model)
@@ -368,6 +415,9 @@ def _execute_run_locally(run_id):
 
     from ..models import ExperimentData
 
+    if keeper is not None and keeper.no_room:
+        _record_event(run_id, {"kind": "trial_models_not_kept", "at_trial": offset,
+                               "count": keeper.no_room, "reason": "no room"})
     cancelled = Run.objects.filter(pk=run_id, cancel_requested=True).exists()
     if result.trials:  # keep completed trials (progress survives a cancel)
         # filtered update, not .save(): a no-op if the experiment was deleted
@@ -422,7 +472,7 @@ def execute_run_on_cluster(run_id):
         status="running", started_at=timezone.now(), backend="slurm")
 
     try:
-        if not experiment.data.dataset:
+        if not experiment.data.has_dataset:
             raise RuntimeError(
                 "this experiment has no dataset stored, so there is nothing to "
                 "send to the cluster")
@@ -442,7 +492,7 @@ def execute_run_on_cluster(run_id):
                 # prior is a statement about it.
                 "priors": experiment.data.priors or None,
             },
-            dataset=Path(experiment.data.dataset.path),
+            dataset=experiment.data.dataset_path(),
             model=Path(experiment.data.model_file.path) if experiment.data.model_file else None,
         )
         job_id = cluster.submit(ssh, run_id, workdir, hours=_hours_for(run))

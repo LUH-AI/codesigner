@@ -9,10 +9,14 @@ the end of the run.
 import numpy as np
 import pytest
 
-from core.metrics import METRICS
+from core.metrics import metrics_for, resolve
 from core.optimizers.timing import STATUS_CRASHED, STATUS_SUCCESS
 from core.optimizers.trial import evaluate_trial
 from core.splits import cross_validation, holdout
+
+#: The classification metrics: every split here has class labels, and a
+#: regression metric scored on them would fail every trial.
+METRICS = resolve(metrics_for("classification"))
 
 X_TRAIN = np.array([[0.0], [1.0]])
 Y_TRAIN = np.array(["a", "b"], dtype=object)

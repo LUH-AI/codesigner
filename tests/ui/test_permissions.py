@@ -174,6 +174,7 @@ def test_the_declared_actions_match_what_the_routes_do():
         "trial_ablation": permissions.VIEW,
         "trial_traceback": permissions.VIEW,
         "partial_dependence": permissions.VIEW,
+        "forecast": permissions.VIEW,
         "acquisition_slice": permissions.VIEW,
         "metric_figures": permissions.VIEW,
         "local_effects": permissions.VIEW,
@@ -211,6 +212,7 @@ def test_the_declared_actions_match_what_the_routes_do():
         "experiment_export": permissions.EXPORT,
         # The model, tuned to a trial: what the experiment is, taken away.
         "experiment_export_model": permissions.EXPORT,
+        "experiment_export_trial_model": permissions.EXPORT,
         "run_force_stop": permissions.RUN,
         # Looking at the data an experiment is tuned on is looking at the
         # experiment. Changing it, once these pages can, will be EDIT.

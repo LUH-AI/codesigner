@@ -31,7 +31,12 @@ def mounted_dir(tmp_path, monkeypatch):
 
 
 def _demo_dataset_path():
-    return next(iter(io.demo_datasets().values()))
+    """Path of the iris demo, to satisfy the form's dataset rule.
+
+    Named rather than the first demo: the demos include a regression one now,
+    and the models here only classify.
+    """
+    return io.demo_datasets()["iris"]
 
 
 def _mounted_path(mounted_dir):
@@ -59,7 +64,7 @@ def test_form_hides_mounted_models_when_none_present(tmp_path, monkeypatch, sett
 def test_selecting_a_mounted_model_resolves_its_name(mounted_dir):
     form = NewExperimentForm({
         "name": "mm", "model_name": "", "optimizer_name": "Random Search",
-        "demo_dataset": _demo_dataset_path(), "seed": "0",
+        "demo_dataset": _demo_dataset_path(), "task": "classification", "seed": "0",
         "mounted_model": _mounted_path(mounted_dir),
     })
     assert form.is_valid(), form.errors
@@ -73,7 +78,7 @@ def test_create_view_adopts_a_mounted_model(client, mounted_dir):
 
     resp = client.post(reverse("ui:new_experiment"), {
         "name": "mm-create", "model_name": "", "optimizer_name": "Random Search",
-        "demo_dataset": _demo_dataset_path(), "seed": "0",
+        "demo_dataset": _demo_dataset_path(), "task": "classification", "seed": "0",
         "mounted_model": _mounted_path(mounted_dir),
     })
     assert resp.status_code == 302

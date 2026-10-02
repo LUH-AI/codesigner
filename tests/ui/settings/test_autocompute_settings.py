@@ -23,11 +23,11 @@ from ui.services.settings import SETTING_DEFAULTS, global_defaults, resolve_sett
 
 
 def test_the_deferred_computations_are_declared():
-    """In catalog order: partial dependence, the local explanation, the
-    beeswarm, the acquisition slice, then the projection's uncertainty field,
-    which is on the acquisition tab now."""
+    """In catalog order: the forecast, partial dependence, the local
+    explanation, the beeswarm, the acquisition slice, then the projection's
+    uncertainty field, which is on the acquisition tab now."""
     assert [name for name, _ in deferred_computations()] == [
-        "partial_dependence", "local_ablation", "local_effects",
+        "forecast", "partial_dependence", "local_ablation", "local_effects",
         "acquisition_slice", "surrogate_uncertainty"]
 
 
@@ -45,7 +45,7 @@ def test_figures_with_nothing_deferred_declare_nothing():
     deferred_keys = {f.key for f in FIGURES if f.deferred}
     assert deferred_keys == {"local_explanation", "partial_dependence",
                              "local_effects", "configuration_cube",
-                             "acquisition_slice"}
+                             "acquisition_slice", "forecast"}
 
 
 def test_every_deferred_computation_has_a_setting_defaulting_to_off():

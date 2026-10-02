@@ -8,7 +8,7 @@ from hypershap import ExplanationTask, HyperSHAP
 
 from ..metrics import (
     METRICS, declarations, describe, from_cost, metric_for, to_cost)
-from .timing import CANCELLED, RUN_INFO_KEYS, STATUS_SUCCESS
+from .timing import CANCELLED, FITTED, RUN_INFO_KEYS, STATUS_SUCCESS
 
 
 @dataclass
@@ -375,10 +375,14 @@ FAILURE_CRITERIA = ("max_failures", "max_consecutive_failures")
 
 #: Default coalition budget for the eager, at-run-completion analytics. See
 #: `BaseOptimizer.eager_analytics_budget_exceeded` for what a coalition costs and
-#: why the budget is counted in them. 1024 admits both registry models (4 and 6
-#: hyperparameters, 192 and 768 coalitions over 4 metrics — 3.6s and 12.7s) and
-#: turns away the custom-upload pathology (10 hyperparameters would be 12,288
-#: coalitions, around 3 minutes appended to every run). `None` means no limit.
+#: why the budget is counted in them. 1024 was set against the two original
+#: models (4 and 6 hyperparameters, 192 and 768 coalitions over 4 metrics — 3.6s
+#: and 12.7s) and turns away the custom-upload pathology (10 hyperparameters
+#: would be 12,288 coalitions, around 3 minutes appended to every run). A
+#: classification run now scores five metrics, seven with the probability ones:
+#: every built-in model has at most five hyperparameters and stays inside it
+#: even then, except the SVM, whose six are 960 coalitions without them and
+#: 1,344 with. `None` means no limit.
 #:
 #: A default rather than a hard rule: deployments override it through
 #: `ANALYTICS_EAGER_MAX_COALITIONS`, which is a statement about the machine's
@@ -413,6 +417,11 @@ STOPPED_BY_ALL_FAILING = "all_failing"
 #: noticed the interruption, so "why did this stop?" has one answer to read
 #: rather than a reason for the criteria and a status field for everything else.
 STOPPED_BY_CANCELLED = "cancelled"
+
+#: Not a criterion either: a search over a small discrete space that has tried
+#: every configuration it can find has nothing left to run. Named, because the
+#: page otherwise has to say a run with trials to spare stopped for no reason.
+STOPPED_BY_EXHAUSTED = "exhausted"
 
 #: Criteria that may never fire. A run set up with only these has no guaranteed
 #: end — a target score the search never reaches, or a surrogate that stays
@@ -498,7 +507,12 @@ class TrialCollector:
         stopping: Optional[Dict[str, Any]] = None,
         on_record=None,
         metric=None,
+        on_keep=None,
     ):
+        #: Called with each recorded trial and the model its last fold fitted,
+        #: when the run was asked to keep fitted models (see
+        #: `core.optimizers.trial.FITTED`) — to keep it or not. Never stored here.
+        self._on_keep = on_keep
         #: Called with this collector after each trial is appended, for a caller
         #: that wants to see a run's results while it is still running. Every
         #: optimizer gets it without knowing about it — see
@@ -693,7 +707,15 @@ class TrialCollector:
             run_info=run_info or {},
             origin=origin or "",
         )
+        fitted = (run_info or {}).pop(FITTED, None)
         self.results.append(trial)
+        if fitted is not None and self._on_keep is not None:
+            # A kept model is a convenience, like a partial write: failing to
+            # keep one never fails the run.
+            try:
+                self._on_keep(trial, fitted)
+            except Exception:  # noqa: BLE001 — see above
+                pass
         if self._on_record is not None:
             # After the append, so a caller reading `results` sees this trial.
             # Failures are the caller's problem and never the run's: a partial
@@ -1481,6 +1503,11 @@ class BaseOptimizer(ABC):
     #: using.
     progress = None
 
+    #: Called with each recorded trial and the model its last fold fitted, to
+    #: keep for export — or None, and no trial keeps anything (see
+    #: ui/services/trial_models.py). Set by the caller, like `progress`.
+    keep_model = None
+
     def new_collector(self, metric_name: str = "", previous_result=None,
                       **kwargs) -> TrialCollector:
         """The `TrialCollector` for one run of this optimizer.
@@ -1498,6 +1525,7 @@ class BaseOptimizer(ABC):
         declared = getattr(previous_result, "declared_metrics", None) or {}
         return TrialCollector(
             on_record=self.progress,
+            on_keep=self.keep_model,
             metric=declared.get(metric_name) or metric_for(metric_name),
             **kwargs)
 
