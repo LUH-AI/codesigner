@@ -1,6 +1,6 @@
 from django.urls import path
 
-from . import panels, views
+from . import panels, setup_views, views
 
 app_name = "ui"
 
@@ -35,11 +35,26 @@ urlpatterns = [
     path("site/jobs/", panels.site_jobs, name="site_jobs"),
     path("site/jobs/<int:pk>/stop/", panels.site_job_stop, name="site_job_stop"),
     path("settings/appearance/", views.appearance, name="appearance"),
+    path("settings/export/", views.export_preferences, name="export_preferences"),
     path("settings/experiment-defaults/", views.default_experiment_settings, name="default_experiment_settings"),
     path("experiments/new/", views.new_experiment, name="new_experiment"),
+    # A draft's setup (ui/services/setup.py): its three steps, creating it, and
+    # throwing it away. Drafts only — see `experiment_view`'s `drafts`.
+    path("experiments/<int:pk>/setup/", setup_views.setup, name="setup"),
+    path("experiments/<int:pk>/setup/optimizer/", setup_views.setup_optimizer,
+         name="setup_optimizer"),
+    path("experiments/<int:pk>/setup/data/", setup_views.setup_data, name="setup_data"),
+    path("experiments/<int:pk>/setup/priors/", setup_views.setup_priors, name="setup_priors"),
+    path("experiments/<int:pk>/setup/resume/", setup_views.setup_resume, name="setup_resume"),
+    path("experiments/<int:pk>/setup/create/", setup_views.setup_create, name="setup_create"),
+    path("experiments/<int:pk>/setup/discard/", setup_views.setup_discard,
+         name="setup_discard"),
     path("experiments/import/", views.import_experiment, name="import_experiment"),
     path("experiments/<int:pk>/", views.experiment_detail, name="experiment_detail"),
     path("experiments/<int:pk>/run/", views.experiment_run, name="experiment_run"),
+    path("experiments/<int:pk>/optimizer/", views.experiment_optimizer,
+         name="experiment_optimizer"),
+    path("experiments/<int:pk>/rename/", views.experiment_rename, name="experiment_rename"),
     path("experiments/<int:pk>/status/", views.run_status, name="run_status"),
     path("experiments/<int:pk>/env-status/", views.env_status, name="env_status"),
     path("experiments/<int:pk>/prepare-env/", views.prepare_env, name="prepare_env"),
@@ -76,5 +91,6 @@ urlpatterns = [
     path("experiments/<int:pk>/export-trial-parameters/", views.experiment_export_trial_model,
          name="experiment_export_trial_model"),
     path("experiments/<int:pk>/settings/", views.experiment_settings, name="experiment_settings"),
+    path("experiments/<int:pk>/timeline/", views.experiment_timeline, name="experiment_timeline"),
     path("experiments/<int:pk>/delete/", views.experiment_delete, name="experiment_delete"),
 ]

@@ -56,7 +56,8 @@ SECTIONS = (
         "ui/templates/ui/figures/",
     )),
     ("The experiment page, outside the figures", (
-        "ui/templates/ui/experiment_detail.html", "ui/templates/ui/_side",
+        "ui/templates/ui/experiment_detail.html", "ui/templates/ui/experiment_prerun.html",
+        "ui/templates/ui/_side",
         "ui/templates/ui/_",
     )),
     ("Optimizer and model settings", (

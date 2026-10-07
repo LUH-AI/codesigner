@@ -1,0 +1,60 @@
+{% extends "ui/_experiment_page.html" %}
+{% load i18n %}
+
+{% block view_title %}{% translate "Timeline" %} · {% endblock %}
+
+{% comment %}Under the experiment's own heading, as on its dashboard and Data
+Handling. Newest first, down to how the experiment was set up. A run's own
+events (the metric changing, a prior taking effect) are listed inside it. Times
+are shown as the experiment has them: by the clock, as time since its first
+run, or not at all (ui/services/timestamps.py).{% endcomment %}
+{% block experiment_body %}
+    <h2 class="subheader timeline-heading">{% translate "Timeline" %}</h2>
+
+    <ol class="timeline">
+        {% comment %}What is still to come sits above a "Now" stop, on a dashed
+        stretch of the line, each entry outlined in dashes and with no time:
+        it has not happened.{% endcomment %}
+        {% for entry in scheduled %}
+            <li class="timeline-entry is-scheduled kind-{{ entry.kind }}">
+                <div class="timeline-when">
+                    <span>{% translate "Scheduled" %}</span>
+                    <span class="timeline-trials">{% translate "after the initial design" %}</span>
+                </div>
+                <div class="timeline-body">
+                    <div class="timeline-scheduled">
+                        <p class="timeline-summary">{{ entry.summary }}{% if entry.actor %} <span class="caption">— {{ entry.actor }}</span>{% endif %}</p>
+                        {% if entry.details %}{% include "ui/_timeline_details.html" with details=entry.details %}{% endif %}
+                    </div>
+                </div>
+            </li>
+        {% endfor %}
+        {% if scheduled %}
+            <li class="timeline-entry timeline-now">
+                <div class="timeline-when"><span>{% translate "Now" %}</span></div>
+                <div class="timeline-body"></div>
+            </li>
+        {% endif %}
+        {% for entry in entries %}
+            <li class="timeline-entry kind-{{ entry.kind }}">
+                <div class="timeline-when">
+                    {% if entry.when.absolute %}<time datetime="{{ entry.when.absolute|date:'c' }}" title="{{ entry.when.absolute }}">{{ entry.when.absolute|date:"j M Y, H:i" }}</time>
+                    {% elif entry.when.relative %}<span>{{ entry.when.relative }}</span>{% endif %}
+                    <span class="timeline-trials">{% blocktranslate count n=entry.at_trial %}after {{ n }} trial{% plural %}after {{ n }} trials{% endblocktranslate %}</span>
+                </div>
+                <div class="timeline-body">
+                    <p class="timeline-summary">{{ entry.summary }}{% if entry.actor %} <span class="caption">— {{ entry.actor }}</span>{% endif %}</p>
+                    {% if entry.children %}
+                        <ol class="timeline-children">
+                            {% for child in entry.children %}
+                                <li>{{ child.summary }}{% if child.when.absolute %} <span class="caption">{{ child.when.absolute|date:"H:i" }}</span>{% elif child.when.relative %} <span class="caption">{{ child.when.relative }}</span>{% endif %}
+                                    {% if child.details %}{% include "ui/_timeline_details.html" with details=child.details %}{% endif %}</li>
+                            {% endfor %}
+                        </ol>
+                    {% endif %}
+                    {% if entry.details %}{% include "ui/_timeline_details.html" with details=entry.details %}{% endif %}
+                </div>
+            </li>
+        {% endfor %}
+    </ol>
+{% endblock %}

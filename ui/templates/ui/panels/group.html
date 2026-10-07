@@ -41,7 +41,7 @@
         <tbody>
             {% for row in mine %}{% with exp=row.experiment %}
                 <tr id="exp-{{ exp.pk }}">
-                    <td><a href="{% url 'ui:experiment_detail' exp.pk %}">{{ exp.name }}</a>
+                    <td><a href="{% url 'ui:experiment_detail' exp.pk %}">{{ exp.title }}</a>
                         <span class="exp-id">({{ exp.identifier }})</span></td>
                     <td>
                         {% comment %}Collapsed, because a group of twenty makes this
@@ -100,7 +100,7 @@
         <tbody>
             {% for exp in shared %}
                 <tr>
-                    <td><a href="{% url 'ui:experiment_detail' exp.pk %}">{{ exp.name }}</a>
+                    <td><a href="{% url 'ui:experiment_detail' exp.pk %}">{{ exp.title }}</a>
                         <span class="exp-id">({{ exp.identifier }})</span></td>
                     <td>{{ exp.owner.get_username }}</td>
                     <td>{% if exp.level == "contributor" %}{% translate "a contributor" %}{% else %}{% translate "a viewer" %}{% endif %}</td>
@@ -127,7 +127,7 @@
             <tbody>
                 {% for exp in others %}
                     <tr>
-                        <td><a href="{% url 'ui:experiment_detail' exp.pk %}">{{ exp.name }}</a>
+                        <td><a href="{% url 'ui:experiment_detail' exp.pk %}">{{ exp.title }}</a>
                             <span class="exp-id">({{ exp.identifier }})</span></td>
                         <td>{% if exp.owner %}{{ exp.owner.get_username }}{% else %}<span class="caption">{% translate "nobody" %}</span>{% endif %}</td>
                         <td>{% if exp.people %}{% blocktranslate count people=exp.people %}with {{ people }} person{% plural %}with {{ people }} people{% endblocktranslate %}{% else %}—{% endif %}</td>

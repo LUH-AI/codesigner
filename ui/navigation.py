@@ -36,6 +36,7 @@ _EXPERIMENT_PAGES = {
     "experiment_delete": _("Delete"),
     # experiment_run only renders a page when it asks about a metric change.
     "experiment_run": _("Change metric"),
+    "experiment_timeline": _("Timeline"),
 }
 
 
@@ -71,6 +72,8 @@ def _crumbs_for(request, url_name, kwargs):
         return [experiments, (_("Import experiment"), None)]
     if url_name == "appearance":
         return [settings_root, (_("Appearance"), None)]
+    if url_name == "export_preferences":
+        return [settings_root, (_("Export"), None)]
     if url_name == "default_experiment_settings":
         return [settings_root, (_("Default experiment settings"), None)]
 
@@ -78,22 +81,26 @@ def _crumbs_for(request, url_name, kwargs):
         exp = _experiment(request, kwargs.get("pk"))
         if exp is None:
             return [experiments]
-        itself = (exp.name, reverse("ui:experiment_detail", args=[exp.pk]))
+        itself = (exp.title, reverse("ui:experiment_detail", args=[exp.pk]))
         page = _EXPERIMENT_PAGES[url_name]
         return [experiments, itself] if page is None else [experiments, itself, (page, None)]
 
-    if url_name in ("data_overview", "data_section"):
+    if url_name in ("setup", "setup_optimizer", "setup_data", "setup_priors"):
+        # A draft is set up rather than looked at: it has no dashboard to link
+        # to, so the trail ends at the setup.
         exp = _experiment(request, kwargs.get("pk"))
         if exp is None:
             return [experiments]
-        itself = (exp.name, reverse("ui:experiment_detail", args=[exp.pk]))
-        if url_name == "data_overview":
-            return [experiments, itself, (_("Data"), None)]
-        from datahandling.sections import BY_SLUG
+        return [experiments, (exp.title, None), (_("Setup"), None)]
 
-        section = BY_SLUG.get(kwargs.get("section"))
-        data = (_("Data"), reverse("datahandling:data_overview", args=[exp.pk]))
-        return [experiments, itself, data] + ([(section.title, None)] if section else [])
+    if url_name in ("data_overview", "data_section"):
+        # One page whatever section is showing: its sections are tabs on it,
+        # as the dashboard's figures are, and the trail does not follow them.
+        exp = _experiment(request, kwargs.get("pk"))
+        if exp is None:
+            return [experiments]
+        itself = (exp.title, reverse("ui:experiment_detail", args=[exp.pk]))
+        return [experiments, itself, (_("Data Handling"), None)]
 
     return []
 

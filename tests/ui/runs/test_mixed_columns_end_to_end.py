@@ -12,13 +12,14 @@ from pathlib import Path
 import pytest
 from django.core.files.uploadedfile import SimpleUploadedFile
 from django.urls import reverse
+from tests.conftest import post_new_experiment
 
 FLATS = Path(__file__).parent.parent.parent / "fixtures" / "flats.csv"
 
 
 def _create(client, name, model_name):
     upload = SimpleUploadedFile("flats.csv", FLATS.read_bytes(), content_type="text/csv")
-    return client.post(reverse("ui:new_experiment"), {
+    return post_new_experiment(client, {
         "name": name, "model_name": model_name, "optimizer_name": "Random Search",
         "dataset_file": upload, "task": "classification", "evaluation_scheme": "kfold", "evaluation_value": 3,
         "seed": 0,

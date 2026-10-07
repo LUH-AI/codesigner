@@ -22,6 +22,7 @@ from ui.services import run as run_service
 from ui.services import snapshot as snapshot_adapter
 
 from tests.ui.custom_models.conftest import VALID_MODEL_SRC
+from tests.conftest import post_new_experiment
 
 
 def _demo_dataset_path():
@@ -60,7 +61,7 @@ def _model_file():
 def test_create_view_stores_custom_model(client):
     """POSTing the new-experiment form with a model .py persists the file and
     the resolved model name, then redirects to the detail page."""
-    resp = client.post(reverse("ui:new_experiment"), {
+    resp = post_new_experiment(client, {
         "name": "cm-create",
         "model_name": "",
         "optimizer_name": "Random Search",

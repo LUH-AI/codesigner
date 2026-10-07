@@ -139,14 +139,16 @@ def test_a_real_run_writes_its_trials_before_it_finishes(monkeypatch):
 
     seen = []
     model = run_service.registry.MODELS["Random Forest"]
-    original = type(model).fit_predict
+    # `fit`, which every trial goes through: through `fit_predict`, or
+    # directly when the trial's fitted model may be kept.
+    original = type(model).fit
 
-    def watched(self, config, X_train, y_train, X_val, seed=0):
+    def watched(self, *args, **kwargs):
         stored = Experiment.objects.get(pk=exp.pk).data.result or {}
         seen.append(len(stored.get("data") or []))
-        return original(self, config, X_train, y_train, X_val, seed=seed)
+        return original(self, *args, **kwargs)
 
-    monkeypatch.setattr(type(model), "fit_predict", watched)
+    monkeypatch.setattr(type(model), "fit", watched)
     execute_run(run.id)
 
     assert seen[-1] > 0, (
@@ -170,13 +172,13 @@ def test_what_a_run_writes_mid_flight_carries_no_analytics(monkeypatch):
 
     seen = []
     model = run_service.registry.MODELS["Random Forest"]
-    original = type(model).fit_predict
+    original = type(model).fit
 
-    def watched(self, config, X_train, y_train, X_val, seed=0):
+    def watched(self, *args, **kwargs):
         seen.append(Experiment.objects.get(pk=exp.pk).data.result or {})
-        return original(self, config, X_train, y_train, X_val, seed=seed)
+        return original(self, *args, **kwargs)
 
-    monkeypatch.setattr(type(model), "fit_predict", watched)
+    monkeypatch.setattr(type(model), "fit", watched)
     execute_run(run.id)
 
     partial = [s for s in seen if s.get("data")]

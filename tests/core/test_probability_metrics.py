@@ -16,9 +16,10 @@ from core.optimizers.base import EAGER_MAX_COALITIONS
 from core.registry import MODELS
 
 
-def test_probability_metrics_are_asked_for_not_given():
-    """What: a classification experiment gets balanced accuracy by default, and
-    ROC AUC and log loss only when asked. How: compares the two lists."""
+def test_probability_metrics_come_with_probabilities():
+    """What: a classification experiment gets balanced accuracy always, and
+    ROC AUC and log loss when its model gives probabilities.
+    How: compares the two lists."""
     plain = metrics_for("classification")
     asked = metrics_for("classification", probabilities=True)
 

@@ -410,7 +410,7 @@ def normalize(snapshot: dict) -> dict:
         "optimizer": {"name": snapshot.get("optimizer_name"),
                       "params": snapshot.get("optimizer_params") or {}},
     }
-    for section in ("space", "runs", "environment"):
+    for section in ("space", "priors", "runs", "environment", "began_at"):
         if snapshot.get(section) is not None:
             lifted[section] = snapshot[section]
     lifted["result"] = snapshot.get("result")

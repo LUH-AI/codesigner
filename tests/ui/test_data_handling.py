@@ -9,6 +9,7 @@ from django.urls import reverse
 from datahandling.sections import SECTIONS
 from ui.models import Experiment
 from ui.permissions import OpenPolicy
+from tests.conftest import post_new_experiment
 
 
 class HidesEverything(OpenPolicy):
@@ -80,45 +81,56 @@ def test_an_invisible_experiment_has_no_data_pages(client, settings):
     assert client.get(_url(exp, SECTIONS[1])).status_code == 404
 
 
-def test_the_overview_sits_under_its_experiment(client):
-    """What: the trail reads Experiments / <name> / Data.
-    How: reads the breadcrumb labels off the overview page."""
+def test_every_section_sits_under_data_handling(client):
+    """What: the trail reads Experiments / <name> / Data Handling whichever
+    section is showing — the sections are tabs on one page, as the dashboard's
+    figures are. How: reads the breadcrumb labels off two sections' pages."""
     exp = _exp()
-    html = client.get(_url(exp, SECTIONS[0])).content.decode()
-    assert _trail(html) == ["Experiments", "Iris tuning", "Data"]
+    for section in SECTIONS[:2]:
+        html = client.get(_url(exp, section)).content.decode()
+        assert _trail(html) == ["Experiments", "Iris tuning", "Data Handling"]
 
 
-def test_a_section_sits_under_data(client):
-    """What: a section's trail continues past Data, and Data links back to the
-    overview. How: reads the labels and the links out of the breadcrumbs."""
-    exp = _exp()
-    section = SECTIONS[1]
-    html = client.get(_url(exp, section)).content.decode()
-
-    assert _trail(html) == ["Experiments", "Iris tuning", "Data", str(section.title)]
-    nav = html.split('class="breadcrumbs"', 1)[1].split("</nav>", 1)[0]
-    assert f'href="{_url(exp, SECTIONS[0])}"' in nav
-
-
-def test_the_sidebar_is_the_sections(client):
-    """What: on a data page the experiment list gives way to the sections' tabs,
-    with the current one marked and a way back to the experiment.
-    How: reads the inner sidebar of one section's page."""
-    exp = _exp(name="list-me-not")
+def test_the_sections_are_tabs_on_the_page(client):
+    """What: the sections are the page's tabs, drawn as the dashboard's are,
+    each with its own address, the one asked for selected and its panel the
+    one showing. How: reads the tab bar and the panels of one section's page."""
+    exp = _exp(name="tabbed")
     section = SECTIONS[2]
-    sidebar = _sidebar(client.get(_url(exp, section)).content.decode())
+    html = client.get(_url(exp, section)).content.decode()
+    bar = html.split('class="fig-tabbar"', 1)[1].split("</div>\n        </div>", 1)[0]
 
-    assert "Data Handling" in sidebar
     for s in SECTIONS:
-        assert f'href="{_url(exp, s)}"' in sidebar
-    assert re.search(r'class="tab active"\s+href="%s"' % re.escape(_url(exp, section)), sidebar)
-    assert reverse("ui:experiment_detail", args=[exp.pk]) in sidebar
-    assert "Experiment Selection" not in sidebar
+        assert f'data-url="{_url(exp, s)}"' in bar
+    assert re.search(r'data-tab="%s"[^>]*aria-selected="true"' % section.slug, bar, re.S)
+    shown = re.findall(r'class="fig-panel"\s+id="fig-panel-([\w-]+)"', html)
+    assert shown == [section.slug]
+    assert "data-sections" not in _sidebar(html)
+
+
+def test_the_experiments_heading_is_shared(client):
+    """What: Data Handling and the timeline open under the same heading and
+    buttons as the dashboard. How: compares the heading block of each page,
+    less what is particular to one request — the rename form's token and the
+    page it returns to."""
+    exp = _exp()
+
+    def heading(url):
+        html = client.get(url).content.decode()
+        block = re.sub(r"\s+", " ", html.split("<main", 1)[1].split('class="caption ownership"', 1)[0]
+                       .split("</div>\n    </div>", 1)[0].split("</nav>", 1)[-1])
+        return re.sub(r'name="(csrfmiddlewaretoken|next)" value="[^"]*"', "", block)
+
+    dashboard = heading(reverse("ui:experiment_detail", args=[exp.pk]))
+    assert "Experiment: Iris tuning" in dashboard and "Export" in dashboard
+    assert heading(_url(exp, SECTIONS[0])) == dashboard
+    assert heading(reverse("ui:experiment_timeline", args=[exp.pk])) == dashboard
 
 
 def test_the_experiment_page_links_to_its_data(client):
-    """What: the experiment's own sidebar has the way in.
-    How: looks for the overview's URL in the experiment page's sidebar."""
+    """What: the open experiment's Data Handling view is one click away from
+    its dashboard. How: looks for the overview's URL in the dashboard's
+    sidebar."""
     exp = _exp()
     html = client.get(reverse("ui:experiment_detail", args=[exp.pk])).content.decode()
     assert f'href="{_url(exp, SECTIONS[0])}"' in _sidebar(html)
@@ -135,17 +147,40 @@ def _section(slug):
     return next(s for s in SECTIONS if s.slug == slug)
 
 
-def test_processing_choices_are_controls_and_default_to_the_models_needs(client):
-    """What: Cleaning and Features show the processing choices as controls,
-    defaulting to what the experiment's model needs, and say what that is.
-    How: fetches both pages for a Random Forest experiment."""
+def test_processing_choices_start_on_the_models_own_defaults(client):
+    """What: each processing control lists the real choices, the model's own
+    default among them named "(Random Forest default)" and selected, with no
+    separate "as the model needs" entry; it is posted as "auto", so it keeps
+    following the model. How: reads the page for a Random Forest experiment."""
     exp = _exp()
-    cleaning = client.get(_url(exp, _section("cleaning"))).content.decode()
-    features = client.get(_url(exp, _section("features"))).content.decode()
+    html = client.get(_url(exp, SECTIONS[0])).content.decode()
 
-    assert 'name="missing"' in cleaning and "Random Forest: leave for the model" in cleaning
-    assert 'name="scale"' in features and 'name="labels"' in features
-    assert "Random Forest: one column per label" in features
+    def options(name):
+        select = html.split(f'name="{name}"', 1)[1].split("</select>", 1)[0]
+        return re.findall(r'<option value="(\w+)"( selected)?[^>]*>([^<]+)</option>', select)
+
+    missing = options("missing")
+    assert ("auto", " selected", "Leave for the model (Random Forest default)") in missing
+    assert [label for _, _, label in missing] == ["Fill in", "Leave for the model (Random Forest default)"]
+    assert ("auto", " selected", "Leave as they are (Random Forest default)") in options("scale")
+    assert ("auto", " selected", "One column per label (Random Forest default)") in options("labels")
+    assert "As the model needs" not in html
+
+
+def test_a_model_that_cannot_take_gaps_cannot_be_given_them(client):
+    """What: for a model that cannot take a missing value, filling in is its
+    default and leaving gaps is offered disabled.
+    How: reads the page for an SVM experiment."""
+    exp = _exp()
+    exp.data.model_name = "SVM"
+    exp.data.save()
+    html = client.get(_url(exp, SECTIONS[0])).content.decode()
+    select = html.split('name="missing"', 1)[1].split("</select>", 1)[0]
+
+    assert re.search(r'value="auto" selected[^>]*>Fill in \(SVM default\)', select)
+    assert re.search(r'value="keep"[^>]*disabled[^>]*>Leave for the model', select)
+    assert re.search(r'value="auto" selected[^>]*>Standardize \(SVM default\)',
+                     html.split('name="scale"', 1)[1].split("</select>", 1)[0])
 
 
 def test_a_processing_choice_is_saved_and_travels_in_the_file(client):
@@ -168,7 +203,13 @@ def test_processing_is_fixed_once_there_are_trials(client):
     under — the controls are disabled and a post changes nothing.
     How: gives the experiment a result with one trial and posts a change."""
     exp = _exp()
-    exp.data.result = {"data": [[1, 0, 0, 0.5, 0.1, 1, 0, 0, 0]]}
+    exp.data.result = {
+        "stats": {"submitted": 1, "finished": 1, "running": 0},
+        "data": [{"config_id": 1, "cost": 0.5, "time": 1.0, "scores": {"accuracy": 0.5},
+                  "incumbent_config_id": 1}],
+        "configs": {"1": {"max_depth": 5}}, "config_origins": {}, "optimizer_state": {},
+        "primary_metric": "accuracy", "best_score": 0.5, "best_config_id": "1",
+    }
     exp.data.save()
     url = _url(exp, _section("features"))
 
@@ -189,7 +230,7 @@ def test_a_run_is_given_the_experiments_processing(client):
 
     from tests.conftest import DATASETS_DIR
 
-    client.post(reverse("ui:new_experiment"), {
+    post_new_experiment(client, {
         "name": "svm", "task": "classification", "model_name": "SVM",
         "optimizer_name": "Random Search", "demo_dataset": str(DATASETS_DIR / "iris.csv"),
         "seed": 0})
@@ -199,3 +240,95 @@ def test_a_run_is_given_the_experiments_processing(client):
 
     _, built = io.build_experiment(snapshot_from_experiment(exp), METRICS, MODELS, OPTIMIZERS)
     assert built["model"].processing == {"missing": "auto", "scale": "none", "labels": "auto"}
+
+
+# ── panels: the same kind of thing as a figure ──────────────────────────────
+
+def test_data_panels_and_figures_are_one_type():
+    """What: a Data Handling panel and a dashboard figure are both `Panel`s,
+    with the same shape, width and template machinery.
+    How: checks the class hierarchy and the derived attributes."""
+    from datahandling.panels import DATA_PANELS
+    from ui.figures import FIGURES, Panel
+
+    assert all(issubclass(p, Panel) for p in DATA_PANELS + FIGURES)
+    for panel in DATA_PANELS:
+        assert panel.page == "data" and panel.template and panel.columns()
+
+
+def test_every_data_panel_is_placed_once_on_its_tab():
+    """What: the layout file places each Data Handling panel on its section's
+    tab, and a file missing one is refused.
+    How: reads the file's data table, then a copy with one panel removed."""
+    from datahandling.panels import DATA_PANELS
+    from ui import layout
+
+    arranged = layout.read_data_default()
+    for panel in DATA_PANELS:
+        assert [s["key"] for s in arranged[panel.home_tab]].count(panel.key) == 1, panel.key
+
+
+def test_a_layout_file_without_a_data_panel_is_refused(tmp_path):
+    """What: like a figure, a Data Handling panel the file forgets is an error.
+    How: writes the file without the scaling panel and reads it."""
+    from ui import layout
+
+    text = layout.DEFAULT_PATH.read_text()
+    broken = tmp_path / "layout.toml"
+    broken.write_text("\n".join(l for l in text.splitlines() if '"scaling"' not in l))
+    with pytest.raises(layout.LayoutFileError, match="scaling is not placed"):
+        layout.read_data_default(broken)
+
+
+def _panel(html, slug):
+    return html.split(f'id="fig-panel-{slug}"', 1)[1].split('class="fig-panel', 1)[0]
+
+
+def test_a_created_experiments_overview_describes_its_data(client):
+    """What: once created, Overview is about the dataset and holds no
+    controls; missing values sits on Cleaning, scaling and label columns on
+    Features, each tab saving its own. How: reads the three tabs' panels."""
+    exp = _exp()
+    html = client.get(_url(exp, SECTIONS[0])).content.decode()
+    overview, cleaning, features = (_panel(html, s) for s in ("overview", "cleaning", "features"))
+
+    assert "<select" not in overview and "<form" not in overview
+    assert 'data-key="profile"' in overview
+    assert 'name="missing"' in cleaning and cleaning.count('type="submit"') == 1
+    assert 'name="scale"' in features and 'name="labels"' in features
+    assert 'class="fig-grip"' not in html
+
+
+def test_a_drafts_overview_is_the_choices_to_make_first(client):
+    """What: step 2 of a draft's setup opens on an Overview of its own — the
+    three choices to make before a run, in one form, and none of the dataset
+    cards. Each control is drawn once, in its own tab, and moved into the
+    Overview's slot while it shows. How: saves step 1 of a draft and reads
+    step 2's Overview and Features panels."""
+    from tests.ui.experiments.test_drafts import _save, _setup
+    from tests.conftest import start_draft
+
+    exp = start_draft(client)
+    _save(client, exp, "setup", _setup())
+    html = client.get(reverse("ui:setup_data", args=[exp.pk])).content.decode()
+    overview = _panel(html, "overview")
+
+    for key in ("missing_values", "scaling", "label_columns"):
+        assert f'class="fig-slot shape-card" data-key="{key}"' in overview
+    assert 'data-key="profile"' not in overview
+    assert "data-purpose" not in html
+    assert overview.count("<form") == 1 and overview.count('type="submit"') == 1
+    assert html.count('name="scale"') == 1 and 'name="scale"' in _panel(html, "features")
+
+
+def test_a_setup_overview_naming_an_unknown_panel_is_refused(tmp_path):
+    """What: the draft Overview's arrangement is checked like the others; a
+    panel nobody defines is an error. How: renames one in a copy of the file."""
+    from ui import layout
+
+    text = layout.DEFAULT_PATH.read_text()
+    head, setup = text.split("[setup]", 1)
+    broken = tmp_path / "layout.toml"
+    broken.write_text(head + "[setup]" + setup.replace('"scaling"', '"scalingg"'))
+    with pytest.raises(layout.LayoutFileError, match="scalingg"):
+        layout.read_setup_default(broken)

@@ -10,6 +10,7 @@ import numpy as np
 import pytest
 from django.core.files.uploadedfile import SimpleUploadedFile
 from django.urls import reverse
+from tests.conftest import post_new_experiment
 
 FLATS = Path(__file__).parent.parent.parent / "fixtures" / "flats.csv"
 
@@ -34,7 +35,7 @@ def _create(client, name="flats in time", **overrides):
         "time_column": "listed", "time_gap": 5,
     }
     data.update(overrides)
-    return client.post(reverse("ui:new_experiment"), data)
+    return post_new_experiment(client, data)
 
 
 @pytest.mark.django_db

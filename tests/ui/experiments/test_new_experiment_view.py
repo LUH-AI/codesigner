@@ -12,7 +12,7 @@ import io as _io
 
 from django.urls import reverse
 
-from tests.conftest import DATASETS_DIR
+from tests.conftest import DATASETS_DIR, get_new_experiment, post_new_experiment
 
 
 def _valid_post(**overrides):
@@ -29,16 +29,16 @@ def _valid_post(**overrides):
 
 
 def test_get_shows_the_form(client):
-    """GET renders the setup form: model, optimizer, dataset, seed.
+    """GET renders the setup form: model, dataset, seed. The optimizer is
+    step 2's.
 
     The metric and trial-count fields are gone from creation — they are chosen
     per run on the detail page.
     """
-    response = client.get(reverse("ui:new_experiment"))
+    response = get_new_experiment(client)
     assert response.status_code == 200
     html = response.content.decode()
-    for field in ("name", "model_name", "optimizer_name", "demo_dataset",
-                  "dataset_file", "seed"):
+    for field in ("name", "model_name", "demo_dataset", "dataset_file", "seed"):
         assert field in html
 
 
@@ -50,7 +50,7 @@ def test_post_creates_experiment_and_redirects(client):
     """
     from ui.models import Experiment
 
-    resp = client.post(reverse("ui:new_experiment"), _valid_post(name="created"))
+    resp = post_new_experiment(client, _valid_post(name="created"))
     exp = Experiment.objects.get(data__name="created")
 
     assert resp.status_code == 302
@@ -69,7 +69,7 @@ def test_post_with_uploaded_csv_stores_the_dataset(client):
     data = _valid_post(name="uploaded", demo_dataset="")
     data["dataset_file"] = upload
 
-    resp = client.post(reverse("ui:new_experiment"), data)
+    resp = post_new_experiment(client, data)
     assert resp.status_code == 302
     assert Experiment.objects.get(data__name="uploaded").data.dataset
 
@@ -78,19 +78,24 @@ def test_missing_dataset_is_rejected(client):
     """Submitting with neither a demo dataset nor an upload re-renders with an error."""
     from ui.models import Experiment
 
-    resp = client.post(reverse("ui:new_experiment"), _valid_post(demo_dataset=""))
+    resp = post_new_experiment(client, _valid_post(demo_dataset=""))
     assert resp.status_code == 200
     assert "demo dataset or upload" in resp.content.decode()
-    assert Experiment.objects.count() == 0
+    assert not Experiment.objects.filter(draft=False).exists()
 
 
-def test_missing_name_is_rejected(client):
-    """A blank name re-renders the form and creates nothing."""
+def test_a_name_is_optional(client):
+    """What: an experiment may be created with no name, and is then shown as
+    "Untitled Experiment". How: creates one with a blank name and reads it and
+    its dashboard."""
     from ui.models import Experiment
 
-    resp = client.post(reverse("ui:new_experiment"), _valid_post(name=""))
-    assert resp.status_code == 200
-    assert Experiment.objects.count() == 0
+    post_new_experiment(client, _valid_post(name=""))
+    exp = Experiment.objects.get(draft=False)
+    html = client.get(f"/experiments/{exp.pk}/").content.decode()
+
+    assert exp.name == "" and exp.title == "Untitled Experiment"
+    assert "Experiment: Untitled Experiment" in html
 
 
 def test_five_fold_cross_validation_is_the_default(client):
@@ -104,8 +109,8 @@ def test_five_fold_cross_validation_is_the_default(client):
     """
     from ui.models import Experiment
 
-    html = client.get(reverse("ui:new_experiment")).content.decode()
-    client.post(reverse("ui:new_experiment"), _valid_post(name="folded"))
+    html = get_new_experiment(client).content.decode()
+    post_new_experiment(client, _valid_post(name="folded"))
 
     assert '<option value="kfold" selected>' in html
     assert 'value="5"\n                       aria-describedby="evaluation_value_helptext" data-evaluation-value' in html
@@ -118,7 +123,7 @@ def test_a_choice_of_holdout_is_still_honoured(client):
     only the one the scheme asked for is kept."""
     from ui.models import Experiment
 
-    client.post(reverse("ui:new_experiment"),
+    post_new_experiment(client,
                 _valid_post(name="split", evaluation_scheme="holdout",
                             evaluation_value="0.3"))
 
@@ -132,7 +137,7 @@ def test_the_number_beside_the_scheme_is_read_as_that_scheme_asks(client):
     under a split, so the same number has to land in a different column."""
     from ui.models import Experiment
 
-    client.post(reverse("ui:new_experiment"),
+    post_new_experiment(client,
                 _valid_post(name="sevenfold", evaluation_scheme="kfold",
                             evaluation_value="7"))
 
@@ -145,7 +150,7 @@ def test_the_scheme_and_its_number_sit_in_one_row(client):
     """They are one decision — how the data is divided, and how finely — so the
     number has to read as the selector's and not as a setting of its own.
     Stacked, the two look like unrelated fields that happen to be adjacent."""
-    html = client.get(reverse("ui:new_experiment")).content.decode()
+    html = get_new_experiment(client).content.decode()
     row = html.split('class="field-row" data-evaluation', 1)[1].split("</div>\n        </div>", 1)[0]
 
     assert 'name="evaluation_scheme"' in row
@@ -161,7 +166,7 @@ def test_the_page_carries_the_bounds_the_selector_switches_between(client):
 
     from ui.forms import EVALUATION_BACKTEST, EVALUATION_HOLDOUT, EVALUATION_KFOLD
 
-    html = client.get(reverse("ui:new_experiment")).content.decode()
+    html = get_new_experiment(client).content.decode()
     body = html.split('id="evaluation-schemes"', 1)[1].split(">", 1)[1]
     schemes = json.loads(body.split("</script>", 1)[0])
 
@@ -178,10 +183,10 @@ def test_an_out_of_range_number_is_clamped_rather_than_refused(client):
     becomes the most that is offered, and the experiment is still created."""
     from ui.models import Experiment
 
-    client.post(reverse("ui:new_experiment"),
+    post_new_experiment(client,
                 _valid_post(name="greedy", evaluation_scheme="kfold",
                             evaluation_value="40"))
-    client.post(reverse("ui:new_experiment"),
+    post_new_experiment(client,
                 _valid_post(name="mostly-held-out", evaluation_scheme="holdout",
                             evaluation_value="0.9"))
 

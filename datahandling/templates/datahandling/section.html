@@ -1,70 +1,10 @@
-{% extends "base.html" %}
+{% extends "ui/_experiment_page.html" %}
 {% load i18n %}
 
-{% block title %}{{ section.title }} · {% translate "Data" %} · {{ experiment.name }}{% endblock %}
+{% block view_title %}{{ section.title }} · {% translate "Data Handling" %} · {% endblock %}
 
-{% comment %}The experiment list gives way to this section's own tabs, as the
-Settings and Site pages' do: on these pages the decision being made is which
-part of the data to look at, not which experiment.{% endcomment %}
-{% block sidebar %}
-    <nav class="sidebar">
-        <h1>{% translate "Data Handling" %}</h1>
-        <div class="nav-links">
-            <a href="{% url 'ui:experiment_detail' experiment.pk %}">{% blocktranslate with name=experiment.name %}← Back to {{ name }}{% endblocktranslate %}</a>
-        </div>
-        <div class="tab-list">
-            {% for s in sections %}
-                <a class="tab{% if s.slug == section.slug %} active{% endif %}"
-                   href="{% if forloop.first %}{% url 'datahandling:data_overview' experiment.pk %}{% else %}{% url 'datahandling:data_section' experiment.pk s.slug %}{% endif %}">{{ s.title }}</a>
-            {% endfor %}
-        </div>
-    </nav>
-{% endblock %}
-
-{% block content %}
-    <h1>{{ section.title }}</h1>
-    <p class="caption" style="max-width: 46rem;">{{ section.purpose }}</p>
-
-    {% if steps %}
-        {% comment %}The experiment's processing choices this section holds,
-        each a select; "As the model needs" says what that comes to for this
-        experiment's model. Fixed once there are trials: they were scored on
-        the columns processed as they are.{% endcomment %}
-        <form method="post" class="card processing-steps">
-            {% csrf_token %}
-            {% for step in steps %}
-                <div class="field">
-                    <label for="processing-{{ step.name }}">{{ step.capability.title }}</label>
-                    <select name="{{ step.name }}" id="processing-{{ step.name }}"{% if locked %} disabled{% endif %}>
-                        {% for value, label in step.options %}
-                            <option value="{{ value }}"{% if value == step.value %} selected{% endif %}>{{ label }}</option>
-                        {% endfor %}
-                    </select>
-                    <p class="caption">{{ step.capability.description }}</p>
-                </div>
-            {% endfor %}
-            {% if uploaded_model %}
-                <p class="caption">{% translate "An uploaded model is given the columns as they are; these choices apply to the built-in models." %}</p>
-            {% endif %}
-            {% if locked %}
-                <p class="caption">{% translate "Fixed: the experiment has trials, scored on its columns processed this way." %}</p>
-            {% else %}
-                <button type="submit" class="btn-primary">{% translate "Save" %}</button>
-            {% endif %}
-        </form>
-    {% endif %}
-
-    <div class="planned-list">
-        {% for capability in section.planned %}
-            {% if not capability.step %}
-            <div class="card planned">
-                <div class="planned-head">
-                    <span class="planned-title">{{ capability.title }}</span>
-                    <span class="planned-badge">{% translate "Planned" %}</span>
-                </div>
-                <p class="caption">{{ capability.description }}</p>
-            </div>
-            {% endif %}
-        {% endfor %}
-    </div>
+{% comment %}Its sections as tabs of panels (datahandling/_tabs.html), under
+the experiment's heading (ui/_experiment_page.html).{% endcomment %}
+{% block experiment_body %}
+    {% include "datahandling/_tabs.html" %}
 {% endblock %}

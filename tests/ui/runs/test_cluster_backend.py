@@ -143,7 +143,7 @@ def test_everything_the_job_needs_is_staged(cluster_settings, experiment, monkey
     assert f"{workdir}/snapshot.json" in transport.files
     assert f"{workdir}/run.json" in transport.files
     staged = transport.files[f"{workdir}/dataset.csv"]
-    assert staged == experiment.data.dataset.read(), "the job got a different dataset"
+    assert staged == experiment.data.dataset_path().read_bytes(), "the job got a different dataset"
 
     sent = json.loads(transport.files[f"{workdir}/run.json"])
     assert sent["stopping"] == {"max_trials": 3}

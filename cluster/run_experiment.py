@@ -163,6 +163,9 @@ def run(workdir: Path) -> int:
         "state": "cancelled" if cancel.is_set() else "done",
         "stopped_by": result.metadata.get("stopped_by") or "",
         "offset": offset,
+        # What the stated prior did — applied, skipped or refused, and at which
+        # trial — for the submitter to record on the run as the local path does.
+        "prior": result.metadata.get("prior"),
         # Captured here for the same reason the application captures it at the
         # start of a run: this is the only moment there is a model to ask, and
         # every surrogate-backed figure needs the space afterwards.

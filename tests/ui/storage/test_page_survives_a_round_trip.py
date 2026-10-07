@@ -25,7 +25,7 @@ from core import io
 from ui.services import snapshot as adapter
 from ui.views import _detail_context
 
-from tests.conftest import DATASETS_DIR, export_ihpo
+from tests.conftest import DATASETS_DIR, export_ihpo, post_new_experiment
 
 #: Everything the page draws a number, a label or a plot from.
 DISPLAYED = [
@@ -47,7 +47,7 @@ DISPLAYED = [
 
 #: Keys that differ by construction — the copy is a different row in a different
 #: database, and says so.
-LOCAL_TO_THIS_COPY = ("pk", "identifier", "name")
+LOCAL_TO_THIS_COPY = ("pk", "identifier", "name", "given_name")
 
 
 def _ran_experiment(client):
@@ -55,7 +55,7 @@ def _ran_experiment(client):
     stored optimizer state to carry as well as trials."""
     from ui.services.run import create_run, execute_run
 
-    client.post(reverse("ui:new_experiment"), {
+    post_new_experiment(client, {
         "name": "round-trip", "model_name": "Random Forest",
         "optimizer_name": "Random Search", "seed": "7",
         "evaluation_scheme": "kfold", "evaluation_value": "3",
@@ -142,7 +142,12 @@ def test_what_is_left_out_is_about_the_reader_not_the_experiment(client, rf):
                           "poll_seconds",
                           # Whether this instance holds the model file to
                           # write out: a reader who imported the run does not.
-                          "model_export_unavailable"}
+                          "model_export_unavailable",
+                          # Which trials' fitted models this instance kept, and
+                          # why it keeps none: the models are files here, and
+                          # an imported run arrives without them.
+                          "kept_trial_indices", "trial_models_reason",
+                          "export_default_kept"}
     declarations = {"figures", "sidebar_figures", "selectable_figures",
                     "selection_colors",
                     # The tabs and where each figure sits on them: how this

@@ -34,6 +34,8 @@ pytestmark = pytest.mark.django_db
 #: `dataset` is a file whose *identity* travels while its bytes do not.
 IN_THE_FILE = {
     "name": ("name",),
+    "created_at": ("began_at",),
+    "time_basis": ("timestamps",),
     "seed": ("seed",),
     "model_name": ("model", "name"),
     "model_file": ("model", "path"),
@@ -71,6 +73,8 @@ STAYS_HERE = {
     "group": "the boundary is this instance's",
     "trashed_at": "a bin is a state on this instance",
     "deleted_at": "and so is somebody's having deleted it",
+    "draft": "a setup in progress here; a file holds only created experiments",
+    "setup_saved": "and which of its steps have been saved, on this instance",
     "deleted_by": "and who did",
     "env_status": "what this machine made of the model",
     "env_error": "and why it failed here",

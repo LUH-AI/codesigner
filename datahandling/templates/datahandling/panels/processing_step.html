@@ -1,0 +1,16 @@
+{% load i18n %}
+{% comment %}One of the experiment's processing choices, as a select. Inside the
+form its tab puts around the panels that can be set, which saves them all at
+once; disabled once the choice is fixed (`locked`). `control` is
+`ProcessingStep.control`, handed in by the page with the panel.{% endcomment %}
+<section class="card" data-figure="{{ figure.key }}">
+    <div class="card-head">
+        <label class="subheader" for="processing-{{ control.name }}">{{ figure.label }}</label>
+    </div>
+    <select name="{{ control.name }}" id="processing-{{ control.name }}"{% if locked %} disabled{% endif %}>
+        {% for option in control.options %}
+            <option value="{{ option.value }}"{% if option.value == control.value %} selected{% endif %}{% if option.disabled %} disabled{% endif %}>{{ option.label }}</option>
+        {% endfor %}
+    </select>
+    <p class="caption">{{ figure.description }}</p>
+</section>

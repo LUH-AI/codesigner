@@ -74,6 +74,18 @@ def decay_beta(n_trials) -> float:
 _UNBOUNDED_BUDGET = 100
 
 
+def _when(report, smac):
+    """*report* (from `_apply_priors`), stamped with when the prior took
+    effect: after how many trials of the whole search, and the time. None
+    passes through — there was nothing stated to apply."""
+    if report is None:
+        return None
+    from datetime import datetime, timezone
+
+    return {**report, "at_trial": len(smac.runhistory),
+            "at": datetime.now(timezone.utc).isoformat()}
+
+
 def _waits_for_the_design(priors) -> bool:
     """Whether any stated belief asked to start counting after the design.
 
@@ -1343,7 +1355,7 @@ class SMACOptimizer(BaseOptimizer):
                       if waiting else 0)
         prior_report = None
         if not waiting:
-            prior_report = self._apply_priors(smac, scenario, config_space, priors)
+            prior_report = _when(self._apply_priors(smac, scenario, config_space, priors), smac)
 
         while not collector.done:
             if cancel_event and cancel_event.is_set():
@@ -1355,7 +1367,8 @@ class SMACOptimizer(BaseOptimizer):
             # `add_prior` will take the anchor from — comparing anything else
             # would be comparing to a number the anchor is not.
             if prior_report is None and len(smac.runhistory) >= design_end:
-                prior_report = self._apply_priors(smac, scenario, config_space, priors)
+                prior_report = _when(self._apply_priors(smac, scenario, config_space, priors),
+                                     smac)
             try:
                 info = smac.ask()
             except ConfigurationSpaceExhaustedException:

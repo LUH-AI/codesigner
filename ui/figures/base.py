@@ -45,6 +45,9 @@ SQUAT = "squat"
 LONG = "long"
 STACK = "stack"
 TABLE = "table"
+#: A card of controls or text, as tall as what it holds at any width — the
+#: Data Handling page's panels.
+CARD = "card"
 
 #: shape -> the widths it may be, in grid columns, narrowest first.
 SHAPES = {
@@ -52,27 +55,88 @@ SHAPES = {
     LONG: (2, 4),
     STACK: (2, 4),
     TABLE: (2,),
+    CARD: (1, 2, 4),
 }
 
 
-class Figure:
-    """Base class for an experiment page's analytics panels."""
+#: The pages an experiment's panels are on: its dashboard, whose tabs are
+#: above, and its Data Handling, whose tabs are its sections
+#: (`datahandling/sections.py`).
+DASHBOARD = "dashboard"
+DATA = "data"
+
+
+class Panel:
+    """One block on one of an experiment's pages: a card in a slot of the
+    page's grid, on one of its tabs.
+
+    Every panel is placed, sized and drawn the same way, wherever it is. A
+    dashboard figure (`Figure`) and a Data Handling control or card
+    (`datahandling.panels.DataPanel`) differ in what they show, not in how the
+    page holds them: the same slot, the same shapes and widths, the same
+    placement from `config/figure_layout.toml`.
+    """
 
     # Django would otherwise *instantiate* the class when a template resolves it.
     do_not_call_in_templates = True
 
-    #: Stable identifier. Names the template, the setting and the DOM id, and is
-    #: stored in settings — so renaming one is a data migration.
+    #: Stable identifier. Names the template and the DOM id — and, for a
+    #: figure, its setting, which is stored, so renaming one is a data
+    #: migration.
     key = ""
-    #: The heading shown on the panel, and the label of its settings checkbox.
+    #: The heading shown on the panel.
     label = ""
-    #: Which tab the figure lives on (see above). Not Overview: that tab holds
-    #: figures pinned from the others.
+    #: Which page it is on: DASHBOARD or DATA.
+    page = DASHBOARD
+    #: Which tab of that page it lives on. On the dashboard, not Overview: that
+    #: tab holds figures pinned from the others.
     home_tab = MISC
-    #: SQUAT, LONG, STACK or TABLE (see above). Where on its tab it goes, how
-    #: wide it opens and whether it is pinned to Overview are not the figure's
-    #: to say: that is the site's default layout, `config/figure_layout.toml`.
+    #: SQUAT, LONG, STACK or TABLE (see above). Where on its tab it goes and how
+    #: wide it opens are not the panel's to say: that is the site's default
+    #: layout, `config/figure_layout.toml`.
     shape = SQUAT
+    #: Where its template is: `<template_dir>/<key>.html`.
+    template_dir = "ui/figures"
+    #: Whether this panel only means something for a forecast — an experiment
+    #: evaluated by backtests. Left off every other page entirely rather than
+    #: shown empty. See `applies`.
+    forecast_only = False
+
+    #: Set by __init_subclass__; declared here so the base class is usable too.
+    template = ""
+    dom_id = ""
+
+    def __init_subclass__(cls, **kwargs):
+        """Derive the template and the id from the key, once per subclass."""
+        super().__init_subclass__(**kwargs)
+        if cls.key:
+            cls.template = f"{cls.template_dir}/{cls.key}.html"
+            cls.dom_id = f"figure-{cls.key}"
+
+    @classmethod
+    def applies(cls, data) -> bool:
+        """Whether this panel belongs on the page of the experiment *data*
+        (an `ExperimentData`) describes."""
+        return not cls.forecast_only or data.forecasts
+
+    @classmethod
+    def columns(cls):
+        """The widths this panel may be, in grid columns, narrowest first."""
+        return SHAPES[cls.shape]
+
+    @classmethod
+    def fit(cls, columns):
+        """*columns* made a width this panel may be: the widest allowed that
+        is no wider, or the narrowest if it is narrower than all of them."""
+        allowed = cls.columns()
+        fitting = [w for w in allowed if w <= columns]
+        return fitting[-1] if fitting else allowed[0]
+
+
+class Figure(Panel):
+    """A dashboard panel that analyses the experiment's trials: a plot, a
+    table, a configuration. Each has a setting (`show_<key>`) that switches it
+    on and off for the experiment."""
     #: True when the figure is drawn per evaluation metric, so it is rebuilt
     #: when the metric selector changes; False when one plot covers the run.
     per_metric = False
@@ -147,37 +211,11 @@ class Figure:
     #: poll and appends them (see `ui/views.py`'s `_live_payloads`), and the two
     #: configuration panels do not update at all. See `run_status`.
     live = False
-    #: Whether this figure only means something for a forecast — an experiment
-    #: evaluated by backtests. Left off every other page entirely rather than
-    #: shown empty. See `applies`.
-    forecast_only = False
-
-    @classmethod
-    def applies(cls, data) -> bool:
-        """Whether this figure belongs on the page of the experiment *data*
-        (an `ExperimentData`) describes."""
-        return not cls.forecast_only or data.forecasts
-
     def __init_subclass__(cls, **kwargs):
-        """Derive everything that follows from the key, once per subclass."""
+        """A figure's setting is derived from its key too."""
         super().__init_subclass__(**kwargs)
         if cls.key:
-            cls.template = f"ui/figures/{cls.key}.html"
             cls.setting_key = f"show_{cls.key}"
-            cls.dom_id = f"figure-{cls.key}"
-
-    @classmethod
-    def columns(cls):
-        """The widths this figure may be, in grid columns, narrowest first."""
-        return SHAPES[cls.shape]
-
-    @classmethod
-    def fit(cls, columns):
-        """*columns* made a width this figure may be: the widest allowed that
-        is no wider, or the narrowest if it is narrower than all of them."""
-        allowed = cls.columns()
-        fitting = [w for w in allowed if w <= columns]
-        return fitting[-1] if fitting else allowed[0]
 
     @classmethod
     def opening_view(cls):
@@ -198,9 +236,7 @@ class Figure:
         return cls.absolute_scale
 
     #: Set by __init_subclass__; declared here so the base class is usable too.
-    template = ""
     setting_key = ""
-    dom_id = ""
 
     @classmethod
     def plot(cls, result, metric=None, view=None):

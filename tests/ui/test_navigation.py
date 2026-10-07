@@ -115,3 +115,11 @@ def test_a_deleted_experiment_leaves_the_trail_intact(client):
     assert client.get(url).status_code == 404
     # the root trail still renders for a page that does exist
     assert _trail(client, reverse("ui:home")) == ["Experiments"]
+
+
+def test_the_timeline_sits_under_its_experiment(client):
+    """What: the timeline's trail reads Experiments / <name> / Timeline.
+    How: reads the breadcrumb labels off the timeline page."""
+    exp = _exp()
+    assert _trail(client, reverse("ui:experiment_timeline", args=[exp.pk])) == [
+        "Experiments", "Iris tuning", "Timeline"]

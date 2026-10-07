@@ -208,3 +208,57 @@ def export_ihpo(client, pk, timestamps="keep", tracebacks="keep"):
 
     return client.post(reverse("ui:experiment_export", args=[pk]),
                        {"timestamps": timestamps, "tracebacks": tracebacks})
+
+
+def start_draft(client):
+    """Press New: a draft, as the sidebar's button makes one."""
+    from django.urls import reverse
+
+    from ui.models import Experiment
+
+    response = client.post(reverse("ui:new_experiment"))
+    return Experiment.objects.get(pk=int(response["Location"].strip("/").split("/")[1]))
+
+
+def get_new_experiment(client):
+    """The page a new experiment is set up on: a fresh draft's step 1."""
+    from django.urls import reverse
+
+    return client.get(reverse("ui:setup", args=[start_draft(client).pk]))
+
+
+def get_optimizer_step(client):
+    """The page an experiment's optimizer is chosen on: step 2 of a draft
+    whose step 1 is saved as iris tuned with a Random Forest."""
+    from django.urls import reverse
+
+    draft = start_draft(client)
+    client.post(reverse("ui:setup", args=[draft.pk]), {
+        "name": "optimizer step", "task": "classification", "model_name": "Random Forest",
+        "demo_dataset": str(DATASETS_DIR / "iris.csv"), "evaluation_scheme": "holdout",
+        "evaluation_value": 0.2, "seed": 0})
+    return client.get(reverse("ui:setup_optimizer", args=[draft.pk]))
+
+
+def post_new_experiment(client, data, **kwargs):
+    """Set up an experiment from *data* and create it, the way the pages do:
+    New, step 1 saved with *data*, step 2 with *data*'s optimizer and its
+    settings (the first offered when it names none), step 3 saved as it
+    stands, Create.
+
+    The response is what a test of creating an experiment wants to read: step
+    1's own when it was refused (the form, with its errors), else Create's —
+    a redirect to the new experiment's dashboard."""
+    from django.urls import reverse
+
+    from ui.registry import OPTIMIZERS
+
+    draft = start_draft(client)
+    response = client.post(reverse("ui:setup", args=[draft.pk]), data, **kwargs)
+    if response.status_code != 302 or not response["Location"].endswith("/setup/optimizer/"):
+        return response
+    optimizer = {k: v for k, v in data.items() if k == "optimizer_name" or k.startswith("opt_")}
+    optimizer.setdefault("optimizer_name", next(iter(OPTIMIZERS)))
+    client.post(reverse("ui:setup_optimizer", args=[draft.pk]), optimizer)
+    client.post(reverse("ui:setup_data", args=[draft.pk]), {})
+    return client.post(reverse("ui:setup_create", args=[draft.pk]))

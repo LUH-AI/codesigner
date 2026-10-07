@@ -1,0 +1,18 @@
+{% extends "base.html" %}
+{% load i18n %}
+
+{% block title %}{% translate "Optimizer" %} · {% translate "New experiment" %} · Codesigner{% endblock %}
+
+{% comment %}Step 2 of a draft's setup (ui/services/setup.py): what searches the
+experiment's hyperparameters, and with what settings.{% endcomment %}
+{% block content %}
+    {% include "ui/_setup_heading.html" %}
+
+    <form method="post" class="experiment-form" style="max-width: 34rem;">
+        {% csrf_token %}
+        {% include "ui/_optimizer_form.html" %}
+        <div class="setup-actions">
+            <button type="submit" class="btn-primary">{% translate "Save and continue" %}</button>
+        </div>
+    </form>
+{% endblock %}

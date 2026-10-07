@@ -122,7 +122,7 @@ def _about(exp, trial, metric, result):
         + f" by {exp.data.optimizer_name}"
         + (f", {metric} {score:.4g}" if score is not None else "")
         + f" ({evaluation_label(exp)}).",
-        f'Experiment "{exp.name}" ({exp.identifier}).',
+        f'Experiment "{exp.title}" ({exp.identifier}).',
         "",
         "    uv run " + filename(exp, trial.trial)
         + (f" history.csv [--horizon {exp.data.horizon}] [--out forecast.csv]"

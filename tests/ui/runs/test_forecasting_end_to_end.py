@@ -9,7 +9,7 @@ execute inline in tests (see `runs_execute_synchronously`).
 import pytest
 from django.urls import reverse
 
-from tests.conftest import DATASETS_DIR
+from tests.conftest import DATASETS_DIR, post_new_experiment
 
 AIRLINE = DATASETS_DIR / "airline.csv"
 
@@ -21,7 +21,7 @@ def _create(client, name="airline", model_name="ETS", **overrides):
         "horizon": 12, "evaluation_scheme": "backtest", "evaluation_value": 3, "seed": 0,
     }
     data.update(overrides)
-    return client.post(reverse("ui:new_experiment"), data)
+    return post_new_experiment(client, data)
 
 
 @pytest.mark.django_db
@@ -227,7 +227,7 @@ def test_the_forecast_figure_draws_every_backtest_and_only_for_a_forecast(client
     assert [t["name"] for t in data["figure"]["data"]][1:] == [f"Backtest {n}" for n in (1, 2, 3)]
     assert all(len(t["x"]) == 12 for t in data["figure"]["data"][1:])
 
-    client.post(reverse("ui:new_experiment"), {
+    post_new_experiment(client, {
         "name": "iris", "model_name": "Random Forest", "optimizer_name": "Random Search",
         "demo_dataset": str(DATASETS_DIR / "iris.csv"), "task": "classification", "seed": 0})
     iris = Experiment.objects.get(data__name="iris")

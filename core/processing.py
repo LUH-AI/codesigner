@@ -50,6 +50,22 @@ def choices_of(processing):
             for step, options in CHOICES.items()}
 
 
+def model_defaults(model) -> dict:
+    """What *model* is given at each step when nothing is chosen: the choice
+    "auto" stands for, as one of the others."""
+    return {
+        "missing": "keep" if getattr(model, "accepts_missing", True) else "impute",
+        "scale": "standardize" if getattr(model, "scale_sensitive", False) else "none",
+        "labels": "categories" if getattr(model, "native_categories", None) else "one_hot",
+    }
+
+
+def unavailable(model, step, choice) -> bool:
+    """Whether *model* cannot take *choice* at *step* — one that cannot take
+    a missing value has its gaps filled whatever is asked."""
+    return step == "missing" and choice == "keep" and not getattr(model, "accepts_missing", True)
+
+
 def resolve(processing, model):
     """The plan *model* is given under *processing*: (plan, overruled).
 

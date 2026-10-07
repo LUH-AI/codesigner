@@ -325,6 +325,13 @@ nav.sidebar .nav-links a:hover { color: var(--primary); }
     color: var(--text);
     font-weight: 600;
 }
+/* The open experiment's views (Dashboard, Data Handling, Timeline): indented
+   under its row and a step smaller, so they read as parts of it rather than
+   as more experiments.
+   The current one keeps only the accent; the tint already marks the row. */
+.tab-list .experiment-views { margin: 0.125rem 0 0.375rem 0.85rem; }
+.tab-list .experiment-views .tab { padding: 0.3rem 0.75rem; font-size: 0.875rem; }
+.tab-list .experiment-views .tab.active { background: transparent; }
 
 /* ── Both navs on a smaller screen ───────────────────────────────────────
    Four fifths of their size, text and all, below a 2400px window — a laptop's
@@ -460,7 +467,179 @@ nav.sidebar .info-bubble {
     background: var(--bg);
 }
 
+/* ── An experiment's timeline (ui/templates/ui/experiment_timeline.html) ──
+   One line down the left, each entry a point on it: the time and how many
+   trials there were, then what happened. Newest at the top. */
+.timeline-heading { margin-top: 1.5rem; }
+.timeline { list-style: none; padding: 0; margin: 1.5rem 0 0; max-width: 56rem; }
+.timeline-entry {
+    display: grid;
+    grid-template-columns: 11rem minmax(0, 1fr);
+    gap: 1.25rem;
+    position: relative;
+    padding: 0 0 1.25rem;
+}
+.timeline-entry::before {
+    content: "";
+    position: absolute;
+    left: calc(11rem + 0.6rem);
+    top: 0.45rem;
+    bottom: -0.45rem;
+    border-left: 1px solid var(--border);
+}
+.timeline-entry:last-child::before { display: none; }
+.timeline-body { position: relative; padding-left: 1.1rem; min-width: 0; }
+.timeline-body::before {
+    content: "";
+    position: absolute;
+    left: -0.62rem;
+    top: 0.42rem;
+    width: 0.55rem;
+    height: 0.55rem;
+    border-radius: 50%;
+    background: var(--bg);
+    border: 2px solid var(--muted);
+}
+.kind-run .timeline-body::before { border-color: var(--selected); background: var(--selected); }
+.kind-created .timeline-body::before, .kind-imported .timeline-body::before { border-color: var(--text); }
+.timeline-when { display: flex; flex-direction: column; align-items: flex-end; text-align: right;
+                 font-size: 0.85rem; font-variant-numeric: tabular-nums; }
+.timeline-trials { color: var(--muted); font-size: 0.8rem; }
+.timeline-summary { margin: 0; }
+.timeline-children { margin: 0.35rem 0 0; padding-left: 1.1rem; font-size: 0.9rem; color: var(--muted); }
+.timeline-body details { margin-top: 0.35rem; }
+.timeline-body details > summary { cursor: pointer; color: var(--muted); font-size: 0.85rem; }
+.timeline-details {
+    display: grid;
+    grid-template-columns: max-content minmax(0, 1fr);
+    gap: 0.2rem 1rem;
+    margin: 0.5rem 0 0;
+    font-size: 0.875rem;
+}
+.timeline-details dt { color: var(--muted); }
+.timeline-details dd { margin: 0; overflow-wrap: anywhere; }
+/* A value that is itself a short list — the optimizer's settings: name and
+   value in two columns of their own, the names a step quieter. */
+.timeline-settings {
+    display: grid; grid-template-columns: max-content minmax(0, 1fr);
+    gap: 0.1rem 0.75rem; margin: 0;
+}
+.timeline-settings dt { color: var(--muted); font-size: 0.85rem; }
+.timeline-settings dd { margin: 0; }
+/* What is scheduled and has not happened: above the "Now" stop, the line
+   dashed, the dot hollow and dashed, the entry outlined in dashes. */
+.timeline-entry.is-scheduled::before { border-left-style: dashed; }
+.is-scheduled .timeline-body::before {
+    background: var(--bg); border: 2px dotted var(--muted);
+    width: 0.75rem; height: 0.75rem; left: -0.72rem; top: 0.32rem;
+}
+.is-scheduled .timeline-when { color: var(--muted); }
+.timeline-scheduled {
+    border: 1px dashed var(--border);
+    border-radius: 8px;
+    padding: 0.5rem 0.75rem;
+    margin-top: -0.5rem;
+    color: var(--muted);
+}
+.timeline-now .timeline-when {
+    text-transform: uppercase; letter-spacing: 0.06em;
+    font-size: 0.75rem; font-weight: 600;
+}
+.timeline-now .timeline-body::before { background: var(--text); border-color: var(--text); }
+@media (max-width: 700px) {
+    .timeline-entry { grid-template-columns: minmax(0, 1fr); gap: 0.25rem; }
+    .timeline-when { align-items: flex-start; text-align: left; }
+    .timeline-entry::before { display: none; }
+}
+
+/* ── An experiment's title, and renaming it (_experiment_header.html) ── */
+.experiment-title { display: flex; align-items: baseline; gap: 0.5rem; }
+.rename { position: relative; flex-shrink: 0; }
+.rename > summary {
+    list-style: none; cursor: pointer; color: var(--muted); font-size: 1.25rem;
+    padding: 0 0.25rem; border-radius: 4px;
+}
+.rename > summary::-webkit-details-marker { display: none; }
+.rename > summary:hover, .rename[open] > summary { color: var(--text); }
+/* Over the caption rather than pushing it down: a moment's edit. */
+.rename-form {
+    position: absolute; top: calc(100% + 0.25rem); left: 0; z-index: 10;
+    display: flex; gap: 0.5rem; padding: 0.5rem;
+    background: var(--bg); border: 1px solid var(--border); border-radius: 8px;
+    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.12);
+}
+.rename-form input[type=text] { width: min(24rem, 60vw); }
+
+/* ── An experiment before its first trial (experiment_prerun.html) ──────
+   The optimizer beside the prior; one above the other when narrow. */
+.prerun { display: flex; flex-wrap: wrap; gap: 1.5rem; align-items: flex-start; margin-top: 1.5rem; }
+.prerun-optimizer { flex: 0 1 30rem; min-width: 0; }
+.prerun-optimizer .subheader { margin-top: 0; }
+.prerun-prior { flex: 1 1 32rem; min-width: 0; }
+
+/* ── A draft's setup steps (ui/templates/ui/_setup_steps.html) ──────────
+   Numbered stops joined by a line, not tabs: they are done in order. The
+   current one is filled in the selected colour, a saved one carries a check,
+   and one that cannot be opened yet is faded. */
+.setup-steps ol {
+    list-style: none; margin: 0 0 2rem; padding: 0;
+    display: flex; align-items: flex-start; gap: 0; max-width: 56rem;
+}
+.setup-step { flex: 1; position: relative; min-width: 0; }
+.setup-step:not(:last-child)::after {
+    content: ""; position: absolute; top: 1.125rem; left: 2.75rem; right: 0.5rem;
+    border-top: 2px solid var(--border);
+}
+.setup-step.is-saved:not(:last-child)::after { border-top-color: var(--selected); }
+.setup-step > a, .setup-step > span {
+    display: flex; flex-direction: column; align-items: flex-start; gap: 0.4rem;
+    color: var(--text); text-decoration: none; padding-right: 1rem;
+}
+.setup-step > a:hover .setup-step-label { text-decoration: underline; }
+.setup-step-number {
+    flex: none; position: relative; z-index: 1;
+    width: 2.25rem; height: 2.25rem; border-radius: 50%;
+    display: inline-flex; align-items: center; justify-content: center;
+    font-weight: 700; font-variant-numeric: tabular-nums;
+    background: var(--bg); border: 2px solid var(--border); color: var(--muted);
+}
+.setup-step.is-saved .setup-step-number { border-color: var(--selected); color: var(--text); }
+.setup-step.is-current .setup-step-number {
+    background: var(--selected); border-color: var(--selected); color: #1d1d1d;
+}
+.setup-step-text { display: flex; flex-direction: column; padding-top: 0.15rem; min-width: 0; }
+.setup-step-label { font-weight: 600; }
+.setup-step.is-current .setup-step-label { font-weight: 700; }
+.setup-step-state { font-size: 0.8rem; color: var(--muted); }
+.setup-step.is-locked { opacity: 0.45; }
+form.new-experiment { display: contents; }
+/* New and Discard draft are posts, so submit buttons, but not the page's
+   primary action: drawn as the plain buttons beside them. */
+form.new-experiment button.btn, .setup-heading button.btn {
+    background: var(--bg); border-color: var(--border); color: var(--text); font-weight: 400;
+}
+form.new-experiment button.btn:hover, .setup-heading button.btn:hover {
+    background: var(--bg); border-color: var(--primary); color: var(--primary);
+}
+.draft-badge {
+    flex: none; font-size: 0.65rem; font-weight: 700; letter-spacing: 0.05em;
+    text-transform: uppercase; color: var(--muted);
+    border: 1px solid var(--border); border-radius: 999px; padding: 0 0.4rem;
+}
+.setup-heading { display: flex; justify-content: space-between; align-items: flex-start; gap: 1rem; }
+.setup-panels { display: flex; flex-direction: column; gap: 1.5rem; max-width: 72rem; }
+.setup-actions { margin-top: 1.75rem; display: flex; gap: 0.75rem; align-items: center; flex-wrap: wrap; }
+@media (max-width: 700px) {
+    .setup-steps ol { flex-direction: column; gap: 0.75rem; }
+    .setup-step:not(:last-child)::after { display: none; }
+}
+
 /* ── Data Handling's planned capabilities ─────────────────────────────── */
+/* Its sections are the dashboard's tabs, holding panels on the same grid: what
+   the tab is for above them, and a tab of controls' Save button below. */
+.data-handling .data-save { margin-top: 1.25rem; align-items: center; }
+.data-handling .fig-slot.shape-card > .card select { width: 100%; }
+
 .planned-list {
     display: grid;
     grid-template-columns: repeat(auto-fill, minmax(18rem, 1fr));
@@ -596,6 +775,7 @@ main.content > .fig-area { margin-top: 0.25rem; }
    between them, or any figure with nothing to draw yet. layout.js gives the
    slot as many rows as the figure's natural height needs. */
 .fig-slot.shape-stack > [data-figure],
+.fig-slot.shape-card > [data-figure],
 .fig-slot.is-content > [data-figure] { overflow: visible; }
 .fig-slot.is-content > [data-figure] .plot { flex: none; }
 /* A slot's own controls, in its corners and inside the card's padding: a

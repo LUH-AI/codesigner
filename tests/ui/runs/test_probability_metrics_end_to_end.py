@@ -1,9 +1,11 @@
-"""ROC AUC and log loss, from the create form's checkbox to a run scored on them.
+"""ROC AUC and log loss, tracked with every other metric when they come free.
 
-They are scored on class probabilities, so the form offers them only for a
-model that gives probabilities, and a run that would score them without any
-leaves them out — or refuses, when one is what it optimizes. Runs execute
-inline in tests (see `runs_execute_synchronously`).
+They are scored on class probabilities, so a classification experiment tracks
+them when its model gives probabilities from its own fit — not for a model
+with none, and not for the SVM, whose probabilities cost a calibration on every
+trial. A run that would score them without any leaves them out, or refuses
+when one is what it optimizes. Runs execute inline in tests (see
+`runs_execute_synchronously`).
 """
 
 import numpy as np
@@ -15,7 +17,7 @@ from core.metrics import METRICS
 from core.models import BaseModel
 from ui.services.run import scoreable
 
-from tests.conftest import DATASETS_DIR
+from tests.conftest import DATASETS_DIR, post_new_experiment
 from tests.ui.custom_models.conftest import VALID_MODEL_SRC
 
 
@@ -23,18 +25,18 @@ def _create(client, **overrides):
     data = {
         "name": "iris", "model_name": "LightGBM", "optimizer_name": "Random Search",
         "demo_dataset": str(DATASETS_DIR / "iris.csv"), "task": "classification", "evaluation_scheme": "kfold",
-        "evaluation_value": 3, "seed": 0, "probability_metrics": "on",
+        "evaluation_value": 3, "seed": 0,
     }
     data.update(overrides)
-    return client.post(reverse("ui:new_experiment"), data)
+    return post_new_experiment(client, data)
 
 
 @pytest.mark.django_db
-def test_asking_for_them_scores_every_trial_on_them(client):
-    """What: ticked for a model that gives probabilities, the experiment lists
-    ROC AUC and log loss, and a run optimizing ROC AUC measures every trial.
-    How: creates iris with LightGBM, runs three trials on roc_auc, and reads
-    the scores back."""
+def test_a_model_with_probabilities_is_scored_on_them(client):
+    """What: a classification experiment whose model gives probabilities
+    tracks ROC AUC and log loss without being asked, and a run optimizing ROC
+    AUC measures every trial. How: creates iris with LightGBM, runs three
+    trials on roc_auc, and reads the scores back."""
     from ui.models import Experiment
     from ui.views import _rebuild_result
 
@@ -56,12 +58,13 @@ def test_asking_for_them_scores_every_trial_on_them(client):
 
 
 @pytest.mark.django_db
-def test_left_unticked_they_are_not_there(client):
-    """What: by default an experiment has the label metrics only, balanced
-    accuracy among them. How: creates iris without the checkbox."""
+def test_the_svm_is_spared_its_calibration(client):
+    """What: the SVM gives probabilities only by calibrating on every trial,
+    so its experiment tracks the label metrics alone.
+    How: creates iris with the SVM and reads its metrics."""
     from ui.models import Experiment
 
-    _create(client, probability_metrics="")
+    _create(client, model_name="SVM")
     names = Experiment.objects.get(data__name="iris").data.metric_names
 
     assert "balanced_accuracy" in names
@@ -69,25 +72,23 @@ def test_left_unticked_they_are_not_there(client):
 
 
 @pytest.mark.django_db
-def test_a_model_without_probabilities_cannot_ask(client, settings):
-    """What: an uploaded model with no `fit_predict_proba` is refused the
-    checkbox, naming the model. How: posts the form with the upload ticked."""
+def test_a_model_without_probabilities_is_created_without_them(client, settings):
+    """What: an uploaded model with no `fit_predict_proba` is created as usual,
+    tracking the label metrics. How: creates one from an upload."""
     from ui.models import Experiment
 
     settings.ALLOW_CUSTOM_MODELS = True
     upload = SimpleUploadedFile("m.py", VALID_MODEL_SRC.encode(), content_type="text/x-python")
-    resp = _create(client, name="labels only", model_name="", model_file=upload)
+    assert _create(client, name="labels only", model_name="", model_file=upload).status_code == 302
 
-    assert resp.status_code == 200
-    assert "My Custom Model does not give class probabilities" in resp.content.decode()
-    assert not Experiment.objects.filter(data__name="labels only").exists()
+    names = Experiment.objects.get(data__name="labels only").data.metric_names
+    assert "accuracy" in names and "roc_auc" not in names
 
 
 @pytest.mark.django_db
-def test_a_regression_experiment_ignores_the_checkbox(client):
-    """What: ticked on a regression experiment, it changes nothing — there is
-    nothing scored on class probabilities to add. How: creates diabetes with
-    it ticked."""
+def test_a_regression_experiment_has_no_class_probabilities(client):
+    """What: a regression experiment tracks the regression metrics only —
+    there are no classes to score probabilities of. How: creates diabetes."""
     from ui.models import Experiment
 
     _create(client, name="diabetes", demo_dataset=str(DATASETS_DIR / "diabetes.csv"),

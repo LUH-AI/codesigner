@@ -9,7 +9,7 @@ import ast
 import pytest
 from django.urls import reverse
 
-from tests.conftest import DATASETS_DIR
+from tests.conftest import DATASETS_DIR, post_new_experiment
 
 
 def _create(client, **overrides):
@@ -23,7 +23,7 @@ def _create(client, **overrides):
         "seed": 0,
     }
     data.update(overrides)
-    return client.post(reverse("ui:new_experiment"), data)
+    return post_new_experiment(client, data)
 
 
 @pytest.mark.django_db

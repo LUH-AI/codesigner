@@ -32,7 +32,7 @@ class ExperimentAdmin(admin.ModelAdmin):
 
     @admin.display(ordering="data__name", description="name")
     def name(self, obj):
-        return obj.data.name
+        return obj.title
 
     @admin.display(ordering="data__model_name", description="model name")
     def model_name(self, obj):
@@ -61,8 +61,22 @@ class ExperimentDataAdmin(admin.ModelAdmin):
     OneToOne makes impossible today, and which a later bug could not hide.
     """
 
-    list_display = ("name", "model_name", "optimizer_name", "current_metric", "seed")
+    list_display = ("__str__", "model_name", "optimizer_name", "current_metric", "seed")
     search_fields = ("name",)
+
+    def save_model(self, request, obj, form, change):
+        """Saved as usual — and, since this is the one place an experiment's
+        optimizer parameters can change after it is created, recorded in its
+        history when they did."""
+        before = (ExperimentData.objects.filter(pk=obj.pk)
+                  .values_list("optimizer_params", flat=True).first()) if change else None
+        super().save_model(request, obj, form, change)
+        exp = getattr(obj, "experiment", None)
+        if change and exp is not None and before != obj.optimizer_params:
+            from .services import history
+
+            history.record(exp, "optimizer_params_changed", user=request.user,
+                           old=before, new=obj.optimizer_params)
 
 
 @admin.register(GlobalSettings)

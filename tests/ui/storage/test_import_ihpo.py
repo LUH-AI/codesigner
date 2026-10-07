@@ -39,16 +39,18 @@ def test_import_creates_experiment_with_result():
 def test_import_adopts_existing_dataset_into_media(tmp_path, settings):
     """When the referenced dataset exists, it is copied under MEDIA_ROOT.
 
-    Setup: a temp .ihpo whose dataset_path points at a real CSV, and
-    MEDIA_ROOT redirected to tmp_path.
+    Setup: a temp .ihpo whose dataset_path points at a real CSV that is not
+    one of the bundled demos, and MEDIA_ROOT redirected to tmp_path.
     Expect: the row has a dataset file stored below MEDIA_ROOT (the store
     owns its data; nothing may keep referencing the original path).
     """
     from ui.models import Experiment
 
     settings.MEDIA_ROOT = str(tmp_path / "media")
+    own = tmp_path / "cellar.csv"
+    shutil.copyfile(DATASETS_DIR / "wine.csv", own)
     snapshot = json.loads((FIXTURES_DIR / "test2.ihpo").read_text(encoding="utf-8"))
-    snapshot["dataset_path"] = str(DATASETS_DIR / "wine.csv")
+    snapshot["dataset_path"] = str(own)
     ihpo = tmp_path / "with_dataset.ihpo"
     ihpo.write_text(json.dumps(snapshot), encoding="utf-8")
 
@@ -57,8 +59,27 @@ def test_import_adopts_existing_dataset_into_media(tmp_path, settings):
     exp = Experiment.objects.get()
     assert exp.data.dataset
     assert exp.data.dataset.path.startswith(settings.MEDIA_ROOT)
-    with exp.data.dataset.open("rb") as stored, open(DATASETS_DIR / "wine.csv", "rb") as src:
+    with exp.data.dataset.open("rb") as stored, open(own, "rb") as src:
         assert stored.read() == src.read()
+
+
+@pytest.mark.django_db
+def test_import_names_a_bundled_demo_rather_than_copying_it(tmp_path):
+    """What: an .ihpo whose dataset is one of the bundled demos is linked to
+    that demo by name, and nothing is copied.
+    How: imports a file pointing at wine.csv and reads back the row."""
+    from ui.models import Experiment
+
+    snapshot = json.loads((FIXTURES_DIR / "test2.ihpo").read_text(encoding="utf-8"))
+    snapshot["dataset_path"] = str(DATASETS_DIR / "wine.csv")
+    ihpo = tmp_path / "with_demo.ihpo"
+    ihpo.write_text(json.dumps(snapshot), encoding="utf-8")
+
+    call_command("import_ihpo", str(ihpo))
+
+    exp = Experiment.objects.get()
+    assert exp.data.demo_dataset == "wine"
+    assert not exp.data.dataset
 
 
 @pytest.mark.django_db

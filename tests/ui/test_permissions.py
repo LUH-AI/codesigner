@@ -182,6 +182,8 @@ def test_the_declared_actions_match_what_the_routes_do():
         "run_status": permissions.VIEW,
         "env_status": permissions.VIEW,
         "experiment_run": permissions.RUN,
+        "experiment_optimizer": permissions.EDIT,
+        "experiment_rename": permissions.RENAME,
         # Computing the explanations a cancelled run skipped: it spends this
         # machine's CPU and writes to the stored result, which is what RUN
         # covers. VIEW would have made reading an experiment a way to make it
@@ -204,6 +206,8 @@ def test_the_declared_actions_match_what_the_routes_do():
         # anybody who may look may also tidy what they look at.
         "save_layout": permissions.VIEW,
         "experiment_settings": permissions.EDIT,
+        # Reading what was done to an experiment is reading the experiment.
+        "experiment_timeline": permissions.VIEW,
         # Who else may reach it, and who owns it: the one decision a
         # contributor, who may otherwise do everything, does not get.
         "experiment_share": permissions.SHARE,
@@ -218,7 +222,31 @@ def test_the_declared_actions_match_what_the_routes_do():
         # experiment. Changing it, once these pages can, will be EDIT.
         "data_overview": permissions.VIEW,
         "data_section": permissions.VIEW,
+        # A draft's setup: changing what the experiment will be.
+        "setup": permissions.EDIT,
+        "setup_optimizer": permissions.EDIT,
+        "setup_data": permissions.EDIT,
+        "setup_priors": permissions.EDIT,
+        "setup_resume": permissions.EDIT,
+        "setup_create": permissions.EDIT,
+        "setup_discard": permissions.EDIT,
     }
+
+
+def test_drafts_are_reached_only_where_they_are_set_up():
+    """What: a draft is reached by its setup's routes and by the prior's
+    requests its last step makes — no other route, so it cannot be run,
+    exported, shared or binned before it is created.
+    How: reads every experiment route's declared `drafts`."""
+    declared = {p.name: p.callback.experiment_drafts for p in _experiment_routes()}
+    reach = {name for name, drafts in declared.items() if drafts != permissions.CREATED}
+
+    assert reach == {"setup", "setup_optimizer", "setup_data", "setup_priors", "setup_resume", "setup_create",
+                     "setup_discard", "save_prior", "reset_prior", "evaluate_prior",
+                     "acquisition_slice"}
+    assert {name for name, drafts in declared.items() if drafts == permissions.ONLY} == {
+        "setup", "setup_optimizer", "setup_data", "setup_priors", "setup_resume", "setup_create",
+        "setup_discard"}
 
 
 def test_an_unknown_action_is_a_mistake_at_import_time():

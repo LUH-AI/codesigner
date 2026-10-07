@@ -196,6 +196,9 @@
             if (shape === "table") {
                 k = Math.max(1, Math.ceil((natural(slot, width) + gap) / (unit + gap)));
                 height = normal = k * unit + (k - 1) * gap;
+            } else if (shape === "card") {
+                /* A card of controls or text is as tall as what it holds. */
+                height = normal = natural(slot, width);
             } else if (slot.classList.contains("is-content")) {
                 height = natural(slot, width);
                 normal = width * (shape === "stack" ? RATIO.long : ratio);
@@ -384,9 +387,11 @@
         tab.addEventListener("click", function () {
             var name = show(tab.dataset.tab);
             /* In the address bar, so a reload or a shared link opens the same
-             * tab — replaced rather than pushed, so Back still leaves the page. */
+             * tab — replaced rather than pushed, so Back still leaves the page.
+             * A tab with an address of its own (Data Handling's sections) is
+             * that address; the dashboard's are the page's with a #tab. */
             if (window.history && window.history.replaceState) {
-                window.history.replaceState(null, "", "#" + name);
+                window.history.replaceState(null, "", tab.dataset.url || "#" + name);
             }
         });
         /* Arrow keys move between tabs, as a tablist's do. */
@@ -689,5 +694,8 @@
         gridResized.observe(grid);
     });
     window.addEventListener("hashchange", function () { show(fromHash()); });
-    show(fromHash());
+    /* The tab the address names; else the one the server rendered showing
+     * (a page whose tabs have addresses of their own); else the first. */
+    var rendered = document.querySelector('.fig-tab[aria-selected="true"]');
+    show(fromHash() || (rendered && rendered.dataset.tab) || "");
 })();

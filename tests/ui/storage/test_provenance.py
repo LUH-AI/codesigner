@@ -21,7 +21,7 @@ import pytest
 from django.core.files.uploadedfile import SimpleUploadedFile
 from django.urls import reverse
 
-from tests.conftest import DATASETS_DIR, export_ihpo
+from tests.conftest import DATASETS_DIR, export_ihpo, post_new_experiment
 from ui.models import Experiment, Run
 
 pytestmark = pytest.mark.django_db
@@ -45,7 +45,7 @@ def _create(client, **overrides):
         "demo_dataset": str(IRIS), "task": "classification",
     }
     data.update(overrides)
-    client.post(reverse("ui:new_experiment"), data)
+    post_new_experiment(client, data)
     return Experiment.objects.get(data__name=data["name"])
 
 
@@ -92,7 +92,9 @@ def test_an_experiment_with_no_dataset_records_nothing_to_check(client):
     runnable — so the section has to be able to say there is nothing to
     recognise, without a digest that would refuse every dataset offered."""
     exp = _create(client)
-    exp.data.dataset.delete(save=True)
+    # A demo is named, not stored, so having no dataset means naming none.
+    exp.data.demo_dataset = ""
+    exp.data.save(update_fields=["demo_dataset"])
 
     record = _exported(client, exp)["dataset"]
 
@@ -279,7 +281,7 @@ def test_changing_the_metric_is_recorded_as_an_event(client, no_thread):
     client.post(reverse("ui:experiment_run", args=[exp.pk]),
                 {"optimize_metric": "f1", "max_trials": "4", "decision": "new"})
 
-    events = _exported(client, exp)["runs"][0]["events"]
+    events = _untimed(_exported(client, exp)["runs"][0]["events"])
     assert events == [{"kind": "metric_changed", "from": "accuracy", "to": "f1",
                        "at_trial": 6, "surrogate": "rebuilt_and_replayed"}]
 
@@ -344,8 +346,8 @@ def test_a_metric_change_that_never_ran_is_not_lost_on_retry(client, no_thread):
                 "at_trial": 1, "surrogate": "rebuilt_and_replayed"}]
     runs = _exported(client, exp)["runs"]
     assert len(runs) == 2
-    assert runs[0]["events"] == expected
-    assert runs[1]["events"] == expected  # not silently dropped on the retry
+    assert _untimed(runs[0]["events"]) == expected
+    assert _untimed(runs[1]["events"]) == expected  # not silently dropped on the retry
 
 
 # ── the environment ──────────────────────────────────────────────────────────
@@ -622,12 +624,15 @@ def _prior_event(result_metadata, offset=3):
     run = Run.objects.create(experiment=exp, primary_metric="accuracy",
                              status="running", events=[])
 
-    class Stub:
-        metadata = result_metadata
-
-    _record_prior_event(run.pk, Stub, offset)
+    _record_prior_event(run.pk, result_metadata.get("prior"), offset)
     run.refresh_from_db()
-    return run.events
+    return _untimed(run.events)
+
+
+def _untimed(events):
+    """*events* without the time each was recorded at — the one field a test
+    cannot know in advance."""
+    return [{k: v for k, v in e.items() if k != "at"} for e in events]
 
 
 def test_a_prior_that_reached_the_search_is_recorded(db):
@@ -656,7 +661,8 @@ def test_a_prior_that_was_ignored_says_so(db):
         "applied": False, "reason": "this SMAC has no acquisition weight layer"}})
 
     assert events == [{"kind": "prior_skipped", "at_trial": 3,
-                       "reason": "this SMAC has no acquisition weight layer"}]
+                       "reason": "this SMAC has no acquisition weight layer",
+                       "rejected": False, "hyperparameters": []}]
 
 
 def test_no_prior_stated_writes_no_event(db):
@@ -680,10 +686,7 @@ def test_the_prior_event_joins_the_events_already_there(db):
     run = Run.objects.create(experiment=exp, primary_metric="f1",
                              status="running", events=[existing])
 
-    class Stub:
-        metadata = {"prior": {"applied": False, "reason": "no weight layer"}}
-
-    _record_prior_event(run.pk, Stub, 3)
+    _record_prior_event(run.pk, {"applied": False, "reason": "no weight layer"}, 3)
     run.refresh_from_db()
 
     assert run.events[0] == existing

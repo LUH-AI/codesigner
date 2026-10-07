@@ -22,8 +22,8 @@ What a signed-in person can reach:
   is the view's business, not this one's — see `for_listing`.
 
 Deciding who else may reach an experiment, and handing it to somebody, is the
-owner's alone (`SHARE`). A contributor can do everything to the work but choose
-who else does.
+owner's alone (`SHARE`), as is what it is called (`RENAME`). A contributor can
+do everything to the work but choose who else does, or rename it.
 
 A site admin is not a fourth case. Managing groups and being in one are separate
 facts, so the role is read from `manage_site` and the reach from the membership,
@@ -52,7 +52,7 @@ from django.db.models import Q
 from django.utils.translation import gettext_lazy as _
 
 from ui.models import Experiment, ExperimentShare
-from ui.permissions import DELETE, EDIT, EXPORT, OpenPolicy, RUN, SHARE, VIEW
+from ui.permissions import DELETE, EDIT, EXPORT, OpenPolicy, RENAME, RUN, SHARE, VIEW
 
 #: Manages groups, their size and their usage. Sees no experiments.
 MANAGE_SITE = "access.manage_site"
@@ -165,6 +165,18 @@ class GroupPolicy(OpenPolicy):
     # ── which experiments exist, for this request ────────────────────────────
 
     def experiments(self, request):
+        """Everything this request may reach, less other people's drafts.
+
+        A draft is its owner's alone until it is created (ui/services/setup.py)
+        — not their group lead's, not a site admin's.
+        """
+        reachable = self._reachable(request)
+        user = getattr(request, "user", None)
+        if not settings.REQUIRE_LOGIN or user is None or not user.is_authenticated:
+            return reachable
+        return reachable.exclude(Q(draft=True) & ~Q(owner=user))
+
+    def _reachable(self, request):
         """Everything this request may *reach*.
 
         Authorization, not presentation: a group lead reaches their colleagues'
@@ -277,7 +289,7 @@ class GroupPolicy(OpenPolicy):
             return Experiment.objects.none()
         return (Experiment.objects.select_related("data")
                 .filter(group_id__in=ids, trashed_at__isnull=True,
-                        deleted_at__isnull=True)
+                        deleted_at__isnull=True, draft=False)
                 .exclude(owner=user))
 
     # ── and what may be done to one ──────────────────────────────────────────
@@ -298,7 +310,7 @@ class GroupPolicy(OpenPolicy):
 
         if experiment.owner_id == user.pk:
             return True
-        if action == SHARE:
+        if action in (SHARE, RENAME):
             return False
 
         contributor = share_of(user, experiment) == ExperimentShare.CONTRIBUTOR

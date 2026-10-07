@@ -12,7 +12,7 @@ produce the next run.
 import pytest
 from django.urls import reverse
 
-from tests.conftest import DATASETS_DIR
+from tests.conftest import DATASETS_DIR, get_optimizer_step, post_new_experiment
 from ui.models import Experiment, Run
 
 pytestmark = pytest.mark.django_db
@@ -40,7 +40,7 @@ def _settings(client, exp):
 # ── the create form ──────────────────────────────────────────────────────────
 
 def test_the_create_form_offers_the_search_settings(client):
-    html = client.get(reverse("ui:new_experiment")).content.decode()
+    html = get_optimizer_step(client).content.decode()
 
     assert 'name="opt_search_strategy"' in html
     assert 'name="opt_share_cap"' in html
@@ -50,7 +50,7 @@ def test_the_create_form_offers_the_search_settings(client):
 def test_the_advanced_ones_are_folded_away(client):
     """Four settings anyone can reason about, and six that need you to already
     know what they do. Both present, only one group unfolded."""
-    html = client.get(reverse("ui:new_experiment")).content.decode()
+    html = get_optimizer_step(client).content.decode()
 
     assert "<details" in html and "Advanced search settings" in html
     advanced = _without_scripts(html).split("Advanced search settings", 1)[1]
@@ -59,7 +59,7 @@ def test_the_advanced_ones_are_folded_away(client):
 
 
 def test_creating_stores_what_was_chosen(client):
-    client.post(reverse("ui:new_experiment"), {
+    post_new_experiment(client, {
         "name": "configured", "model_name": "Random Forest",
         "optimizer_name": "SMAC", "seed": "0",
         "demo_dataset": str(DATASETS_DIR / "iris.csv"), "task": "classification",
@@ -74,7 +74,7 @@ def test_creating_stores_what_was_chosen(client):
 
 
 def test_creating_without_touching_them_stores_the_defaults(client):
-    client.post(reverse("ui:new_experiment"), {
+    post_new_experiment(client, {
         "name": "plain", "model_name": "Random Forest",
         "optimizer_name": "SMAC", "seed": "0",
         "demo_dataset": str(DATASETS_DIR / "iris.csv"), "task": "classification",
@@ -94,7 +94,7 @@ def _create(client, **overrides):
             "optimizer_name": "SMAC", "seed": "0",
             "demo_dataset": str(DATASETS_DIR / "iris.csv"), "task": "classification"}
     data.update(overrides)
-    client.post(reverse("ui:new_experiment"), data)
+    post_new_experiment(client, data)
     return Experiment.objects.get(data__name=data["name"]).data.optimizer_params
 
 
@@ -194,13 +194,13 @@ def test_every_optimizer_with_settings_gets_a_panel(client):
     """All of them are rendered so the dropdown can swap between them without a
     request. Random Search declares nothing, so it contributes nothing rather
     than an empty box."""
-    panels = _panels(client.get(reverse("ui:new_experiment")).content.decode())
+    panels = _panels(get_optimizer_step(client).content.decode())
 
     assert set(panels) == {"SMAC", "Grid Search"}
 
 
 def test_only_the_selected_optimizers_panel_is_shown(client):
-    panels = _panels(client.get(reverse("ui:new_experiment")).content.decode())
+    panels = _panels(get_optimizer_step(client).content.decode())
 
     assert panels["SMAC"][0] is False
     assert panels["Grid Search"][0] is True
@@ -209,7 +209,7 @@ def test_only_the_selected_optimizers_panel_is_shown(client):
 def test_the_panel_is_the_same_bordered_box_as_the_figure_settings(client):
     """`check-group` — the fieldset the figures checkboxes live in. It already
     carries number inputs elsewhere, so this needs no CSS of its own."""
-    html = client.get(reverse("ui:new_experiment")).content.decode()
+    html = get_optimizer_step(client).content.decode()
 
     assert '<fieldset class="check-group">' in html
     assert "<legend>" in html
@@ -218,13 +218,13 @@ def test_the_panel_is_the_same_bordered_box_as_the_figure_settings(client):
 def test_grid_search_settings_are_reachable_at_last(client):
     """`numeric_steps` has round-tripped correctly since Step 2 and no page has
     ever offered it — the create form only ever rendered SMAC's schema."""
-    panels = _panels(client.get(reverse("ui:new_experiment")).content.decode())
+    panels = _panels(get_optimizer_step(client).content.decode())
 
     assert panels["Grid Search"][1] == ["opt_numeric_steps"]
 
 
 def test_creating_with_grid_search_stores_what_its_panel_said(client):
-    client.post(reverse("ui:new_experiment"), {
+    post_new_experiment(client, {
         "name": "gridded", "model_name": "Random Forest",
         "optimizer_name": "Grid Search", "seed": "0",
         "demo_dataset": str(DATASETS_DIR / "iris.csv"), "task": "classification",
@@ -238,7 +238,7 @@ def test_creating_with_grid_search_stores_what_its_panel_said(client):
 def test_the_hidden_panels_settings_do_not_leak_into_the_chosen_one(client):
     """The browser disables them so they are never submitted. Even posted by
     hand they belong to another optimizer and are not in its schema."""
-    client.post(reverse("ui:new_experiment"), {
+    post_new_experiment(client, {
         "name": "clean", "model_name": "Random Forest",
         "optimizer_name": "Grid Search", "seed": "0",
         "demo_dataset": str(DATASETS_DIR / "iris.csv"), "task": "classification",
@@ -252,7 +252,7 @@ def test_an_optimizer_whose_panel_was_hidden_gets_its_own_defaults(client):
     """A disabled input is not submitted, and the parser reads a missing value
     as that setting's default — so picking an optimizer without opening its
     panel stores exactly what it would have shown."""
-    client.post(reverse("ui:new_experiment"), {
+    post_new_experiment(client, {
         "name": "untouched", "model_name": "Random Forest",
         "optimizer_name": "Grid Search", "seed": "0",
         "demo_dataset": str(DATASETS_DIR / "iris.csv"), "task": "classification",
@@ -261,15 +261,14 @@ def test_an_optimizer_whose_panel_was_hidden_gets_its_own_defaults(client):
     assert Experiment.objects.get(data__name="untouched").data.optimizer_params == {"numeric_steps": 5}
 
 
-def test_a_validation_error_keeps_the_optimizer_and_its_values(client):
-    """The page comes back with the same optimizer selected and the numbers
-    still in their boxes, rather than resetting to the first one."""
-    html = client.post(reverse("ui:new_experiment"), {
-        "name": "", "model_name": "Random Forest",
-        "optimizer_name": "Grid Search", "seed": "0",
-        "demo_dataset": str(DATASETS_DIR / "iris.csv"), "task": "classification",
-        "opt_numeric_steps": "8",
-    }).content.decode()
+def test_the_optimizer_step_reopens_on_what_was_saved(client):
+    """What: step 2 opened again shows the optimizer saved there and its
+    numbers still in their boxes, rather than the first one on its defaults.
+    How: saves Grid Search with a step count, then reads the step again."""
+    page = get_optimizer_step(client)
+    url = page.request["PATH_INFO"]
+    client.post(url, {"optimizer_name": "Grid Search", "opt_numeric_steps": "8"})
+    html = client.get(url).content.decode()
 
     panels = _panels(html)
     assert panels["Grid Search"][0] is False
@@ -285,7 +284,7 @@ def test_an_unchosen_panel_is_inert_as_rendered_not_only_hidden(client):
     setting under the same name."""
     import re
 
-    html = client.get(reverse("ui:new_experiment")).content.decode()
+    html = get_optimizer_step(client).content.decode()
     fieldsets = re.findall(
         r'<div data-optimizer="([^"]+)"( hidden)?>\s*\n?\s*'
         r'<fieldset class="check-group"( disabled)?>', html)
@@ -298,16 +297,16 @@ def test_an_unchosen_panel_is_inert_as_rendered_not_only_hidden(client):
 def test_the_switch_toggles_the_fieldset_and_not_just_its_inputs(client):
     """A disabled fieldset overrides its children, so re-enabling the inputs one
     by one would leave the panel dead."""
-    html = client.get(reverse("ui:new_experiment")).content.decode()
+    html = get_optimizer_step(client).content.decode()
 
     assert 'querySelectorAll("input, select, textarea, fieldset")' in html
-    assert "wireChoice" in html
+    assert 'select.addEventListener("change", apply)' in html
 
 
 # ── what the fields say, and where they say it ───────────────────────────────
 
 def _smac_panel(client):
-    html = client.get(reverse("ui:new_experiment")).content.decode()
+    html = get_optimizer_step(client).content.decode()
     start = html.index('data-optimizer="SMAC"')
     return html[start:html.index("data-optimizer", start + 10)]
 
@@ -380,7 +379,7 @@ def test_an_empty_field_shows_the_value_it_would_actually_use(client):
     Not every blank is a strategy's, though: some are SMAC's own regardless of
     strategy, and Grid Search has no strategy at all.
     """
-    html = client.get(reverse("ui:new_experiment")).content.decode()
+    html = get_optimizer_step(client).content.decode()
     panel = _smac_panel(client)
 
     def placeholder(fragment, name):
@@ -468,7 +467,7 @@ def test_use_default_is_a_control_and_not_a_setting(client):
 
 
 def test_creating_stores_the_caps(client):
-    client.post(reverse("ui:new_experiment"), {
+    post_new_experiment(client, {
         "name": "capped", "model_name": "Random Forest",
         "optimizer_name": "SMAC", "seed": "0",
         "demo_dataset": str(DATASETS_DIR / "iris.csv"), "task": "classification",
@@ -486,7 +485,7 @@ def test_creating_stores_the_caps(client):
 def test_a_cap_switched_off_is_stored_as_off(client):
     """An unchecked box is simply absent from the POST, which is how HTML says
     no — and how the parser reads it."""
-    client.post(reverse("ui:new_experiment"), {
+    post_new_experiment(client, {
         "name": "uncapped", "model_name": "Random Forest",
         "optimizer_name": "SMAC", "seed": "0",
         "demo_dataset": str(DATASETS_DIR / "iris.csv"), "task": "classification",
@@ -550,7 +549,7 @@ def test_the_panel_wires_its_own_switch(client):
     """It travels with the partial rather than living on the page, and scopes
     itself to its own fieldset — the create page renders one panel per optimizer
     and each has to switch only its own fields."""
-    html = client.get(reverse("ui:new_experiment")).content.decode()
+    html = get_optimizer_step(client).content.decode()
 
     assert 'querySelectorAll("[data-when]")' in html
     assert 'document.currentScript.closest("fieldset")' in html
@@ -561,7 +560,7 @@ def test_a_setting_for_the_other_strategy_is_hidden_and_not_disabled(client):
     value as the default — so switching strategy and back would silently reset
     everything set for the other one. The names are prefixed per strategy, so
     there is nothing to gain by dropping them."""
-    html = client.get(reverse("ui:new_experiment")).content.decode()
+    html = get_optimizer_step(client).content.decode()
 
     hiding = html[html.index("[data-when]"):html.index("[data-enabled-by]")]
 
@@ -570,7 +569,7 @@ def test_a_setting_for_the_other_strategy_is_hidden_and_not_disabled(client):
 
 
 def test_creating_stores_the_surrogate_settings(client):
-    client.post(reverse("ui:new_experiment"), {
+    post_new_experiment(client, {
         "name": "forested", "model_name": "Random Forest",
         "optimizer_name": "SMAC", "seed": "0",
         "demo_dataset": str(DATASETS_DIR / "iris.csv"), "task": "classification",
@@ -587,7 +586,7 @@ def test_a_feature_ratio_above_one_is_clamped_on_the_way_in(client):
     """Above 1.0 SMAC computes `max_features = 0`. The field caps it, the
     parser caps it, and the optimizer caps it again — three, because only the
     last one covers a hand-edited `.ihpo`."""
-    client.post(reverse("ui:new_experiment"), {
+    post_new_experiment(client, {
         "name": "greedy", "model_name": "Random Forest",
         "optimizer_name": "SMAC", "seed": "0",
         "demo_dataset": str(DATASETS_DIR / "iris.csv"), "task": "classification",

@@ -9,6 +9,10 @@ from core import tasks
 from .fields import SafeJSONField
 
 
+#: What an experiment with no name is called wherever it is shown.
+UNTITLED = _("Untitled Experiment")
+
+
 def generate_identifier() -> str:
     """A short, stable handle shown beside an experiment's name.
 
@@ -37,7 +41,22 @@ class ExperimentData(models.Model):
     field that belongs to neither.
     """
 
-    name = models.CharField(max_length=200)
+    # Optional: the identifier is what tells experiments apart. Shown through
+    # `Experiment.title`, which names an unnamed one.
+    name = models.CharField(max_length=200, blank=True, default="")
+    # When the experiment was first set up, wherever that was. Travels in the
+    # file, so an imported experiment keeps its own beginning;
+    # `Experiment.created_at` is when this instance first saw it.
+    created_at = models.DateTimeField(null=True, blank=True)
+    # What the experiment's times are, which an imported file decides: wall
+    # clock ("absolute"), only how long after the experiment began
+    # ("relative"), or not known at all ("none"). Times are stored as datetimes
+    # whatever this says — a relative file's are placed so that its history
+    # ends when it was imported — and every page shows them in this form, so
+    # an experiment never mixes the two. See ui/services/timestamps.py.
+    time_basis = models.CharField(
+        max_length=10, default="absolute",
+        choices=[("absolute", "absolute"), ("relative", "relative"), ("none", "none")])
     model_name = models.CharField(max_length=200)
     model_file = models.FileField(upload_to="custom_models/", blank=True, null=True)
     optimizer_name = models.CharField(max_length=200)
@@ -121,7 +140,7 @@ class ExperimentData(models.Model):
     priors = SafeJSONField(default=dict, blank=True)
 
     def __str__(self) -> str:
-        return self.name
+        return self.name or str(UNTITLED)
 
     def dataset_path(self):
         """The dataset's file, as a `Path`: the bundled demo it names, else the
@@ -238,6 +257,11 @@ class Experiment(models.Model):
     deleted_by = models.ForeignKey(
         django_settings.AUTH_USER_MODEL, null=True, blank=True,
         on_delete=models.SET_NULL, related_name="+")
+    # Still being set up (ui/services/setup.py): made by New, its owner's alone,
+    # and reachable only through its setup until it is created. Which of the
+    # setup's steps have been saved, and when: {"setup": iso, "data": iso, ...}.
+    draft = models.BooleanField(default=False)
+    setup_saved = models.JSONField(default=dict, blank=True)
     # ── The custom model's environment (see services/modelenv.py) ────────────
     # Pinned per experiment: resolved and locked once, so every run uses the
     # same dependencies and only the first pays for resolving them.
@@ -268,7 +292,7 @@ class Experiment(models.Model):
         ordering = ["-created_at"]
 
     def __str__(self) -> str:
-        return self.name
+        return self.title
 
     def refresh_from_db(self, *args, **kwargs):
         """Reload this row, and the half of the experiment that is not on it.
@@ -288,11 +312,8 @@ class Experiment(models.Model):
 
     @property
     def name(self) -> str:
-        """The experiment's name, which lives with the search it names.
-
-        The one field this side reads through `data` often enough to be worth a
-        name of its own: `__str__`, the sidebar, every breadcrumb, the page
-        title and the export's filename all ask for it.
+        """The experiment's name, which lives with the search it names: what
+        was given, possibly nothing. Pages show `title`.
 
         A property and not a second column, deliberately. A copy here would be
         a second representation of one fact, able to disagree with the file —
@@ -303,6 +324,13 @@ class Experiment(models.Model):
         the database and the database knows only the column.
         """
         return self.data.name
+
+    @property
+    def title(self) -> str:
+        """What the experiment is called wherever it is shown: its name, or
+        "Untitled Experiment" when it has none. `name` is what was given, to
+        edit and to export."""
+        return self.data.name or str(UNTITLED)
 
     def save(self, *args, **kwargs):
         """Put a new experiment in its owner's group, when there is only one.
@@ -463,6 +491,49 @@ class DefaultFigureLayout(models.Model):
     updated_at = models.DateTimeField(auto_now=True)
 
 
+class ReaderPreferences(models.Model):
+    """One reader's own choices that are not about any one experiment.
+
+    `user` is null on an install without accounts, where there is one reader
+    and one row, as for `DefaultFigureLayout`.
+    """
+
+    user = models.OneToOneField(django_settings.AUTH_USER_MODEL, null=True, blank=True,
+                                on_delete=models.CASCADE, related_name="reader_preferences")
+    # How an exported file carries times, unless an experiment says otherwise:
+    # "absolute", "relative" or "none" (see ui/services/timestamps.py).
+    export_timestamps = models.CharField(max_length=10, default="relative")
+
+
+class ExperimentEvent(models.Model):
+    """One thing somebody did that changed how an experiment searches.
+
+    The experiment's history, kept with its portable half and carried in the
+    `.ihpo`: set up, imported, a prior stated or withdrawn, a data handling
+    choice changed. Runs are their own record (`Run`), and the timeline merges
+    the two. `payload` holds the whole value before and after, never a diff,
+    so the experiment as it stood at any entry can be worked out again.
+    """
+
+    data = models.ForeignKey(ExperimentData, on_delete=models.CASCADE,
+                             related_name="history")
+    at = models.DateTimeField(null=True, blank=True)
+    # How many trials the experiment had when this happened.
+    at_trial = models.IntegerField(default=0)
+    kind = models.CharField(max_length=40)
+    payload = models.JSONField(default=dict, blank=True)
+    # The run this belongs to, where it belongs to one.
+    run = models.ForeignKey("Run", null=True, blank=True, on_delete=models.SET_NULL,
+                            related_name="history")
+    # Who did it. Instance-only, like `Run.started_by`: an account here is not
+    # an account wherever the file is opened.
+    actor = models.ForeignKey(django_settings.AUTH_USER_MODEL, null=True, blank=True,
+                              on_delete=models.SET_NULL, related_name="experiment_events")
+
+    class Meta:
+        ordering = ["at", "id"]
+
+
 class BinEntry(models.Model):
     """A deleted experiment, in one person's bin.
 
@@ -563,7 +634,17 @@ class Run(models.Model):
     backend = models.CharField(max_length=20, default="local")
     job_id = models.CharField(max_length=64, blank=True, default="")
     cancel_requested = models.BooleanField(default=False)
+    # When Cancel was pressed, and by whom. The run itself ends a little later,
+    # once the trial in flight returns; `finished_at` is that moment. Who is
+    # instance-only, like `started_by`.
+    cancel_requested_at = models.DateTimeField(null=True, blank=True)
+    cancel_requested_by = models.ForeignKey(
+        django_settings.AUTH_USER_MODEL, null=True, blank=True,
+        on_delete=models.SET_NULL, related_name="runs_cancelled")
     error = models.TextField(blank=True, default="")
+    # When Run was pressed. `started_at` is when a worker picked it up, which
+    # on a busy queue or a cluster can be much later.
+    created_at = models.DateTimeField(null=True, blank=True)
     started_at = models.DateTimeField(null=True, blank=True)
     finished_at = models.DateTimeField(null=True, blank=True)
     # Sum of this run's trial evaluation durations (seconds); total − this is
@@ -574,7 +655,7 @@ class Run(models.Model):
     trial_count = models.IntegerField(null=True, blank=True)
 
     def __str__(self) -> str:
-        return f"{self.experiment.name} run #{self.pk} ({self.status})"
+        return f"{self.experiment.title} run #{self.pk} ({self.status})"
 
     @property
     def max_trials(self):

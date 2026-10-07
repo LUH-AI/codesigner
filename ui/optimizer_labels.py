@@ -362,3 +362,51 @@ def _group(name, described_params):
         # deliberately rather than take them in declaration order.
         "params": {p["name"]: p for p in described_params if p["group"] == name},
     }
+
+
+def summary(optimizer_name, params) -> list[tuple[str, str]]:
+    """*params* as a reader wants them listed: each setting that applies,
+    under the name the form gives it, with its value in words.
+
+    Left out: a setting that belongs to the other search strategy, one whose
+    switch is off, the switches themselves (a cap being listed says it is in
+    use), a switch that is off, and anything left to the strategy's own
+    default — which is not a choice anybody made.
+    """
+    from .registry import OPTIMIZERS
+    from django.utils.translation import gettext as _now
+
+    optimizer = OPTIMIZERS.get(optimizer_name) or next(
+        (o for o in OPTIMIZERS.values()
+         if o.name == optimizer_name or optimizer_name in getattr(o, "aliases", ())), None)
+    if optimizer is None:
+        return [(name, sigfigs(value) if isinstance(value, float) else str(value))
+                for name, value in (params or {}).items() if value is not None]
+
+    params = params or {}
+    schema = optimizer.params_schema
+
+    def value_of(param):
+        return params.get(param.name, param.default)
+
+    by_name = {p.name: p for p in schema}
+    switches = {name for p in schema for name in p.enabled_by}
+    rows = []
+    for param in schema:
+        value = value_of(param)
+        if param.name in switches or value is None:
+            continue
+        if param.depends_on and value_of(by_name[param.depends_on[0]]) != param.depends_on[1]:
+            continue
+        if not all(value_of(by_name[s]) for s in param.enabled_by if s in by_name):
+            continue
+        if param.type == "bool":
+            if not value:
+                continue
+            text = _now("Yes")
+        elif param.type == "select":
+            text = str(CHOICES.get(param.name, {}).get(value, value))
+        else:
+            text = sigfigs(value)
+        rows.append((str(LABELS.get(param.name, (param.label, ""))[0]), text))
+    return rows

@@ -17,7 +17,7 @@ from django.urls import reverse
 
 from ui.models import Experiment, TrialModel
 
-from tests.conftest import DATASETS_DIR, FIXTURES_DIR
+from tests.conftest import DATASETS_DIR, FIXTURES_DIR, post_new_experiment
 
 
 def _create(client, name="iris", model_name="Random Forest", dataset=DATASETS_DIR / "iris.csv",
@@ -32,7 +32,7 @@ def _create(client, name="iris", model_name="Random Forest", dataset=DATASETS_DI
     else:
         data["dataset_file"] = SimpleUploadedFile(Path(dataset).name, Path(dataset).read_bytes(),
                                                   content_type="text/csv")
-    client.post(reverse("ui:new_experiment"), data)
+    post_new_experiment(client, data)
     exp = Experiment.objects.get(data__name=name)
     if settings_overrides:
         exp.use_default_settings = False

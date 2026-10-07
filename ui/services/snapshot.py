@@ -5,12 +5,14 @@ snapshot; `snapshot_from_experiment` produces a current-version snapshot dict
 from a row. Import, export, and detail-page reconstruction all go through here.
 """
 
+import copy
 from importlib.metadata import version as dist_version
 from pathlib import Path
 
 from django.conf import settings
 from django.core.files import File
 from django.db import transaction
+from django.utils import timezone
 from django.utils.dateparse import parse_datetime
 
 from core import io, tasks
@@ -21,6 +23,7 @@ from core.provenance import (
 
 from ..models import Experiment, ExperimentData
 from ..registry import MODELS, OPTIMIZERS, canonical_model_name
+from . import history, timestamps
 
 
 def experiment_from_snapshot(snapshot: dict, dataset_file=None, model_file=None,
@@ -50,9 +53,31 @@ def experiment_from_snapshot(snapshot: dict, dataset_file=None, model_file=None,
     accounts. Set at creation because there is nowhere else it could come
     from — an .ihpo has no notion of who made it.
     """
-    snapshot = io.normalize(snapshot)
+    snapshot = timestamps.anchor(copy.deepcopy(io.normalize(snapshot)))
+    data = data_from_snapshot(snapshot, dataset_file, model_file, adopt_paths)
+
+    # Both halves or neither. `Experiment.data` is NOT NULL, so a failure
+    # between the two would be refused by the database rather than leaving an
+    # experiment with no search in it — but a `ExperimentData` row with no
+    # experiment pointing at it would survive, and this is the one place that
+    # could produce one.
+    with transaction.atomic():
+        data.save()
+        exp = Experiment(data=data, owner=owner, group=group)
+        exp.save()
+        _restore_runs(exp, snapshot.get("runs") or [])
+        history.restore(exp, snapshot.get("history"))
+    return exp
+
+
+def data_from_snapshot(snapshot: dict, dataset_file=None, model_file=None,
+                       adopt_paths: bool = False) -> ExperimentData:
+    """The portable half described by *snapshot* (normalized), with its files
+    adopted as `experiment_from_snapshot` describes — not yet saved, though
+    its files are. Shared with a draft's setup, which builds a new half each
+    time step 1 is saved and puts it in place of the old."""
     data = ExperimentData(
-        name=snapshot["name"],
+        name=snapshot.get("name") or "",
         # A built-in renamed since the file was written is stored under the
         # name it has now. An uploaded model's name is its own.
         model_name=(snapshot["model"]["name"] if snapshot["model"].get("kind") == "file"
@@ -63,6 +88,8 @@ def experiment_from_snapshot(snapshot: dict, dataset_file=None, model_file=None,
         current_metric=snapshot["metrics"].get("current"),
         original_metric=snapshot["metrics"].get("original"),
         seed=snapshot["seed"],
+        created_at=_when(snapshot.get("began_at")) or timezone.now(),
+        time_basis=timestamps.basis_of(snapshot),
         cv_folds=io.folds_of(snapshot),
         test_size=io.test_size_of(snapshot),
         time_column=io.time_column_of(snapshot),
@@ -97,17 +124,7 @@ def experiment_from_snapshot(snapshot: dict, dataset_file=None, model_file=None,
             with open(stored_model, "rb") as fh:
                 data.model_file.save(Path(stored_model).name, File(fh), save=False)
 
-    # Both halves or neither. `Experiment.data` is NOT NULL, so a failure
-    # between the two would be refused by the database rather than leaving an
-    # experiment with no search in it — but a `ExperimentData` row with no
-    # experiment pointing at it would survive, and this is the one place that
-    # could produce one.
-    with transaction.atomic():
-        data.save()
-        exp = Experiment(data=data, owner=owner, group=group)
-        exp.save()
-        _restore_runs(exp, snapshot.get("runs") or [])
-    return exp
+    return data
 
 
 #: A run that had not finished when the file was written did not finish at all —
@@ -144,13 +161,23 @@ def _restore_runs(exp: Experiment, recorded: list) -> None:
             stopping=entry.get("stopping") or {},
             stopped_by=entry.get("stopped_by") or "",
             events=entry.get("events") or [],
-            started_at=parse_datetime(entry["started_at"]) if entry.get("started_at") else None,
-            finished_at=parse_datetime(entry["finished_at"]) if entry.get("finished_at") else None,
+            priors=entry.get("priors") or {},
+            trial_timeout=entry.get("trial_timeout") or {},
+            created_at=_when(entry.get("created_at")),
+            started_at=_when(entry.get("started_at")),
+            finished_at=_when(entry.get("finished_at")),
+            cancel_requested=bool(entry.get("cancel_requested_at")),
+            cancel_requested_at=_when(entry.get("cancel_requested_at")),
             trial_seconds=entry.get("trial_seconds"),
             trial_offset=(span[0] - 1) if len(span) == 2 else None,
             trial_count=(span[1] - span[0] + 1) if len(span) == 2 else None,
             error=entry.get("error") or "",
         )
+
+
+def _when(value):
+    """A stored ISO time as a datetime, or None."""
+    return parse_datetime(value) if value else None
 
 
 def _model_kind(data, model_path: str) -> str:
@@ -215,6 +242,11 @@ def snapshot_from_experiment(exp: Experiment, *, provenance: bool = False) -> di
         "version": dist_version("codesigner"),
         "name": data.name,
         "seed": data.seed,
+        # When the experiment began, and what form its times are in — see
+        # ui/services/timestamps.py. An export restates the second for the
+        # form it chose.
+        "began_at": data.created_at.isoformat() if data.created_at else None,
+        "timestamps": data.time_basis,
         "dataset": {"filename": Path(dataset).name if dataset else "",
                     "path": dataset,
                     # A bundled demo, by name: another instance reads it as its
@@ -310,6 +342,7 @@ def _add_provenance(snapshot: dict, exp: Experiment, dataset: str, model_path: s
     snapshot["optimizer"]["defaults_used"] = _defaults_used(data)
     snapshot["runs"] = [_run_record(index, run)
                         for index, run in enumerate(exp.runs.order_by("id"), start=1)]
+    snapshot["history"] = history.serialized(exp)
     snapshot["environment"] = environment()
 
 
@@ -362,13 +395,18 @@ def _run_record(index: int, run) -> dict:
     offset = run.trial_offset
     count = run.trial_count
     span = None
-    if offset is not None and count:
+    if offset is not None and count is not None:
+        # 1-based and inclusive; a run that produced nothing is the empty range
+        # that starts where it would have, [offset + 1, offset].
         span = [offset + 1, offset + count]
     return {
         "index": index,
         "status": run.status,
+        "created_at": run.created_at.isoformat() if run.created_at else None,
         "started_at": run.started_at.isoformat() if run.started_at else None,
         "finished_at": run.finished_at.isoformat() if run.finished_at else None,
+        "cancel_requested_at": (run.cancel_requested_at.isoformat()
+                                if run.cancel_requested_at else None),
         "trial_range": span,
         "primary_metric": run.primary_metric,
         "stopping": run.stopping,
@@ -379,6 +417,10 @@ def _run_record(index: int, run) -> dict:
         "trial_seconds": run.trial_seconds,
         "error": run.error or None,
         "events": run.events or [],
+        # What it searched under, as it was then: the beliefs stated, and how
+        # long a trial was allowed.
+        "priors": run.priors or {},
+        "trial_timeout": run.trial_timeout or {},
     }
 
 

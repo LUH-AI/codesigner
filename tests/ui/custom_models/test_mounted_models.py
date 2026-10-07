@@ -18,6 +18,7 @@ from ui.forms import NewExperimentForm
 from ui.models import Experiment
 
 from tests.ui.custom_models.conftest import VALID_MODEL_SRC
+from tests.conftest import post_new_experiment
 
 
 @pytest.fixture
@@ -76,7 +77,7 @@ def test_create_view_adopts_a_mounted_model(client, mounted_dir):
     resolved model name — the experiment is runnable and self-contained."""
     from pathlib import Path
 
-    resp = client.post(reverse("ui:new_experiment"), {
+    resp = post_new_experiment(client, {
         "name": "mm-create", "model_name": "", "optimizer_name": "Random Search",
         "demo_dataset": _demo_dataset_path(), "task": "classification", "seed": "0",
         "mounted_model": _mounted_path(mounted_dir),

@@ -17,7 +17,7 @@ from access.models import Group, Membership
 from ui.models import Experiment, TrialModel
 from ui.services import storage
 
-from tests.conftest import DATASETS_DIR, FIXTURES_DIR
+from tests.conftest import DATASETS_DIR, FIXTURES_DIR, post_new_experiment
 
 pytestmark = pytest.mark.django_db
 
@@ -49,7 +49,7 @@ def _create(client, name="flats", upload=True, **extra):
     else:
         data["demo_dataset"] = str(DATASETS_DIR / "iris.csv")
     data.update(extra)
-    return client.post(reverse("ui:new_experiment"), data)
+    return post_new_experiment(client, data)
 
 
 def _kept(exp, trial, size, tmp_path, minutes_ago):

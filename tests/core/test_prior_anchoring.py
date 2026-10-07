@@ -38,7 +38,7 @@ def test_a_resumed_runs_prior_is_anchored_where_it_was_stated():
     body = _after_the_facade()
 
     replay = body.index("self._replay(smac, config_space, previous_result.trials")
-    applied = body.index("prior_report = self._apply_priors(")
+    applied = body.index("prior_report = _when(self._apply_priors(")
 
     assert replay < applied, (
         "priors are applied before the history is replayed, so a resumed run "
@@ -78,7 +78,7 @@ def test_the_wait_is_checked_before_the_ask():
     body = _after_the_facade()
     loop = body[body.index("while not collector.done:"):]
 
-    assert (loop.index("prior_report = self._apply_priors(")
+    assert (loop.index("prior_report = _when(self._apply_priors(")
             < loop.index("info = smac.ask()"))
 
 

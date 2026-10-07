@@ -1,0 +1,10 @@
+{% load i18n %}
+<details>
+    <summary>{% translate "Details" %}</summary>
+    <dl class="timeline-details">
+        {% for item in details %}
+            <dt>{{ item.label }}</dt>
+            <dd>{% if item.rows %}<dl class="timeline-settings">{% for name, value in item.rows %}<dt>{{ name }}</dt><dd>{{ value }}</dd>{% endfor %}</dl>{% else %}{{ item.value }}{% endif %}</dd>
+        {% endfor %}
+    </dl>
+</details>

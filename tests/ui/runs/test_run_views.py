@@ -9,7 +9,7 @@ out here (tested directly in test_run_execution) so these stay deterministic.
 import pytest
 from django.urls import reverse
 
-from tests.conftest import DATASETS_DIR
+from tests.conftest import DATASETS_DIR, post_new_experiment
 
 
 @pytest.fixture
@@ -29,7 +29,7 @@ def _create(client, **overrides):
         "seed": 0,
     }
     data.update(overrides)
-    return client.post(reverse("ui:new_experiment"), data)
+    return post_new_experiment(client, data)
 
 
 def _experiment(**overrides):

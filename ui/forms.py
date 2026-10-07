@@ -11,10 +11,11 @@ from core.io import (
 )
 from core.splits import MIN_FOLDS
 from core.model_source import inspect_model_source
-from core.optimizers.trial import offers_probabilities
 
 from .figures import FIGURES, autocompute_key, deferred_computations
-from .registry import MODELS, OPTIMIZERS
+from .models import UNTITLED
+from .registry import MODELS
+from .services import timestamps
 from .validators import validate_dataset_upload, validate_model_upload
 
 
@@ -52,7 +53,8 @@ EVALUATION_SCHEMES = {
 
 
 class NewExperimentForm(forms.Form):
-    """Set up an experiment: name, model, optimizer, dataset, seed.
+    """Set up an experiment: name, model, dataset, seed. The optimizer is a
+    step of its own (ui/services/optimizer_form.py).
 
     The model is either a registry choice or — when the person filling the form
     is allowed to bring one — an uploaded ``.py`` file defining a BaseModel
@@ -66,12 +68,14 @@ class NewExperimentForm(forms.Form):
     computed; the primary one is only the one the search optimizes.
     """
 
-    name = forms.CharField(label=_("Experiment name"), max_length=200)
+    # Optional: an experiment is told apart by its identifier, and one left
+    # unnamed is shown as "Untitled Experiment" (`Experiment.title`).
+    name = forms.CharField(label=_("Experiment name"), max_length=200, required=False,
+                           widget=forms.TextInput(attrs={"placeholder": UNTITLED}))
     model_name = forms.ChoiceField(label=_("Model"), required=False)
     model_file = forms.FileField(label=_("…or upload a model .py"), required=False,
                                   validators=[validate_model_upload])
     mounted_model = forms.ChoiceField(label=_("…or a mounted model .py"), required=False)
-    optimizer_name = forms.ChoiceField(label=_("Optimizer"))
     demo_dataset = forms.ChoiceField(label=_("Demo dataset"), required=False)
     dataset_file = forms.FileField(label=_("…or upload a CSV (last column = target)"), required=False,
                                     validators=[validate_dataset_upload])
@@ -88,14 +92,6 @@ class NewExperimentForm(forms.Form):
                  (tasks.CLASSIFICATION, _("Classification")),
                  (tasks.REGRESSION, _("Regression"))],
     )
-    #: Off by default: these metrics need probabilities, which not every model
-    #: gives, and an SVM pays for with an internal calibration on every trial.
-    probability_metrics = forms.BooleanField(
-        label=_("Also score ROC AUC and log loss"), required=False,
-        help_text=_("Classification only. Both are scored on the model's class "
-                    "probabilities, so the model has to give them; some models, an "
-                    "SVM among them, fit several times over to do so, which makes "
-                    "every trial slower."))
     seed = forms.IntegerField(
         label=_("Seed"), initial=0,
         help_text=_("Negative picks one at random. Drives every stochastic part "
@@ -166,8 +162,14 @@ class NewExperimentForm(forms.Form):
                     "daily. Leave empty to infer it from the order column's "
                     "spacing."))
 
-    def __init__(self, *args, may_upload_models=None, groups=(), **kwargs):
+    def __init__(self, *args, may_upload_models=None, groups=(), current_dataset=None,
+                 current_model=None, **kwargs):
+        """*current_dataset* (a path) and *current_model* (a custom model's
+        source, bytes) are what a draft being set up already has: given
+        nothing new, the form keeps them, and checks against them."""
         super().__init__(*args, **kwargs)
+        self.current_dataset = current_dataset
+        self.current_model = current_model
         # Only when there is a choice to make: somebody in one group has their
         # experiment filed there without being asked. Required when present —
         # a guess would file work under a boundary nobody chose.
@@ -178,7 +180,6 @@ class NewExperimentForm(forms.Form):
         if may_upload_models is None:
             may_upload_models = settings.ALLOW_CUSTOM_MODELS
         self.fields["model_name"].choices = [("", _("— select —"))] + [(k, k) for k in MODELS]
-        self.fields["optimizer_name"].choices = [(k, k) for k in OPTIMIZERS]
         demos = demo_datasets()
         self.fields["demo_dataset"].choices = [("", _("— none —"))] + [(p, k) for k, p in demos.items()]
 
@@ -238,11 +239,18 @@ class NewExperimentForm(forms.Form):
             self._read_model_source(cleaned, source, "model_file")
         elif mounted:
             self._read_model_source(cleaned, Path(mounted).read_bytes(), "mounted_model")
+        elif not cleaned.get("model_name") and self.current_model is not None:
+            # A draft's uploaded model, kept.
+            self._read_model_source(cleaned, self.current_model, "model_name")
+            cleaned["keep_model"] = True
         elif not cleaned.get("model_name"):
             self.add_error("model_name", _("Choose a model or upload a model .py file."))
 
         if not cleaned.get("demo_dataset") and not cleaned.get("dataset_file"):
-            raise forms.ValidationError(_("Choose a demo dataset or upload a CSV file."))
+            if self.current_dataset is None:
+                raise forms.ValidationError(_("Choose a demo dataset or upload a CSV file."))
+            # A draft's dataset, kept.
+            cleaned["keep_dataset"] = Path(self.current_dataset)
         self._resolve_task(cleaned)
         self._resolve_time_order(cleaned)
         return cleaned
@@ -259,7 +267,7 @@ class NewExperimentForm(forms.Form):
                 source = upload.read()
                 upload.seek(0)
             else:
-                source = Path(cleaned["demo_dataset"])
+                source = Path(cleaned.get("demo_dataset") or cleaned["keep_dataset"])
             column, y = target_of(source)
         except Exception as exc:  # noqa: BLE001 — any unreadable file is the same problem
             self.add_error(None, _("The dataset could not be read: %(error)s") % {"error": exc})
@@ -296,14 +304,6 @@ class NewExperimentForm(forms.Form):
                                     "forecaster = True.") % {"model": name})
             return
 
-        if cleaned.get("probability_metrics") and task == tasks.CLASSIFICATION:
-            offers = (info.has_proba if info is not None
-                      else offers_probabilities(MODELS[name]) if name in MODELS else True)
-            if not offers:
-                self.add_error("probability_metrics", _(
-                    "%(model)s does not give class probabilities, so ROC AUC and log "
-                    "loss cannot be scored for it.") % {"model": name})
-
     def _resolve_time_order(self, cleaned) -> None:
         """Check the rows can be divided in time order the way the evaluation
         asks, by the column named."""
@@ -329,7 +329,7 @@ class NewExperimentForm(forms.Form):
                 frame = read_dataset(upload.read())
                 upload.seek(0)
             else:
-                frame = read_dataset(Path(cleaned["demo_dataset"]))
+                frame = read_dataset(Path(cleaned.get("demo_dataset") or cleaned["keep_dataset"]))
         except Exception:  # noqa: BLE001 — `_resolve_task` reports an unreadable file
             return
         if forecasting:
@@ -379,30 +379,25 @@ class ExperimentSettingsFields(forms.Form):
 
     ice_max_curves = forms.IntegerField(
         label=_ICE_LABEL, required=False, min_value=0, max_value=10_000,
-        help_text=_("0 draws every trial. The curve is the mean of whatever is "
-                    "drawn, so a smaller number is faster and lighter but a "
-                    "coarser average."))
+        help_text=_("0 draws every trial."))
     local_effects_max_trials = forms.IntegerField(
         label=_LOCAL_EFFECTS_LABEL, required=False, min_value=0, max_value=10_000,
-        help_text=_("0 explains every trial. Each one costs its own explanation, "
-                    "so this is the setting that decides how long the figure takes."))
+        help_text=_("0 explains every trial."))
     prior_acceptance_tolerance = forms.FloatField(
         label=_PRIOR_TOLERANCE_LABEL, required=False, min_value=0.0,
         max_value=1_000.0,
-        help_text=_("How much worse than where the search is already looking a "
-                    "stated belief's region may score before “Evaluate prior” "
-                    "refuses it. In the objective's own units, so it means "
-                    "different things for different objectives; 0 refuses "
-                    "anything the model does not think is an improvement."))
+        help_text=_("How much worse a prior's region may score before it is refused."))
     keep_best_trial_models = forms.IntegerField(
         label=_("Trial models kept for export"), required=False, min_value=0, max_value=100,
-        help_text=_("A run keeps the fitted model of the best this many trials, by the metric it "
-                    "optimizes, for Export trial parameters — fitted on one fold's training rows, "
-                    "a starting point rather than a final model. 0 keeps none. They count "
-                    "against the group's storage, after its datasets."))
+        help_text=_("0 keeps none."))
     keep_last_run_trial_models = forms.BooleanField(
         label=_("Also keep every trial of the last run"), required=False,
-        help_text=_("Until the next run starts; then only the best are kept."))
+        help_text=_("Kept until the next run starts."))
+    export_timestamps = forms.ChoiceField(
+        label=_("Time"), required=False,
+        choices=[("", _("The exporter's preference"))]
+                + [(mode, timestamps.LABELS[mode][0]) for mode in timestamps.MODES],
+        help_text=_("What the export page preselects."))
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)

@@ -206,6 +206,12 @@ class OutputBaseModel(ModelBase):
     #: Whether a fitted classifier gives class probabilities.
     probabilities: bool = True
 
+    #: Whether giving them costs more than the fit itself — an extra fit, a
+    #: calibration. A classifier whose probabilities come free has ROC AUC and
+    #: log loss tracked with every other metric; one whose do not is spared
+    #: paying that on every trial.
+    costly_probabilities: bool = False
+
     #: What a delivered copy of this model needs installed, as pip names.
     dependencies: tuple = ()
 

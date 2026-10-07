@@ -12,7 +12,7 @@ from django.core.files.base import ContentFile
 from django.core.files.uploadedfile import SimpleUploadedFile
 from django.urls import reverse
 
-from tests.conftest import DATASETS_DIR
+from tests.conftest import DATASETS_DIR, post_new_experiment
 from ui.models import Experiment, Run
 from ui.services import modelenv
 
@@ -52,7 +52,7 @@ def test_uploading_a_model_queues_its_environment(client, fake_uv):
     """Creation returns immediately; the environment is built behind it."""
     upload = SimpleUploadedFile("mine.py", MODEL_SOURCE, content_type="text/x-python")
 
-    resp = client.post(reverse("ui:new_experiment"), {
+    resp = post_new_experiment(client, {
         "name": "queued", "model_name": "", "optimizer_name": "Random Search",
         "demo_dataset": str(DATASETS_DIR / "iris.csv"), "task": "classification", "seed": "0",
         "model_file": upload,
@@ -67,7 +67,7 @@ def test_uploading_a_model_queues_its_environment(client, fake_uv):
 
 
 def test_a_registry_model_needs_no_environment(client):
-    client.post(reverse("ui:new_experiment"), {
+    post_new_experiment(client, {
         "name": "plain", "model_name": "Random Forest",
         "optimizer_name": "Random Search",
         "demo_dataset": str(DATASETS_DIR / "iris.csv"), "task": "classification", "seed": "0",

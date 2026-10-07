@@ -15,7 +15,7 @@ from django.urls import reverse
 
 from tests.conftest import DATASETS_DIR
 
-SECTIONS = ["Experiment Selection", "Data", "Experiment Evaluation",
+SECTIONS = ["Experiment Selection", "Experiment Evaluation",
             "Explanation Game", "Selected Configuration"]
 
 
@@ -57,8 +57,8 @@ def _sidebar(client, exp):
 
 
 def test_the_sidebar_has_its_sections_in_order(client):
-    """Which experiment, then the data it learns from, then what it is scored
-    on, then what is selected — each one narrowing the last."""
+    """Which experiment, then what it is scored on, then what is selected —
+    each one narrowing the last."""
     sidebar = _sidebar(client, _experiment())
     headings = re.findall(r"<h2>([^<]+)</h2>", sidebar)
 
@@ -109,3 +109,73 @@ def test_a_run_in_flight_replaces_the_fold(client):
     assert 'id="run-status"' in sidebar
     assert "<details class=" not in sidebar
     assert 'id="metric-select"' in sidebar, "the figures still need it"
+
+
+# ── the open experiment's three views ───────────────────────────────────────
+
+def _views(html):
+    """The labels of the views listed under the open experiment, and which
+    one is marked current."""
+    sidebar = html.split('<nav class="sidebar"', 1)[1].split("</nav>", 1)[0]
+    if 'class="tab-list experiment-views"' not in sidebar:
+        return [], []
+    block = sidebar.split('class="tab-list experiment-views"', 1)[1]
+    top = re.sub(r'<div class="tab-list data-sections">.*?</div>', "", block, flags=re.S)
+    labels = [t.strip() for t in re.findall(r'<a class="tab[^"]*"[^>]*>([^<]+)</a>', top)][:3]
+    current = [t.strip() for t in re.findall(r'aria-current="page">([^<]+)</a>', top)]
+    return labels, current
+
+
+def test_the_open_experiment_lists_its_three_views(client):
+    """What: under the open experiment are Dashboard, Data Handling and
+    Timeline, with the page's own view marked — Dashboard on the experiment
+    page and on the pages its header leads to.
+    How: fetches the dashboard, settings, data and timeline pages."""
+    exp = _experiment()
+    pages = {
+        reverse("ui:experiment_detail", args=[exp.pk]): "Dashboard",
+        reverse("ui:experiment_settings", args=[exp.pk]): "Dashboard",
+        reverse("datahandling:data_overview", args=[exp.pk]): "Data Handling",
+        reverse("ui:experiment_timeline", args=[exp.pk]): "Timeline",
+    }
+    for url, current in pages.items():
+        labels, marked = _views(client.get(url).content.decode())
+        assert labels == ["Dashboard", "Data Handling", "Timeline"], url
+        assert marked == [current], url
+
+
+def test_only_the_open_experiment_shows_its_views(client):
+    """What: every other experiment stays one row, and its link opens its
+    dashboard. How: makes two experiments, opens one, and counts the view
+    lists and where the other's row points."""
+    first = _experiment(name="first")
+    second = _experiment(name="second")
+    html = client.get(reverse("ui:experiment_timeline", args=[first.pk])).content.decode()
+    sidebar = html.split('<nav class="sidebar"', 1)[1].split("</nav>", 1)[0]
+
+    assert sidebar.count('class="tab-list experiment-views"') == 1
+    assert f'href="{reverse("ui:experiment_detail", args=[second.pk])}"' in sidebar
+    assert f'href="{reverse("ui:experiment_timeline", args=[second.pk])}"' not in sidebar
+
+
+def test_pages_of_no_experiment_show_no_views(client):
+    """What: the home page and the list of all experiments open none.
+    How: fetches both and looks for a view list."""
+    _experiment()
+    for url in (reverse("ui:home"), reverse("ui:experiment_list")):
+        assert _views(client.get(url).content.decode()) == ([], []), url
+
+
+def test_an_open_experiment_beyond_the_recent_ones_is_still_listed(client):
+    """What: an experiment older than the sidebar's most recent ones still
+    gets its row and its views while it is open.
+    How: makes more experiments than the sidebar lists, opens the oldest."""
+    from ui.context_processors import SIDEBAR_LIMIT
+
+    oldest = _experiment(name="oldest")
+    for n in range(SIDEBAR_LIMIT):
+        _experiment(name=f"newer {n}")
+    html = client.get(reverse("ui:experiment_detail", args=[oldest.pk])).content.decode()
+
+    assert _views(html)[0] == ["Dashboard", "Data Handling", "Timeline"]
+    assert "oldest" in html.split('<nav class="sidebar"', 1)[1].split("</nav>", 1)[0]

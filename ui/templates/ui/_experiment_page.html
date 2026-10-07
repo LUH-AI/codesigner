@@ -1,0 +1,14 @@
+{% extends "base.html" %}
+{% comment %}What every view of a created experiment is: the page title ending in
+its name, and the experiment's own heading (`_experiment_header.html`, from
+`views.experiment_header`) above the view itself. The dashboard, the page before
+its first trial, Data Handling and the timeline extend this, filling
+`view_title` (what comes before the name in the title, if anything),
+`experiment_body`, and where they have one `sidebar_sections`.{% endcomment %}
+
+{% block title %}{% block view_title %}{% endblock %}{{ summary.name }} · Codesigner{% endblock %}
+
+{% block content %}
+    {% include "ui/_experiment_header.html" %}
+    {% block experiment_body %}{% endblock %}
+{% endblock %}

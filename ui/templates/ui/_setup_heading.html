@@ -1,0 +1,14 @@
+{% load i18n %}
+{% comment %}The top of each setup step: what is being set up, the step bar, and
+a way to throw the draft away.{% endcomment %}
+<div class="setup-heading">
+    <div>
+        <h1>{% blocktranslate with name=summary.name %}New experiment: {{ name }}{% endblocktranslate %}</h1>
+        <p class="caption">{% translate "A draft until it is created: only you can see it, and nothing about it runs yet." %}</p>
+    </div>
+    <form method="post" action="{% url 'ui:setup_discard' summary.pk %}" class="actions">
+        {% csrf_token %}
+        <button type="submit" class="btn" title="{% translate 'Throw this draft away' %}">{% translate "🗑 Discard draft" %}</button>
+    </form>
+</div>
+{% include "ui/_setup_steps.html" %}

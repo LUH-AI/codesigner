@@ -23,6 +23,7 @@ class SVM(OutputBaseModel):
     dependencies = ("scikit-learn",)
     accepts_missing = False
     scale_sensitive = True
+    costly_probabilities = True
 
     def build(self, hyperparameters, data, seed=0):
         from sklearn.svm import SVC, SVR
