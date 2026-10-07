@@ -24,7 +24,7 @@ from ui.permissions import DELETE, EXPORT, RUN
 
 VIEWER, CONTRIBUTOR = ExperimentShare.VIEWER, ExperimentShare.CONTRIBUTOR
 
-from tests.conftest import export_ihpo
+from tests.conftest import export_ihpo, post_new_experiment
 
 pytestmark = pytest.mark.django_db
 
@@ -156,10 +156,10 @@ def test_creating_an_experiment_makes_you_its_owner(client, hosted, ana):
     from tests.conftest import DATASETS_DIR
 
     client.force_login(ana)
-    client.post(reverse("ui:new_experiment"), {
+    post_new_experiment(client, {
         "name": "mine", "model_name": "Random Forest",
         "optimizer_name": "Random Search",
-        "demo_dataset": str(DATASETS_DIR / "iris.csv"), "seed": "0",
+        "demo_dataset": str(DATASETS_DIR / "iris.csv"), "task": "classification", "seed": "0",
     })
 
     assert Experiment.objects.get(data__name="mine").owner == ana
@@ -174,7 +174,7 @@ def test_you_can_do_everything_to_your_own(client, hosted, ana):
     assert resp.status_code == 200
     assert resp.context["may"] == {"run": True, "edit": True,
                                    "delete": True, "export": True,
-                                   "share": True}
+                                   "share": True, "rename": True}
 
 
 def test_an_experiment_you_do_not_own_is_not_there_at_all(client, hosted, ana, ben):
@@ -209,7 +209,7 @@ def test_a_viewer_cannot_run_change_or_delete_it(client, hosted, ana, ben):
 
     assert _detail(client, exp).context["may"] == {
         "run": False, "edit": False, "delete": False, "export": True,
-        "share": False}
+        "share": False, "rename": False}
 
 
 def test_a_viewer_running_it_is_refused(client, hosted, ana, ben):
@@ -245,13 +245,13 @@ def test_a_viewer_can_export_it(client, hosted, ana, ben):
 
 # ── a contributor ────────────────────────────────────────────────────────────
 
-def test_a_contributor_can_do_everything_but_share_it(client, hosted, ana, ben):
+def test_a_contributor_can_do_everything_but_share_or_rename_it(client, hosted, ana, ben):
     exp = _experiment(owner=ben, ana=CONTRIBUTOR)
     client.force_login(ana)
 
     assert _detail(client, exp).context["may"] == {
         "run": True, "edit": True, "delete": True, "export": True,
-        "share": False}
+        "share": False, "rename": False}
 
 
 def test_a_contributor_can_delete_it(client, hosted, ana, ben):
@@ -462,7 +462,7 @@ def test_a_lead_sees_and_can_run_everything_in_their_group(client, hosted, ben,
 
     assert resp.status_code == 200
     assert resp.context["may"] == {"run": True, "edit": True, "export": True,
-                                   "delete": False, "share": False}
+                                   "delete": False, "share": False, "rename": False}
 
 
 def test_is_staff_alone_grants_nothing_here(client, hosted, ben, staff):
@@ -553,3 +553,21 @@ def test_the_experiment_itself_still_knows_its_paths(client, ana):
     exp.data.dataset.save("iris.csv", ContentFile((DATASETS_DIR / "iris.csv").read_bytes()))
 
     assert adapter.snapshot_from_experiment(exp)["dataset"]["path"] != ""
+
+
+def test_only_the_owner_may_rename_it(client, hosted, ana, ben):
+    """What: what an experiment is called is its owner's to change — a
+    contributor, who may do everything else to it, may not. How: ben's
+    experiment, contributed to by ana; each posts a new name."""
+    exp = _experiment(owner=ben, ana=CONTRIBUTOR)
+    url = reverse("ui:experiment_rename", args=[exp.pk])
+
+    client.force_login(ana)
+    assert client.post(url, {"name": "ana's"}).status_code == 403
+    exp.refresh_from_db()
+    assert exp.name == "owned"
+
+    client.force_login(ben)
+    client.post(url, {"name": "ben's"})
+    exp.refresh_from_db()
+    assert exp.name == "ben's"

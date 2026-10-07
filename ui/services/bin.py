@@ -143,4 +143,6 @@ def _put_back(exp):
 
 def purge(exp):
     """Destroy *exp* for good — the real cascade, runs and files with it."""
-    exp.delete()
+    from .storage import delete_experiment_files
+
+    delete_experiment_files(exp)

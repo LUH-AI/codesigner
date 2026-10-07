@@ -5,6 +5,7 @@ from django.core.management.base import BaseCommand, CommandError
 
 from core import io, provenance, smac_import
 
+from ui.services import history
 from ui.services import snapshot as adapter
 
 
@@ -45,6 +46,8 @@ class Command(BaseCommand):
         # so the dataset and model paths inside it are theirs to adopt. The web
         # importer deliberately does not do this — see experiment_from_snapshot.
         exp = adapter.experiment_from_snapshot(snapshot, adopt_paths=True)
+        history.record(exp, "imported", source="ihpo", filename=path.name,
+                       dataset_attached=exp.data.has_dataset)
         self._report(exp)
 
     def _import_smac(self, directory: Path) -> None:
@@ -74,7 +77,10 @@ class Command(BaseCommand):
         except ValueError as exc:
             raise CommandError(str(exc))
 
-        self._report(adapter.experiment_from_snapshot(snapshot))
+        exp = adapter.experiment_from_snapshot(snapshot)
+        history.record(exp, "imported", source="smac", filename=directory.name,
+                       dataset_attached=False)
+        self._report(exp)
 
     def _report(self, exp) -> None:
-        self.stdout.write(self.style.SUCCESS(f"Imported experiment {exp.name!r} (id {exp.pk})"))
+        self.stdout.write(self.style.SUCCESS(f"Imported experiment {exp.title!r} (id {exp.pk})"))

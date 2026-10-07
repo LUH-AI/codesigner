@@ -16,6 +16,7 @@ from smac.initial_design import (
 )
 from smac.model.gaussian_process import GaussianProcess, MCMCGaussianProcess
 from smac.utils.configspace import convert_configurations_to_array
+from smac.main.exceptions import ConfigurationSpaceExhaustedException
 from smac.runhistory import StatusType
 from smac.runhistory.dataclasses import TrialInfo, TrialValue
 
@@ -23,9 +24,8 @@ from ..paths import is_safe_relative
 from .. import priors as priors_module
 from ..metrics import metric_for, to_cost
 from .base import (
-    storable_score,
-    BaseOptimizer, OptimizationResult, OptimizerParam, TrialCollector,
-    merge_stopping, rebase_history,
+    STOPPED_BY_EXHAUSTED, BaseOptimizer, OptimizationResult, OptimizerParam,
+    TrialCollector, merge_stopping, rebase_history, storable_score,
 )
 from ..splits import holdout
 from .timing import STATUS_SUCCESS
@@ -72,6 +72,18 @@ def decay_beta(n_trials) -> float:
 # guess. Not a setting: the share cap is the knob for the same idea, and two
 # ways to say it would only disagree.
 _UNBOUNDED_BUDGET = 100
+
+
+def _when(report, smac):
+    """*report* (from `_apply_priors`), stamped with when the prior took
+    effect: after how many trials of the whole search, and the time. None
+    passes through — there was nothing stated to apply."""
+    if report is None:
+        return None
+    from datetime import datetime, timezone
+
+    return {**report, "at_trial": len(smac.runhistory),
+            "at": datetime.now(timezone.utc).isoformat()}
 
 
 def _waits_for_the_design(priors) -> bool:
@@ -1343,7 +1355,7 @@ class SMACOptimizer(BaseOptimizer):
                       if waiting else 0)
         prior_report = None
         if not waiting:
-            prior_report = self._apply_priors(smac, scenario, config_space, priors)
+            prior_report = _when(self._apply_priors(smac, scenario, config_space, priors), smac)
 
         while not collector.done:
             if cancel_event and cancel_event.is_set():
@@ -1355,10 +1367,19 @@ class SMACOptimizer(BaseOptimizer):
             # `add_prior` will take the anchor from — comparing anything else
             # would be comparing to a number the anchor is not.
             if prior_report is None and len(smac.runhistory) >= design_end:
-                prior_report = self._apply_priors(smac, scenario, config_space, priors)
-            info = smac.ask()
+                prior_report = _when(self._apply_priors(smac, scenario, config_space, priors),
+                                     smac)
+            try:
+                info = smac.ask()
+            except ConfigurationSpaceExhaustedException:
+                # Every configuration SMAC can find has been tried — a small
+                # discrete space, a forecaster with three strategies. The search
+                # is complete, not failed.
+                collector.stopped_by = STOPPED_BY_EXHAUSTED
+                break
             config = dict(info.config)
-            all_scores, run_info = evaluate_trial(model, config, splits, metrics, seed=seed)
+            all_scores, run_info = evaluate_trial(model, config, splits, metrics, seed=seed,
+                                                   keep=self.keep_model is not None)
             cost = to_cost(collector.metric, all_scores[primary_metric])
             # Feed the measured timing into SMAC so its runhistory (which the
             # serialize override copies verbatim) carries the real values. The

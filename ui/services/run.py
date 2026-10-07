@@ -7,6 +7,7 @@ it out of band rebuilding everything from the stored experiment, and writes the
 result and status back so the page can poll and cancel.
 """
 
+import copy
 import math
 import random
 import time
@@ -16,15 +17,19 @@ from django.conf import settings
 
 from .settings import eager_analytics_wanted, resolve_settings
 from django.utils import timezone
+from django.utils.translation import gettext as _
 
-from core import io
+from core import encoding, io, tasks
 from core.io import DEFAULT_TEST_SIZE, _load_splits
+from core.metrics import metric_for, metrics_for, usable
+from core.optimizers.trial import offers_probabilities
 
 from core.optimizers.base import STOPPED_BY_CANCELLED, OptimizationResult
 
 from .. import permissions, registry
 from ..registry import METRICS, MODELS, OPTIMIZERS
 from . import snapshot as snapshot_adapter
+from . import trial_models
 from .run_logic import apply_metrics
 
 
@@ -35,21 +40,47 @@ def resolve_seed(seed_input: int) -> int:
 
 def run_experiment(*, model_name, optimizer_name, dataset_path, seed,
                    primary_metric, n_trials, optimizer_params=None,
-                   test_size=None):
-    """Build the split and run the chosen optimizer over all metrics.
+                   test_size=None, task=tasks.DEFAULT):
+    """Build the split and run the chosen optimizer over the task's metrics.
 
-    Every metric in the registry is scored on each trial; *primary_metric* is
-    the one the optimizer optimizes. Returns the OptimizationResult.
+    Every metric that scores *task* is scored on each trial; *primary_metric*
+    is the one the optimizer optimizes. The model is a copy of the registry's,
+    told its task and its columns' kinds, as `io.build_experiment` does: the
+    registry instance is shared by everything in the process. Returns the
+    OptimizationResult.
     """
-    model = MODELS[model_name]
+    model = copy.copy(MODELS[model_name])
+    io.tell_task(model, task)
+    io.tell_feature_kinds(
+        model, encoding.feature_kinds(io.dataset_encoding(Path(dataset_path))))
     optimizer = type(OPTIMIZERS[optimizer_name])(**(optimizer_params or {}))
     X_train, X_val, y_train, y_val = _load_splits(
-        Path(dataset_path), seed, test_size or DEFAULT_TEST_SIZE)
+        Path(dataset_path), seed, test_size or DEFAULT_TEST_SIZE, task)
     return optimizer.optimize(
         model, X_train, y_train, X_val, y_val,
-        metrics=METRICS, primary_metric=primary_metric,
+        metrics={name: METRICS[name] for name in metrics_for(task)},
+        primary_metric=primary_metric,
         n_trials=n_trials, previous_result=None, seed=seed, cancel_event=None,
     )
+
+
+def scoreable(metrics, model, primary_metric):
+    """*metrics* without those *model* cannot score, before the first trial.
+
+    The create form only lists the metrics scored on probabilities for a model
+    that gives them, but a model file can be replaced after that. Without the
+    probabilities those metrics fail every trial, so they are left out of the
+    run — unless one of them is what the run optimizes, which makes the run
+    impossible rather than partial.
+    """
+    can = (model.supports_proba if hasattr(model, "supports_proba")
+           else offers_probabilities(model))
+    keep = usable(metrics, probabilities=can)
+    if primary_metric not in keep:
+        raise ValueError(_(
+            "%(metric)s is scored on class probabilities, and this model does not "
+            "give them. Optimize another metric.") % {"metric": primary_metric})
+    return {name: metrics[name] for name in keep}
 
 
 # ── Background run engine ──────────────────────────────────────────────────────
@@ -85,10 +116,9 @@ def create_run(experiment, stopping, optimize_metric, started_by=None,
     limit on a trial rather than on the run, and so is not one of them. Returns
     the pending Run.
 
-    The optimizer's settings are copied onto the run rather than referenced.
-    They are editable between runs, so the experiment's current settings are not
-    the ones the earlier trials came out of, and a record that said they were
-    would be wrong about every experiment anyone ever adjusted.
+    What the run searches under is copied onto it rather than referenced —
+    its stopping criteria, its trial timeout and the stated priors — because
+    the experiment's own statement goes on changing after the trials are spent.
     """
     from ..models import Run
 
@@ -102,6 +132,7 @@ def create_run(experiment, stopping, optimize_metric, started_by=None,
         experiment=experiment,
         primary_metric=optimize_metric,
         status="pending",
+        created_at=timezone.now(),
         started_by=started_by,
         stopping=dict(stopping),
         trial_timeout=dict(trial_timeout or {}),
@@ -115,17 +146,29 @@ def create_run(experiment, stopping, optimize_metric, started_by=None,
     )
 
 
-def _record_prior_event(run_id, result, offset):
+def _event(kind, at_trial, **fields) -> dict:
+    """One entry for `Run.events`: what happened, after how many trials, and
+    when."""
+    return {"kind": kind, "at_trial": at_trial, "at": timezone.now().isoformat(), **fields}
+
+
+def _record_prior_event(run_id, report, offset):
     """Append what the stated prior did, to the run that just finished.
 
     `runs[].events` is already the append-only per-run log keyed by `at_trial`,
-    so this extends it rather than inventing a second timeline.
+    so this extends it rather than inventing a second timeline. *report* is the
+    optimizer's account of it (`result.metadata["prior"]`, or the cluster job's
+    copy of the same), which says at which trial and when it took effect — a
+    prior that waits for the initial design takes effect mid-run, not at the
+    run's start.
 
     Both outcomes are recorded, and the skip matters as much as the apply.
     `_apply_priors` reports and continues on every failure — a released SMAC has
     no weight layer at all, a stored prior can name a hyperparameter the search
     space no longer has — so without `prior_skipped` a file could say a prior was
-    stated and leave a reader to assume it was searched under.
+    stated and leave a reader to assume it was searched under. A skip the
+    surrogate decided on is marked `rejected`, since that one is a judgement
+    about the belief rather than a fault.
 
     Nothing to say when no prior was stated: the metadata carries None, and an
     event per run announcing the absence of a belief would bury the ones that
@@ -133,19 +176,23 @@ def _record_prior_event(run_id, result, offset):
     """
     from ..models import Run
 
-    report = (getattr(result, "metadata", None) or {}).get("prior")
     if not report:
         return
 
+    at_trial = report.get("at_trial", offset)
     if report.get("applied"):
-        event = {"kind": "prior_applied", "at_trial": offset,
-                 "key": report.get("key") or "codesigner",
-                 "hyperparameters": report.get("hyperparameters") or [],
-                 "decay": report.get("decay") or "none",
-                 "beta": report.get("beta")}
+        event = _event("prior_applied", at_trial,
+                       key=report.get("key") or "codesigner",
+                       hyperparameters=report.get("hyperparameters") or [],
+                       decay=report.get("decay") or "none",
+                       beta=report.get("beta"))
     else:
-        event = {"kind": "prior_skipped", "at_trial": offset,
-                 "reason": report.get("reason") or "unknown"}
+        event = _event("prior_skipped", at_trial,
+                       reason=report.get("reason") or "unknown",
+                       rejected=bool(report.get("rejected")),
+                       hyperparameters=report.get("hyperparameters") or [])
+    if report.get("at"):
+        event["at"] = report["at"]
 
     run = Run.objects.filter(pk=run_id).first()
     if run is None:
@@ -153,6 +200,15 @@ def _record_prior_event(run_id, result, offset):
     # Read and rewritten rather than appended in the database, because the list
     # is small and this is the only writer at this point in a run's life.
     Run.objects.filter(pk=run_id).update(events=list(run.events or []) + [event])
+
+
+def _record_event(run_id, event):
+    """Append *event* to the run's log (`Run.events`)."""
+    from ..models import Run
+
+    run = Run.objects.filter(pk=run_id).first()
+    if run is not None:
+        Run.objects.filter(pk=run_id).update(events=list(run.events or []) + [event])
 
 
 def _metric_change_event(experiment, now):
@@ -182,14 +238,12 @@ def _metric_change_event(experiment, now):
         return []
 
     optimizer = registry.OPTIMIZERS.get(experiment.data.optimizer_name)
-    return [{
-        "kind": "metric_changed",
+    return [_event("metric_changed", len(trials), **{
         "from": was,
         "to": now,
-        "at_trial": len(trials),
         "surrogate": ("rebuilt_and_replayed"
                       if getattr(optimizer, "fits_surrogate", False) else "none"),
-    }]
+    })]
 
 
 #: How often a run at most writes what it has so far. Throttled by wall clock
@@ -258,6 +312,44 @@ def _partial_result_writer(experiment_pk, optimizer, previous_result, primary_me
     return write
 
 
+def _trials_stored(experiment_pk) -> int:
+    """How many trials the experiment's stored result holds right now."""
+    from ..models import ExperimentData
+
+    result = (ExperimentData.objects.filter(experiment__pk=experiment_pk)
+              .values_list("result", flat=True).first()) or {}
+    return len(result.get("data") or [])
+
+
+def _start(run, **fields) -> None:
+    """Mark *run* running, and note how many trials there were before it.
+
+    The offset is taken now rather than when the run finishes so that a run
+    which fails still owns the trials its partial writes saved: the range is
+    the offset to however many there are when it ends, however it ends.
+    """
+    from ..models import Run
+
+    Run.objects.filter(pk=run.pk).update(
+        status="running", started_at=timezone.now(),
+        trial_offset=_trials_stored(run.experiment_id), **fields)
+
+
+def fail_runs(runs, error) -> int:
+    """Mark *runs* errored, each with the trials it produced before it failed.
+    Returns how many."""
+    from ..models import Run
+
+    now = timezone.now()
+    count = 0
+    for run in runs:
+        produced = (None if run.trial_offset is None
+                    else max(0, _trials_stored(run.experiment_id) - run.trial_offset))
+        count += Run.objects.filter(pk=run.pk).update(
+            status="error", error=error, finished_at=now, trial_count=produced)
+    return count
+
+
 def execute_run(run_id):
     """Run one optimization, writing status and result to the DB.
 
@@ -283,7 +375,7 @@ def _execute_run_locally(run_id):
     from ..models import Run
 
     run = Run.objects.get(pk=run_id)
-    Run.objects.filter(pk=run_id).update(status="running", started_at=timezone.now())
+    _start(run)
     experiment = run.experiment
 
     try:
@@ -328,13 +420,18 @@ def _execute_run_locally(run_id):
             experiment.pk, optimizer, built["result"], run.primary_metric)
         offset = len(built["result"].trials) if built["result"] else 0
         cancel = DbCancelFlag(run_id)
+        # And which trials' fitted models to keep for export: only a model
+        # fitted in this process can hand one over (see trial_models.keeper_for).
+        keeper = (trial_models.keeper_for(run, built, metric_for(run.primary_metric))
+                  if launch is None else None)
+        optimizer.keep_model = keeper
 
         def _optimize(model):
             _remember_config_space(experiment.pk, model, built["seed"])
             return optimizer.optimize(
                 model,
                 built["X_train"], built["y_train"], built["X_val"], built["y_val"],
-                metrics=built["metrics"],
+                metrics=scoreable(built["metrics"], model, run.primary_metric),
                 primary_metric=run.primary_metric,
                 previous_result=built["result"],
                 seed=built["seed"],
@@ -356,18 +453,21 @@ def _execute_run_locally(run_id):
 
             with model_session(
                 launch, built["splits"],
-                seed=built["seed"], cancel=cancel,
+                seed=built["seed"], task=built["task"],
+                feature_kinds=built["feature_kinds"], forecast=built["forecast"],
+                cancel=cancel,
                 **modelenv.session_kwargs(run.trial_timeout, seed=built["seed"]),
             ) as model:
                 result = _optimize(model)
     except Exception as exc:  # noqa: BLE001 — any failure is reported on the run
-        Run.objects.filter(pk=run_id).update(
-            status="error", error=str(exc), finished_at=timezone.now(),
-        )
+        fail_runs(Run.objects.filter(pk=run_id), str(exc))
         return
 
     from ..models import ExperimentData
 
+    if keeper is not None and keeper.no_room:
+        _record_event(run_id, _event("trial_models_not_kept", offset,
+                                     count=keeper.no_room, reason="no room"))
     cancelled = Run.objects.filter(pk=run_id, cancel_requested=True).exists()
     if result.trials:  # keep completed trials (progress survives a cancel)
         # filtered update, not .save(): a no-op if the experiment was deleted
@@ -379,7 +479,7 @@ def _execute_run_locally(run_id):
     # and total time, so the run box can show trials done, trial time, and the
     # search/bookkeeping overhead.
     new_trials = result.trials[offset:]
-    _record_prior_event(run_id, result, offset)
+    _record_prior_event(run_id, (getattr(result, "metadata", None) or {}).get("prior"), offset)
     Run.objects.filter(pk=run_id).update(
         status="cancelled" if cancelled else "done", finished_at=timezone.now(),
         trial_seconds=sum(t.duration for t in new_trials),
@@ -418,11 +518,10 @@ def execute_run_on_cluster(run_id):
 
     run = Run.objects.get(pk=run_id)
     experiment = run.experiment
-    Run.objects.filter(pk=run_id).update(
-        status="running", started_at=timezone.now(), backend="slurm")
+    _start(run, backend="slurm")
 
     try:
-        if not experiment.data.dataset:
+        if not experiment.data.has_dataset:
             raise RuntimeError(
                 "this experiment has no dataset stored, so there is nothing to "
                 "send to the cluster")
@@ -442,7 +541,7 @@ def execute_run_on_cluster(run_id):
                 # prior is a statement about it.
                 "priors": experiment.data.priors or None,
             },
-            dataset=Path(experiment.data.dataset.path),
+            dataset=experiment.data.dataset_path(),
             model=Path(experiment.data.model_file.path) if experiment.data.model_file else None,
         )
         job_id = cluster.submit(ssh, run_id, workdir, hours=_hours_for(run))
@@ -450,8 +549,7 @@ def execute_run_on_cluster(run_id):
 
         status = _watch(ssh, run_id, experiment.pk, workdir, job_id)
     except Exception as exc:  # noqa: BLE001 — any failure is reported on the run
-        Run.objects.filter(pk=run_id).update(
-            status="error", error=str(exc), finished_at=timezone.now())
+        fail_runs(Run.objects.filter(pk=run_id), str(exc))
         return
 
     _finish_cluster_run(run_id, experiment.pk, status)
@@ -515,9 +613,8 @@ def _finish_cluster_run(run_id, experiment_pk, status: dict) -> None:
     from ..models import ExperimentData, Run
 
     if status["state"] == "error":
-        Run.objects.filter(pk=run_id).update(
-            status="error", error=status.get("error") or "the run failed on the cluster",
-            finished_at=timezone.now())
+        fail_runs(Run.objects.filter(pk=run_id),
+                  status.get("error") or "the run failed on the cluster")
         return
 
     result = status.get("result")
@@ -531,6 +628,7 @@ def _finish_cluster_run(run_id, experiment_pk, status: dict) -> None:
     if fields:
         ExperimentData.objects.filter(experiment__pk=experiment_pk).update(**fields)
 
+    _record_prior_event(run_id, status.get("prior"), offset)
     Run.objects.filter(pk=run_id).update(
         status="cancelled" if status["state"] == "cancelled" else "done",
         finished_at=timezone.now(),
@@ -616,9 +714,7 @@ def sweep_stale_runs():
     """
     from ..models import Run
 
-    return Run.objects.filter(status="running").update(
-        status="error", error="Interrupted by a restart.",
-    )
+    return fail_runs(Run.objects.filter(status="running"), "Interrupted by a restart.")
 
 
 #: When this process started. In immediate mode it is also when every run this
@@ -660,9 +756,8 @@ def sweep_orphaned_runs():
     if _SWEPT or not HUEY.immediate:
         return 0
     _SWEPT = True
-    return Run.objects.filter(status="running", started_at__lt=PROCESS_STARTED).update(
-        status="error", finished_at=timezone.now(),
-        error="Interrupted before it finished — the process running it was "
-              "restarted. Saving a file restarts the development server, which "
-              "takes any run in progress with it.",
-    )
+    return fail_runs(
+        Run.objects.filter(status="running", started_at__lt=PROCESS_STARTED),
+        "Interrupted before it finished — the process running it was restarted. "
+        "Saving a file restarts the development server, which takes any run in "
+        "progress with it.")

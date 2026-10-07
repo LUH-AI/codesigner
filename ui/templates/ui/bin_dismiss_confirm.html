@@ -1,18 +1,18 @@
 {% extends "ui/_confirm_page.html" %}
 {% load i18n %}
 
-{% block confirm_title %}{% blocktranslate with name=experiment.name %}Remove {{ name }} from your bin{% endblocktranslate %}{% endblock %}
+{% block confirm_title %}{% blocktranslate with name=experiment.title %}Remove {{ name }} from your bin{% endblocktranslate %}{% endblock %}
 {% block confirm_heading %}{% if user.is_authenticated %}{% translate "Remove from your bin" %}{% else %}{% translate "Delete for good" %}{% endif %}{% endblock %}
 
 {% block confirm_message %}
     {% if not user.is_authenticated %}
-        {% blocktranslate with name=experiment.name ref=experiment.identifier %}<strong>{{ name }}</strong> (<code>{{ ref }}</code>) and every run in it will be destroyed. This cannot be undone.{% endblocktranslate %}
+        {% blocktranslate with name=experiment.title ref=experiment.identifier %}<strong>{{ name }}</strong> (<code>{{ ref }}</code>) and every run in it will be destroyed. This cannot be undone.{% endblocktranslate %}
     {% elif others %}
-        {% blocktranslate with name=experiment.name ref=experiment.identifier %}<strong>{{ name }}</strong> (<code>{{ ref }}</code>) leaves your bin and is no longer shared with you. It stays in the bin of the people below, and if one of them restores it you will not get it back.{% endblocktranslate %}
+        {% blocktranslate with name=experiment.title ref=experiment.identifier %}<strong>{{ name }}</strong> (<code>{{ ref }}</code>) leaves your bin and is no longer shared with you. It stays in the bin of the people below, and if one of them restores it you will not get it back.{% endblocktranslate %}
         <p>{% translate "Still in the bin of:" %}
             {% for person in others %}{{ person.get_username }}{% if not forloop.last %}, {% endif %}{% endfor %}</p>
     {% else %}
-        {% blocktranslate with name=experiment.name ref=experiment.identifier %}<strong>{{ name }}</strong> (<code>{{ ref }}</code>) leaves your bin. Nobody else has it in theirs, so it goes to the site administrators' bin, and only they can put it back.{% endblocktranslate %}
+        {% blocktranslate with name=experiment.title ref=experiment.identifier %}<strong>{{ name }}</strong> (<code>{{ ref }}</code>) leaves your bin. Nobody else has it in theirs, so it goes to the site administrators' bin, and only they can put it back.{% endblocktranslate %}
     {% endif %}
 {% endblock %}
 

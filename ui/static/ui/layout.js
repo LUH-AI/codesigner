@@ -82,9 +82,45 @@
         slot.classList.toggle("is-content", empty || shapeOf(slot) === "stack");
     }
 
+    /* How many columns, and how wide each is, for *grid* as wide as it is now.
+     *
+     * A column's width is a length in the same unit as the text — the
+     * stylesheet's --col-min / --col-max on `.fig-grid`, in rem — not a share
+     * of the window. A figure's text is a fixed size, so a figure sized as a
+     * share of the window is the same text in a smaller box on a smaller
+     * screen, until its legend sits on its title; and browser zoom, which
+     * grows the text, would leave the box where it was. Sized in rem, the two
+     * keep their proportion on any screen and at any zoom, and what changes is
+     * how many fit in a row.
+     *
+     * So: the most columns of 4, 2 and 1 that are each at least --col-min
+     * wide, filling the row up to --col-max each. Never 3: a stored
+     * arrangement is in quarters and halves of the row (see ui/layout.py),
+     * and folds in half onto two (see `arrange`) but not onto three. Whatever
+     * the columns leave of the row stays empty, to the right. */
+    function geometryOf(grid) {
+        var style = getComputedStyle(grid),
+            gap = parseFloat(style.columnGap) || 0,
+            rem = parseFloat(getComputedStyle(document.documentElement).fontSize) || 16,
+            least = remToPx(style.getPropertyValue("--col-min"), rem, 0),
+            most = remToPx(style.getPropertyValue("--col-max"), rem, Infinity),
+            width = grid.clientWidth, cols, fill;
+        for (cols = 4; cols > 1; cols /= 2) {
+            fill = (width - (cols - 1) * gap) / cols;
+            if (fill >= least) break;
+        }
+        fill = (width - (cols - 1) * gap) / cols;
+        return {cols: cols, gap: gap, colW: Math.max(0, Math.min(fill, most))};
+    }
+
+    function remToPx(value, rem, fallback) {
+        var n = parseFloat(value);
+        if (!(n > 0)) return fallback;
+        return /rem\s*$/.test(value) ? n * rem : n;
+    }
+
     function columnsOf(grid) {
-        var n = parseInt(getComputedStyle(grid).getPropertyValue("--cols"), 10);
-        return n > 0 ? n : 4;
+        return geometryOf(grid).cols;
     }
 
     /* A card's own height at *width*, whatever its slot is now. */
@@ -103,6 +139,9 @@
 
     /* Where each slot goes, and how big it is: one pass over a tab. */
     var placed = new WeakMap();
+    /* Each grid's columns as last arranged, for finding the one under the
+     * pointer. */
+    var laidOut = new WeakMap();
 
     /* A figure's column, if it has one that fits it: the first column of the
      * pair it sits in when it is two wide, the first of the row when four. */
@@ -129,19 +168,26 @@
      * The column is kept on the slot from then on, and saved with the
      * arrangement the first time the reader changes anything on the tab.
      *
-     * A narrower grid has no four columns to keep, and packs each figure into
-     * the highest place there is. */
+     * Four columns are two halves of two side by side, and two columns show
+     * the left half and then the right: each half keeps its own arrangement
+     * exactly — a figure in the first or third of four goes in the first of
+     * two, one in the second or fourth in the second, one two wide spans both
+     * — so what sits side by side on a larger screen still does on a smaller.
+     * A figure with no column yet, and every figure on one column, takes the
+     * highest place there is. Nothing here changes a stored column. */
     function arrange(grid) {
-        var cols = columnsOf(grid), style = getComputedStyle(grid),
-            gap = parseFloat(style.columnGap) || 0,
-            colW = (grid.clientWidth - (cols - 1) * gap) / cols,
+        var geometry = geometryOf(grid), cols = geometry.cols,
+            gap = geometry.gap, colW = geometry.colW,
             unit = colW * RATIO.squat, four = cols === 4,
             tops = [], nominal = [], c, bottom = 0;
         if (!grid.clientWidth) return;
         for (c = 0; c < cols; c++) { tops.push(0); nominal.push(0); }
         grid.classList.add("is-arranged");
+        grid.dataset.cols = String(cols);
+        grid.style.setProperty("--cols", String(cols));
+        laidOut.set(grid, geometry);
 
-        grid.querySelectorAll(":scope > .fig-slot").forEach(function (slot) {
+        inOrder(grid, cols).forEach(function (slot) {
             var shape = shapeOf(slot), w = Math.min(parseInt(slot.dataset.w, 10) || 1, cols),
                 width = w * colW + (w - 1) * gap, ratio = RATIO[shape] || RATIO.squat,
                 height, normal, start, top = 0, ntop = 0, k, i;
@@ -150,6 +196,9 @@
             if (shape === "table") {
                 k = Math.max(1, Math.ceil((natural(slot, width) + gap) / (unit + gap)));
                 height = normal = k * unit + (k - 1) * gap;
+            } else if (shape === "card") {
+                /* A card of controls or text is as tall as what it holds. */
+                height = normal = natural(slot, width);
             } else if (slot.classList.contains("is-content")) {
                 height = natural(slot, width);
                 normal = width * (shape === "stack" ? RATIO.long : ratio);
@@ -157,7 +206,9 @@
                 height = normal = width * ratio;
             }
             start = parseInt(slot.dataset.c, 10);
-            if (!four) {
+            if (cols === 2 && fits(start, parseInt(slot.dataset.w, 10) || 1)) {
+                start = w === 2 ? 0 : start % 2;
+            } else if (!four) {
                 start = lowest(tops, w);
             } else if (!fits(start, w)) {
                 start = lowest(nominal, w);
@@ -181,11 +232,25 @@
         grid.style.height = grid.querySelector(":scope > .fig-slot") ? bottom + "px" : "";
     }
 
+    /* *grid*'s slots in the order they are placed: as listed, except that on
+     * two columns the left half of the four comes before the right. */
+    function inOrder(grid, cols) {
+        var slots = Array.prototype.slice.call(grid.querySelectorAll(":scope > .fig-slot"));
+        if (cols !== 2) return slots;
+        function half(slot) {
+            var c = parseInt(slot.dataset.c, 10);
+            return fits(c, parseInt(slot.dataset.w, 10) || 1) && c >= 2 ? 1 : 0;
+        }
+        return slots.map(function (slot, i) { return {slot: slot, i: i, half: half(slot)}; })
+            .sort(function (a, b) { return a.half - b.half || a.i - b.i; })
+            .map(function (entry) { return entry.slot; });
+    }
+
     /* Which column of *grid* is under *x*, for a figure *w* wide: the first
      * column of the pair under it when it is two wide, the first when four. */
     function columnAt(grid, x, w) {
-        var rect = grid.getBoundingClientRect(), gap = parseFloat(getComputedStyle(grid).columnGap) || 0,
-            colW = (rect.width - 3 * gap) / 4,
+        var rect = grid.getBoundingClientRect(), geometry = laidOut.get(grid) || geometryOf(grid),
+            gap = geometry.gap, colW = geometry.colW,
             raw = Math.floor((x - rect.left + gap / 2) / (colW + gap));
         raw = Math.min(Math.max(raw, 0), 3);
         return Math.min(Math.floor(raw / w) * w, 4 - w);
@@ -322,9 +387,11 @@
         tab.addEventListener("click", function () {
             var name = show(tab.dataset.tab);
             /* In the address bar, so a reload or a shared link opens the same
-             * tab — replaced rather than pushed, so Back still leaves the page. */
+             * tab — replaced rather than pushed, so Back still leaves the page.
+             * A tab with an address of its own (Data Handling's sections) is
+             * that address; the dashboard's are the page's with a #tab. */
             if (window.history && window.history.replaceState) {
-                window.history.replaceState(null, "", "#" + name);
+                window.history.replaceState(null, "", tab.dataset.url || "#" + name);
             }
         });
         /* Arrow keys move between tabs, as a tablist's do. */
@@ -435,7 +502,7 @@
      * only offered where pressing it changes what is on screen — and where in
      * that list it is now. */
     function steps(slot) {
-        var cols = parseInt(getComputedStyle(slot.parentNode).getPropertyValue("--cols"), 10) || 4,
+        var cols = columnsOf(slot.parentNode),
             widths = (slot.dataset.widths || "1").split(" ").map(Number)
                 .filter(function (w) { return w <= cols; }),
             shown = Math.min(widthOf(slot), cols), at = 0, i;
@@ -627,5 +694,8 @@
         gridResized.observe(grid);
     });
     window.addEventListener("hashchange", function () { show(fromHash()); });
-    show(fromHash());
+    /* The tab the address names; else the one the server rendered showing
+     * (a page whose tabs have addresses of their own); else the first. */
+    var rendered = document.querySelector('.fig-tab[aria-selected="true"]');
+    show(fromHash() || (rendered && rendered.dataset.tab) || "");
 })();

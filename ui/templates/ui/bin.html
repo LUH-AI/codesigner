@@ -21,7 +21,7 @@
             <tbody>
                 {% for row in binned %}{% with e=row.experiment %}
                     <tr>
-                        <td>{{ e.name }} <span class="exp-id">({{ e.identifier }})</span></td>
+                        <td>{{ e.title }} <span class="exp-id">({{ e.identifier }})</span></td>
                         <td>{% if e.owner %}{{ e.owner.get_username }}{% else %}<span class="caption">{% translate "nobody" %}</span>{% endif %}</td>
                         <td>{{ e.deleted_at|date:"Y-m-d H:i" }}{% if e.deleted_by %} <span class="caption">{% blocktranslate with name=e.deleted_by.get_username %}by {{ name }}{% endblocktranslate %}</span>{% endif %}</td>
                         {% if row.expires_at %}<td>{{ row.expires_at|date:"Y-m-d" }}</td>{% endif %}

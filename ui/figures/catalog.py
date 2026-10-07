@@ -578,6 +578,24 @@ class Trials(Figure):
 #: list for its settings checkbox and its per-metric panels; the page renders it
 #: into the sidebar rather than a tab (`Figure.in_sidebar`), so its position
 #: here is not a position on one.
+class Forecast(Figure):
+    """The series, and what the selected trial's configuration forecast at
+    every backtest.
+
+    Only on a forecast's page (`forecast_only`). Deferred and fetched per
+    trial, because drawing it runs the model once per backtest exactly as the
+    trial did — see the `forecast` endpoint and experiment_detail.html's
+    `refreshForecast`. `plot()` is never called.
+    """
+
+    key = "forecast"
+    label = _("Forecast")
+    home_tab = MISC
+    shape = LONG
+    forecast_only = True
+    deferred = (("forecast", _("Forecast")),)
+
+
 FIGURES = (
     SelectedConfiguration,
     BestConfiguration,
@@ -589,6 +607,7 @@ FIGURES = (
     InteractionsCoalitions,
     InteractionsOrders,
     TrialDuration,
+    Forecast,
     # Every trial at once, then one hyperparameter at a time, then one trial at
     # a time — the same run at three magnifications, in that order.
     ParallelCoordinates,

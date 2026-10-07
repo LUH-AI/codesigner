@@ -1,13 +1,37 @@
-from ConfigSpace import ConfigurationSpace, Integer, Float
-from sklearn.ensemble import RandomForestClassifier
+"""Random forest: scikit-learn's, classifying or regressing."""
 
-from .base import BaseModel
+from ConfigSpace import ConfigurationSpace, Float, Integer
+
+from .base import OutputBaseModel, Tunable
 
 
-class RandomForestModel(BaseModel):
-    """Demo model: sklearn RandomForestClassifier with a 4-parameter search space."""
+class RandomForest(OutputBaseModel):
+    """scikit-learn's random forest. Trees take a missing value as it is and
+    compare numbers only with themselves, so nothing is filled in or scaled; a
+    label column is one-hot, since a split on its code would group labels by
+    their alphabetical order."""
 
     name = "Random Forest"
+    tasks = ("classification", "regression")
+    dependencies = ("scikit-learn",)
+
+    def build(self, hyperparameters, data, seed=0):
+        from sklearn.ensemble import RandomForestClassifier, RandomForestRegressor
+
+        forest = RandomForestRegressor if self.task == "regression" else RandomForestClassifier
+        model = forest(
+            n_estimators=int(hyperparameters["n_estimators"]),
+            max_depth=int(hyperparameters["max_depth"]),
+            min_samples_split=float(hyperparameters["min_samples_split"]),
+            max_features=float(hyperparameters["max_features"]),
+            random_state=seed,
+            n_jobs=-1,
+        )
+        return model
+
+
+class RandomForestModel(Tunable, RandomForest):
+    """The random forest, tuned over a 4-parameter space."""
 
     def get_config_space(self, seed: int = 0) -> ConfigurationSpace:
         cs = ConfigurationSpace(seed=seed)
@@ -18,29 +42,3 @@ class RandomForestModel(BaseModel):
             Float(  "max_features",      (0.1,  1.0), default=0.5),
         ])
         return cs
-
-    def _fitted(self, config, X_train, y_train, seed: int):
-        clf = RandomForestClassifier(
-            n_estimators=int(config["n_estimators"]),
-            max_depth=int(config["max_depth"]),
-            min_samples_split=float(config["min_samples_split"]),
-            max_features=float(config["max_features"]),
-            random_state=seed,
-            n_jobs=-1,
-        )
-        clf.fit(X_train, y_train)
-        return clf
-
-    def fit_predict(self, config, X_train, y_train, X_val, seed: int = 0):
-        return self._fitted(config, X_train, y_train, seed).predict(X_val)
-
-    def fit_predict_proba(self, config, X_train, y_train, X_val, seed: int = 0):
-        """A forest votes, so the probabilities come free — one fit answers both.
-
-        `classes_` rather than the sorted training labels: it is the column order
-        `predict_proba` actually used, and reading it off the estimator is the
-        difference between a metric scoring the right class and one silently
-        scoring a different one.
-        """
-        clf = self._fitted(config, X_train, y_train, seed)
-        return clf.predict(X_val), clf.predict_proba(X_val), clf.classes_

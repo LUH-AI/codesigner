@@ -1,0 +1,75 @@
+{% extends "ui/_experiment_page.html" %}
+{% load i18n static assets %}
+
+{% comment %}An experiment's dashboard before it has any trials: nothing to
+plot yet, so in place of the figures what can still be decided before the
+search starts — its optimizer and settings, and the prior. The sidebar keeps
+the Run form. Once a trial exists the dashboard (experiment_detail.html) takes
+over, at the same address.{% endcomment %}
+{% block sidebar_sections %}
+    {% include "ui/_side_evaluation.html" %}
+{% endblock %}
+
+{% block experiment_body %}
+    {% if active_run %}
+        <div class="alert info" style="margin-top: 1rem;">{% translate "Waiting for the first trial…" %}</div>
+    {% if active_run %}
+        <script>
+            // This page has no figure grid — there was nothing to draw when
+            // it was rendered — so it cannot merge the live payloads the
+            // run-status poll starts carrying once the run has written its
+            // first trials. It reloads into a page that can, once.
+            //
+            // "Once" needs a marker that survives the reload, hence
+            // sessionStorage: the alternative is a page that cannot render
+            // a grid (an experiment naming a metric that no longer exists,
+            // say) reloading itself every few seconds for ever. The grid,
+            // when it does render, clears the marker — so a later run of
+            // the same experiment gets its own reload.
+            (function () {
+                const key = "live-reload-{{ summary.pk }}";
+                function reloaded() {
+                    try { return sessionStorage.getItem(key); }
+                    catch (e) { return "blocked"; }   // private mode: do not loop
+                }
+                document.addEventListener("poll:swapped", function () {
+                    const el = document.getElementById("live-plots-data");
+                    if (!el || reloaded()) return;
+                    const live = JSON.parse(el.textContent || "{}");
+                    if (!live.trials) return;
+                    try { sessionStorage.setItem(key, String(live.trials)); }
+                    catch (e) { return; }
+                    window.location.reload();
+                });
+            })();
+        </script>
+    {% endif %}
+    {% endif %}
+
+    <div class="prerun">
+        <section class="card prerun-optimizer">
+            <h2 class="subheader">{% translate "Optimizer" %}</h2>
+            <form method="post" action="{% url 'ui:experiment_optimizer' summary.pk %}" class="experiment-form">
+                {% csrf_token %}
+                {% include "ui/_optimizer_form.html" with label_hidden=True %}
+                {% if optimizer_locked %}
+                    {% if optimizer_locked_reason %}<p class="caption">{{ optimizer_locked_reason }}</p>{% endif %}
+                {% else %}
+                    <button type="submit" class="btn-primary">{% translate "Save" %}</button>
+                {% endif %}
+            </form>
+        </section>
+
+        {% comment %}The one figure that needs no run behind it: a prior is a
+        statement about the search space, which exists before the search does.
+        Only the prior: the acquisition curve, the candidates and the incumbent
+        are the surrogate's, and there is none yet. Plotly is loaded here, as
+        the dashboard's grid would.{% endcomment %}
+        {% if prior_only_figure %}
+            <div class="prerun-prior">
+                <script src="{% static 'ui/plotly.min.js' %}"></script><script src="{% asset 'ui/theme.js' %}"></script>
+                {% include prior_only_figure.template with figure=prior_only_figure %}
+            </div>
+        {% endif %}
+    </div>
+{% endblock %}

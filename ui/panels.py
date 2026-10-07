@@ -31,6 +31,9 @@ from access.policy import is_site_admin, membership_in, memberships_of
 
 from .models import Experiment, Run
 from .permissions import policy
+from .services.storage import delete_experiment_files, human
+from .services.storage import forget as forget_storage
+from .services.storage import usage as storage_usage
 
 
 def member_required(view):
@@ -168,6 +171,7 @@ def group_detail(request, membership):
         "membership": membership,
         "memberships": memberships,
         "seats_left": group.seats_left,
+        "storage": _storage_line(group),
         # What this person may hand out, which is not the whole list. Primary
         # is never here: it is transferred from whoever holds it, never granted
         # alongside a new account, or a group would end up with two.
@@ -358,6 +362,14 @@ def group_transfer_primary(request, membership, pk):
 
 # ── the site panel ───────────────────────────────────────────────────────────
 
+
+def _storage_line(group):
+    """What the group page says of the group's storage."""
+    now = storage_usage(group)
+    return {"used": human(now["total"]), "limit": human(now["limit"]),
+            "models": human(now["models"]), "percent": min(100, round(100 * now["share"]))}
+
+
 @site_admin_required
 def site_groups(request):
     """Every group, its size and whether it is active.
@@ -366,9 +378,13 @@ def site_groups(request):
     manages groups; showing them colleagues' work is the thing the separation
     exists to prevent.
     """
-    return render(request, "ui/panels/site_groups.html", {
-        "groups": Group.objects.annotate(members=Count("memberships")),
-    })
+    groups = list(Group.objects.annotate(members=Count("memberships")))
+    for group in groups:
+        now = storage_usage(group)
+        group.storage_used = human(now["total"])
+        group.storage_limit_gb = round(group.storage_limit / 1024 ** 3, 2)
+        group.storage_percent = round(100 * now["share"])
+    return render(request, "ui/panels/site_groups.html", {"groups": groups})
 
 
 @require_POST
@@ -381,9 +397,14 @@ def site_group_save(request):
         limit = int(request.POST.get("user_limit") or 0)
     except ValueError:
         limit = -1
+    try:
+        storage_gb = float(request.POST.get("storage_gb") or "nan")
+    except ValueError:
+        storage_gb = -1.0
 
-    if not name or limit < 0:
-        messages.error(request, _("A group needs a name and a seat limit of zero or more."))
+    if not name or limit < 0 or storage_gb < 0:
+        messages.error(request, _("A group needs a name, a seat limit of zero or more, and a "
+                                  "storage limit of zero or more."))
         return redirect("ui:site_groups")
 
     if pk:
@@ -391,7 +412,10 @@ def site_group_save(request):
         group.name = name
         group.user_limit = limit
         group.is_active = bool(request.POST.get("is_active"))
-        group.save(update_fields=["name", "user_limit", "is_active"])
+        if storage_gb == storage_gb:  # not NaN: a limit was given
+            group.storage_limit_bytes = int(storage_gb * 1024 ** 3)
+        group.save(update_fields=["name", "user_limit", "is_active", "storage_limit_bytes"])
+        forget_storage(group)
         messages.success(request, _("Saved %(name)s.") % {"name": group.name})
     elif Group.objects.filter(name=name).exists():
         messages.error(request, _("There is already a group called “%(name)s”.")
@@ -523,7 +547,7 @@ def site_trash_delete(request, pk):
     eventually destroys anything, and it is a second, separate decision."""
     experiment = get_object_or_404(policy().trash(request), pk=pk)
     number = experiment.pk
-    experiment.delete()
+    delete_experiment_files(experiment)
     messages.success(request, _("Deleted experiment %(pk)s.") % {"pk": number})
     return redirect("ui:site_trash")
 

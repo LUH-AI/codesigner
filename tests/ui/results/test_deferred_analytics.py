@@ -44,7 +44,8 @@ def test_the_flags_reach_the_page_as_json(client):
                                           "partial_dependence": False,
                                           "acquisition_slice": False,
                                           "local_effects": False,
-                                          "surrogate_uncertainty": False}
+                                          "surrogate_uncertainty": False,
+                                          "forecast": False}
 
 
 def test_switching_one_on_is_visible_to_the_page(client):
@@ -55,7 +56,8 @@ def test_switching_one_on_is_visible_to_the_page(client):
                                           "partial_dependence": True,
                                           "acquisition_slice": False,
                                           "local_effects": False,
-                                          "surrogate_uncertainty": False}
+                                          "surrogate_uncertainty": False,
+                                          "forecast": False}
 
 
 def test_both_figures_ship_a_compute_button(client):

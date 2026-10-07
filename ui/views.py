@@ -7,6 +7,8 @@ from collections import OrderedDict
 from importlib.metadata import version as dist_version
 from pathlib import Path
 
+import numpy as np
+
 from django.conf import settings
 from django.contrib import messages
 from django.contrib.auth.decorators import login_not_required
@@ -17,12 +19,13 @@ from django.http import Http404, HttpResponse, HttpResponseBadRequest, JsonRespo
 from django.shortcuts import redirect, render
 from django.template.loader import render_to_string
 from django.urls import reverse
+from django.utils.http import content_disposition_header, url_has_allowed_host_and_scheme
 from django.utils.translation import gettext as _
-from django.utils.translation import gettext_lazy
+from django.utils.translation import gettext_lazy, ngettext
 from django.views.decorators.http import require_POST
 
-from core import io, provenance, smac_import
-from core.metrics import metric_for
+from core import io, provenance, smac_import, tasks
+from core.metrics import metric_for, metrics_for
 from core.modelhost import deadline
 from core.optimizers.base import FAILURE_CRITERIA
 
@@ -33,7 +36,7 @@ from .figures import (
     deferred_computations,
     acquisition_slice_plots,
     hyperparameter_ablation_plot, hyperparameter_importance_plot,
-    hyperparameter_progress_plot, local_effects_plot, partial_dependence_plot,
+    forecast_plot, hyperparameter_progress_plot, local_effects_plot, partial_dependence_plot,
 )
 from .formatting import sigfigs
 from .forms import (
@@ -41,7 +44,9 @@ from .forms import (
     NewExperimentForm)
 from .models import Experiment, ExperimentData, ExperimentShare, GlobalSettings
 from . import permissions
-from .permissions import DELETE, EDIT, EXPORT, RUN, SHARE, VIEW, experiment_view
+from .permissions import (
+    BOTH, DELETE, EDIT, EXPORT, RENAME, RUN, SHARE, VIEW, experiment_view,
+)
 from .registry import METRICS, MODELS, OPTIMIZERS
 from django.utils import timezone
 
@@ -49,11 +54,14 @@ from .services import run as run_service
 from .services import modelenv
 from .services import snapshot as snapshot_adapter
 from .services import bin as bin_service
+from .services import model_export
+from .services import history, optimizer_form, timestamps
+from .services import storage
 from .services.run import resolve_seed
 from .services.run_logic import decide_run, resolve_metric_change
 from .optimizer_labels import describe_all, grouped
 from .services.settings import (
-    SETTING_BOUNDS, SETTING_DEFAULTS, global_defaults, resolve_settings)
+    SETTING_BOUNDS, SETTING_CHOICES, SETTING_DEFAULTS, global_defaults, resolve_settings)
 from .validators import dataset_upload_error, model_upload_error, oversized
 from access.policy import groups_to_choose_from
 
@@ -155,14 +163,15 @@ _STOPPING_FIELDS = {
 #: What ended a run, for the summary line. Every criterion is named: with no
 #: privileged default, "it stopped" no longer implies the trial count.
 STOPPED_BY_LABELS = {
-    "max_trials": _("all the requested trials ran"),
-    "target_score": _("performance surpassed the target"),
-    "max_seconds": _("the time limit was reached"),
-    "max_trial_seconds": _("the compute budget was used up"),
-    "no_improvement_trials": _("the score had stopped improving"),
-    "incumbent_confidence": _("the search was confident nothing better remained"),
-    "cancelled": _("it was interrupted"),
-    "all_failing": _("too many trials were failing"),
+    "max_trials": gettext_lazy("all the requested trials ran"),
+    "target_score": gettext_lazy("performance surpassed the target"),
+    "max_seconds": gettext_lazy("the time limit was reached"),
+    "max_trial_seconds": gettext_lazy("the compute budget was used up"),
+    "no_improvement_trials": gettext_lazy("the score had stopped improving"),
+    "incumbent_confidence": gettext_lazy("the search was confident nothing better remained"),
+    "cancelled": gettext_lazy("it was interrupted"),
+    "all_failing": gettext_lazy("too many trials were failing"),
+    "exhausted": gettext_lazy("every configuration had been tried"),
 }
 
 
@@ -308,38 +317,6 @@ def _optimizer_param_context(optimizer, stored=None) -> dict:
     }
 
 
-def _optimizer_panels(request, selected: str) -> list:
-    """One settings panel per optimizer that has settings.
-
-    All of them, not just the chosen one: the page hides the rest and disables
-    their inputs, so the dropdown swaps panels without a request and only the
-    chosen optimizer's values are submitted. An optimizer with an empty schema
-    contributes nothing rather than an empty box.
-
-    On a re-render after a validation error each panel is filled from what was
-    posted. For the hidden ones that is nothing, which the parser reads as their
-    own defaults — the same answer as never having touched them.
-    """
-    panels = []
-    for key, optimizer in OPTIMIZERS.items():
-        if not optimizer.params_schema:
-            continue
-        posted = _posted_optimizer_params(request, optimizer) if request.method == "POST" else None
-        panels.append({"key": key, "selected": key == selected,
-                       # Inert as rendered, not merely hidden: with no
-                       # JavaScript the dropdown cannot swap panels anyway, and
-                       # an enabled one would still post its values.
-                       "disabled": key != selected,
-                       **_optimizer_param_context(optimizer, posted)})
-    return panels
-
-
-def _selected_optimizer(request) -> str:
-    """The optimizer the create form is showing — posted, or the first offered."""
-    posted = request.POST.get("optimizer_name")
-    return posted if posted in OPTIMIZERS else next(iter(OPTIMIZERS))
-
-
 def _optimizer_for(name):
     """The registry optimizer an experiment names, or None. Aliases included, so
     an experiment stored under an optimizer's older name still resolves."""
@@ -394,18 +371,54 @@ def healthz(request):
     return HttpResponse("ok", content_type="text/plain")
 
 
+def _settle_storage(request, exp) -> bool:
+    """Make room in *exp*'s group for what creating it stored, or undo it.
+
+    Datasets and model files come first: kept trial models are deleted, the
+    stalest first, until the group is within its limit, and the person is told
+    how many. Only when the datasets and model files alone are over is the
+    experiment refused — deleted again, files and all. See
+    ui/services/storage.py.
+    """
+    group = exp.group
+    if group is None or (not exp.data.dataset and not exp.data.model_file):
+        return True
+    within, deleted = storage.make_room(group)
+    now = storage.usage(group)
+    numbers = {"group": group.name, "used": storage.human(now["total"]),
+               "limit": storage.human(now["limit"])}
+    if not within:
+        storage.delete_experiment_files(exp)
+        messages.error(request, _(
+            "%(group)s has no room for this: its datasets and model files alone would take "
+            "%(used)s of its %(limit)s. Delete experiments it no longer needs, or ask a site "
+            "administrator for more.") % numbers)
+        return False
+    if deleted:
+        messages.warning(request, ngettext(
+            "To make room in %(group)s, %(n)s kept trial model was deleted, the stalest "
+            "first. It now uses %(used)s of %(limit)s.",
+            "To make room in %(group)s, %(n)s kept trial models were deleted, the stalest "
+            "first. It now uses %(used)s of %(limit)s.", deleted) % dict(numbers, n=deleted))
+    return True
+
+
 def _dataset_path_from(form, tmp_paths):
     """Resolve the chosen dataset to a filesystem path (temp file for uploads)."""
     demo = form.cleaned_data.get("demo_dataset")
     if demo:
         return demo
     upload = form.cleaned_data["dataset_file"]
-    tmp = tempfile.NamedTemporaryFile(suffix=".csv", delete=False)
-    for chunk in upload.chunks():
-        tmp.write(chunk)
-    tmp.close()
-    tmp_paths.append(tmp.name)
-    return tmp.name
+    # Under its own name, in a directory of its own: the stored copy, the
+    # file and everything exported from it are called what the person
+    # uploaded, not what a temporary file happened to be called.
+    folder = Path(tempfile.mkdtemp(prefix="codesigner-upload-"))
+    path = folder / (Path(upload.name).name or "dataset.csv")
+    with open(path, "wb") as out:
+        for chunk in upload.chunks():
+            out.write(chunk)
+    tmp_paths.append(str(path))
+    return str(path)
 
 
 def _evaluation_schemes():
@@ -421,77 +434,64 @@ def _evaluation_schemes():
 
 
 def new_experiment(request):
-    """Set up (but do not run) an experiment, then go to its detail page.
+    """New: make a draft, and set it up (ui/services/setup.py).
 
-    Persists the experiment with no result and no committed metric; the dataset
-    is copied into MEDIA. Running is a separate action on the detail page.
+    A draft at once rather than a form first, so the experiment is in
+    Experiment Selection from the moment New is pressed and can be left and
+    picked up again. POST, because it creates something; a GET — a link, a
+    bookmark — gets a page with the one button.
     """
-    may_upload = permissions.policy().may_upload_models(request)
-    groups = groups_to_choose_from(request.user)
     if request.method != "POST":
-        return render(request, "ui/new_experiment.html", {
-            "form": NewExperimentForm(may_upload_models=may_upload, groups=groups),
-            "optimizer_panels": _optimizer_panels(request, _selected_optimizer(request)),
-            "evaluation_schemes": _evaluation_schemes(),
-        })
-
-    form = NewExperimentForm(request.POST, request.FILES,
-                             may_upload_models=may_upload, groups=groups)
-    if not form.is_valid():
-        return render(request, "ui/new_experiment.html", {
-            "form": form,
-            "optimizer_panels": _optimizer_panels(request, _selected_optimizer(request)),
-            "evaluation_schemes": _evaluation_schemes(),
-        })
-
-    cleaned = form.cleaned_data
-    seed = resolve_seed(cleaned["seed"])
-    tmp_paths = []
-    try:
-        dataset_path = _dataset_path_from(form, tmp_paths)
-        chosen = OPTIMIZERS[cleaned["optimizer_name"]]
-        optimizer = type(chosen)(**type(chosen).known_params(
-            _posted_optimizer_params(request, chosen)))
-        # A mounted model is adopted from its server-side path (unless an upload
-        # was given, which takes precedence); the adapter copies it into MEDIA.
-        mounted = cleaned.get("mounted_model") or ""
-        model_path = mounted if (mounted and not cleaned.get("model_file")) else ""
-        folds = int(cleaned.get("cv_folds") or 0)
-        test_size = cleaned.get("test_size")
-        snapshot = {
-            "format": io.SNAPSHOT_FORMAT,
-            "version": dist_version("codesigner"),
-            "name": cleaned["name"],
-            "seed": seed,
-            "dataset": {"filename": Path(dataset_path).name, "path": dataset_path},
-            "model": {"kind": "file" if model_path else "registry",
-                      "name": cleaned["model_name"], "path": model_path},
-            "evaluation": provenance.evaluation(folds, test_size=test_size),
-            "metrics": {"names": list(METRICS), "current": None, "original": None},
-            "optimizer": {"name": optimizer.name, "params": optimizer.get_params()},
-            "result": None,
-        }
-        # This snapshot's paths were built right here: a validated demo/mounted
-        # choice, or a temp file written above — so they are ours to adopt.
-        exp = snapshot_adapter.experiment_from_snapshot(
-            snapshot, model_file=cleaned.get("model_file"), adopt_paths=True,
-            owner=_owner(request), group=_group_by_pk(groups, cleaned.get("group")),
-        )
-        # A custom model needs an environment before it can run. Resolving it
-        # takes minutes, so it happens in the background and the detail page
-        # reports progress.
-        modelenv.start_preparation(exp, cleaned.get("model_source"))
-    finally:
-        for path in tmp_paths:
-            Path(path).unlink(missing_ok=True)
-
-    return redirect("ui:experiment_detail", pk=exp.pk)
+        return render(request, "ui/new_experiment.html")
+    exp = Experiment.objects.create(
+        name="", model_name="", optimizer_name="",
+        metric_names=[], seed=0, owner=_owner(request), draft=True)
+    return redirect("ui:setup", pk=exp.pk)
 
 
 @experiment_view(VIEW)
 def experiment_detail(request, exp):
     """Show a saved experiment: its config, results/figures, run state, Run form."""
-    return render(request, "ui/experiment_detail.html", _detail_context(request, exp))
+    return _dashboard(request, exp, _detail_context(request, exp))
+
+
+def _dashboard(request, exp, context):
+    """The dashboard: its figures once there is a trial; before, the page for
+    what can still be decided — the optimizer and the prior."""
+    if context["trial_count"]:
+        return render(request, "ui/experiment_detail.html", context)
+    fixed = optimizer_form.why_fixed(exp)
+    may_edit = permissions.policy().may(request, exp, EDIT)
+    context.update(optimizer_form.context(exp, locked=bool(fixed) or not may_edit))
+    context["optimizer_locked_reason"] = fixed
+    return render(request, "ui/experiment_prerun.html", context)
+
+
+@require_POST
+@experiment_view(RENAME)
+def experiment_rename(request, exp):
+    """Give the experiment a name, or take it away: an empty one shows as
+    "Untitled Experiment". Back to the page it was renamed from."""
+    exp.data.name = (request.POST.get("name") or "").strip()[:200]
+    exp.data.save(update_fields=["name"])
+    back = request.POST.get("next")
+    if back and url_has_allowed_host_and_scheme(back, allowed_hosts={request.get_host()},
+                                                require_https=request.is_secure()):
+        return redirect(back)
+    return redirect("ui:experiment_detail", pk=exp.pk)
+
+
+@require_POST
+@experiment_view(EDIT)
+def experiment_optimizer(request, exp):
+    """Save the optimizer and its settings, before the experiment's first
+    trial."""
+    refusal = optimizer_form.save(request, exp)
+    if refusal:
+        messages.error(request, refusal)
+    else:
+        messages.success(request, _("Saved."))
+    return redirect("ui:experiment_detail", pk=exp.pk)
 
 
 @experiment_view(VIEW)
@@ -640,6 +640,66 @@ def partial_dependence(request, exp):
     return JsonResponse({"figure": figure, "warning": warning})
 
 
+@experiment_view(VIEW)
+def forecast_figure(request, exp):
+    """The Forecast figure for one trial: the series, and what the trial's
+    configuration forecast at every backtest.
+
+    Deferred like partial dependence, and for a stronger reason — it runs the
+    model, once per backtest, as the trial did. *idx* names the trial (the
+    selected one on the page), *series* which series to draw when there are
+    several.
+    """
+    metric = request.GET.get("metric", "")
+    if not exp.data.forecasts or metric not in exp.data.metric_names:
+        return HttpResponseBadRequest("not a forecast")
+    result = _rebuild_result(exp)
+    try:
+        idx = int(request.GET.get("idx", ""))
+        trial = result.trials[idx]
+    except (TypeError, ValueError, IndexError, AttributeError):
+        return HttpResponseBadRequest("unknown trial")
+    if exp.data.model_file:
+        return JsonResponse({"figure": None, "series": [], "warning": _(
+            "The forecast is drawn for built-in models only: an uploaded model runs in "
+            "its own environment, which this page does not start.")})
+    try:
+        built = io.build_experiment(snapshot_adapter.snapshot_from_experiment(exp),
+                                    METRICS, MODELS, OPTIMIZERS, read_only=False)[1]
+    except ValueError as exc:
+        return JsonResponse({"figure": None, "series": [], "warning": str(exc)})
+
+    splits, model = built["splits"], built["model"]
+    labels = exp.data.task == tasks.CLASSIFICATION
+    names = sorted({str(s) for s in splits.series}) if splits.series is not None else []
+    chosen = request.GET.get("series") or (names[0] if names else "")
+    rows = (np.arange(len(splits.y)) if not names
+            else np.flatnonzero(np.asarray(splits.series).astype(str) == chosen))
+    backtests = []
+    try:
+        for train_idx, val_idx in splits.folds:
+            predicted = np.asarray(model.fit_predict(trial.config, splits.X[train_idx],
+                                                     splits.y[train_idx], splits.X[val_idx],
+                                                     seed=built["seed"]),
+                                   dtype=object if labels else float)
+            mine = np.isin(val_idx, rows)
+            backtests.append((built["times"][val_idx[mine]], predicted[mine]))
+    except Exception as exc:  # noqa: BLE001 — the model's failure is the figure's message
+        return JsonResponse({"figure": None, "series": names, "warning": _(
+            "This configuration failed to forecast: %(error)s") % {"error": exc}})
+    figure = forecast_plot(built["times"][rows], splits.y[rows], backtests,
+                           target=_target_name(exp), series=chosen, labels=labels)
+    return JsonResponse({"figure": _plot_json(figure), "series": names, "warning": None})
+
+
+def _target_name(exp):
+    """The dataset's target column, for the forecast's axis."""
+    try:
+        return io.target_of(exp.data.dataset_path())[0]
+    except Exception:  # noqa: BLE001 — an axis title is not worth an error
+        return ""
+
+
 #: Fitted slice surrogates, keyed by everything they depend on.
 #:
 #: A slice's model is a function of the experiment, the metric and the trials —
@@ -697,7 +757,7 @@ def _slice_model(exp, built, config_space, metric):
 
 
 @require_POST
-@experiment_view(EDIT)
+@experiment_view(EDIT, drafts=BOTH)
 def save_prior(request, exp):
     """Record what the reader believes about one hyperparameter.
 
@@ -757,8 +817,10 @@ def save_prior(request, exp):
         # server evaluates it for both, which makes that guarantee structural
         # rather than something two implementations had to keep agreeing on.
 
+    stated_before = (exp.data.priors or {}).get(hp_name)
     exp.data.priors = priors
     exp.data.save(update_fields=["priors"])
+    history.record_prior(exp, hp_name, stated_before, priors.get(hp_name), user=request.user)
 
     # Asked for when the reader presses Re-walk. Not cached and not done on the
     # ordinary slice fetch: it rebuilds this run's optimizer and asks it, which
@@ -775,7 +837,7 @@ def save_prior(request, exp):
                          "density": density})
 
 
-@experiment_view(EDIT)
+@experiment_view(EDIT, drafts=BOTH)
 @require_POST
 def reset_prior(request, exp):
     """Put one hyperparameter's belief back to what the last run searched under.
@@ -805,12 +867,16 @@ def reset_prior(request, exp):
     restored = (last or {}).get(hp_name)
 
     priors = dict(exp.data.priors or {})
+    stated_before = priors.get(hp_name)
     if restored:
         priors[hp_name] = restored
     else:
         priors.pop(hp_name, None)
     exp.data.priors = priors
     exp.data.save(update_fields=["priors"])
+    if stated_before != priors.get(hp_name):
+        history.record(exp, "prior_reset", user=request.user, hyperparameter=hp_name,
+                       old=stated_before, new=priors.get(hp_name))
 
     # Handed straight back, so the figure redraws from the same answer every
     # other request gives it rather than recomputing the decay in the browser.
@@ -834,7 +900,7 @@ def reset_prior(request, exp):
     })
 
 
-@experiment_view(RUN)
+@experiment_view(RUN, drafts=BOTH)
 @require_POST
 def evaluate_prior(request, exp):
     """Ask this run's optimizer whether the stated belief is worth acting on.
@@ -1153,7 +1219,7 @@ def _slice_figures(exp, built, config_space, hp_name, metric):
     return figures, meta, sliced
 
 
-@experiment_view(VIEW)
+@experiment_view(VIEW, drafts=BOTH)
 def acquisition_slice(request, exp):
     """The acquisition-and-priors figure for one (metric, hyperparameter).
 
@@ -1469,7 +1535,7 @@ def experiment_run(request, exp):
     run that would change the optimized metric first shows a confirmation; the
     confirmation posts back with a `decision` of "new" or "old".
     """
-    if (request.method != "POST" or not exp.data.dataset or exp.is_running
+    if (request.method != "POST" or not exp.data.has_dataset or exp.is_running
             or not _model_available(exp)):
         return redirect("ui:experiment_detail", pk=exp.pk)
 
@@ -1486,7 +1552,7 @@ def experiment_run(request, exp):
         context = _detail_context(request, exp)
         context["run_error"] = _("Set at least one stopping criterion, so the "
                                  "run has something to end on.")
-        return render(request, "ui/experiment_detail.html", context)
+        return _dashboard(request, exp, context)
 
     if decision:
         optimize_metric = resolve_metric_change(decision, exp.data.current_metric, chosen)
@@ -1637,8 +1703,8 @@ def run_status(request, exp):
     what is stored, which under a five-second write interval is at most every
     third poll.
 
-    A page showing "No results yet" has no figure grid to draw into, so it is
-    sent the count alone and reloads itself once — see `experiment_detail.html`.
+    A page with no trials yet has no figure grid to draw into, so it is sent
+    the count alone and reloads itself once — see `experiment_prerun.html`.
     """
     run_service.sweep_orphaned_runs()
     active = exp.runs.filter(status__in=_ACTIVE).order_by("-id").first()
@@ -1840,7 +1906,7 @@ def experiment_transfer(request, exp):
                           "granted_by": colleague})
     messages.success(request, _("%(name)s now belongs to %(user)s. You are a "
                                 "contributor.")
-                     % {"name": exp.name, "user": colleague.get_username()})
+                     % {"name": exp.title, "user": colleague.get_username()})
     return _back_to_sharing(request, exp)
 
 
@@ -1857,7 +1923,9 @@ def run_cancel(request, exp):
     POST only: it changes something, and on GET a prefetcher or an <img> tag
     pointing here would cancel someone's run without CSRF ever being consulted.
     """
-    exp.runs.filter(status__in=_ACTIVE).update(cancel_requested=True)
+    exp.runs.filter(status__in=_ACTIVE, cancel_requested=False).update(
+        cancel_requested=True, cancel_requested_at=timezone.now(),
+        cancel_requested_by=_owner(request))
     return redirect("ui:experiment_detail", pk=exp.pk)
 
 
@@ -1890,11 +1958,8 @@ def run_force_stop(request, exp):
     stuck = exp.runs.filter(status__in=_ACTIVE, cancel_requested=True)
     for job_id in stuck.exclude(job_id="").values_list("job_id", flat=True):
         _abandon_cluster_job(job_id)
-    stuck.update(
-        status="error", finished_at=timezone.now(),
-        error=_("Given up on by hand: it stopped answering, and cancelling it "
-                "had no effect."),
-    )
+    run_service.fail_runs(stuck, _("Given up on by hand: it stopped answering, and "
+                                   "cancelling it had no effect."))
     return redirect("ui:experiment_detail", pk=exp.pk)
 
 
@@ -1949,6 +2014,132 @@ def experiment_export(request, exp):
     return _export(request, exp)
 
 
+@experiment_view(VIEW)
+def experiment_timeline(request, exp):
+    """Everything that changed how this experiment searches, newest first —
+    see ui/timeline.py."""
+    from . import timeline
+
+    entries = timeline.build(exp)
+    return render(request, "ui/experiment_timeline.html", {
+        **experiment_header(request, exp),
+        "scheduled": [e for e in entries if e["scheduled"]],
+        "entries": [e for e in entries if not e["scheduled"]],
+        "time_basis": exp.data.time_basis})
+
+
+@experiment_view(EXPORT)
+def experiment_export_model(request, exp):
+    """Download the experiment's model as a runnable script, tuned to one trial.
+
+    The trial is the one the page has selected, named the way every figure
+    names it — `?metric=&idx=`, the index into the result's trials. Without
+    them it is the best trial on the metric being viewed. See
+    core/model_export.py for what the file holds.
+    """
+    reason = model_export.unavailable(exp)
+    if reason:
+        raise Http404(reason)
+    picked = _picked_trial(request, exp)
+    if isinstance(picked, HttpResponse):
+        return picked
+    result, trial, metric = picked
+    body = model_export.build(exp, trial, metric, result)
+    response = HttpResponse(body, content_type="text/x-python; charset=utf-8")
+    response["Content-Disposition"] = (
+        f'attachment; filename="{model_export.filename(exp, trial.trial)}"')
+    return response
+
+
+def _picked_trial(request, exp):
+    """The trial a download names — `?metric=&idx=`, the index into the
+    result's trials, as every figure names one; without them the best on the
+    metric being viewed — as (result, trial, metric), or the response refusing
+    the request."""
+    result = _rebuild_result(exp)
+    if result is None or not result.trials:
+        raise Http404("no trials to export")
+    metric = request.GET.get("metric") or exp.data.current_metric or exp.data.metric_names[0]
+    if metric not in exp.data.metric_names:
+        return HttpResponseBadRequest("unknown metric")
+    idx_raw = request.GET.get("idx")
+    if idx_raw is None:
+        idx = result.best_index(metric)
+    elif idx_raw.lstrip("-").isdigit() and 0 <= int(idx_raw) < len(result.trials):
+        idx = int(idx_raw)
+    else:
+        return HttpResponseBadRequest("invalid trial index")
+    return result, result.trials[idx], metric
+
+
+@experiment_view(EXPORT)
+def experiment_export_trial_model(request, exp):
+    """Download the selected trial's fitted model — its parameters, in its
+    library's own format, with a note of what it is — as a zip.
+
+    Only for a trial whose model the run kept (see ui/services/trial_models.py):
+    nothing is trained here. What comes back is partially trained, fitted on
+    one fold's training rows, and its note says so.
+    """
+    import io as bytes_io
+    import zipfile
+
+    from .models import TrialModel
+
+    picked = _picked_trial(request, exp)
+    if isinstance(picked, HttpResponse):
+        return picked
+    _result, trial, _metric = picked
+    kept = TrialModel.objects.filter(experiment=exp, trial=trial.trial).first()
+    folder = Path(kept.directory) if kept else None
+    if folder is None or not folder.is_dir():
+        raise Http404(trial_models_reason(exp))
+
+    buffer = bytes_io.BytesIO()
+    stem = model_export.filename(exp, trial.trial).removesuffix(".py") + "-parameters"
+    with zipfile.ZipFile(buffer, "w", zipfile.ZIP_DEFLATED) as archive:
+        for path in sorted(folder.iterdir()):
+            if path.is_file():
+                archive.write(path, f"{stem}/{path.name}")
+    TrialModel.objects.filter(pk=kept.pk).update(last_used_at=timezone.now())
+    response = HttpResponse(buffer.getvalue(), content_type="application/zip")
+    response["Content-Disposition"] = f'attachment; filename="{stem}.zip"'
+    return response
+
+
+def _kept_trial_indices(exp, result):
+    """The indices into *result*'s trials of those whose model was kept."""
+    from .models import TrialModel
+
+    if result is None or not result.trials:
+        return []
+    kept = set(TrialModel.objects.filter(experiment=exp).values_list("trial", flat=True))
+    return [i for i, trial in enumerate(result.trials) if trial.trial in kept]
+
+
+def trial_models_reason(exp):
+    """Why a trial of *exp* has no kept model to export."""
+    from core.optimizers.trial import keeps_its_fit
+
+    model = MODELS.get(exp.data.model_name)
+    if exp.data.model_file or model is None or not keeps_its_fit(model):
+        return _("Trial parameters are kept for the built-in models only: an uploaded model "
+                 "is fitted in its own environment, which nothing is brought back from.")
+    if not getattr(model, "has_parameters", True):
+        return _("%(model)s has no fitted parameters to keep: its forecast is its history "
+                 "replayed.") % {"model": model.name}
+    best = resolve_settings(exp).get("keep_best_trial_models") or 0
+    if not best and not resolve_settings(exp).get("keep_last_run_trial_models"):
+        return _("This experiment keeps no trial models. Turn it on in Settings; a new run "
+                 "keeps them from then on.")
+    return ngettext(
+        "This trial's model was not kept: a run keeps only the best %(n)s trial's model "
+        "(and with the option on, its own), or its group had no room. Change it in Settings.",
+        "This trial's model was not kept: a run keeps only the best %(n)s trials' models "
+        "(and with the option on, its own), or its group had no room. Change it in Settings.",
+        best) % {"n": best}
+
+
 def _export(request, exp, cancel_url=None):
     if request.method != "POST":
         # How many tracebacks there are to ask about, and so whether to ask.
@@ -1959,30 +2150,43 @@ def _export(request, exp, cancel_url=None):
                     if (e.get("additional_info") or {}).get("traceback"))
         return render(request, "ui/export_confirm.html",
                       {"experiment": exp, "has_tracebacks": bool(count),
-                       "traceback_count": count, "cancel_url": cancel_url})
+                       "traceback_count": count, "cancel_url": cancel_url,
+                       "timestamp_modes": _timestamp_choices(exp),
+                       "timestamp_mode": timestamps.for_export(exp, request.user)})
 
     snapshot = snapshot_adapter.snapshot_from_experiment(exp, provenance=True)
     # The paths name files on this server, which is of no use to whoever opens
     # the file and tells them how the instance is laid out.
     snapshot["dataset"]["path"] = ""
     snapshot["model"]["path"] = ""
-    keep_times = request.POST.get("timestamps") == KEEP
+    # Every time in the file, in the form asked for — see
+    # ui/services/timestamps.py. "keep" is what the question used to post, when
+    # the choice was all or nothing; no answer at all is still nothing.
+    posted = request.POST.get("timestamps")
+    mode = timestamps.clamp(exp, timestamps.ABSOLUTE if posted == KEEP
+                            else posted if posted in timestamps.MODES else timestamps.NONE)
     keep_tracebacks = request.POST.get("tracebacks") == KEEP
-    if not (keep_times and keep_tracebacks) and snapshot.get("result"):
+    if snapshot.get("result"):
         snapshot["result"] = copy.deepcopy(snapshot["result"])
+    timestamps.apply(snapshot, mode, timestamps.origin(exp))
+    if not keep_tracebacks and snapshot.get("result"):
         for entry in snapshot["result"].get("data", []):
-            if not keep_times:
-                entry.pop("starttime", None)
-                entry.pop("endtime", None)
             # The reason stays either way. It is the trial's own result — this
             # configuration does not work — while the traceback is a description
             # of the machine it did not work on.
-            if not keep_tracebacks:
-                (entry.get("additional_info") or {}).pop("traceback", None)
+            (entry.get("additional_info") or {}).pop("traceback", None)
     body = io.to_bytes(snapshot)
     response = HttpResponse(body, content_type="application/octet-stream")
-    response["Content-Disposition"] = f'attachment; filename="{exp.name}.ihpo"'
+    # Its name when it has one, else its identifier: an unnamed experiment's
+    # file is not a dotfile.
+    response["Content-Disposition"] = content_disposition_header(
+        True, f"{exp.name or exp.identifier}.ihpo")
     return response
+
+
+def _timestamp_choices(exp):
+    """The forms *exp*'s times can leave in, each with what it means."""
+    return [(mode, *timestamps.LABELS[mode]) for mode in timestamps.allowed(exp)]
 
 
 def _posted_settings(request):
@@ -2013,6 +2217,8 @@ def _posted_settings(request):
         low, high = SETTING_BOUNDS.get(key, (None, None))
         if low is not None:
             value = max(low, min(high, value))
+        if key in SETTING_CHOICES and value not in SETTING_CHOICES[key]:
+            value = default
         posted[key] = value
     return posted
 
@@ -2086,6 +2292,20 @@ def appearance(request):
     })
 
 
+def export_preferences(request):
+    """How this reader's exported files carry times, unless an experiment says
+    otherwise (ui/services/timestamps.py). Kept for the reader rather than for
+    the browser: it is a decision about what they send, wherever they send it
+    from."""
+    if request.method == "POST":
+        timestamps.set_reader_preference(request.user, request.POST.get("export_timestamps"))
+        return redirect("ui:export_preferences")
+    return render(request, "ui/export_preferences.html", {
+        "modes": [(mode, *timestamps.LABELS[mode]) for mode in timestamps.MODES],
+        "chosen": timestamps.reader_preference(request.user),
+    })
+
+
 def account(request):
     """Who you are signed in as, and what you may do here.
 
@@ -2145,7 +2365,7 @@ def experiment_delete(request, exp):
     """
     if request.method == "POST":
         bin_service.delete(exp, by=request.user)
-        messages.success(request, _("Moved %(name)s to the bin.") % {"name": exp.name})
+        messages.success(request, _("Moved %(name)s to the bin.") % {"name": exp.title})
         return redirect("ui:home")
     return render(request, "ui/delete_confirm.html", {
         "experiment": exp,
@@ -2193,7 +2413,7 @@ def experiment_bin(request):
 def bin_restore(request, pk):
     exp = _binned(request, pk)
     bin_service.restore(exp, by=request.user)
-    messages.success(request, _("Restored %(name)s.") % {"name": exp.name})
+    messages.success(request, _("Restored %(name)s.") % {"name": exp.title})
     return redirect("ui:experiment_detail", pk=exp.pk)
 
 
@@ -2286,6 +2506,10 @@ def import_experiment(request):
             snapshot, dataset_file=dataset_upload, model_file=model_upload,
             owner=_owner(request), group=group,
         )
+        if not _settle_storage(request, exp):
+            return render(request, "ui/import.html", context)
+        history.record(exp, "imported", user=request.user, source="ihpo",
+                       filename=upload.name, dataset_attached=exp.data.has_dataset)
         # An imported model is re-locked here rather than trusting pins chosen by
         # whoever exported it.
         modelenv.start_preparation(exp)
@@ -2344,6 +2568,8 @@ def _import_smac_directory(request, context):
         return render(request, "ui/import.html", context)
     exp = snapshot_adapter.experiment_from_snapshot(snapshot, owner=_owner(request),
                                                     group=group)
+    history.record(exp, "imported", user=request.user, source="smac",
+                   filename=snapshot.get("name") or "", dataset_attached=False)
     return redirect("ui:experiment_detail", pk=exp.pk)
 
 
@@ -2530,7 +2756,8 @@ def _shown_figures(exp):
     fetch what the page deliberately did not build.
     """
     shown = resolve_settings(exp)
-    return [figure for figure in FIGURES if shown[figure.setting_key]]
+    return [figure for figure in FIGURES if shown[figure.setting_key]
+            and figure.applies(exp.data)]
 
 
 def _figure_options(figure, result, metric_names):
@@ -2723,6 +2950,25 @@ def _prior_only_context(exp, built):
     }
 
 
+def _demo_time_columns():
+    """{demo dataset path: the columns it could be ordered by in time}, for the
+    create form to suggest. An uploaded file's columns are read in the page."""
+    out = {}
+    for path in io.demo_datasets().values():
+        try:
+            out[path] = io.orderable_columns(io.read_dataset(Path(path)))
+        except Exception:  # noqa: BLE001 — an unreadable demo just suggests nothing
+            out[path] = []
+    return out
+
+
+def _model_tasks():
+    """What the form's script needs to offer only the models that fit: each
+    built-in's tasks, and whether it only forecasts."""
+    return {name: {"tasks": list(tasks.supported(model)), "forecaster": tasks.forecaster(model)}
+            for name, model in MODELS.items()}
+
+
 def _evaluation_label(exp):
     """How a trial was scored, for the run-configuration box.
 
@@ -2734,6 +2980,17 @@ def _evaluation_label(exp):
     """
     if exp.data.model_name not in MODELS and not exp.data.model_file:
         return _("Not recorded")
+    if exp.data.forecasts:
+        return ngettext("%(k)s backtest of %(h)s steps by %(column)s",
+                        "%(k)s backtests of %(h)s steps by %(column)s",
+                        max(exp.data.cv_folds, 1)) % {
+            "k": max(exp.data.cv_folds, 1), "h": exp.data.horizon, "column": exp.data.time_column}
+    if exp.data.time_column:
+        if exp.data.cv_folds >= 2:
+            return _("%(k)s time-ordered folds by %(column)s") % {
+                "k": exp.data.cv_folds, "column": exp.data.time_column}
+        return _("latest %(pct)s%% by %(column)s held out") % {
+            "pct": round(exp.data.test_size * 100), "column": exp.data.time_column}
     if exp.data.cv_folds >= 2:
         return _("%(k)s-fold CV") % {"k": exp.data.cv_folds}
     return _("%(pct)s%% held out") % {"pct": round(exp.data.test_size * 100)}
@@ -2813,6 +3070,88 @@ def save_layout(request, exp):
     return JsonResponse({"layout": layouts.save(exp, request.user, body["layout"])})
 
 
+#: `experiment_header`'s "rebuild it yourself", told apart from a result of None.
+_UNBUILT = object()
+
+
+def experiment_header(request, exp, result=_UNBUILT):
+    """What the top of every view of an experiment shows — its dashboard, its
+    Data Handling and its timeline: what it is, what may be done with it and
+    the buttons for that, whose it is, and anything wrong with it.
+
+    *result* is the rebuilt OptimizationResult when the caller has one;
+    otherwise it is rebuilt here.
+    """
+    if result is _UNBUILT:
+        result = _rebuild_result(exp)
+    last_run = exp.runs.order_by("-id").first()
+
+    run_summary = None
+    if last_run and last_run.status in ("done", "cancelled") and last_run.duration is not None:
+        total = last_run.duration
+        trials = last_run.trial_seconds or 0.0
+        run_summary = {"total": total, "trials": trials, "overhead": max(0.0, total - trials),
+                       "count": last_run.trial_count or 0,
+                       "stopped_by": STOPPED_BY_LABELS.get(last_run.stopped_by)}
+
+    has_result = result is not None and bool(result.trials)
+    kept = _kept_trial_indices(exp, result)
+    # The trial the export buttons name before anything is selected: the best
+    # on the metric being viewed. Whether its fitted model was kept decides
+    # whether Export trial parameters starts as a link.
+    current = exp.data.current_metric or (exp.data.metric_names or [None])[0]
+    best = (result.best_index(current)
+            if has_result and current in exp.data.metric_names else None)
+
+    return {
+        "experiment": exp,  # the _run_status.html include reverses URLs from experiment.pk
+        "summary": {
+            "pk": exp.pk,
+            "name": exp.title,
+            "given_name": exp.name,
+            "identifier": exp.identifier,
+            "model_name": exp.data.model_name,
+            "optimizer_name": exp.data.optimizer_name,
+            "current_metric": exp.data.current_metric,
+            "metric_label": metric_label(exp.data.current_metric, exp.data.original_metric),
+            "seed": exp.data.seed,
+            "evaluation": _evaluation_label(exp),
+        },
+        # A result with no trials counts as no result: it is what the dashboard
+        # stops building panels and plots for, so its template must take its
+        # "No results yet" branch rather than render the figure script with
+        # nothing for it to read.
+        "has_result": has_result,
+        # What this viewer may do, for the buttons. Read access got them here;
+        # the rest depends on whose experiment it is.
+        "may": {action: permissions.policy().may(request, exp, action)
+                for action in (RUN, EDIT, DELETE, EXPORT, SHARE, RENAME)},
+        "ownership": _ownership(request, exp),
+        "model_export_unavailable": model_export.unavailable(exp),
+        # Which trials' fitted models were kept, by their place in the result —
+        # the button for their parameters follows the selected trial, and is
+        # only a link for one of these.
+        "kept_trial_indices": kept,
+        "trial_models_reason": trial_models_reason(exp),
+        "export_default_kept": best is not None and best in kept,
+        "run_error": last_run.error if (last_run and last_run.status == "error") else None,
+        # Why this viewer may not run this experiment's custom model, if they
+        # may not. Shown rather than silently disabling the form.
+        "model_refusal": permissions.policy().custom_model_refusal(exp, request.user),
+        # The model's environment, for the notices under the heading.
+        "env": {
+            "status": exp.env_status,
+            "pending": exp.env_pending,
+            "in_process": exp.env_in_process,
+            "ready": exp.env_status == Experiment.ENV_READY,
+            "failed": exp.env_status == Experiment.ENV_FAILED,
+            "error": exp.env_error,
+            "summary": modelenv.prepared_summary(exp),
+        },
+        "run_summary": run_summary,
+    }
+
+
 def _detail_context(request, exp):
     """Detail-page context: identity, run state, and the figures to draw.
 
@@ -2824,61 +3163,16 @@ def _detail_context(request, exp):
     result = built["result"] if built else None
     metric_names = list(exp.data.metric_names)
     active_run = exp.runs.filter(status__in=_ACTIVE).order_by("-id").first()
-    last_run = exp.runs.order_by("-id").first()
-
-    # Why this viewer may not run this experiment's custom model, if they
-    # may not. Shown rather than silently disabling the form.
-    model_refusal = permissions.policy().custom_model_refusal(exp, request.user)
-
-    run_summary = None
-    if last_run and last_run.status in ("done", "cancelled") and last_run.duration is not None:
-        total = last_run.duration
-        trials = last_run.trial_seconds or 0.0
-        run_summary = {"total": total, "trials": trials, "overhead": max(0.0, total - trials),
-                       "count": last_run.trial_count or 0,
-                       "stopped_by": STOPPED_BY_LABELS.get(last_run.stopped_by)}
+    header = experiment_header(request, exp, result)
+    model_refusal = header["model_refusal"]
 
     context = {
-        "experiment": exp,  # the _run_status.html include reverses URLs from experiment.pk
-        "summary": {
-            "pk": exp.pk,
-            "name": exp.name,
-            "identifier": exp.identifier,
-            "model_name": exp.data.model_name,
-            "optimizer_name": exp.data.optimizer_name,
-            "current_metric": exp.data.current_metric,
-            "metric_label": metric_label(exp.data.current_metric, exp.data.original_metric),
-            "seed": exp.data.seed,
-            "evaluation": _evaluation_label(exp),
-        },
+        **header,
         "metric_names": metric_names,
-        # A result with no trials counts as no result: it is what the early
-        # return below stops building panels and plots for, so the template must
-        # take its "No results yet" branch rather than render the figure script
-        # with nothing for it to read.
-        "has_result": result is not None and bool(result.trials),
         "active_run": active_run,
-        "can_run": (bool(exp.data.dataset) and _model_available(exp)
+        "can_run": (exp.data.has_dataset and _model_available(exp)
                     and permissions.policy().may(request, exp, RUN)
                     and not model_refusal),
-        # What this viewer may do, for the buttons. Read access got them here;
-        # the rest depends on whose experiment it is.
-        "may": {action: permissions.policy().may(request, exp, action)
-                for action in (RUN, EDIT, DELETE, EXPORT, SHARE)},
-        "ownership": _ownership(request, exp),
-        "run_error": last_run.error if (last_run and last_run.status == "error") else None,
-        "model_refusal": model_refusal,
-        # The model's environment, for the branches on the detail page.
-        "env": {
-            "status": exp.env_status,
-            "pending": exp.env_pending,
-            "in_process": exp.env_in_process,
-            "ready": exp.env_status == Experiment.ENV_READY,
-            "failed": exp.env_status == Experiment.ENV_FAILED,
-            "error": exp.env_error,
-            "summary": modelenv.prepared_summary(exp),
-        },
-        "run_summary": run_summary,
         # Only an optimizer that fits a model of the objective can answer the
         # confidence criterion, so only then is it offered.
         "supports_confidence": getattr(

@@ -8,13 +8,14 @@
     {% comment %}No experiments on this page or the two beside it. A site admin
     manages groups; showing them colleagues' work is the thing the separation
     exists to prevent.{% endcomment %}
-    <p class="caption">{% translate "How many people each may hold, and whether it is active. Deactivating stops its members signing in and leaves every experiment where it is." %}</p>
+    <p class="caption">{% translate "How many people each may hold, how much it may store, and whether it is active. Deactivating stops its members signing in and leaves every experiment where it is." %}</p>
 
     <table class="trials" style="max-width: 52rem; margin-top: 1rem;">
         <thead>
             <tr>
                 <th>{% translate "Group" %}</th>
                 <th>{% translate "Seats" %}</th>
+                <th>{% translate "Storage (GB)" %}</th>
                 <th>{% translate "Active" %}</th>
                 <th></th>
                 <th></th>
@@ -31,6 +32,11 @@
                             <input type="number" name="user_limit" min="0" value="{{ g.user_limit }}"
                                    style="width: 5rem;">
                             <span class="caption">{% blocktranslate with n=g.members %}{{ n }} used{% endblocktranslate %}</span>
+                        </td>
+                        <td>
+                            <input type="number" name="storage_gb" min="0" step="0.5" value="{{ g.storage_limit_gb }}"
+                                   style="width: 6rem;">
+                            <span class="caption">{% blocktranslate with used=g.storage_used percent=g.storage_percent %}{{ used }} used ({{ percent }}%){% endblocktranslate %}</span>
                         </td>
                         <td><input type="checkbox" name="is_active" {% if g.is_active %}checked{% endif %}></td>
                         <td style="text-align: right;">
@@ -49,7 +55,7 @@
                     </td>
                 </tr>
             {% empty %}
-                <tr><td colspan="5" class="caption">{% translate "No groups yet." %}</td></tr>
+                <tr><td colspan="6" class="caption">{% translate "No groups yet." %}</td></tr>
             {% endfor %}
         </tbody>
     </table>

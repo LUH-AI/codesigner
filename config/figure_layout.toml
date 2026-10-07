@@ -22,6 +22,7 @@ overview = [
     { figure = "hyperparameter_importance", width = 1, column = 2 },
     { figure = "trials",                    width = 2, column = 3 },
     { figure = "performance_over_time",     width = 2, column = 1 },
+    { figure = "forecast",                  width = 2, column = 3 },
     { figure = "configuration_cube",        width = 2, column = 1 },
 ]
 
@@ -49,4 +50,100 @@ misc = [
     { figure = "performance_over_time", width = 2, column = 1 },
     { figure = "parallel_coordinates",  width = 2, column = 1 },
     { figure = "partial_dependence",    width = 2, column = 1 },
+    { figure = "forecast",              width = 2, column = 3 },
+]
+
+# The Data Handling page: one list per section, the same way. Its panels are
+# placed only here — readers do not rearrange them. Overview gathers what can
+# be decided before a run, first.
+[data]
+
+overview = [
+    { figure = "profile",                  width = 1, column = 1 },
+    { figure = "column_kinds",             width = 1, column = 2 },
+    { figure = "where_values_are_missing", width = 1, column = 3 },
+    { figure = "target_distribution",      width = 1, column = 4 },
+    { figure = "sample",                   width = 1, column = 1 },
+]
+
+columns = [
+    { figure = "target",              width = 1, column = 1 },
+    { figure = "kinds",               width = 1, column = 2 },
+    { figure = "rename_and_drop",     width = 1, column = 3 },
+    { figure = "roles",               width = 1, column = 4 },
+    { figure = "known_in_the_future", width = 1, column = 1 },
+]
+
+quality = [
+    { figure = "missing_value_patterns", width = 1, column = 1 },
+    { figure = "duplicates",             width = 1, column = 2 },
+    { figure = "constant_columns",       width = 1, column = 3 },
+    { figure = "outliers",               width = 1, column = 4 },
+    { figure = "class_imbalance",        width = 1, column = 1 },
+    { figure = "label_noise",            width = 1, column = 2 },
+    { figure = "target_leakage",         width = 1, column = 3 },
+    { figure = "train_and_test_overlap", width = 1, column = 4 },
+]
+
+cleaning = [
+    { figure = "missing_values",       width = 1, column = 1 },
+    { figure = "imputation",           width = 1, column = 2 },
+    { figure = "drop_rows_or_columns", width = 1, column = 3 },
+    { figure = "de_duplication",       width = 1, column = 4 },
+    { figure = "outlier_handling",     width = 1, column = 1 },
+    { figure = "type_coercion",        width = 1, column = 2 },
+    { figure = "value_mapping",        width = 1, column = 3 },
+]
+
+features = [
+    { figure = "label_columns",     width = 1, column = 1 },
+    { figure = "scaling",           width = 1, column = 2 },
+    { figure = "encodings",         width = 1, column = 3 },
+    { figure = "other_scaling",     width = 1, column = 4 },
+    { figure = "transforms",        width = 1, column = 1 },
+    { figure = "calendar_features", width = 1, column = 2 },
+    { figure = "interactions",      width = 1, column = 3 },
+    { figure = "lags_and_windows",  width = 1, column = 4 },
+    { figure = "feature_selection", width = 1, column = 1 },
+]
+
+augmentation = [
+    { figure = "resampling",               width = 1, column = 1 },
+    { figure = "smote",                    width = 1, column = 2 },
+    { figure = "noise_injection",          width = 1, column = 3 },
+    { figure = "mixup",                    width = 1, column = 4 },
+    { figure = "synthetic_data",           width = 1, column = 1 },
+    { figure = "time_series_augmentation", width = 1, column = 2 },
+]
+
+splits = [
+    { figure = "scheme",         width = 1, column = 1 },
+    { figure = "final_test_set", width = 1, column = 2 },
+    { figure = "fold_preview",   width = 1, column = 3 },
+]
+
+sources = [
+    { figure = "replace",   width = 1, column = 1 },
+    { figure = "append",    width = 1, column = 2 },
+    { figure = "join",      width = 1, column = 3 },
+    { figure = "subsample", width = 1, column = 4 },
+]
+
+versions = [
+    { figure = "history",          width = 1, column = 1 },
+    { figure = "recipe",           width = 1, column = 2 },
+    { figure = "runs_per_version", width = 1, column = 3 },
+    { figure = "differences",      width = 1, column = 4 },
+    { figure = "export",           width = 1, column = 1 },
+]
+
+
+# A draft's setup, step 2: the Data Handling page with an Overview of its own —
+# the choices to make before anything runs. Like the dashboard's Overview, it
+# holds panels whose home is another tab; the rest of its tabs are as above.
+[setup]
+overview = [
+    { figure = "missing_values", width = 1, column = 1 },
+    { figure = "scaling",        width = 1, column = 2 },
+    { figure = "label_columns",  width = 1, column = 3 },
 ]

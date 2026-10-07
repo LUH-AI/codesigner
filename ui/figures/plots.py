@@ -280,7 +280,7 @@ def performance_over_time_plot(result, display_metric, *, x_axis="trial",
     else:
         ys = [t.scores[display_metric] for t in trials]
         incumbent_ys = incumbents
-        y_title, y_type, outcome_name = display_metric.capitalize(), "linear", "Trial score"
+        y_title, y_type, outcome_name = metric.title, "linear", "Trial score"
 
     colors = [MARKER_COLOR] * len(trials)
     sizes = [6] * len(trials)
@@ -934,7 +934,7 @@ def configuration_cube_plot(result, display_metric, config_space=None):
                        # which end of the ramp they land on is reversed.
                        reversescale=not result.metric(display_metric).higher_is_better,
                        showscale=True,
-                       colorbar=dict(title=display_metric.capitalize()),
+                       colorbar=dict(title=result.metric(display_metric).title),
                        # Opaque, and each point ringed in the card's own colour.
                        # Left to blend, two points that nearly overlap composite
                        # into something darker than either — which on a scale
@@ -1005,7 +1005,7 @@ def configuration_projection_plot(result, display_metric, method,
                   # See the cube: darker is better in either direction.
                   reversescale=not result.metric(display_metric).higher_is_better,
                   showscale=True,
-                  colorbar=dict(title=display_metric.capitalize()),
+                  colorbar=dict(title=result.metric(display_metric).title),
                   # Opaque, and each point ringed in the card's own colour.
                   # Left to blend, two points that nearly overlap composite
                   # into something darker than either — which on a scale where
@@ -1208,7 +1208,7 @@ def parallel_coordinates_plot(result, display_metric, config_space=None):
             ))
 
     scores = [t.scores[display_metric] for t in trials]
-    dimensions.append(dict(label=display_metric.capitalize(), values=scores))
+    dimensions.append(dict(label=result.metric(display_metric).title, values=scores))
 
     columns, ticks, shapes = [], [], []
     for x, dimension in enumerate(dimensions):
@@ -1279,7 +1279,7 @@ def parallel_coordinates_plot(result, display_metric, config_space=None):
         marker=dict(color=[lo, hi], colorscale=_INTENSITY_SCALE, cmin=lo, cmax=hi,
                     reversescale=not metric.higher_is_better,
                     showscale=True, opacity=0,
-                    colorbar=dict(title=display_metric.capitalize())),
+                    colorbar=dict(title=result.metric(display_metric).title)),
     ))
     # Last, so it draws over every trial line. Empty until something is
     # selected; the page fills it from whichever trial's trace (see
@@ -1756,4 +1756,51 @@ def trial_duration_plot(result):
         meta={"selection": _selection_meta({0: range(len(trials))},
                                            style=RECOLOR)},
     )
+    return fig
+
+
+def forecast_plot(times, actual, backtests, target="", series="", labels=False):
+    """The series, and what one configuration forecast at every backtest.
+
+    *times* and *actual* are the series in time order; *backtests* is one
+    ``(times, forecast)`` pair per backtest, each a horizon's worth of steps
+    after its origin. The actual series is the line every forecast is read
+    against, so it is drawn plain and first, each forecast over it in the
+    accent colour with its own points — a forecast is a handful of steps, and
+    its points are what was scored.
+
+    With *labels* — a classification forecast — the axis is the labels, the
+    actual series steps between them, and a forecast is its points alone: a
+    line between two labels would claim something in between.
+
+    Returns None when there is nothing to draw.
+    """
+    if len(actual) == 0:
+        return None
+    value = str if labels else float
+    shown = "%{y}" if labels else "%{y:.4g}"
+    fig = go.Figure(go.Scatter(
+        x=list(times), y=[value(v) for v in actual], mode="lines",
+        name=series or _("Actual"),
+        line=dict(color=MARKER_COLOR, width=1.5, shape="hv" if labels else "linear"),
+        hovertemplate="%{x}<br>" + shown + "<extra>" + _("actual") + "</extra>",
+    ))
+    for number, (when, forecast) in enumerate(backtests, start=1):
+        if not len(forecast):
+            continue
+        fig.add_trace(go.Scatter(
+            x=list(when), y=[value(v) for v in forecast],
+            mode="markers" if labels else "lines+markers",
+            name=_("Backtest %(n)s") % {"n": number},
+            line=dict(color=ACCENT_COLOR, width=2, dash="dot"),
+            marker=dict(size=8 if labels else 5, color=ACCENT_COLOR),
+            hovertemplate="%{x}<br>" + shown + "<extra>" + _("forecast") + "</extra>",
+        ))
+    fig.update_layout(
+        xaxis_title="", yaxis_title=target,
+        margin=dict(t=20, b=40, l=50, r=20),
+        legend=dict(orientation="h", yanchor="bottom", y=1.0, x=0),
+    )
+    if labels:
+        fig.update_yaxes(type="category", categoryorder="category ascending")
     return fig

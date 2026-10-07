@@ -34,6 +34,11 @@ from .figures import FIGURES, FIGURES_BY_KEY, OVERVIEW, TABS
 
 VERSION = 1
 
+#: The file's table for the Data Handling page, and for a draft setup's own
+#: Overview of it; everything outside the two is the dashboard's.
+DATA_TABLE = "data"
+SETUP_TABLE = "setup"
+
 #: The site's default arrangement. Required; see the file for its format.
 DEFAULT_PATH = Path(settings.BASE_DIR) / "config" / "figure_layout.toml"
 
@@ -55,54 +60,55 @@ def _column(value, w):
     return value if 0 <= value and value + w <= 4 and value % w == 0 else None
 
 
-def read_default(path=None) -> dict:
-    """The default arrangement in *path*, checked; raises `LayoutFileError`.
-
-    The file counts columns from 1, as a person placing figures does; an
-    arrangement counts them from 0.
-    """
+def _read_file(path):
     path = Path(path or DEFAULT_PATH)
     try:
-        raw = tomllib.loads(path.read_text(encoding="utf-8"))
+        return path, tomllib.loads(path.read_text(encoding="utf-8"))
     except FileNotFoundError:
         raise LayoutFileError(f"{path} is missing. It is the site's default figure layout "
                               f"and is required.") from None
     except (OSError, tomllib.TOMLDecodeError) as exc:
         raise LayoutFileError(f"{path} cannot be read: {exc}") from None
 
-    problems = []
-    unknown = sorted(set(raw) - set(TABS))
+
+def _read_tabs(raw, tab_names, by_key, arrangeable, problems, *, pinned=None, prefix=""):
+    """One page's tabs from the file: `{tab: [{"key", "w", "c"}]}`, checked.
+
+    Every panel in *arrangeable* must be on its home tab exactly once. The
+    *pinned* tab, if the page has one, may hold any of them besides.
+    """
+    unknown = sorted(set(raw) - set(tab_names))
     if unknown:
-        problems.append(f"no such tab: {', '.join(unknown)}")
+        problems.append(f"no such tab: {', '.join(prefix + u for u in unknown)}")
     tabs = {}
-    for tab in TABS:
+    for tab in tab_names:
         entries = raw.get(tab)
         if not isinstance(entries, list):
-            problems.append(f"[{tab}] is missing or not a list")
+            problems.append(f"[{prefix}{tab}] is missing or not a list")
             tabs[tab] = []
             continue
         slots, seen = [], set()
         for i, entry in enumerate(entries, 1):
-            where = f"{tab}, entry {i}"
+            where = f"{prefix}{tab}, entry {i}"
             if not isinstance(entry, dict):
                 problems.append(f"{where}: not a table")
                 continue
             key = entry.get("figure")
-            figure = FIGURES_BY_KEY.get(key)
-            if figure is None or figure.in_sidebar:
+            panel = by_key.get(key)
+            if panel is None or getattr(panel, "in_sidebar", False):
                 problems.append(f"{where}: no figure called {key!r}")
                 continue
-            if tab != OVERVIEW and figure.home_tab != tab:
-                problems.append(f"{where}: {key} lives on {figure.home_tab}, not {tab}")
+            if tab != pinned and panel.home_tab != tab:
+                problems.append(f"{where}: {key} lives on {panel.home_tab}, not {tab}")
                 continue
             if key in seen:
                 problems.append(f"{where}: {key} is on {tab} twice")
                 continue
             seen.add(key)
             w, column = entry.get("width"), entry.get("column")
-            if w not in figure.columns():
+            if w not in panel.columns():
                 problems.append(f"{where}: {key} cannot be {w!r} wide "
-                                f"(its shape allows {', '.join(map(str, figure.columns()))})")
+                                f"(its shape allows {', '.join(map(str, panel.columns()))})")
                 continue
             c = column - 1 if isinstance(column, int) and not isinstance(column, bool) else None
             if _column(c, w) is None:
@@ -110,17 +116,96 @@ def read_default(path=None) -> dict:
                 continue
             slots.append({"key": key, "w": w, "c": c})
         tabs[tab] = slots
-    for figure in _arrangeable():
-        if not any(s["key"] == figure.key for s in tabs.get(figure.home_tab, [])):
-            problems.append(f"{figure.key} is not placed on its tab, {figure.home_tab}")
+    for panel in arrangeable:
+        if not any(s["key"] == panel.key for s in tabs.get(panel.home_tab, [])):
+            problems.append(f"{panel.key} is not placed on its tab, {prefix}{panel.home_tab}")
+    return tabs
+
+
+def read_default(path=None) -> dict:
+    """The dashboard's default arrangement in *path*, checked; raises
+    `LayoutFileError`.
+
+    The file counts columns from 1, as a person placing figures does; an
+    arrangement counts them from 0.
+    """
+    path, raw = _read_file(path)
+    problems = []
+    dashboard = {k: v for k, v in raw.items() if k not in (DATA_TABLE, SETUP_TABLE)}
+    tabs = _read_tabs(dashboard, TABS, FIGURES_BY_KEY, _arrangeable(), problems, pinned=OVERVIEW)
     if problems:
         raise LayoutFileError(f"{path}:\n  " + "\n  ".join(problems))
     return {"version": VERSION, "tabs": tabs}
 
 
+def read_data_default(path=None) -> dict:
+    """The Data Handling page's arrangement in *path* (its `[data]` table),
+    checked; raises `LayoutFileError`. `{section: [{"key", "w", "c"}]}`."""
+    from datahandling.panels import DATA_PANELS, DATA_PANELS_BY_KEY
+    from datahandling.sections import SECTIONS
+
+    path, raw = _read_file(path)
+    table = raw.get(DATA_TABLE)
+    if not isinstance(table, dict):
+        raise LayoutFileError(f"{path}:\n  [{DATA_TABLE}] is missing or not a table")
+    problems = []
+    tabs = _read_tabs(table, [s.slug for s in SECTIONS], DATA_PANELS_BY_KEY, DATA_PANELS,
+                      problems, prefix=f"{DATA_TABLE}.")
+    if problems:
+        raise LayoutFileError(f"{path}:\n  " + "\n  ".join(problems))
+    return tabs
+
+
 @lru_cache(maxsize=1)
 def _default():
     return read_default()
+
+
+def read_setup_default(path=None) -> list:
+    """A draft's setup Overview in *path* (its `[setup]` table), checked; raises
+    `LayoutFileError`. `[{"key", "w", "c"}]`: any Data Handling panel, as the
+    dashboard's Overview holds figures whose home is another tab."""
+    from datahandling.panels import DATA_PANELS_BY_KEY
+
+    path, raw = _read_file(path)
+    table = raw.get(SETUP_TABLE)
+    if not isinstance(table, dict):
+        raise LayoutFileError(f"{path}:\n  [{SETUP_TABLE}] is missing or not a table")
+    problems = []
+    tabs = _read_tabs(table, [OVERVIEW], DATA_PANELS_BY_KEY, (), problems,
+                      pinned=OVERVIEW, prefix=f"{SETUP_TABLE}.")
+    if problems:
+        raise LayoutFileError(f"{path}:\n  " + "\n  ".join(problems))
+    return tabs[OVERVIEW]
+
+
+@lru_cache(maxsize=1)
+def _data_default():
+    return read_data_default()
+
+
+@lru_cache(maxsize=1)
+def _setup_default():
+    return read_setup_default()
+
+
+def data_tabs(exp, setup=False) -> list:
+    """The Data Handling page's tabs for *exp*, as `placed` gives the
+    dashboard's: each section with its slots, a slot being its panel, its width
+    and its column. The site's arrangement, for every reader. With *setup*, a
+    draft's: its Overview is the setup's own (`[setup]`)."""
+    from datahandling.panels import DATA_PANELS_BY_KEY
+    from datahandling.sections import SECTIONS
+
+    arranged = dict(_data_default())
+    if setup:
+        arranged[SECTIONS[0].slug] = _setup_default()
+    return [{"section": section,
+             "slots": [{"figure": DATA_PANELS_BY_KEY[slot["key"]], "w": slot["w"],
+                        "c": slot["c"]}
+                       for slot in arranged[section.slug]
+                       if DATA_PANELS_BY_KEY[slot["key"]].applies(exp.data)]}
+            for section in SECTIONS]
 
 
 def default_layout() -> dict:
@@ -130,13 +215,17 @@ def default_layout() -> dict:
 
 def check(app_configs=None, **kwargs):
     """The system check that makes the file required: the app will not start
-    without a readable one that places every figure."""
+    without a readable one that places every figure and every Data Handling
+    panel."""
     from django.core.checks import Error
     try:
         read_default()
+        read_data_default()
+        read_setup_default()
     except LayoutFileError as exc:
-        return [Error(str(exc), hint="Every figure in ui/figures/catalog.py has to be "
-                                     "placed on its home tab in this file.",
+        return [Error(str(exc), hint="Every figure in ui/figures/catalog.py, and every "
+                                     "Data Handling panel in datahandling/sections.py, has "
+                                     "to be placed on its home tab in this file.",
                       id="ui.E001")]
     return []
 

@@ -1,0 +1,9 @@
+{% load i18n %}
+{% comment %}A capability not built yet: what it will do.{% endcomment %}
+<section class="card planned" data-figure="{{ figure.key }}">
+    <div class="planned-head">
+        <span class="planned-title">{{ figure.label }}</span>
+        <span class="planned-badge">{% translate "Planned" %}</span>
+    </div>
+    <p class="caption">{{ figure.description }}</p>
+</section>

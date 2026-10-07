@@ -1,10 +1,10 @@
 {% extends "base.html" %}
 {% load i18n %}
 
-{% block title %}{% translate "Settings" %} · {{ experiment.name }}{% endblock %}
+{% block title %}{% translate "Settings" %} · {{ experiment.title }}{% endblock %}
 
 {% block content %}
-    <h1>{% blocktranslate with name=experiment.name %}Settings: {{ name }}{% endblocktranslate %}</h1>
+    <h1>{% blocktranslate with name=experiment.title %}Settings: {{ name }}{% endblocktranslate %}</h1>
 
     <form method="post" class="settings-form">
         {% csrf_token %}

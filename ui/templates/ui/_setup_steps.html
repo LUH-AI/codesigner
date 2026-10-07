@@ -1,0 +1,25 @@
+{% load i18n %}
+{% comment %}The setup's three steps, in order (ui/services/setup.py). Not tabs:
+numbered stops on one line, each saying whether it has been saved, because they
+are done one after the other — though any can be gone back to. Steps 2 and 3
+open once step 1 has been saved; a step that must be saved before the draft can
+be created says so until it has been.{% endcomment %}
+<nav class="setup-steps" aria-label="{% translate 'Setting up this experiment' %}">
+    <ol>
+        {% for s in steps %}
+            <li class="setup-step{% if s.current %} is-current{% endif %}{% if s.saved %} is-saved{% endif %}{% if not s.reachable %} is-locked{% endif %}">
+                {% if s.reachable and not s.current %}<a href="{{ s.url }}">{% else %}<span{% if s.current %} aria-current="step"{% endif %}>{% endif %}
+                    <span class="setup-step-number" aria-hidden="true">{% if s.saved %}✓{% else %}{{ s.number }}{% endif %}</span>
+                    <span class="setup-step-text">
+                        <span class="setup-step-label">{{ s.label }}</span>
+                        <span class="setup-step-state">
+                            {% if s.saved %}{% translate "Saved" %}
+                            {% elif s.required %}{% translate "Save to continue" %}
+                            {% else %}{% translate "Optional" %}{% endif %}
+                        </span>
+                    </span>
+                {% if s.reachable and not s.current %}</a>{% else %}</span>{% endif %}
+            </li>
+        {% endfor %}
+    </ol>
+</nav>

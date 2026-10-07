@@ -14,13 +14,41 @@ that model alone, and say only that it "is not available".
 """
 
 from .metrics import METRICS
-from .models import RandomForestModel, SVMModel
+from .models import (
+    CatBoostModel, ElasticNetModel, ETSModel, ExtraTreesModel, HistGradientBoostingModel,
+    KNNModel, LightGBMModel, LogisticRegressionModel, RandomForestModel, SeasonalNaiveModel,
+    SVMModel, XGBoostModel,
+)
 from .optimizers import GridOptimizer, RandomOptimizer, SMACOptimizer
 
+#: In the order the form offers them: the two that have always been here, the
+#: other tree ensembles, the boosters, the models that need their columns
+#: scaled, then the two that only forecast. Every one runs on a CPU, in this
+#: process — and every one that regresses can forecast too (`core.forecasting`).
 MODELS = {
     "Random Forest": RandomForestModel(),
-    "SVM Classifier": SVMModel(),
+    "SVM": SVMModel(),
+    "Extra Trees": ExtraTreesModel(),
+    "HistGradientBoosting": HistGradientBoostingModel(),
+    "LightGBM": LightGBMModel(),
+    "XGBoost": XGBoostModel(),
+    "CatBoost": CatBoostModel(),
+    "k-Nearest Neighbors": KNNModel(),
+    "Logistic Regression": LogisticRegressionModel(),
+    "Elastic Net": ElasticNetModel(),
+    "Seasonal Naive": SeasonalNaiveModel(),
+    "ETS": ETSModel(),
 }
+
+
+def canonical_model_name(name: str) -> str:
+    """*name* as the registry calls it now: a renamed model answers to what it
+    was called before, through its `aliases`. A name the registry does not
+    know is returned as it is."""
+    if name in MODELS:
+        return name
+    return next((key for key, model in MODELS.items()
+                 if name in getattr(model, "aliases", ())), name)
 
 OPTIMIZERS = {
     "SMAC": SMACOptimizer(),
@@ -28,4 +56,4 @@ OPTIMIZERS = {
     "Grid Search": GridOptimizer(),
 }
 
-__all__ = ["MODELS", "OPTIMIZERS", "METRICS"]
+__all__ = ["MODELS", "OPTIMIZERS", "METRICS", "canonical_model_name"]

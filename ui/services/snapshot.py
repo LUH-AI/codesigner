@@ -5,21 +5,25 @@ snapshot; `snapshot_from_experiment` produces a current-version snapshot dict
 from a row. Import, export, and detail-page reconstruction all go through here.
 """
 
+import copy
 from importlib.metadata import version as dist_version
 from pathlib import Path
 
 from django.conf import settings
 from django.core.files import File
 from django.db import transaction
+from django.utils import timezone
 from django.utils.dateparse import parse_datetime
 
-from core import io
+from core import io, tasks
+from core.processing import choices_of
 from core.provenance import (
     dataset_fingerprint, environment, evaluation, model_fingerprint,
 )
 
 from ..models import Experiment, ExperimentData
-from ..registry import MODELS, OPTIMIZERS
+from ..registry import MODELS, OPTIMIZERS, canonical_model_name
+from . import history, timestamps
 
 
 def experiment_from_snapshot(snapshot: dict, dataset_file=None, model_file=None,
@@ -49,26 +53,62 @@ def experiment_from_snapshot(snapshot: dict, dataset_file=None, model_file=None,
     accounts. Set at creation because there is nowhere else it could come
     from — an .ihpo has no notion of who made it.
     """
-    snapshot = io.normalize(snapshot)
+    snapshot = timestamps.anchor(copy.deepcopy(io.normalize(snapshot)))
+    data = data_from_snapshot(snapshot, dataset_file, model_file, adopt_paths)
+
+    # Both halves or neither. `Experiment.data` is NOT NULL, so a failure
+    # between the two would be refused by the database rather than leaving an
+    # experiment with no search in it — but a `ExperimentData` row with no
+    # experiment pointing at it would survive, and this is the one place that
+    # could produce one.
+    with transaction.atomic():
+        data.save()
+        exp = Experiment(data=data, owner=owner, group=group)
+        exp.save()
+        _restore_runs(exp, snapshot.get("runs") or [])
+        history.restore(exp, snapshot.get("history"))
+    return exp
+
+
+def data_from_snapshot(snapshot: dict, dataset_file=None, model_file=None,
+                       adopt_paths: bool = False) -> ExperimentData:
+    """The portable half described by *snapshot* (normalized), with its files
+    adopted as `experiment_from_snapshot` describes — not yet saved, though
+    its files are. Shared with a draft's setup, which builds a new half each
+    time step 1 is saved and puts it in place of the old."""
     data = ExperimentData(
-        name=snapshot["name"],
-        model_name=snapshot["model"]["name"],
+        name=snapshot.get("name") or "",
+        # A built-in renamed since the file was written is stored under the
+        # name it has now. An uploaded model's name is its own.
+        model_name=(snapshot["model"]["name"] if snapshot["model"].get("kind") == "file"
+                    else canonical_model_name(snapshot["model"]["name"])),
         optimizer_name=snapshot["optimizer"]["name"],
         optimizer_params=snapshot["optimizer"].get("params") or {},
         metric_names=snapshot["metrics"]["names"],
         current_metric=snapshot["metrics"].get("current"),
         original_metric=snapshot["metrics"].get("original"),
         seed=snapshot["seed"],
+        created_at=_when(snapshot.get("began_at")) or timezone.now(),
+        time_basis=timestamps.basis_of(snapshot),
         cv_folds=io.folds_of(snapshot),
         test_size=io.test_size_of(snapshot),
+        time_column=io.time_column_of(snapshot),
+        time_gap=io.gap_of(snapshot),
+        **io.forecast_of(snapshot),
+        task=tasks.task_of(snapshot),
+        processing=io.processing_of(snapshot),
         config_space=snapshot.get("space"),
         priors=snapshot.get("priors") or {},
         result=snapshot.get("result"),
     )
 
+    demo = _demo_named(snapshot, adopt_paths)
     if dataset_file is not None:
         name = getattr(dataset_file, "name", None) or _dataset_name(snapshot)
         data.dataset.save(Path(name).name, dataset_file, save=False)
+    elif demo:
+        # A bundled demo is shared, never copied.
+        data.demo_dataset = demo
     elif adopt_paths:
         stored = snapshot["dataset"].get("path", "")
         if stored and Path(stored).is_file():
@@ -84,17 +124,7 @@ def experiment_from_snapshot(snapshot: dict, dataset_file=None, model_file=None,
             with open(stored_model, "rb") as fh:
                 data.model_file.save(Path(stored_model).name, File(fh), save=False)
 
-    # Both halves or neither. `Experiment.data` is NOT NULL, so a failure
-    # between the two would be refused by the database rather than leaving an
-    # experiment with no search in it — but a `ExperimentData` row with no
-    # experiment pointing at it would survive, and this is the one place that
-    # could produce one.
-    with transaction.atomic():
-        data.save()
-        exp = Experiment(data=data, owner=owner, group=group)
-        exp.save()
-        _restore_runs(exp, snapshot.get("runs") or [])
-    return exp
+    return data
 
 
 #: A run that had not finished when the file was written did not finish at all —
@@ -131,13 +161,23 @@ def _restore_runs(exp: Experiment, recorded: list) -> None:
             stopping=entry.get("stopping") or {},
             stopped_by=entry.get("stopped_by") or "",
             events=entry.get("events") or [],
-            started_at=parse_datetime(entry["started_at"]) if entry.get("started_at") else None,
-            finished_at=parse_datetime(entry["finished_at"]) if entry.get("finished_at") else None,
+            priors=entry.get("priors") or {},
+            trial_timeout=entry.get("trial_timeout") or {},
+            created_at=_when(entry.get("created_at")),
+            started_at=_when(entry.get("started_at")),
+            finished_at=_when(entry.get("finished_at")),
+            cancel_requested=bool(entry.get("cancel_requested_at")),
+            cancel_requested_at=_when(entry.get("cancel_requested_at")),
             trial_seconds=entry.get("trial_seconds"),
             trial_offset=(span[0] - 1) if len(span) == 2 else None,
             trial_count=(span[1] - span[0] + 1) if len(span) == 2 else None,
             error=entry.get("error") or "",
         )
+
+
+def _when(value):
+    """A stored ISO time as a datetime, or None."""
+    return parse_datetime(value) if value else None
 
 
 def _model_kind(data, model_path: str) -> str:
@@ -156,6 +196,22 @@ def _model_kind(data, model_path: str) -> str:
     if model_path:
         return "file"
     return "registry" if data.model_name in MODELS else "external"
+
+
+def _demo_named(snapshot, adopt_paths) -> str:
+    """The bundled demo this snapshot's dataset is, by name, or "": one it
+    names that this instance has, or — for a path the caller produced itself —
+    one whose file it is."""
+    section = snapshot.get("dataset") or {}
+    demos = io.demo_datasets()
+    named = section.get("demo")
+    if named and named in demos:
+        return named
+    stored = section.get("path", "")
+    if adopt_paths and stored:
+        resolved = Path(stored).resolve()
+        return next((name for name, path in demos.items() if Path(path).resolve() == resolved), "")
+    return ""
 
 
 def snapshot_from_experiment(exp: Experiment, *, provenance: bool = False) -> dict:
@@ -179,18 +235,30 @@ def snapshot_from_experiment(exp: Experiment, *, provenance: bool = False) -> di
     # split: this function's argument list *is* `ExperimentData`. A field that
     # has to be added to one and not the other is a change to the file format.
     data = exp.data
-    dataset = data.dataset.path if data.dataset else ""
+    dataset = str(data.dataset_path() or "")
     model_path = data.model_file.path if data.model_file else ""
     snapshot = {
         "format": io.SNAPSHOT_FORMAT,
         "version": dist_version("codesigner"),
         "name": data.name,
         "seed": data.seed,
+        # When the experiment began, and what form its times are in — see
+        # ui/services/timestamps.py. An export restates the second for the
+        # form it chose.
+        "began_at": data.created_at.isoformat() if data.created_at else None,
+        "timestamps": data.time_basis,
         "dataset": {"filename": Path(dataset).name if dataset else "",
-                    "path": dataset},
+                    "path": dataset,
+                    # A bundled demo, by name: another instance reads it as its
+                    # own copy of the same demo rather than needing the file.
+                    "demo": data.demo_dataset or None,
+                    "processing": choices_of(data.processing)},
         "model": {"kind": _model_kind(data, model_path),
                   "name": data.model_name, "path": model_path},
-        "evaluation": evaluation(data.cv_folds, test_size=data.test_size),
+        "evaluation": evaluation(data.cv_folds, test_size=data.test_size, task=data.task,
+                                 time_column=data.time_column, gap=data.time_gap,
+                                 horizon=data.horizon, series_column=data.series_column,
+                                 season=data.season),
         "metrics": {"names": data.metric_names,
                     "current": data.current_metric,
                     "original": data.original_metric},
@@ -268,10 +336,13 @@ def _add_provenance(snapshot: dict, exp: Experiment, dataset: str, model_path: s
         model_fingerprint(data.model_name, model_path, exp.env_meta,
                           kind=snapshot["model"]["kind"]))
     snapshot["evaluation"].update(
-        evaluation(data.cv_folds, _target(dataset), test_size=data.test_size))
+        evaluation(data.cv_folds, _target(dataset), test_size=data.test_size, task=data.task,
+                   time_column=data.time_column, gap=data.time_gap, horizon=data.horizon,
+                   series_column=data.series_column, season=data.season))
     snapshot["optimizer"]["defaults_used"] = _defaults_used(data)
     snapshot["runs"] = [_run_record(index, run)
                         for index, run in enumerate(exp.runs.order_by("id"), start=1)]
+    snapshot["history"] = history.serialized(exp)
     snapshot["environment"] = environment()
 
 
@@ -324,13 +395,18 @@ def _run_record(index: int, run) -> dict:
     offset = run.trial_offset
     count = run.trial_count
     span = None
-    if offset is not None and count:
+    if offset is not None and count is not None:
+        # 1-based and inclusive; a run that produced nothing is the empty range
+        # that starts where it would have, [offset + 1, offset].
         span = [offset + 1, offset + count]
     return {
         "index": index,
         "status": run.status,
+        "created_at": run.created_at.isoformat() if run.created_at else None,
         "started_at": run.started_at.isoformat() if run.started_at else None,
         "finished_at": run.finished_at.isoformat() if run.finished_at else None,
+        "cancel_requested_at": (run.cancel_requested_at.isoformat()
+                                if run.cancel_requested_at else None),
         "trial_range": span,
         "primary_metric": run.primary_metric,
         "stopping": run.stopping,
@@ -341,6 +417,10 @@ def _run_record(index: int, run) -> dict:
         "trial_seconds": run.trial_seconds,
         "error": run.error or None,
         "events": run.events or [],
+        # What it searched under, as it was then: the beliefs stated, and how
+        # long a trial was allowed.
+        "priors": run.priors or {},
+        "trial_timeout": run.trial_timeout or {},
     }
 
 

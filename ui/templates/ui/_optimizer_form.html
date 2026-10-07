@@ -1,0 +1,39 @@
+{% load i18n %}
+{% comment %}The optimizer and its settings (ui/services/optimizer_form.py).
+Every optimizer's panel is rendered and all but the chosen one is hidden and
+disabled, so the select swaps them with no request; a disabled input is not
+submitted. Locked, nothing can be changed. Under a heading that already says
+"Optimizer", `label_hidden` keeps the label for screen readers only.{% endcomment %}
+<div class="field">
+    <label for="optimizer_name"{% if label_hidden %} class="visually-hidden"{% endif %}>{% translate "Optimizer" %}</label>
+    <select id="optimizer_name" name="optimizer_name"{% if optimizer_locked %} disabled{% endif %}>
+        {% for key in optimizer_choices %}
+            <option value="{{ key }}"{% if key == optimizer_selected %} selected{% endif %}>{{ key }}</option>
+        {% endfor %}
+    </select>
+</div>
+{% for panel in optimizer_panels %}
+    <div data-optimizer="{{ panel.key }}"{% if not panel.selected %} hidden{% endif %}>
+        {% include "ui/_optimizer_params.html" with optimizer_layout=panel.optimizer_layout advanced_params=panel.advanced_params has_advanced_params=panel.has_advanced_params panel_disabled=panel.disabled %}
+    </div>
+{% endfor %}
+{% if not optimizer_locked %}
+    <script>
+        (function () {
+            const select = document.getElementById("optimizer_name");
+            const panes = Array.from(document.querySelectorAll("[data-optimizer]"));
+            if (!select) return;
+            function apply() {
+                panes.forEach(function (pane) {
+                    const on = pane.dataset.optimizer === select.value;
+                    pane.hidden = !on;
+                    pane.querySelectorAll("input, select, textarea, fieldset").forEach(function (el) {
+                        el.disabled = !on;
+                    });
+                });
+            }
+            select.addEventListener("change", apply);
+            apply();
+        })();
+    </script>
+{% endif %}

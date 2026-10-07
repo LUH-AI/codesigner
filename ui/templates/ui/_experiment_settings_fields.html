@@ -45,6 +45,28 @@ RMSE do not disagree by the same numbers.{% endcomment %}
     <p class="caption">{{ form.prior_acceptance_tolerance.help_text }}</p>
 </div>
 
+{% comment %}What a run keeps of its trials for "Export trial parameters".
+They take disk, counted against the group after its datasets.{% endcomment %}
+<div class="field">
+    <label for="{{ form.keep_best_trial_models.id_for_label }}">{{ form.keep_best_trial_models.label }}</label>
+    <input type="number" name="keep_best_trial_models" id="{{ form.keep_best_trial_models.id_for_label }}"
+           min="0" max="100" step="1" value="{{ form.keep_best_trial_models.value|default_if_none:5 }}">
+    <p class="caption">{{ form.keep_best_trial_models.help_text }}</p>
+    <label class="check">
+        <input type="checkbox" name="keep_last_run_trial_models" {% if form.keep_last_run_trial_models.value %}checked{% endif %}>
+        {{ form.keep_last_run_trial_models.label }}
+    </label>
+    <p class="caption">{{ form.keep_last_run_trial_models.help_text }}</p>
+</div>
+
+{% comment %}How this experiment's times leave in an exported file — the answer
+the export page starts from (ui/services/timestamps.py).{% endcomment %}
+<div class="field">
+    <label for="{{ form.export_timestamps.id_for_label }}">{{ form.export_timestamps.label }}</label>
+    {{ form.export_timestamps }}
+    <p class="caption">{{ form.export_timestamps.help_text }}</p>
+</div>
+
 <fieldset class="check-group">
     <legend>{% translate "Analytics computed as soon as a figure needs them" %}</legend>
     {% for field in form.autocompute_fields %}

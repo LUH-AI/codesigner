@@ -8,7 +8,7 @@ each experiment is told apart by its identifier.
 import pytest
 from django.urls import reverse
 
-from tests.conftest import DATASETS_DIR
+from tests.conftest import DATASETS_DIR, post_new_experiment
 
 
 def _post(client, **overrides):
@@ -16,19 +16,20 @@ def _post(client, **overrides):
         "name": "persisted",
         "model_name": "Random Forest",
         "optimizer_name": "Random Search",
-        "demo_dataset": str(DATASETS_DIR / "iris.csv"),
+        "demo_dataset": str(DATASETS_DIR / "iris.csv"), "task": "classification",
         "seed": 0,
     }
     data.update(overrides)
-    return client.post(reverse("ui:new_experiment"), data)
+    return post_new_experiment(client, data)
 
 
 @pytest.mark.django_db
 def test_creating_persists_the_experiment(client):
-    """Creating saves the experiment with a stored dataset and no result yet.
+    """Creating saves the experiment with its dataset and no result yet.
 
-    Expect: an Experiment row with a dataset file and result None (creating
-    does not run), reachable at its detail page.
+    Expect: an Experiment row that names the bundled demo it was created on
+    (demos are never copied), result None (creating does not run), reachable
+    at its detail page.
     """
     from ui.models import Experiment
 
@@ -36,7 +37,8 @@ def test_creating_persists_the_experiment(client):
     exp = Experiment.objects.get(data__name="persisted")
 
     assert resp.status_code == 302
-    assert exp.data.dataset
+    assert exp.data.demo_dataset == "iris"
+    assert exp.data.dataset_path().resolve() == (DATASETS_DIR / "iris.csv").resolve()
     assert exp.data.result is None
     assert client.get(reverse("ui:experiment_detail", args=[exp.pk])).status_code == 200
 

@@ -325,11 +325,31 @@ nav.sidebar .nav-links a:hover { color: var(--primary); }
     color: var(--text);
     font-weight: 600;
 }
+/* The open experiment's views (Dashboard, Data Handling, Timeline): indented
+   under its row and a step smaller, so they read as parts of it rather than
+   as more experiments.
+   The current one keeps only the accent; the tint already marks the row. */
+.tab-list .experiment-views { margin: 0.125rem 0 0.375rem 0.85rem; }
+.tab-list .experiment-views .tab { padding: 0.3rem 0.75rem; font-size: 0.875rem; }
+.tab-list .experiment-views .tab.active { background: transparent; }
+
+/* ── Both navs on a smaller screen ───────────────────────────────────────
+   Four fifths of their size, text and all, below a 2400px window — a laptop's
+   — so the figures beside them keep most of the width they were drawn for.
+   Smaller text reads fine in a column of controls; a narrower column of
+   full-size text would only wrap. `zoom` scales a length given in `vh` too, so
+   their full-height rule is divided back out. */
+@media (max-width: 2399px) {
+    nav.rail, nav.sidebar { zoom: 0.8; height: calc(100vh / 0.8); }
+}
 
 /* ── Main content (Streamlit "wide" layout) ───────────────────────────── */
 main.content {
     flex: 1;
-    padding: 3rem 4rem 5rem;
+    /* The sides narrow with the window, down to 1.5rem: on a laptop the
+       figures need the width more than the margin does. 4rem from a 3800px
+       window up. */
+    padding: 3rem clamp(1.5rem, 1.7vw, 4rem) 5rem;
     max-width: 1300px;
     width: 100%;
     /* Explicitly the bottom layer, so the two sticky navs beside it can be
@@ -362,8 +382,8 @@ button, .btn {
     cursor: pointer;
     transition: color 0.1s, border-color 0.1s, background 0.1s;
 }
-button:hover:not(:disabled), .btn:hover { border-color: var(--primary); color: var(--primary); }
-button:disabled { opacity: 0.5; cursor: not-allowed; }
+button:hover:not(:disabled), .btn:hover:not(.disabled) { border-color: var(--primary); color: var(--primary); }
+button:disabled, .btn.disabled { opacity: 0.5; cursor: not-allowed; }
 .btn-primary, button[type="submit"] {
     background: var(--primary); border-color: var(--primary); color: #fff; font-weight: 600;
 }
@@ -447,6 +467,200 @@ nav.sidebar .info-bubble {
     background: var(--bg);
 }
 
+/* ── An experiment's timeline (ui/templates/ui/experiment_timeline.html) ──
+   One line down the left, each entry a point on it: the time and how many
+   trials there were, then what happened. Newest at the top. */
+.timeline-heading { margin-top: 1.5rem; }
+.timeline { list-style: none; padding: 0; margin: 1.5rem 0 0; max-width: 56rem; }
+.timeline-entry {
+    display: grid;
+    grid-template-columns: 11rem minmax(0, 1fr);
+    gap: 1.25rem;
+    position: relative;
+    padding: 0 0 1.25rem;
+}
+.timeline-entry::before {
+    content: "";
+    position: absolute;
+    left: calc(11rem + 0.6rem);
+    top: 0.45rem;
+    bottom: -0.45rem;
+    border-left: 1px solid var(--border);
+}
+.timeline-entry:last-child::before { display: none; }
+.timeline-body { position: relative; padding-left: 1.1rem; min-width: 0; }
+.timeline-body::before {
+    content: "";
+    position: absolute;
+    left: -0.62rem;
+    top: 0.42rem;
+    width: 0.55rem;
+    height: 0.55rem;
+    border-radius: 50%;
+    background: var(--bg);
+    border: 2px solid var(--muted);
+}
+.kind-run .timeline-body::before { border-color: var(--selected); background: var(--selected); }
+.kind-created .timeline-body::before, .kind-imported .timeline-body::before { border-color: var(--text); }
+.timeline-when { display: flex; flex-direction: column; align-items: flex-end; text-align: right;
+                 font-size: 0.85rem; font-variant-numeric: tabular-nums; }
+.timeline-trials { color: var(--muted); font-size: 0.8rem; }
+.timeline-summary { margin: 0; }
+.timeline-children { margin: 0.35rem 0 0; padding-left: 1.1rem; font-size: 0.9rem; color: var(--muted); }
+.timeline-body details { margin-top: 0.35rem; }
+.timeline-body details > summary { cursor: pointer; color: var(--muted); font-size: 0.85rem; }
+.timeline-details {
+    display: grid;
+    grid-template-columns: max-content minmax(0, 1fr);
+    gap: 0.2rem 1rem;
+    margin: 0.5rem 0 0;
+    font-size: 0.875rem;
+}
+.timeline-details dt { color: var(--muted); }
+.timeline-details dd { margin: 0; overflow-wrap: anywhere; }
+/* A value that is itself a short list — the optimizer's settings: name and
+   value in two columns of their own, the names a step quieter. */
+.timeline-settings {
+    display: grid; grid-template-columns: max-content minmax(0, 1fr);
+    gap: 0.1rem 0.75rem; margin: 0;
+}
+.timeline-settings dt { color: var(--muted); font-size: 0.85rem; }
+.timeline-settings dd { margin: 0; }
+/* What is scheduled and has not happened: above the "Now" stop, the line
+   dashed, the dot hollow and dashed, the entry outlined in dashes. */
+.timeline-entry.is-scheduled::before { border-left-style: dashed; }
+.is-scheduled .timeline-body::before {
+    background: var(--bg); border: 2px dotted var(--muted);
+    width: 0.75rem; height: 0.75rem; left: -0.72rem; top: 0.32rem;
+}
+.is-scheduled .timeline-when { color: var(--muted); }
+.timeline-scheduled {
+    border: 1px dashed var(--border);
+    border-radius: 8px;
+    padding: 0.5rem 0.75rem;
+    margin-top: -0.5rem;
+    color: var(--muted);
+}
+.timeline-now .timeline-when {
+    text-transform: uppercase; letter-spacing: 0.06em;
+    font-size: 0.75rem; font-weight: 600;
+}
+.timeline-now .timeline-body::before { background: var(--text); border-color: var(--text); }
+@media (max-width: 700px) {
+    .timeline-entry { grid-template-columns: minmax(0, 1fr); gap: 0.25rem; }
+    .timeline-when { align-items: flex-start; text-align: left; }
+    .timeline-entry::before { display: none; }
+}
+
+/* ── An experiment's title, and renaming it (_experiment_header.html) ── */
+.experiment-title { display: flex; align-items: baseline; gap: 0.5rem; }
+.rename { position: relative; flex-shrink: 0; }
+.rename > summary {
+    list-style: none; cursor: pointer; color: var(--muted); font-size: 1.25rem;
+    padding: 0 0.25rem; border-radius: 4px;
+}
+.rename > summary::-webkit-details-marker { display: none; }
+.rename > summary:hover, .rename[open] > summary { color: var(--text); }
+/* Over the caption rather than pushing it down: a moment's edit. */
+.rename-form {
+    position: absolute; top: calc(100% + 0.25rem); left: 0; z-index: 10;
+    display: flex; gap: 0.5rem; padding: 0.5rem;
+    background: var(--bg); border: 1px solid var(--border); border-radius: 8px;
+    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.12);
+}
+.rename-form input[type=text] { width: min(24rem, 60vw); }
+
+/* ── An experiment before its first trial (experiment_prerun.html) ──────
+   The optimizer beside the prior; one above the other when narrow. */
+.prerun { display: flex; flex-wrap: wrap; gap: 1.5rem; align-items: flex-start; margin-top: 1.5rem; }
+.prerun-optimizer { flex: 0 1 30rem; min-width: 0; }
+.prerun-optimizer .subheader { margin-top: 0; }
+.prerun-prior { flex: 1 1 32rem; min-width: 0; }
+
+/* ── A draft's setup steps (ui/templates/ui/_setup_steps.html) ──────────
+   Numbered stops joined by a line, not tabs: they are done in order. The
+   current one is filled in the selected colour, a saved one carries a check,
+   and one that cannot be opened yet is faded. */
+.setup-steps ol {
+    list-style: none; margin: 0 0 2rem; padding: 0;
+    display: flex; align-items: flex-start; gap: 0; max-width: 56rem;
+}
+.setup-step { flex: 1; position: relative; min-width: 0; }
+.setup-step:not(:last-child)::after {
+    content: ""; position: absolute; top: 1.125rem; left: 2.75rem; right: 0.5rem;
+    border-top: 2px solid var(--border);
+}
+.setup-step.is-saved:not(:last-child)::after { border-top-color: var(--selected); }
+.setup-step > a, .setup-step > span {
+    display: flex; flex-direction: column; align-items: flex-start; gap: 0.4rem;
+    color: var(--text); text-decoration: none; padding-right: 1rem;
+}
+.setup-step > a:hover .setup-step-label { text-decoration: underline; }
+.setup-step-number {
+    flex: none; position: relative; z-index: 1;
+    width: 2.25rem; height: 2.25rem; border-radius: 50%;
+    display: inline-flex; align-items: center; justify-content: center;
+    font-weight: 700; font-variant-numeric: tabular-nums;
+    background: var(--bg); border: 2px solid var(--border); color: var(--muted);
+}
+.setup-step.is-saved .setup-step-number { border-color: var(--selected); color: var(--text); }
+.setup-step.is-current .setup-step-number {
+    background: var(--selected); border-color: var(--selected); color: #1d1d1d;
+}
+.setup-step-text { display: flex; flex-direction: column; padding-top: 0.15rem; min-width: 0; }
+.setup-step-label { font-weight: 600; }
+.setup-step.is-current .setup-step-label { font-weight: 700; }
+.setup-step-state { font-size: 0.8rem; color: var(--muted); }
+.setup-step.is-locked { opacity: 0.45; }
+form.new-experiment { display: contents; }
+/* New and Discard draft are posts, so submit buttons, but not the page's
+   primary action: drawn as the plain buttons beside them. */
+form.new-experiment button.btn, .setup-heading button.btn {
+    background: var(--bg); border-color: var(--border); color: var(--text); font-weight: 400;
+}
+form.new-experiment button.btn:hover, .setup-heading button.btn:hover {
+    background: var(--bg); border-color: var(--primary); color: var(--primary);
+}
+.draft-badge {
+    flex: none; font-size: 0.65rem; font-weight: 700; letter-spacing: 0.05em;
+    text-transform: uppercase; color: var(--muted);
+    border: 1px solid var(--border); border-radius: 999px; padding: 0 0.4rem;
+}
+.setup-heading { display: flex; justify-content: space-between; align-items: flex-start; gap: 1rem; }
+.setup-panels { display: flex; flex-direction: column; gap: 1.5rem; max-width: 72rem; }
+.setup-actions { margin-top: 1.75rem; display: flex; gap: 0.75rem; align-items: center; flex-wrap: wrap; }
+@media (max-width: 700px) {
+    .setup-steps ol { flex-direction: column; gap: 0.75rem; }
+    .setup-step:not(:last-child)::after { display: none; }
+}
+
+/* ── Data Handling's planned capabilities ─────────────────────────────── */
+/* Its sections are the dashboard's tabs, holding panels on the same grid: what
+   the tab is for above them, and a tab of controls' Save button below. */
+.data-handling .data-save { margin-top: 1.25rem; align-items: center; }
+.data-handling .fig-slot.shape-card > .card select { width: 100%; }
+
+.planned-list {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(18rem, 1fr));
+    gap: 1rem;
+    max-width: 60rem;
+}
+.planned { display: flex; flex-direction: column; gap: 0.4rem; }
+.planned-head { display: flex; justify-content: space-between; align-items: baseline; gap: 0.75rem; }
+.planned-title { font-weight: 600; }
+.planned-badge {
+    flex-shrink: 0;
+    font-size: 0.7rem;
+    font-weight: 700;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    color: var(--muted);
+    border: 1px solid var(--border);
+    border-radius: 999px;
+    padding: 0.05rem 0.5rem;
+}
+
 /* ── Two-column analytics grid (st.columns(2)) ────────────────────────── */
 .grid-2 { display: flex; gap: 1.5rem; align-items: flex-start; }
 .grid-2 > .col { flex: 1; display: flex; flex-direction: column; gap: 1.5rem; min-width: 0; }
@@ -476,7 +690,15 @@ main.content > .fig-area { margin-top: 0.25rem; }
 /* Four columns where there is room for them, two below that, one on a narrow
    window. Rows are as tall as what is in them; a figure's height comes from
    its width — see `.fig-slot`. Aligned to the top of the row, so a shorter
-   figure keeps its proportions rather than stretching to a taller neighbour. */
+   figure keeps its proportions rather than stretching to a taller neighbour.
+
+   A column is a length in rem, like the text in it, between --col-min and
+   --col-max — not a share of the window, which would shrink a figure around
+   text that does not shrink. --col-design is the width the figures were drawn
+   for: a quarter of the row on a 4K screen at 100%. How many columns fit is
+   layout.js's to decide, from the grid's own width (see `geometryOf`); the
+   breakpoints below are only its estimate from the window, so the first draw,
+   before it runs, is close. */
 /* A tab not being shown is still laid out, off-screen at the shown one's
    width: a figure that finishes loading while its tab is in the background is
    drawn at the size it will have, where with `display: none` Plotly would be
@@ -493,14 +715,17 @@ main.content > .fig-area { margin-top: 0.25rem; }
 .fig-grid {
     --cols: 4;
     --gap: 1.5rem;
+    --col-design: 52rem;
+    --col-min: 42rem;
+    --col-max: 60rem;
     display: grid;
     grid-template-columns: repeat(var(--cols), minmax(0, 1fr));
     grid-auto-flow: row;
     align-items: start;
     gap: var(--gap);
 }
-@media (max-width: 1599px) { .fig-grid { --cols: 2; } }
-@media (max-width: 900px) { .fig-grid { --cols: 1; } }
+@media (max-width: 3215px) { .fig-grid { --cols: 2; } }
+@media (max-width: 1687px) { .fig-grid { --cols: 1; } }
 .fig-empty-tab { grid-column: 1 / -1; }
 
 /* A slot is a place on the grid; the element in it is the figure, which fills
@@ -533,10 +758,10 @@ main.content > .fig-area { margin-top: 0.25rem; }
 .fig-grid.is-arranged > .fig-empty-tab { position: static; }
 /* Measuring a figure's own height: nothing inside it may scroll or clip. */
 .is-measured, .is-measured .table-wrap { overflow: visible !important; flex: none !important; }
-@media (max-width: 1599px) {
+@media (max-width: 3215px) {
     .fig-slot[data-w="4"] { grid-column: span 2; }
 }
-@media (max-width: 900px) {
+@media (max-width: 1687px) {
     .fig-slot[data-w] { grid-column: span 1; }
     /* One column is the window's width, and 3:1 of that is a strip. */
     .fig-slot.shape-long { aspect-ratio: 3 / 2; }
@@ -550,6 +775,7 @@ main.content > .fig-area { margin-top: 0.25rem; }
    between them, or any figure with nothing to draw yet. layout.js gives the
    slot as many rows as the figure's natural height needs. */
 .fig-slot.shape-stack > [data-figure],
+.fig-slot.shape-card > [data-figure],
 .fig-slot.is-content > [data-figure] { overflow: visible; }
 .fig-slot.is-content > [data-figure] .plot { flex: none; }
 /* A slot's own controls, in its corners and inside the card's padding: a
@@ -838,3 +1064,7 @@ hr.divider { border: none; border-top: 1px solid var(--border); margin: 1.5rem 0
 /* Switched off by a checkbox that is right there, so it is greyed rather than
    removed: the reader has to see what turning it back on would offer. */
 .is-off { opacity: 0.45; }
+
+/* A group's storage, on its page: how full, as a bar. */
+.usage-bar { height: 0.5rem; border-radius: 999px; background: var(--border); overflow: hidden; margin: 0.25rem 0 1rem; }
+.usage-bar > span { display: block; height: 100%; background: var(--selected); }

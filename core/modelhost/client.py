@@ -20,6 +20,7 @@ import queue
 import shutil
 import signal
 import subprocess
+import tempfile
 import threading
 import time
 import weakref
@@ -39,6 +40,9 @@ DEFAULT_START_TIMEOUT = 120.0
 _POLL = 0.25          # how often a wait looks up from the pipe to check for cancellation
 _STOP_GRACE = 5.0
 _STDERR_LINES = 200
+
+#: Longer than this, a launch argument travels in a file (see `_argument`).
+_INLINE_ARGUMENT = 32_000
 
 _LIVE: weakref.WeakSet = weakref.WeakSet()
 
@@ -81,16 +85,45 @@ class ModelProcess:
         self._seq = 0
         self._lines: queue.Queue = queue.Queue()
         self._stderr: collections.deque = collections.deque(maxlen=_STDERR_LINES)
+        self._argument_files: list[str] = []
 
     # ── lifetime ─────────────────────────────────────────────────────────────
+
+    def _argument(self, value) -> str:
+        """*value* as JSON for the command line — or, when that would be long,
+        ``@`` and a file holding it, which the harness reads instead. One
+        argument may not exceed 128 KiB on Linux, and a feature kind is about
+        eleven bytes, so a wide dataset's list would stop the child starting."""
+        text = json.dumps(value)
+        if len(text) < _INLINE_ARGUMENT:
+            return text
+        handle, path = tempfile.mkstemp(prefix="codesigner-arg-", suffix=".json")
+        with os.fdopen(handle, "w", encoding="utf-8") as f:
+            f.write(text)
+        self._argument_files.append(path)
+        return "@" + path
 
     @property
     def alive(self) -> bool:
         return self._proc is not None and self._proc.poll() is None
 
-    def start(self, *, seed: int = 0, describe: bool = False) -> dict:
-        """Spawn the child and return its greeting."""
+    def start(self, *, seed: int = 0, describe: bool = False, task: str | None = None,
+              feature_kinds=None, forecast=None) -> dict:
+        """Spawn the child and return its greeting.
+
+        *task* is told to the model before it is asked for its search space,
+        which may depend on it, and so are *feature_kinds* — what kind each
+        column of X is — and, for a forecasting run, *forecast*.
+        """
         argv = [*self._launch, "--seed", str(seed)]
+        if task:
+            argv += ["--task", task]
+        # Left out when every column is a number, which is what the model reads
+        # an empty list as anyway — and what a very wide dataset usually is.
+        if feature_kinds and any(kind != "numeric" for kind in feature_kinds):
+            argv += ["--feature-kinds", self._argument(list(feature_kinds))]
+        if forecast:
+            argv += ["--forecast", self._argument(forecast)]
         if describe:
             argv.append("--describe")
 
@@ -136,6 +169,12 @@ class ModelProcess:
     def kill(self) -> None:
         proc, self._proc = self._proc, None
         _LIVE.discard(self)
+        for path in self._argument_files:
+            try:
+                os.unlink(path)
+            except OSError:
+                pass
+        self._argument_files = []
         if proc is None:
             return
         if proc.poll() is None:
@@ -435,7 +474,7 @@ def _jsonable(config: dict) -> dict:
             for key, value in config.items()}
 
 
-def describe(launch, *, seed: int = 0, env=None,
+def describe(launch, *, seed: int = 0, env=None, task: str | None = None,
              start_timeout: float = DEFAULT_START_TIMEOUT) -> dict:
     """Start a model, read its greeting, stop. Its name and search space.
 
@@ -445,7 +484,7 @@ def describe(launch, *, seed: int = 0, env=None,
     """
     process = ModelProcess(launch, start_timeout=start_timeout, env=env)
     try:
-        return process.start(seed=seed, describe=True)
+        return process.start(seed=seed, describe=True, task=task)
     finally:
         process.close()
 
@@ -459,12 +498,16 @@ class model_session:
     """
 
     def __init__(self, launch, splits, *,
-                 seed: int = 0, cancel=None, env=None, cwd=None,
+                 seed: int = 0, task: str = "classification", feature_kinds=None,
+                 forecast=None, cancel=None, env=None, cwd=None,
                  trial_timeout: float = DEFAULT_TRIAL_TIMEOUT,
                  start_timeout: float = DEFAULT_START_TIMEOUT):
         self._launch = launch
         self._splits = splits
         self._seed = seed
+        self._task = task
+        self._feature_kinds = feature_kinds
+        self._forecast = forecast
         self._cancel = cancel
         self._env = env
         self._cwd = cwd
@@ -485,7 +528,8 @@ class model_session:
         process = ModelProcess(
             self._launch, start_timeout=self._start_timeout,
             env=self._env, cwd=self._cwd)
-        hello = process.start(seed=self._seed)
+        hello = process.start(seed=self._seed, task=self._task,
+                              feature_kinds=self._feature_kinds, forecast=self._forecast)
 
         reply = process.request(
             {"t": protocol.INIT,

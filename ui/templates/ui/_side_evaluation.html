@@ -102,7 +102,7 @@ you cannot have.
                     <div class="field">
                         <div class="field-label">
                             <label for="max_failures">{% translate "…this many trials have failed" %}</label>
-                            {% translate "A trial fails when the model raises on its configuration, runs past its deadline, or returns something that cannot be scored. It is still recorded — with its reason, and its stacktrace where there is one — and it scores zero, so the search learns to avoid that region. Default 1: the first failure is usually the one worth reading. Raise it when a search is deliberately probing a region you expect to break. At least 1." as failures_help %}
+                            {% translate "A trial fails when the model raises on its configuration, runs past its deadline, or returns something that cannot be scored. It is still recorded — with its reason, and its stacktrace where there is one — and it scores what a model that knows nothing would — zero accuracy, or the error of always predicting the average — so the search learns to avoid that region. Default 1: the first failure is usually the one worth reading. Raise it when a search is deliberately probing a region you expect to break. At least 1." as failures_help %}
                             {% include "ui/_info.html" with info_id="max_failures_help" info_text=failures_help %}
                         </div>
                         <input type="number" id="max_failures" name="max_failures"

@@ -26,7 +26,8 @@ from functools import wraps
 
 from django.conf import settings
 from django.core.exceptions import PermissionDenied
-from django.shortcuts import get_object_or_404
+from django.http import Http404
+from django.shortcuts import get_object_or_404, redirect
 from django.utils.module_loading import import_string
 
 from .models import Experiment
@@ -40,8 +41,9 @@ EDIT = "edit"        # change its settings
 DELETE = "delete"    # destroy it
 EXPORT = "export"    # take a copy of it off the instance
 SHARE = "share"      # decide who else may reach it, or hand it to somebody
+RENAME = "rename"    # change what it is called
 
-ACTIONS = frozenset({VIEW, RUN, EDIT, DELETE, EXPORT, SHARE})
+ACTIONS = frozenset({VIEW, RUN, EDIT, DELETE, EXPORT, SHARE, RENAME})
 
 
 class OpenPolicy:
@@ -133,7 +135,20 @@ def visible_experiments(request):
     return policy().for_listing(request)
 
 
-def experiment_view(action):
+#: Which experiments a route reaches, by whether they are drafts (still being
+#: set up — see ui/services/setup.py). Every route reaches created experiments
+#: only, unless it says otherwise: a draft has no dashboard to show, no run to
+#: start and nothing to export, and its setup is the one place to work on it.
+CREATED = "created"
+#: Drafts only: the setup's own routes.
+ONLY = "only"
+#: Both: what the setup's steps share with a created experiment's pages — the
+#: prior figure's requests.
+BOTH = "both"
+DRAFTS = (CREATED, ONLY, BOTH)
+
+
+def experiment_view(action, drafts=CREATED):
     """Resolve `<int:pk>` to an experiment this request is allowed to act on.
 
     The decorated view is called with the experiment in place of `pk`:
@@ -145,22 +160,37 @@ def experiment_view(action):
     which is also why this is worth a decorator rather than a helper call —
     a view cannot accidentally hold a `pk` that was never checked, because it
     is never given one.
+
+    *drafts* says whether the route reaches drafts (see `DRAFTS`). A page
+    asked of the wrong kind sends the reader where that kind is worked on — a
+    draft to its setup, a created experiment to its dashboard; anything else
+    is a 404, as for an experiment that does not exist.
     """
     if action not in ACTIONS:
         raise ValueError(f"unknown action {action!r}; expected one of {sorted(ACTIONS)}")
+    if drafts not in DRAFTS:
+        raise ValueError(f"unknown drafts {drafts!r}; expected one of {DRAFTS}")
 
     def decorate(view):
         @wraps(view)
         def wrapped(request, pk, *args, **kwargs):
             current = policy()
             exp = get_object_or_404(current.experiments(request), pk=pk)
+            wrong = ((exp.draft and drafts == CREATED)
+                     or (not exp.draft and drafts == ONLY))
+            if wrong:
+                if request.method != "GET":
+                    raise Http404
+                return redirect("ui:setup_resume" if exp.draft else "ui:experiment_detail",
+                                pk=exp.pk)
             if not current.may(request, exp, action):
                 raise PermissionDenied
             return view(request, exp, *args, **kwargs)
 
         #: Read by the URLconf audit. `functools.wraps` copies `__dict__`, so
-        #: this survives an outer `require_POST`.
+        #: these survive an outer `require_POST`.
         wrapped.experiment_action = action
+        wrapped.experiment_drafts = drafts
         return wrapped
 
     return decorate

@@ -37,6 +37,7 @@ from pathlib import Path
 from typing import Any, Dict, Optional
 
 from .splits import MIN_FOLDS
+from .tasks import CLASSIFICATION
 
 #: Read in blocks rather than whole: a dataset is not always small, and the
 #: digest is computed on every export.
@@ -98,12 +99,14 @@ def dataset_fingerprint(path, frame=None) -> Dict[str, Any]:
         "sha256": sha256(path),
         "rows": None, "columns": None,
         "column_names": None, "target_column": None,
+        "column_kinds": None,
     }
     if not path.is_file():
         return record
 
     import pandas as pd
 
+    from .columns import infer_kinds
     from .io import _read_csv
 
     try:
@@ -120,6 +123,9 @@ def dataset_fingerprint(path, frame=None) -> Dict[str, Any]:
         "column_names": names,
         # The last column is the target, everywhere in this application.
         "target_column": names[-1] if names else None,
+        # How each feature was read — a number, a label, a date — which decides
+        # what the model was given for it (`core.encoding`).
+        "column_kinds": infer_kinds(df.iloc[:, :-1]),
     })
     return record
 
@@ -152,23 +158,49 @@ def model_fingerprint(model_name: str, model_path: str, env_meta=None,
     }
 
 
-def evaluation(cv_folds: int, y=None, test_size: float = None) -> Dict[str, Any]:
+def evaluation(cv_folds: int, y=None, test_size: float = None,
+               task: str = CLASSIFICATION, time_column: str = "",
+               gap: int = 0, horizon: int = 0, series_column: str = "",
+               season: int = 0) -> Dict[str, Any]:
     """How a trial was evaluated — fixed for the experiment's life.
+
+    *time_column* names the column the rows were divided in time order by
+    (`core.splits.time_holdout`), and *gap* how many rows were left between
+    training and validation; such a division is never stratified.
+    A forecast also records its *horizon*, the *series_column* naming each
+    row's series, and the *season* length; its folds are backtests
+    (`core.splits.backtest`), one per fold, and its gap counts time steps.
 
     `stratified` is *resolved*, not intended. Both schemes ask for stratification
     and fall back to a plain division when scikit-learn refuses the target,
     which in practice means a continuous one; recording the request rather than
     the outcome would put a claim in the file that the run did not honour. It is
-    left null when the target was not to hand.
+    left null when the target was not to hand. A regression split is never
+    stratified, so it is false whether or not the target is.
     """
     folds = int(cv_folds or 0)
+    forecast = bool(horizon) and bool(time_column)
+    if forecast:
+        # Backtests, however many: one is as much a backtest as five.
+        folds = max(folds, 1)
     return {
-        "scheme": "kfold" if folds >= MIN_FOLDS else "holdout",
-        "folds": folds if folds >= MIN_FOLDS else None,
-        # Null under cross-validation, where nothing is held out — recording a
-        # share there would describe a split the run never made.
-        "test_size": None if folds >= MIN_FOLDS else float(test_size or 0.2),
-        "stratified": None if y is None else _stratifiable(y),
+        "scheme": "backtest" if forecast else "kfold" if folds >= MIN_FOLDS else "holdout",
+        "folds": folds if forecast or folds >= MIN_FOLDS else None,
+        # Null under cross-validation and backtests, where nothing is held out
+        # by share — recording one there would describe a split the run never
+        # made.
+        "test_size": (None if forecast or folds >= MIN_FOLDS
+                      else float(test_size or 0.2)),
+        "stratified": (False if task != CLASSIFICATION or time_column
+                       else None if y is None else _stratifiable(y)),
+        "task": task,
+        "time_column": time_column or None,
+        "gap": int(gap or 0) if time_column else None,
+        # Null for anything but a forecast, like the two above for a division
+        # that ignores time.
+        "horizon": int(horizon) if forecast else None,
+        "series_column": (series_column or None) if forecast else None,
+        "season": (int(season or 0) or None) if forecast else None,
     }
 
 

@@ -51,6 +51,7 @@ all of this as one flat namespace — is lifted rather than refused.
 
 from __future__ import annotations
 
+import copy
 import importlib.util
 import inspect
 import json
@@ -61,13 +62,16 @@ from importlib.metadata import version as _dist_version
 from pathlib import Path
 from typing import Any
 
+import numpy as np
 import pandas as pd
 from sklearn.model_selection import train_test_split
 
-from . import provenance
+from . import columns, encoding, forecasting, provenance, tasks
 from .metrics import declarations
 from .paths import MAX_STATE_FILES, is_safe_relative
-from .splits import MIN_FOLDS, cross_validation, holdout
+from .splits import (
+    MIN_FOLDS, backtest, cross_validation, holdout, time_cross_validation, time_holdout,
+)
 
 _REPO_ROOT   = Path(__file__).parent.parent
 _DATASETS_DIR = _REPO_ROOT / "datasets"
@@ -183,10 +187,138 @@ def _read_csv(csv_path: Path):
     return pd.read_csv(csv_path, sep=sep)
 
 
-def _load_frame(csv_path: Path):
-    """The dataset as (X, y). The last column is the target."""
-    df = _read_csv(csv_path)
-    return df.iloc[:, :-1].to_numpy(), df.iloc[:, -1].to_numpy()
+def read_dataset(source):
+    """A dataset as a DataFrame, from a path or from the file's bytes.
+
+    The create form has an upload in hand and should not have to write it out
+    to look at it.
+    """
+    if isinstance(source, (bytes, bytearray)):
+        from io import BytesIO
+
+        sample = bytes(source[:2048]).decode("utf-8", errors="replace")
+        sep = ";" if sample.count(";") > sample.count(",") else ","
+        return pd.read_csv(BytesIO(source), sep=sep)
+    return _read_csv(Path(source))
+
+
+def target_of(source) -> tuple[str, Any]:
+    """The target column of a dataset — its name and its values. *source* is a
+    path or the file's bytes, as for `read_dataset`."""
+    df = read_dataset(source)
+    return str(df.columns[-1]), df.iloc[:, -1].to_numpy()
+
+
+def orderable_columns(frame) -> list[str]:
+    """The feature columns a dataset could be divided in time order by: dates,
+    and numbers (a year, a period index). Dates first."""
+    kinds = columns.infer_kinds(frame.iloc[:, :-1])
+    return ([name for name, kind in kinds.items() if kind == columns.DATETIME]
+            + [name for name, kind in kinds.items() if kind == columns.NUMERIC])
+
+
+def forecast_problem(frame, column: str, series_column: str, horizon: int, folds: int,
+                     gap: int):
+    """Why *frame* cannot be backtested this way, or None if it can."""
+    if horizon < 1:
+        return "a forecast has to look at least one step ahead"
+    try:
+        ordered, times = _in_time_order(_labelled(frame), column)
+        if series_column and series_column not in ordered.columns[:-1]:
+            return f"the dataset has no feature column named {series_column!r}"
+        if series_column == column:
+            return "the series column cannot also be the time column"
+        backtest(np.zeros((len(ordered), 1)), np.zeros(len(ordered)), times, horizon,
+                 max(folds, 1), gap,
+                 series=ordered[series_column].astype(str).to_numpy() if series_column else None)
+    except ValueError as exc:
+        return str(exc)
+    return None
+
+
+def time_order_problem(frame, column: str, folds: int, test_size: float, gap: int):
+    """Why *frame* cannot be divided in time order by *column* this way, or
+    None if it can."""
+    try:
+        ordered, _ = _in_time_order(_labelled(frame), column)
+        n = len(ordered)
+        if folds >= MIN_FOLDS:
+            time_cross_validation(np.zeros((n, 1)), np.zeros(n), folds, gap)
+        else:
+            time_holdout(np.zeros((n, 1)), np.zeros(n), test_size, gap)
+    except ValueError as exc:
+        return str(exc)
+    return None
+
+
+def _labelled(df):
+    """*df* without the rows whose target is missing: there is nothing to train
+    on in them and nothing to score them against."""
+    return df[df.iloc[:, -1].notna()]
+
+
+def dataset_encoding(csv_path: Path) -> dict:
+    """How the dataset's feature columns become the floats a model is given —
+    see `core.encoding`. A function of the file alone, so every caller that
+    reads the same file encodes it the same way."""
+    df = _labelled(_read_csv(csv_path))
+    return encoding.fit(df.iloc[:, :-1])
+
+
+def _in_time_order(df, column: str):
+    """*df*'s rows sorted by *column*, oldest first, without the rows that have
+    no time — a row that cannot be placed in time cannot be put on either side
+    of a split in time.
+
+    A date column is read as dates and a number column as numbers (a year, a
+    period index). A column of labels has no order, and is refused.
+    """
+    if column not in df.columns[:-1]:
+        raise ValueError(f"the dataset has no feature column named {column!r} to order it by")
+    kind = columns.kind_of(df[column])
+    if kind == columns.CATEGORICAL:
+        raise ValueError(f"{column!r} holds labels, which have no order in time")
+    if kind == columns.DATETIME:
+        times = pd.to_datetime(df[column], errors="coerce", format="mixed", utc=True)
+    else:
+        times = pd.to_numeric(df[column], errors="coerce")
+    known = times.notna()
+    # Stable, so rows sharing a time keep the order the file gave them.
+    order = np.argsort(times[known].to_numpy(), kind="stable")
+    return df[known].iloc[order], times[known].iloc[order].to_numpy()
+
+
+def _load_frame(csv_path: Path, order_by: str | None = None):
+    """The dataset as (X, y). The last column is the target.
+
+    X is floats whatever the columns held: text and dates are encoded
+    (`core.encoding`), a missing value is NaN. Rows without a target are left
+    out. With *order_by*, the rows come oldest first by that column, and rows
+    without a time are left out too.
+    """
+    df = _labelled(_read_csv(csv_path))
+    # Fitted before any row is left out for having no time, so it is the same
+    # encoding `dataset_encoding` gives and the models are told about.
+    spec = encoding.fit(df.iloc[:, :-1])
+    if order_by:
+        df, _ = _in_time_order(df, order_by)
+    return encoding.encode(spec, df.iloc[:, :-1]), df.iloc[:, -1].to_numpy()
+
+
+def _load_forecast(csv_path: Path, time_column: str, series_column: str = ""):
+    """A forecast's rows, oldest first: (X, y, times, series). *series* is each
+    row's series as text ("" when there is one series), *times* each row's time
+    — the values a backtest is cut on."""
+    df = _labelled(_read_csv(csv_path))
+    spec = encoding.fit(df.iloc[:, :-1])
+    df, times = _in_time_order(df, time_column)
+    series = None
+    if series_column:
+        if series_column not in df.columns[:-1]:
+            raise ValueError(f"the dataset has no feature column named {series_column!r} "
+                             f"to tell its series apart by")
+        series = df[series_column].astype(str).to_numpy()
+    return encoding.encode(spec, df.iloc[:, :-1]), df.iloc[:, -1].to_numpy(), times, series
 
 
 #: The share of a dataset held out for validation when the scheme is a single
@@ -195,15 +327,24 @@ def _load_frame(csv_path: Path):
 DEFAULT_TEST_SIZE = 0.2
 
 
-def _load_splits(csv_path: Path, seed: int, test_size: float = DEFAULT_TEST_SIZE):
+def _load_splits(csv_path: Path, seed: int, test_size: float = DEFAULT_TEST_SIZE,
+                 task: str = tasks.DEFAULT):
     """Reconstruct the identical train/val split from a CSV path, seed and
-    validation share."""
+    validation share.
+
+    A classification split is stratified when the classes allow it. A
+    regression one never is: `train_test_split` would happily stratify a
+    numeric target whose values each occur twice, treating every distinct
+    number as a class.
+    """
     X, y = _load_frame(csv_path)
     size = float(test_size or DEFAULT_TEST_SIZE)
-    try:
-        return train_test_split(X, y, test_size=size, random_state=seed, stratify=y)
-    except ValueError:
-        return train_test_split(X, y, test_size=size, random_state=seed)
+    if task == tasks.CLASSIFICATION:
+        try:
+            return train_test_split(X, y, test_size=size, random_state=seed, stratify=y)
+        except ValueError:
+            pass
+    return train_test_split(X, y, test_size=size, random_state=seed)
 
 
 # ── Public API ────────────────────────────────────────────────────────────────
@@ -269,7 +410,7 @@ def normalize(snapshot: dict) -> dict:
         "optimizer": {"name": snapshot.get("optimizer_name"),
                       "params": snapshot.get("optimizer_params") or {}},
     }
-    for section in ("space", "runs", "environment"):
+    for section in ("space", "priors", "runs", "environment", "began_at"):
         if snapshot.get(section) is not None:
             lifted[section] = snapshot[section]
     lifted["result"] = snapshot.get("result")
@@ -297,6 +438,37 @@ def _lifted_evaluation(snapshot: dict) -> dict:
 def folds_of(snapshot: dict) -> int:
     """How many folds this snapshot asks for; 0 is a single holdout."""
     return int((snapshot.get("evaluation") or {}).get("folds") or 0)
+
+
+def time_column_of(snapshot: dict) -> str:
+    """The column this snapshot's rows are divided in time order by, or "" for
+    a division that ignores time."""
+    return str((snapshot.get("evaluation") or {}).get("time_column") or "")
+
+
+def forecast_of(snapshot: dict) -> dict:
+    """A forecast's horizon, series column and season length; zeros and ""
+    for a snapshot not evaluated by backtests — a horizon above zero is what
+    makes a forecast."""
+    section = snapshot.get("evaluation") or {}
+    return {"horizon": int(section.get("horizon") or 0),
+            "series_column": str(section.get("series_column") or ""),
+            "season": int(section.get("season") or 0)}
+
+
+def processing_of(snapshot: dict) -> dict:
+    """How the snapshot's dataset is processed before its model sees it
+    (`core.processing`): every step, "auto" where the file says nothing — which
+    is what every file written before processing was a choice means."""
+    from .processing import choices_of
+
+    return choices_of((snapshot.get("dataset") or {}).get("processing"))
+
+
+def gap_of(snapshot: dict) -> int:
+    """How many rows a time-ordered division leaves between training and
+    validation."""
+    return int((snapshot.get("evaluation") or {}).get("gap") or 0)
 
 
 def test_size_of(snapshot: dict) -> float:
@@ -365,7 +537,8 @@ def save(name: str, exp: dict) -> bytes:
         # kfold/holdout decision has exactly one place to look, not two that
         # can quietly disagree.
         "evaluation": provenance.evaluation(exp.get("cv_folds") or 0,
-                                            test_size=exp.get("test_size")),
+                                            test_size=exp.get("test_size"),
+                                            task=exp.get("task", tasks.DEFAULT)),
         "metrics":    {"names": list(exp["metrics"].keys()),
                        "current": exp["current_metric"],
                        "original": exp["original_metric"]},
@@ -494,7 +667,9 @@ def attach_dataset(exp: dict, dataset_path: str) -> None:
     path = Path(dataset_path)
     if not path.is_file():
         raise ValueError(f"dataset not found: {dataset_path}")
-    X_train, X_val, y_train, y_val = _load_splits(path, exp["seed"])
+    X_train, X_val, y_train, y_val = _load_splits(
+        path, exp["seed"], exp.get("test_size") or DEFAULT_TEST_SIZE,
+        exp.get("task", tasks.DEFAULT))
     exp["X_train"]      = X_train
     exp["y_train"]      = y_train
     exp["X_val"]        = X_val
@@ -549,6 +724,7 @@ def build_experiment(
     snapshot = normalize(snapshot)
     metric_names = snapshot["metrics"]["names"]
     model_path = snapshot["model"].get("path", "")
+    task = tasks.task_of(snapshot)
 
     # A file may bring its own metric. A run imported from somewhere else names
     # an objective this build has never heard of, and refusing it would mean the
@@ -595,16 +771,31 @@ def build_experiment(
             model, err = load_model_from_path(model_path)
             if err:
                 raise ValueError(f"custom model error: {err}")
+            tell_task(model, task)
         resolved_model = snapshot["model"]["name"]
     else:
         stored_model = model_name if model_name is not None else snapshot["model"]["name"]
         model_entry = (
             available_models.get(stored_model)
-            or next((m for m in available_models.values() if m.name == stored_model), None)
+            or next((m for m in available_models.values()
+                     if m.name == stored_model or stored_model in getattr(m, "aliases", ())),
+                    None)
         )
         if model_entry is None:
             raise ValueError(f"model '{stored_model}' is not available")
-        model = model_entry
+        if task not in tasks.supported(model_entry):
+            raise ValueError(f"model '{stored_model}' does not do {task}")
+        forecasts = forecast_of(snapshot)["horizon"] > 0
+        if tasks.forecaster(model_entry) and not forecasts:
+            raise ValueError(f"model '{stored_model}' only forecasts")
+        # A copy, told its task: the registry's instance is shared by every
+        # experiment in the process, and the task is this one's. A model asked
+        # to forecast that does not by itself does so through `core.forecasting`.
+        if forecasts and not tasks.forecaster(model_entry):
+            model = forecasting.Reduced(model_entry, task)
+        else:
+            model = copy.copy(model_entry)
+            model.task = task
         resolved_model = stored_model
 
     # ── Dataset ───────────────────────────────────────────────────────────────
@@ -613,20 +804,55 @@ def build_experiment(
     # of callers read them, and for a holdout they are the same data.
     cv_folds = folds_of(snapshot)
     test_size = test_size_of(snapshot)
+    forecast = times = None
     if read_only:
         X_train = X_val = y_train = y_val = None
         splits = None
+        columns = None
     else:
         dataset_path = snapshot["dataset"].get("path", "")
         path = Path(dataset_path)
         if not path.is_file():
             raise ValueError(f"dataset not found: {dataset_path}")
-        X_train, X_val, y_train, y_val = _load_splits(path, seed, test_size)
-        if cv_folds >= MIN_FOLDS:
-            X_all, y_all = _load_frame(path)
-            splits = cross_validation(X_all, y_all, cv_folds, seed)
+        columns = dataset_encoding(path)
+        if model is not None:
+            tell_feature_kinds(model, encoding.feature_kinds(columns))
+            tell_processing(model, processing_of(snapshot))
+        time_column, gap = time_column_of(snapshot), gap_of(snapshot)
+        if forecast_of(snapshot)["horizon"] > 0:
+            if not time_column:
+                raise ValueError("a forecast needs the column its rows are ordered in time by")
+            shape = forecast_of(snapshot)
+            X_all, y_all, times, series = _load_forecast(path, time_column, shape["series_column"])
+            season = shape["season"] or forecasting.infer_season(times)
+            splits = backtest(X_all, y_all, times, shape["horizon"], max(cv_folds, 1), gap,
+                              series=series, season=season)
+            forecast = forecasting.context(columns, time_column, shape["series_column"],
+                                           shape["horizon"], season, gap)
+            if model is not None:
+                tell_forecast(model, forecast)
+            # The latest backtest, as the four arrays: the one nearest to how
+            # the forecast would be used.
+            train_idx, val_idx = splits.folds[-1]
+            X_train, X_val = X_all[train_idx], X_all[val_idx]
+            y_train, y_val = y_all[train_idx], y_all[val_idx]
+        elif time_column:
+            # In time order: never shuffled, never stratified, the seed has no
+            # say in it. The holdout's four arrays are its one fold, so callers
+            # reading them see the same division a trial does.
+            X_all, y_all = _load_frame(path, order_by=time_column)
+            splits = (time_cross_validation(X_all, y_all, cv_folds, gap) if cv_folds >= MIN_FOLDS
+                      else time_holdout(X_all, y_all, test_size, gap))
+            train_idx, val_idx = splits.folds[0]
+            X_train, X_val = X_all[train_idx], X_all[val_idx]
+            y_train, y_val = y_all[train_idx], y_all[val_idx]
         else:
-            splits = holdout(X_train, y_train, X_val, y_val)
+            X_train, X_val, y_train, y_val = _load_splits(path, seed, test_size, task)
+            if cv_folds >= MIN_FOLDS:
+                X_all, y_all = _load_frame(path)
+                splits = cross_validation(X_all, y_all, cv_folds, seed, task)
+            else:
+                splits = holdout(X_train, y_train, X_val, y_val)
 
     # The registry first: a later build correcting what a metric means must not
     # be overruled by a file written before the correction.
@@ -652,7 +878,18 @@ def build_experiment(
         "X_val":   X_val,   "y_val":   y_val,
         "cv_folds": cv_folds,
         "test_size": test_size,
+        "time_column": time_column_of(snapshot),
+        "gap": gap_of(snapshot),
+        "task":    task,
         "splits":  splits,
+        # How the features were encoded (`core.encoding`), and so what kind each
+        # column of X is. None when nothing was read.
+        "encoding": columns,
+        "feature_kinds": encoding.feature_kinds(columns) if columns else None,
+        # What a forecaster is told (`core.forecasting`), None for any other run.
+        "forecast": forecast,
+        # Each row of the splits' time, in their order; a forecast's only.
+        "times": times,
         # Undecoded. Kept as the serialized dict the file carries, because the
         # one caller that wants a live object also wants it seeded, and
         # `config_space_from_serialized` does both.
@@ -660,6 +897,55 @@ def build_experiment(
         "result":  result,
     }
     return snapshot["name"], exp
+
+
+def tell_forecast(model, forecast: dict) -> None:
+    """Tell *model* what its forecast is (`core.forecasting`), as `tell_task`
+    tells it its task."""
+    try:
+        model.forecast = dict(forecast)
+    except AttributeError:
+        pass
+
+
+def tell_feature_kinds(model, kinds) -> None:
+    """Tell *model* what kind each column of X is (`core.columns`).
+
+    Left alone, like `tell_task`, by a model that cannot take the attribute:
+    one written before columns had kinds expects numbers, and a plain dataset
+    is still all numeric.
+    """
+    try:
+        model.feature_kinds = tuple(kinds)
+    except AttributeError:
+        pass
+
+
+def tell_processing(model, processing: dict) -> None:
+    """Tell a built-in how the experiment's columns are processed before it
+    sees them (`core.processing`). A model wrapped for forecasting passes it on
+    to the model inside. An uploaded model is not told: it is given the
+    columns as they are, which is all it has ever been given."""
+    from .models.base import Tunable
+
+    inner = getattr(model, "model", None)
+    if isinstance(inner, Tunable):
+        inner.processing = dict(processing)
+    if isinstance(model, Tunable):
+        model.processing = dict(processing)
+
+
+def tell_task(model, task: str) -> None:
+    """Tell *model* which task it is being run for.
+
+    A model written before tasks existed may not take the attribute — a
+    `task` property with no setter, say — and is left as it is: it was written
+    for classification, which is the only task it can have been offered for.
+    """
+    try:
+        model.task = task
+    except AttributeError:
+        pass
 
 
 def config_space_from_serialized(space: dict | None, seed: int = 0):

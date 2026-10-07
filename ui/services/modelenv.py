@@ -260,18 +260,27 @@ def prepare_environment(experiment_id) -> None:
         # materialises the environment to run this, and answering means the model
         # imported and instantiated. Everything the create form stopped doing is
         # done here, where a failure need not hold a request open.
-        hello = describe(run_command(uv, runner), env=child_env(),
+        hello = describe(run_command(uv, runner), env=child_env(), task=exp.data.task,
                          start_timeout=settings.MODEL_ENV_PREPARE_TIMEOUT)
     except Exception as exc:  # noqa: BLE001 — whatever went wrong, the page shows it
         _settle(exp, Experiment.ENV_FAILED, error=str(exc))
         return
 
     meta = dict(exp.env_meta)
+    locked_before = meta.get("lock_sha256")
     meta.update({
         "model_class": hello.get("model_class"),
         "python": hello.get("python"),
         "lock_sha256": _digest(lock_path(exp)),
     })
+    # A rebuild that resolved to different packages can change what a trial
+    # scores, so it belongs in the history; the first build, and one that
+    # resolved the same, do not.
+    if locked_before and locked_before != meta["lock_sha256"]:
+        from . import history
+
+        history.record(exp, "environment_rebuilt", old=locked_before,
+                       new=meta["lock_sha256"])
     # The name in the source is what the form read before anything ran. Now that
     # the class has actually been built, its own name is the authority.
     declared = hello.get("name")

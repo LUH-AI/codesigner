@@ -14,8 +14,12 @@ from ui.forms import NewExperimentForm
 
 
 def _demo_dataset_path():
-    """Path of a bundled demo dataset, to satisfy the form's dataset rule."""
-    return next(iter(io.demo_datasets().values()))
+    """Path of the iris demo, to satisfy the form's dataset rule.
+
+    Named rather than the first demo: the demos include a regression one now,
+    and the models here only classify.
+    """
+    return io.demo_datasets()["iris"]
 
 
 def _data(**overrides):
@@ -23,7 +27,7 @@ def _data(**overrides):
         "name": "cm",
         "model_name": "",
         "optimizer_name": "Random Search",
-        "demo_dataset": _demo_dataset_path(),
+        "demo_dataset": _demo_dataset_path(), "task": "classification",
         "seed": "0",
     }
     base.update(overrides)

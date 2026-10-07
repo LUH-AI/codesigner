@@ -15,13 +15,13 @@ from django.urls import reverse
 from access.models import Group, Membership
 from ui.models import Experiment
 
-from tests.conftest import DATASETS_DIR, FIXTURES_DIR
+from tests.conftest import DATASETS_DIR, FIXTURES_DIR, get_new_experiment, post_new_experiment
 
 
 def _valid_post(**overrides):
     data = {"name": "my-exp", "model_name": "Random Forest",
             "optimizer_name": "Random Search",
-            "demo_dataset": str(DATASETS_DIR / "iris.csv"), "seed": 0}
+            "demo_dataset": str(DATASETS_DIR / "iris.csv"), "task": "classification", "seed": 0}
     data.update(overrides)
     return data
 
@@ -43,16 +43,16 @@ def people(settings, django_user_model):
 def test_somebody_in_one_group_is_not_asked(client, people):
     client.force_login(people["one"])
 
-    assert "group" not in client.get(reverse("ui:new_experiment")).context["form"].fields
-    client.post(reverse("ui:new_experiment"), _valid_post())
+    assert "group" not in get_new_experiment(client).context["form"].fields
+    post_new_experiment(client, _valid_post())
 
-    assert Experiment.objects.get().group == people["a"]
+    assert Experiment.objects.get(draft=False).group == people["a"]
 
 
 def test_somebody_in_two_is(client, people):
     client.force_login(people["two"])
 
-    field = client.get(reverse("ui:new_experiment")).context["form"].fields["group"]
+    field = get_new_experiment(client).context["form"].fields["group"]
 
     assert [label for _, label in field.choices][1:] == ["a", "b"]
 
@@ -60,28 +60,28 @@ def test_somebody_in_two_is(client, people):
 def test_and_their_answer_is_where_it_goes(client, people):
     client.force_login(people["two"])
 
-    client.post(reverse("ui:new_experiment"), _valid_post(group=people["b"].pk))
+    post_new_experiment(client, _valid_post(group=people["b"].pk))
 
-    assert Experiment.objects.get().group == people["b"]
+    assert Experiment.objects.get(draft=False).group == people["b"]
 
 
 def test_no_answer_creates_nothing(client, people):
     client.force_login(people["two"])
 
-    resp = client.post(reverse("ui:new_experiment"), _valid_post())
+    resp = post_new_experiment(client, _valid_post())
 
     assert resp.status_code == 200
     assert "group" in resp.context["form"].errors
-    assert not Experiment.objects.exists()
+    assert not Experiment.objects.filter(draft=False).exists()
 
 
 def test_a_group_they_are_not_in_is_refused(client, people):
     client.force_login(people["two"])
 
-    resp = client.post(reverse("ui:new_experiment"), _valid_post(group=people["c"].pk))
+    resp = post_new_experiment(client, _valid_post(group=people["c"].pk))
 
     assert "group" in resp.context["form"].errors
-    assert not Experiment.objects.exists()
+    assert not Experiment.objects.filter(draft=False).exists()
 
 
 def test_importing_asks_too(client, people):
@@ -94,7 +94,7 @@ def test_importing_asks_too(client, people):
         client.post(reverse("ui:import_experiment"), {"file": f, "group": people["b"].pk})
 
     assert "Choose which group" in refused.content.decode()
-    assert Experiment.objects.get().group == people["b"]
+    assert Experiment.objects.get(draft=False).group == people["b"]
 
 
 def test_the_import_page_offers_only_their_groups(client, people):

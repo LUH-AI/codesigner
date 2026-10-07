@@ -24,7 +24,13 @@ from collections.abc import Callable, Iterable, Mapping
 from dataclasses import dataclass, field
 from typing import Any, Optional
 
-from sklearn.metrics import accuracy_score, f1_score, precision_score, recall_score
+import numpy as np
+from sklearn.metrics import (
+    accuracy_score, balanced_accuracy_score, f1_score, log_loss, mean_absolute_error,
+    precision_score, r2_score, recall_score, roc_auc_score, root_mean_squared_error,
+)
+
+from .tasks import CLASSIFICATION, REGRESSION
 
 #: What a metric needs handed to it. `LABELS` is one predicted label per row —
 #: what `fit_predict` has always returned. `PROBABILITIES` is a per-class
@@ -36,6 +42,9 @@ from sklearn.metrics import accuracy_score, f1_score, precision_score, recall_sc
 #: which wins.
 LABELS = "labels"
 PROBABILITIES = "probabilities"
+#: A forecast's predictions plus what was known before them: each series'
+#: training values and the season length, which MASE scales its error by.
+HISTORY = "history"
 
 
 def _zero(y_true) -> float:
@@ -84,8 +93,25 @@ class Metric:
     #: than invented, and for all four original metrics it is exactly the 0.0
     #: they have always scored.
     null_score: Callable[[Any], float] = field(default=_zero)
+    #: Which tasks this metric scores (`core.tasks`). A metric of the wrong
+    #: task is not merely uninformative but meaningless — the accuracy of a
+    #: regression is the share of exactly-right real numbers.
+    tasks: tuple[str, ...] = (CLASSIFICATION,)
+    #: Only meaningful for a forecast (`core.forecasting`): scored against the
+    #: series' own history, or as an error relative to the values' size, which
+    #: a table of unrelated rows has no sense of.
+    forecast_only: bool = False
+    #: What a figure calls it, for a name that capitalizing does not make
+    #: readable — an acronym, a superscript. Presentation only: a file does not
+    #: carry it, so a metric declared by an imported run reads as its name.
+    label: str = ""
 
     # ── what the rest of the application asks ────────────────────────────────
+
+    @property
+    def title(self) -> str:
+        """The metric as an axis or a colour bar names it."""
+        return self.label or self.name.capitalize()
 
     @property
     def low(self) -> Optional[float]:
@@ -151,7 +177,184 @@ METRICS: dict[str, Metric] = {
         name="recall(macro)",
         fn=lambda y, yp: float(recall_score(y, yp, average="macro", zero_division=0)),
     ),
+    "balanced_accuracy": Metric(
+        name="balanced_accuracy",
+        label="Balanced accuracy",
+        fn=lambda y, yp: float(balanced_accuracy_score(y, yp)),
+    ),
+    # Scored on probabilities, so only for a model that offers them, and only
+    # when asked for: an SVM pays for its probabilities with an internal
+    # calibration costing several plain fits, on every trial.
+    "roc_auc": Metric(
+        name="roc_auc",
+        label="ROC AUC",
+        fn=lambda y, proba, classes: _roc_auc(y, proba, classes),
+        needs=PROBABILITIES,
+        null_score=lambda y: 0.5,
+    ),
+    "log_loss": Metric(
+        name="log_loss",
+        label="Log loss",
+        fn=lambda y, proba, classes: _log_loss(y, proba, classes),
+        higher_is_better=False,
+        bounds=(0.0, None),
+        needs=PROBABILITIES,
+        null_score=lambda y: _prior_log_loss(y),
+    ),
+    # Forecasting. MASE first, so it is what a forecast is optimized on unless
+    # asked otherwise: it is the one that means the same on any series —
+    # below 1 beats repeating last season, above 1 does not.
+    "mase": Metric(
+        name="mase",
+        label="MASE",
+        fn=lambda y, yp, history: _mase(y, yp, history),
+        higher_is_better=False,
+        bounds=(0.0, None),
+        needs=HISTORY,
+        # The no-skill line by construction: a seasonal naive forecast scores
+        # about 1 on the history it is scaled by.
+        null_score=lambda y: 1.0,
+        tasks=(REGRESSION,),
+        forecast_only=True,
+    ),
+    "smape": Metric(
+        name="smape",
+        label="sMAPE (%)",
+        fn=lambda y, yp: _smape(y, yp),
+        higher_is_better=False,
+        bounds=(0.0, 200.0),
+        null_score=lambda y: _smape(y, np.full(len(y), np.mean(np.asarray(y, dtype=float)))),
+        tasks=(REGRESSION,),
+        forecast_only=True,
+    ),
+    # Regression. A trial that produced nothing scores what predicting the
+    # mean scores: the error of a model that knows only the target's average,
+    # which is what R² measures every model against anyway.
+    "rmse": Metric(
+        name="rmse",
+        label="RMSE",
+        fn=lambda y, yp: float(root_mean_squared_error(y, yp)),
+        higher_is_better=False,
+        bounds=(0.0, None),
+        null_score=lambda y: float(np.std(np.asarray(y, dtype=float))),
+        tasks=(REGRESSION,),
+    ),
+    "mae": Metric(
+        name="mae",
+        label="MAE",
+        fn=lambda y, yp: float(mean_absolute_error(y, yp)),
+        higher_is_better=False,
+        bounds=(0.0, None),
+        null_score=lambda y: float(np.mean(np.abs(np.asarray(y, dtype=float)
+                                                  - np.mean(np.asarray(y, dtype=float))))),
+        tasks=(REGRESSION,),
+    ),
+    "r2": Metric(
+        name="r2",
+        label="R²",
+        fn=lambda y, yp: float(r2_score(y, yp)),
+        bounds=(None, 1.0),
+        tasks=(REGRESSION,),
+    ),
 }
+
+
+def metrics_for(task: str, *, probabilities: bool = False, forecast: bool = False) -> list[str]:
+    """The names of the metrics that score *task*, in the order they are listed.
+
+    The first is what a new experiment optimizes unless told otherwise. The
+    ones scored on probabilities are left out unless *probabilities*: they are
+    asked for, not given — see `roc_auc`. A *forecast* also gets the ones only a
+    forecast has, first, so it is optimized on MASE unless told otherwise.
+    """
+    names = [name for name, metric in METRICS.items()
+             if task in metric.tasks and (forecast or not metric.forecast_only)]
+    names.sort(key=lambda name: not METRICS[name].forecast_only)
+    return usable(names, probabilities=probabilities)
+
+
+def usable(names: Iterable[str], *, probabilities: bool) -> list[str]:
+    """*names* without the metrics that need probabilities, unless the model
+    scoring them can give *probabilities*.
+
+    Settled before the first trial, because a metric that cannot be scored
+    does not fail one trial — it fails every one of them.
+    """
+    return [name for name in names
+            if probabilities or metric_for(name).needs != PROBABILITIES]
+
+
+def _roc_auc(y_true, proba, classes) -> float:
+    """ROC AUC, one class against the rest, averaged over the classes this
+    fold can rank — a class with no rows in the fold, or every row, has no
+    curve. Two classes is the usual binary AUC."""
+    y = np.asarray(y_true)
+    proba = np.asarray(proba, dtype=float)
+    scores = [roc_auc_score(y == label, proba[:, column])
+              for column, label in enumerate(classes)
+              if 0 < np.sum(y == label) < len(y)]
+    if len(classes) == 2 and scores:
+        return float(scores[1] if len(scores) > 1 else scores[0])
+    return float(np.mean(scores)) if scores else 0.5
+
+
+def _smape(y_true, y_pred) -> float:
+    """Symmetric mean absolute percentage error, in percent: 0 is perfect, 200
+    is as wrong as two numbers can be. A row where both are zero is no error."""
+    y = np.asarray(y_true, dtype=float)
+    p = np.asarray(y_pred, dtype=float)
+    denominator = np.abs(y) + np.abs(p)
+    terms = np.divide(2 * np.abs(y - p), denominator,
+                      out=np.zeros_like(y), where=denominator > 0)
+    return float(100 * np.mean(terms))
+
+
+def _mase(y_true, y_pred, history) -> float:
+    """Mean absolute scaled error: the forecast's mean absolute error over that
+    of a seasonal naive forecast — this season's value next season — on each
+    series' own history, averaged over the series.
+
+    *history* is ``{"y", "series", "season"}``: the training values in time
+    order, each one's series (None for one series), and the season length. A
+    history too short for a whole season is scaled by the one-step naive
+    forecast instead, and a flat one, whose naive forecast is never wrong, by
+    nothing — its MASE is its plain mean absolute error.
+    """
+    y_hist = np.asarray(history["y"], dtype=float)
+    series = history.get("series")
+    groups = ([y_hist] if series is None
+              else [y_hist[np.asarray(series) == s] for s in np.unique(series)])
+    season = max(1, int(history.get("season") or 1))
+    scales = []
+    for values in groups:
+        lag = season if len(values) > season else 1
+        if len(values) > lag:
+            scales.append(np.mean(np.abs(values[lag:] - values[:-lag])))
+    scale = float(np.mean(scales)) if scales else 0.0
+    error = float(np.mean(np.abs(np.asarray(y_true, dtype=float) - np.asarray(y_pred, dtype=float))))
+    return error / scale if scale > 0 else error
+
+
+def _log_loss(y_true, proba, classes) -> float:
+    """Log loss, counting a validation label the model never saw in training as
+    one it gave no probability to — the worst it can score for that row, rather
+    than a trial that cannot be scored at all. It happens whenever a class is
+    rarer than the folds, or only appears late in a series divided in time."""
+    classes = list(classes)
+    proba = np.asarray(proba, dtype=float)
+    unseen = [label for label in np.unique(np.asarray(y_true)) if label not in classes]
+    if unseen:
+        proba = np.hstack([proba, np.zeros((len(proba), len(unseen)))])
+        classes += unseen
+    return float(log_loss(y_true, proba, labels=classes))
+
+
+def _prior_log_loss(y_true) -> float:
+    """The log loss of predicting each class's share of *y_true* for every
+    row: what a model that knows only the class balance scores."""
+    _, counts = np.unique(np.asarray(y_true), return_counts=True)
+    shares = counts / counts.sum()
+    return float(-np.sum(shares * np.log(shares)))
 
 
 def _unscoreable(*_args):
@@ -247,7 +450,7 @@ def declarations(raw) -> dict[str, Metric]:
 
 
 def score_all(y_true, y_pred, metrics: Mapping[str, Metric],
-              *, y_proba=None, classes=None) -> dict[str, float]:
+              *, y_proba=None, classes=None, history=None) -> dict[str, float]:
     """Score one set of predictions against every metric in *metrics*.
 
     *y_pred* may be a plain list rather than an array — that is how predictions
@@ -257,13 +460,16 @@ def score_all(y_true, y_pred, metrics: Mapping[str, Metric],
 
     *y_proba* and *classes* are the probability matrix and its column order,
     supplied only when the model can produce them. A metric that needs them and
-    is asked to score without them raises — `usable()` exists so that never
-    happens on a real run: what can be scored is settled before the first trial,
-    not discovered on one.
+    is asked to score without them raises. *history* is what a forecast was
+    made from (see `_mase`), for the metrics that need it.
     """
     scores = {}
     for name, metric in metrics.items():
-        if metric.needs == PROBABILITIES:
+        if metric.needs == HISTORY:
+            if history is None:
+                raise ValueError(f"{name!r} needs the forecast's history and none was supplied")
+            scores[name] = float(metric.fn(y_true, y_pred, history))
+        elif metric.needs == PROBABILITIES:
             if y_proba is None:
                 raise ValueError(
                     f"{name!r} needs class probabilities and none were supplied")

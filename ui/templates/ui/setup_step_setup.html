@@ -1,0 +1,324 @@
+{% extends "base.html" %}
+{% load i18n %}
+
+{% block title %}{% translate "Setup" %} · {% translate "New experiment" %} · Codesigner{% endblock %}
+
+{% comment %}Step 1 of a draft's setup (ui/services/setup.py): what the
+experiment is. Filled from the draft once it has been saved; what it already
+has — its dataset, an uploaded model — is kept unless something new is
+chosen.{% endcomment %}
+{% block content %}
+    {% include "ui/_setup_heading.html" %}
+
+    {% if form.non_field_errors %}
+        <p class="form-error">{{ form.non_field_errors|join:" " }}</p>
+    {% endif %}
+
+    <form method="post" enctype="multipart/form-data" class="experiment-form" style="max-width: 34rem;">
+        {% csrf_token %}
+
+        <div class="field">
+            <label for="{{ form.name.id_for_label }}">{{ form.name.label }}</label>
+            {{ form.name }}
+            {% if form.name.errors %}<div class="form-error">{{ form.name.errors|join:" " }}</div>{% endif %}
+        </div>
+
+        {% if form.group %}
+            <div class="field">
+                <label for="{{ form.group.id_for_label }}">{{ form.group.label }}</label>
+                {{ form.group }}
+                {% if form.group.errors %}<div class="form-error">{{ form.group.errors|join:" " }}</div>{% endif %}
+            </div>
+        {% endif %}
+
+        {% comment %}Asked before the model, because it decides which models
+        are offered: the script below disables the ones that cannot do the task
+        chosen, evaluated the way chosen.{% endcomment %}
+        <div class="field">
+            <div class="field-label">
+                <label for="{{ form.task.id_for_label }}">{{ form.task.label }}</label>
+                {% include "ui/_info.html" with info_id=form.task.id_for_label|add:"_helptext" info_text=form.task.help_text %}
+            </div>
+            {{ form.task }}
+            {% if form.task.errors %}<div class="form-error">{{ form.task.errors|join:" " }}</div>{% endif %}
+        </div>
+        {{ model_tasks|json_script:"model-tasks" }}
+
+        {# ── Model: an uploaded .py by default, or a built-in when the box is checked ── #}
+        {% if form.model_file %}
+            <div class="field">
+                <label class="check"><input type="checkbox" name="use_demo_model"{% if form.model_name.value %} checked{% endif %}> {% translate "Use demo models" %}</label>
+            </div>
+            <div class="field" data-pane="model-builtin">
+                <label for="{{ form.model_name.id_for_label }}">{{ form.model_name.label }}</label>
+                {{ form.model_name }}
+            </div>
+            <div class="field" data-pane="model-upload">
+                <label for="{{ form.model_file.id_for_label }}">{{ form.model_file.label }}</label>
+                {{ form.model_file }}
+                {% if current_model %}<p class="caption">{% blocktranslate with name=current_model %}Currently {{ name }}; kept unless another is chosen.{% endblocktranslate %}</p>{% endif %}
+                {% if form.mounted_model %}
+                    <label for="{{ form.mounted_model.id_for_label }}" style="margin-top: 0.5rem;">{{ form.mounted_model.label }}</label>
+                    {{ form.mounted_model }}
+                {% endif %}
+            </div>
+        {% else %}
+            <div class="field">
+                <label for="{{ form.model_name.id_for_label }}">{{ form.model_name.label }}</label>
+                {{ form.model_name }}
+            </div>
+        {% endif %}
+        {% if form.model_name.errors %}<div class="form-error">{{ form.model_name.errors|join:" " }}</div>{% endif %}
+        {% if form.model_file.errors %}<div class="form-error">{{ form.model_file.errors|join:" " }}</div>{% endif %}
+        {% if form.mounted_model.errors %}<div class="form-error">{{ form.mounted_model.errors|join:" " }}</div>{% endif %}
+
+        {# ── Dataset: an uploaded CSV by default, or a demo when the box is checked ── #}
+        <div class="field">
+            <label class="check"><input type="checkbox" name="use_demo_dataset"{% if form.demo_dataset.value %} checked{% endif %}> {% translate "Use demo datasets" %}</label>
+        </div>
+        <div class="field" data-pane="dataset-demo">
+            <label for="{{ form.demo_dataset.id_for_label }}">{{ form.demo_dataset.label }}</label>
+            {{ form.demo_dataset }}
+        </div>
+        <div class="field" data-pane="dataset-upload">
+            <label for="{{ form.dataset_file.id_for_label }}">{{ form.dataset_file.label }}</label>
+            {{ form.dataset_file }}
+            {% if current_dataset and not form.demo_dataset.value %}<p class="caption">{% blocktranslate with name=current_dataset %}Currently {{ name }}; kept unless another is chosen.{% endblocktranslate %}</p>{% endif %}
+        </div>
+
+        {% comment %}Two controls, not one menu of preset pairs: the scheme and
+        the number are separate decisions, and folding them together meant
+        7-fold or a 70/30 split could not be asked for at all. The number's
+        label, bounds and default follow the scheme — see EVALUATION_SCHEMES in
+        ui/forms.py, which the script below reads through evaluation-schemes so
+        the two cannot disagree.{% endcomment %}
+        <div class="field-row" data-evaluation>
+            <div class="field">
+                <div class="field-label">
+                    <label for="{{ form.evaluation_scheme.id_for_label }}">{{ form.evaluation_scheme.label }}</label>
+                    {# Django points the field's `aria-describedby` at this id. #}
+                    {% include "ui/_info.html" with info_id=form.evaluation_scheme.id_for_label|add:"_helptext" info_text=form.evaluation_scheme.help_text %}
+                </div>
+                {{ form.evaluation_scheme }}
+                {% if form.evaluation_scheme.errors %}<div class="form-error">{{ form.evaluation_scheme.errors|join:" " }}</div>{% endif %}
+            </div>
+            <div class="field">
+                {% comment %}What the number means and what it will accept both
+                follow the scheme, and both live behind the circled i — a line of
+                prose under a field is read every time the form is filled in,
+                and this is wanted once.{% endcomment %}
+                <div class="field-label">
+                    <label for="{{ form.evaluation_value.id_for_label }}" data-evaluation-label>{{ form.evaluation_value.label }}</label>
+                    {% include "ui/_info.html" with info_id="evaluation_value_helptext" info_text="" %}
+                </div>
+                <input type="number" name="evaluation_value" id="{{ form.evaluation_value.id_for_label }}"
+                       value="{{ form.evaluation_value.value|default_if_none:5 }}"
+                       aria-describedby="evaluation_value_helptext" data-evaluation-value>
+                {% if form.evaluation_value.errors %}<div class="form-error">{{ form.evaluation_value.errors|join:" " }}</div>{% endif %}
+            </div>
+        </div>
+        {{ evaluation_schemes|json_script:"evaluation-schemes" }}
+
+        {% comment %}Named, not picked from a list: the columns belong to the
+        dataset chosen above. The script below suggests the ones that can be
+        ordered by — a demo's from the server, an upload's from its header.{% endcomment %}
+        <div class="field-row" data-time-order>
+            <div class="field">
+                <div class="field-label">
+                    <label for="{{ form.time_column.id_for_label }}">{{ form.time_column.label }}</label>
+                    {% include "ui/_info.html" with info_id=form.time_column.id_for_label|add:"_helptext" info_text=form.time_column.help_text %}
+                </div>
+                <input type="text" name="time_column" id="{{ form.time_column.id_for_label }}"
+                       value="{{ form.time_column.value|default_if_none:'' }}" list="time-column-options"
+                       autocomplete="off" aria-describedby="{{ form.time_column.id_for_label }}_helptext">
+                <datalist id="time-column-options"></datalist>
+                {% if form.time_column.errors %}<div class="form-error">{{ form.time_column.errors|join:" " }}</div>{% endif %}
+            </div>
+            <div class="field">
+                <div class="field-label">
+                    <label for="{{ form.time_gap.id_for_label }}">{{ form.time_gap.label }}</label>
+                    {% include "ui/_info.html" with info_id=form.time_gap.id_for_label|add:"_helptext" info_text=form.time_gap.help_text %}
+                </div>
+                {{ form.time_gap }}
+                {% if form.time_gap.errors %}<div class="form-error">{{ form.time_gap.errors|join:" " }}</div>{% endif %}
+            </div>
+        </div>
+        {{ demo_time_columns|json_script:"demo-time-columns" }}
+
+        {% comment %}Only for backtests; the script below hides them for the
+        other validation methods. Without it they stay visible and are ignored
+        unless the method is backtests.{% endcomment %}
+        <div class="field-row" data-forecast>
+            <div class="field">
+                <div class="field-label">
+                    <label for="{{ form.horizon.id_for_label }}">{{ form.horizon.label }}</label>
+                    {% include "ui/_info.html" with info_id=form.horizon.id_for_label|add:"_helptext" info_text=form.horizon.help_text %}
+                </div>
+                {{ form.horizon }}
+                {% if form.horizon.errors %}<div class="form-error">{{ form.horizon.errors|join:" " }}</div>{% endif %}
+            </div>
+            <div class="field">
+                <div class="field-label">
+                    <label for="{{ form.series_column.id_for_label }}">{{ form.series_column.label }}</label>
+                    {% include "ui/_info.html" with info_id=form.series_column.id_for_label|add:"_helptext" info_text=form.series_column.help_text %}
+                </div>
+                {{ form.series_column }}
+                {% if form.series_column.errors %}<div class="form-error">{{ form.series_column.errors|join:" " }}</div>{% endif %}
+            </div>
+            <div class="field">
+                <div class="field-label">
+                    <label for="{{ form.season.id_for_label }}">{{ form.season.label }}</label>
+                    {% include "ui/_info.html" with info_id=form.season.id_for_label|add:"_helptext" info_text=form.season.help_text %}
+                </div>
+                {{ form.season }}
+                {% if form.season.errors %}<div class="form-error">{{ form.season.errors|join:" " }}</div>{% endif %}
+            </div>
+        </div>
+
+        <div class="field">
+            <div class="field-label">
+                <label for="{{ form.seed.id_for_label }}">{{ form.seed.label }}</label>
+                {% include "ui/_info.html" with info_id=form.seed.id_for_label|add:"_helptext" info_text=form.seed.help_text %}
+            </div>
+            {{ form.seed }}
+            {% if form.seed.errors %}<div class="form-error">{{ form.seed.errors|join:" " }}</div>{% endif %}
+        </div>
+
+        <div class="setup-actions">
+            <button type="submit" class="btn-primary">{% translate "Save and continue" %}</button>
+        </div>
+    </form>
+
+    <script>
+        // The number beside the evaluation selector is a different quantity
+        // under each scheme — a count of folds, or a fraction held out — so its
+        // label, bounds, step and default all follow the selector. Read from
+        // the form's own EVALUATION_SCHEMES rather than restated here, because
+        // a copy would drift.
+        (function () {
+            const row = document.querySelector("[data-evaluation]");
+            if (!row) return;
+            const schemes = JSON.parse(document.getElementById("evaluation-schemes").textContent);
+            const select = row.querySelector("select");
+            const value = row.querySelector("[data-evaluation-value]");
+            const label = row.querySelector("[data-evaluation-label]");
+            const help = document.getElementById("evaluation_value_helptext");
+            // What each scheme was last set to, so switching away and back does
+            // not quietly discard a number that was typed on purpose.
+            const remembered = {};
+            let showing = select.value;
+
+            function apply(resetValue) {
+                const spec = schemes[select.value];
+                if (!spec) return;
+                label.textContent = spec.label;
+                value.min = spec.min; value.max = spec.max; value.step = spec.step;
+                help.textContent = spec.help + " Accepts " + spec.min + "–" + spec.max + ".";
+                if (resetValue) {
+                    value.value = remembered[select.value] !== undefined
+                        ? remembered[select.value] : spec.default;
+                }
+            }
+            select.addEventListener("change", function () {
+                remembered[showing] = value.value;
+                showing = select.value;
+                apply(true);
+            });
+            value.addEventListener("input", function () { remembered[select.value] = value.value; });
+            apply(false);
+        })();
+
+        // The columns the rows could be ordered by in time, suggested for the
+        // dataset in hand. A demo's are known to the server, and are its dates
+        // and numbers; an upload's are read from its header line, all but the
+        // target, and the server says if the one named cannot be ordered by.
+        (function () {
+            const options = document.getElementById("time-column-options");
+            const demo = document.getElementById("{{ form.demo_dataset.id_for_label }}");
+            const upload = document.getElementById("{{ form.dataset_file.id_for_label }}");
+            const demos = JSON.parse(document.getElementById("demo-time-columns").textContent);
+            if (!options) return;
+            function offer(names) {
+                options.replaceChildren(...names.map(function (name) {
+                    const option = document.createElement("option");
+                    option.value = name;
+                    return option;
+                }));
+            }
+            if (demo) demo.addEventListener("change", function () { offer(demos[demo.value] || []); });
+            if (upload) upload.addEventListener("change", function () {
+                const file = upload.files && upload.files[0];
+                if (!file) return offer([]);
+                file.slice(0, 65536).text().then(function (text) {
+                    const header = text.split(/\r?\n/)[0];
+                    const sep = (header.split(";").length > header.split(",").length) ? ";" : ",";
+                    offer(header.split(sep).slice(0, -1).map(function (name) {
+                        return name.trim().replace(/^"|"$/g, "");
+                    }));
+                });
+            });
+            if (demo && demo.value) offer(demos[demo.value] || []);
+        })();
+
+        // What follows from the task and the validation method: the forecast's
+        // own fields under backtests, the probability metrics for a
+        // classification, and only the built-ins that can do the task evaluated
+        // that way. Every built-in can be backtested — it forecasts through
+        // core.forecasting — but one that only forecasts cannot be anything
+        // else. Without a task chosen no model is offered: there is nothing to
+        // check one against.
+        (function () {
+            const task = document.getElementById("{{ form.task.id_for_label }}");
+            const scheme = document.getElementById("{{ form.evaluation_scheme.id_for_label }}");
+            const model = document.getElementById("{{ form.model_name.id_for_label }}");
+            const forecastRow = document.querySelector("[data-forecast]");
+            const models = JSON.parse(document.getElementById("model-tasks").textContent);
+            if (!task || !scheme) return;
+            function apply() {
+                const backtests = scheme.value === "backtest";
+                if (forecastRow) forecastRow.hidden = !backtests;
+                if (!model) return;
+                Array.from(model.options).forEach(function (option) {
+                    const spec = models[option.value];
+                    if (!spec) return;
+                    option.disabled = !task.value || spec.tasks.indexOf(task.value) < 0
+                        || (spec.forecaster && !backtests);
+                });
+                if (model.selectedOptions[0] && model.selectedOptions[0].disabled) model.value = "";
+            }
+            task.addEventListener("change", apply);
+            scheme.addEventListener("change", apply);
+            apply();
+        })();
+
+        // A checkbox picks the demo source; unchecked (the default) shows the
+        // upload instead. The hidden pane's inputs are disabled so they aren't
+        // submitted. Without JS both panes stay visible and enabled — the
+        // form's "choose one" validation still applies.
+        (function () {
+            function setPane(pane, active) {
+                if (!pane) return;
+                pane.hidden = !active;
+                pane.querySelectorAll("input, select, textarea, fieldset").forEach(function (el) {
+                    el.disabled = !active;
+                });
+            }
+            function wire(checkboxName, demoPane, uploadPane) {
+                const cb = document.querySelector('input[name="' + checkboxName + '"]');
+                if (!cb) return;
+                function apply() {
+                    setPane(demoPane, cb.checked);
+                    setPane(uploadPane, !cb.checked);
+                }
+                cb.addEventListener("change", apply);
+                apply();
+            }
+            wire("use_demo_dataset",
+                document.querySelector('[data-pane="dataset-demo"]'),
+                document.querySelector('[data-pane="dataset-upload"]'));
+            wire("use_demo_model",
+                document.querySelector('[data-pane="model-builtin"]'),
+                document.querySelector('[data-pane="model-upload"]'));
+        })();
+    </script>
+{% endblock %}

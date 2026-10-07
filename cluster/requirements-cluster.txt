@@ -1,4 +1,4 @@
-# What a run needs where there is no web server: the six packages `core/`
+# What a run needs where there is no web server: the packages `core/`
 # actually imports, and nothing else.
 #
 # Not requirements.txt, because none of Django, gunicorn, whitenoise, plotly,
@@ -13,3 +13,16 @@ ConfigSpace>=1.2
 scikit-learn>=1.9
 pandas>=2.3
 numpy>=2.4
+
+# The boosters among the built-in models. Wheels on every platform this runs
+# on; the CPU build of XGBoost, since no machine here has a GPU to give it.
+lightgbm>=4.6
+xgboost-cpu>=3.0
+catboost>=1.2
+
+# Exponential smoothing, the ETS forecaster.
+statsmodels>=0.14
+
+# A kept trial model's parameters, for a scikit-learn model: its safe format,
+# which does not run code when loaded (ui/services/trial_models.py).
+skops>=0.13

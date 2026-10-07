@@ -1,7 +1,7 @@
 {% load i18n %}
 {% comment %}On the figures computed once a run finishes — importance and the
-interactions — while a run is still going: what they show is from the trials
+interactions — while a run is still going. What they show is from the trials
 before it, and the page reloads with the new ones when it ends.{% endcomment %}
 {% if active_run %}
-    <p class="caption before-this-run">{% translate "From the trials before this run. Recomputed when it finishes." %}</p>
+    <p class="caption before-this-run">{% translate "Waiting for run to finish…" %}</p>
 {% endif %}

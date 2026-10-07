@@ -35,6 +35,10 @@ class Group(models.Model):
     not theirs to raise — a lead who could change it would be a lead with no
     limit — so only a site admin may edit it.
 
+    `storage_limit_bytes` is how much disk its experiments may take (see
+    ui/services/storage.py); null is the site's default. Like the seats, a
+    site admin's to set.
+
     `is_active` is how a site admin restricts a group without destroying
     anything: its members cannot sign in or start runs, and every experiment
     stays exactly where it was. Deletion is deliberately not the tool for that,
@@ -43,6 +47,7 @@ class Group(models.Model):
 
     name = models.CharField(max_length=120, unique=True)
     user_limit = models.PositiveIntegerField(default=5)
+    storage_limit_bytes = models.PositiveBigIntegerField(null=True, blank=True)
     is_active = models.BooleanField(default=True)
     created_at = models.DateTimeField(auto_now_add=True)
 
@@ -51,6 +56,13 @@ class Group(models.Model):
 
     def __str__(self) -> str:
         return self.name
+
+    @property
+    def storage_limit(self) -> int:
+        """How many bytes this group may store: its own limit, else the site's."""
+        if self.storage_limit_bytes is not None:
+            return self.storage_limit_bytes
+        return django_settings.GROUP_STORAGE_LIMIT_BYTES
 
     @property
     def member_count(self) -> int:

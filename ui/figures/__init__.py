@@ -6,8 +6,8 @@ for each figure that draws one. Their templates live in
 """
 
 from .base import (
-    ACQUISITION, HYPERSHAP, LONG, MISC, OVERVIEW, SHAPES, SQUAT, STACK, TABLE, TABS,
-    Figure, autocompute_key, deferred_computations,
+    ACQUISITION, CARD, DASHBOARD, DATA, HYPERSHAP, LONG, MISC, OVERVIEW, SHAPES, SQUAT, STACK,
+    TABLE, TABS, Figure, Panel, autocompute_key, deferred_computations,
 )
 from .catalog import (
     FIGURES, FIGURES_BY_KEY, HP_GAME_FIELDS, HP_GAME_HELP, HP_GAME_LABELS,
@@ -32,6 +32,7 @@ from .plots import (
     incumbent_scores,
     local_effects_plot,
     parallel_coordinates_plot,
+    forecast_plot,
     partial_dependence_plot,
     performance_over_time_plot,
     trial_duration_plot,
@@ -46,6 +47,10 @@ __all__ = [
     "UNCERTAINTY_SCALE",
     "FIGURES_BY_KEY",
     "ACQUISITION",
+    "CARD",
+    "DASHBOARD",
+    "DATA",
+    "Panel",
     "HYPERSHAP",
     "LONG",
     "MISC",
@@ -75,6 +80,7 @@ __all__ = [
     "local_effects_plot",
     "parallel_coordinates_plot",
     "acquisition_slice_plots",
+    "forecast_plot",
     "partial_dependence_plot",
     "performance_over_time_plot",
     "trial_duration_plot",

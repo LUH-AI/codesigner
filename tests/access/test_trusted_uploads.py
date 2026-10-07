@@ -19,7 +19,7 @@ from django.contrib.auth.models import Permission
 from django.core.files.base import ContentFile
 from django.urls import reverse
 
-from tests.conftest import DATASETS_DIR
+from tests.conftest import DATASETS_DIR, get_new_experiment, post_new_experiment
 from ui.models import Experiment, Run
 from ui.services import run as run_service
 
@@ -150,7 +150,7 @@ def test_nothing_is_gated_without_accounts(settings, ana):
 def test_an_untrusted_user_is_not_offered_the_upload_field(client, hosted, ana):
     client.force_login(ana)
 
-    html = client.get(reverse("ui:new_experiment")).content.decode()
+    html = get_new_experiment(client).content.decode()
 
     assert 'name="model_file"' not in html
 
@@ -158,7 +158,7 @@ def test_an_untrusted_user_is_not_offered_the_upload_field(client, hosted, ana):
 def test_a_trusted_user_is(client, hosted, trusted):
     client.force_login(trusted)
 
-    html = client.get(reverse("ui:new_experiment")).content.decode()
+    html = get_new_experiment(client).content.decode()
 
     assert 'name="model_file"' in html
 
@@ -169,9 +169,9 @@ def test_posting_an_upload_anyway_does_not_create_a_custom_model(client, hosted,
     from django.core.files.uploadedfile import SimpleUploadedFile
 
     client.force_login(ana)
-    client.post(reverse("ui:new_experiment"), {
+    post_new_experiment(client, {
         "name": "sneaky", "model_name": "", "optimizer_name": "Random Search",
-        "demo_dataset": str(DATASETS_DIR / "iris.csv"), "seed": "0",
+        "demo_dataset": str(DATASETS_DIR / "iris.csv"), "task": "classification", "seed": "0",
         "model_file": SimpleUploadedFile("mine.py", MODEL_SOURCE,
                                          content_type="text/x-python"),
     })
@@ -215,7 +215,7 @@ def test_the_instance_flag_still_outranks_the_permission(client, settings, hoste
     settings.ALLOW_CUSTOM_MODELS = False
     client.force_login(trusted)
 
-    html = client.get(reverse("ui:new_experiment")).content.decode()
+    html = get_new_experiment(client).content.decode()
 
     assert 'name="model_file"' not in html
 

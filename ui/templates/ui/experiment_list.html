@@ -18,7 +18,7 @@
             <tbody>
                 {% for e in page %}
                     <tr>
-                        <td><a href="{% url 'ui:experiment_detail' e.pk %}">{{ e.name }}</a>
+                        <td><a href="{% url 'ui:experiment_detail' e.pk %}">{{ e.title }}</a>
                             <span class="exp-id">({{ e.identifier }})</span>{% if e.is_running %} <span class="spinner" title="{% translate 'Running' %}"></span>{% endif %}</td>
                         <td>{{ e.data.model_name }}</td>
                         <td>{{ e.data.optimizer_name }}</td>

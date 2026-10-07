@@ -9,18 +9,58 @@ from .permissions import policy, visible_experiments
 SIDEBAR_LIMIT = 20
 
 
+#: Which of an experiment's three views a page belongs to, by route. Its
+#: settings, delete and metric-change pages are reached from the dashboard's
+#: header, so they count as the dashboard.
+_EXPERIMENT_VIEWS = {
+    "experiment_detail": "dashboard",
+    "experiment_settings": "dashboard",
+    "experiment_delete": "dashboard",
+    "experiment_run": "dashboard",
+    "experiment_optimizer": "dashboard",
+    "experiment_rename": "dashboard",
+    "data_overview": "data",
+    "data_section": "data",
+    "experiment_timeline": "timeline",
+    # A draft's setup: the draft is open, and has no views yet.
+    "setup": "setup",
+    "setup_optimizer": "setup",
+    "setup_data": "setup",
+    "setup_priors": "setup",
+}
+
+
 def sidebar_experiments(request):
     """Expose the most recent saved experiments to every template, for the
-    sidebar list — see `ui:experiment_list` for the rest.
+    sidebar list — see `ui:experiment_list` for the rest — and, on a page of
+    one experiment, which one is open and which of its views is showing.
 
     Through the policy, so the sidebar never lists an experiment a page would
     then refuse to open. `Experiment.Meta.ordering` (`-created_at`) already
     puts the most recent first, so slicing is all a "most recent N" needs.
+
+    The open experiment is always listed, since its views hang from its row:
+    one older than the most recent N, or one a group lead reached through
+    their group rather than their own list, is added at the end.
     """
-    return {"sidebar_experiments": visible_experiments(request)[:SIDEBAR_LIMIT]}
+    experiments = list(visible_experiments(request)[:SIDEBAR_LIMIT])
+    match = getattr(request, "resolver_match", None)
+    view = _EXPERIMENT_VIEWS.get(getattr(match, "url_name", None))
+    open_pk = match.kwargs.get("pk") if view else None
+
+    if open_pk is not None and all(e.pk != open_pk for e in experiments):
+        opened = policy().experiments(request).filter(pk=open_pk).first()
+        if opened is None:
+            open_pk = view = None
+        else:
+            experiments.append(opened)
+
+    return {"sidebar_experiments": experiments,
+            "sidebar_open": open_pk, "sidebar_view": view}
 
 
-_SETTINGS_URL_NAMES = {"appearance", "account", "default_experiment_settings"}
+_SETTINGS_URL_NAMES = {"appearance", "export_preferences", "account",
+                       "default_experiment_settings"}
 _GROUP_URL_NAMES = {"group_index", "group_detail", "group_add_person",
                     "group_remove_person", "group_set_role",
                     "group_transfer_primary"}
@@ -104,3 +144,18 @@ def theme(request):
     """Which theme to draw the page in: the one chosen, or the system's."""
     chosen = request.COOKIES.get(THEME_COOKIE)
     return {"theme": chosen if chosen in THEMES else "system"}
+
+
+def storage(request):
+    """The groups the signed-in person belongs to that are nearly out of room,
+    for the warning banner on every page (see ui/services/storage.py)."""
+    from .services.storage import human, warnings_for
+
+    try:
+        nearly_full = warnings_for(getattr(request, "user", None))
+    except Exception:  # noqa: BLE001 — a page must never fail over its banner
+        nearly_full = []
+    return {"storage_warnings": [
+        {"group": w["group"], "used": human(w["total"]), "limit": human(w["limit"]),
+         "percent": round(100 * w["share"]), "full": w["share"] >= 1}
+        for w in nearly_full]}

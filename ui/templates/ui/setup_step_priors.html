@@ -1,0 +1,36 @@
+{% extends "base.html" %}
+{% load i18n static assets %}
+
+{% block title %}{% translate "Priors & constraints" %} · {% translate "New experiment" %} · Codesigner{% endblock %}
+
+{% comment %}Step 4: what is believed about where the optimum is, before any
+trial — the prior figure, as an experiment with no trials shows it — and the
+constraints the search must keep to, which are planned. Then Create, which
+needs steps 1 to 3 to have been saved.{% endcomment %}
+{% block content %}
+    {% include "ui/_setup_heading.html" %}
+
+    {% comment %}Drawn as the dashboard draws the prior before any run: the card
+    on its own, its script asking for the density alone.{% endcomment %}
+    <div class="setup-panels">
+        {% if prior_only_figure %}
+            <script src="{% static 'ui/plotly.min.js' %}"></script><script src="{% asset 'ui/theme.js' %}"></script>
+            {% include prior_only_figure.template with figure=prior_only_figure %}
+        {% else %}
+            <p class="caption">{% translate "This model's search space is not known yet, so there is nothing to state a belief about." %}</p>
+        {% endif %}
+        <section class="card planned" data-figure="constraints">
+            <div class="planned-head">
+                <span class="planned-title">{% translate "Constraints" %}</span>
+                <span class="planned-badge">{% translate "Planned" %}</span>
+            </div>
+            <p class="caption">{% translate "Bounds a configuration must keep to — a latency, a model size — which the search learns to stay inside." %}</p>
+        </section>
+    </div>
+
+    <form method="post" action="{% url 'ui:setup_create' summary.pk %}" class="setup-actions">
+        {% csrf_token %}
+        <button type="submit" class="btn-primary"{% if not_ready %} disabled title="{{ not_ready }}"{% endif %}>{% translate "Create experiment" %}</button>
+        {% if not_ready %}<p class="caption">{{ not_ready }}</p>{% endif %}
+    </form>
+{% endblock %}

@@ -1,0 +1,19 @@
+{% load i18n %}
+{% comment %}Drawn by running the selected trial's configuration once per
+backtest, so nothing is server-rendered here: experiment_detail.html's
+refreshForecast fetches it for the trial selected on the page, and again when
+another is selected. With several series, one is drawn at a time.{% endcomment %}
+<section class="card" data-figure="{{ figure.key }}">
+    <div class="card-head">
+        <div class="subheader">{{ figure.label }}</div>
+        <p class="selectors">
+            <select id="forecast-series-select" aria-label="{% translate 'Series' %}" hidden></select>
+        </p>
+    </div>
+    <p id="forecast-warning" class="alert warning" hidden></p>
+    <p id="forecast-compute" class="caption" hidden>
+        <button type="button" id="forecast-compute-btn">{% translate "Compute" %}</button>
+    </p>
+    <div id="{{ figure.dom_id }}" class="plot"></div>
+    <p id="{{ figure.dom_id }}-empty" class="caption" hidden>{% translate "No forecast to draw." %}</p>
+</section>

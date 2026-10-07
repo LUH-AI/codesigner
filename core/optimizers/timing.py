@@ -34,6 +34,11 @@ STATUS_TIMEOUT = 3
 #: reach a file even if some future caller does record the trial.
 CANCELLED = "cancelled"
 
+#: Where `evaluate_trial` hands back the model its last fold fitted, when asked
+#: to keep it. Never stored: `TrialCollector.record` takes it out of the trial's
+#: run info before the trial is recorded (see ui/services/trial_models.py).
+FITTED = "_fitted"
+
 _STATUS_SUCCESS = STATUS_SUCCESS  # retained: base.py's serializer imports it
 
 

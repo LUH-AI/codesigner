@@ -8,7 +8,11 @@ even when they run in different environments with different library versions.
 import numpy as np
 import pytest
 
-from core.metrics import METRICS, resolve, score_all
+from core.metrics import metrics_for, resolve, score_all
+
+#: The classification metrics: every split here has class labels, and a
+#: regression metric scored on them would fail every trial.
+METRICS = resolve(metrics_for("classification"))
 
 
 #: The names that were here before metrics could describe themselves. They go
@@ -180,3 +184,13 @@ def test_asking_for_a_probability_metric_without_probabilities_says_so():
 
     with pytest.raises(ValueError, match="probabilities"):
         score_all(np.array(["a"]), ["a"], metrics)
+
+
+def test_a_figure_titles_a_metric_by_its_label_or_its_capitalized_name():
+    """What: the name an axis or colour bar gives a metric. How: the acronyms
+    and R² carry a label; accuracy, and a metric a file declares, capitalize."""
+    from core.metrics import undescribe
+
+    assert [m.title for m in resolve(["rmse", "mae", "r2"]).values()] == ["RMSE", "MAE", "R²"]
+    assert METRICS["accuracy"].title == "Accuracy"
+    assert undescribe({"name": "logloss", "higher_is_better": False}).title == "Logloss"

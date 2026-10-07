@@ -37,12 +37,32 @@ def test_a_snapshot_path_is_not_read_by_default():
     the snapshot is one whose paths can be trusted."""
     exp = adapter.experiment_from_snapshot(_snapshot())
     assert not exp.data.dataset
+    assert not exp.data.demo_dataset
 
 
-def test_a_caller_that_owns_the_paths_can_adopt_them():
-    exp = adapter.experiment_from_snapshot(_snapshot(), adopt_paths=True)
+def test_a_caller_that_owns_the_paths_can_adopt_them(tmp_path):
+    """What: a trusted caller's path is copied into the experiment.
+    How: adopts a CSV that is not one of the bundled demos and reads the
+    stored copy back."""
+    own = tmp_path / "measurements.csv"
+    own.write_bytes((DATASETS_DIR / "iris.csv").read_bytes())
+
+    exp = adapter.experiment_from_snapshot(_snapshot(dataset_path=str(own)), adopt_paths=True)
+
     assert exp.data.dataset
-    assert Path(exp.data.dataset.name).name.startswith("iris")
+    assert Path(exp.data.dataset.name).name.startswith("measurements")
+    assert not exp.data.demo_dataset
+
+
+def test_an_adopted_demo_is_named_rather_than_copied():
+    """What: a trusted path that is a bundled demo is recorded by the demo's
+    name, and no copy is stored. How: adopts iris' own path and reads back
+    where the experiment's dataset is."""
+    exp = adapter.experiment_from_snapshot(_snapshot(), adopt_paths=True)
+
+    assert exp.data.demo_dataset == "iris"
+    assert not exp.data.dataset
+    assert exp.data.dataset_path().resolve() == (DATASETS_DIR / "iris.csv").resolve()
 
 
 def test_an_attached_upload_is_still_adopted_without_the_flag():

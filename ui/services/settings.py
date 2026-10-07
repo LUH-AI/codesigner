@@ -39,6 +39,16 @@ SETTING_DEFAULTS = {
     # objectives, which is why it is a setting at all rather than a constant.
     # The default is SMAC's, from a benchmark whose objective lives in [0, 1].
     "prior_acceptance_tolerance": 0.15,
+    # How many trials' fitted models a run keeps for "Export trial
+    # parameters": the best this many by the run's metric — and, with the
+    # other, every trial of the last run, until the next. See
+    # ui/services/trial_models.py.
+    "keep_best_trial_models": 5,
+    "keep_last_run_trial_models": False,
+    # How an exported file carries this experiment's times: "absolute",
+    # "relative" or "none" — or "" for whatever the person exporting prefers.
+    # See ui/services/timestamps.py.
+    "export_timestamps": "",
     **{figure.setting_key: True for figure in FIGURES},
     **{autocompute_key(name): False for name, _label in deferred_computations()},
 }
@@ -54,6 +64,13 @@ SETTING_BOUNDS = {
     # wide enough to cover any of them and closed at zero, where it means
     # "accept nothing the model scores below the incumbent's neighbourhood".
     "prior_acceptance_tolerance": (0.0, 1_000.0),
+    "keep_best_trial_models": (0, 100),
+}
+
+#: Settings that are one of a few words rather than a number or a checkbox,
+#: and the words they may be. Anything else posted is the default.
+SETTING_CHOICES = {
+    "export_timestamps": ("", "absolute", "relative", "none"),
 }
 
 #: The figures that *display* the eager HyperSHAP games. With every one of them

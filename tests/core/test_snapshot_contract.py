@@ -169,7 +169,8 @@ def test_registry_model_substitution_on_load(metrics, models, optimizers):
     caller-chosen replacement model.
 
     Expect: without a replacement the load fails; with model_name given, the
-    replacement is resolved and recorded as the experiment's model_name.
+    replacement is resolved (a copy of the registry's, told the file's task)
+    and recorded as the experiment's model_name.
     """
     snapshot = _snapshot("test2.ihpo")
     snapshot["model"]["name"] = "Discontinued Model"
@@ -179,10 +180,11 @@ def test_registry_model_substitution_on_load(metrics, models, optimizers):
 
     _, exp = io.build_experiment(
         snapshot, metrics, models, optimizers,
-        model_name="SVM Classifier", read_only=True,
+        model_name="SVM", read_only=True,
     )
-    assert exp["model_name"] == "SVM Classifier"
-    assert exp["model"] is models["SVM Classifier"]
+    assert exp["model_name"] == "SVM"
+    assert type(exp["model"]) is type(models["SVM"])
+    assert exp["model"].task == "classification"
 
 
 def test_missing_custom_model_blocks_full_load_but_not_read_only(metrics, models, optimizers):

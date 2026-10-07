@@ -5,6 +5,16 @@
 
 {% block content %}
     <h1>{{ group.name }}</h1>
+    {% comment %}Everyone in the group sees what it stores: a dataset anyone
+    uploads can replace the trial models anyone kept.{% endcomment %}
+    <div class="storage-usage" style="max-width: 34rem;">
+        <p class="caption">
+            {% blocktranslate with used=storage.used limit=storage.limit models=storage.models %}Storage: {{ used }} of {{ limit }}, of which {{ models }} is kept trial models. Datasets come first: when the group is full, a new dataset replaces the stalest kept trial models.{% endblocktranslate %}
+        </p>
+        <div class="usage-bar" role="meter" aria-valuemin="0" aria-valuemax="100" aria-valuenow="{{ storage.percent }}">
+            <span style="width: {{ storage.percent }}%;"></span>
+        </div>
+    </div>
     {% if is_lead %}
         <p class="caption">
             {% blocktranslate count seats=seats_left %}{{ seats }} seat left.{% plural %}{{ seats }} seats left.{% endblocktranslate %}
@@ -31,7 +41,7 @@
         <tbody>
             {% for row in mine %}{% with exp=row.experiment %}
                 <tr id="exp-{{ exp.pk }}">
-                    <td><a href="{% url 'ui:experiment_detail' exp.pk %}">{{ exp.name }}</a>
+                    <td><a href="{% url 'ui:experiment_detail' exp.pk %}">{{ exp.title }}</a>
                         <span class="exp-id">({{ exp.identifier }})</span></td>
                     <td>
                         {% comment %}Collapsed, because a group of twenty makes this
@@ -90,7 +100,7 @@
         <tbody>
             {% for exp in shared %}
                 <tr>
-                    <td><a href="{% url 'ui:experiment_detail' exp.pk %}">{{ exp.name }}</a>
+                    <td><a href="{% url 'ui:experiment_detail' exp.pk %}">{{ exp.title }}</a>
                         <span class="exp-id">({{ exp.identifier }})</span></td>
                     <td>{{ exp.owner.get_username }}</td>
                     <td>{% if exp.level == "contributor" %}{% translate "a contributor" %}{% else %}{% translate "a viewer" %}{% endif %}</td>
@@ -117,7 +127,7 @@
             <tbody>
                 {% for exp in others %}
                     <tr>
-                        <td><a href="{% url 'ui:experiment_detail' exp.pk %}">{{ exp.name }}</a>
+                        <td><a href="{% url 'ui:experiment_detail' exp.pk %}">{{ exp.title }}</a>
                             <span class="exp-id">({{ exp.identifier }})</span></td>
                         <td>{% if exp.owner %}{{ exp.owner.get_username }}{% else %}<span class="caption">{% translate "nobody" %}</span>{% endif %}</td>
                         <td>{% if exp.people %}{% blocktranslate count people=exp.people %}with {{ people }} person{% plural %}with {{ people }} people{% endblocktranslate %}{% else %}—{% endif %}</td>

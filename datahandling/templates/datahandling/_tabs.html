@@ -1,0 +1,57 @@
+{% load assets i18n %}
+{% comment %}Data Handling's sections as tabs, and on each its panels — the
+dashboard's markup throughout: the same tab bar, the same grid, the same slots,
+sized and placed by layout.js. Placed by config/figure_layout.toml and fixed:
+there are no grips, pins or width buttons (layout.js adds those only where the
+page carries a saved arrangement). Each tab has its own address, and the one
+asked for is rendered showing.
+
+A tab whose panels can be set is a form, saved in one go with one button.
+`save_label` names that button (the setup's step 2 says more than "Save").
+{% endcomment %}
+<div class="fig-area data-handling">
+    <div class="fig-tabbar">
+        <div class="fig-tabs" role="tablist" aria-label="{% translate 'Data Handling' %}">
+            {% for tab in tabs %}
+                <button type="button" role="tab" class="fig-tab" id="fig-tab-{{ tab.section.slug }}"
+                        data-tab="{{ tab.section.slug }}" data-url="{{ tab.url }}"
+                        aria-controls="fig-panel-{{ tab.section.slug }}"
+                        aria-selected="{% if tab.section.slug == section.slug %}true{% else %}false{% endif %}">{{ tab.section.title }}</button>
+            {% endfor %}
+        </div>
+    </div>
+    {% for tab in tabs %}
+        <div class="fig-panel{% if tab.section.slug != section.slug %} is-inactive{% endif %}"
+             id="fig-panel-{{ tab.section.slug }}" role="tabpanel"
+             aria-labelledby="fig-tab-{{ tab.section.slug }}" data-tab="{{ tab.section.slug }}">
+            {% if tab.has_controls %}<form method="post" action="{{ save_url|default:tab.url }}" class="data-controls">{% csrf_token %}{% endif %}
+            <div class="fig-grid">
+                {% for slot in tab.slots %}
+                    <div class="fig-slot shape-{{ slot.figure.shape }}" data-key="{{ slot.figure.key }}"
+                         data-w="{{ slot.w }}" data-widths="{{ slot.figure.columns|join:' ' }}"
+                         {% if slot.c is not None %}data-c="{{ slot.c }}"{% endif %}
+                         data-home="{{ slot.figure.home_tab }}">
+                        {% comment %}Rendered once, in its home tab's slot; a slot
+                        for it on another tab (a setup's Overview) stays empty and
+                        layout.js moves it there while that tab shows, as it does
+                        for the dashboard's Overview.{% endcomment %}
+                        {% if slot.figure.home_tab == tab.section.slug %}{% include slot.figure.template with figure=slot.figure control=slot.control %}{% endif %}
+                    </div>
+                {% endfor %}
+            </div>
+            {% if tab.has_controls %}
+                <div class="actions data-save">
+                    {% if uploaded_model %}
+                        <p class="caption">{% translate "An uploaded model is given the columns as they are; these choices apply to the built-in models." %}</p>
+                    {% endif %}
+                    {% if locked %}
+                        <p class="caption">{% if locked_reason %}{{ locked_reason }}{% else %}{% translate "Only people who may change this experiment can set these." %}{% endif %}</p>
+                    {% else %}
+                        <button type="submit" class="btn-primary">{% if save_label %}{{ save_label }}{% else %}{% translate "Save" %}{% endif %}</button>
+                    {% endif %}
+                </div>
+            </form>{% endif %}
+        </div>
+    {% endfor %}
+</div>
+<script src="{% asset 'ui/layout.js' %}" defer></script>
