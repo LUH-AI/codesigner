@@ -8,7 +8,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: PACKAGE VERSION\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2026-10-07 11:26+0000\n"
+"POT-Creation-Date: 2026-10-09 10:46+0000\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
 "Language-Team: LANGUAGE <LL@li.org>\n"
@@ -433,7 +433,7 @@ msgstr "Ya obtenido"
 
 #: ui/figures/plots.py:447
 #: ui/templates/ui/figures/hyperparameter_importance.html:44
-#: ui/templates/ui/figures/hyperparameter_importance.html:78 ui/views.py:607
+#: ui/templates/ui/figures/hyperparameter_importance.html:78 ui/views.py:622
 msgid "Still to gain"
 msgstr "Aún por ganar"
 
@@ -454,11 +454,11 @@ msgid "Interaction strength"
 msgstr "Fuerza de la interacción"
 
 #: ui/figures/plots.py:724 ui/templates/ui/_selected_config_inner.html:29
-#: ui/templates/ui/figures/acquisition_slice.html:35
+#: ui/templates/ui/figures/acquisition_slice.html:36
 #: ui/templates/ui/figures/best_configuration.html:13
 #: ui/templates/ui/figures/hyperparameter_importance.html:73
 #: ui/templates/ui/figures/partial_dependence.html:17
-#: ui/templates/ui/figures/prior.html:33 ui/timeline.py:279 ui/timeline.py:283
+#: ui/templates/ui/figures/prior.html:34 ui/timeline.py:279 ui/timeline.py:283
 #: ui/timeline.py:287 ui/timeline.py:291
 msgid "Hyperparameter"
 msgstr "Hiperparámetro"
@@ -492,7 +492,7 @@ msgstr "Mejor muestreado, sin ponderar"
 msgid "Best sampled, weighted"
 msgstr "Mejor muestreado, ponderado"
 
-#: ui/figures/plots.py:1497 ui/figures/plots.py:1545 ui/views.py:3003
+#: ui/figures/plots.py:1497 ui/figures/plots.py:1545 ui/views.py:3076
 msgid "Acquisition"
 msgstr "Adquisición"
 
@@ -696,7 +696,7 @@ msgstr "Esta prueba no produjo ninguna medición: %(reason)s"
 msgid "failed"
 msgstr "fallida"
 
-#: ui/templates/ui/figures/acquisition_slice.html:46
+#: ui/templates/ui/figures/acquisition_slice.html:47
 #: ui/templates/ui/figures/forecast.html:16
 #: ui/templates/ui/figures/local_effects.html:14
 #: ui/templates/ui/figures/local_explanation.html:19
@@ -706,15 +706,15 @@ msgstr "fallida"
 msgid "Compute"
 msgstr "Calcular"
 
-#: ui/templates/ui/figures/acquisition_slice.html:71
+#: ui/templates/ui/figures/acquisition_slice.html:72
 msgid "Acquisition with incumbent hyperparameters"
 msgstr "Adquisición con los hiperparámetros del titular"
 
-#: ui/templates/ui/figures/acquisition_slice.html:79
+#: ui/templates/ui/figures/acquisition_slice.html:80
 msgid "Requery Next Trials"
 msgstr "Volver a consultar las próximas pruebas"
 
-#: ui/templates/ui/figures/acquisition_slice.html:95
+#: ui/templates/ui/figures/acquisition_slice.html:96
 msgid "No acquisition data available."
 msgstr "No hay datos de adquisición disponibles."
 
@@ -907,51 +907,51 @@ msgstr "frente al tiempo"
 msgid "No data available."
 msgstr "No hay datos disponibles."
 
-#: ui/templates/ui/figures/prior.html:75
+#: ui/templates/ui/figures/prior.html:76
 msgid "Prior distribution"
 msgstr "Distribución del prior"
 
-#: ui/templates/ui/figures/prior.html:76 ui/timeline.py:45
+#: ui/templates/ui/figures/prior.html:77 ui/timeline.py:45
 msgid "Uniform"
 msgstr "Uniforme"
 
-#: ui/templates/ui/figures/prior.html:77 ui/timeline.py:45
+#: ui/templates/ui/figures/prior.html:78 ui/timeline.py:45
 msgid "Normal"
 msgstr "Normal"
 
-#: ui/templates/ui/figures/prior.html:78 ui/timeline.py:45
+#: ui/templates/ui/figures/prior.html:79 ui/timeline.py:45
 msgid "Beta"
 msgstr "Beta"
 
-#: ui/templates/ui/figures/prior.html:84 ui/timeline.py:46
+#: ui/templates/ui/figures/prior.html:85 ui/timeline.py:46
 msgid "Freeform"
 msgstr "Libre"
 
-#: ui/templates/ui/figures/prior.html:90 ui/timeline.py:87
+#: ui/templates/ui/figures/prior.html:91 ui/timeline.py:87
 msgid "Decay"
 msgstr "Decaimiento"
 
-#: ui/templates/ui/figures/prior.html:91
+#: ui/templates/ui/figures/prior.html:92
 msgid "No decay"
 msgstr "Sin decaimiento"
 
-#: ui/templates/ui/figures/prior.html:92
+#: ui/templates/ui/figures/prior.html:93
 msgid "Logarithmic decay"
 msgstr "Decaimiento logarítmico"
 
-#: ui/templates/ui/figures/prior.html:93
+#: ui/templates/ui/figures/prior.html:94
 msgid "Linear decay"
 msgstr "Decaimiento lineal"
 
-#: ui/templates/ui/figures/prior.html:94
+#: ui/templates/ui/figures/prior.html:95
 msgid "Quadratic decay"
 msgstr "Decaimiento cuadrático"
 
-#: ui/templates/ui/figures/prior.html:95
+#: ui/templates/ui/figures/prior.html:96
 msgid "Cubic decay"
 msgstr "Decaimiento cúbico"
 
-#: ui/templates/ui/figures/prior.html:103
+#: ui/templates/ui/figures/prior.html:104
 msgid ""
 "Decay factor as a fraction of the trial budget (β = ratio × N). Larger keeps "
 "the prior influential for longer: better for an accurate prior, worse for a "
@@ -961,11 +961,11 @@ msgstr ""
 "× N). Cuanto mayor, más tiempo mantiene el prior su influencia: mejor para "
 "un prior acertado, peor para uno engañoso."
 
-#: ui/templates/ui/figures/prior.html:107
+#: ui/templates/ui/figures/prior.html:108
 msgid "Decay factor as a fraction of the trial budget"
 msgstr "Factor de decaimiento como fracción del presupuesto de pruebas"
 
-#: ui/templates/ui/figures/prior.html:146
+#: ui/templates/ui/figures/prior.html:147
 msgid ""
 "The initial design is drawn before any surrogate is fitted, so nothing "
 "stated here can reach those trials. Waiting means the belief arrives at full "
@@ -976,15 +976,23 @@ msgstr ""
 "llega con toda su fuerza en la primera prueba en la que realmente puede "
 "influir."
 
-#: ui/templates/ui/figures/prior.html:148
+#: ui/templates/ui/figures/prior.html:149
 msgid "Delay decay until after the initial design"
 msgstr "Retrasar el decaimiento hasta después del diseño inicial"
 
-#: ui/templates/ui/figures/prior.html:150
+#: ui/templates/ui/figures/prior.html:155
+msgid "Top k"
+msgstr "Top k"
+
+#: ui/templates/ui/figures/prior.html:162 ui/views.py:977
+msgid "Needs the Gaussian process search strategy."
+msgstr "Requiere la estrategia de búsqueda de proceso gaussiano."
+
+#: ui/templates/ui/figures/prior.html:162
 msgid "Evaluate Prior"
 msgstr "Evaluar prior"
 
-#: ui/templates/ui/figures/prior.html:158
+#: ui/templates/ui/figures/prior.html:170
 msgid ""
 "Put this belief back to what the last run searched under, or to uniform if "
 "there was none."
@@ -992,11 +1000,11 @@ msgstr ""
 "Devolver este prior a lo que usó la última ejecución, o a uniforme si no "
 "hubo ninguna."
 
-#: ui/templates/ui/figures/prior.html:158
+#: ui/templates/ui/figures/prior.html:170
 msgid "Reset"
 msgstr "Restablecer"
 
-#: ui/templates/ui/figures/prior.html:160
+#: ui/templates/ui/figures/prior.html:172
 msgid ""
 "A decaying prior weights the acquisition by its density raised to this "
 "exponent, which falls as the run proceeds. At 1 the belief counts in full; "
@@ -1007,11 +1015,11 @@ msgstr ""
 "prior cuenta por completo; cerca de 0 no dice nada y la búsqueda sigue sin "
 "ponderar."
 
-#: ui/templates/ui/figures/prior.html:174
+#: ui/templates/ui/figures/prior.html:186
 msgid "This prior is unlikely to be helpful"
 msgstr "Es poco probable que este prior ayude"
 
-#: ui/templates/ui/figures/prior.html:176
+#: ui/templates/ui/figures/prior.html:188
 msgid ""
 "Keeping it means the search will be weighted by it anyway. Discarding it "
 "leaves the search unweighted for this hyperparameter."
@@ -1019,11 +1027,11 @@ msgstr ""
 "Conservarlo significa que la búsqueda se ponderará con él de todos modos. "
 "Descartarlo deja la búsqueda sin ponderar para este hiperparámetro."
 
-#: ui/templates/ui/figures/prior.html:178
+#: ui/templates/ui/figures/prior.html:190
 msgid "Keep the prior"
 msgstr "Conservar el prior"
 
-#: ui/templates/ui/figures/prior.html:179
+#: ui/templates/ui/figures/prior.html:191
 msgid "Discard it"
 msgstr "Descartarlo"
 
@@ -1234,7 +1242,7 @@ msgstr "Preparar un entorno aislado"
 msgid "Figures shown on an experiment page"
 msgstr "Figuras mostradas en la página de un experimento"
 
-#: ui/templates/ui/_experiment_settings_fields.html:75
+#: ui/templates/ui/_experiment_settings_fields.html:79
 msgid "Analytics computed as soon as a figure needs them"
 msgstr "Analíticas calculadas en cuanto una figura las necesita"
 
@@ -1890,48 +1898,58 @@ msgstr "Pruebas explicadas en la figura de efectos locales"
 msgid "Prior acceptance tolerance"
 msgstr "Tolerancia de aceptación del prior"
 
-#: ui/forms.py:382
+#: ui/forms.py:367
+msgid "Prior acceptance top k"
+msgstr "Top k de aceptación del prior"
+
+#: ui/forms.py:383
 msgid "0 draws every trial."
 msgstr "0 dibuja todas las pruebas."
 
-#: ui/forms.py:385
+#: ui/forms.py:386
 msgid "0 explains every trial."
 msgstr "0 explica todas las pruebas."
 
-#: ui/forms.py:389
-msgid "How much worse a prior's region may score before it is refused."
-msgstr "Cuánto peor puede puntuar la región de un prior antes de rechazarlo."
+#: ui/forms.py:390
+msgid "Share of the metric's scale a prior may fall short by."
+msgstr ""
+"Fracción de la escala de la métrica en la que un prior puede quedarse corto."
 
-#: ui/forms.py:391
+#: ui/forms.py:393 ui/templates/ui/figures/prior.html:154
+#: ui/templates/ui/figures/prior.html:159
+msgid "Best configurations compared on each side."
+msgstr "Mejores configuraciones comparadas en cada lado."
+
+#: ui/forms.py:395
 msgid "Trial models kept for export"
 msgstr "Modelos de las pruebas conservados para exportar"
 
-#: ui/forms.py:392
+#: ui/forms.py:396
 msgid "0 keeps none."
 msgstr "0 no conserva ninguno."
 
-#: ui/forms.py:394
+#: ui/forms.py:398
 msgid "Also keep every trial of the last run"
 msgstr "Conservar también todas las pruebas de la última ejecución"
 
-#: ui/forms.py:395
+#: ui/forms.py:399
 msgid "Kept until the next run starts."
 msgstr "Se conservan hasta que empieza la siguiente ejecución."
 
-#: ui/forms.py:397 ui/templates/ui/export_confirm.html:30
+#: ui/forms.py:401 ui/templates/ui/export_confirm.html:30
 #: ui/templates/ui/export_preferences.html:11
 msgid "Time"
 msgstr "Tiempo"
 
-#: ui/forms.py:398
+#: ui/forms.py:402
 msgid "The exporter's preference"
 msgstr "La preferencia de quien exporta"
 
-#: ui/forms.py:400
+#: ui/forms.py:404
 msgid "What the export page preselects."
 msgstr "Lo que la página de exportación preselecciona."
 
-#: ui/forms.py:432
+#: ui/forms.py:436
 msgid "Use default experiment settings"
 msgstr "Usar los ajustes predeterminados de los experimentos"
 
@@ -2989,51 +3007,51 @@ msgstr "+%(h)d h %(m)d min"
 msgid "+%(d)d d %(h)d h"
 msgstr "+%(d)d d %(h)d h"
 
-#: ui/views.py:124
+#: ui/views.py:125
 msgid "Choose which group this experiment is in."
 msgstr "Elija en qué grupo está este experimento."
 
-#: ui/views.py:166
+#: ui/views.py:167
 msgid "all the requested trials ran"
 msgstr "se hicieron todas las pruebas solicitadas"
 
-#: ui/views.py:167
+#: ui/views.py:168
 msgid "performance surpassed the target"
 msgstr "el rendimiento superó el objetivo"
 
-#: ui/views.py:168
+#: ui/views.py:169
 msgid "the time limit was reached"
 msgstr "se alcanzó el límite de tiempo"
 
-#: ui/views.py:169
+#: ui/views.py:170
 msgid "the compute budget was used up"
 msgstr "se agotó el presupuesto de cómputo"
 
-#: ui/views.py:170
+#: ui/views.py:171
 msgid "the score had stopped improving"
 msgstr "la puntuación había dejado de mejorar"
 
-#: ui/views.py:171
+#: ui/views.py:172
 msgid "the search was confident nothing better remained"
 msgstr "la búsqueda estaba segura de que no quedaba nada mejor"
 
-#: ui/views.py:172
+#: ui/views.py:173
 msgid "it was interrupted"
 msgstr "se interrumpió"
 
-#: ui/views.py:173
+#: ui/views.py:174
 msgid "too many trials were failing"
 msgstr "fallaban demasiadas pruebas"
 
-#: ui/views.py:174
+#: ui/views.py:175
 msgid "every configuration had been tried"
 msgstr "se habían probado todas las configuraciones"
 
-#: ui/views.py:338
+#: ui/views.py:353
 msgid "Inconsistent"
 msgstr "Inconsistente"
 
-#: ui/views.py:393
+#: ui/views.py:408
 #, python-format
 msgid ""
 "%(group)s has no room for this: its datasets and model files alone would "
@@ -3044,7 +3062,7 @@ msgstr ""
 "de modelo ocuparían %(used)s de sus %(limit)s. Elimine los experimentos que "
 "ya no necesite, o pida más a la administración del sitio."
 
-#: ui/views.py:399
+#: ui/views.py:414
 #, python-format
 msgid ""
 "To make room in %(group)s, %(n)s kept trial model was deleted, the stalest "
@@ -3059,7 +3077,7 @@ msgstr[1] ""
 "Para hacer sitio en %(group)s, se eliminaron %(n)s modelos de pruebas "
 "conservados, empezando por los más antiguos. Ahora usa %(used)s de %(limit)s."
 
-#: ui/views.py:664
+#: ui/views.py:679
 msgid ""
 "The forecast is drawn for built-in models only: an uploaded model runs in "
 "its own environment, which this page does not start."
@@ -3067,12 +3085,12 @@ msgstr ""
 "El pronóstico solo se dibuja para los modelos integrados: un modelo subido "
 "se ejecuta en su propio entorno, que esta página no inicia."
 
-#: ui/views.py:689
+#: ui/views.py:704
 #, python-format
 msgid "This configuration failed to forecast: %(error)s"
 msgstr "Esta configuración no pudo pronosticar: %(error)s"
 
-#: ui/views.py:935
+#: ui/views.py:968
 msgid ""
 "Nothing has been run yet, so there is no model to judge this against. A "
 "belief stated now is acted on in full."
@@ -3080,7 +3098,7 @@ msgstr ""
 "Todavía no se ha ejecutado nada, así que no hay ningún modelo con el que "
 "juzgarlo. Un prior indicado ahora se aplica por completo."
 
-#: ui/views.py:941
+#: ui/views.py:974
 msgid ""
 "This optimizer fits no model of the objective, so it has no opinion about "
 "where the optimum is."
@@ -3088,7 +3106,11 @@ msgstr ""
 "Este optimizador no ajusta ningún modelo del objetivo, así que no tiene "
 "opinión sobre dónde está el óptimo."
 
-#: ui/views.py:964
+#: ui/views.py:980
+msgid "This metric has no scale to measure the tolerance against yet."
+msgstr "Esta métrica aún no tiene una escala con la que medir la tolerancia."
+
+#: ui/views.py:1004
 msgid ""
 "This prior is potentially informative: the model rates the region it points "
 "at as promising as where the search is already headed."
@@ -3097,23 +3119,23 @@ msgstr ""
 "que apunta tan prometedora como aquella hacia la que ya se dirige la "
 "búsqueda."
 
-#: ui/views.py:968
+#: ui/views.py:1008
 #, python-format
 msgid ""
 "This prior is unlikely to be helpful: the model rates the region it points "
-"at more than %(tolerance)s worse than where the search is already headed, so "
+"at more than %(margin)s worse than where the search is already headed, so "
 "acting on it would cost trials."
 msgstr ""
 "Es poco probable que este prior ayude: el modelo puntúa la región a la que "
-"apunta más de %(tolerance)s por debajo de aquella hacia la que ya se dirige "
-"la búsqueda, así que aplicarlo costaría pruebas."
+"apunta más de %(margin)s por debajo de aquella hacia la que ya se dirige la "
+"búsqueda, así que aplicarlo costaría pruebas."
 
-#: ui/views.py:974
+#: ui/views.py:1014
 msgid "This prior could not be judged, so it stands as stated."
 msgstr ""
 "Este prior no se ha podido juzgar, así que se mantiene tal como se indicó."
 
-#: ui/views.py:1246 ui/views.py:1463
+#: ui/views.py:1318 ui/views.py:1535
 msgid ""
 "The model this experiment used is not available here, so its search space "
 "cannot be rebuilt."
@@ -3121,7 +3143,7 @@ msgstr ""
 "El modelo que usó este experimento no está disponible aquí, así que no se "
 "puede reconstruir su espacio de búsqueda."
 
-#: ui/views.py:1424
+#: ui/views.py:1496
 msgid ""
 "This SMAC has no acquisition weight layer, so a stated prior does not affect "
 "the search or the candidates below. Install the version requirements.txt "
@@ -3131,28 +3153,28 @@ msgstr ""
 "declarado no afecta ni a la búsqueda ni a las candidatas de abajo. Instale "
 "la versión que fija requirements.txt."
 
-#: ui/views.py:1553
+#: ui/views.py:1625
 msgid ""
 "Set at least one stopping criterion, so the run has something to end on."
 msgstr ""
 "Fije al menos un criterio de parada, para que la ejecución tenga algo con lo "
 "que terminar."
 
-#: ui/views.py:1870
+#: ui/views.py:1942
 msgid "Unknown sharing level."
 msgstr "Nivel de acceso desconocido."
 
-#: ui/views.py:1907
+#: ui/views.py:1979
 #, python-format
 msgid "%(name)s now belongs to %(user)s. You are a contributor."
 msgstr "%(name)s ahora pertenece a %(user)s. Usted colabora."
 
-#: ui/views.py:1961
+#: ui/views.py:2033
 msgid ""
 "Given up on by hand: it stopped answering, and cancelling it had no effect."
 msgstr "Abandonada a mano: dejó de responder y cancelarla no surtió efecto."
 
-#: ui/views.py:2126
+#: ui/views.py:2198
 msgid ""
 "Trial parameters are kept for the built-in models only: an uploaded model is "
 "fitted in its own environment, which nothing is brought back from."
@@ -3161,7 +3183,7 @@ msgstr ""
 "un modelo subido se ajusta en su propio entorno, del que no se trae nada de "
 "vuelta."
 
-#: ui/views.py:2129
+#: ui/views.py:2201
 #, python-format
 msgid ""
 "%(model)s has no fitted parameters to keep: its forecast is its history "
@@ -3170,7 +3192,7 @@ msgstr ""
 "%(model)s no tiene parámetros ajustados que conservar: su pronóstico es su "
 "historial reproducido."
 
-#: ui/views.py:2133
+#: ui/views.py:2205
 msgid ""
 "This experiment keeps no trial models. Turn it on in Settings; a new run "
 "keeps them from then on."
@@ -3178,7 +3200,7 @@ msgstr ""
 "Este experimento no conserva modelos de las pruebas. Actívelo en Ajustes; a "
 "partir de entonces, una ejecución nueva los conserva."
 
-#: ui/views.py:2136
+#: ui/views.py:2208
 #, python-format
 msgid ""
 "This trial's model was not kept: a run keeps only the best %(n)s trial's "
@@ -3197,49 +3219,49 @@ msgstr[1] ""
 "modelos, los de las mejores pruebas (y, con la opción activada, los de sus "
 "propias pruebas), o su grupo no tenía espacio. Cámbielo en Ajustes."
 
-#: ui/views.py:2290
+#: ui/views.py:2362
 msgid "Light"
 msgstr "Claro"
 
-#: ui/views.py:2290
+#: ui/views.py:2362
 msgid "Dark"
 msgstr "Oscuro"
 
-#: ui/views.py:2291
+#: ui/views.py:2363
 msgid "Same as my system"
 msgstr "Igual que mi sistema"
 
-#: ui/views.py:2327
+#: ui/views.py:2399
 msgid "See every experiment on this instance"
 msgstr "Ver todos los experimentos de esta instancia"
 
-#: ui/views.py:2329
+#: ui/views.py:2401
 msgid "Run, edit and delete other people's experiments"
 msgstr "Ejecutar, editar y eliminar experimentos de otras personas"
 
-#: ui/views.py:2331
+#: ui/views.py:2403
 msgid "Change the settings every experiment inherits"
 msgstr "Cambiar los ajustes que hereda cada experimento"
 
-#: ui/views.py:2333
+#: ui/views.py:2405
 msgid "Upload and run custom models"
 msgstr "Subir y ejecutar modelos propios"
 
-#: ui/views.py:2368
+#: ui/views.py:2440
 #, python-format
 msgid "Moved %(name)s to the bin."
 msgstr "%(name)s se movió a la papelera."
 
-#: ui/views.py:2416
+#: ui/views.py:2488
 #, python-format
 msgid "Restored %(name)s."
 msgstr "%(name)s se restauró."
 
-#: ui/views.py:2475
+#: ui/views.py:2547
 msgid "Invalid or unreadable experiment file."
 msgstr "Archivo de experimento inválido o ilegible."
 
-#: ui/views.py:2548
+#: ui/views.py:2620
 #, python-format
 msgid ""
 "This looks like more than one run — two files here are called %(name)s. "
@@ -3248,16 +3270,16 @@ msgstr ""
 "Esto parece más de una ejecución — dos archivos de aquí se llaman %(name)s. "
 "Elija un único directorio de ejecución, el que contiene su runhistory.json."
 
-#: ui/views.py:2555
+#: ui/views.py:2627
 #, python-format
 msgid "Could not read %(name)s."
 msgstr "No se pudo leer %(name)s."
 
-#: ui/views.py:2562
+#: ui/views.py:2634
 msgid "This is not a readable SMAC run."
 msgstr "Esta no es una ejecución de SMAC legible."
 
-#: ui/views.py:2622
+#: ui/views.py:2694
 msgid ""
 "Local explanation needs the search space, which this experiment does not "
 "carry and has no model to ask."
@@ -3265,7 +3287,7 @@ msgstr ""
 "La explicación local necesita el espacio de búsqueda, que este experimento "
 "no lleva consigo y para el que no hay modelo al que preguntar."
 
-#: ui/views.py:2741
+#: ui/views.py:2813
 msgid ""
 "Partial dependence needs the search space, which this experiment does not "
 "carry and has no model to ask."
@@ -3273,7 +3295,7 @@ msgstr ""
 "La dependencia parcial necesita el espacio de búsqueda, que este experimento "
 "no lleva consigo y para el que no hay modelo al que preguntar."
 
-#: ui/views.py:2878
+#: ui/views.py:2950
 msgid ""
 "Local effects need the search space, which this experiment does not carry "
 "and has no model to ask."
@@ -3281,47 +3303,47 @@ msgstr ""
 "Los efectos locales necesitan el espacio de búsqueda, que este experimento "
 "no lleva consigo y para el que no hay modelo al que preguntar."
 
-#: ui/views.py:2982
+#: ui/views.py:3055
 msgid "Not recorded"
 msgstr "No registrado"
 
-#: ui/views.py:2984
+#: ui/views.py:3057
 #, python-format
 msgid "%(k)s backtest of %(h)s steps by %(column)s"
 msgid_plural "%(k)s backtests of %(h)s steps by %(column)s"
 msgstr[0] "%(k)s backtest de %(h)s pasos según %(column)s"
 msgstr[1] "%(k)s backtests de %(h)s pasos según %(column)s"
 
-#: ui/views.py:2990
+#: ui/views.py:3063
 #, python-format
 msgid "%(k)s time-ordered folds by %(column)s"
 msgstr "%(k)s pliegues ordenados en el tiempo según %(column)s"
 
-#: ui/views.py:2992
+#: ui/views.py:3065
 #, python-format
 msgid "latest %(pct)s%% by %(column)s held out"
 msgstr "último %(pct)s%% según %(column)s reservado"
 
-#: ui/views.py:2995
+#: ui/views.py:3068
 #, python-format
 msgid "%(k)s-fold CV"
 msgstr "Validación cruzada de %(k)s pliegues"
 
-#: ui/views.py:2996
+#: ui/views.py:3069
 #, python-format
 msgid "%(pct)s%% held out"
 msgstr "%(pct)s%% reservado"
 
-#: ui/views.py:3002
+#: ui/views.py:3075
 msgid "HyperSHAP"
 msgstr "HyperSHAP"
 
-#: ui/views.py:3004
+#: ui/views.py:3077
 msgid "Misc"
 msgstr "Varios"
 
-
 #. == Everything else ===================================================
+
 #: datahandling/panels.py:29
 msgid "Fill in"
 msgstr "Rellenar"
@@ -3355,7 +3377,7 @@ msgstr "Según lo necesite el modelo"
 msgid "%(choice)s (%(model)s default)"
 msgstr "%(choice)s (por defecto en %(model)s)"
 
-#: datahandling/sections.py:41 ui/views.py:3001
+#: datahandling/sections.py:41 ui/views.py:3074
 msgid "Overview"
 msgstr "Resumen"
 
@@ -3952,7 +3974,7 @@ msgstr ""
 "Hay una ejecución en curso, y usa las columnas procesadas como lo están "
 "ahora."
 
-#: datahandling/views.py:89 ui/views.py:493
+#: datahandling/views.py:89 ui/views.py:508
 msgid "Saved."
 msgstr "Guardado."
 
@@ -4854,3 +4876,4 @@ msgstr "%(name)s supera el límite de subida de %(mb)s MB."
 #, python-format
 msgid "%(name)s must be a .%(ext)s file."
 msgstr "%(name)s debe ser un archivo .%(ext)s."
+

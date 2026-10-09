@@ -20,6 +20,7 @@ raw SMAC cost imported from somebody else's run. So a metric now says what it
 is, and the rest of the application asks rather than assumes.
 """
 
+import math
 from collections.abc import Callable, Iterable, Mapping
 from dataclasses import dataclass, field
 from typing import Any, Optional
@@ -555,3 +556,21 @@ def from_cost(metric: Optional[Metric], cost: float) -> float:
     if metric.high is None:
         return -cost
     return metric.high - cost
+
+
+def scale(metric: Optional[Metric], null_score: Optional[float] = None) -> Optional[float]:
+    """How far apart a perfect score and a worthless one are, in *metric*'s units.
+
+    Its range where it has two ends — 1 for an accuracy, 200 for an sMAPE.
+    Otherwise the distance from its best end to *null_score*, what a model that
+    knows nothing scores: the targets' spread for an RMSE, 1 for an R². None
+    when neither is known, or they coincide.
+    """
+    if metric is None:
+        return 1.0
+    if metric.low is not None and metric.high is not None:
+        return metric.high - metric.low
+    if metric.best_bound is None or null_score is None:
+        return None
+    distance = abs(float(null_score) - metric.best_bound)
+    return distance if distance > 0 and math.isfinite(distance) else None

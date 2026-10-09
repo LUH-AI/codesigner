@@ -364,6 +364,7 @@ TASK_LABELS = {tasks.CLASSIFICATION: _("classification"), tasks.REGRESSION: _("r
 _ICE_LABEL = _("Trials drawn on the partial-dependence figure")
 _LOCAL_EFFECTS_LABEL = _("Trials explained on the local-effects figure")
 _PRIOR_TOLERANCE_LABEL = _("Prior acceptance tolerance")
+_PRIOR_TOP_K_LABEL = _("Prior acceptance top k")
 
 
 class ExperimentSettingsFields(forms.Form):
@@ -385,8 +386,11 @@ class ExperimentSettingsFields(forms.Form):
         help_text=_("0 explains every trial."))
     prior_acceptance_tolerance = forms.FloatField(
         label=_PRIOR_TOLERANCE_LABEL, required=False, min_value=0.0,
-        max_value=1_000.0,
-        help_text=_("How much worse a prior's region may score before it is refused."))
+        max_value=1.0,
+        help_text=_("Share of the metric's scale a prior may fall short by."))
+    prior_acceptance_top_k = forms.IntegerField(
+        label=_PRIOR_TOP_K_LABEL, required=False, min_value=1, max_value=100,
+        help_text=_("Best configurations compared on each side."))
     keep_best_trial_models = forms.IntegerField(
         label=_("Trial models kept for export"), required=False, min_value=0, max_value=100,
         help_text=_("0 keeps none."))

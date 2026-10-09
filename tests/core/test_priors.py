@@ -17,7 +17,7 @@ from ConfigSpace import ConfigurationSpace, Integer
 
 from core.optimizers import GridOptimizer, RandomOptimizer, SMACOptimizer
 
-#: The weight layer lives on SMAC's `feature/output-constraints` branch, which
+#: The weight layer lives on SMAC's `angrimson-output-constraints` branch, which
 #: `requirements.txt` pins. A released SMAC leaves the figure drawing and the
 #: search unweighted, which is exactly what `_apply_priors` reports and skips —
 #: so these are skipped rather than failed, and say why.

@@ -162,6 +162,11 @@ def test_what_is_left_out_is_about_the_reader_not_the_experiment(client, rf):
                     "autocompute", "explanation_games", "explanation_game_help",
                     "has_result", "supports_confidence", "trials_page_size",
                     "tuning_progress",
+                    # Whether the optimizer as configured can judge a prior,
+                    # from its capabilities rather than anything it has run,
+                    # and what the controls for it open on: a setting, and
+                    # the bounds every setting of its kind has.
+                    "judges_priors", "prior_top_k", "prior_top_k_bounds",
                     # A built-in constant the run form opens on, not anything
                     # this experiment or this instance decided.
                     "default_trial_factor",

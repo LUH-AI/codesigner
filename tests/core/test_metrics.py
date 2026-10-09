@@ -194,3 +194,17 @@ def test_a_figure_titles_a_metric_by_its_label_or_its_capitalized_name():
     assert [m.title for m in resolve(["rmse", "mae", "r2"]).values()] == ["RMSE", "MAE", "R²"]
     assert METRICS["accuracy"].title == "Accuracy"
     assert undescribe({"name": "logloss", "higher_is_better": False}).title == "Logloss"
+
+
+def test_a_metrics_scale_runs_from_perfect_to_worthless():
+    """What: the distance the prior tolerance is a share of. How: a metric with
+    two ends is its range; one without runs from its best end to the null
+    score, and has no scale until there is one."""
+    from core.metrics import METRICS as ALL, scale
+
+    assert scale(ALL["accuracy"]) == 1.0
+    assert scale(ALL["smape"]) == 200.0
+    assert scale(ALL["rmse"], null_score=58.0) == 58.0
+    assert scale(ALL["rmse"]) is None
+    assert scale(ALL["rmse"], null_score=0.0) is None, "a null score at perfect measures nothing"
+    assert scale(ALL["r2"], null_score=0.0) == 1.0

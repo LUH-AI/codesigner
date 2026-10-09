@@ -23,6 +23,7 @@ figure, and the script asks for the density alone.{% endcomment %}
          surrogate's — so the script asks for the density alone and never for a
          slice there is no model to compute.{% endcomment %}
          data-prior-only="{% if not has_result %}1{% endif %}"
+         data-judges-priors="{% if judges_priors %}1{% endif %}"
          data-csrf="{{ csrf_token }}">
     <div class="card-head">
         <div class="subheader">{{ figure.label }}</div>
@@ -134,7 +135,17 @@ figure, and the script asks for the density alone.{% endcomment %}
                 <input type="checkbox" id="acq-prior-delay" checked>
                 {% translate "Delay decay until after the initial design" %}
             </label>
-            <button type="button" id="acq-evaluate">{% translate "Evaluate Prior" %}</button>
+            {% comment %}Disabled, not hidden, when the optimizer cannot judge a
+            prior, for the same reason as the decay select above.{% endcomment %}
+            <label class="acq-toggle" title="{% translate 'Best configurations compared on each side.' %}">
+                {% translate "Top k" %}
+                <input type="number" id="acq-top-k" step="1" value="{{ prior_top_k }}"
+                       min="{{ prior_top_k_bounds.0 }}" max="{{ prior_top_k_bounds.1 }}"
+                       {% if not judges_priors %}disabled{% endif %}
+                       aria-label="{% translate 'Best configurations compared on each side.' %}">
+            </label>
+            <button type="button" id="acq-evaluate"{% if not judges_priors %} disabled
+                    title="{% translate 'Needs the Gaussian process search strategy.' %}"{% endif %}>{% translate "Evaluate Prior" %}</button>
             {% comment %}The undo for an afternoon of dragging. Every change on
             this panel saves as it is made, so there is no other way back to the
             statement the trials on screen actually came out of — and to uniform

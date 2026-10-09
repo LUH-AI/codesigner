@@ -109,6 +109,12 @@ def scenario_budget(trial_offset, max_trials=None) -> int:
     """
     return int(trial_offset) + int(max_trials or _UNBOUNDED_BUDGET)
 
+#: How many configurations "Evaluate Prior" draws per hyperparameter of the
+#: space, on each side. Per hyperparameter because the space the belief leaves
+#: open grows with each one, and a fixed count would cover a large space more
+#: thinly than a small one.
+PRIOR_JUDGING_SAMPLES_PER_HYPERPARAMETER = 1000
+
 #: The two search strategies, and the SMAC facade behind each. A facade is a
 #: bundle — surrogate, acquisition function, maximizer, encoder — chosen to work
 #: together, so this is one decision rather than four.
@@ -256,6 +262,14 @@ class SMACOptimizer(BaseOptimizer):
     #: And that model is state carried between runs, which a changed metric
     #: invalidates: it was fitted to costs from the other objective.
     fits_surrogate = True
+
+    def judges_priors(self, params):
+        """Only under the Gaussian process. The random forest is fitted to
+        log-scaled costs, and the lower confidence bound the judgement scores
+        with maps back to roughly zero cost everywhere under it, so every prior
+        would pass."""
+        strategy = self.known_params(params).get("search_strategy")
+        return (strategy if strategy in _STRATEGIES else "gp") == "gp"
 
     params_schema = [
         OptimizerParam("search_strategy", "Search strategy", "select", "gp",
@@ -709,15 +723,18 @@ class SMACOptimizer(BaseOptimizer):
 
     def evaluate_prior(self, config_space, trials, metric_name: str, seed: int = 0,
                        priors=None, tolerance: float = 0.15, previous_result=None,
-                       budget=None):
+                       budget=None, top_k: int = 10):
         """Ask this run's optimizer whether the stated belief is worth acting on.
 
         DynaBO's safeguard, run on demand rather than at launch. A belief that
         points somewhere bad costs trials, and the surrogate usually has an
-        opinion about the region it names: configurations are drawn from the
-        belief and from a belief-shaped neighbourhood of the incumbent, both are
-        scored under the model, and the belief is refused when its region scores
-        worse by more than *tolerance*.
+        opinion about where it leads. SMAC's `ClimbingComparisonPolicy` draws
+        configurations from the belief and from the incumbent's neighbourhood,
+        climbs from the best *top_k* of each with local search, and refuses the
+        belief when where its climbs end scores worse by more than *tolerance*.
+        Climbing rather than averaging the draws is what makes this fair to a
+        belief about one hyperparameter: the others are optimized rather than
+        left at random values that would count against it.
 
         Built the same way `slice_challengers` builds it — the real facade, the
         recorded trials replayed, the stated prior applied — because the
@@ -736,6 +753,9 @@ class SMACOptimizer(BaseOptimizer):
         **unjudged** is not a failure: the policy is required to accept when
         there is nothing to judge on — no fitted model, or no finished trials —
         and reporting that as approval would be claiming a check that never ran.
+        `add_prior` says only whether the belief was registered, so the policy
+        records whether it compared anything, which is how the two are told
+        apart.
         """
         import tempfile
         from pathlib import Path as _Path
@@ -747,12 +767,25 @@ class SMACOptimizer(BaseOptimizer):
                     "reason": "nothing has been run yet, so there is no model to "
                               "judge this against"}
         try:
-            from smac.acquisition.weight import IncumbentComparisonPolicy
+            from smac.acquisition.weight import ClimbingComparisonPolicy
         except ImportError:
             return {"verdict": "unjudged",
-                    "reason": "this SMAC has no acquisition weight layer"}
+                    "reason": "this SMAC has no climbing comparison policy"}
+
+        class _RecordingPolicy(ClimbingComparisonPolicy):
+            compared = None
+
+            def compare(self, *args, **kwargs):
+                self.compared = super().compare(*args, **kwargs)
+                return self.compared
 
         try:
+            # The incumbent's neighbourhood as wide as the belief, as DynaBO
+            # draws it, rather than SMAC's quarter of each range.
+            policy = _RecordingPolicy(
+                threshold=-abs(tolerance), top_k=int(top_k),
+                n_samples_per_hyperparameter=PRIOR_JUDGING_SAMPLES_PER_HYPERPARAMETER,
+                neighbourhood_std="prior")
             recorded = ((getattr(previous_result, "metadata", None) or {})
                         .get("initial_design") or {}).get("n_configs")
             with tempfile.TemporaryDirectory() as directory:
@@ -769,13 +802,16 @@ class SMACOptimizer(BaseOptimizer):
                 self._replay(smac, config_space, trials, metric_name, seed)
                 applied = self._apply_priors(
                     smac, scenario, config_space, priors, budget=budget,
-                    acceptance=IncumbentComparisonPolicy(threshold=-abs(tolerance)))
+                    acceptance=policy)
         except Exception as error:  # noqa: BLE001 — a diagnostic must not cost the figure
             logger.warning("Could not judge the stated prior: %s", error)
             return {"verdict": "unjudged", "reason": str(error)}
 
         if applied is None:
             return {"verdict": "unjudged", "reason": "no prior is stated"}
+        if applied.get("applied") and policy.compared is None:
+            return {"verdict": "unjudged",
+                    "reason": "there is no model or incumbent to judge this against"}
         if applied.get("applied"):
             return {"verdict": "accepted",
                     "reason": "the surrogate does not think this region is worse "

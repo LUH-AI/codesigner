@@ -25,6 +25,7 @@ fetch, which nothing else on the page does.{% endcomment %}
          surrogate's — so the script asks for the density alone and never for a
          slice there is no model to compute.{% endcomment %}
          data-prior-only="{% if not has_result %}1{% endif %}"
+         data-judges-priors="{% if judges_priors %}1{% endif %}"
          data-csrf="{{ csrf_token }}">
     <div class="card-head">
         <div class="subheader">{{ figure.label }}</div>

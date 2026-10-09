@@ -25,7 +25,7 @@ whitenoise>=6.6
 #
 # pyrfr is an optional extra and is not pulled in, so this needs no swig and no
 # compiler; every other requirement here resolves to a wheel.
-smac @ git+https://github.com/automl/SMAC3.git@feature/output-constraints
+smac @ git+https://github.com/automl/SMAC3.git@angrimson-output-constraints
 hypershap>=0.0.6
 pandas>=2.3
 scikit-learn>=1.9

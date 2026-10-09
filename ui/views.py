@@ -26,6 +26,7 @@ from django.views.decorators.http import require_POST
 
 from core import io, provenance, smac_import, tasks
 from core.metrics import metric_for, metrics_for
+from core.metrics import scale as metric_scale
 from core.modelhost import deadline
 from core.optimizers.base import FAILURE_CRITERIA
 
@@ -323,6 +324,20 @@ def _optimizer_for(name):
     return OPTIMIZERS.get(name) or next(
         (o for o in OPTIMIZERS.values()
          if o.name == name or name in getattr(o, "aliases", ())), None)
+
+
+def _judges_priors(exp):
+    """Whether the experiment's optimizer, as configured now, can judge a
+    prior — which decides whether "Evaluate Prior" is offered."""
+    optimizer = _optimizer_for(exp.data.optimizer_name)
+    return bool(optimizer) and optimizer.judges_priors(exp.data.optimizer_params or {})
+
+
+def _prior_judging_context(exp):
+    """What the prior figure's "Evaluate Prior" controls open on."""
+    return {"judges_priors": _judges_priors(exp),
+            "prior_top_k": resolve_settings(exp)["prior_acceptance_top_k"],
+            "prior_top_k_bounds": SETTING_BOUNDS["prior_acceptance_top_k"]}
 
 
 def metric_label(current_metric, original_metric):
@@ -906,14 +921,23 @@ def evaluate_prior(request, exp):
     """Ask this run's optimizer whether the stated belief is worth acting on.
 
     DynaBO's safeguard, on demand. It builds the real facade, replays the
-    recorded trials and offers the prior to `add_prior` behind an
-    `IncumbentComparisonPolicy` — so the answer is the one the run itself would
+    recorded trials and offers the prior to `add_prior` behind a
+    `ClimbingComparisonPolicy` — so the answer is the one the run itself would
     give, made by SMAC rather than by a lookalike here.
 
+    *top_k* may be posted with the request, from the field beside the button;
+    clamped to the setting's bounds, and the setting itself when it is absent
+    or not a number.
+
+    The tolerance is a share of the metric's scale (`_metric_scale`), so one
+    setting means the same for an accuracy and an RMSE; SMAC is handed it in
+    the metric's own units, which is what its threshold is compared in.
+
     `RUN` rather than `VIEW`, for `experiment_compute_analytics`' reason: it
-    costs a model fit and two hundred acquisition evaluations, and a diagnostic
-    that anybody who can read an experiment can make it spend seconds on is a
-    diagnostic that reading an experiment pays for.
+    costs a model fit, thousands of acquisition evaluations and a local search
+    per climb, and a diagnostic that anybody who can read an experiment can
+    make it spend seconds on is a diagnostic that reading an experiment pays
+    for.
 
     Nothing is written either way. A refused belief stays exactly where the
     reader left it — whether to keep it is their decision, and the page asks.
@@ -921,7 +945,16 @@ def evaluate_prior(request, exp):
     hp_name = (request.POST.get("hp") or "").strip()
     metric = exp.data.current_metric or (exp.data.metric_names or [None])[0]
     settings_now = resolve_settings(exp)
-    tolerance = settings_now.get("prior_acceptance_tolerance", 0.15)
+    low, high = SETTING_BOUNDS["prior_acceptance_tolerance"]
+    tolerance = min(max(float(settings_now.get("prior_acceptance_tolerance", 0.15)), low), high)
+    top_k = settings_now.get("prior_acceptance_top_k",
+                             SETTING_DEFAULTS["prior_acceptance_top_k"])
+    try:
+        top_k = int(request.POST["top_k"])
+    except (KeyError, ValueError):
+        pass
+    low, high = SETTING_BOUNDS["prior_acceptance_top_k"]
+    top_k = min(max(top_k, low), high)
 
     def unjudged(message):
         """One shape for every answer, so the page has one thing to read."""
@@ -940,11 +973,18 @@ def evaluate_prior(request, exp):
     if not hasattr(optimizer, "evaluate_prior"):
         return unjudged(_("This optimizer fits no model of the objective, so it "
                           "has no opinion about where the optimum is."))
+    if not _judges_priors(exp):
+        return unjudged(_("Needs the Gaussian process search strategy."))
+    scale = _metric_scale(exp, metric, result)
+    if scale is None:
+        return unjudged(_("This metric has no scale to measure the tolerance against yet."))
+    margin = float(tolerance) * scale
 
     outcome = optimizer.evaluate_prior(
         config_space, result.trials, metric, built["seed"],
         priors=exp.data.priors or None,
-        tolerance=float(tolerance),
+        tolerance=margin,
+        top_k=top_k,
         previous_result=result,
         # The same anchor the figure draws with, so the belief is judged at the
         # strength it is actually being applied at.
@@ -966,14 +1006,46 @@ def evaluate_prior(request, exp):
                     "already headed.")
     elif verdict == "rejected":
         message = _("This prior is unlikely to be helpful: the model rates the "
-                    "region it points at more than %(tolerance)s worse than "
+                    "region it points at more than %(margin)s worse than "
                     "where the search is already headed, so acting on it would "
-                    "cost trials.") % {"tolerance": tolerance}
+                    "cost trials.") % {"margin": sigfigs(margin)}
     else:
         logger.info("A prior could not be judged: %s", outcome.get("reason", ""))
         message = _("This prior could not be judged, so it stands as stated.")
     return JsonResponse({"verdict": verdict, "message": message,
-                         "tolerance": tolerance})
+                         "tolerance": tolerance, "margin": margin, "top_k": top_k})
+
+
+def _metric_scale(exp, metric_name, result):
+    """How far apart a perfect and a worthless score of *metric_name* are, in
+    its units, for the prior tolerance to be a share of — or None.
+
+    A metric with two ends is its range, which for an accuracy or an error rate
+    is the [0, 1] DynaBO's threshold was tuned on. One without is measured from
+    its best end to what a model that knows nothing scores on this experiment's
+    validation rows, the same score a failed trial is given. An experiment
+    whose data is not here falls back to the spread of the scores its trials
+    reached.
+    """
+    from core.optimizers.trial import _null_scores
+
+    metric = result.metric(metric_name)
+    found = metric_scale(metric)
+    if found is not None:
+        return found
+    try:
+        built = io.build_experiment(snapshot_adapter.snapshot_from_experiment(exp),
+                                    METRICS, MODELS, OPTIMIZERS, load_model=False)[1]
+        null = _null_scores({metric_name: metric}, built["splits"])[metric_name]
+        found = metric_scale(metric, null)
+    except Exception as error:  # noqa: BLE001 — the fallback below still answers
+        logger.info("No null score for %s: %s", metric_name, error)
+    if found is not None:
+        return found
+    scores = [t.scores.get(metric_name) for t in result.trials]
+    scores = [float(v) for v in scores if v is not None and np.isfinite(v)]
+    spread = max(scores) - min(scores) if scores else 0.0
+    return spread if spread > 0 else None
 
 
 #: β as a fraction of the trial budget, which is how the literature states it.
@@ -2947,6 +3019,7 @@ def _prior_only_context(exp, built):
         "hp_names": list(config_space.keys()),
         "beta_min": BETA_RATIO_MIN,
         "beta_max": BETA_RATIO_MAX,
+        **_prior_judging_context(exp),
     }
 
 
@@ -3177,6 +3250,7 @@ def _detail_context(request, exp):
         # confidence criterion, so only then is it offered.
         "supports_confidence": getattr(
             _optimizer_for(exp.data.optimizer_name), "supports_confidence_stopping", False),
+        **_prior_judging_context(exp),
         "run_default_metric": exp.data.current_metric or (metric_names[0] if metric_names else None),
         # What the deadline fields open on. The deployment's number, so an
         # instance that has tuned `MODEL_TRIAL_TIMEOUT` for its own hardware

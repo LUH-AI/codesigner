@@ -35,10 +35,15 @@ SETTING_DEFAULTS = {
     # is the direction it reads as a preference — larger is more forgiving, and
     # 0 refuses anything the model does not think is an improvement.
     #
-    # In raw objective units, so it means different things for different
-    # objectives, which is why it is a setting at all rather than a constant.
-    # The default is SMAC's, from a benchmark whose objective lives in [0, 1].
+    # A share of the metric's scale (`ui.views._metric_scale`), so it means the
+    # same for every objective. For a metric on [0, 1] that is DynaBO's own
+    # threshold, which is where the default comes from.
     "prior_acceptance_tolerance": 0.15,
+    # How many of the best configurations each side of "Evaluate prior" climbs
+    # from and is averaged over — SMAC's `ClimbingComparisonPolicy.top_k`, and
+    # its default. Fewer lets one lucky climb decide; more dilutes the best
+    # with the merely good.
+    "prior_acceptance_top_k": 10,
     # How many trials' fitted models a run keeps for "Export trial
     # parameters": the best this many by the run's metric — and, with the
     # other, every trial of the last run, until the next. See
@@ -60,10 +65,11 @@ SETTING_DEFAULTS = {
 SETTING_BOUNDS = {
     "ice_max_curves": (0, 10_000),
     "local_effects_max_trials": (0, 10_000),
-    # No upper bound worth naming — the units are the objective's — so this is
-    # wide enough to cover any of them and closed at zero, where it means
-    # "accept nothing the model scores below the incumbent's neighbourhood".
-    "prior_acceptance_tolerance": (0.0, 1_000.0),
+    # A share of the metric's scale. Zero means "accept nothing the model scores
+    # below the incumbent's neighbourhood", one accepts all but the worthless.
+    "prior_acceptance_tolerance": (0.0, 1.0),
+    # At least one climb, or there is nothing to compare.
+    "prior_acceptance_top_k": (1, 100),
     "keep_best_trial_models": (0, 100),
 }
 

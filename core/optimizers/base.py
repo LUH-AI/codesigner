@@ -1235,6 +1235,14 @@ class BaseOptimizer(ABC):
     #: thrown away.
     fits_surrogate: bool = False
 
+    def judges_priors(self, params: Mapping[str, Any]) -> bool:
+        """Whether this optimizer, configured with *params*, can tell a prior
+        worth acting on from one that is not. The page offers "Evaluate Prior"
+        only when it can. A method rather than a flag like the two above,
+        because for some optimizers it depends on how they are configured.
+        """
+        return False
+
     @abstractmethod
     def optimize(
         self,

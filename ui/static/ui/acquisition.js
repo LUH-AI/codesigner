@@ -589,6 +589,7 @@
         delayToggle = document.getElementById("acq-prior-delay"),
         delayWrap = document.getElementById("acq-delay-wrap"),
         evaluateBtn = document.getElementById("acq-evaluate"),
+        topKField = document.getElementById("acq-top-k"),
         resetBtn = document.getElementById("acq-reset"),
         resetUrl = section.getAttribute("data-reset-url"),
         verdictEl = document.getElementById("acq-verdict"),
@@ -598,6 +599,9 @@
         /* No run behind this page: the prior panel is all there is, and the
          * only request worth making is the one that needs no model. */
         priorOnlyPage = section.getAttribute("data-prior-only") === "1",
+        /* Whether the optimizer can judge a prior at all. When it cannot,
+         * the button stays disabled whatever else changes. */
+        judgesPriors = section.getAttribute("data-judges-priors") === "1",
         metricSelect = document.getElementById("metric-select"),
         /* The fitted slice per metric and hyperparameter, in the store every
          * computed figure keeps its answers in — see computed.js. */
@@ -1449,9 +1453,11 @@
     }
 
     function judgePrior() {
-        if (!evaluateUrl || !state || !state.hp || !evaluateBtn) return;
+        if (!evaluateUrl || !state || !state.hp || !evaluateBtn || !judgesPriors) return;
         var body = new FormData();
         body.append("hp", state.hp);
+        /* Left out when empty, and the server uses the setting. */
+        if (topKField && topKField.value) body.append("top_k", topKField.value);
         evaluateBtn.disabled = true;
         setVerdict(text("judging"), "");
         fetch(evaluateUrl, {method: "POST", headers: {"X-CSRFToken": csrf},
@@ -1470,7 +1476,7 @@
             .catch(function (err) {
                 failed("judge-failed", err, "run").then(function (msg) { setVerdict(msg, "warning"); });
             })
-            .then(function () { evaluateBtn.disabled = false; });
+            .then(function () { evaluateBtn.disabled = !judgesPriors; });
     }
 
     if (delayToggle) {
@@ -1620,7 +1626,7 @@
         if (delayToggle && state && state.prior) {
             delayToggle.checked = state.prior.delayDecay !== false;
         }
-        if (evaluateBtn) evaluateBtn.disabled = kind === "uniform";
+        if (evaluateBtn) evaluateBtn.disabled = kind === "uniform" || !judgesPriors;
         offerKinds();
         applyPriorAxis(kind);
         renderParams();
