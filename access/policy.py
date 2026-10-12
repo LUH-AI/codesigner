@@ -52,7 +52,9 @@ from django.db.models import Q
 from django.utils.translation import gettext_lazy as _
 
 from ui.models import Experiment, ExperimentShare
-from ui.permissions import DELETE, EDIT, EXPORT, OpenPolicy, RENAME, RUN, SHARE, VIEW
+from ui.permissions import (
+    COMPUTE, DELETE, EDIT, EXPORT, OpenPolicy, RENAME, RUN, SHARE, VIEW,
+)
 
 #: Manages groups, their size and their usage. Sees no experiments.
 MANAGE_SITE = "access.manage_site"
@@ -320,7 +322,7 @@ class GroupPolicy(OpenPolicy):
             return contributor
         # *Its* group, not theirs: somebody who leads one group and is a member
         # of another is a lead only where they lead.
-        return contributor or (action in (RUN, EDIT)
+        return contributor or (action in (RUN, COMPUTE, EDIT)
                                and is_lead_of(user, experiment.group_id))
 
     # ── questions that are not about one experiment ──────────────────────────

@@ -102,3 +102,23 @@ def test_the_import_page_offers_only_their_groups(client, people):
 
     assert client.get(reverse("ui:import_experiment")).context["groups"] == [
         people["a"], people["b"]]
+
+
+def test_staging_a_dataset_asks_for_the_group_as_step_one_does(people):
+    """What: putting a dataset on a draft before step 1 needs the group from
+    somebody in two, refuses one they are not in, and files the draft in the
+    one chosen.
+    How: `drafts.stage_dataset` as "two", without a group, with "c", then "b"."""
+    from django.test import RequestFactory
+
+    from ui.services import drafts
+
+    request = RequestFactory().post("/")
+    request.user = people["two"]
+    exp = drafts.new(request)
+
+    assert drafts.stage_dataset(request, exp, demo="iris").refusal
+    assert drafts.stage_dataset(request, exp, demo="iris", group=people["c"].pk).refusal
+    assert drafts.stage_dataset(request, exp, demo="iris", group=people["b"].pk).saved
+    exp.refresh_from_db()
+    assert exp.group == people["b"]

@@ -37,13 +37,14 @@ from .models import Experiment
 #: the URLconf tells you what each route is for.
 VIEW = "view"        # render it, or a fragment of it
 RUN = "run"          # start, cancel, or prepare the environment for a run
+COMPUTE = "compute"  # spend this machine on working something out from it
 EDIT = "edit"        # change its settings
 DELETE = "delete"    # destroy it
 EXPORT = "export"    # take a copy of it off the instance
 SHARE = "share"      # decide who else may reach it, or hand it to somebody
 RENAME = "rename"    # change what it is called
 
-ACTIONS = frozenset({VIEW, RUN, EDIT, DELETE, EXPORT, SHARE, RENAME})
+ACTIONS = frozenset({VIEW, RUN, COMPUTE, EDIT, DELETE, EXPORT, SHARE, RENAME})
 
 
 class OpenPolicy:
@@ -106,6 +107,48 @@ class OpenPolicy:
         return True
 
 
+#: What a person must do themselves even when an assistant acts for them: start
+#: or stop a run, delete, and decide who else may reach an experiment.
+HUMAN_ONLY = frozenset({RUN, DELETE, SHARE})
+
+
+def via_agent(request) -> bool:
+    """Whether *request* is an assistant acting for somebody (assistant/gateway.py)
+    rather than the person themselves."""
+    return bool(getattr(request, "via_agent", False))
+
+
+class AgentLimits:
+    """What an assistant acting for somebody may not do, whatever they may.
+
+    Placed in front of the configured policy (`policy`), so every question
+    asked of the policy anywhere — by a view, a service or a tool — is narrowed
+    for an assistant's request before the policy answers it, and a policy can
+    only narrow it further. It never widens anything: for everyone else it is
+    the policy itself.
+    """
+
+    def may(self, request, experiment, action):
+        if via_agent(request) and action in HUMAN_ONLY:
+            return False
+        return super().may(request, experiment, action)
+
+    def may_upload_models(self, request):
+        if via_agent(request):
+            return False
+        return super().may_upload_models(request)
+
+    def may_change_defaults(self, request):
+        if via_agent(request):
+            return False
+        return super().may_change_defaults(request)
+
+    def trash(self, request):
+        if via_agent(request):
+            return Experiment.objects.none()
+        return super().trash(request)
+
+
 _cached: tuple[str, object] | None = None
 
 
@@ -120,7 +163,13 @@ def policy():
     path = getattr(settings, "EXPERIMENT_POLICY", None) or (
         f"{OpenPolicy.__module__}.{OpenPolicy.__qualname__}")
     if _cached is None or _cached[0] != path:
-        _cached = (path, import_string(path)())
+        configured = import_string(path)
+        # Named as the configured class, and a subclass of it, so everything
+        # that asks what the policy is gets the answer it always got.
+        limited = type(configured.__name__, (AgentLimits, configured),
+                       {"__module__": configured.__module__,
+                        "__qualname__": configured.__qualname__})
+        _cached = (path, limited())
     return _cached[1]
 
 
@@ -146,6 +195,33 @@ ONLY = "only"
 #: prior figure's requests.
 BOTH = "both"
 DRAFTS = (CREATED, ONLY, BOTH)
+
+
+class WrongKind(Http404):
+    """The experiment is a draft where a created one was asked for, or the other
+    way round. A 404 to anything but a page, which sends the reader where that
+    kind is worked on."""
+
+    def __init__(self, experiment):
+        super().__init__("not reached by this route")
+        self.experiment = experiment
+
+
+def resolve_experiment(request, pk, action, drafts=CREATED):
+    """The experiment *pk*, for *request* to do *action* to.
+
+    `experiment_view`'s whole check, for code that reaches an experiment
+    without being a view: a pk the policy does not show this request, or of the
+    kind *drafts* excludes (`WrongKind`), raises `Http404`; an action the policy
+    refuses raises `PermissionDenied`.
+    """
+    current = policy()
+    exp = get_object_or_404(current.experiments(request), pk=pk)
+    if (exp.draft and drafts == CREATED) or (not exp.draft and drafts == ONLY):
+        raise WrongKind(exp)
+    if not current.may(request, exp, action):
+        raise PermissionDenied
+    return exp
 
 
 def experiment_view(action, drafts=CREATED):
@@ -174,17 +250,13 @@ def experiment_view(action, drafts=CREATED):
     def decorate(view):
         @wraps(view)
         def wrapped(request, pk, *args, **kwargs):
-            current = policy()
-            exp = get_object_or_404(current.experiments(request), pk=pk)
-            wrong = ((exp.draft and drafts == CREATED)
-                     or (not exp.draft and drafts == ONLY))
-            if wrong:
+            try:
+                exp = resolve_experiment(request, pk, action, drafts)
+            except WrongKind as wrong:
                 if request.method != "GET":
-                    raise Http404
-                return redirect("ui:setup_resume" if exp.draft else "ui:experiment_detail",
-                                pk=exp.pk)
-            if not current.may(request, exp, action):
-                raise PermissionDenied
+                    raise
+                return redirect("ui:setup_resume" if wrong.experiment.draft
+                                else "ui:experiment_detail", pk=wrong.experiment.pk)
             return view(request, exp, *args, **kwargs)
 
         #: Read by the URLconf audit. `functools.wraps` copies `__dict__`, so

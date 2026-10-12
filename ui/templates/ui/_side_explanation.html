@@ -37,7 +37,7 @@ figure.{% endcomment %}
     per-trial cost. An imported run has never computed them at all. The figures
     that are waiting on it say so themselves; this does not need to explain it
     twice.{% endcomment %}
-    {% if analytics_absent and may.run %}
+    {% if analytics_absent and may.compute %}
         <form method="post" action="{% url 'ui:experiment_compute_analytics' summary.pk %}"
               class="compute-analytics">
             {% csrf_token %}

@@ -94,6 +94,7 @@ def data_from_snapshot(snapshot: dict, dataset_file=None, model_file=None,
         test_size=io.test_size_of(snapshot),
         time_column=io.time_column_of(snapshot),
         time_gap=io.gap_of(snapshot),
+        target_column=io.target_column_of(snapshot),
         **io.forecast_of(snapshot),
         task=tasks.task_of(snapshot),
         processing=io.processing_of(snapshot),
@@ -264,6 +265,10 @@ def snapshot_from_experiment(exp: Experiment, *, provenance: bool = False) -> di
                     "original": data.original_metric},
         "optimizer": {"name": data.optimizer_name, "params": data.optimizer_params},
     }
+    # Only when one was chosen: without it the dataset's last column is the
+    # target, as in every file written before the target was a choice.
+    if data.target_column:
+        snapshot["dataset"]["target_column"] = data.target_column
     # Only when the row has one. An experiment whose model can still be asked
     # does not need it stored, and writing an absent section as null would make
     # every file claim to answer a question it does not.
@@ -326,7 +331,7 @@ def _add_provenance(snapshot: dict, exp: Experiment, dataset: str, model_path: s
     into a section of its own that names the dataset again.
     """
     if dataset:
-        snapshot["dataset"].update(dataset_fingerprint(dataset))
+        snapshot["dataset"].update(dataset_fingerprint(dataset, target=exp.data.target_column))
     # One of the two places the halves meet. The model's identity and the split
     # it was scored under are the work's; `env_meta` records the environment
     # *this* machine built for it, and rides along as provenance rather than as
@@ -336,7 +341,8 @@ def _add_provenance(snapshot: dict, exp: Experiment, dataset: str, model_path: s
         model_fingerprint(data.model_name, model_path, exp.env_meta,
                           kind=snapshot["model"]["kind"]))
     snapshot["evaluation"].update(
-        evaluation(data.cv_folds, _target(dataset), test_size=data.test_size, task=data.task,
+        evaluation(data.cv_folds, _target(dataset, data.target_column), test_size=data.test_size,
+                   task=data.task,
                    time_column=data.time_column, gap=data.time_gap, horizon=data.horizon,
                    series_column=data.series_column, season=data.season))
     snapshot["optimizer"]["defaults_used"] = _defaults_used(data)
@@ -346,12 +352,13 @@ def _add_provenance(snapshot: dict, exp: Experiment, dataset: str, model_path: s
     snapshot["environment"] = environment()
 
 
-def _target(dataset_path: str):
-    """The target column, for deciding whether the split could stratify."""
+def _target(dataset_path: str, target: str = ""):
+    """The target column's values, for deciding whether the split could
+    stratify."""
     if not dataset_path or not Path(dataset_path).is_file():
         return None
     try:
-        _, y = io._load_frame(Path(dataset_path))
+        _, y = io._load_frame(Path(dataset_path), target=target or None)
     except Exception:  # noqa: BLE001 — an unreadable dataset leaves it unanswered
         return None
     return y

@@ -8,7 +8,7 @@ Usable before any run: a prior is a statement about the search space, which
 exists before the search does. On a page with no results this is the only
 figure, and the script asks for the density alone.{% endcomment %}
 {% include "ui/figures/_acquisition_shared.html" %}
-<section class="card" data-figure="{{ figure.key }}"
+<section class="card" data-figure="{{ figure.key }}" data-assist="prior"
          data-acquisition-url="{% url 'ui:acquisition_slice' summary.pk %}"
          data-prior-url="{% url 'ui:save_prior' summary.pk %}"
          data-evaluate-url="{% url 'ui:evaluate_prior' summary.pk %}"
@@ -144,7 +144,7 @@ figure, and the script asks for the density alone.{% endcomment %}
                        {% if not judges_priors %}disabled{% endif %}
                        aria-label="{% translate 'Best configurations compared on each side.' %}">
             </label>
-            <button type="button" id="acq-evaluate"{% if not judges_priors %} disabled
+            <button type="button" id="acq-evaluate" data-assist="evaluate_prior"{% if not judges_priors %} disabled
                     title="{% translate 'Needs the Gaussian process search strategy.' %}"{% endif %}>{% translate "Evaluate Prior" %}</button>
             {% comment %}The undo for an afternoon of dragging. Every change on
             this panel saves as it is made, so there is no other way back to the

@@ -43,10 +43,14 @@ def context(exp, locked=False) -> dict:
             "optimizer_panels": panels, "optimizer_locked": locked}
 
 
-def save(request, exp) -> str | None:
-    """Store the optimizer and settings *request* posted on *exp*. Returns why
-    it could not, or None. A change is an entry in the experiment's history
-    (a draft has none)."""
+def save(request, exp, data, *, partial=False) -> str | None:
+    """Store the optimizer and settings in *data* on *exp*, as *request*'s
+    person. Returns why it could not, or None. A change is an entry in the
+    experiment's history (a draft has none).
+
+    *data* is the form as posted, `optimizer_name` and `opt_<setting>` keys.
+    With *partial* it says only what changes: a missing `optimizer_name` keeps
+    the current optimizer, and a missing setting keeps its current value."""
     from ..registry import OPTIMIZERS
     from ..views import _posted_optimizer_params
     from . import history
@@ -54,10 +58,18 @@ def save(request, exp) -> str | None:
     refusal = why_fixed(exp)
     if refusal:
         return refusal
-    chosen = OPTIMIZERS.get(request.POST.get("optimizer_name"))
+    name = data.get("optimizer_name")
+    if partial and not name:
+        name = exp.data.optimizer_name
+    chosen = OPTIMIZERS.get(name)
     if chosen is None:
         return _("Choose an optimizer.")
-    optimizer = type(chosen)(**type(chosen).known_params(_posted_optimizer_params(request, chosen)))
+    base = None
+    if partial:
+        base = (type(chosen).known_params(exp.data.optimizer_params or {})
+                if name == exp.data.optimizer_name else {})
+    optimizer = type(chosen)(**type(chosen).known_params(
+        _posted_optimizer_params(data, chosen, base)))
     data = exp.data
     old = {"name": data.optimizer_name, "params": data.optimizer_params or {}}
     new = {"name": optimizer.name, "params": optimizer.get_params()}

@@ -1,0 +1,124 @@
+{% load i18n assets %}
+{% comment %}The chat: what has been said, what the assistant is doing, and a
+box to say something. Three places show it: the home page, as the page itself
+(`full`); every other page, as a window docked to the bottom right (`dock`); and
+a browser window of its own, popped out of one (`window`). Its script,
+assistant/chat.js, follows the conversation through its event stream and says
+nothing it was not sent: model text is shown as text, never as markup.
+
+On the home page the box to type in sits in the middle until the assistant
+starts answering, and the dataset to plan with is chosen beside it.
+
+The words the script shows are here, translated, as data attributes.{% endcomment %}
+<section class="assistant{% if full %} assistant-full{% if not assistant.started %} is-empty{% endif %}{% elif window %} assistant-window{% else %} assistant-floating{% endif %}"
+         data-assistant data-mode="{% if full %}full{% elif window %}window{% else %}dock{% endif %}"
+         aria-label="{% translate 'Assistant' %}"
+         data-message-url="{% url 'assistant:message' %}"
+         data-dataset-url="{% url 'assistant:dataset' %}"
+         data-approve-url="{% url 'assistant:approve' %}"
+         data-reset-url="{% url 'assistant:reset' %}"
+         data-window-url="{% url 'assistant:window' %}{% if assistant.experiment %}?experiment={{ assistant.experiment }}{% endif %}"
+         data-events-url="{% url 'assistant:events' 0 %}"
+         data-conversation="{{ assistant.conversation }}"
+         data-experiment="{{ assistant.experiment }}"
+         data-after="{{ assistant.after }}"
+         data-busy="{% if assistant.busy %}1{% endif %}"
+         data-csrf="{{ csrf_token }}"
+         data-text-working="{% translate 'Working…' %}"
+         data-text-thinking="{% translate 'Thinking…' %}"
+         data-text-tool="{% translate 'Used {tool}' %}"
+         data-text-unavailable="{% translate 'The assistant’s model cannot be reached right now. Everything else works as usual.' %}"
+         data-text-budget="{% translate 'Today’s assistant budget is used up.' %}"
+         data-text-stopped="{% translate 'The assistant stopped before finishing. Ask again, more specifically.' %}"
+         data-text-failed="{% translate 'Something went wrong on the assistant’s side.' %}"
+         data-text-busy="{% translate 'The assistant is still answering.' %}"
+         data-text-error="{% translate 'Could not reach the server.' %}"
+         data-text-dataset="{% translate 'Dataset: {name}' %}"
+         data-text-need-dataset="{% translate 'Upload or choose a dataset.' %}"
+         data-text-need-prompt="{% translate 'Enter a prompt.' %}"
+         data-text-plan="{% translate 'The plan' %}"
+         data-text-approve="{% translate 'Approve and set up' %}"
+         data-text-not-ready="{% translate 'Not ready yet:' %}"
+         data-text-approved="{% translate 'Plan approved.' %}"
+         data-label-goal="{% translate 'Goal' %}"
+         data-label-name="{% translate 'Name' %}"
+         data-label-task="{% translate 'Task' %}"
+         data-label-target_column="{% translate 'Target' %}"
+         data-label-model_name="{% translate 'Model' %}"
+         data-label-evaluation="{% translate 'Validation method' %}"
+         data-label-optimizer="{% translate 'Optimizer' %}"
+         data-label-processing="{% translate 'Data handling' %}"
+         data-label-metric="{% translate 'Metric' %}"
+         data-label-stopping="{% translate 'Stopping criteria' %}"
+         data-label-seed="{% translate 'Seed' %}">
+    {% comment %}Docked, the header is the chat's tab: the bar it collapses to,
+    which opens it again — or, while the chat is in a window of its own, brings
+    that window to the front.{% endcomment %}
+    <header class="assistant-head">
+        {% if dock %}
+            <button type="button" class="assistant-bar" data-assistant-toggle aria-expanded="false">
+                <span class="assistant-bar-title">{% translate "Assistant" %}</span>
+                <span class="assistant-bar-popped">{% translate "in its own window" %}</span>
+            </button>
+            <div class="assistant-head-actions">
+                <button type="button" class="assistant-icon" data-assistant-popout
+                        title="{% translate 'Open in its own window' %}"><span aria-hidden="true">↗</span><span class="visually-hidden">{% translate "Open in its own window" %}</span></button>
+                <button type="button" class="assistant-icon" data-assistant-return
+                        title="{% translate 'Bring the chat back here' %}"><span aria-hidden="true">↙</span><span class="visually-hidden">{% translate "Bring the chat back here" %}</span></button>
+                <button type="button" class="assistant-icon" data-assistant-collapse
+                        title="{% translate 'Minimize' %}"><span aria-hidden="true">⌄</span><span class="visually-hidden">{% translate "Minimize" %}</span></button>
+            </div>
+        {% elif window %}
+            <h2>{% translate "Assistant" %}</h2>
+            <button type="button" class="btn" data-assistant-return>{% translate "Return to page" %}</button>
+        {% endif %}
+    </header>
+    <div class="assistant-log" aria-live="polite"></div>
+    <p class="assistant-status caption" hidden></p>
+    <form class="assistant-form">
+        {% comment %}The dataset to plan with, just over the box: on the home
+        page, until the plan is approved. Choosing one keeps it with the
+        conversation (assistant:dataset) until approval makes the draft; the box
+        beside it switches between an upload and the bundled demos.{% endcomment %}
+        {% if full and assistant.planning %}
+            <div class="assistant-dataset" data-assistant-dataset{% if assistant.dataset %} data-has-dataset{% endif %}>
+                {% include "ui/_file_pick.html" with id="assistant-upload" accept=".csv" pane="upload" current=assistant.dataset_upload %}
+                <label class="visually-hidden" for="assistant-demo">{% translate "Dataset (demo)" %}</label>
+                <select id="assistant-demo" data-dataset-pane="demo">
+                    <option value="">{% translate "Choose a demo dataset" %}</option>
+                    {% for demo in assistant.demos %}<option value="{{ demo }}"{% if assistant.dataset_is_demo and demo == assistant.dataset %} selected{% endif %}>{{ demo }}</option>{% endfor %}
+                </select>
+                <label class="check"><input type="checkbox" id="assistant-use-demo"{% if assistant.dataset_is_demo %} checked{% endif %}> {% translate "Use demo dataset" %}</label>
+                {% if assistant.groups %}
+                    <label class="visually-hidden" for="assistant-group">{% translate "Group" %}</label>
+                    <select id="assistant-group" title="{% translate 'Group' %}">
+                        {% for pk, name in assistant.groups %}<option value="{{ pk }}">{{ name }}</option>{% endfor %}
+                    </select>
+                {% endif %}
+            </div>
+        {% endif %}
+        <p class="assistant-missing form-error" data-assistant-missing hidden></p>
+        <div class="assistant-compose">
+            <label class="visually-hidden" for="assistant-text{% if window %}-window{% endif %}">{% translate "Message to the assistant" %}</label>
+            <textarea id="assistant-text{% if window %}-window{% endif %}" name="text" rows="2" maxlength="4000"
+                      placeholder="{% if full %}{% translate 'Upload a dataset and enter a prompt to get started optimizing with your Design Assistant, or create a new experiment yourself by clicking “+ New” in the sidebar.' %}{% else %}{% translate 'Ask a question or request help setting or running your experiment' %}{% endif %}"></textarea>
+            <div class="assistant-send">
+                <button type="submit" class="btn-primary">{% translate "Send" %}</button>
+                {% if full %}
+                    <button type="button" class="btn assistant-reset" data-assistant-reset{% if not assistant.started %} hidden{% endif %}>{% translate "Reset" %}</button>
+                {% endif %}
+            </div>
+        </div>
+    </form>
+    {% if full %}
+        <dialog class="card" data-assistant-reset-dialog>
+            <div class="subheader">{% translate "Reset the conversation?" %}</div>
+            <p class="caption">{% translate "This deletes the chat and the dataset given to it. It cannot be undone." %}</p>
+            <p class="selectors">
+                <button type="button" class="btn-primary" data-reset-confirm>{% translate "Reset" %}</button>
+                <button type="button" class="btn" data-reset-cancel>{% translate "Cancel" %}</button>
+            </p>
+        </dialog>
+    {% endif %}
+</section>
+<script src="{% asset 'assistant/chat.js' %}" defer></script>

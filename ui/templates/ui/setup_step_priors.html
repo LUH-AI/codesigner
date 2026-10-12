@@ -30,7 +30,7 @@ needs steps 1 to 3 to have been saved.{% endcomment %}
 
     <form method="post" action="{% url 'ui:setup_create' summary.pk %}" class="setup-actions">
         {% csrf_token %}
-        <button type="submit" class="btn-primary"{% if not_ready %} disabled title="{{ not_ready }}"{% endif %}>{% translate "Create experiment" %}</button>
+        <button type="submit" class="btn-primary" data-assist="create"{% if not_ready %} disabled title="{{ not_ready }}"{% endif %}>{% translate "Create experiment" %}</button>
         {% if not_ready %}<p class="caption">{{ not_ready }}</p>{% endif %}
     </form>
 {% endblock %}

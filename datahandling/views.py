@@ -30,9 +30,10 @@ def why_fixed(exp):
     return None
 
 
-def save_processing(request, exp):
-    """Store the processing choices posted by *request* on *exp*. Returns why
-    it could not, or None.
+def save_processing(request, exp, data):
+    """Store the processing choices in *data* on *exp*, as *request*'s person.
+    Returns why it could not, or None. A choice *data* leaves out keeps its
+    current value.
 
     Each choice that changed is an entry in the experiment's history (a draft
     has none; its choices are part of how it was set up)."""
@@ -42,7 +43,7 @@ def save_processing(request, exp):
     before = choices_of(exp.data.processing)
     processing = dict(before)
     for step, options in CHOICES.items():
-        value = request.POST.get(step)
+        value = data.get(step)
         if value in options:
             processing[step] = value
     exp.data.processing = processing
@@ -82,7 +83,7 @@ def _page(request, exp, section):
     if request.method == "POST":
         if not may_edit:
             raise Http404
-        refusal = save_processing(request, exp)
+        refusal = save_processing(request, exp, request.POST)
         if refusal:
             messages.error(request, refusal)
         else:

@@ -108,10 +108,12 @@ def what_changed(before, after) -> set[str]:
     from core.provenance import sha256
 
     def dataset(data):
+        """The data and the column predicted from it: a different target is a
+        different dataset to everything that reads it."""
         if data.demo_dataset:
-            return ("demo", data.demo_dataset)
+            return ("demo", data.demo_dataset, data.target_column)
         path = data.dataset_path()
-        return ("file", sha256(path)) if path and path.is_file() else None
+        return ("file", sha256(path), data.target_column) if path and path.is_file() else None
 
     def model(data):
         if data.model_file:

@@ -105,6 +105,9 @@ class ExperimentData(models.Model):
     # is shared by every experiment on the instance, so it is never copied —
     # and another instance with the same demo resolves the name to its own.
     demo_dataset = models.CharField(max_length=200, blank=True, default="")
+    # The column the model predicts, or "" for the dataset's last, which is
+    # what every experiment made before the target was a choice predicts.
+    target_column = models.CharField(max_length=255, blank=True, default="")
     # How the dataset's columns are processed before the model sees them —
     # gaps, scale, label columns (see core.processing). Part of the work, so
     # part of the file: the same model on differently processed columns is a

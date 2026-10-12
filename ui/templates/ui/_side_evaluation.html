@@ -58,7 +58,7 @@ you cannot have.
                         sign and exponent notation, which are ordinary ways to
                         write a target for a metric that is not bounded 0 to 1.
                         The server bounds this by the metric being optimized —
-                        see `_posted_stopping` — so no min/max is asserted here,
+                        see `run_form.stopping_from` — so no min/max is asserted here,
                         where only one metric's would fit.{% endcomment %}
                         <input type="number" step="any"
                                id="target_score" name="target_score"
@@ -163,7 +163,7 @@ you cannot have.
                         </div>
                     </fieldset>
                 {% endif %}
-                <button type="submit" class="btn-primary btn-block">{% translate "▶ Run" %}</button>
+                <button type="submit" class="btn-primary btn-block" data-assist="run">{% translate "▶ Run" %}</button>
                 {% if env.ready and env.summary %}
                     <p class="caption">{% blocktranslate with summary=env.summary %}Environment: {{ summary }}{% endblocktranslate %}</p>
                 {% endif %}

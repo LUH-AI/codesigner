@@ -15,7 +15,7 @@ from django.urls import reverse
 
 from access.models import Group, Membership
 from ui.models import Experiment, ExperimentShare
-from ui.permissions import DELETE, EDIT, EXPORT, RUN, SHARE, VIEW
+from ui.permissions import COMPUTE, DELETE, EDIT, EXPORT, RUN, SHARE, VIEW
 
 VIEWER, CONTRIBUTOR = ExperimentShare.VIEWER, ExperimentShare.CONTRIBUTOR
 
@@ -171,9 +171,25 @@ def test_a_contributor_may_do_everything_but_share_it(client, hosted, world):
     request = type("R", (), {"user": world["ben"]})()
     policy = GroupPolicy()
 
-    for action in (VIEW, EXPORT, RUN, EDIT, DELETE):
+    for action in (VIEW, EXPORT, RUN, COMPUTE, EDIT, DELETE):
         assert policy.may(request, world["ana_contrib"], action), action
     assert not policy.may(request, world["ana_contrib"], SHARE)
+
+
+def test_computing_is_allowed_exactly_where_running_is(hosted, world):
+    """What: COMPUTE (evaluating a prior, filling in skipped analytics) was split
+    out of RUN without changing who holds it.
+    How: every person in the world against every experiment, both actions."""
+    from access.policy import GroupPolicy
+
+    policy = GroupPolicy()
+    people = ("lead_v", "ana", "ben", "lead_n", "cleo", "site")
+    experiments = ("ana_private", "ana_viewer", "ana_contrib", "cleo_private")
+    for person in people:
+        request = type("R", (), {"user": world[person]})()
+        for name in experiments:
+            assert (policy.may(request, world[name], COMPUTE)
+                    == policy.may(request, world[name], RUN)), (person, name)
 
 
 def test_leaving_the_group_takes_the_grants_in_it(hosted, world):

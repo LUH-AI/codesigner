@@ -7,7 +7,7 @@ from django.utils.translation import gettext_lazy as _
 from core import tasks
 from core.io import (
     DEFAULT_TEST_SIZE, demo_datasets, forecast_problem, mounted_models, orderable_columns,
-    read_dataset, target_of, time_order_problem,
+    read_dataset, target_last, time_order_problem,
 )
 from core.splits import MIN_FOLDS
 from core.model_source import inspect_model_source
@@ -76,9 +76,16 @@ class NewExperimentForm(forms.Form):
     model_file = forms.FileField(label=_("…or upload a model .py"), required=False,
                                   validators=[validate_model_upload])
     mounted_model = forms.ChoiceField(label=_("…or a mounted model .py"), required=False)
-    demo_dataset = forms.ChoiceField(label=_("Demo dataset"), required=False)
-    dataset_file = forms.FileField(label=_("…or upload a CSV (last column = target)"), required=False,
+    demo_dataset = forms.ChoiceField(label=_("Dataset (demo)"), required=False)
+    dataset_file = forms.FileField(label=_("Dataset (.csv)"), required=False,
                                     validators=[validate_dataset_upload])
+    #: The draft's dataset, removed with the picker's ×: kept no longer.
+    clear_dataset = forms.BooleanField(required=False, widget=forms.HiddenInput)
+    #: Named rather than picked from a list, like the time column: the columns
+    #: belong to whichever dataset is chosen above.
+    target_column = forms.CharField(
+        label=_("Target"), required=False, max_length=255,
+        help_text=_("The column to predict. Empty is the dataset's last column."))
     #: Asked, never guessed: a column of whole numbers is classes to one
     #: person and a quantity to the next, and which models are offered follows
     #: from the answer.
@@ -247,7 +254,7 @@ class NewExperimentForm(forms.Form):
             self.add_error("model_name", _("Choose a model or upload a model .py file."))
 
         if not cleaned.get("demo_dataset") and not cleaned.get("dataset_file"):
-            if self.current_dataset is None:
+            if self.current_dataset is None or cleaned.get("clear_dataset"):
                 raise forms.ValidationError(_("Choose a demo dataset or upload a CSV file."))
             # A draft's dataset, kept.
             cleaned["keep_dataset"] = Path(self.current_dataset)
@@ -258,6 +265,7 @@ class NewExperimentForm(forms.Form):
     def _resolve_task(self, cleaned) -> None:
         """Check that the target and the model can both do the task asked for,
         evaluated the way asked."""
+        cleaned["target_column"] = (cleaned.get("target_column") or "").strip()
         task = cleaned.get("task")
         if not task:
             return
@@ -268,15 +276,22 @@ class NewExperimentForm(forms.Form):
                 upload.seek(0)
             else:
                 source = Path(cleaned.get("demo_dataset") or cleaned["keep_dataset"])
-            column, y = target_of(source)
+            frame = read_dataset(source)
         except Exception as exc:  # noqa: BLE001 — any unreadable file is the same problem
             self.add_error(None, _("The dataset could not be read: %(error)s") % {"error": exc})
             return
+        try:
+            frame = target_last(frame, cleaned["target_column"] or None)
+        except ValueError:
+            self.add_error("target_column", _("The dataset has no column named “%(column)s”.")
+                           % {"column": cleaned["target_column"]})
+            return
+        column, y = str(frame.columns[-1]), frame.iloc[:, -1].to_numpy()
 
         if tasks.target_problem(y, task):
             self.add_error("task", _("The target column, “%(column)s”, is not numbers, so it "
-                                     "cannot be regressed on. Choose classification, or put "
-                                     "the column to predict last.") % {"column": column})
+                                     "cannot be regressed on. Choose classification, or "
+                                     "another target.") % {"column": column})
             return
 
         info = cleaned.get("model_source")
@@ -325,11 +340,13 @@ class NewExperimentForm(forms.Form):
             return
         upload = cleaned.get("dataset_file")
         try:
+            target = cleaned.get("target_column") or None
             if upload:
-                frame = read_dataset(upload.read())
+                frame = read_dataset(upload.read(), target)
                 upload.seek(0)
             else:
-                frame = read_dataset(Path(cleaned.get("demo_dataset") or cleaned["keep_dataset"]))
+                frame = read_dataset(Path(cleaned.get("demo_dataset") or cleaned["keep_dataset"]),
+                                     target)
         except Exception:  # noqa: BLE001 — `_resolve_task` reports an unreadable file
             return
         if forecasting:

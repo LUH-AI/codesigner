@@ -85,13 +85,14 @@ def sha256_stream(fh) -> str:
     return digest.hexdigest()
 
 
-def dataset_fingerprint(path, frame=None) -> Dict[str, Any]:
+def dataset_fingerprint(path, frame=None, target: str = "") -> Dict[str, Any]:
     """What the dataset was, without the dataset.
 
     Enough to recognise it — the digest — and enough to read the record without
     it: how many rows and columns, what they were called, and which one was the
     target. *frame* is the already-loaded (X, y) if the caller has it, so an
-    export does not read the file twice.
+    export does not read the file twice. *target* is the column predicted, the
+    last when "".
     """
     path = Path(path)
     record: Dict[str, Any] = {
@@ -110,7 +111,7 @@ def dataset_fingerprint(path, frame=None) -> Dict[str, Any]:
     from .io import _read_csv
 
     try:
-        df = _read_csv(path) if frame is None else frame
+        df = _read_csv(path, target or None) if frame is None else frame
     except Exception:  # noqa: BLE001 — an unreadable file still gets its digest
         return record
     if not isinstance(df, pd.DataFrame) or df.empty:
@@ -121,7 +122,7 @@ def dataset_fingerprint(path, frame=None) -> Dict[str, Any]:
         "rows": int(len(df)),
         "columns": int(len(names)),
         "column_names": names,
-        # The last column is the target, everywhere in this application.
+        # Read with the target last, which is where everything here finds it.
         "target_column": names[-1] if names else None,
         # How each feature was read — a number, a label, a date — which decides
         # what the model was given for it (`core.encoding`).

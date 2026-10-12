@@ -1068,3 +1068,195 @@ hr.divider { border: none; border-top: 1px solid var(--border); margin: 1.5rem 0
 /* A group's storage, on its page: how full, as a bar. */
 .usage-bar { height: 0.5rem; border-radius: 999px; background: var(--border); overflow: hidden; margin: 0.25rem 0 1rem; }
 .usage-bar > span { display: block; height: 100%; background: var(--selected); }
+
+/* ── The assistant (assistant/_chat.html) ─────────────────────────────────
+   Three places: the home page, where it is the page; a window docked to the
+   bottom right of every other page, collapsed to a button until opened; and a
+   browser window of its own. Only the log scrolls. */
+.assistant { display: flex; flex-direction: column; gap: 0.75rem; min-height: 0; }
+.assistant-full { height: calc(100vh - 12rem); max-width: 52rem; }
+/* Before anything is said, the box to type in sits in the middle of the page;
+   once the assistant answers, the conversation takes the space above it. */
+.assistant-full.is-empty .assistant-log,
+.assistant-full.is-empty .assistant-status { display: none; }
+.assistant-full.is-empty .assistant-form { margin-block: auto; }
+.assistant-head { display: flex; justify-content: space-between; align-items: center; gap: 0.5rem; }
+.assistant-head h2 { font-size: 1.1rem; }
+.assistant-head-actions { display: flex; gap: 0.35rem; }
+.assistant-head .btn { font-size: 0.8rem; padding: 0.2rem 0.6rem; }
+.assistant-log { flex: 1; overflow-y: auto; display: flex; flex-direction: column; gap: 0.5rem; min-height: 0; }
+.assistant-msg {
+    white-space: pre-wrap;
+    overflow-wrap: anywhere;
+    padding: 0.5rem 0.75rem;
+    border-radius: var(--radius);
+    max-width: 92%;
+    font-size: 0.95rem;
+}
+.assistant-msg.user { align-self: flex-end; background: var(--selected-tint); }
+.assistant-msg.assistant { align-self: flex-start; background: var(--secondary-bg); }
+.assistant-msg.notice { align-self: stretch; background: var(--warning-bg); color: var(--warning-fg); font-size: 0.875rem; }
+.assistant-msg.notice.dataset { background: var(--info-bg); color: var(--info-fg); }
+.assistant-tool { font-size: 0.8rem; color: var(--muted); }
+.assistant-tool > summary { cursor: pointer; }
+.assistant-tool pre { white-space: pre-wrap; overflow-wrap: anywhere; max-height: 12rem; overflow-y: auto;
+                      background: var(--secondary-bg); padding: 0.4rem; border-radius: var(--radius); margin-top: 0.25rem; }
+.assistant-choices { display: flex; flex-wrap: wrap; gap: 0.4rem; align-items: center; }
+.assistant-choices > p { width: 100%; font-size: 0.95rem; }
+.assistant-status { min-height: 1.2em; }
+/* The composer: on the home page the dataset just over the box; then the box,
+   and Send with Reset under it, together as tall as the box. */
+.assistant-form { display: flex; flex-direction: column; gap: 0.4rem; }
+/* The box starts at --compose-height and can be dragged taller; Send and
+   Reset keep its starting height, level with its foot. */
+.assistant-compose { --compose-height: 4.3rem; display: flex; gap: 0.5rem; align-items: flex-end; }
+.assistant-compose textarea {
+    flex: 1;
+    min-width: 0;
+    resize: vertical;
+    height: var(--compose-height);
+    min-height: var(--compose-height);
+    box-sizing: border-box;
+    padding: 0.5rem 0.75rem;
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    background: var(--bg);
+    color: var(--text);
+    font: inherit;
+}
+.assistant-compose textarea:focus { outline: none; border-color: var(--primary); box-shadow: 0 0 0 1px var(--primary); }
+.assistant-send { display: flex; flex-direction: column; justify-content: center; gap: 0.25rem; width: 4.25rem; height: var(--compose-height); box-sizing: border-box; flex-shrink: 0; }
+.assistant-send .btn-primary { flex: none; height: calc(var(--compose-height) - 1.75rem); padding: 0.25rem 0.5rem; }
+.assistant-send .assistant-reset { flex: none; height: 1.5rem; font-size: 0.75rem; padding: 0 0.4rem; }
+/* Until there is something to reset, Send keeps the size it has beside Reset,
+   centred where the two will stand. */
+.assistant-send .assistant-reset[hidden] { display: inline-flex !important; visibility: hidden; }
+.assistant-send:has(> .assistant-reset[hidden]) .btn-primary { transform: translateY(0.875rem); }
+.assistant-dataset { display: flex; flex-wrap: wrap; align-items: center; gap: 0.5rem 0.75rem; font-size: 0.875rem; }
+/* The upload and the demo list take the same room, so the checkbox beside
+   them stays put when it switches one for the other. */
+.assistant-dataset .file-pick, .assistant-dataset select { width: 20rem; max-width: 100%; height: 2.25rem; box-sizing: border-box; }
+.assistant-dataset select { padding: 0.25rem 0.5rem; }
+.assistant-dataset.is-missing .file-pick, .assistant-dataset.is-missing select,
+.assistant-compose textarea.is-missing { border-color: var(--red); box-shadow: 0 0 0 1px var(--red); }
+.assistant-missing { margin: 0; }
+.assistant-dataset label.check { display: inline-flex; align-items: center; gap: 0.35rem; }
+.assistant-plan {
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 0.75rem 1rem;
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+    font-size: 0.9rem;
+}
+.assistant-plan h3 { font-size: 1rem; }
+.assistant-plan dl { display: grid; grid-template-columns: max-content 1fr; gap: 0.15rem 0.75rem; }
+.assistant-plan dt { color: var(--muted); }
+.assistant-plan dd { overflow-wrap: anywhere; }
+.assistant-plan ul { padding-left: 1.2rem; color: var(--warning-fg); }
+.assistant-plan button { align-self: flex-start; }
+.assistant dialog { border: 1px solid var(--border); border-radius: var(--radius); padding: 1.25rem;
+                    max-width: 28rem; background: var(--bg); color: var(--text); margin: auto; }
+.assistant dialog::backdrop { background: var(--shadow); }
+.assistant dialog .selectors { display: flex; gap: 0.5rem; margin-top: 1rem; }
+/* The dock: a tab on the bottom edge at the right, like a messaging site's
+   chat. Collapsed, only its bar shows; open, the chat grows up from it. While
+   the chat is in a window of its own, the bar says so and brings it forward. */
+.assistant-dock {
+    position: fixed;
+    right: 1.25rem;
+    bottom: 0;
+    z-index: 20;
+    width: min(24rem, calc(100vw - 2.5rem));
+}
+.assistant-floating {
+    height: min(38rem, calc(100vh - 2rem));
+    gap: 0.6rem;
+    padding: 0 0 0.75rem;
+    background: var(--bg);
+    border: 1px solid var(--border);
+    border-bottom: none;
+    border-radius: var(--radius) var(--radius) 0 0;
+    box-shadow: 0 0 18px var(--shadow);
+    overflow: hidden;
+}
+.assistant-floating > :not(.assistant-head) { margin-inline: 0.85rem; }
+.assistant-dock.collapsed .assistant-floating { height: auto; padding: 0; }
+.assistant-dock.collapsed .assistant-floating > :not(.assistant-head) { display: none; }
+.assistant-floating .assistant-head {
+    background: var(--secondary-bg);
+    border-bottom: 1px solid var(--border-light);
+    padding: 0.2rem 0.4rem 0.2rem 0;
+}
+.assistant-bar {
+    flex: 1;
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    border: none;
+    background: none;
+    color: var(--text);
+    font: inherit;
+    font-weight: 600;
+    padding: 0.5rem 0.85rem;
+    cursor: pointer;
+    text-align: left;
+    justify-content: flex-start;
+}
+.assistant-bar:hover:not(:disabled) { color: var(--text); border: none; }
+.assistant-bar-popped { font-weight: normal; color: var(--muted); font-size: 0.85rem; display: none; }
+.assistant-icon {
+    border: none;
+    background: none;
+    color: var(--muted);
+    padding: 0.2rem 0.45rem;
+    font-size: 1rem;
+    line-height: 1;
+    border-radius: var(--radius);
+}
+.assistant-icon:hover:not(:disabled) { color: var(--text); background: var(--hover); border: none; }
+.assistant-dock.collapsed [data-assistant-collapse] { display: none; }
+.assistant-dock:not(.popped) [data-assistant-return] { display: none; }
+.assistant-dock.popped [data-assistant-popout] { display: none; }
+.assistant-dock.popped .assistant-bar-popped { display: inline; }
+/* Its own window: the whole of it. */
+body.assistant-window-body { display: block; height: 100vh; }
+.assistant-window { height: 100vh; padding: 1rem; }
+.assistant-window .assistant-head .btn { font-size: 0.8rem; padding: 0.2rem 0.6rem; }
+.field-label > label.check { margin-left: 0.75rem; font-size: 0.875rem; }
+/* A label with two wordings, as wide as the longer: the one not showing
+   keeps its room. */
+.label-swap, .field .label-swap { display: inline-grid; justify-items: start; }
+.label-swap > span { grid-area: 1 / 1; }
+.label-swap[data-showing="upload"] > [data-when="demo"],
+.label-swap[data-showing="demo"] > [data-when="upload"] { visibility: hidden; }
+/* A file chooser that says what it holds (ui/_file_pick.html). */
+.file-pick {
+    display: inline-flex; align-items: center; gap: 0.5rem; min-width: 0; max-width: 100%;
+    padding: 0.2rem 0.4rem 0.2rem 0.2rem;
+    border: 1px solid var(--border); border-radius: var(--radius); background: var(--bg);
+}
+.field .file-pick { display: flex; }
+/* Step 1's upload and demo list, one height, so switching moves nothing. */
+.field [data-pane="dataset-demo"] select, .field [data-pane="dataset-upload"] .file-pick { height: 2.5rem; box-sizing: border-box; }
+.file-pick .file-pick-button {
+    display: inline-flex; margin: 0; padding: 0.2rem 0.6rem; font-size: 0.875rem;
+    cursor: pointer; white-space: nowrap; flex-shrink: 0;
+}
+.file-pick-name { flex: 1; min-width: 0; color: var(--muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.file-pick.has-file .file-pick-name { color: var(--text); }
+.file-pick-clear {
+    display: none; flex-shrink: 0; width: 1.25rem; height: 1.25rem; padding: 0;
+    border: none; border-radius: 50%; background: var(--red); color: #fff; font-size: 0.95rem; line-height: 1;
+}
+.file-pick.has-file .file-pick-clear { display: inline-flex; }
+.file-pick-clear:hover:not(:disabled) { background: var(--primary-hover); color: #fff; }
+.file-pick input:focus-visible ~ .file-pick-button { outline: 2px solid var(--primary); outline-offset: 2px; }
+
+/* What the assistant filled on a page, and what it points out (assistant/act.js). */
+.assistant-filled { border-left: 3px solid var(--primary); padding-left: 0.6rem; margin-left: -0.75rem; }
+.assistant-highlight { outline: 3px solid var(--primary); outline-offset: 4px; border-radius: var(--radius);
+    animation: assistant-pulse 1s ease-in-out 3; }
+@keyframes assistant-pulse { 50% { outline-color: transparent; } }
+@media (prefers-reduced-motion: reduce) { .assistant-highlight { animation: none; } }

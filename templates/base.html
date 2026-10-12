@@ -208,5 +208,28 @@
         {% endfor %}
         {% block content %}{% endblock %}
     </main>
+    {% comment %}The assistant's chat, when it is on: a tab on the bottom edge
+    at the right, which opens into the chat, and can pop out into a browser
+    window of its own. A page that is the chat itself (the home page)
+    leaves this block empty.{% endcomment %}
+    {% block assistant_panel %}
+        {% if assistant %}
+            <div class="assistant-dock collapsed" data-assistant-dock>
+                {% include "assistant/_chat.html" with dock=True %}
+            </div>
+        {% endif %}
+    {% endblock %}
+    {% comment %}What lets the assistant act on this page: it says what the page
+    is, carries out what the assistant does here, and fills a setup step from
+    the approved plan (assistant/acts.py).{% endcomment %}
+    {% if assistant %}
+        {{ assistant.fill|json_script:"assistant-fill" }}
+        <script src="{% asset 'assistant/act.js' %}" defer
+                data-page-url="{% url 'assistant:page' %}"
+                data-acts-url="{% url 'assistant:acts' %}"
+                data-acted-url="{% url 'assistant:acted' %}"
+                data-csrf="{{ csrf_token }}"
+                data-text-filled="{% translate 'Filled by the assistant' %}"></script>
+    {% endif %}
 </body>
 </html>

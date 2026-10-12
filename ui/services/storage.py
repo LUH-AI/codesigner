@@ -131,6 +131,40 @@ def make_room(group, *, keep=None) -> tuple[bool, int]:
     return usage(group)["total"] <= group.storage_limit, deleted
 
 
+def settle(exp) -> tuple[bool, list[tuple[str, str]]]:
+    """Make room in *exp*'s group for what creating it stored, or undo it.
+
+    Datasets and model files come first: kept trial models are deleted, the
+    stalest first, until the group is within its limit. Only when the datasets
+    and model files alone are over is the experiment refused — deleted again,
+    files and all. Returns (kept, notices), each notice a `(level, text)` for
+    the person, `level` one of the messages framework's.
+    """
+    from django.utils.translation import gettext as _
+    from django.utils.translation import ngettext
+
+    group = exp.group
+    if group is None or (not exp.data.dataset and not exp.data.model_file):
+        return True, []
+    within, deleted = make_room(group)
+    now = usage(group)
+    numbers = {"group": group.name, "used": human(now["total"]),
+               "limit": human(now["limit"])}
+    if not within:
+        delete_experiment_files(exp)
+        return False, [("error", _(
+            "%(group)s has no room for this: its datasets and model files alone would take "
+            "%(used)s of its %(limit)s. Delete experiments it no longer needs, or ask a site "
+            "administrator for more.") % numbers)]
+    if deleted:
+        return True, [("warning", ngettext(
+            "To make room in %(group)s, %(n)s kept trial model was deleted, the stalest "
+            "first. It now uses %(used)s of %(limit)s.",
+            "To make room in %(group)s, %(n)s kept trial models were deleted, the stalest "
+            "first. It now uses %(used)s of %(limit)s.", deleted) % dict(numbers, n=deleted))]
+    return True, []
+
+
 def has_room(group, more: int) -> bool:
     """Whether *group* can store *more* bytes of kept trial models without
     passing its limit. Always, for no group."""

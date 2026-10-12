@@ -172,7 +172,7 @@ def test_you_can_do_everything_to_your_own(client, hosted, ana):
     resp = _detail(client, exp)
 
     assert resp.status_code == 200
-    assert resp.context["may"] == {"run": True, "edit": True,
+    assert resp.context["may"] == {"run": True, "compute": True, "edit": True,
                                    "delete": True, "export": True,
                                    "share": True, "rename": True}
 
@@ -208,7 +208,7 @@ def test_a_viewer_cannot_run_change_or_delete_it(client, hosted, ana, ben):
     client.force_login(ana)
 
     assert _detail(client, exp).context["may"] == {
-        "run": False, "edit": False, "delete": False, "export": True,
+        "run": False, "compute": False, "edit": False, "delete": False, "export": True,
         "share": False, "rename": False}
 
 
@@ -250,7 +250,7 @@ def test_a_contributor_can_do_everything_but_share_or_rename_it(client, hosted, 
     client.force_login(ana)
 
     assert _detail(client, exp).context["may"] == {
-        "run": True, "edit": True, "delete": True, "export": True,
+        "run": True, "compute": True, "edit": True, "delete": True, "export": True,
         "share": False, "rename": False}
 
 
@@ -461,7 +461,7 @@ def test_a_lead_sees_and_can_run_everything_in_their_group(client, hosted, ben,
     resp = _detail(client, exp)
 
     assert resp.status_code == 200
-    assert resp.context["may"] == {"run": True, "edit": True, "export": True,
+    assert resp.context["may"] == {"run": True, "compute": True, "edit": True, "export": True,
                                    "delete": False, "share": False, "rename": False}
 
 

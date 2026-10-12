@@ -40,7 +40,7 @@ def resolve_seed(seed_input: int) -> int:
 
 def run_experiment(*, model_name, optimizer_name, dataset_path, seed,
                    primary_metric, n_trials, optimizer_params=None,
-                   test_size=None, task=tasks.DEFAULT):
+                   test_size=None, task=tasks.DEFAULT, target=None):
     """Build the split and run the chosen optimizer over the task's metrics.
 
     Every metric that scores *task* is scored on each trial; *primary_metric*
@@ -52,10 +52,10 @@ def run_experiment(*, model_name, optimizer_name, dataset_path, seed,
     model = copy.copy(MODELS[model_name])
     io.tell_task(model, task)
     io.tell_feature_kinds(
-        model, encoding.feature_kinds(io.dataset_encoding(Path(dataset_path))))
+        model, encoding.feature_kinds(io.dataset_encoding(Path(dataset_path), target)))
     optimizer = type(OPTIMIZERS[optimizer_name])(**(optimizer_params or {}))
     X_train, X_val, y_train, y_val = _load_splits(
-        Path(dataset_path), seed, test_size or DEFAULT_TEST_SIZE, task)
+        Path(dataset_path), seed, test_size or DEFAULT_TEST_SIZE, task, target)
     return optimizer.optimize(
         model, X_train, y_train, X_val, y_val,
         metrics={name: METRICS[name] for name in metrics_for(task)},

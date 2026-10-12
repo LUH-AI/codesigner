@@ -185,16 +185,14 @@ def test_the_declared_actions_match_what_the_routes_do():
         "experiment_optimizer": permissions.EDIT,
         "experiment_rename": permissions.RENAME,
         # Computing the explanations a cancelled run skipped: it spends this
-        # machine's CPU and writes to the stored result, which is what RUN
-        # covers. VIEW would have made reading an experiment a way to make it
-        # compute.
-        "experiment_compute_analytics": permissions.RUN,
+        # machine's CPU and fills in the stored result. VIEW would have made
+        # reading an experiment a way to make it compute; it starts no run.
+        "experiment_compute_analytics": permissions.COMPUTE,
         "prepare_env": permissions.RUN,
-        # Judging a stated belief against the surrogate: a model fit and two
-        # hundred acquisition evaluations, written nowhere. RUN for the same
-        # reason as computing skipped analytics — VIEW would make reading an
-        # experiment a way to spend seconds of this machine on it.
-        "evaluate_prior": permissions.RUN,
+        # Judging a stated belief against the surrogate: a model fit and
+        # thousands of acquisition evaluations, written nowhere. COMPUTE for
+        # the same reason as computing skipped analytics.
+        "evaluate_prior": permissions.COMPUTE,
         # Putting a belief back to what the last run searched under changes what
         # the next one will, exactly as stating one does.
         "reset_prior": permissions.EDIT,
@@ -229,7 +227,8 @@ def test_the_declared_actions_match_what_the_routes_do():
         "setup_priors": permissions.EDIT,
         "setup_resume": permissions.EDIT,
         "setup_create": permissions.EDIT,
-        "setup_discard": permissions.EDIT,
+        # Throwing a draft away deletes it for good, files and all.
+        "setup_discard": permissions.DELETE,
     }
 
 
@@ -354,3 +353,54 @@ def test_the_view_is_handed_the_experiment_not_the_pk():
 
 
 pytestmark = pytest.mark.django_db
+
+
+# ── the same check, without a view ───────────────────────────────────────────
+
+def test_resolving_without_a_view_answers_as_the_decorator_does(settings):
+    """What: `resolve_experiment`, the decorator's check for code that is not a
+    view, gives the experiment, a 404 for one the policy hides, and a 403 for
+    an action it refuses.
+    How: one experiment under the default policy and both restrictive ones."""
+    from django.http import Http404
+
+    from ui.permissions import resolve_experiment
+
+    exp = _experiment()
+    request = RequestFactory().get("/")
+    assert resolve_experiment(request, exp.pk, permissions.EDIT).pk == exp.pk
+
+    settings.EXPERIMENT_POLICY = f"{__name__}.HidesEverything"
+    with pytest.raises(Http404):
+        resolve_experiment(request, exp.pk, permissions.VIEW)
+
+    settings.EXPERIMENT_POLICY = f"{__name__}.RefusesEverything"
+    with pytest.raises(PermissionDenied):
+        resolve_experiment(request, exp.pk, permissions.VIEW)
+
+
+def test_resolving_the_wrong_kind_is_not_found():
+    """What: a created experiment asked for as a draft, or a draft as a created
+    one, is not found — only a page turns that into a redirect.
+    How: both mismatches through `resolve_experiment`, and the decorator's
+    redirect for a GET."""
+    from django.http import Http404
+
+    from ui.permissions import ONLY, resolve_experiment
+
+    created = _experiment()
+    draft = _experiment()
+    draft.draft = True
+    draft.save(update_fields=["draft"])
+    request = RequestFactory().get("/")
+
+    with pytest.raises(Http404):
+        resolve_experiment(request, created.pk, permissions.EDIT, ONLY)
+    with pytest.raises(Http404):
+        resolve_experiment(request, draft.pk, permissions.VIEW)
+
+    @experiment_view(permissions.VIEW)
+    def view(request, experiment):
+        raise AssertionError("should not have been called")
+
+    assert view(request, pk=draft.pk).status_code == 302

@@ -129,12 +129,51 @@ STORAGE_WARNING_SHARE = env.float("STORAGE_WARNING_SHARE", default=0.9)
 # core.optimizers.base.BaseOptimizer.eager_analytics_budget_exceeded.
 ANALYTICS_EAGER_MAX_COALITIONS = env.int("ANALYTICS_EAGER_MAX_COALITIONS", default=1024)
 
+# ── The assistant ────────────────────────────────────────────────────────────
+# A chat that plans an experiment with the person and fills in its setup
+# (assistant/). Off by default: with it off, or its model unreachable, every
+# page is what it was without it.
+ASSISTANT_ENABLED = env.bool("ASSISTANT_ENABLED", default=False)
+# The language model, over the OpenAI chat API: a local LM Studio by default,
+# or any server that speaks it (vLLM, Ollama's /v1, a hosted one).
+ASSISTANT_LLM_BASE_URL = env.str("ASSISTANT_LLM_BASE_URL", default="http://localhost:1234/v1")
+ASSISTANT_LLM_MODEL = env.str("ASSISTANT_LLM_MODEL", default="qwen/qwen3.6-35b-a3b")
+ASSISTANT_LLM_TOKEN = env.str("ASSISTANT_LLM_TOKEN", default="not-needed")
+# Seconds one call to the model may take, and how often a failed one is retried.
+ASSISTANT_LLM_TIMEOUT = env.float("ASSISTANT_LLM_TIMEOUT", default=120.0)
+ASSISTANT_LLM_RETRIES = env.int("ASSISTANT_LLM_RETRIES", default=2)
+# Sampling switches some local servers take and hosted ones refuse; sent only
+# when set.
+ASSISTANT_LLM_REPETITION_PENALTY = env.float("ASSISTANT_LLM_REPETITION_PENALTY", default=None)
+ASSISTANT_LLM_ENABLE_THINKING = env.bool("ASSISTANT_LLM_ENABLE_THINKING", default=None)
+# How many example values of each column the model is shown when it looks at a
+# dataset. 0 shows it none: only names, kinds and counts leave this machine.
+ASSISTANT_SAMPLE_ROWS = env.int("ASSISTANT_SAMPLE_ROWS", default=5)
+# What one person's conversations may spend: model tokens a day, model calls per
+# turn, and tool calls per turn.
+ASSISTANT_DAILY_TOKENS = env.int("ASSISTANT_DAILY_TOKENS", default=500_000)
+ASSISTANT_MAX_STEPS = env.int("ASSISTANT_MAX_STEPS", default=10)
+ASSISTANT_MAX_TOOL_CALLS = env.int("ASSISTANT_MAX_TOOL_CALLS", default=20)
+# How many turns run at once on this web process, in threads of their own: a
+# turn waits on the model, so it is not given a worker the runs need.
+ASSISTANT_TURN_THREADS = env.int("ASSISTANT_TURN_THREADS", default=4)
+# Run each turn in the request instead, for the test suite.
+ASSISTANT_TURNS_INLINE = env.bool("ASSISTANT_TURNS_INLINE", default=False)
+# How long one connection to the event stream stays open before the browser is
+# asked to reconnect, where it left off.
+ASSISTANT_STREAM_SECONDS = env.float("ASSISTANT_STREAM_SECONDS", default=55.0)
+# How long a tool acting on the person's page waits for the page to say it has.
+ASSISTANT_ACT_SECONDS = env.float("ASSISTANT_ACT_SECONDS", default=8.0)
+# How recently a page must have shown it is open for the assistant to act on it.
+ASSISTANT_PAGE_SECONDS = env.float("ASSISTANT_PAGE_SECONDS", default=90.0)
+
 # Never passed to a model's process. The rest of the environment is inherited,
 # because proxy, certificate and index settings are numerous and operator-
 # specific; these are the ones that would matter if they leaked.
 MODEL_ENV_DENYLIST = (
     "SECRET_KEY", "DATABASE_URL", "DJANGO_SETTINGS_MODULE", "HUEY_FILENAME",
     "MEDIA_ROOT", "ALLOWED_HOSTS", "REQUIRE_LOGIN", "ALLOW_CUSTOM_MODELS",
+    "ASSISTANT_LLM_TOKEN", "ASSISTANT_LLM_BASE_URL",
 )
 
 # ── Where a run executes ─────────────────────────────────────────────────────
@@ -232,6 +271,7 @@ INSTALLED_APPS = [
     "access",
     "ui",
     "datahandling",
+    "assistant",
 ]
 
 MIDDLEWARE = [
@@ -274,6 +314,7 @@ TEMPLATES = [
                 "ui.context_processors.offered_languages",
                 "ui.context_processors.theme",
                 "ui.context_processors.storage",
+                "assistant.context_processors.assistant",
             ],
         },
     },

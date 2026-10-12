@@ -47,7 +47,7 @@ A tab whose panels can be set is a form, saved in one go with one button.
                     {% if locked %}
                         <p class="caption">{% if locked_reason %}{{ locked_reason }}{% else %}{% translate "Only people who may change this experiment can set these." %}{% endif %}</p>
                     {% else %}
-                        <button type="submit" class="btn-primary">{% if save_label %}{{ save_label }}{% else %}{% translate "Save" %}{% endif %}</button>
+                        <button type="submit" class="btn-primary" data-assist="save">{% if save_label %}{{ save_label }}{% else %}{% translate "Save" %}{% endif %}</button>
                     {% endif %}
                 </div>
             </form>{% endif %}

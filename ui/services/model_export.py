@@ -69,13 +69,14 @@ def build(exp, trial, metric, result=None):
         text, class_name = source(exp)
         return export_upload(text, class_name=class_name, task=exp.data.task,
                              config=trial.config, seed=exp.data.seed, columns=columns,
-                             about=about)
+                             about=about, target=exp.data.target_column)
     model = _model(exp, columns, forecast)
     inner = getattr(model, "model", model)
     plan, _ = processing.resolve(exp.data.processing, inner)
     return export_model(model, config=trial.config, task=exp.data.task, seed=exp.data.seed,
                         columns=columns, plan=plan, about=about, forecast=forecast,
-                        time_column=exp.data.time_column, series_column=exp.data.series_column)
+                        time_column=exp.data.time_column, series_column=exp.data.series_column,
+                        target=exp.data.target_column)
 
 
 def _model(exp, columns, forecast):
@@ -104,7 +105,7 @@ def _about(exp, trial, metric, result):
     rows = None
     if dataset is not None and dataset.is_file():
         try:
-            target, values = io.target_of(dataset)
+            target, values = io.target_of(dataset, exp.data.target_column or None)
             rows = len(values)
         except Exception:  # noqa: BLE001 — the file is still exportable without it
             pass
@@ -137,7 +138,8 @@ def _forecast(exp, columns):
     season = exp.data.season
     if not season:
         _, _, times, _ = io._load_forecast(exp.data.dataset_path(), exp.data.time_column,
-                                           exp.data.series_column)
+                                           exp.data.series_column,
+                                           exp.data.target_column or None)
         season = forecasting.infer_season(times)
     return forecasting.context(columns, exp.data.time_column, exp.data.series_column,
                                exp.data.horizon, season)
@@ -150,4 +152,4 @@ def _columns(exp):
     dataset = exp.data.dataset_path()
     if dataset is None or not dataset.is_file():
         return None
-    return io.dataset_encoding(dataset)
+    return io.dataset_encoding(dataset, exp.data.target_column or None)

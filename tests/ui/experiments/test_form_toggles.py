@@ -35,6 +35,20 @@ def test_dataset_checkbox_defaults_unchecked(client):
     assert "checked" not in checkbox
 
 
+def test_the_dataset_label_says_which_it_is(client):
+    """What: one label for the dataset, showing "Dataset (.csv)" while
+    uploading, with the demo checkbox beside it and the demo wording in the
+    label too, for the script to switch to.
+    How: step 1's HTML around the label."""
+    body = get_new_experiment(client).content.decode()
+    label = body[body.index("data-dataset-label"):body.index('name="use_demo_dataset"')]
+
+    assert 'data-showing="upload"' in label
+    assert '<span data-when="upload">Dataset (.csv)</span>' in label
+    assert '<span data-when="demo">Dataset (demo)</span>' in label
+    assert "upload a CSV" not in body
+
+
 def test_model_toggle_present_when_flag_on(client, settings):
     settings.ALLOW_CUSTOM_MODELS = True
     body = get_new_experiment(client).content.decode()

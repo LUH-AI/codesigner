@@ -134,6 +134,8 @@ def suite_runs_in_its_own_configuration(settings):
     * `RUN_BACKEND` decides where a run executes. Left at `slurm`, the run
       tests would submit real jobs to a real cluster — slowly, and only on a
       machine that can reach it.
+    * `ASSISTANT_ENABLED` decides whether pages offer the assistant. Left on,
+      every page test would also be a test of a chat whose model is not there.
 
     Pinned to the defaults rather than to anything clever: these are what a
     fresh checkout has, and a test that wants the other mode says so (the
@@ -141,6 +143,8 @@ def suite_runs_in_its_own_configuration(settings):
     """
     settings.REQUIRE_LOGIN = False
     settings.RUN_BACKEND = "local"
+    settings.ASSISTANT_ENABLED = False
+    settings.ASSISTANT_TURNS_INLINE = True
 
 
 @pytest.fixture

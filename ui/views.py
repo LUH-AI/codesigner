@@ -46,7 +46,7 @@ from .forms import (
 from .models import Experiment, ExperimentData, ExperimentShare, GlobalSettings
 from . import permissions
 from .permissions import (
-    BOTH, DELETE, EDIT, EXPORT, RENAME, RUN, SHARE, VIEW, experiment_view,
+    BOTH, COMPUTE, DELETE, EDIT, EXPORT, RENAME, RUN, SHARE, VIEW, experiment_view,
 )
 from .registry import METRICS, MODELS, OPTIMIZERS
 from django.utils import timezone
@@ -56,7 +56,8 @@ from .services import modelenv
 from .services import snapshot as snapshot_adapter
 from .services import bin as bin_service
 from .services import model_export
-from .services import history, optimizer_form, timestamps
+from .services import history, optimizer_form, run_form, timestamps
+from .services import priors as prior_service
 from .services import storage
 from .services.run import resolve_seed
 from .services.run_logic import decide_run, resolve_metric_change
@@ -143,22 +144,6 @@ def _ownership(request, exp):
                           + f"#exp-{exp.pk}") if in_group else None}
 
 
-# How each stopping criterion is read off the Run form: its parser and the range
-# it is held to. Every criterion is here, including the trial cap — the form has
-# no required field, only a requirement that at least one be filled in.
-_STOPPING_FIELDS = {
-    "max_trials": (int, 1, 100_000),
-    # None, None: a target is compared against a score, so its range is the
-    # metric's and not a constant here — 0 to 1 is accuracy's range, not every
-    # metric's. Resolved per submission; see `_posted_stopping`.
-    "target_score": (float, None, None),
-    "max_seconds": (float, 1.0, None),
-    "max_trial_seconds": (float, 1.0, None),
-    "no_improvement_trials": (int, 1, None),
-    "incumbent_confidence": (float, 0.0, 1.0),
-    "max_failures": (int, 1, None),
-    "max_consecutive_failures": (int, 1, None),
-}
 
 
 #: What ended a run, for the summary line. Every criterion is named: with no
@@ -189,101 +174,40 @@ def surpass_target(score: float, places: int = 4) -> str:
     return f"{shown:g}"
 
 
-def _posted_stopping(request, metric_name: str = "") -> dict:
-    """The stopping criteria as submitted, ignoring the blanks.
-
-    A criterion left empty is absent rather than zero: zero would mean "stop
-    immediately", which is never what an empty box asks for. Unparseable input
-    is dropped the same way — and if that leaves nothing at all, the caller
-    refuses the run rather than starting one that cannot end.
-
-    *metric_name* is the metric the run will optimize, which is what bounds
-    `target_score`: a target is compared against a score, so what counts as out
-    of range is whatever that metric's range is, and an unbounded metric bounds
-    it not at all.
-    """
-    stopping = {}
-    for key, (parse, low, high) in _STOPPING_FIELDS.items():
-        raw = (request.POST.get(key) or "").strip()
-        if not raw:
-            continue
-        try:
-            value = parse(raw)
-        except ValueError:
-            continue
-        if key == "target_score":
-            low, high = metric_for(metric_name).bounds
-            # Clamped at both ends rather than dropped below the low one.
-            # Dropping made an out-of-range target *absent*, so a run asking for
-            # nothing else was then refused for having no criterion at all —
-            # which names a different problem from the one the reader created.
-            if low is not None:
-                value = max(value, low)
-        elif value < low:
-            continue
-        stopping[key] = min(value, high) if high is not None else value
-    return stopping
-
-
-def _posted_trial_timeout(request) -> dict:
-    """How long one call to the model may take, as submitted.
-
-    Read separately from `_posted_stopping` because it is not a stopping
-    criterion: nothing here ends a run, it ends a trial, and the run carries on
-    with that trial recorded as failed. Storing it among the criteria would also
-    mean the collector silently dropped it, since it filters to
-    `STOPPING_CRITERIA`.
-
-    Unlike a criterion, this one always has a value — a blank or unreadable box
-    falls back to the deployment's `MODEL_TRIAL_TIMEOUT` rather than being
-    absent, because "no deadline at all" is a thing to ask for deliberately (0)
-    and not a thing to arrive at by mistyping.
-    """
-    mode = request.POST.get("trial_timeout_mode")
-    if mode not in deadline.MODES:
-        mode = deadline.MODE_FIXED
-    return {
-        "mode": mode,
-        "seconds": _posted_number(request, "trial_timeout_seconds",
-                                  settings.MODEL_TRIAL_TIMEOUT, low=0.0),
-        "factor": _posted_number(request, "trial_timeout_factor",
-                                 deadline.DEFAULT_FACTOR, low=1.0),
-    }
-
-
-def _posted_number(request, key: str, default: float, *, low: float) -> float:
-    raw = (request.POST.get(key) or "").strip()
-    try:
-        return max(low, float(raw.replace(",", ".")))
-    except ValueError:
-        return float(default)
-
-
 #: Optimizer settings are posted with this prefix, so a parameter can be named
 #: whatever the optimizer calls it without colliding with `n_trials` or a
 #: stopping criterion on the same form.
 _OPTIMIZER_PREFIX = "opt_"
 
 
-def _posted_optimizer_params(request, optimizer) -> dict:
-    """The optimizer's settings as submitted, read through its own schema.
+def _posted_optimizer_params(data, optimizer, base=None) -> dict:
+    """The optimizer's settings in *data*, read through its own schema.
 
-    Types and bounds come from the declaration rather than a table here, which
-    is the difference between this and `_posted_stopping`: an optimizer that
-    declares a new setting gets it parsed without this function changing.
+    Types and bounds come from the declaration rather than a table, which is
+    how this differs from `run_form.stopping_from`: an optimizer that declares
+    a new setting gets it parsed without this function changing.
 
     A blank numeric field means "leave it to the strategy" and is stored as
     None, not dropped — the difference matters, because a stored value that is
     simply absent would be filled by the constructor default on the next read
     and the two would disagree.
+
+    Without *base*, *data* is a whole form as a browser posts it, where an
+    unticked box is absent and so False. With it, *data* says only what changes,
+    and every setting it leaves out keeps its value in *base*.
     """
     params = {}
     for param in optimizer.params_schema:
-        raw = request.POST.get(f"{_OPTIMIZER_PREFIX}{param.name}")
-        if param.type == "bool":
-            params[param.name] = bool(raw)
+        key = f"{_OPTIMIZER_PREFIX}{param.name}"
+        if base is not None and key not in data:
+            params[param.name] = base.get(param.name, param.default)
             continue
-        raw = (raw or "").strip()
+        raw = data.get(key)
+        if param.type == "bool":
+            params[param.name] = (raw.strip().lower() not in ("", "false", "off", "0")
+                                  if isinstance(raw, str) else bool(raw))
+            continue
+        raw = run_form.text(raw)
         if not raw:
             params[param.name] = None if param.default is None else param.default
             continue
@@ -387,35 +311,16 @@ def healthz(request):
 
 
 def _settle_storage(request, exp) -> bool:
-    """Make room in *exp*'s group for what creating it stored, or undo it.
+    """`storage.settle`, with what it has to say told to the person."""
+    kept, notices = storage.settle(exp)
+    tell(request, notices)
+    return kept
 
-    Datasets and model files come first: kept trial models are deleted, the
-    stalest first, until the group is within its limit, and the person is told
-    how many. Only when the datasets and model files alone are over is the
-    experiment refused — deleted again, files and all. See
-    ui/services/storage.py.
-    """
-    group = exp.group
-    if group is None or (not exp.data.dataset and not exp.data.model_file):
-        return True
-    within, deleted = storage.make_room(group)
-    now = storage.usage(group)
-    numbers = {"group": group.name, "used": storage.human(now["total"]),
-               "limit": storage.human(now["limit"])}
-    if not within:
-        storage.delete_experiment_files(exp)
-        messages.error(request, _(
-            "%(group)s has no room for this: its datasets and model files alone would take "
-            "%(used)s of its %(limit)s. Delete experiments it no longer needs, or ask a site "
-            "administrator for more.") % numbers)
-        return False
-    if deleted:
-        messages.warning(request, ngettext(
-            "To make room in %(group)s, %(n)s kept trial model was deleted, the stalest "
-            "first. It now uses %(used)s of %(limit)s.",
-            "To make room in %(group)s, %(n)s kept trial models were deleted, the stalest "
-            "first. It now uses %(used)s of %(limit)s.", deleted) % dict(numbers, n=deleted))
-    return True
+
+def tell(request, notices) -> None:
+    """Put each `(level, text)` a service returned in the person's messages."""
+    for level, text in notices:
+        getattr(messages, level)(request, text)
 
 
 def _dataset_path_from(form, tmp_paths):
@@ -458,10 +363,9 @@ def new_experiment(request):
     """
     if request.method != "POST":
         return render(request, "ui/new_experiment.html")
-    exp = Experiment.objects.create(
-        name="", model_name="", optimizer_name="",
-        metric_names=[], seed=0, owner=_owner(request), draft=True)
-    return redirect("ui:setup", pk=exp.pk)
+    from .services import drafts
+
+    return redirect("ui:setup", pk=drafts.new(request).pk)
 
 
 @experiment_view(VIEW)
@@ -501,7 +405,7 @@ def experiment_rename(request, exp):
 def experiment_optimizer(request, exp):
     """Save the optimizer and its settings, before the experiment's first
     trial."""
-    refusal = optimizer_form.save(request, exp)
+    refusal = optimizer_form.save(request, exp, request.POST)
     if refusal:
         messages.error(request, refusal)
     else:
@@ -710,7 +614,7 @@ def forecast_figure(request, exp):
 def _target_name(exp):
     """The dataset's target column, for the forecast's axis."""
     try:
-        return io.target_of(exp.data.dataset_path())[0]
+        return io.target_of(exp.data.dataset_path(), exp.data.target_column or None)[0]
     except Exception:  # noqa: BLE001 — an axis title is not worth an error
         return ""
 
@@ -795,47 +699,7 @@ def save_prior(request, exp):
     if not hp_name:
         return HttpResponseBadRequest("no hyperparameter named")
 
-    priors = dict(exp.data.priors or {})
-    prior = body.get("prior")
-    if prior is None:
-        # Uniform states nothing, so it is stored as nothing rather than as a
-        # flat table the optimizer would multiply by for no reason.
-        priors.pop(hp_name, None)
-    else:
-        # The trial this belief was stated at. A decay schedule is an exponent
-        # over the trials *since* a prior was supplied, not since the run began
-        # — a belief stated at trial 120 arrives at full strength rather than
-        # inheriting the near-flat exponent an older one has decayed to.
-        built = _rebuild_experiment(exp)
-        at_trial = len((built["result"].trials if built and built["result"] else []))
-        previous = (exp.data.priors or {}).get(hp_name) or {}
-        result_now = built["result"] if built else None
-        priors[hp_name] = {
-            "kind": prior.get("kind") or "uniform",
-            "params": prior.get("params") or {},
-            "decay": _decay_record(prior.get("decay"), exp, at_trial),
-            # Whether the decay waits for the initial design to finish. Only
-            # ever true while there is a design still to finish: stated after
-            # it, there is nothing to wait for and carrying the flag would
-            # invite a later reader to think there was. The page offers the
-            # choice in the same situation and defaults it on.
-            "delay_decay": bool(prior.get("delay_decay")
-                                and _inside_initial_design(result_now)),
-            # Kept across an edit of the same shape: re-typing a sigma is not
-            # restating the belief, and re-anchoring on every keystroke would
-            # hold the decay at zero forever.
-            "at_trial": (previous.get("at_trial")
-                         if previous.get("kind") == prior.get("kind") else at_trial),
-        }
-        # No `knots`. The browser used to evaluate the density and send it, so
-        # that what SMAC weighted by was literally what had been drawn; now the
-        # server evaluates it for both, which makes that guarantee structural
-        # rather than something two implementations had to keep agreeing on.
-
-    stated_before = (exp.data.priors or {}).get(hp_name)
-    exp.data.priors = priors
-    exp.data.save(update_fields=["priors"])
-    history.record_prior(exp, hp_name, stated_before, priors.get(hp_name), user=request.user)
+    priors = prior_service.state(request, exp, hp_name, body.get("prior"))
 
     # Asked for when the reader presses Re-walk. Not cached and not done on the
     # ordinary slice fetch: it rebuilds this run's optimizer and asks it, which
@@ -874,24 +738,8 @@ def reset_prior(request, exp):
     if not hp_name:
         return HttpResponseBadRequest("no hyperparameter named")
 
-    # The last run that got as far as recording anything. A pending one has
-    # searched under nothing yet, and going back to its priors would be going
-    # back to the very edits this is meant to undo.
-    last = (exp.runs.exclude(status="pending")
-            .order_by("-id").values_list("priors", flat=True).first())
-    restored = (last or {}).get(hp_name)
-
-    priors = dict(exp.data.priors or {})
-    stated_before = priors.get(hp_name)
-    if restored:
-        priors[hp_name] = restored
-    else:
-        priors.pop(hp_name, None)
-    exp.data.priors = priors
-    exp.data.save(update_fields=["priors"])
-    if stated_before != priors.get(hp_name):
-        history.record(exp, "prior_reset", user=request.user, hyperparameter=hp_name,
-                       old=stated_before, new=priors.get(hp_name))
+    restored = prior_service.reset(request, exp, hp_name)
+    priors = exp.data.priors or {}
 
     # Handed straight back, so the figure redraws from the same answer every
     # other request gives it rather than recomputing the decay in the browser.
@@ -915,7 +763,7 @@ def reset_prior(request, exp):
     })
 
 
-@experiment_view(RUN, drafts=BOTH)
+@experiment_view(COMPUTE, drafts=BOTH)
 @require_POST
 def evaluate_prior(request, exp):
     """Ask this run's optimizer whether the stated belief is worth acting on.
@@ -933,11 +781,11 @@ def evaluate_prior(request, exp):
     setting means the same for an accuracy and an RMSE; SMAC is handed it in
     the metric's own units, which is what its threshold is compared in.
 
-    `RUN` rather than `VIEW`, for `experiment_compute_analytics`' reason: it
-    costs a model fit, thousands of acquisition evaluations and a local search
-    per climb, and a diagnostic that anybody who can read an experiment can
-    make it spend seconds on is a diagnostic that reading an experiment pays
-    for.
+    `COMPUTE` rather than `VIEW`: it costs a model fit, thousands of
+    acquisition evaluations and a local search per climb, and a diagnostic
+    that anybody who can read an experiment can make it spend seconds on is a
+    diagnostic that reading an experiment pays for. Not `RUN`, because it
+    starts nothing.
 
     Nothing is written either way. A refused belief stays exactly where the
     reader left it — whether to keep it is their decision, and the page asks.
@@ -1612,8 +1460,8 @@ def experiment_run(request, exp):
         return redirect("ui:experiment_detail", pk=exp.pk)
 
     chosen = request.POST.get("optimize_metric")
-    stopping = _posted_stopping(request, chosen or exp.data.current_metric or "")
-    trial_timeout = _posted_trial_timeout(request)
+    stopping = run_form.stopping_from(request.POST, chosen or exp.data.current_metric or "")
+    trial_timeout = run_form.trial_timeout_from(request.POST)
     decision = request.POST.get("decision")
 
     if not any(k not in FAILURE_CRITERIA for k in stopping):
@@ -1836,7 +1684,7 @@ def _analytics_absent(result) -> bool:
 
 
 @require_POST
-@experiment_view(RUN)
+@experiment_view(COMPUTE)
 def experiment_compute_analytics(request, exp):
     """Compute the explanation games for an experiment that has none.
 
@@ -3023,6 +2871,18 @@ def _prior_only_context(exp, built):
     }
 
 
+def _demo_columns():
+    """{demo dataset path: its columns}, for the create form to suggest as
+    targets. An uploaded file's columns are read in the page."""
+    out = {}
+    for path in io.demo_datasets().values():
+        try:
+            out[path] = [str(c) for c in io.read_dataset(Path(path)).columns]
+        except Exception:  # noqa: BLE001 — an unreadable demo just suggests nothing
+            out[path] = []
+    return out
+
+
 def _demo_time_columns():
     """{demo dataset path: the columns it could be ordered by in time}, for the
     create form to suggest. An uploaded file's columns are read in the page."""
@@ -3198,7 +3058,7 @@ def experiment_header(request, exp, result=_UNBUILT):
         # What this viewer may do, for the buttons. Read access got them here;
         # the rest depends on whose experiment it is.
         "may": {action: permissions.policy().may(request, exp, action)
-                for action in (RUN, EDIT, DELETE, EXPORT, SHARE, RENAME)},
+                for action in (RUN, COMPUTE, EDIT, DELETE, EXPORT, SHARE, RENAME)},
         "ownership": _ownership(request, exp),
         "model_export_unavailable": model_export.unavailable(exp),
         # Which trials' fitted models were kept, by their place in the result —
