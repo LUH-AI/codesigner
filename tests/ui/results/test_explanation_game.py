@@ -51,7 +51,7 @@ def test_the_selector_is_in_the_sidebar_and_not_in_any_figure(client):
     sidebar = html.split('<nav class="sidebar"', 1)[1].split("</nav>", 1)[0]
     content = html.split("<main", 1)[-1]
 
-    assert "Explanation Game" in sidebar
+    assert "<h2>HyperSHAP</h2>" in sidebar
     assert 'id="explanation-game"' in sidebar
     for game in GAMES:
         assert f'value="{game}"' in sidebar

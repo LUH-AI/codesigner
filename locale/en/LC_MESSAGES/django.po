@@ -21,7 +21,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: PACKAGE VERSION\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2026-10-09 10:46+0000\n"
+"POT-Creation-Date: 2026-10-13 14:10+0000\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
 "Language-Team: LANGUAGE <LL@li.org>\n"
@@ -350,206 +350,212 @@ msgstr "How much does performance move as this hyperparameter moves?"
 msgid "Hyperparameter importance (HyperSHAP)"
 msgstr "Hyperparameter importance (HyperSHAP)"
 
-#: ui/figures/catalog.py:147 ui/figures/catalog.py:153
+#: ui/figures/catalog.py:120
+msgid "HyperSHAP against the incumbent or selected trial"
+msgstr "HyperSHAP against the incumbent or selected trial"
+
+#: ui/figures/catalog.py:152 ui/figures/catalog.py:158
 msgid "Local explanation (selected trial)"
 msgstr "Local explanation (selected trial)"
 
-#: ui/figures/catalog.py:204
+#: ui/figures/catalog.py:210
 msgid "Interactions: heatmap"
 msgstr "Interactions: heatmap"
 
-#: ui/figures/catalog.py:212
+#: ui/figures/catalog.py:218
 msgid "Interactions: top pairs"
 msgstr "Interactions: top pairs"
 
-#: ui/figures/catalog.py:220
+#: ui/figures/catalog.py:226
 msgid "Interactions: graph"
 msgstr "Interactions: graph"
 
-#: ui/figures/catalog.py:230
+#: ui/figures/catalog.py:236
 msgid "Interactions: coalitions"
 msgstr "Interactions: coalitions"
 
-#: ui/figures/catalog.py:240
+#: ui/figures/catalog.py:246
 msgid "Interactions: by order"
 msgstr "Interactions: by order"
 
-#: ui/figures/catalog.py:259
+#: ui/figures/catalog.py:265
 msgid "Trial performance"
 msgstr "Trial performance"
 
-#: ui/figures/catalog.py:359
+#: ui/figures/catalog.py:365
 msgid "Hyperparameter space projection"
 msgstr "Hyperparameter space projection"
 
-#: ui/figures/catalog.py:383
+#: ui/figures/catalog.py:389
 msgid "Surrogate uncertainty (axes view)"
 msgstr "Surrogate uncertainty (axes view)"
 
-#: ui/figures/catalog.py:410
+#: ui/figures/catalog.py:416
 msgid "Parallel coordinates"
 msgstr "Parallel coordinates"
 
-#: ui/figures/catalog.py:444 ui/figures/catalog.py:451
+#: ui/figures/catalog.py:450 ui/figures/catalog.py:457
 msgid "Partial dependence (PDP/ICE)"
 msgstr "Partial dependence (PDP/ICE)"
 
-#: ui/figures/catalog.py:485 ui/optimizer_labels.py:75
+#: ui/figures/catalog.py:491 ui/optimizer_labels.py:75
 msgid "Acquisition function"
 msgstr "Acquisition function"
 
-#: ui/figures/catalog.py:491
+#: ui/figures/catalog.py:497
 msgid "Acquisition and priors"
 msgstr "Acquisition and priors"
 
-#: ui/figures/catalog.py:509 ui/figures/plots.py:1566 ui/figures/plots.py:1578
+#: ui/figures/catalog.py:515 ui/figures/plots.py:1570 ui/figures/plots.py:1582
 #: ui/timeline.py:279
 msgid "Prior"
 msgstr "Prior"
 
-#: ui/figures/catalog.py:526 ui/figures/catalog.py:536
+#: ui/figures/catalog.py:532 ui/figures/catalog.py:542
 msgid "Local effects across trials"
 msgstr "Local effects across trials"
 
-#: ui/figures/catalog.py:546
+#: ui/figures/catalog.py:552
 msgid "Trial duration"
 msgstr "Trial duration"
 
-#: ui/figures/catalog.py:558 ui/templates/ui/panels/site_jobs.html:23
+#: ui/figures/catalog.py:564 ui/templates/ui/panels/site_jobs.html:23
 #: ui/templates/ui/panels/site_usage.html:21
 #: ui/templates/ui/panels/site_usage.html:49 ui/timeline.py:99
 #: ui/timeline.py:357
 msgid "Trials"
 msgstr "Trials"
 
-#: ui/figures/catalog.py:592 ui/figures/catalog.py:596
+#: ui/figures/catalog.py:598 ui/figures/catalog.py:602
 msgid "Forecast"
 msgstr "Forecast"
 
-#: ui/figures/plots.py:312 ui/figures/plots.py:1515 ui/figures/plots.py:1518
-#: ui/figures/plots.py:1615 ui/figures/plots.py:1618
+#: ui/figures/plots.py:312 ui/figures/plots.py:1519 ui/figures/plots.py:1522
+#: ui/figures/plots.py:1619 ui/figures/plots.py:1622
+#: ui/templates/ui/_side_explanation.html:44
+#: ui/templates/ui/figures/_importance_table.html:20
+#: ui/templates/ui/figures/hyperparameter_importance.html:30
 msgid "Incumbent"
 msgstr "Incumbent"
 
-#: ui/figures/plots.py:318
+#: ui/figures/plots.py:322
 msgid "New incumbent"
 msgstr "New incumbent"
 
-#: ui/figures/plots.py:446
+#: ui/figures/plots.py:450
 msgid "Already banked"
 msgstr "Already banked"
 
-#: ui/figures/plots.py:447
-#: ui/templates/ui/figures/hyperparameter_importance.html:44
-#: ui/templates/ui/figures/hyperparameter_importance.html:78 ui/views.py:622
+#: ui/figures/plots.py:451 ui/templates/ui/figures/_importance_table.html:25
+#: ui/templates/ui/figures/hyperparameter_importance.html:55 ui/views.py:630
 msgid "Still to gain"
 msgstr "Still to gain"
 
-#: ui/figures/plots.py:452
+#: ui/figures/plots.py:456
 msgid "Achievable gain"
 msgstr "Achievable gain"
 
-#: ui/figures/plots.py:532
+#: ui/figures/plots.py:536
 msgid "vs. default"
 msgstr "vs. default"
 
-#: ui/figures/plots.py:558 ui/figures/plots.py:717 ui/figures/plots.py:807
+#: ui/figures/plots.py:562 ui/figures/plots.py:721 ui/figures/plots.py:811
 msgid "Interaction"
 msgstr "Interaction"
 
-#: ui/figures/plots.py:587
+#: ui/figures/plots.py:591
 msgid "Interaction strength"
 msgstr "Interaction strength"
 
-#: ui/figures/plots.py:724 ui/templates/ui/_selected_config_inner.html:29
+#: ui/figures/plots.py:728 ui/templates/ui/_selected_config_inner.html:29
+#: ui/templates/ui/figures/_importance_table.html:18
 #: ui/templates/ui/figures/acquisition_slice.html:36
 #: ui/templates/ui/figures/best_configuration.html:13
-#: ui/templates/ui/figures/hyperparameter_importance.html:73
 #: ui/templates/ui/figures/partial_dependence.html:17
 #: ui/templates/ui/figures/prior.html:34 ui/timeline.py:279 ui/timeline.py:283
 #: ui/timeline.py:287 ui/timeline.py:291
 msgid "Hyperparameter"
 msgstr "Hyperparameter"
 
-#: ui/figures/plots.py:876
+#: ui/figures/plots.py:880
 msgid "Attributed influence"
 msgstr "Attributed influence"
 
-#: ui/figures/plots.py:1269 ui/figures/plots.py:1270
+#: ui/figures/plots.py:1273 ui/figures/plots.py:1274
 #, python-format
 msgid "Trial %(n)s"
 msgstr "Trial %(n)s"
 
-#: ui/figures/plots.py:1344
+#: ui/figures/plots.py:1348
 msgid "Individual trials (ICE)"
 msgstr "Individual trials (ICE)"
 
-#: ui/figures/plots.py:1347
+#: ui/figures/plots.py:1351
 msgid "Partial dependence"
 msgstr "Partial dependence"
 
-#: ui/figures/plots.py:1351
+#: ui/figures/plots.py:1355
 msgid "Predicted score"
 msgstr "Predicted score"
 
-#: ui/figures/plots.py:1482
+#: ui/figures/plots.py:1486
 msgid "Best sampled, unweighted"
 msgstr "Best sampled, unweighted"
 
-#: ui/figures/plots.py:1487
+#: ui/figures/plots.py:1491
 msgid "Best sampled, weighted"
 msgstr "Best sampled, weighted"
 
-#: ui/figures/plots.py:1497 ui/figures/plots.py:1545 ui/views.py:3076
+#: ui/figures/plots.py:1501 ui/figures/plots.py:1549 ui/views.py:3168
 msgid "Acquisition"
 msgstr "Acquisition"
 
-#: ui/figures/plots.py:1501
+#: ui/figures/plots.py:1505
 msgid "Weighted by the prior"
 msgstr "Weighted by the prior"
 
-#: ui/figures/plots.py:1538
+#: ui/figures/plots.py:1542
 msgid "Optimizer's Candidate"
 msgstr "Optimizer's Candidate"
 
-#: ui/figures/plots.py:1575
+#: ui/figures/plots.py:1579
 msgid "Control points"
 msgstr "Control points"
 
-#: ui/figures/plots.py:1605
+#: ui/figures/plots.py:1609
 msgid "Predicted"
 msgstr "Predicted"
 
-#: ui/figures/plots.py:1640
+#: ui/figures/plots.py:1644
 msgid "Implied by the prior"
 msgstr "Implied by the prior"
 
-#: ui/figures/plots.py:1719
+#: ui/figures/plots.py:1723
 msgid "Effect vs. default  (left: hurt, right: helped)"
 msgstr "Effect vs. default  (left: hurt, right: helped)"
 
-#: ui/figures/plots.py:1754
+#: ui/figures/plots.py:1758
 msgid "Trial"
 msgstr "Trial"
 
-#: ui/figures/plots.py:1754
+#: ui/figures/plots.py:1758
 msgid "Duration (s)"
 msgstr "Duration (s)"
 
-#: ui/figures/plots.py:1784
+#: ui/figures/plots.py:1788
 msgid "Actual"
 msgstr "Actual"
 
-#: ui/figures/plots.py:1786
+#: ui/figures/plots.py:1790
 msgid "actual"
 msgstr "actual"
 
-#: ui/figures/plots.py:1794
+#: ui/figures/plots.py:1798
 #, python-format
 msgid "Backtest %(n)s"
 msgstr "Backtest %(n)s"
 
-#: ui/figures/plots.py:1797
+#: ui/figures/plots.py:1801
 msgid "forecast"
 msgstr "forecast"
 
@@ -693,6 +699,19 @@ msgstr "Reset. No earlier run stated one for this hyperparameter."
 msgid "Waiting for run to finish…"
 msgstr "Waiting for run to finish…"
 
+#: ui/templates/ui/figures/_importance_table.html:23
+msgid "Achievable"
+msgstr "Achievable"
+
+#: ui/templates/ui/figures/_importance_table.html:24
+msgid "Banked"
+msgstr "Banked"
+
+#: ui/templates/ui/figures/_importance_table.html:46
+#: ui/templates/ui/figures/hyperparameter_importance.html:69
+msgid "No importance data available."
+msgstr "No importance data available."
+
 #: ui/templates/ui/figures/_trial_rows.html:13
 #, python-format
 msgid "This trial did not produce a measurement: %(reason)s"
@@ -701,16 +720,6 @@ msgstr "This trial did not produce a measurement: %(reason)s"
 #: ui/templates/ui/figures/_trial_rows.html:14
 msgid "failed"
 msgstr "failed"
-
-#: ui/templates/ui/figures/acquisition_slice.html:47
-#: ui/templates/ui/figures/forecast.html:16
-#: ui/templates/ui/figures/local_effects.html:14
-#: ui/templates/ui/figures/local_explanation.html:19
-#: ui/templates/ui/figures/partial_dependence.html:29
-#: ui/templates/ui/panels/site_usage.html:22
-#: ui/templates/ui/panels/site_usage.html:50
-msgid "Compute"
-msgstr "Compute"
 
 #: ui/templates/ui/figures/acquisition_slice.html:72
 msgid "Acquisition with incumbent hyperparameters"
@@ -764,6 +773,7 @@ msgstr "First axis"
 #: ui/templates/ui/figures/configuration_cube.html:47
 #: ui/templates/ui/figures/configuration_cube.html:51
 #: ui/templates/ui/figures/configuration_cube.html:55
+#: ui/templates/ui/figures/hyperparameter_importance.html:28
 msgid "None"
 msgstr "None"
 
@@ -811,7 +821,11 @@ msgstr "Bar"
 msgid "Table"
 msgstr "Table"
 
-#: ui/templates/ui/figures/hyperparameter_importance.html:46
+#: ui/templates/ui/figures/hyperparameter_importance.html:27
+msgid "vs"
+msgstr "vs"
+
+#: ui/templates/ui/figures/hyperparameter_importance.html:57
 msgid ""
 "Tunability measures what each hyperparameter could gain you, starting from "
 "the search space's default. Ticking this subtracts what the selected trial "
@@ -827,7 +841,7 @@ msgstr ""
 "mistunability's achievable value is downside rather than gain, and nothing "
 "'achieves' sensitivity's variance."
 
-#: ui/templates/ui/figures/hyperparameter_importance.html:56
+#: ui/templates/ui/figures/hyperparameter_importance.html:67
 msgid ""
 "This trial has captured essentially all of the gain the search space had to "
 "offer. There is nothing left to tune."
@@ -835,7 +849,7 @@ msgstr ""
 "This trial has captured essentially all of the gain the search space had to "
 "offer. There is nothing left to tune."
 
-#: ui/templates/ui/figures/hyperparameter_importance.html:58
+#: ui/templates/ui/figures/hyperparameter_importance.html:69
 #: ui/templates/ui/figures/interactions_coalitions.html:19
 #: ui/templates/ui/figures/interactions_graph.html:19
 #: ui/templates/ui/figures/interactions_heatmap.html:19
@@ -843,23 +857,6 @@ msgstr ""
 #: ui/templates/ui/figures/interactions_top_pairs.html:18
 msgid "Press Compute explanations to see results."
 msgstr "Press Compute explanations to see results."
-
-#: ui/templates/ui/figures/hyperparameter_importance.html:58
-#: ui/templates/ui/figures/hyperparameter_importance.html:96
-msgid "No importance data available."
-msgstr "No importance data available."
-
-#: ui/templates/ui/figures/hyperparameter_importance.html:74
-msgid "Importance"
-msgstr "Importance"
-
-#: ui/templates/ui/figures/hyperparameter_importance.html:76
-msgid "Achievable"
-msgstr "Achievable"
-
-#: ui/templates/ui/figures/hyperparameter_importance.html:77
-msgid "Banked"
-msgstr "Banked"
 
 #: ui/templates/ui/figures/interactions_coalitions.html:19
 #: ui/templates/ui/figures/interactions_graph.html:19
@@ -989,7 +986,7 @@ msgstr "Delay decay until after the initial design"
 msgid "Top k"
 msgstr "Top k"
 
-#: ui/templates/ui/figures/prior.html:162 ui/views.py:977
+#: ui/templates/ui/figures/prior.html:162 ui/views.py:985
 msgid "Needs the Gaussian process search strategy."
 msgstr "Needs the Gaussian process search strategy."
 
@@ -1507,15 +1504,15 @@ msgstr "Environment: %(summary)s"
 msgid "Attach a dataset to run this experiment (loaded read-only)."
 msgstr "Attach a dataset to run this experiment (loaded read-only)."
 
-#: ui/templates/ui/_side_explanation.html:15
-msgid "Explanation Game"
-msgstr "Explanation Game"
+#: ui/templates/ui/_side_explanation.html:18 ui/views.py:3167
+msgid "HyperSHAP"
+msgstr "HyperSHAP"
 
-#: ui/templates/ui/_side_explanation.html:18
+#: ui/templates/ui/_side_explanation.html:21
 msgid "Game"
 msgstr "Game"
 
-#: ui/templates/ui/_side_explanation.html:19
+#: ui/templates/ui/_side_explanation.html:22
 msgid ""
 "HyperSHAP treats a finished search as a cooperative game between its "
 "hyperparameters, and splits the outcome between them the way Shapley values "
@@ -1529,11 +1526,40 @@ msgstr ""
 "trial history — and every figure that explains hyperparameters answers the "
 "one chosen here."
 
-#: ui/templates/ui/_side_explanation.html:27
+#: ui/templates/ui/_side_explanation.html:30
 msgid "What a hyperparameter could have gained you, had it been tuned."
 msgstr "What a hyperparameter could have gained you, had it been tuned."
 
-#: ui/templates/ui/_side_explanation.html:46
+#: ui/templates/ui/_side_explanation.html:40
+#| msgid "Compute explanations"
+msgid "Compare against"
+msgstr "Compare against"
+
+#: ui/templates/ui/_side_explanation.html:43
+#: ui/templates/ui/figures/_importance_table.html:19
+#: ui/templates/ui/figures/hyperparameter_importance.html:31
+#| msgid "Defaults only"
+msgid "Default"
+msgstr "Default"
+
+#: ui/templates/ui/_side_explanation.html:45
+#: ui/templates/ui/figures/_importance_table.html:21
+#: ui/templates/ui/figures/hyperparameter_importance.html:29
+msgid "Selected"
+msgstr "Selected"
+
+#: ui/templates/ui/_side_explanation.html:49
+#: ui/templates/ui/figures/acquisition_slice.html:47
+#: ui/templates/ui/figures/forecast.html:16
+#: ui/templates/ui/figures/local_effects.html:14
+#: ui/templates/ui/figures/local_explanation.html:19
+#: ui/templates/ui/figures/partial_dependence.html:29
+#: ui/templates/ui/panels/site_usage.html:22
+#: ui/templates/ui/panels/site_usage.html:50
+msgid "Compute"
+msgstr "Compute"
+
+#: ui/templates/ui/_side_explanation.html:67
 msgid "Compute explanations"
 msgstr "Compute explanations"
 
@@ -1583,15 +1609,15 @@ msgstr "Figures"
 msgid "No figures on this tab are switched on for this experiment."
 msgstr "No figures on this tab are switched on for this experiment."
 
-#: ui/templates/ui/experiment_detail.html:252
+#: ui/templates/ui/experiment_detail.html:257
 msgid "Absolute scale (0-1)"
 msgstr "Absolute scale (0-1)"
 
-#: ui/templates/ui/experiment_detail.html:253
+#: ui/templates/ui/experiment_detail.html:258
 msgid "Relative scale (fit to data)"
 msgstr "Relative scale (fit to data)"
 
-#: ui/templates/ui/experiment_detail.html:1422
+#: ui/templates/ui/experiment_detail.html:1705
 msgid "Uncertainty"
 msgstr "Uncertainty"
 
@@ -1883,7 +1909,6 @@ msgid "Prior acceptance tolerance"
 msgstr "Prior acceptance tolerance"
 
 #: ui/forms.py:367
-#| msgid "Prior acceptance tolerance"
 msgid "Prior acceptance top k"
 msgstr "Prior acceptance top k"
 
@@ -1901,7 +1926,6 @@ msgstr "Share of the metric's scale a prior may fall short by."
 
 #: ui/forms.py:393 ui/templates/ui/figures/prior.html:154
 #: ui/templates/ui/figures/prior.html:159
-#| msgid "every configuration had been tried"
 msgid "Best configurations compared on each side."
 msgstr "Best configurations compared on each side."
 
@@ -2974,51 +2998,51 @@ msgstr "+%(h)d h %(m)d min"
 msgid "+%(d)d d %(h)d h"
 msgstr "+%(d)d d %(h)d h"
 
-#: ui/views.py:125
+#: ui/views.py:126
 msgid "Choose which group this experiment is in."
 msgstr "Choose which group this experiment is in."
 
-#: ui/views.py:167
+#: ui/views.py:168
 msgid "all the requested trials ran"
 msgstr "all the requested trials ran"
 
-#: ui/views.py:168
+#: ui/views.py:169
 msgid "performance surpassed the target"
 msgstr "performance surpassed the target"
 
-#: ui/views.py:169
+#: ui/views.py:170
 msgid "the time limit was reached"
 msgstr "the time limit was reached"
 
-#: ui/views.py:170
+#: ui/views.py:171
 msgid "the compute budget was used up"
 msgstr "the compute budget was used up"
 
-#: ui/views.py:171
+#: ui/views.py:172
 msgid "the score had stopped improving"
 msgstr "the score had stopped improving"
 
-#: ui/views.py:172
+#: ui/views.py:173
 msgid "the search was confident nothing better remained"
 msgstr "the search was confident nothing better remained"
 
-#: ui/views.py:173
+#: ui/views.py:174
 msgid "it was interrupted"
 msgstr "it was interrupted"
 
-#: ui/views.py:174
+#: ui/views.py:175
 msgid "too many trials were failing"
 msgstr "too many trials were failing"
 
-#: ui/views.py:175
+#: ui/views.py:176
 msgid "every configuration had been tried"
 msgstr "every configuration had been tried"
 
-#: ui/views.py:353
+#: ui/views.py:354
 msgid "Inconsistent"
 msgstr "Inconsistent"
 
-#: ui/views.py:408
+#: ui/views.py:409
 #, python-format
 msgid ""
 "%(group)s has no room for this: its datasets and model files alone would "
@@ -3029,7 +3053,7 @@ msgstr ""
 "take %(used)s of its %(limit)s. Delete experiments it no longer needs, or "
 "ask a site administrator for more."
 
-#: ui/views.py:414
+#: ui/views.py:415
 #, python-format
 msgid ""
 "To make room in %(group)s, %(n)s kept trial model was deleted, the stalest "
@@ -3044,7 +3068,7 @@ msgstr[1] ""
 "To make room in %(group)s, %(n)s kept trial models were deleted, the stalest "
 "first. It now uses %(used)s of %(limit)s."
 
-#: ui/views.py:679
+#: ui/views.py:687
 msgid ""
 "The forecast is drawn for built-in models only: an uploaded model runs in "
 "its own environment, which this page does not start."
@@ -3052,12 +3076,12 @@ msgstr ""
 "The forecast is drawn for built-in models only: an uploaded model runs in "
 "its own environment, which this page does not start."
 
-#: ui/views.py:704
+#: ui/views.py:712
 #, python-format
 msgid "This configuration failed to forecast: %(error)s"
 msgstr "This configuration failed to forecast: %(error)s"
 
-#: ui/views.py:968
+#: ui/views.py:976
 msgid ""
 "Nothing has been run yet, so there is no model to judge this against. A "
 "belief stated now is acted on in full."
@@ -3065,7 +3089,7 @@ msgstr ""
 "Nothing has been run yet, so there is no model to judge this against. A "
 "belief stated now is acted on in full."
 
-#: ui/views.py:974
+#: ui/views.py:982
 msgid ""
 "This optimizer fits no model of the objective, so it has no opinion about "
 "where the optimum is."
@@ -3073,11 +3097,11 @@ msgstr ""
 "This optimizer fits no model of the objective, so it has no opinion about "
 "where the optimum is."
 
-#: ui/views.py:980
+#: ui/views.py:988
 msgid "This metric has no scale to measure the tolerance against yet."
 msgstr "This metric has no scale to measure the tolerance against yet."
 
-#: ui/views.py:1004
+#: ui/views.py:1012
 msgid ""
 "This prior is potentially informative: the model rates the region it points "
 "at as promising as where the search is already headed."
@@ -3085,11 +3109,8 @@ msgstr ""
 "This prior is potentially informative: the model rates the region it points "
 "at as promising as where the search is already headed."
 
-#: ui/views.py:1008
-#| msgid ""
-#| "This prior is unlikely to be helpful: the model rates the region it "
-#| "points at more than %(tolerance)s worse than where the search is already "
-#| "headed, so acting on it would cost trials."
+#: ui/views.py:1016
+#, python-format
 msgid ""
 "This prior is unlikely to be helpful: the model rates the region it points "
 "at more than %(margin)s worse than where the search is already headed, so "
@@ -3099,11 +3120,11 @@ msgstr ""
 "at more than %(margin)s worse than where the search is already headed, so "
 "acting on it would cost trials."
 
-#: ui/views.py:1014
+#: ui/views.py:1022
 msgid "This prior could not be judged, so it stands as stated."
 msgstr "This prior could not be judged, so it stands as stated."
 
-#: ui/views.py:1318 ui/views.py:1535
+#: ui/views.py:1326 ui/views.py:1543
 msgid ""
 "The model this experiment used is not available here, so its search space "
 "cannot be rebuilt."
@@ -3111,7 +3132,7 @@ msgstr ""
 "The model this experiment used is not available here, so its search space "
 "cannot be rebuilt."
 
-#: ui/views.py:1496
+#: ui/views.py:1504
 msgid ""
 "This SMAC has no acquisition weight layer, so a stated prior does not affect "
 "the search or the candidates below. Install the version requirements.txt "
@@ -3121,28 +3142,39 @@ msgstr ""
 "the search or the candidates below. Install the version requirements.txt "
 "pins."
 
-#: ui/views.py:1625
+#: ui/views.py:1657
+#| msgid ""
+#| "Local effects need the search space, which this experiment does not carry "
+#| "and has no model to ask."
+msgid ""
+"HyperSHAP needs the search space, which this experiment does not carry and "
+"has no model to ask."
+msgstr ""
+"HyperSHAP needs the search space, which this experiment does not carry and "
+"has no model to ask."
+
+#: ui/views.py:1703
 msgid ""
 "Set at least one stopping criterion, so the run has something to end on."
 msgstr ""
 "Set at least one stopping criterion, so the run has something to end on."
 
-#: ui/views.py:1942
+#: ui/views.py:2020
 msgid "Unknown sharing level."
 msgstr "Unknown sharing level."
 
-#: ui/views.py:1979
+#: ui/views.py:2057
 #, python-format
 msgid "%(name)s now belongs to %(user)s. You are a contributor."
 msgstr "%(name)s now belongs to %(user)s. You are a contributor."
 
-#: ui/views.py:2033
+#: ui/views.py:2111
 msgid ""
 "Given up on by hand: it stopped answering, and cancelling it had no effect."
 msgstr ""
 "Given up on by hand: it stopped answering, and cancelling it had no effect."
 
-#: ui/views.py:2198
+#: ui/views.py:2276
 msgid ""
 "Trial parameters are kept for the built-in models only: an uploaded model is "
 "fitted in its own environment, which nothing is brought back from."
@@ -3150,7 +3182,7 @@ msgstr ""
 "Trial parameters are kept for the built-in models only: an uploaded model is "
 "fitted in its own environment, which nothing is brought back from."
 
-#: ui/views.py:2201
+#: ui/views.py:2279
 #, python-format
 msgid ""
 "%(model)s has no fitted parameters to keep: its forecast is its history "
@@ -3159,7 +3191,7 @@ msgstr ""
 "%(model)s has no fitted parameters to keep: its forecast is its history "
 "replayed."
 
-#: ui/views.py:2205
+#: ui/views.py:2283
 msgid ""
 "This experiment keeps no trial models. Turn it on in Settings; a new run "
 "keeps them from then on."
@@ -3167,7 +3199,7 @@ msgstr ""
 "This experiment keeps no trial models. Turn it on in Settings; a new run "
 "keeps them from then on."
 
-#: ui/views.py:2208
+#: ui/views.py:2286
 #, python-format
 msgid ""
 "This trial's model was not kept: a run keeps only the best %(n)s trial's "
@@ -3186,49 +3218,49 @@ msgstr[1] ""
 "models (and with the option on, its own), or its group had no room. Change "
 "it in Settings."
 
-#: ui/views.py:2362
+#: ui/views.py:2440
 msgid "Light"
 msgstr "Light"
 
-#: ui/views.py:2362
+#: ui/views.py:2440
 msgid "Dark"
 msgstr "Dark"
 
-#: ui/views.py:2363
+#: ui/views.py:2441
 msgid "Same as my system"
 msgstr "Same as my system"
 
-#: ui/views.py:2399
+#: ui/views.py:2477
 msgid "See every experiment on this instance"
 msgstr "See every experiment on this instance"
 
-#: ui/views.py:2401
+#: ui/views.py:2479
 msgid "Run, edit and delete other people's experiments"
 msgstr "Run, edit and delete other people's experiments"
 
-#: ui/views.py:2403
+#: ui/views.py:2481
 msgid "Change the settings every experiment inherits"
 msgstr "Change the settings every experiment inherits"
 
-#: ui/views.py:2405
+#: ui/views.py:2483
 msgid "Upload and run custom models"
 msgstr "Upload and run custom models"
 
-#: ui/views.py:2440
+#: ui/views.py:2518
 #, python-format
 msgid "Moved %(name)s to the bin."
 msgstr "Moved %(name)s to the bin."
 
-#: ui/views.py:2488
+#: ui/views.py:2566
 #, python-format
 msgid "Restored %(name)s."
 msgstr "Restored %(name)s."
 
-#: ui/views.py:2547
+#: ui/views.py:2625
 msgid "Invalid or unreadable experiment file."
 msgstr "Invalid or unreadable experiment file."
 
-#: ui/views.py:2620
+#: ui/views.py:2698
 #, python-format
 msgid ""
 "This looks like more than one run — two files here are called %(name)s. "
@@ -3237,16 +3269,16 @@ msgstr ""
 "This looks like more than one run — two files here are called %(name)s. "
 "Choose a single run directory, the one holding its runhistory.json."
 
-#: ui/views.py:2627
+#: ui/views.py:2705
 #, python-format
 msgid "Could not read %(name)s."
 msgstr "Could not read %(name)s."
 
-#: ui/views.py:2634
+#: ui/views.py:2712
 msgid "This is not a readable SMAC run."
 msgstr "This is not a readable SMAC run."
 
-#: ui/views.py:2694
+#: ui/views.py:2776
 msgid ""
 "Local explanation needs the search space, which this experiment does not "
 "carry and has no model to ask."
@@ -3254,7 +3286,11 @@ msgstr ""
 "Local explanation needs the search space, which this experiment does not "
 "carry and has no model to ask."
 
-#: ui/views.py:2813
+#: ui/views.py:2779
+msgid "This trial is the baseline."
+msgstr "This trial is the baseline."
+
+#: ui/views.py:2898
 msgid ""
 "Partial dependence needs the search space, which this experiment does not "
 "carry and has no model to ask."
@@ -3262,7 +3298,7 @@ msgstr ""
 "Partial dependence needs the search space, which this experiment does not "
 "carry and has no model to ask."
 
-#: ui/views.py:2950
+#: ui/views.py:3036
 msgid ""
 "Local effects need the search space, which this experiment does not carry "
 "and has no model to ask."
@@ -3270,42 +3306,38 @@ msgstr ""
 "Local effects need the search space, which this experiment does not carry "
 "and has no model to ask."
 
-#: ui/views.py:3055
+#: ui/views.py:3147
 msgid "Not recorded"
 msgstr "Not recorded"
 
-#: ui/views.py:3057
+#: ui/views.py:3149
 #, python-format
 msgid "%(k)s backtest of %(h)s steps by %(column)s"
 msgid_plural "%(k)s backtests of %(h)s steps by %(column)s"
 msgstr[0] "%(k)s backtest of %(h)s steps by %(column)s"
 msgstr[1] "%(k)s backtests of %(h)s steps by %(column)s"
 
-#: ui/views.py:3063
+#: ui/views.py:3155
 #, python-format
 msgid "%(k)s time-ordered folds by %(column)s"
 msgstr "%(k)s time-ordered folds by %(column)s"
 
-#: ui/views.py:3065
+#: ui/views.py:3157
 #, python-format
 msgid "latest %(pct)s%% by %(column)s held out"
 msgstr "latest %(pct)s%% by %(column)s held out"
 
-#: ui/views.py:3068
+#: ui/views.py:3160
 #, python-format
 msgid "%(k)s-fold CV"
 msgstr "%(k)s-fold CV"
 
-#: ui/views.py:3069
+#: ui/views.py:3161
 #, python-format
 msgid "%(pct)s%% held out"
 msgstr "%(pct)s%% held out"
 
-#: ui/views.py:3075
-msgid "HyperSHAP"
-msgstr "HyperSHAP"
-
-#: ui/views.py:3077
+#: ui/views.py:3169
 msgid "Misc"
 msgstr "Misc"
 
@@ -3344,7 +3376,7 @@ msgstr "As the model needs"
 msgid "%(choice)s (%(model)s default)"
 msgstr "%(choice)s (%(model)s default)"
 
-#: datahandling/sections.py:41 ui/views.py:3074
+#: datahandling/sections.py:41 ui/views.py:3166
 msgid "Overview"
 msgstr "Overview"
 
@@ -3916,7 +3948,7 @@ msgid ""
 msgstr ""
 "A run is under way, and it is using the columns processed as they are now."
 
-#: datahandling/views.py:89 ui/views.py:508
+#: datahandling/views.py:89 ui/views.py:509
 msgid "Saved."
 msgstr "Saved."
 

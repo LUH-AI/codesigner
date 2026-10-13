@@ -76,7 +76,7 @@ def test_the_button_sits_with_the_game_selector_not_inside_a_figure(client,
     body = client.get(reverse("ui:experiment_detail",
                               args=[cancelled_experiment.pk])).content.decode()
 
-    section = body[body.index("Explanation Game"):]
+    section = body[body.index("<h2>HyperSHAP</h2>"):]
     section = section[:section.index("</section>")]
     assert 'class="compute-analytics"' in section
 

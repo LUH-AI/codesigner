@@ -177,6 +177,7 @@ def test_the_declared_actions_match_what_the_routes_do():
         "forecast": permissions.VIEW,
         "acquisition_slice": permissions.VIEW,
         "metric_figures": permissions.VIEW,
+        "hypershap_figures": permissions.VIEW,
         "local_effects": permissions.VIEW,
         "surrogate_uncertainty": permissions.VIEW,
         "run_status": permissions.VIEW,

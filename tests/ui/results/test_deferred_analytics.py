@@ -45,7 +45,8 @@ def test_the_flags_reach_the_page_as_json(client):
                                           "acquisition_slice": False,
                                           "local_effects": False,
                                           "surrogate_uncertainty": False,
-                                          "forecast": False}
+                                          "forecast": False,
+                                          "hypershap_baseline": True}
 
 
 def test_switching_one_on_is_visible_to_the_page(client):
@@ -57,7 +58,8 @@ def test_switching_one_on_is_visible_to_the_page(client):
                                           "acquisition_slice": False,
                                           "local_effects": False,
                                           "surrogate_uncertainty": False,
-                                          "forecast": False}
+                                          "forecast": False,
+                                          "hypershap_baseline": True}
 
 
 def test_both_figures_ship_a_compute_button(client):

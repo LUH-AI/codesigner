@@ -5,6 +5,7 @@ from abc import ABC, abstractmethod
 from dataclasses import dataclass, field, replace
 from typing import Any, Dict, List, NamedTuple, Optional
 from hypershap import ExplanationTask, HyperSHAP
+from shapiq.game_theory import MoebiusConverter
 
 from ..metrics import (
     METRICS, declarations, describe, from_cost, metric_for, to_cost)
@@ -136,7 +137,7 @@ class OptimizationResult:
     # above. Read by the interaction figure's graph/upset/by-order views, which
     # need terms above order 2; the heatmap and top-pairs views keep reading
     # `hyperparameter_interactions`, whose FSII numbers this deliberately does
-    # not replace (see `_shared_exact_computer` for why the two are not
+    # not replace (see `BaseOptimizer._compute_hp_game` for why the two are not
     # interchangeable). metric → [{"members": [...], "value": float}, ...].
     hyperparameter_moebius: Dict[str, list] = field(default_factory=dict)
     # The other two games' interactions and Möbius terms. Same shape as
@@ -1005,102 +1006,20 @@ class _MetricExplainer:
         return self._fallback
 
 
-#: What `HyperSHAP.tunability()`/`.sensitivity()`/`.mistunability()` build for
-#: themselves, named here so `_shared_exact_computer` can build the same thing.
-#: The aggregation is the only difference between the three games once the
-#: surrogate exists: MAX = how much upside is there, VAR = how much does
-#: performance move, MIN = how much downside does getting it wrong carry.
-_GAME_PIECES = {
-    "tunability": ("TunabilityExplanationTask", "TunabilityGame", "MAX"),
-    "sensitivity": ("SensitivityExplanationTask", "SensitivityGame", "VAR"),
-    "mistunability": ("MistunabilityExplanationTask", "MistunabilityGame", "MIN"),
-}
-
-#: How many configurations each game's searcher draws — HyperSHAP's own default
-#: for `HyperSHAP.tunability` and its siblings, which `_shared_exact_computer`
-#: has to match or it would be computing a different game from the one the
-#: facade computes. The equality test in `tests/core/test_hp_importance.py` is
-#: what catches it drifting.
-#:
-#: The searcher's *seed* is not here: it is the experiment's, passed down from
-#: `optimize()` like every other stochastic thing. HyperSHAP defaults it to 0,
-#: which meant two experiments with different seeds drew the same 10,000
-#: configurations to explain themselves with — deterministic, but not the
-#: experiment's determinism. The facade fallback in `_game_values` is given the
-#: same seed, so the two paths stay comparable.
-_HPO_SIMULATION_SAMPLES = 10_000
-
-
-def _shared_exact_computer(explainer, game: str, seed: int = 0):
-    """One `shapiq.ExactComputer` for *game*, read twice: FSII and Möbius.
-
-    Returns `(fsii_order_2, moebius)` — the interaction values today's
-    importance and interactions figures are built from, plus the full Möbius
-    (Harsanyi) decomposition the graph, upset and by-order views need.
-
-    **Why this reaches past HyperSHAP's facade**, which is a real cost and
-    wants justifying:
-
-    - *Why not call the facade twice?* `HyperSHAP.tunability()` builds a fresh
-      `ExactComputer` per call, and an `ExactComputer` evaluates 2^n_hp
-      coalitions. Two calls means paying that twice — measured at 6
-      hyperparameters, 1110 ms each. One computer caches its game evaluations,
-      so the second index is free: **1060 ms for FSII, then 1 ms for Möbius**.
-      Doubling the most expensive thing a run does, to avoid the twenty lines
-      below, is the wrong trade.
-
-    - *Why not just ask the facade for a higher-order FSII?* Because FSII is
-      the *faithful* least-squares k-order approximation — its terms are fitted
-      jointly, so the order-1 values of an order-3 fit are not the order-1
-      values of an order-2 fit. Measured: order-1 moves by 5% of the largest
-      term, order-2 by 24%. Raising the order in place would silently rewrite
-      `hyperparameter_importance` for every new run and make it incomparable
-      with every stored one.
-
-    - *Why Möbius?* It is the unique decomposition assigning one value per
-      coalition, and unlike FSII it is truncation-independent — measured
-      identical at order 2 and at order n. So it can be stored once and read at
-      any order, which is exactly what a plot showing 2-way and 5-way
-      interactions in the same picture needs. It is also the transform the
-      graph is named after.
-
-    **What protects this.** `hypershap` is at 0.0.6 and its internals may move.
-    Two things guard that: a test asserting this function's FSII output is
-    bit-identical to `HyperSHAP.<game>()`'s for all three games, which fails
-    loudly on any drift; and the caller's `except`, which falls back to the
-    facade and simply does without the Möbius-based views. Neither the numbers
-    on the page nor a stored result can go quietly wrong.
+def _baseline_config(config_space, baseline: Optional[Dict[str, Any]]):
+    """*baseline* as a `Configuration` of *config_space*, or the space's default
+    when there is none: what every HyperSHAP game here measures its gains from.
     """
-    from shapiq import ExactComputer
-    import hypershap.games as hs_games
-    import hypershap.task as hs_task
-    from hypershap.utils import Aggregation, RandomConfigSpaceSearcher
+    from ConfigSpace import Configuration
 
-    task_name, game_name, aggregation = _GAME_PIECES[game]
-    source = explainer.hs.explanation_task
-    surrogate = source.surrogate_model
-    if isinstance(surrogate, list):
-        surrogate = surrogate[0]
-
-    config_space = source.config_space
-    game_task = getattr(hs_task, task_name)(
-        config_space=config_space, surrogate_model=surrogate,
-        baseline_config=config_space.get_default_configuration())
-    built = getattr(hs_games, game_name)(
-        explanation_task=game_task,
-        cs_searcher=RandomConfigSpaceSearcher(
-            explanation_task=game_task, n_samples=_HPO_SIMULATION_SAMPLES,
-            mode=getattr(Aggregation, aggregation), seed=seed))
-
-    n_players = built.get_num_hyperparameters()
-    computer = ExactComputer(n_players=n_players, game=built)
-    # Order matters only for cost: FSII pays for the coalitions, Möbius reads
-    # the cached game afterwards.
-    return computer(index="FSII", order=2), computer(index="Moebius", order=n_players)
+    if baseline is None:
+        return config_space.get_default_configuration()
+    return Configuration(config_space, values=baseline)
 
 
-def _moebius_terms(iv, params: List[str]) -> list:
-    """A Möbius `InteractionValues` as JSON-storable rows, strongest first.
+def _moebius_terms(named: Dict[tuple, float]) -> list:
+    """Möbius terms, as `HyperSHAP.get_interaction_values_with_names` keys
+    them, turned into JSON-storable rows, strongest first.
 
     `[{"members": ["max_depth", "n_estimators"], "value": 0.013}, ...]` — a list
     rather than the nested dict `_extract_pairwise` produces, because these
@@ -1110,8 +1029,8 @@ def _moebius_terms(iv, params: List[str]) -> list:
     The empty coalition is dropped: it is the game's value with nothing tuned,
     a constant offset rather than anything attributable to a hyperparameter.
     """
-    rows = [{"members": [params[i] for i in key], "value": float(value)}
-            for key, value in iv.dict_values.items() if key]
+    rows = [{"members": list(members), "value": float(value)}
+            for members, value in named.items() if members]
     rows.sort(key=lambda row: abs(row["value"]), reverse=True)
     return rows
 
@@ -1661,14 +1580,16 @@ class BaseOptimizer(ABC):
         seed: int = 0,
         explainer=None,
         metric=None,
+        baseline: Optional[Dict[str, Any]] = None,
     ) -> tuple[Dict[str, float], Optional[str]]:
         """HyperSHAP's "ablation" game: how much each hyperparameter's value in
-        *config_of_interest* helped or hurt *metric_name*, versus the config
-        space's default — a *local* explanation of one specific trial, unlike
-        `HP_GAMES`' global ones.
+        *config_of_interest* helped or hurt *metric_name*, versus *baseline* —
+        a *local* explanation of one specific trial, unlike `HP_GAMES`' global
+        ones. *baseline* is a configuration as a dict, the config space's
+        default when left out.
 
         Signed, deliberately: positive means that hyperparameter's value in
-        this trial beat the default, negative means it lost to it. Zeroing
+        this trial beat the baseline's, negative means it lost to it. Zeroing
         that out with `abs()` (as the three global games do, on purpose,
         since they answer "how much does this matter" rather than "which
         direction") would throw away the one thing this view exists to show.
@@ -1692,15 +1613,12 @@ class BaseOptimizer(ABC):
         barely notices; explaining every trial (see `compute_local_effects`)
         would otherwise refit an identical forest once per trial.
         """
-        from ConfigSpace import Configuration
         from sklearn.ensemble import RandomForestRegressor
-
-        params = list(config_space.keys())
 
         if explainer is not None:
             if explainer.hs is None:
                 return {}, explainer.warning or "No surrogate for a local explanation."
-            return self._ablate(explainer.hs, config_space, config_of_interest, params)
+            return self._ablate(explainer.hs, config_space, config_of_interest, baseline)
 
         data = _pair_trials_with_oriented_scores(config_space, trials, metric_name, metric)
         if len(data) < 2:
@@ -1710,28 +1628,25 @@ class BaseOptimizer(ABC):
             task = ExplanationTask.from_data(
                 config_space, data,
                 base_model=RandomForestRegressor(n_estimators=100, random_state=seed))
-            hs = HyperSHAP(task)
-            config = Configuration(config_space, values=config_of_interest)
-            baseline = config_space.get_default_configuration()
-            iv = hs.ablation(config_of_interest=config, baseline_config=baseline)
-            order1 = iv.get_n_order(order=1).dict_values
-            return {params[idx]: val for (idx,), val in order1.items()}, None
         except Exception as e:
             return {}, f"HyperSHAP (ablation) failed ({e})."
+        return self._ablate(HyperSHAP(task), config_space, config_of_interest, baseline)
 
     @staticmethod
-    def _ablate(hs, config_space, config_of_interest, params):
-        """One ablation game against the config space's default, from a
-        HyperSHAP that already exists. The half of `compute_hp_ablation` that
-        does not depend on how the explainer was obtained."""
+    def _ablate(hs, config_space, config_of_interest, baseline=None):
+        """One ablation game against *baseline* (the config space's default when
+        None), from a HyperSHAP that already exists. The half of
+        `compute_hp_ablation` that does not depend on how the explainer was
+        obtained."""
         from ConfigSpace import Configuration
 
         try:
             iv = hs.ablation(
                 config_of_interest=Configuration(config_space, values=config_of_interest),
-                baseline_config=config_space.get_default_configuration())
-            order1 = iv.get_n_order(order=1).dict_values
-            return {params[idx]: val for (idx,), val in order1.items()}, None
+                baseline_config=_baseline_config(config_space, baseline))
+            named = hs.get_interaction_values_with_names(iv)
+            return {members[0]: value for members, value in named.items()
+                    if len(members) == 1}, None
         except Exception as e:
             return {}, f"HyperSHAP (ablation) failed ({e})."
 
@@ -1743,11 +1658,13 @@ class BaseOptimizer(ABC):
         seed: int = 0,
         max_trials: int = 0,
         metric=None,
+        baseline: Optional[Dict[str, Any]] = None,
     ) -> tuple[List[str], List[dict], Optional[str]]:
         """Every sampled trial's local ablation, for the beeswarm figure.
 
         `compute_hp_ablation` answers "what did each hyperparameter's value do
-        for *this* trial". This runs that question across the run, so the figure
+        for *this* trial", against *baseline* (the config space's default when
+        left out). This runs that question across the run, so the figure
         can show the *spread* of each hyperparameter's effect rather than one
         trial's or an average. A hyperparameter whose points cluster tightly
         behaves the same wherever you are in the space; one whose points fan
@@ -1784,7 +1701,7 @@ class BaseOptimizer(ABC):
         for index, trial in _sample_evenly(list(enumerate(trials)), max_trials):
             effects, warning = self.compute_hp_ablation(
                 config_space, trials, metric_name, trial.config, seed,
-                explainer=explainer)
+                explainer=explainer, baseline=baseline)
             if warning:
                 return [], [], warning
             rows.append({"index": index, "trial": trial.trial, "effects": effects})
@@ -2237,11 +2154,16 @@ class BaseOptimizer(ABC):
         metrics,
         seed: int = 0,
         cancel_event=None,
+        baseline: Optional[Dict[str, Any]] = None,
     ) -> Dict[str, tuple[Dict[str, Dict[str, float]], Dict[str, Optional[str]], Dict[str, Dict[str, Dict[str, float]]]]]:
         """Every metric's per-game hyperparameter importance, for all of
         `HP_GAMES` — what each optimizer's `optimize()` calls once, instead of
         looping `compute_hp_importance`/`_sensitivity`/`_mistunability`
         separately over every metric three times.
+
+        Every game is a gain over *baseline*, a configuration as a dict, or over
+        the config space's default when it is left out. What `optimize()`
+        stores is always the latter; the page asks for the others on request.
 
         Returns `{game: (importance_by_metric, warning_by_metric,
         interactions_by_metric, moebius_by_metric, total_by_metric)}`, the
@@ -2306,7 +2228,8 @@ class BaseOptimizer(ABC):
                                               metric=directions.get(metric_name))
             for game in self.HP_GAMES:
                 importance, warning, interactions, moebius, total = self._compute_hp_game(
-                    config_space, trials, metric_name, game, seed, explainer=explainer)
+                    config_space, trials, metric_name, game, seed, explainer=explainer,
+                    baseline=baseline)
                 by_game[game][0][metric_name] = importance
                 by_game[game][1][metric_name] = warning
                 by_game[game][2][metric_name] = interactions
@@ -2365,6 +2288,7 @@ class BaseOptimizer(ABC):
         game: str,
         seed: int = 0,
         explainer=None,
+        baseline: Optional[Dict[str, Any]] = None,
     ) -> tuple[Dict[str, float], Optional[str], Dict[str, Dict[str, float]], list]:
         """Shared scaffolding behind `compute_hp_importance`/`_sensitivity`/
         `_mistunability`/`_interactions`: ask HyperSHAP's *game* for order-1
@@ -2385,6 +2309,9 @@ class BaseOptimizer(ABC):
         the same object, so a metric whose HyperSHAP call fails fits one forest
         rather than one per game.
 
+        *baseline* is the configuration the game's gains are measured from, the
+        config space's default when None — see `compute_hp_games`.
+
         Returns (values_dict, warning_message, interactions_dict, moebius_terms,
         total). *total* is the sum of the raw order-1 magnitudes, before
         values_dict was normalised into shares of it — so `share x total`
@@ -2402,9 +2329,19 @@ class BaseOptimizer(ABC):
         rather than a failure (see the branch itself).
 
         moebius_terms is the full Möbius decomposition (see `_moebius_terms`),
-        or `[]` — on either fallback rung, and also when only
-        `_shared_exact_computer` failed, in which case the FSII numbers are
-        still HyperSHAP's own and only the views that read Möbius go empty.
+        or `[]` on either fallback rung.
+
+        Each game is played once, through HyperSHAP's own facade, and asked for
+        its Möbius decomposition: the one transform that assigns a value to
+        every coalition and does not change with the order it is truncated at,
+        so it is stored once and read at any order by the graph, upset and
+        by-order views. The FSII order-2 values behind the importance and the
+        pairwise grid are derived from it by shapiq's `MoebiusConverter` rather
+        than played for again, since a second facade call would evaluate all
+        2^n_hp coalitions a second time. Order 2 and not higher because FSII's
+        terms are fitted jointly — the order-1 terms of an order-3 fit are not
+        those of an order-2 fit — so raising it would change what every stored
+        importance means.
         """
         params = list(config_space.keys())
 
@@ -2418,11 +2355,15 @@ class BaseOptimizer(ABC):
 
         warning = None
         if explainer.hs is not None:
+            hs = explainer.hs
             try:
-                iv, moebius_iv = self._game_values(explainer, game, seed)
-                moebius = _moebius_terms(moebius_iv, params) if moebius_iv is not None else []
-                order1 = iv.get_n_order(order=1).dict_values
-                raw = {params[idx]: abs(val) for (idx,), val in order1.items()}
+                moebius_iv = getattr(hs, game)(
+                    baseline_config=_baseline_config(config_space, baseline),
+                    index="Moebius", order=len(params), seed=seed)
+                fsii = hs.get_interaction_values_with_names(
+                    MoebiusConverter(moebius_iv)(index="FSII", order=2))
+                moebius = _moebius_terms(hs.get_interaction_values_with_names(moebius_iv))
+                raw = {p: abs(fsii.get((p,), 0.0)) for p in params}
                 total = sum(raw.values())
                 if not total:
                     # Every contribution was exactly zero — which happens on a
@@ -2444,7 +2385,7 @@ class BaseOptimizer(ABC):
                         f"usually means the objective is saturated — try a "
                         f"harder dataset or a wider search space."), {}, [], 0.0
                 importance = {k: v / total for k, v in raw.items()}
-                interactions = self._extract_pairwise(iv, params)
+                interactions = self._extract_pairwise(fsii, params)
                 return importance, None, interactions, moebius, total
             except Exception as e:
                 warning = f"HyperSHAP ({game}) failed ({e}) — falling back to surrogate feature importances."
@@ -2464,42 +2405,19 @@ class BaseOptimizer(ABC):
         uniform = 1.0 / len(params) if params else 0.0
         return {p: uniform for p in params}, warning, {}, [], 0.0
 
-    def _game_values(self, explainer, game: str, seed: int = 0):
-        """*game*'s FSII order-2 values and its Möbius decomposition.
-
-        One `shapiq.ExactComputer` gives both for the price of the first — see
-        `_shared_exact_computer`, which explains at length why this doesn't go
-        through `HyperSHAP.<game>()` and what guards that.
-
-        The fallback is the point of keeping this separate: if hypershap's
-        internals move under us, we still get the facade's own FSII and only
-        lose the Möbius-based views, which then show the "no data" caption they
-        already show when a game fails outright. A failure here must not be able
-        to take the importance numbers with it. Both paths are given the
-        experiment's *seed*, so falling back changes what is computed as little
-        as it can.
-        """
-        try:
-            return _shared_exact_computer(explainer, game, seed)
-        except Exception:
-            return getattr(explainer.hs, game)(seed=seed), None
-
     @staticmethod
-    def _extract_pairwise(iv, params: List[str]) -> Dict[str, Dict[str, float]]:
-        """Reshape a HyperSHAP `InteractionValues` object's order-1 and
-        order-2 terms into one square hyperparameter × hyperparameter grid —
-        `{hp_a: {hp_b: value}}`, symmetric, diagonal = that hyperparameter's
-        own signed order-1 value. Raw values, not `abs()`-ed or normalized
-        like `_compute_hp_game`'s `importance` return: a heatmap comparing
-        interaction strength needs sign and a shared scale between the
-        diagonal and off-diagonal, not a share-of-100%.
+    def _extract_pairwise(named: Dict[tuple, float], params: List[str]) -> Dict[str, Dict[str, float]]:
+        """Reshape order-1 and order-2 terms, as
+        `HyperSHAP.get_interaction_values_with_names` keys them, into one
+        square hyperparameter × hyperparameter grid — `{hp_a: {hp_b: value}}`,
+        symmetric, diagonal = that hyperparameter's own signed order-1 value.
+        Raw values, not `abs()`-ed or normalized like `_compute_hp_game`'s
+        `importance` return: a heatmap comparing interaction strength needs
+        sign and a shared scale between the diagonal and off-diagonal, not a
+        share-of-100%.
         """
-        order1 = iv.get_n_order(order=1).dict_values
-        order2 = iv.get_n_order(order=2).dict_values
-        grid: Dict[str, Dict[str, float]] = {p: {} for p in params}
-        for (idx,), val in order1.items():
-            grid[params[idx]][params[idx]] = float(val)
-        for (i, j), val in order2.items():
-            a, b = params[i], params[j]
-            grid[a][b] = grid[b][a] = float(val)
+        grid = {p: {p: float(named.get((p,), 0.0))} for p in params}
+        for i, a in enumerate(params):
+            for b in params[i + 1:]:
+                grid[a][b] = grid[b][a] = float(named.get((a, b), 0.0))
         return grid

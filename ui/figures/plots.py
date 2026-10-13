@@ -311,6 +311,10 @@ def performance_over_time_plot(result, display_metric, *, x_axis="trial",
     fig.add_trace(go.Scatter(
         x=xs, y=incumbent_ys, mode="lines", name=_("Incumbent"),
         line=dict(width=2, shape="hv", color=ACCENT_COLOR),
+        # Out of the pointer's way for the same reason as the diamonds below:
+        # the line runs through every trial near the best score, and under
+        # closest hover it answered for them, so a click on one named nothing.
+        hoverinfo="skip",
     ))
     fig.add_trace(go.Scatter(
         x=[xs[i] for i in range(len(trials)) if improved[i]],
@@ -658,7 +662,7 @@ def hyperparameter_graph_plot(moebius: list, top_k: int = 15):
     This is the only view in the app that shows anything above order 2, and the
     reason the Möbius decomposition is stored at all: FSII's terms shift when
     the truncation order changes, so they cannot be read at several orders at
-    once (see `BaseOptimizer._shared_exact_computer`).
+    once (see `BaseOptimizer._compute_hp_game`).
 
     Only the *top_k* strongest interactions are drawn. A 6-hyperparameter run
     has 57 of them and a 10-hyperparameter one has 1,013; past a dozen or so the
@@ -836,7 +840,7 @@ def hyperparameter_orders_plot(moebius: list):
 
     Reads the Möbius decomposition rather than the order-2 FSII grid, because
     that is the one that assigns a single value per coalition of any size — see
-    `BaseOptimizer._shared_exact_computer` for why the two are not
+    `BaseOptimizer._compute_hp_game` for why the two are not
     interchangeable.
 
     Each term is split equally among its members, which is the standard reading

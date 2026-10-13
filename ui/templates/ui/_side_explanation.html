@@ -1,5 +1,6 @@
 {% load i18n %}
-{% comment %}Which HyperSHAP explanation game every figure on the page answers.
+{% comment %}Which HyperSHAP explanation game every figure on the page answers, and
+which configuration every HyperSHAP figure measures from.
 
 One choice rather than one per figure: reading the importance figure under
 tunability beside an interaction figure under sensitivity would be comparing two
@@ -7,11 +8,13 @@ different questions and looking like one answer. The three games are three
 questions about the same trial history, and all three were always computed — see
 BaseOptimizer.HP_GAMES and compute_hp_games.
 
-The local explanation is not here. It explains one trial rather than the search,
-and has no interactions to give the figures that read them, so it is its own
-figure.{% endcomment %}
+The local explanation is not among the games. It explains one trial rather than
+the search, and has no interactions to give the figures that read them, so it is
+its own figure. It does share the baseline: every HyperSHAP figure is a gain over
+some configuration, and two figures measured from different ones would not read
+together.{% endcomment %}
 <section class="side-section">
-    <h2>{% translate "Explanation Game" %}</h2>
+    <h2>{% translate "HyperSHAP" %}</h2>
     <div class="field">
         <div class="field-label">
             <label for="explanation-game">{% translate "Game" %}</label>
@@ -26,6 +29,23 @@ figure.{% endcomment %}
         <p class="caption" data-game-help>{% translate "What a hyperparameter could have gained you, had it been tuned." %}</p>
     </div>
     {{ explanation_game_help|json_script:"explanation-game-help" }}
+    {% comment %}The stored games are gains over the config space's default. The
+    incumbent, which the page opens on, and the selected trial are computed when
+    the page asks — see `hypershap_figures` — so this carries the one Compute
+    button for every figure they fill, for when that waits to be asked.{% endcomment %}
+    <div class="field">
+        <div class="field-label">
+            <label for="hypershap-baseline">{% translate "Compare against" %}</label>
+        </div>
+        <select id="hypershap-baseline">
+            <option value="default">{% translate "Default" %}</option>
+            <option value="incumbent" selected>{% translate "Incumbent" %}</option>
+            <option value="selected">{% translate "Selected" %}</option>
+        </select>
+    </div>
+    <p id="hypershap-compute" class="caption" hidden>
+        <button type="button" id="hypershap-compute-btn">{% translate "Compute" %}</button>
+    </p>
     {% comment %}One button, in the section that already owns the choice of game.
     It is a single computation and it fills all six figures that read one — the
     importance figure and the five interaction figures — so it belongs beside the

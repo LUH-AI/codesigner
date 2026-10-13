@@ -16,7 +16,7 @@ from django.urls import reverse
 from tests.conftest import DATASETS_DIR
 
 SECTIONS = ["Experiment Selection", "Experiment Evaluation",
-            "Explanation Game", "Selected Configuration"]
+            "HyperSHAP", "Selected Configuration"]
 
 
 _RESULT = {

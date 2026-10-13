@@ -113,6 +113,11 @@ class HyperparameterImportance(Figure):
     label = _("Hyperparameter importance (HyperSHAP)")
     home_tab = HYPERSHAP
     per_metric = True
+    explains_games = True
+    # Measured from anything but the config space's default, the games are
+    # computed when asked for rather than stored. Declared here, on the first
+    # figure that reads them, though it fills the interaction figures too.
+    deferred = (("hypershap_baseline", _("HyperSHAP against the incumbent or selected trial")),)
     # Two independent choices compose into one flat view key: which game — now
     # chosen once for the whole page, in the sidebar — and how to draw it, which
     # is this figure's own and stays on it. Tunability + pie is first, matching
@@ -166,7 +171,7 @@ class _Interactions(Figure):
     the top pairs read the order-2 FSII grid; the graph, the coalitions and the
     orders read the Möbius decomposition, which carries every coalition of every
     size. Those are not the same numbers and deliberately so — see
-    `BaseOptimizer._shared_exact_computer`.
+    `BaseOptimizer._compute_hp_game`.
 
     All of it is a free byproduct of the importance figure's own HyperSHAP call
     (order 2 is already its default), so nothing here is fetched on demand —
@@ -182,6 +187,7 @@ class _Interactions(Figure):
     home_tab = HYPERSHAP
 
     per_metric = True
+    explains_games = True
     views = tuple(HP_GAME_FIELDS)
     #: Which of a game's fields this reading comes out of: "interactions" for
     #: the order-2 FSII grid, "moebius" for the full decomposition.

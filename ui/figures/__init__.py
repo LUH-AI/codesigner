@@ -13,6 +13,7 @@ from .catalog import (
     FIGURES, FIGURES_BY_KEY, HP_GAME_FIELDS, HP_GAME_HELP, HP_GAME_LABELS,
 )
 from .plots import (
+    ACCENT_COLOR,
     PRIOR_COLOR,
     MARKER_COLOR,
     NEGATIVE_COLOR,
@@ -40,6 +41,7 @@ from .plots import (
 
 __all__ = [
     "FIGURES",
+    "ACCENT_COLOR",
     "PRIOR_COLOR",
     "MARKER_COLOR",
     "NEGATIVE_COLOR",

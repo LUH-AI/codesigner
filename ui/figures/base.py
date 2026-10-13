@@ -190,6 +190,12 @@ class Figure(Panel):
     #: themselves (importance, interactions, partial dependence) has no point to
     #: click and nothing to highlight.
     selects_trials = False
+    #: True when this figure draws one of the HyperSHAP games the sidebar's game
+    #: selector names (`HP_GAME_FIELDS`). Those are stored as gains over the
+    #: config space's default, and every other baseline the sidebar offers is
+    #: computed on request for exactly these figures — see `hypershap_figures`
+    #: in ui/views.py.
+    explains_games = False
     #: True when this figure belongs in the page's sidebar rather than in the
     #: figure grid. For a figure that answers a click made anywhere on the page
     #: rather than showing something of its own: in the grid it scrolls out of

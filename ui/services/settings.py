@@ -56,6 +56,10 @@ SETTING_DEFAULTS = {
     "export_timestamps": "",
     **{figure.setting_key: True for figure in FIGURES},
     **{autocompute_key(name): False for name, _label in deferred_computations()},
+    # The one exception: measuring the HyperSHAP games from the incumbent is
+    # what the page opens on, so waiting to be asked would open every
+    # experiment on six blank figures.
+    autocompute_key("hypershap_baseline"): True,
 }
 
 #: Bounds for the settings that are numbers rather than checkboxes, as

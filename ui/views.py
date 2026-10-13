@@ -4,6 +4,7 @@ import logging
 import statistics
 import tempfile
 from collections import OrderedDict
+from dataclasses import replace
 from importlib.metadata import version as dist_version
 from pathlib import Path
 
@@ -32,7 +33,7 @@ from core.optimizers.base import FAILURE_CRITERIA
 
 from .figures import (
     FIGURES, FIGURES_BY_KEY, HP_GAME_FIELDS, HP_GAME_HELP, HP_GAME_LABELS,
-    MARKER_COLOR, NEGATIVE_COLOR, SELECTION_COLOR, UNCERTAINTY_SCALE,
+    ACCENT_COLOR, MARKER_COLOR, NEGATIVE_COLOR, SELECTION_COLOR, UNCERTAINTY_SCALE,
     autocompute_key,
     deferred_computations,
     acquisition_slice_plots,
@@ -596,9 +597,16 @@ def trial_ablation(request, exp):
     if (built is None or built["result"] is None
             or not (0 <= idx < len(built["result"].trials))):
         return HttpResponseBadRequest("invalid trial index")
+    try:
+        baseline = _baseline_index(request, built["result"])
+    except ValueError:
+        return HttpResponseBadRequest("invalid baseline")
 
-    figure, warning, ablation = _local_ablation_data(built, metric, idx)
-    rows, settled = _tuning_progress(built["result"], metric, ablation)
+    figure, warning, ablation = _local_ablation_data(built, metric, idx, baseline)
+    # What a trial has banked is a gain over the default, and so is what
+    # tunability says was there to gain, so the two only subtract from there.
+    rows, settled = (_tuning_progress(built["result"], metric, ablation)
+                     if baseline is None else ([], False))
     # The headroom renderings cannot be precomputed — they need this trial's
     # ablation — so they come back with it, all three at once, and switching
     # rendering afterwards costs no second request.
@@ -1564,10 +1572,29 @@ def local_effects(request, exp):
     built = _rebuild_experiment(exp)
     if built is None or built["result"] is None or not built["result"].trials:
         return HttpResponseBadRequest("no result")
+    try:
+        baseline = _baseline_index(request, built["result"])
+    except ValueError:
+        return HttpResponseBadRequest("invalid baseline")
 
     figure, warning = _local_effects_data(
-        built, metric, resolve_settings(exp)["local_effects_max_trials"])
+        built, metric, resolve_settings(exp)["local_effects_max_trials"], baseline)
     return JsonResponse({"figure": figure, "warning": warning})
+
+
+def _baseline_index(request, result):
+    """The `baseline` query parameter as a trial index, or None when absent.
+
+    The trial every HyperSHAP explanation on the page is measured from, when it
+    is not the config space's default. Raises ValueError for a value naming no
+    trial, which the caller answers with a 400 like any other bad index.
+    """
+    raw = request.GET.get("baseline", "")
+    if raw == "":
+        return None
+    if not raw.isdigit() or int(raw) >= len(result.trials):
+        raise ValueError(raw)
+    return int(raw)
 
 
 @experiment_view(VIEW)
@@ -1597,6 +1624,57 @@ def metric_figures(request, exp):
     per_metric = [f for f in _shown_figures(exp) if f.per_metric]
     return JsonResponse(_figure_plots(result, per_metric, metric,
                                       config_space=_config_space_for(built)))
+
+
+@experiment_view(VIEW)
+def hypershap_figures(request, exp):
+    """Every HyperSHAP game figure for one metric, measured from one trial.
+
+    The stored games are gains over the config space's default, worked out at
+    run completion. This answers for the sidebar's other baselines, the
+    incumbent and the selected trial, which depend on the metric and on the
+    click and so cannot be stored ahead of time. All three games at once, so
+    the game selector switches between them without asking again; and as the
+    same plots and warnings the page draws the stored games from, so it draws
+    these the same way. `importance` carries the shares themselves, for the
+    importance table's columns, which set every baseline side by side.
+    """
+    metric = request.GET.get("metric", "")
+    idx_raw = request.GET.get("idx", "")
+    if metric not in exp.data.metric_names:
+        return HttpResponseBadRequest("unknown metric")
+    if not idx_raw.isdigit():
+        return HttpResponseBadRequest("invalid trial index")
+
+    built = _rebuild_experiment(exp)
+    result = built["result"] if built else None
+    idx = int(idx_raw)
+    if result is None or idx >= len(result.trials):
+        return HttpResponseBadRequest("invalid trial index")
+
+    config_space = _config_space_for(built)
+    if config_space is None:
+        reason = _("HyperSHAP needs the search space, which this experiment "
+                   "does not carry and has no model to ask.")
+        games = {game: ({metric: {}}, {metric: reason}, {metric: {}}, {metric: []}, {metric: 0.0})
+                 for game in HP_GAME_FIELDS}
+    else:
+        optimizer = built["optimizer"]
+        optimizer.analytics_max_coalitions = settings.ANALYTICS_EAGER_MAX_COALITIONS or None
+        games = optimizer.compute_hp_games(
+            config_space, result.trials, {metric: result.metric(metric)},
+            seed=built["seed"], baseline=result.trials[idx].config)
+
+    parts = ("importance", "warning", "interactions", "moebius")
+    measured = replace(result, **{
+        fields[part]: {metric: games[game][i][metric]}
+        for game, fields in HP_GAME_FIELDS.items() for i, part in enumerate(parts)})
+    figures = [f for f in _shown_figures(exp) if f.explains_games]
+    return JsonResponse({
+        "plots": _figure_plots(measured, figures, metric, config_space=config_space),
+        "warnings": {game: games[game][1][metric] for game in HP_GAME_FIELDS},
+        "importance": {game: games[game][0][metric] for game in HP_GAME_FIELDS},
+    })
 
 
 @experiment_view(RUN)
@@ -2674,13 +2752,17 @@ def _rebuild_result(exp):
     return built["result"] if built else None
 
 
-def _local_ablation_data(built, metric, idx):
+def _local_ablation_data(built, metric, idx, baseline=None):
     """The local-ablation figure + warning for one (metric, trial index) —
     HyperSHAP's `ablation` game, explaining that one trial's configuration
-    against the config space's default, rather than a global share like the
-    other three games. `built` is `_rebuild_experiment`'s full dict, since
-    this needs the search space and the optimizer instance, neither of which
-    the stored result carries.
+    against the trial at index *baseline*, or against the config space's
+    default when that is None, rather than a global share like the other three
+    games. `built` is `_rebuild_experiment`'s full dict, since this needs the
+    search space and the optimizer instance, neither of which the stored result
+    carries.
+
+    A trial explained against itself is not computed: every effect would be
+    zero by construction, and a waterfall of zeros reads as a finding.
 
     Returns (figure_json_or_None, warning_or_None, raw_effects). The effects
     are the signed per-hyperparameter values the figure is drawn from, in the
@@ -2693,6 +2775,8 @@ def _local_ablation_data(built, metric, idx):
     if config_space is None:
         return None, _("Local explanation needs the search space, which this "
                        "experiment does not carry and has no model to ask."), {}
+    if baseline == idx:
+        return None, _("This trial is the baseline."), {}
     result = built["result"]
     ablation, warning = built["optimizer"].compute_hp_ablation(
         config_space, result.trials, metric, result.trials[idx].config,
@@ -2700,7 +2784,8 @@ def _local_ablation_data(built, metric, idx):
         # From the result, not the registry: an imported run's objective is
         # declared inside its own file, and the explainer needs its direction
         # (see `_pair_trials_with_oriented_scores`).
-        metric=result.metric(metric))
+        metric=result.metric(metric),
+        baseline=None if baseline is None else result.trials[baseline].config)
     fig = hyperparameter_ablation_plot(ablation)
     return (json.loads(fig.to_json()) if fig is not None else None), warning, ablation
 
@@ -2937,9 +3022,10 @@ def _figure_plots(result, figures, metric=None, config_space=None):
     return {figure.key: one(figure) for figure in figures}
 
 
-def _local_effects_data(built, metric, max_trials=0):
+def _local_effects_data(built, metric, max_trials=0, baseline=None):
     """The beeswarm figure + warning for one metric — every sampled trial's
-    local ablation, from `compute_local_effects`.
+    local ablation, from `compute_local_effects`, against the trial at index
+    *baseline* or against the config space's default when that is None.
 
     Same shape and same reasoning as `_partial_dependence_data`: it needs the
     search space, not just the stored result, and it is the one figure whose
@@ -2952,9 +3038,15 @@ def _local_effects_data(built, metric, max_trials=0):
     result = built["result"]
     hp_names, rows, warning = built["optimizer"].compute_local_effects(
         config_space, result.trials, metric,
-        seed=built["seed"], max_trials=max_trials, metric=result.metric(metric))
+        seed=built["seed"], max_trials=max_trials, metric=result.metric(metric),
+        baseline=None if baseline is None else result.trials[baseline].config)
     fig = local_effects_plot(hp_names, rows)
     return (json.loads(fig.to_json()) if fig is not None else None), warning
+
+
+def _importance_rows(importance) -> list:
+    """One game's importance as the table rendering lists it, largest first."""
+    return sorted(importance.items(), key=lambda kv: kv[1], reverse=True)
 
 
 def _selected_panel_data(result, metric, idx):
@@ -3298,6 +3390,7 @@ def _detail_context(request, exp):
     from .layout import layout_for
     figure_layout = layout_for(exp, request.user)
     shown = resolve_settings(exp)
+    hp_names = list(result.trials[0].config.keys()) if result.trials else []
 
     panels = []
     for m in metric_names:
@@ -3337,8 +3430,12 @@ def _detail_context(request, exp):
             "importance_by_game": {
                 game: {
                     "warning": getattr(result, fields["warning"]).get(m),
-                    "table": sorted(getattr(result, fields["importance"]).get(m, {}).items(),
-                                    key=lambda kv: kv[1], reverse=True),
+                    # A row per hyperparameter even with nothing stored: the
+                    # table also has the incumbent's and the selected trial's
+                    # columns, which the page fills whether or not there is a
+                    # default one.
+                    "table": (_importance_rows(getattr(result, fields["importance"]).get(m, {}))
+                              or [(hp, None) for hp in hp_names]),
                 }
                 for game, fields in HP_GAME_FIELDS.items()
             },
@@ -3376,7 +3473,6 @@ def _detail_context(request, exp):
                                  config_space=config_space)
     static_plots = {key: plot for key, plot in static_plots.items() if plot is not None}
 
-    hp_names = list(result.trials[0].config.keys()) if result.trials else []
     # The Run form's target starts at what there is to beat. Per metric, so the
     # page can follow the metric dropdown; the one for the metric the form opens
     # on is what the field is filled with.
@@ -3413,6 +3509,10 @@ def _detail_context(request, exp):
         # (Figure.live) — the same declaration `run_status` builds payloads for,
         # so the page and the poll cannot disagree about which figures move.
         live_figures=[f.key for f in figures if f.live],
+        # And which of them draw the HyperSHAP games (Figure.explains_games),
+        # the ones the sidebar's baseline measures from somewhere other than
+        # the stored default.
+        game_figures=[f.key for f in figures if f.explains_games],
         # The two colours the highlight is drawn in, from the builders that draw
         # everything else in them — the script used to restate them, which is
         # one place for the page and the plots to disagree about what "selected"
@@ -3422,6 +3522,7 @@ def _detail_context(request, exp):
         # the glyph the way it does everywhere else. Sent rather than repeated
         # in the script, so the page restates no colour — see NEGATIVE_COLOR.
         selection_colors={"base": MARKER_COLOR, "selected": SELECTION_COLOR,
+                          "comparison": ACCENT_COLOR,
                           "failure": NEGATIVE_COLOR},
         # The one game selector, and what each game asks — resolved here rather
         # than in the template because the labels are lazy translations and

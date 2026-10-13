@@ -23,12 +23,13 @@ from ui.services.settings import SETTING_DEFAULTS, global_defaults, resolve_sett
 
 
 def test_the_deferred_computations_are_declared():
-    """In catalog order: the forecast, partial dependence, the local
+    """In catalog order: the HyperSHAP games measured from a trial (declared on
+    the importance figure), the forecast, partial dependence, the local
     explanation, the beeswarm, the acquisition slice, then the projection's
     uncertainty field, which is on the acquisition tab now."""
     assert [name for name, _ in deferred_computations()] == [
-        "forecast", "partial_dependence", "local_ablation", "local_effects",
-        "acquisition_slice", "surrogate_uncertainty"]
+        "hypershap_baseline", "forecast", "partial_dependence", "local_ablation",
+        "local_effects", "acquisition_slice", "surrogate_uncertainty"]
 
 
 def test_a_deferred_name_is_the_computations_not_the_figures():
@@ -43,14 +44,20 @@ def test_a_deferred_name_is_the_computations_not_the_figures():
 
 def test_figures_with_nothing_deferred_declare_nothing():
     deferred_keys = {f.key for f in FIGURES if f.deferred}
-    assert deferred_keys == {"local_explanation", "partial_dependence",
-                             "local_effects", "configuration_cube",
-                             "acquisition_slice", "forecast"}
+    assert deferred_keys == {"hyperparameter_importance", "local_explanation",
+                             "partial_dependence", "local_effects",
+                             "configuration_cube", "acquisition_slice", "forecast"}
+
+
+#: The one deferred computation on by default: the HyperSHAP games measured from
+#: the incumbent are what the page opens on, so waiting to be asked would open
+#: every experiment on six blank figures.
+ON_BY_DEFAULT = {"hypershap_baseline"}
 
 
 def test_every_deferred_computation_has_a_setting_defaulting_to_off():
     """Off by default, so opening or reloading an experiment page computes
-    nothing at all until it is asked to.
+    nothing at all until it is asked to, except for `ON_BY_DEFAULT`.
 
     These were on when the setting shipped, on the argument that it was an
     opt-out rather than a change. The measurements said otherwise: partial
@@ -58,8 +65,9 @@ def test_every_deferred_computation_has_a_setting_defaulting_to_off():
     10,000-trial run, and local ablation is 1.4 s at the same size. Neither is
     worth spending on a page the reader may not be looking at."""
     for name, _label in deferred_computations():
-        assert SETTING_DEFAULTS[autocompute_key(name)] is False
-        assert global_defaults()[autocompute_key(name)] is False
+        expected = name in ON_BY_DEFAULT
+        assert SETTING_DEFAULTS[autocompute_key(name)] is expected, name
+        assert global_defaults()[autocompute_key(name)] is expected, name
 
 
 def test_the_settings_are_booleans():
@@ -82,7 +90,7 @@ def test_they_start_unchecked(client):
     body = client.get(reverse("ui:default_experiment_settings")).content.decode()
     for name, _label in deferred_computations():
         field = body.split(f'name="{autocompute_key(name)}"', 1)[1].split(">", 1)[0]
-        assert "checked" not in field, name
+        assert ("checked" in field) is (name in ON_BY_DEFAULT), name
 
 
 def test_saving_records_each_choice(client):
@@ -127,4 +135,4 @@ def test_a_stored_setting_from_before_these_existed_still_resolves():
     defaults = global_defaults()
     assert defaults["show_trials"] is False
     for name, _label in deferred_computations():
-        assert defaults[autocompute_key(name)] is False
+        assert defaults[autocompute_key(name)] is (name in ON_BY_DEFAULT), name

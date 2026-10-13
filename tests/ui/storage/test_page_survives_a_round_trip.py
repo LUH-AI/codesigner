@@ -172,6 +172,8 @@ def test_what_is_left_out_is_about_the_reader_not_the_experiment(client, rf):
                     "default_trial_factor",
                     # Which figures a running run can redraw, from the catalog.
                     "live_figures",
+                    # Which figures draw the HyperSHAP games, from the catalog.
+                    "game_figures",
                     # Whether this instance could compute the explanations this
                     # result is missing — about what may be done here, not about
                     # the experiment, which carries the emptiness itself.

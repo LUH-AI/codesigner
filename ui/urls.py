@@ -83,6 +83,7 @@ urlpatterns = [
     path("experiments/<int:pk>/surrogate-uncertainty/", views.surrogate_uncertainty,
          name="surrogate_uncertainty"),
     path("experiments/<int:pk>/figures/", views.metric_figures, name="metric_figures"),
+    path("experiments/<int:pk>/hypershap/", views.hypershap_figures, name="hypershap_figures"),
     path("experiments/<int:pk>/compute-analytics/", views.experiment_compute_analytics,
          name="experiment_compute_analytics"),
     path("experiments/<int:pk>/export/", views.experiment_export, name="experiment_export"),

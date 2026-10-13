@@ -138,6 +138,7 @@ being read.{% endcomment %}
     {{ autocompute|json_script:"autocompute-data" }}
     {{ selectable_figures|json_script:"selectable-figures-data" }}
     {{ live_figures|json_script:"live-figures-data" }}
+    {{ game_figures|json_script:"game-figures-data" }}
     {{ selection_colors|json_script:"selection-colors-data" }}
     {{ computed_version|json_script:"computed-version" }}
     <script src="{% asset 'ui/computed.js' %}"></script>
@@ -167,7 +168,10 @@ being read.{% endcomment %}
             // selected view's. The one seam every draw/highlight/scale-toggle
             // call goes through, so none of them need to know views exist.
             function payloadFor(key, metric) {
-                const perMetric = metricPlots[metric] && metricPlots[metric][key];
+                const measured = measuredFrom(key, metric);
+                if (measured === null) return null;
+                const perMetric = measured !== undefined ? measured
+                    : metricPlots[metric] && metricPlots[metric][key];
                 const raw = perMetric !== undefined ? perMetric : staticPlots[key];
                 if (raw === undefined) return undefined;
                 const views = figureViews[key];
@@ -203,6 +207,7 @@ being read.{% endcomment %}
             const partialDependenceUrl = "{% url 'ui:partial_dependence' summary.pk %}";
             const metricFiguresUrl = "{% url 'ui:metric_figures' summary.pk %}";
             const localEffectsUrl = "{% url 'ui:local_effects' summary.pk %}";
+            const hypershapUrl = "{% url 'ui:hypershap_figures' summary.pk %}";
             const forecastUrl = "{% url 'ui:forecast' summary.pk %}";
             // Which on-request analytics may fetch themselves, and which wait
             // to be asked (see Figure.deferred and the autocompute_<name>
@@ -674,6 +679,17 @@ being read.{% endcomment %}
                 pointExportAt(metric);
                 showSelection(metric);
                 refreshLocalAblation(metric);  // its own figure now; a no-op if it is off
+                // Measured from the selection, every HyperSHAP figure moves
+                // with it. Otherwise only the importance figure might: its
+                // table always has the selected trial's column, and its bars
+                // may be compared with it.
+                if (currentBaseline() === "selected") {
+                    refreshHyperSHAP(metric);
+                    refreshLocalEffects(metric);
+                } else if (impRenderingSelect && (impRenderingSelect.value === "table"
+                           || currentComparison() === "selected")) {
+                    applyImportanceView();
+                }
                 if (typeof refreshForecast === "function") refreshForecast(metric);
                 fetch(trialPanelUrl + "?metric=" + encodeURIComponent(metric) + "&idx=" + idx)
                     .then(function (r) { return r.ok ? r.text() : Promise.reject(); })
@@ -705,7 +721,12 @@ being read.{% endcomment %}
             //
             // A drag is a rotation or a zoom rather than a selection, so a
             // pointer that travelled between press and release is ignored.
-            const DRAG_SLOP = 4;  // pixels; a steady hand still wobbles
+            // Plotly's own drag threshold (MINDRAG). Below it Plotly calls the
+            // gesture a click, and so must this, or a hand's wobble lands in
+            // between and the click belongs to neither.
+            const DRAG_SLOP = 8;  // pixels
+            // Plotly's hover throttle (HOVERMINTIME, 50 ms) and a frame to spare.
+            const HOVER_SETTLE = 70;  // milliseconds
             function attachSelectionClicks() {
                 selectableFigures.forEach(function (key) {
                     const el = figureEl(key);
@@ -713,25 +734,41 @@ being read.{% endcomment %}
                     clicksAttached[key] = true;
                     let hovered = null;
                     let pressedAt = null;
+                    // What was under the pointer when the button went down.
+                    // Plotly covers the page on a press, to follow a drag, and
+                    // the first pixel the pointer moves over that cover is an
+                    // unhover — so by the release, `hovered` is usually gone,
+                    // and only a perfectly still click would ever select.
+                    let pressedOn = null;
                     el.on("plotly_hover", function (data) {
                         hovered = data.points && data.points[0];
                     });
                     el.on("plotly_unhover", function () { hovered = null; });
                     el.addEventListener("mousedown", function (event) {
                         pressedAt = [event.clientX, event.clientY];
+                        pressedOn = hovered;
                     });
                     el.addEventListener("click", function (event) {
                         const moved = pressedAt && Math.hypot(
                             event.clientX - pressedAt[0],
                             event.clientY - pressedAt[1]);
                         if (moved > DRAG_SLOP) return;
-                        const sel = selectionMeta(key);
-                        if (!sel || !hovered) return;  // the modebar, or empty space
-                        // A 3D trace reports `pointNumber` and no `pointIndex`.
-                        const at = hovered.pointIndex !== undefined
-                            ? hovered.pointIndex : hovered.pointNumber;
-                        selectTrial(currentMetric(),
-                                    trialAt(sel, hovered.curveNumber, at));
+                        // Plotly works out what is under the pointer on a
+                        // throttle, so a click that follows the last move
+                        // closely arrives before the hover for where it
+                        // landed, and would name the point the pointer was
+                        // passing on the way. Read once the hover has caught up.
+                        const pressed = pressedOn;
+                        setTimeout(function () {
+                            const sel = selectionMeta(key);
+                            const point = hovered || pressed;
+                            if (!sel || !point) return;  // the modebar, or empty space
+                            // A 3D trace reports `pointNumber` and no `pointIndex`.
+                            const at = point.pointIndex !== undefined
+                                ? point.pointIndex : point.pointNumber;
+                            selectTrial(currentMetric(),
+                                        trialAt(sel, point.curveNumber, at));
+                        }, HOVER_SETTLE);
                     });
                 });
             }
@@ -813,6 +850,10 @@ being read.{% endcomment %}
             // currently selected — the one path both a metric switch and a
             // view switch redraw through, so they can't drift apart.
             function redraw(key, metric) {
+                // Waiting on the HyperSHAP endpoint is not the same as having
+                // nothing to show, so the figure is blanked rather than
+                // captioned — see refreshHyperSHAP.
+                if (measuredFrom(key, metric) === null) { clearPlot(key); return; }
                 draw(key, payloadFor(key, metric));
             }
 
@@ -835,6 +876,61 @@ being read.{% endcomment %}
             const gameFigures = Object.keys(figureViews).filter(function (key) {
                 return (figureViews[key] || []).indexOf("tunability") >= 0;
             });
+
+            // Which configuration every HyperSHAP figure measures from: the
+            // config space's default, which is what the run stored, or the
+            // metric's incumbent or the selected trial, which are measured
+            // from on request. Read off the control each time rather than
+            // remembered, for the same reason as the game: a browser restores
+            // a select's value across a reload without telling anyone.
+            const baselineSelect = document.getElementById("hypershap-baseline");
+            // Every figure drawing a game, the importance figure included —
+            // `gameFigures` above leaves it out, since it composes the game
+            // with a rendering of its own. Declared by the server, so this
+            // script names no figure.
+            const measuredFigures =
+                JSON.parse(document.getElementById("game-figures-data").textContent);
+            function currentBaseline() {
+                return baselineSelect ? baselineSelect.value : "default";
+            }
+            // The trial a baseline names for *metric*, or null for the
+            // default. Undefined when it names a trial there is none of.
+            function trialFor(baseline, metric) {
+                if (baseline === "incumbent") return bestIdxByMetric[metric];
+                if (baseline === "selected") return selectionFor(metric);
+                return null;
+            }
+            function baselineIdx(metric) {
+                return trialFor(currentBaseline(), metric);
+            }
+            // What a baseline is called on the page — the sidebar's own words
+            // for it, so the legend and the selector cannot disagree.
+            function baselineLabel(baseline) {
+                const option = baselineSelect
+                    && baselineSelect.querySelector('option[value="' + baseline + '"]');
+                return option ? option.textContent : baseline;
+            }
+            function baselineQuery(metric) {
+                const idx = baselineIdx(metric);
+                return idx === null || idx === undefined ? "" : "&baseline=" + idx;
+            }
+            // metric -> what `hypershap_figures` answered for the baseline now
+            // in force. metricPlots keeps the stored, default-baseline
+            // payloads, so going back to the default asks for nothing.
+            const baselinePayload = {};
+            // A game figure's payload measured from the current baseline:
+            // undefined under the default, where the stored payload applies,
+            // and null while the answer has not arrived.
+            function measuredFrom(key, metric) {
+                if (measuredFigures.indexOf(key) < 0 || currentBaseline() === "default") return undefined;
+                const data = baselinePayload[metric];
+                return data && data.plots[key] !== undefined ? data.plots[key] : null;
+            }
+            function gameWarning(metric, game) {
+                if (currentBaseline() === "default") return (warnings[metric] || {})[game];
+                const data = baselinePayload[metric];
+                return data ? data.warnings[game] : null;
+            }
             function importanceView() {
                 const renderings = figureViews.hyperparameter_importance;
                 const current = currentView.hyperparameter_importance
@@ -869,7 +965,7 @@ being read.{% endcomment %}
                 const warnEl = document.getElementById("imp-warning");
                 if (!warnEl) return;
                 const [game] = importanceView();
-                const msg = (warnings[metric] || {})[game];
+                const msg = gameWarning(metric, game);
                 warnEl.textContent = msg || "";
                 warnEl.hidden = !msg;
             }
@@ -893,16 +989,19 @@ being read.{% endcomment %}
                 return autocompute[name] !== false && !(computed && computed.running);
             }
             function cacheFor(name) { return computed ? computed.cache(name) : {}; }
-            const localAblationCache = cacheFor("local_ablation");  // "metric:idx" -> {figure, warning}
+            const localAblationCache = cacheFor("local_ablation");  // "metric:idx:baseline" -> {figure, warning}
+            function localAblationKey(metric) {
+                return metric + ":" + selectionFor(metric) + ":" + baselineIdx(metric);
+            }
             function refreshLocalAblation(metric, asked) {
                 if (!figureEl("local_explanation")) return;
                 const idx = selectionFor(metric);
                 if (idx === undefined) return;
-                const key = metric + ":" + idx;
+                const key = localAblationKey(metric);
                 function apply(data) {
                     // Stale by the time it resolves: the user moved on to
-                    // another metric while this was in flight.
-                    if (currentMetric() !== metric) return;
+                    // another metric, trial or baseline while this was in flight.
+                    if (currentMetric() !== metric || localAblationKey(metric) !== key) return;
                     setComputePrompt("ablation-compute", false);
                     draw("local_explanation", data.figure);
                     const warnEl = document.getElementById("local-explanation-warning");
@@ -918,14 +1017,21 @@ being read.{% endcomment %}
                 if (localAblationCache[key]) { apply(localAblationCache[key]); return; }
                 // Waiting to be asked. Keyed the same way as the cache, so
                 // selecting a trial that *has* been computed shows it straight
-                // away and only a genuinely new one asks again.
-                if (!mayFetch("local_ablation") && !asked) {
+                // away and only a genuinely new one asks again. A trial that is
+                // its own baseline is not waited on: the answer is that there
+                // is nothing to explain, and it costs nothing to say so.
+                if (!mayFetch("local_ablation") && !asked && baselineIdx(metric) !== idx) {
                     setComputePrompt("ablation-compute", true);
                     clearPlot("local_explanation");
+                    // Whatever the last answer warned about, it was about
+                    // another trial or baseline.
+                    const warnEl = document.getElementById("local-explanation-warning");
+                    if (warnEl) warnEl.hidden = true;
                     return;
                 }
                 setComputePrompt("ablation-compute", false);
-                fetch(trialAblationUrl + "?metric=" + encodeURIComponent(metric) + "&idx=" + idx)
+                fetch(trialAblationUrl + "?metric=" + encodeURIComponent(metric) + "&idx=" + idx
+                      + baselineQuery(metric))
                     .then(function (r) { return r.ok ? r.json() : Promise.reject(); })
                     .then(function (data) { localAblationCache[key] = data; apply(data); })
                     .catch(function () {});
@@ -937,12 +1043,186 @@ being read.{% endcomment %}
                 });
             }
 
+            // Every game figure measured from the incumbent or the selected
+            // trial, rather than from the default the run stored. Fetched, like
+            // the local explanation, because which trial that is depends on
+            // the metric and on the click. One request answers all three games,
+            // so the game selector never asks again, and the answers are kept
+            // per metric and baseline trial, so going back to a trial already
+            // measured from costs nothing.
+            const hypershapCache = cacheFor("hypershap_baseline");  // "metric:idx" -> {plots, warnings, importance}
+            const gamesInFlight = {};
+            // Calls *done* with the games measured from trial *idx*, now if
+            // they are known and when they arrive otherwise. False when they
+            // are waiting to be asked for, which the caller says with the
+            // sidebar's Compute button. One request per trial however many
+            // figures want it at once: the bar comparison, the table and the
+            // sidebar's baseline can all name the same trial.
+            function requestGames(metric, idx, asked, done) {
+                const key = metric + ":" + idx;
+                if (hypershapCache[key]) { done(hypershapCache[key]); return true; }
+                if (!mayFetch("hypershap_baseline") && asked !== true) return false;
+                if (!gamesInFlight[key]) {
+                    gamesInFlight[key] = fetch(hypershapUrl + "?metric=" + encodeURIComponent(metric) + "&idx=" + idx)
+                        .then(function (r) { return r.ok ? r.json() : Promise.reject(); })
+                        .then(function (data) { hypershapCache[key] = data; return data; })
+                        .finally(function () { delete gamesInFlight[key]; });
+                }
+                gamesInFlight[key].then(done).catch(function () {});
+                return true;
+            }
+            function showGames(metric) {
+                measuredFigures.forEach(function (key) {
+                    // The importance figure is redrawn through its own view
+                    // logic, which also knows about its table rendering.
+                    if (key !== "hyperparameter_importance") redraw(key, metric);
+                });
+                applyImportanceView();
+                syncImportanceTable(metric);
+                syncImportanceWarning(metric);
+                syncInteractionsWarning(metric);
+            }
+            function refreshHyperSHAP(metric, asked) {
+                if (!measuredFigures.length) return;
+                const idx = baselineIdx(metric);
+                delete baselinePayload[metric];
+                setComputePrompt("hypershap-compute", false);
+                // The default is what the run stored, and a baseline naming
+                // no trial has nothing to measure from: either way, nothing
+                // to ask for.
+                if (idx === null || idx === undefined) { showGames(metric); return; }
+                // Blank until it arrives: the stored games are the default's,
+                // and showing them under another baseline's name would be the
+                // wrong answer looking like the right one.
+                if (!hypershapCache[metric + ":" + idx]) showGames(metric);
+                const asking = requestGames(metric, idx, asked, function (data) {
+                    // Stale by the time it resolves: the metric, the baseline or
+                    // the selection it was measured from has moved on.
+                    if (currentMetric() !== metric || baselineIdx(metric) !== idx) return;
+                    baselinePayload[metric] = data;
+                    showGames(metric);
+                });
+                if (!asking) setComputePrompt("hypershap-compute", true);
+            }
+            const hypershapComputeBtn = document.getElementById("hypershap-compute-btn");
+            if (hypershapComputeBtn) {
+                hypershapComputeBtn.addEventListener("click", function () {
+                    const metric = currentMetric();
+                    setComputePrompt("hypershap-compute", false);
+                    refreshHyperSHAP(metric, true);
+                    applyImportanceView(true);
+                });
+            }
+
+            // The importance figure's bars, with a second baseline's laid over
+            // them. The sidebar's baseline is drawn as it always is; the
+            // comparison is a narrower bar in front of it, so each
+            // hyperparameter reads as one bar inside another.
+            const comparisonRadios = document.querySelectorAll('input[name="importance-comparison"]');
+            function currentComparison() {
+                const checked = document.querySelector('input[name="importance-comparison"]:checked');
+                return checked ? checked.value : "none";
+            }
+            // Only for the bars, and never the sidebar's own baseline: a game
+            // laid over itself shows nothing. Taken away under the reader if
+            // the sidebar moves onto it.
+            function syncComparisonControl() {
+                const group = document.querySelector("[data-bar-comparison]");
+                if (!group) return;
+                group.hidden = !impRenderingSelect || impRenderingSelect.value !== "bar";
+                comparisonRadios.forEach(function (radio) {
+                    const own = radio.value === currentBaseline();
+                    radio.closest("label").hidden = own;
+                    if (own && radio.checked) {
+                        group.querySelector('input[value="none"]').checked = true;
+                    }
+                });
+            }
+            function storedBars(metric, view) {
+                const stored = metricPlots[metric] && metricPlots[metric].hyperparameter_importance;
+                return stored ? stored[view] : null;
+            }
+            function layeredBars(primary, other, primaryName, otherName) {
+                if (!primary || !other) return primary || null;
+                const plot = JSON.parse(JSON.stringify(primary));
+                const front = JSON.parse(JSON.stringify(other.data[0]));
+                plot.data[0].name = primaryName;
+                front.name = otherName;
+                front.width = 0.4;
+                front.marker = {color: selectionColors.comparison};
+                plot.data.push(front);
+                plot.layout = Object.assign({}, plot.layout, {
+                    barmode: "overlay",
+                    showlegend: true,
+                    legend: {orientation: "h", yanchor: "bottom", y: 1.02, xanchor: "right", x: 1},
+                });
+                return plot;
+            }
+            function drawComparedBars(metric, asked) {
+                const game = currentGame();
+                const view = game + "-bar";
+                const comparison = currentComparison();
+                currentView.hyperparameter_importance = view;
+                if (measuredFrom("hyperparameter_importance", metric) === null) {
+                    clearPlot("hyperparameter_importance");
+                    return;
+                }
+                const primary = payloadFor("hyperparameter_importance", metric);
+                function layer(other) {
+                    if (currentMetric() !== metric || currentGame() !== game
+                        || currentComparison() !== comparison
+                        || !impRenderingSelect || impRenderingSelect.value !== "bar") return;
+                    draw("hyperparameter_importance", layeredBars(
+                        payloadFor("hyperparameter_importance", metric), other,
+                        baselineLabel(currentBaseline()), baselineLabel(comparison)));
+                    syncImportanceTable(metric);
+                }
+                // The sidebar's bars straight away; the comparison when it is known.
+                draw("hyperparameter_importance", primary);
+                syncImportanceTable(metric);
+                const idx = trialFor(comparison, metric);
+                if (idx === null) { layer(storedBars(metric, view)); return; }
+                if (idx === undefined) return;
+                const asking = requestGames(metric, idx, asked, function (data) {
+                    if (trialFor(comparison, metric) !== idx) return;
+                    layer(((data.plots || {}).hyperparameter_importance || {})[view]);
+                });
+                if (!asking) setComputePrompt("hypershap-compute", true);
+            }
+
+            // The table sets every baseline side by side, whatever the sidebar
+            // says. The default's column is the stored games, served with the
+            // page; the incumbent's and the selected trial's are filled in here.
+            function fillImportanceColumns(metric, asked) {
+                const game = currentGame();
+                const block = document.querySelector('.importance-table[data-metric="'
+                    + CSS.escape(metric) + '"][data-game="' + game + '"]');
+                if (!block) return;
+                function fill(baseline, values) {
+                    block.querySelectorAll('td[data-baseline="' + baseline + '"]').forEach(function (cell) {
+                        const value = values ? values[cell.closest("tr").dataset.hp] : undefined;
+                        cell.textContent = value === undefined || value === null ? "" : format(value);
+                    });
+                }
+                ["incumbent", "selected"].forEach(function (baseline) {
+                    const idx = trialFor(baseline, metric);
+                    fill(baseline, null);
+                    if (idx === null || idx === undefined) return;
+                    const asking = requestGames(metric, idx, asked, function (data) {
+                        if (currentMetric() !== metric || currentGame() !== game
+                            || trialFor(baseline, metric) !== idx) return;
+                        fill(baseline, (data.importance || {})[game]);
+                    });
+                    if (!asking) setComputePrompt("hypershap-compute", true);
+                });
+            }
+
             // One warning, five figures. It is the current game's own
             // caveat — the interactions come out of the same HyperSHAP call
             // as its importance — so each figure carries a copy and they are
             // set together.
             function syncInteractionsWarning(metric) {
-                const msg = (warnings[metric] || {})[currentGame()];
+                const msg = gameWarning(metric, currentGame());
                 document.querySelectorAll(".interactions-warning").forEach(function (el) {
                     el.textContent = msg || "";
                     el.hidden = !msg;
@@ -1004,13 +1284,16 @@ being read.{% endcomment %}
             // Local effects: one ablation game per trial, so it is the most
             // expensive thing the page can ask for and never fetches without
             // being told to (unless its autocompute setting says otherwise).
-            // Keyed by metric alone — unlike partial dependence there is no
-            // second choice to vary, the whole figure is one answer per metric.
+            // Keyed by metric and the trial it measures from — the whole
+            // figure is one answer per pair.
             const localEffectsCache = cacheFor("local_effects");
             function refreshLocalEffects(metric, asked) {
                 if (!figureEl("local_effects")) return;
+                const key = metric + ":" + baselineIdx(metric);
                 function apply(data) {
-                    if (currentMetric() !== metric) return;  // moved on while in flight
+                    // Moved on while in flight: another metric or baseline.
+                    if (currentMetric() !== metric
+                        || metric + ":" + baselineIdx(metric) !== key) return;
                     setComputePrompt("local-effects-compute", false);
                     draw("local_effects", data.figure);
                     // It arrives after everything else, so it wires and
@@ -1024,16 +1307,16 @@ being read.{% endcomment %}
                         warnEl.hidden = !data.warning;
                     }
                 }
-                if (localEffectsCache[metric]) { apply(localEffectsCache[metric]); return; }
+                if (localEffectsCache[key]) { apply(localEffectsCache[key]); return; }
                 if (!mayFetch("local_effects") && !asked) {
                     setComputePrompt("local-effects-compute", true);
                     clearPlot("local_effects");
                     return;
                 }
                 setComputePrompt("local-effects-compute", false);
-                fetch(localEffectsUrl + "?metric=" + encodeURIComponent(metric))
+                fetch(localEffectsUrl + "?metric=" + encodeURIComponent(metric) + baselineQuery(metric))
                     .then(function (r) { return r.ok ? r.json() : Promise.reject(); })
-                    .then(function (data) { localEffectsCache[metric] = data; apply(data); })
+                    .then(function (data) { localEffectsCache[key] = data; apply(data); })
                     .catch(function () {});
             }
             const localEffectsBtn = document.getElementById("local-effects-compute-btn");
@@ -1580,6 +1863,7 @@ being read.{% endcomment %}
                 syncImportanceTable(metric);
                 syncImportanceWarning(metric);
                 syncInteractionsWarning(metric);
+                refreshHyperSHAP(metric);  // the stored games are the default's
                 refreshLocalAblation(metric);  // its own figure now; a no-op if it is off
                 // The field belongs to one metric — it is that metric's
                 // surrogate disagreeing with itself — so it is dropped here
@@ -1663,6 +1947,7 @@ being read.{% endcomment %}
             // its Compute button again, or fetches if it is allowed to.
             document.addEventListener("computed:forgotten", function () {
                 const metric = currentMetric();
+                refreshHyperSHAP(metric);
                 refreshLocalAblation(metric);
                 refreshPartialDependence(metric);
                 refreshLocalEffects(metric);
@@ -1823,8 +2108,10 @@ being read.{% endcomment %}
             // game, the way the cube's axis pickers go when a projection is
             // showing. Left in place it would draw tunability's headroom
             // under another game's name, which is worse than not offering it.
+            // Both halves are also gains over the default, so it goes away
+            // under any other baseline too.
             function syncRemainingControl(startup) {
-                const tunability = currentGame() === "tunability";
+                const tunability = currentGame() === "tunability" && currentBaseline() === "default";
                 // A browser restores a checkbox across a reload, like it
                 // restores a select. But this one is a *request* — it asks
                 // for a computation that has not been made yet — and a
@@ -1840,12 +2127,16 @@ being read.{% endcomment %}
                 fillProgressColumns(tunability && progress ? progress.rows || [] : []);
             }
 
-            function applyImportanceView() {
+            // *asked* is true only from the Compute button: this is also a
+            // change handler, and an event is not a request.
+            function applyImportanceView(asked) {
                 if (!impRenderingSelect) return;
+                asked = asked === true;
                 syncRemainingControl();
+                syncComparisonControl();
                 const settled = document.getElementById("imp-settled");
                 const rendering = impRenderingSelect.value;
-                const tunability = currentGame() === "tunability";
+                const tunability = currentGame() === "tunability" && currentBaseline() === "default";
                 if (settled) {
                     settled.hidden = !(tunability && tunedRemaining()
                                        && progress && progress.settled);
@@ -1872,9 +2163,17 @@ being read.{% endcomment %}
                     syncImportanceTable(currentMetric());
                     return;
                 }
+                if (rendering === "bar" && currentComparison() !== "none") {
+                    drawComparedBars(currentMetric(), asked);
+                    return;
+                }
                 switchView("hyperparameter_importance",
                            currentGame() + "-" + rendering);
+                if (rendering === "table") fillImportanceColumns(currentMetric(), asked);
             }
+            comparisonRadios.forEach(function (radio) {
+                radio.addEventListener("change", function () { applyImportanceView(); });
+            });
             if (impRenderingSelect) {
                 impRenderingSelect.addEventListener("change", applyImportanceView);
             }
@@ -1914,6 +2213,20 @@ being read.{% endcomment %}
                             switchView(key, currentGame());
                         }
                     });
+                    syncInteractionsWarning(currentMetric());
+                    applyImportanceView();
+                });
+            }
+            // What every HyperSHAP figure measures from. The game figures, the
+            // local explanation and local effects all move together, since
+            // two figures measured from different configurations would not
+            // read together.
+            if (baselineSelect) {
+                baselineSelect.addEventListener("change", function () {
+                    const metric = currentMetric();
+                    refreshHyperSHAP(metric);
+                    refreshLocalAblation(metric);
+                    refreshLocalEffects(metric);
                     applyImportanceView();
                 });
             }
