@@ -40,6 +40,8 @@ class RandomOptimizer(BaseOptimizer):
         # no acquisition function for a prior to weight. The caller passes what
         # the reader stated without having to know which optimizer will get it.
         priors=None,
+        configurations=None,
+        projected_priors=None,
     ) -> OptimizationResult:
         # One fold unless the caller divided the data itself; see core.splits.
         splits = splits if splits is not None else holdout(X_train, y_train, X_val, y_val)
@@ -67,6 +69,11 @@ class RandomOptimizer(BaseOptimizer):
             initial_best_config=previous_result.best_config if previous_result else None,
             stopping=merge_stopping(n_trials, stopping),
         )
+
+        evaluated |= self.evaluate_requested(
+            configurations, model=model, splits=splits, metrics=metrics,
+            primary_metric=primary_metric, seed=seed, collector=collector,
+            cancel_event=cancel_event)
 
         consecutive_dupes = 0
         while not collector.done:

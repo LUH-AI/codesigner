@@ -106,15 +106,16 @@ class DbCancelFlag:
 
 
 def create_run(experiment, stopping, optimize_metric, started_by=None,
-               trial_timeout=None):
+               trial_timeout=None, configurations=None):
     """Record a pending run and commit its metric onto the experiment.
 
     `current_metric` becomes the optimized metric; original is pinned on the
     first run. *stopping* is the criteria the run ends on — at least one; see
     `core.optimizers.base.STOPPING_CRITERIA`. *trial_timeout* is how long any
     one call to the model may take — see `core.modelhost.deadline` — which is a
-    limit on a trial rather than on the run, and so is not one of them. Returns
-    the pending Run.
+    limit on a trial rather than on the run, and so is not one of them.
+    *configurations* are evaluated before the search is asked for anything — see
+    `BaseOptimizer.evaluate_requested`. Returns the pending Run.
 
     What the run searches under is copied onto it rather than referenced —
     its stopping criteria, its trial timeout and the stated priors — because
@@ -142,6 +143,8 @@ def create_run(experiment, stopping, optimize_metric, started_by=None,
         # changed it — and what is being recorded is what the trials came out
         # of.
         priors=dict(experiment.data.priors or {}),
+        projected_priors=list(experiment.data.projected_priors or []),
+        configurations=list(configurations or []),
         events=events,
     )
 
@@ -442,6 +445,10 @@ def _execute_run_locally(run_id):
                 # rather than read here, because `core/` imports no Django and
                 # must not learn what an Experiment is.
                 priors=experiment.data.priors or None,
+                projected_priors=experiment.data.projected_priors or None,
+                # A configuration picked off the page, run as a trial before
+                # the search is asked for anything.
+                configurations=run.configurations or None,
             )
 
         if launch is None:
@@ -540,6 +547,9 @@ def execute_run_on_cluster(run_id):
                 # bounds the run — the snapshot carries the search space, and a
                 # prior is a statement about it.
                 "priors": experiment.data.priors or None,
+                "projected_priors": experiment.data.projected_priors or None,
+                # What it was told to evaluate rather than search for.
+                "configurations": run.configurations or None,
             },
             dataset=experiment.data.dataset_path(),
             model=Path(experiment.data.model_file.path) if experiment.data.model_file else None,

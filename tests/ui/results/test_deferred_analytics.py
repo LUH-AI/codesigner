@@ -42,7 +42,7 @@ def test_the_flags_reach_the_page_as_json(client):
 
     assert _autocompute_payload(body) == {"local_ablation": False,
                                           "partial_dependence": False,
-                                          "acquisition_slice": False,
+                                          "acquisition_slice": True,
                                           "local_effects": False,
                                           "surrogate_uncertainty": False,
                                           "forecast": False,
@@ -55,7 +55,7 @@ def test_switching_one_on_is_visible_to_the_page(client):
 
     assert _autocompute_payload(body) == {"local_ablation": False,
                                           "partial_dependence": True,
-                                          "acquisition_slice": False,
+                                          "acquisition_slice": True,
                                           "local_effects": False,
                                           "surrogate_uncertainty": False,
                                           "forecast": False,

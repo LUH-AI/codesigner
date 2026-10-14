@@ -17,6 +17,7 @@ from .plots import (
     PRIOR_COLOR,
     MARKER_COLOR,
     NEGATIVE_COLOR,
+    PROPOSAL_COLOR,
     SELECTION_COLOR,
     UNCERTAINTY_SCALE,
     configuration_cube_plot,
@@ -35,16 +36,19 @@ from .plots import (
     parallel_coordinates_plot,
     forecast_plot,
     partial_dependence_plot,
+    slice_span,
     performance_over_time_plot,
     trial_duration_plot,
 )
 
 __all__ = [
     "FIGURES",
+    "slice_span",
     "ACCENT_COLOR",
     "PRIOR_COLOR",
     "MARKER_COLOR",
     "NEGATIVE_COLOR",
+    "PROPOSAL_COLOR",
     "SELECTION_COLOR",
     "UNCERTAINTY_SCALE",
     "FIGURES_BY_KEY",

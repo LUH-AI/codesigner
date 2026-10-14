@@ -43,6 +43,7 @@ DISPLAYED = [
     "trials_exhausted",
     "figure_options",
     "figure_views",
+    "projected_priors",   # beliefs drawn in the configuration cube
 ]
 
 #: Keys that differ by construction — the copy is a different row in a different
@@ -160,7 +161,9 @@ def test_what_is_left_out_is_about_the_reader_not_the_experiment(client, rf):
                     # constants, not anything this experiment decided.
                     "beta_min", "beta_max",
                     "autocompute", "explanation_games", "explanation_game_help",
-                    "has_result", "supports_confidence", "trials_page_size",
+                    "has_result", "supports_confidence", "can_requery", "trials_page_size",
+                    # Whether this reader may draw a prior in the cube.
+                    "can_draw_priors",
                     "tuning_progress",
                     # Whether the optimizer as configured can judge a prior,
                     # from its capabilities rather than anything it has run,

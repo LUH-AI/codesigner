@@ -29,10 +29,39 @@ fetch, which nothing else on the page does.{% endcomment %}
          data-csrf="{{ csrf_token }}">
     <div class="card-head">
         <div class="subheader">{{ figure.label }}</div>
-        <p class="selectors acq-controls">
+        {% comment %}Two columns of two rows, each cell as wide as its column:
+        the hyperparameter above the incumbent's curves, and Next Trials above
+        Requery.
+
+        The incumbent's curves are the two computed along the slice, with every
+        other hyperparameter frozen at the incumbent's. They answer a narrower
+        question than the sampled curve — what this one line looks like, not
+        what the search can reach — so they are off unless asked for, and the
+        panel opens on what the search can actually reach. Switched on, the
+        incumbent is marked along them: it is the one configuration on that line
+        anybody measured, and the line is drawn through it.
+
+        Next Trials is not a redraw. It saves the prior and then asks a real
+        optimizer — built from this run's own settings and replayed over its
+        own trials — what it would hand out next, which is why it takes a
+        moment and why Requery is a button rather than something that happens
+        on every drag. One pair of controls with the configuration cube's — see
+        next_trials.js.
+
+        Both are about the acquisition curve, which nothing has computed until
+        Compute is pressed (or the figure computes on its own), so they are
+        hidden until there is one — holding their place, so the figure does not
+        move when they appear.{% endcomment %}
+        <p class="selectors stacked acq-controls">
             <select id="acq-hp-select" class="acq-hp-select" aria-label="{% translate 'Hyperparameter' %}">
                 {% for h in hp_names %}<option value="{{ h }}">{{ h }}</option>{% endfor %}
             </select>
+            <label class="acq-toggle" data-slice-control hidden
+                   title="{% translate 'Acquisition with incumbent hyperparameters' %}">
+                <input type="checkbox" id="acq-show-slice">
+                {% translate "Acq. w/ inc. HPs" %}
+            </label>
+            <span class="control-stack" data-slice-control hidden>{% include "ui/figures/_next_trials.html" with prefix="acq" %}</span>
         </p>
     </div>
     <p id="acq-warning" class="alert warning" hidden></p>
@@ -46,31 +75,6 @@ fetch, which nothing else on the page does.{% endcomment %}
     draw() hides and shows a figure by that id, and this one ships no
     server-rendered payload for it to draw.{% endcomment %}
     <div id="{{ figure.dom_id }}" class="acq-stack">
-        {% comment %}The two curves computed along the slice, with every other
-        hyperparameter frozen at the incumbent's. They answer a narrower question
-        than the sampled curve below them — what this one line looks like, not
-        what the search can reach — so they are off unless asked for, and the
-        panel opens on what the search can actually reach.
-
-        Switched on, the incumbent is marked along them: it is the one
-        configuration on that line anybody measured, and the line is drawn
-        through it.{% endcomment %}
-        {% comment %}Hidden until there is a curve to act on: both are about the
-        acquisition function, which nothing has computed until Compute is
-        pressed (or the figure computes on its own). The script shows them
-        when the curve is drawn and hides them when it goes.{% endcomment %}
-        <p class="selectors acq-controls" id="acq-slice-controls" hidden>
-            <label class="acq-toggle">
-                <input type="checkbox" id="acq-show-slice">
-                {% translate "Acquisition with incumbent hyperparameters" %}
-            </label>
-            {% comment %}Not a redraw. This saves the prior and then asks a real
-            optimizer — built from this run's own settings and replayed over its
-            own trials — what it would hand out next, which is why it takes a
-            moment and why it is a button rather than something that happens on
-            every drag.{% endcomment %}
-            <button type="button" id="acq-rewalk">{% translate "Requery Next Trials" %}</button>
-        </p>
         <div id="acq-plot-acquisition" class="acq-panel"></div>
 
         {% comment %}The surrogate panel is not drawn, and its figure is not

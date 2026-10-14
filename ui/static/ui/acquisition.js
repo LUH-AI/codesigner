@@ -8,7 +8,7 @@
  * That split is deliberate. The prior is a thing the reader states and drags,
  * so the traces depending on it change faster than any round trip; and once
  * they are computed here, computing them in Python as well would mean two
- * implementations of expected improvement that have to keep agreeing forever.
+ * implementations of the acquisition function that have to keep agreeing forever.
  * So Python owns the palette, the axes and the panel structure, and this file
  * owns the arithmetic. Everything it needs travels in the figure's own
  * `layout.meta.acquisition` — the same contract `layout.meta.selection` uses
@@ -26,7 +26,6 @@
     if (window.codesignerAcquisition) return;
     window.codesignerAcquisition = true;
 
-    var SQ2PI = Math.sqrt(2 * Math.PI);
 
     //: Every figure here draws the same way: no modebar, and responsive so a
     //: page-width slot is actually used.
@@ -44,34 +43,14 @@
      * opposite of what the resting state should say. */
     var PRIOR_AXIS_TOP = 1.25;
 
-    /* Abramowitz & Stegun 7.1.26. Accurate to ~1.5e-7, which is several orders
-     * better than anything here needs: the acquisition function is only ever
-     * ranked, and it is drawn 400 pixels wide. */
-    function erf(x) {
-        var s = x < 0 ? -1 : 1, t;
-        x = Math.abs(x);
-        t = 1 / (1 + 0.3275911 * x);
-        return s * (1 - ((((1.061405429 * t - 1.453152027) * t + 1.421413741) * t
-            - 0.284496736) * t + 0.254829592) * t * Math.exp(-x * x));
-    }
-    function cdf(z) { return 0.5 * (1 + erf(z / Math.SQRT2)); }
-    function pdf(z) { return Math.exp(-0.5 * z * z) / SQ2PI; }
-
-    /* Expected improvement over `eta`, written for whichever direction the
-     * metric runs. `gain` is how much better than the incumbent this point
-     * would be if the surrogate is right; the formula is the same either way
-     * once the sign is settled, which is why the orientation is handled here
-     * and not by pre-flipping the data. */
-    function expectedImprovement(mu, sigma, eta, higherIsBetter) {
-        var gain = higherIsBetter ? mu - eta : eta - mu, z;
-        if (!(sigma > 1e-12)) return Math.max(gain, 0);
-        z = gain / sigma;
-        return gain * cdf(z) + sigma * pdf(z);
-    }
+    /* The run's own acquisition function — see improvement.js, which both
+     * this and the configuration cube use. Expected improvement until a slice
+     * says which. */
+    var acquisitionAt = window.codesignerImprovement.acquisition(null);
 
     /* The fiction: the mean that would have produced `target` on its own.
      *
-     * Expected improvement falls monotonically as a point gets worse, so the
+     * The acquisition falls monotonically as a point gets worse, so the
      * inverse exists and bisection finds it. This is the only sense in which a
      * prior moves a performance curve — it is not a surrogate anyone fitted,
      * and the caller draws it dashed for that reason.
@@ -82,11 +61,11 @@
      * curve to the panel edge, which would read as a real plateau. */
     function impliedMean(target, sigma, eta, higherIsBetter, lo, hi) {
         var best = higherIsBetter ? hi : lo, worst = higherIsBetter ? lo : hi, mid, i;
-        if (target >= expectedImprovement(best, sigma, eta, higherIsBetter)) return null;
-        if (target <= expectedImprovement(worst, sigma, eta, higherIsBetter)) return null;
+        if (target >= acquisitionAt(best, sigma, eta, higherIsBetter)) return null;
+        if (target <= acquisitionAt(worst, sigma, eta, higherIsBetter)) return null;
         for (i = 0; i < 44; i++) {
             mid = 0.5 * (best + worst);
-            if (expectedImprovement(mid, sigma, eta, higherIsBetter) > target) best = mid;
+            if (acquisitionAt(mid, sigma, eta, higherIsBetter) > target) best = mid;
             else worst = mid;
         }
         return 0.5 * (best + worst);
@@ -227,10 +206,14 @@
      * the run would do next, left alone". */
     function compute(meta, prior) {
         var n = meta.positions.length,
-            acq = [], weighted = [], weights = [], fiction = [],
+            acq = [], weighted = [], weights = [], fiction = [], combined = [],
             lo = Infinity, hi = -Infinity,
             band, k, stated, pts, envelope, slots, cloudWeight, j, slot, value,
-            i, w, raw, scale, peak, pad, bare;
+            i, w, raw, scale, peak, pad, bare, weighing, own,
+            /* Priors drawn in the configuration cube weigh whole
+             * configurations; the server evaluates them at the ones this
+             * figure predicted at, along the slice and over the cloud. */
+            drawn = meta.projectedWeights || null;
 
         for (i = 0; i < n; i++) {
             if (meta.mu[i] < lo) lo = meta.mu[i];
@@ -244,7 +227,7 @@
         hi += pad;
 
         for (i = 0; i < n; i++) {
-            acq.push(expectedImprovement(meta.mu[i], meta.sigma[i], meta.eta, meta.higherIsBetter));
+            acq.push(acquisitionAt(meta.mu[i], meta.sigma[i], meta.eta, meta.higherIsBetter));
         }
         /* A uniform prior is the same statement as no prior: it multiplies the
          * acquisition by a constant, which cannot change a ranking. So it
@@ -256,23 +239,22 @@
             raw = densityFor("grid");
             if (!raw || raw.length !== n) stated = false;
         }
-        if (stated) {
-            for (i = 0; i < n; i++) {
-                /* The floor goes on before the exponent, not after: zero raised
-                 * to any positive power is still zero, so flooring afterwards
-                 * would leave a written-off region at exactly zero and lose the
-                 * ordering the floor exists to keep. Same reason SMAC's
-                 * AbstractAcquisitionWeight adds it where it does. */
-                w = Math.pow(raw[i] + 1e-12, prior.exponent);
-                weights.push(w);
-                weighted.push(acq[i] * w);
-            }
-        } else {
-            for (i = 0; i < n; i++) { weights.push(1); weighted.push(acq[i]); }
+        weighing = stated || !!drawn;
+        for (i = 0; i < n; i++) {
+            /* The floor goes on before the exponent, not after: zero raised
+             * to any positive power is still zero, so flooring afterwards
+             * would leave a written-off region at exactly zero and lose the
+             * ordering the floor exists to keep. Same reason SMAC's
+             * AbstractAcquisitionWeight adds it where it does. */
+            w = stated ? Math.pow(raw[i] + 1e-12, prior.exponent) : 1;
+            weights.push(w);
+            /* Every belief at once, multiplied, as the search applies them. */
+            combined.push(w * (drawn ? drawn.slice[i] : 1));
+            weighted.push(acq[i] * combined[i]);
         }
 
         for (i = 0; i < n; i++) {
-            fiction.push(stated
+            fiction.push(weighing
                 ? impliedMean(weighted[i], meta.sigma[i], meta.eta, meta.higherIsBetter, lo, hi)
                 : null);
         }
@@ -297,7 +279,8 @@
          * the weighted curve lies at or below the unweighted one, meeting it
          * where the prior is strongest, and the gap elsewhere is what the
          * prior has written off. */
-        peak = maxOf(weights) || 1;
+        peak = maxOf(combined) || 1;
+        own = maxOf(weights) || 1;
         for (i = 0; i < n; i++) {
             weighted[i] = weighted[i] / peak;
         }
@@ -313,8 +296,10 @@
          * weighting above is untouched: that division is what keeps the
          * weighted acquisition comparable to the unweighted one, and it is
          * ranking-invariant either way. */
+        /* By its own peak: the panel draws this hyperparameter's prior, not
+         * what the drawn ones add to it along the slice. */
         if (!(stated && prior.kind === "tabulated")) {
-            for (i = 0; i < n; i++) weights[i] = weights[i] / peak;
+            for (i = 0; i < n; i++) weights[i] = weights[i] / own;
         }
 
         /* The fiction's own spread, from the same σ the surrogate reports: the
@@ -367,7 +352,7 @@
          * moving something this panel is holding still, which is most of the
          * answer to why the next configuration is not the curve's peak.
          *
-         * Expected improvement is computed here, with the same function the
+         * The acquisition is computed here, with the same function the
          * curve uses, from the mean and spread the server sent. A maximum per
          * slot rather than a mean: what matters is what the search *could*
          * find there, not how a region scores on average. Empty slots stay null
@@ -392,20 +377,22 @@
              * Its own maximum, not the weighted one's: the two are separate
              * maxima over the same points, and a prior can move which sample
              * wins a slot. */
-            bare = stated && cloudWeight ? [] : null;
+            bare = (stated && cloudWeight) || drawn ? [] : null;
             for (i = 0; i < n; i++) {
                 envelope.push(null);
                 if (bare) bare.push(null);
             }
             for (j = 0; j < meta.cloud.mu.length; j++) {
-                value = expectedImprovement(meta.cloud.mu[j], meta.cloud.sigma[j],
+                value = acquisitionAt(meta.cloud.mu[j], meta.cloud.sigma[j],
                                             meta.eta, meta.higherIsBetter);
                 slot = slots[j];
                 if (bare && (bare[slot] === null || value > bare[slot])) {
                     bare[slot] = value;
                 }
-                if (stated && cloudWeight) {
-                    value *= Math.pow(cloudWeight[j] + 1e-12, prior.exponent) / peak;
+                if ((stated && cloudWeight) || drawn) {
+                    value *= (stated && cloudWeight
+                              ? Math.pow(cloudWeight[j] + 1e-12, prior.exponent) : 1)
+                        * (drawn && drawn.cloud ? drawn.cloud[j] : 1) / peak;
                 }
                 if (envelope[slot] === null || value > envelope[slot]) envelope[slot] = value;
             }
@@ -550,8 +537,6 @@
 
     var url = section.getAttribute("data-acquisition-url"),
         priorUrl = section.getAttribute("data-prior-url"),
-        rewalkBtn = document.getElementById("acq-rewalk"),
-        rewalkLabel = "",
         csrf = section.getAttribute("data-csrf"),
         saveTimer = 0,
         /* One save in flight at a time. Each save writes the prior *and* hands
@@ -581,9 +566,9 @@
         hpSelect = hpSelects[0] || null,
         initialEl = document.getElementById("acq-initial"),
         sliceToggle = document.getElementById("acq-show-slice"),
-        /* The incumbent-slice toggle and Requery: shown only while there is an
-         * acquisition curve for them to be about. */
-        sliceControls = document.getElementById("acq-slice-controls"),
+        /* The incumbent-slice toggle and Next Trials: shown only while there
+         * is an acquisition curve for them to be about. */
+        sliceControls = Array.prototype.slice.call(document.querySelectorAll("[data-slice-control]")),
         betaField = document.getElementById("acq-prior-beta"),
         strengthEl = document.getElementById("acq-prior-strength"),
         delayToggle = document.getElementById("acq-prior-delay"),
@@ -614,6 +599,9 @@
         latest = {},
         defaultBeta = null,
         inflight = {},
+        /* How many times the drawn priors have changed on this page, which
+         * every kept slice's key carries — see "projected-priors:changed". */
+        drawnVersion = 0,
         state = null,
         autocompute = true;
 
@@ -707,7 +695,7 @@
         } else if (panels.acquisition && panels.acquisition.data) {
             Plotly.purge(panels.acquisition);
         }
-        if (sliceControls) sliceControls.hidden = !(state.figures.acquisition && panels.acquisition);
+        sliceControls.forEach(function (el) { el.hidden = !(state.figures.acquisition && panels.acquisition); });
         if (state.figures.surrogate && panels.surrogate) {
             Plotly.react(panels.surrogate, state.figures.surrogate.data,
                          state.figures.surrogate.layout, PLOT_CONFIG);
@@ -731,7 +719,7 @@
         }
         if (plotEl) plotEl.hidden = true;
         if (priorEl) priorEl.hidden = true;
-        if (sliceControls) sliceControls.hidden = true;
+        sliceControls.forEach(function (el) { el.hidden = true; });
         if (emptyEl) emptyEl.hidden = !showEmpty;
     }
 
@@ -1341,13 +1329,12 @@
         saveTimer = setTimeout(function () { saveTimer = 0; postPrior(); }, 180);
     }
 
-    function postPrior(rewalk) {
+    function postPrior() {
         if (!priorUrl || !state || !state.hp) return;
         if (saving) {
             /* Read when it is sent, not now, so it carries whatever the
-             * controls say by then. A requery waiting behind a save stays a
-             * requery. */
-            queued = {rewalk: !!rewalk || !!(queued && queued.rewalk)};
+             * controls say by then. */
+            queued = true;
             return;
         }
         /* The verdict was about the belief as it stood. Any save means it has
@@ -1357,7 +1344,7 @@
         setVerdict(null);
         var meta = currentMeta(),
             stated = !!(state.prior && state.prior.kind !== "uniform"),
-            body = {hp: state.hp, prior: null, rewalk: !!rewalk};
+            body = {hp: state.hp, prior: null};
 
         if (stated) {
             body.prior = {kind: state.prior.kind, params: state.prior.params,
@@ -1383,37 +1370,42 @@
         }).then(function (r) {
             return answer(r);
         }).then(function (data) {
-            /* Only ever applied to the slice that asked for it. The reader can
-             * change hyperparameter while a walk is in flight, and these
-             * positions are coordinates on the axis they were computed for. */
             /* The density belongs with the belief it was computed for, even
              * when the reader has moved to another hyperparameter meanwhile. */
             if (data && data.density && latest[body.hp]) latest[body.hp].density = data.density;
+            /* The configuration cube weights its acquisition layer by every
+             * stated prior, so it is told whenever one moves. Sent before the
+             * check below: the cube cares whichever hyperparameter this figure
+             * has since moved on to. */
+            if (data) {
+                document.dispatchEvent(new CustomEvent("prior:density", {detail: {
+                    hp: body.hp, positions: body.meta.positions,
+                    density: stated && data.density ? data.density.grid : null,
+                    exponent: stated && state && state.prior ? state.prior.exponent : null,
+                    categorical: !!(meta && meta.kind === "categorical")
+                }}));
+            }
             if (!data || !state || state.hp !== body.hp) return;
             /* The density for what was just stated. Held on `state` so
              * `render` draws from it, the same way every other server-supplied
              * number on this figure is held. */
             if (data.density) { state.density = data.density; render(); }
-            if (!rewalk) return;
-            if (data.candidates) showCandidates(data.candidates);
-            else setWarning(text("no-optimizer"));
         }).catch(function (err) {
             failed("save-failed", err, "edit").then(setWarning);
         }).then(function () {
-              if (rewalk) setBusy(false);
               saving = null;
               if (queued) {
-                  var next = queued;
                   queued = null;
-                  postPrior(next.rewalk);
+                  postPrior();
               }
           });
     }
 
-    function setBusy(on) {
-        if (!rewalkBtn) return;
-        rewalkBtn.disabled = !!on;
-        rewalkBtn.textContent = on ? text("asking") : rewalkLabel;
+    /* Every save sent and landed, including one still waiting on its debounce
+     * — what the optimizer has to be built from before it is asked anything. */
+    function saved() {
+        if (saveTimer) { clearTimeout(saveTimer); saveTimer = 0; postPrior(); }
+        return saving ? saving.then(saved) : Promise.resolve();
     }
 
     /* ── judging a belief ──────────────────────────────────────────────────
@@ -1539,7 +1531,6 @@
                 /* No save. The server has already written it — this is what it
                  * wrote — and posting it back would re-anchor a belief that was
                  * restored precisely to keep its anchor. */
-                showCandidates(null);
             })
             .catch(function (err) {
                 failed("reset-failed", err, "edit").then(function (msg) { setVerdict(msg, "warning"); });
@@ -1652,28 +1643,33 @@
         });
     }
 
-    if (rewalkBtn) {
-        rewalkLabel = rewalkBtn.textContent;
-        /* Straight past the debounce. The reader has just said "now", and the
-         * saved prior has to be on the server before the optimizer is built
-         * from it — a pending timer would have this walk run against the
-         * previous prior and quietly return the wrong answer. */
-        rewalkBtn.addEventListener("click", requery);
+    /* What the optimizer would run next, asked from this figure or the
+     * configuration cube — see next_trials.js. Asked straight past the save's
+     * debounce: the reader has just said "now", and a pending timer would have
+     * the walk run against the previous prior and quietly return the wrong
+     * answer. */
+    var nextTrials = window.codesignerNextTrials || null;
+    if (nextTrials) {
+        nextTrials.before = saved;
+        nextTrials.anchor = function () { return state && state.hp; };
     }
 
-    /* Save whatever is stated, then ask the optimizer what it would run next.
-     * Straight past the debounce: the reader has just said "now", and a pending
-     * timer would have the walk run against the previous prior and quietly
-     * return the wrong answer. */
-    function requery() {
-        /* Checked here rather than left to `postPrior`, which returns without a
-         * round trip when there is no slice to ask about — and would leave the
-         * button disabled with nothing coming back to re-enable it. */
-        if (!state || !state.hp) return;
-        if (saveTimer) { clearTimeout(saveTimer); saveTimer = 0; }
-        setBusy(true);
-        postPrior(true);
+    /* The proposals on this axis. Each carries its position on every
+     * hyperparameter's, so a move to another hyperparameter places them
+     * again rather than asking again. */
+    function placed(list) {
+        if (!list || !state || !state.hp) return null;
+        list = list.filter(function (c) {
+            return c.positions && c.positions[state.hp] !== undefined;
+        }).map(function (c) {
+            return Object.assign({}, c, {position: c.positions[state.hp]});
+        });
+        return list.length ? list : null;
     }
+    document.addEventListener("candidates:updated", function (event) {
+        if (event.detail.unavailable) setWarning(text("no-optimizer"));
+        if (state && state.hp) showCandidates(placed(event.detail.candidates));
+    });
 
     if (kindSelect) {
         kindSelect.addEventListener("change", function () {
@@ -1747,6 +1743,9 @@
         if (kept && data.prior && typeof data.prior.exponent === "number") {
             kept.exponent = data.prior.exponent;
         }
+        if (data.meta.acquisitionFunction) {
+            acquisitionAt = window.codesignerImprovement.acquisition(data.meta.acquisitionFunction);
+        }
         state = {figures: data.figures, meta: data.meta, prior: kept, hp: hp,
                  candidates: null,
                  density: (state && state.hp === hp && state.density)
@@ -1756,21 +1755,18 @@
                   * rather than read off `initialDesign`, which is also null for
                   * a run whose optimizer records no design at all. */
                  insideDesign: !!data.insideDesign};
-        /* Deliberately not carried over. A candidate's position is a coordinate
-         * on one hyperparameter's axis, and what is drawn below is now a
-         * different axis or a different metric's surrogate. Re-ask. */
-        setCandidates(null);
+        setCandidates(placed(nextTrials && nextTrials.candidates));
         setWarning(data.warning);
         setInitialDesign(data.initialDesign);
         syncControls();
         render();
     }
 
-    function refresh(asked, andRequery) {
+    function refresh(asked) {
         if (!hpSelect || !(plotEl || priorEl)) return;
         var m = metric(), hp = hpSelect.value, key;
         if (!hp) return;
-        key = m + ":" + hp;
+        key = m + ":" + hp + (drawnVersion ? ":" + drawnVersion : "");
 
         function apply(data) {
             /* Stale by the time it resolved — the reader moved on while it was
@@ -1778,7 +1774,6 @@
             if (metric() !== m || hpSelect.value !== hp) return;
             setPrompt(false);
             show(data, hp);
-            if (andRequery && rewalkBtn && !rewalkBtn.disabled) requery();
         }
 
         if (cache[key]) {
@@ -1888,11 +1883,7 @@
         refresh();
     });
     if (promptBtn) {
-        /* Compute is the reader asking for everything this panel can tell them,
-         * and what the optimizer would run next is part of that. Asking twice —
-         * once for the figure, once for the candidates — is a distinction only
-         * this code knows about. */
-        promptBtn.addEventListener("click", function () { refresh(true, true); });
+        promptBtn.addEventListener("click", function () { refresh(true); });
     }
 
     /* The page rebuilds every figure when the metric changes, and purges any
@@ -1908,6 +1899,17 @@
      * metric's slice from stale state and then immediately replace it. Waiting
      * to be told the page has settled is both simpler and flicker-free. */
     document.addEventListener("figures:redrawn", function () { refresh(); });
+
+    /* A prior drawn in the configuration cube was stated, changed or
+     * withdrawn. It weighs this figure's slice and cloud too, and the server
+     * works out by how much, so every slice kept so far is out of date: the
+     * key moves on, and the one showing is asked for again. */
+    document.addEventListener("projected-priors:changed", function () {
+        drawnVersion += 1;
+        remember();
+        state = null;
+        refresh();
+    });
 
     /* New trials landed. Two things this panel shows are functions of the trial
      * count and of nothing else: the surrogate, and the prior's exponent, which

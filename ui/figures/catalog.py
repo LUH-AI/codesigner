@@ -8,7 +8,7 @@ from django.utils.translation import gettext_lazy as _
 
 from core.projection import METHODS
 
-from .base import ACQUISITION, HYPERSHAP, LONG, MISC, SQUAT, TABLE, Figure
+from .base import ACQUISITION, CARD, HYPERSHAP, LONG, MISC, SQUAT, TABLE, Figure
 from .plots import (
     configuration_cube_plot,
     configuration_projection_plot,
@@ -517,6 +517,24 @@ class Prior(Figure):
     shape = LONG
 
 
+class ProjectedPrior(Figure):
+    """A belief drawn in the configuration cube rather than stated on one
+    hyperparameter: a bump around a point, a ridge along a line, a slab around
+    a plane, in whichever view the cube shows.
+
+    The points are picked in the cube; this card shapes what they span — where
+    along it the belief peaks, how far it spreads, how wide it is — and states
+    it, or changes and withdraws one already stated. Drawn by its own script
+    (`ui/static/ui/projected_prior.js`) with the cube's, so it has no `plot()`;
+    not per metric, because a belief is about the search space.
+    """
+
+    key = "projected_prior"
+    label = _("Projected prior")
+    home_tab = ACQUISITION
+    shape = CARD
+
+
 class LocalEffects(Figure):
     """Every sampled trial's local ablation as a beeswarm — the spread of each
     hyperparameter's effect, rather than one trial's or an average.
@@ -625,6 +643,7 @@ FIGURES = (
     # Under the acquisition function and its prior, on their tab: where the
     # search has been, beside where it would go next.
     ConfigurationCube,
+    ProjectedPrior,
     Trials,
 )
 

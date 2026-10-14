@@ -3,6 +3,7 @@ import json
 import logging
 import statistics
 import tempfile
+import threading
 from collections import OrderedDict
 from dataclasses import replace
 from importlib.metadata import version as dist_version
@@ -25,7 +26,7 @@ from django.utils.translation import gettext as _
 from django.utils.translation import gettext_lazy, ngettext
 from django.views.decorators.http import require_POST
 
-from core import io, provenance, smac_import, tasks
+from core import io, projected_prior, provenance, smac_import, tasks
 from core.metrics import metric_for, metrics_for
 from core.metrics import scale as metric_scale
 from core.modelhost import deadline
@@ -33,12 +34,14 @@ from core.optimizers.base import FAILURE_CRITERIA
 
 from .figures import (
     FIGURES, FIGURES_BY_KEY, HP_GAME_FIELDS, HP_GAME_HELP, HP_GAME_LABELS,
-    ACCENT_COLOR, MARKER_COLOR, NEGATIVE_COLOR, SELECTION_COLOR, UNCERTAINTY_SCALE,
+    ACCENT_COLOR, MARKER_COLOR, NEGATIVE_COLOR, PRIOR_COLOR, PROPOSAL_COLOR, SELECTION_COLOR,
+    UNCERTAINTY_SCALE,
     autocompute_key,
     deferred_computations,
     acquisition_slice_plots,
     hyperparameter_ablation_plot, hyperparameter_importance_plot,
     forecast_plot, hyperparameter_progress_plot, local_effects_plot, partial_dependence_plot,
+    slice_span,
 )
 from .formatting import sigfigs
 from .forms import (
@@ -52,6 +55,7 @@ from .permissions import (
 from .registry import METRICS, MODELS, OPTIMIZERS
 from django.utils import timezone
 
+from .services import projected
 from .services import run as run_service
 from .services import modelenv
 from .services import snapshot as snapshot_adapter
@@ -539,6 +543,235 @@ def trial_panel(request, exp):
                    "experiment": exp})
 
 
+def _proposals(exp, metric):
+    """The sampled configurations a proposal is picked from, and what the
+    surrogate predicts of each for *metric* — the configuration cube's point
+    cloud, out of the same cache. `(built, sample)`, or `(built, None)` when
+    there is no sample to pick from."""
+    built, _config_space, sample = _cube_sample(exp, metric)
+    return built, sample
+
+
+def _cube_sample(exp, metric):
+    """`(built, config_space, sample)`: the configuration cube's shared sample
+    for *metric*, with what it was drawn from — any of the last two None when
+    there is nothing to draw from."""
+    built = _rebuild_experiment(exp)
+    if not built or built["result"] is None or not built["result"].trials:
+        return built, None, None
+    config_space = _config_space_for(built)
+    if config_space is None:
+        return built, None, None
+    _surrogate, sample = _slice_model(exp, built, config_space, metric)
+    return built, config_space, sample if sample and sample.get("configurations") else None
+
+
+# ── priors drawn in the configuration cube ──────────────────────────────────
+
+def _projected_exponents(exp, records, trials, inside_design):
+    """How strongly each stated projected prior still counts — the same decay
+    every prior has, see `_decayed`."""
+    return [(_decayed(exp, record, trials, inside_design) or {}).get("exponent", 1.0)
+            for record in records]
+
+
+def _projected_weights(exp, built, config_space, X):
+    """Every stated projected prior's weight at the vectorized rows *X*, as the
+    page multiplies it in — rounded for the wire, or None with nothing stated."""
+    records = list(exp.data.projected_priors or [])
+    if not records or config_space is None or X is None or not len(X):
+        return None
+    result = built["result"]
+    exponents = _projected_exponents(exp, records, len(result.trials),
+                                     _inside_initial_design(result))
+    weights = projected.stated_weights(records, exponents, config_space, np.asarray(X, float))
+    return projected.rounded(weights) if weights is not None else None
+
+
+def _projected_answer(exp, built, config_space, sample):
+    """What the card and the cube are told after a projected prior changes: the
+    stated priors as the card lists them, and their weight over the sample."""
+    return {"stated": [projected.summary(r, config_space) for r in exp.data.projected_priors or []],
+            "weights": _projected_weights(exp, built, config_space,
+                                          projected.sample_vectors(sample) if sample else None)}
+
+
+def _drawn(request):
+    try:
+        body = json.loads(request.body or b"{}")
+    except ValueError:
+        return None
+    return body if isinstance(body, dict) else None
+
+
+@require_POST
+@experiment_view(VIEW)
+def projected_prior_preview(request, exp):
+    """A prior being drawn in the configuration cube, before it is stated: the
+    record it would be, its weight over the cube's sample, and the shapes the
+    cube draws for it. VIEW: looking at a belief changes nothing."""
+    body = _drawn(request)
+    if body is None or body.get("metric") not in exp.data.metric_names:
+        return HttpResponseBadRequest("invalid request")
+    built, config_space, sample = _cube_sample(exp, body["metric"])
+    if sample is None:
+        return JsonResponse({"error": _("There is no sample of this space to draw on.")}, status=400)
+    try:
+        record, Z = projected.draft_record(config_space, sample, body.get("draft") or {},
+                                           body["metric"])
+    except (projected_prior.PriorError, KeyError, TypeError, ValueError) as error:
+        return JsonResponse({"error": str(error), "point": getattr(error, "point", None)},
+                            status=400)
+    return JsonResponse({
+        "record": {k: v for k, v in record.items() if k != "map"},
+        "weights": projected.rounded(projected_prior.density(Z, record)),
+        "geometry": projected.geometry(record, Z, config_space),
+        "profile": projected_prior.profile(record),
+    })
+
+
+@require_POST
+@experiment_view(EDIT)
+def state_projected_prior(request, exp):
+    """State the prior drawn in the cube, or change a stated one's parameters
+    and decay. Its points and projection are what it was drawn in and stay put:
+    a different shape is a different belief."""
+    body = _drawn(request)
+    if body is None or body.get("metric") not in exp.data.metric_names:
+        return HttpResponseBadRequest("invalid request")
+    built, config_space, sample = _cube_sample(exp, body["metric"])
+    if sample is None:
+        return JsonResponse({"error": _("There is no sample of this space to draw on.")}, status=400)
+    result = built["result"]
+    records = list(exp.data.projected_priors or [])
+    try:
+        if body.get("id"):
+            at = next((i for i, r in enumerate(records) if r.get("id") == body["id"]), None)
+            if at is None:
+                return HttpResponseBadRequest("no such prior")
+            old = records[at]
+            new = projected.with_params(old, body.get("params") or {})
+        else:
+            old = None
+            new, _Z = projected.draft_record(config_space, sample, body.get("draft") or {},
+                                             body["metric"])
+            new["id"] = projected.new_id()
+            new["at_trial"] = len(result.trials)
+        new["decay"] = _decay_record(body.get("decay"), exp, int(new.get("at_trial") or 0))
+        new["delay_decay"] = bool(body.get("delay_decay") and _inside_initial_design(result))
+        projected_prior.check(new, config_space)
+    except (projected_prior.PriorError, KeyError, TypeError, ValueError) as error:
+        return JsonResponse({"error": str(error)}, status=400)
+
+    if old is None:
+        records.append(new)
+    else:
+        records[at] = new
+    exp.data.projected_priors = records
+    exp.data.save(update_fields=["projected_priors"])
+    history.record_projected_prior(exp, new["id"], old, new, user=request.user)
+    return JsonResponse(_projected_answer(exp, built, config_space, sample))
+
+
+@require_POST
+@experiment_view(EDIT)
+def withdraw_projected_prior(request, exp):
+    """Take a stated projected prior back."""
+    body = _drawn(request)
+    if body is None or body.get("metric") not in exp.data.metric_names:
+        return HttpResponseBadRequest("invalid request")
+    records = list(exp.data.projected_priors or [])
+    old = next((r for r in records if r.get("id") == body.get("id")), None)
+    if old is None:
+        return HttpResponseBadRequest("no such prior")
+    exp.data.projected_priors = [r for r in records if r is not old]
+    exp.data.save(update_fields=["projected_priors"])
+    history.record_projected_prior(exp, old["id"], old, None, user=request.user)
+    built, config_space, sample = _cube_sample(exp, body["metric"])
+    return JsonResponse(_projected_answer(exp, built, config_space, sample))
+
+
+def _proposal_index(source):
+    """`n` from *source* as an index into the sample, or None."""
+    raw = source.get("n", "")
+    return int(raw) if raw.isdigit() else None
+
+
+def _run_refusal(request, exp):
+    """Why this viewer cannot start a run of *exp* now, or None."""
+    if not permissions.policy().may(request, exp, RUN):
+        return _("You can view this experiment but not run it.")
+    if exp.is_running:
+        return _("A run is under way.")
+    if not exp.data.has_dataset or not _model_available(exp):
+        return _("This experiment cannot be run here.")
+    return permissions.policy().custom_model_refusal(exp, request.user) or None
+
+
+@experiment_view(VIEW)
+def proposal_panel(request, exp):
+    """The selected-config panel for a proposal: one of the configuration
+    cube's sampled configurations, picked off its point cloud.
+
+    A configuration nobody has run, so what it shows is the surrogate's
+    prediction for it rather than a score, and it offers to run it.
+    """
+    metric = request.GET.get("metric", "")
+    if metric not in exp.data.metric_names:
+        return HttpResponseBadRequest("unknown metric")
+    n = _proposal_index(request.GET)
+    built, sample = _proposals(exp, metric)
+    if sample is None or n is None or n >= len(sample["configurations"]):
+        return HttpResponseBadRequest("invalid proposal")
+
+    result = built["result"]
+    scoring = result.metric(metric)
+    best = result.trials[result.best_index(metric)].scores[metric]
+    mu, sigma = sample["mu"][n], sample["sigma"][n]
+    return render(request, "ui/_selected_proposal_inner.html", {
+        "proposal": {
+            "metric": metric,
+            "metric_title": scoring.title,
+            "number": n + 1,
+            "of": len(sample["configurations"]),
+            "index": n,
+            "mu": mu,
+            "sigma": sigma,
+            "delta": None if mu is None else mu - best,
+            "delta_better": mu is not None and scoring.better(mu, best),
+            "config": list(sample["configurations"][n].items()),
+        },
+        "experiment": exp,
+        "run_refusal": _run_refusal(request, exp),
+    })
+
+
+@require_POST
+@experiment_view(RUN)
+def run_proposal(request, exp):
+    """Run one proposal as a trial: a run of one, told which configuration to
+    evaluate rather than asked to search for one, optimizing the metric the
+    experiment already optimizes so that nothing else about the search moves.
+    The run is recorded like any other, with the proposal it ran."""
+    metric = request.POST.get("metric", "")
+    n = _proposal_index(request.POST)
+    if metric not in exp.data.metric_names or n is None or _run_refusal(request, exp):
+        return redirect("ui:experiment_detail", pk=exp.pk)
+    _built, sample = _proposals(exp, metric)
+    if sample is None or n >= len(sample["configurations"]):
+        return redirect("ui:experiment_detail", pk=exp.pk)
+
+    number = n + 1
+    run = run_service.create_run(
+        exp, {"max_trials": 1}, exp.data.current_metric or metric,
+        started_by=_owner(request),
+        configurations=[{"config": dict(sample["configurations"][n]),
+                         "origin": _("Proposal %(n)s") % {"n": number},
+                         "proposal": number}])
+    run_service.start_background_run(run.id)
+    return redirect("ui:experiment_detail", pk=exp.pk)
+
+
 @experiment_view(VIEW)
 def trial_traceback(request, exp):
     """The stored traceback for one failed trial, as plain text.
@@ -733,50 +966,71 @@ def _target_name(exp):
 #: Process-local and small rather than Django's cache: a fitted GP or forest is
 #: derived data no other process needs, cheap to rebuild, and awkward to pickle.
 #: The trial count is in the key, which is what makes a live run invalidate
-#: itself as results arrive. Unsynchronised deliberately — the worst a race can
-#: cost is a duplicate fit, and a lock around a 750ms call would be worse.
+#: itself as results arrive. Both figures ask for the same key as the page
+#: opens, so the second waits on the first's fit rather than fitting again —
+#: one lock per key, so nothing else waits.
 _SLICE_SURROGATES = OrderedDict()
 _SLICE_SURROGATE_CACHE = 8
+_SLICE_LOCKS = {}
+_SLICE_LOCKS_GUARD = threading.Lock()
 
 
 def _slice_model(exp, built, config_space, metric):
-    """The fitted surrogate for this (experiment, metric, trials), and a sample
-    of the whole space through it, both reused across hyperparameters.
+    """The fitted surrogate for this (experiment, metric, trials), and an even
+    sample of the whole space through it — computed once, and read by both
+    figures that need them.
 
-    Returns `(surrogate, cloud)`. Neither depends on which hyperparameter is on
-    the axis — the model is a function of the metric and the trials, and the
-    cloud is a draw from the whole space — so both are computed once and the
-    slice only projects.
+    Returns `(surrogate, sample)`, the sample being
+    `BaseOptimizer.sample_prediction_space`'s answer. Neither depends on which
+    hyperparameter the acquisition figure has on its axis, nor on which view
+    the configuration cube is in, nor on the priors — a prior weights the
+    acquisition, which both figures compute in the browser from the sample's
+    mean and spread. So one fit and one sample serve the acquisition figure's
+    cloud (`_sample_cloud`) and the cube's prediction layer alike.
 
-    `(None, None)` when a surrogate could not be fitted, which leaves
-    `compute_incumbent_slice` to fit and to report why — a failure is not cached,
-    so the reader gets the reason rather than silence.
+    `(None, None)` when a surrogate could not be fitted, which leaves the caller
+    to fit and to report why — a failure is not cached, so the reader gets the
+    reason rather than silence.
     """
-    from core.optimizers.base import sample_acquisition_cloud
-
     result = built["result"]
-    # The prior is in the key because the candidates are climbed on the surface
-    # it weights — change the prior and they are a different set, not the same
-    # set rescaled. The model and the cloud do not depend on it, but they are
-    # cheap beside the walk and not worth a second cache to keep apart.
-    priors = exp.data.priors or None
-    key = (exp.pk, metric, len(result.trials), built["seed"],
-           json.dumps(priors, sort_keys=True, default=str))
-    if key in _SLICE_SURROGATES:
-        _SLICE_SURROGATES.move_to_end(key)
-        return _SLICE_SURROGATES[key]
+    key = (exp.pk, metric, len(result.trials), built["seed"])
+    with _SLICE_LOCKS_GUARD:
+        lock = _SLICE_LOCKS.setdefault(key, threading.Lock())
+    with lock:
+        cached = _SLICE_SURROGATES.get(key)
+        if cached is not None:
+            _SLICE_SURROGATES.move_to_end(key)
+            return cached
 
-    optimizer = built["optimizer"]
-    rf, _warning = optimizer.slice_surrogate(
-        config_space, result.trials, metric, built["seed"])
-    if rf is None:
-        return None, None
+        optimizer = built["optimizer"]
+        surrogate, _warning = optimizer.slice_surrogate(
+            config_space, result.trials, metric, built["seed"])
+        if surrogate is None:
+            return None, None
 
-    cloud = sample_acquisition_cloud(config_space, rf, seed=built["seed"])
-    _SLICE_SURROGATES[key] = (rf, cloud)
-    while len(_SLICE_SURROGATES) > _SLICE_SURROGATE_CACHE:
-        _SLICE_SURROGATES.popitem(last=False)
-    return rf, cloud
+        sample = optimizer.sample_prediction_space(
+            config_space, result.trials, metric, seed=built["seed"], surrogate=surrogate)
+        _SLICE_SURROGATES[key] = (surrogate, sample)
+        while len(_SLICE_SURROGATES) > _SLICE_SURROGATE_CACHE:
+            evicted, _ = _SLICE_SURROGATES.popitem(last=False)
+            with _SLICE_LOCKS_GUARD:
+                _SLICE_LOCKS.pop(evicted, None)
+        return surrogate, sample
+
+
+def _sample_cloud(sample):
+    """The shared sample as the acquisition figure's cloud: `(rows, mu, sigma)`
+    as arrays, with what could not be predicted or placed as NaN — see
+    `compute_incumbent_slice`, which leaves those out per hyperparameter."""
+    if not sample or not sample.get("vectors"):
+        return None
+
+    def array(values):
+        return np.array([np.nan if v is None else v for v in values], dtype=float)
+
+    rows = np.array([[np.nan if v is None else v for v in row] for row in sample["vectors"]],
+                    dtype=float)
+    return rows, array(sample["mu"]), array(sample["sigma"])
 
 
 @require_POST
@@ -845,19 +1099,13 @@ def save_prior(request, exp):
     exp.data.save(update_fields=["priors"])
     history.record_prior(exp, hp_name, stated_before, priors.get(hp_name), user=request.user)
 
-    # Asked for when the reader presses Re-walk. Not cached and not done on the
-    # ordinary slice fetch: it rebuilds this run's optimizer and asks it, which
-    # costs about three seconds, and is only meaningful when someone wants the
-    # answer to the question they have just changed.
-    ranked = _ranked_candidates(exp, hp_name) if body.get("rewalk") else None
     # The density for what was just stated, so the debounced save doubles as the
     # redraw. One round trip, and the curve the reader ends up looking at is the
     # one the optimizer will weight by, because a single function produced both.
     density = None
     if body.get("meta"):
         density = _prior_densities(priors.get(hp_name), body["meta"])
-    return JsonResponse({"saved": sorted(priors), "candidates": ranked,
-                         "density": density})
+    return JsonResponse({"saved": sorted(priors), "density": density})
 
 
 @experiment_view(EDIT, drafts=BOTH)
@@ -991,6 +1239,7 @@ def evaluate_prior(request, exp):
     outcome = optimizer.evaluate_prior(
         config_space, result.trials, metric, built["seed"],
         priors=exp.data.priors or None,
+        projected_priors=exp.data.projected_priors or None,
         tolerance=margin,
         top_k=top_k,
         previous_result=result,
@@ -1163,26 +1412,26 @@ def _prior_densities(stated, meta):
             "cloud": _prior_density(stated, cloud, span)}
 
 
-def _ranked_candidates(exp, hp_name):
-    """What this run's optimizer would ask for next, in its own rank order.
+def _next_trials(exp, anchor_hp=None):
+    """What this run's optimizer would ask for next, in its own rank order, as
+    `(config_space, [(config, origin, walk), ...])` — or None where it cannot be
+    asked. *walk* is the path its local search climbed to it, or None.
 
     Not a recomputation that resembles the search: `slice_challengers` builds the
-    facade with `_facade`, replays the recorded trials, applies the stated prior
-    and calls `ask()`. Rank 0 is the configuration the next trial would use.
+    facade with `_facade`, replays the recorded trials, applies the stated
+    priors and calls `ask()`. The first is the configuration the next trial
+    would use.
 
-    Each candidate carries its whole configuration, not only the hyperparameter
-    on the axis — a point on this line is one coordinate of a configuration that
-    differs from the incumbent in every other one too, and saying so is most of
-    what makes the position honest.
+    *anchor_hp* is the hyperparameter whose prior the budget is anchored at, so
+    the walk weights by the same exponent that prior's figure is drawing. Left
+    out, it is the most recently stated prior, or the run as it stands.
     """
-    from ConfigSpace import Configuration
-
     built = _rebuild_experiment(exp)
     result = built["result"] if built else None
     if result is None or not result.trials:
         return None
     config_space = _config_space_for(built)
-    if config_space is None or hp_name not in config_space:
+    if config_space is None:
         return None
 
     metric = exp.data.current_metric or (exp.data.metric_names or [None])[0]
@@ -1193,32 +1442,71 @@ def _ranked_candidates(exp, hp_name):
     if not hasattr(optimizer, "slice_challengers"):
         return None
 
+    priors = exp.data.priors or {}
+    if anchor_hp is not None:
+        at_trial = (priors.get(anchor_hp) or {}).get("at_trial")
+    else:
+        anchors = [p.get("at_trial") for p in priors.values() if p and p.get("at_trial")]
+        at_trial = max(anchors) if anchors else None
     asked = optimizer.slice_challengers(
         config_space, result.trials, metric, built["seed"],
-        priors=exp.data.priors or None, previous_result=result,
-        # Anchored where the prior was stated, so the walk weights by the same
-        # exponent the figure above it is drawing.
-        budget=_run_budget(exp, int(((exp.data.priors or {}).get(hp_name) or {})
-                                    .get("at_trial") or len(result.trials))))
+        priors=priors or None, previous_result=result,
+        projected_priors=exp.data.projected_priors or None,
+        budget=_run_budget(exp, int(at_trial or len(result.trials))), with_walks=True)
     if not asked:
         return None
+    configs, origins, walks = asked
+    return config_space, list(zip(configs, origins, walks))
 
-    configs, origins = asked
-    column = list(config_space.keys()).index(hp_name)
-    out = []
-    for rank, (config, origin) in enumerate(zip(configs, origins), start=1):
-        try:
-            position = float(Configuration(config_space, values=config).get_array()[column])
-        except Exception:  # noqa: BLE001 — a candidate that will not encode is dropped
-            continue
-        values = {k: _plain(v) for k, v in sorted(config.items())}
-        out.append({"rank": rank, "position": position, "origin": origin,
-                    "config": values,
-                    # Pre-formatted for the hover: the whole configuration, not
-                    # just the coordinate this axis shows.
-                    "label": "<br>".join(f"{k} = {sigfigs(v)}"
-                                         for k, v in values.items())})
-    return out
+
+def _candidate(rank, config, origin, walk=None, config_space=None):
+    """One proposed configuration as the page draws it: its rank, where it came
+    from, every value, the whole of it pre-formatted for a hover — a point
+    differs from the incumbent in every coordinate, not only the ones on show —
+    and the path its local search climbed to get there, start first."""
+    values = {k: _plain(v) for k, v in sorted(config.items())}
+    return {"rank": rank, "origin": origin, "config": values,
+            "label": "<br>".join(f"{k} = {sigfigs(v)}" for k, v in values.items()),
+            # Where it sits on every hyperparameter's vectorized axis, so either
+            # figure can place it on whichever axis it is drawing — the
+            # acquisition figure's rug as well as the cube.
+            "positions": _vector_positions(config_space, config),
+            "walk": ([{k: _plain(v) for k, v in step.items()} for step in walk]
+                     if walk else None)}
+
+
+def _vector_positions(config_space, config):
+    """*config* in ConfigSpace's vectorized form, keyed by hyperparameter, or
+    None when there is no space or it will not encode. An inactive
+    hyperparameter has no position and is left out."""
+    if config_space is None:
+        return None
+    from ConfigSpace import Configuration
+
+    try:
+        vector = Configuration(config_space, values=config).get_array()
+    except Exception:  # noqa: BLE001 — a candidate that will not encode has no place
+        return None
+    return {name: float(v) for name, v in zip(config_space.keys(), vector) if np.isfinite(v)}
+
+
+@experiment_view(VIEW)
+def next_trials(request, exp):
+    """What this run's optimizer would run next, as whole configurations, under
+    the priors as saved. Both the acquisition figure and the configuration cube
+    draw the answer, each placing it on its own axes. *hp*, when given, is the
+    hyperparameter whose prior the trial budget is anchored at — see
+    `_next_trials`. Not cached: it rebuilds and asks the optimizer, which takes
+    a few seconds, and only when someone asks for it.
+    """
+    hp_name = request.GET.get("hp") or None
+    asked = _next_trials(exp, anchor_hp=hp_name)
+    if asked is None:
+        return JsonResponse({"candidates": None})
+    config_space, proposals = asked
+    return JsonResponse({"candidates": [_candidate(rank, config, origin, walk, config_space)
+                                        for rank, (config, origin, walk)
+                                        in enumerate(proposals, start=1)]})
 
 
 def _plain(value):
@@ -1283,7 +1571,8 @@ def _slice_figures(exp, built, config_space, hp_name, metric):
     Returns `(None, None, sliced)` when the slice has no positions, which is the
     one case the caller answers differently.
     """
-    surrogate, cloud = _slice_model(exp, built, config_space, metric)
+    surrogate, sample = _slice_model(exp, built, config_space, metric)
+    cloud = _sample_cloud(sample)
     sliced = built["optimizer"].compute_incumbent_slice(
         config_space, built["result"].trials, metric, hp_name, seed=built["seed"],
         surrogate=surrogate, cloud=cloud)
@@ -1296,7 +1585,21 @@ def _slice_figures(exp, built, config_space, hp_name, metric):
         higher_is_better=metric_for(metric).higher_is_better,
         kind="categorical" if hasattr(config_space[hp_name], "choices") else "continuous",
     )
+    meta["acquisitionFunction"] = _acquisition_function(built["optimizer"])
+    # Priors drawn in the cube weigh whole configurations, so they are
+    # evaluated at the configurations this figure predicted at: along the
+    # slice, and over its cloud.
+    slice_weights = _projected_weights(exp, built, config_space, sliced.slice_rows)
+    meta["projectedWeights"] = (None if slice_weights is None else {
+        "slice": slice_weights,
+        "cloud": _projected_weights(exp, built, config_space, sliced.cloud_rows) or []})
     return figures, meta, sliced
+
+
+def _acquisition_function(optimizer):
+    """Which acquisition function the page should compute, and its margin.
+    Expected improvement for an optimizer that names none."""
+    return optimizer.acquisition_function() or {"kind": "ei", "xi": 0.0}
 
 
 @experiment_view(VIEW, drafts=BOTH)
@@ -1450,7 +1753,12 @@ def _decayed_prior(exp, hp_name, trials, inside_design=False):
     curves in the browser would be a second definition of a decay to keep in
     step with the first. One number crosses instead.
     """
-    stated = (exp.data.priors or {}).get(hp_name)
+    return _decayed(exp, (exp.data.priors or {}).get(hp_name), trials, inside_design)
+
+
+def _decayed(exp, stated, trials, inside_design=False):
+    """`_decayed_prior` for any stated belief with a `decay` and an `at_trial`
+    — a hyperparameter's, or one drawn in the configuration cube."""
     if not stated:
         return None
 
@@ -1624,6 +1932,75 @@ def metric_figures(request, exp):
     per_metric = [f for f in _shown_figures(exp) if f.per_metric]
     return JsonResponse(_figure_plots(result, per_metric, metric,
                                       config_space=_config_space_for(built)))
+
+
+@experiment_view(VIEW)
+def surrogate_prediction(request, exp):
+    """What the surrogate predicts across the search space, for one metric: the
+    configuration cube's prediction layer.
+
+    One answer per metric, whichever view the cube is in. The sample, the
+    predictions and every view's coordinates for it come back together, so
+    switching view, dimensionality or axes redraws without asking again; only a
+    different metric means a different model. See
+    `BaseOptimizer.sample_prediction_space`.
+    """
+    metric = request.GET.get("metric", "")
+    if metric not in exp.data.metric_names:
+        return HttpResponseBadRequest("unknown metric")
+
+    built = _rebuild_experiment(exp)
+    result = built["result"] if built else None
+    if result is None or not result.trials:
+        return HttpResponseBadRequest("no result")
+    config_space = _config_space_for(built)
+    if config_space is None:
+        return JsonResponse({
+            "values": [], "warning": _("The model this experiment used is not "
+                                       "available here, so its search space "
+                                       "cannot be rebuilt."),
+        })
+
+    optimizer = built["optimizer"]
+    # The same sample the acquisition figure's cloud is drawn from, out of the
+    # same cache, so whichever figure asks second costs nothing.
+    _surrogate, shared = _slice_model(exp, built, config_space, metric)
+    answer = dict(shared) if shared else optimizer.sample_prediction_space(
+        config_space, result.trials, metric, seed=built["seed"])
+    # The page draws the rounded `values`; the exact ones stay here, for
+    # `run_proposal`.
+    answer.pop("configurations", None)
+    # Only an optimizer that fits a model of the objective has an acquisition
+    # function to speak of; the stand-in forest for the others predicts, and
+    # that is all.
+    answer["acquisition"] = bool(getattr(optimizer, "fits_surrogate", False))
+    answer["acquisition_function"] = _acquisition_function(optimizer)
+    # Every stated prior, as the weight the acquisition is multiplied by: its
+    # density over the same grid the acquisition figure draws it on, and the
+    # exponent its decay has reached. The page interpolates each sample's own
+    # position from these, and swaps one in as the acquisition figure edits it.
+    priors = {}
+    inside = _inside_initial_design(result)
+    for name in config_space.keys():
+        decayed = _decayed_prior(exp, name, len(result.trials), inside)
+        if not decayed or decayed.get("kind") in (None, "uniform"):
+            continue
+        _grid, positions, kind = optimizer.slice_axis(config_space, name)
+        density = _prior_density(decayed, positions, slice_span(positions, kind))
+        if density:
+            priors[name] = {"positions": positions, "density": density,
+                            "exponent": decayed["exponent"],
+                            "categorical": kind == "categorical"}
+    answer["priors"] = priors
+    # Each numeric hyperparameter's range, which is HP Space's legal box: a
+    # point drawn for a prior outside it is no configuration at all.
+    answer["bounds"] = {name: [float(hp.lower), float(hp.upper)]
+                        for name, hp in config_space.items()
+                        if hasattr(hp, "lower") and getattr(hp, "choices", None) is None}
+    # And every prior drawn in the cube itself, as one weight per sample.
+    answer["projected_weights"] = _projected_weights(
+        exp, built, config_space, projected.sample_vectors(answer) if answer.get("vectors") else None)
+    return JsonResponse(answer)
 
 
 @experiment_view(VIEW)
@@ -3177,12 +3554,15 @@ def _computed_version(exp, result):
     trials under its settings, so an answer is good for exactly as long as the
     trials, the run they came from and the settings stay as they were. Anything
     else — the reader's prior, the selected trial, the hyperparameter shown — is
-    part of the question each figure asks, and is in its own key.
+    part of the question each figure asks, and is in its own key. Except the
+    priors drawn in the configuration cube: they weigh whole configurations, so
+    the acquisition figure's answer carries their weight, and is only good while
+    they stand as they were.
     """
     import hashlib
     last = exp.runs.order_by("-id").values_list("pk", "status").first()
-    digest = hashlib.sha1(json.dumps(resolve_settings(exp), sort_keys=True,
-                                     default=str).encode()).hexdigest()[:12]
+    digest = hashlib.sha1(json.dumps([resolve_settings(exp), exp.data.projected_priors or []],
+                                     sort_keys=True, default=str).encode()).hexdigest()[:12]
     return {"experiment": exp.pk,
             "version": f"{len(result.trials)}:{last}:{digest}"}
 
@@ -3342,6 +3722,14 @@ def _detail_context(request, exp):
         # confidence criterion, so only then is it offered.
         "supports_confidence": getattr(
             _optimizer_for(exp.data.optimizer_name), "supports_confidence_stopping", False),
+        # And only one that can be asked what it would run next can offer the
+        # configuration cube's Requery — see `next_trials`.
+        "can_requery": hasattr(_optimizer_for(exp.data.optimizer_name), "slice_challengers"),
+        # Drawing a prior in the cube: for an optimizer a prior can steer, and
+        # a reader who may change what the next run searches under.
+        "can_draw_priors": (bool(getattr(_optimizer_for(exp.data.optimizer_name),
+                                         "fits_surrogate", False))
+                            and permissions.policy().may(request, exp, EDIT)),
         **_prior_judging_context(exp),
         "run_default_metric": exp.data.current_metric or (metric_names[0] if metric_names else None),
         # What the deadline fields open on. The deployment's number, so an
@@ -3464,6 +3852,9 @@ def _detail_context(request, exp):
     # Metric-independent figures are still drawn once, here.
     opening_metric = context["run_default_metric"]
     config_space = _config_space_for(built)
+    # The priors drawn in the configuration cube, as their card lists them.
+    context["projected_priors"] = [projected.summary(record, config_space)
+                                   for record in exp.data.projected_priors or []]
     metric_plots = {
         opening_metric: _figure_plots(
             result, [f for f in figures if f.per_metric], opening_metric,
@@ -3523,7 +3914,10 @@ def _detail_context(request, exp):
         # in the script, so the page restates no colour — see NEGATIVE_COLOR.
         selection_colors={"base": MARKER_COLOR, "selected": SELECTION_COLOR,
                           "comparison": ACCENT_COLOR,
-                          "failure": NEGATIVE_COLOR},
+                          "failure": NEGATIVE_COLOR, "proposal": PROPOSAL_COLOR,
+                          # The priors drawn in the cube, in the prior figure's
+                          # own colour.
+                          "prior": PRIOR_COLOR},
         # The one game selector, and what each game asks — resolved here rather
         # than in the template because the labels are lazy translations and
         # `json_script` cannot serialize those.

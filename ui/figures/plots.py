@@ -21,7 +21,7 @@ import math
 import plotly.graph_objects as go
 
 from core.metrics import to_error
-from core.projection import log_hyperparameters, project
+from core.projection import fit, log_hyperparameters
 
 from ..formatting import sigfigs
 
@@ -70,6 +70,11 @@ MARKER_COLOR = "#636EFA"
 SELECTION_COLOR = "#EC8273"
 ACCENT_COLOR = "#10B981"
 NEGATIVE_COLOR = "#FF2B2B"
+#: A proposal: a sampled configuration picked off the configuration cube's
+#: point cloud, which nobody has run. Its own colour, not the selection's,
+#: because it is not a trial and must not pass for one. `--proposal` in app.css
+#: is the same value.
+PROPOSAL_COLOR = "#8B5CF6"
 
 #: The configuration cube's surrogate-uncertainty field: how much the forest's
 #: own trees disagree across the plane two hyperparameters span. A background,
@@ -884,6 +889,16 @@ def hyperparameter_orders_plot(moebius: list):
     return fig
 
 
+def _trial_hovers(result, display_metric):
+    """Each trial as the configuration cube's hover reads it: its number, its
+    score, and its whole configuration — a point there is one configuration,
+    and in a projection its coordinates name none of its values."""
+    title = result.metric(display_metric).title
+    return [f"Trial {t.trial}<br>{title} = {sigfigs(t.scores.get(display_metric))}<br>"
+            + "<br>".join(f"{k} = {sigfigs(v)}" for k, v in sorted(t.config.items()))
+            for t in result.trials]
+
+
 def configuration_cube_plot(result, display_metric, config_space=None):
     """Every trial as one point in hyperparameter space, colored by its
     *display_metric* score — DeepCave's "Configuration Cube." Like DeepCave's,
@@ -955,6 +970,7 @@ def configuration_cube_plot(result, display_metric, config_space=None):
     fig = go.Figure(go.Scatter(
         x=[], y=[], mode="markers", customdata=customdata,
         text=[f"Trial {t.trial}" for t in trials], marker=cube_marker,
+        hovertext=_trial_hovers(result, display_metric), hoverinfo="text",
     ))
     fig.update_layout(
         meta={"hp_names": hp_names,
@@ -1001,9 +1017,10 @@ def configuration_projection_plot(result, display_metric, method,
     if not trials or not result.has_every_score(display_metric):
         return None
     scores = [t.scores[display_metric] for t in trials]
-    coordinates, labels, warning = project(config_space, trials, scores, method)
-    if warning or not labels:
+    fitted, _warning = fit(config_space, trials, scores, method)
+    if fitted is None or not fitted.labels:
         return None
+    coordinates, labels = fitted.coordinates, fitted.labels
 
     marker = dict(size=8, color=scores, colorscale=_INTENSITY_SCALE,
                   # See the cube: darker is better in either direction.
@@ -1023,6 +1040,7 @@ def configuration_projection_plot(result, display_metric, method,
     fig = go.Figure(go.Scatter(
         x=[], y=[], mode="markers", customdata=coordinates,
         text=[f"Trial {t.trial}" for t in trials], marker=marker,
+        hovertext=_trial_hovers(result, display_metric), hoverinfo="text",
     ))
     fig.update_layout(
         meta={"components": labels,
@@ -1031,6 +1049,10 @@ def configuration_projection_plot(result, display_metric, method,
               # scaling that mattered happened before the projection, in
               # `encode_configurations`.
               "log_hps": [],
+              # The projection itself, so the page can place a configuration
+              # that is not a trial — a proposed next one — where a trial
+              # running it would land. See `core.projection.Fitted.linear_map`.
+              "map": fitted.linear_map(),
               "selection": _selection_meta({0: range(len(trials))},
                                            style=OVERLAY, highlight=1)},
         margin=dict(t=20, b=40, l=40, r=20),
@@ -1396,6 +1418,16 @@ def _rgba(hex_colour: str, alpha: float) -> str:
 PRIOR_AXIS_TOP = 1.25
 
 
+def slice_span(positions, kind):
+    """The axis one hyperparameter's slice is drawn on, in vectorized space: the
+    unit interval for a number, and a half step either side of the choices for
+    a categorical. A prior's density is stated on this axis normalized to the
+    unit interval, so whatever evaluates one has to use the same span."""
+    if kind == "categorical":
+        return [min(positions) - 0.5, max(positions) + 0.5]
+    return [0.0, 1.0]
+
+
 def acquisition_slice_plots(hp_name, positions, labels, mu, sigma, metric_label,
                             eta=None, higher_is_better=True, kind="continuous",
                             incumbent=None, cloud=None):
@@ -1425,11 +1457,10 @@ def acquisition_slice_plots(hp_name, positions, labels, mu, sigma, metric_label,
 
     # Tick *indices*, so a label is looked up by position rather than by
     # searching `positions` for a float that came out of it.
+    span = slice_span(positions, kind)
     if kind == "categorical":
-        span = [min(positions) - 0.5, max(positions) + 0.5]
         shown = range(len(positions))
     else:
-        span = [0.0, 1.0]
         shown = range(0, len(positions), max(1, (len(positions) - 1) // 5))
     ticks = [positions[i] for i in shown]
     text = [sigfigs(labels[i]) for i in shown]

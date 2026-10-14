@@ -57,6 +57,7 @@ IN_THE_FILE = {
     "demo_dataset": ("dataset", "demo"),
     "config_space": ("space",),
     "priors": ("priors",),
+    "projected_priors": ("projected_priors",),
     "result": ("result",),
 }
 
@@ -119,7 +120,9 @@ def test_the_file_really_has_those_places(client):
     exp = _experiment()
     exp.data.config_space = {"hyperparameters": []}
     exp.data.priors = {"n_estimators": {"kind": "normal", "params": {}}}
-    exp.data.save(update_fields=["config_space", "priors"])
+    exp.data.projected_priors = [{"view": "axes", "hyperparameters": ["n_estimators"],
+                                  "points": [[0.5]], "params": {"width": 0.1}}]
+    exp.data.save(update_fields=["config_space", "priors", "projected_priors"])
 
     snapshot = adapter.snapshot_from_experiment(exp, provenance=True)
 

@@ -49,10 +49,11 @@ def test_figures_with_nothing_deferred_declare_nothing():
                              "configuration_cube", "acquisition_slice", "forecast"}
 
 
-#: The one deferred computation on by default: the HyperSHAP games measured from
+#: The deferred computations on by default: the HyperSHAP games measured from
 #: the incumbent are what the page opens on, so waiting to be asked would open
-#: every experiment on six blank figures.
-ON_BY_DEFAULT = {"hypershap_baseline"}
+#: every experiment on six blank figures; and the acquisition function's sample
+#: is what the configuration cube opens its field on.
+ON_BY_DEFAULT = {"hypershap_baseline", "acquisition_slice"}
 
 
 def test_every_deferred_computation_has_a_setting_defaulting_to_off():

@@ -10,6 +10,7 @@ from shapiq.game_theory import MoebiusConverter
 from ..metrics import (
     METRICS, declarations, describe, from_cost, metric_for, to_cost)
 from .timing import CANCELLED, FITTED, RUN_INFO_KEYS, STATUS_SUCCESS
+from .trial import evaluate_trial
 
 
 @dataclass
@@ -428,6 +429,11 @@ STOPPED_BY_EXHAUSTED = "exhausted"
 #: end — a target score the search never reaches, or a surrogate that stays
 #: unsure — so a caller should pair them with something bounded.
 UNBOUNDED_CRITERIA = ("target_score", "incumbent_confidence")
+
+
+#: Where a trial asked for by name came from, when the caller gives no origin of
+#: its own: a configuration somebody chose, not one the search produced.
+REQUESTED_ORIGIN = "Requested"
 
 
 class NoStoppingCriterion(ValueError):
@@ -865,60 +871,11 @@ class IncumbentSlice(NamedTuple):
     #: no cloud was sampled.
     cloud: Optional[tuple]
     warning: Optional[str]
-
-
-#: How many configurations the shadow curve is estimated from. SMAC's forest
-#: facade draws 10,000 per maximization and its Gaussian-process facade 1,000;
-#: this is a Monte Carlo estimate of the same surface, and every one of these
-#: points costs a surrogate prediction and a row of JSON. Two thousand is enough
-#: for the envelope to be legible without the payload dominating the response.
-CLOUD_POINTS = 2000
-
-
-def sample_acquisition_cloud(config_space, surrogate, n=CLOUD_POINTS, seed=0):
-    """Configurations drawn from the whole space, with what the surrogate says.
-
-    Returns `(X, mu, sigma)` — the vectorized configurations and the surrogate's
-    mean and spread at each. **Not** an acquisition function: the figure owns
-    that arithmetic and computes it in the browser, so handing back predictions
-    rather than values keeps expected improvement to one implementation.
-
-    This is what the slice cannot show. A slice holds every hyperparameter but
-    one at the incumbent's value; SMAC's maximizer moves all of them, and scores
-    exactly this kind of sample before it does. Projecting these onto one axis
-    shows how much interest is reachable at each value of that hyperparameter
-    when the others are free — which is the gap between what the curve promises
-    and what the search actually does.
-
-    Depends on the metric and the trials but **not** on which hyperparameter is
-    being sliced, so a caller drawing several slices samples once.
-    """
-    import numpy as np
-
-    if surrogate is None:
-        return None
-
-    try:
-        drawn = config_space.sample_configuration(size=n)
-    except Exception:  # noqa: BLE001 — a shadow must not cost anyone the figure
-        return None
-    if not isinstance(drawn, list):
-        drawn = [drawn]
-
-    rows = np.array([c.get_array() for c in drawn], dtype=float)
-    # A conditional hyperparameter is NaN wherever it is inactive. SMAC's own
-    # models impute those; the scikit-learn fallback does not, so the rows are
-    # dropped rather than guessed at — a shadow drawn from invented values would
-    # be worse than a shorter one.
-    rows = rows[~np.isnan(rows).any(axis=1)]
-    if len(rows) < 2:
-        return None
-
-    try:
-        mu, sigma = predict_mean_std(surrogate, rows)
-    except Exception:  # noqa: BLE001
-        return None
-    return rows, np.asarray(mu, dtype=float), np.asarray(sigma, dtype=float)
+    #: The configurations the slice and the cloud were predicted at, in
+    #: ConfigSpace's vectorized form — what a prior over whole configurations
+    #: is evaluated at to weigh them.
+    slice_rows: Optional[list] = None
+    cloud_rows: Optional[list] = None
 
 
 def predict_mean_std(surrogate, rows):
@@ -1069,6 +1026,21 @@ def _hp_grid(hp, n_points: int) -> list:
     return [float(v) for v in raw]
 
 
+def _from_unit(hp, u: float):
+    """The value hyperparameter *hp* takes at *u* in [0, 1) along its own scale:
+    logarithmic for a log one, an even share of its choices for a categorical,
+    its value for a constant."""
+    import numpy as np
+
+    choices = getattr(hp, "choices", None) or getattr(hp, "sequence", None)
+    if choices:
+        return choices[min(int(u * len(choices)), len(choices) - 1)]
+    if not hasattr(hp, "lower"):
+        return getattr(hp, "value", getattr(hp, "default_value", None))
+    value = hp.to_value(np.array([u]))[0]
+    return int(value) if isinstance(hp.default_value, (int, np.integer)) else float(value)
+
+
 def _sample_evenly(items: list, limit: int) -> list:
     """At most *limit* of *items*, spread evenly across it. 0 means all.
 
@@ -1162,6 +1134,13 @@ class BaseOptimizer(ABC):
         """
         return False
 
+    def acquisition_function(self) -> Optional[dict]:
+        """Which acquisition function this optimizer maximizes, as `kind`
+        ("ei" or "pi") and its improvement margin `xi`, or None for one that
+        fits no model of the objective. The page computes the acquisition from
+        the surrogate's mean and spread itself, so it needs to know which."""
+        return None
+
     @abstractmethod
     def optimize(
         self,
@@ -1180,6 +1159,13 @@ class BaseOptimizer(ABC):
         # no acquisition function for a prior to weight. The caller passes what
         # the reader stated without having to know which optimizer will get it.
         priors=None,
+        # Configurations to evaluate before searching for any — see
+        # `evaluate_requested`. None searches from the first trial.
+        configurations=None,
+        # Beliefs stated in a view of the space rather than on one axis — see
+        # `core.projected_prior`. Ignored, like `priors`, by a search with no
+        # acquisition function to weight.
+        projected_priors=None,
     ) -> OptimizationResult: ...
 
     def serialize_result(self, result: "OptimizationResult") -> dict:
@@ -1455,6 +1441,33 @@ class BaseOptimizer(ABC):
             on_keep=self.keep_model,
             metric=declared.get(metric_name) or metric_for(metric_name),
             **kwargs)
+
+    def evaluate_requested(self, configurations, *, model, splits, metrics, primary_metric,
+                           seed, collector, cancel_event=None, told=None) -> set:
+        """Evaluate the configurations a run was asked for by name, before it
+        searches for any.
+
+        *configurations* is a list of `{"config": {...}, "origin": "..."}`,
+        evaluated in order while the run's criteria allow, each recorded as a
+        trial like any the search produced. *told*, when given, is called with
+        `(config, all_scores, run_info)` after each, for an optimizer that keeps
+        a model of what it has seen. Returns the configurations evaluated, as
+        the sorted-item keys the optimizers already use to skip repeats.
+        """
+        done = set()
+        for requested in configurations or ():
+            if collector.done or (cancel_event and cancel_event.is_set()):
+                break
+            config = dict(requested["config"])
+            all_scores, run_info = evaluate_trial(model, config, splits, metrics, seed=seed,
+                                                   keep=self.keep_model is not None)
+            if told is not None:
+                told(config, all_scores, run_info)
+            collector.record(config, all_scores[primary_metric], all_scores,
+                             run_info=run_info,
+                             origin=requested.get("origin") or REQUESTED_ORIGIN)
+            done.add(tuple(sorted(config.items())))
+        return done
 
     def eager_analytics_budget_exceeded(self, config_space, metrics) -> Optional[str]:
         """Why the global games shouldn't be computed for this run, or None.
@@ -1932,6 +1945,141 @@ class BaseOptimizer(ABC):
 
         return x_grid, y_grid, z, None
 
+    #: How many configurations the configuration cube's prediction layer is
+    #: drawn from. A power of two, which is what keeps a Sobol sequence balanced,
+    #: and eight to a cell of the 32 x 32 field the page bins them into.
+    PREDICTION_SAMPLES = 8192
+
+    def sample_prediction_space(
+        self,
+        config_space,
+        trials: List[TrialResult],
+        metric_name: str,
+        seed: int = 0,
+        n: int = PREDICTION_SAMPLES,
+        surrogate=None,
+    ) -> dict:
+        """What the surrogate predicts across the whole search space, for the
+        configuration cube's prediction layer: one even sample of the space,
+        predicted once, and placed in every view the cube has.
+
+        **Even, and once.** A scrambled Sobol sequence over the space's unit
+        cube, so the sample covers it evenly rather than in random clumps; each
+        hyperparameter reads its coordinate on its own scale, so a log one is
+        sampled logarithmically and a categorical takes each choice equally
+        often. The model is this run's own where it can be rebuilt — see
+        `slice_surrogate` — and it is asked once, for the mean and the spread
+        both, since the view the reader picks changes where a configuration is
+        drawn and not what was predicted for it.
+
+        **Forward, never back.** A projected view places each sampled
+        configuration through the same fitted PCA or PLS the trials are drawn
+        with, rather than mapping points of the picture back to
+        configurations: every point drawn is then a legal configuration, and a
+        trial and a sampled configuration with the same values land in the same
+        place. Many configurations project to one place, so the page aggregates
+        what lands together. `outlines` is the edge of where anything legal can
+        land, per projection and dimensionality — see
+        `core.projection.Fitted.outline`.
+
+        Returns a dict: `hp_names`, `values` (one row of hyperparameter values
+        per sample, for the axes view, rounded), `configurations` (the same
+        samples exactly), `vectors` (the same samples in ConfigSpace's
+        vectorized form), `projections` (per method: the samples'
+        `coordinates`, the components' `labels`, `outlines` keyed by
+        dimensionality, and the projection itself as a linear `map`), `mu` and
+        `sigma` per sample, `eta` (the best observed
+        score, what expected improvement improves on), `higher_is_better`,
+        `smooth` (whether the model is a smooth function, which a forest is
+        not), and `warning`.
+
+        *surrogate*, when given, is the model to ask — one the caller already
+        fitted for this metric and these trials — instead of fitting another.
+        """
+        import numpy as np
+        from ConfigSpace import Configuration
+        from ConfigSpace.util import deactivate_inactive_hyperparameters
+        from scipy.stats import qmc
+
+        from ..projection import METHODS, fit as fit_projection
+
+        empty = {"hp_names": [], "values": [], "projections": {}, "mu": [],
+                 "sigma": [], "eta": None, "higher_is_better": True,
+                 "smooth": False, "warning": None}
+        metric = metric_for(metric_name)
+        scores = [t.scores[metric_name] for t in trials if metric_name in t.scores]
+        if not scores:
+            return dict(empty, warning=f"No trial carries a score for {metric_name}.")
+
+        hps = list(config_space.values())
+        names = [hp.name for hp in hps]
+        unit = qmc.Sobol(d=len(hps), scramble=True, seed=seed).random(n)
+        configurations, rows = [], []
+        for point in unit:
+            values = {hp.name: _from_unit(hp, u) for hp, u in zip(hps, point)}
+            try:
+                configuration = Configuration(config_space, values=values)
+            except Exception:  # noqa: BLE001 — a child its parent switched off
+                try:
+                    configuration = deactivate_inactive_hyperparameters(values, config_space)
+                except Exception:  # noqa: BLE001 — forbidden: not part of the space
+                    continue
+            configurations.append(dict(configuration))
+            rows.append(configuration.get_array())
+        if not configurations:
+            return dict(empty, warning="No configuration the space allows was sampled.")
+
+        model, warning = surrogate, None
+        if model is None:
+            model, warning = self.slice_surrogate(config_space, trials, metric_name, seed)
+        if model is None:
+            return dict(empty, warning=warning)
+        try:
+            mu, sigma = predict_mean_std(model, np.array(rows))
+        except Exception as e:  # noqa: BLE001 — a layer must not cost the figure
+            return dict(empty, warning=f"The surrogate could not predict here ({e}).")
+
+        # Five significant figures: the page bins these into a few dozen
+        # cells, and the answer is twice the size at full precision.
+        def number(value):
+            return float(f"{value:.5g}") if np.isfinite(value) else None
+
+        projections = {}
+        if len(scores) == len(trials):
+            for method in METHODS:
+                fitted, _reason = fit_projection(config_space, trials, scores, method)
+                if fitted is None:
+                    continue
+                projections[method] = {
+                    "coordinates": [[number(v) for v in row]
+                                    for row in fitted.transform(configurations)],
+                    "map": fitted.linear_map(),
+                    "labels": fitted.labels,
+                    "outlines": {str(k): fitted.outline(k)
+                                 for k in range(1, len(fitted.labels) + 1)},
+                }
+
+        return {
+            "hp_names": names,
+            "values": [[number(v) if isinstance(v, float) else v
+                        for v in (c.get(name) for name in names)]
+                       for c in configurations],
+            # Where each sample sits on every hyperparameter's own vectorized
+            # axis, which is the axis a prior's density is stated on: what the
+            # page weights the acquisition by, per sample, as a prior changes.
+            "vectors": [[number(v) for v in row] for row in rows],
+            # Every sample exactly, where `values` is rounded for the page: what
+            # a sample is run as, when one is picked to become a trial.
+            "configurations": configurations,
+            "projections": projections,
+            "mu": [number(v) for v in mu],
+            "sigma": [number(v) for v in sigma],
+            "eta": float(max(scores) if metric.higher_is_better else min(scores)),
+            "higher_is_better": metric.higher_is_better,
+            "smooth": bool(getattr(model, "smooth", False)),
+            "warning": warning,
+        }
+
     def slice_axis(self, config_space, hp_name: str, n_points: int = 101):
         """The axis one hyperparameter is drawn on, without fitting anything.
 
@@ -2007,7 +2155,7 @@ class BaseOptimizer(ABC):
         default case, which is what expected improvement improves over. `None`
         when nothing usable was observed.
 
-        *cloud* is `(X, mu, sigma)` from `sample_acquisition_cloud` — predictions
+        *cloud* is `(X, mu, sigma)` from `sample_prediction_space` — predictions
         for configurations drawn from the *whole* space. Handed in for the same
         reason *surrogate* is: it does not depend on which hyperparameter is on
         the axis, so sampling it per slice would be waste.
@@ -2064,6 +2212,7 @@ class BaseOptimizer(ABC):
         # every one of them at once — three lists the browser indexes in
         # lockstep must not be able to fall out of step here.
         kept_values, kept_positions, rows = [], [], []
+        cloud_rows = None
         positions = np.asarray(hp.to_vector(np.asarray(grid)), dtype=float).ravel()
         for value, position in zip(grid, positions):
             try:
@@ -2078,7 +2227,8 @@ class BaseOptimizer(ABC):
         if len(rows) < 2:
             return IncumbentSlice([], [], [], [], None, None, None, f"No valid configurations along {hp_name}.")
 
-        mu, sigma = predict_mean_std(rf, np.array(rows))
+        slice_rows = np.array(rows)
+        mu, sigma = predict_mean_std(rf, slice_rows)
 
         observed = [v for _, v in _pair_trials_with_scores(
             config_space, trials, metric_name, values=values)]
@@ -2119,16 +2269,24 @@ class BaseOptimizer(ABC):
         if cloud is not None:
             try:
                 column = list(config_space.keys()).index(hp_name)
-                rows, cloud_mu, cloud_sigma = cloud
-                projected = ([float(v) for v in rows[:, column]],
-                             [float(v) for v in cloud_mu],
-                             [float(v) for v in cloud_sigma])
+                sampled, cloud_mu, cloud_sigma = cloud
+                # A configuration where this hyperparameter is inactive has no
+                # place on its axis, and one the model could not predict has
+                # nothing to say there; both are left out.
+                kept = [i for i in range(len(sampled))
+                        if np.isfinite(sampled[i, column]) and np.isfinite(cloud_mu[i])
+                        and np.isfinite(cloud_sigma[i])]
+                projected = ([float(sampled[i, column]) for i in kept],
+                             [float(cloud_mu[i]) for i in kept],
+                             [float(cloud_sigma[i]) for i in kept])
+                cloud_rows = sampled[kept]
             except Exception:  # noqa: BLE001 — a shadow must not cost the slice
                 projected = None
 
         return IncumbentSlice(kept_values, kept_positions,
                               [float(v) for v in mu], [float(v) for v in sigma],
-                              eta, incumbent, projected, None)
+                              eta, incumbent, projected, None,
+                              slice_rows=slice_rows, cloud_rows=cloud_rows)
 
     def _skipped_games(self, metrics, reason: str) -> Dict[str, tuple]:
         """`compute_hp_games`' return shape for "these weren't computed".

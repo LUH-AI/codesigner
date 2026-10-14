@@ -184,16 +184,21 @@ def test_a_click_moves_the_figures_when_the_selected_trial_is_the_baseline(clien
     """Under "Selected", choosing another trial recomputes every HyperSHAP figure.
 
     Asserted on the page script, the way the other page-script contracts are:
-    the one function every click goes through refreshes the game figures and
-    the beeswarm when the baseline is the selection.
+    the one function every selection goes through — a trial clicked, or a
+    proposal picked in a trial's place — refreshes the game figures and the
+    beeswarm when the baseline is the selection.
     """
     html = _page(client, _experiment("analytics.ihpo"))
-    select_trial = html.split("function selectTrial(", 1)[1].split("\n            }\n", 1)[0]
+    def body(name):
+        return html.split(f"function {name}(", 1)[1].split("\n            }\n", 1)[0]
 
-    assert 'currentBaseline() === "selected"' in select_trial
-    assert "refreshHyperSHAP(metric)" in select_trial
-    assert "refreshLocalEffects(metric)" in select_trial
-    assert "refreshLocalAblation(metric)" in select_trial
+    moved = body("selectionMoved")
+    assert 'currentBaseline() === "selected"' in moved
+    assert "refreshHyperSHAP(metric)" in moved
+    assert "refreshLocalEffects(metric)" in moved
+    assert "refreshLocalAblation(metric)" in moved
+    assert "selectionMoved(metric)" in body("selectTrial")
+    assert "selectionMoved(metric)" in body("selectProposal")
 
 
 def test_the_table_has_a_column_for_every_baseline(client):

@@ -142,9 +142,69 @@ being read.{% endcomment %}
     {{ selection_colors|json_script:"selection-colors-data" }}
     {{ computed_version|json_script:"computed-version" }}
     <script src="{% asset 'ui/computed.js' %}"></script>
+    {% comment %}A run adding trials from the start: nothing computes on its
+    own until it ends, which reloads the page.{% endcomment %}
+    {% if active_run %}<script>window.codesignerComputed.running = true;</script>{% endif %}
+    <script src="{% asset 'ui/next_trials.js' %}"></script>
+    <script src="{% asset 'ui/improvement.js' %}"></script>
     <script src="{% static 'ui/plotly.min.js' %}"></script><script src="{% asset 'ui/theme.js' %}"></script>
     <script>
         (function () {
+            // ── where the reader was, across a run ───────────────────────
+            //
+            // Starting a run, running a proposal, cancelling one and the
+            // reload when one ends are all navigations, and a navigation
+            // opens the page afresh: the first tab, every selector at its
+            // default. None of them is the reader asking to start over, so
+            // before each the page writes down where they were (`keepView`,
+            // at the end of this script) and the page they land on puts it
+            // back, here, before anything reads a control. For this
+            // experiment, in this browser tab, for a few minutes; a reload or
+            // a visit from elsewhere opens fresh as ever.
+            const keptViewKey = "codesigner:kept-view:{{ summary.pk }}";
+            const KEPT_VIEW_MS = 10 * 60 * 1000;
+            const keptView = (function () {
+                try {
+                    const raw = sessionStorage.getItem(keptViewKey);
+                    sessionStorage.removeItem(keptViewKey);
+                    const view = raw && JSON.parse(raw);
+                    return view && Date.now() - view.at < KEPT_VIEW_MS ? view : null;
+                } catch (e) { return null; }
+            })();
+            // The controls that are part of the view. Not a form's fields,
+            // which the server renders, except the metric picker, which the
+            // run form borrows; not a prior's, which the server stores; and
+            // not the box asking what runs next, whose answer goes stale with
+            // the trials.
+            function viewControls() {
+                return Array.prototype.filter.call(
+                    document.querySelectorAll("select[id], input[type=checkbox][id], input[type=radio]"),
+                    function (el) {
+                        if (el.id === "metric-select") return true;
+                        return !el.closest("form[method=post], [data-figure='prior'], [data-figure='projected_prior']")
+                            && !/^acq-prior/.test(el.id) && !el.matches("[data-next-trials]")
+                            && el.id !== "cube-draw-prior";
+                    });
+            }
+            function controlKey(el) {
+                return el.type === "radio" ? "radio:" + el.name + ":" + el.value : el.id;
+            }
+            if (keptView) {
+                if (keptView.hash && !window.location.hash) {
+                    history.replaceState(null, "", window.location.pathname
+                                         + window.location.search + keptView.hash);
+                }
+                viewControls().forEach(function (el) {
+                    const value = (keptView.controls || {})[controlKey(el)];
+                    if (value === undefined) return;
+                    if (el.type === "checkbox" || el.type === "radio") {
+                        el.checked = !!value;
+                    } else if (Array.prototype.some.call(el.options, function (o) { return o.value === value; })) {
+                        el.value = value;
+                    }
+                });
+            }
+
             // Plots keyed by figure: per-metric ones for the viewed metric,
             // static ones drawn once. Only the figures that are switched on
             // are here at all, so every lookup below is conditional — a
@@ -366,12 +426,27 @@ being read.{% endcomment %}
             const selectionColors =
                 JSON.parse(document.getElementById("selection-colors-data").textContent);
 
+            // Or, in a trial's place, a proposal: one of the configuration
+            // cube's sampled configurations, picked off its point cloud — an
+            // index into that sample. Nobody has run it, so while it is
+            // selected no trial is: every figure that shows or measures from
+            // the selected trial shows none.
+            const proposalIdx = {};
+            const NO_TRIAL_SELECTED = "{% translate 'A proposal is selected, not a trial.' %}";
+
             // One trial is selected at a time across the whole page. Which
             // one, for a metric: the trial clicked since the last metric
-            // switch, or that metric's best.
+            // switch, or that metric's best — or none, while a proposal is.
             function selectionFor(metric) {
+                if (proposalIdx[metric] !== undefined) return undefined;
                 return selectedIdx[metric] !== undefined
                     ? selectedIdx[metric] : bestIdxByMetric[metric];
+            }
+            // The sidebar's panel for *metric* dressed as a proposal, or not.
+            function markProposal(metric, on) {
+                const el = document.getElementById("selected-content-" + metric);
+                const panel = el && el.closest(".selected-config");
+                if (panel) panel.classList.toggle("is-proposal", !!on);
             }
 
             // Where a plot's per-trial points are — see plots.py's
@@ -654,13 +729,24 @@ being read.{% endcomment %}
                 (document.getElementById("kept-trial-indices") || {}).textContent || "[]"));
             function pointExportAt(metric) {
                 const link = document.getElementById("export-model");
+                const params = document.getElementById("export-trial-parameters");
                 const idx = selectionFor(metric);
+                // A proposal has no model to export, fitted or otherwise.
+                [link, params].forEach(function (button) {
+                    if (!button) return;
+                    button.classList.toggle("disabled", idx === undefined);
+                    if (idx === undefined) {
+                        button.setAttribute("aria-disabled", "true");
+                        button.removeAttribute("href");
+                    } else {
+                        button.setAttribute("aria-disabled", "false");
+                    }
+                });
                 if (idx === undefined) return;
                 const query = "?metric=" + encodeURIComponent(metric) + "&idx=" + idx;
                 if (link) link.href = exportModelUrl + query;
                 // A trial whose model was not kept has nothing to download:
                 // the button stays, disabled, saying why.
-                const params = document.getElementById("export-trial-parameters");
                 if (!params) return;
                 const kept = keptFits.has(idx);
                 params.classList.toggle("disabled", !kept);
@@ -675,7 +761,78 @@ being read.{% endcomment %}
 
             function selectTrial(metric, idx) {
                 if (idx === undefined || idx < 0) return;
+                const wasProposal = proposalIdx[metric] !== undefined;
+                delete proposalIdx[metric];
                 selectedIdx[metric] = idx;
+                selectionMoved(metric);
+                if (wasProposal) applyCubeAxes();  // the proposal's ring goes
+                fetch(trialPanelUrl + "?metric=" + encodeURIComponent(metric) + "&idx=" + idx)
+                    .then(function (r) { return r.ok ? r.text() : Promise.reject(); })
+                    .then(function (html) {
+                        if (selectionFor(metric) !== idx) return;  // moved on meanwhile
+                        const el = document.getElementById("selected-content-" + metric);
+                        if (el) el.innerHTML = html;
+                        markProposal(metric, false);
+                    })
+                    .catch(function () {});
+            }
+
+            // A proposal in a trial's place: its panel, with what the
+            // surrogate predicts for it and the offer to run it, and every
+            // figure about the selected trial showing none.
+            const proposalPanelUrl = "{% url 'ui:proposal_panel' summary.pk %}";
+            function selectProposal(metric, n) {
+                if (n === undefined || n === null || n < 0) return;
+                proposalIdx[metric] = n;
+                delete selectedIdx[metric];
+                selectionMoved(metric);
+                applyCubeAxes();  // the ring on the sample
+                fetch(proposalPanelUrl + "?metric=" + encodeURIComponent(metric) + "&n=" + n)
+                    .then(function (r) { return r.ok ? r.text() : Promise.reject(); })
+                    .then(function (html) {
+                        if (proposalIdx[metric] !== n) return;  // moved on meanwhile
+                        const el = document.getElementById("selected-content-" + metric);
+                        if (el) el.innerHTML = html;
+                        markProposal(metric, true);
+                    })
+                    .catch(function () {});
+            }
+
+            // A proposal is a look at a configuration rather than a place to
+            // stay: a click on nothing in particular lets go of it, back to the
+            // incumbent. A trial stays selected however much the page is
+            // clicked around it.
+            function dropProposal(metric) {
+                if (proposalIdx[metric] === undefined) return;
+                selectTrial(metric, bestIdxByMetric[metric]);
+            }
+            // What "nothing in particular" excludes: anything that does
+            // something when clicked, the proposal's own panel, and the
+            // figures that select — which decide for themselves, knowing
+            // whether the click landed on a point.
+            const CLICKABLE = "a, button, input, select, textarea, label, summary, "
+                + "[tabindex], [role='button'], [contenteditable], dialog, "
+                + ".selected-config, .modebar, .legend";
+            let pressedPageAt = null;
+            document.addEventListener("mousedown", function (event) {
+                pressedPageAt = [event.clientX, event.clientY];
+            }, true);
+            document.addEventListener("click", function (event) {
+                const target = event.target;
+                if (!(target instanceof Element) || target.closest(CLICKABLE)) return;
+                const plot = target.closest(".js-plotly-plot");
+                if (plot && selectableFigures.indexOf(plot.id.replace("figure-", "")) >= 0) return;
+                // The end of a drag — a zoom, a pan, a turn — or of selecting
+                // text, which is reading rather than clicking.
+                if (pressedPageAt && Math.hypot(event.clientX - pressedPageAt[0],
+                                                event.clientY - pressedPageAt[1]) > DRAG_SLOP) return;
+                if (String(window.getSelection() || "")) return;
+                dropProposal(currentMetric());
+            });
+
+            // Everything that follows the selection, whether a trial or a
+            // proposal took it.
+            function selectionMoved(metric) {
                 pointExportAt(metric);
                 showSelection(metric);
                 refreshLocalAblation(metric);  // its own figure now; a no-op if it is off
@@ -691,13 +848,6 @@ being read.{% endcomment %}
                     applyImportanceView();
                 }
                 if (typeof refreshForecast === "function") refreshForecast(metric);
-                fetch(trialPanelUrl + "?metric=" + encodeURIComponent(metric) + "&idx=" + idx)
-                    .then(function (r) { return r.ok ? r.text() : Promise.reject(); })
-                    .then(function (html) {
-                        const el = document.getElementById("selected-content-" + metric);
-                        if (el) el.innerHTML = html;
-                    })
-                    .catch(function () {});
             }
 
             // Plotly keeps its handlers across a `react`, so each figure is
@@ -725,8 +875,12 @@ being read.{% endcomment %}
             // gesture a click, and so must this, or a hand's wobble lands in
             // between and the click belongs to neither.
             const DRAG_SLOP = 8;  // pixels
-            // Plotly's hover throttle (HOVERMINTIME, 50 ms) and a frame to spare.
-            const HOVER_SETTLE = 70;  // milliseconds
+            // How long a click may wait for the hover to catch up with where it
+            // landed: Plotly's hover throttle (HOVERMINTIME, 50 ms) and a frame
+            // to spare on a flat figure; longer in a scene, whose hover is a
+            // pick on a rendered frame and arrives later the more it draws.
+            const HOVER_SETTLE = 70;     // milliseconds
+            const HOVER_SETTLE_3D = 250; // milliseconds
             function attachSelectionClicks() {
                 selectableFigures.forEach(function (key) {
                     const el = figureEl(key);
@@ -740,15 +894,33 @@ being read.{% endcomment %}
                     // unhover — so by the release, `hovered` is usually gone,
                     // and only a perfectly still click would ever select.
                     let pressedOn = null;
+                    // When the pointer last moved over the figure, and when the
+                    // hover last answered: a click is read once the second has
+                    // caught up with the first.
+                    let movedAt = 0, hoveredAt = 0;
                     el.on("plotly_hover", function (data) {
                         hovered = data.points && data.points[0];
+                        hoveredAt = performance.now();
                     });
-                    el.on("plotly_unhover", function () { hovered = null; });
-                    el.addEventListener("mousedown", function (event) {
+                    el.on("plotly_unhover", function () {
+                        hovered = null;
+                        hoveredAt = performance.now();
+                    });
+                    // The element outlives a replot — a change of
+                    // dimensionality goes through newPlot and wires the hover
+                    // again — so the last wiring's listeners come off first.
+                    // Left on, each went on reading a hover that no longer
+                    // moved, and one click was read once per wiring: twice
+                    // after a single trip through 3D.
+                    (el._selectionListeners || []).forEach(function (pair) {
+                        el.removeEventListener(pair[0], pair[1]);
+                    });
+                    const onMove = function () { movedAt = performance.now(); };
+                    const onDown = function (event) {
                         pressedAt = [event.clientX, event.clientY];
                         pressedOn = hovered;
-                    });
-                    el.addEventListener("click", function (event) {
+                    };
+                    const onClick = function (event) {
                         const moved = pressedAt && Math.hypot(
                             event.clientX - pressedAt[0],
                             event.clientY - pressedAt[1]);
@@ -759,16 +931,49 @@ being read.{% endcomment %}
                         // landed, and would name the point the pointer was
                         // passing on the way. Read once the hover has caught up.
                         const pressed = pressedOn;
-                        setTimeout(function () {
+                        const clickedAt = performance.now();
+                        const patience = el._fullLayout && el._fullLayout.scene
+                            ? HOVER_SETTLE_3D : HOVER_SETTLE;
+                        (function settle() {
+                            if (hoveredAt < movedAt && performance.now() - clickedAt < patience) {
+                                setTimeout(settle, 15);
+                                return;
+                            }
                             const sel = selectionMeta(key);
                             const point = hovered || pressed;
-                            if (!sel || !point) return;  // the modebar, or empty space
+                            // Drawing a prior: the click puts a point down.
+                            if (key === "configuration_cube" && drawingPrior()) {
+                                pickPriorPoint(el, point, event);
+                                return;
+                            }
+                            // A sample in the cube's point cloud: a proposal.
+                            const sample = point && point.data && point.data.meta
+                                && point.data.meta.samples;
+                            if (sample) {
+                                const at = point.pointIndex !== undefined
+                                    ? point.pointIndex : point.pointNumber;
+                                selectProposal(currentMetric(), point.data.customdata[at]);
+                                return;
+                            }
+                            if (!point) {
+                                // Empty space lets go of a proposal, as
+                                // anywhere else on the page does; the toolbar
+                                // is buttons.
+                                if (!event.target.closest(".modebar")) dropProposal(currentMetric());
+                                return;
+                            }
+                            if (!sel) return;
                             // A 3D trace reports `pointNumber` and no `pointIndex`.
                             const at = point.pointIndex !== undefined
                                 ? point.pointIndex : point.pointNumber;
                             selectTrial(currentMetric(),
                                         trialAt(sel, point.curveNumber, at));
-                        }, HOVER_SETTLE);
+                        })();
+                    };
+                    el._selectionListeners = [["mousemove", onMove], ["mousedown", onDown],
+                                              ["click", onClick]];
+                    el._selectionListeners.forEach(function (pair) {
+                        el.addEventListener(pair[0], pair[1]);
                     });
                 });
             }
@@ -928,6 +1133,7 @@ being read.{% endcomment %}
             }
             function gameWarning(metric, game) {
                 if (currentBaseline() === "default") return (warnings[metric] || {})[game];
+                if (baselineIdx(metric) === undefined) return NO_TRIAL_SELECTED;
                 const data = baselinePayload[metric];
                 return data ? data.warnings[game] : null;
             }
@@ -989,6 +1195,14 @@ being read.{% endcomment %}
                 return autocompute[name] !== false && !(computed && computed.running);
             }
             function cacheFor(name) { return computed ? computed.cache(name) : {}; }
+            // A figure about the selected trial when a proposal is selected
+            // instead: empty, its Compute button away, and saying why.
+            function noTrialSelected(key, promptId, warningId) {
+                setComputePrompt(promptId, false);
+                clearPlot(key);
+                const warnEl = document.getElementById(warningId);
+                if (warnEl) { warnEl.textContent = NO_TRIAL_SELECTED; warnEl.hidden = false; }
+            }
             const localAblationCache = cacheFor("local_ablation");  // "metric:idx:baseline" -> {figure, warning}
             function localAblationKey(metric) {
                 return metric + ":" + selectionFor(metric) + ":" + baselineIdx(metric);
@@ -996,7 +1210,10 @@ being read.{% endcomment %}
             function refreshLocalAblation(metric, asked) {
                 if (!figureEl("local_explanation")) return;
                 const idx = selectionFor(metric);
-                if (idx === undefined) return;
+                if (idx === undefined) {
+                    noTrialSelected("local_explanation", "ablation-compute", "local-explanation-warning");
+                    return;
+                }
                 const key = localAblationKey(metric);
                 function apply(data) {
                     // Stale by the time it resolves: the user moved on to
@@ -1289,6 +1506,11 @@ being read.{% endcomment %}
             const localEffectsCache = cacheFor("local_effects");
             function refreshLocalEffects(metric, asked) {
                 if (!figureEl("local_effects")) return;
+                // Measured from the selected trial, and a proposal is none.
+                if (currentBaseline() === "selected" && baselineIdx(metric) === undefined) {
+                    noTrialSelected("local_effects", "local-effects-compute", "local-effects-warning");
+                    return;
+                }
                 const key = metric + ":" + baselineIdx(metric);
                 function apply(data) {
                     // Moved on while in flight: another metric or baseline.
@@ -1311,6 +1533,8 @@ being read.{% endcomment %}
                 if (!mayFetch("local_effects") && !asked) {
                     setComputePrompt("local-effects-compute", true);
                     clearPlot("local_effects");
+                    const warnEl = document.getElementById("local-effects-warning");
+                    if (warnEl) warnEl.hidden = true;
                     return;
                 }
                 setComputePrompt("local-effects-compute", false);
@@ -1337,7 +1561,10 @@ being read.{% endcomment %}
                 forecastCache = forecastCache || cacheFor("forecast");
                 forecastSeries = forecastSeries || document.getElementById("forecast-series-select");
                 const idx = selectionFor(metric);
-                if (idx === undefined) return;
+                if (idx === undefined) {
+                    noTrialSelected("forecast", "forecast-compute", "forecast-warning");
+                    return;
+                }
                 const series = forecastSeries && forecastSeries.value ? forecastSeries.value : "";
                 const key = metric + ":" + idx + ":" + series;
                 function apply(data) {
@@ -1361,6 +1588,8 @@ being read.{% endcomment %}
                 if (!mayFetch("forecast") && !asked) {
                     setComputePrompt("forecast-compute", true);
                     clearPlot("forecast");
+                    const warnEl = document.getElementById("forecast-warning");
+                    if (warnEl) warnEl.hidden = true;
                     return;
                 }
                 setComputePrompt("forecast-compute", false);
@@ -1501,6 +1730,1176 @@ being read.{% endcomment %}
                     .catch(function () {});
             }
 
+            // ── what the surrogate makes of the whole space ──────────────
+            //
+            // The layer under the trials: one even sample of the search space,
+            // predicted once per metric (see views.surrogate_prediction), and
+            // placed in whichever view is showing. A view, an axis or a number
+            // of dimensions only moves where each sampled configuration lands,
+            // so changing one asks for nothing; only a metric is a new model.
+            const predictionUrl = "{% url 'ui:surrogate_prediction' summary.pk %}";
+            const layerSelect = document.getElementById("cube-layer");
+            const layerStyleSelect = document.getElementById("cube-layer-style");
+            // Kept here rather than in the computed store: the answer is most of
+            // a megabyte a metric, which the tab's storage would spend on this
+            // alone. Dropped with the rest when the trials move on.
+            let layerCache = {};
+            let layerData = null;   // the answer for the metric showing, or null
+            document.addEventListener("computed:forgotten", function () { layerCache = {}; });
+
+            // None while a run is adding trials: the selectors are disabled
+            // then, and every poll would otherwise mean a new sample.
+            function currentLayer() {
+                return layerSelect && !layerSelect.disabled ? layerSelect.value : "";
+            }
+            // How to draw a layer means nothing without one.
+            function syncLayerStyle() {
+                if (layerStyleSelect) layerStyleSelect.disabled = !currentLayer();
+            }
+            function setPredictionWarning(text) {
+                const el = document.getElementById("prediction-warning");
+                if (!el) return;
+                el.textContent = text || "";
+                el.hidden = !text;
+            }
+            // An optimizer that fits no model of the objective has no
+            // acquisition function: the option goes rather than offering one.
+            function syncLayerOptions() {
+                if (!layerSelect) return;
+                const option = layerSelect.querySelector('option[value="acquisition"]');
+                const offered = !layerData || layerData.acquisition !== false;
+                if (option) option.hidden = !offered;
+                if (!offered && layerSelect.value === "acquisition") layerSelect.value = "prediction";
+            }
+            function refreshLayer() {
+                syncLayerStyle();
+                if (!currentLayer()) {
+                    setPredictionWarning(null);
+                    applyCubeAxes();
+                    return;
+                }
+                const metric = currentMetric();
+                function apply(data) {
+                    if (currentMetric() !== metric || !currentLayer()) return;
+                    layerData = Object.assign({metric: metric}, data);
+                    setPredictionWarning(data.warning);
+                    syncLayerOptions();
+                    applyCubeAxes();
+                }
+                if (layerCache[metric]) { apply(layerCache[metric]); return; }
+                layerData = null;
+                applyCubeAxes();
+                fetch(predictionUrl + "?metric=" + encodeURIComponent(metric))
+                    .then(function (r) { return r.ok ? r.json() : Promise.reject(); })
+                    .then(function (data) {
+                        layerCache[metric] = data;
+                        // The priors as saved. Edits made since arrive as
+                        // events and replace these one hyperparameter at a time.
+                        priorWeights = Object.assign({}, data.priors || {});
+                        weightCache = null;
+                        apply(data);
+                    })
+                    .catch(function () {});
+            }
+
+            // How finely the layer is binned, by how many axes it spans. Powers
+            // of two along each axis, where a Sobol sample divides evenly.
+            const LAYER_BINS = {1: 64, 2: 32, 3: 12};
+            // How much finer the drawn field is than the bins, so its edge can
+            // follow the legal region's rather than step along the bins.
+            const LAYER_REFINE = {1: 4, 2: 4, 3: 3};
+            // The acquisition's own ramp: it is not a score, and drawing it in
+            // the trials' colours would say it was.
+            const ACQUISITION_SCALE = [[0, "#FFF7EC"], [0.35, "#FDBB84"],
+                                       [0.7, "#EF6548"], [1, "#990000"]];
+            // Where the level sets sit — the 3D view's shells, the 1D and 2D
+            // views' contour lines — as fractions of the drawn field's range,
+            // counted from its worse end. The colour bar is the unweighted
+            // field's and a prior leaves it alone, so with no prior the levels
+            // fall at these fractions of the bar, and under one they follow
+            // the weighted field down the same bar. The acquisition is near
+            // zero almost everywhere, so its levels start low; the
+            // prediction's mediocre bulk is left clear.
+            const SHELL_LEVELS = {acquisition: [0.25, 0.5, 0.75], prediction: [0.55, 0.7, 0.85]};
+            // A level enclosing more of the legal region than this says
+            // nothing a box would not, and is left out.
+            const SHELL_MAX_SHARE = 0.6;
+
+            // One axis's bins. A categorical gets one per value; a number gets
+            // even bins on its own scale, so a log axis is binned
+            // logarithmically. *span*, when given, is the extent to bin over
+            // instead of what was sampled: a projection's legal region, a little
+            // past it, since a sample rarely reaches its corners.
+            function layerAxis(values, logged, count, span) {
+                if (!values.every(function (v) { return typeof v === "number"; })) {
+                    const kinds = Array.from(new Set(values.map(String))).sort();
+                    return {centers: kinds, index: function (v) { return kinds.indexOf(String(v)); }};
+                }
+                const scaled = logged ? values.map(Math.log10) : values;
+                const low = span ? span[0] : Math.min.apply(null, scaled);
+                const high = span ? span[1] : Math.max.apply(null, scaled);
+                const width = (high - low) / count || 1;
+                const unscale = function (x) { return logged ? Math.pow(10, x) : x; };
+                const at = function (fraction) { return unscale(low + fraction * (high - low)); };
+                const centers = [];
+                for (let b = 0; b < count; b++) centers.push(unscale(low + (b + 0.5) * width));
+                return {centers: centers, numeric: true, at: at, index: function (v) {
+                    const x = logged ? Math.log10(v) : v;
+                    return Math.min(count - 1, Math.max(0, Math.floor((x - low) / width)));
+                }};
+            }
+
+            // How far the legal region reaches along axis *k*, a little past
+            // its edge on both sides, or null.
+            function outlineSpan(outline, k) {
+                if (!outline) return null;
+                let values;
+                if (Array.isArray(outline) && typeof outline[0] === "number") values = outline;
+                else if (Array.isArray(outline)) values = outline.map(function (p) { return p[k]; });
+                else values = outline[["x", "y", "z"][k]];
+                if (!values || !values.length) return null;
+                const low = Math.min.apply(null, values), high = Math.max.apply(null, values);
+                const pad = 0.04 * (high - low);
+                return [low - pad, high + pad];
+            }
+
+            // How far inside the legal region a point is — negative outside it —
+            // where the region is the interval, polygon or polyhedron the
+            // projection takes the search space's box to. Built once per
+            // outline; with none (the axes view, whose box is its own axes)
+            // everything is comfortably inside.
+            function legalDistance(outline, dims) {
+                if (!outline) return function () { return Infinity; };
+                if (dims === 1) {
+                    return function (p) { return Math.min(p[0] - outline[0], outline[1] - p[0]); };
+                }
+                // Every face (an edge in two dimensions) as the half-space its
+                // inside is on, oriented by the region's centroid, which is
+                // inside: distance is then the nearest face's.
+                const pts = dims === 2 ? outline : outline.x.map(function (_x, i) {
+                    return [outline.x[i], outline.y[i], outline.z[i]];
+                });
+                const centroid = [];
+                for (let d = 0; d < dims; d++) {
+                    centroid.push(pts.reduce(function (a, q) { return a + q[d]; }, 0) / pts.length);
+                }
+                const faces = [];
+                if (dims === 2) {
+                    pts.forEach(function (a, f) {
+                        const b = pts[(f + 1) % pts.length];
+                        faces.push([[b[1] - a[1], a[0] - b[0]], a]);
+                    });
+                } else {
+                    outline.i.forEach(function (_i, f) {
+                        const a = pts[outline.i[f]], b = pts[outline.j[f]], c = pts[outline.k[f]];
+                        const u = [b[0] - a[0], b[1] - a[1], b[2] - a[2]];
+                        const v = [c[0] - a[0], c[1] - a[1], c[2] - a[2]];
+                        faces.push([[u[1] * v[2] - u[2] * v[1], u[2] * v[0] - u[0] * v[2],
+                                     u[0] * v[1] - u[1] * v[0]], a]);
+                    });
+                }
+                const dot = function (x, y) { return x.reduce(function (s, xi, k) { return s + xi * y[k]; }, 0); };
+                const planes = faces.map(function (face) {
+                    let n = face[0];
+                    const length = Math.hypot.apply(null, n) || 1;
+                    n = n.map(function (x) { return x / length; });
+                    let offset = dot(n, face[1]);
+                    if (dot(n, centroid) > offset) { n = n.map(function (x) { return -x; }); offset = -offset; }
+                    return [n, offset];
+                });
+                return function (p) {
+                    return planes.reduce(function (nearest, q) {
+                        return Math.min(nearest, q[1] - dot(q[0], p));
+                    }, Infinity);
+                };
+            }
+
+            // The cells of a grid of any dimension, as index tuples and back.
+            function gridIndex(sizes, cell) {
+                return cell.reduce(function (at, c, k) { return at * sizes[k] + c; }, 0);
+            }
+            function gridCell(sizes, at) {
+                const cell = new Array(sizes.length);
+                for (let k = sizes.length - 1; k >= 0; k--) { cell[k] = at % sizes[k]; at = Math.floor(at / sizes[k]); }
+                return cell;
+            }
+            function gridNeighbours(sizes, at) {
+                const cell = gridCell(sizes, at), out = [];
+                const total = Math.pow(3, sizes.length);
+                for (let m = 0; m < total; m++) {
+                    let rest = m, moved = false, ok = true;
+                    const next = cell.map(function (c, k) {
+                        const step = rest % 3 - 1; rest = Math.floor(rest / 3);
+                        if (step) moved = true;
+                        const n = c + step;
+                        if (n < 0 || n >= sizes[k]) ok = false;
+                        return n;
+                    });
+                    if (moved && ok) out.push(gridIndex(sizes, next));
+                }
+                return out;
+            }
+
+            // Every empty bin given its neighbours' value, pass after pass, out
+            // to the edge of the grid. Inside the legal region that closes the
+            // gaps a thin sample leaves; outside it, it carries the field just
+            // past the edge, so clipping to the edge leaves no dead strip.
+            function fillGrid(field, sizes) {
+                let grid = field.slice();
+                const neighbours = grid.map(function (_v, at) { return gridNeighbours(sizes, at); });
+                for (let pass = 0; pass < Math.max.apply(null, sizes) * 2; pass++) {
+                    let changed = false;
+                    const next = grid.slice();
+                    grid.forEach(function (v, at) {
+                        if (v !== null) return;
+                        let sum = 0, n = 0;
+                        neighbours[at].forEach(function (m) { if (grid[m] !== null) { sum += grid[m]; n++; } });
+                        if (n) { next[at] = sum / n; changed = true; }
+                    });
+                    grid = next;
+                    if (!changed) break;
+                }
+                return grid;
+            }
+            // Each cell averaged with its neighbours: what takes out the grain
+            // a few samples a cell leave, for a model smooth enough to deserve
+            // it. A forest's steps are real, and keep their edges.
+            // Each cell the best of itself and its neighbours. Before the
+            // blur, for the acquisition: a lone peak is then a plateau the
+            // blur leaves at its height, where it would otherwise be divided
+            // among three, nine or twenty-seven cells by dimension, and the
+            // field is still the best in each region, of a wider region.
+            function dilateGrid(field, sizes) {
+                return field.map(function (v, at) {
+                    if (v === null) return null;
+                    let best = v;
+                    gridNeighbours(sizes, at).forEach(function (m) {
+                        if (field[m] !== null && field[m] > best) best = field[m];
+                    });
+                    return best;
+                });
+            }
+            function blurGrid(field, sizes) {
+                return field.map(function (v, at) {
+                    if (v === null) return null;
+                    let sum = v, n = 1;
+                    gridNeighbours(sizes, at).forEach(function (m) {
+                        if (field[m] !== null) { sum += field[m]; n++; }
+                    });
+                    return sum / n;
+                });
+            }
+            // The field on a grid *factor* times finer: interpolated between
+            // cell centres for a smooth model, the nearest cell's value for a
+            // forest, which is a staircase and should look like one.
+            function refineGrid(field, sizes, factor, smooth) {
+                const fine = sizes.map(function (n) { return n * factor; });
+                const total = fine.reduce(function (a, b) { return a * b; }, 1);
+                const out = new Array(total);
+                for (let at = 0; at < total; at++) {
+                    const cell = gridCell(fine, at);
+                    const pos = cell.map(function (c, k) {
+                        return Math.min(sizes[k] - 1, Math.max(0, (c + 0.5) / factor - 0.5));
+                    });
+                    if (!smooth) {
+                        out[at] = field[gridIndex(sizes, pos.map(Math.round))];
+                        continue;
+                    }
+                    let value = 0;
+                    for (let corner = 0; corner < (1 << sizes.length); corner++) {
+                        let weight = 1;
+                        const idx = pos.map(function (p, k) {
+                            const lowCell = Math.floor(p), t = p - lowCell;
+                            const up = (corner >> k) & 1;
+                            weight *= up ? t : 1 - t;
+                            return Math.min(sizes[k] - 1, lowCell + up);
+                        });
+                        if (weight) value += weight * field[gridIndex(sizes, idx)];
+                    }
+                    out[at] = value;
+                }
+                return {field: out, sizes: fine};
+            }
+
+            // The layer's colour scale. The prediction shares the trials' own
+            // ramp and one range with them, so a colour is the same score in a
+            // point and around it; the acquisition has its own ramp and bar,
+            // since it is not a score at all.
+            function layerColours(layer, finite, trace, title) {
+                if (layer === "acquisition") {
+                    return {colorscale: ACQUISITION_SCALE, reversescale: false,
+                            cmin: 0, cmax: Math.max.apply(null, finite) || 1,
+                            showscale: true,
+                            colorbar: {title: {text: title}, x: 1.14, thickness: 12}};
+                }
+                const numbers = finite.concat(Array.isArray(trace.marker.color)
+                    ? trace.marker.color.filter(function (v) { return typeof v === "number"; }) : []);
+                const colours = {colorscale: trace.marker.colorscale,
+                                 reversescale: trace.marker.reversescale,
+                                 cmin: Math.min.apply(null, numbers),
+                                 cmax: Math.max.apply(null, numbers), showscale: false};
+                trace.marker.cmin = colours.cmin;
+                trace.marker.cmax = colours.cmax;
+                return colours;
+            }
+
+            // A line across the colour bar at each level, labelled
+            // with its value, the bar's ends labelled too. Three figures, with
+            // the acquisition's tiny values in the SI prefixes Plotly writes
+            // them in on a bar of its own.
+            const SI_PREFIXES = [[1e-6, "µ"], [1e-9, "n"], [1e-12, "p"]];
+            function markLevels(bar, levels, colours) {
+                const at = [colours.cmin].concat(levels, [colours.cmax]);
+                const label = function (v) {
+                    if (v === 0 || Math.abs(v) >= 1e-3) return String(Number(v.toPrecision(3)));
+                    const prefix = SI_PREFIXES.find(function (p) { return Math.abs(v) >= p[0]; })
+                                   || SI_PREFIXES[SI_PREFIXES.length - 1];
+                    return Number((v / prefix[0]).toPrecision(3)) + prefix[1];
+                };
+                Object.assign(bar, {tickmode: "array", tickvals: at, ticktext: at.map(label),
+                                    ticks: "inside", ticklen: bar.thickness || 30,
+                                    tickwidth: 2, tickcolor: "#111827"});
+            }
+
+            // The edge of the legal space, in a projection: everything outside
+            // it is no configuration at all.
+            function outlineTraces(outline, dims) {
+                if (!outline) return [];
+                const scenery = {hoverinfo: "skip", showlegend: false};
+                const edge = {color: "#6B7280", width: 1.5, dash: "dot"};
+                if (dims === 1) {
+                    return [Object.assign({type: "scatter", mode: "lines",
+                        x: [outline[0], outline[0], null, outline[1], outline[1]],
+                        y: [-1, 1, null, -1, 1], line: edge}, scenery)];
+                }
+                if (dims === 2) {
+                    return [Object.assign({type: "scatter", mode: "lines",
+                        x: outline.map(function (p) { return p[0]; }).concat([outline[0][0]]),
+                        y: outline.map(function (p) { return p[1]; }).concat([outline[0][1]]),
+                        line: edge}, scenery)];
+                }
+                return [Object.assign({type: "mesh3d", x: outline.x, y: outline.y, z: outline.z,
+                    i: outline.i, j: outline.j, k: outline.k,
+                    color: "#6B7280", opacity: 0.06, flatshading: true}, scenery)];
+            }
+
+            function showingPoints() { return !!(layerStyleSelect && layerStyleSelect.value === "points"); }
+            // Each sample's configuration as its hover reads it, worked out once
+            // per sample rather than on every redraw.
+            function sampleLabels(data) {
+                if (!data._labels) {
+                    data._labels = data.values.map(function (row) {
+                        const config = {};
+                        data.hp_names.forEach(function (name, k) {
+                            if (row[k] !== null && row[k] !== undefined) config[name] = row[k];
+                        });
+                        return configLabel(config);
+                    });
+                }
+                return data._labels;
+            }
+            // Where a sample sits down a strip, which has no second axis:
+            // spread evenly and the same way every time, so the samples make
+            // a band rather than a line on top of the trials.
+            function stripOffset(i) { return ((i * 0.6180339887) % 1) * 1.6 - 0.8; }
+
+            // The proposal selected for the metric showing, ringed where the
+            // cube puts it: in the proposal's colour, open, and larger than a
+            // sample, so it reads as picked and as no trial.
+            function proposalTraces(chosen, projected) {
+                const metric = currentMetric();
+                const n = proposalIdx[metric];
+                const dims = chosen.length;
+                if (n === undefined || !dims || !layerData || layerData.metric !== metric) return [];
+                let point;
+                if (projected) {
+                    const projection = (layerData.projections || {})[cubeMethodSelect.value];
+                    point = projection && projection.coordinates[n]
+                        ? projection.coordinates[n].slice(0, dims) : null;
+                } else {
+                    point = chosen.map(function (name) {
+                        return layerData.values[n][layerData.hp_names.indexOf(name)];
+                    });
+                }
+                if (!point || point.some(function (v) { return v === null || v === undefined; })) return [];
+                const scene = dims > 2;
+                const trace = {type: scene ? "scatter3d" : "scatter", mode: "markers",
+                               x: [point[0]], y: [dims > 1 ? point[1] : stripOffset(n)],
+                               hoverinfo: "skip", showlegend: false,
+                               marker: {symbol: "square-open", size: scene ? 9 : 16,
+                                        color: selectionColors.proposal,
+                                        line: {width: 3, color: selectionColors.proposal}}};
+                if (scene) { trace.z = [point[2]]; delete trace.marker.line; }
+                return [trace];
+            }
+
+            // The layer as the sampled configurations themselves: each where
+            // this view puts it, coloured by its own value — no binning, no
+            // combining, nothing smoothed. Small, translucent squares without
+            // the ring a trial has, so a sample never reads as something that
+            // was run; in two dimensions on the WebGL layer, which draws under
+            // the trials. Each says its value and configuration on hover.
+            function pointTraces(data, columns, scores, bare, dims, layer, trace, title, outline) {
+                const xs = [], ys = [], zs = [], values = [], hover = [], samples = [];
+                const labels = sampleLabels(data);
+                const valueName = layer === "acquisition" ? title : "{% translate 'Prediction' %}";
+                scores.forEach(function (score, i) {
+                    if (score === null) return;
+                    const point = columns.map(function (column) { return column[i]; });
+                    if (point.some(function (v) { return v === null || v === undefined; })) return;
+                    xs.push(point[0]);
+                    // A strip has no second axis: spread the samples down it,
+                    // evenly and the same way every time, so they make a band
+                    // rather than a line on top of the trials.
+                    ys.push(dims > 1 ? point[1] : stripOffset(i));
+                    if (dims > 2) zs.push(point[2]);
+                    values.push(score);
+                    samples.push(i);
+                    hover.push("{% translate 'Proposal' %} " + (i + 1) + "<br>" + valueName + " = " + Number(score.toPrecision(4)) + "<br>" + labels[i]);
+                });
+                if (!values.length) return null;
+                const colours = layerColours(layer, bare.filter(function (v) { return v !== null; }),
+                                             trace, title);
+                // Each a proposal: a click selects it in a trial's place.
+                // `customdata` says which sample, `meta` that it is one.
+                const points = {type: dims > 2 ? "scatter3d" : "scattergl", mode: "markers",
+                                x: xs, y: ys, hovertext: hover, hoverinfo: "text", showlegend: false,
+                                customdata: samples, meta: {samples: true},
+                                marker: {symbol: "square", size: dims > 2 ? 2.5 : 4, opacity: 0.55,
+                                         color: values, cmin: colours.cmin, cmax: colours.cmax,
+                                         colorscale: colours.colorscale,
+                                         reversescale: colours.reversescale,
+                                         showscale: colours.showscale, colorbar: colours.colorbar}};
+                if (dims > 2) points.z = zs;
+                return {traces: [points].concat(outlineTraces(outline, dims)),
+                        colourBar: !!colours.showscale};
+            }
+
+            // The layer's traces for what is on the axes now, or none. Each
+            // sampled configuration is placed where this view puts it and the
+            // ones that land together are combined: their mean for the
+            // prediction, since many configurations look alike from here and
+            // none of them is the one the reader is looking at; and the best of
+            // them for the acquisition, which is what the optimizer itself
+            // would take from that region. Scenery throughout — never a hover
+            // or a click taken from a trial.
+            function layerTraces(data, chosen, names, logHps, projected, trace) {
+                const layer = currentLayer();
+                const dims = chosen.length;
+                let columns;
+                if (projected) {
+                    const projection = (data.projections || {})[cubeMethodSelect.value];
+                    if (!projection) return null;
+                    columns = chosen.map(function (_name, k) {
+                        return projection.coordinates.map(function (row) { return row[k]; });
+                    });
+                } else {
+                    columns = chosen.map(function (name) {
+                        const i = data.hp_names.indexOf(name);
+                        return data.values.map(function (row) { return row[i]; });
+                    });
+                }
+                // The run's own acquisition function, by its short name, and
+                // said to be weighted whenever a stated prior weights it.
+                const improvement = window.codesignerImprovement;
+                const acquire = improvement && improvement.acquisition(data.acquisition_function);
+                const weights = layer === "acquisition" ? sampleWeights(data) : null;
+                const title = improvement
+                    ? improvement.abbreviation(data.acquisition_function)
+                      + (weights ? " {% translate '(weighted)' %}" : "") : "";
+                function scoresOf(weighted) {
+                    return data.mu.map(function (mu, i) {
+                        if (mu === null) return null;
+                        if (layer !== "acquisition") return mu;
+                        if (!acquire) return null;
+                        return acquire(mu, data.sigma[i] || 0, data.eta, data.higher_is_better)
+                            * (weighted && weights ? weights[i] : 1);
+                    });
+                }
+                const scores = scoresOf(true);
+                // What the colour bar is scaled to: the acquisition with no
+                // prior. A prior only ever lowers it (see sampleWeights), so
+                // the weighted field always lies on the same bar.
+                const bare = weights ? scoresOf(false) : scores;
+
+                const outline = projected
+                    ? (data.projections[cubeMethodSelect.value].outlines || {})[String(dims)]
+                    : null;
+                const logged = chosen.map(function (name) { return !projected && logHps.indexOf(name) >= 0; });
+                const axes = columns.map(function (column, k) {
+                    const usable = column.filter(function (v) { return v !== null && v !== undefined; });
+                    return layerAxis(usable, logged[k], LAYER_BINS[dims], outlineSpan(outline, k));
+                });
+                if (showingPoints()) {
+                    return pointTraces(data, columns, scores, bare, dims, layer, trace, title, outline);
+                }
+                const sizes = axes.map(function (a) { return a.centers.length; });
+                const total = sizes.reduce(function (a, b) { return a * b; }, 1);
+                const numeric = axes.every(function (a) { return a.numeric; });
+                const smooth = !!data.smooth && numeric;
+                // One field from one set of scores, binned, filled, smoothed
+                // and refined. The geometry is the same for any scores.
+                function fieldOf(values) {
+                    const sum = new Array(total).fill(0), seen = new Array(total).fill(0);
+                    const best = new Array(total).fill(null);
+                    values.forEach(function (score, i) {
+                        if (score === null) return;
+                        const cell = [];
+                        for (let k = 0; k < dims; k++) {
+                            const v = columns[k][i];
+                            if (v === null || v === undefined) return;
+                            const b = axes[k].index(v);
+                            if (b < 0) return;
+                            cell.push(b);
+                        }
+                        const at = gridIndex(sizes, cell);
+                        sum[at] += score; seen[at] += 1;
+                        if (best[at] === null || score > best[at]) best[at] = score;
+                    });
+                    let field = sum.map(function (s, at) {
+                        if (!seen[at]) return null;
+                        return layer === "acquisition" ? best[at] : s / seen[at];
+                    });
+                    field = fillGrid(field, sizes);
+                    if (smooth) field = blurGrid(layer === "acquisition" ? dilateGrid(field, sizes) : field, sizes);
+                    return numeric ? refineGrid(field, sizes, LAYER_REFINE[dims], smooth)
+                                   : {field: field, sizes: sizes};
+                }
+                const grid = fieldOf(scores);
+                const centers = numeric
+                    ? axes.map(function (a, k) {
+                        const out = [];
+                        for (let c = 0; c < grid.sizes[k]; c++) out.push(a.at((c + 0.5) / grid.sizes[k]));
+                        return out;
+                    })
+                    : axes.map(function (a) { return a.centers; });
+                // Clipped to the legal region, at the fine grid's resolution.
+                const distanceTo = legalDistance(outline, dims);
+                const depth = grid.field.map(function (_v, at) {
+                    const cell = gridCell(grid.sizes, at);
+                    return distanceTo(cell.map(function (c, k) { return centers[k][c]; }));
+                });
+                function clipped(field) {
+                    return field.map(function (v, at) { return depth[at] >= 0 ? v : null; });
+                }
+                function present(v) { return v !== null; }
+                const shown = clipped(grid.field);
+                const finite = shown.filter(present);
+                if (!finite.length) return null;
+                // The bar, from the samples rather than from the field drawn of
+                // them, so it is the same in every view, at every
+                // dimensionality, and for the point cloud.
+                const colours = layerColours(layer, bare.filter(present), trace, title);
+
+                // The level sets, as fractions of the samples' range: from
+                // zero to the peak for the acquisition, weighted or not;
+                // across the shared bar for the prediction. Only on numeric
+                // axes, where a level has a boundary to draw.
+                const better = layer === "acquisition" || data.higher_is_better;
+                const low = layer === "acquisition" ? 0 : colours.cmin;
+                const high = layer === "acquisition" ? Math.max.apply(null, scores.filter(present))
+                                                     : colours.cmax;
+                let levels = !numeric || (dims > 2 && logged.some(Boolean)) ? []
+                    : SHELL_LEVELS[layer].map(function (f) {
+                        return better ? low + f * (high - low) : high - f * (high - low);
+                    }).filter(function (level) {
+                        const enclosed = finite.filter(function (v) {
+                            return better ? v >= level : v <= level;
+                        }).length / finite.length;
+                        return enclosed > 0 && enclosed <= SHELL_MAX_SHARE;
+                    });
+                const scenery = {hoverinfo: "skip", showlegend: false};
+                const traces = [];
+                if (dims < 3) {
+                    const heat = Object.assign({type: "heatmap", zmin: colours.cmin, zmax: colours.cmax,
+                                                colorscale: colours.colorscale,
+                                                reversescale: colours.reversescale,
+                                                showscale: colours.showscale,
+                                                colorbar: colours.colorbar}, scenery);
+                    heat.x = centers[0];
+                    if (dims === 1) {
+                        heat.y = [-1, 1]; heat.z = [shown, shown];
+                    } else {
+                        const ny = grid.sizes[1];
+                        heat.y = centers[1];
+                        heat.z = centers[1].map(function (_y, j) {
+                            return centers[0].map(function (_x, i) { return shown[i * ny + j]; });
+                        });
+                    }
+                    traces.push(heat);
+                    // Each level as a line, the same dark line that marks it
+                    // on the bar: where a prior pushes the field into the pale
+                    // end of the ramp, the boundaries stay legible. In a strip
+                    // the line runs across it wherever the field crosses.
+                    levels.forEach(function (level) {
+                        traces.push(Object.assign({type: "contour", x: heat.x, y: heat.y, z: heat.z,
+                            autocontour: false,
+                            contours: {coloring: "none", start: level, end: level, size: 1,
+                                       showlabels: false},
+                            line: {color: "#111827", width: 1.2}, showscale: false}, scenery));
+                    });
+                } else if (numeric && !logged.some(Boolean)) {
+                    // Nested shells of equal value through the good part of the
+                    // space — what a heat map becomes in three dimensions
+                    // without filling the cube with colour. One per level, so
+                    // the mediocre bulk of the space stays clear and the
+                    // trials stay visible through it. Near the legal region's
+                    // edge the field eases past every level, over a band two
+                    // and a half cells deep, so a shell the edge cuts closes
+                    // against it smoothly rather than along the grid's steps.
+                    const cell = Math.min.apply(null, centers.map(function (c) {
+                        return Math.abs(c[1] - c[0]);
+                    }));
+                    const band = 2.5 * cell;
+                    const range = colours.cmax - colours.cmin;
+                    const away = better ? colours.cmin - range : colours.cmax + range;
+                    const xs = [], ys = [], zs = [], vs = [];
+                    grid.field.forEach(function (v, at) {
+                        const cell = gridCell(grid.sizes, at);
+                        xs.push(centers[0][cell[0]]); ys.push(centers[1][cell[1]]); zs.push(centers[2][cell[2]]);
+                        const t = Math.min(1, Math.max(0, depth[at] / band));
+                        vs.push(away + (v - away) * t * t * (3 - 2 * t));
+                    });
+                    // Only the levels the eased field still reaches: one that
+                    // only an edge reached would be a shell with nothing in it,
+                    // and a mark on the bar for a surface nobody can see.
+                    levels = levels.filter(function (level) {
+                        return vs.some(function (v) { return better ? v >= level : v <= level; });
+                    });
+                    levels.forEach(function (level, k) {
+                        traces.push(Object.assign({type: "isosurface", x: xs, y: ys, z: zs, value: vs,
+                                                   isomin: level, isomax: level,
+                                                   surface: {count: 1},
+                                                   caps: {x: {show: false}, y: {show: false}, z: {show: false}},
+                                                   opacity: 0.25,
+                                                   cmin: colours.cmin, cmax: colours.cmax,
+                                                   colorscale: colours.colorscale,
+                                                   reversescale: colours.reversescale,
+                                                   showscale: colours.showscale && k === 0,
+                                                   colorbar: colours.colorbar,
+                                                   lighting: {ambient: 0.8, diffuse: 0.4, specular: 0.1}},
+                                                  scenery));
+                    });
+                    // No shell at all still owes the acquisition its bar.
+                    if (!levels.length && colours.showscale) {
+                        traces.push(Object.assign({type: "scatter3d", mode: "markers",
+                            x: [null], y: [null], z: [null],
+                            marker: {color: [colours.cmin], cmin: colours.cmin, cmax: colours.cmax,
+                                     colorscale: colours.colorscale, showscale: true,
+                                     colorbar: colours.colorbar}}, scenery));
+                    }
+                } else {
+                    // A categorical or logarithmic axis, which a shell cannot be
+                    // drawn across: the cells themselves, faintly.
+                    const xs = [], ys = [], zs = [], vs = [];
+                    shown.forEach(function (v, at) {
+                        if (v === null) return;
+                        const cell = gridCell(grid.sizes, at);
+                        xs.push(centers[0][cell[0]]); ys.push(centers[1][cell[1]]);
+                        zs.push(centers[2][cell[2]]); vs.push(v);
+                    });
+                    traces.push(Object.assign({type: "scatter3d", mode: "markers",
+                                               x: xs, y: ys, z: zs,
+                                               marker: {color: vs, size: 5, opacity: 0.2,
+                                                        cmin: colours.cmin, cmax: colours.cmax,
+                                                        colorscale: colours.colorscale,
+                                                        reversescale: colours.reversescale,
+                                                        showscale: colours.showscale,
+                                                        colorbar: colours.colorbar}}, scenery));
+                }
+
+                // Marked on the bar the field is read against: the layer's own
+                // for the acquisition, the trials' for the prediction.
+                if (levels.length) {
+                    markLevels(layer === "acquisition" ? colours.colorbar
+                               : (trace.marker.colorbar = Object.assign({}, trace.marker.colorbar)),
+                               levels, colours);
+                }
+                outlineTraces(outline, dims).forEach(function (t) { traces.push(t); });
+                return {traces: traces, colourBar: !!colours.showscale};
+            }
+
+            // ── the priors' weight on the acquisition ─────────────────────
+            //
+            // The acquisition layer is what the optimizer would weight by: the
+            // expected improvement times every stated prior's density, raised
+            // to the exponent its decay has reached. The densities arrive with
+            // the layer, evaluated by the server on the acquisition figure's
+            // own grid, and each is replaced the moment that figure saves an
+            // edit — its save already returns the new density, so following it
+            // costs no request. hp -> {positions, density, exponent, categorical}.
+            let priorWeights = {};
+            let weightCache = null;
+            let cubeFrame = 0;
+            // Where the reader has turned the 3D view to, or null for the
+            // opening view, and whether they are rotating or panning it. Kept
+            // across every redraw — see applyCubeAxes.
+            let cubeCamera = null;
+            let cubeDragmode = null;
+            function scheduleCube() {
+                if (cubeFrame) return;
+                cubeFrame = requestAnimationFrame(function () { cubeFrame = 0; applyCubeAxes(); });
+            }
+            document.addEventListener("prior:density", function (event) {
+                const stated = event.detail;
+                if (stated.density && stated.exponent !== null) {
+                    priorWeights[stated.hp] = {positions: stated.positions, density: stated.density,
+                                               exponent: stated.exponent,
+                                               categorical: stated.categorical};
+                } else {
+                    delete priorWeights[stated.hp];
+                }
+                weightCache = null;
+                if (currentLayer() === "acquisition") scheduleCube();
+            });
+            // A prior's density at *x* on its hyperparameter's vectorized axis:
+            // between the grid points it was evaluated at for a number, the
+            // nearest choice for a categorical.
+            function densityAt(prior, x) {
+                const at = prior.positions, ys = prior.density;
+                if (x <= at[0]) return ys[0];
+                if (x >= at[at.length - 1]) return ys[ys.length - 1];
+                let lo = 0, hi = at.length - 1;
+                while (hi - lo > 1) {
+                    const mid = (lo + hi) >> 1;
+                    if (at[mid] <= x) lo = mid; else hi = mid;
+                }
+                if (prior.categorical) return (x - at[lo]) <= (at[hi] - x) ? ys[lo] : ys[hi];
+                const t = (x - at[lo]) / ((at[hi] - at[lo]) || 1);
+                return ys[lo] + t * (ys[hi] - ys[lo]);
+            }
+            // Each sample's weight, or null with nothing stated. Kept until a
+            // prior or the sample changes: a view switch reweights nothing.
+            function sampleWeights(data) {
+                if (weightCache && weightCache.data === data) return weightCache.weights;
+                const names = Object.keys(priorWeights);
+                let weights = null;
+                if (names.length && data.vectors) {
+                    weights = data.vectors.map(function () { return 1; });
+                    names.forEach(function (name) {
+                        const column = data.hp_names.indexOf(name);
+                        if (column < 0) return;
+                        const prior = priorWeights[name];
+                        data.vectors.forEach(function (row, i) {
+                            const x = row[column];
+                            if (x === null || x === undefined) return;
+                            // The floor before the exponent, as SMAC applies it.
+                            weights[i] *= Math.pow(densityAt(prior, x) + 1e-12, prior.exponent);
+                        });
+                    });
+                }
+                // Every prior drawn in the cube and stated, and the one being
+                // drawn now: one weight per sample each, worked out by the
+                // server (ui/services/projected.py), multiplied in as the search
+                // multiplies every belief together.
+                const drafted = priorDraft && draftPreview && draftPreview.metric === data.metric
+                    ? draftPreview.weights : null;
+                [data.projected_weights, drafted].forEach(function (extra) {
+                    if (!extra || !data.vectors || extra.length !== data.vectors.length) return;
+                    weights = (weights || data.vectors.map(function () { return 1; }))
+                        .map(function (w, i) { return w * extra[i]; });
+                });
+                if (weights) {
+                    // Peaking at one, as the acquisition figure's weight does:
+                    // a constant cannot change what the optimizer would pick,
+                    // and it keeps the weighted acquisition at or below the
+                    // unweighted one, on the unweighted one's colour bar.
+                    const peak = Math.max.apply(null, weights) || 1;
+                    weights = weights.map(function (w) { return w / peak; });
+                }
+                weightCache = {data: data, weights: weights};
+                return weights;
+            }
+
+            // ── priors drawn in the cube ──────────────────────────────────
+            //
+            // With Draw Prior ticked, a click puts down a point instead of
+            // selecting: anywhere in one or two dimensions, and onto whatever
+            // is under the pointer in three, where a click is a line of sight
+            // rather than a place. Up to as many points as the view has axes
+            // — a bump, a ridge, a slab — and a click past that starts again.
+            // The Projected prior card shapes and states what they span, and
+            // the server works out what it weighs and what to draw for it
+            // (ui/services/projected.py): this only places points and draws.
+            const drawPriorBox = document.getElementById("cube-draw-prior");
+            const clearPriorBtn = document.getElementById("cube-clear-prior");
+            // {view, dims, hyperparameters, points} being drawn, or null.
+            let priorDraft = null;
+            // What the card last previewed for it: {metric, weights, geometry}.
+            let draftPreview = null;
+            // What the cube last drew: whether a projection, and its axes.
+            let cubeShown = {projected: true, chosen: []};
+            function drawingPrior() {
+                return !!(drawPriorBox && drawPriorBox.checked && !drawPriorBox.disabled);
+            }
+            function syncDrawing() {
+                const card = drawPriorBox && drawPriorBox.closest("[data-figure]");
+                if (card) card.classList.toggle("drawing-prior", drawingPrior());
+                if (clearPriorBtn) clearPriorBtn.disabled = !priorDraft;
+            }
+            // The view a point goes down in: the method, how many axes it
+            // shows, and for HP Space which hyperparameters they are.
+            function cubeView() {
+                return {view: cubeMethodSelect ? cubeMethodSelect.value : "pls",
+                        dims: cubeShown.chosen.length,
+                        hyperparameters: cubeShown.projected ? [] : cubeShown.chosen.slice()};
+            }
+            function announceDraft() {
+                syncDrawing();
+                document.dispatchEvent(new CustomEvent("prior-draft:points", {detail: priorDraft
+                    ? Object.assign({metric: currentMetric()}, priorDraft) : {}}));
+            }
+            // The draft lifted: by Clear, by the card, or by the view moving
+            // out from under it — its points mean nothing in another view.
+            function dropDraft(tell) {
+                if (!priorDraft && !draftPreview) return;
+                priorDraft = null;
+                draftPreview = null;
+                weightCache = null;
+                syncDrawing();
+                if (tell) document.dispatchEvent(new CustomEvent("prior-draft:cleared"));
+                scheduleCube();
+            }
+            // An axis position under the pointer, on a log axis as well.
+            function axisValue(axis, px) {
+                const value = axis.p2l(px);
+                return axis.type === "log" ? Math.pow(10, value) : value;
+            }
+            // Whether *at* is a configuration at all: inside HP Space's box,
+            // or inside the outline a projection takes the box to — the same
+            // outline the field is clipped to. Without the layer's sample to
+            // read either from, the server decides when the card asks.
+            function legalPoint(at, view) {
+                if (!layerData || layerData.metric !== currentMetric()) return true;
+                if (view.view === "axes") {
+                    return view.hyperparameters.every(function (name, k) {
+                        const range = (layerData.bounds || {})[name];
+                        return !range || (at[k] >= range[0] && at[k] <= range[1]);
+                    });
+                }
+                const projection = (layerData.projections || {})[view.view];
+                const outline = projection && (projection.outlines || {})[String(view.dims)];
+                return !outline || legalDistance(outline, view.dims)(at) >= -1e-9;
+            }
+            function refusePoint(message) {
+                document.dispatchEvent(new CustomEvent("prior-draft:refused", {detail: {message: message}}));
+            }
+            function pickPriorPoint(el, point, event) {
+                const view = cubeView();
+                if (!view.dims) return;
+                let at = null;
+                if (point) {
+                    at = [point.x, point.y, point.z].slice(0, view.dims);
+                } else if (view.dims < 3 && el._fullLayout && el._fullLayout.xaxis) {
+                    const box = el.getBoundingClientRect();
+                    const xa = el._fullLayout.xaxis, ya = el._fullLayout.yaxis;
+                    at = [axisValue(xa, event.clientX - box.left - xa._offset)];
+                    if (view.dims === 2) at.push(axisValue(ya, event.clientY - box.top - ya._offset));
+                }
+                if (!at || at.some(function (v) { return typeof v !== "number" || !isFinite(v); })) return;
+                if (!legalPoint(at, view)) { refusePoint(null); return; }
+                const same = priorDraft && priorDraft.view === view.view && priorDraft.dims === view.dims
+                    && priorDraft.hyperparameters.join() === view.hyperparameters.join();
+                if (!same || priorDraft.points.length >= view.dims) {
+                    priorDraft = Object.assign({points: []}, view);
+                }
+                priorDraft.points.push(at);
+                draftPreview = null;
+                weightCache = null;
+                announceDraft();
+                scheduleCube();
+            }
+            document.addEventListener("prior-draft:preview", function (event) {
+                if (!priorDraft) return;
+                draftPreview = event.detail;
+                weightCache = null;
+                scheduleCube();
+            });
+            document.addEventListener("prior-draft:points-edited", function (event) {
+                if (!priorDraft) return;
+                priorDraft.points = event.detail.points.map(function (p) { return p.slice(); });
+                scheduleCube();
+            });
+            document.addEventListener("prior-draft:cleared", function () { dropDraft(false); });
+            // The server found one of the points outside the search space —
+            // typed in, or put down without the layer to check against: it
+            // comes off, and the rest are drawn again.
+            document.addEventListener("prior-draft:outside", function (event) {
+                if (!priorDraft) return;
+                priorDraft.points.splice(event.detail.point, 1);
+                if (!priorDraft.points.length) {
+                    dropDraft(false);
+                    document.dispatchEvent(new CustomEvent("prior-draft:cleared",
+                                                           {detail: {refused: true}}));
+                    return;
+                }
+                draftPreview = null;
+                weightCache = null;
+                syncDrawing();
+                document.dispatchEvent(new CustomEvent("prior-draft:points",
+                    {detail: Object.assign({metric: currentMetric(), refused: true}, priorDraft)}));
+                scheduleCube();
+            });
+            // Stated, changed or withdrawn: their weight over the sample the
+            // card asked about; any other metric's kept sample carries the old
+            // weight and is asked for again.
+            document.addEventListener("projected-priors:changed", function (event) {
+                const metric = event.detail.metric;
+                Object.keys(layerCache).forEach(function (m) {
+                    if (m === metric) layerCache[m].projected_weights = event.detail.weights;
+                    else delete layerCache[m];
+                });
+                if (layerData && layerData.metric === metric) {
+                    layerData.projected_weights = event.detail.weights;
+                }
+                weightCache = null;
+                scheduleCube();
+            });
+            if (drawPriorBox) drawPriorBox.addEventListener("change", syncDrawing);
+            if (clearPriorBtn) clearPriorBtn.addEventListener("click", function () { dropDraft(true); });
+
+            // The draft as the cube draws it, in the prior figure's colour: its
+            // points, numbered; and once the card has previewed it, the line
+            // or plane through them, the width either side, the spreads along
+            // it and the peak. Scenery, but for the points.
+            function priorDraftTraces(chosen) {
+                const view = cubeView();
+                const dims = chosen.length;
+                if (!priorDraft || priorDraft.view !== view.view || priorDraft.dims !== dims) return [];
+                const scene = dims > 2;
+                const type = scene ? "scatter3d" : "scatter";
+                const colour = selectionColors.prior;
+                const scenery = {hoverinfo: "skip", showlegend: false};
+                function place(rows) {
+                    const out = {x: rows.map(function (r) { return r ? r[0] : null; }),
+                                 y: rows.map(function (r) { return r ? (dims > 1 ? r[1] : 0) : null; })};
+                    if (scene) out.z = rows.map(function (r) { return r ? r[2] : null; });
+                    return out;
+                }
+                function joined(lines) {
+                    const rows = [];
+                    lines.forEach(function (line, i) {
+                        if (i) rows.push(null);
+                        line.forEach(function (p) { rows.push(p); });
+                    });
+                    return rows;
+                }
+                const traces = [];
+                const g = draftPreview && draftPreview.geometry;
+                if (g) {
+                    if (g.mesh) {
+                        traces.push(Object.assign({type: "mesh3d", x: g.mesh.x, y: g.mesh.y, z: g.mesh.z,
+                                                   i: g.mesh.i, j: g.mesh.j, k: g.mesh.k,
+                                                   color: colour, opacity: 0.15}, scenery));
+                    }
+                    if (g.lines.length) {
+                        traces.push(Object.assign({type: type, mode: "lines", connectgaps: false,
+                                                   line: {color: colour, width: scene ? 4 : 2}},
+                                                  place(joined(g.lines)), scenery));
+                    }
+                    if (g.band.length) {
+                        traces.push(Object.assign({type: type, mode: "lines", connectgaps: false,
+                                                   line: {color: colour, width: 1, dash: "dot"}},
+                                                  place(joined(g.band)), scenery));
+                    }
+                    if (g.marks && g.marks.length && dims === 1) {
+                        const xs = [], ys = [];
+                        g.marks.forEach(function (m) { xs.push(m, m, null); ys.push(-1, 1, null); });
+                        traces.push(Object.assign({type: "scatter", mode: "lines", x: xs, y: ys,
+                                                   line: {color: colour, width: 1, dash: "dot"}}, scenery));
+                    }
+                    if (g.ticks.length) {
+                        traces.push(Object.assign({type: type, mode: "markers",
+                                                   marker: {symbol: "circle-open", size: scene ? 4 : 8,
+                                                            color: colour}},
+                                                  place(g.ticks), scenery));
+                    }
+                    traces.push(Object.assign({type: type, mode: "markers",
+                                               marker: {symbol: "diamond", size: scene ? 6 : 12,
+                                                        color: colour}},
+                                              place([g.mode]), scenery));
+                }
+                const numbered = Object.assign({type: type, mode: "markers+text",
+                    text: priorDraft.points.map(function (_p, i) { return String(i + 1); }),
+                    textposition: "top center", textfont: {color: colour},
+                    marker: {size: scene ? 6 : 10, color: colour},
+                    hoverinfo: "skip", showlegend: false}, place(priorDraft.points));
+                if (!scene) numbered.marker.line = {color: "#FFFFFF", width: 1.5};
+                traces.push(numbered);
+                return traces;
+            }
+
+            // ── what the optimizer would run next ─────────────────────────
+            //
+            // Whole configurations, so they can be placed where a trial running
+            // them would land: on the chosen hyperparameters' own axes, or
+            // through the projection's linear map. Asked from this figure's
+            // checkbox or the acquisition figure's, which are one pair of
+            // controls — see next_trials.js.
+            let cubeCandidates = null;
+            document.addEventListener("candidates:updated", function (event) {
+                cubeCandidates = event.detail.candidates || null;
+                applyCubeAxes();
+            });
+            // A configuration in a projection's coordinates, encoded exactly as
+            // the trials were — see core.projection.Fitted.linear_map.
+            function projectConfiguration(map, config) {
+                const row = map.columns.map(function (column) {
+                    const value = config[column.name];
+                    let raw;
+                    if (column.value !== null) {
+                        const text = value === undefined || value === null ? "None"
+                            : typeof value === "boolean" ? (value ? "True" : "False") : String(value);
+                        raw = text === column.value ? 1 : 0;
+                    } else if (typeof value === "number" && !(column.log && value <= 0)) {
+                        raw = column.log ? Math.log10(value) : value;
+                    } else {
+                        raw = column.mean;
+                    }
+                    return column.spread ? (raw - column.mean) / column.spread : 0;
+                });
+                return map.matrix.map(function (weights, k) {
+                    return weights.reduce(function (sum, w, j) { return sum + w * row[j]; }, map.offset[k]);
+                });
+            }
+            // A configuration as a hover reads it, one value a line, the way
+            // the server writes a trial's: four significant figures for a
+            // number, anything else as it is.
+            function configLabel(config) {
+                return Object.keys(config).sort().map(function (name) {
+                    const value = config[name];
+                    const shown = typeof value === "number" && !Number.isInteger(value)
+                        ? Number(value.toPrecision(4)) : value;
+                    return name + " = " + shown;
+                }).join("<br>");
+            }
+
+            // The proposals, and the walks that reached them. Each proposal an
+            // open diamond, the next trial filled and larger, its whole
+            // configuration in the hover; each one the local search climbed to
+            // has its path drawn behind it, from a small open circle where the
+            // climb started, through every step, to the diamond. A random
+            // interleave was not climbed to and has none. Not trials, so a
+            // click selects nothing, and the paths are scenery.
+            function candidateTraces(chosen, projected, meta) {
+                const dims = chosen.length;
+                if (!cubeCandidates || !cubeCandidates.length || !dims) return [];
+                if (projected && !meta.map) return [];
+                function place(config) {
+                    const point = projected
+                        ? projectConfiguration(meta.map, config).slice(0, dims)
+                        : chosen.map(function (name) { return config[name]; });
+                    if (point.some(function (v) { return v === undefined || v === null; })) return null;
+                    return [point[0], dims > 1 ? point[1] : 0.5, dims > 2 ? point[2] : null];
+                }
+                const scene = dims > 2;
+                const path = {x: [], y: [], z: [], hover: []};
+                const starts = {x: [], y: [], z: [], hover: []};
+                const ends = {x: [], y: [], z: [], hover: [], symbols: [], sizes: []};
+                function add(into, p, hover) {
+                    into.x.push(p[0]); into.y.push(p[1]);
+                    if (scene) into.z.push(p[2]);
+                    if (hover !== undefined) into.hover.push(hover);
+                }
+                cubeCandidates.forEach(function (candidate) {
+                    const end = place(candidate.config);
+                    if (!end) return;
+                    const steps = (candidate.walk || []).map(function (config, k) {
+                        const p = place(config);
+                        return p && {point: p, hover: "#" + candidate.rank + ", step " + k
+                                                      + "<br>" + configLabel(config)};
+                    }).filter(Boolean);
+                    if (steps.length > 1) {
+                        steps.forEach(function (step) { add(path, step.point, step.hover); });
+                        add(path, [null, null, null], "");
+                        add(starts, steps[0].point, steps[0].hover.replace(", step 0", ", start"));
+                    }
+                    add(ends, end);
+                    // Where it came from, first: a random interleave is no
+                    // climb's end, and the hover is where that gets said.
+                    ends.hover.push("#" + candidate.rank
+                                    + (candidate.origin ? " · " + candidate.origin : "")
+                                    + "<br>" + candidate.label);
+                    const next = candidate.rank === 1;
+                    ends.symbols.push(next ? "diamond" : "diamond-open");
+                    ends.sizes.push(scene ? (next ? 9 : 6) : (next ? 15 : 11));
+                });
+                const type = scene ? "scatter3d" : "scatter";
+                // Every step answers a hover with the configuration it held.
+                const told = {hoverinfo: "text", showlegend: false};
+                const traces = [];
+                if (path.x.length) {
+                    traces.push(Object.assign({type: type, mode: "lines+markers",
+                        x: path.x, y: path.y, connectgaps: false, hovertext: path.hover,
+                        line: {color: "#6B7280", width: scene ? 3 : 1.5},
+                        marker: {size: scene ? 2 : 4, color: "#6B7280"}},
+                        scene ? {z: path.z} : {}, told));
+                    traces.push(Object.assign({type: type, mode: "markers",
+                        x: starts.x, y: starts.y, hovertext: starts.hover,
+                        marker: {symbol: "circle-open", size: scene ? 4 : 8, color: "#111827",
+                                 line: {width: 1.5, color: "#111827"}}},
+                        scene ? {z: starts.z} : {}, told));
+                }
+                if (ends.x.length) {
+                    const trace = {type: type, mode: "markers", x: ends.x, y: ends.y,
+                                   hovertext: ends.hover, hoverinfo: "text", showlegend: false,
+                                   marker: {symbol: ends.symbols, size: ends.sizes, color: "#111827",
+                                            line: {width: 2, color: "#111827"}}};
+                    if (scene) {
+                        trace.z = ends.z;
+                        trace.marker = {symbol: ends.symbols, size: ends.sizes, color: "#111827"};
+                    }
+                    traces.push(trace);
+                }
+                return traces;
+            }
+
+            // How far the cube's plot can reach up into its card's head: the
+            // second row of controls beside the title leaves the space under
+            // the title empty, and the plot takes it. None when the controls
+            // have wrapped under the title, or when a warning or prompt sits
+            // between the head and the plot.
+            function cubeHeadroom(el) {
+                const card = el.closest("[data-figure]");
+                const head = card && card.querySelector(":scope > .card-head");
+                const title = head && head.querySelector(".subheader");
+                const controls = head && head.querySelector(".selectors");
+                if (!title || !controls) return 0;
+                for (let node = head.nextElementSibling; node && node !== el; node = node.nextElementSibling) {
+                    if (node.offsetHeight) return 0;
+                }
+                const titleBox = title.getBoundingClientRect();
+                if (controls.getBoundingClientRect().top >= titleBox.bottom) return 0;
+                const naturalTop = el.getBoundingClientRect().top - (parseFloat(el.style.marginTop) || 0);
+                return Math.max(0, Math.round(naturalTop - titleBox.bottom - 6));
+            }
+            // The plot under the head by *headroom* pixels, and everything of
+            // Plotly's that is not the plot itself kept where it was: the
+            // colour bars end where they ended, and the toolbar (app.css,
+            // `--headroom`) sits where it sat.
+            function reachUnderHead(el, traces, layout, headroom) {
+                const card = el.closest("[data-figure]");
+                el.style.marginTop = headroom ? -headroom + "px" : "";
+                el.style.setProperty("--headroom", headroom + "px");
+                if (card) card.classList.toggle("plot-under-head", headroom > 0);
+                if (!headroom) return;
+                const margin = layout.margin || {};
+                const top = margin.t === undefined ? 100 : margin.t;
+                const area = el.clientHeight - top - (margin.b === undefined ? 80 : margin.b);
+                // And the toolbar's own height under it, which a 3D view's
+                // margin leaves no room for: the bars' titles would sit under
+                // its buttons.
+                const toolbar = Math.max(0, 32 - top);
+                if (area - headroom - toolbar < 60) return;
+                traces.forEach(function (trace) {
+                    [trace.colorbar, trace.marker && trace.marker.colorbar].forEach(function (bar) {
+                        if (!bar) return;
+                        Object.assign(bar, {lenmode: "pixels", len: area - headroom - toolbar,
+                                            y: 0, yanchor: "bottom"});
+                    });
+                });
+            }
+
             function applyCubeAxes() {
                 if (!cubeAxisSelect.x) return;
                 const el = figureEl("configuration_cube");
@@ -1541,6 +2940,7 @@ being read.{% endcomment %}
                     : ["x", "y", "z"]
                         .map(function (axis) { return cubeAxisSelect[axis].value; })
                         .filter(function (name) { return names.indexOf(name) >= 0; });
+                cubeShown = {projected: projected, chosen: chosen};
                 const customdata = trace.customdata || [];
                 // What the server drew, fresh each time. Rebuilding from
                 // `trace.marker` instead meant every adjustment made for one
@@ -1567,6 +2967,10 @@ being read.{% endcomment %}
                     x: [], y: [],
                     customdata: customdata,
                     text: trace.text,
+                    // Every trial's whole configuration, from the server: in a
+                    // projection its coordinates name none of its values.
+                    hovertext: trace.hovertext,
+                    hoverinfo: trace.hoverinfo || "text",
                     marker: baseMarker(),
                 };
                 // The failure marks are not adjusted for dimensionality
@@ -1596,7 +3000,9 @@ being read.{% endcomment %}
                 // view below replaces it, and switching back to 2D has to
                 // find the one the axes were laid out for.
                 if (!el._baseMargin) el._baseMargin = Object.assign({}, el.layout.margin);
-                const layout = { margin: el._baseMargin, meta: el.layout.meta };
+                // No legend: every trace past the trials is scenery, and with
+                // a layer under them Plotly would otherwise offer one.
+                const layout = { margin: el._baseMargin, meta: el.layout.meta, showlegend: false };
                 // { text: ... }, not a bare string — this Plotly.js build
                 // silently drops the shorthand-string form of `title`
                 // (caught by screenshotting the result: the axis simply
@@ -1639,11 +3045,15 @@ being read.{% endcomment %}
                         xaxis: titled(chosen[0]),
                         yaxis: titled(chosen[1]),
                         zaxis: titled(chosen[2]),
-                        // Closer than Plotly's default eye of (1.25, 1.25,
-                        // 1.25), which leaves the cube a small object in the
-                        // middle of its own panel. Still far enough that a
-                        // full turn does not clip a corner.
-                        camera: {eye: {x: 1.35, y: 1.35, z: 0.9}},
+                        // Wherever the reader last turned it: a new layer, a
+                        // selection or a fresh trial is no reason to lose the
+                        // view they found. Until they turn it, closer than
+                        // Plotly's default eye of (1.25, 1.25, 1.25), which
+                        // leaves the cube a small object in the middle of its
+                        // own panel, and still far enough that a full turn
+                        // does not clip a corner.
+                        camera: cubeCamera || {eye: {x: 1.35, y: 1.35, z: 0.9}},
+                        dragmode: cubeDragmode || "turntable",
                     };
                     // A scene has no axis labels outside it to make room
                     // for — its titles are on the cube — so the 2D margin
@@ -1707,6 +3117,18 @@ being read.{% endcomment %}
                         showlegend: false,
                     });
                 }
+                // The layer, when one is chosen and its sample is here for the
+                // metric showing.
+                const layer = currentLayer() && layerData && layerData.metric === currentMetric()
+                    && chosen.length && layerData.mu && layerData.mu.length
+                    ? layerTraces(layerData, chosen, names, logHps, projected, newTrace) : null;
+                if (layer) {
+                    layer.traces.forEach(function (t) { traces.push(t); });
+                    if (layer.colourBar) layout.margin = Object.assign({}, layout.margin, {r: 110});
+                }
+                candidateTraces(chosen, projected, meta).forEach(function (t) { traces.push(t); });
+                proposalTraces(chosen, projected).forEach(function (t) { traces.push(t); });
+                priorDraftTraces(chosen).forEach(function (t) { traces.push(t); });
                 // With no outline to carry it, a failure in a scene is
                 // filled with its own score — and a failure scores at the
                 // pale end of the ramp, so the crosses come out very nearly
@@ -1739,13 +3161,41 @@ being read.{% endcomment %}
                         });
                     }
                 }
+                // Every colour bar its own object, so the one the trials share
+                // with the server's payload is not edited in place.
+                traces.forEach(function (trace) {
+                    if (trace.colorbar) trace.colorbar = Object.assign({}, trace.colorbar);
+                    if (trace.marker && trace.marker.colorbar) {
+                        trace.marker = Object.assign({}, trace.marker,
+                                                     {colorbar: Object.assign({}, trace.marker.colorbar)});
+                    }
+                });
+                reachUnderHead(el, traces, layout, cubeHeadroom(el));
                 const drawn = el._baseMarkers;
                 if (el.data[0] && el.data[0].type !== newTrace.type) {
                     delete clicksAttached.configuration_cube;
+                    el._cameraWired = false;
                     Plotly.newPlot(el, traces, layout, plotlyConfig);
                     attachSelectionClicks();
                 } else {
                     Plotly.react(el, traces, layout, plotlyConfig);
+                }
+                // The camera the reader turns to, kept for the next draw — and
+                // written into the figure's own layout, which Plotly re-reads
+                // the camera from when the toolbar switches between rotating
+                // and panning. Its event says where the camera went without
+                // putting it there, so the switch snapped the view back to
+                // wherever the last draw had opened it.
+                if (!el._cameraWired) {
+                    el._cameraWired = true;
+                    el.on("plotly_relayout", function (change) {
+                        if (!change) return;
+                        if (change["scene.camera"]) {
+                            cubeCamera = change["scene.camera"];
+                            if (el.layout.scene) el.layout.scene.camera = cubeCamera;
+                        }
+                        if (change["scene.dragmode"]) cubeDragmode = change["scene.dragmode"];
+                    });
                 }
                 // Carried across the replot rather than assumed to survive
                 // it. A change of dimensionality goes through newPlot, and
@@ -1760,11 +3210,37 @@ being read.{% endcomment %}
                     // A different pair is a different field, and the old one
                     // must not be left drawn under the new axes.
                     uncertaintyField = null;
+                    dropDraft(true);
                     applyCubeAxes();
                     refreshUncertainty();
+                    refreshLayer();
                 });
             });
-            if (cubeDimensions) cubeDimensions.addEventListener("change", applyCubeAxes);
+            if (cubeDimensions) cubeDimensions.addEventListener("change", function () {
+                dropDraft(true);
+                applyCubeAxes();
+                refreshLayer();
+            });
+            if (layerSelect) layerSelect.addEventListener("change", refreshLayer);
+            if (layerStyleSelect) layerStyleSelect.addEventListener("change", applyCubeAxes);
+            // The headroom and the colour bars' length are in pixels, so a
+            // card that changes size, or a head that wraps, draws again.
+            (function () {
+                const el = figureEl("configuration_cube");
+                const card = el && el.closest("[data-figure]");
+                const head = card && card.querySelector(":scope > .card-head");
+                if (!card || !head || !window.ResizeObserver) return;
+                const seen = new WeakMap();
+                new ResizeObserver(function (entries) {
+                    const moved = entries.some(function (entry) {
+                        const box = entry.contentRect, last = seen.get(entry.target);
+                        seen.set(entry.target, [box.width, box.height]);
+                        return last && (last[0] !== box.width || last[1] !== box.height);
+                    });
+                    if (moved) scheduleCube();
+                }).observe(card);
+                new ResizeObserver(function () { scheduleCube(); }).observe(head);
+            }());
             const uncertaintyBtn = document.getElementById("uncertainty-compute-btn");
             if (uncertaintyBtn) {
                 uncertaintyBtn.addEventListener("click", function () { refreshUncertainty(true); });
@@ -1783,13 +3259,15 @@ being read.{% endcomment %}
             function syncCubePickers() {
                 if (!cubeMethodSelect || !cubeDimensions) return;
                 const projected = cubeMethodSelect.value !== "axes";
-                cubeDimensions.hidden = !projected;
+                const dimensionsRow = document.getElementById("cube-dimensions-row");
+                if (dimensionsRow) dimensionsRow.hidden = !projected;
                 Object.keys(cubeAxisSelect).forEach(function (axis) {
                     if (cubeAxisSelect[axis]) cubeAxisSelect[axis].hidden = projected;
                 });
             }
             if (cubeMethodSelect && cubeDimensions) {
                 cubeMethodSelect.addEventListener("change", function () {
+                    dropDraft(true);
                     syncCubePickers();
                     switchView("configuration_cube", cubeMethodSelect.value);
                     // The payload that just arrived carries its numbers and
@@ -1800,6 +3278,7 @@ being read.{% endcomment %}
                     // And a projection has no field, while going back to
                     // axes with a pair already picked should have one.
                     refreshUncertainty();
+                    refreshLayer();
                 });
             }
 
@@ -1820,6 +3299,8 @@ being read.{% endcomment %}
                 // just below), so a later view switch has nothing stale to
                 // reapply.
                 delete selectedIdx[metric];
+                delete proposalIdx[metric];
+                markProposal(metric, false);
                 pointExportAt(metric);
                 // It describes one trial under one metric, and both are
                 // about to change.
@@ -1872,6 +3353,10 @@ being read.{% endcomment %}
                 uncertaintyField = null;
                 applyCubeAxes();  // the fresh trace has no axes on it until this runs
                 refreshUncertainty();
+                // A PLS view is the metric's own projection, so a draft drawn in
+                // the last one is drawn in a view that is gone.
+                dropDraft(true);
+                refreshLayer();  // a metric is a model of its own
                 // A metric switch resets the picker to the new metric's own
                 // top hyperparameter, same as the selection being forgotten
                 // above — a fresh start, not last metric's leftover choice.
@@ -1953,6 +3438,7 @@ being read.{% endcomment %}
                 refreshLocalEffects(metric);
                 refreshForecast(metric);
                 refreshUncertainty();
+                refreshLayer();
             });
             document.addEventListener("poll:swapped", function () {
                 const el = document.getElementById("live-plots-data");
@@ -2253,6 +3739,17 @@ being read.{% endcomment %}
             // page's job is to agree with it.
             (function readViewSelectors() {
                 if (cubeMethodSelect) {
+                    // Except the configuration cube, which opens the same way
+                    // every time: PLS in two dimensions, no axes picked for
+                    // HP Space — unless this is the page coming back from a
+                    // run, which keeps what the reader had.
+                    if (!keptView) {
+                        cubeMethodSelect.value = "pls";
+                        if (cubeDimensions) cubeDimensions.value = "2";
+                        Object.keys(cubeAxisSelect).forEach(function (axis) {
+                            if (cubeAxisSelect[axis]) cubeAxisSelect[axis].value = "";
+                        });
+                    }
                     currentView.configuration_cube = cubeMethodSelect.value;
                     syncCubePickers();
                 }
@@ -2261,6 +3758,15 @@ being read.{% endcomment %}
                         currentGame() + "-" + impRenderingSelect.value;
                 }
                 syncRemainingControl(true);
+                // The layer opens on the acquisition as a field, the sample
+                // the acquisition figure computes anyway — or on None where
+                // that figure waits to be asked. Not whatever a reload
+                // restored.
+                if (!keptView) {
+                    if (layerSelect) layerSelect.value = autocompute.acquisition_slice === false ? "" : "acquisition";
+                    if (layerStyleSelect) layerStyleSelect.value = "field";
+                }
+                syncLayerStyle();
                 if (perfXSelect && perfYSelect) {
                     currentView.performance_over_time =
                         perfXSelect.value + "-" + perfYSelect.value;
@@ -2285,6 +3791,67 @@ being read.{% endcomment %}
             if (initialMetric) {
                 show(initialMetric);
             }
+
+            // Where the reader was, written down before a navigation a run
+            // causes and put back above. The selected trial only if they had
+            // clicked one — the incumbent is the default for a reason, and
+            // may have moved — and the camera and scroll as they left them.
+            function keepView() {
+                const controls = {};
+                viewControls().forEach(function (el) {
+                    controls[controlKey(el)] = el.type === "checkbox" || el.type === "radio"
+                        ? el.checked : el.value;
+                });
+                const metric = currentMetric();
+                const sidebar = document.querySelector("nav.sidebar");
+                try {
+                    sessionStorage.setItem(keptViewKey, JSON.stringify({
+                        at: Date.now(), hash: window.location.hash, controls: controls,
+                        metric: metric, selected: selectedIdx[metric],
+                        camera: cubeCamera, dragmode: cubeDragmode,
+                        scroll: window.scrollY, sidebarScroll: sidebar ? sidebar.scrollTop : 0,
+                    }));
+                } catch (e) { /* storage refused: the page opens fresh */ }
+            }
+            document.addEventListener("submit", function (event) {
+                if (event.target.matches("form[data-keeps-view]")) keepView();
+            });
+            document.addEventListener("poll:reloading", keepView);
+            if (keptView) {
+                if (keptView.metric === initialMetric && typeof keptView.selected === "number"
+                        && keptView.selected < {{ result.trials|length }}) {
+                    selectTrial(initialMetric, keptView.selected);
+                }
+                if (keptView.camera || keptView.dragmode) {
+                    cubeCamera = keptView.camera || null;
+                    cubeDragmode = keptView.dragmode || null;
+                    applyCubeAxes();
+                }
+                window.addEventListener("load", function () {
+                    requestAnimationFrame(function () {
+                        window.scrollTo(0, keptView.scroll || 0);
+                        const sidebar = document.querySelector("nav.sidebar");
+                        if (sidebar) sidebar.scrollTop = keptView.sidebarScroll || 0;
+                    });
+                });
+            }
+
+            // A proposal run as a trial comes back as the trial after the
+            // last one there was when it was sent, and is selected when it
+            // does — it was the selection, and is now a trial.
+            const proposalRunKey = "codesigner:proposal-run:{{ summary.pk }}";
+            document.addEventListener("submit", function (event) {
+                if (!event.target.matches("form[data-run-proposal]")) return;
+                try { sessionStorage.setItem(proposalRunKey, "{{ result.trials|length }}"); } catch (e) {}
+            });
+            (function selectTheTrialAProposalBecame() {
+                let pending = null;
+                try { pending = sessionStorage.getItem(proposalRunKey); } catch (e) { return; }
+                if (pending === null || {{ active_run|yesno:"true,false" }}) return;
+                try { sessionStorage.removeItem(proposalRunKey); } catch (e) {}
+                const idx = Number(pending);
+                if (initialMetric && idx < {{ result.trials|length }}) selectTrial(initialMetric, idx);
+            })();
         })();
     </script>
     {% comment %}After the script above has drawn every figure where its

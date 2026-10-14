@@ -30,6 +30,12 @@ magnitude:
                         was stated at. These steer the *next* run rather than
                         describing a past one, which is why they are here and
                         not under `runs`. Absent when nothing was stated.
+    projected_priors list | absent — beliefs stated in a view of the space
+                        rather than on one hyperparameter (see
+                        `core.projected_prior`): each its view, points,
+                        Gaussian parameters, decay and `at_trial`, and for a
+                        PCA/PLS view the projection itself, frozen. Absent when
+                        nothing was stated.
     runs        list  — export only: the history of runs over the trials
     environment dict  — export only: the versions behind the numbers
     result      dict | null — serialized OptimizationResult, a strict superset
@@ -410,7 +416,7 @@ def normalize(snapshot: dict) -> dict:
         "optimizer": {"name": snapshot.get("optimizer_name"),
                       "params": snapshot.get("optimizer_params") or {}},
     }
-    for section in ("space", "priors", "runs", "environment", "began_at"):
+    for section in ("space", "priors", "projected_priors", "runs", "environment", "began_at"):
         if snapshot.get(section) is not None:
             lifted[section] = snapshot[section]
     lifted["result"] = snapshot.get("result")

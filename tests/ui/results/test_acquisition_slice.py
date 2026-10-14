@@ -422,17 +422,24 @@ def test_the_slice_curves_start_switched_off(client):
 
 
 def test_its_controls_wait_for_the_curve(client):
-    """The incumbent toggle and Requery are both about the acquisition curve,
-    which nothing has computed when the page opens — so the row they share is
-    hidden until the script draws one."""
+    """The incumbent toggle and Next Trials are both about the acquisition curve,
+    which nothing has computed when the page opens — so both sit in the card's
+    head beside the hyperparameter picker, hidden until the script draws one.
+
+    Expect: the incumbent toggle and the Next Trials controls each inside an
+    element marked as a slice control and served hidden, after the picker.
+    """
     exp = _experiment()
     html = client.get(reverse("ui:experiment_detail", args=[exp.pk])).content.decode()
-    row = html[html.index('id="acq-slice-controls"'):]
-    row = row[:row.index(">")]
+    card = html[html.index('data-figure="acquisition_slice"'):]
 
-    assert "hidden" in row
-    assert html.index('id="acq-slice-controls"') < html.index('id="acq-show-slice"')
-    assert html.index('id="acq-slice-controls"') < html.index('id="acq-rewalk"')
+    for control in ('id="acq-show-slice"', 'id="acq-next-trials"'):
+        at = card.index(control)
+        opening = card.rindex("data-slice-control", 0, at)
+        tag = card[opening:card.index(">", opening)]
+        assert "hidden" in tag, control
+        assert card.index('id="acq-hp-select"') < at, control
+    assert "Acq. w/ inc. HPs" in card
 
 
 def test_a_decaying_prior_says_how_much_of_it_is_left(client):
@@ -548,8 +555,9 @@ def test_everything_on_the_acquisition_panel_shares_one_divisor():
     source = _script()
 
     # The weight is still peak-normalized first, which is what stops a sharp
-    # prior squashing the unweighted curve to invisibility.
-    assert "peak = maxOf(weights)" in source
+    # prior squashing the unweighted curve to invisibility — the whole weight,
+    # this hyperparameter's prior times any drawn in the cube.
+    assert "peak = maxOf(combined)" in source
 
     # And the divisor is the largest of everything the panel draws, not the
     # curve's own maximum. The candidates outscore the slice by several times,
@@ -696,7 +704,10 @@ def test_a_uniform_prior_weights_nothing_and_casts_no_ghost():
     source = _script()
 
     assert 'prior.kind !== "uniform"' in source
-    assert "fiction.push(stated" in source
+    # Only while something weighs the curve: this hyperparameter's own prior,
+    # or one drawn in the cube.
+    assert "weighing = stated || !!drawn;" in source
+    assert "fiction.push(weighing" in source
 
 
 def test_uniform_cannot_decay():
@@ -943,7 +954,7 @@ def test_the_density_comes_back_with_the_save(client):
     _response, data = _slice(client, exp, hp)
     meta = data["meta"]
 
-    body = {"hp": hp, "rewalk": False,
+    body = {"hp": hp,
             "prior": {"kind": "normal", "params": {"mu": 0.8, "sigma": 0.1},
                       "decay": {"shape": "none"}},
             "meta": {"positions": meta["positions"], "span": meta["span"],
@@ -1081,7 +1092,7 @@ def test_a_normal_may_be_as_wide_as_the_axis():
 def _state(client, exp, hp, kind="normal", decay="logarithmic"):
     """State a prior through the endpoint, so `at_trial` is recorded the way a
     reader stating one would record it."""
-    body = {"hp": hp, "rewalk": False,
+    body = {"hp": hp,
             "prior": {"kind": kind, "params": {"mu": 0.6, "sigma": 0.2},
                       "decay": {"shape": decay}}}
     return client.post(reverse("ui:save_prior", args=[exp.pk]),
@@ -1159,9 +1170,7 @@ def test_asking_the_optimizer_returns_a_ranked_slate(client):
     exp = _smac_experiment()
     hp = _hp_names(exp)[0]
 
-    body = {"hp": hp, "prior": None, "rewalk": True}
-    response = client.post(reverse("ui:save_prior", args=[exp.pk]),
-                           data=json.dumps(body), content_type="application/json")
+    response = client.get(reverse("ui:next_trials", args=[exp.pk]) + f"?hp={hp}")
     candidates = json.loads(response.content)["candidates"]
 
     assert response.status_code == 200
@@ -1169,7 +1178,7 @@ def test_asking_the_optimizer_returns_a_ranked_slate(client):
     # Ranks are a display number: 1..n, no gaps, best first.
     assert [c["rank"] for c in candidates] == list(range(1, len(candidates) + 1))
     for c in candidates:
-        assert 0.0 <= c["position"] <= 1.0
+        assert 0.0 <= c["positions"][hp] <= 1.0
         assert c["origin"]
         # The whole configuration, not just the coordinate this axis shows —
         # a candidate differs from the incumbent in every dimension.
@@ -1177,16 +1186,26 @@ def test_asking_the_optimizer_returns_a_ranked_slate(client):
         assert all(f"{k} =" in c["label"] for k in c["config"])
 
 
-def test_not_asking_costs_nothing(client):
-    """A model fit and a maximization per keystroke would be the cost of doing
-    this on every edit. It is a button for that reason."""
+def test_saving_a_prior_asks_the_optimizer_nothing(client, monkeypatch):
+    """A model fit and a maximization per keystroke would be the cost of asking
+    on every edit. Saving a prior saves it; what runs next is its own request.
+
+    Setup: count calls into `_next_trials`.
+    Action: save a prior.
+    Expect: no call, and no candidates in the answer.
+    """
+    from ui import views
+
+    asked = []
+    monkeypatch.setattr(views, "_next_trials", lambda *a, **k: asked.append(1))
     exp = _experiment()
     hp = _hp_names(exp)[0]
 
     response = _state(client, exp, hp)
 
     assert response.status_code == 200
-    assert json.loads(response.content)["candidates"] is None
+    assert "candidates" not in json.loads(response.content)
+    assert not asked
 
 
 def test_an_optimizer_with_nothing_to_rank_says_so_rather_than_failing(client):
@@ -1196,9 +1215,7 @@ def test_an_optimizer_with_nothing_to_rank_says_so_rather_than_failing(client):
     exp = _experiment()  # random search
     hp = _hp_names(exp)[0]
 
-    body = {"hp": hp, "prior": None, "rewalk": True}
-    response = client.post(reverse("ui:save_prior", args=[exp.pk]),
-                           data=json.dumps(body), content_type="application/json")
+    response = client.get(reverse("ui:next_trials", args=[exp.pk]) + f"?hp={hp}")
 
     assert response.status_code == 200
     assert json.loads(response.content)["candidates"] is None
@@ -1305,7 +1322,7 @@ def test_the_figure_carries_the_banner_element(client):
 # ── the decay factor is stated, not derived ──────────────────────────────────
 
 def _state_beta(client, exp, hp, ratio, shape="quadratic"):
-    body = {"hp": hp, "rewalk": False,
+    body = {"hp": hp,
             "prior": {"kind": "normal", "params": {"mu": 0.5, "sigma": 0.1},
                       "decay": {"shape": shape, "beta_ratio": ratio}}}
     return client.post(reverse("ui:save_prior", args=[exp.pk]),
@@ -1419,10 +1436,11 @@ def test_the_sampled_envelope_keeps_an_unweighted_ghost(client):
 
 def test_the_ghost_is_empty_without_a_prior(client):
     """With nothing stated it would lie exactly under the weighted curve, which
-    is a second line in the legend claiming to say something."""
+    is a second line in the legend claiming to say something. Something stated
+    is this hyperparameter's prior, or a prior drawn in the cube."""
     source = _script()
 
-    assert "bare = stated && cloudWeight ? [] : null;" in source
+    assert "bare = (stated && cloudWeight) || drawn ? [] : null;" in source
     assert "values.cloudBare || []" in source
 
 

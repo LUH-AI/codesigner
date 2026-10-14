@@ -63,6 +63,8 @@ class GridOptimizer(BaseOptimizer):
         # no acquisition function for a prior to weight. The caller passes what
         # the reader stated without having to know which optimizer will get it.
         priors=None,
+        configurations=None,
+        projected_priors=None,
     ) -> OptimizationResult:
         # One fold unless the caller divided the data itself; see core.splits.
         splits = splits if splits is not None else holdout(X_train, y_train, X_val, y_val)
@@ -101,6 +103,12 @@ class GridOptimizer(BaseOptimizer):
             initial_best_config=previous_result.best_config if previous_result else None,
             stopping=merge_stopping(n_trials, stopping),
         )
+
+        requested = self.evaluate_requested(
+            configurations, model=model, splits=splits, metrics=metrics,
+            primary_metric=primary_metric, seed=seed, collector=collector,
+            cancel_event=cancel_event)
+        to_run = [cfg for cfg in to_run if tuple(sorted(cfg.items())) not in requested]
 
         # Two ways to finish, and the grid's own is not a stopping criterion:
         # running out of configurations is the search being *complete*, not a
