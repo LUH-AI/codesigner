@@ -22,6 +22,11 @@
     /* The same, laid under a selected row or tab. Neither changes with the
        theme: "selected" is one colour everywhere, in light and in dark. */
     --selected-tint: rgba(236, 130, 115, 0.16);
+    /* A proposal: a sampled configuration nobody has run, selected in the
+       trial's place. Its own colour so it never passes for a trial — plots.py's
+       PROPOSAL_COLOR. One colour in both themes, like the selection. */
+    --proposal: #8B5CF6;
+    --proposal-tint: rgba(139, 92, 246, 0.12);
     /* Checked boxes and radios are a selection too. */
     accent-color: var(--selected);
     --green: #09ab3b;
@@ -384,6 +389,9 @@ button, .btn {
 }
 button:hover:not(:disabled), .btn:hover:not(.disabled) { border-color: var(--primary); color: var(--primary); }
 button:disabled, .btn.disabled { opacity: 0.5; cursor: not-allowed; }
+/* A select that cannot be used now — while a run is adding trials, or with
+   nothing for it to act on — looks it, the way a disabled button does. */
+select:disabled { opacity: 0.5; cursor: not-allowed; }
 .btn-primary, button[type="submit"] {
     background: var(--primary); border-color: var(--primary); color: #fff; font-weight: 600;
 }
@@ -1260,3 +1268,75 @@ body.assistant-window-body { display: block; height: 100vh; }
     animation: assistant-pulse 1s ease-in-out 3; }
 @keyframes assistant-pulse { 50% { outline-color: transparent; } }
 @media (prefers-reduced-motion: reduce) { .assistant-highlight { animation: none; } }
+
+/* Controls in columns of two rows: a choice above what modifies it — a method
+   above the dimensions it is drawn in, Next Trials above Requery. A grid filled
+   column by column, so every cell is as wide as its column and the two rows
+   line up on both edges. A stack is only a grouping in the markup. */
+.selectors.stacked {
+    display: grid;
+    grid-auto-flow: column;
+    grid-template-rows: auto auto;
+    gap: 0.35rem 0.5rem;
+    align-items: center;
+}
+.selectors.stacked select { width: 100%; }
+.control-stack, .control-stack[hidden] { display: contents; }
+.control-row { display: flex; align-items: center; gap: 0.35rem; }
+.control-row select { flex: 1; min-width: 0; }
+.joiner { font-size: 0.85rem; color: var(--muted); }
+/* HP Space's four pickers as two by two: the method and the first axis above
+   the second and third. Hidden in the projections, which take none of them. */
+#cube-axis-x { grid-area: 1 / 2; }
+#cube-axis-y { grid-area: 2 / 1; }
+#cube-axis-z { grid-area: 2 / 2; }
+/* Held in place while hidden, so the figure under a card's head does not
+   move when the controls about its curve appear. */
+[data-slice-control][hidden] { visibility: hidden; }
+label[data-slice-control][hidden] { display: inline-flex; }
+
+/* A plot reaching up under its card's head (see cubeHeadroom in
+   experiment_detail.html): the head stays on top and its controls take the
+   pointer, the empty space between them passes it to the plot, and Plotly's
+   toolbar keeps its place below the controls. */
+.plot-under-head > .card-head { position: relative; z-index: 1; pointer-events: none; }
+.plot-under-head > .card-head :is(.subheader, select, button, label) { pointer-events: auto; }
+.plot-under-head .modebar-container { top: var(--headroom, 0) !important; }
+
+/* The selected configuration when it is a proposal rather than a trial: a
+   dashed violet frame over a faint hatch, the look of something drafted and not
+   yet real, with a tag saying so above it. */
+.selected-config.is-proposal {
+    border: 1.5px dashed var(--proposal);
+    border-radius: var(--radius);
+    padding: 0.5rem 0.75rem 0.75rem;
+    background: repeating-linear-gradient(135deg, var(--proposal-tint) 0 6px, transparent 6px 12px);
+}
+.proposal-tag {
+    display: inline-block; margin-bottom: 0.35rem; padding: 0.05rem 0.5rem;
+    border-radius: 999px; background: var(--proposal); color: #fff;
+    font-size: 0.75rem; font-weight: 600; letter-spacing: 0.02em;
+}
+.run-proposal { margin: 0.6rem 0 0.25rem; }
+/* In the proposal's colour rather than the brand red every other submit
+   button wears: it acts on the proposal, and belongs to its frame. */
+.run-proposal button[type="submit"] {
+    background: var(--proposal); border-color: var(--proposal); color: #fff; font-weight: 600;
+}
+.run-proposal button[type="submit"]:hover:not(:disabled) {
+    background: #7C3AED; border-color: #7C3AED; color: #fff;
+}
+
+/* The Projected prior card: the points it was drawn through, one row each with
+   a field per coordinate, and the stated ones listed under it. */
+.pp-points { display: flex; flex-direction: column; gap: 0.25rem; margin: 0.25rem 0; }
+.pp-point { display: flex; align-items: center; gap: 0.35rem; font-size: 0.85rem; color: var(--muted); }
+.pp-point input { width: 6.5rem; }
+.pp-actions { display: flex; gap: 0.5rem; margin-top: 0.5rem; }
+.pp-stated { list-style: none; margin: 0.75rem 0 0; padding: 0; display: flex; flex-direction: column; gap: 0.35rem; }
+.pp-item { display: flex; align-items: center; gap: 0.5rem; font-size: 0.875rem; }
+.pp-item > span { flex: 1; min-width: 0; }
+.pp-item.is-editing > span { font-weight: 600; }
+/* Picking points: a crosshair over the cube while Draw Prior is ticked. */
+.drawing-prior .js-plotly-plot .nsewdrag, .drawing-prior .js-plotly-plot .gl-container { cursor: crosshair !important; }
+.pp-plot { width: 100%; height: 220px; margin-top: 0.25rem; }

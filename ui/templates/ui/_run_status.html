@@ -32,12 +32,12 @@ stored, and the answer comes back inside this same fragment — poll.js re-reads
     cancel keeps the work and giving up cannot.{% endcomment %}
     {% if run.cancel_requested %}
         <p class="caption" style="margin-top: 0.75rem;">{% translate "Cancelling — it stops after the trial it is on." %}</p>
-        <form method="post" action="{% url 'ui:run_force_stop' experiment.pk %}">
+        <form method="post" action="{% url 'ui:run_force_stop' experiment.pk %}" data-keeps-view>
             {% csrf_token %}
             <button type="submit" class="btn">{% translate "Give up on it" %}</button>
         </form>
     {% else %}
-        <form method="post" action="{% url 'ui:run_cancel' experiment.pk %}" style="margin-top: 0.75rem;">
+        <form method="post" action="{% url 'ui:run_cancel' experiment.pk %}" style="margin-top: 0.75rem;" data-keeps-view>
             {% csrf_token %}
             <button type="submit" class="btn">{% translate "Cancel run" %}</button>
         </form>

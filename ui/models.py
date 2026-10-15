@@ -141,6 +141,11 @@ class ExperimentData(models.Model):
     # ruled-out region is a zero, and nothing stops a reader producing an
     # infinity by asking for a spike.
     priors = SafeJSONField(default=dict, blank=True)
+    # Beliefs stated in a view of the space rather than on one hyperparameter:
+    # a bump, ridge or slab drawn in the configuration cube, each one record
+    # (see `core.projected_prior`). Applied with `priors`, multiplied into one
+    # prior over the whole space.
+    projected_priors = SafeJSONField(default=list, blank=True)
 
     def __str__(self) -> str:
         return self.name or str(UNTITLED)
@@ -613,6 +618,12 @@ class Run(models.Model):
     # Empty for runs that predate the field, and for runs that stated nothing.
     # The two are the same thing to every reader of it: nothing to go back to.
     priors = models.JSONField(default=dict, blank=True)
+    # The projected priors it searched under, copied for the same reason.
+    projected_priors = models.JSONField(default=list, blank=True)
+    # What it was told to evaluate rather than search for: configurations
+    # picked off the page, each `{"config", "origin", "proposal"}`, run before
+    # the search is asked for anything. Empty for a run that only searched.
+    configurations = models.JSONField(default=list, blank=True)
     # Which criterion ended it. Empty while running, and for a run that was
     # cancelled or errored rather than stopping on its own terms.
     stopped_by = models.CharField(max_length=40, blank=True, default="")

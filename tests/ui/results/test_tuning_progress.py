@@ -249,7 +249,6 @@ def test_both_games_are_measured_from_the_same_zero():
 
     from core.models import RandomForestModel
     from core.optimizers import RandomOptimizer
-    from core.optimizers.base import _HPO_SIMULATION_SAMPLES
 
     trials = [
         TrialResult(trial=i, config={"n_estimators": 10 + 40 * i, "max_depth": 2 + i,
@@ -271,7 +270,7 @@ def test_both_games_are_measured_from_the_same_zero():
     tunability = hs_games.TunabilityGame(
         explanation_task=task,
         cs_searcher=RandomConfigSpaceSearcher(
-            explanation_task=task, n_samples=_HPO_SIMULATION_SAMPLES,
+            explanation_task=task, n_samples=10_000,
             mode=Aggregation.MAX, seed=0))
     ablation = hs_games.AblationGame(explanation_task=hs_task.AblationExplanationTask(
         config_space=space, surrogate_model=surrogate, baseline_config=baseline,

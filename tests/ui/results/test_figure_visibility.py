@@ -56,6 +56,8 @@ EXPECTED_KEYS = [
     # On the acquisition tab: where the search has been, beside where it would
     # go next.
     "configuration_cube",
+    # A prior drawn in it: shaped and stated on a card of its own.
+    "projected_prior",
     "trials",
 ]
 
@@ -140,7 +142,8 @@ def test_each_figure_declares_a_tab_and_a_shape():
         "hyperparameter_importance", "interactions_heatmap", "interactions_top_pairs",
         "interactions_graph", "interactions_coalitions", "interactions_orders",
         "local_explanation", "local_effects"]
-    assert by_tab[ACQUISITION] == ["acquisition_slice", "prior", "configuration_cube"]
+    assert by_tab[ACQUISITION] == ["acquisition_slice", "prior", "configuration_cube",
+                                   "projected_prior"]
     assert by_tab[OVERVIEW] == []
     # Read along an axis, so wider than tall and never narrower than two.
     assert [f.key for f in FIGURES if f.shape == LONG] == [
@@ -396,7 +399,7 @@ def test_a_slot_says_its_shape(client):
 
 
 def test_a_tab_whose_figures_are_all_off_says_so(client):
-    _hide("acquisition_slice", "prior", "configuration_cube")
+    _hide("acquisition_slice", "prior", "configuration_cube", "projected_prior")
     html = _page(client, _experiment())
 
     assert "No figures on this tab" in _panel(html, ACQUISITION)

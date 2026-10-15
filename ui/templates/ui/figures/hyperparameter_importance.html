@@ -1,4 +1,4 @@
-{% load numbers i18n %}
+{% load i18n %}
 {% comment %}How to draw the current game's numbers — pie, bar or table. Which
 *game* is not asked here: it is one choice for the whole page, in the sidebar,
 because reading this figure under tunability beside an interaction figure under
@@ -18,6 +18,16 @@ pie/bar come from ui/figures/plots.py as usual.{% endcomment %}
                 <option value="bar">{% translate "Bar" %}</option>
                 <option value="table">{% translate "Table" %}</option>
             </select>
+            {% comment %}A second baseline's bars laid over the first's. The option
+            naming the sidebar's own baseline is hidden by the page, since a game
+            compared with itself has nothing to show.{% endcomment %}
+            <span class="bar-comparison" data-bar-comparison hidden>
+                {% translate "vs" %}
+                <label class="check"><input type="radio" name="importance-comparison" value="none" checked> {% translate "None" %}</label>
+                <label class="check"><input type="radio" name="importance-comparison" value="selected"> {% translate "Selected" %}</label>
+                <label class="check"><input type="radio" name="importance-comparison" value="incumbent"> {% translate "Incumbent" %}</label>
+                <label class="check"><input type="radio" name="importance-comparison" value="default"> {% translate "Default" %}</label>
+            </span>
             {% comment %}Tunability is what tuning a hyperparameter *could* gain,
             measured from the config space's default. That is the right question
             before a search and the wrong one during it: by the time it says a
@@ -55,41 +65,7 @@ pie/bar come from ui/figures/plots.py as usual.{% endcomment %}
     {% for panel in panels %}
         {% for game, data in panel.importance_by_game.items %}
             <div class="importance-table" data-metric="{{ panel.metric }}" data-game="{{ game }}" hidden>
-                {% if data.table %}
-                    <div class="table-wrap">
-                        <table>
-                            {% comment %}The magnitudes, which no other
-                            rendering shows: every one of them is a share of
-                            100%, and a share cannot say whether the whole is
-                            worth eight accuracy points or eight thousandths of
-                            one. Filled in by the page once the selected trial's
-                            ablation is known.{% endcomment %}
-                            <thead><tr>
-                                <th>{% translate "Hyperparameter" %}</th>
-                                <th>{% translate "Importance" %}</th>
-                                {% if tuning_progress %}
-                                    <th class="progress-col">{% translate "Achievable" %}</th>
-                                    <th class="progress-col">{% translate "Banked" %}</th>
-                                    <th class="progress-col">{% translate "Still to gain" %}</th>
-                                {% endif %}
-                            </tr></thead>
-                            <tbody>
-                                {% for hp, value in data.table %}
-                                    <tr data-hp="{{ hp }}">
-                                        <td>{{ hp }}</td><td>{{ value|sig }}</td>
-                                        {% if tuning_progress %}
-                                            <td class="progress-col"></td>
-                                            <td class="progress-col"></td>
-                                            <td class="progress-col"></td>
-                                        {% endif %}
-                                    </tr>
-                                {% endfor %}
-                            </tbody>
-                        </table>
-                    </div>
-                {% else %}
-                    <p class="caption">{% translate "No importance data available." %}</p>
-                {% endif %}
+                {% include "ui/figures/_importance_table.html" with table=data.table %}
             </div>
         {% endfor %}
     {% endfor %}

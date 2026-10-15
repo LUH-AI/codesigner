@@ -1,0 +1,14 @@
+{% load i18n %}
+{% comment %}Show what the optimizer would run next, and ask it again. Carried by
+the acquisition figure and the configuration cube, and one pair of controls
+between them: ticking either ticks both, and either Requery is disabled while
+the answer is being worked out — see ui/static/ui/next_trials.js. Requery starts
+disabled because nothing is shown for it to ask about.{% endcomment %}
+<span class="control-stack">
+    <label class="acq-toggle">
+        <input type="checkbox" id="{{ prefix }}-next-trials" data-next-trials autocomplete="off"
+               data-url="{% url 'ui:next_trials' summary.pk %}">
+        {% translate "Next Trials" %}
+    </label>
+    <button type="button" id="{{ prefix }}-requery" data-requery disabled>{% translate "Requery" %}</button>
+</span>

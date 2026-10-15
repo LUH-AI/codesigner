@@ -27,6 +27,9 @@ KINDS = {
     "prior_edited": "hyperparameter, old, new",
     "prior_withdrawn": "hyperparameter, old, new (None)",
     "prior_reset": "hyperparameter, old, new — back to what the last run searched under",
+    "projected_prior_stated": "prior (its id), old (None), new — a belief drawn in a view",
+    "projected_prior_edited": "prior, old, new",
+    "projected_prior_withdrawn": "prior, old, new (None)",
     "optimizer_params_changed": "old, new",
     "optimizer_changed": "old, new — each {name, params}, before the first trial",
     "environment_rebuilt": "old, new — the model environment's lock digest",
@@ -42,6 +45,8 @@ KINDS = {
 #: Edits that arrive as a stream — every drag of a prior's curve saves — and
 #: are worth one entry per change of mind rather than one per keystroke.
 _PRIOR_KINDS = ("prior_stated", "prior_edited", "prior_withdrawn")
+_PROJECTED_KINDS = ("projected_prior_stated", "projected_prior_edited",
+                    "projected_prior_withdrawn")
 
 
 def _trials(exp) -> int:
@@ -76,11 +81,23 @@ def record_prior(exp, hp, old, new, *, user=None):
     started; until one starts, the edits are one change of mind, kept with the
     value it started from. Ending where it began leaves no entry at all.
     """
+    return _folded(exp, _PRIOR_KINDS, "hyperparameter", hp, old, new, user)
+
+
+def record_projected_prior(exp, prior_id, old, new, *, user=None):
+    """A projected prior stated, edited or withdrawn, folded the same way as
+    `record_prior`: by the prior's id, until a run starts."""
+    return _folded(exp, _PROJECTED_KINDS, "prior", prior_id, old, new, user)
+
+
+def _folded(exp, kinds, key, value, old, new, user):
+    """`record_prior`'s folding, for any family of stated/edited/withdrawn
+    kinds told apart by one payload key."""
     if getattr(exp, "draft", False):
         return None
     last = exp.data.history.order_by("-at", "-id").first()
-    folding = (last is not None and last.kind in _PRIOR_KINDS
-               and last.payload.get("hyperparameter") == hp
+    folding = (last is not None and last.kind in kinds
+               and last.payload.get(key) == value
                and not exp.runs.filter(created_at__gt=last.at).exists())
     if folding:
         old = last.payload.get("old")
@@ -88,15 +105,15 @@ def record_prior(exp, hp, old, new, *, user=None):
         if folding:
             last.delete()
         return None
-    kind = ("prior_stated" if old is None else
-            "prior_withdrawn" if new is None else "prior_edited")
+    stated, edited, withdrawn = kinds
+    kind = stated if old is None else withdrawn if new is None else edited
     if folding:
         last.kind, last.at, last.at_trial = kind, timezone.now(), _trials(exp)
-        last.payload = {"hyperparameter": hp, "old": old, "new": copy.deepcopy(new)}
+        last.payload = {key: value, "old": old, "new": copy.deepcopy(new)}
         last.actor = _actor(user) or last.actor
         last.save(update_fields=["kind", "at", "at_trial", "payload", "actor"])
         return last
-    return record(exp, kind, user=user, hyperparameter=hp, old=old, new=new)
+    return record(exp, kind, user=user, **{key: value, "old": old, "new": new})
 
 
 def configuration(snapshot: dict) -> dict:

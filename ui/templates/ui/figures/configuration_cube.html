@@ -3,7 +3,7 @@
 select picks which; the pickers beside it belong to whichever is showing, so the
 ones that do not apply are hidden rather than left there doing nothing.
 
-**Axes** is the configuration cube: which hyperparameters sit on which axis is a
+**HP Space** (`axes`) is the configuration cube: which hyperparameters sit on which axis is a
 per-experiment, unbounded choice — not a fixed set the server can precompute one
 JSON entry per combination for — so it ships one trace carrying every
 hyperparameter's values in its `customdata` and no axis assignment at all, and
@@ -23,9 +23,16 @@ hidden.{% endcomment %}
 <section class="card" data-figure="{{ figure.key }}">
     <div class="card-head">
         <div class="subheader">{{ figure.label }}</div>
-        <p class="selectors">
+        {% comment %}Columns of two rows, each cell as wide as its column, each
+        column read as a phrase: the method above how many dimensions it is
+        drawn "in", the function above what it is drawn "as", and Next Trials
+        above Requery. HP Space has three axis pickers instead of a number of
+        dimensions, and takes two columns for the four: the method and the
+        first axis above the second and third — placed by app.css, so the
+        pickers keep their reading order.{% endcomment %}
+        <p class="selectors stacked">
             <select id="view-select-{{ figure.key }}" aria-label="{% translate 'Method' %}">
-                <option value="axes">{% translate "Axes" %}</option>
+                <option value="axes">{% translate "HP Space" %}</option>
                 <option value="pca">{% translate "PCA" %}</option>
                 {% comment %}Opened on, which the catalog also declares —
                 Figure.default_view. A test holds the two together.{% endcomment %}
@@ -36,10 +43,14 @@ hidden.{% endcomment %}
             restores a select's previous value across a reload and the figure
             would then open in whatever was last looked at rather than in what
             it opens in.{% endcomment %}
-            <select id="cube-dimensions" aria-label="{% translate 'Dimensions' %}" hidden>
-                <option value="2" selected>{% translate "2D" %}</option>
-                <option value="3">{% translate "3D" %}</option>
-            </select>
+            <span class="control-row" id="cube-dimensions-row" hidden>
+                <span class="joiner">{% translate "in" %}</span>
+                <select id="cube-dimensions" aria-label="{% translate 'Dimensions' %}">
+                    <option value="1">{% translate "1D" %}</option>
+                    <option value="2" selected>{% translate "2D" %}</option>
+                    <option value="3">{% translate "3D" %}</option>
+                </select>
+            </span>
             <select id="cube-axis-x" aria-label="{% translate 'First axis' %}">
                 <option value="" selected>{% translate "None" %}</option>
                 {% for h in hp_names %}<option value="{{ h }}">{{ h }}</option>{% endfor %}
@@ -52,8 +63,48 @@ hidden.{% endcomment %}
                 <option value="" selected>{% translate "None" %}</option>
                 {% for h in hp_names %}<option value="{{ h }}">{{ h }}</option>{% endfor %}
             </select>
+            {% comment %}A layer under the trials, from one even sample of the
+            whole space: what the acquisition function makes of it, what the
+            surrogate predicts there, or nothing; drawn as the field the samples
+            make or as the sampled configurations themselves. Opens on the
+            acquisition as a field, unless this experiment's settings turn off
+            computing it automatically — the script reasserts that on every
+            load, since a browser restores a select across a reload. Disabled
+            while a run is adding trials, when every poll would mean a new
+            sample. See views.surrogate_prediction.{% endcomment %}
+            <select id="cube-layer" aria-label="{% translate 'Layer' %}"{% if active_run %} disabled{% endif %}>
+                <option value="">{% translate "None" %}</option>
+                <option value="prediction">{% translate "Prediction" %}</option>
+                <option value="acquisition" selected>{% translate "Acquisition" %}</option>
+            </select>
+            <span class="control-row">
+                <span class="joiner">{% translate "as" %}</span>
+                <select id="cube-layer-style" aria-label="{% translate 'Layer style' %}"{% if active_run %} disabled{% endif %}>
+                    <option value="field" selected>{% translate "Scalar Field" %}</option>
+                    <option value="points">{% translate "Point Cloud" %}</option>
+                </select>
+            </span>
+            {% comment %}What the optimizer would run next, placed among the
+            trials. One pair of controls with the acquisition figure's — see
+            next_trials.js.{% endcomment %}
+            {% if can_requery %}{% include "ui/figures/_next_trials.html" with prefix="cube" %}{% endif %}
+            {% comment %}Drawing a prior: while ticked, a click in the plot puts
+            down a point instead of selecting — up to as many as the view has
+            dimensions — and the Projected prior card shapes and states what
+            they span. Clear lifts them. Disabled while a run is adding trials,
+            like the layer it weighs.{% endcomment %}
+            {% if can_draw_priors %}
+            <span class="control-stack">
+                <label class="acq-toggle">
+                    <input type="checkbox" id="cube-draw-prior" autocomplete="off"{% if active_run %} disabled{% endif %}>
+                    {% translate "Draw Prior" %}
+                </label>
+                <button type="button" id="cube-clear-prior" disabled>{% translate "Clear" %}</button>
+            </span>
+            {% endif %}
         </p>
     </div>
+    <p id="prediction-warning" class="caption" hidden></p>
     {% comment %}How unsure the surrogate is across the plane the two chosen
     axes span, drawn as a field under the trials. Its own prompt rather than a
     share of the figure's, because it is an addition to a figure that already

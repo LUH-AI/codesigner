@@ -5,10 +5,12 @@ from abc import ABC, abstractmethod
 from dataclasses import dataclass, field, replace
 from typing import Any, Dict, List, NamedTuple, Optional
 from hypershap import ExplanationTask, HyperSHAP
+from shapiq.game_theory import MoebiusConverter
 
 from ..metrics import (
     METRICS, declarations, describe, from_cost, metric_for, to_cost)
 from .timing import CANCELLED, FITTED, RUN_INFO_KEYS, STATUS_SUCCESS
+from .trial import evaluate_trial
 
 
 @dataclass
@@ -136,7 +138,7 @@ class OptimizationResult:
     # above. Read by the interaction figure's graph/upset/by-order views, which
     # need terms above order 2; the heatmap and top-pairs views keep reading
     # `hyperparameter_interactions`, whose FSII numbers this deliberately does
-    # not replace (see `_shared_exact_computer` for why the two are not
+    # not replace (see `BaseOptimizer._compute_hp_game` for why the two are not
     # interchangeable). metric → [{"members": [...], "value": float}, ...].
     hyperparameter_moebius: Dict[str, list] = field(default_factory=dict)
     # The other two games' interactions and Möbius terms. Same shape as
@@ -427,6 +429,11 @@ STOPPED_BY_EXHAUSTED = "exhausted"
 #: end — a target score the search never reaches, or a surrogate that stays
 #: unsure — so a caller should pair them with something bounded.
 UNBOUNDED_CRITERIA = ("target_score", "incumbent_confidence")
+
+
+#: Where a trial asked for by name came from, when the caller gives no origin of
+#: its own: a configuration somebody chose, not one the search produced.
+REQUESTED_ORIGIN = "Requested"
 
 
 class NoStoppingCriterion(ValueError):
@@ -864,60 +871,11 @@ class IncumbentSlice(NamedTuple):
     #: no cloud was sampled.
     cloud: Optional[tuple]
     warning: Optional[str]
-
-
-#: How many configurations the shadow curve is estimated from. SMAC's forest
-#: facade draws 10,000 per maximization and its Gaussian-process facade 1,000;
-#: this is a Monte Carlo estimate of the same surface, and every one of these
-#: points costs a surrogate prediction and a row of JSON. Two thousand is enough
-#: for the envelope to be legible without the payload dominating the response.
-CLOUD_POINTS = 2000
-
-
-def sample_acquisition_cloud(config_space, surrogate, n=CLOUD_POINTS, seed=0):
-    """Configurations drawn from the whole space, with what the surrogate says.
-
-    Returns `(X, mu, sigma)` — the vectorized configurations and the surrogate's
-    mean and spread at each. **Not** an acquisition function: the figure owns
-    that arithmetic and computes it in the browser, so handing back predictions
-    rather than values keeps expected improvement to one implementation.
-
-    This is what the slice cannot show. A slice holds every hyperparameter but
-    one at the incumbent's value; SMAC's maximizer moves all of them, and scores
-    exactly this kind of sample before it does. Projecting these onto one axis
-    shows how much interest is reachable at each value of that hyperparameter
-    when the others are free — which is the gap between what the curve promises
-    and what the search actually does.
-
-    Depends on the metric and the trials but **not** on which hyperparameter is
-    being sliced, so a caller drawing several slices samples once.
-    """
-    import numpy as np
-
-    if surrogate is None:
-        return None
-
-    try:
-        drawn = config_space.sample_configuration(size=n)
-    except Exception:  # noqa: BLE001 — a shadow must not cost anyone the figure
-        return None
-    if not isinstance(drawn, list):
-        drawn = [drawn]
-
-    rows = np.array([c.get_array() for c in drawn], dtype=float)
-    # A conditional hyperparameter is NaN wherever it is inactive. SMAC's own
-    # models impute those; the scikit-learn fallback does not, so the rows are
-    # dropped rather than guessed at — a shadow drawn from invented values would
-    # be worse than a shorter one.
-    rows = rows[~np.isnan(rows).any(axis=1)]
-    if len(rows) < 2:
-        return None
-
-    try:
-        mu, sigma = predict_mean_std(surrogate, rows)
-    except Exception:  # noqa: BLE001
-        return None
-    return rows, np.asarray(mu, dtype=float), np.asarray(sigma, dtype=float)
+    #: The configurations the slice and the cloud were predicted at, in
+    #: ConfigSpace's vectorized form — what a prior over whole configurations
+    #: is evaluated at to weigh them.
+    slice_rows: Optional[list] = None
+    cloud_rows: Optional[list] = None
 
 
 def predict_mean_std(surrogate, rows):
@@ -1005,102 +963,20 @@ class _MetricExplainer:
         return self._fallback
 
 
-#: What `HyperSHAP.tunability()`/`.sensitivity()`/`.mistunability()` build for
-#: themselves, named here so `_shared_exact_computer` can build the same thing.
-#: The aggregation is the only difference between the three games once the
-#: surrogate exists: MAX = how much upside is there, VAR = how much does
-#: performance move, MIN = how much downside does getting it wrong carry.
-_GAME_PIECES = {
-    "tunability": ("TunabilityExplanationTask", "TunabilityGame", "MAX"),
-    "sensitivity": ("SensitivityExplanationTask", "SensitivityGame", "VAR"),
-    "mistunability": ("MistunabilityExplanationTask", "MistunabilityGame", "MIN"),
-}
-
-#: How many configurations each game's searcher draws — HyperSHAP's own default
-#: for `HyperSHAP.tunability` and its siblings, which `_shared_exact_computer`
-#: has to match or it would be computing a different game from the one the
-#: facade computes. The equality test in `tests/core/test_hp_importance.py` is
-#: what catches it drifting.
-#:
-#: The searcher's *seed* is not here: it is the experiment's, passed down from
-#: `optimize()` like every other stochastic thing. HyperSHAP defaults it to 0,
-#: which meant two experiments with different seeds drew the same 10,000
-#: configurations to explain themselves with — deterministic, but not the
-#: experiment's determinism. The facade fallback in `_game_values` is given the
-#: same seed, so the two paths stay comparable.
-_HPO_SIMULATION_SAMPLES = 10_000
-
-
-def _shared_exact_computer(explainer, game: str, seed: int = 0):
-    """One `shapiq.ExactComputer` for *game*, read twice: FSII and Möbius.
-
-    Returns `(fsii_order_2, moebius)` — the interaction values today's
-    importance and interactions figures are built from, plus the full Möbius
-    (Harsanyi) decomposition the graph, upset and by-order views need.
-
-    **Why this reaches past HyperSHAP's facade**, which is a real cost and
-    wants justifying:
-
-    - *Why not call the facade twice?* `HyperSHAP.tunability()` builds a fresh
-      `ExactComputer` per call, and an `ExactComputer` evaluates 2^n_hp
-      coalitions. Two calls means paying that twice — measured at 6
-      hyperparameters, 1110 ms each. One computer caches its game evaluations,
-      so the second index is free: **1060 ms for FSII, then 1 ms for Möbius**.
-      Doubling the most expensive thing a run does, to avoid the twenty lines
-      below, is the wrong trade.
-
-    - *Why not just ask the facade for a higher-order FSII?* Because FSII is
-      the *faithful* least-squares k-order approximation — its terms are fitted
-      jointly, so the order-1 values of an order-3 fit are not the order-1
-      values of an order-2 fit. Measured: order-1 moves by 5% of the largest
-      term, order-2 by 24%. Raising the order in place would silently rewrite
-      `hyperparameter_importance` for every new run and make it incomparable
-      with every stored one.
-
-    - *Why Möbius?* It is the unique decomposition assigning one value per
-      coalition, and unlike FSII it is truncation-independent — measured
-      identical at order 2 and at order n. So it can be stored once and read at
-      any order, which is exactly what a plot showing 2-way and 5-way
-      interactions in the same picture needs. It is also the transform the
-      graph is named after.
-
-    **What protects this.** `hypershap` is at 0.0.6 and its internals may move.
-    Two things guard that: a test asserting this function's FSII output is
-    bit-identical to `HyperSHAP.<game>()`'s for all three games, which fails
-    loudly on any drift; and the caller's `except`, which falls back to the
-    facade and simply does without the Möbius-based views. Neither the numbers
-    on the page nor a stored result can go quietly wrong.
+def _baseline_config(config_space, baseline: Optional[Dict[str, Any]]):
+    """*baseline* as a `Configuration` of *config_space*, or the space's default
+    when there is none: what every HyperSHAP game here measures its gains from.
     """
-    from shapiq import ExactComputer
-    import hypershap.games as hs_games
-    import hypershap.task as hs_task
-    from hypershap.utils import Aggregation, RandomConfigSpaceSearcher
+    from ConfigSpace import Configuration
 
-    task_name, game_name, aggregation = _GAME_PIECES[game]
-    source = explainer.hs.explanation_task
-    surrogate = source.surrogate_model
-    if isinstance(surrogate, list):
-        surrogate = surrogate[0]
-
-    config_space = source.config_space
-    game_task = getattr(hs_task, task_name)(
-        config_space=config_space, surrogate_model=surrogate,
-        baseline_config=config_space.get_default_configuration())
-    built = getattr(hs_games, game_name)(
-        explanation_task=game_task,
-        cs_searcher=RandomConfigSpaceSearcher(
-            explanation_task=game_task, n_samples=_HPO_SIMULATION_SAMPLES,
-            mode=getattr(Aggregation, aggregation), seed=seed))
-
-    n_players = built.get_num_hyperparameters()
-    computer = ExactComputer(n_players=n_players, game=built)
-    # Order matters only for cost: FSII pays for the coalitions, Möbius reads
-    # the cached game afterwards.
-    return computer(index="FSII", order=2), computer(index="Moebius", order=n_players)
+    if baseline is None:
+        return config_space.get_default_configuration()
+    return Configuration(config_space, values=baseline)
 
 
-def _moebius_terms(iv, params: List[str]) -> list:
-    """A Möbius `InteractionValues` as JSON-storable rows, strongest first.
+def _moebius_terms(named: Dict[tuple, float]) -> list:
+    """Möbius terms, as `HyperSHAP.get_interaction_values_with_names` keys
+    them, turned into JSON-storable rows, strongest first.
 
     `[{"members": ["max_depth", "n_estimators"], "value": 0.013}, ...]` — a list
     rather than the nested dict `_extract_pairwise` produces, because these
@@ -1110,8 +986,8 @@ def _moebius_terms(iv, params: List[str]) -> list:
     The empty coalition is dropped: it is the game's value with nothing tuned,
     a constant offset rather than anything attributable to a hyperparameter.
     """
-    rows = [{"members": [params[i] for i in key], "value": float(value)}
-            for key, value in iv.dict_values.items() if key]
+    rows = [{"members": list(members), "value": float(value)}
+            for members, value in named.items() if members]
     rows.sort(key=lambda row: abs(row["value"]), reverse=True)
     return rows
 
@@ -1148,6 +1024,21 @@ def _hp_grid(hp, n_points: int) -> list:
     if isinstance(hp, UniformIntegerHyperparameter):
         return sorted({int(v) for v in raw})
     return [float(v) for v in raw]
+
+
+def _from_unit(hp, u: float):
+    """The value hyperparameter *hp* takes at *u* in [0, 1) along its own scale:
+    logarithmic for a log one, an even share of its choices for a categorical,
+    its value for a constant."""
+    import numpy as np
+
+    choices = getattr(hp, "choices", None) or getattr(hp, "sequence", None)
+    if choices:
+        return choices[min(int(u * len(choices)), len(choices) - 1)]
+    if not hasattr(hp, "lower"):
+        return getattr(hp, "value", getattr(hp, "default_value", None))
+    value = hp.to_value(np.array([u]))[0]
+    return int(value) if isinstance(hp.default_value, (int, np.integer)) else float(value)
 
 
 def _sample_evenly(items: list, limit: int) -> list:
@@ -1243,6 +1134,13 @@ class BaseOptimizer(ABC):
         """
         return False
 
+    def acquisition_function(self) -> Optional[dict]:
+        """Which acquisition function this optimizer maximizes, as `kind`
+        ("ei" or "pi") and its improvement margin `xi`, or None for one that
+        fits no model of the objective. The page computes the acquisition from
+        the surrogate's mean and spread itself, so it needs to know which."""
+        return None
+
     @abstractmethod
     def optimize(
         self,
@@ -1261,6 +1159,13 @@ class BaseOptimizer(ABC):
         # no acquisition function for a prior to weight. The caller passes what
         # the reader stated without having to know which optimizer will get it.
         priors=None,
+        # Configurations to evaluate before searching for any — see
+        # `evaluate_requested`. None searches from the first trial.
+        configurations=None,
+        # Beliefs stated in a view of the space rather than on one axis — see
+        # `core.projected_prior`. Ignored, like `priors`, by a search with no
+        # acquisition function to weight.
+        projected_priors=None,
     ) -> OptimizationResult: ...
 
     def serialize_result(self, result: "OptimizationResult") -> dict:
@@ -1537,6 +1442,33 @@ class BaseOptimizer(ABC):
             metric=declared.get(metric_name) or metric_for(metric_name),
             **kwargs)
 
+    def evaluate_requested(self, configurations, *, model, splits, metrics, primary_metric,
+                           seed, collector, cancel_event=None, told=None) -> set:
+        """Evaluate the configurations a run was asked for by name, before it
+        searches for any.
+
+        *configurations* is a list of `{"config": {...}, "origin": "..."}`,
+        evaluated in order while the run's criteria allow, each recorded as a
+        trial like any the search produced. *told*, when given, is called with
+        `(config, all_scores, run_info)` after each, for an optimizer that keeps
+        a model of what it has seen. Returns the configurations evaluated, as
+        the sorted-item keys the optimizers already use to skip repeats.
+        """
+        done = set()
+        for requested in configurations or ():
+            if collector.done or (cancel_event and cancel_event.is_set()):
+                break
+            config = dict(requested["config"])
+            all_scores, run_info = evaluate_trial(model, config, splits, metrics, seed=seed,
+                                                   keep=self.keep_model is not None)
+            if told is not None:
+                told(config, all_scores, run_info)
+            collector.record(config, all_scores[primary_metric], all_scores,
+                             run_info=run_info,
+                             origin=requested.get("origin") or REQUESTED_ORIGIN)
+            done.add(tuple(sorted(config.items())))
+        return done
+
     def eager_analytics_budget_exceeded(self, config_space, metrics) -> Optional[str]:
         """Why the global games shouldn't be computed for this run, or None.
 
@@ -1661,14 +1593,16 @@ class BaseOptimizer(ABC):
         seed: int = 0,
         explainer=None,
         metric=None,
+        baseline: Optional[Dict[str, Any]] = None,
     ) -> tuple[Dict[str, float], Optional[str]]:
         """HyperSHAP's "ablation" game: how much each hyperparameter's value in
-        *config_of_interest* helped or hurt *metric_name*, versus the config
-        space's default — a *local* explanation of one specific trial, unlike
-        `HP_GAMES`' global ones.
+        *config_of_interest* helped or hurt *metric_name*, versus *baseline* —
+        a *local* explanation of one specific trial, unlike `HP_GAMES`' global
+        ones. *baseline* is a configuration as a dict, the config space's
+        default when left out.
 
         Signed, deliberately: positive means that hyperparameter's value in
-        this trial beat the default, negative means it lost to it. Zeroing
+        this trial beat the baseline's, negative means it lost to it. Zeroing
         that out with `abs()` (as the three global games do, on purpose,
         since they answer "how much does this matter" rather than "which
         direction") would throw away the one thing this view exists to show.
@@ -1692,15 +1626,12 @@ class BaseOptimizer(ABC):
         barely notices; explaining every trial (see `compute_local_effects`)
         would otherwise refit an identical forest once per trial.
         """
-        from ConfigSpace import Configuration
         from sklearn.ensemble import RandomForestRegressor
-
-        params = list(config_space.keys())
 
         if explainer is not None:
             if explainer.hs is None:
                 return {}, explainer.warning or "No surrogate for a local explanation."
-            return self._ablate(explainer.hs, config_space, config_of_interest, params)
+            return self._ablate(explainer.hs, config_space, config_of_interest, baseline)
 
         data = _pair_trials_with_oriented_scores(config_space, trials, metric_name, metric)
         if len(data) < 2:
@@ -1710,28 +1641,25 @@ class BaseOptimizer(ABC):
             task = ExplanationTask.from_data(
                 config_space, data,
                 base_model=RandomForestRegressor(n_estimators=100, random_state=seed))
-            hs = HyperSHAP(task)
-            config = Configuration(config_space, values=config_of_interest)
-            baseline = config_space.get_default_configuration()
-            iv = hs.ablation(config_of_interest=config, baseline_config=baseline)
-            order1 = iv.get_n_order(order=1).dict_values
-            return {params[idx]: val for (idx,), val in order1.items()}, None
         except Exception as e:
             return {}, f"HyperSHAP (ablation) failed ({e})."
+        return self._ablate(HyperSHAP(task), config_space, config_of_interest, baseline)
 
     @staticmethod
-    def _ablate(hs, config_space, config_of_interest, params):
-        """One ablation game against the config space's default, from a
-        HyperSHAP that already exists. The half of `compute_hp_ablation` that
-        does not depend on how the explainer was obtained."""
+    def _ablate(hs, config_space, config_of_interest, baseline=None):
+        """One ablation game against *baseline* (the config space's default when
+        None), from a HyperSHAP that already exists. The half of
+        `compute_hp_ablation` that does not depend on how the explainer was
+        obtained."""
         from ConfigSpace import Configuration
 
         try:
             iv = hs.ablation(
                 config_of_interest=Configuration(config_space, values=config_of_interest),
-                baseline_config=config_space.get_default_configuration())
-            order1 = iv.get_n_order(order=1).dict_values
-            return {params[idx]: val for (idx,), val in order1.items()}, None
+                baseline_config=_baseline_config(config_space, baseline))
+            named = hs.get_interaction_values_with_names(iv)
+            return {members[0]: value for members, value in named.items()
+                    if len(members) == 1}, None
         except Exception as e:
             return {}, f"HyperSHAP (ablation) failed ({e})."
 
@@ -1743,11 +1671,13 @@ class BaseOptimizer(ABC):
         seed: int = 0,
         max_trials: int = 0,
         metric=None,
+        baseline: Optional[Dict[str, Any]] = None,
     ) -> tuple[List[str], List[dict], Optional[str]]:
         """Every sampled trial's local ablation, for the beeswarm figure.
 
         `compute_hp_ablation` answers "what did each hyperparameter's value do
-        for *this* trial". This runs that question across the run, so the figure
+        for *this* trial", against *baseline* (the config space's default when
+        left out). This runs that question across the run, so the figure
         can show the *spread* of each hyperparameter's effect rather than one
         trial's or an average. A hyperparameter whose points cluster tightly
         behaves the same wherever you are in the space; one whose points fan
@@ -1784,7 +1714,7 @@ class BaseOptimizer(ABC):
         for index, trial in _sample_evenly(list(enumerate(trials)), max_trials):
             effects, warning = self.compute_hp_ablation(
                 config_space, trials, metric_name, trial.config, seed,
-                explainer=explainer)
+                explainer=explainer, baseline=baseline)
             if warning:
                 return [], [], warning
             rows.append({"index": index, "trial": trial.trial, "effects": effects})
@@ -2015,6 +1945,141 @@ class BaseOptimizer(ABC):
 
         return x_grid, y_grid, z, None
 
+    #: How many configurations the configuration cube's prediction layer is
+    #: drawn from. A power of two, which is what keeps a Sobol sequence balanced,
+    #: and eight to a cell of the 32 x 32 field the page bins them into.
+    PREDICTION_SAMPLES = 8192
+
+    def sample_prediction_space(
+        self,
+        config_space,
+        trials: List[TrialResult],
+        metric_name: str,
+        seed: int = 0,
+        n: int = PREDICTION_SAMPLES,
+        surrogate=None,
+    ) -> dict:
+        """What the surrogate predicts across the whole search space, for the
+        configuration cube's prediction layer: one even sample of the space,
+        predicted once, and placed in every view the cube has.
+
+        **Even, and once.** A scrambled Sobol sequence over the space's unit
+        cube, so the sample covers it evenly rather than in random clumps; each
+        hyperparameter reads its coordinate on its own scale, so a log one is
+        sampled logarithmically and a categorical takes each choice equally
+        often. The model is this run's own where it can be rebuilt — see
+        `slice_surrogate` — and it is asked once, for the mean and the spread
+        both, since the view the reader picks changes where a configuration is
+        drawn and not what was predicted for it.
+
+        **Forward, never back.** A projected view places each sampled
+        configuration through the same fitted PCA or PLS the trials are drawn
+        with, rather than mapping points of the picture back to
+        configurations: every point drawn is then a legal configuration, and a
+        trial and a sampled configuration with the same values land in the same
+        place. Many configurations project to one place, so the page aggregates
+        what lands together. `outlines` is the edge of where anything legal can
+        land, per projection and dimensionality — see
+        `core.projection.Fitted.outline`.
+
+        Returns a dict: `hp_names`, `values` (one row of hyperparameter values
+        per sample, for the axes view, rounded), `configurations` (the same
+        samples exactly), `vectors` (the same samples in ConfigSpace's
+        vectorized form), `projections` (per method: the samples'
+        `coordinates`, the components' `labels`, `outlines` keyed by
+        dimensionality, and the projection itself as a linear `map`), `mu` and
+        `sigma` per sample, `eta` (the best observed
+        score, what expected improvement improves on), `higher_is_better`,
+        `smooth` (whether the model is a smooth function, which a forest is
+        not), and `warning`.
+
+        *surrogate*, when given, is the model to ask — one the caller already
+        fitted for this metric and these trials — instead of fitting another.
+        """
+        import numpy as np
+        from ConfigSpace import Configuration
+        from ConfigSpace.util import deactivate_inactive_hyperparameters
+        from scipy.stats import qmc
+
+        from ..projection import METHODS, fit as fit_projection
+
+        empty = {"hp_names": [], "values": [], "projections": {}, "mu": [],
+                 "sigma": [], "eta": None, "higher_is_better": True,
+                 "smooth": False, "warning": None}
+        metric = metric_for(metric_name)
+        scores = [t.scores[metric_name] for t in trials if metric_name in t.scores]
+        if not scores:
+            return dict(empty, warning=f"No trial carries a score for {metric_name}.")
+
+        hps = list(config_space.values())
+        names = [hp.name for hp in hps]
+        unit = qmc.Sobol(d=len(hps), scramble=True, seed=seed).random(n)
+        configurations, rows = [], []
+        for point in unit:
+            values = {hp.name: _from_unit(hp, u) for hp, u in zip(hps, point)}
+            try:
+                configuration = Configuration(config_space, values=values)
+            except Exception:  # noqa: BLE001 — a child its parent switched off
+                try:
+                    configuration = deactivate_inactive_hyperparameters(values, config_space)
+                except Exception:  # noqa: BLE001 — forbidden: not part of the space
+                    continue
+            configurations.append(dict(configuration))
+            rows.append(configuration.get_array())
+        if not configurations:
+            return dict(empty, warning="No configuration the space allows was sampled.")
+
+        model, warning = surrogate, None
+        if model is None:
+            model, warning = self.slice_surrogate(config_space, trials, metric_name, seed)
+        if model is None:
+            return dict(empty, warning=warning)
+        try:
+            mu, sigma = predict_mean_std(model, np.array(rows))
+        except Exception as e:  # noqa: BLE001 — a layer must not cost the figure
+            return dict(empty, warning=f"The surrogate could not predict here ({e}).")
+
+        # Five significant figures: the page bins these into a few dozen
+        # cells, and the answer is twice the size at full precision.
+        def number(value):
+            return float(f"{value:.5g}") if np.isfinite(value) else None
+
+        projections = {}
+        if len(scores) == len(trials):
+            for method in METHODS:
+                fitted, _reason = fit_projection(config_space, trials, scores, method)
+                if fitted is None:
+                    continue
+                projections[method] = {
+                    "coordinates": [[number(v) for v in row]
+                                    for row in fitted.transform(configurations)],
+                    "map": fitted.linear_map(),
+                    "labels": fitted.labels,
+                    "outlines": {str(k): fitted.outline(k)
+                                 for k in range(1, len(fitted.labels) + 1)},
+                }
+
+        return {
+            "hp_names": names,
+            "values": [[number(v) if isinstance(v, float) else v
+                        for v in (c.get(name) for name in names)]
+                       for c in configurations],
+            # Where each sample sits on every hyperparameter's own vectorized
+            # axis, which is the axis a prior's density is stated on: what the
+            # page weights the acquisition by, per sample, as a prior changes.
+            "vectors": [[number(v) for v in row] for row in rows],
+            # Every sample exactly, where `values` is rounded for the page: what
+            # a sample is run as, when one is picked to become a trial.
+            "configurations": configurations,
+            "projections": projections,
+            "mu": [number(v) for v in mu],
+            "sigma": [number(v) for v in sigma],
+            "eta": float(max(scores) if metric.higher_is_better else min(scores)),
+            "higher_is_better": metric.higher_is_better,
+            "smooth": bool(getattr(model, "smooth", False)),
+            "warning": warning,
+        }
+
     def slice_axis(self, config_space, hp_name: str, n_points: int = 101):
         """The axis one hyperparameter is drawn on, without fitting anything.
 
@@ -2090,7 +2155,7 @@ class BaseOptimizer(ABC):
         default case, which is what expected improvement improves over. `None`
         when nothing usable was observed.
 
-        *cloud* is `(X, mu, sigma)` from `sample_acquisition_cloud` — predictions
+        *cloud* is `(X, mu, sigma)` from `sample_prediction_space` — predictions
         for configurations drawn from the *whole* space. Handed in for the same
         reason *surrogate* is: it does not depend on which hyperparameter is on
         the axis, so sampling it per slice would be waste.
@@ -2147,6 +2212,7 @@ class BaseOptimizer(ABC):
         # every one of them at once — three lists the browser indexes in
         # lockstep must not be able to fall out of step here.
         kept_values, kept_positions, rows = [], [], []
+        cloud_rows = None
         positions = np.asarray(hp.to_vector(np.asarray(grid)), dtype=float).ravel()
         for value, position in zip(grid, positions):
             try:
@@ -2161,7 +2227,8 @@ class BaseOptimizer(ABC):
         if len(rows) < 2:
             return IncumbentSlice([], [], [], [], None, None, None, f"No valid configurations along {hp_name}.")
 
-        mu, sigma = predict_mean_std(rf, np.array(rows))
+        slice_rows = np.array(rows)
+        mu, sigma = predict_mean_std(rf, slice_rows)
 
         observed = [v for _, v in _pair_trials_with_scores(
             config_space, trials, metric_name, values=values)]
@@ -2202,16 +2269,24 @@ class BaseOptimizer(ABC):
         if cloud is not None:
             try:
                 column = list(config_space.keys()).index(hp_name)
-                rows, cloud_mu, cloud_sigma = cloud
-                projected = ([float(v) for v in rows[:, column]],
-                             [float(v) for v in cloud_mu],
-                             [float(v) for v in cloud_sigma])
+                sampled, cloud_mu, cloud_sigma = cloud
+                # A configuration where this hyperparameter is inactive has no
+                # place on its axis, and one the model could not predict has
+                # nothing to say there; both are left out.
+                kept = [i for i in range(len(sampled))
+                        if np.isfinite(sampled[i, column]) and np.isfinite(cloud_mu[i])
+                        and np.isfinite(cloud_sigma[i])]
+                projected = ([float(sampled[i, column]) for i in kept],
+                             [float(cloud_mu[i]) for i in kept],
+                             [float(cloud_sigma[i]) for i in kept])
+                cloud_rows = sampled[kept]
             except Exception:  # noqa: BLE001 — a shadow must not cost the slice
                 projected = None
 
         return IncumbentSlice(kept_values, kept_positions,
                               [float(v) for v in mu], [float(v) for v in sigma],
-                              eta, incumbent, projected, None)
+                              eta, incumbent, projected, None,
+                              slice_rows=slice_rows, cloud_rows=cloud_rows)
 
     def _skipped_games(self, metrics, reason: str) -> Dict[str, tuple]:
         """`compute_hp_games`' return shape for "these weren't computed".
@@ -2237,11 +2312,16 @@ class BaseOptimizer(ABC):
         metrics,
         seed: int = 0,
         cancel_event=None,
+        baseline: Optional[Dict[str, Any]] = None,
     ) -> Dict[str, tuple[Dict[str, Dict[str, float]], Dict[str, Optional[str]], Dict[str, Dict[str, Dict[str, float]]]]]:
         """Every metric's per-game hyperparameter importance, for all of
         `HP_GAMES` — what each optimizer's `optimize()` calls once, instead of
         looping `compute_hp_importance`/`_sensitivity`/`_mistunability`
         separately over every metric three times.
+
+        Every game is a gain over *baseline*, a configuration as a dict, or over
+        the config space's default when it is left out. What `optimize()`
+        stores is always the latter; the page asks for the others on request.
 
         Returns `{game: (importance_by_metric, warning_by_metric,
         interactions_by_metric, moebius_by_metric, total_by_metric)}`, the
@@ -2306,7 +2386,8 @@ class BaseOptimizer(ABC):
                                               metric=directions.get(metric_name))
             for game in self.HP_GAMES:
                 importance, warning, interactions, moebius, total = self._compute_hp_game(
-                    config_space, trials, metric_name, game, seed, explainer=explainer)
+                    config_space, trials, metric_name, game, seed, explainer=explainer,
+                    baseline=baseline)
                 by_game[game][0][metric_name] = importance
                 by_game[game][1][metric_name] = warning
                 by_game[game][2][metric_name] = interactions
@@ -2365,6 +2446,7 @@ class BaseOptimizer(ABC):
         game: str,
         seed: int = 0,
         explainer=None,
+        baseline: Optional[Dict[str, Any]] = None,
     ) -> tuple[Dict[str, float], Optional[str], Dict[str, Dict[str, float]], list]:
         """Shared scaffolding behind `compute_hp_importance`/`_sensitivity`/
         `_mistunability`/`_interactions`: ask HyperSHAP's *game* for order-1
@@ -2385,6 +2467,9 @@ class BaseOptimizer(ABC):
         the same object, so a metric whose HyperSHAP call fails fits one forest
         rather than one per game.
 
+        *baseline* is the configuration the game's gains are measured from, the
+        config space's default when None — see `compute_hp_games`.
+
         Returns (values_dict, warning_message, interactions_dict, moebius_terms,
         total). *total* is the sum of the raw order-1 magnitudes, before
         values_dict was normalised into shares of it — so `share x total`
@@ -2402,9 +2487,19 @@ class BaseOptimizer(ABC):
         rather than a failure (see the branch itself).
 
         moebius_terms is the full Möbius decomposition (see `_moebius_terms`),
-        or `[]` — on either fallback rung, and also when only
-        `_shared_exact_computer` failed, in which case the FSII numbers are
-        still HyperSHAP's own and only the views that read Möbius go empty.
+        or `[]` on either fallback rung.
+
+        Each game is played once, through HyperSHAP's own facade, and asked for
+        its Möbius decomposition: the one transform that assigns a value to
+        every coalition and does not change with the order it is truncated at,
+        so it is stored once and read at any order by the graph, upset and
+        by-order views. The FSII order-2 values behind the importance and the
+        pairwise grid are derived from it by shapiq's `MoebiusConverter` rather
+        than played for again, since a second facade call would evaluate all
+        2^n_hp coalitions a second time. Order 2 and not higher because FSII's
+        terms are fitted jointly — the order-1 terms of an order-3 fit are not
+        those of an order-2 fit — so raising it would change what every stored
+        importance means.
         """
         params = list(config_space.keys())
 
@@ -2418,11 +2513,15 @@ class BaseOptimizer(ABC):
 
         warning = None
         if explainer.hs is not None:
+            hs = explainer.hs
             try:
-                iv, moebius_iv = self._game_values(explainer, game, seed)
-                moebius = _moebius_terms(moebius_iv, params) if moebius_iv is not None else []
-                order1 = iv.get_n_order(order=1).dict_values
-                raw = {params[idx]: abs(val) for (idx,), val in order1.items()}
+                moebius_iv = getattr(hs, game)(
+                    baseline_config=_baseline_config(config_space, baseline),
+                    index="Moebius", order=len(params), seed=seed)
+                fsii = hs.get_interaction_values_with_names(
+                    MoebiusConverter(moebius_iv)(index="FSII", order=2))
+                moebius = _moebius_terms(hs.get_interaction_values_with_names(moebius_iv))
+                raw = {p: abs(fsii.get((p,), 0.0)) for p in params}
                 total = sum(raw.values())
                 if not total:
                     # Every contribution was exactly zero — which happens on a
@@ -2444,7 +2543,7 @@ class BaseOptimizer(ABC):
                         f"usually means the objective is saturated — try a "
                         f"harder dataset or a wider search space."), {}, [], 0.0
                 importance = {k: v / total for k, v in raw.items()}
-                interactions = self._extract_pairwise(iv, params)
+                interactions = self._extract_pairwise(fsii, params)
                 return importance, None, interactions, moebius, total
             except Exception as e:
                 warning = f"HyperSHAP ({game}) failed ({e}) — falling back to surrogate feature importances."
@@ -2464,42 +2563,19 @@ class BaseOptimizer(ABC):
         uniform = 1.0 / len(params) if params else 0.0
         return {p: uniform for p in params}, warning, {}, [], 0.0
 
-    def _game_values(self, explainer, game: str, seed: int = 0):
-        """*game*'s FSII order-2 values and its Möbius decomposition.
-
-        One `shapiq.ExactComputer` gives both for the price of the first — see
-        `_shared_exact_computer`, which explains at length why this doesn't go
-        through `HyperSHAP.<game>()` and what guards that.
-
-        The fallback is the point of keeping this separate: if hypershap's
-        internals move under us, we still get the facade's own FSII and only
-        lose the Möbius-based views, which then show the "no data" caption they
-        already show when a game fails outright. A failure here must not be able
-        to take the importance numbers with it. Both paths are given the
-        experiment's *seed*, so falling back changes what is computed as little
-        as it can.
-        """
-        try:
-            return _shared_exact_computer(explainer, game, seed)
-        except Exception:
-            return getattr(explainer.hs, game)(seed=seed), None
-
     @staticmethod
-    def _extract_pairwise(iv, params: List[str]) -> Dict[str, Dict[str, float]]:
-        """Reshape a HyperSHAP `InteractionValues` object's order-1 and
-        order-2 terms into one square hyperparameter × hyperparameter grid —
-        `{hp_a: {hp_b: value}}`, symmetric, diagonal = that hyperparameter's
-        own signed order-1 value. Raw values, not `abs()`-ed or normalized
-        like `_compute_hp_game`'s `importance` return: a heatmap comparing
-        interaction strength needs sign and a shared scale between the
-        diagonal and off-diagonal, not a share-of-100%.
+    def _extract_pairwise(named: Dict[tuple, float], params: List[str]) -> Dict[str, Dict[str, float]]:
+        """Reshape order-1 and order-2 terms, as
+        `HyperSHAP.get_interaction_values_with_names` keys them, into one
+        square hyperparameter × hyperparameter grid — `{hp_a: {hp_b: value}}`,
+        symmetric, diagonal = that hyperparameter's own signed order-1 value.
+        Raw values, not `abs()`-ed or normalized like `_compute_hp_game`'s
+        `importance` return: a heatmap comparing interaction strength needs
+        sign and a shared scale between the diagonal and off-diagonal, not a
+        share-of-100%.
         """
-        order1 = iv.get_n_order(order=1).dict_values
-        order2 = iv.get_n_order(order=2).dict_values
-        grid: Dict[str, Dict[str, float]] = {p: {} for p in params}
-        for (idx,), val in order1.items():
-            grid[params[idx]][params[idx]] = float(val)
-        for (i, j), val in order2.items():
-            a, b = params[i], params[j]
-            grid[a][b] = grid[b][a] = float(val)
+        grid = {p: {p: float(named.get((p,), 0.0))} for p in params}
+        for i, a in enumerate(params):
+            for b in params[i + 1:]:
+                grid[a][b] = grid[b][a] = float(named.get((a, b), 0.0))
         return grid

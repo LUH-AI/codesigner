@@ -1,0 +1,38 @@
+{% load numbers i18n %}
+{% comment %}The selected configuration when it is a proposal: one of the
+configuration cube's sampled configurations, which nobody has run. Laid out like
+a trial's panel (_selected_config_inner.html) so the two read alike, and marked
+so they cannot be mistaken for each other — its number is a sample's, its score
+is the surrogate's prediction, and it offers to become a trial. The panel around
+it is restyled while it shows (`.is-proposal`).{% endcomment %}
+<span class="proposal-tag">{% translate "Proposal" %}</span>
+<p class="caption">{% blocktranslate with n=proposal.number total=proposal.of %}Proposal {{ n }} of {{ total }}{% endblocktranslate %}</p>
+<div class="metric-value">
+    {% if proposal.mu is not None %}{{ proposal.mu|sig }}{% else %}—{% endif %}
+    <span class="metric-unit">{% if proposal.sigma is not None %}± {{ proposal.sigma|sig }} {% endif %}({{ proposal.metric }}, {% translate "predicted" %})</span>
+</div>
+{% if proposal.delta is not None %}
+<div class="metric-delta {% if proposal.delta_better %}up{% else %}down{% endif %}">
+    {% if proposal.delta > 0 %}+{% endif %}{{ proposal.delta|sig }} {% translate "vs. incumbent" %}
+</div>
+{% endif %}
+{% comment %}A run of one, told which configuration to evaluate — see
+views.run_proposal. Disabled, saying why, when this viewer cannot start a run
+now.{% endcomment %}
+<form method="post" action="{% url 'ui:run_proposal' experiment.pk %}" class="run-proposal" data-run-proposal data-keeps-view>
+    {% csrf_token %}
+    <input type="hidden" name="metric" value="{{ proposal.metric }}">
+    <input type="hidden" name="n" value="{{ proposal.index }}">
+    <button type="submit"{% if run_refusal %} disabled title="{{ run_refusal }}"{% endif %}>{% translate "Run as Trial" %}</button>
+</form>
+{% if run_refusal %}<p class="caption">{{ run_refusal }}</p>{% endif %}
+<div class="table-wrap" style="margin-top: 1rem;">
+    <table class="config">
+        <thead><tr><th>{% translate "Hyperparameter" %}</th><th>{% translate "Value" %}</th></tr></thead>
+        <tbody>
+            {% for key, value in proposal.config %}
+                <tr><td>{{ key }}</td><td>{{ value|sig }}</td></tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>

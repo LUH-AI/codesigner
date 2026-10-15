@@ -60,7 +60,7 @@ def test_only_the_prior_panel_is(client):
 
     assert 'id="acq-plot-acquisition"' not in html
     assert 'id="acq-show-slice"' not in html, "nothing to toggle"
-    assert 'id="acq-rewalk"' not in html, "nobody to ask what runs next"
+    assert 'id="acq-requery"' not in html, "nobody to ask what runs next"
 
 
 def test_the_card_says_it_wants_the_prior_alone(client):
@@ -101,7 +101,7 @@ def test_a_page_with_results_still_has_the_whole_card(client):
     html = _page(client, exp)
 
     assert 'id="acq-plot-acquisition"' in html
-    assert 'id="acq-rewalk"' in html
+    assert 'id="acq-requery"' in html
     assert 'data-prior-only=""' in html, "and does not ask for the prior alone"
 
 

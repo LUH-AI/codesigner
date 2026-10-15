@@ -21,7 +21,7 @@ you cannot have.
         {% endif %}
         {% include "ui/_run_status.html" with run=active_run %}
     {% elif can_run %}
-        <form method="post" action="{% url 'ui:experiment_run' summary.pk %}">
+        <form method="post" action="{% url 'ui:experiment_run' summary.pk %}" data-keeps-view>
             {% csrf_token %}
             <div class="field">
                 <label for="metric-select">{% translate "Evaluation metric" %}</label>

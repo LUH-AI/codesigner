@@ -34,6 +34,9 @@
         fetch(url, {headers: {"HX-Request": "true"}})
             .then(function (r) {
                 if (r.headers.get("HX-Refresh") === "true") {
+                    // Said first, so the page can note where the reader was
+                    // and put them back there once it has reloaded.
+                    document.dispatchEvent(new CustomEvent("poll:reloading"));
                     window.location.reload();
                     return null;
                 }

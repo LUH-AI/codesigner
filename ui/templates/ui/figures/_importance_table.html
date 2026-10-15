@@ -1,0 +1,45 @@
+{% load numbers i18n %}
+{% comment %}One game's importance for one metric, as the importance figure's table
+rendering: one column per baseline the game can be measured from, side by side.
+The default's comes from the stored games; the incumbent's and the selected
+trial's are filled by the page as they arrive, and the selected trial's moves
+with the selection.{% endcomment %}
+{% if table %}
+    <div class="table-wrap">
+        <table>
+            {% comment %}The magnitudes, which no other rendering shows: every
+            one of them is a share of 100%, and a share cannot say whether the
+            whole is worth eight accuracy points or eight thousandths of one.
+            Filled in by the page once the selected trial's ablation is
+            known.{% endcomment %}
+            <thead><tr>
+                <th>{% translate "Hyperparameter" %}</th>
+                <th>{% translate "Default" %}</th>
+                <th>{% translate "Incumbent" %}</th>
+                <th>{% translate "Selected" %}</th>
+                {% if tuning_progress %}
+                    <th class="progress-col">{% translate "Achievable" %}</th>
+                    <th class="progress-col">{% translate "Banked" %}</th>
+                    <th class="progress-col">{% translate "Still to gain" %}</th>
+                {% endif %}
+            </tr></thead>
+            <tbody>
+                {% for hp, value in table %}
+                    <tr data-hp="{{ hp }}">
+                        <td>{{ hp }}</td>
+                        <td data-baseline="default">{% if value is not None %}{{ value|sig }}{% endif %}</td>
+                        <td data-baseline="incumbent"></td>
+                        <td data-baseline="selected"></td>
+                        {% if tuning_progress %}
+                            <td class="progress-col"></td>
+                            <td class="progress-col"></td>
+                            <td class="progress-col"></td>
+                        {% endif %}
+                    </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+{% else %}
+    <p class="caption">{% translate "No importance data available." %}</p>
+{% endif %}

@@ -170,25 +170,18 @@ def test_the_fallback_surrogate_is_also_fitted_once_per_metric_not_per_game(iris
     metric whose game calls raised refit an identical forest once per game —
     the exact waste the explainer sharing existed to avoid, one rung lower.
 
-    Two metrics × three games = 6 game calls, all failing, and 2 fits.
-
-    There are two ways to reach a game now — our own `ExactComputer` and, if
-    that construction fails, HyperSHAP's facade — so getting to the surrogate
-    rung means closing both. Breaking only the facade leaves the games working,
-    which is the fallback doing its job.
+    Two metrics × three games = 6 game calls, all failing, and 2 fits. Every
+    game is reached through HyperSHAP's facade, so breaking its three game
+    methods is what puts every metric on the surrogate rung.
     """
     cs = RandomForestModel().get_config_space(seed=0)
     trials = _trials(iris_splits, metrics)
     opt = RandomOptimizer()
 
-    def explode(self):
+    def explode(self, *a, **k):
         raise RuntimeError("no shapiq today")
 
-    def explode_shared(*a, **k):
-        raise RuntimeError("no shapiq today")
-
-    with patch("core.optimizers.base._shared_exact_computer", explode_shared), \
-         patch("hypershap.HyperSHAP.tunability", explode), \
+    with patch("hypershap.HyperSHAP.tunability", explode), \
          patch("hypershap.HyperSHAP.sensitivity", explode), \
          patch("hypershap.HyperSHAP.mistunability", explode), \
          patch("core.optimizers.base.fit_surrogate",
@@ -209,38 +202,12 @@ def test_the_fallback_surrogate_is_also_fitted_once_per_metric_not_per_game(iris
         assert moebius == [], "nor any coalition structure"
 
 
-# ── One ExactComputer, two indices ──────────────────────────────────────────
+# ── Möbius, and FSII derived from it ────────────────────────────────────────
 #
-# `_shared_exact_computer` builds what `HyperSHAP.<game>()` builds rather than
-# calling it, so that one set of 2^n_hp coalition evaluations can serve both the
-# FSII values the importance figures use and the Möbius decomposition the graph,
-# upset and by-order views need. Its own docstring carries the reasoning; these
-# are the guards it names.
-
-
-def test_our_exact_computer_reproduces_hypershaps_own_numbers(iris_splits, metrics):
-    """The test the coupling rests on: bit-identical FSII, for all three games.
-
-    hypershap is at 0.0.6 and its internals may move. If they do — a changed
-    default, a reordered searcher, a different aggregation — this fails loudly
-    rather than the page quietly showing numbers from a different game.
-    """
-    from hypershap import HyperSHAP
-    from core.optimizers.base import _shared_exact_computer
-
-    cs = RandomForestModel().get_config_space(seed=0)
-    trials = _trials(iris_splits, metrics)
-    opt = RandomOptimizer()
-    explainer = opt._build_explainer(cs, trials, "accuracy", 0)
-
-    for game in opt.HP_GAMES:
-        # The same seed to both, because both take one: the searcher's seed is
-        # the experiment's, not HyperSHAP's default of 0.
-        theirs = getattr(HyperSHAP(explainer.hs.explanation_task), game)(seed=7)
-        ours, _moebius = _shared_exact_computer(explainer, game, seed=7)
-        assert ours.dict_values.keys() == theirs.dict_values.keys(), game
-        for key, value in theirs.dict_values.items():
-            assert ours.dict_values[key] == value, f"{game} {key}"
+# Each game is played once through HyperSHAP's facade for its Möbius
+# decomposition, and the FSII values the importance figures use are converted
+# from it. `_compute_hp_game`'s docstring carries the reasoning; the guards that
+# the stored numbers are HyperSHAP's own are in test_hypershap_facade.py.
 
 
 def test_the_moebius_transform_is_truncation_independent(iris_splits, metrics):
@@ -256,8 +223,6 @@ def test_the_moebius_transform_is_truncation_independent(iris_splits, metrics):
     Both halves are pinned, because it is the contrast that justifies the
     design and a reader who only saw the Möbius half might "simplify" it away.
     """
-    from core.optimizers.base import _shared_exact_computer
-
     cs = RandomForestModel().get_config_space(seed=0)
     trials = _trials(iris_splits, metrics)
     opt = RandomOptimizer()
@@ -268,8 +233,8 @@ def test_the_moebius_transform_is_truncation_independent(iris_splits, metrics):
     import hypershap.games as hs_games
     import hypershap.task as hs_task
     from hypershap.utils import Aggregation, RandomConfigSpaceSearcher
-    from core.optimizers.base import _HPO_SIMULATION_SAMPLES
 
+    # 10,000 draws: the facade's own default, which the games are played with.
     source = explainer.hs.explanation_task
     task = hs_task.TunabilityExplanationTask(
         config_space=cs, surrogate_model=source.surrogate_model,
@@ -277,7 +242,7 @@ def test_the_moebius_transform_is_truncation_independent(iris_splits, metrics):
     game = hs_games.TunabilityGame(
         explanation_task=task,
         cs_searcher=RandomConfigSpaceSearcher(
-            explanation_task=task, n_samples=_HPO_SIMULATION_SAMPLES,
+            explanation_task=task, n_samples=10_000,
             mode=Aggregation.MAX, seed=0))
     ec = ExactComputer(n_players=game.get_num_hyperparameters(), game=game)
 
@@ -319,54 +284,6 @@ def test_moebius_terms_are_ranked_by_magnitude(iris_splits, metrics):
 
     magnitudes = [abs(row["value"]) for row in moebius]
     assert magnitudes == sorted(magnitudes, reverse=True)
-
-
-def test_a_broken_shared_computer_still_yields_hypershaps_own_importance(iris_splits, metrics):
-    """The fallback that makes the coupling survivable: if hypershap's internals
-    move, we lose the Möbius views and nothing else. The importance numbers must
-    not be able to come down with them."""
-    cs = RandomForestModel().get_config_space(seed=0)
-    trials = _trials(iris_splits, metrics)
-
-    def explode(*a, **k):
-        raise RuntimeError("hypershap moved its furniture")
-
-    with patch("core.optimizers.base._shared_exact_computer", explode):
-        importance, warning, interactions, moebius, _total = RandomOptimizer()._compute_hp_game(
-            cs, trials, "accuracy", "tunability", seed=0)
-
-    assert warning is None, "the facade answered, so this is not a failure"
-    assert set(importance) == set(cs.keys())
-    assert interactions, "the order-2 grid still comes from HyperSHAP's own call"
-    assert moebius == [], "only the Möbius-based views go without"
-
-
-def test_the_shared_computer_costs_one_set_of_coalitions(iris_splits, metrics):
-    """The whole reason for building the computer ourselves.
-
-    Not timed — a wall-clock assertion would be flaky on a loaded machine.
-    Counted instead: the game is called once per coalition, and asking for a
-    second index must not call it again.
-    """
-    from core.optimizers.base import _shared_exact_computer
-    import hypershap.games as hs_games
-
-    cs = RandomForestModel().get_config_space(seed=0)
-    trials = _trials(iris_splits, metrics)
-    explainer = RandomOptimizer()._build_explainer(cs, trials, "accuracy", 0)
-
-    calls = []
-    real = hs_games.TunabilityGame.__call__
-
-    def counting(self, *a, **k):
-        calls.append(1)
-        return real(self, *a, **k)
-
-    with patch.object(hs_games.TunabilityGame, "__call__", counting):
-        fsii, moebius = _shared_exact_computer(explainer, "tunability")
-
-    assert fsii is not None and moebius is not None
-    assert len(calls) == 1, "one batched evaluation of every coalition, not one per index"
 
 
 def test_ablation_insufficient_trials_returns_empty_not_uniform():
@@ -696,21 +613,23 @@ def test_the_explanation_games_are_drawn_with_the_experiments_own_seed(iris_spli
     space 10,000 draws find the same maximum whatever the seed: the values
     coincide here and would not on a wider one. What is being fixed is which
     determinism it is, so what matters is that the experiment's seed is the one
-    that arrives.
+    that arrives. Spied on where HyperSHAP's facade builds its searchers, since
+    every game is played through the facade.
     """
-    import hypershap.utils
+    import importlib
 
+    facade = importlib.import_module("hypershap.hypershap")
     cs = RandomForestModel().get_config_space(seed=0)
     trials = _trials(iris_splits, metrics)
     opt = RandomOptimizer()
     seen = []
-    real = hypershap.utils.RandomConfigSpaceSearcher
+    real = facade.RandomConfigSpaceSearcher
 
     def spy(*args, **kwargs):
         seen.append(kwargs.get("seed"))
         return real(*args, **kwargs)
 
-    with patch.object(hypershap.utils, "RandomConfigSpaceSearcher", spy):
+    with patch.object(facade, "RandomConfigSpaceSearcher", spy):
         opt.compute_hp_games(cs, trials, metrics, seed=7)
 
     assert seen, "the searcher is built at all"

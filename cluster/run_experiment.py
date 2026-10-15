@@ -155,6 +155,8 @@ def run(workdir: Path) -> int:
         cancel_event=cancel,
         stopping=settings["stopping"],
         priors=settings.get("priors"),
+        projected_priors=settings.get("projected_priors"),
+        configurations=settings.get("configurations"),
         splits=built["splits"],
     )
 

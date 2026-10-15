@@ -8,6 +8,7 @@ script loads once however many times it is included.
 `defer` is load-bearing: the figures are included well above the plotly.min.js
 tag, which is a classic in-body script, so an inline script here would run
 before Plotly existed. A deferred one runs after parsing.{% endcomment %}
+<script src="{% asset 'ui/improvement.js' %}" defer></script>
 <script src="{% asset 'ui/acquisition.js' %}" defer></script>
     {% comment %}Parameter names live here rather than in the script so they
     are translated with everything else — the catalogs are built from templates
@@ -34,7 +35,6 @@ before Plotly existed. A deferred one runs after parsing.{% endcomment %}
     about a brace. These holes are filled by the script, not by Django, so
     nothing needs the `%` form.{% endcomment %}
     <div data-acq-strings hidden
-         data-asking="{% translate 'Asking…' %}"
          data-save-failed="{% translate 'Could not save this prior' %}"
          data-slice-failed="{% translate 'Could not compute the acquisition function' %}"
          data-no-optimizer="{% translate 'The optimizer could not be asked for this run.' %}"
