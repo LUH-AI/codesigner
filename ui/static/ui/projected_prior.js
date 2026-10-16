@@ -41,6 +41,8 @@
             stated: document.getElementById("pp-stated"),
             decay: document.getElementById("pp-decay"),
             beta: document.getElementById("pp-beta"),
+            delay: document.getElementById("pp-delay"),
+            delayWrap: document.getElementById("pp-delay-wrap"),
             plot: document.getElementById("pp-plot")
         },
         colours = {},
@@ -151,6 +153,12 @@
 
     function decay() {
         return {shape: el.decay.value, beta_ratio: parseFloat(el.beta.value) || null};
+    }
+
+    /* Whether the decay waits out the initial design: only asked while there
+     * is a design still to come, as on the prior card. */
+    function delayDecay() {
+        return !!(el.delay && el.delayWrap && !el.delayWrap.hidden && el.delay.checked);
     }
 
     /* ── the parameters ─────────────────────────────────────────────────── */
@@ -322,6 +330,7 @@
 
     function changed(data) {
         stated = data.stated || [];
+        if (el.delayWrap && data.inside_design !== undefined) el.delayWrap.hidden = !data.inside_design;
         renderStated();
         tell("projected-priors:changed", {stated: stated, weights: data.weights, metric: metric()});
     }
@@ -365,7 +374,7 @@
             var record = stated.filter(function (r) { return r.id === editing; })[0];
             if (!record) return;
             post(urls.state, {metric: metric(), id: record.id, params: record.params,
-                              decay: decay()})
+                              decay: decay(), delay_decay: delayDecay()})
                 .then(function (data) {
                     setError(null);
                     changed(data);
@@ -385,6 +394,7 @@
         el.decay.value = decayRecord.shape || "none";
         if (decayRecord.beta_ratio) el.beta.value = decayRecord.beta_ratio;
         el.beta.disabled = el.decay.value === "none";
+        if (el.delay) el.delay.checked = record.delay_decay !== false;
         paramControls(record.params, record.points.length - 1, saveEdit);
         drawProfile(record.profile);
         renderStated();
@@ -403,7 +413,7 @@
         if (editing) { stopEditing(); return; }
         if (!draft || !draft.record) return;
         el.state.disabled = true;
-        post(urls.state, {metric: draft.metric, decay: decay(), draft: {
+        post(urls.state, {metric: draft.metric, decay: decay(), delay_decay: delayDecay(), draft: {
             view: draft.view, hyperparameters: draft.hyperparameters,
             points: draft.points, params: draft.params}})
             .then(function (data) { clearDraft(true); changed(data); })
@@ -415,6 +425,7 @@
         if (editing) saveEdit();
     });
     el.beta.addEventListener("change", function () { if (editing) saveEdit(); });
+    if (el.delay) el.delay.addEventListener("change", function () { if (editing) saveEdit(); });
 
     renderStated();
     showDraft();

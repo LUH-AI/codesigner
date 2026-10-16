@@ -593,7 +593,8 @@ def _projected_answer(exp, built, config_space, sample):
     stated priors as the card lists them, and their weight over the sample."""
     return {"stated": [projected.summary(r, config_space) for r in exp.data.projected_priors or []],
             "weights": _projected_weights(exp, built, config_space,
-                                          projected.sample_vectors(sample) if sample else None)}
+                                          projected.sample_vectors(sample) if sample else None),
+            "inside_design": _inside_initial_design((built or {}).get("result"))}
 
 
 def _drawn(request):
@@ -3730,6 +3731,9 @@ def _detail_context(request, exp):
         "can_draw_priors": (bool(getattr(_optimizer_for(exp.data.optimizer_name),
                                          "fits_surrogate", False))
                             and permissions.policy().may(request, exp, EDIT)),
+        # Whether a belief stated now would be stated before the search
+        # starts, which is when waiting out the initial design means anything.
+        "prior_inside_design": _inside_initial_design(result),
         **_prior_judging_context(exp),
         "run_default_metric": exp.data.current_metric or (metric_names[0] if metric_names else None),
         # What the deadline fields open on. The deployment's number, so an

@@ -36,6 +36,14 @@ script by events once the page has run.{% endcomment %}
                        min="{{ beta_min }}" max="{{ beta_max }}" disabled
                        aria-label="{% translate 'Decay factor as a fraction of the trial budget' %}">
             </label>
+            {% comment %}As on the prior card: only while the initial design
+            is still to come or under way, since afterwards there is nothing
+            left to wait for.{% endcomment %}
+            <label class="acq-toggle" id="pp-delay-wrap"{% if not prior_inside_design %} hidden{% endif %}
+                   title="{% translate 'The initial design is drawn before any surrogate is fitted, so nothing stated here can reach those trials. Waiting means the belief arrives at full strength on the first trial it can actually influence.' %}">
+                <input type="checkbox" id="pp-delay" checked>
+                {% translate "Delay decay until after the initial design" %}
+            </label>
         </p>
     </div>
     <p id="pp-empty" class="caption">{% translate "Draw Prior in the space projection." %}</p>

@@ -258,3 +258,26 @@ def test_a_click_is_read_once_however_often_the_cube_is_redrawn(client):
 
     assert "el.removeEventListener(pair[0], pair[1]);" in wiring
     assert wiring.index("removeEventListener") < wiring.index("addEventListener")
+
+
+@pytest.mark.parametrize("inside", [True, False])
+def test_the_decay_waits_out_the_design_only_while_there_is_one(client, monkeypatch, inside):
+    """What: the card offers "Delay decay until after the initial design" only
+    while the design is still to come, and a prior stated with it ticked keeps
+    it only then.
+    How: the design check pinned each way, then the page and a stated prior."""
+    import ui.views
+
+    monkeypatch.setattr(ui.views, "_inside_initial_design", lambda result: inside)
+    exp = _experiment()
+    page = client.get(reverse("ui:experiment_detail", args=[exp.pk])).content.decode()
+    toggle = page[page.index('id="pp-delay-wrap"') - 40:page.index('id="pp-delay"')]
+
+    stated = _post(client, exp, "state_projected_prior",
+                   {"metric": "accuracy", "draft": _draft(exp), "delay_decay": True,
+                    "decay": {"shape": "linear", "beta_ratio": 0.2}}).json()
+    exp.refresh_from_db()
+
+    assert ("hidden" not in toggle) is inside
+    assert stated["inside_design"] is inside
+    assert exp.data.projected_priors[0]["delay_decay"] is inside
