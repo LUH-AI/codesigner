@@ -42,12 +42,27 @@ In HP Space with one point, that is exactly a product of Normals on the
 hyperparameters' vectorized axes — the prior every hyperparameter can already
 be given on its own.
 
+Drawing from it (`sample_from`), which SMAC's maximizer does for candidates
+and its prior judgement does to compare a belief with the incumbent:
+
+- in HP Space the view's coordinates are the hyperparameters' own, so the
+  Gaussian is drawn on its axes directly, cut to the space, and the rest of
+  the configuration comes from the space or the per-hyperparameter prior;
+- in PCA or PLS many configurations land on each place in the view, so there
+  is nothing to read a configuration back from. Configurations are aimed at
+  the belief instead: a place drawn from the Gaussian, and a random
+  configuration's encoding moved the shortest way to one that projects there.
+  Draws around those, and some from the whole space, are then weighed by the
+  belief over how likely the drawing made them, so what comes out is the
+  belief however well or badly the aiming went.
+
 Django-free, like the rest of `core/`.
 """
 
 from __future__ import annotations
 
 import copy
+import math
 from typing import Any, Dict, List, Optional
 
 import numpy as np
@@ -61,10 +76,27 @@ VIEWS = ("axes", "pca", "pls")
 #: it is dividing by zero.
 _MIN_SCALE = 1e-6
 
-#: How many configurations to draw for every one handed to SMAC's maximizer
-#: when sampling from a prior by resampling: enough that a peak covering a
-#: twentieth of the space is reached, few enough to stay quick.
-_OVERSAMPLE = 20
+#: How many configurations are weighed for each one handed back when a belief
+#: can only be drawn from by weighing (PCA, PLS). Few, because the draws are
+#: aimed at it.
+_POOL = 4
+
+#: The share of those drawn from the whole space rather than around the
+#: belief: what keeps the weighing correct where the aimed draws miss part of
+#: it.
+_UNIFORM_SHARE = 0.25
+
+#: At most how many configurations are aimed at the belief to draw around.
+_CENTRES = 256
+
+#: How often a configuration is moved towards its drawn place in a PCA or
+#: PLS view: reading one back keeps it inside the space, so it lands short,
+#: and moving it again lets the values that are free make up the rest.
+_LIFTS = 6
+
+#: How often a draw that fell outside the space, or broke one of its
+#: conditions, is drawn again before the nearest place inside is taken.
+_ROUNDS = 8
 
 
 class PriorError(ValueError):
@@ -206,13 +238,16 @@ def view_coordinates(record, config_space, X) -> np.ndarray:
     if record["view"] == "axes":
         order = list(config_space.keys())
         return X[:, [order.index(name) for name in record["hyperparameters"]]]
-    projection = record["map"]
-    columns = [_Column(label="", name=c["name"], value=c["value"], log=bool(c["log"]),
-                       mean=float(c["mean"]), spread=float(c["spread"]))
-               for c in projection["columns"]]
-    encoded = encode_vectors(config_space, columns, X)
-    return encoded @ np.asarray(projection["matrix"], dtype=float).T \
-        + np.asarray(projection["offset"], dtype=float)
+    encoded = encode_vectors(config_space, _columns(record), X)
+    return encoded @ np.asarray(record["map"]["matrix"], dtype=float).T \
+        + np.asarray(record["map"]["offset"], dtype=float)
+
+
+def _columns(record) -> list:
+    """The encoded columns of the projection frozen into *record*."""
+    return [_Column(label="", name=c["name"], value=c["value"], log=bool(c["log"]),
+                    mean=float(c["mean"]), spread=float(c["spread"]))
+            for c in record["map"]["columns"]]
 
 
 def weight(record, config_space, X) -> np.ndarray:
@@ -251,29 +286,310 @@ def _coarsen(values, resolution):
     return coarsen(values, 1.0, resolution) if resolution is not None else values
 
 
-def _resample(config_space, target, n, rng, proposal=None) -> list:
-    """*n* configurations drawn in proportion to *target* (a function of
-    vectorized rows), by drawing many from *proposal* — or uniformly from the
-    space — and keeping each with the weight *target* gives it over what the
-    proposal already favoured.
+def sample_from(config_space, parts, n, rng=None, head=None, also=()) -> list:
+    """*n* configurations drawn from the projected priors *parts*, multiplied
+    with *head* — a per-hyperparameter prior that draws itself — and with any
+    further priors *also*, which are only weighed by.
 
-    A copy of the space is seeded and sampled, never the space itself: it is
-    the search's, and reseeding it would change every draw SMAC makes."""
+    Drawn exactly when every part is in HP Space and no two of them, nor
+    *head*, say anything about the same hyperparameter: each part's axes are
+    drawn from its Gaussian and the rest from *head* or the space. Otherwise
+    weighed (`_weighed`)."""
     rng = rng if rng is not None else np.random.RandomState()
-    pool = n * _OVERSAMPLE
-    drawn = list(proposal(pool, rng) or []) if proposal is not None else []
+    if n <= 0:
+        return []
+    space = copy.deepcopy(config_space)
+    space.seed(int(rng.randint(0, 2 ** 31 - 1)))
+
+    def aimed(count):
+        X = _bases(space, head, count, rng)
+        for part in parts:
+            X = _aim(part.record, config_space, X, rng)
+        return X
+
+    out = []
+    if not also and _draws_exactly(parts, head):
+        for _round in range(_ROUNDS):
+            out += _configurations(config_space, aimed(n - len(out)))[0]
+            if len(out) >= n:
+                return out[:n]
+    return out + _weighed(config_space, space, parts, head, also, n - len(out), rng, aimed)
+
+
+def _draws_exactly(parts, head) -> bool:
+    """Whether *parts* can be drawn from directly: all in HP Space, and none
+    of them, nor *head*'s tables, about the same hyperparameter twice."""
+    seen = set(getattr(head, "tables", None) or {}) if head is not None else set()
+    if head is not None and getattr(head, "tables", None) is None:
+        return False
+    for part in parts:
+        record = part.record
+        if record["view"] != "axes" or seen & set(record["hyperparameters"]):
+            return False
+        seen |= set(record["hyperparameters"])
+    return True
+
+
+def _bases(space, head, count, rng) -> np.ndarray:
+    """*count* configurations to draw the rest of each draw from, as arrays:
+    from *head* when it draws, else from the whole space."""
+    drawn = list(head.sample(count, rng) or []) if head is not None else []
     if not drawn:
-        space = copy.deepcopy(config_space)
-        space.seed(int(rng.randint(0, 2 ** 31 - 1)))
-        drawn = space.sample_configuration(pool)
-        drawn = drawn if isinstance(drawn, list) else [drawn]
-    rows = np.array([c.get_array() for c in drawn], dtype=float)
-    weights = np.nan_to_num(np.asarray(target(rows), dtype=float).reshape(-1), nan=0.0)
-    total = weights.sum()
-    if total <= 0:
-        return drawn[:n]
-    picked = rng.choice(len(drawn), size=n, replace=True, p=weights / total)
-    return [drawn[i] for i in picked]
+        drawn = ([space.sample_configuration()] if count == 1
+                 else list(space.sample_configuration(count)) if count else [])
+    return np.array([c.get_array() for c in drawn], dtype=float).reshape(len(drawn), -1)
+
+
+def draw_view(record, n, rng) -> np.ndarray:
+    """*n* places in the view's coordinates, drawn from the belief's Gaussian
+    — the one `density` evaluates: its peak along the points, the spread
+    along each of their directions, and the width across."""
+    origin, directions, scales = frame(record["points"])
+    mean, spread, width = params_of(record, len(directions))
+    peak = origin + ((mean * scales) @ directions if len(directions) else 0.0)
+    noise = rng.standard_normal((n, len(origin))) * width
+    if len(directions):
+        noise = noise - (noise @ directions.T) @ directions
+        noise = noise + (rng.standard_normal((n, len(directions))) * spread * scales) @ directions
+    return peak + noise
+
+
+def _aim(record, config_space, X, rng) -> np.ndarray:
+    if record["view"] == "axes":
+        return _aim_axes(record, config_space, X, rng)
+    return _aim_projection(record, config_space, X, rng)
+
+
+def _aim_axes(record, config_space, X, rng) -> np.ndarray:
+    """*X* with *record*'s axes drawn from its Gaussian, cut to the space —
+    the belief itself, since in HP Space its coordinates are the
+    hyperparameters' own. A cell a row leaves inactive stays so."""
+    order = list(config_space.keys())
+    columns = [order.index(name) for name in record["hyperparameters"]]
+    out = np.array(X, dtype=float)
+    pending = np.arange(len(out))
+    for _round in range(_ROUNDS):
+        if not len(pending):
+            break
+        z = draw_view(record, len(pending), rng)
+        inside = ((z >= 0.0) & (z <= 1.0)).all(axis=1)
+        _place(out, pending[inside], columns, z[inside])
+        pending = pending[~inside]
+    if len(pending):
+        # A belief mostly outside the space: the nearest places inside it.
+        _place(out, pending, columns, np.clip(draw_view(record, len(pending), rng), 0.0, 1.0))
+    return _snapped(config_space, out, columns)
+
+
+def _place(out, rows, columns, z) -> None:
+    block = out[np.ix_(rows, columns)]
+    out[np.ix_(rows, columns)] = np.where(np.isnan(block), np.nan, z)
+
+
+def _aim_projection(record, config_space, X, rng) -> np.ndarray:
+    """*X* moved towards places drawn from *record*'s Gaussian in its PCA or
+    PLS view: each row's numeric values moved the shortest way to ones that
+    project onto its drawn place, and read back. Its choices stay as they
+    were — a choice is all or nothing, and rounding a moved one-hot column
+    undoes the aim — and reading back keeps values inside the space, so a row
+    can land short of its place; `_weighed` corrects for that, and keeps the
+    rows that landed nearest to draw around."""
+    matrix = np.asarray(record["map"]["matrix"], dtype=float)
+    offset = np.asarray(record["map"]["offset"], dtype=float)
+    columns = _columns(record)
+    movable = np.array([c.value is None and c.name in config_space
+                        and getattr(config_space[c.name], "choices", None) is None
+                        and getattr(config_space[c.name], "sequence", None) is None
+                        for c in columns])
+    X = np.array(X, dtype=float)
+    if not movable.any():
+        return X
+    inverse = np.linalg.pinv(matrix[:, movable]).T
+    z = draw_view(record, len(X), rng)
+    for _step in range(_LIFTS):
+        encoded = encode_vectors(config_space, columns, X)
+        encoded[:, movable] += (z - (encoded @ matrix.T + offset)) @ inverse
+        X = _decoded(config_space, columns, encoded, X)
+    return X
+
+
+def _decoded(config_space, columns, encoded, X) -> np.ndarray:
+    """*X* with what *encoded* says read back into it: a numeric column's value
+    unstandardised, unlogged and kept in its range; a categorical's choice the
+    one whose column reads highest. Only where a row has the hyperparameter
+    active; one the projection does not encode keeps the row's value. (The
+    aim moves only numeric columns, so a choice reads back as it was.)"""
+    from ConfigSpace.hyperparameters import IntegerHyperparameter
+
+    order = list(config_space.keys())
+    out = X.copy()
+    groups: Dict[str, List[int]] = {}
+    for j, column in enumerate(columns):
+        if column.name in config_space:
+            groups.setdefault(column.name, []).append(j)
+    for name, indices in groups.items():
+        hp = config_space[name]
+        k = order.index(name)
+        rows = np.flatnonzero(np.isfinite(X[:, k]))
+        if not len(rows):
+            continue
+        choices = getattr(hp, "choices", None) or getattr(hp, "sequence", None)
+        first = columns[indices[0]]
+        if choices is None and first.value is None:
+            if not first.spread:
+                continue
+            raw = encoded[rows, indices[0]] * first.spread + first.mean
+            values = np.clip(np.power(10.0, raw) if first.log else raw, hp.lower, hp.upper)
+            if isinstance(hp, IntegerHyperparameter):
+                values = np.rint(values)
+            out[rows, k] = np.asarray(hp.to_vector(values), dtype=float)
+        elif choices is not None:
+            named = [(j, choice) for j in indices for choice in choices
+                     if str(choice) == columns[j].value]
+            if not named:
+                continue
+            best = encoded[np.ix_(rows, [j for j, _ in named])].argmax(axis=1)
+            picked = np.array([named[b][1] for b in best], dtype=object)
+            out[rows, k] = np.asarray(hp.to_vector(picked), dtype=float)
+    return out
+
+
+def _snapped(config_space, X, columns) -> np.ndarray:
+    """*X* with each of *columns*' active cells at a value its hyperparameter
+    can take — a whole number for an integer — so the array SMAC weighs is the
+    configuration's own."""
+    order = list(config_space.keys())
+    for k in columns:
+        hp = config_space[order[k]]
+        active = np.isfinite(X[:, k])
+        if active.any():
+            X[active, k] = np.asarray(hp.to_vector(hp.to_value(X[active, k])), dtype=float)
+    return X
+
+
+def _configurations(config_space, X):
+    """The rows of *X* that are valid configurations — a row can break a
+    condition or a forbidden clause — as configurations, with their row
+    numbers."""
+    from ConfigSpace import Configuration
+
+    out, kept = [], []
+    for i, row in enumerate(X):
+        try:
+            configuration = Configuration(config_space, vector=row)
+            configuration.check_valid_configuration()
+        except Exception:  # noqa: BLE001 — whatever it breaks, it is not drawn
+            continue
+        out.append(configuration)
+        kept.append(i)
+    return out, kept
+
+
+def _product(X, head, parts, also) -> np.ndarray:
+    """Every prior's density at the rows of *X*, multiplied."""
+    out = np.ones(len(X))
+    for prior in [p for p in [head, *parts, *also] if p is not None]:
+        out = out * np.asarray(prior.pdf(X), dtype=float).reshape(-1)
+    return out
+
+
+def _bandwidths(centres, numeric) -> np.ndarray:
+    """How far to draw around the aimed configurations on each numeric axis:
+    Scott's rule over them, kept between a hundredth and a quarter of it."""
+    spread = np.zeros(centres.shape[1])
+    for k in np.flatnonzero(numeric):
+        values = centres[np.isfinite(centres[:, k]), k]
+        spread[k] = float(np.std(values)) if len(values) > 1 else 0.0
+    return np.clip(1.06 * spread * len(centres) ** -0.2, 0.01, 0.25)
+
+
+def _weighed(config_space, space, parts, head, also, n, rng, aimed) -> list:
+    """*n* configurations drawn in proportion to the product of every prior,
+    by importance resampling: draws around configurations aimed at the belief,
+    and a share from the whole space, each weighed by the priors over how
+    likely the drawing made it. Correct however the aimed configurations fall,
+    and it reaches a narrow belief because they fall near it.
+
+    Draws are made on SMAC's vectorized axes — numeric values on 0 to 1,
+    choices as indices — and weighed there, before an integer is rounded, so
+    the weight of each draw is what produced it."""
+    if n <= 0:
+        return []
+    from scipy.special import ndtr, ndtri
+
+    order = list(config_space.keys())
+    numeric = np.array([getattr(config_space[name], "choices", None) is None
+                        and getattr(config_space[name], "sequence", None) is None
+                        and hasattr(config_space[name], "lower") for name in order])
+    sizes = np.array([float(getattr(config_space[name], "size", 1) or 1) for name in order])
+
+    # Aimed configurations to draw around: more than are kept, and kept by
+    # how much the priors make of them. Which are kept changes nothing about
+    # the weighing below, which is against the ones kept, only how many of
+    # the draws count.
+    wanted = max(16, min(_CENTRES, n))
+    centres = aimed(4 * wanted)
+    centres = centres[_configurations(config_space, centres)[1]] if len(centres) else centres
+    if len(centres) > wanted:
+        fit = _product(centres, head, parts, also)
+        centres = centres[np.argsort(-fit, kind="stable")[:wanted]]
+    if not len(centres):
+        centres = _bases(space, head, 16, rng)
+    bandwidth = _bandwidths(centres, numeric)
+
+    pool = max(_POOL * n, 64)
+    n_uniform = int(round(pool * _UNIFORM_SHARE))
+    uniform = _bases(space, None, n_uniform, rng)
+    uniform[np.isfinite(uniform) & numeric] = rng.random_sample(
+        int((np.isfinite(uniform) & numeric).sum()))
+    picked = centres[rng.randint(0, len(centres), pool - n_uniform)]
+    around = picked.copy()
+    for k in np.flatnonzero(numeric):
+        rows = np.flatnonzero(np.isfinite(picked[:, k]))
+        if not len(rows):
+            continue
+        h, c = bandwidth[k], picked[rows, k]
+        low, high = ndtr((0.0 - c) / h), ndtr((1.0 - c) / h)
+        around[rows, k] = np.clip(c + h * ndtri(low + rng.random_sample(len(rows)) * (high - low)),
+                                  0.0, 1.0)
+    drawn = np.vstack([uniform, around])
+
+    # How likely the drawing made each draw, with the space's own uniform
+    # measure — one over the choices of every active categorical — as the
+    # common ground the priors are densities against.
+    base = np.prod(np.where(np.isfinite(drawn) & ~numeric, 1.0 / sizes, 1.0), axis=1)
+    kernel = np.zeros(len(drawn))
+    shape = np.where(np.isfinite(drawn) & ~numeric, drawn, -1.0) + np.where(np.isnan(drawn), -2.0, 0.0)
+    centre_shape = np.where(np.isfinite(centres) & ~numeric, centres, -1.0) + \
+        np.where(np.isnan(centres), -2.0, 0.0)
+    for start in range(0, len(drawn), 2048):
+        rows = slice(start, start + 2048)
+        same = (shape[rows, None, :] == centre_shape[None, :, :]).all(axis=2)
+        log_k = np.zeros(same.shape)
+        for k in np.flatnonzero(numeric):
+            c = centres[:, k]
+            on = np.isfinite(c)
+            if not on.any():
+                continue
+            h = bandwidth[k]
+            mass = np.where(on, ndtr((1.0 - np.nan_to_num(c)) / h) - ndtr((0.0 - np.nan_to_num(c)) / h), 1.0)
+            x = np.nan_to_num(drawn[rows, k])[:, None]
+            term = -0.5 * ((x - np.nan_to_num(c)[None, :]) / h) ** 2 - np.log(h * math.sqrt(2 * math.pi) * mass)
+            log_k += np.where(on[None, :], term, 0.0)
+        kernel[rows] = (same * np.exp(log_k)).sum(axis=1) / len(centres)
+    proposal = _UNIFORM_SHARE * base + (1.0 - _UNIFORM_SHARE) * kernel
+
+    X = _snapped(config_space, drawn.copy(), list(np.flatnonzero(numeric)))
+    configurations, kept = _configurations(config_space, X)
+    if not configurations:
+        return []
+    X = X[kept]
+    target = _product(X, head, parts, also)
+    weights = np.nan_to_num(target * base[kept] / np.maximum(proposal[kept], 1e-300))
+    if weights.sum() <= 0:
+        return [configurations[i] for i in rng.randint(0, len(configurations), n)]
+    chosen = rng.choice(len(configurations), size=n, replace=True, p=weights / weights.sum())
+    return [configurations[i] for i in chosen]
 
 
 def smac_prior(config_space, record):
@@ -307,9 +623,11 @@ def smac_prior(config_space, record):
             return _coarsen(values, resolution).reshape(-1, 1)
 
         def sample(self, n, rng=None):
-            return _resample(config_space, lambda rows: weight(record, config_space, rows), n, rng)
+            return sample_from(config_space, [self], n, rng)
 
-    return ProjectedPrior()
+    prior = ProjectedPrior()
+    prior.record = record
+    return prior
 
 
 def combined_prior(config_space, parts):
@@ -317,9 +635,8 @@ def combined_prior(config_space, parts):
     product, so every belief has to hold at once — which is how the page
     weights them too. SMAC's own ensemble would sum separate priors instead.
 
-    Sampled by drawing from the per-hyperparameter prior when there is one,
-    since it samples itself exactly, and keeping each draw with the weight the
-    projected ones give it."""
+    Sampled by `sample_from`, with the per-hyperparameter prior, when there is
+    one, drawing everything the projected ones say nothing about."""
     base = _smac_prior_base()
     parts = list(parts)
 
@@ -344,15 +661,8 @@ def combined_prior(config_space, parts):
 
         def sample(self, n, rng=None):
             head = next((p for p in parts if not getattr(p, "projected", False)), None)
-            weighed = [p for p in parts if p is not head]
-
-            def target(rows):
-                out = np.ones(len(rows))
-                for part in weighed:
-                    out = out * np.asarray(part.pdf(rows)).reshape(-1)
-                return out
-
-            proposal = (lambda count, rng_: head.sample(count, rng_)) if head is not None else None
-            return _resample(config_space, target, n, rng, proposal=proposal)
+            projected = [p for p in parts if getattr(p, "projected", False)]
+            also = [p for p in parts if p is not head and p not in projected]
+            return sample_from(config_space, projected, n, rng, head=head, also=also)
 
     return CombinedPrior()

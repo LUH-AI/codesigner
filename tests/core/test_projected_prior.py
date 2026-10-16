@@ -248,6 +248,118 @@ def test_drawing_from_it_lands_near_its_peak():
     assert spread(drawn) < 0.5 * spread(uniform)
 
 
+def test_in_hp_space_the_draws_are_the_belief_itself():
+    """What: drawn in HP Space, a point gives its Normal on each axis and a
+    ridge its spread along the line and its width across, exactly.
+    How: 5000 draws from each on the forest's space, read in the view."""
+    cs = RandomForestModel().get_config_space(seed=0)
+    axes = {"view": "axes", "hyperparameters": ["max_features", "min_samples_split"]}
+    point = dict(axes, points=[[0.3, 0.6]], params={"width": 0.05})
+    ridge = dict(axes, points=[[0.2, 0.2], [0.8, 0.8]],
+                 params={"mean": [0.5], "spread": [0.2], "width": 0.03})
+    rng = np.random.RandomState(0)
+
+    def drawn(record):
+        configs = pp.smac_prior(cs, record).sample(5000, rng)
+        return pp.view_coordinates(record, cs, np.array([c.get_array() for c in configs]))
+
+    at_point, on_ridge = drawn(point), drawn(ridge)
+    along = (on_ridge - 0.2) @ (np.ones(2) / np.sqrt(2)) / np.linalg.norm([0.6, 0.6])
+    across = (on_ridge - 0.2) @ (np.array([1.0, -1.0]) / np.sqrt(2))
+
+    assert at_point.mean(axis=0) == pytest.approx([0.3, 0.6], abs=0.005)
+    assert at_point.std(axis=0) == pytest.approx([0.05, 0.05], rel=0.05)
+    assert (along.mean(), along.std()) == pytest.approx((0.5, 0.2), abs=0.01)
+    assert across.std() == pytest.approx(0.03, rel=0.1)
+
+
+def test_drawn_with_a_belief_about_another_hyperparameter_both_hold():
+    """What: an HP Space prior drawn alongside a per-hyperparameter prior on
+    another hyperparameter: the draws follow each.
+    How: a table peaked at 0.4 on n_estimators and a point on two other axes,
+    combined and drawn from."""
+    from smac.acquisition.weight import TabulatedPrior
+
+    cs = RandomForestModel().get_config_space(seed=0)
+    grid = [i / 100 for i in range(101)]
+    table = TabulatedPrior(cs, {"n_estimators": [[x, math.exp(-0.5 * ((x - 0.4) / 0.05) ** 2)]
+                                                 for x in grid]})
+    record = _forest_record(width=0.05)
+    order = list(cs.keys())
+    configs = pp.combined_prior(cs, [table, pp.smac_prior(cs, record)]).sample(
+        3000, np.random.RandomState(2))
+    X = np.array([c.get_array() for c in configs])
+    view = pp.view_coordinates(record, cs, X)
+
+    assert X[:, order.index("n_estimators")].mean() == pytest.approx(0.4, abs=0.02)
+    assert view.mean(axis=0) == pytest.approx(record["points"][0], abs=0.01)
+
+
+def test_weighed_draws_have_the_beliefs_own_distribution():
+    """What: a belief in a projection, drawn by weighing aimed draws, comes
+    out with its own mean and spread, and leaves what it says nothing about
+    uniform.
+    How: a one-component 'PCA' that is just x, a belief of width 0.05 at 0.3,
+    and 5000 draws."""
+    cs = _space()
+    columns = [{"name": n, "value": None, "log": False, "mean": 0.0, "spread": 1.0} for n in "xyz"]
+    record = {"view": "pca", "map": {"columns": columns, "matrix": [[1.0, 0.0, 0.0]], "offset": [0.0]},
+              "points": [[0.3]], "params": {"width": 0.05}}
+    X = np.array([c.get_array() for c in pp.smac_prior(cs, record).sample(5000, np.random.RandomState(3))])
+
+    assert (X[:, 0].mean(), X[:, 0].std()) == pytest.approx((0.3, 0.05), abs=0.005)
+    assert X[:, 1].std() == pytest.approx(math.sqrt(1 / 12), abs=0.02)
+
+
+def test_a_narrow_belief_in_a_projection_is_reached_by_many_draws():
+    """What: a belief a twentieth as wide as the old resampling could find,
+    in a PCA of a space with categoricals, log scales and integers, is drawn
+    from around its peak by many different configurations, all valid.
+    How: the SVM's space, a belief of width 0.05 on a trial's place, 2000
+    draws; the share within two widths (86% for this Gaussian) and the
+    number of distinct configurations."""
+    cs = SVMModel().get_config_space(seed=0)
+    trials, scores = _trials(cs)
+    fitted, _ = fit(cs, trials, scores, "pca")
+    linear = fitted.linear_map()
+    point = fitted.transform([trials[3].config])[0][:2]
+    record = {"view": "pca", "map": {"columns": linear["columns"], "matrix": linear["matrix"][:2],
+                                     "offset": linear["offset"][:2]},
+              "points": [list(point)], "params": {"width": 0.05}}
+    configs = pp.smac_prior(cs, record).sample(2000, np.random.RandomState(4))
+    X = np.array([c.get_array() for c in configs])
+    distance = np.linalg.norm(pp.view_coordinates(record, cs, X) - point, axis=1)
+
+    for configuration in configs:
+        configuration.check_valid_configuration()
+    assert np.mean(distance < 0.1) > 0.75
+    assert len({tuple(np.round(row, 6)) for row in X}) > 400
+
+
+def test_drawing_keeps_to_the_spaces_rules():
+    """What: an inactive axis stays inactive, an integer axis comes back as a
+    whole value, and every draw is a valid configuration.
+    How: a space with a switched child and an integer, an HP Space point on
+    both, drawn from."""
+    from ConfigSpace import Integer
+
+    cs = ConfigurationSpace(seed=0)
+    switch = Categorical("switch", ["on", "off"])
+    child = Float("child", (0.0, 1.0))
+    cs.add([switch, child, Integer("count", (1, 9)), EqualsCondition(child, switch, "on")])
+    record = {"view": "axes", "hyperparameters": ["child", "count"],
+              "points": [[0.5, 0.5]], "params": {"width": 0.2}}
+    configs = pp.smac_prior(cs, record).sample(500, np.random.RandomState(5))
+    order = list(cs.keys())
+
+    for configuration in configs:
+        configuration.check_valid_configuration()
+        values = dict(configuration)
+        assert ("child" in values) == (values["switch"] == "on")
+        assert configuration.get_array()[order.index("count")] == pytest.approx(
+            cs["count"].to_vector(np.array([values["count"]]))[0])
+
+
 def test_beliefs_combine_by_product():
     """The per-hyperparameter prior and a projected one in one prior: both have
     to hold, so the density is their product."""
