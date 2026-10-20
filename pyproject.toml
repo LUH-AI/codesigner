@@ -10,10 +10,10 @@ requires-python = ">=3.12"
 dynamic = ["dependencies"]
 
 # Flat layout: the importable packages are top-level directories, not a single
-# src package. Discover config/core/ui and their subpackages while excluding
+# src package. Discover the apps and their subpackages while excluding
 # datasets/, docs/, tests/ (which are not part of the distribution).
 [tool.setuptools.packages.find]
-include = ["config*", "core*", "ui*"]
+include = ["access*", "config*", "core*", "ui*"]
 
 [tool.setuptools.dynamic]
 dependencies = { file = ["requirements.txt"] }

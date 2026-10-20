@@ -16,3 +16,5 @@ wheels/
 
 # One-off scripts for looking at something locally.
 scratch/
+
+.vscode/
