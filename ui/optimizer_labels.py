@@ -17,6 +17,21 @@ from django.utils.translation import gettext_lazy as _
 
 from .formatting import sigfigs
 
+#: What ended a run, for the summary line. Every criterion is named: with no
+#: privileged default, "it stopped" no longer implies the trial count.
+STOPPED_BY_LABELS = {
+    "max_trials": _("all the requested trials ran"),
+    "target_score": _("performance surpassed the target"),
+    "max_seconds": _("the time limit was reached"),
+    "max_trial_seconds": _("the compute budget was used up"),
+    "no_improvement_trials": _("the score had stopped improving"),
+    "incumbent_confidence": _("the search was confident nothing better remained"),
+    "cancelled": _("it was interrupted"),
+    "all_failing": _("too many trials were failing"),
+    "exhausted": _("every configuration had been tried"),
+}
+
+
 #: label, and what it means. The label is a *name* — as short as the thing can
 #: be called — and everything that explains it goes in the second string, which
 #: the form shows as a tooltip rather than as a line of prose under the control.

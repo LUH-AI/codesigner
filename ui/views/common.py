@@ -6,7 +6,7 @@ from django.conf import settings
 from django.contrib import messages
 from django.urls import reverse
 from django.utils.translation import gettext as _
-from django.utils.translation import gettext_lazy, ngettext
+from django.utils.translation import ngettext
 
 from access.policy import groups_to_choose_from
 from core import io
@@ -17,7 +17,6 @@ from experiments.services.settings import SETTING_BOUNDS
 from ..experiment_settings import resolve_settings
 from ..figures import FIGURES
 from ..formatting import human
-from ..optimizer_labels import describe_all, grouped
 from ..registry import MODELS, OPTIMIZERS
 
 
@@ -98,21 +97,6 @@ def _ownership(request, exp):
                           + f"#exp-{exp.pk}") if in_group else None}
 
 
-#: What ended a run, for the summary line. Every criterion is named: with no
-#: privileged default, "it stopped" no longer implies the trial count.
-STOPPED_BY_LABELS = {
-    "max_trials": gettext_lazy("all the requested trials ran"),
-    "target_score": gettext_lazy("performance surpassed the target"),
-    "max_seconds": gettext_lazy("the time limit was reached"),
-    "max_trial_seconds": gettext_lazy("the compute budget was used up"),
-    "no_improvement_trials": gettext_lazy("the score had stopped improving"),
-    "incumbent_confidence": gettext_lazy("the search was confident nothing better remained"),
-    "cancelled": gettext_lazy("it was interrupted"),
-    "all_failing": gettext_lazy("too many trials were failing"),
-    "exhausted": gettext_lazy("every configuration had been tried"),
-}
-
-
 def surpass_target(score: float, places: int = 4) -> str:
     """The incumbent's score, as a target for the next run to beat.
 
@@ -132,65 +116,6 @@ def _posted_number(request, key: str, default: float, *, low: float) -> float:
         return max(low, float(raw.replace(",", ".")))
     except ValueError:
         return float(default)
-
-
-#: Optimizer settings are posted with this prefix, so a parameter can be named
-#: whatever the optimizer calls it without colliding with `n_trials` or a
-#: stopping criterion on the same form.
-_OPTIMIZER_PREFIX = "opt_"
-
-
-def _posted_optimizer_params(request, optimizer) -> dict:
-    """The optimizer's settings as submitted, read through its own schema.
-
-    Types and bounds come from the declaration rather than a table here, which
-    is the difference between this and `_posted_stopping`: an optimizer that
-    declares a new setting gets it parsed without this function changing.
-
-    A blank numeric field means "leave it to the strategy" and is stored as
-    None, not dropped — the difference matters, because a stored value that is
-    simply absent would be filled by the constructor default on the next read
-    and the two would disagree.
-    """
-    params = {}
-    for param in optimizer.params_schema:
-        raw = request.POST.get(f"{_OPTIMIZER_PREFIX}{param.name}")
-        if param.type == "bool":
-            params[param.name] = bool(raw)
-            continue
-        raw = (raw or "").strip()
-        if not raw:
-            params[param.name] = None if param.default is None else param.default
-            continue
-        if param.type == "select":
-            params[param.name] = raw if raw in param.choices else param.default
-            continue
-        try:
-            value = (int if param.type == "int" else float)(raw)
-        except ValueError:
-            params[param.name] = param.default
-            continue
-        if param.min is not None:
-            value = max(param.min, value)
-        if param.max is not None:
-            value = min(param.max, value)
-        params[param.name] = value
-    return params
-
-
-def _optimizer_param_context(optimizer, stored=None) -> dict:
-    """What the settings partial needs, for whichever optimizer this is.
-
-    Settings that belong to a group are handed over separately, keyed by name,
-    so the group's own template can place each one rather than take them in
-    declaration order.
-    """
-    layout, advanced = grouped(describe_all(optimizer, stored))
-    return {
-        "optimizer_layout": layout,
-        "advanced_params": advanced,
-        "has_advanced_params": bool(advanced),
-    }
 
 
 def _optimizer_for(name):

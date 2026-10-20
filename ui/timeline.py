@@ -22,6 +22,7 @@ from django.utils.translation import gettext_lazy
 from . import times
 from .figures.data_handling import describe, is_default
 from .formatting import sigfigs
+from .optimizer_labels import STOPPED_BY_LABELS
 from .optimizer_labels import summary as optimizer_summary
 
 #: Data Handling's steps, by what each is called on the page.
@@ -399,8 +400,6 @@ def _run_event_entry(exp, event):
 
 
 def _run_entry(exp, run, number):
-    from ui.views.common import STOPPED_BY_LABELS
-
     n, offset = run.trial_count, run.trial_offset
     metric = run.primary_metric
     if run.status == "pending":

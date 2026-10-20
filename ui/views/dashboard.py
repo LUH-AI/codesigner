@@ -23,12 +23,13 @@ from ..figures import (
     NEGATIVE_COLOR, PRIOR_COLOR, PROPOSAL_COLOR, SELECTION_COLOR, autocompute_key,
     deferred_computations,
 )
+from ..optimizer_labels import STOPPED_BY_LABELS
 from ..permissions import experiment_view
 from ..registry import MODELS
 from . import analytics
 from .analytics import _analytics_absent
 from .common import (
-    STOPPED_BY_LABELS, _ACTIVE, _figure_plots, _model_available, _optimizer_for, _ownership,
+    _ACTIVE, _figure_plots, _model_available, _optimizer_for, _ownership,
     _poll_seconds, _prior_judging_context, _shown_figures, metric_label, surpass_target,
 )
 

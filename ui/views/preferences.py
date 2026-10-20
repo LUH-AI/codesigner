@@ -56,7 +56,7 @@ def experiment_settings(request, exp):
 
     How the search runs is not here. An optimizer's settings are chosen when the
     experiment is created and fixed for its life, like `cv_folds` — see
-    `_posted_optimizer_params`.
+    `optimizer_form._posted_params`.
     """
     if request.method == "POST":
         if "reset" in request.POST or request.POST.get("use_default_settings"):
