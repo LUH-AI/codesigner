@@ -233,8 +233,6 @@ def save_setup(request, exp):
     form, adopted by `data_from_snapshot` — and kept what the later steps set:
     the processing, and the priors unless the model changed. A different
     dataset, task or model asks for step 2 again (ui/setup_steps.py)."""
-    from django.db import transaction
-
     from core import io
     from core.metrics import metrics_for
     from core import provenance
@@ -299,22 +297,11 @@ def save_setup(request, exp):
         # so they are ours to adopt.
         new = snapshot_adapter.data_from_snapshot(
             snapshot, model_file=cleaned.get("model_file"), adopt_paths=True)
-        changed = steps.what_changed(old, new)
-        new.processing = old.processing
-        new.priors = {} if "model" in changed else (old.priors or {})
-        new.config_space = None if "model" in changed else old.config_space
-        with transaction.atomic():
-            new.save()
-            exp.data = new
-            if "group" in form.fields:
-                from access.policy import groups_to_choose_from
+        if "group" in form.fields:
+            from access.policy import groups_to_choose_from
 
-                exp.group = _group_by_pk(groups_to_choose_from(request.user), cleaned.get("group"))
-            exp.save()
-            for field in (old.dataset, old.model_file):
-                if field:
-                    field.delete(save=False)
-            old.delete()
+            exp.group = _group_by_pk(groups_to_choose_from(request.user), cleaned.get("group"))
+        changed = snapshot_adapter.replace_data(exp, new)
         if not _settle_storage(request, exp):
             # Refused for want of room: the draft has been deleted, files and
             # all, and the reason is in the messages.

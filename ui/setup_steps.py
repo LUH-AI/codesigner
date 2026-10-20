@@ -101,32 +101,3 @@ def bar(exp, current) -> list[dict]:
              "current": step == current, "saved": saved(exp, step),
              "required": step in REQUIRED, "reachable": reachable(exp, step)}
             for i, step in enumerate(STEPS, start=1)]
-
-
-def what_changed(before, after) -> set[str]:
-    """Which of dataset, task and model differ between two `ExperimentData`."""
-    from core.provenance import sha256
-
-    def dataset(data):
-        if data.demo_dataset:
-            return ("demo", data.demo_dataset)
-        path = data.dataset_path()
-        return ("file", sha256(path)) if path and path.is_file() else None
-
-    def model(data):
-        if data.model_file:
-            try:
-                with data.model_file.open("rb") as f:
-                    return ("file", f.read())
-            except OSError:
-                return ("file", data.model_file.name)
-        return ("registry", data.model_name)
-
-    changed = set()
-    if dataset(before) != dataset(after):
-        changed.add("dataset")
-    if before.task != after.task:
-        changed.add("task")
-    if model(before) != model(after):
-        changed.add("model")
-    return changed

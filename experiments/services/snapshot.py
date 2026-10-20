@@ -18,7 +18,7 @@ from django.utils.dateparse import parse_datetime
 from core import io, tasks
 from core.processing import choices_of
 from core.provenance import (
-    dataset_fingerprint, environment, evaluation, model_fingerprint,
+    dataset_fingerprint, environment, evaluation, model_fingerprint, sha256,
 )
 from core.registry import METRICS, MODELS, OPTIMIZERS, canonical_model_name
 from experiments.models import Experiment, ExperimentData
@@ -459,6 +459,53 @@ def _run_record(index: int, run) -> dict:
 def _dataset_name(snapshot: dict) -> str:
     stored = (snapshot.get("dataset") or {}).get("path", "")
     return Path(stored).name if stored else "dataset.csv"
+
+
+def replace_data(exp: Experiment, new: ExperimentData) -> set[str]:
+    """Put *new* in place of *exp*'s portable half, keeping what the later
+    setup steps set: the processing, and the priors and stored search space
+    unless the model changed. Returns what changed (`what_changed`)."""
+    old = exp.data
+    changed = what_changed(old, new)
+    new.processing = old.processing
+    new.priors = {} if "model" in changed else (old.priors or {})
+    new.config_space = None if "model" in changed else old.config_space
+    with transaction.atomic():
+        new.save()
+        exp.data = new
+        exp.save()
+        for field in (old.dataset, old.model_file):
+            if field:
+                field.delete(save=False)
+        old.delete()
+    return changed
+
+
+def what_changed(before, after) -> set[str]:
+    """Which of dataset, task and model differ between two `ExperimentData`."""
+    def dataset(data):
+        if data.demo_dataset:
+            return ("demo", data.demo_dataset)
+        path = data.dataset_path()
+        return ("file", sha256(path)) if path and path.is_file() else None
+
+    def model(data):
+        if data.model_file:
+            try:
+                with data.model_file.open("rb") as f:
+                    return ("file", f.read())
+            except OSError:
+                return ("file", data.model_file.name)
+        return ("registry", data.model_name)
+
+    changed = set()
+    if dataset(before) != dataset(after):
+        changed.add("dataset")
+    if before.task != after.task:
+        changed.add("task")
+    if model(before) != model(after):
+        changed.add("model")
+    return changed
 
 
 def rebuild_experiment(exp):
