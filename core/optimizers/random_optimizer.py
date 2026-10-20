@@ -1,6 +1,6 @@
 from typing import Optional
 
-from .base import BaseOptimizer, OptimizationResult, TrialCollector, merge_stopping, rebase_history
+from .base import BaseOptimizer, OptimizationResult, merge_stopping, rebase_history
 from ..splits import holdout
 from .trial import evaluate_trial
 

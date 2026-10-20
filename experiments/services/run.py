@@ -552,7 +552,7 @@ def execute_run_on_cluster(run_id):
     Errors are reported on the run rather than raised, exactly as the local path
     does: a consumer that crashed would leave the row saying "running" for ever.
     """
-    from experiments.models import ExperimentData, Run
+    from experiments.models import Run
     run = Run.objects.get(pk=run_id)
     experiment = run.experiment
     _start(run, backend="slurm")

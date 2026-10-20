@@ -380,16 +380,6 @@ def metric_for(name: str) -> Metric:
     return METRICS.get(name) or ASSUMED
 
 
-def lookup(name: str) -> Optional[Metric]:
-    """*name*'s metric, or None when this build has never heard of it.
-
-    None is a real answer rather than an error: a file can name a metric that
-    only exists inside it (an imported run's own objective), and the caller
-    decides whether that is fatal or something to fall back from.
-    """
-    return METRICS.get(name)
-
-
 def resolve(names: Iterable[str]) -> dict[str, Metric]:
     """``{name: Metric}`` for *names*, or ValueError naming the ones that don't exist."""
     missing = [n for n in names if n not in METRICS]

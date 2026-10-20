@@ -42,17 +42,12 @@ import copy
 import numpy as np
 import pandas as pd
 
-from .columns import CATEGORICAL, DATETIME, NUMERIC
+from .columns import DATETIME
 from .models.base import OutputBaseModel, Tunable
 
 #: The prefix that marks a hyperparameter as the forecast's rather than the
 #: wrapped regressor's.
 PREFIX = "forecast:"
-
-#: Season lengths by the step between a series' times.
-SEASONS = {"h": 24, "D": 7, "B": 5, "W": 52, "M": 12, "MS": 12, "ME": 12,
-           "Q": 4, "QS": 4, "QE": 4}
-
 
 def infer_season(times) -> int:
     """How many steps make a season, from how far apart the times are: 12 for
@@ -87,28 +82,6 @@ def context(spec: dict, time_column: str, series_column: str, horizon: int,
             "time": names.index(time_feature),
             "series": names.index(series_column) if series_column else None,
             "known": known}
-
-
-def steps(X_train, X_val, forecast: dict):
-    """Each validation row's series key and its step ahead of its series' last
-    training row, counting the gap — 1 for the first time after the origin."""
-    time, series = forecast["time"], forecast.get("series")
-    key_train = _keys(X_train, series)
-    key_val = _keys(X_val, series)
-    ahead = np.zeros(len(X_val), dtype=int)
-    for key in np.unique(key_val):
-        rows = np.flatnonzero(key_val == key)
-        times = X_val[rows, time]
-        order = {t: i for i, t in enumerate(np.unique(times))}
-        ahead[rows] = [order[t] + 1 + int(forecast.get("gap", 0)) for t in times]
-    return key_train, key_val, ahead
-
-
-def _keys(X, series):
-    """Each row's series, as a string so a missing one is a series of its own."""
-    if series is None:
-        return np.zeros(len(X), dtype=object).astype(str)
-    return np.array([str(v) for v in X[:, series]])
 
 
 class Reduced(Tunable, OutputBaseModel):

@@ -9,7 +9,6 @@ import copy
 import inspect
 import re
 import sys
-from pathlib import Path
 
 from django.utils.translation import gettext as _
 from django.utils.translation import ngettext

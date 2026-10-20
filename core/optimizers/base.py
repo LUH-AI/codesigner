@@ -459,12 +459,6 @@ STOPPED_BY_CANCELLED = "cancelled"
 #: page otherwise has to say a run with trials to spare stopped for no reason.
 STOPPED_BY_EXHAUSTED = "exhausted"
 
-#: Criteria that may never fire. A run set up with only these has no guaranteed
-#: end — a target score the search never reaches, or a surrogate that stays
-#: unsure — so a caller should pair them with something bounded.
-UNBOUNDED_CRITERIA = ("target_score", "incumbent_confidence")
-
-
 #: Where a trial asked for by name came from, when the caller gives no origin of
 #: its own: a configuration somebody chose, not one the search produced.
 REQUESTED_ORIGIN = "Requested"
@@ -1562,34 +1556,6 @@ class BaseOptimizer(ABC):
         """
         importance, warning, _interactions, _moebius, _total = self._compute_hp_game(
             config_space, trials, metric_name, "tunability", seed)
-        return importance, warning
-
-    def compute_hp_sensitivity(
-        self,
-        config_space,
-        trials: List[TrialResult],
-        metric_name: str,
-        seed: int = 0,
-    ) -> tuple[Dict[str, float], Optional[str]]:
-        """HyperSHAP's "sensitivity" game — how much performance varies as
-        each hyperparameter moves, holding the others at random draws. Same
-        contract as `compute_hp_importance`."""
-        importance, warning, _interactions, _moebius, _total = self._compute_hp_game(
-            config_space, trials, metric_name, "sensitivity", seed)
-        return importance, warning
-
-    def compute_hp_mistunability(
-        self,
-        config_space,
-        trials: List[TrialResult],
-        metric_name: str,
-        seed: int = 0,
-    ) -> tuple[Dict[str, float], Optional[str]]:
-        """HyperSHAP's "mistunability" game — how much downside a
-        hyperparameter risks if it ends up wrong. Same contract as
-        `compute_hp_importance`."""
-        importance, warning, _interactions, _moebius, _total = self._compute_hp_game(
-            config_space, trials, metric_name, "mistunability", seed)
         return importance, warning
 
     def compute_hp_interactions(

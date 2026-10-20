@@ -17,7 +17,7 @@ from .trial import evaluate_trial
 from typing import Optional
 
 from .base import (
-    BaseOptimizer, OptimizerParam, OptimizationResult, TrialCollector, merge_stopping, rebase_history,
+    BaseOptimizer, OptimizerParam, OptimizationResult, merge_stopping, rebase_history,
 )
 
 _NUMERIC_STEPS = 5

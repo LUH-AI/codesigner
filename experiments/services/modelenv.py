@@ -17,7 +17,6 @@ separate piece of work, and the README must not imply otherwise.
 from __future__ import annotations
 
 import hashlib
-import json
 import os
 import shutil
 import subprocess
@@ -453,8 +452,3 @@ def session_kwargs(trial_timeout=None, seed: int = 0) -> dict:
         "trial_timeout": policy,
         "cwd": tempfile.mkdtemp(prefix="codesigner-run-"),
     }
-
-
-def as_json(exp) -> str:
-    """The environment's metadata, for debugging and the admin."""
-    return json.dumps(exp.env_meta or {}, indent=2, sort_keys=True)

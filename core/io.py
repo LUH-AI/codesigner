@@ -172,16 +172,12 @@ def load_model_from_path(model_path: str) -> tuple:
 
 def _json_default(obj: Any) -> Any:
     """Coerce numpy scalars / arrays to plain Python types."""
-    try:
-        import numpy as np
-        if isinstance(obj, np.integer):
-            return int(obj)
-        if isinstance(obj, np.floating):
-            return float(obj)
-        if isinstance(obj, np.ndarray):
-            return obj.tolist()
-    except ImportError:
-        pass
+    if isinstance(obj, np.integer):
+        return int(obj)
+    if isinstance(obj, np.floating):
+        return float(obj)
+    if isinstance(obj, np.ndarray):
+        return obj.tolist()
     raise TypeError(f"Object of type {type(obj).__name__} is not JSON serializable")
 
 
@@ -681,19 +677,6 @@ def attach_dataset(exp: dict, dataset_path: str) -> None:
     exp["X_val"]        = X_val
     exp["y_val"]        = y_val
     exp["dataset_path"] = str(path.resolve())
-
-
-def attach_model(exp: dict, model_path: str) -> None:
-    """Load a custom model from *model_path* and update *exp* in-place.
-
-    Raises ``ValueError`` if the file cannot be found or is not a valid model.
-    """
-    model, err = load_model_from_path(model_path)
-    if err:
-        raise ValueError(err)
-    exp["model"]      = model
-    exp["model_name"] = model.name
-    exp["model_path"] = str(Path(model_path).resolve())
 
 
 def build_experiment(

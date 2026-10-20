@@ -9,7 +9,7 @@ from django.utils.translation import gettext_lazy as _
 from core.optimizers.base import HP_GAME_FIELDS
 from core.projection import METHODS
 
-from .base import ACQUISITION, CARD, HYPERSHAP, LONG, MISC, SQUAT, TABLE, Figure
+from .base import ACQUISITION, CARD, HYPERSHAP, LONG, MISC, TABLE, Figure
 from .plots import (
     configuration_cube_plot,
     configuration_projection_plot,

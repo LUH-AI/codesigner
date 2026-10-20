@@ -27,8 +27,6 @@ Imports nothing from this package, so an exported model carries this module as
 its processing step.
 """
 
-import numpy as np
-
 AUTO = "auto"
 
 #: Every choice, in the order the Data Handling page offers them.

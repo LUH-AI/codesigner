@@ -24,7 +24,6 @@ predicts from a raw CSV with nothing else installed.
 
 from __future__ import annotations
 
-import numpy as np
 import pandas as pd
 
 from .columns import CATEGORICAL, DATETIME, NUMERIC, infer_kinds

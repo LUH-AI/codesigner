@@ -46,11 +46,6 @@ from __future__ import annotations
 
 import math
 
-#: Below this a density is treated as zero. `TabulatedPrior` coarsens what it
-#: is given, and a floor keeps a zero from becoming an unreachable region —
-#: a prior states a preference, not a constraint.
-FLOOR = 1e-12
-
 
 def density_from(kind: str, params: dict, positions) -> list[list[float]] | None:
     """`[[position, density], ...]` for a stated prior, or None if it states nothing.

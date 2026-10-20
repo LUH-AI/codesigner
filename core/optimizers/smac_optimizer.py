@@ -26,7 +26,7 @@ from .. import projected_prior
 from ..metrics import metric_for, to_cost
 from .base import (
     REQUESTED_ORIGIN, STOPPED_BY_EXHAUSTED, BaseOptimizer, OptimizationResult, OptimizerParam,
-    TrialCollector, merge_stopping, rebase_history, storable_score,
+    merge_stopping, rebase_history, storable_score,
 )
 from ..splits import holdout
 from .timing import STATUS_SUCCESS
@@ -651,7 +651,7 @@ class SMACOptimizer(BaseOptimizer):
 
         import numpy as np
 
-        from core.metrics import from_cost, metric_for, to_cost
+        from core.metrics import metric_for, to_cost
         from core.optimizers.base import _pair_trials_with_scores
 
         data = _pair_trials_with_scores(config_space, trials, metric_name, values=values)
