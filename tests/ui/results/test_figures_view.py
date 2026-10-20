@@ -8,7 +8,7 @@ adapter) and GET its detail page.
 The page ships plot payloads for the metric it opens on only; every other
 metric is fetched from `ui:metric_figures` the first time it is selected, so
 the per-metric assertions here go through `_plots`, which reads whichever of
-the two applies. Both come from the same `_figure_plots` in ui/views.py, which
+the two applies. Both come from the same `_figure_plots` in ui/views/common.py, which
 is the point — the switcher must not get a different shape from the page.
 
 DB access + isolated media come from tests/ui/conftest.py.

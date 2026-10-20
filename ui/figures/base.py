@@ -194,7 +194,7 @@ class Figure(Panel):
     #: selector names (`HP_GAME_FIELDS`). Those are stored as gains over the
     #: config space's default, and every other baseline the sidebar offers is
     #: computed on request for exactly these figures — see `hypershap_figures`
-    #: in ui/views.py.
+    #: in ui/views/analytics.py.
     explains_games = False
     #: True when this figure belongs in the page's sidebar rather than in the
     #: figure grid. For a figure that answers a click made anywhere on the page
@@ -214,7 +214,7 @@ class Figure(Panel):
     #: About *plot* payloads only. A figure rendered as server-side HTML is not
     #: redrawn by swapping Plotly JSON, so it does not set this even when it
     #: does update live: the trials table takes rendered rows through the same
-    #: poll and appends them (see `ui/views.py`'s `_live_payloads`), and the two
+    #: poll and appends them (see `ui/views/runs.py`'s `_live_payloads`), and the two
     #: configuration panels do not update at all. See `run_status`.
     live = False
     def __init_subclass__(cls, **kwargs):

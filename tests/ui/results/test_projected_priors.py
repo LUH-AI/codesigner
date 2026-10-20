@@ -28,7 +28,7 @@ def _post(client, exp, name, body):
 
 
 def _sample(exp):
-    from ui.views import _cube_sample
+    from ui.views.priors import _cube_sample
 
     _built, config_space, sample = _cube_sample(exp, "accuracy")
     return config_space, sample
@@ -180,11 +180,11 @@ def test_the_timeline_says_where_it_was_drawn(client):
 
 def test_only_a_reader_who_may_edit_can_state_one(client, settings):
     """Previewing is looking; stating changes what the next run searches."""
-    from ui import views
+    from ui.views import priors
 
-    assert views.projected_prior_preview.experiment_action == "view"
-    assert views.state_projected_prior.experiment_action == "edit"
-    assert views.withdraw_projected_prior.experiment_action == "edit"
+    assert priors.projected_prior_preview.experiment_action == "view"
+    assert priors.state_projected_prior.experiment_action == "edit"
+    assert priors.withdraw_projected_prior.experiment_action == "edit"
 
 
 def test_what_runs_next_is_asked_under_it(client):

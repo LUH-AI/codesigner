@@ -13,7 +13,7 @@ import pytest
 from django.urls import reverse
 
 from core import io
-from ui.views import _partial_dependence_data
+from ui.views.analytics import _partial_dependence_data
 
 from tests.conftest import FIXTURES_DIR
 

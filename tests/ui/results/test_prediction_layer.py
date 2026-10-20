@@ -187,10 +187,10 @@ def test_both_figures_carry_one_pair_of_next_trials_controls(client):
 def test_proposals_can_be_anchored_at_a_hyperparameter(client, monkeypatch):
     """The acquisition figure asks with its hyperparameter, whose prior the
     trial budget is anchored at; the cube asks without one."""
-    from ui import views
+    from ui.views import priors
 
     anchors = []
-    monkeypatch.setattr(views, "_next_trials",
+    monkeypatch.setattr(priors, "_next_trials",
                         lambda exp, anchor_hp=None: anchors.append(anchor_hp))
     exp = _experiment()
     url = reverse("ui:next_trials", args=[exp.pk])
@@ -221,9 +221,9 @@ def test_the_two_figures_share_one_fit_and_one_sample(client, monkeypatch):
     Expect: one fit and one sample between them.
     """
     from core.optimizers.base import BaseOptimizer
-    from ui import views
+    from ui.views import priors
 
-    views._SLICE_SURROGATES.clear()
+    priors._SLICE_SURROGATES.clear()
     fits, samples = [], []
     fit, sample = BaseOptimizer.slice_surrogate, BaseOptimizer.sample_prediction_space
 
@@ -250,9 +250,9 @@ def test_the_two_figures_share_one_fit_and_one_sample(client, monkeypatch):
 def test_the_acquisition_cloud_is_the_shared_sample(client):
     """The acquisition figure's cloud is the cube's sample, read along one
     hyperparameter: one point per sample where that hyperparameter is active."""
-    from ui import views
+    from ui.views import priors
 
-    views._SLICE_SURROGATES.clear()
+    priors._SLICE_SURROGATES.clear()
     exp = _experiment()
     sample = _layer(client, exp).json()
     column = sample["hp_names"].index("max_features")
@@ -271,7 +271,7 @@ def test_a_proposal_carries_its_place_on_every_axis():
     from ConfigSpace import Configuration
 
     from core.models import RandomForestModel
-    from ui.views import _candidate
+    from ui.views.priors import _candidate
 
     cs = RandomForestModel().get_config_space(seed=0)
     config = dict(cs.get_default_configuration())

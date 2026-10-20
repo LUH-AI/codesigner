@@ -24,7 +24,7 @@ from .permissions import ONLY, experiment_view
 
 
 def _page(request, exp, step, template, **context):
-    from .views import experiment_header
+    from ui.views.dashboard import experiment_header
 
     return render(request, template, {
         **experiment_header(request, exp, None),
@@ -76,7 +76,7 @@ def setup_optimizer(request, exp):
 def setup_data(request, exp):
     """Step 3: the Data Handling page, its settable panels on Overview; Save
     keeps their choices and moves on."""
-    from .views import tabs_for
+    from ui.views.data_handling import tabs_for
 
     if not steps.reachable(exp, steps.DATA):
         return redirect(steps.url(exp, steps.SETUP))
@@ -100,7 +100,7 @@ def setup_data(request, exp):
 def setup_priors(request, exp):
     """Step 4: what is believed about where the optimum is — the prior figure,
     as an experiment with no trials shows it — and Create."""
-    from .views import _prior_only_context
+    from ui.views.dashboard import _prior_only_context
 
     if not steps.reachable(exp, steps.PRIORS):
         return redirect(steps.url(exp, steps.SETUP))
@@ -208,7 +208,7 @@ def setup_form_context(request, exp, form=None) -> dict:
     """What step 1's template needs: the form (bound after a failed Save, else
     filled from the draft), and what the draft already has, so keeping it is
     visible."""
-    from .views import _demo_time_columns, _evaluation_schemes, _model_tasks
+    from ui.views.pages import _demo_time_columns, _evaluation_schemes, _model_tasks
 
     data = exp.data
     if form is None:
@@ -241,9 +241,8 @@ def save_setup(request, exp):
     from .registry import OPTIMIZERS
     from experiments.services import modelenv
     from experiments.services.run import resolve_seed
-    from .views import (
-        _dataset_path_from, _group_by_pk, _settle_storage,
-    )
+    from ui.views.pages import _dataset_path_from
+    from ui.views.common import _group_by_pk, _settle_storage
 
     form = _form(request, exp, request.POST, request.FILES)
     if not form.is_valid():

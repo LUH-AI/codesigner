@@ -178,7 +178,7 @@ def test_the_delta_against_the_best_is_never_an_improvement():
     it can only ever be red — but on a cost the difference is *positive*, so a
     template asking `delta > 0` would paint it green.
     """
-    from ui.views import _selected_panel_data
+    from ui.views.dashboard import _selected_panel_data
 
     cost = _selected_panel_data(_a_cost_result(), "smac:cost", 0)
     assert cost["delta"] > 0
@@ -191,6 +191,6 @@ def test_the_delta_against_the_best_is_never_an_improvement():
 
 def test_the_best_trial_is_the_cheapest_one():
     """`best_index` follows the metric, so the panel points at trial 4."""
-    from ui.views import _selected_panel_data
+    from ui.views.dashboard import _selected_panel_data
 
     assert _selected_panel_data(_a_cost_result(), "smac:cost", 3)["is_best"]

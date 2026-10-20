@@ -24,10 +24,10 @@ from tests.ui.runs.test_live_figures import _live_payload, _poll, ran_experiment
 def test_the_interval_never_drops_below_the_write_interval():
     """The run writes at most every `PARTIAL_RESULT_SECONDS`, so a faster poll
     is a request that can only ever answer "nothing yet"."""
-    from ui import views
+    from ui.views import common
     from experiments.services.run import PARTIAL_RESULT_SECONDS
 
-    assert views.POLL_MIN_SECONDS >= PARTIAL_RESULT_SECONDS
+    assert common.POLL_MIN_SECONDS >= PARTIAL_RESULT_SECONDS
 
 
 @pytest.mark.parametrize("durations,expected", [
@@ -38,24 +38,24 @@ def test_the_interval_never_drops_below_the_write_interval():
 ])
 def test_the_interval_follows_the_trials(durations, expected):
     """Polling ten times per trial is ten times the traffic for one new row."""
-    from ui import views
+    from ui.views import common
 
     class _Exp:
         class data:
             result = {"data": [{"time": d} for d in durations]}
 
-    assert views._poll_seconds(_Exp()) == expected
+    assert common._poll_seconds(_Exp()) == expected
 
 
 def test_one_pathological_trial_does_not_slow_the_whole_run():
     """The median of the recent few, not the mean of all of them."""
-    from ui import views
+    from ui.views import common
 
     class _Exp:
         class data:
             result = {"data": [{"time": 6.0}] * 9 + [{"time": 4000.0}]}
 
-    assert views._poll_seconds(_Exp()) == 6
+    assert common._poll_seconds(_Exp()) == 6
 
 
 @pytest.mark.django_db

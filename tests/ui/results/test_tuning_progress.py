@@ -13,7 +13,7 @@ well posed, and the difference is what is still on the table. These cover the
 arithmetic, the two ways it can degenerate, and that asking for it changes
 nothing until it is asked for.
 
-**The measure is switched off** (`ui.views.TUNING_PROGRESS_ENABLED`), because the
+**The measure is switched off** (`ui.views.analytics.TUNING_PROGRESS_ENABLED`), because the
 tunability it subtracts from is not stable across processes. So every test here
 but the last turns it back on: they are what says the code still works when the
 flag is flipped, which is the point of leaving it in place rather than deleting
@@ -37,7 +37,7 @@ from tests.conftest import FIXTURES_DIR
 @pytest.fixture
 def enabled(monkeypatch):
     """Turn "still to gain" back on for one test."""
-    monkeypatch.setattr("ui.views.TUNING_PROGRESS_ENABLED", True)
+    monkeypatch.setattr("ui.views.analytics.TUNING_PROGRESS_ENABLED", True)
 
 
 def _result(shares, total, **kw):
@@ -308,9 +308,9 @@ def test_none_of_it_reaches_the_page_while_the_measure_is_off(client):
     one that is not being offered — so the markup goes too, and both halves are
     checked here: nothing to tick, and no columns to fill.
     """
-    from ui import views
+    from ui.views import analytics
 
-    assert views.TUNING_PROGRESS_ENABLED is False, "this is what ships"
+    assert analytics.TUNING_PROGRESS_ENABLED is False, "this is what ships"
 
     exp = _experiment()
     html = client.get(reverse("ui:experiment_detail", args=[exp.pk])).content.decode()

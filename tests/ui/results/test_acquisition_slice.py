@@ -54,7 +54,8 @@ def _slice(client, exp, hp, metric="accuracy"):
 def _built_figures(exp, hp, metric="accuracy"):
     """Every figure the slice builds, through the same seam the endpoint uses."""
     from experiments.services.snapshot import config_space_for, rebuild_experiment
-    from ui.views import _plot_json, _slice_figures
+    from ui.views.common import _plot_json
+    from ui.views.priors import _slice_figures
 
     built = rebuild_experiment(exp)
     figures, _meta, _sliced = _slice_figures(
@@ -73,7 +74,7 @@ def _hp_names(exp):
     """Through the same rebuild the endpoint uses, so the names are the ones it
     will actually accept rather than a guess at the stored shape."""
     from experiments.services.snapshot import rebuild_experiment
-    from ui.views import _hp_names as names_of
+    from ui.views.common import _hp_names as names_of
 
     built = rebuild_experiment(exp)
     return names_of(built["result"]) if built and built["result"] else []
@@ -329,9 +330,9 @@ def test_slicing_two_hyperparameters_fits_the_surrogate_once(client, monkeypatch
     would pass on a fast machine with the caching removed.
     """
     from core.optimizers.base import BaseOptimizer
-    from ui import views
+    from ui.views import priors
 
-    views._SLICE_SURROGATES.clear()
+    priors._SLICE_SURROGATES.clear()
     fits = []
     original = BaseOptimizer.slice_surrogate
 
@@ -355,14 +356,14 @@ def test_a_new_trial_invalidates_the_cached_fit(client, monkeypatch):
     """The trial count is in the key, which is what stops a live run drawing
     every later slice from the model it had at the beginning."""
     from core.optimizers.base import BaseOptimizer
-    from ui import views
+    from ui.views import priors
 
-    views._SLICE_SURROGATES.clear()
+    priors._SLICE_SURROGATES.clear()
     exp = _experiment()
     hp = _hp_names(exp)[0]
     _slice(client, exp, hp)
 
-    keys = list(views._SLICE_SURROGATES)
+    keys = list(priors._SLICE_SURROGATES)
     assert len(keys) == 1
     assert exp.pk in keys[0] and "accuracy" in keys[0]
     # The trial count is one of the key's components, so a differing count
@@ -1197,10 +1198,10 @@ def test_saving_a_prior_asks_the_optimizer_nothing(client, monkeypatch):
     Action: save a prior.
     Expect: no call, and no candidates in the answer.
     """
-    from ui import views
+    from ui.views import priors
 
     asked = []
-    monkeypatch.setattr(views, "_next_trials", lambda *a, **k: asked.append(1))
+    monkeypatch.setattr(priors, "_next_trials", lambda *a, **k: asked.append(1))
     exp = _experiment()
     hp = _hp_names(exp)[0]
 

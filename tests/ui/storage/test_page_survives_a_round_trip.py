@@ -23,7 +23,7 @@ from django.urls import reverse
 
 from core import io
 from experiments.services import snapshot as adapter
-from ui.views import _detail_context
+from ui.views.dashboard import _detail_context
 
 from tests.conftest import DATASETS_DIR, export_ihpo, post_new_experiment
 

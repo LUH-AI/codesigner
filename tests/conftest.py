@@ -201,7 +201,7 @@ def export_ihpo(client, pk, timestamps="keep", tracebacks="keep"):
 
     Exporting is a POST rather than a GET because the page asks first what goes
     in the file: the per-trial timestamps, and a failed trial's stored traceback
-    — see `ui.views.experiment_export`. Both default here to the answer that
+    — see `ui.views.export.experiment_export`. Both default here to the answer that
     changes nothing about the file, for tests that only want the file.
     """
     from django.urls import reverse

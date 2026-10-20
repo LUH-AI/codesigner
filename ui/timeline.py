@@ -399,7 +399,7 @@ def _run_event_entry(exp, event):
 
 
 def _run_entry(exp, run, number):
-    from .views import STOPPED_BY_LABELS
+    from ui.views.common import STOPPED_BY_LABELS
 
     n, offset = run.trial_count, run.trial_offset
     metric = run.primary_metric

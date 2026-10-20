@@ -27,7 +27,7 @@ def context(exp, locked=False) -> dict:
     from *exp*, the others on their defaults. With *locked* every control is
     shown and none can be changed."""
     from .registry import OPTIMIZERS
-    from .views import _optimizer_param_context
+    from ui.views.common import _optimizer_param_context
 
     data = exp.data
     selected = data.optimizer_name if data.optimizer_name in OPTIMIZERS else next(iter(OPTIMIZERS))
@@ -48,7 +48,7 @@ def save(request, exp) -> str | None:
     it could not, or None. A change is an entry in the experiment's history
     (a draft has none)."""
     from .registry import OPTIMIZERS
-    from .views import _posted_optimizer_params
+    from ui.views.common import _posted_optimizer_params
     from experiments.services import history
 
     refusal = why_fixed(exp)

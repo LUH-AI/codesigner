@@ -4,7 +4,8 @@
 import pytest
 from django.urls import reverse
 
-from ui import context_processors, views
+from ui import context_processors
+from ui.views import pages
 from experiments.models import Experiment
 
 pytestmark = pytest.mark.django_db
@@ -39,7 +40,7 @@ def test_the_sidebar_shows_the_most_recent(client, monkeypatch):
 
 
 def test_the_full_list_paginates(client, monkeypatch):
-    monkeypatch.setattr(views, "EXPERIMENT_LIST_PAGE_SIZE", 2)
+    monkeypatch.setattr(pages, "EXPERIMENT_LIST_PAGE_SIZE", 2)
     for i in range(5):
         _experiment(name=f"exp-{i}")
 
@@ -53,7 +54,7 @@ def test_the_full_list_paginates(client, monkeypatch):
 
 
 def test_an_out_of_range_page_settles_on_the_last_one(client, monkeypatch):
-    monkeypatch.setattr(views, "EXPERIMENT_LIST_PAGE_SIZE", 2)
+    monkeypatch.setattr(pages, "EXPERIMENT_LIST_PAGE_SIZE", 2)
     for i in range(3):
         _experiment(name=f"exp-{i}")
 

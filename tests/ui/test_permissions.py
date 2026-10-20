@@ -117,13 +117,14 @@ def test_the_bin_routes_resolve_through_the_bin(client):
     """
     import inspect
 
-    from ui import panels, views
+    from ui import panels
+    from ui.views import bin as bin_views
 
     # Two bins: a deleted group's, which a site admin settles from the panels,
     # and a person's, which its people settle from their own.
     through = {panels.__name__: "policy().trash(request)",
-               views.__name__: "_binned(request, pk)"}
-    assert "policy().bin(request)" in inspect.getsource(views._binned)
+               bin_views.__name__: "_binned(request, pk)"}
+    assert "policy().bin(request)" in inspect.getsource(bin_views._binned)
 
     for name in THROUGH_THE_BIN:
         route = next(p for p in urls.urlpatterns if p.name == name)

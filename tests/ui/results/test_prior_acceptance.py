@@ -201,7 +201,7 @@ def test_the_tolerance_keeps_its_decimals(client):
     truncate to zero and silently start refusing every prior."""
     from django.test import RequestFactory
 
-    from ui.views import _posted_settings
+    from ui.views.preferences import _posted_settings
 
     request = RequestFactory().post("/", {"prior_acceptance_tolerance": "0.4"})
     assert _posted_settings(request)["prior_acceptance_tolerance"] == pytest.approx(0.4)

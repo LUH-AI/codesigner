@@ -2,7 +2,7 @@
 point cloud and selected in a trial's place, and run as a trial on request.
 
 A proposal is one of the samples the cube's layers are drawn from — the same
-sample, through the same cache (`views._slice_model`). Its panel shows what the
+sample, through the same cache (`ui.views.priors._slice_model`). Its panel shows what the
 surrogate predicts for it rather than a score, and offers "Run as Trial": a run
 of one, told to evaluate that configuration, recorded like any other run.
 
@@ -39,7 +39,7 @@ def _ran_experiment(client, name="proposals"):
 
 
 def _sample(exp, metric="accuracy"):
-    from ui.views import _proposals
+    from ui.views.priors import _proposals
 
     _built, sample = _proposals(exp, metric)
     return sample

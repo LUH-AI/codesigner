@@ -16,7 +16,7 @@ import pytest
 from django.urls import reverse
 
 from tests.conftest import DATASETS_DIR
-from ui.views import surpass_target
+from ui.views.common import surpass_target
 
 pytestmark = pytest.mark.django_db
 
@@ -150,7 +150,7 @@ def _posted(metric_name, **fields):
     """`_posted_stopping` over a form carrying *fields*, optimizing *metric_name*."""
     from django.test import RequestFactory
 
-    from ui.views import _posted_stopping
+    from ui.views.runs import _posted_stopping
 
     request = RequestFactory().post("/", {k: str(v) for k, v in fields.items()})
     return _posted_stopping(request, metric_name)
@@ -190,7 +190,7 @@ def test_an_unbounded_metric_accepts_a_negative_target():
 
     cost = Metric(name="smac:cost", fn=None, higher_is_better=False,
                   bounds=(None, None))
-    with patch("ui.views.metric_for", return_value=cost):
+    with patch("ui.views.runs.metric_for", return_value=cost):
         stopping = _posted("smac:cost", target_score="-12.5")
 
     assert stopping["target_score"] == -12.5

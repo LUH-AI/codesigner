@@ -110,7 +110,7 @@ class LocalExplanation(Figure):
     the search, this explains one trial, and it has no interactions to give the
     five interaction figures. It also cannot be precomputed the way they are —
     its value depends on which trial is selected, not just the metric, and it
-    needs the live model and config space, which only `ui/views.py`'s
+    needs the live model and config space, which only `ui/views/dashboard.py`'s
     `_detail_context` (defaulting to the metric's best trial) and the
     `trial_ablation` endpoint (a click) have. So `plot()` stays None and the
     page fetches it, like partial dependence and local effects.
@@ -353,7 +353,7 @@ class ConfigurationCube(Figure):
     #: dependence is: it is per *pair* of hyperparameters, which is not a small
     #: precomputable set — a model with six of them has fifteen pairs, and the
     #: reader looks at one. See `BaseOptimizer.compute_surrogate_uncertainty`,
-    #: and `views.surrogate_uncertainty` for why it is the axes view only.
+    #: and `ui.views.analytics.surrogate_uncertainty` for why it is the axes view only.
     deferred = (("surrogate_uncertainty", _("Surrogate uncertainty (axes view)")),)
 
     @classmethod
@@ -407,7 +407,7 @@ class PartialDependence(Figure):
     hyperparameter, on every page load, for a figure that only ever shows
     one at a time, would be pure waste. So, like local ablation
     (`hyperparameter_importance`'s "Local" game), this is fetched on demand
-    — see the `partial_dependence` endpoint (ui/views.py) and
+    — see the `partial_dependence` endpoint (ui/views/analytics.py) and
     experiment_detail.html's `refreshPartialDependence`. `plot()` is never
     called; it stays `None` (the base class default) so `plot_json` ships
     nothing for it and the client fetches everything, including the default

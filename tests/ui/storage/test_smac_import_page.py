@@ -177,7 +177,7 @@ def test_the_explanation_is_oriented_to_the_cost():
     it most.
     """
     from experiments.services.snapshot import rebuild_experiment
-    from ui.views import _local_ablation_data
+    from ui.views.analytics import _local_ablation_data
 
     built = rebuild_experiment(_imported())
     best = built["result"].best_index(COST)
