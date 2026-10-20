@@ -416,7 +416,7 @@ def hyperparameter_progress_plot(rows: list, rendering: str = "pie"):
     The same two renderings the importance figure offers, of the same
     quantity — but each slice or bar divided, so "this one is worth a lot and we
     have already taken almost all of it" is one shape rather than two figures
-    compared by eye. `rows` is `_tuning_progress`'s output: name, achievable,
+    compared by eye. `rows` is `core.analytics.tuning_progress`'s output: name, achievable,
     banked, remaining.
 
     **bar** stacks banked under still-to-gain, so a bar that is nearly all light

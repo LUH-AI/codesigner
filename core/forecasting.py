@@ -182,3 +182,17 @@ class Reduced(Tunable, OutputBaseModel):
             hyperparameters={k: v for k, v in hyperparameters.items() if not k.startswith(PREFIX)},
             lags=int(hyperparameters.get(f"{PREFIX}lags", 3)),
             forecast=dict(self.forecast), plan=plan, task=self.task, seed=seed)
+
+
+def backtests(model, config, splits, times, rows, seed, labels=False):
+    """What *config* forecast at every backtest, as the trial did: one
+    `(times, predictions)` per fold, kept to *rows* (one series' rows)."""
+    out = []
+    for train_idx, val_idx in splits.folds:
+        predicted = np.asarray(model.fit_predict(config, splits.X[train_idx],
+                                                 splits.y[train_idx], splits.X[val_idx],
+                                                 seed=seed),
+                               dtype=object if labels else float)
+        mine = np.isin(val_idx, rows)
+        out.append((times[val_idx[mine]], predicted[mine]))
+    return out

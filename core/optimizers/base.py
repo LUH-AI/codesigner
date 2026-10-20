@@ -107,6 +107,40 @@ class TrialResult:
         return (self.run_info.get("additional_info") or {}).get("traceback", "")
 
 
+#: Which OptimizationResult fields back each HyperSHAP "explanation game" —
+#: see BaseOptimizer.HP_GAMES for what each one answers.
+#: Order here is the games' order in the page's one game selector.
+#:
+#: Four fields each, because a game is not only an importance: the same call
+#: produces the order-2 interaction grid and the full Möbius decomposition, and
+#: every figure that reads any of them reads the game the sidebar names. The
+#: tunability entry's names have no game in them — they were the only ones
+#: stored back when only tunability's had anywhere to go, and they are in every
+#: .ihpo ever written.
+HP_GAME_FIELDS = {
+    "tunability": {
+        "importance": "hyperparameter_importance",
+        "warning": "hyperparameter_importance_warning",
+        "interactions": "hyperparameter_interactions",
+        "moebius": "hyperparameter_moebius",
+    },
+    # Mistunability before sensitivity: it is tunability's mirror — what there
+    # is to lose against what there is to gain — and the two read as a pair.
+    "mistunability": {
+        "importance": "hyperparameter_mistunability",
+        "warning": "hyperparameter_mistunability_warning",
+        "interactions": "hyperparameter_mistunability_interactions",
+        "moebius": "hyperparameter_mistunability_moebius",
+    },
+    "sensitivity": {
+        "importance": "hyperparameter_sensitivity",
+        "warning": "hyperparameter_sensitivity_warning",
+        "interactions": "hyperparameter_sensitivity_interactions",
+        "moebius": "hyperparameter_sensitivity_moebius",
+    },
+}
+
+
 @dataclass
 class OptimizationResult:
     """Accumulated results of a completed or partial optimization run."""

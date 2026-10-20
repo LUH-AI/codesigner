@@ -31,7 +31,7 @@ from access.policy import (
     DELETE, EDIT, EXPORT, RENAME, RUN, SHARE, VIEW, groups_to_choose_from, policy,
     visible_experiments,
 )
-from core import io, projected_prior, provenance, smac_import, tasks
+from core import analytics, forecasting, io, projected_prior, provenance, smac_import, tasks
 from core import priors as prior_math
 from core.metrics import metric_for, metrics_for
 from core.modelhost import deadline
@@ -839,8 +839,8 @@ def trial_ablation(request, exp):
     figure, warning, ablation = _local_ablation_data(built, metric, idx, baseline)
     # What a trial has banked is a gain over the default, and so is what
     # tunability says was there to gain, so the two only subtract from there.
-    rows, settled = (_tuning_progress(built["result"], metric, ablation)
-                     if baseline is None else ([], False))
+    rows, settled = (analytics.tuning_progress(built["result"], metric, ablation)
+                     if TUNING_PROGRESS_ENABLED and baseline is None else ([], False))
     # The headroom renderings cannot be precomputed — they need this trial's
     # ablation — so they come back with it, all three at once, and switching
     # rendering afterwards costs no second request.
@@ -932,15 +932,9 @@ def forecast_figure(request, exp):
     chosen = request.GET.get("series") or (names[0] if names else "")
     rows = (np.arange(len(splits.y)) if not names
             else np.flatnonzero(np.asarray(splits.series).astype(str) == chosen))
-    backtests = []
     try:
-        for train_idx, val_idx in splits.folds:
-            predicted = np.asarray(model.fit_predict(trial.config, splits.X[train_idx],
-                                                     splits.y[train_idx], splits.X[val_idx],
-                                                     seed=built["seed"]),
-                                   dtype=object if labels else float)
-            mine = np.isin(val_idx, rows)
-            backtests.append((built["times"][val_idx[mine]], predicted[mine]))
+        backtests = forecasting.backtests(model, trial.config, splits, built["times"], rows,
+                                          seed=built["seed"], labels=labels)
     except Exception as exc:  # noqa: BLE001 — the model's failure is the figure's message
         return JsonResponse({"figure": None, "series": names, "warning": _(
             "This configuration failed to forecast: %(error)s") % {"error": exc}})
@@ -2911,7 +2905,7 @@ def _local_ablation_data(built, metric, idx, baseline=None):
 
     Returns (figure_json_or_None, warning_or_None, raw_effects). The effects
     are the signed per-hyperparameter values the figure is drawn from, in the
-    metric's own units, which `_tuning_progress` needs and which cannot be read
+    metric's own units, which `tuning_progress` needs and which cannot be read
     back out of the figure. The figure is None (with a warning) when there is no
     search space to be had — see `config_space_for` for the two places one can
     come from.
@@ -2940,7 +2934,7 @@ def _local_ablation_data(built, metric, idx, baseline=None):
 #: Off: the measure is not ready to be read. The presentation problems were the
 #: visible half, but the numbers are not established either — the same run,
 #: same seed, gives tunability +0.096 in one process and +0.070 in another,
-#: while being bit-identical within a process. `_tuning_progress` subtracts one
+#: while being bit-identical within a process. `tuning_progress` subtracts one
 #: of those quantities from another, so whatever moves between processes lands
 #: in its result, and a reader would be comparing a difference against a
 #: baseline that does not hold still. The tests below it check the arithmetic is
@@ -2949,80 +2943,6 @@ def _local_ablation_data(built, metric, idx, baseline=None):
 #: Everything stays in place and stops being reachable from the page, so the
 #: switch back is this line — once the cross-process drift is understood.
 TUNING_PROGRESS_ENABLED = False
-
-#: Below this share of the achievable gain, "what is left" is rounding rather
-#: than headroom, and a pie of it would be a picture of noise.
-SETTLED = 0.02
-
-
-def _tuning_progress(result, metric, ablation):
-    """What each hyperparameter was worth, and how much of it has been banked.
-
-    Tunability decomposes (best achievable − default); the ablation decomposes
-    (this trial − default). Both are FSII order-1 terms of an order-2 fit,
-    against the same baseline, and both games are zeroed at that baseline —
-    measured, `v(none) = 0` for each — so the two are in the same units from the
-    same origin and the subtraction is well posed.
-
-    **Two things it is not**, both measured rather than assumed, and both
-    reasons to read the ordering rather than the digits:
-
-    - *Achievable is a lower bound.* The tunability game's maximum comes from
-      10,000 random draws of the configuration space, and a real optimizer beats
-      random search — that is what it is for. So a well-tuned hyperparameter can
-      show more banked than achievable, and it is not an error: it means the
-      search found something the estimate did not. `beyond` marks those, and
-      they are the strongest evidence an axis is finished, not a contradiction.
-    - *Order-1 is not the whole game.* Measured on a four-hyperparameter run, the
-      order-1 terms account for about 70-100% of each game's own endpoint, the
-      rest living in order-2 interactions that neither number carries. Both
-      sides are deflated by the same mechanism, so the comparison survives it
-      better than either figure alone does.
-
-    Both halves are needed in the metric's own units, and only one of them is
-    stored that way: `hyperparameter_importance` is a share of 100%, and
-    `hyperparameter_tunability_total` is what it is a share *of*. A result
-    written before that field existed has no scale to multiply by, and gets
-    nothing rather than a ratio computed against the wrong denominator.
-
-    Returns `(rows, settled)`. Each row is one hyperparameter's achievable,
-    banked and remaining value; *settled* is True when the remaining total is
-    rounding, which is a finding — this trial has taken essentially everything
-    there was — and not a figure.
-    """
-    if not TUNING_PROGRESS_ENABLED:
-        return [], False
-
-    shares = result.hyperparameter_importance.get(metric, {})
-    total = result.hyperparameter_tunability_total.get(metric, 0.0)
-    if not shares or not total or not ablation:
-        return [], False
-
-    rows = []
-    for name, share in shares.items():
-        achievable = share * total
-        # Signed on purpose. A negative one says this trial's value for that
-        # hyperparameter is *worse* than the default — drift picked up while
-        # chasing whichever one mattered — and flooring it here would hide the
-        # one finding that is actionable on its own.
-        banked = ablation.get(name, 0.0)
-        rows.append({
-            "name": name,
-            "achievable": achievable,
-            "banked": banked,
-            # Floored, because a negative amount left is not an amount left.
-            "remaining": max(0.0, achievable - banked),
-            "banked_share": (banked / achievable) if achievable else 0.0,
-            # Past the estimated ceiling: the search found something 10,000
-            # random draws did not. Marked rather than quietly floored, because
-            # it says something — this axis is not merely finished, it is
-            # finished past where the estimate could see.
-            "beyond": banked > achievable > 0,
-        })
-    rows.sort(key=lambda row: row["remaining"], reverse=True)
-    left = sum(row["remaining"] for row in rows)
-    return rows, left <= SETTLED * (total or 1.0)
-
 
 def _partial_dependence_data(built, metric, hp_name, max_ice_curves=0):
     """The partial-dependence figure + warning for one (metric,

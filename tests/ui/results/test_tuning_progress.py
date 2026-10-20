@@ -29,7 +29,7 @@ from django.urls import reverse
 from core import io
 from core.optimizers import OptimizationResult, TrialResult
 from experiments.services import snapshot as adapter
-from ui.views import SETTLED, _tuning_progress
+from core.analytics import SETTLED, tuning_progress
 
 from tests.conftest import FIXTURES_DIR
 
@@ -53,7 +53,7 @@ def _result(shares, total, **kw):
 def test_the_share_and_the_scale_reconstruct_the_raw_value(enabled):
     """The whole reason the scale is stored. A share cannot be compared against
     the ablation, which is raw and signed; `share x total` can."""
-    rows, _settled = _tuning_progress(
+    rows, _settled = tuning_progress(
         _result({"a": 0.75, "b": 0.25}, 0.08), "accuracy", {"a": 0.03, "b": 0.01})
     by = {row["name"]: row for row in rows}
 
@@ -68,7 +68,7 @@ def test_it_is_ordered_by_what_is_left_not_by_size(enabled):
     """The actionable ordering, and deliberately not importance's. The point of
     the view is that the biggest hyperparameter is often the one with nothing
     left in it."""
-    rows, _settled = _tuning_progress(
+    rows, _settled = tuning_progress(
         _result({"big": 0.9, "small": 0.1}, 0.10), "accuracy",
         {"big": 0.089, "small": 0.001})
 
@@ -82,7 +82,7 @@ def test_an_axis_the_trial_made_worse_keeps_its_sign(enabled):
     It is floored out of the share, because "you have overshot" is not somewhere
     to spend budget, but kept in the row, because it is the one finding here
     that is actionable on its own."""
-    rows, _settled = _tuning_progress(
+    rows, _settled = tuning_progress(
         _result({"a": 1.0}, 0.05), "accuracy", {"a": -0.02})
 
     assert rows[0]["banked"] == -0.02, "the sign survives"
@@ -99,7 +99,7 @@ def test_beating_the_estimated_ceiling_is_marked_rather_than_floored(enabled):
     see, which is the strongest evidence an axis is finished, and it is marked
     rather than quietly rounded to zero.
     """
-    rows, _settled = _tuning_progress(
+    rows, _settled = tuning_progress(
         _result({"a": 1.0}, 0.05), "accuracy", {"a": 0.09})
 
     assert rows[0]["remaining"] == 0.0, "no negative amount left"
@@ -107,7 +107,7 @@ def test_beating_the_estimated_ceiling_is_marked_rather_than_floored(enabled):
 
 
 def test_falling_short_of_the_ceiling_is_not_marked(enabled):
-    rows, _settled = _tuning_progress(
+    rows, _settled = tuning_progress(
         _result({"a": 1.0}, 0.05), "accuracy", {"a": 0.02})
 
     assert rows[0]["beyond"] is False
@@ -118,7 +118,7 @@ def test_a_trial_that_has_taken_everything_says_so(enabled):
     """Rather than drawing a pie of rounding — the same lesson as the all-zero
     guard in `_compute_hp_game`: an empty answer is a finding, and a normalised
     empty answer is a picture of noise."""
-    rows, settled = _tuning_progress(
+    rows, settled = tuning_progress(
         _result({"a": 0.5, "b": 0.5}, 0.10), "accuracy", {"a": 0.0499, "b": 0.0499})
 
     assert settled
@@ -128,7 +128,7 @@ def test_a_trial_that_has_taken_everything_says_so(enabled):
 def test_a_result_with_no_scale_offers_nothing_rather_than_a_wrong_ratio(enabled):
     """Every .ihpo written before the scale was stored has shares and no units.
     A ratio against the wrong denominator would be worse than no ratio."""
-    rows, settled = _tuning_progress(
+    rows, settled = tuning_progress(
         _result({"a": 1.0}, 0.0), "accuracy", {"a": 0.03})
 
     assert rows == [] and not settled
@@ -214,7 +214,7 @@ def test_it_reads_tunability_and_not_whichever_game_is_showing(enabled):
     result.hyperparameter_sensitivity = {"accuracy": {"a": 0.0, "b": 1.0}}
     result.hyperparameter_mistunability = {"accuracy": {"a": 0.0, "b": 1.0}}
 
-    rows, _settled = _tuning_progress(result, "accuracy", {"a": 0.02, "b": 0.0})
+    rows, _settled = tuning_progress(result, "accuracy", {"a": 0.02, "b": 0.0})
     by = {row["name"]: row for row in rows}
 
     assert by["a"]["achievable"] == 0.10, "tunability's share, not the others'"

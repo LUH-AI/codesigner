@@ -6,6 +6,7 @@ it draws — see `base.py` for the full set of options and how to add one.
 
 from django.utils.translation import gettext_lazy as _
 
+from core.optimizers.base import HP_GAME_FIELDS
 from core.projection import METHODS
 
 from .base import ACQUISITION, CARD, HYPERSHAP, LONG, MISC, SQUAT, TABLE, Figure
@@ -44,39 +45,6 @@ class SelectedConfiguration(Figure):
     label = _("Selected Configuration")
     in_sidebar = True
 
-
-#: Which OptimizationResult fields back each HyperSHAP "explanation game" —
-#: see core.optimizers.base.BaseOptimizer.HP_GAMES for what each one answers.
-#: Order here is the games' order in the page's one game selector.
-#:
-#: Four fields each, because a game is not only an importance: the same call
-#: produces the order-2 interaction grid and the full Möbius decomposition, and
-#: every figure that reads any of them reads the game the sidebar names. The
-#: tunability entry's names have no game in them — they were the only ones
-#: stored back when only tunability's had anywhere to go, and they are in every
-#: .ihpo ever written.
-HP_GAME_FIELDS = {
-    "tunability": {
-        "importance": "hyperparameter_importance",
-        "warning": "hyperparameter_importance_warning",
-        "interactions": "hyperparameter_interactions",
-        "moebius": "hyperparameter_moebius",
-    },
-    # Mistunability before sensitivity: it is tunability's mirror — what there
-    # is to lose against what there is to gain — and the two read as a pair.
-    "mistunability": {
-        "importance": "hyperparameter_mistunability",
-        "warning": "hyperparameter_mistunability_warning",
-        "interactions": "hyperparameter_mistunability_interactions",
-        "moebius": "hyperparameter_mistunability_moebius",
-    },
-    "sensitivity": {
-        "importance": "hyperparameter_sensitivity",
-        "warning": "hyperparameter_sensitivity_warning",
-        "interactions": "hyperparameter_sensitivity_interactions",
-        "moebius": "hyperparameter_sensitivity_moebius",
-    },
-}
 
 #: What each game is called where a reader sees it, and what it asks. The
 #: selector's own labels; the keys above are what the code and the stored result
