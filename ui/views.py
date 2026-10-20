@@ -1,4 +1,3 @@
-import copy
 import json
 import logging
 import statistics
@@ -16,7 +15,6 @@ from django.contrib import messages
 from django.contrib.auth.decorators import login_not_required
 from django.core.exceptions import PermissionDenied
 from django.core.paginator import Paginator
-from django.db import transaction
 from django.http import Http404, HttpResponse, HttpResponseBadRequest, JsonResponse
 from django.shortcuts import redirect, render
 from django.template.loader import render_to_string
@@ -36,10 +34,12 @@ from core import priors as prior_math
 from core.metrics import metric_for, metrics_for
 from core.modelhost import deadline
 from core.optimizers.base import FAILURE_CRITERIA
-from experiments.models import Experiment, ExperimentData, ExperimentShare, GlobalSettings
+from experiments.models import Experiment, ExperimentShare, GlobalSettings
 from experiments.services import bin as bin_service
 from experiments.services import history, model_export, modelenv, processing, storage, timestamps
+from experiments.services import analytics as analytics_service
 from experiments.services import priors as prior_service
+from experiments.services import sharing
 from experiments.services import run as run_service
 from experiments.services import snapshot as snapshot_adapter
 from experiments.services.run import resolve_seed
@@ -2042,27 +2042,7 @@ def experiment_compute_analytics(request, exp):
     if exp.is_running:
         return redirect("ui:experiment_detail", pk=exp.pk)
 
-    built = rebuild_experiment(exp)
-    result = built["result"] if built else None
-    if result is None or not result.trials:
-        return redirect("ui:experiment_detail", pk=exp.pk)
-
-    optimizer = built["optimizer"]
-    optimizer.analytics_max_coalitions = settings.ANALYTICS_EAGER_MAX_COALITIONS or None
-    games = optimizer.compute_hp_games(
-        config_space_for(built), result.trials, built["metrics"], seed=built["seed"])
-
-    for game, fields in HP_GAME_FIELDS.items():
-        importance, warning, interactions, moebius, total = games[game]
-        setattr(result, fields["importance"], importance)
-        setattr(result, fields["warning"], warning)
-        setattr(result, fields["interactions"], interactions)
-        setattr(result, fields["moebius"], moebius)
-    result.hyperparameter_interactions_warning = games["tunability"][1]
-    result.hyperparameter_tunability_total = games["tunability"][4]
-
-    ExperimentData.objects.filter(experiment__pk=exp.pk).update(
-        result=optimizer.serialize_result(result))
+    analytics_service.compute_games(exp)
     return redirect("ui:experiment_detail", pk=exp.pk)
 
 
@@ -2121,12 +2101,7 @@ def experiment_share(request, exp):
     level = request.POST.get("level", "")
     if level not in dict(ExperimentShare.LEVELS) and level != "none":
         return HttpResponseBadRequest(_("Unknown sharing level."))
-    if level == "none":
-        exp.shares.filter(user=colleague).delete()
-    else:
-        ExperimentShare.objects.update_or_create(
-            experiment=exp, user=colleague,
-            defaults={"level": level, "granted_by": request.user})
+    sharing.set_access(exp, colleague, level, granted_by=request.user)
     return _back_to_sharing(request, exp)
 
 
@@ -2142,21 +2117,10 @@ def experiment_transfer(request, exp):
     so there is never a moment with no owner or with two.
     """
     colleague = _colleague(request, exp)
-    grant = exp.shares.filter(user=colleague, level=ExperimentShare.CONTRIBUTOR).first()
     # The page offers this for contributors only, so anybody else is a request
     # it never made — not found, the same answer as a stranger.
-    if grant is None:
+    if not sharing.transfer(exp, colleague):
         raise Http404
-    previous = exp.owner
-    with transaction.atomic():
-        grant.delete()
-        exp.owner = colleague
-        exp.save(update_fields=["owner"])
-        if previous is not None:
-            ExperimentShare.objects.update_or_create(
-                experiment=exp, user=previous,
-                defaults={"level": ExperimentShare.CONTRIBUTOR,
-                          "granted_by": colleague})
     messages.success(request, _("%(name)s now belongs to %(user)s. You are a "
                                 "contributor.")
                      % {"name": exp.title, "user": colleague.get_username()})
@@ -2384,28 +2348,12 @@ def _export(request, exp, cancel_url=None):
                        "timestamp_modes": _timestamp_choices(exp),
                        "timestamp_mode": times.for_export(exp, request.user)})
 
-    snapshot = snapshot_adapter.snapshot_from_experiment(exp, provenance=True)
-    # The paths name files on this server, which is of no use to whoever opens
-    # the file and tells them how the instance is laid out.
-    snapshot["dataset"]["path"] = ""
-    snapshot["model"]["path"] = ""
-    # Every time in the file, in the form asked for — see
-    # experiments/services/timestamps.py. "keep" is what the question used to post, when
-    # the choice was all or nothing; no answer at all is still nothing.
+    # "keep" is what the question used to post, when the choice was all or
+    # nothing; no answer at all is still nothing.
     posted = request.POST.get("timestamps")
-    mode = timestamps.clamp(exp, timestamps.ABSOLUTE if posted == KEEP
-                            else posted if posted in timestamps.MODES else timestamps.NONE)
-    keep_tracebacks = request.POST.get("tracebacks") == KEEP
-    if snapshot.get("result"):
-        snapshot["result"] = copy.deepcopy(snapshot["result"])
-    timestamps.apply(snapshot, mode, timestamps.origin(exp))
-    if not keep_tracebacks and snapshot.get("result"):
-        for entry in snapshot["result"].get("data", []):
-            # The reason stays either way. It is the trial's own result — this
-            # configuration does not work — while the traceback is a description
-            # of the machine it did not work on.
-            (entry.get("additional_info") or {}).pop("traceback", None)
-    body = io.to_bytes(snapshot)
+    mode = (timestamps.ABSOLUTE if posted == KEEP
+            else posted if posted in timestamps.MODES else timestamps.NONE)
+    body = snapshot_adapter.export(exp, mode, keep_tracebacks=request.POST.get("tracebacks") == KEEP)
     response = HttpResponse(body, content_type="application/octet-stream")
     # Its name when it has one, else its identifier: an unnamed experiment's
     # file is not a dotfile.

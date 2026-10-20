@@ -305,6 +305,27 @@ def snapshot_from_experiment(exp: Experiment, *, provenance: bool = False) -> di
 _PRIOR_FIELDS = ("kind", "params", "decay", "at_trial", "delay_decay")
 
 
+def export(exp: Experiment, mode: str, keep_tracebacks: bool) -> bytes:
+    """*exp* as the `.ihpo` file that leaves the instance: its times in *mode*,
+    or the most precise form it has, and its tracebacks only if kept."""
+    snapshot = snapshot_from_experiment(exp, provenance=True)
+    # The paths name files on this server, which is of no use to whoever opens
+    # the file and tells them how the instance is laid out.
+    snapshot["dataset"]["path"] = ""
+    snapshot["model"]["path"] = ""
+    if snapshot.get("result"):
+        snapshot["result"] = copy.deepcopy(snapshot["result"])
+    # Every time in the file, in the form asked for — see timestamps.py.
+    timestamps.apply(snapshot, timestamps.clamp(exp, mode), timestamps.origin(exp))
+    if not keep_tracebacks and snapshot.get("result"):
+        for entry in snapshot["result"].get("data", []):
+            # The reason stays either way. It is the trial's own result — this
+            # configuration does not work — while the traceback is a description
+            # of the machine it did not work on.
+            (entry.get("additional_info") or {}).pop("traceback", None)
+    return io.to_bytes(snapshot)
+
+
 def _prior_record(stated: dict) -> dict:
     """One prior, reduced to what defines it.
 
