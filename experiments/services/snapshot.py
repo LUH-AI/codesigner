@@ -20,7 +20,7 @@ from core.processing import choices_of
 from core.provenance import (
     dataset_fingerprint, environment, evaluation, model_fingerprint,
 )
-from core.registry import MODELS, OPTIMIZERS, canonical_model_name
+from core.registry import METRICS, MODELS, OPTIMIZERS, canonical_model_name
 from experiments.models import Experiment, ExperimentData
 
 from . import history, timestamps
@@ -438,3 +438,55 @@ def _run_record(index: int, run) -> dict:
 def _dataset_name(snapshot: dict) -> str:
     stored = (snapshot.get("dataset") or {}).get("path", "")
     return Path(stored).name if stored else "dataset.csv"
+
+
+def rebuild_experiment(exp):
+    """Rebuild the full `build_experiment` dict from a saved experiment's
+    snapshot (read-only — no dataset needed), or None if it can't be rebuilt
+    (e.g. it names a metric/optimizer no longer available).
+
+    For callers that need more than the result — the model (for its config
+    space) and the optimizer instance, both needed to compute a local
+    explanation on demand, which nothing pre-stored on the result can answer.
+    Read-only still resolves a registry model (only a custom upload's file
+    goes unread), so `built["model"]` is None only for those.
+    """
+    try:
+        _, built = io.build_experiment(
+            snapshot_from_experiment(exp),
+            METRICS, MODELS, OPTIMIZERS, read_only=True,
+        )
+    except ValueError:
+        return None
+    return built
+
+
+def rebuild_result(exp):
+    """Rebuild the OptimizationResult from a saved experiment's snapshot
+    (read-only — no dataset or live model needed), or None if it can't be
+    rebuilt (e.g. it names a metric/optimizer no longer available)."""
+    built = rebuild_experiment(exp)
+    return built["result"] if built else None
+
+
+def config_space_for(built):
+    """*built*'s search space, or None when there is nothing to build one from.
+
+    The stored `space` section first, the model second. Two sources because
+    neither covers everything: an experiment run here can always ask its model,
+    while a run read out of somebody else's output has no model at all — and a
+    custom-model experiment viewed read-only cannot ask either, which is what
+    the stored section fixes for it.
+
+    None is a supported answer throughout. The figures declaring
+    `needs_config_space` fall back to linear axes rather than refusing to draw
+    (see `Figure.needs_config_space`), and the three that genuinely cannot
+    proceed say so in a caption.
+    """
+    built = built or {}
+    stored = io.config_space_from_serialized(built.get("config_space"),
+                                             seed=built.get("seed", 0))
+    if stored is not None:
+        return stored
+    model = built.get("model")
+    return model.get_config_space(seed=built["seed"]) if model is not None else None

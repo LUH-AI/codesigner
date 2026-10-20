@@ -400,12 +400,13 @@ def test_an_unbounded_metric_is_scaled_by_what_knowing_nothing_scores(client):
 
     from core import io
     from tests.conftest import DATASETS_DIR
-    from ui.views import _metric_scale, _rebuild_result
+    from experiments.services.snapshot import rebuild_result
+    from experiments.services.priors import metric_scale
 
     exp = _diabetes(client)
     _, _, _, y_val = io._load_splits(DATASETS_DIR / "diabetes.csv", 0, task="regression")
 
-    assert _metric_scale(exp, "rmse", _rebuild_result(exp)) == pytest.approx(float(np.std(y_val)))
+    assert metric_scale(exp, "rmse", rebuild_result(exp)) == pytest.approx(float(np.std(y_val)))
 
 
 def test_without_its_data_an_unbounded_metric_is_scaled_by_its_trials(client, monkeypatch):
@@ -414,10 +415,11 @@ def test_without_its_data_an_unbounded_metric_is_scaled_by_its_trials(client, mo
 
     *How:* the same run, with rebuilding it from its data made to fail."""
     from core import io
-    from ui.views import _metric_scale, _rebuild_result
+    from experiments.services.snapshot import rebuild_result
+    from experiments.services.priors import metric_scale
 
     exp = _diabetes(client)
-    result = _rebuild_result(exp)
+    result = rebuild_result(exp)
 
     def _missing(*args, **kwargs):
         raise ValueError("dataset not found")
@@ -425,7 +427,7 @@ def test_without_its_data_an_unbounded_metric_is_scaled_by_its_trials(client, mo
     monkeypatch.setattr(io, "build_experiment", _missing)
     scores = [t.scores["rmse"] for t in result.trials]
 
-    assert _metric_scale(exp, "rmse", result) == pytest.approx(max(scores) - min(scores))
+    assert metric_scale(exp, "rmse", result) == pytest.approx(max(scores) - min(scores))
 
 
 def test_smac_is_handed_the_tolerance_in_the_metrics_units(client, monkeypatch):

@@ -30,7 +30,7 @@ SETTING_DEFAULTS = {
     # is the direction it reads as a preference — larger is more forgiving, and
     # 0 refuses anything the model does not think is an improvement.
     #
-    # A share of the metric's scale (`ui.views._metric_scale`), so it means the
+    # A share of the metric's scale (`experiments.services.priors.metric_scale`), so it means the
     # same for every objective. For a metric on [0, 1] that is DynaBO's own
     # threshold, which is where the default comes from.
     "prior_acceptance_tolerance": 0.15,

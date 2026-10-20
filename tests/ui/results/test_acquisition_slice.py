@@ -53,12 +53,12 @@ def _slice(client, exp, hp, metric="accuracy"):
 
 def _built_figures(exp, hp, metric="accuracy"):
     """Every figure the slice builds, through the same seam the endpoint uses."""
-    from ui.views import (_config_space_for, _plot_json, _rebuild_experiment,
-                          _slice_figures)
+    from experiments.services.snapshot import config_space_for, rebuild_experiment
+    from ui.views import _plot_json, _slice_figures
 
-    built = _rebuild_experiment(exp)
+    built = rebuild_experiment(exp)
     figures, _meta, _sliced = _slice_figures(
-        exp, built, _config_space_for(built), hp, metric)
+        exp, built, config_space_for(built), hp, metric)
     return {name: _plot_json(fig) for name, fig in (figures or {}).items()}
 
 
@@ -72,9 +72,10 @@ def _panel(data, name):
 def _hp_names(exp):
     """Through the same rebuild the endpoint uses, so the names are the ones it
     will actually accept rather than a guess at the stored shape."""
-    from ui.views import _hp_names as names_of, _rebuild_experiment
+    from experiments.services.snapshot import rebuild_experiment
+    from ui.views import _hp_names as names_of
 
-    built = _rebuild_experiment(exp)
+    built = rebuild_experiment(exp)
     return names_of(built["result"]) if built and built["result"] else []
 
 
@@ -1109,16 +1110,17 @@ def test_a_stated_prior_weakens_as_the_run_goes_on():
     # SMAC has no weight layer to decay, so there is nothing here to watch.
     pytest.importorskip("smac.acquisition.weight",
                         reason="needs the SMAC branch carrying the acquisition weight layer")
-    from ui.views import _decayed_prior, _rebuild_experiment
+    from experiments.services.snapshot import rebuild_experiment
+    from experiments.services.priors import decayed_prior
 
     exp = _experiment()
     hp = _hp_names(exp)[0]
-    at = len(_rebuild_experiment(exp)["result"].trials)
+    at = len(rebuild_experiment(exp)["result"].trials)
     exp.data.priors = {hp: {"kind": "normal", "params": {}, "decay": "logarithmic",
                        "at_trial": at}}
     exp.data.save(update_fields=["priors"])
 
-    seen = [_decayed_prior(exp, hp, at + n)["exponent"] for n in (0, 1, 5, 20, 100)]
+    seen = [decayed_prior(exp, hp, at + n)["exponent"] for n in (0, 1, 5, 20, 100)]
 
     assert seen == sorted(seen, reverse=True), seen
     assert seen[-1] < seen[0]
@@ -1127,16 +1129,17 @@ def test_a_stated_prior_weakens_as_the_run_goes_on():
 def test_a_prior_that_does_not_decay_keeps_its_strength():
     """`none` is a real choice and the default. Pinned separately because a
     schedule that quietly decayed anyway would still pass the test above."""
-    from ui.views import _decayed_prior, _rebuild_experiment
+    from experiments.services.snapshot import rebuild_experiment
+    from experiments.services.priors import decayed_prior
 
     exp = _experiment()
     hp = _hp_names(exp)[0]
-    at = len(_rebuild_experiment(exp)["result"].trials)
+    at = len(rebuild_experiment(exp)["result"].trials)
     exp.data.priors = {hp: {"kind": "normal", "params": {}, "decay": "none",
                        "at_trial": at}}
     exp.data.save(update_fields=["priors"])
 
-    assert {_decayed_prior(exp, hp, at + n)["exponent"] for n in (0, 5, 100)} == {1.0}
+    assert {decayed_prior(exp, hp, at + n)["exponent"] for n in (0, 5, 100)} == {1.0}
 
 
 def test_the_figure_ships_the_exponent_that_currently_applies(client):
@@ -1228,16 +1231,17 @@ def test_a_run_still_in_its_initial_design_says_so(client):
     while it is running cannot touch the trials still to come out of it. In a
     probe the first six trials were identical with and without a prior for
     exactly this reason."""
-    from ui.views import _initial_design_notice, _rebuild_experiment
+    from experiments.services.snapshot import rebuild_experiment
+    from core.priors import initial_design_notice
 
     exp = _smac_experiment()
-    result = _rebuild_experiment(exp)["result"]
+    result = rebuild_experiment(exp)["result"]
 
     class StillGoing:
         metadata = result.metadata
         trials = result.trials[:1]
 
-    notice = _initial_design_notice(StillGoing)
+    notice = initial_design_notice(StillGoing)
 
     assert notice["done"] is False
     assert notice["trials"] == 1
@@ -1247,9 +1251,10 @@ def test_a_run_still_in_its_initial_design_says_so(client):
 def test_a_finished_design_raises_no_banner(client):
     """Once the design is exhausted a prior reaches every trial, so the banner
     would be saying something untrue."""
-    from ui.views import _initial_design_notice, _rebuild_experiment
+    from experiments.services.snapshot import rebuild_experiment
+    from core.priors import initial_design_notice
 
-    result = _rebuild_experiment(_smac_experiment())["result"]
+    result = rebuild_experiment(_smac_experiment())["result"]
 
     class Finished:
         metadata = dict(result.metadata,
@@ -1257,7 +1262,7 @@ def test_a_finished_design_raises_no_banner(client):
                                         "additional_configs": []})
         trials = result.trials
 
-    assert _initial_design_notice(Finished)["done"] is True
+    assert initial_design_notice(Finished)["done"] is True
 
 
 def test_the_blackbox_fixture_never_left_its_initial_design(client):
@@ -1266,9 +1271,10 @@ def test_the_blackbox_fixture_never_left_its_initial_design(client):
     drawn before a surrogate existed. Worth pinning: it means a prior stated
     against this run would reach nothing at all, and the banner is the only
     thing on the page that would say so."""
-    from ui.views import _initial_design_notice, _rebuild_experiment
+    from experiments.services.snapshot import rebuild_experiment
+    from core.priors import initial_design_notice
 
-    notice = _initial_design_notice(_rebuild_experiment(_smac_experiment())["result"])
+    notice = initial_design_notice(rebuild_experiment(_smac_experiment())["result"])
 
     assert notice["size"] == 32
     assert notice["trials"] == 30
@@ -1279,9 +1285,10 @@ def test_the_default_configuration_counts_toward_the_phase(client):
     """`use_default_config` pins SMAC's default into `additional_configs`, which
     sits *outside* `n_configs` while being drawn in the same model-free phase.
     Left out, the banner would clear one trial early."""
-    from ui.views import _initial_design_notice, _rebuild_experiment
+    from experiments.services.snapshot import rebuild_experiment
+    from core.priors import initial_design_notice
 
-    result = _rebuild_experiment(_smac_experiment())["result"]
+    result = rebuild_experiment(_smac_experiment())["result"]
 
     class WithDefault:
         metadata = dict(result.metadata,
@@ -1289,7 +1296,7 @@ def test_the_default_configuration_counts_toward_the_phase(client):
                                         "additional_configs": [{"x": 1}]})
         trials = result.trials
 
-    assert _initial_design_notice(WithDefault)["size"] == 4
+    assert initial_design_notice(WithDefault)["size"] == 4
 
 
 def test_the_size_is_read_and_never_guessed(client):
@@ -1297,15 +1304,16 @@ def test_the_size_is_read_and_never_guessed(client):
     by `tests/core/test_initial_points.py` — the default configuration carries
     an initial-design origin while sitting outside `n_configs`, and old files
     label every trial with the optimizer's name."""
-    from ui.views import _initial_design_notice, _rebuild_experiment
+    from experiments.services.snapshot import rebuild_experiment
+    from core.priors import initial_design_notice
 
-    result = _rebuild_experiment(_smac_experiment())["result"]
+    result = rebuild_experiment(_smac_experiment())["result"]
 
     class Bare:
         metadata = {}
         trials = result.trials
 
-    assert _initial_design_notice(Bare) is None
+    assert initial_design_notice(Bare) is None
     # Random search has no recorded design at all, through the real endpoint.
     exp = _experiment()
     _, data = _slice(client, exp, _hp_names(exp)[0])
@@ -1347,18 +1355,19 @@ def test_beta_is_stored_as_a_ratio_of_the_budget(client):
 def test_the_ratio_resolves_against_the_budget(client):
     """β itself is the ratio times N, and it is resolved rather than stored —
     which is the whole point of keeping the ratio."""
-    from ui.views import _decayed_prior, _rebuild_experiment, _run_budget
+    from experiments.services.snapshot import rebuild_experiment
+    from experiments.services.priors import decayed_prior, run_budget
 
     exp = _experiment()
     hp = _hp_names(exp)[0]
-    trials = len(_rebuild_experiment(exp)["result"].trials)
+    trials = len(rebuild_experiment(exp)["result"].trials)
     _state_beta(client, exp, hp, 0.2)
     exp.refresh_from_db()
 
-    out = _decayed_prior(exp, hp, trials)
+    out = decayed_prior(exp, hp, trials)
     at = exp.data.priors[hp]["at_trial"]
 
-    assert out["beta"] == pytest.approx(_run_budget(exp, at) * 0.2)
+    assert out["beta"] == pytest.approx(run_budget(exp, at) * 0.2)
 
 
 def test_the_ratio_is_held_inside_the_ablated_range(client):
@@ -1366,7 +1375,7 @@ def test_the_ratio_is_held_inside_the_ablated_range(client):
     would refuse a value the paper measured; a ratio near one leaves the
     exponent above one for most of the run, which is a prior that never
     fades."""
-    from ui.views import BETA_RATIO_MAX, BETA_RATIO_MIN
+    from core.priors import BETA_RATIO_MAX, BETA_RATIO_MIN
 
     exp = _experiment()
     hp = _hp_names(exp)[0]
@@ -1380,17 +1389,18 @@ def test_an_absolute_beta_is_read_as_the_ratio_it_was(client):
     """Priors stated before β became a ratio recorded it absolutely. Dropping
     them would lose a stated prior on upgrade, and reading the number as a
     ratio would silently make it about fifty times weaker."""
-    from ui.views import _decayed_prior, _rebuild_experiment, _run_budget
+    from experiments.services.snapshot import rebuild_experiment
+    from experiments.services.priors import decayed_prior, run_budget
 
     exp = _experiment()
     hp = _hp_names(exp)[0]
-    at = len(_rebuild_experiment(exp)["result"].trials)
-    budget = _run_budget(exp, at)
+    at = len(rebuild_experiment(exp)["result"].trials)
+    budget = run_budget(exp, at)
     exp.data.priors = {hp: {"kind": "normal", "params": {}, "at_trial": at,
                        "decay": {"shape": "linear", "beta": budget * 0.2}}}
     exp.data.save(update_fields=["priors"])
 
-    out = _decayed_prior(exp, hp, at)
+    out = decayed_prior(exp, hp, at)
 
     assert out["decay"]["beta_ratio"] == pytest.approx(0.2)
 
@@ -1398,16 +1408,17 @@ def test_an_absolute_beta_is_read_as_the_ratio_it_was(client):
 def test_an_old_flat_decay_string_still_loads(client):
     """Priors stated before β was settable recorded the shape as a bare string.
     Refusing them would lose a stated prior on upgrade."""
-    from ui.views import _decayed_prior, _rebuild_experiment
+    from experiments.services.snapshot import rebuild_experiment
+    from experiments.services.priors import decayed_prior
 
     exp = _experiment()
     hp = _hp_names(exp)[0]
-    at = len(_rebuild_experiment(exp)["result"].trials)
+    at = len(rebuild_experiment(exp)["result"].trials)
     exp.data.priors = {hp: {"kind": "normal", "params": {}, "decay": "linear",
                        "at_trial": at}}
     exp.data.save(update_fields=["priors"])
 
-    out = _decayed_prior(exp, hp, at + 5)
+    out = decayed_prior(exp, hp, at + 5)
 
     assert out["decay"]["shape"] == "linear"
     assert out["decay"]["beta_ratio"] > 0

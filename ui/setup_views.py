@@ -100,11 +100,11 @@ def setup_data(request, exp):
 def setup_priors(request, exp):
     """Step 4: what is believed about where the optimum is — the prior figure,
     as an experiment with no trials shows it — and Create."""
-    from .views import _prior_only_context, _rebuild_experiment
+    from .views import _prior_only_context
 
     if not steps.reachable(exp, steps.PRIORS):
         return redirect(steps.url(exp, steps.SETUP))
-    built = _rebuild_experiment(exp)
+    built = snapshot_adapter.rebuild_experiment(exp)
     return _page(request, exp, steps.PRIORS, "ui/setup_step_priors.html",
                  not_ready=steps.not_ready(exp),
                  run_default_metric=(exp.data.metric_names or [None])[0],

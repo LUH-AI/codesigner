@@ -99,7 +99,7 @@ def test_it_sends_back_the_curve_of_what_it_restored(client):
     """The knots come back in `prior`, and the panel draws them over whatever
     curve it holds. Without the restored belief's own curve alongside them they
     landed off the line — the curve still being the dragged one's."""
-    from ui.views import _prior_densities
+    from core.priors import prior_densities
 
     exp = _experiment(SINCE_DRAGGED)
     _run(exp, SEARCHED_UNDER)
@@ -110,8 +110,8 @@ def test_it_sends_back_the_curve_of_what_it_restored(client):
                            {"hp": "n_estimators", "meta": json.dumps(meta)})
     data = json.loads(response.content)
 
-    assert data["density"] == _prior_densities(SEARCHED_UNDER["n_estimators"], meta)
-    assert data["density"] != _prior_densities(SINCE_DRAGGED["n_estimators"], meta)
+    assert data["density"] == prior_densities(SEARCHED_UNDER["n_estimators"], meta)
+    assert data["density"] != prior_densities(SINCE_DRAGGED["n_estimators"], meta)
 
 
 def test_without_positions_it_sends_no_curve(client):

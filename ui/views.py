@@ -32,16 +32,18 @@ from access.policy import (
     visible_experiments,
 )
 from core import io, projected_prior, provenance, smac_import, tasks
+from core import priors as prior_math
 from core.metrics import metric_for, metrics_for
-from core.metrics import scale as metric_scale
 from core.modelhost import deadline
 from core.optimizers.base import FAILURE_CRITERIA
 from experiments.models import Experiment, ExperimentData, ExperimentShare, GlobalSettings
 from experiments.services import bin as bin_service
 from experiments.services import history, model_export, modelenv, processing, storage, timestamps
+from experiments.services import priors as prior_service
 from experiments.services import run as run_service
 from experiments.services import snapshot as snapshot_adapter
 from experiments.services.run import resolve_seed
+from experiments.services.snapshot import config_space_for, rebuild_experiment, rebuild_result
 from experiments.services.run_logic import decide_run, resolve_metric_change
 from experiments.services.settings import SETTING_BOUNDS, SETTING_CHOICES
 
@@ -528,7 +530,7 @@ def trial_panel(request, exp):
     if not idx_raw.lstrip("-").isdigit():
         return HttpResponseBadRequest("invalid trial index")
 
-    result = _rebuild_result(exp)
+    result = rebuild_result(exp)
     idx = int(idx_raw)
     if result is None or not (0 <= idx < len(result.trials)):
         return HttpResponseBadRequest("invalid trial index")
@@ -554,10 +556,10 @@ def _cube_sample(exp, metric):
     """`(built, config_space, sample)`: the configuration cube's shared sample
     for *metric*, with what it was drawn from — any of the last two None when
     there is nothing to draw from."""
-    built = _rebuild_experiment(exp)
+    built = rebuild_experiment(exp)
     if not built or built["result"] is None or not built["result"].trials:
         return built, None, None
-    config_space = _config_space_for(built)
+    config_space = config_space_for(built)
     if config_space is None:
         return built, None, None
     _surrogate, sample = _slice_model(exp, built, config_space, metric)
@@ -568,8 +570,8 @@ def _cube_sample(exp, metric):
 
 def _projected_exponents(exp, records, trials, inside_design):
     """How strongly each stated projected prior still counts — the same decay
-    every prior has, see `_decayed`."""
-    return [(_decayed(exp, record, trials, inside_design) or {}).get("exponent", 1.0)
+    every prior has, see `experiments.services.priors.decayed`."""
+    return [(prior_service.decayed(exp, record, trials, inside_design) or {}).get("exponent", 1.0)
             for record in records]
 
 
@@ -581,7 +583,7 @@ def _projected_weights(exp, built, config_space, X):
         return None
     result = built["result"]
     exponents = _projected_exponents(exp, records, len(result.trials),
-                                     _inside_initial_design(result))
+                                     prior_math.inside_initial_design(result))
     weights = projected.stated_weights(records, exponents, config_space, np.asarray(X, float))
     return projected.rounded(weights) if weights is not None else None
 
@@ -655,8 +657,9 @@ def state_projected_prior(request, exp):
                                              body["metric"])
             new["id"] = projected.new_id()
             new["at_trial"] = len(result.trials)
-        new["decay"] = _decay_record(body.get("decay"), exp, int(new.get("at_trial") or 0))
-        new["delay_decay"] = bool(body.get("delay_decay") and _inside_initial_design(result))
+        new["decay"] = prior_math.decay_record(
+            body.get("decay"), prior_service.run_budget(exp, int(new.get("at_trial") or 0)))
+        new["delay_decay"] = bool(body.get("delay_decay") and prior_math.inside_initial_design(result))
         projected_prior.check(new, config_space)
     except (projected_prior.PriorError, KeyError, TypeError, ValueError) as error:
         return JsonResponse({"error": str(error)}, status=400)
@@ -788,7 +791,7 @@ def trial_traceback(request, exp):
     if not idx_raw.lstrip("-").isdigit():
         return HttpResponseBadRequest("invalid trial index")
 
-    result = _rebuild_result(exp)
+    result = rebuild_result(exp)
     idx = int(idx_raw)
     if result is None or not (0 <= idx < len(result.trials)):
         return HttpResponseBadRequest("invalid trial index")
@@ -823,7 +826,7 @@ def trial_ablation(request, exp):
     if not idx_raw.lstrip("-").isdigit():
         return HttpResponseBadRequest("invalid trial index")
 
-    built = _rebuild_experiment(exp)
+    built = rebuild_experiment(exp)
     idx = int(idx_raw)
     if (built is None or built["result"] is None
             or not (0 <= idx < len(built["result"].trials))):
@@ -884,7 +887,7 @@ def partial_dependence(request, exp):
     if metric not in exp.data.metric_names:
         return HttpResponseBadRequest("unknown metric")
 
-    built = _rebuild_experiment(exp)
+    built = rebuild_experiment(exp)
     if (built is None or built["result"] is None or not built["result"].trials
             or hp_name not in built["result"].trials[0].config):
         return HttpResponseBadRequest("invalid hyperparameter")
@@ -907,7 +910,7 @@ def forecast_figure(request, exp):
     metric = request.GET.get("metric", "")
     if not exp.data.forecasts or metric not in exp.data.metric_names:
         return HttpResponseBadRequest("not a forecast")
-    result = _rebuild_result(exp)
+    result = rebuild_result(exp)
     try:
         idx = int(request.GET.get("idx", ""))
         trial = result.trials[idx]
@@ -1066,21 +1069,22 @@ def save_prior(request, exp):
         # over the trials *since* a prior was supplied, not since the run began
         # — a belief stated at trial 120 arrives at full strength rather than
         # inheriting the near-flat exponent an older one has decayed to.
-        built = _rebuild_experiment(exp)
+        built = rebuild_experiment(exp)
         at_trial = len((built["result"].trials if built and built["result"] else []))
         previous = (exp.data.priors or {}).get(hp_name) or {}
         result_now = built["result"] if built else None
         priors[hp_name] = {
             "kind": prior.get("kind") or "uniform",
             "params": prior.get("params") or {},
-            "decay": _decay_record(prior.get("decay"), exp, at_trial),
+            "decay": prior_math.decay_record(prior.get("decay"),
+                                             prior_service.run_budget(exp, at_trial)),
             # Whether the decay waits for the initial design to finish. Only
             # ever true while there is a design still to finish: stated after
             # it, there is nothing to wait for and carrying the flag would
             # invite a later reader to think there was. The page offers the
             # choice in the same situation and defaults it on.
             "delay_decay": bool(prior.get("delay_decay")
-                                and _inside_initial_design(result_now)),
+                                and prior_math.inside_initial_design(result_now)),
             # Kept across an edit of the same shape: re-typing a sigma is not
             # restating the belief, and re-anchoring on every keystroke would
             # hold the decay at zero forever.
@@ -1102,7 +1106,7 @@ def save_prior(request, exp):
     # one the optimizer will weight by, because a single function produced both.
     density = None
     if body.get("meta"):
-        density = _prior_densities(priors.get(hp_name), body["meta"])
+        density = prior_math.prior_densities(priors.get(hp_name), body["meta"])
     return JsonResponse({"saved": sorted(priors), "density": density})
 
 
@@ -1152,19 +1156,19 @@ def reset_prior(request, exp):
     # The curve too, where the page said where it wants it — as a save does.
     # Without it the restored knots would be drawn over the curve of the belief
     # they replaced.
-    result = _rebuild_result(exp)
+    result = rebuild_result(exp)
     density = None
     try:
         meta = json.loads(request.POST.get("meta") or "null")
     except ValueError:
         meta = None
     if isinstance(meta, dict):
-        density = _prior_densities(priors.get(hp_name), meta)
+        density = prior_math.prior_densities(priors.get(hp_name), meta)
     return JsonResponse({
         "restored": bool(restored),
-        "prior": _decayed_prior(exp, hp_name,
+        "prior": prior_service.decayed_prior(exp, hp_name,
                                 len(result.trials) if result else 0,
-                                _inside_initial_design(result)),
+                                prior_math.inside_initial_design(result)),
         "density": density,
     })
 
@@ -1183,7 +1187,7 @@ def evaluate_prior(request, exp):
     clamped to the setting's bounds, and the setting itself when it is absent
     or not a number.
 
-    The tolerance is a share of the metric's scale (`_metric_scale`), so one
+    The tolerance is a share of the metric's scale (`experiments.services.priors.metric_scale`), so one
     setting means the same for an accuracy and an RMSE; SMAC is handed it in
     the metric's own units, which is what its threshold is compared in.
 
@@ -1215,9 +1219,9 @@ def evaluate_prior(request, exp):
         return JsonResponse({"verdict": "unjudged", "message": message,
                              "tolerance": tolerance})
 
-    built = _rebuild_experiment(exp)
+    built = rebuild_experiment(exp)
     result = built["result"] if built else None
-    config_space = _config_space_for(built)
+    config_space = config_space_for(built)
     if result is None or not result.trials or config_space is None:
         return unjudged(_("Nothing has been run yet, so there is no model to "
                           "judge this against. A belief stated now is acted on "
@@ -1229,7 +1233,7 @@ def evaluate_prior(request, exp):
                           "has no opinion about where the optimum is."))
     if not _judges_priors(exp):
         return unjudged(_("Needs the Gaussian process search strategy."))
-    scale = _metric_scale(exp, metric, result)
+    scale = prior_service.metric_scale(exp, metric, result)
     if scale is None:
         return unjudged(_("This metric has no scale to measure the tolerance against yet."))
     margin = float(tolerance) * scale
@@ -1243,7 +1247,7 @@ def evaluate_prior(request, exp):
         previous_result=result,
         # The same anchor the figure draws with, so the belief is judged at the
         # strength it is actually being applied at.
-        budget=_run_budget(exp, int(((exp.data.priors or {}).get(hp_name) or {})
+        budget=prior_service.run_budget(exp, int(((exp.data.priors or {}).get(hp_name) or {})
                                     .get("at_trial") or 0)))
     # The wording is made here, not in `core`, which has no Django and so no
     # catalog to translate against. What crosses from there is the verdict and a
@@ -1271,145 +1275,6 @@ def evaluate_prior(request, exp):
                          "tolerance": tolerance, "margin": margin, "top_k": top_k})
 
 
-def _metric_scale(exp, metric_name, result):
-    """How far apart a perfect and a worthless score of *metric_name* are, in
-    its units, for the prior tolerance to be a share of — or None.
-
-    A metric with two ends is its range, which for an accuracy or an error rate
-    is the [0, 1] DynaBO's threshold was tuned on. One without is measured from
-    its best end to what a model that knows nothing scores on this experiment's
-    validation rows, the same score a failed trial is given. An experiment
-    whose data is not here falls back to the spread of the scores its trials
-    reached.
-    """
-    from core.optimizers.trial import _null_scores
-
-    metric = result.metric(metric_name)
-    found = metric_scale(metric)
-    if found is not None:
-        return found
-    try:
-        built = io.build_experiment(snapshot_adapter.snapshot_from_experiment(exp),
-                                    METRICS, MODELS, OPTIMIZERS, load_model=False)[1]
-        null = _null_scores({metric_name: metric}, built["splits"])[metric_name]
-        found = metric_scale(metric, null)
-    except Exception as error:  # noqa: BLE001 — the fallback below still answers
-        logger.info("No null score for %s: %s", metric_name, error)
-    if found is not None:
-        return found
-    scores = [t.scores.get(metric_name) for t in result.trials]
-    scores = [float(v) for v in scores if v is not None and np.isfinite(v)]
-    spread = max(scores) - min(scores) if scores else 0.0
-    return spread if spread > 0 else None
-
-
-#: β as a fraction of the trial budget, which is how the literature states it.
-#: πBO sets β = N/10 and DynaBO keeps that, ablating β ∈ {N/50, N/25, N/10,
-#: N/5, N/2.5} in its Appendix F.9 — ratios 0.02 to 0.4. Stored as the ratio
-#: rather than as β itself so it means the same thing across budgets: a prior
-#: exported from a 50-trial run and reopened in a 200-trial one keeps its
-#: strength *relative to the run*, which is what the parameterisation says.
-#:
-#: The bounds are the ablated range, opened a little at each end. Narrower
-#: would refuse a value the paper itself evaluated; much wider is meaningless,
-#: since `PolynomialDecay` needs β > 0 and a ratio near one leaves the
-#: exponent above one for most of the run — a prior that never fades.
-BETA_RATIO_MIN, BETA_RATIO_MAX = 0.01, 0.5
-
-#: What the field opens on: πBO's ratio, the one DynaBO settled on after the
-#: ablation. Its own summary is that "one can make a case for multiple values" —
-#: larger β helps an accurate prior and hurts a misleading one, monotonically in
-#: both directions — so this is a default and not a recommendation.
-BETA_RATIO_DEFAULT = 0.1
-
-#: The ablated grid, named so the figure can mark it and a reader can see which
-#: values were actually measured rather than merely allowed.
-BETA_RATIOS_ABLATED = (0.02, 0.04, 0.1, 0.2, 0.4)
-
-
-def beta_for(exp, stated_ratio=None, at_trial=0):
-    """β itself: the ratio times this run's trial budget.
-
-    Resolved at apply time rather than stored, because the ratio is the part
-    that carries meaning between runs. Note the budget here is the *configured*
-    one, fixed for a run — not the count of finished trials, which grows and
-    once cancelled the step count it divides, drawing a decaying prior getting
-    stronger.
-    """
-    ratio = BETA_RATIO_DEFAULT if stated_ratio is None else float(stated_ratio)
-    ratio = min(max(ratio, BETA_RATIO_MIN), BETA_RATIO_MAX)
-    return max(_run_budget(exp, at_trial) * ratio, 1e-6)
-
-
-def _decay_record(stated, exp, at_trial):
-    """The schedule and its factor, as `{"shape": ..., "beta_ratio": ...}`.
-
-    Nested rather than flat keys because a Beta prior's shape parameters are α
-    and β: a top-level `beta` beside `params: {alpha, beta}` would be two
-    different βs in one record, which is a bug waiting on whoever reads it next.
-
-    Accepts a bare shape string, and a `beta` given absolutely, so priors
-    stated before this still load — an absolute β is turned back into the ratio
-    it represents for this run's budget.
-    """
-    if isinstance(stated, str) or stated is None:
-        shape, ratio = (stated or "none"), None
-    else:
-        stated = stated or {}
-        shape = stated.get("shape") or "none"
-        ratio = stated.get("beta_ratio")
-        if ratio is None and stated.get("beta") is not None:
-            budget = _run_budget(exp, at_trial) or 1
-            ratio = float(stated["beta"]) / budget
-
-    if ratio is None:
-        ratio = BETA_RATIO_DEFAULT
-    return {"shape": shape,
-            "beta_ratio": min(max(float(ratio), BETA_RATIO_MIN), BETA_RATIO_MAX)}
-
-
-def _prior_density(stated, positions, span):
-    """A stated prior's density at *positions*, or None if it states nothing.
-
-    The only place a prior's density is computed. The browser used to evaluate
-    it as well, in JavaScript, so a drag could redraw at pointer speed — and
-    that second implementation was the problem: two Gaussians that had to agree
-    forever, where a disagreement would not raise but would weight the search by
-    one shape while the reader watched another.
-
-    Nothing needs it in the browser now. Only the freeform prior is editable on
-    the panel, and every shape with parameters is set through fields that
-    already round-trip, so the density crosses in the same response.
-
-    *positions* are in vectorized space and *span* is the axis they are drawn
-    on; `core.priors` states every distribution on the unit interval, so the
-    axis is normalized here. That is the one conversion in the system, and it is
-    arithmetic rather than a distribution — which is also why a log-scaled
-    hyperparameter needs no special case: its vectorized axis is log space
-    already, so a Gaussian on it is the log-normal it deserves.
-    """
-    from core.priors import density_from
-
-    if not stated or not positions:
-        return None
-    lo, width = span[0], (span[1] - span[0]) or 1.0
-    unit = [(float(x) - lo) / width for x in positions]
-    values = density_from(stated.get("kind"), stated.get("params") or {}, unit)
-    return [y for _, y in values] if values else None
-
-
-def _prior_densities(stated, meta):
-    """The density everywhere this figure needs it: the slice grid and the cloud.
-
-    Both in one payload because both are functions of the same prior, and a
-    second request for the second would be a second chance to disagree.
-    """
-    span = meta.get("span") or [0.0, 1.0]
-    cloud = (meta.get("cloud") or {}).get("positions") or []
-    return {"grid": _prior_density(stated, meta.get("positions") or [], span),
-            "cloud": _prior_density(stated, cloud, span)}
-
-
 def _next_trials(exp, anchor_hp=None):
     """What this run's optimizer would ask for next, in its own rank order, as
     `(config_space, [(config, origin, walk), ...])` — or None where it cannot be
@@ -1424,11 +1289,11 @@ def _next_trials(exp, anchor_hp=None):
     the walk weights by the same exponent that prior's figure is drawing. Left
     out, it is the most recently stated prior, or the run as it stands.
     """
-    built = _rebuild_experiment(exp)
+    built = rebuild_experiment(exp)
     result = built["result"] if built else None
     if result is None or not result.trials:
         return None
-    config_space = _config_space_for(built)
+    config_space = config_space_for(built)
     if config_space is None:
         return None
 
@@ -1450,7 +1315,7 @@ def _next_trials(exp, anchor_hp=None):
         config_space, result.trials, metric, built["seed"],
         priors=priors or None, previous_result=result,
         projected_priors=exp.data.projected_priors or None,
-        budget=_run_budget(exp, int(at_trial or len(result.trials))), with_walks=True)
+        budget=prior_service.run_budget(exp, int(at_trial or len(result.trials))), with_walks=True)
     if not asked:
         return None
     configs, origins, walks = asked
@@ -1511,42 +1376,6 @@ def _plain(value):
     """A configuration value as JSON sees it — numpy scalars are not."""
     item = getattr(value, "item", None)
     return item() if callable(item) else value
-
-
-def _initial_design_notice(result):
-    """How much of this run was drawn before anything was being optimized.
-
-    The initial design runs before a surrogate exists, so nothing the reader
-    states on this figure can reach it — not a prior, not a constraint. In a
-    prior probe the first six trials came out identical with and without a
-    prior, for exactly this reason. A figure offering a prior while the run is
-    still in that phase should say so rather than let it be discovered.
-
-    The size is *read*, never counted from the trials. That refusal has
-    regression tests behind it
-    (`tests/core/test_initial_points.py::test_the_size_does_not_come_from_counting_what_the_trials_say`)
-    for two reasons: the model's default configuration carries an
-    initial-design origin while sitting outside `n_configs`, and files written
-    before origins existed label every trial with the optimizer's name. So the
-    only trustworthy source is the scenario meta the run left behind, lifted
-    onto the result by `deserialize_result`.
-
-    None when there is no recorded size — random search, grid search, an
-    imported file with no `scenario.json`. Guessing is the thing the test above
-    forbids, and a banner is not worth inventing a number for.
-    """
-    recorded = ((getattr(result, "metadata", None) or {})
-                .get("initial_design") or {})
-    n_configs = recorded.get("n_configs")
-    if n_configs is None:
-        return None
-
-    # The design's own count plus whatever was pinned alongside it. SMAC keeps
-    # `use_default_config`'s configuration in `additional_configs`, outside
-    # `n_configs`, and it is drawn in the same model-free phase.
-    size = max(1, int(n_configs)) + len(recorded.get("additional_configs") or [])
-    return {"size": size, "trials": len(result.trials),
-            "name": recorded.get("name") or "", "done": len(result.trials) >= size}
 
 
 #: Figures built but not sent. The surrogate panel is switched off — see the
@@ -1619,9 +1448,9 @@ def acquisition_slice(request, exp):
     if metric not in exp.data.metric_names:
         return HttpResponseBadRequest("unknown metric")
 
-    built = _rebuild_experiment(exp)
+    built = rebuild_experiment(exp)
     result = built["result"] if built else None
-    config_space = _config_space_for(built)
+    config_space = config_space_for(built)
     if config_space is None:
         return JsonResponse({"figure": None, "warning": _(
             "The model this experiment used is not available here, so its "
@@ -1660,16 +1489,16 @@ def acquisition_slice(request, exp):
             # flat acquisition function as though it were a finding.
             "figures": {"prior": _plot_json(figures["prior"])},
             "meta": {k: v for k, v in meta.items() if k != "cloud"},
-            "insideDesign": _inside_initial_design(result),
+            "insideDesign": prior_math.inside_initial_design(result),
             "warning": "",
             # Zero trials when there has never been a run, which is the honest
             # step count: nothing has happened to this belief yet.
-            "prior": _decayed_prior(exp, hp_name,
+            "prior": prior_service.decayed_prior(exp, hp_name,
                                     len(result.trials) if result else 0,
-                                    _inside_initial_design(result)),
-            "betaRatioDefault": BETA_RATIO_DEFAULT,
-            "betaRatiosAblated": list(BETA_RATIOS_ABLATED),
-            "density": {"grid": _prior_density(stated, positions,
+                                    prior_math.inside_initial_design(result)),
+            "betaRatioDefault": prior_math.BETA_RATIO_DEFAULT,
+            "betaRatiosAblated": list(prior_math.BETA_RATIOS_ABLATED),
+            "density": {"grid": prior_math.prior_density(stated, positions,
                                                meta.get("span") or [0.0, 1.0]),
                         "cloud": None},
         })
@@ -1686,112 +1515,17 @@ def acquisition_slice(request, exp):
                                      if name not in _NOT_SHIPPED},
                          "meta": meta,
                          "warning": sliced.warning or _weighting_warning(exp),
-                         "initialDesign": _initial_design_notice(result),
-                         "insideDesign": _inside_initial_design(result),
-                         "prior": _decayed_prior(exp, hp_name, len(result.trials),
-                                                 _inside_initial_design(result)),
+                         "initialDesign": prior_math.initial_design_notice(result),
+                         "insideDesign": prior_math.inside_initial_design(result),
+                         "prior": prior_service.decayed_prior(exp, hp_name, len(result.trials),
+                                                 prior_math.inside_initial_design(result)),
                          # What the β field should open on when nothing is
                          # stated yet: DynaBO's own initialisation.
-                         "betaRatioDefault": BETA_RATIO_DEFAULT,
-                         "betaRatiosAblated": list(BETA_RATIOS_ABLATED),
+                         "betaRatioDefault": prior_math.BETA_RATIO_DEFAULT,
+                         "betaRatiosAblated": list(prior_math.BETA_RATIOS_ABLATED),
                          # So the first draw needs no second request.
-                         "density": _prior_densities(
+                         "density": prior_math.prior_densities(
                              (exp.data.priors or {}).get(hp_name), meta)})
-
-
-def _inside_initial_design(result) -> bool:
-    """Whether a belief stated now would be stated before the search starts.
-
-    True for an experiment that has never been run, and for one still drawing
-    its initial design. Both are the same situation for a prior: the design is
-    drawn before any surrogate exists, so nothing stated can reach those trials
-    — see `_initial_design_notice`.
-
-    False when there is no recorded design size but there are trials, which is
-    random or grid search or a file from somebody else's output. Those have no
-    design phase to be inside of, and guessing one is what
-    `_initial_design_notice` already refuses to do.
-    """
-    if result is None or not result.trials:
-        return True
-    notice = _initial_design_notice(result)
-    return bool(notice and not notice["done"])
-
-
-def _run_budget(exp, offset):
-    """The budget a run starting at *offset* trials would be given.
-
-    Taken from the most recent run's own trial cap, because that is where the
-    cap lives — an experiment has no budget of its own, each run is started with
-    one. A run bounded by a deadline or a target score instead has no cap, and
-    `scenario_budget` substitutes the same stand-in the run itself would use.
-
-    *offset* is where the prior was stated, not how many trials have since
-    finished. That distinction is the whole of the decay: β is fixed at the
-    anchor and only the step count moves, so the exponent falls. Passing the
-    live count instead grows β and the denominator together, and the prior
-    stops fading — which is what this did before, and it drew a decaying prior
-    getting stronger.
-    """
-    from core.optimizers.smac_optimizer import scenario_budget
-
-    last = exp.runs.order_by("-pk").first()
-    return scenario_budget(offset, (last.stopping or {}).get("max_trials") if last else None)
-
-
-def _decayed_prior(exp, hp_name, trials, inside_design=False):
-    """What was stated, and how strongly it still counts.
-
-    A prior does not weight the acquisition by its own density but by that
-    density raised to a decay exponent, which shrinks as the run proceeds. The
-    figure draws what the search would actually weight by *now*, so the exponent
-    is computed here against the current trial count rather than pinned at one.
-
-    Computed server-side because the schedules are SMAC's — reimplementing six
-    curves in the browser would be a second definition of a decay to keep in
-    step with the first. One number crosses instead.
-    """
-    return _decayed(exp, (exp.data.priors or {}).get(hp_name), trials, inside_design)
-
-
-def _decayed(exp, stated, trials, inside_design=False):
-    """`_decayed_prior` for any stated belief with a `decay` and an `at_trial`
-    — a hyperparameter's, or one drawn in the configuration cube."""
-    if not stated:
-        return None
-
-    out = dict(stated)
-    at_trial = int(stated.get("at_trial") or 0)
-    decay = _decay_record(stated.get("decay"), exp, at_trial)
-    shape = decay["shape"]
-    beta = beta_for(exp, decay["beta_ratio"], at_trial)
-    out["decay"] = decay
-    # The resolved β alongside the ratio, so the figure can show what the
-    # schedule is actually using without multiplying the budget itself.
-    out["beta"] = beta
-    steps = max(trials - int(stated.get("at_trial") or 0), 0)
-    try:
-        from smac.acquisition.weight import get_decay_schedule
-
-        # β as stated, not as derived. Reading it off the budget on every
-        # request made it grow with the run, which cancelled the step count it
-        # divides and drew a decaying prior getting stronger.
-        out["exponent"] = float(get_decay_schedule(shape, beta).exponent(steps))
-    except ImportError:
-        # No weight layer, so nothing decays anything — and `_weighting_warning`
-        # is already telling the reader the prior cannot bite at all.
-        out["exponent"] = 1.0
-    out["steps"] = steps
-    # Stated to wait, and the wait is not over: the belief has not started
-    # counting, so it has not started fading either. Reported rather than
-    # quietly computed as 1, because the page says which of the two it is —
-    # "not yet counting" and "counting in full" look identical as a number and
-    # mean different things about what happens next.
-    if stated.get("delay_decay") and inside_design:
-        out["exponent"] = 1.0
-        out["steps"] = 0
-        out["delayed"] = True
-    return out
 
 
 def _weighting_warning(exp):
@@ -1837,12 +1571,12 @@ def surrogate_uncertainty(request, exp):
     if metric not in exp.data.metric_names:
         return HttpResponseBadRequest("unknown metric")
 
-    built = _rebuild_experiment(exp)
+    built = rebuild_experiment(exp)
     result = built["result"] if built else None
     if result is None or not result.trials:
         return HttpResponseBadRequest("no result")
 
-    config_space = _config_space_for(built)
+    config_space = config_space_for(built)
     if config_space is None:
         return JsonResponse({
             "x": [], "y": [], "z": [],
@@ -1875,7 +1609,7 @@ def local_effects(request, exp):
     if metric not in exp.data.metric_names:
         return HttpResponseBadRequest("unknown metric")
 
-    built = _rebuild_experiment(exp)
+    built = rebuild_experiment(exp)
     if built is None or built["result"] is None or not built["result"].trials:
         return HttpResponseBadRequest("no result")
     try:
@@ -1922,14 +1656,14 @@ def metric_figures(request, exp):
     if metric not in exp.data.metric_names:
         return HttpResponseBadRequest("unknown metric")
 
-    built = _rebuild_experiment(exp)
+    built = rebuild_experiment(exp)
     result = built["result"] if built else None
     if result is None or not result.trials:
         return HttpResponseBadRequest("no result")
 
     per_metric = [f for f in _shown_figures(exp) if f.per_metric]
     return JsonResponse(_figure_plots(result, per_metric, metric,
-                                      config_space=_config_space_for(built)))
+                                      config_space=config_space_for(built)))
 
 
 @experiment_view(VIEW)
@@ -1947,11 +1681,11 @@ def surrogate_prediction(request, exp):
     if metric not in exp.data.metric_names:
         return HttpResponseBadRequest("unknown metric")
 
-    built = _rebuild_experiment(exp)
+    built = rebuild_experiment(exp)
     result = built["result"] if built else None
     if result is None or not result.trials:
         return HttpResponseBadRequest("no result")
-    config_space = _config_space_for(built)
+    config_space = config_space_for(built)
     if config_space is None:
         return JsonResponse({
             "values": [], "warning": _("The model this experiment used is not "
@@ -1978,13 +1712,13 @@ def surrogate_prediction(request, exp):
     # exponent its decay has reached. The page interpolates each sample's own
     # position from these, and swaps one in as the acquisition figure edits it.
     priors = {}
-    inside = _inside_initial_design(result)
+    inside = prior_math.inside_initial_design(result)
     for name in config_space.keys():
-        decayed = _decayed_prior(exp, name, len(result.trials), inside)
+        decayed = prior_service.decayed_prior(exp, name, len(result.trials), inside)
         if not decayed or decayed.get("kind") in (None, "uniform"):
             continue
         _grid, positions, kind = optimizer.slice_axis(config_space, name)
-        density = _prior_density(decayed, positions, slice_span(positions, kind))
+        density = prior_math.prior_density(decayed, positions, slice_span(positions, kind))
         if density:
             priors[name] = {"positions": positions, "density": density,
                             "exponent": decayed["exponent"],
@@ -2021,13 +1755,13 @@ def hypershap_figures(request, exp):
     if not idx_raw.isdigit():
         return HttpResponseBadRequest("invalid trial index")
 
-    built = _rebuild_experiment(exp)
+    built = rebuild_experiment(exp)
     result = built["result"] if built else None
     idx = int(idx_raw)
     if result is None or idx >= len(result.trials):
         return HttpResponseBadRequest("invalid trial index")
 
-    config_space = _config_space_for(built)
+    config_space = config_space_for(built)
     if config_space is None:
         reason = _("HyperSHAP needs the search space, which this experiment "
                    "does not carry and has no model to ask.")
@@ -2104,7 +1838,7 @@ def experiment_run(request, exp):
 def _stored_trial_count(exp) -> int:
     """How many trials *exp*'s saved result holds, without rebuilding it.
 
-    Read straight off the JSON rather than through `_rebuild_experiment`,
+    Read straight off the JSON rather than through `rebuild_experiment`,
     because this is polled every two seconds and the answer is usually "the same
     as last time" — the whole point of asking is to decide whether it is worth
     doing any of the expensive work at all.
@@ -2170,14 +1904,14 @@ def _live_payloads(exp, since: int = 0):
     Shaped to match the page's own two payload maps, so the browser merges
     rather than translates: `metric_plots[metric][key]` and `static_plots[key]`.
     """
-    built = _rebuild_experiment(exp)
+    built = rebuild_experiment(exp)
     result = built["result"] if built else None
     if result is None or not result.trials:
         return {}
 
     shown = _shown_figures(exp)
     live = [f for f in shown if f.live]
-    config_space = _config_space_for(built)
+    config_space = config_space_for(built)
     per_metric = [f for f in live if f.per_metric]
     static = [f for f in live if not f.per_metric]
     payload = {
@@ -2314,7 +2048,7 @@ def experiment_compute_analytics(request, exp):
     if exp.is_running:
         return redirect("ui:experiment_detail", pk=exp.pk)
 
-    built = _rebuild_experiment(exp)
+    built = rebuild_experiment(exp)
     result = built["result"] if built else None
     if result is None or not result.trials:
         return redirect("ui:experiment_detail", pk=exp.pk)
@@ -2322,7 +2056,7 @@ def experiment_compute_analytics(request, exp):
     optimizer = built["optimizer"]
     optimizer.analytics_max_coalitions = settings.ANALYTICS_EAGER_MAX_COALITIONS or None
     games = optimizer.compute_hp_games(
-        _config_space_for(built), result.trials, built["metrics"], seed=built["seed"])
+        config_space_for(built), result.trials, built["metrics"], seed=built["seed"])
 
     for game, fields in HP_GAME_FIELDS.items():
         importance, warning, interactions, moebius, total = games[game]
@@ -2581,7 +2315,7 @@ def _picked_trial(request, exp):
     result's trials, as every figure names one; without them the best on the
     metric being viewed — as (result, trial, metric), or the response refusing
     the request."""
-    result = _rebuild_result(exp)
+    result = rebuild_result(exp)
     if result is None or not result.trials:
         raise Http404("no trials to export")
     metric = request.GET.get("metric") or exp.data.current_metric or exp.data.metric_names[0]
@@ -3163,41 +2897,12 @@ def _import_smac_directory(request, context):
     return redirect("ui:experiment_detail", pk=exp.pk)
 
 
-def _rebuild_experiment(exp):
-    """Rebuild the full `build_experiment` dict from a saved experiment's
-    snapshot (read-only — no dataset needed), or None if it can't be rebuilt
-    (e.g. it names a metric/optimizer no longer available).
-
-    For callers that need more than the result — the model (for its config
-    space) and the optimizer instance, both needed to compute a local
-    explanation on demand, which nothing pre-stored on the result can answer.
-    Read-only still resolves a registry model (only a custom upload's file
-    goes unread), so `built["model"]` is None only for those.
-    """
-    try:
-        _, built = io.build_experiment(
-            snapshot_adapter.snapshot_from_experiment(exp),
-            METRICS, MODELS, OPTIMIZERS, read_only=True,
-        )
-    except ValueError:
-        return None
-    return built
-
-
-def _rebuild_result(exp):
-    """Rebuild the OptimizationResult from a saved experiment's snapshot
-    (read-only — no dataset or live model needed), or None if it can't be
-    rebuilt (e.g. it names a metric/optimizer no longer available)."""
-    built = _rebuild_experiment(exp)
-    return built["result"] if built else None
-
-
 def _local_ablation_data(built, metric, idx, baseline=None):
     """The local-ablation figure + warning for one (metric, trial index) —
     HyperSHAP's `ablation` game, explaining that one trial's configuration
     against the trial at index *baseline*, or against the config space's
     default when that is None, rather than a global share like the other three
-    games. `built` is `_rebuild_experiment`'s full dict, since this needs the
+    games. `built` is `rebuild_experiment`'s full dict, since this needs the
     search space and the optimizer instance, neither of which the stored result
     carries.
 
@@ -3208,10 +2913,10 @@ def _local_ablation_data(built, metric, idx, baseline=None):
     are the signed per-hyperparameter values the figure is drawn from, in the
     metric's own units, which `_tuning_progress` needs and which cannot be read
     back out of the figure. The figure is None (with a warning) when there is no
-    search space to be had — see `_config_space_for` for the two places one can
+    search space to be had — see `config_space_for` for the two places one can
     come from.
     """
-    config_space = _config_space_for(built)
+    config_space = config_space_for(built)
     if config_space is None:
         return None, _("Local explanation needs the search space, which this "
                        "experiment does not carry and has no model to ask."), {}
@@ -3333,7 +3038,7 @@ def _partial_dependence_data(built, metric, hp_name, max_ice_curves=0):
     Returns (figure_json_or_None, warning_or_None). The figure is None (with
     a warning) when there is no search space to be had.
     """
-    config_space = _config_space_for(built)
+    config_space = config_space_for(built)
     if config_space is None:
         return None, _("Partial dependence needs the search space, which this "
                        "experiment does not carry and has no model to ask.")
@@ -3371,29 +3076,6 @@ def _figure_options(figure, result, metric_names):
                  for name in metric_names}
         scale = {name: views for name, views in scale.items() if views} or None
     return {"absoluteScale": scale, "perMetric": figure.per_metric}
-
-
-def _config_space_for(built):
-    """*built*'s search space, or None when there is nothing to build one from.
-
-    The stored `space` section first, the model second. Two sources because
-    neither covers everything: an experiment run here can always ask its model,
-    while a run read out of somebody else's output has no model at all — and a
-    custom-model experiment viewed read-only cannot ask either, which is what
-    the stored section fixes for it.
-
-    None is a supported answer throughout. The figures declaring
-    `needs_config_space` fall back to linear axes rather than refusing to draw
-    (see `Figure.needs_config_space`), and the three that genuinely cannot
-    proceed say so in a caption.
-    """
-    built = built or {}
-    stored = io.config_space_from_serialized(built.get("config_space"),
-                                             seed=built.get("seed", 0))
-    if stored is not None:
-        return stored
-    model = built.get("model")
-    return model.get_config_space(seed=built["seed"]) if model is not None else None
 
 
 def _hp_names(result) -> list:
@@ -3471,7 +3153,7 @@ def _local_effects_data(built, metric, max_trials=0, baseline=None):
     search space, not just the stored result, and it is the one figure whose
     cost is per *trial*, which is what `max_trials` bounds.
     """
-    config_space = _config_space_for(built)
+    config_space = config_space_for(built)
     if config_space is None:
         return None, _("Local effects need the search space, which this "
                        "experiment does not carry and has no model to ask.")
@@ -3541,7 +3223,7 @@ def _prior_only_context(exp, built):
     nothing, so the caller needs no second branch.
     """
     figure = next((f for f in _shown_figures(exp) if f.key == "prior"), None)
-    config_space = _config_space_for(built)
+    config_space = config_space_for(built)
     if figure is None or config_space is None:
         return {}
     return {
@@ -3549,8 +3231,8 @@ def _prior_only_context(exp, built):
         # From the space rather than from a trial's configuration, which is the
         # whole point: there are no trials.
         "hp_names": list(config_space.keys()),
-        "beta_min": BETA_RATIO_MIN,
-        "beta_max": BETA_RATIO_MAX,
+        "beta_min": prior_math.BETA_RATIO_MIN,
+        "beta_max": prior_math.BETA_RATIO_MAX,
         **_prior_judging_context(exp),
     }
 
@@ -3676,7 +3358,7 @@ def experiment_header(request, exp, result=_UNBUILT):
     otherwise it is rebuilt here.
     """
     if result is _UNBUILT:
-        result = _rebuild_result(exp)
+        result = rebuild_result(exp)
     last_run = exp.runs.order_by("-id").first()
 
     run_summary = None
@@ -3752,7 +3434,7 @@ def _detail_context(request, exp):
     when present, builds the panels and per-metric figures for whichever figures
     the settings have switched on; the browser switches metrics client-side.
     """
-    built = _rebuild_experiment(exp)
+    built = rebuild_experiment(exp)
     result = built["result"] if built else None
     metric_names = list(exp.data.metric_names)
     active_run = exp.runs.filter(status__in=_ACTIVE).order_by("-id").first()
@@ -3899,7 +3581,7 @@ def _detail_context(request, exp):
     # already use; see `metric_figures` and experiment_detail.html's `show`.
     # Metric-independent figures are still drawn once, here.
     opening_metric = context["run_default_metric"]
-    config_space = _config_space_for(built)
+    config_space = config_space_for(built)
     # The priors drawn in the configuration cube, as their card lists them.
     context["projected_priors"] = [projected.summary(record, config_space)
                                    for record in exp.data.projected_priors or []]
@@ -3974,8 +3656,8 @@ def _detail_context(request, exp):
         hp_names=hp_names,
         # Bounds for the acquisition figure's β field. Constants rather than
         # anything this experiment decided, so they are declarations.
-        beta_min=BETA_RATIO_MIN,
-        beta_max=BETA_RATIO_MAX,
+        beta_min=prior_math.BETA_RATIO_MIN,
+        beta_max=prior_math.BETA_RATIO_MAX,
         # Whether the importance figure offers "still to gain" at all. The
         # server already returns nothing for it when off, which would leave the
         # box and the table's three columns there offering an answer that never

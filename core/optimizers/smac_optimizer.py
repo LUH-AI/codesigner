@@ -979,7 +979,7 @@ class SMACOptimizer(BaseOptimizer):
             if name not in config_space:
                 continue
             # One implementation, here. The figure asks the server for the
-            # same density through `ui.views._prior_density`, so what is
+            # same density through `core.priors.prior_density`, so what is
             # weighted by and what is drawn come from one function — including
             # for a log-scaled hyperparameter, where the vectorized axis is
             # log space and a Gaussian on it is the log-normal such a

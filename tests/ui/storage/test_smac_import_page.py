@@ -129,10 +129,10 @@ def test_the_page_does_not_invent_an_evaluation_scheme():
 
 def test_every_trial_based_figure_draws():
     """The claim the config-space hoist was for."""
-    from ui.views import _config_space_for, _rebuild_experiment
+    from experiments.services.snapshot import config_space_for, rebuild_experiment
 
-    built = _rebuild_experiment(_imported())
-    space = _config_space_for(built)
+    built = rebuild_experiment(_imported())
+    space = config_space_for(built)
     assert space is not None
 
     drew = {}
@@ -176,9 +176,10 @@ def test_the_explanation_is_oriented_to_the_cost():
     and the best configuration's best hyperparameter reads as the one that hurt
     it most.
     """
-    from ui.views import _local_ablation_data, _rebuild_experiment
+    from experiments.services.snapshot import rebuild_experiment
+    from ui.views import _local_ablation_data
 
-    built = _rebuild_experiment(_imported())
+    built = rebuild_experiment(_imported())
     best = built["result"].best_index(COST)
 
     _figure, warning, effects = _local_ablation_data(built, COST, best)

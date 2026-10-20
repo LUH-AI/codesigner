@@ -36,7 +36,7 @@ def test_a_mixed_file_runs_every_trial_and_exports_its_encoding(client, model_na
     random-search trials, checks none of them failed, then reads `COLUMNS`
     and `PROCESSING` out of the exported file."""
     from experiments.models import Experiment
-    from ui.views import _rebuild_result
+    from experiments.services.snapshot import rebuild_result
 
     assert _create(client, f"flats {model_name}", model_name).status_code == 302
     exp = Experiment.objects.get(data__name=f"flats {model_name}")
@@ -45,7 +45,7 @@ def test_a_mixed_file_runs_every_trial_and_exports_its_encoding(client, model_na
                 {"max_trials": 4, "optimize_metric": "accuracy"})
     exp.refresh_from_db()
 
-    result = _rebuild_result(exp)
+    result = rebuild_result(exp)
     assert len(result.trials) == 4
     assert not any(t.failed for t in result.trials), [t.run_info for t in result.trials]
     assert all(t.scores["accuracy"] > 0.5 for t in result.trials)

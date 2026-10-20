@@ -296,9 +296,9 @@ def test_the_projection_carries_failure_marks_at_all(client, experiment):
     """Every view of it. The server has to send them before anything can keep
     them, and this is the figure the marks were missing from."""
     from ui.figures.plots import configuration_cube_plot
-    from ui.views import _rebuild_experiment
+    from experiments.services.snapshot import rebuild_experiment
 
-    result = _rebuild_experiment(experiment)["result"]
+    result = rebuild_experiment(experiment)["result"]
     figure = configuration_cube_plot(result, "accuracy")
 
     symbols = list(figure.data[0].marker.symbol)
@@ -500,9 +500,9 @@ def test_the_three_d_trace_the_page_builds_is_one_plotly_accepts(experiment):
     import plotly.graph_objects as go
 
     from ui.figures.plots import configuration_cube_plot
-    from ui.views import _rebuild_experiment
+    from experiments.services.snapshot import rebuild_experiment
 
-    result = _rebuild_experiment(experiment)["result"]
+    result = rebuild_experiment(experiment)["result"]
     marker = configuration_cube_plot(result, "accuracy").data[0].marker.to_plotly_json()
     assert isinstance(marker["line"]["width"], (list, tuple)), "no failures to carry"
 
@@ -519,9 +519,9 @@ def test_the_same_payload_is_rejected_without_that_transformation(experiment):
     import plotly.graph_objects as go
 
     from ui.figures.plots import configuration_cube_plot
-    from ui.views import _rebuild_experiment
+    from experiments.services.snapshot import rebuild_experiment
 
-    result = _rebuild_experiment(experiment)["result"]
+    result = rebuild_experiment(experiment)["result"]
     marker = configuration_cube_plot(result, "accuracy").data[0].marker.to_plotly_json()
     points = list(range(len(result.trials)))
 

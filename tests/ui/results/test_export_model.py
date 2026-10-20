@@ -36,13 +36,13 @@ def test_the_selected_trial_is_exported(client):
     """What: the file is an attachment named for the model and trial, holding
     that trial's configuration. How: exports index 3 and compares
     HYPERPARAMETERS with the stored trial."""
-    from ui.views import _rebuild_result
+    from experiments.services.snapshot import rebuild_result
 
     exp = _experiment()
     resp = client.get(_url(exp, metric="accuracy", idx=3))
 
     assert resp.status_code == 200
-    trial = _rebuild_result(exp).trials[3]
+    trial = rebuild_result(exp).trials[3]
     assert f'filename="random-forest-trial-{trial.trial}.py"' in resp["Content-Disposition"]
     assert _config(resp.content.decode()) == dict(trial.config)
 
@@ -50,13 +50,13 @@ def test_the_selected_trial_is_exported(client):
 def test_without_a_selection_the_best_trial_is_exported(client):
     """What: with no parameters the file holds the best trial on the current
     metric. How: compares with index 8, the fixture's best by accuracy."""
-    from ui.views import _rebuild_result
+    from experiments.services.snapshot import rebuild_result
 
     exp = _experiment()
     resp = client.get(_url(exp))
 
     assert resp.status_code == 200
-    assert _config(resp.content.decode()) == dict(_rebuild_result(exp).trials[8].config)
+    assert _config(resp.content.decode()) == dict(rebuild_result(exp).trials[8].config)
 
 
 @pytest.mark.parametrize("params", [{"metric": "nope", "idx": 0},

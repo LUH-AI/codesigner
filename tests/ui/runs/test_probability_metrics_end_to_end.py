@@ -38,7 +38,7 @@ def test_a_model_with_probabilities_is_scored_on_them(client):
     AUC measures every trial. How: creates iris with LightGBM, runs three
     trials on roc_auc, and reads the scores back."""
     from experiments.models import Experiment
-    from ui.views import _rebuild_result
+    from experiments.services.snapshot import rebuild_result
 
     assert _create(client).status_code == 302
     exp = Experiment.objects.get(data__name="iris")
@@ -47,7 +47,7 @@ def test_a_model_with_probabilities_is_scored_on_them(client):
     client.post(reverse("ui:experiment_run", args=[exp.pk]),
                 {"max_trials": 3, "optimize_metric": "roc_auc"})
     exp.refresh_from_db()
-    result = _rebuild_result(exp)
+    result = rebuild_result(exp)
 
     assert len(result.trials) == 3 and not any(t.failed for t in result.trials)
     # 0.5 is allowed: a configuration whose leaves need more rows than a fold

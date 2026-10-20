@@ -41,8 +41,8 @@ def _experiment_with_skipped_analytics():
 
 
 def _rebuilt_result(exp):
-    from ui.views import _rebuild_experiment
-    return _rebuild_experiment(exp)["result"]
+    from experiments.services.snapshot import rebuild_experiment
+    return rebuild_experiment(exp)["result"]
 
 
 def test_the_detail_page_still_renders(client):

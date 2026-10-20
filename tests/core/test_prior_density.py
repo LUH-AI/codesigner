@@ -1,7 +1,7 @@
 """Rebuilding a prior's density from the numbers that define it.
 
 `core.priors` is the *only* implementation of each density. The figure asks the
-server for its curve through `ui.views._prior_density` and the search gets its
+server for its curve through `core.priors.prior_density` and the search gets its
 table through `SMACOptimizer._apply_priors`, and both come through here — so
 what the reader watches and what the optimizer weights by cannot disagree,
 rather than merely being expected not to.

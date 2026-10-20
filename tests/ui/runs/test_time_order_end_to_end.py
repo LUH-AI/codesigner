@@ -47,7 +47,7 @@ def test_every_trial_validates_on_listings_after_its_training_ones(client):
     trials."""
     from core import encoding
     from experiments.models import Experiment
-    from ui.views import _rebuild_result
+    from experiments.services.snapshot import rebuild_result
 
     assert _create(client).status_code == 302
     exp = Experiment.objects.get(data__name="flats in time")
@@ -62,7 +62,7 @@ def test_every_trial_validates_on_listings_after_its_training_ones(client):
     client.post(reverse("ui:experiment_run", args=[exp.pk]),
                 {"max_trials": 3, "optimize_metric": "accuracy"})
     exp.refresh_from_db()
-    assert not any(t.failed for t in _rebuild_result(exp).trials)
+    assert not any(t.failed for t in rebuild_result(exp).trials)
     page = client.get(reverse("ui:experiment_detail", args=[exp.pk])).content.decode()
     assert "3 time-ordered folds by listed" in page
 

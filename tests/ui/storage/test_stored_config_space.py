@@ -6,7 +6,7 @@ that needs a space reads it before falling back to asking the model.
 
 *How:* a space is built from a registry model and put through each seam in
 turn — the file (`io.save`/`io.parse`), the row (`experiment_from_snapshot` and
-back), and the page (`_config_space_for`) — including the case these exist for:
+back), and the page (`config_space_for`) — including the case these exist for:
 an experiment with **no resolvable model at all**, which before this could
 answer nothing and now answers from the file.
 """
@@ -46,7 +46,7 @@ def test_decoding_does_not_consume_the_stored_dict():
     """Decoding twice works — `from_serialized_dict` pops keys off its input.
 
     The stored dict belongs to a snapshot the caller keeps using, and
-    `_config_space_for` runs several times per page render, so a decode that
+    `config_space_for` runs several times per page render, so a decode that
     destroyed its argument would work once and then raise.
     """
     stored = _a_space()
@@ -108,27 +108,27 @@ def test_an_experiment_without_a_space_writes_no_section():
 
 
 def test_the_page_prefers_the_stored_space_over_the_model(models):
-    """`_config_space_for` reads the file's space before asking the model.
+    """`config_space_for` reads the file's space before asking the model.
 
     The two can legitimately differ — a model whose search space was widened
     since the run — and the trials belong to the one that produced them.
     """
-    from ui.views import _config_space_for
+    from experiments.services.snapshot import config_space_for
 
     model = next(iter(models.values()))
     built = {"model": model, "seed": 0, "config_space": _a_space()}
 
-    assert list(_config_space_for(built).keys()) == ["C", "depth", "kernel"]
+    assert list(config_space_for(built).keys()) == ["C", "depth", "kernel"]
 
 
 def test_the_page_falls_back_to_the_model(models):
     """With no stored space, the model answers — exactly as it always did."""
-    from ui.views import _config_space_for
+    from experiments.services.snapshot import config_space_for
 
     model = next(iter(models.values()))
     built = {"model": model, "seed": 0, "config_space": None}
 
-    from_model = _config_space_for(built)
+    from_model = config_space_for(built)
 
     assert from_model is not None
     assert list(from_model.keys()) == list(model.get_config_space(seed=0).keys())
@@ -141,19 +141,19 @@ def test_a_space_with_no_model_still_answers():
     experiment viewed read-only cannot import the one it has. Before the stored
     space, both answered None here and lost every surrogate-backed figure.
     """
-    from ui.views import _config_space_for
+    from experiments.services.snapshot import config_space_for
 
     built = {"model": None, "seed": 0, "config_space": _a_space()}
 
-    assert list(_config_space_for(built).keys()) == ["C", "depth", "kernel"]
+    assert list(config_space_for(built).keys()) == ["C", "depth", "kernel"]
 
 
 def test_nothing_to_ask_is_still_None():
     """No space and no model stays None — the figures' supported empty answer."""
-    from ui.views import _config_space_for
+    from experiments.services.snapshot import config_space_for
 
-    assert _config_space_for({"model": None, "seed": 0}) is None
-    assert _config_space_for(None) is None
+    assert config_space_for({"model": None, "seed": 0}) is None
+    assert config_space_for(None) is None
 
 
 def test_a_newer_format_is_refused_rather_than_lifted():

@@ -56,12 +56,12 @@ def test_a_run_keeps_the_best_trials_models_and_no_others(client):
     """What: with three to keep, exactly the three best trials by the run's
     metric have a model on disk, each with its note. How: runs six trials and
     compares what was kept with the scores."""
-    from ui.views import _rebuild_result
+    from experiments.services.snapshot import rebuild_result
 
     exp = _create(client, keep_best_trial_models=3)
     _run(client, exp, 6)
 
-    trials = _rebuild_result(exp).trials
+    trials = rebuild_result(exp).trials
     best = sorted(trials, key=lambda t: (-t.score, t.trial))[:3]
     kept = TrialModel.objects.filter(experiment=exp)
     assert sorted(k.trial for k in kept) == sorted(t.trial for t in best)
@@ -91,11 +91,11 @@ def test_the_download_is_the_trials_model_marked_partially_trained(client, tmp_p
     How: downloads the best trial's parameters and loads model.skops."""
     from skops.io import get_untrusted_types, load
 
-    from ui.views import _rebuild_result
+    from experiments.services.snapshot import rebuild_result
 
     exp = _create(client, keep_best_trial_models=2)
     _run(client, exp, 4)
-    result = _rebuild_result(exp)
+    result = rebuild_result(exp)
     idx = result.best_index("accuracy")
 
     response = _download(client, exp, idx)
@@ -150,11 +150,11 @@ def test_a_trial_whose_model_was_not_kept_says_why(client):
     """What: the page's button is disabled for a trial with no kept model and
     says why, and asking anyway is a 404 with the same reason.
     How: keeps one of three, then asks for a trial that is not it."""
-    from ui.views import _rebuild_result
+    from experiments.services.snapshot import rebuild_result
 
     exp = _create(client, keep_best_trial_models=1)
     _run(client, exp, 3)
-    result = _rebuild_result(exp)
+    result = rebuild_result(exp)
     kept = TrialModel.objects.get(experiment=exp).trial
     other = next(i for i, t in enumerate(result.trials) if t.trial != kept)
 
@@ -170,7 +170,7 @@ def test_a_group_without_room_keeps_no_model_and_the_run_still_finishes(
     How: a group whose limit is one byte, a three-trial run."""
     from access.models import Group, Membership
     from experiments.models import Run
-    from ui.views import _rebuild_result
+    from experiments.services.snapshot import rebuild_result
 
     settings.REQUIRE_LOGIN = True
     group = Group.objects.create(name="lab", user_limit=5, storage_limit_bytes=1)
@@ -182,7 +182,7 @@ def test_a_group_without_room_keeps_no_model_and_the_run_still_finishes(
     assert exp.group == group
     _run(client, exp, 3)
 
-    assert len(_rebuild_result(exp).trials) == 3
+    assert len(rebuild_result(exp).trials) == 3
     assert not TrialModel.objects.filter(experiment=exp).exists()
     events = Run.objects.filter(experiment=exp).latest("pk").events
     assert any(e["kind"] == "trial_models_not_kept" and e["count"] >= 1 for e in events)

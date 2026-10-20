@@ -76,14 +76,14 @@ def test_a_regression_run_finds_a_low_error_and_exports_it(client):
     How: runs six random-search trials on RMSE, checks the incumbent is the
     trial with the lowest RMSE, renders the page and downloads the model."""
     from experiments.models import Experiment
-    from ui.views import _rebuild_result
+    from experiments.services.snapshot import rebuild_result
 
     _create(client)
     exp = Experiment.objects.get(data__name="diabetes")
     client.post(reverse("ui:experiment_run", args=[exp.pk]),
                 {"max_trials": 6, "optimize_metric": "rmse"})
 
-    result = _rebuild_result(exp)
+    result = rebuild_result(exp)
     assert len(result.trials) == 6
     rmses = [t.scores["rmse"] for t in result.trials]
     assert all(0 < r < 200 for r in rmses)

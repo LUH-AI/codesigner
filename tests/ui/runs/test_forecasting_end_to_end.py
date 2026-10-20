@@ -32,7 +32,7 @@ def test_a_forecast_is_backtested_and_scored_on_mase(client, model_name):
     model forecasts natively or is a regressor reduced to one.
     How: creates it, runs three trials on MASE, and reads the scores back."""
     from experiments.models import Experiment
-    from ui.views import _rebuild_result
+    from experiments.services.snapshot import rebuild_result
 
     assert _create(client, model_name=model_name).status_code == 302
     exp = Experiment.objects.get(data__name="airline")
@@ -42,7 +42,7 @@ def test_a_forecast_is_backtested_and_scored_on_mase(client, model_name):
     client.post(reverse("ui:experiment_run", args=[exp.pk]),
                 {"max_trials": 3, "optimize_metric": "mase"})
     exp.refresh_from_db()
-    trials = _rebuild_result(exp).trials
+    trials = rebuild_result(exp).trials
 
     assert len(trials) == 3 and not any(t.failed for t in trials), [t.run_info for t in trials]
     assert all(0 < t.scores["mase"] < 5 and 0 < t.scores["smape"] < 60 for t in trials)
@@ -154,7 +154,7 @@ def test_a_classification_is_forecast_too(client):
     from django.core.files.uploadedfile import SimpleUploadedFile
 
     from experiments.models import Experiment
-    from ui.views import _rebuild_result
+    from experiments.services.snapshot import rebuild_result
 
     frame = pd.read_csv(AIRLINE)
     frame["busier"] = np.where(frame.pop("passengers").diff() > 0, "yes", "no")
@@ -169,7 +169,7 @@ def test_a_classification_is_forecast_too(client):
     client.post(reverse("ui:experiment_run", args=[exp.pk]),
                 {"max_trials": 2, "optimize_metric": "accuracy"})
     exp.refresh_from_db()
-    trials = _rebuild_result(exp).trials
+    trials = rebuild_result(exp).trials
 
     assert len(trials) == 2 and not any(t.failed for t in trials), [t.run_info for t in trials]
     assert all(0.5 < t.scores["accuracy"] <= 1 for t in trials)

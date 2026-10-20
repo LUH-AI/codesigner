@@ -37,9 +37,9 @@ def _page(client, exp):
 
 
 def _hp(exp):
-    from ui.views import _config_space_for, _rebuild_experiment
+    from experiments.services.snapshot import config_space_for, rebuild_experiment
 
-    return list(_config_space_for(_rebuild_experiment(exp)).keys())[0]
+    return list(config_space_for(rebuild_experiment(exp)).keys())[0]
 
 
 # ── the page ─────────────────────────────────────────────────────────────────

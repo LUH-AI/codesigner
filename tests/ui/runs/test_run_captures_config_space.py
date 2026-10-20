@@ -47,22 +47,22 @@ def test_a_run_stores_the_search_space():
 
 
 def test_the_stored_space_reaches_the_figures():
-    """A run's own space is what `_config_space_for` answers with afterwards.
+    """A run's own space is what `config_space_for` answers with afterwards.
 
-    Going through `_rebuild_experiment` rather than asking the row directly,
+    Going through `rebuild_experiment` rather than asking the row directly,
     since that is the path every page render takes.
     """
     from experiments.services.run import create_run, execute_run
-    from ui.views import _config_space_for, _rebuild_experiment
+    from experiments.services.snapshot import config_space_for, rebuild_experiment
 
     exp = _an_experiment()
     execute_run(create_run(exp, {"max_trials": 3}, "accuracy").id)
     exp.refresh_from_db()
 
-    built = _rebuild_experiment(exp)
+    built = rebuild_experiment(exp)
 
     assert built["config_space"] == exp.data.config_space
-    assert _config_space_for(built) is not None
+    assert config_space_for(built) is not None
 
 
 def test_a_model_that_cannot_describe_its_space_does_not_fail_the_run():
