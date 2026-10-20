@@ -31,6 +31,7 @@ from core.metrics import metric_for, metrics_for
 from core.metrics import scale as metric_scale
 from core.modelhost import deadline
 from core.optimizers.base import FAILURE_CRITERIA
+from experiments.models import Experiment, ExperimentData, ExperimentShare, GlobalSettings
 
 from .figures import (
     FIGURES, FIGURES_BY_KEY, HP_GAME_FIELDS, HP_GAME_HELP, HP_GAME_LABELS,
@@ -47,7 +48,6 @@ from .formatting import sigfigs
 from .forms import (
     EVALUATION_SCHEMES, DefaultExperimentSettingsForm, ExperimentSettingsForm,
     NewExperimentForm)
-from .models import Experiment, ExperimentData, ExperimentShare, GlobalSettings
 from . import permissions
 from .permissions import (
     BOTH, DELETE, EDIT, EXPORT, RENAME, RUN, SHARE, VIEW, experiment_view,
@@ -2611,7 +2611,7 @@ def experiment_export_trial_model(request, exp):
     import io as bytes_io
     import zipfile
 
-    from .models import TrialModel
+    from experiments.models import TrialModel
 
     picked = _picked_trial(request, exp)
     if isinstance(picked, HttpResponse):
@@ -2636,7 +2636,7 @@ def experiment_export_trial_model(request, exp):
 
 def _kept_trial_indices(exp, result):
     """The indices into *result*'s trials of those whose model was kept."""
-    from .models import TrialModel
+    from experiments.models import TrialModel
 
     if result is None or not result.trials:
         return []

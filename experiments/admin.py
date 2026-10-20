@@ -21,7 +21,7 @@ class ExperimentAdmin(admin.ModelAdmin):
     # instance gains accounts, or handing one over when a person leaves.
     #
     # The columns describing the work itself come through `data`, which is the
-    # other half of the experiment — see `ui/models.py`. `list_display` cannot
+    # other half of the experiment — see `experiments/models.py`. `list_display` cannot
     # follow a relation, so each is a small accessor; `search_fields` and
     # `list_filter` can, and do.
     list_display = ("name", "identifier", "owner", "group", "model_name",
@@ -73,7 +73,7 @@ class ExperimentDataAdmin(admin.ModelAdmin):
         super().save_model(request, obj, form, change)
         exp = getattr(obj, "experiment", None)
         if change and exp is not None and before != obj.optimizer_params:
-            from .services import history
+            from ui.services import history
 
             history.record(exp, "optimizer_params_changed", user=request.user,
                            old=before, new=obj.optimizer_params)

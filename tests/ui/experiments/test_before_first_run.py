@@ -6,7 +6,7 @@ import pytest
 from django.urls import reverse
 
 from tests.conftest import DATASETS_DIR, post_new_experiment
-from ui.models import Experiment, Run
+from experiments.models import Experiment, Run
 
 pytestmark = pytest.mark.django_db
 

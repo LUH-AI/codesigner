@@ -14,7 +14,7 @@ import pytest
 from django.urls import reverse
 
 from access.models import Group, Membership
-from ui.models import Experiment, ExperimentShare
+from experiments.models import Experiment, ExperimentShare
 from ui.permissions import DELETE, EDIT, EXPORT, RUN, SHARE, VIEW
 
 VIEWER, CONTRIBUTOR = ExperimentShare.VIEWER, ExperimentShare.CONTRIBUTOR

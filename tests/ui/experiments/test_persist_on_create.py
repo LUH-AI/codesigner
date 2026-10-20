@@ -31,7 +31,7 @@ def test_creating_persists_the_experiment(client):
     (demos are never copied), result None (creating does not run), reachable
     at its detail page.
     """
-    from ui.models import Experiment
+    from experiments.models import Experiment
 
     resp = _post(client, name="persisted")
     exp = Experiment.objects.get(data__name="persisted")
@@ -49,7 +49,7 @@ def test_persisted_experiment_appears_in_sidebar(client):
     _post(client, name="listed-exp")
     html = client.get(reverse("ui:home")).content.decode()
     assert "listed-exp" in html
-    from ui.models import Experiment
+    from experiments.models import Experiment
     pk = Experiment.objects.get(data__name="listed-exp").pk
     assert reverse("ui:experiment_detail", args=[pk]) in html
 
@@ -58,7 +58,7 @@ def test_persisted_experiment_appears_in_sidebar(client):
 def test_duplicate_name_is_allowed(client):
     """Creating with a name that already exists is allowed — the two rows are
     told apart by their identifiers, not their names."""
-    from ui.models import Experiment
+    from experiments.models import Experiment
 
     _post(client, name="dup")
     resp = _post(client, name="dup")

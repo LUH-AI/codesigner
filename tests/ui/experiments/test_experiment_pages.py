@@ -18,7 +18,7 @@ from tests.conftest import FIXTURES_DIR
 def _experiment(**overrides):
     """Create an Experiment row with valid defaults (import deferred so the
     suite collects while ui.models doesn't exist yet)."""
-    from ui.models import Experiment
+    from experiments.models import Experiment
 
     fields = dict(
         name="exp-1",

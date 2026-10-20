@@ -17,7 +17,7 @@ coercion in `_posted_settings` is pinned here too.
 from django.urls import reverse
 
 from core.optimizers.base import _sample_evenly
-from ui.models import GlobalSettings
+from experiments.models import GlobalSettings
 from ui.services.settings import SETTING_BOUNDS, SETTING_DEFAULTS, resolve_settings
 
 

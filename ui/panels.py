@@ -28,8 +28,8 @@ from django.utils import timezone
 
 from access.models import Group, Membership
 from access.policy import is_site_admin, membership_in, memberships_of
+from experiments.models import Experiment, Run
 
-from .models import Experiment, Run
 from .permissions import policy
 from .services.storage import delete_experiment_files, human
 from .services.storage import forget as forget_storage
@@ -134,7 +134,7 @@ def group_detail(request, membership):
     """
     from django.db.models import Prefetch
 
-    from .models import ExperimentShare
+    from experiments.models import ExperimentShare
 
     group, user = membership.group, request.user
     live = (Experiment.objects.select_related("data", "owner")

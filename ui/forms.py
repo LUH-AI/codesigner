@@ -11,9 +11,9 @@ from core.io import (
 )
 from core.splits import MIN_FOLDS
 from core.model_source import inspect_model_source
+from experiments.models import UNTITLED
 
 from .figures import FIGURES, autocompute_key, deferred_computations
-from .models import UNTITLED
 from .registry import MODELS
 from .services import timestamps
 from .validators import validate_dataset_upload, validate_model_upload

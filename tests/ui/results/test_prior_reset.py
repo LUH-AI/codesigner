@@ -20,7 +20,7 @@ import json
 import pytest
 from django.urls import reverse
 
-from ui.models import Experiment, Run
+from experiments.models import Experiment, Run
 
 pytestmark = pytest.mark.django_db
 

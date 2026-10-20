@@ -19,7 +19,7 @@ import pytest
 from django.urls import reverse
 
 from access.models import Group, Membership
-from ui.models import BinEntry, Experiment, ExperimentShare, Run
+from experiments.models import BinEntry, Experiment, ExperimentShare, Run
 
 pytestmark = pytest.mark.django_db
 

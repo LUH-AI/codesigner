@@ -233,7 +233,7 @@ def test_partial_results_reach_the_experiment_while_it_runs(cluster_settings,
     original = run_service._finish_cluster_run
 
     def _capture(run_id, experiment_pk, status):
-        from ui.models import Experiment
+        from experiments.models import Experiment
         seen["mid_run"] = Experiment.objects.get(pk=experiment_pk).data.result
         return original(run_id, experiment_pk, status)
 
@@ -261,7 +261,7 @@ def test_a_queued_job_is_not_asked_for_results_it_cannot_have(cluster_settings,
 def test_cancelling_asks_rather_than_kills(cluster_settings, experiment, monkeypatch):
     """A file the run checks between trials, so the trials already paid for
     survive. `scancel` throws them away and is the escalation, not this."""
-    from ui.models import Run
+    from experiments.models import Run
     from ui.services import run as run_service
 
     transport = FakeTransport()
@@ -297,7 +297,7 @@ def test_an_experiment_with_no_dataset_is_refused_before_anything_is_sent(
         cluster_settings, monkeypatch):
     """There would be nothing for the job to measure, and it would fail every
     trial for a reason that reads like a broken experiment."""
-    from ui.models import Experiment
+    from experiments.models import Experiment
     from ui.services import run as run_service
 
     transport = FakeTransport()

@@ -10,7 +10,7 @@ experiment it belongs to.
 from django.urls import reverse
 
 from ui.figures import FIGURES
-from ui.models import Experiment, GlobalSettings
+from experiments.models import Experiment, GlobalSettings
 from ui.services.settings import SETTING_DEFAULTS
 
 

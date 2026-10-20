@@ -16,7 +16,7 @@ from .models import Membership
 def _grants_leave_with_the_member(sender, instance, **kwargs):
     """A grant is access *within* a group. Out of the group, it is access
     across the boundary, which nothing is allowed to grant."""
-    from ui.models import ExperimentShare
+    from experiments.models import ExperimentShare
 
     ExperimentShare.objects.filter(
         user_id=instance.user_id,

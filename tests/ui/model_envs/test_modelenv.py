@@ -11,7 +11,7 @@ import textwrap
 from django.core.files.base import ContentFile
 
 from core.model_source import inspect_model_source
-from ui.models import Experiment
+from experiments.models import Experiment
 from ui.services import modelenv
 
 MODEL_SOURCE = textwrap.dedent('''

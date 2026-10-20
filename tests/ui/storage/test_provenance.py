@@ -22,7 +22,7 @@ from django.core.files.uploadedfile import SimpleUploadedFile
 from django.urls import reverse
 
 from tests.conftest import DATASETS_DIR, export_ihpo, post_new_experiment
-from ui.models import Experiment, Run
+from experiments.models import Experiment, Run
 
 pytestmark = pytest.mark.django_db
 
@@ -615,7 +615,7 @@ def test_an_experiment_recreated_from_its_file_produces_the_same_trials(
 def _prior_event(result_metadata, offset=3):
     """Run `_record_prior_event` against a stand-in result and read back what
     it wrote. The event is the unit under test, not the run machinery."""
-    from ui.models import Experiment, Run
+    from experiments.models import Experiment, Run
     from ui.services.run import _record_prior_event
 
     exp = Experiment.objects.create(
@@ -675,7 +675,7 @@ def test_no_prior_stated_writes_no_event(db):
 def test_the_prior_event_joins_the_events_already_there(db):
     """Append-only, and keyed by `at_trial` like everything else in the log —
     so a run that both changed metric and stated a prior says both."""
-    from ui.models import Experiment, Run
+    from experiments.models import Experiment, Run
     from ui.services.run import _record_prior_event
 
     exp = Experiment.objects.create(

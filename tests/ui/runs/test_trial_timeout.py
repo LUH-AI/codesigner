@@ -27,7 +27,7 @@ def _post(client, exp, **fields):
 
 @pytest.mark.django_db
 def test_a_fixed_deadline_reaches_the_run(client, no_thread):
-    from ui.models import Run
+    from experiments.models import Run
 
     exp = _experiment()
     _post(client, exp, trial_timeout_mode="fixed", trial_timeout_seconds="120")
@@ -38,7 +38,7 @@ def test_a_fixed_deadline_reaches_the_run(client, no_thread):
 
 @pytest.mark.django_db
 def test_a_predicted_deadline_reaches_the_run_with_its_multiplier(client, no_thread):
-    from ui.models import Run
+    from experiments.models import Run
 
     exp = _experiment()
     _post(client, exp, trial_timeout_mode="predicted",
@@ -53,7 +53,7 @@ def test_the_deadline_is_not_stored_among_the_stopping_criteria(client, no_threa
     """It ends a trial, not a run. Stored among the criteria the collector would
     filter it out — it is not in STOPPING_CRITERIA — and a reader of the row
     would have been told the run stops on something it does not."""
-    from ui.models import Run
+    from experiments.models import Run
 
     exp = _experiment()
     _post(client, exp, trial_timeout_mode="fixed", trial_timeout_seconds="120")
@@ -69,7 +69,7 @@ def test_a_blank_deadline_falls_back_to_the_deployment_default(client, no_thread
     """Unlike a stopping criterion, an empty box here is not "does not apply".
     No deadline at all is a thing to ask for deliberately — see the zero test —
     not a thing to arrive at by leaving a field alone."""
-    from ui.models import Run
+    from experiments.models import Run
 
     exp = _experiment()
     _post(client, exp, trial_timeout_seconds="")
@@ -81,7 +81,7 @@ def test_a_blank_deadline_falls_back_to_the_deployment_default(client, no_thread
 def test_zero_seconds_is_stored_and_means_no_limit(client, no_thread):
     from core.modelhost import as_deadline
     from core.modelhost.deadline import NO_LIMIT
-    from ui.models import Run
+    from experiments.models import Run
 
     exp = _experiment()
     _post(client, exp, trial_timeout_seconds="0")
@@ -94,7 +94,7 @@ def test_zero_seconds_is_stored_and_means_no_limit(client, no_thread):
 @pytest.mark.django_db
 @override_settings(MODEL_TRIAL_TIMEOUT=90.0)
 def test_an_unreadable_deadline_costs_the_field_not_the_run(client, no_thread):
-    from ui.models import Run
+    from experiments.models import Run
 
     exp = _experiment()
     resp = _post(client, exp, trial_timeout_seconds="soon")
@@ -105,7 +105,7 @@ def test_an_unreadable_deadline_costs_the_field_not_the_run(client, no_thread):
 
 @pytest.mark.django_db
 def test_an_unknown_mode_falls_back_to_fixed(client, no_thread):
-    from ui.models import Run
+    from experiments.models import Run
 
     exp = _experiment()
     _post(client, exp, trial_timeout_mode="whatever")
@@ -118,7 +118,7 @@ def test_the_deadline_survives_the_metric_change_confirmation(client, no_thread)
     """The confirmation reposts the form, so anything it does not carry through
     is silently dropped — and a run would then start under a deadline nobody
     chose."""
-    from ui.models import Run
+    from experiments.models import Run
 
     exp = _experiment(primary_metric="accuracy", original_metric="accuracy")
     body = client.post(reverse(RUN_URL, args=[exp.pk]),
@@ -185,7 +185,7 @@ def test_the_fields_are_absent_for_a_model_that_runs_in_this_process(client):
     """Nothing can interrupt a `fit_predict` running in the run's own thread, so
     an in-process model gets no deadline fields rather than fields that would be
     quietly ignored. See test_trial_deadline.py for the limitation itself."""
-    from ui.models import Experiment
+    from experiments.models import Experiment
 
     exp = _experiment()
     exp.env_status = Experiment.ENV_SKIPPED

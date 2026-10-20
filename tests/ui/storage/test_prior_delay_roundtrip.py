@@ -19,7 +19,7 @@ silence, which is exactly how this would break.
 
 import pytest
 
-from ui.models import Experiment
+from experiments.models import Experiment
 from ui.services import snapshot as adapter
 from ui.services.snapshot import _PRIOR_FIELDS
 

@@ -9,7 +9,7 @@ what matters is that the real pages share it.
 
 from django.urls import reverse
 
-from ui.models import Experiment
+from experiments.models import Experiment
 from tests.conftest import DATASETS_DIR
 
 

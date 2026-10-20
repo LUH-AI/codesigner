@@ -4,8 +4,9 @@ Precedence per key: an experiment's own `settings` (when it isn't inheriting)
 → the global default experiment settings → the built-in `SETTING_DEFAULTS`.
 """
 
+from experiments.models import GlobalSettings
+
 from ..figures import FIGURES, autocompute_key, deferred_computations
-from ..models import GlobalSettings
 
 # The experiment-settings schema and its built-in fallbacks:
 #   ice_max_curves        — how many trials the PDP figure predicts and draws

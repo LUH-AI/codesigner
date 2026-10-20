@@ -44,7 +44,7 @@ def _experiment(trials=0):
 
 
 def _store(exp, n):
-    from ui.models import ExperimentData
+    from experiments.models import ExperimentData
 
     ExperimentData.objects.filter(pk=exp.data_id).update(result=_trials(n))
 
@@ -66,7 +66,7 @@ def test_a_failed_run_still_owns_the_trials_it_saved():
     their range, so they are not trials of no run.
     How: starts a run on an experiment with three trials, stores two more as a
     partial write would, then fails it."""
-    from ui.models import Run
+    from experiments.models import Run
     from ui.services.run import _start, create_run, fail_runs
 
     exp = _experiment(trials=3)
@@ -136,7 +136,7 @@ def test_a_prior_event_keeps_when_it_took_effect_and_why_it_was_skipped():
     """What: a prior applied mid-run records the trial it took effect at, not
     the run's start; a refused one says it was refused.
     How: records two reports the optimizer could give."""
-    from ui.models import Run
+    from experiments.models import Run
     from ui.services.run import _record_prior_event, create_run
 
     run = create_run(_experiment(), {"max_trials": 3}, "accuracy")
@@ -155,7 +155,7 @@ def test_a_prior_event_keeps_when_it_took_effect_and_why_it_was_skipped():
 def test_the_cluster_records_the_prior_too(monkeypatch, settings):
     """What: a run finished on the cluster records what its prior did, as a
     local run does. How: finishes a cluster run whose status reports a prior."""
-    from ui.models import Run
+    from experiments.models import Run
     from ui.services.run import _finish_cluster_run, _start, create_run
 
     exp = _experiment()
@@ -174,7 +174,7 @@ def test_runs_come_back_from_a_file_as_they_were(client):
     """What: a run's queue, start, finish and cancel times, its priors and
     trial timeout, and a run that produced no trials all survive a round trip.
     How: records two runs, exports, imports the file and compares."""
-    from ui.models import Experiment, Run
+    from experiments.models import Experiment, Run
 
     exp = _experiment(trials=3)
     now = timezone.now()

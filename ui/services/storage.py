@@ -65,7 +65,7 @@ def experiment_bytes(exp) -> int:
 
 
 def _group_experiments(group):
-    from ..models import Experiment
+    from experiments.models import Experiment
 
     return Experiment.objects.filter(group=group).select_related("data")
 
@@ -74,7 +74,7 @@ def usage(group) -> dict:
     """*group*'s storage: ``{"fixed", "models", "total", "limit", "share"}`` —
     datasets and model files, kept trial models, their sum, the limit, and
     the share of it used."""
-    from ..models import TrialModel
+    from experiments.models import TrialModel
 
     experiments = list(_group_experiments(group))
     fixed = sum(fixed_bytes(exp) for exp in experiments)
@@ -110,7 +110,7 @@ def make_room(group, *, keep=None) -> tuple[bool, int]:
     never deleted here. *keep* is a kept model not to delete — the one being
     kept now.
     """
-    from ..models import TrialModel
+    from experiments.models import TrialModel
     from . import trial_models
 
     if group is None:
@@ -144,7 +144,7 @@ def delete_experiment_files(exp) -> None:
     """Delete *exp* for good: its files — dataset (unless a demo, or another
     experiment's too), model and what was generated beside it, kept trial
     models — then its data, which takes the experiment and its runs with it."""
-    from ..models import ExperimentData
+    from experiments.models import ExperimentData
     from . import trial_models
 
     data, group = exp.data, exp.group

@@ -9,7 +9,7 @@ from django.urls import reverse
 from django.utils import timezone
 
 from tests.conftest import DATASETS_DIR
-from ui.models import Experiment
+from experiments.models import Experiment
 from ui.permissions import OpenPolicy
 
 pytestmark = pytest.mark.django_db
@@ -40,7 +40,7 @@ def _summaries(client, exp):
 def _story(exp):
     """Set up, a prior, a run with a prior event and a metric change, then a
     processing change — each a minute apart."""
-    from ui.models import ExperimentEvent, Run
+    from experiments.models import ExperimentEvent, Run
 
     t0 = timezone.now() - timedelta(hours=1)
     exp.data.created_at = t0
@@ -95,7 +95,7 @@ def test_a_runs_events_are_inside_it_newest_first(client):
 def test_an_experiment_from_before_the_history_still_begins_somewhere(client):
     """What: an experiment with no recorded history gets a set-up entry made
     from what it is, below its runs. How: makes one with only a run."""
-    from ui.models import Run
+    from experiments.models import Run
 
     exp = _experiment()
     Run.objects.create(experiment=exp, primary_metric="accuracy", status="done",
@@ -113,7 +113,7 @@ def test_a_failed_and_a_cancelled_run_say_so(client):
     How: records one of each and reads their sentences."""
     from django.contrib.auth import get_user_model
 
-    from ui.models import Run
+    from experiments.models import Run
 
     exp = _experiment()
     ana = get_user_model().objects.create_user("ana")
@@ -151,7 +151,7 @@ def test_relative_times_are_shown_as_time_since_the_first_run(client):
 def test_without_times_the_order_still_holds(client):
     """What: an experiment with no times shows none, and its entries are still
     in order — by how many trials there were. How: clears every time."""
-    from ui.models import Run
+    from experiments.models import Run
 
     exp = _experiment()
     _story(exp)
@@ -178,14 +178,14 @@ def test_the_timeline_is_for_those_who_can_see_the_experiment(client, settings):
 # ── priors: shown when they influenced the search ───────────────────────────
 
 def _prior_event(exp, kind, at, new, old=None):
-    from ui.models import ExperimentEvent
+    from experiments.models import ExperimentEvent
 
     return ExperimentEvent.objects.create(data=exp.data, at=at, kind=kind, payload={
         "hyperparameter": "max_depth", "old": old, "new": new})
 
 
 def _run_at(exp, at, applied=False):
-    from ui.models import Run
+    from experiments.models import Run
 
     events = ([{"kind": "prior_applied", "at_trial": 0, "hyperparameters": ["max_depth"]}]
               if applied else [])
@@ -290,7 +290,7 @@ def test_a_runs_stopping_and_deadline_are_listed_by_name(client):
     rows under the names the run form gives them, seconds as durations, the
     multiple only under a predicted deadline. How: records a run with three
     criteria and a predicted deadline and reads its details."""
-    from ui.models import Run
+    from experiments.models import Run
 
     exp = _experiment()
     Run.objects.create(experiment=exp, primary_metric="accuracy", status="done",
@@ -330,7 +330,7 @@ def test_a_changed_prior_is_listed_as_the_figure_sets_it(client):
 def test_changed_optimizer_settings_are_listed_before_and_after(client):
     """What: an admin's change to the optimizer's settings is an entry with
     both versions listed by name. How: records the event and reads the page."""
-    from ui.models import ExperimentEvent
+    from experiments.models import ExperimentEvent
 
     exp = _experiment()
     ExperimentEvent.objects.create(data=exp.data, at=timezone.now(),
@@ -343,7 +343,7 @@ def test_changed_optimizer_settings_are_listed_before_and_after(client):
 
 
 def _created_with(exp, processing):
-    from ui.models import ExperimentEvent
+    from experiments.models import ExperimentEvent
 
     exp.data.processing = processing
     exp.data.save(update_fields=["processing"])

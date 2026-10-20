@@ -19,7 +19,7 @@ from tests.conftest import FIXTURES_DIR
 
 
 def _page(client, *, running=False):
-    from ui.models import Run
+    from experiments.models import Run
 
     exp = adapter.experiment_from_snapshot(io.parse((FIXTURES_DIR / "test2.ihpo").read_bytes()))
     exp.data.optimizer_name = "SMAC"

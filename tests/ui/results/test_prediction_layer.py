@@ -89,7 +89,7 @@ def test_the_layer_waits_for_a_run_to_end(client):
     Setup: test2.ihpo with a run marked as running.
     Expect: both selectors disabled and the page's running flag set.
     """
-    from ui.models import Run
+    from experiments.models import Run
 
     exp = _experiment()
     Run.objects.create(experiment=exp, stopping={"max_trials": 3}, primary_metric="accuracy",

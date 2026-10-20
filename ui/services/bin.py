@@ -29,7 +29,7 @@ from django.db import transaction
 from django.db.models import Exists, OuterRef, Q
 from django.utils import timezone
 
-from ..models import BinEntry, Experiment, ExperimentShare
+from experiments.models import BinEntry, Experiment, ExperimentShare
 
 #: A run in one of these is stopped when its experiment is deleted.
 _ACTIVE = ("pending", "running")

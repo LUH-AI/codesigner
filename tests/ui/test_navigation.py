@@ -8,7 +8,7 @@ that leave the hierarchy — the global defaults page reached from one experimen
 
 from django.urls import reverse
 
-from ui.models import Experiment
+from experiments.models import Experiment
 
 
 def _exp(name="Iris tuning"):

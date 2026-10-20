@@ -31,7 +31,7 @@ def test_a_forecast_is_backtested_and_scored_on_mase(client, model_name):
     and a run measures every trial on the forecasting metrics — whether the
     model forecasts natively or is a regressor reduced to one.
     How: creates it, runs three trials on MASE, and reads the scores back."""
-    from ui.models import Experiment
+    from experiments.models import Experiment
     from ui.views import _rebuild_result
 
     assert _create(client, model_name=model_name).status_code == 302
@@ -55,7 +55,7 @@ def test_the_forecast_survives_a_round_trip_through_a_file(client):
     """What: the file records the horizon, the season and the series column,
     and opening it again forecasts the same way. How: exports the snapshot and
     builds a second experiment from it."""
-    from ui.models import Experiment
+    from experiments.models import Experiment
     from ui.services import snapshot as snapshot_adapter
 
     _create(client, season=12)
@@ -78,7 +78,7 @@ def test_a_forecast_that_cannot_be_backtested_is_refused(client, overrides, fiel
     """What: no time column, more backtests than the history allows, or a
     series column the file lacks, each refused with the reason.
     How: posts the form with each and reads the page."""
-    from ui.models import Experiment
+    from experiments.models import Experiment
 
     resp = _create(client, name="nope", **overrides)
 
@@ -115,7 +115,7 @@ def test_an_upload_forecasts_only_if_it_says_so(client, settings):
     `forecaster = True`. How: posts the same model file without and with it."""
     from django.core.files.uploadedfile import SimpleUploadedFile
 
-    from ui.models import Experiment
+    from experiments.models import Experiment
 
     settings.ALLOW_CUSTOM_MODELS = True
     source = (
@@ -153,7 +153,7 @@ def test_a_classification_is_forecast_too(client):
     import pandas as pd
     from django.core.files.uploadedfile import SimpleUploadedFile
 
-    from ui.models import Experiment
+    from experiments.models import Experiment
     from ui.views import _rebuild_result
 
     frame = pd.read_csv(AIRLINE)
@@ -188,7 +188,7 @@ def test_the_exported_forecaster_carries_its_forecast(client):
     How: runs one LightGBM trial and reads the downloaded file's constants."""
     import ast
 
-    from ui.models import Experiment
+    from experiments.models import Experiment
 
     _create(client, model_name="LightGBM")
     exp = Experiment.objects.get(data__name="airline")
@@ -213,7 +213,7 @@ def test_the_forecast_figure_draws_every_backtest_and_only_for_a_forecast(client
     experiment's page — validated any other way — has no such figure, and its
     endpoint refuses.
     How: runs one ETS trial, fetches the figure, then creates iris."""
-    from ui.models import Experiment
+    from experiments.models import Experiment
 
     _create(client)
     exp = Experiment.objects.get(data__name="airline")

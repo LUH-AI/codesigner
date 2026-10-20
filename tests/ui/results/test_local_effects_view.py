@@ -15,7 +15,7 @@ import pytest
 from django.urls import reverse
 
 from core import io
-from ui.models import GlobalSettings
+from experiments.models import GlobalSettings
 from ui.views import _local_effects_data
 
 from tests.conftest import FIXTURES_DIR

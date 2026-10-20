@@ -13,7 +13,7 @@ import pytest
 from django.urls import reverse
 
 from access.models import Group, Membership
-from ui.models import Experiment
+from experiments.models import Experiment
 
 from tests.conftest import DATASETS_DIR, FIXTURES_DIR, get_new_experiment, post_new_experiment
 

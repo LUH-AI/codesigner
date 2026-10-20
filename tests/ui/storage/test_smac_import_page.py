@@ -65,7 +65,7 @@ def test_the_import_page_offers_a_directory_picker(client):
 
 
 def test_uploading_a_run_creates_an_experiment(client):
-    from ui.models import Experiment
+    from experiments.models import Experiment
 
     response = _import(client)
 
@@ -83,7 +83,7 @@ def test_two_runs_at_once_are_refused_rather_than_blended(client):
     A runhistory read against another run's config space is not a run that
     happened, so this is refused rather than resolved by picking one.
     """
-    from ui.models import Experiment
+    from experiments.models import Experiment
 
     response = _import(client, _uploads() + _uploads(["runhistory.json"]))
 
@@ -93,7 +93,7 @@ def test_two_runs_at_once_are_refused_rather_than_blended(client):
 
 
 def test_something_that_is_not_a_run_is_refused_with_a_reason(client):
-    from ui.models import Experiment
+    from experiments.models import Experiment
 
     junk = SimpleUploadedFile("runhistory.json", b'{"nope": true}',
                               "application/json")

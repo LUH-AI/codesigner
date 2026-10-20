@@ -62,7 +62,7 @@ def _ran_experiment(client):
         "evaluation_scheme": "kfold", "evaluation_value": "3",
         "demo_dataset": str(DATASETS_DIR / "iris.csv"), "task": "classification",
     })
-    from ui.models import Experiment
+    from experiments.models import Experiment
     exp = Experiment.objects.get(data__name="round-trip")
     execute_run(create_run(exp, {"max_trials": 3}, "accuracy").id)
     exp.refresh_from_db()

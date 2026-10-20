@@ -46,7 +46,7 @@ def test_every_trial_validates_on_listings_after_its_training_ones(client):
     run does, compares the dates on each side of every fold, then runs three
     trials."""
     from core import encoding
-    from ui.models import Experiment
+    from experiments.models import Experiment
     from ui.views import _rebuild_result
 
     assert _create(client).status_code == 302
@@ -72,7 +72,7 @@ def test_the_order_survives_a_round_trip_through_a_file(client):
     """What: an exported `.ihpo` records the column and the gap, and opening it
     again orders the same way. How: exports the experiment's snapshot and
     builds a second experiment from it."""
-    from ui.models import Experiment
+    from experiments.models import Experiment
     from ui.services import snapshot as snapshot_adapter
 
     _create(client)
@@ -92,7 +92,7 @@ def test_the_order_survives_a_round_trip_through_a_file(client):
 def test_a_column_that_cannot_order_the_rows_is_refused(client, column, says):
     """What: a label column, or one the file does not have, is refused with the
     reason and the columns that would do. How: posts the form with each."""
-    from ui.models import Experiment
+    from experiments.models import Experiment
 
     resp = _create(client, name=f"bad {column}", time_column=column)
     body = resp.content.decode()
@@ -107,7 +107,7 @@ def test_left_empty_the_rows_are_divided_at_random_as_before(client):
     """What: without an order the experiment stores none, and its folds mix
     early and late listings. How: creates the experiment without a column."""
     from core import encoding
-    from ui.models import Experiment
+    from experiments.models import Experiment
 
     _create(client, name="random", time_column="", time_gap="")
     exp = Experiment.objects.get(data__name="random")

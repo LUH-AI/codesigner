@@ -81,7 +81,7 @@ class Keeper:
         return keep
 
     def _evict(self):
-        from ..models import TrialModel
+        from experiments.models import TrialModel
 
         keep = self.keep_set()
         for kept in TrialModel.objects.filter(experiment=self.experiment):
@@ -92,7 +92,7 @@ class Keeper:
         from core import parameters
         from core.optimizers.timing import STATUS_SUCCESS
 
-        from ..models import TrialModel
+        from experiments.models import TrialModel
         from . import storage
 
         if (trial.run_info or {}).get("status", STATUS_SUCCESS) != STATUS_SUCCESS:

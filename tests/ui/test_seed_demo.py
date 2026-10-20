@@ -14,7 +14,7 @@ import pytest
 from django.core.management import CommandError, call_command
 
 from access.models import Group, Membership
-from ui.models import Experiment, Run
+from experiments.models import Experiment, Run
 
 pytestmark = pytest.mark.django_db
 
@@ -41,7 +41,7 @@ def test_all_three_sharing_levels_are_represented(debugging):
     with only the easy one would not be worth having."""
     call_command("seed_demo", verbosity=0)
 
-    from ui.models import ExperimentShare
+    from experiments.models import ExperimentShare
 
     assert Experiment.objects.filter(shares__level=ExperimentShare.VIEWER).exists()
     assert Experiment.objects.filter(shares__level=ExperimentShare.CONTRIBUTOR).exists()

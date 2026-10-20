@@ -14,7 +14,7 @@ import pytest
 from django.urls import reverse
 
 from access.models import Group, Membership
-from ui.models import Experiment, TrialModel
+from experiments.models import Experiment, TrialModel
 from ui.services import storage
 
 from tests.conftest import DATASETS_DIR, FIXTURES_DIR, post_new_experiment

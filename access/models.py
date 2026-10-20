@@ -84,7 +84,7 @@ class Group(models.Model):
         """
         from django.utils import timezone
 
-        from ui.models import Experiment
+        from experiments.models import Experiment
 
         Experiment.objects.filter(group=self).update(
             group=None, trashed_at=timezone.now())

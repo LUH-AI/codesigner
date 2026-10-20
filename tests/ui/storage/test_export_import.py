@@ -72,7 +72,7 @@ def test_import_page_shows_upload_form(client):
 @pytest.mark.django_db
 def test_import_creates_experiment_and_redirects_to_detail(client):
     """Uploading a valid .ihpo creates the experiment and lands on its detail page."""
-    from ui.models import Experiment
+    from experiments.models import Experiment
 
     with open(FIXTURES_DIR / "test2.ihpo", "rb") as f:
         resp = client.post(reverse("ui:import_experiment"), {"file": f})
@@ -89,7 +89,7 @@ def test_import_rejects_invalid_file(client):
     Mirrors the import command: same "Invalid or unreadable experiment file."
     message, validation no weaker than core.io.parse.
     """
-    from ui.models import Experiment
+    from experiments.models import Experiment
 
     bad = SimpleUploadedFile("bad.ihpo", b"definitely not json {")
     resp = client.post(reverse("ui:import_experiment"), {"file": bad})
@@ -103,7 +103,7 @@ def test_import_rejects_invalid_file(client):
 def test_import_allows_duplicate_names(client):
     """Importing the same file twice creates two experiments; they share a name
     but have distinct identifiers (names are no longer unique)."""
-    from ui.models import Experiment
+    from experiments.models import Experiment
 
     for _ in range(2):
         with open(FIXTURES_DIR / "test2.ihpo", "rb") as f:
@@ -122,7 +122,7 @@ def test_cross_app_round_trip(client):
     Export an experiment, feed the downloaded bytes back through import under a
     new name, and confirm the identity fields survive — the interop guarantee.
     """
-    from ui.models import Experiment
+    from experiments.models import Experiment
     exp = _make()
     resp = export_ihpo(client, exp.pk)
     body = resp.getvalue() if hasattr(resp, "getvalue") else resp.content

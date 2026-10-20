@@ -37,7 +37,7 @@ def test_a_model_with_probabilities_is_scored_on_them(client):
     tracks ROC AUC and log loss without being asked, and a run optimizing ROC
     AUC measures every trial. How: creates iris with LightGBM, runs three
     trials on roc_auc, and reads the scores back."""
-    from ui.models import Experiment
+    from experiments.models import Experiment
     from ui.views import _rebuild_result
 
     assert _create(client).status_code == 302
@@ -62,7 +62,7 @@ def test_the_svm_is_spared_its_calibration(client):
     """What: the SVM gives probabilities only by calibrating on every trial,
     so its experiment tracks the label metrics alone.
     How: creates iris with the SVM and reads its metrics."""
-    from ui.models import Experiment
+    from experiments.models import Experiment
 
     _create(client, model_name="SVM")
     names = Experiment.objects.get(data__name="iris").data.metric_names
@@ -75,7 +75,7 @@ def test_the_svm_is_spared_its_calibration(client):
 def test_a_model_without_probabilities_is_created_without_them(client, settings):
     """What: an uploaded model with no `fit_predict_proba` is created as usual,
     tracking the label metrics. How: creates one from an upload."""
-    from ui.models import Experiment
+    from experiments.models import Experiment
 
     settings.ALLOW_CUSTOM_MODELS = True
     upload = SimpleUploadedFile("m.py", VALID_MODEL_SRC.encode(), content_type="text/x-python")
@@ -89,7 +89,7 @@ def test_a_model_without_probabilities_is_created_without_them(client, settings)
 def test_a_regression_experiment_has_no_class_probabilities(client):
     """What: a regression experiment tracks the regression metrics only —
     there are no classes to score probabilities of. How: creates diabetes."""
-    from ui.models import Experiment
+    from experiments.models import Experiment
 
     _create(client, name="diabetes", demo_dataset=str(DATASETS_DIR / "diabetes.csv"),
             task="regression")

@@ -103,7 +103,7 @@ def test_uploading_an_ihpo_cannot_take_a_server_file(client, tmp_path):
     resp = client.post(reverse("ui:import_experiment"), {"file": ihpo})
     assert resp.status_code == 302
 
-    from ui.models import Experiment
+    from experiments.models import Experiment
     exp = Experiment.objects.get(data__name="imported")
     assert not exp.data.dataset, "the named server file was adopted"
 
@@ -118,5 +118,5 @@ def test_importing_with_an_attached_dataset_still_works(client):
 
     client.post(reverse("ui:import_experiment"), {"file": ihpo, "dataset": csv})
 
-    from ui.models import Experiment
+    from experiments.models import Experiment
     assert Experiment.objects.get(data__name="imported").data.dataset

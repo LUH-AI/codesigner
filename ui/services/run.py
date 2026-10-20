@@ -97,7 +97,7 @@ class DbCancelFlag:
         self._checked = None
 
     def is_set(self) -> bool:
-        from ..models import Run
+        from experiments.models import Run
         now = time.monotonic()
         if self._checked is None or (now - self._checked) >= self._ttl:
             self._value = Run.objects.filter(pk=self.run_id, cancel_requested=True).exists()
@@ -121,7 +121,7 @@ def create_run(experiment, stopping, optimize_metric, started_by=None,
     its stopping criteria, its trial timeout and the stated priors — because
     the experiment's own statement goes on changing after the trials are spent.
     """
-    from ..models import Run
+    from experiments.models import Run
 
     events = _metric_change_event(experiment, optimize_metric)
     current, original = apply_metrics(experiment.data.original_metric, optimize_metric)
@@ -177,7 +177,7 @@ def _record_prior_event(run_id, report, offset):
     event per run announcing the absence of a belief would bury the ones that
     are about something.
     """
-    from ..models import Run
+    from experiments.models import Run
 
     if not report:
         return
@@ -207,7 +207,7 @@ def _record_prior_event(run_id, report, offset):
 
 def _record_event(run_id, event):
     """Append *event* to the run's log (`Run.events`)."""
-    from ..models import Run
+    from experiments.models import Run
 
     run = Run.objects.filter(pk=run_id).first()
     if run is not None:
@@ -281,7 +281,7 @@ def _partial_result_writer(experiment_pk, optimizer, previous_result, primary_me
     an experiment deleted mid-run is not resurrected by its own run finishing a
     trial.
     """
-    from ..models import ExperimentData
+    from experiments.models import ExperimentData
 
     previous_trials = previous_result.trials if previous_result else []
     state = {"at": time.monotonic()}
@@ -317,7 +317,7 @@ def _partial_result_writer(experiment_pk, optimizer, previous_result, primary_me
 
 def _trials_stored(experiment_pk) -> int:
     """How many trials the experiment's stored result holds right now."""
-    from ..models import ExperimentData
+    from experiments.models import ExperimentData
 
     result = (ExperimentData.objects.filter(experiment__pk=experiment_pk)
               .values_list("result", flat=True).first()) or {}
@@ -331,7 +331,7 @@ def _start(run, **fields) -> None:
     which fails still owns the trials its partial writes saved: the range is
     the offset to however many there are when it ends, however it ends.
     """
-    from ..models import Run
+    from experiments.models import Run
 
     Run.objects.filter(pk=run.pk).update(
         status="running", started_at=timezone.now(),
@@ -341,7 +341,7 @@ def _start(run, **fields) -> None:
 def fail_runs(runs, error) -> int:
     """Mark *runs* errored, each with the trials it produced before it failed.
     Returns how many."""
-    from ..models import Run
+    from experiments.models import Run
 
     now = timezone.now()
     count = 0
@@ -375,7 +375,7 @@ def _execute_run_locally(run_id):
     or cancelled if cancellation was requested. Build/run failures mark the run
     errored without crashing the caller.
     """
-    from ..models import Run
+    from experiments.models import Run
 
     run = Run.objects.get(pk=run_id)
     _start(run)
@@ -470,7 +470,7 @@ def _execute_run_locally(run_id):
         fail_runs(Run.objects.filter(pk=run_id), str(exc))
         return
 
-    from ..models import ExperimentData
+    from experiments.models import ExperimentData
 
     if keeper is not None and keeper.no_room:
         _record_event(run_id, _event("trial_models_not_kept", offset,
@@ -520,7 +520,7 @@ def execute_run_on_cluster(run_id):
     Errors are reported on the run rather than raised, exactly as the local path
     does: a consumer that crashed would leave the row saying "running" for ever.
     """
-    from ..models import ExperimentData, Run
+    from experiments.models import ExperimentData, Run
     from . import cluster
 
     run = Run.objects.get(pk=run_id)
@@ -574,7 +574,7 @@ def _watch(ssh, run_id, experiment_pk, workdir, job_id) -> dict:
     watched is indistinguishable from one still going, so the absence is turned
     into an answer here.
     """
-    from ..models import ExperimentData, Run
+    from experiments.models import ExperimentData, Run
     from . import cluster
 
     cancelled = False
@@ -620,7 +620,7 @@ def _finish_cluster_run(run_id, experiment_pk, status: dict) -> None:
     the run history and the export cannot tell where a run happened, and should
     not be able to.
     """
-    from ..models import ExperimentData, Run
+    from experiments.models import ExperimentData, Run
 
     if status["state"] == "error":
         fail_runs(Run.objects.filter(pk=run_id),
@@ -677,7 +677,7 @@ def _remember_config_space(experiment_pk, model, seed) -> None:
     puts the experiment back to asking its model on every page — exactly where
     it was before.
     """
-    from ..models import ExperimentData
+    from experiments.models import ExperimentData
 
     try:
         space = model.get_config_space(seed=seed).to_serialized_dict()
@@ -722,7 +722,7 @@ def sweep_stale_runs():
     picked up, so it is not stale — only a ``running`` run is (its consumer died
     mid-execution). Run once at consumer/system startup. Finished runs untouched.
     """
-    from ..models import Run
+    from experiments.models import Run
 
     return fail_runs(Run.objects.filter(status="running"), "Interrupted by a restart.")
 
@@ -761,7 +761,7 @@ def sweep_orphaned_runs():
     global _SWEPT
     from huey.contrib.djhuey import HUEY
 
-    from ..models import Run
+    from experiments.models import Run
 
     if _SWEPT or not HUEY.immediate:
         return 0

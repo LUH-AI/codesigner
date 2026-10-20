@@ -17,7 +17,7 @@ from django.urls import reverse
 
 from core import io
 from core.metrics import metrics_for
-from ui.models import Experiment
+from experiments.models import Experiment
 from ui.services import run as run_service
 from ui.services import snapshot as snapshot_adapter
 

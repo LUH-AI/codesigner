@@ -19,7 +19,8 @@ from django.urls import reverse
 from access.models import Group, Membership
 from ui import layout as layouts
 from ui.figures import FIGURES, FIGURES_BY_KEY, OVERVIEW, SHAPES, TABS
-from ui.models import DefaultFigureLayout, Experiment, FigureLayout
+from experiments.models import Experiment
+from ui.models import DefaultFigureLayout, FigureLayout
 
 pytestmark = pytest.mark.django_db
 

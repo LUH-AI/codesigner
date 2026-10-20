@@ -235,7 +235,7 @@ def prepare_environment(experiment_id) -> None:
     environment, so everything the create form stopped checking is checked here
     — where a failure can be reported without holding a request open.
     """
-    from ..models import Experiment
+    from experiments.models import Experiment
 
     exp = Experiment.objects.filter(pk=experiment_id).first()
     if exp is None or not exp.data.model_file:
@@ -331,7 +331,7 @@ def _run_uv(argv: list[str], what: str) -> None:
 
 
 def _settle(exp, status: str, *, error: str = "") -> None:
-    from ..models import Experiment
+    from experiments.models import Experiment
 
     Experiment.objects.filter(pk=exp.pk).update(
         env_status=status, env_error=error, env_prepared_at=timezone.now())
@@ -354,7 +354,7 @@ def resolve_runner(exp) -> tuple[list[str] | None, str]:
     prepared environment, or None to mean "import it here". An error string
     means the run cannot proceed.
     """
-    from ..models import Experiment
+    from experiments.models import Experiment
 
     if exp.env_status == Experiment.ENV_READY:
         uv = uv_path()
@@ -400,7 +400,7 @@ def start_preparation(exp, info=None) -> None:
     the retry button. What the source declared is recorded first so the page can
     show it while the build is still running.
     """
-    from ..models import Experiment
+    from experiments.models import Experiment
     from ..tasks import prepare_model_env_task
     from .dispatch import enqueue
 
@@ -425,7 +425,7 @@ def sweep_stale_environments() -> int:
     re-queued: a build that killed the worker would restart-loop, so the user
     presses Try again instead.
     """
-    from ..models import Experiment
+    from experiments.models import Experiment
 
     return Experiment.objects.filter(env_status=Experiment.ENV_PREPARING).update(
         env_status=Experiment.ENV_FAILED,

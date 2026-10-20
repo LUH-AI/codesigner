@@ -7,7 +7,7 @@ decimals. Trials from files without timing render 0.000 s.
 import pytest
 from django.urls import reverse
 
-from ui.models import Experiment
+from experiments.models import Experiment
 
 
 def _experiment_with_timed_result():

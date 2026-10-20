@@ -125,7 +125,7 @@ def test_execute_run_honours_a_preset_cancel():
     optimizer's first check, so no new trials run — deterministic regardless of
     optimizer speed.
     """
-    from ui.models import Run
+    from experiments.models import Run
     from ui.services.run import create_run, execute_run
 
     exp = _make_experiment()
@@ -162,7 +162,7 @@ def test_execute_run_records_errors():
 @pytest.mark.django_db
 def test_db_cancel_flag_reflects_database():
     """DbCancelFlag.is_set() reports the run's current cancel_requested value."""
-    from ui.models import Run
+    from experiments.models import Run
     from ui.services.run import DbCancelFlag
 
     exp = _make_experiment()

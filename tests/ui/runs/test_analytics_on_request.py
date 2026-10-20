@@ -145,7 +145,7 @@ def test_it_is_not_offered_while_a_run_is_in_flight(client, cancelled_experiment
 def test_asking_fills_the_games_in_on_the_stored_result(client, cancelled_experiment):
     """The result becomes what a completed run would have written, so the page
     renders it with no live-update path of its own and the export carries it."""
-    from ui.models import Experiment
+    from experiments.models import Experiment
 
     before = cancelled_experiment.data.result["hyperparameter_importance"]
     assert not any(before.values()), "nothing to begin with"
@@ -164,7 +164,7 @@ def test_asking_fills_the_games_in_on_the_stored_result(client, cancelled_experi
 def test_asking_keeps_every_trial(client, cancelled_experiment):
     """It is computed *from* the trials, and must not disturb them — the run's
     own record is the thing being filled in, not replaced."""
-    from ui.models import Experiment
+    from experiments.models import Experiment
 
     before = cancelled_experiment.data.result["data"]
     client.post(reverse("ui:experiment_compute_analytics", args=[cancelled_experiment.pk]))
@@ -186,7 +186,7 @@ def test_the_offer_goes_away_once_it_has_been_taken(client, cancelled_experiment
 
 @pytest.mark.django_db
 def test_asking_during_a_run_changes_nothing(client, cancelled_experiment):
-    from ui.models import Experiment
+    from experiments.models import Experiment
 
     cancelled_experiment.runs.all().update(status="running")
     before = cancelled_experiment.data.result

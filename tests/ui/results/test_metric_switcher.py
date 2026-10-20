@@ -121,7 +121,7 @@ def test_metric_selector_present_while_a_run_is_in_flight(client):
     """A run in flight replaces the Run form with the status panel, but the
     metric selector must survive — the figures are driven off it, so without it
     every per-metric figure renders blank until the run finishes."""
-    from ui.models import Run
+    from experiments.models import Run
 
     exp = _experiment_with_result()
     Run.objects.create(experiment=exp, stopping={"max_trials": 3}, primary_metric="accuracy", status="running")

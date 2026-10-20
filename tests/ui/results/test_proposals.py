@@ -23,7 +23,7 @@ from tests.conftest import DATASETS_DIR, export_ihpo, post_new_experiment
 def _ran_experiment(client, name="proposals"):
     """A Random Forest on iris with a three-trial random search behind it, so
     there are trials to fit a surrogate to and a dataset to run against."""
-    from ui.models import Experiment
+    from experiments.models import Experiment
     from ui.services.run import create_run, execute_run
 
     post_new_experiment(client, {
@@ -143,7 +143,7 @@ def test_no_proposal_runs_while_a_run_is_under_way(client):
     Expect: a disabled Run as Trial with the reason, and no new run after a
     post.
     """
-    from ui.models import Run
+    from experiments.models import Run
 
     exp = _ran_experiment(client)
     Run.objects.create(experiment=exp, stopping={"max_trials": 3},

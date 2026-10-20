@@ -8,7 +8,7 @@ what an experiment page reads when deciding what to render.
 from django.urls import reverse
 
 from ui.figures import FIGURES
-from ui.models import GlobalSettings
+from experiments.models import GlobalSettings
 from ui.services.settings import SETTING_DEFAULTS, global_defaults
 
 

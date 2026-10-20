@@ -76,7 +76,7 @@ def test_a_dataset_upload_within_the_limit_still_works(settings):
 # ── import_experiment ────────────────────────────────────────────────────────
 
 def test_import_rejects_an_oversized_ihpo_file(client, settings):
-    from ui.models import Experiment
+    from experiments.models import Experiment
 
     settings.MAX_UPLOAD_BYTES = 10
     with open(FIXTURES_DIR / "test2.ihpo", "rb") as f:
@@ -88,7 +88,7 @@ def test_import_rejects_an_oversized_ihpo_file(client, settings):
 
 
 def test_import_rejects_a_wrong_extension_dataset_reupload(client):
-    from ui.models import Experiment
+    from experiments.models import Experiment
 
     with open(FIXTURES_DIR / "test2.ihpo", "rb") as f:
         resp = client.post(reverse("ui:import_experiment"), {
@@ -100,7 +100,7 @@ def test_import_rejects_a_wrong_extension_dataset_reupload(client):
 
 
 def test_import_rejects_an_oversized_dataset_reupload(client, settings):
-    from ui.models import Experiment
+    from experiments.models import Experiment
 
     settings.MAX_UPLOAD_BYTES = 10
     with open(FIXTURES_DIR / "test2.ihpo", "rb") as f:
@@ -116,7 +116,7 @@ def test_import_rejects_an_oversized_dataset_reupload(client, settings):
 def test_import_rejects_a_wrong_extension_model_reupload(client, settings):
     """Only reached when ALLOW_CUSTOM_MODELS is on — the same gate the create
     form's model_file field is hidden behind."""
-    from ui.models import Experiment
+    from experiments.models import Experiment
 
     settings.ALLOW_CUSTOM_MODELS = True
     with open(FIXTURES_DIR / "test2.ihpo", "rb") as f:

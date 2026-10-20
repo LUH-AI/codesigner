@@ -30,7 +30,7 @@ from django.http import Http404
 from django.shortcuts import get_object_or_404, redirect
 from django.utils.module_loading import import_string
 
-from .models import Experiment
+from experiments.models import Experiment
 
 #: What a view does with the experiment it is given. Every route declares one,
 #: so a policy can answer per action rather than all-or-nothing, and so reading

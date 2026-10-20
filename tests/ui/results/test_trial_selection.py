@@ -15,7 +15,7 @@ plumbing; the bus itself is JavaScript, which this suite does not run.
 from django.urls import reverse
 
 from ui.figures import FIGURES, FIGURES_BY_KEY
-from ui.models import Experiment
+from experiments.models import Experiment
 
 def _experiment():
     """An experiment with three finished trials, so a highlight has somewhere

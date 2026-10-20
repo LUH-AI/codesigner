@@ -18,7 +18,7 @@ import pytest
 from django.urls import reverse
 
 from access.models import Group, Membership
-from ui.models import Experiment, Run
+from experiments.models import Experiment, Run
 
 pytestmark = pytest.mark.django_db
 
@@ -220,7 +220,7 @@ def test_a_lead_sees_everybody_elses_apart_from_their_own(client, hosted, lab):
 
 
 def test_a_member_sees_their_own_and_what_was_shared_with_them(client, hosted, lab):
-    from ui.models import ExperimentShare
+    from experiments.models import ExperimentShare
 
     _experiment(lab["lead"], "vera's, unshared")
     shared = _experiment(lab["lead"], "vera's, shared")

@@ -18,7 +18,7 @@ and stored.
 from django.urls import reverse
 
 from ui.figures import FIGURES, autocompute_key, deferred_computations
-from ui.models import GlobalSettings
+from experiments.models import GlobalSettings
 from ui.services.settings import SETTING_DEFAULTS, global_defaults, resolve_settings
 
 

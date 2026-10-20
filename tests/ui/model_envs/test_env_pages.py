@@ -13,7 +13,7 @@ from django.core.files.uploadedfile import SimpleUploadedFile
 from django.urls import reverse
 
 from tests.conftest import DATASETS_DIR, post_new_experiment
-from ui.models import Experiment, Run
+from experiments.models import Experiment, Run
 from ui.services import modelenv
 
 MODEL_SOURCE = textwrap.dedent('''

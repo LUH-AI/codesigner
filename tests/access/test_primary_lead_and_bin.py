@@ -18,7 +18,7 @@ from django.db import IntegrityError, transaction
 from django.urls import reverse
 
 from access.models import Group, Membership
-from ui.models import Experiment, Run
+from experiments.models import Experiment, Run
 
 pytestmark = pytest.mark.django_db
 

@@ -18,7 +18,7 @@ from tests.conftest import FIXTURES_DIR
 @pytest.mark.django_db
 def test_detail_renders_while_a_run_is_active(client):
     """Detail renders (200) with the status partial and its cancel/poll URLs."""
-    from ui.models import Run
+    from experiments.models import Run
     from ui.services import snapshot as adapter
 
     exp = adapter.experiment_from_snapshot(io.parse((FIXTURES_DIR / "test2.ihpo").read_bytes()))

@@ -128,7 +128,7 @@ def test_a_real_run_writes_its_trials_before_it_finishes(monkeypatch):
     run has not finished" is certainly true — checking after `execute_run`
     returns would be satisfied by the final write, which was always there.
     """
-    from ui.models import Experiment
+    from experiments.models import Experiment
     from ui.services import run as run_service
     from ui.services.run import create_run, execute_run
 
@@ -161,7 +161,7 @@ def test_a_real_run_writes_its_trials_before_it_finishes(monkeypatch):
 def test_what_a_run_writes_mid_flight_carries_no_analytics(monkeypatch):
     """A partial result leaves those fields empty — the state the page already
     handles, because it is what a cancelled run produces."""
-    from ui.models import Experiment
+    from experiments.models import Experiment
     from ui.services import run as run_service
     from ui.services.run import create_run, execute_run
 

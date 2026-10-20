@@ -48,7 +48,7 @@ def test_post_creates_experiment_and_redirects(client):
     Expect: 302 to the experiment's detail page, and an Experiment row with no
     result and no committed metric (creating does not run).
     """
-    from ui.models import Experiment
+    from experiments.models import Experiment
 
     resp = post_new_experiment(client, _valid_post(name="created"))
     exp = Experiment.objects.get(data__name="created")
@@ -61,7 +61,7 @@ def test_post_creates_experiment_and_redirects(client):
 
 def test_post_with_uploaded_csv_stores_the_dataset(client):
     """Creating with an uploaded CSV stores that dataset on the experiment."""
-    from ui.models import Experiment
+    from experiments.models import Experiment
 
     with open(DATASETS_DIR / "iris.csv", "rb") as f:
         upload = _io.BytesIO(f.read())
@@ -76,7 +76,7 @@ def test_post_with_uploaded_csv_stores_the_dataset(client):
 
 def test_missing_dataset_is_rejected(client):
     """Submitting with neither a demo dataset nor an upload re-renders with an error."""
-    from ui.models import Experiment
+    from experiments.models import Experiment
 
     resp = post_new_experiment(client, _valid_post(demo_dataset=""))
     assert resp.status_code == 200
@@ -88,7 +88,7 @@ def test_a_name_is_optional(client):
     """What: an experiment may be created with no name, and is then shown as
     "Untitled Experiment". How: creates one with a blank name and reads it and
     its dashboard."""
-    from ui.models import Experiment
+    from experiments.models import Experiment
 
     post_new_experiment(client, _valid_post(name=""))
     exp = Experiment.objects.get(draft=False)
@@ -107,7 +107,7 @@ def test_five_fold_cross_validation_is_the_default(client):
     it, and the form is submitted with neither, since leaving both alone is how
     someone gets the default.
     """
-    from ui.models import Experiment
+    from experiments.models import Experiment
 
     html = get_new_experiment(client).content.decode()
     post_new_experiment(client, _valid_post(name="folded"))
@@ -121,7 +121,7 @@ def test_a_choice_of_holdout_is_still_honoured(client):
     """Picking the other scheme stores no folds and the share that was typed —
     the number beside the selector means something different under each, and
     only the one the scheme asked for is kept."""
-    from ui.models import Experiment
+    from experiments.models import Experiment
 
     post_new_experiment(client,
                 _valid_post(name="split", evaluation_scheme="holdout",
@@ -135,7 +135,7 @@ def test_a_choice_of_holdout_is_still_honoured(client):
 def test_the_number_beside_the_scheme_is_read_as_that_scheme_asks(client):
     """One field carries folds under cross-validation and a held-out share
     under a split, so the same number has to land in a different column."""
-    from ui.models import Experiment
+    from experiments.models import Experiment
 
     post_new_experiment(client,
                 _valid_post(name="sevenfold", evaluation_scheme="kfold",
@@ -181,7 +181,7 @@ def test_an_out_of_range_number_is_clamped_rather_than_refused(client):
     """The two ends of the range are both meaningful and everything between
     them is too, so there is no typo here worth failing a form over: 40 folds
     becomes the most that is offered, and the experiment is still created."""
-    from ui.models import Experiment
+    from experiments.models import Experiment
 
     post_new_experiment(client,
                 _valid_post(name="greedy", evaluation_scheme="kfold",

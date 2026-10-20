@@ -15,7 +15,7 @@ import numpy as np
 import pytest
 from django.urls import reverse
 
-from ui.models import Experiment, TrialModel
+from experiments.models import Experiment, TrialModel
 
 from tests.conftest import DATASETS_DIR, FIXTURES_DIR, post_new_experiment
 
@@ -169,7 +169,7 @@ def test_a_group_without_room_keeps_no_model_and_the_run_still_finishes(
     limit keeps none, the run finishes all its trials, and its log says why.
     How: a group whose limit is one byte, a three-trial run."""
     from access.models import Group, Membership
-    from ui.models import Run
+    from experiments.models import Run
     from ui.views import _rebuild_result
 
     settings.REQUIRE_LOGIN = True

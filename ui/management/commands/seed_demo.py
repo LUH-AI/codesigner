@@ -33,8 +33,7 @@ from django.utils import timezone
 
 from access.models import Group, Membership
 from core.metrics import metrics_for
-
-from ...models import Experiment, ExperimentShare, Run
+from experiments.models import Experiment, ExperimentShare, Run
 
 VIEWER, CONTRIBUTOR = ExperimentShare.VIEWER, ExperimentShare.CONTRIBUTOR
 

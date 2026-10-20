@@ -20,7 +20,7 @@ from django.core.files.base import ContentFile
 from django.urls import reverse
 
 from tests.conftest import DATASETS_DIR, get_new_experiment, post_new_experiment
-from ui.models import Experiment, Run
+from experiments.models import Experiment, Run
 from ui.services import run as run_service
 
 pytestmark = pytest.mark.django_db

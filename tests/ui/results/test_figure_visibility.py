@@ -20,7 +20,7 @@ from ui.figures import (
     ACQUISITION, FIGURES, FIGURES_BY_KEY, HP_GAME_FIELDS, HYPERSHAP, LONG, MISC,
     OVERVIEW, SHAPES, SQUAT, TABLE, TABS, Figure,
 )
-from ui.models import Experiment, GlobalSettings
+from experiments.models import Experiment, GlobalSettings
 
 EXPECTED_KEYS = [
     # Rendered into the sidebar rather than the grid (Figure.in_sidebar), but

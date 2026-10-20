@@ -9,7 +9,7 @@ Streamlit format is unchanged.
 
 from django.urls import reverse
 
-from ui.models import Experiment, generate_identifier
+from experiments.models import Experiment, generate_identifier
 from ui.services import snapshot as snapshot_adapter
 
 

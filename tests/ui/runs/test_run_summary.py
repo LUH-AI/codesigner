@@ -15,7 +15,7 @@ from tests.conftest import DATASETS_DIR
 
 
 def test_run_duration_property():
-    from ui.models import Experiment, Run
+    from experiments.models import Experiment, Run
     exp = Experiment.objects.create(name="d", model_name="Random Forest",
                                     optimizer_name="Random Search", metric_names=["accuracy"], seed=0)
     start = timezone.now()
@@ -45,7 +45,7 @@ def test_execute_run_stores_trial_seconds():
 
 def test_detail_page_shows_run_summary(client):
     """A finished run surfaces total duration and overhead on the detail page."""
-    from ui.models import Experiment, Run
+    from experiments.models import Experiment, Run
     result = {
         "stats": {"submitted": 1, "finished": 1, "running": 0},
         "data": [{"config_id": 1, "cost": 0.2, "time": 2.0,

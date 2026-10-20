@@ -23,7 +23,7 @@ def test_import_creates_experiment_with_result():
     succeed (datasetless row, browsable results — the read-only-load analog)
     rather than fail on a machine-specific path.
     """
-    from ui.models import Experiment
+    from experiments.models import Experiment
 
     call_command("import_ihpo", str(FIXTURES_DIR / "test2.ihpo"))
 
@@ -44,7 +44,7 @@ def test_import_adopts_existing_dataset_into_media(tmp_path, settings):
     Expect: the row has a dataset file stored below MEDIA_ROOT (the store
     owns its data; nothing may keep referencing the original path).
     """
-    from ui.models import Experiment
+    from experiments.models import Experiment
 
     settings.MEDIA_ROOT = str(tmp_path / "media")
     own = tmp_path / "cellar.csv"
@@ -68,7 +68,7 @@ def test_import_names_a_bundled_demo_rather_than_copying_it(tmp_path):
     """What: an .ihpo whose dataset is one of the bundled demos is linked to
     that demo by name, and nothing is copied.
     How: imports a file pointing at wine.csv and reads back the row."""
-    from ui.models import Experiment
+    from experiments.models import Experiment
 
     snapshot = json.loads((FIXTURES_DIR / "test2.ihpo").read_text(encoding="utf-8"))
     snapshot["dataset_path"] = str(DATASETS_DIR / "wine.csv")
@@ -90,7 +90,7 @@ def test_import_allows_duplicate_names():
     re-importing a file is allowed and yields a second, separately-identified
     row rather than an error.
     """
-    from ui.models import Experiment
+    from experiments.models import Experiment
 
     call_command("import_ihpo", str(FIXTURES_DIR / "test2.ihpo"))
     call_command("import_ihpo", str(FIXTURES_DIR / "test2.ihpo"))
@@ -108,7 +108,7 @@ def test_import_rejects_invalid_file(tmp_path):
     Expect: CommandError surfacing the "not valid JSON" reason, no row
     created — the command must not have weaker validation than the app.
     """
-    from ui.models import Experiment
+    from experiments.models import Experiment
 
     bad = tmp_path / "bad.ihpo"
     bad.write_bytes(b"definitely not json {")
@@ -130,7 +130,7 @@ def test_import_rejects_invalid_file(tmp_path):
 @pytest.mark.django_db
 def test_import_smac_directory_creates_a_read_only_experiment():
     """The run comes in with its trials, its space, and no model to run it."""
-    from ui.models import Experiment
+    from experiments.models import Experiment
 
     call_command("import_ihpo", str(FIXTURES_DIR / "smac_run"), smac=True)
 
@@ -149,7 +149,7 @@ def test_import_smac_finds_a_run_nested_below_the_named_directory(tmp_path):
     Naming the top of that tree is at least as natural as naming the run
     directory, so the search is recursive.
     """
-    from ui.models import Experiment
+    from experiments.models import Experiment
 
     nested = tmp_path / "smac3_output" / "demo-run" / "0"
     shutil.copytree(FIXTURES_DIR / "smac_run", nested)
@@ -166,7 +166,7 @@ def test_import_smac_refuses_two_runs_at_once(tmp_path):
     The importer matches on basenames — it has to, since a browser upload keeps
     nothing else — so two runs under one directory cannot be told apart.
     """
-    from ui.models import Experiment
+    from experiments.models import Experiment
 
     for seed in ("0", "1"):
         shutil.copytree(FIXTURES_DIR / "smac_run", tmp_path / "demo-run" / seed)
@@ -179,7 +179,7 @@ def test_import_smac_refuses_two_runs_at_once(tmp_path):
 @pytest.mark.django_db
 def test_import_smac_refuses_a_directory_that_is_not_one(tmp_path):
     """With the reason, and no row — the same standard as the .ihpo door."""
-    from ui.models import Experiment
+    from experiments.models import Experiment
 
     (tmp_path / "runhistory.json").write_text('{"data": []}')
 

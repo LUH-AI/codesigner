@@ -35,7 +35,7 @@ def test_a_mixed_file_runs_every_trial_and_exports_its_encoding(client, model_na
     How: creates the experiment from the raw upload, runs four cross-validated
     random-search trials, checks none of them failed, then reads `COLUMNS`
     and `PROCESSING` out of the exported file."""
-    from ui.models import Experiment
+    from experiments.models import Experiment
     from ui.views import _rebuild_result
 
     assert _create(client, f"flats {model_name}", model_name).status_code == 302

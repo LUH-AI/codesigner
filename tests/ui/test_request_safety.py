@@ -6,7 +6,7 @@ operator, but cost nothing to hold now.
 
 from django.urls import reverse
 
-from ui.models import Experiment, Run
+from experiments.models import Experiment, Run
 
 
 def _experiment_with_active_run():

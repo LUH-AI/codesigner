@@ -33,7 +33,7 @@ def _immediate(value):
 
 
 def _experiment():
-    from ui.models import Experiment
+    from experiments.models import Experiment
     return Experiment.objects.create(
         name="sweep-exp", model_name="Random Forest", optimizer_name="Random Search",
         optimizer_params={}, metric_names=["accuracy"], seed=0,
@@ -43,7 +43,7 @@ def _experiment():
 @pytest.mark.django_db
 def test_sweep_marks_running_errored_and_leaves_pending_and_finished():
     """Only running runs are stale; pending (still queued) and done are untouched."""
-    from ui.models import Run
+    from experiments.models import Run
 
     exp = _experiment()
     running = Run.objects.create(experiment=exp, stopping={"max_trials": 3}, primary_metric="accuracy", status="running")
@@ -79,7 +79,7 @@ def test_a_run_older_than_this_process_had_nobody_executing_it(settings):
     """An exact test, not a timeout: in immediate mode the executor *is* this
     process, so a run that started before this process booted has no one running
     it and never will. No guessing about how long a run ought to take."""
-    from ui.models import Run
+    from experiments.models import Run
     from ui.services import run as run_service
 
     exp = _experiment()
@@ -100,7 +100,7 @@ def test_a_run_older_than_this_process_had_nobody_executing_it(settings):
 @pytest.mark.django_db
 def test_a_run_started_since_this_process_booted_is_left_alone(settings):
     """It is the one case where something really could be executing it."""
-    from ui.models import Run
+    from experiments.models import Run
     from ui.services import run as run_service
 
     exp = _experiment()
@@ -122,7 +122,7 @@ def test_with_a_consumer_it_sweeps_nothing(settings):
     that outlives any number of web restarts, so "older than this process" says
     nothing about whether a run is alive. Consumer restarts are the startup
     sweep's job."""
-    from ui.models import Run
+    from experiments.models import Run
     from ui.services import run as run_service
 
     exp = _experiment()

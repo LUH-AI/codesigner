@@ -5,7 +5,7 @@ import pytest
 from django.urls import reverse
 
 from ui import context_processors, views
-from ui.models import Experiment
+from experiments.models import Experiment
 
 pytestmark = pytest.mark.django_db
 

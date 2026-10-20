@@ -7,7 +7,7 @@ import pytest
 from django.urls import reverse
 
 from datahandling.sections import SECTIONS
-from ui.models import Experiment
+from experiments.models import Experiment
 from ui.permissions import OpenPolicy
 from tests.conftest import post_new_experiment
 

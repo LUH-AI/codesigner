@@ -31,7 +31,7 @@ def _trials(n, metrics=("accuracy",), start=1_700_000_000.0):
 
 
 def _create(client, name="recorded"):
-    from ui.models import Experiment
+    from experiments.models import Experiment
 
     post_new_experiment(client, {
         "name": name, "model_name": "Random Forest", "optimizer_name": "Random Search",
@@ -45,7 +45,7 @@ def _kinds(exp):
 
 
 def _import(client, body, name):
-    from ui.models import Experiment
+    from experiments.models import Experiment
 
     body = {**body, "name": name}
     client.post(reverse("ui:import_experiment"), {
@@ -159,8 +159,8 @@ def test_an_admin_edit_of_the_optimizer_is_recorded(client):
     can change — are an entry. How: saves the row through its ModelAdmin."""
     from django.contrib.auth.models import AnonymousUser
 
-    from ui.admin import ExperimentDataAdmin
-    from ui.models import ExperimentData
+    from experiments.admin import ExperimentDataAdmin
+    from experiments.models import ExperimentData
 
     exp = _create(client)
     data = ExperimentData.objects.get(pk=exp.data_id)
@@ -189,7 +189,7 @@ def _ran(client):
     start a second later, ten seconds apart."""
     from django.utils import timezone
 
-    from ui.models import ExperimentData, Run
+    from experiments.models import ExperimentData, Run
 
     exp = _create(client)
     _state(client, exp, "max_depth", {"kind": "normal", "params": {"mu": 0.5, "sigma": 0.1}})

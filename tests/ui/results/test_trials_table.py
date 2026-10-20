@@ -9,7 +9,7 @@ columns, and the outcome columns sort on click (all numeric).
 import pytest
 from django.urls import reverse
 
-from ui.models import Experiment
+from experiments.models import Experiment
 
 METRICS = ["accuracy", "f1", "precision", "recall(macro)"]
 

@@ -19,7 +19,7 @@ from django.urls import reverse
 
 from datahandling import urls as datahandling_urls
 from ui import permissions, urls
-from ui.models import Experiment
+from experiments.models import Experiment
 from ui.permissions import OpenPolicy, experiment_view
 
 

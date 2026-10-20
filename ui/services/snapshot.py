@@ -20,8 +20,8 @@ from core.processing import choices_of
 from core.provenance import (
     dataset_fingerprint, environment, evaluation, model_fingerprint,
 )
+from experiments.models import Experiment, ExperimentData
 
-from ..models import Experiment, ExperimentData
 from ..registry import MODELS, OPTIMIZERS, canonical_model_name
 from . import history, timestamps
 
@@ -148,7 +148,7 @@ def _restore_runs(exp: Experiment, recorded: list) -> None:
     exported this is not an account here, and inventing a local one would put a
     name against work they did not do.
     """
-    from ..models import Run
+    from experiments.models import Run
 
     for entry in sorted(recorded, key=lambda r: r.get("index") or 0):
         if not isinstance(entry, dict):

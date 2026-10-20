@@ -80,7 +80,7 @@ def test_the_games_differ_from_the_stored_default_ones(client):
 
 def test_a_switched_off_figure_is_not_computed(client):
     """A figure the settings switch off is absent here too, not reachable by asking directly."""
-    from ui.models import GlobalSettings
+    from experiments.models import GlobalSettings
 
     gs = GlobalSettings.get_solo()
     gs.default_experiment_settings = {"show_interactions_graph": False}

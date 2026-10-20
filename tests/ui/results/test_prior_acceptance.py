@@ -24,7 +24,7 @@ from pathlib import Path
 import pytest
 from django.urls import reverse
 
-from ui.models import Experiment
+from experiments.models import Experiment
 from ui.services.settings import SETTING_BOUNDS, SETTING_DEFAULTS, resolve_settings
 
 pytestmark = pytest.mark.django_db

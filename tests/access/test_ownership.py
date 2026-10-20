@@ -19,7 +19,7 @@ the experiment's group. What happens **between** groups is
 import pytest
 from django.urls import reverse
 
-from ui.models import Experiment, ExperimentShare
+from experiments.models import Experiment, ExperimentShare
 from ui.permissions import DELETE, EXPORT, RUN
 
 VIEWER, CONTRIBUTOR = ExperimentShare.VIEWER, ExperimentShare.CONTRIBUTOR

@@ -16,7 +16,7 @@ import pytest
 from django.core.files.base import ContentFile
 
 from tests.conftest import DATASETS_DIR
-from ui.models import Experiment
+from experiments.models import Experiment
 from ui.services import modelenv
 from ui.services.run import create_run, execute_run
 

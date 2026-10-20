@@ -61,7 +61,7 @@ def record(exp, kind, *, user=None, run=None, **payload):
     """Write one entry in *exp*'s history. Returns it, or None for a draft:
     what is done while setting one up is part of how it was set up, which its
     `created` entry records whole."""
-    from ..models import ExperimentEvent
+    from experiments.models import ExperimentEvent
 
     if kind not in KINDS:
         raise ValueError(f"unknown history kind {kind!r}")
@@ -147,7 +147,7 @@ def serialized(exp) -> list[dict]:
 def restore(exp, entries) -> None:
     """Rebuild *exp*'s history from a file's `history` section. Who did each
     thing is not restored, as for runs."""
-    from ..models import ExperimentEvent
+    from experiments.models import ExperimentEvent
 
     runs = dict(enumerate(exp.runs.order_by("id"), start=1))
     for entry in entries or []:

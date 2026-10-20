@@ -8,7 +8,7 @@ covered in test_settings_page_parity.py.
 
 from django.urls import reverse
 
-from ui.models import Experiment, GlobalSettings
+from experiments.models import Experiment, GlobalSettings
 from ui.services.settings import SETTING_DEFAULTS
 
 

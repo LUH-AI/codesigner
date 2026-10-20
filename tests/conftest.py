@@ -214,7 +214,7 @@ def start_draft(client):
     """Press New: a draft, as the sidebar's button makes one."""
     from django.urls import reverse
 
-    from ui.models import Experiment
+    from experiments.models import Experiment
 
     response = client.post(reverse("ui:new_experiment"))
     return Experiment.objects.get(pk=int(response["Location"].strip("/").split("/")[1]))

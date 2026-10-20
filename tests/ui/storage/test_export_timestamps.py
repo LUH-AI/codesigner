@@ -17,7 +17,7 @@ import re
 
 from django.urls import reverse
 
-from ui.models import Experiment
+from experiments.models import Experiment
 
 from tests.conftest import export_ihpo
 

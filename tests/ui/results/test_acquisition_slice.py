@@ -619,7 +619,7 @@ def test_an_unknown_hyperparameter_is_refused(client):
 
 def test_an_experiment_with_no_result_does_not_500(client):
     """An empty experiment should say it has nothing, not raise."""
-    from ui.models import Experiment
+    from experiments.models import Experiment
 
     exp = Experiment.objects.create(
         name="empty", model_name="Random Forest", optimizer_name="Random Search",

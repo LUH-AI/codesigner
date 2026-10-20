@@ -15,7 +15,7 @@ from django.urls import reverse
 
 from core import io
 from ui.forms import NewExperimentForm
-from ui.models import Experiment
+from experiments.models import Experiment
 
 from tests.ui.custom_models.conftest import VALID_MODEL_SRC
 from tests.conftest import post_new_experiment

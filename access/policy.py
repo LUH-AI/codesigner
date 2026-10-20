@@ -51,7 +51,7 @@ from django.conf import settings
 from django.db.models import Q
 from django.utils.translation import gettext_lazy as _
 
-from ui.models import Experiment, ExperimentShare
+from experiments.models import Experiment, ExperimentShare
 from ui.permissions import DELETE, EDIT, EXPORT, OpenPolicy, RENAME, RUN, SHARE, VIEW
 
 #: Manages groups, their size and their usage. Sees no experiments.
@@ -249,7 +249,7 @@ class GroupPolicy(OpenPolicy):
         """What this person deleted, or had deleted from under them.
 
         One `BinEntry` per person, written when it was deleted — see
-        `ui/models.py` on why it is recorded rather than worked out again.
+        `experiments/models.py` on why it is recorded rather than worked out again.
         """
         if not settings.REQUIRE_LOGIN:
             return super().bin(request)
