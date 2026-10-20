@@ -1,8 +1,10 @@
 from django.contrib.auth import views as auth_views
 from django.urls import path, reverse_lazy
 
-from . import panels, setup_views
-from .views import analytics, bin, dashboard, data_handling, export, imports, pages, preferences, priors, runs, sharing
+from .views import (
+    analytics, bin, dashboard, data_handling, export, groups, imports, pages, preferences,
+    priors, runs, setup, sharing, site,
+)
 
 app_name = "ui"
 
@@ -44,29 +46,29 @@ urlpatterns = [
         template_name="ui/account/password_changed.html"), name="password_changed"),
     # The two management surfaces. Neither goes through `@experiment_view`: a
     # group lead reaches their colleagues' work through the policy's queryset,
-    # and a site admin reaches no experiment at all. See ui/panels.py.
+    # and a site admin reaches no experiment at all. See ui/views/groups.py.
     # A group is named in the URL, because a person may be in several. The
     # membership routes carry their group as well as their own pk: the view
     # then looks the membership up *within* that group, which makes the
     # boundary a lookup rather than a check somebody has to remember.
-    path("group/", panels.group_index, name="group_index"),
-    path("group/<int:group_pk>/", panels.group_detail, name="group_detail"),
-    path("group/<int:group_pk>/add/", panels.group_add_person, name="group_add_person"),
-    path("group/<int:group_pk>/people/<int:pk>/remove/", panels.group_remove_person,
+    path("group/", groups.group_index, name="group_index"),
+    path("group/<int:group_pk>/", groups.group_detail, name="group_detail"),
+    path("group/<int:group_pk>/add/", groups.group_add_person, name="group_add_person"),
+    path("group/<int:group_pk>/people/<int:pk>/remove/", groups.group_remove_person,
          name="group_remove_person"),
-    path("group/<int:group_pk>/people/<int:pk>/role/", panels.group_set_role,
+    path("group/<int:group_pk>/people/<int:pk>/role/", groups.group_set_role,
          name="group_set_role"),
-    path("group/<int:group_pk>/people/<int:pk>/primary/", panels.group_transfer_primary,
+    path("group/<int:group_pk>/people/<int:pk>/primary/", groups.group_transfer_primary,
          name="group_transfer_primary"),
-    path("site/", panels.site_groups, name="site_groups"),
-    path("site/groups/save/", panels.site_group_save, name="site_group_save"),
-    path("site/groups/delete/", panels.site_group_delete, name="site_group_delete"),
-    path("site/trash/", panels.site_trash, name="site_trash"),
-    path("site/trash/<int:pk>/rehome/", panels.site_trash_rehome, name="site_trash_rehome"),
-    path("site/trash/<int:pk>/delete/", panels.site_trash_delete, name="site_trash_delete"),
-    path("site/usage/", panels.site_usage, name="site_usage"),
-    path("site/jobs/", panels.site_jobs, name="site_jobs"),
-    path("site/jobs/<int:pk>/stop/", panels.site_job_stop, name="site_job_stop"),
+    path("site/", site.site_groups, name="site_groups"),
+    path("site/groups/save/", site.site_group_save, name="site_group_save"),
+    path("site/groups/delete/", site.site_group_delete, name="site_group_delete"),
+    path("site/trash/", site.site_trash, name="site_trash"),
+    path("site/trash/<int:pk>/rehome/", site.site_trash_rehome, name="site_trash_rehome"),
+    path("site/trash/<int:pk>/delete/", site.site_trash_delete, name="site_trash_delete"),
+    path("site/usage/", site.site_usage, name="site_usage"),
+    path("site/jobs/", site.site_jobs, name="site_jobs"),
+    path("site/jobs/<int:pk>/stop/", site.site_job_stop, name="site_job_stop"),
     path("settings/appearance/", preferences.appearance, name="appearance"),
     path("settings/export/", preferences.export_preferences, name="export_preferences"),
     path("settings/experiment-defaults/", preferences.default_experiment_settings, name="default_experiment_settings"),
@@ -75,14 +77,14 @@ urlpatterns = [
     path("experiments/<int:pk>/data/<slug:section>/", data_handling.data_section, name="data_section"),
     # A draft's setup (ui/setup_steps.py): its three steps, creating it, and
     # throwing it away. Drafts only — see `experiment_view`'s `drafts`.
-    path("experiments/<int:pk>/setup/", setup_views.setup, name="setup"),
-    path("experiments/<int:pk>/setup/optimizer/", setup_views.setup_optimizer,
+    path("experiments/<int:pk>/setup/", setup.setup, name="setup"),
+    path("experiments/<int:pk>/setup/optimizer/", setup.setup_optimizer,
          name="setup_optimizer"),
-    path("experiments/<int:pk>/setup/data/", setup_views.setup_data, name="setup_data"),
-    path("experiments/<int:pk>/setup/priors/", setup_views.setup_priors, name="setup_priors"),
-    path("experiments/<int:pk>/setup/resume/", setup_views.setup_resume, name="setup_resume"),
-    path("experiments/<int:pk>/setup/create/", setup_views.setup_create, name="setup_create"),
-    path("experiments/<int:pk>/setup/discard/", setup_views.setup_discard,
+    path("experiments/<int:pk>/setup/data/", setup.setup_data, name="setup_data"),
+    path("experiments/<int:pk>/setup/priors/", setup.setup_priors, name="setup_priors"),
+    path("experiments/<int:pk>/setup/resume/", setup.setup_resume, name="setup_resume"),
+    path("experiments/<int:pk>/setup/create/", setup.setup_create, name="setup_create"),
+    path("experiments/<int:pk>/setup/discard/", setup.setup_discard,
          name="setup_discard"),
     path("experiments/import/", imports.import_experiment, name="import_experiment"),
     path("experiments/<int:pk>/", dashboard.experiment_detail, name="experiment_detail"),

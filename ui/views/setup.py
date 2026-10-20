@@ -5,6 +5,7 @@ Every view here reaches only drafts (`experiment_view(..., drafts=ONLY)`); an
 experiment that has been created is sent to its dashboard instead.
 """
 
+from importlib.metadata import version as dist_version
 from pathlib import Path
 
 from django.contrib import messages
@@ -13,19 +14,30 @@ from django.utils import timezone
 from django.utils.translation import gettext as _
 from django.views.decorators.http import require_POST
 
-from access.policy import EDIT
-from experiments.services import history, processing
+from access.policy import EDIT, groups_to_choose_from, policy
+from core import io, provenance, tasks
+from core.io import demo_datasets
+from core.metrics import metrics_for
+from core.optimizers.trial import offers_probabilities
+from experiments.services import history, modelenv, processing, storage
+from experiments.services.run import resolve_seed
 from experiments.services import snapshot as snapshot_adapter
 
-from . import optimizer_form
-from . import setup_steps as steps
-from .figures.data_handling import SECTIONS
-from .permissions import ONLY, experiment_view
+from .. import optimizer_form
+from ..figures.data_handling import SECTIONS
+from ..forms import (
+    EVALUATION_BACKTEST, EVALUATION_HOLDOUT, EVALUATION_KFOLD, NewExperimentForm,
+)
+from ..permissions import ONLY, experiment_view
+from ..registry import MODELS, OPTIMIZERS
+from .. import setup_steps as steps
+from .common import _group_by_pk, _settle_storage
+from .dashboard import _prior_only_context, experiment_header
+from .data_handling import tabs_for
+from .pages import _dataset_path_from, _demo_time_columns, _evaluation_schemes, _model_tasks
 
 
 def _page(request, exp, step, template, **context):
-    from ui.views.dashboard import experiment_header
-
     return render(request, template, {
         **experiment_header(request, exp, None),
         "steps": steps.bar(exp, step),
@@ -76,8 +88,6 @@ def setup_optimizer(request, exp):
 def setup_data(request, exp):
     """Step 3: the Data Handling page, its settable panels on Overview; Save
     keeps their choices and moves on."""
-    from ui.views.data_handling import tabs_for
-
     if not steps.reachable(exp, steps.DATA):
         return redirect(steps.url(exp, steps.SETUP))
     if request.method == "POST":
@@ -100,8 +110,6 @@ def setup_data(request, exp):
 def setup_priors(request, exp):
     """Step 4: what is believed about where the optimum is — the prior figure,
     as an experiment with no trials shows it — and Create."""
-    from ui.views.dashboard import _prior_only_context
-
     if not steps.reachable(exp, steps.PRIORS):
         return redirect(steps.url(exp, steps.SETUP))
     built = snapshot_adapter.rebuild_experiment(exp)
@@ -143,8 +151,6 @@ def setup_create(request, exp):
 def setup_discard(request, exp):
     """Throw the draft away, files and all. Nothing was run, so there is
     nothing for a bin to keep."""
-    from experiments.services import storage
-
     name = exp.title
     storage.delete_experiment_files(exp)
     messages.success(request, _("Discarded the draft “%(name)s”.") % {"name": name})
@@ -154,10 +160,6 @@ def setup_discard(request, exp):
 # ── step 1 ───────────────────────────────────────────────────────────────────
 
 def _form(request, exp, *args):
-    from access.policy import groups_to_choose_from
-
-    from .forms import NewExperimentForm
-    from access.policy import policy
 
     data = exp.data
     current_model = None
@@ -177,8 +179,6 @@ def _form(request, exp, *args):
 def _initial(exp) -> dict:
     """The form's values for a draft that has been saved before, read back
     from what it is; just its name for one that has not."""
-    from .forms import EVALUATION_BACKTEST, EVALUATION_HOLDOUT, EVALUATION_KFOLD
-
     data = exp.data
     if not steps.saved(exp, steps.SETUP):
         return {"name": data.name}
@@ -190,8 +190,6 @@ def _initial(exp) -> dict:
         scheme, value = EVALUATION_HOLDOUT, data.test_size
     demo = None
     if data.demo_dataset:
-        from core.io import demo_datasets
-
         demo = demo_datasets().get(data.demo_dataset)
     return {
         "name": data.name, "task": data.task, "seed": data.seed,
@@ -208,8 +206,6 @@ def setup_form_context(request, exp, form=None) -> dict:
     """What step 1's template needs: the form (bound after a failed Save, else
     filled from the draft), and what the draft already has, so keeping it is
     visible."""
-    from ui.views.pages import _demo_time_columns, _evaluation_schemes, _model_tasks
-
     data = exp.data
     if form is None:
         form = _form(request, exp)
@@ -233,16 +229,6 @@ def save_setup(request, exp):
     form, adopted by `data_from_snapshot` — and kept what the later steps set:
     the processing, and the priors unless the model changed. A different
     dataset, task or model asks for step 2 again (ui/setup_steps.py)."""
-    from core import io
-    from core.metrics import metrics_for
-    from core import provenance
-    from importlib.metadata import version as dist_version
-
-    from .registry import OPTIMIZERS
-    from experiments.services import modelenv
-    from experiments.services.run import resolve_seed
-    from ui.views.pages import _dataset_path_from
-    from ui.views.common import _group_by_pk, _settle_storage
 
     form = _form(request, exp, request.POST, request.FILES)
     if not form.is_valid():
@@ -297,8 +283,6 @@ def save_setup(request, exp):
         new = snapshot_adapter.data_from_snapshot(
             snapshot, model_file=cleaned.get("model_file"), adopt_paths=True)
         if "group" in form.fields:
-            from access.policy import groups_to_choose_from
-
             exp.group = _group_by_pk(groups_to_choose_from(request.user), cleaned.get("group"))
         changed = snapshot_adapter.replace_data(exp, new)
         if not _settle_storage(request, exp):
@@ -329,10 +313,6 @@ def _free_probabilities(cleaned) -> bool:
     calibration), which every trial would pay. An uploaded model that offers
     them is taken at its word.
     """
-    from core import tasks
-    from core.optimizers.trial import offers_probabilities
-
-    from .registry import MODELS
 
     if cleaned["task"] != tasks.CLASSIFICATION:
         return False

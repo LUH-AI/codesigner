@@ -65,7 +65,7 @@ SECTIONS = (
         "ui/templates/ui/experiment_settings", "ui/templates/ui/default_experiment",
     )),
     ("Panels — groups, jobs, site administration", (
-        "ui/templates/ui/panels/", "ui/panels.py",
+        "ui/templates/ui/panels/", "ui/views/groups.py", "ui/views/site.py",
     )),
     ("Views — messages, warnings, refusals", (
         "ui/views/", "experiments/", "core/",

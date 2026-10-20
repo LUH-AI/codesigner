@@ -97,13 +97,13 @@ def test_the_exceptions_do_not_reach_an_experiment_through_the_pk():
     visibility for `@experiment_view` to check — and giving them some so a
     decorator would fit would defeat the separation it exists for.
     """
-    from ui import panels
+    from ui.views import groups, site
 
     assert {p.name: p.callback for p in urls.urlpatterns
             if p.name in NOT_EXPERIMENTS}.keys() == NOT_EXPERIMENTS.keys()
     for name in NOT_EXPERIMENTS:
         route = next(p for p in urls.urlpatterns if p.name == name)
-        assert route.callback.__module__ == panels.__name__, (
+        assert route.callback.__module__ in (groups.__name__, site.__name__), (
             f"{name} is not a panel route any more; re-check what its pk means")
 
 
@@ -117,12 +117,12 @@ def test_the_bin_routes_resolve_through_the_bin(client):
     """
     import inspect
 
-    from ui import panels
     from ui.views import bin as bin_views
+    from ui.views import site
 
     # Two bins: a deleted group's, which a site admin settles from the panels,
     # and a person's, which its people settle from their own.
-    through = {panels.__name__: "policy().trash(request)",
+    through = {site.__name__: "policy().trash(request)",
                bin_views.__name__: "_binned(request, pk)"}
     assert "policy().bin(request)" in inspect.getsource(bin_views._binned)
 
