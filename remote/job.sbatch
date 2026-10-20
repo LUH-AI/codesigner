@@ -1,5 +1,5 @@
 #!/bin/bash
-# The job a run becomes. experiments/services/cluster.py renders this file by filling in
+# The job a run becomes. remote/jobs.py renders this file by filling in
 # the doubled-at markers below, so an operator can change how work is submitted
 # by editing here rather than in Python.
 #
@@ -29,4 +29,4 @@ export OMP_NUM_THREADS=@@CPUS@@
 export OPENBLAS_NUM_THREADS=@@CPUS@@
 export MKL_NUM_THREADS=@@CPUS@@
 
-exec "@@ROOT@@/.venv/bin/python" "@@ROOT@@/cluster/run_experiment.py" "@@WORKDIR@@"
+exec "@@ROOT@@/.venv/bin/python" "@@ROOT@@/remote/run_experiment.py" "@@WORKDIR@@"

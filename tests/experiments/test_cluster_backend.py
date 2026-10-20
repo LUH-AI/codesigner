@@ -16,7 +16,7 @@ import json
 import pytest
 from django.urls import reverse
 
-from experiments.services import cluster
+from remote import jobs
 
 from tests.conftest import DATASETS_DIR
 
@@ -53,17 +53,17 @@ class FakeTransport:
     def run(self, command: str):
         self.commands.append(command)
         if command.startswith("sbatch") or " sbatch " in command:
-            return cluster.Command(0, self._submit + "\n", "")
+            return jobs.Command(0, self._submit + "\n", "")
         if command.startswith("squeue"):
             state = self._states[0] if len(self._states) == 1 else self._states.pop(0)
-            return cluster.Command(0, {"queued": "PENDING\n", "running": "RUNNING\n"}.get(state, ""), "")
+            return jobs.Command(0, {"queued": "PENDING\n", "running": "RUNNING\n"}.get(state, ""), "")
         if command.startswith("sacct"):
             state = self._states[-1]
-            return cluster.Command(
+            return jobs.Command(
                 0, {"done": "COMPLETED\n", "failed": "FAILED\n", "gone": ""}.get(state, "COMPLETED\n"), "")
         if command.startswith("tail"):
-            return cluster.Command(0, "slurmstepd: error: exceeded memory limit\n", "")
-        return cluster.Command(0, "", "")
+            return jobs.Command(0, "slurmstepd: error: exceeded memory limit\n", "")
+        return jobs.Command(0, "", "")
 
 
 @pytest.fixture
@@ -111,10 +111,10 @@ def _run(experiment, transport, monkeypatch, states=("done",), status=None,
     def _fake_transport():
         return transport
 
-    monkeypatch.setattr(cluster, "transport", _fake_transport)
+    monkeypatch.setattr(jobs, "transport", _fake_transport)
 
     run = run_service.create_run(experiment, {"max_trials": 3}, "accuracy")
-    workdir = cluster.workdir_for(run.id)
+    workdir = jobs.workdir_for(run.id)
     if status is not None:
         transport.files[f"{workdir}/status.json"] = json.dumps(status).encode()
     if result is not None:
@@ -219,9 +219,9 @@ def test_partial_results_reach_the_experiment_while_it_runs(cluster_settings,
     partial = _finished_result(trials=1)
 
     from experiments.services import run as run_service
-    monkeypatch.setattr(cluster, "transport", lambda: transport)
+    monkeypatch.setattr(jobs, "transport", lambda: transport)
     run = run_service.create_run(experiment, {"max_trials": 3}, "accuracy")
-    workdir = cluster.workdir_for(run.id)
+    workdir = jobs.workdir_for(run.id)
     transport.files[f"{workdir}/partial.json"] = json.dumps(partial).encode()
     transport.files[f"{workdir}/status.json"] = json.dumps(
         {"state": "done", "offset": 0, "stopped_by": "", "config_space": None,
@@ -265,9 +265,9 @@ def test_cancelling_asks_rather_than_kills(cluster_settings, experiment, monkeyp
     from experiments.services import run as run_service
 
     transport = FakeTransport()
-    monkeypatch.setattr(cluster, "transport", lambda: transport)
+    monkeypatch.setattr(jobs, "transport", lambda: transport)
     run = run_service.create_run(experiment, {"max_trials": 3}, "accuracy")
-    workdir = cluster.workdir_for(run.id)
+    workdir = jobs.workdir_for(run.id)
     Run.objects.filter(pk=run.id).update(cancel_requested=True)
     transport.files[f"{workdir}/status.json"] = json.dumps(
         {"state": "cancelled", "offset": 0, "stopped_by": "", "config_space": None,
@@ -301,7 +301,7 @@ def test_an_experiment_with_no_dataset_is_refused_before_anything_is_sent(
     from experiments.services import run as run_service
 
     transport = FakeTransport()
-    monkeypatch.setattr(cluster, "transport", lambda: transport)
+    monkeypatch.setattr(jobs, "transport", lambda: transport)
     exp = Experiment.objects.create(
         name="dataless", model_name="Random Forest", optimizer_name="Random Search",
         metric_names=["accuracy"], seed=0)

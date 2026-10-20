@@ -2497,10 +2497,10 @@ def _abandon_cluster_job(job_id: str) -> None:
     is the thing the reader actually asked for. A job that outlives this is
     bounded by its own wall-clock limit.
     """
-    from experiments.services import cluster
+    from remote import jobs
 
     try:
-        cluster.kill(cluster.SshTransport(settings.CLUSTER_HOST, timeout=15.0), job_id)
+        jobs.kill(jobs.SshTransport(settings.CLUSTER_HOST, timeout=15.0), job_id)
     except Exception:  # noqa: BLE001 — see above
         logger.warning("could not scancel job %s", job_id, exc_info=True)
 

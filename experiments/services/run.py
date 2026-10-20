@@ -519,7 +519,7 @@ def execute_run_on_cluster(run_id):
     does: a consumer that crashed would leave the row saying "running" for ever.
     """
     from experiments.models import ExperimentData, Run
-    from . import cluster
+    from remote import jobs
 
     run = Run.objects.get(pk=run_id)
     experiment = run.experiment
@@ -531,9 +531,9 @@ def execute_run_on_cluster(run_id):
                 "this experiment has no dataset stored, so there is nothing to "
                 "send to the cluster")
 
-        ssh = cluster.transport()
+        ssh = jobs.transport()
         snapshot = snapshot_adapter.snapshot_from_experiment(experiment)
-        workdir = cluster.stage(
+        workdir = jobs.stage(
             ssh, run_id, snapshot,
             {
                 "stopping": run.stopping,
@@ -552,7 +552,7 @@ def execute_run_on_cluster(run_id):
             dataset=experiment.data.dataset_path(),
             model=Path(experiment.data.model_file.path) if experiment.data.model_file else None,
         )
-        job_id = cluster.submit(ssh, run_id, workdir, hours=_hours_for(run))
+        job_id = jobs.submit(ssh, run_id, workdir, hours=_hours_for(run))
         Run.objects.filter(pk=run_id).update(job_id=job_id)
 
         status = _watch(ssh, run_id, experiment.pk, workdir, job_id)
@@ -573,41 +573,41 @@ def _watch(ssh, run_id, experiment_pk, workdir, job_id) -> dict:
     into an answer here.
     """
     from experiments.models import ExperimentData, Run
-    from . import cluster
+    from remote import jobs
 
     cancelled = False
     while True:
-        state = cluster.poll(ssh, job_id)
+        state = jobs.poll(ssh, job_id)
 
         if not cancelled and Run.objects.filter(
                 pk=run_id, cancel_requested=True).exists():
             # Asked, not killed: the run breaks out between trials and still
             # writes what it has. Requested once — the file is already there.
-            cluster.request_cancel(ssh, workdir)
+            jobs.request_cancel(ssh, workdir)
             cancelled = True
 
-        if state in (cluster.DONE, cluster.FAILED, cluster.GONE):
+        if state in (jobs.DONE, jobs.FAILED, jobs.GONE):
             break
 
         # Only while it is actually running: a queued job has written nothing,
         # and asking costs an ssh round trip per poll for a file that cannot
         # exist yet.
-        if state == cluster.RUNNING:
-            partial = cluster.fetch(ssh, workdir, "partial.json")
+        if state == jobs.RUNNING:
+            partial = jobs.fetch(ssh, workdir, "partial.json")
             if partial:
                 ExperimentData.objects.filter(
                     experiment__pk=experiment_pk).update(result=partial)
 
         time.sleep(settings.CLUSTER_POLL_SECONDS)
 
-    status = cluster.fetch(ssh, workdir, "status.json")
+    status = jobs.fetch(ssh, workdir, "status.json")
     if status is None:
-        reason = cluster.tail_error(ssh, workdir)
+        reason = jobs.tail_error(ssh, workdir)
         status = {"state": "error", "offset": 0, "stopped_by": "",
                   "config_space": None,
                   "error": (f"the job ended without finishing ({state})"
                             + (f": {reason}" if reason else ""))}
-    status["result"] = cluster.fetch(ssh, workdir, "result.json")
+    status["result"] = jobs.fetch(ssh, workdir, "result.json")
     return status
 
 

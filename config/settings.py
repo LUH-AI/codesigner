@@ -156,7 +156,7 @@ CLUSTER_HOST = env.str("CLUSTER_HOST", default="")
 CLUSTER_ROOT = env.str("CLUSTER_ROOT", default="codesigner")
 CLUSTER_PARTITION = env.str("CLUSTER_PARTITION", default="")
 # Cores asked for, and told to the thread pools inside the job — see
-# cluster/job.sbatch for why the second half matters.
+# remote/job.sbatch for why the second half matters.
 CLUSTER_CPUS = env.int("CLUSTER_CPUS", default=8)
 # The wall-clock ceiling on a job, in hours, when the run's own criteria do not
 # imply a shorter one. A queue will refuse a job asking for longer than its

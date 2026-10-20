@@ -13,7 +13,7 @@ dynamic = ["dependencies"]
 # src package. Discover the apps and their subpackages while excluding
 # datasets/, docs/, tests/ (which are not part of the distribution).
 [tool.setuptools.packages.find]
-include = ["access*", "config*", "core*", "ui*"]
+include = ["access*", "config*", "core*", "experiments*", "remote*", "ui*"]
 
 [tool.setuptools.dynamic]
 dependencies = { file = ["requirements.txt"] }

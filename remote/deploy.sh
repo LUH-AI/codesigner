@@ -6,10 +6,10 @@
 # delete the interpreter out from under any job currently running against it,
 # and this is meant to be safe to run while work is in flight.
 #
-#   ./cluster/deploy.sh                 # uses CLUSTER_HOST / CLUSTER_ROOT
-#   CLUSTER_HOST=kisski ./cluster/deploy.sh
+#   ./remote/deploy.sh                 # uses CLUSTER_HOST / CLUSTER_ROOT
+#   CLUSTER_HOST=kisski ./remote/deploy.sh
 #
-# What crosses: core/, model_sdk/ and cluster/ — not ui/, not config/, not the
+# What crosses: core/, model_sdk/ and remote/ — not ui/, not config/, not the
 # database or media. `core/` imports no Django, which is what makes that enough.
 set -euo pipefail
 
@@ -29,7 +29,7 @@ ssh "$HOST" "mkdir -p '${ROOT}'"
 rsync -az --relative --delete \
     --exclude='__pycache__' --exclude='*.pyc' \
     --exclude='build' --exclude='*.egg-info' \
-    core model_sdk cluster \
+    core model_sdk remote \
     "${HOST}:${ROOT}/"
 
 echo "==> building the environment"
@@ -42,7 +42,7 @@ echo "==> building the environment"
 # would make an offline cluster fetch a build backend it does not need.
 ssh "$HOST" "cd '${ROOT}' && \
     uv venv --allow-existing --python '${PYTHON_VERSION}' >/dev/null && \
-    uv pip install --quiet -r cluster/requirements-cluster.txt && \
+    uv pip install --quiet -r remote/requirements-cluster.txt && \
     uv pip install --quiet --no-deps ./model_sdk"
 
 echo "==> checking"

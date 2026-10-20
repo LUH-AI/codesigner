@@ -6,7 +6,7 @@ and results; everything below it is `ssh`, `sbatch` and a directory of files.
 **Why a directory of files rather than a connection.** A Slurm job cannot reach
 back into this process — it starts minutes later on a node with no route here —
 so the two sides share the one thing they both have, which is the cluster's own
-filesystem. `cluster/run_experiment.py` documents the contract; this side writes
+filesystem. `remote/run_experiment.py` documents the contract; this side writes
 the inputs, reads the outputs, and asks Slurm what is happening in between.
 
 **Why the system `ssh` rather than a library.** The host is a name out of
@@ -37,7 +37,7 @@ _PENDING_STATES = {"PENDING", "CONFIGURING", "SUSPENDED", "REQUEUED", "RESIZING"
 _OK_STATES = {"COMPLETED"}
 
 #: Where the repository was deployed to, relative to the cluster account's home.
-#: `cluster/deploy.sh` puts it there; `CLUSTER_ROOT` has to agree with it.
+#: `remote/deploy.sh` puts it there; `CLUSTER_ROOT` has to agree with it.
 _RUNS = "runs"
 
 
@@ -148,7 +148,7 @@ def stage(ssh: SshTransport, run_id, snapshot: dict, run_settings: dict,
 
     The snapshot's `dataset.path` is left exactly as it is: the far side
     repoints it at what was staged beside it, because only the far side knows
-    where that ended up. See `cluster/run_experiment.py`.
+    where that ended up. See `remote/run_experiment.py`.
     """
     from core import io
 
@@ -175,12 +175,12 @@ def submit(ssh: SshTransport, run_id, workdir: str, *, hours: int | None = None)
 
 
 def render_job(*, run_id, workdir: str, hours: int | None = None) -> str:
-    """`cluster/job.sbatch` with its markers filled in.
+    """`remote/job.sbatch` with its markers filled in.
 
     Kept here rather than in a string so the script an operator reads is the
     script that runs — see that file on why the markers are not `str.format`.
     """
-    template = Path(settings.BASE_DIR) / "cluster" / "job.sbatch"
+    template = Path(__file__).with_name("job.sbatch")
     hours = max(1, min(hours or settings.CLUSTER_MAX_HOURS, settings.CLUSTER_MAX_HOURS))
     values = {
         "RUN_ID": str(run_id),

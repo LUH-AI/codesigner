@@ -6,7 +6,7 @@ this the thing `io.build_experiment` resolves a snapshot against.
 Lives in `core` rather than `ui` because everything in it is a core object and
 none of it needs the web layer — and because a run executed somewhere else
 entirely has to resolve the same names with no Django installation to do it in
-(see `cluster/run_experiment.py`). Duplicating the three dicts there instead
+(see `remote/run_experiment.py`). Duplicating the three dicts there instead
 would work until somebody added a model, at which point the cluster would refuse
 that model alone, and say only that it "is not available".
 

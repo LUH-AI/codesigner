@@ -6,7 +6,7 @@ a management command for exactly that reason: `manage.py` would need settings, a
 database it never queries, and the whole web stack installed beside it.
 
 That is affordable because `core/` imports no Django at all. What has to be
-installed here is `cluster/requirements-cluster.txt` — six packages — and what
+installed here is `remote/requirements-cluster.txt` — six packages — and what
 has to be copied here is `core/` and `model_sdk/`.
 
 **The contract is a directory**, which is what crosses the machine boundary:
