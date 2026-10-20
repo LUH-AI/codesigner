@@ -1,6 +1,6 @@
 """How a person is found, and how an account comes to exist.
 
-There is still no registration surface and no mail server — see `access/urls.py`
+There is still no registration surface and no mail server — see `ui/urls.py`
 — so an account exists because somebody with a group decided it should. This
 module is the only door: every path that creates a `User` comes through
 `find_or_create_by_email`, which is what makes an email address a reliable key.

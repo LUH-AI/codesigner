@@ -45,7 +45,7 @@
         trace of any of this.
         {% endcomment %}
         {% if user.is_authenticated %}
-            <form class="account" action="{% url 'access:logout' %}" method="post"
+            <form class="account" action="{% url 'ui:logout' %}" method="post"
                   title="{% blocktranslate with name=user.get_username %}Signed in as {{ name }} — sign out{% endblocktranslate %}">
                 {% csrf_token %}
                 <button type="submit" class="rail-icon">

@@ -64,7 +64,7 @@ def test_a_stranger_is_sent_to_the_login_page(client, hosted):
     resp = client.get(reverse("ui:home"))
 
     assert resp.status_code == 302
-    assert resp["Location"].startswith(reverse("access:login"))
+    assert resp["Location"].startswith(reverse("ui:login"))
 
 
 def test_the_page_they_wanted_is_carried_across_the_login(client, hosted):
@@ -78,7 +78,7 @@ def test_the_page_they_wanted_is_carried_across_the_login(client, hosted):
 def test_signing_in_returns_them_to_it(client, hosted, user):
     target = reverse("ui:appearance")
 
-    resp = client.post(reverse("access:login"),
+    resp = client.post(reverse("ui:login"),
                        {"username": "ana", "password": "pw", "next": target})
 
     assert resp.status_code == 302
@@ -91,7 +91,7 @@ def test_a_signed_in_user_sees_the_app(client, hosted, user):
 
 
 def test_a_wrong_password_says_so_rather_than_signing_in(client, hosted, user):
-    resp = client.post(reverse("access:login"),
+    resp = client.post(reverse("ui:login"),
                        {"username": "ana", "password": "not-it"})
 
     assert resp.status_code == 200
@@ -102,13 +102,13 @@ def test_signing_out_needs_a_post(client, hosted, user):
     """A GET logout can be triggered by anything that makes the browser fetch a
     URL — an <img> tag on another site is enough."""
     client.force_login(user)
-    assert client.get(reverse("access:logout")).status_code == 405
+    assert client.get(reverse("ui:logout")).status_code == 405
 
 
 def test_signing_out_ends_the_session(client, hosted, user):
     client.force_login(user)
 
-    client.post(reverse("access:logout"))
+    client.post(reverse("ui:logout"))
 
     assert client.get(reverse("ui:home")).status_code == 302
 
@@ -134,10 +134,10 @@ def test_the_language_route_is_reachable_before_signing_in(client, hosted):
     what this pins is the exemption, not a translation.
     """
     resp = client.post(reverse("set_language"),
-                       {"language": "en", "next": reverse("access:login")})
+                       {"language": "en", "next": reverse("ui:login")})
 
     assert resp.status_code == 302
-    assert client.get(reverse("access:login")).status_code == 200
+    assert client.get(reverse("ui:login")).status_code == 200
 
 
 def test_the_url_space_has_no_unintended_exemptions(hosted):

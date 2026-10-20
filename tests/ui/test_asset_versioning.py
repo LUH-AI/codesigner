@@ -65,7 +65,7 @@ def test_the_pages_people_load_ask_for_versioned_assets(client, settings):
     settings.REQUIRE_LOGIN = True
     signin = client.get(reverse("ui:home"), follow=True)
     shell = signin.content.decode()
-    assert "access/login.html" in [t.name for t in signin.templates]
+    assert "ui/account/login.html" in [t.name for t in signin.templates]
     settings.REQUIRE_LOGIN = False
     home = client.get(reverse("ui:home")).content.decode()
 

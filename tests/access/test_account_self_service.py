@@ -43,7 +43,7 @@ def test_a_signed_in_user_can_change_their_own_password(client, hosted, ana,
                                                         django_user_model):
     client.force_login(ana)
 
-    resp = client.post(reverse("access:password_change"), {
+    resp = client.post(reverse("ui:password_change"), {
         "old_password": "old-pw-12345",
         "new_password1": "a-new-one-98765",
         "new_password2": "a-new-one-98765",
@@ -57,7 +57,7 @@ def test_the_current_password_is_required(client, hosted, ana, django_user_model
     """So a borrowed, still-signed-in browser cannot lock its owner out."""
     client.force_login(ana)
 
-    resp = client.post(reverse("access:password_change"), {
+    resp = client.post(reverse("ui:password_change"), {
         "old_password": "not-the-right-one",
         "new_password1": "a-new-one-98765",
         "new_password2": "a-new-one-98765",
@@ -72,7 +72,7 @@ def test_the_configured_validators_still_apply(client, hosted, ana, django_user_
     what it said rather than a message of ours guessing which one failed."""
     client.force_login(ana)
 
-    resp = client.post(reverse("access:password_change"), {
+    resp = client.post(reverse("ui:password_change"), {
         "old_password": "old-pw-12345",
         "new_password1": "pw", "new_password2": "pw",
     })
@@ -83,10 +83,10 @@ def test_the_configured_validators_still_apply(client, hosted, ana, django_user_
 
 def test_a_stranger_cannot_reach_the_page(client, hosted):
     """It is behind the wall like everything else."""
-    resp = client.get(reverse("access:password_change"))
+    resp = client.get(reverse("ui:password_change"))
 
     assert resp.status_code == 302
-    assert reverse("access:login") in resp["Location"]
+    assert reverse("ui:login") in resp["Location"]
 
 
 # ── what you are allowed to do ───────────────────────────────────────────────

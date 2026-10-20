@@ -13,7 +13,6 @@ from django.views.i18n import set_language
 
 urlpatterns = [
     path("admin/", admin.site.urls),
-    path("accounts/", include("access.urls")),
     # Django's set_language view, for the sidebar language switcher. Spelled out
     # rather than `include("django.conf.urls.i18n")` — which is the same single
     # route — so it can be exempted from the login wall: the login page carries

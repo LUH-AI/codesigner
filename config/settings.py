@@ -67,9 +67,9 @@ EXPERIMENT_POLICY = env.str("EXPERIMENT_POLICY", default="access.policy.GroupPol
 # Where the login wall sends an unauthenticated request, and where signing in
 # and out land. Set even when REQUIRE_LOGIN is off, so turning it on is one
 # variable rather than a checklist.
-LOGIN_URL = "access:login"
+LOGIN_URL = "ui:login"
 LOGIN_REDIRECT_URL = "ui:home"
-LOGOUT_REDIRECT_URL = "access:login"
+LOGOUT_REDIRECT_URL = "ui:login"
 
 # ── Model environments ────────────────────────────────────────────────────────
 # A user's model declares its own dependencies with a PEP 723 header and runs in
