@@ -3,7 +3,7 @@
 Every capability in `sections.py` is a panel here, on its section's tab. A
 panel is a `ui.figures.Panel`, as a figure is, so the Data Handling page holds
 them exactly as the dashboard holds its figures — a slot of the same grid, the
-same shapes and widths, placed by `config/figure_layout.toml` — and a page that
+same shapes and widths, placed by `ui/figure_layout.toml` — and a page that
 gathers panels from both (the setup's steps) need not tell them apart.
 
 Two kinds:

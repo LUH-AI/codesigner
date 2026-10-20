@@ -8,7 +8,7 @@ import re
 
 from django.conf import settings
 
-TEMPLATE_DIRS = ["templates", "ui/templates", "access/templates"]
+TEMPLATE_DIRS = ["ui/templates", "access/templates"]
 
 
 def _templates():

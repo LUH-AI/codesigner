@@ -373,7 +373,7 @@ def test_one_warning_reaches_every_reading_of_the_interactions(client):
 
 def test_each_tab_reads_in_the_declared_order(client):
     """The site's default layout file is each tab's order and widths until a
-    reader rearranges it — see config/figure_layout.toml."""
+    reader rearranges it — see ui/figure_layout.toml."""
     from ui.layout import default_layout
 
     html = _page(client, _experiment())

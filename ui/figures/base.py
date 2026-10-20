@@ -74,7 +74,7 @@ class Panel:
     dashboard figure (`Figure`) and a Data Handling control or card
     (`datahandling.panels.DataPanel`) differ in what they show, not in how the
     page holds them: the same slot, the same shapes and widths, the same
-    placement from `config/figure_layout.toml`.
+    placement from `ui/figure_layout.toml`.
     """
 
     # Django would otherwise *instantiate* the class when a template resolves it.
@@ -93,7 +93,7 @@ class Panel:
     home_tab = MISC
     #: SQUAT, LONG, STACK or TABLE (see above). Where on its tab it goes and how
     #: wide it opens are not the panel's to say: that is the site's default
-    #: layout, `config/figure_layout.toml`.
+    #: layout, `ui/figure_layout.toml`.
     shape = SQUAT
     #: Where its template is: `<template_dir>/<key>.html`.
     template_dir = "ui/figures"

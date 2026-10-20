@@ -12,7 +12,7 @@ its home tab (`Figure.home_tab`) always, and on Overview as well when it has
 been pinned there; the two slots are independent, so it can be wide on one and
 narrow on the other.
 
-The site's default is `config/figure_layout.toml`, and nothing else: there is no
+The site's default is `ui/figure_layout.toml`, and nothing else: there is no
 order implied by the catalog and no default stored in the database. The file is
 required, and `check` — run at start-up as a system check — refuses one that is
 missing, unreadable or does not place every figure.
@@ -28,8 +28,6 @@ import tomllib
 from functools import lru_cache
 from pathlib import Path
 
-from django.conf import settings
-
 from .figures import FIGURES, FIGURES_BY_KEY, OVERVIEW, TABS
 
 VERSION = 1
@@ -40,11 +38,11 @@ DATA_TABLE = "data"
 SETUP_TABLE = "setup"
 
 #: The site's default arrangement. Required; see the file for its format.
-DEFAULT_PATH = Path(settings.BASE_DIR) / "config" / "figure_layout.toml"
+DEFAULT_PATH = Path(__file__).with_name("figure_layout.toml")
 
 
 class LayoutFileError(Exception):
-    """`config/figure_layout.toml` is missing, unreadable, or wrong."""
+    """`ui/figure_layout.toml` is missing, unreadable, or wrong."""
 
 
 def _arrangeable():
@@ -209,7 +207,7 @@ def data_tabs(exp, setup=False) -> list:
 
 
 def default_layout() -> dict:
-    """The site's default arrangement: `config/figure_layout.toml`."""
+    """The site's default arrangement: `ui/figure_layout.toml`."""
     return copy.deepcopy(_default())
 
 

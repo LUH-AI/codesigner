@@ -47,7 +47,7 @@ SOURCE_LOCALE = "en"
 #: controls, so they are pulled together here.
 SECTIONS = (
     ("Site chrome — navigation, base template, account", (
-        "templates/base.html", "ui/navigation.py", "access/", "ui/templates/ui/account",
+        "ui/templates/ui/base.html", "ui/navigation.py", "access/", "ui/templates/ui/account",
     )),
     ("Figures — titles and descriptions (ui/figures/catalog.py)", (
         "ui/figures/",

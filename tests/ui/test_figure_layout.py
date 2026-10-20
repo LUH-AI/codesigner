@@ -41,7 +41,7 @@ def test_every_figure_has_a_home_and_a_shape():
 
 
 def test_the_default_is_the_file():
-    """config/figure_layout.toml, figure for figure, columns counted from 1
+    """ui/figure_layout.toml, figure for figure, columns counted from 1
     there and from 0 here. It ships with the code, so every install opens on
     it; there is no other default."""
     import tomllib

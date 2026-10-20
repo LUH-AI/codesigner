@@ -3,7 +3,7 @@
 The Data Handling page renders from this list and from nothing else: its tabs,
 and the capabilities on each. Each capability is a panel on
 its section's tab (`datahandling/panels.py`), placed by
-`config/figure_layout.toml` like a dashboard figure. Most are planned. One with
+`ui/figure_layout.toml` like a dashboard figure. Most are planned. One with
 a `step` is built: it is one of the experiment's processing choices
 (`core.processing`), shown as a control. A draft's setup gathers those on an
 Overview of its own — what can be decided before anything runs — while a
@@ -20,7 +20,7 @@ from django.utils.translation import gettext_lazy as _
 @dataclass(frozen=True)
 class Capability:
     #: Stable identifier: the key of the panel this becomes
-    #: (`datahandling.panels`), named in `config/figure_layout.toml`.
+    #: (`datahandling.panels`), named in `ui/figure_layout.toml`.
     key: str
     title: str
     description: str

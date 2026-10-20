@@ -484,7 +484,7 @@ class DefaultFigureLayout(models.Model):
     """How one reader wants an experiment page arranged until they arrange it.
 
     Between their own arrangement of an experiment (`FigureLayout`) and the
-    site's default (`config/figure_layout.toml`): what an experiment they have
+    site's default (`ui/figure_layout.toml`): what an experiment they have
     not touched opens on. `user` is null on an install without accounts, where
     there is one reader and so one row, which `layout.save_user_default` keeps
     to one by updating it rather than adding another.
