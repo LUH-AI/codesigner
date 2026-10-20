@@ -76,7 +76,7 @@ _ACTIVE = ["pending", "running"]
 
 #: Reaches the console handler configured in settings.LOGGING. Used only where
 #: something went wrong that the reader cannot be told about, because the thing
-#: they asked for succeeded anyway — see `_abandon_cluster_job`.
+#: they asked for succeeded anyway.
 logger = logging.getLogger(__name__)
 
 
@@ -2176,9 +2176,7 @@ def run_cancel(request, exp):
     POST only: it changes something, and on GET a prefetcher or an <img> tag
     pointing here would cancel someone's run without CSRF ever being consulted.
     """
-    exp.runs.filter(status__in=_ACTIVE, cancel_requested=False).update(
-        cancel_requested=True, cancel_requested_at=timezone.now(),
-        cancel_requested_by=_owner(request))
+    run_service.request_cancel(exp, _owner(request))
     return redirect("ui:experiment_detail", pk=exp.pk)
 
 
@@ -2208,29 +2206,8 @@ def run_force_stop(request, exp):
     the escalation rather than the first thing to hand: a cooperative cancel
     keeps the trials that already ran, and this cannot.
     """
-    stuck = exp.runs.filter(status__in=_ACTIVE, cancel_requested=True)
-    for job_id in stuck.exclude(job_id="").values_list("job_id", flat=True):
-        _abandon_cluster_job(job_id)
-    run_service.fail_runs(stuck, _("Given up on by hand: it stopped answering, and "
-                                   "cancelling it had no effect."))
+    run_service.force_stop(exp)
     return redirect("ui:experiment_detail", pk=exp.pk)
-
-
-def _abandon_cluster_job(job_id: str) -> None:
-    """`scancel` a job whose run is being given up on.
-
-    Best-effort and deliberately quiet. This runs inside a request, and the
-    cluster being unreachable is a likely reason the run stopped answering in
-    the first place — so failing here must not stop the row being freed, which
-    is the thing the reader actually asked for. A job that outlives this is
-    bounded by its own wall-clock limit.
-    """
-    from remote import jobs
-
-    try:
-        jobs.kill(jobs.SshTransport(settings.CLUSTER_HOST, timeout=15.0), job_id)
-    except Exception:  # noqa: BLE001 — see above
-        logger.warning("could not scancel job %s", job_id, exc_info=True)
 
 
 #: What a ticked box on the export page posts. One value for both of its

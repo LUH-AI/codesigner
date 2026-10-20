@@ -8,6 +8,7 @@ result and status back so the page can poll and cancel.
 """
 
 import copy
+import logging
 import math
 import random
 import time
@@ -24,11 +25,14 @@ from core.metrics import metric_for, metrics_for, usable
 from core.optimizers.base import STOPPED_BY_CANCELLED, OptimizationResult
 from core.optimizers.trial import offers_probabilities
 from core.registry import METRICS, MODELS, OPTIMIZERS
+from remote import jobs
 
 from . import snapshot as snapshot_adapter
 from . import trial_models
 from .run_logic import apply_metrics
 from .settings import eager_analytics_wanted, resolve_settings
+
+logger = logging.getLogger(__name__)
 
 
 def resolve_seed(seed_input: int) -> int:
@@ -351,6 +355,36 @@ def fail_runs(runs, error) -> int:
     return count
 
 
+def request_cancel(exp, user) -> None:
+    """Ask *exp*'s active run to stop after the trial it is on."""
+    exp.runs.filter(status__in=("pending", "running"), cancel_requested=False).update(
+        cancel_requested=True, cancel_requested_at=timezone.now(), cancel_requested_by=user)
+
+
+def force_stop(exp) -> None:
+    """Give up on *exp*'s runs that were asked to cancel and have not."""
+    stuck = exp.runs.filter(status__in=("pending", "running"), cancel_requested=True)
+    for job_id in stuck.exclude(job_id="").values_list("job_id", flat=True):
+        abandon_cluster_job(job_id)
+    fail_runs(stuck, _("Given up on by hand: it stopped answering, and "
+                       "cancelling it had no effect."))
+
+
+def abandon_cluster_job(job_id: str) -> None:
+    """`scancel` a job whose run is being given up on.
+
+    Best-effort and deliberately quiet. This runs inside a request, and the
+    cluster being unreachable is a likely reason the run stopped answering in
+    the first place — so failing here must not stop the row being freed, which
+    is the thing the reader actually asked for. A job that outlives this is
+    bounded by its own wall-clock limit.
+    """
+    try:
+        jobs.kill(jobs.SshTransport(settings.CLUSTER_HOST, timeout=15.0), job_id)
+    except Exception:  # noqa: BLE001 — see above
+        logger.warning("could not scancel job %s", job_id, exc_info=True)
+
+
 def execute_run(run_id):
     """Run one optimization, writing status and result to the DB.
 
@@ -519,8 +553,6 @@ def execute_run_on_cluster(run_id):
     does: a consumer that crashed would leave the row saying "running" for ever.
     """
     from experiments.models import ExperimentData, Run
-    from remote import jobs
-
     run = Run.objects.get(pk=run_id)
     experiment = run.experiment
     _start(run, backend="slurm")
@@ -573,8 +605,6 @@ def _watch(ssh, run_id, experiment_pk, workdir, job_id) -> dict:
     into an answer here.
     """
     from experiments.models import ExperimentData, Run
-    from remote import jobs
-
     cancelled = False
     while True:
         state = jobs.poll(ssh, job_id)

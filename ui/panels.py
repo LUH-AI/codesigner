@@ -29,6 +29,7 @@ from django.utils import timezone
 from access.models import Group, Membership
 from access.policy import is_site_admin, membership_in, memberships_of, policy
 from experiments.models import Experiment, Run
+from experiments.services import run as run_service
 from experiments.services.storage import delete_experiment_files
 from experiments.services.storage import forget as forget_storage
 from experiments.services.storage import usage as storage_usage
@@ -679,11 +680,9 @@ def site_job_stop(request, pk):
     """
     from django.utils import timezone
 
-    from .views import _abandon_cluster_job
-
     run = get_object_or_404(Run, pk=pk, status__in=("pending", "running"))
     if run.job_id:
-        _abandon_cluster_job(run.job_id)
+        run_service.abandon_cluster_job(run.job_id)
     Run.objects.filter(pk=run.pk).update(
         status="error", finished_at=timezone.now(),
         error=_("Stopped by a site administrator."))
