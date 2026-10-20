@@ -19,8 +19,17 @@ because it must be grantable without making somebody a Django superuser — see
 the site panel on why that distinction carries weight.
 """
 
+from __future__ import annotations
+
+from typing import TYPE_CHECKING
+
 from django.conf import settings as django_settings
 from django.db import models
+
+if TYPE_CHECKING:
+    from django.db.models.manager import RelatedManager
+
+    from experiments.models import Experiment
 
 #: `Membership.PRIMARY_LEAD`, at module scope because the constraint that keeps
 #: it unique is declared in `Membership.Meta`, and a class body's own names are
@@ -44,6 +53,10 @@ class Group(models.Model):
     stays exactly where it was. Deletion is deliberately not the tool for that,
     and `Membership.group` is `PROTECT` so it cannot become one by accident.
     """
+
+    id: int
+    memberships: RelatedManager[Membership]
+    experiments: RelatedManager[Experiment]
 
     name = models.CharField(max_length=120, unique=True)
     user_limit = models.PositiveIntegerField(default=5)
@@ -116,6 +129,10 @@ class Membership(models.Model):
     other — which is the whole reason the role lives here rather than on the
     account.
     """
+
+    id: int
+    user_id: int
+    group_id: int
 
     MEMBER = "member"
     LEAD = "lead"
@@ -192,6 +209,8 @@ class AccessPermissions(models.Model):
     An active superuser holds all of them without being granted anything,
     because that is what Django's `ModelBackend` does with `has_perm`.
     """
+
+    id: int
 
     class Meta:
         managed = False

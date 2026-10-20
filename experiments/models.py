@@ -1,4 +1,7 @@
+from __future__ import annotations
+
 import secrets
+from typing import TYPE_CHECKING
 
 from django.conf import settings as django_settings
 from django.db import models, transaction
@@ -7,6 +10,11 @@ from django.utils.translation import gettext_lazy as _
 from core import tasks
 
 from .fields import SafeJSONField
+
+if TYPE_CHECKING:
+    from django.db.models.manager import RelatedManager
+
+    from ui.models import FigureLayout
 
 
 #: What an experiment with no name is called wherever it is shown.
@@ -40,6 +48,10 @@ class ExperimentData(models.Model):
     the answer, and `tests/ui/experiments/test_the_two_halves.py` fails on a
     field that belongs to neither.
     """
+
+    id: int
+    experiment: Experiment
+    history: RelatedManager[ExperimentEvent]
 
     # Optional: the identifier is what tells experiments apart. Shown through
     # `Experiment.title`, which names an unnamed one.
@@ -207,6 +219,17 @@ class Experiment(models.Model):
     field added here is a claim that it is about *this instance*, and a field
     added there is a claim that it belongs in the file.
     """
+
+    id: int
+    data_id: int
+    owner_id: int | None
+    group_id: int | None
+    deleted_by_id: int | None
+    shares: RelatedManager[ExperimentShare]
+    bin_entries: RelatedManager[BinEntry]
+    runs: RelatedManager[Run]
+    trial_models: RelatedManager[TrialModel]
+    figure_layouts: RelatedManager[FigureLayout]
 
     # The work this row is about. CASCADE because the two are one experiment
     # said twice: there is no meaning to an instance-side record of nothing.
@@ -398,6 +421,11 @@ class ExperimentShare(models.Model):
     without going through that.
     """
 
+    id: int
+    experiment_id: int
+    user_id: int
+    granted_by_id: int | None
+
     VIEWER = "viewer"
     CONTRIBUTOR = "contributor"
     LEVELS = [
@@ -460,6 +488,11 @@ class ExperimentEvent(models.Model):
     so the experiment as it stood at any entry can be worked out again.
     """
 
+    id: int
+    data_id: int
+    run_id: int | None
+    actor_id: int | None
+
     data = models.ForeignKey(ExperimentData, on_delete=models.CASCADE,
                              related_name="history")
     at = models.DateTimeField(null=True, blank=True)
@@ -492,6 +525,10 @@ class BinEntry(models.Model):
     the same as it being theirs.
     """
 
+    id: int
+    experiment_id: int
+    user_id: int
+
     experiment = models.ForeignKey(Experiment, on_delete=models.CASCADE,
                                    related_name="bin_entries")
     user = models.ForeignKey(django_settings.AUTH_USER_MODEL,
@@ -513,6 +550,13 @@ class Run(models.Model):
     in the background (a later step); for now a run is created and completed
     synchronously.
     """
+
+    id: int
+    experiment_id: int
+    started_by_id: int | None
+    cancel_requested_by_id: int | None
+    history: RelatedManager[ExperimentEvent]
+    trial_models: RelatedManager[TrialModel]
 
     STATUS_CHOICES = [
         ("pending", "Pending"),
@@ -631,6 +675,10 @@ class TrialModel(models.Model):
     themselves live under `directory` (see experiments/services/trial_models.py).
     """
 
+    id: int
+    experiment_id: int
+    run_id: int | None
+
     experiment = models.ForeignKey("Experiment", on_delete=models.CASCADE,
                                    related_name="trial_models")
     run = models.ForeignKey("Run", on_delete=models.SET_NULL, null=True, blank=True,
@@ -652,6 +700,8 @@ class TrialModel(models.Model):
 class GlobalSettings(models.Model):
     """Single-row app settings, including the default experiment settings that
     new/inheriting experiments fall back to. Use `GlobalSettings.get_solo()`."""
+
+    id: int
 
     default_experiment_settings = models.JSONField(default=dict, blank=True)
     # How an experiment page is arranged for a reader who has not arranged it

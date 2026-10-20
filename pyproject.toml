@@ -26,3 +26,12 @@ markers = [
     "slow: long-running tests (SMAC end-to-end); deselect with -m 'not slow'",
     "uv: needs uv installed; exercises real environment building. Skipped without it.",
 ]
+
+[tool.pyright]
+typeCheckingMode = "standard"
+pythonVersion = "3.12"
+venvPath = "."
+venv = ".venv"
+# codesigner_model is installed editable through an import hook, which a static
+# checker cannot follow.
+extraPaths = ["model_sdk"]

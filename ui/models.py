@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 from django.conf import settings as django_settings
 from django.db import models
 
@@ -16,6 +18,10 @@ class FigureLayout(models.Model):
     the partial constraint keeps that to one row per experiment, which the
     plain unique one cannot, since NULLs never collide.
     """
+
+    id: int
+    experiment_id: int
+    user_id: int | None
 
     experiment = models.ForeignKey("experiments.Experiment", on_delete=models.CASCADE,
                                    related_name="figure_layouts")
@@ -44,6 +50,9 @@ class DefaultFigureLayout(models.Model):
     to one by updating it rather than adding another.
     """
 
+    id: int
+    user_id: int | None
+
     user = models.OneToOneField(django_settings.AUTH_USER_MODEL, null=True, blank=True,
                                 on_delete=models.CASCADE, related_name="default_figure_layout")
     layout = SafeJSONField(default=dict, blank=True)
@@ -56,6 +65,9 @@ class ReaderPreferences(models.Model):
     `user` is null on an install without accounts, where there is one reader
     and one row, as for `DefaultFigureLayout`.
     """
+
+    id: int
+    user_id: int | None
 
     user = models.OneToOneField(django_settings.AUTH_USER_MODEL, null=True, blank=True,
                                 on_delete=models.CASCADE, related_name="reader_preferences")

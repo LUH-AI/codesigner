@@ -88,6 +88,10 @@ class OpenPolicy:
         """
         return Experiment.objects.filter(deleted_at__isnull=False)
 
+    def trash(self, request):
+        """What a site admin settles: nothing, without groups to leave it behind."""
+        return Experiment.objects.none()
+
     def for_listing(self, request):
         """The experiments a page should *list*, which need not be all of them.
 
@@ -128,10 +132,10 @@ class OpenPolicy:
         return True
 
 
-_cached: tuple[str, object] | None = None
+_cached: tuple[str, OpenPolicy] | None = None
 
 
-def policy():
+def policy() -> OpenPolicy:
     """The configured policy, instantiated once per configured path.
 
     Keyed on the setting rather than cached outright so a test (or a later
