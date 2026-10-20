@@ -29,6 +29,7 @@ from functools import lru_cache
 from pathlib import Path
 
 from .figures import FIGURES, FIGURES_BY_KEY, OVERVIEW, TABS
+from .figures.data_handling import DATA_PANELS, DATA_PANELS_BY_KEY, SECTIONS
 
 VERSION = 1
 
@@ -139,9 +140,6 @@ def read_default(path=None) -> dict:
 def read_data_default(path=None) -> dict:
     """The Data Handling page's arrangement in *path* (its `[data]` table),
     checked; raises `LayoutFileError`. `{section: [{"key", "w", "c"}]}`."""
-    from datahandling.panels import DATA_PANELS, DATA_PANELS_BY_KEY
-    from datahandling.sections import SECTIONS
-
     path, raw = _read_file(path)
     table = raw.get(DATA_TABLE)
     if not isinstance(table, dict):
@@ -163,8 +161,6 @@ def read_setup_default(path=None) -> list:
     """A draft's setup Overview in *path* (its `[setup]` table), checked; raises
     `LayoutFileError`. `[{"key", "w", "c"}]`: any Data Handling panel, as the
     dashboard's Overview holds figures whose home is another tab."""
-    from datahandling.panels import DATA_PANELS_BY_KEY
-
     path, raw = _read_file(path)
     table = raw.get(SETUP_TABLE)
     if not isinstance(table, dict):
@@ -192,9 +188,6 @@ def data_tabs(exp, setup=False) -> list:
     dashboard's: each section with its slots, a slot being its panel, its width
     and its column. The site's arrangement, for every reader. With *setup*, a
     draft's: its Overview is the setup's own (`[setup]`)."""
-    from datahandling.panels import DATA_PANELS_BY_KEY
-    from datahandling.sections import SECTIONS
-
     arranged = dict(_data_default())
     if setup:
         arranged[SECTIONS[0].slug] = _setup_default()
@@ -222,7 +215,7 @@ def check(app_configs=None, **kwargs):
         read_setup_default()
     except LayoutFileError as exc:
         return [Error(str(exc), hint="Every figure in ui/figures/catalog.py, and every "
-                                     "Data Handling panel in datahandling/sections.py, has "
+                                     "Data Handling panel in ui/figures/data_handling.py, has "
                                      "to be placed on its home tab in this file.",
                       id="ui.E001")]
     return []

@@ -1,26 +1,41 @@
-"""What Data Handling is to do, section by section.
+"""Data Handling: looking at, cleaning, reshaping and augmenting an
+experiment's dataset before it is tuned on.
 
-The Data Handling page renders from this list and from nothing else: its tabs,
-and the capabilities on each. Each capability is a panel on
-its section's tab (`datahandling/panels.py`), placed by
-`ui/figure_layout.toml` like a dashboard figure. Most are planned. One with
-a `step` is built: it is one of the experiment's processing choices
+The page renders from `SECTIONS` and from nothing else: its tabs, and the
+capabilities on each. Each capability is a panel on its section's tab, a
+`Panel` like a dashboard figure and placed by `ui/figure_layout.toml` the same
+way. Most are planned, shown as a card saying what they will do. One with a
+`step` is built: it is one of the experiment's processing choices
 (`core.processing`), shown as a control. A draft's setup gathers those on an
 Overview of its own — what can be decided before anything runs — while a
-created experiment's Overview describes its dataset. Reshaping a section — adding an idea,
-dropping one, moving one somewhere it fits better — is an edit here, and a line
-in the layout file.
+created experiment's Overview describes its dataset.
+
+How the pieces are meant to fit, once they are built: Data Handling produces a
+*recipe* — an ordered list of steps (choose the target, set a column's kind,
+impute, encode, drop duplicates, oversample, ...) applied to the uploaded CSV
+before it is split. The raw file is never rewritten. The recipe would travel in
+the ``.ihpo`` with the rest of the experiment, and into an exported model, so
+that predictions made outside Codesigner see exactly the transforms the tuned
+model was scored on. Steps that only make sense on training rows —
+augmentation, resampling — would apply inside each fold rather than before the
+split, so they never leak into what a model is validated on.
 """
+
+from __future__ import annotations
 
 from dataclasses import dataclass
 
 from django.utils.translation import gettext_lazy as _
 
+from core.processing import AUTO, CHOICES, choices_of, model_defaults, unavailable
+from experiments.services.processing import model_of
+
+from .base import CARD, DATA, Panel
 
 @dataclass(frozen=True)
 class Capability:
-    #: Stable identifier: the key of the panel this becomes
-    #: (`datahandling.panels`), named in `ui/figure_layout.toml`.
+    #: Stable identifier: the key of the panel this becomes, named in
+    #: `ui/figure_layout.toml`.
     key: str
     title: str
     description: str
@@ -183,3 +198,117 @@ SECTIONS = (
 )
 
 BY_SLUG = {s.slug: s for s in SECTIONS}
+
+
+#: What each processing choice is called on the page.
+CHOICE_LABELS = {
+    "impute": _("Fill in"),
+    "keep": _("Leave for the model"),
+    "standardize": _("Standardize"),
+    "none": _("Leave as they are"),
+    "one_hot": _("One column per label"),
+    "categories": _("As categories"),
+}
+
+
+class DataPanel(Panel):
+    """A panel on the Data Handling page."""
+
+    page = DATA
+    shape = CARD
+    template_dir = "ui/data_handling/panels"
+    #: One template for every panel of a kind, rather than one per key.
+    shared_template = ""
+    #: What the panel is for, said under its heading.
+    description = ""
+
+    def __init_subclass__(cls, **kwargs):
+        super().__init_subclass__(**kwargs)
+        if cls.shared_template:
+            cls.template = cls.shared_template
+
+
+class ProcessingStep(DataPanel):
+    """One processing choice, as a labelled select."""
+
+    shared_template = "ui/data_handling/panels/processing_step.html"
+    #: Its key in `core.processing.CHOICES`.
+    step = ""
+
+    @classmethod
+    def control(cls, exp):
+        """The select for *exp*: one option per choice, the model's own
+        default among them named as such — "Leave as they are (Random Forest
+        default)" — and chosen until something else is. The default is posted
+        as "auto", so it goes on following the model if the model changes.
+        A choice the model cannot take is offered disabled."""
+        model = model_of(exp)
+        chosen = choices_of(exp.data.processing)[cls.step]
+        if model is None:
+            return {"name": cls.step, "value": chosen,
+                    "options": [{"value": v, "label": _("As the model needs") if v == AUTO
+                                 else CHOICE_LABELS[v], "disabled": False}
+                                for v in CHOICES[cls.step]]}
+        default = model_defaults(model)[cls.step]
+        options = []
+        for choice in CHOICES[cls.step]:
+            if choice == AUTO:
+                continue
+            is_default = choice == default
+            options.append({
+                "value": AUTO if is_default else choice,
+                "label": (_("%(choice)s (%(model)s default)") % {
+                    "choice": CHOICE_LABELS[choice], "model": model.name}
+                          if is_default else str(CHOICE_LABELS[choice])),
+                "disabled": unavailable(model, cls.step, choice),
+            })
+        return {"name": cls.step, "options": options,
+                "value": AUTO if chosen in (AUTO, default) else chosen}
+
+
+def describe(exp, step, choice, lower=True) -> str:
+    """*choice* at *step* as a reader says it: "auto" as what it is for
+    *exp*'s model — "standardize (SVM default)". Mid-sentence unless *lower*
+    is false, when it reads as the card's option does."""
+    model = model_of(exp)
+    if choice == AUTO:
+        if model is None:
+            text = str(_("As the model needs"))
+        else:
+            text = _("%(choice)s (%(model)s default)") % {
+                "choice": str(CHOICE_LABELS[model_defaults(model)[step]]), "model": model.name}
+    else:
+        text = str(CHOICE_LABELS.get(choice, choice))
+    return text[:1].lower() + text[1:] if lower else text
+
+
+def is_default(exp, step, choice) -> bool:
+    """Whether *choice* is what *exp*'s model is given at *step* anyway."""
+    model = model_of(exp)
+    return choice == AUTO or (model is not None and model_defaults(model)[step] == choice)
+
+
+class Planned(DataPanel):
+    """A capability not built yet: what it will do."""
+
+    shared_template = "ui/data_handling/panels/planned.html"
+
+
+def _panel(section, capability):
+    base = ProcessingStep if capability.step else Planned
+    return type(f"{base.__name__}_{capability.key}", (base,), {
+        "key": capability.key,
+        "label": capability.title,
+        "description": capability.description,
+        "home_tab": section.slug,
+        "step": capability.step,
+        "__module__": __name__,
+    })
+
+
+#: Every Data Handling panel, section by section, in the order `SECTIONS`
+#: lists them.
+DATA_PANELS = tuple(_panel(section, capability)
+                    for section in SECTIONS for capability in section.planned)
+DATA_PANELS_BY_KEY = {panel.key: panel for panel in DATA_PANELS}
+PROCESSING_PANELS = tuple(p for p in DATA_PANELS if issubclass(p, ProcessingStep))

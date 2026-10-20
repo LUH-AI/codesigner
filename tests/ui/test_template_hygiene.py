@@ -50,11 +50,12 @@ def test_every_template_with_text_of_its_own_marks_it_for_translation():
     comes from `ui/optimizer_labels.py`, which is where they are marked, and
     the info label and the initial-points group render names and
     explanations they are handed. The experiment page layer's only text is
-    the experiment's name and the product's.
+    the experiment's name and the product's. A Data Handling control renders
+    labels marked in `ui/figures/data_handling.py`.
     """
     exempt = {"_selected_config_inner.html", "_breadcrumbs.html", "_metric_select.html",
               "_optimizer_param_field.html", "_info_label.html",
-              "_group_initial_points.html", "_experiment_page.html"}
+              "_group_initial_points.html", "_experiment_page.html", "processing_step.html"}
     no_i18n = {p.name for p in _templates()
                if "translate" not in p.read_text()
                and p.name not in exempt

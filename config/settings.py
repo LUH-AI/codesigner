@@ -232,7 +232,6 @@ INSTALLED_APPS = [
     "access",
     "experiments",
     "ui",
-    "datahandling",
 ]
 
 MIDDLEWARE = [

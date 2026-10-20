@@ -61,7 +61,7 @@ SHAPES = {
 
 #: The pages an experiment's panels are on: its dashboard, whose tabs are
 #: above, and its Data Handling, whose tabs are its sections
-#: (`datahandling/sections.py`).
+#: (`data_handling.py`).
 DASHBOARD = "dashboard"
 DATA = "data"
 
@@ -72,7 +72,7 @@ class Panel:
 
     Every panel is placed, sized and drawn the same way, wherever it is. A
     dashboard figure (`Figure`) and a Data Handling control or card
-    (`datahandling.panels.DataPanel`) differ in what they show, not in how the
+    (`data_handling.DataPanel`) differ in what they show, not in how the
     page holds them: the same slot, the same shapes and widths, the same
     placement from `ui/figure_layout.toml`.
     """

@@ -17,11 +17,10 @@ from django.core.exceptions import PermissionDenied
 from django.test import RequestFactory
 from django.urls import reverse
 
-from datahandling import urls as datahandling_urls
-from ui import urls
-from experiments.models import Experiment
 from access import policy as access_policy
 from access.policy import OpenPolicy
+from experiments.models import Experiment
+from ui import urls
 from ui.permissions import CREATED, ONLY, experiment_view
 
 
@@ -74,7 +73,7 @@ def _experiment_routes():
     """Every route that names an experiment in its path and resolves it through
     `@experiment_view` — which is every one of them but the bins'."""
     exempt = set(NOT_EXPERIMENTS) | set(THROUGH_THE_BIN)
-    return [p for p in urls.urlpatterns + datahandling_urls.urlpatterns
+    return [p for p in urls.urlpatterns
             if "<int:pk>" in str(p.pattern) and p.name not in exempt]
 
 

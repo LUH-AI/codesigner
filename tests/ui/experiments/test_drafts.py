@@ -71,7 +71,7 @@ def test_a_draft_cannot_be_reached_as_an_experiment(client):
     for name in ("ui:experiment_detail", "ui:experiment_timeline", "ui:experiment_export"):
         response = client.get(reverse(name, args=[exp.pk]))
         assert response.status_code == 302 and response["Location"] == resume, name
-    assert client.get(reverse("datahandling:data_overview", args=[exp.pk]))["Location"] == resume
+    assert client.get(reverse("ui:data_overview", args=[exp.pk]))["Location"] == resume
     assert client.post(reverse("ui:experiment_run", args=[exp.pk]),
                        {"max_trials": 3}).status_code == 404
 

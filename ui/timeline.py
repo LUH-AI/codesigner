@@ -20,6 +20,7 @@ from django.utils.translation import gettext as _
 from django.utils.translation import gettext_lazy
 
 from . import times
+from .figures.data_handling import describe, is_default
 from .formatting import sigfigs
 from .optimizer_labels import summary as optimizer_summary
 
@@ -246,7 +247,6 @@ def _data_handling_entry(exp, configuration, at, at_trial, seq):
     ones that are not the model's own default. None for a configuration from
     before processing was recorded."""
     from core.processing import choices_of
-    from datahandling.panels import describe, is_default
 
     dataset = configuration.get("dataset") or {}
     if "processing" not in dataset:
@@ -289,8 +289,6 @@ def _event_entry(exp, event):
                    (_("File"), p.get("filename")),
                    (_("Dataset attached"), _yes_no(p.get("dataset_attached")))]
     elif kind == "processing_changed":
-        from datahandling.panels import describe
-
         summary = _("%(step)s: %(old)s → %(new)s.") % {
             "step": _STEPS.get(p.get("step"), p.get("step")),
             "old": describe(exp, p.get("step"), p.get("old")),

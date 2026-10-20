@@ -13,13 +13,14 @@ from django.utils import timezone
 from django.utils.translation import gettext as _
 from django.views.decorators.http import require_POST
 
-
 from access.policy import EDIT
-from .permissions import ONLY, experiment_view
-from experiments.services import history
+from experiments.services import history, processing
+from experiments.services import snapshot as snapshot_adapter
+
 from . import optimizer_form
 from . import setup_steps as steps
-from experiments.services import snapshot as snapshot_adapter
+from .figures.data_handling import SECTIONS
+from .permissions import ONLY, experiment_view
 
 
 def _page(request, exp, step, template, **context):
@@ -75,13 +76,12 @@ def setup_optimizer(request, exp):
 def setup_data(request, exp):
     """Step 3: the Data Handling page, its settable panels on Overview; Save
     keeps their choices and moves on."""
-    from datahandling.sections import SECTIONS
-    from datahandling.views import save_processing, tabs_for
+    from .views import tabs_for
 
     if not steps.reachable(exp, steps.DATA):
         return redirect(steps.url(exp, steps.SETUP))
     if request.method == "POST":
-        refusal = save_processing(request, exp)
+        refusal = processing.save(exp, request.POST, request.user)
         if refusal:
             messages.error(request, refusal)
             return redirect(steps.url(exp, steps.DATA))

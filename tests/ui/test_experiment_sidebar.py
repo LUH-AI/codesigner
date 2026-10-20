@@ -135,7 +135,7 @@ def test_the_open_experiment_lists_its_three_views(client):
     pages = {
         reverse("ui:experiment_detail", args=[exp.pk]): "Dashboard",
         reverse("ui:experiment_settings", args=[exp.pk]): "Dashboard",
-        reverse("datahandling:data_overview", args=[exp.pk]): "Data Handling",
+        reverse("ui:data_overview", args=[exp.pk]): "Data Handling",
         reverse("ui:experiment_timeline", args=[exp.pk]): "Timeline",
     }
     for url, current in pages.items():

@@ -6,7 +6,7 @@ import re
 import pytest
 from django.urls import reverse
 
-from datahandling.sections import SECTIONS
+from ui.figures.data_handling import SECTIONS
 from experiments.models import Experiment
 from access.policy import OpenPolicy
 from tests.conftest import post_new_experiment
@@ -27,8 +27,8 @@ def _exp(name="Iris tuning"):
 
 def _url(exp, section):
     if section is SECTIONS[0]:
-        return reverse("datahandling:data_overview", args=[exp.pk])
-    return reverse("datahandling:data_section", args=[exp.pk, section.slug])
+        return reverse("ui:data_overview", args=[exp.pk])
+    return reverse("ui:data_section", args=[exp.pk, section.slug])
 
 
 def _trail(html):
@@ -59,7 +59,7 @@ def test_the_first_sections_slug_is_not_a_second_address(client):
     """What: the overview is only reachable at the data root.
     How: requests the overview's slug as a section and expects a 404."""
     exp = _exp()
-    url = reverse("datahandling:data_section", args=[exp.pk, SECTIONS[0].slug])
+    url = reverse("ui:data_section", args=[exp.pk, SECTIONS[0].slug])
     assert client.get(url).status_code == 404
 
 
@@ -67,7 +67,7 @@ def test_an_unknown_section_is_a_404(client):
     """What: a slug no section has is not a page.
     How: requests a made-up slug."""
     exp = _exp()
-    url = reverse("datahandling:data_section", args=[exp.pk, "no-such-section"])
+    url = reverse("ui:data_section", args=[exp.pk, "no-such-section"])
     assert client.get(url).status_code == 404
 
 
@@ -248,7 +248,7 @@ def test_data_panels_and_figures_are_one_type():
     """What: a Data Handling panel and a dashboard figure are both `Panel`s,
     with the same shape, width and template machinery.
     How: checks the class hierarchy and the derived attributes."""
-    from datahandling.panels import DATA_PANELS
+    from ui.figures.data_handling import DATA_PANELS
     from ui.figures import FIGURES, Panel
 
     assert all(issubclass(p, Panel) for p in DATA_PANELS + FIGURES)
@@ -260,7 +260,7 @@ def test_every_data_panel_is_placed_once_on_its_tab():
     """What: the layout file places each Data Handling panel on its section's
     tab, and a file missing one is refused.
     How: reads the file's data table, then a copy with one panel removed."""
-    from datahandling.panels import DATA_PANELS
+    from ui.figures.data_handling import DATA_PANELS
     from ui import layout
 
     arranged = layout.read_data_default()

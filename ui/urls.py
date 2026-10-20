@@ -38,6 +38,8 @@ urlpatterns = [
     path("settings/export/", views.export_preferences, name="export_preferences"),
     path("settings/experiment-defaults/", views.default_experiment_settings, name="default_experiment_settings"),
     path("experiments/new/", views.new_experiment, name="new_experiment"),
+    path("experiments/<int:pk>/data/", views.data_overview, name="data_overview"),
+    path("experiments/<int:pk>/data/<slug:section>/", views.data_section, name="data_section"),
     # A draft's setup (ui/setup_steps.py): its three steps, creating it, and
     # throwing it away. Drafts only — see `experiment_view`'s `drafts`.
     path("experiments/<int:pk>/setup/", setup_views.setup, name="setup"),

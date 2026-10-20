@@ -83,7 +83,7 @@ def test_a_processing_change_is_one_entry_per_choice_changed(client):
     """What: changing two Data Handling choices records two entries, each with
     the value before and after. How: posts the Features page."""
     exp = _create(client)
-    client.post(reverse("datahandling:data_section", args=[exp.pk, "features"]),
+    client.post(reverse("ui:data_section", args=[exp.pk, "features"]),
                 {"labels": "categories", "scale": "standardize"})
 
     changes = {e.payload["step"]: (e.payload["old"], e.payload["new"])
@@ -98,7 +98,7 @@ def test_processing_cannot_change_while_a_run_is_under_way(client):
 
     exp = _create(client)
     create_run(exp, {"max_trials": 3}, "accuracy")
-    client.post(reverse("datahandling:data_section", args=[exp.pk, "features"]),
+    client.post(reverse("ui:data_section", args=[exp.pk, "features"]),
                 {"labels": "categories"})
     exp.data.refresh_from_db()
 

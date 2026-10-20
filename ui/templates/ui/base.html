@@ -168,7 +168,7 @@
                                 <a class="tab{% if sidebar_view == 'dashboard' %} active{% endif %}"
                                    href="{% url 'ui:experiment_detail' e.pk %}"{% if sidebar_view == 'dashboard' %} aria-current="page"{% endif %}>{% translate "Dashboard" %}</a>
                                 <a class="tab{% if sidebar_view == 'data' %} active{% endif %}"
-                                   href="{% url 'datahandling:data_overview' e.pk %}"{% if sidebar_view == 'data' %} aria-current="page"{% endif %}>{% translate "Data Handling" %}</a>
+                                   href="{% url 'ui:data_overview' e.pk %}"{% if sidebar_view == 'data' %} aria-current="page"{% endif %}>{% translate "Data Handling" %}</a>
                                 <a class="tab{% if sidebar_view == 'timeline' %} active{% endif %}"
                                    href="{% url 'ui:experiment_timeline' e.pk %}"{% if sidebar_view == 'timeline' %} aria-current="page"{% endif %}>{% translate "Timeline" %}</a>
                             </div>
