@@ -22,7 +22,7 @@ from tests.conftest import FIXTURES_DIR
 
 
 def _experiment_with_result():
-    from ui.services import snapshot as adapter
+    from experiments.services import snapshot as adapter
     return adapter.experiment_from_snapshot(io.parse((FIXTURES_DIR / "test2.ihpo").read_bytes()))
 
 
@@ -103,7 +103,7 @@ def test_rejects_out_of_range_or_malformed_index(idx):
 
 def test_rejects_when_experiment_has_no_result(client):
     """An experiment with no result yet (never run) can't supply a trial panel."""
-    from ui.services import snapshot as adapter
+    from experiments.services import snapshot as adapter
 
     exp = adapter.experiment_from_snapshot({
         "version": "0.1.0", "name": "no-result-yet", "model_name": "Random Forest",

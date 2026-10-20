@@ -46,7 +46,7 @@ def _experiment(request, pk):
     Through the policy, so a crumb never names an experiment its own link would
     404 on — the trail would otherwise be a directory of what exists.
     """
-    from .permissions import visible_experiments
+    from access.policy import visible_experiments
 
     return visible_experiments(request).filter(pk=pk).first()
 

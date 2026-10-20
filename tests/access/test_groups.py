@@ -15,7 +15,7 @@ from django.urls import reverse
 
 from access.models import Group, Membership
 from experiments.models import Experiment, ExperimentShare
-from ui.permissions import DELETE, EDIT, EXPORT, RUN, SHARE, VIEW
+from access.policy import DELETE, EDIT, EXPORT, RUN, SHARE, VIEW
 
 VIEWER, CONTRIBUTOR = ExperimentShare.VIEWER, ExperimentShare.CONTRIBUTOR
 

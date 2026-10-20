@@ -20,7 +20,7 @@ import pytest
 from django.urls import reverse
 
 from experiments.models import Experiment, ExperimentShare
-from ui.permissions import DELETE, EXPORT, RUN
+from access.policy import DELETE, EXPORT, RUN
 
 VIEWER, CONTRIBUTOR = ExperimentShare.VIEWER, ExperimentShare.CONTRIBUTOR
 
@@ -122,7 +122,7 @@ def test_the_default_policy_is_the_group_policy():
     configuration; there is no second variable to remember."""
     from django.conf import settings as django_settings
 
-    from ui.permissions import policy
+    from access.policy import policy
 
     assert django_settings.EXPERIMENT_POLICY == "access.policy.GroupPolicy"
     assert type(policy()).__name__ == "GroupPolicy"
@@ -547,7 +547,7 @@ def test_the_experiment_itself_still_knows_its_paths(client, ana):
     from django.core.files.base import ContentFile
 
     from tests.conftest import DATASETS_DIR
-    from ui.services import snapshot as adapter
+    from experiments.services import snapshot as adapter
 
     exp = _experiment(owner=ana)
     exp.data.dataset.save("iris.csv", ContentFile((DATASETS_DIR / "iris.csv").read_bytes()))

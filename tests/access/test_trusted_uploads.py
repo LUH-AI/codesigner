@@ -21,7 +21,7 @@ from django.urls import reverse
 
 from tests.conftest import DATASETS_DIR, get_new_experiment, post_new_experiment
 from experiments.models import Experiment, Run
-from ui.services import run as run_service
+from experiments.services import run as run_service
 
 pytestmark = pytest.mark.django_db
 
@@ -141,7 +141,7 @@ def test_nothing_is_gated_without_accounts(settings, ana):
     settings.REQUIRE_LOGIN = False
     exp = _custom_experiment(owner=ana)
 
-    from ui.permissions import policy
+    from access.policy import policy
     assert policy().custom_model_refusal(exp, ana) == ""
 
 

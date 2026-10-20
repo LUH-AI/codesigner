@@ -16,7 +16,7 @@ from django.urls import reverse
 
 from core import io
 from ui.figures import FIGURES, HP_GAME_FIELDS, HP_GAME_LABELS
-from ui.services import snapshot as adapter
+from experiments.services import snapshot as adapter
 
 from tests.conftest import FIXTURES_DIR, export_ihpo
 

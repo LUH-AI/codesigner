@@ -16,7 +16,7 @@ from tests.conftest import FIXTURES_DIR
 
 
 def _experiment():
-    from ui.services import snapshot as adapter
+    from experiments.services import snapshot as adapter
     return adapter.experiment_from_snapshot(io.parse((FIXTURES_DIR / "test2.ihpo").read_bytes()))
 
 

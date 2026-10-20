@@ -10,7 +10,7 @@ from django.utils import timezone
 
 from tests.conftest import DATASETS_DIR
 from experiments.models import Experiment
-from ui.permissions import OpenPolicy
+from access.policy import OpenPolicy
 
 pytestmark = pytest.mark.django_db
 
@@ -21,7 +21,7 @@ class HidesEverything(OpenPolicy):
 
 
 def _experiment():
-    from ui.services import snapshot as adapter
+    from experiments.services import snapshot as adapter
 
     return adapter.experiment_from_snapshot({
         "version": "0.1.0", "name": "told", "model_name": "Random Forest",

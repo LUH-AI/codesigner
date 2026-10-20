@@ -22,7 +22,7 @@ import pytest
 from django.urls import reverse
 
 from core import io
-from ui.services import snapshot as adapter
+from experiments.services import snapshot as adapter
 from ui.views import _detail_context
 
 from tests.conftest import DATASETS_DIR, export_ihpo, post_new_experiment
@@ -54,7 +54,7 @@ LOCAL_TO_THIS_COPY = ("pk", "identifier", "name", "given_name")
 def _ran_experiment(client):
     """An experiment with a real run behind it, so there is a run summary and a
     stored optimizer state to carry as well as trials."""
-    from ui.services.run import create_run, execute_run
+    from experiments.services.run import create_run, execute_run
 
     post_new_experiment(client, {
         "name": "round-trip", "model_name": "Random Forest",

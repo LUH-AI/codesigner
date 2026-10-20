@@ -6,8 +6,9 @@ from django.utils.translation import gettext as _
 
 from core.processing import CHOICES, choices_of
 from ui.layout import data_tabs
-from ui.permissions import EDIT, VIEW, experiment_view, policy
-from ui.services import history
+from access.policy import EDIT, VIEW, policy
+from ui.permissions import experiment_view
+from experiments.services import history
 
 from .panels import ProcessingStep
 from .sections import BY_SLUG, SECTIONS

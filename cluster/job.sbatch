@@ -1,5 +1,5 @@
 #!/bin/bash
-# The job a run becomes. ui/services/cluster.py renders this file by filling in
+# The job a run becomes. experiments/services/cluster.py renders this file by filling in
 # the doubled-at markers below, so an operator can change how work is submitted
 # by editing here rather than in Python.
 #

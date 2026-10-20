@@ -94,7 +94,7 @@ def test_a_processing_change_is_one_entry_per_choice_changed(client):
 def test_processing_cannot_change_while_a_run_is_under_way(client):
     """What: a run that has not written a trial yet still fixes the columns.
     How: creates a pending run, then posts a change."""
-    from ui.services.run import create_run
+    from experiments.services.run import create_run
 
     exp = _create(client)
     create_run(exp, {"max_trials": 3}, "accuracy")
@@ -132,7 +132,7 @@ def test_dragging_a_prior_is_one_change_of_mind(client):
 def test_a_run_between_two_edits_keeps_them_apart(client):
     """What: the prior a run searched under is its own entry; an edit after
     the run starts a new one. How: states a prior, starts a run, edits it."""
-    from ui.services.run import create_run
+    from experiments.services.run import create_run
 
     exp = _create(client)
     normal = {"kind": "normal", "params": {"mu": 0.5, "sigma": 0.1}}
@@ -176,7 +176,7 @@ def test_an_admin_edit_of_the_optimizer_is_recorded(client):
 def test_an_unknown_kind_is_a_mistake():
     """What: only declared kinds can be recorded, so the file format and the
     timeline know every one. How: records a made-up kind."""
-    from ui.services import history
+    from experiments.services import history
 
     with pytest.raises(ValueError):
         history.record(None, "made_up")
@@ -300,7 +300,7 @@ def test_the_export_offers_the_experiments_choice_then_the_readers(client):
     """What: the export page preselects the experiment's own setting, else the
     reader's preference, else relative.
     How: reads the checked radio button as each is set."""
-    from ui.services import timestamps
+    from ui import times
 
     exp = _ran(client)
 
@@ -315,4 +315,4 @@ def test_the_export_offers_the_experiments_choice_then_the_readers(client):
     exp.settings = {"export_timestamps": "absolute"}
     exp.save(update_fields=["use_default_settings", "settings"])
     assert checked() == "absolute"
-    assert timestamps.reader_preference(None) == "none"
+    assert times.reader_preference(None) == "none"

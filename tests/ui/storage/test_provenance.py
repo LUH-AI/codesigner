@@ -33,7 +33,7 @@ WINE = DATASETS_DIR / "wine.csv"
 @pytest.fixture
 def no_thread(monkeypatch):
     """Launch a run without executing it: the row is what these read."""
-    from ui.services import run as run_service
+    from experiments.services import run as run_service
     monkeypatch.setattr(run_service, "start_background_run", lambda run_id: None)
 
 
@@ -472,7 +472,7 @@ def test_a_file_from_before_any_of_this_still_opens(client):
 def test_the_run_engine_does_not_pay_for_the_record(client):
     """It rebuilds through the same function on every run, and the fingerprint
     reads and hashes the dataset. Export is the only caller that asks."""
-    from ui.services import snapshot as adapter
+    from experiments.services import snapshot as adapter
 
     exp = _create(client)
 
@@ -616,7 +616,7 @@ def _prior_event(result_metadata, offset=3):
     """Run `_record_prior_event` against a stand-in result and read back what
     it wrote. The event is the unit under test, not the run machinery."""
     from experiments.models import Experiment, Run
-    from ui.services.run import _record_prior_event
+    from experiments.services.run import _record_prior_event
 
     exp = Experiment.objects.create(
         name="p", model_name="rf", optimizer_name="SMAC",
@@ -676,7 +676,7 @@ def test_the_prior_event_joins_the_events_already_there(db):
     """Append-only, and keyed by `at_trial` like everything else in the log —
     so a run that both changed metric and stated a prior says both."""
     from experiments.models import Experiment, Run
-    from ui.services.run import _record_prior_event
+    from experiments.services.run import _record_prior_event
 
     exp = Experiment.objects.create(
         name="p", model_name="rf", optimizer_name="SMAC",

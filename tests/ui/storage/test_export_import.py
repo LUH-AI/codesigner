@@ -20,7 +20,7 @@ from tests.conftest import DATASETS_DIR, FIXTURES_DIR, export_ihpo
 
 def _make(name_source="test2.ihpo"):
     """Create a saved Experiment from a fixture via the adapter."""
-    from ui.services import snapshot as adapter
+    from experiments.services import snapshot as adapter
     return adapter.experiment_from_snapshot(io.parse((FIXTURES_DIR / name_source).read_bytes()))
 
 
@@ -52,7 +52,7 @@ def test_export_body_matches_adapter_snapshot(client):
     only need what the experiment *is* and the fingerprint means reading and
     hashing the dataset.
     """
-    from ui.services import snapshot as adapter
+    from experiments.services import snapshot as adapter
     exp = _make()
     resp = export_ihpo(client, exp.pk)
     body = resp.getvalue() if hasattr(resp, "getvalue") else resp.content

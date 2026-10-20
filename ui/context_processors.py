@@ -1,7 +1,7 @@
 from django.conf import settings
 
 from . import navigation as nav
-from .permissions import policy, visible_experiments
+from access.policy import policy, visible_experiments
 
 #: The sidebar is rendered on every page, so it stays cheap and recent rather
 #: than listing every experiment an instance has ever run — the full,
@@ -148,8 +148,10 @@ def theme(request):
 
 def storage(request):
     """The groups the signed-in person belongs to that are nearly out of room,
-    for the warning banner on every page (see ui/services/storage.py)."""
-    from .services.storage import human, warnings_for
+    for the warning banner on every page (see experiments/services/storage.py)."""
+    from experiments.services.storage import warnings_for
+
+    from .formatting import human
 
     try:
         nearly_full = warnings_for(getattr(request, "user", None))

@@ -9,7 +9,7 @@ from django.urls import reverse
 
 from ui.figures import FIGURES
 from experiments.models import GlobalSettings
-from ui.services.settings import SETTING_DEFAULTS, global_defaults
+from ui.experiment_settings import SETTING_DEFAULTS, global_defaults
 
 
 def test_every_figure_has_a_visibility_setting_defaulting_to_on():

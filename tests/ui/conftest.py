@@ -1,6 +1,6 @@
 """Shared setup for the Django-layer suite.
 
-Everything under tests/ui/ exercises the web layer, so it all wants the same
+Everything under tests/ui/ (and tests/experiments/) exercises the web layer, so it all wants the same
 three things: the database, a throwaway MEDIA_ROOT (creating or importing an
 experiment stores a dataset copy, and the real media/ directory must stay
 clean), and deterministic run execution. Each was previously repeated in a

@@ -7,7 +7,7 @@ to the built-in `SETTING_DEFAULTS`.
 """
 
 from experiments.models import Experiment, GlobalSettings
-from ui.services.settings import SETTING_DEFAULTS, resolve_settings
+from ui.experiment_settings import SETTING_DEFAULTS, resolve_settings
 
 
 def _exp(**kw):

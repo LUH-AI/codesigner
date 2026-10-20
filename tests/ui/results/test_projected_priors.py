@@ -13,7 +13,7 @@ import pytest
 from django.urls import reverse
 
 from core import io
-from ui.services import snapshot as adapter
+from experiments.services import snapshot as adapter
 
 from tests.conftest import FIXTURES_DIR, export_ihpo
 
@@ -152,7 +152,7 @@ def test_the_cube_and_the_acquisition_figure_are_weighed_by_it(client):
 def test_a_run_and_the_file_keep_them(client):
     """A run copies what it searched under, and the file carries both the
     standing belief and each run's copy back in."""
-    from ui.services.run import create_run
+    from experiments.services.run import create_run
 
     exp = _experiment()
     _post(client, exp, "state_projected_prior", {"metric": "accuracy", "draft": _draft(exp)})

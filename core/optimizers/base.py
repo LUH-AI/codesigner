@@ -284,7 +284,7 @@ def storable_score(score) -> Optional[float]:
 
     The incumbent starts at the metric's worst end — an infinity — and stays
     there until a trial succeeds. A run whose opening trials all fail therefore
-    has a best score of `-inf`, and `ui/services/run.py` writes a partial result
+    has a best score of `-inf`, and `experiments/services/run.py` writes a partial result
     while that is still true.
 
     `json.dumps` will emit that as the bare token `-Infinity`, which Python reads
@@ -1388,7 +1388,7 @@ class BaseOptimizer(ABC):
     #: How many coalition evaluations the eager, at-run-completion analytics may
     #: spend before they are skipped instead. Overridden per instance by the
     #: `ANALYTICS_EAGER_MAX_COALITIONS` Django setting — see
-    #: `ui/services/run.py`, which sets it before calling `optimize()`. It lives
+    #: `experiments/services/run.py`, which sets it before calling `optimize()`. It lives
     #: here as a plain attribute so `core/` stays Django-free.
     #:
     #: See `eager_analytics_budget_exceeded` for what the number means and why
@@ -1401,7 +1401,7 @@ class BaseOptimizer(ABC):
     #: paying 2^n_hp coalition evaluations per game per metric to fill fields no
     #: page would read.
     #:
-    #: Set per instance by `ui/services/run.py`, the same way
+    #: Set per instance by `experiments/services/run.py`, the same way
     #: `analytics_max_coalitions` is, so `core/` stays Django-free. Defaults to
     #: True: a caller that says nothing gets the analytics, which is what every
     #: direct caller (the tests, a script) means.
@@ -1409,7 +1409,7 @@ class BaseOptimizer(ABC):
 
     #: Called with the run's `TrialCollector` after every recorded trial, or
     #: None. How the application sees a run's trials while it is still running:
-    #: `ui/services/run.py` sets it to a throttled write of the partial result,
+    #: `experiments/services/run.py` sets it to a throttled write of the partial result,
     #: so the experiment page has something newer than "nothing until it
     #: finishes" to draw. Set per instance, like the two above, so `core/` stays
     #: Django-free and a direct caller pays nothing for a feature it is not
@@ -1418,7 +1418,7 @@ class BaseOptimizer(ABC):
 
     #: Called with each recorded trial and the model its last fold fitted, to
     #: keep for export — or None, and no trial keeps anything (see
-    #: ui/services/trial_models.py). Set by the caller, like `progress`.
+    #: experiments/services/trial_models.py). Set by the caller, like `progress`.
     keep_model = None
 
     def new_collector(self, metric_name: str = "", previous_result=None,

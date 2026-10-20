@@ -215,7 +215,7 @@ def test_an_unusable_pair_answers_with_a_reason_not_an_error(client, experiment)
 def test_it_waits_to_be_asked_by_default():
     """It is per pair — six hyperparameters make fifteen pairs and the reader is
     looking at one — so it gets a Compute button rather than fetching itself."""
-    from ui.services.settings import SETTING_DEFAULTS
+    from ui.experiment_settings import SETTING_DEFAULTS
 
     assert SETTING_DEFAULTS["autocompute_surrogate_uncertainty"] is False
 

@@ -23,7 +23,7 @@ import pytest
 from core import io
 from tests.conftest import FIXTURES_DIR
 from experiments.models import Experiment, ExperimentData
-from ui.services import snapshot as adapter
+from experiments.services import snapshot as adapter
 
 pytestmark = pytest.mark.django_db
 

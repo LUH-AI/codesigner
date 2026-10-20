@@ -15,7 +15,7 @@ from django.core.files.uploadedfile import SimpleUploadedFile
 from django.urls import reverse
 
 from tests.conftest import DATASETS_DIR
-from ui.services import snapshot as adapter
+from experiments.services import snapshot as adapter
 
 
 def _snapshot(**overrides):

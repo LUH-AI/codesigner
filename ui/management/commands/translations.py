@@ -68,7 +68,7 @@ SECTIONS = (
         "ui/templates/ui/panels/", "ui/panels.py",
     )),
     ("Views — messages, warnings, refusals", (
-        "ui/views.py", "ui/services/", "core/",
+        "ui/views.py", "experiments/", "core/",
     )),
     ("Everything else", ()),
 )

@@ -15,7 +15,7 @@ from django.urls import reverse
 
 from core.metrics import METRICS
 from core.models import BaseModel
-from ui.services.run import scoreable
+from experiments.services.run import scoreable
 
 from tests.conftest import DATASETS_DIR, post_new_experiment
 from tests.ui.custom_models.conftest import VALID_MODEL_SRC

@@ -1,7 +1,7 @@
 """A run whose importance analytics were skipped still renders a usable page.
 
 The eager games are skipped when a run is cancelled or when the model is too wide
-to afford (see `tests/ui/runs/test_analytics_guard.py`). That leaves empty
+to afford (see `tests/experiments/test_analytics_guard.py`). That leaves empty
 importance dicts with a reason in the matching `_warning` field — the same shape
 a HyperSHAP failure has always produced.
 
@@ -19,7 +19,7 @@ import pytest
 
 from core import io
 from ui.figures import parallel_coordinates_plot
-from ui.services import snapshot as adapter
+from experiments.services import snapshot as adapter
 
 from tests.conftest import FIXTURES_DIR
 

@@ -27,7 +27,7 @@ class ExperimentData(models.Model):
 
     One half of a deliberate split. This table holds what describes the *work*:
     what was searched, how it was evaluated, what was found. It is portable —
-    every field here has a place in the snapshot `ui/services/snapshot.py`
+    every field here has a place in the snapshot `experiments/services/snapshot.py`
     writes, and an `.ihpo` opened on another instance rebuilds exactly this row.
 
     `Experiment` holds the other half: who owns it, which group it is in, who it
@@ -53,7 +53,7 @@ class ExperimentData(models.Model):
     # ("relative"), or not known at all ("none"). Times are stored as datetimes
     # whatever this says — a relative file's are placed so that its history
     # ends when it was imported — and every page shows them in this form, so
-    # an experiment never mixes the two. See ui/services/timestamps.py.
+    # an experiment never mixes the two. See experiments/services/timestamps.py.
     time_basis = models.CharField(
         max_length=10, default="absolute",
         choices=[("absolute", "absolute"), ("relative", "relative"), ("none", "none")])
@@ -262,7 +262,7 @@ class Experiment(models.Model):
     deleted_by = models.ForeignKey(
         django_settings.AUTH_USER_MODEL, null=True, blank=True,
         on_delete=models.SET_NULL, related_name="+")
-    # Still being set up (ui/services/setup.py): made by New, its owner's alone,
+    # Still being set up (ui/setup_steps.py): made by New, its owner's alone,
     # and reachable only through its setup until it is created. Which of the
     # setup's steps have been saved, and when: {"setup": iso, "data": iso, ...}.
     draft = models.BooleanField(default=False)
@@ -628,7 +628,7 @@ class TrialModel(models.Model):
     A ledger row per kept model, so what a group stores is a sum rather than a
     walk of the disk, and so the stalest can be found when room is needed for
     a dataset: `last_used_at` is when it was kept or last exported. The files
-    themselves live under `directory` (see ui/services/trial_models.py).
+    themselves live under `directory` (see experiments/services/trial_models.py).
     """
 
     experiment = models.ForeignKey("Experiment", on_delete=models.CASCADE,

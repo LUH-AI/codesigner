@@ -2,7 +2,7 @@
 
 `io.parse` accepts a snapshot whose result has an empty `data` list, so this is
 reachable by importing a hand-written or truncated .ihpo. A run never produces
-one — `ui/services/run.py` only writes a result that has trials — which is why
+one — `experiments/services/run.py` only writes a result that has trials — which is why
 it went unnoticed until the derived-values consolidation walked past it.
 
 Before the fix this raised (an argmax over an empty range) and returned a 500.
@@ -11,7 +11,7 @@ Before the fix this raised (an argmax over an empty range) and returned a 500.
 import json
 
 from core import io
-from ui.services import snapshot as adapter
+from experiments.services import snapshot as adapter
 
 _EMPTY_RESULT_SNAPSHOT = {
     "version": "0.1.0", "name": "empty-trials", "model_name": "Random Forest",

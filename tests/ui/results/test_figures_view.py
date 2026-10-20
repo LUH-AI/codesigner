@@ -25,7 +25,7 @@ from tests.conftest import FIXTURES_DIR
 
 def _detail(client):
     """Create an experiment with the 30-trial fixture result; return (html, exp)."""
-    from ui.services import snapshot as adapter
+    from experiments.services import snapshot as adapter
     exp = adapter.experiment_from_snapshot(io.parse((FIXTURES_DIR / "test2.ihpo").read_bytes()))
     html = client.get(reverse("ui:experiment_detail", args=[exp.pk])).content.decode()
     return html, exp
@@ -40,7 +40,7 @@ def _detail_with_analytics(client):
     figure. This one is produced by a real run; see
     tests/fixtures/make_analytics_fixture.py.
     """
-    from ui.services import snapshot as adapter
+    from experiments.services import snapshot as adapter
     exp = adapter.experiment_from_snapshot(
         io.parse((FIXTURES_DIR / "analytics.ihpo").read_bytes()))
     html = client.get(reverse("ui:experiment_detail", args=[exp.pk])).content.decode()

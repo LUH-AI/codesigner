@@ -1602,7 +1602,7 @@ class SMACOptimizer(BaseOptimizer):
             # `metadata` is where this kind of in-process reporting already
             # lives (`stopped_by`, `initial_design`) and is deliberately not
             # serialized — `core/` knows nothing about a Run, so what the prior
-            # did crosses here and `ui/services/run.py` writes the event.
+            # did crosses here and `experiments/services/run.py` writes the event.
             metadata={"smac_output_dir": str(output_dir),
                       "stopped_by": collector.stopped_by,
                       "prior": prior_report},

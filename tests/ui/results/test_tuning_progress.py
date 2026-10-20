@@ -28,7 +28,7 @@ from django.urls import reverse
 
 from core import io
 from core.optimizers import OptimizationResult, TrialResult
-from ui.services import snapshot as adapter
+from experiments.services import snapshot as adapter
 from ui.views import SETTLED, _tuning_progress
 
 from tests.conftest import FIXTURES_DIR

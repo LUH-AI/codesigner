@@ -15,8 +15,8 @@ from django.urls import reverse
 
 from core import io
 from ui.figures import HP_GAME_FIELDS
-from ui.services import snapshot as adapter
-from ui.services.settings import SETTING_DEFAULTS
+from experiments.services import snapshot as adapter
+from ui.experiment_settings import SETTING_DEFAULTS
 
 from tests.conftest import FIXTURES_DIR
 

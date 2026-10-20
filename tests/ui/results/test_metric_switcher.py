@@ -28,7 +28,7 @@ _RESULT = {
 
 
 def _experiment(**overrides):
-    from ui.services import snapshot as adapter
+    from experiments.services import snapshot as adapter
 
     fields = dict(
         version="0.1.0", name="reeval-exp", model_name="Random Forest",
@@ -52,7 +52,7 @@ def _experiment_with_result():
 def _readonly_experiment_with_result():
     """An experiment with a stored result but no dataset (can't run) —
     the fixture's dataset_path is a foreign machine path that doesn't exist here."""
-    from ui.services import snapshot as adapter
+    from experiments.services import snapshot as adapter
     return adapter.experiment_from_snapshot(io.parse((FIXTURES_DIR / "test2.ihpo").read_bytes()))
 
 

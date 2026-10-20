@@ -19,7 +19,7 @@ from django.urls import reverse
 
 from core import io
 from core.optimizers.timing import STATUS_CRASHED, STATUS_TIMEOUT
-from ui.services import snapshot as adapter
+from experiments.services import snapshot as adapter
 
 from tests.conftest import FIXTURES_DIR
 

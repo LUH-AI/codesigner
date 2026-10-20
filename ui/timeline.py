@@ -3,7 +3,7 @@
 Two records make it up. Runs are their own rows (`Run`), each with the events
 that happened inside it — the metric changing at its start, a prior taking
 effect at some trial. Everything done between runs is the experiment's history
-(`ExperimentEvent`, see ui/services/history.py). This puts the two in one list
+(`ExperimentEvent`, see experiments/services/history.py). This puts the two in one list
 and says each entry in a sentence.
 
 An experiment from before the history existed has no `created` entry; one is
@@ -19,9 +19,9 @@ from django.utils.dateparse import parse_datetime
 from django.utils.translation import gettext as _
 from django.utils.translation import gettext_lazy
 
+from . import times
 from .formatting import sigfigs
 from .optimizer_labels import summary as optimizer_summary
-from .services import timestamps
 
 #: Data Handling's steps, by what each is called on the page.
 _STEPS = {"missing": gettext_lazy("Missing values"), "scale": gettext_lazy("Scaling"),
@@ -135,7 +135,7 @@ _SECONDS = {"max_seconds", "max_trial_seconds"}
 
 
 def _duration(seconds) -> str:
-    return timestamps.offset_text(float(seconds)).lstrip("+")
+    return times.offset_text(float(seconds)).lstrip("+")
 
 
 #: What ended a run, by the name of what was reached.
@@ -151,7 +151,7 @@ def _time(exp, when) -> str | None:
     UTC, as time since the first run, or not at all."""
     from django.utils.dateformat import format as date_format
 
-    shown = timestamps.shown(exp, when)
+    shown = times.shown(exp, when)
     if not shown:
         return None
     if "relative" in shown:
@@ -205,7 +205,7 @@ def _entry(exp, kind, at, at_trial, summary, details=(), children=(), actor=None
         elif value not in (None, ""):
             shown.append({"label": label, "value": value})
     return {"kind": kind, "at": at, "at_trial": at_trial, "seq": seq,
-            "when": timestamps.shown(exp, at), "summary": summary,
+            "when": times.shown(exp, at), "summary": summary,
             "details": shown, "children": list(children), "actor": actor,
             "scheduled": scheduled}
 
@@ -533,8 +533,8 @@ def _effective(events, runs):
 def build(exp) -> list[dict]:
     """Every entry for *exp*, newest first: what is scheduled, then what
     happened."""
-    from .services import snapshot as adapter
-    from .services.history import configuration
+    from experiments.services import snapshot as adapter
+    from experiments.services.history import configuration
 
     runs = list(exp.runs.order_by("id").select_related("started_by", "cancel_requested_by"))
     history = list(exp.data.history.select_related("actor").order_by("at", "id"))

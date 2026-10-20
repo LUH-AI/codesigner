@@ -137,7 +137,7 @@
                 <h2>{% translate "Experiment Selection" %}</h2>
                 <div class="actions">
                     {% comment %}A form, not a link: New makes a draft at once
-                    (ui/services/setup.py), and only a POST may create
+                    (ui/setup_steps.py), and only a POST may create
                     anything.{% endcomment %}
                     <form method="post" action="{% url 'ui:new_experiment' %}" class="new-experiment">
                         {% csrf_token %}

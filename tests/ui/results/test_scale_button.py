@@ -19,7 +19,7 @@ from django.urls import reverse
 from core import io
 from core.metrics import Metric
 from ui.figures.catalog import FIGURES_BY_KEY
-from ui.services import snapshot as snapshot_adapter
+from experiments.services import snapshot as snapshot_adapter
 
 from tests.conftest import FIXTURES_DIR
 

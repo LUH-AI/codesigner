@@ -58,7 +58,7 @@ def test_an_exported_file_carries_the_full_float(client):
     page, exact in the file."""
     from core import io
     from django.urls import reverse
-    from ui.services import snapshot as adapter
+    from experiments.services import snapshot as adapter
 
     from tests.conftest import FIXTURES_DIR
 

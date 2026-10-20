@@ -29,3 +29,11 @@ def sigfigs(value, digits: int = SIGNIFICANT_DIGITS) -> str:
     if isinstance(value, int):
         return f"{value:,}"
     return f"{value:.{digits}g}"
+
+
+def human(n: int) -> str:
+    """*n* bytes, readably: 1.5 GB, 820 MB."""
+    for unit, size in (("TB", 1024 ** 4), ("GB", 1024 ** 3), ("MB", 1024 ** 2), ("kB", 1024)):
+        if n >= size:
+            return f"{n / size:.1f} {unit}".replace(".0 ", " ")
+    return f"{n} B"

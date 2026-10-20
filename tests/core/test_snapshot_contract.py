@@ -102,7 +102,7 @@ def test_save_stamps_current_version_string():
 def test_save_evaluation_section_matches_provenance():
     """save()'s evaluation section is provenance.evaluation()'s output, not a
     second copy of the kfold/holdout decision that could quietly drift from
-    it — ui/services/snapshot.py's live export path already goes through
+    it — experiments/services/snapshot.py's live export path already goes through
     provenance.evaluation() for the same section.
     """
     from core import provenance

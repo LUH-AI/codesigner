@@ -73,7 +73,7 @@ class ExperimentDataAdmin(admin.ModelAdmin):
         super().save_model(request, obj, form, change)
         exp = getattr(obj, "experiment", None)
         if change and exp is not None and before != obj.optimizer_params:
-            from ui.services import history
+            from .services import history
 
             history.record(exp, "optimizer_params_changed", user=request.user,
                            old=before, new=obj.optimizer_params)

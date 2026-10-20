@@ -3,7 +3,7 @@
  *
  * The cube picks the points and draws; this card holds the parameters and
  * talks to the server, which works out everything a belief is (see
- * ui/services/projected.py) — nothing here computes a density. They talk by
+ * ui/projected.py) — nothing here computes a density. They talk by
  * events on the document:
  *
  *   prior-draft:points       cube → card: the points picked, and the view

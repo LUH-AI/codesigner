@@ -24,119 +24,14 @@ Two distinct questions, because they fail differently:
 
 from functools import wraps
 
-from django.conf import settings
 from django.core.exceptions import PermissionDenied
 from django.http import Http404
 from django.shortcuts import get_object_or_404, redirect
-from django.utils.module_loading import import_string
 
-from experiments.models import Experiment
-
-#: What a view does with the experiment it is given. Every route declares one,
-#: so a policy can answer per action rather than all-or-nothing, and so reading
-#: the URLconf tells you what each route is for.
-VIEW = "view"        # render it, or a fragment of it
-RUN = "run"          # start, cancel, or prepare the environment for a run
-EDIT = "edit"        # change its settings
-DELETE = "delete"    # destroy it
-EXPORT = "export"    # take a copy of it off the instance
-SHARE = "share"      # decide who else may reach it, or hand it to somebody
-RENAME = "rename"    # change what it is called
-
-ACTIONS = frozenset({VIEW, RUN, EDIT, DELETE, EXPORT, SHARE, RENAME})
-
-
-class OpenPolicy:
-    """Every experiment belongs to everyone. The default, and what a local or
-    private-network install wants: no accounts, no owners, no refusals."""
-
-    def experiments(self, request):
-        """The experiments this request may see, as a queryset.
-
-        Never a deleted one, under any policy: deleting sets an experiment aside
-        into its people's bins, and from then on `bin` is the only way to it.
-        """
-        return Experiment.objects.filter(deleted_at__isnull=True)
-
-    def bin(self, request):
-        """The deleted experiments this request may restore, as a queryset.
-
-        Every one of them, with no accounts — a bin is somebody's, and without
-        accounts there is one somebody.
-        """
-        return Experiment.objects.filter(deleted_at__isnull=False)
-
-    def for_listing(self, request):
-        """The experiments a page should *list*, which need not be all of them.
-
-        Authorization and presentation are different questions: something may be
-        reachable without belonging on the front page. A policy that draws no
-        distinction — this one — answers both the same way, and a policy that
-        does (a group lead's own work, versus their whole group's) overrides
-        this without touching what may be *reached*.
-        """
-        return self.experiments(request)
-
-    def may(self, request, experiment, action):
-        """Whether this request may perform *action* on a visible experiment."""
-        return True
-
-    # ── Questions that are not about one experiment ──────────────────────────
-
-    def may_upload_models(self, request):
-        """Whether this request may bring a custom model onto the instance.
-
-        Uploading one is arbitrary code execution, so the instance-wide flag is
-        the floor; a policy with accounts can require more on top of it.
-        """
-        return settings.ALLOW_CUSTOM_MODELS
-
-    def custom_model_refusal(self, experiment, user):
-        """Why *user* may not run *experiment*'s custom model, or "" if they may.
-
-        A string rather than a boolean because this is the last thing standing
-        between an upload and the interpreter, and "no" without a reason is
-        unactionable in a worker log.
-        """
-        return ""
-
-    def may_change_defaults(self, request):
-        """Whether this request may edit the default experiment settings, which
-        every inheriting experiment on the instance follows."""
-        return True
-
-
-_cached: tuple[str, object] | None = None
-
-
-def policy():
-    """The configured policy, instantiated once per configured path.
-
-    Keyed on the setting rather than cached outright so a test (or a later
-    `access/` install) can point `EXPERIMENT_POLICY` somewhere else and be
-    obeyed immediately.
-    """
-    global _cached
-    path = getattr(settings, "EXPERIMENT_POLICY", None) or (
-        f"{OpenPolicy.__module__}.{OpenPolicy.__qualname__}")
-    if _cached is None or _cached[0] != path:
-        _cached = (path, import_string(path)())
-    return _cached[1]
-
-
-def visible_experiments(request):
-    """The experiments to list for this request — for the sidebar and anything
-    else that enumerates rather than looking one up.
-
-    `for_listing`, not `experiments`: enumerating is the presentation question,
-    and the two part company for a group lead, whose everyday list stays their
-    own work while their group's is a panel of its own.
-    """
-    return policy().for_listing(request)
-
+from access.policy import ACTIONS, policy
 
 #: Which experiments a route reaches, by whether they are drafts (still being
-#: set up — see ui/services/setup.py). Every route reaches created experiments
+#: set up — see ui/setup_steps.py). Every route reaches created experiments
 #: only, unless it says otherwise: a draft has no dashboard to show, no run to
 #: start and nothing to export, and its setup is the one place to work on it.
 CREATED = "created"

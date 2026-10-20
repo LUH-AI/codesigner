@@ -1,6 +1,6 @@
 """New makes a draft, set up in four steps before it becomes an experiment.
 
-See ui/services/setup.py: step 1 is what the experiment is, step 2 its
+See ui/setup_steps.py: step 1 is what the experiment is, step 2 its
 optimizer, step 3 how its columns are processed, step 4 what is believed
 about the optimum. Steps 1 to 3 must each be saved before the draft can be
 created.

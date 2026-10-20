@@ -21,7 +21,7 @@ from django.urls import reverse
 from access.models import Group, Membership
 from access.policy import GroupPolicy
 from experiments.models import Experiment, ExperimentShare, Run
-from ui.permissions import DELETE, RUN
+from access.policy import DELETE, RUN
 
 pytestmark = pytest.mark.django_db
 

@@ -106,7 +106,7 @@ MAX_UPLOAD_BYTES = env.int("MAX_UPLOAD_BYTES", default=100 * 1024 * 1024)
 # How much disk a group's experiments may take — datasets, model files, the
 # trial models kept for export — unless a site admin sets a group's own limit.
 # The bundled demo datasets are shared and count against nobody. See
-# ui/services/storage.py.
+# experiments/services/storage.py.
 GROUP_STORAGE_LIMIT_BYTES = env.int("GROUP_STORAGE_LIMIT_BYTES", default=20 * 1024 ** 3)
 
 # The share of a group's limit past which every member is warned, on every page.
@@ -442,6 +442,8 @@ LOGGING = {
         # A run's own failures already reach Run.error and the page; this is
         # for what happens around them (env builds, model processes).
         "ui": {"handlers": ["console"], "level": "INFO", "propagate": False},
+        "experiments": {"handlers": ["console"], "level": "INFO", "propagate": False},
+        "remote": {"handlers": ["console"], "level": "INFO", "propagate": False},
         "core": {"handlers": ["console"], "level": "INFO", "propagate": False},
     },
 }

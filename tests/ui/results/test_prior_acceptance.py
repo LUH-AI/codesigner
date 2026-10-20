@@ -25,7 +25,8 @@ import pytest
 from django.urls import reverse
 
 from experiments.models import Experiment
-from ui.services.settings import SETTING_BOUNDS, SETTING_DEFAULTS, resolve_settings
+from experiments.services.settings import SETTING_BOUNDS
+from ui.experiment_settings import SETTING_DEFAULTS, resolve_settings
 
 pytestmark = pytest.mark.django_db
 
@@ -57,7 +58,7 @@ def _experiment(strategy="gp", n=30):
     from core.models import RandomForestModel
     from core.optimizers import SMACOptimizer
     from core.optimizers.base import OptimizationResult, TrialResult
-    from ui.services import snapshot as adapter
+    from experiments.services import snapshot as adapter
 
     space = RandomForestModel().get_config_space()
     space.seed(3)

@@ -18,9 +18,11 @@ from django.test import RequestFactory
 from django.urls import reverse
 
 from datahandling import urls as datahandling_urls
-from ui import permissions, urls
+from ui import urls
 from experiments.models import Experiment
-from ui.permissions import OpenPolicy, experiment_view
+from access import policy as access_policy
+from access.policy import OpenPolicy
+from ui.permissions import CREATED, ONLY, experiment_view
 
 
 def _experiment(name="perm") -> Experiment:
@@ -160,7 +162,7 @@ def test_every_experiment_route_goes_through_the_policy():
 def test_each_route_declares_a_known_action():
     for pattern in _experiment_routes():
         action = pattern.callback.experiment_action
-        assert action in permissions.ACTIONS, f"{pattern.name}: {action!r}"
+        assert action in access_policy.ACTIONS, f"{pattern.name}: {action!r}"
 
 
 def test_the_declared_actions_match_what_the_routes_do():
@@ -169,75 +171,75 @@ def test_the_declared_actions_match_what_the_routes_do():
     declared = {p.name: p.callback.experiment_action for p in _experiment_routes()}
 
     assert declared == {
-        "experiment_detail": permissions.VIEW,
-        "trial_panel": permissions.VIEW,
-        "proposal_panel": permissions.VIEW,
-        "projected_prior_preview": permissions.VIEW,
-        "trial_ablation": permissions.VIEW,
-        "trial_traceback": permissions.VIEW,
-        "partial_dependence": permissions.VIEW,
-        "forecast": permissions.VIEW,
-        "acquisition_slice": permissions.VIEW,
-        "metric_figures": permissions.VIEW,
-        "hypershap_figures": permissions.VIEW,
-        "surrogate_prediction": permissions.VIEW,
-        "next_trials": permissions.VIEW,
-        "local_effects": permissions.VIEW,
-        "surrogate_uncertainty": permissions.VIEW,
-        "run_status": permissions.VIEW,
-        "env_status": permissions.VIEW,
-        "experiment_run": permissions.RUN,
-        "run_proposal": permissions.RUN,
-        "state_projected_prior": permissions.EDIT,
-        "withdraw_projected_prior": permissions.EDIT,
-        "experiment_optimizer": permissions.EDIT,
-        "experiment_rename": permissions.RENAME,
+        "experiment_detail": access_policy.VIEW,
+        "trial_panel": access_policy.VIEW,
+        "proposal_panel": access_policy.VIEW,
+        "projected_prior_preview": access_policy.VIEW,
+        "trial_ablation": access_policy.VIEW,
+        "trial_traceback": access_policy.VIEW,
+        "partial_dependence": access_policy.VIEW,
+        "forecast": access_policy.VIEW,
+        "acquisition_slice": access_policy.VIEW,
+        "metric_figures": access_policy.VIEW,
+        "hypershap_figures": access_policy.VIEW,
+        "surrogate_prediction": access_policy.VIEW,
+        "next_trials": access_policy.VIEW,
+        "local_effects": access_policy.VIEW,
+        "surrogate_uncertainty": access_policy.VIEW,
+        "run_status": access_policy.VIEW,
+        "env_status": access_policy.VIEW,
+        "experiment_run": access_policy.RUN,
+        "run_proposal": access_policy.RUN,
+        "state_projected_prior": access_policy.EDIT,
+        "withdraw_projected_prior": access_policy.EDIT,
+        "experiment_optimizer": access_policy.EDIT,
+        "experiment_rename": access_policy.RENAME,
         # Computing the explanations a cancelled run skipped: it spends this
         # machine's CPU and writes to the stored result, which is what RUN
         # covers. VIEW would have made reading an experiment a way to make it
         # compute.
-        "experiment_compute_analytics": permissions.RUN,
-        "prepare_env": permissions.RUN,
+        "experiment_compute_analytics": access_policy.RUN,
+        "prepare_env": access_policy.RUN,
         # Judging a stated belief against the surrogate: a model fit and two
         # hundred acquisition evaluations, written nowhere. RUN for the same
         # reason as computing skipped analytics — VIEW would make reading an
         # experiment a way to spend seconds of this machine on it.
-        "evaluate_prior": permissions.RUN,
+        "evaluate_prior": access_policy.RUN,
         # Putting a belief back to what the last run searched under changes what
         # the next one will, exactly as stating one does.
-        "reset_prior": permissions.EDIT,
-        "run_cancel": permissions.RUN,
+        "reset_prior": access_policy.EDIT,
+        "run_cancel": access_policy.RUN,
         # A prior is not a way of looking at a run, it is a statement about what
         # the next one searches — so stating one edits the experiment.
-        "save_prior": permissions.EDIT,
+        "save_prior": access_policy.EDIT,
         # Arranging the page: this reader's own row, never the experiment, so
         # anybody who may look may also tidy what they look at.
-        "save_layout": permissions.VIEW,
-        "experiment_settings": permissions.EDIT,
+        "save_layout": access_policy.VIEW,
+        "experiment_settings": access_policy.EDIT,
         # Reading what was done to an experiment is reading the experiment.
-        "experiment_timeline": permissions.VIEW,
+        "experiment_timeline": access_policy.VIEW,
         # Who else may reach it, and who owns it: the one decision a
         # contributor, who may otherwise do everything, does not get.
-        "experiment_share": permissions.SHARE,
-        "experiment_transfer": permissions.SHARE,
-        "experiment_delete": permissions.DELETE,
-        "experiment_export": permissions.EXPORT,
+        "experiment_share": access_policy.SHARE,
+        "experiment_transfer": access_policy.SHARE,
+        "experiment_delete": access_policy.DELETE,
+        "experiment_export": access_policy.EXPORT,
         # The model, tuned to a trial: what the experiment is, taken away.
-        "experiment_export_model": permissions.EXPORT,
-        "experiment_export_trial_model": permissions.EXPORT,
-        "run_force_stop": permissions.RUN,
+        "experiment_export_model": access_policy.EXPORT,
+        "experiment_export_trial_model": access_policy.EXPORT,
+        "run_force_stop": access_policy.RUN,
         # Looking at the data an experiment is tuned on is looking at the
         # experiment. Changing it, once these pages can, will be EDIT.
-        "data_overview": permissions.VIEW,
-        "data_section": permissions.VIEW,
+        "data_overview": access_policy.VIEW,
+        "data_section": access_policy.VIEW,
         # A draft's setup: changing what the experiment will be.
-        "setup": permissions.EDIT,
-        "setup_optimizer": permissions.EDIT,
-        "setup_data": permissions.EDIT,
-        "setup_priors": permissions.EDIT,
-        "setup_resume": permissions.EDIT,
-        "setup_create": permissions.EDIT,
-        "setup_discard": permissions.EDIT,
+        "setup": access_policy.EDIT,
+        "setup_optimizer": access_policy.EDIT,
+        "setup_data": access_policy.EDIT,
+        "setup_priors": access_policy.EDIT,
+        "setup_resume": access_policy.EDIT,
+        "setup_create": access_policy.EDIT,
+        "setup_discard": access_policy.EDIT,
     }
 
 
@@ -247,12 +249,12 @@ def test_drafts_are_reached_only_where_they_are_set_up():
     exported, shared or binned before it is created.
     How: reads every experiment route's declared `drafts`."""
     declared = {p.name: p.callback.experiment_drafts for p in _experiment_routes()}
-    reach = {name for name, drafts in declared.items() if drafts != permissions.CREATED}
+    reach = {name for name, drafts in declared.items() if drafts != CREATED}
 
     assert reach == {"setup", "setup_optimizer", "setup_data", "setup_priors", "setup_resume", "setup_create",
                      "setup_discard", "save_prior", "reset_prior", "evaluate_prior",
                      "acquisition_slice"}
-    assert {name for name, drafts in declared.items() if drafts == permissions.ONLY} == {
+    assert {name for name, drafts in declared.items() if drafts == ONLY} == {
         "setup", "setup_optimizer", "setup_data", "setup_priors", "setup_resume", "setup_create",
         "setup_discard"}
 
@@ -270,15 +272,15 @@ def test_the_default_policy_allows_everything(client):
     """Nothing changes for an install with no accounts, which is most of them."""
     exp = _experiment()
     assert client.get(reverse("ui:experiment_detail", args=[exp.pk])).status_code == 200
-    assert OpenPolicy().may(None, exp, permissions.VIEW)
+    assert OpenPolicy().may(None, exp, access_policy.VIEW)
 
 
 def test_the_policy_is_read_from_settings(settings):
     settings.EXPERIMENT_POLICY = f"{__name__}.HidesEverything"
-    assert isinstance(permissions.policy(), HidesEverything)
+    assert isinstance(access_policy.policy(), HidesEverything)
 
-    settings.EXPERIMENT_POLICY = "ui.permissions.OpenPolicy"
-    assert isinstance(permissions.policy(), OpenPolicy)
+    settings.EXPERIMENT_POLICY = "access.policy.OpenPolicy"
+    assert isinstance(access_policy.policy(), OpenPolicy)
 
 
 # ── what a restrictive policy gets ───────────────────────────────────────────
@@ -319,7 +321,7 @@ def test_the_decorator_raises_permission_denied_rather_than_returning_it(setting
     exp = _experiment()
     settings.EXPERIMENT_POLICY = f"{__name__}.RefusesEverything"
 
-    @experiment_view(permissions.VIEW)
+    @experiment_view(access_policy.VIEW)
     def view(request, experiment):
         raise AssertionError("should not have been called")
 
@@ -352,7 +354,7 @@ def test_the_view_is_handed_the_experiment_not_the_pk():
     exp = _experiment()
     seen = {}
 
-    @experiment_view(permissions.VIEW)
+    @experiment_view(access_policy.VIEW)
     def view(request, experiment):
         seen["got"] = experiment
         return "ok"

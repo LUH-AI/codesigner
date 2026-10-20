@@ -12,7 +12,7 @@ import json
 from django.urls import reverse
 
 from core import io
-from ui.services import snapshot as adapter
+from experiments.services import snapshot as adapter
 
 from tests.conftest import FIXTURES_DIR
 
@@ -342,7 +342,7 @@ def test_the_layer_says_which_acquisition_function_the_run_used(client):
     and a margin.
     Expect: each answer names the run's function and margin.
     """
-    from ui.services import snapshot as adapter
+    from experiments.services import snapshot as adapter
 
     exp = adapter.experiment_from_snapshot(io.parse((FIXTURES_DIR / "test.ihpo").read_bytes()))
     assert _layer(client, exp).json()["acquisition_function"] == {"kind": "ei", "xi": 0.0}

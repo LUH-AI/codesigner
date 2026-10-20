@@ -12,10 +12,11 @@ from core.io import (
 from core.splits import MIN_FOLDS
 from core.model_source import inspect_model_source
 from experiments.models import UNTITLED
+from experiments.services import timestamps
 
+from . import times
 from .figures import FIGURES, autocompute_key, deferred_computations
 from .registry import MODELS
-from .services import timestamps
 from .validators import validate_dataset_upload, validate_model_upload
 
 
@@ -54,7 +55,7 @@ EVALUATION_SCHEMES = {
 
 class NewExperimentForm(forms.Form):
     """Set up an experiment: name, model, dataset, seed. The optimizer is a
-    step of its own (ui/services/optimizer_form.py).
+    step of its own (ui/optimizer_form.py).
 
     The model is either a registry choice or — when the person filling the form
     is allowed to bring one — an uploaded ``.py`` file defining a BaseModel
@@ -400,7 +401,7 @@ class ExperimentSettingsFields(forms.Form):
     export_timestamps = forms.ChoiceField(
         label=_("Time"), required=False,
         choices=[("", _("The exporter's preference"))]
-                + [(mode, timestamps.LABELS[mode][0]) for mode in timestamps.MODES],
+                + [(mode, times.LABELS[mode][0]) for mode in timestamps.MODES],
         help_text=_("What the export page preselects."))
 
     def __init__(self, *args, **kwargs):

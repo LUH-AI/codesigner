@@ -161,7 +161,7 @@ def test_the_page_carries_each_column(client):
     """On the slot, for layout.js to place it by; absent where none is kept."""
     from core import io
     from tests.conftest import FIXTURES_DIR
-    from ui.services import snapshot
+    from experiments.services import snapshot
 
     exp = snapshot.experiment_from_snapshot(io.parse((FIXTURES_DIR / "test2.ihpo").read_bytes()))
     layout = layouts.default_layout()
@@ -285,7 +285,7 @@ def test_the_page_opens_as_it_was_left(client, hosted, lab):
     """On an experiment with results, which is when the page has tabs."""
     from core import io
     from tests.conftest import FIXTURES_DIR
-    from ui.services import snapshot
+    from experiments.services import snapshot
 
     exp = snapshot.experiment_from_snapshot(
         io.parse((FIXTURES_DIR / "test2.ihpo").read_bytes()), owner=lab["ana"])

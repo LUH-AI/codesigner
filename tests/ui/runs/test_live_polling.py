@@ -25,7 +25,7 @@ def test_the_interval_never_drops_below_the_write_interval():
     """The run writes at most every `PARTIAL_RESULT_SECONDS`, so a faster poll
     is a request that can only ever answer "nothing yet"."""
     from ui import views
-    from ui.services.run import PARTIAL_RESULT_SECONDS
+    from experiments.services.run import PARTIAL_RESULT_SECONDS
 
     assert views.POLL_MIN_SECONDS >= PARTIAL_RESULT_SECONDS
 

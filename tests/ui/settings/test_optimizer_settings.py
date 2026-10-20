@@ -19,7 +19,7 @@ pytestmark = pytest.mark.django_db
 
 
 def _experiment(optimizer_name="SMAC", params=None, **overrides):
-    from ui.services import snapshot as adapter
+    from experiments.services import snapshot as adapter
 
     snapshot = {
         "version": "0.1.0", "name": "exp", "model_name": "Random Forest",

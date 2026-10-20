@@ -262,7 +262,7 @@ def test_a_null_score_that_cannot_be_computed_does_not_kill_the_run(iris_splits)
 
 def test_no_best_yet_is_stored_as_null_rather_than_negative_infinity():
     """A run whose opening trials all fail has an incumbent of -inf, and
-    `ui/services/run.py` writes a partial result while that is still true.
+    `experiments/services/run.py` writes a partial result while that is still true.
     `json.dumps` emits the bare token `-Infinity`, which Python reads back and
     nothing else does — so such an .ihpo is not openable by a strict parser."""
     import json

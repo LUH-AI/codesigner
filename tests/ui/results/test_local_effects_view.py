@@ -22,7 +22,7 @@ from tests.conftest import FIXTURES_DIR
 
 
 def _experiment(**settings):
-    from ui.services import snapshot as adapter
+    from experiments.services import snapshot as adapter
     exp = adapter.experiment_from_snapshot(
         io.parse((FIXTURES_DIR / "analytics.ihpo").read_bytes()))
     if settings:
@@ -82,7 +82,7 @@ def test_rejects_unknown_metric(client):
 
 
 def test_rejects_when_experiment_has_no_result(client):
-    from ui.services import snapshot as adapter
+    from experiments.services import snapshot as adapter
 
     exp = adapter.experiment_from_snapshot({
         "version": "0.1.0", "name": "no-result-yet", "model_name": "Random Forest",

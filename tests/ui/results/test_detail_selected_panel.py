@@ -16,7 +16,7 @@ from tests.conftest import FIXTURES_DIR
 
 
 def _detail_html(client):
-    from ui.services import snapshot as adapter
+    from experiments.services import snapshot as adapter
     exp = adapter.experiment_from_snapshot(io.parse((FIXTURES_DIR / "test2.ihpo").read_bytes()))
     return client.get(reverse("ui:experiment_detail", args=[exp.pk])).content.decode(), exp
 

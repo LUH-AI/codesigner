@@ -8,7 +8,7 @@ from django.urls import reverse
 
 from datahandling.sections import SECTIONS
 from experiments.models import Experiment
-from ui.permissions import OpenPolicy
+from access.policy import OpenPolicy
 from tests.conftest import post_new_experiment
 
 
@@ -187,7 +187,7 @@ def test_a_processing_choice_is_saved_and_travels_in_the_file(client):
     """What: choosing "standardize" on Features is stored, and the experiment's
     .ihpo records it in its dataset section. How: posts the form, then builds
     the snapshot."""
-    from ui.services.snapshot import snapshot_from_experiment
+    from experiments.services.snapshot import snapshot_from_experiment
 
     exp = _exp()
     client.post(_url(exp, _section("features")), {"scale": "standardize", "labels": "auto"})
@@ -226,7 +226,7 @@ def test_a_run_is_given_the_experiments_processing(client):
     How: creates iris with an SVM, sets scaling off, and builds the run's model."""
     from core import io
     from ui.registry import METRICS, MODELS, OPTIMIZERS
-    from ui.services.snapshot import snapshot_from_experiment
+    from experiments.services.snapshot import snapshot_from_experiment
 
     from tests.conftest import DATASETS_DIR
 

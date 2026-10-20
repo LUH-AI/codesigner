@@ -137,7 +137,7 @@ def suite_runs_in_its_own_configuration(settings):
 
     Pinned to the defaults rather than to anything clever: these are what a
     fresh checkout has, and a test that wants the other mode says so (the
-    `hosted` fixtures, and `tests/ui/runs/test_cluster_backend.py`).
+    `hosted` fixtures, and `tests/experiments/test_cluster_backend.py`).
     """
     settings.REQUIRE_LOGIN = False
     settings.RUN_BACKEND = "local"

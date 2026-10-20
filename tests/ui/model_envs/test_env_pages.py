@@ -14,7 +14,7 @@ from django.urls import reverse
 
 from tests.conftest import DATASETS_DIR, post_new_experiment
 from experiments.models import Experiment, Run
-from ui.services import modelenv
+from experiments.services import modelenv
 
 MODEL_SOURCE = textwrap.dedent('''
     # /// script

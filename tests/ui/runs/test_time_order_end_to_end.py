@@ -18,7 +18,7 @@ FLATS = Path(__file__).parent.parent.parent / "fixtures" / "flats.csv"
 def _built(exp):
     """*exp* built the way a run builds it — with its data and its folds."""
     from core import io, registry
-    from ui.services import snapshot as snapshot_adapter
+    from experiments.services import snapshot as snapshot_adapter
 
     _, built = io.build_experiment(snapshot_adapter.snapshot_from_experiment(exp),
                                    registry.METRICS, registry.MODELS, registry.OPTIMIZERS,
@@ -73,7 +73,7 @@ def test_the_order_survives_a_round_trip_through_a_file(client):
     again orders the same way. How: exports the experiment's snapshot and
     builds a second experiment from it."""
     from experiments.models import Experiment
-    from ui.services import snapshot as snapshot_adapter
+    from experiments.services import snapshot as snapshot_adapter
 
     _create(client)
     exp = Experiment.objects.get(data__name="flats in time")

@@ -30,7 +30,7 @@ def test_a_partial_write_is_throttled_by_the_clock_not_the_trial_count(monkeypat
     """Trial durations here span three orders of magnitude. At one write per
     trial a run of 0.07s trials would rewrite the whole result a dozen times a
     second; a count that fixed that would starve a run of ten-minute trials."""
-    from ui.services import run as run_service
+    from experiments.services import run as run_service
 
     clock = {"now": 1000.0}
     monkeypatch.setattr(run_service.time, "monotonic", lambda: clock["now"])
@@ -57,7 +57,7 @@ def test_a_partial_write_is_throttled_by_the_clock_not_the_trial_count(monkeypat
 def test_a_partial_write_carries_no_analytics(monkeypatch):
     """The expensive fields stay empty by construction — that is what makes a
     per-trial write affordable at all."""
-    from ui.services import run as run_service
+    from experiments.services import run as run_service
 
     clock = {"now": 0.0}
     monkeypatch.setattr(run_service.time, "monotonic", lambda: clock["now"])
@@ -129,8 +129,8 @@ def test_a_real_run_writes_its_trials_before_it_finishes(monkeypatch):
     returns would be satisfied by the final write, which was always there.
     """
     from experiments.models import Experiment
-    from ui.services import run as run_service
-    from ui.services.run import create_run, execute_run
+    from experiments.services import run as run_service
+    from experiments.services.run import create_run, execute_run
 
     monkeypatch.setattr(run_service, "PARTIAL_RESULT_SECONDS", 0.0)
 
@@ -162,8 +162,8 @@ def test_what_a_run_writes_mid_flight_carries_no_analytics(monkeypatch):
     """A partial result leaves those fields empty — the state the page already
     handles, because it is what a cancelled run produces."""
     from experiments.models import Experiment
-    from ui.services import run as run_service
-    from ui.services.run import create_run, execute_run
+    from experiments.services import run as run_service
+    from experiments.services.run import create_run, execute_run
 
     monkeypatch.setattr(run_service, "PARTIAL_RESULT_SECONDS", 0.0)
 
@@ -193,7 +193,7 @@ def test_what_a_run_writes_mid_flight_carries_no_analytics(monkeypatch):
 
 def _make_experiment():
     from tests.conftest import DATASETS_DIR
-    from ui.services import snapshot as adapter
+    from experiments.services import snapshot as adapter
 
     return adapter.experiment_from_snapshot({
         "version": "0.1.0", "name": "live-exp", "model_name": "Random Forest",

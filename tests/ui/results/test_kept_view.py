@@ -13,7 +13,7 @@ from pathlib import Path
 from django.urls import reverse
 
 from core import io
-from ui.services import snapshot as adapter
+from experiments.services import snapshot as adapter
 
 from tests.conftest import FIXTURES_DIR
 

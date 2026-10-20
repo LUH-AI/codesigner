@@ -9,7 +9,7 @@ covered in test_settings_page_parity.py.
 from django.urls import reverse
 
 from experiments.models import Experiment, GlobalSettings
-from ui.services.settings import SETTING_DEFAULTS
+from ui.experiment_settings import SETTING_DEFAULTS
 
 
 def _exp():

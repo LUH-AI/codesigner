@@ -21,18 +21,32 @@ from django.http import Http404, HttpResponse, HttpResponseBadRequest, JsonRespo
 from django.shortcuts import redirect, render
 from django.template.loader import render_to_string
 from django.urls import reverse
+from django.utils import timezone
 from django.utils.http import content_disposition_header, url_has_allowed_host_and_scheme
 from django.utils.translation import gettext as _
 from django.utils.translation import gettext_lazy, ngettext
 from django.views.decorators.http import require_POST
 
+from access.policy import (
+    DELETE, EDIT, EXPORT, RENAME, RUN, SHARE, VIEW, groups_to_choose_from, policy,
+    visible_experiments,
+)
 from core import io, projected_prior, provenance, smac_import, tasks
 from core.metrics import metric_for, metrics_for
 from core.metrics import scale as metric_scale
 from core.modelhost import deadline
 from core.optimizers.base import FAILURE_CRITERIA
 from experiments.models import Experiment, ExperimentData, ExperimentShare, GlobalSettings
+from experiments.services import bin as bin_service
+from experiments.services import history, model_export, modelenv, storage, timestamps
+from experiments.services import run as run_service
+from experiments.services import snapshot as snapshot_adapter
+from experiments.services.run import resolve_seed
+from experiments.services.run_logic import decide_run, resolve_metric_change
+from experiments.services.settings import SETTING_BOUNDS, SETTING_CHOICES
 
+from . import optimizer_form, projected, times
+from .experiment_settings import SETTING_DEFAULTS, global_defaults, resolve_settings
 from .figures import (
     FIGURES, FIGURES_BY_KEY, HP_GAME_FIELDS, HP_GAME_HELP, HP_GAME_LABELS,
     ACCENT_COLOR, MARKER_COLOR, NEGATIVE_COLOR, PRIOR_COLOR, PROPOSAL_COLOR, SELECTION_COLOR,
@@ -44,32 +58,14 @@ from .figures import (
     forecast_plot, hyperparameter_progress_plot, local_effects_plot, partial_dependence_plot,
     slice_span,
 )
-from .formatting import sigfigs
+from .formatting import human, sigfigs
 from .forms import (
     EVALUATION_SCHEMES, DefaultExperimentSettingsForm, ExperimentSettingsForm,
     NewExperimentForm)
-from . import permissions
-from .permissions import (
-    BOTH, DELETE, EDIT, EXPORT, RENAME, RUN, SHARE, VIEW, experiment_view,
-)
-from .registry import METRICS, MODELS, OPTIMIZERS
-from django.utils import timezone
-
-from .services import projected
-from .services import run as run_service
-from .services import modelenv
-from .services import snapshot as snapshot_adapter
-from .services import bin as bin_service
-from .services import model_export
-from .services import history, optimizer_form, timestamps
-from .services import storage
-from .services.run import resolve_seed
-from .services.run_logic import decide_run, resolve_metric_change
 from .optimizer_labels import describe_all, grouped
-from .services.settings import (
-    SETTING_BOUNDS, SETTING_CHOICES, SETTING_DEFAULTS, global_defaults, resolve_settings)
+from .permissions import BOTH, experiment_view
+from .registry import METRICS, MODELS, OPTIMIZERS
 from .validators import dataset_upload_error, model_upload_error, oversized
-from access.policy import groups_to_choose_from
 
 _ACTIVE = ["pending", "running"]
 
@@ -373,10 +369,10 @@ def experiment_list(request):
     """Every experiment this request may see, paginated.
 
     Through the same policy-scoped queryset the sidebar uses
-    (`permissions.visible_experiments`), so this never shows an experiment the
+    (`visible_experiments`), so this never shows an experiment the
     sidebar wouldn't and a page would then refuse to open.
     """
-    paginator = Paginator(permissions.visible_experiments(request), EXPERIMENT_LIST_PAGE_SIZE)
+    paginator = Paginator(visible_experiments(request), EXPERIMENT_LIST_PAGE_SIZE)
     page = paginator.get_page(request.GET.get("page"))
     return render(request, "ui/experiment_list.html", {"page": page})
 
@@ -398,15 +394,15 @@ def _settle_storage(request, exp) -> bool:
     stalest first, until the group is within its limit, and the person is told
     how many. Only when the datasets and model files alone are over is the
     experiment refused — deleted again, files and all. See
-    ui/services/storage.py.
+    experiments/services/storage.py.
     """
     group = exp.group
     if group is None or (not exp.data.dataset and not exp.data.model_file):
         return True
     within, deleted = storage.make_room(group)
     now = storage.usage(group)
-    numbers = {"group": group.name, "used": storage.human(now["total"]),
-               "limit": storage.human(now["limit"])}
+    numbers = {"group": group.name, "used": human(now["total"]),
+               "limit": human(now["limit"])}
     if not within:
         storage.delete_experiment_files(exp)
         messages.error(request, _(
@@ -454,7 +450,7 @@ def _evaluation_schemes():
 
 
 def new_experiment(request):
-    """New: make a draft, and set it up (ui/services/setup.py).
+    """New: make a draft, and set it up (ui/setup_steps.py).
 
     A draft at once rather than a form first, so the experiment is in
     Experiment Selection from the moment New is pressed and can be left and
@@ -481,7 +477,7 @@ def _dashboard(request, exp, context):
     if context["trial_count"]:
         return render(request, "ui/experiment_detail.html", context)
     fixed = optimizer_form.why_fixed(exp)
-    may_edit = permissions.policy().may(request, exp, EDIT)
+    may_edit = policy().may(request, exp, EDIT)
     context.update(optimizer_form.context(exp, locked=bool(fixed) or not may_edit))
     context["optimizer_locked_reason"] = fixed
     return render(request, "ui/experiment_prerun.html", context)
@@ -699,13 +695,13 @@ def _proposal_index(source):
 
 def _run_refusal(request, exp):
     """Why this viewer cannot start a run of *exp* now, or None."""
-    if not permissions.policy().may(request, exp, RUN):
+    if not policy().may(request, exp, RUN):
         return _("You can view this experiment but not run it.")
     if exp.is_running:
         return _("A run is under way.")
     if not exp.data.has_dataset or not _model_available(exp):
         return _("This experiment cannot be run here.")
-    return permissions.policy().custom_model_refusal(exp, request.user) or None
+    return policy().custom_model_refusal(exp, request.user) or None
 
 
 @experiment_view(VIEW)
@@ -2220,7 +2216,7 @@ def run_status(request, exp):
     Also the channel for figures that move while the run is still going. There
     was never a rendering constraint on those — the trial-based figures need
     nothing but the trials — only a persistence one: the result was written once,
-    at the end. `ui/services/run.py` now writes it periodically, and this hands
+    at the end. `experiments/services/run.py` now writes it periodically, and this hands
     the page whatever has arrived since it last said what it had.
 
     No new endpoint and no second poll loop: this fragment is already fetched
@@ -2279,7 +2275,7 @@ def _analytics_absent(result) -> bool:
     Two ways to arrive here, both deliberate. A **cancelled** run skips them:
     pressing Cancel used to still buy the full analytics bill, so on a wide
     model you waited minutes for a run you had just stopped. A **partial** write
-    (`ui/services/run.py`) leaves them out for the same reason at finer grain —
+    (`experiments/services/run.py`) leaves them out for the same reason at finer grain —
     2^n_hp coalitions per game per metric is not something to pay per trial.
 
     Both used to be permanent: the numbers were computed once, at run
@@ -2499,7 +2495,7 @@ def _abandon_cluster_job(job_id: str) -> None:
     is the thing the reader actually asked for. A job that outlives this is
     bounded by its own wall-clock limit.
     """
-    from .services import cluster
+    from experiments.services import cluster
 
     try:
         cluster.kill(cluster.SshTransport(settings.CLUSTER_HOST, timeout=15.0), job_id)
@@ -2604,7 +2600,7 @@ def experiment_export_trial_model(request, exp):
     """Download the selected trial's fitted model — its parameters, in its
     library's own format, with a note of what it is — as a zip.
 
-    Only for a trial whose model the run kept (see ui/services/trial_models.py):
+    Only for a trial whose model the run kept (see experiments/services/trial_models.py):
     nothing is trained here. What comes back is partially trained, fitted on
     one fold's training rows, and its note says so.
     """
@@ -2679,7 +2675,7 @@ def _export(request, exp, cancel_url=None):
                       {"experiment": exp, "has_tracebacks": bool(count),
                        "traceback_count": count, "cancel_url": cancel_url,
                        "timestamp_modes": _timestamp_choices(exp),
-                       "timestamp_mode": timestamps.for_export(exp, request.user)})
+                       "timestamp_mode": times.for_export(exp, request.user)})
 
     snapshot = snapshot_adapter.snapshot_from_experiment(exp, provenance=True)
     # The paths name files on this server, which is of no use to whoever opens
@@ -2687,7 +2683,7 @@ def _export(request, exp, cancel_url=None):
     snapshot["dataset"]["path"] = ""
     snapshot["model"]["path"] = ""
     # Every time in the file, in the form asked for — see
-    # ui/services/timestamps.py. "keep" is what the question used to post, when
+    # experiments/services/timestamps.py. "keep" is what the question used to post, when
     # the choice was all or nothing; no answer at all is still nothing.
     posted = request.POST.get("timestamps")
     mode = timestamps.clamp(exp, timestamps.ABSOLUTE if posted == KEEP
@@ -2713,7 +2709,7 @@ def _export(request, exp, cancel_url=None):
 
 def _timestamp_choices(exp):
     """The forms *exp*'s times can leave in, each with what it means."""
-    return [(mode, *timestamps.LABELS[mode]) for mode in timestamps.allowed(exp)]
+    return [(mode, *times.LABELS[mode]) for mode in timestamps.allowed(exp)]
 
 
 def _posted_settings(request):
@@ -2770,7 +2766,7 @@ def experiment_settings(request, exp):
 
         if ("save_as_default" in request.POST
                 or "confirm_save_as_default" in request.POST):
-            if not permissions.policy().may_change_defaults(request):
+            if not policy().may_change_defaults(request):
                 raise PermissionDenied
 
         if "save_as_default" in request.POST:
@@ -2821,15 +2817,15 @@ def appearance(request):
 
 def export_preferences(request):
     """How this reader's exported files carry times, unless an experiment says
-    otherwise (ui/services/timestamps.py). Kept for the reader rather than for
+    otherwise (ui/times.py). Kept for the reader rather than for
     the browser: it is a decision about what they send, wherever they send it
     from."""
     if request.method == "POST":
-        timestamps.set_reader_preference(request.user, request.POST.get("export_timestamps"))
+        times.set_reader_preference(request.user, request.POST.get("export_timestamps"))
         return redirect("ui:export_preferences")
     return render(request, "ui/export_preferences.html", {
-        "modes": [(mode, *timestamps.LABELS[mode]) for mode in timestamps.MODES],
-        "chosen": timestamps.reader_preference(request.user),
+        "modes": [(mode, *times.LABELS[mode]) for mode in timestamps.MODES],
+        "chosen": times.reader_preference(request.user),
     })
 
 
@@ -2846,7 +2842,7 @@ def account(request):
     """
     if not settings.REQUIRE_LOGIN:
         raise Http404
-    policy = permissions.policy()
+    current = policy()
     return render(request, "ui/account.html", {
         # Each paired with what it lets you do rather than its codename, which
         # names the grant and not the consequence.
@@ -2856,9 +2852,9 @@ def account(request):
             (_("Run, edit and delete other people's experiments"),
              request.user.has_perm("access.manage_experiments")),
             (_("Change the settings every experiment inherits"),
-             policy.may_change_defaults(request)),
+             current.may_change_defaults(request)),
             (_("Upload and run custom models"),
-             policy.may_upload_models(request)),
+             current.may_upload_models(request)),
         ],
         # Its own line because it is an instance-wide floor rather than
         # something about this account: off means off, for everyone.
@@ -2872,7 +2868,7 @@ def default_experiment_settings(request):
 
     Every key in the schema is a checkbox, so an absent key means unchecked.
     """
-    if not permissions.policy().may_change_defaults(request):
+    if not policy().may_change_defaults(request):
         raise PermissionDenied
     gs = GlobalSettings.get_solo()
     if request.method == "POST":
@@ -2888,7 +2884,7 @@ def default_experiment_settings(request):
 def experiment_delete(request, exp):
     """Confirm (GET) then delete (POST) a saved experiment, stopping any run.
 
-    Into its people's bins, not gone — see `ui/services/bin.py`.
+    Into its people's bins, not gone — see `experiments/services/bin.py`.
     """
     if request.method == "POST":
         bin_service.delete(exp, by=request.user)
@@ -2918,12 +2914,12 @@ def _bin_holders(exp):
 
 def _binned(request, pk):
     from django.shortcuts import get_object_or_404
-    return get_object_or_404(permissions.policy().bin(request), pk=pk)
+    return get_object_or_404(policy().bin(request), pk=pk)
 
 
 def experiment_bin(request):
     """What this person deleted, or had deleted from under them."""
-    binned = (permissions.policy().bin(request)
+    binned = (policy().bin(request)
               .select_related("owner", "deleted_by").order_by("-deleted_at"))
     return render(request, "ui/bin.html", {
         "binned": [{"experiment": exp,
@@ -2983,7 +2979,7 @@ def import_experiment(request):
     attached to make the imported experiment runnable; without them it loads
     read-only.
     """
-    may_upload = permissions.policy().may_upload_models(request)
+    may_upload = policy().may_upload_models(request)
     context = {"allow_custom_models": may_upload,
                "groups": groups_to_choose_from(request.user)}
     upload = request.FILES.get("file")
@@ -3511,33 +3507,6 @@ def _model_tasks():
             for name, model in MODELS.items()}
 
 
-def _evaluation_label(exp):
-    """How a trial was scored, for the run-configuration box.
-
-    "Not recorded" for an experiment imported from somebody else's output: a
-    SMAC scenario says nothing about what was being optimized, so there is no
-    split to report. The columns still hold their defaults — they have to hold
-    something — and reporting those as fact would put a 20% holdout on the page
-    for a run that may have used no such thing.
-    """
-    if exp.data.model_name not in MODELS and not exp.data.model_file:
-        return _("Not recorded")
-    if exp.data.forecasts:
-        return ngettext("%(k)s backtest of %(h)s steps by %(column)s",
-                        "%(k)s backtests of %(h)s steps by %(column)s",
-                        max(exp.data.cv_folds, 1)) % {
-            "k": max(exp.data.cv_folds, 1), "h": exp.data.horizon, "column": exp.data.time_column}
-    if exp.data.time_column:
-        if exp.data.cv_folds >= 2:
-            return _("%(k)s time-ordered folds by %(column)s") % {
-                "k": exp.data.cv_folds, "column": exp.data.time_column}
-        return _("latest %(pct)s%% by %(column)s held out") % {
-            "pct": round(exp.data.test_size * 100), "column": exp.data.time_column}
-    if exp.data.cv_folds >= 2:
-        return _("%(k)s-fold CV") % {"k": exp.data.cv_folds}
-    return _("%(pct)s%% held out") % {"pct": round(exp.data.test_size * 100)}
-
-
 #: What each tab is called on the page.
 TAB_LABELS = {
     "overview": gettext_lazy("Overview"),
@@ -3619,6 +3588,18 @@ def save_layout(request, exp):
 _UNBUILT = object()
 
 
+def _prepared_summary(exp) -> str:
+    """A short line about the environment, for the experiment page."""
+    meta = exp.env_meta or {}
+    parts = []
+    deps = meta.get("dependencies") or []
+    if deps:
+        parts.append(", ".join(deps))
+    if meta.get("python"):
+        parts.append(f"Python {meta['python']}")
+    return " · ".join(parts)
+
+
 def experiment_header(request, exp, result=_UNBUILT):
     """What the top of every view of an experiment shows — its dashboard, its
     Data Handling and its timeline: what it is, what may be done with it and
@@ -3660,7 +3641,7 @@ def experiment_header(request, exp, result=_UNBUILT):
             "current_metric": exp.data.current_metric,
             "metric_label": metric_label(exp.data.current_metric, exp.data.original_metric),
             "seed": exp.data.seed,
-            "evaluation": _evaluation_label(exp),
+            "evaluation": model_export.evaluation_label(exp),
         },
         # A result with no trials counts as no result: it is what the dashboard
         # stops building panels and plots for, so its template must take its
@@ -3669,7 +3650,7 @@ def experiment_header(request, exp, result=_UNBUILT):
         "has_result": has_result,
         # What this viewer may do, for the buttons. Read access got them here;
         # the rest depends on whose experiment it is.
-        "may": {action: permissions.policy().may(request, exp, action)
+        "may": {action: policy().may(request, exp, action)
                 for action in (RUN, EDIT, DELETE, EXPORT, SHARE, RENAME)},
         "ownership": _ownership(request, exp),
         "model_export_unavailable": model_export.unavailable(exp),
@@ -3682,7 +3663,7 @@ def experiment_header(request, exp, result=_UNBUILT):
         "run_error": last_run.error if (last_run and last_run.status == "error") else None,
         # Why this viewer may not run this experiment's custom model, if they
         # may not. Shown rather than silently disabling the form.
-        "model_refusal": permissions.policy().custom_model_refusal(exp, request.user),
+        "model_refusal": policy().custom_model_refusal(exp, request.user),
         # The model's environment, for the notices under the heading.
         "env": {
             "status": exp.env_status,
@@ -3691,7 +3672,7 @@ def experiment_header(request, exp, result=_UNBUILT):
             "ready": exp.env_status == Experiment.ENV_READY,
             "failed": exp.env_status == Experiment.ENV_FAILED,
             "error": exp.env_error,
-            "summary": modelenv.prepared_summary(exp),
+            "summary": _prepared_summary(exp),
         },
         "run_summary": run_summary,
     }
@@ -3716,7 +3697,7 @@ def _detail_context(request, exp):
         "metric_names": metric_names,
         "active_run": active_run,
         "can_run": (exp.data.has_dataset and _model_available(exp)
-                    and permissions.policy().may(request, exp, RUN)
+                    and policy().may(request, exp, RUN)
                     and not model_refusal),
         # Only an optimizer that fits a model of the objective can answer the
         # confidence criterion, so only then is it offered.
@@ -3729,7 +3710,7 @@ def _detail_context(request, exp):
         # a reader who may change what the next run searches under.
         "can_draw_priors": (bool(getattr(_optimizer_for(exp.data.optimizer_name),
                                          "fits_surrogate", False))
-                            and permissions.policy().may(request, exp, EDIT)),
+                            and policy().may(request, exp, EDIT)),
         **_prior_judging_context(exp),
         "run_default_metric": exp.data.current_metric or (metric_names[0] if metric_names else None),
         # What the deadline fields open on. The deployment's number, so an

@@ -29,7 +29,7 @@ def _trials(n):
 
 
 def _experiment(trials=0):
-    from ui.services import snapshot as adapter
+    from experiments.services import snapshot as adapter
 
     exp = adapter.experiment_from_snapshot({
         "version": "0.1.0", "name": "history", "model_name": "Random Forest",
@@ -52,7 +52,7 @@ def _store(exp, n):
 def test_a_run_records_when_it_was_asked_for():
     """What: a run knows when Run was pressed, before any worker starts it.
     How: creates a run and reads its queue time."""
-    from ui.services.run import create_run
+    from experiments.services.run import create_run
 
     before = timezone.now()
     run = create_run(_experiment(), {"max_trials": 3}, "accuracy")
@@ -67,7 +67,7 @@ def test_a_failed_run_still_owns_the_trials_it_saved():
     How: starts a run on an experiment with three trials, stores two more as a
     partial write would, then fails it."""
     from experiments.models import Run
-    from ui.services.run import _start, create_run, fail_runs
+    from experiments.services.run import _start, create_run, fail_runs
 
     exp = _experiment(trials=3)
     run = create_run(exp, {"max_trials": 9}, "accuracy")
@@ -85,7 +85,7 @@ def test_a_run_swept_after_a_restart_is_finished_with_its_trials():
     """What: a run left "running" by a restart is closed with a finish time
     and its range, not only an error.
     How: starts a run, stores a trial, and sweeps."""
-    from ui.services.run import _start, create_run, sweep_stale_runs
+    from experiments.services.run import _start, create_run, sweep_stale_runs
 
     exp = _experiment()
     run = create_run(exp, {"max_trials": 9}, "accuracy")
@@ -101,7 +101,7 @@ def test_a_run_swept_after_a_restart_is_finished_with_its_trials():
 def test_cancelling_records_when_and_only_the_first_time(client):
     """What: Cancel records when it was pressed; pressing it again does not
     move that. How: cancels a pending run twice through the view."""
-    from ui.services.run import create_run
+    from experiments.services.run import create_run
 
     exp = _experiment()
     run = create_run(exp, {"max_trials": 3}, "accuracy")
@@ -120,7 +120,7 @@ def test_cancelling_records_when_and_only_the_first_time(client):
 def test_a_metric_change_says_when_it_happened():
     """What: a run's events carry the time as well as the trial count.
     How: changes the optimized metric on an experiment with trials."""
-    from ui.services.run import create_run
+    from experiments.services.run import create_run
 
     exp = _experiment(trials=2)
     exp.data.metric_names = ["accuracy", "f1"]
@@ -137,7 +137,7 @@ def test_a_prior_event_keeps_when_it_took_effect_and_why_it_was_skipped():
     the run's start; a refused one says it was refused.
     How: records two reports the optimizer could give."""
     from experiments.models import Run
-    from ui.services.run import _record_prior_event, create_run
+    from experiments.services.run import _record_prior_event, create_run
 
     run = create_run(_experiment(), {"max_trials": 3}, "accuracy")
     _record_prior_event(run.pk, {"applied": True, "key": "codesigner",
@@ -156,7 +156,7 @@ def test_the_cluster_records_the_prior_too(monkeypatch, settings):
     """What: a run finished on the cluster records what its prior did, as a
     local run does. How: finishes a cluster run whose status reports a prior."""
     from experiments.models import Run
-    from ui.services.run import _finish_cluster_run, _start, create_run
+    from experiments.services.run import _finish_cluster_run, _start, create_run
 
     exp = _experiment()
     run = create_run(exp, {"max_trials": 3}, "accuracy")
@@ -210,7 +210,7 @@ def test_an_experiment_keeps_its_own_beginning_across_a_file():
     """What: the experiment's creation time travels in the file; the instance
     that imports it records when it first saw it separately.
     How: snapshots an experiment and builds another from the snapshot."""
-    from ui.services import snapshot as adapter
+    from experiments.services import snapshot as adapter
 
     exp = _experiment()
     snapshot = adapter.snapshot_from_experiment(exp)

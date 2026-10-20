@@ -60,5 +60,5 @@ class ReaderPreferences(models.Model):
     user = models.OneToOneField(django_settings.AUTH_USER_MODEL, null=True, blank=True,
                                 on_delete=models.CASCADE, related_name="reader_preferences")
     # How an exported file carries times, unless an experiment says otherwise:
-    # "absolute", "relative" or "none" (see ui/services/timestamps.py).
+    # "absolute", "relative" or "none" (see experiments/services/timestamps.py).
     export_timestamps = models.CharField(max_length=10, default="relative")

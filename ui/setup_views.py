@@ -1,6 +1,6 @@
 """A draft's setup: its four steps, creating it, and throwing it away.
 
-See ui/services/setup.py for what the steps are and what saving each means.
+See ui/setup_steps.py for what the steps are and what saving each means.
 Every view here reaches only drafts (`experiment_view(..., drafts=ONLY)`); an
 experiment that has been created is sent to its dashboard instead.
 """
@@ -14,10 +14,12 @@ from django.utils.translation import gettext as _
 from django.views.decorators.http import require_POST
 
 
-from .permissions import EDIT, ONLY, experiment_view
-from .services import history, optimizer_form
-from .services import setup as steps
-from .services import snapshot as snapshot_adapter
+from access.policy import EDIT
+from .permissions import ONLY, experiment_view
+from experiments.services import history
+from . import optimizer_form
+from . import setup_steps as steps
+from experiments.services import snapshot as snapshot_adapter
 
 
 def _page(request, exp, step, template, **context):
@@ -141,7 +143,7 @@ def setup_create(request, exp):
 def setup_discard(request, exp):
     """Throw the draft away, files and all. Nothing was run, so there is
     nothing for a bin to keep."""
-    from .services import storage
+    from experiments.services import storage
 
     name = exp.title
     storage.delete_experiment_files(exp)
@@ -155,7 +157,7 @@ def _form(request, exp, *args):
     from access.policy import groups_to_choose_from
 
     from .forms import NewExperimentForm
-    from .permissions import policy
+    from access.policy import policy
 
     data = exp.data
     current_model = None
@@ -230,7 +232,7 @@ def save_setup(request, exp):
     Built the way creating an experiment always built one — a snapshot from the
     form, adopted by `data_from_snapshot` — and kept what the later steps set:
     the processing, and the priors unless the model changed. A different
-    dataset, task or model asks for step 2 again (ui/services/setup.py)."""
+    dataset, task or model asks for step 2 again (ui/setup_steps.py)."""
     from django.db import transaction
 
     from core import io
@@ -239,8 +241,8 @@ def save_setup(request, exp):
     from importlib.metadata import version as dist_version
 
     from .registry import OPTIMIZERS
-    from .services import modelenv
-    from .services.run import resolve_seed
+    from experiments.services import modelenv
+    from experiments.services.run import resolve_seed
     from .views import (
         _dataset_path_from, _group_by_pk, _settle_storage,
     )

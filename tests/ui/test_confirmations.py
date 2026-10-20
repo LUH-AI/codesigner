@@ -24,7 +24,7 @@ def _exp(**overrides):
 
 def _runnable():
     """An experiment with a dataset, so the run view reaches the metric check."""
-    from ui.services import snapshot as adapter
+    from experiments.services import snapshot as adapter
     return adapter.experiment_from_snapshot({
         "version": "0.1.0", "name": "c", "model_name": "Random Forest",
         "model_path": "", "optimizer_name": "Random Search", "optimizer_params": {},

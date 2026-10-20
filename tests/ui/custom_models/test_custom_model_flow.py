@@ -18,8 +18,8 @@ from django.urls import reverse
 from core import io
 from core.metrics import metrics_for
 from experiments.models import Experiment
-from ui.services import run as run_service
-from ui.services import snapshot as snapshot_adapter
+from experiments.services import run as run_service
+from experiments.services import snapshot as snapshot_adapter
 
 from tests.ui.custom_models.conftest import VALID_MODEL_SRC
 from tests.conftest import post_new_experiment

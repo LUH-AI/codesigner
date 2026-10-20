@@ -49,10 +49,112 @@ They are an escape hatch, granted to nobody; see `access/models.py`.
 
 from django.conf import settings
 from django.db.models import Q
+from django.utils.module_loading import import_string
 from django.utils.translation import gettext_lazy as _
 
 from experiments.models import Experiment, ExperimentShare
-from ui.permissions import DELETE, EDIT, EXPORT, OpenPolicy, RENAME, RUN, SHARE, VIEW
+
+#: What a view does with the experiment it is given. Every route declares one,
+#: so a policy can answer per action rather than all-or-nothing, and so reading
+#: the URLconf tells you what each route is for.
+VIEW = "view"        # render it, or a fragment of it
+RUN = "run"          # start, cancel, or prepare the environment for a run
+EDIT = "edit"        # change its settings
+DELETE = "delete"    # destroy it
+EXPORT = "export"    # take a copy of it off the instance
+SHARE = "share"      # decide who else may reach it, or hand it to somebody
+RENAME = "rename"    # change what it is called
+
+ACTIONS = frozenset({VIEW, RUN, EDIT, DELETE, EXPORT, SHARE, RENAME})
+
+
+class OpenPolicy:
+    """Every experiment belongs to everyone. The default, and what a local or
+    private-network install wants: no accounts, no owners, no refusals."""
+
+    def experiments(self, request):
+        """The experiments this request may see, as a queryset.
+
+        Never a deleted one, under any policy: deleting sets an experiment aside
+        into its people's bins, and from then on `bin` is the only way to it.
+        """
+        return Experiment.objects.filter(deleted_at__isnull=True)
+
+    def bin(self, request):
+        """The deleted experiments this request may restore, as a queryset.
+
+        Every one of them, with no accounts — a bin is somebody's, and without
+        accounts there is one somebody.
+        """
+        return Experiment.objects.filter(deleted_at__isnull=False)
+
+    def for_listing(self, request):
+        """The experiments a page should *list*, which need not be all of them.
+
+        Authorization and presentation are different questions: something may be
+        reachable without belonging on the front page. A policy that draws no
+        distinction — this one — answers both the same way, and a policy that
+        does (a group lead's own work, versus their whole group's) overrides
+        this without touching what may be *reached*.
+        """
+        return self.experiments(request)
+
+    def may(self, request, experiment, action):
+        """Whether this request may perform *action* on a visible experiment."""
+        return True
+
+    # ── Questions that are not about one experiment ──────────────────────────
+
+    def may_upload_models(self, request):
+        """Whether this request may bring a custom model onto the instance.
+
+        Uploading one is arbitrary code execution, so the instance-wide flag is
+        the floor; a policy with accounts can require more on top of it.
+        """
+        return settings.ALLOW_CUSTOM_MODELS
+
+    def custom_model_refusal(self, experiment, user):
+        """Why *user* may not run *experiment*'s custom model, or "" if they may.
+
+        A string rather than a boolean because this is the last thing standing
+        between an upload and the interpreter, and "no" without a reason is
+        unactionable in a worker log.
+        """
+        return ""
+
+    def may_change_defaults(self, request):
+        """Whether this request may edit the default experiment settings, which
+        every inheriting experiment on the instance follows."""
+        return True
+
+
+_cached: tuple[str, object] | None = None
+
+
+def policy():
+    """The configured policy, instantiated once per configured path.
+
+    Keyed on the setting rather than cached outright so a test (or a later
+    `access/` install) can point `EXPERIMENT_POLICY` somewhere else and be
+    obeyed immediately.
+    """
+    global _cached
+    path = getattr(settings, "EXPERIMENT_POLICY", None) or (
+        f"{OpenPolicy.__module__}.{OpenPolicy.__qualname__}")
+    if _cached is None or _cached[0] != path:
+        _cached = (path, import_string(path)())
+    return _cached[1]
+
+
+def visible_experiments(request):
+    """The experiments to list for this request — for the sidebar and anything
+    else that enumerates rather than looking one up.
+
+    `for_listing`, not `experiments`: enumerating is the presentation question,
+    and the two part company for a group lead, whose everyday list stays their
+    own work while their group's is a panel of its own.
+    """
+    return policy().for_listing(request)
 
 #: Manages groups, their size and their usage. Sees no experiments.
 MANAGE_SITE = "access.manage_site"
@@ -167,7 +269,7 @@ class GroupPolicy(OpenPolicy):
     def experiments(self, request):
         """Everything this request may reach, less other people's drafts.
 
-        A draft is its owner's alone until it is created (ui/services/setup.py)
+        A draft is its owner's alone until it is created (ui/setup_steps.py)
         — not their group lead's, not a site admin's.
         """
         reachable = self._reachable(request)
@@ -240,7 +342,7 @@ class GroupPolicy(OpenPolicy):
         # first — that is still in their bins, and comes here when one of them
         # restores it. And what somebody deleted that nobody's bin holds any
         # more: every one of its people took it out, or it waited too long.
-        from ui.services.bin import orphaned
+        from experiments.services.bin import orphaned
         group_gone = Experiment.objects.filter(trashed_at__isnull=False,
                                                deleted_at__isnull=True)
         return (group_gone | orphaned()).distinct()
@@ -256,8 +358,8 @@ class GroupPolicy(OpenPolicy):
         user = getattr(request, "user", None)
         if user is None or not user.is_authenticated:
             return Experiment.objects.none()
-        # Only for as long as a bin keeps it — see `ui/services/bin.py`.
-        from ui.services.bin import cutoff
+        # Only for as long as a bin keeps it — see `experiments/services/bin.py`.
+        from experiments.services.bin import cutoff
         return (Experiment.objects.select_related("data")
                 .filter(deleted_at__gte=cutoff(), bin_entries__user=user))
 

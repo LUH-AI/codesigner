@@ -265,7 +265,7 @@ def test_an_in_process_model_is_not_subject_to_any_deadline():
 
 def test_the_local_path_takes_no_timeout_argument_at_all():
     """The seam itself: a deadline is a `model_session` concept, and there is no
-    session on the in-process path — `ui/services/run.py` calls `optimize`
+    session on the in-process path — `experiments/services/run.py` calls `optimize`
     directly with the imported model."""
     import inspect
 

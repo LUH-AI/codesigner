@@ -94,7 +94,7 @@ def test_a_page_with_results_still_has_the_whole_card(client):
     """The pre-run case is an addition, not a replacement."""
     from core import io
     from tests.conftest import FIXTURES_DIR
-    from ui.services import snapshot as adapter
+    from experiments.services import snapshot as adapter
 
     exp = adapter.experiment_from_snapshot(
         io.parse((FIXTURES_DIR / "test2.ihpo").read_bytes()))

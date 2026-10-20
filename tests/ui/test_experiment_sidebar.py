@@ -35,7 +35,7 @@ _RESULT = {
 def _experiment(**overrides):
     """A runnable experiment with a result, so every section has something to
     show — a dataset it can actually reach is what puts the run form there."""
-    from ui.services import snapshot as adapter
+    from experiments.services import snapshot as adapter
 
     fields = dict(
         version="0.1.0", name="sided", model_name="Random Forest",

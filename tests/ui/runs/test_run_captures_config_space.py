@@ -18,7 +18,7 @@ from tests.conftest import DATASETS_DIR
 
 
 def _an_experiment():
-    from ui.services import snapshot as adapter
+    from experiments.services import snapshot as adapter
 
     return adapter.experiment_from_snapshot({
         "version": "0.1.0", "name": "space", "model_name": "Random Forest",
@@ -32,7 +32,7 @@ def _an_experiment():
 def test_a_run_stores_the_search_space():
     """After a run the row carries a space, and it is the model's own."""
     from ui.registry import MODELS
-    from ui.services.run import create_run, execute_run
+    from experiments.services.run import create_run, execute_run
 
     exp = _an_experiment()
     assert exp.data.config_space is None
@@ -52,7 +52,7 @@ def test_the_stored_space_reaches_the_figures():
     Going through `_rebuild_experiment` rather than asking the row directly,
     since that is the path every page render takes.
     """
-    from ui.services.run import create_run, execute_run
+    from experiments.services.run import create_run, execute_run
     from ui.views import _config_space_for, _rebuild_experiment
 
     exp = _an_experiment()
@@ -72,7 +72,7 @@ def test_a_model_that_cannot_describe_its_space_does_not_fail_the_run():
     asking its model, which is where it was before — so a model that raises
     here leaves the run untouched and the stored space unset.
     """
-    from ui.services.run import _remember_config_space
+    from experiments.services.run import _remember_config_space
 
     class _Mute:
         def get_config_space(self, seed=0):

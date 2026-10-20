@@ -48,7 +48,7 @@ def _import(client, uploads=None):
 def _imported():
     """The row, built through the importer without going via the page."""
     from core.smac_import import snapshot_from_smac
-    from ui.services import snapshot as adapter
+    from experiments.services import snapshot as adapter
 
     files = {p.name: json.loads(p.read_text()) for p in RUN_DIR.glob("*.json")}
     return adapter.experiment_from_snapshot(
@@ -122,9 +122,9 @@ def test_the_page_does_not_invent_an_evaluation_scheme():
     reporting those as fact would put a 20% holdout on the page for a run that
     may have used no such thing.
     """
-    from ui.views import _evaluation_label
+    from experiments.services.model_export import evaluation_label
 
-    assert str(_evaluation_label(_imported())) == "Not recorded"
+    assert str(evaluation_label(_imported())) == "Not recorded"
 
 
 def test_every_trial_based_figure_draws():
@@ -196,7 +196,7 @@ def test_an_imported_run_exports_and_re_imports(client):
     cannot resolve, and the experiment stops rebuilding at all — and `space`,
     without which the re-imported copy has no search space to draw from.
     """
-    from ui.services import snapshot as adapter
+    from experiments.services import snapshot as adapter
 
     exp = _imported()
     body = client.post(reverse("ui:experiment_export", args=[exp.pk]),

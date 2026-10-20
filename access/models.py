@@ -36,7 +36,7 @@ class Group(models.Model):
     limit — so only a site admin may edit it.
 
     `storage_limit_bytes` is how much disk its experiments may take (see
-    ui/services/storage.py); null is the site's default. Like the seats, a
+    experiments/services/storage.py); null is the site's default. Like the seats, a
     site admin's to set.
 
     `is_active` is how a site admin restricts a group without destroying

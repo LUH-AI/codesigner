@@ -26,8 +26,8 @@ def test_run_duration_property():
 
 
 def test_execute_run_stores_trial_seconds():
-    from ui.services import snapshot as adapter
-    from ui.services.run import create_run, execute_run
+    from experiments.services import snapshot as adapter
+    from experiments.services.run import create_run, execute_run
     exp = adapter.experiment_from_snapshot({
         "version": "0.1.0", "name": "rs", "model_name": "Random Forest", "model_path": "",
         "optimizer_name": "Random Search", "optimizer_params": {},

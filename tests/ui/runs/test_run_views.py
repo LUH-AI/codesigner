@@ -16,7 +16,7 @@ from tests.conftest import DATASETS_DIR, post_new_experiment
 def no_thread(monkeypatch):
     """Stop launched runs from actually executing, so a launched run stays
     'pending' and assertions are race-free."""
-    from ui.services import run as run_service
+    from experiments.services import run as run_service
     monkeypatch.setattr(run_service, "start_background_run", lambda run_id: None)
 
 
@@ -33,7 +33,7 @@ def _create(client, **overrides):
 
 
 def _experiment(**overrides):
-    from ui.services import snapshot as adapter
+    from experiments.services import snapshot as adapter
     snapshot = {
         "version": "0.1.0", "name": "exp", "model_name": "Random Forest",
         "model_path": "", "optimizer_params": {},

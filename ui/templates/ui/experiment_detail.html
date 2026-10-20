@@ -2490,7 +2490,7 @@ being read.{% endcomment %}
                 }
                 // Every prior drawn in the cube and stated, and the one being
                 // drawn now: one weight per sample each, worked out by the
-                // server (ui/services/projected.py), multiplied in as the search
+                // server (ui/projected.py), multiplied in as the search
                 // multiplies every belief together.
                 const drafted = priorDraft && draftPreview && draftPreview.metric === data.metric
                     ? draftPreview.weights : null;
@@ -2520,7 +2520,7 @@ being read.{% endcomment %}
             // — a bump, a ridge, a slab — and a click past that starts again.
             // The Projected prior card shapes and states what they span, and
             // the server works out what it weighs and what to draw for it
-            // (ui/services/projected.py): this only places points and draws.
+            // (ui/projected.py): this only places points and draws.
             const drawPriorBox = document.getElementById("cube-draw-prior");
             const clearPriorBtn = document.getElementById("cube-clear-prior");
             // {view, dims, hyperparameters, points} being drawn, or null.
@@ -3410,7 +3410,7 @@ being read.{% endcomment %}
             // There was never a rendering constraint on this, only a
             // persistence one: the figures below read nothing but the
             // trials, and the run now writes what it has every few seconds
-            // (`ui/services/run.py`). What arrives rides inside the
+            // (`experiments/services/run.py`). What arrives rides inside the
             // run-status poll — already fetched every two seconds, already
             // replaced wholesale — so there is no second loop and no new
             // endpoint; poll.js just says when a swap happened.

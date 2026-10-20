@@ -56,7 +56,7 @@ def test_the_forecast_survives_a_round_trip_through_a_file(client):
     and opening it again forecasts the same way. How: exports the snapshot and
     builds a second experiment from it."""
     from experiments.models import Experiment
-    from ui.services import snapshot as snapshot_adapter
+    from experiments.services import snapshot as snapshot_adapter
 
     _create(client, season=12)
     snapshot = snapshot_adapter.snapshot_from_experiment(Experiment.objects.get(data__name="airline"))

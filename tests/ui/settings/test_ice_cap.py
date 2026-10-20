@@ -18,7 +18,8 @@ from django.urls import reverse
 
 from core.optimizers.base import _sample_evenly
 from experiments.models import GlobalSettings
-from ui.services.settings import SETTING_BOUNDS, SETTING_DEFAULTS, resolve_settings
+from experiments.services.settings import SETTING_BOUNDS
+from ui.experiment_settings import SETTING_DEFAULTS, resolve_settings
 
 
 # ── the sampler ─────────────────────────────────────────────────────────────
@@ -129,5 +130,5 @@ def test_a_settings_row_from_before_this_existed_backfills():
     gs.default_experiment_settings = {"show_trials": False}
     gs.save(update_fields=["default_experiment_settings"])
 
-    from ui.services.settings import global_defaults
+    from ui.experiment_settings import global_defaults
     assert global_defaults()["ice_max_curves"] == 100

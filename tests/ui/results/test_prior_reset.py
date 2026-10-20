@@ -69,7 +69,7 @@ def _reset(client, exp, hp="n_estimators"):
 def test_a_run_records_what_it_searched_under():
     """Copied at creation, not referenced: the experiment's own statement goes
     on moving and this has to stay where it was."""
-    from ui.services.run import create_run
+    from experiments.services.run import create_run
 
     exp = _experiment(SEARCHED_UNDER)
     run = create_run(exp, {}, "accuracy")

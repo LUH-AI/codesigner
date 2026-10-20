@@ -27,13 +27,13 @@ from django.db.models.deletion import ProtectedError
 from django.utils import timezone
 
 from access.models import Group, Membership
-from access.policy import is_site_admin, membership_in, memberships_of
+from access.policy import is_site_admin, membership_in, memberships_of, policy
 from experiments.models import Experiment, Run
+from experiments.services.storage import delete_experiment_files
+from experiments.services.storage import forget as forget_storage
+from experiments.services.storage import usage as storage_usage
 
-from .permissions import policy
-from .services.storage import delete_experiment_files, human
-from .services.storage import forget as forget_storage
-from .services.storage import usage as storage_usage
+from .formatting import human
 
 
 def member_required(view):
@@ -500,7 +500,7 @@ def site_trash(request):
     """The site's bin, and the two things to do about what is in it.
 
     Two ways in: a deleted group's work, and what somebody deleted that none of
-    its people kept — see `ui/services/bin.py`. Settled the same way either way,
+    its people kept — see `experiments/services/bin.py`. Settled the same way either way,
     so listed together, each saying which it is.
 
     Shown with the same discipline as the jobs panel: an opaque identifier, who
@@ -530,7 +530,7 @@ def site_trash_rehome(request, pk):
     nobody: an experiment can outlive the account that made it, and a group is
     what decides who may see it. See `bin.put_back`.
     """
-    from .services import bin as bin_service
+    from experiments.services import bin as bin_service
 
     experiment = get_object_or_404(policy().trash(request), pk=pk)
     group = get_object_or_404(Group, pk=request.POST.get("group") or 0)

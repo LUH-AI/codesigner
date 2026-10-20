@@ -11,7 +11,7 @@ from django.urls import reverse
 
 from ui.figures import FIGURES
 from experiments.models import Experiment, GlobalSettings
-from ui.services.settings import SETTING_DEFAULTS
+from ui.experiment_settings import SETTING_DEFAULTS
 
 
 def _exp():

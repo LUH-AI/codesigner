@@ -15,7 +15,7 @@ from django.urls import reverse
 
 from access.models import Group, Membership
 from experiments.models import Experiment, TrialModel
-from ui.services import storage
+from experiments.services import storage
 
 from tests.conftest import DATASETS_DIR, FIXTURES_DIR, post_new_experiment
 
@@ -88,7 +88,7 @@ def test_the_file_names_the_demo_and_another_instance_reads_it_as_its_own(lab, c
     """What: the .ihpo says which demo the dataset is, and opening it again
     uses the bundled demo rather than needing the file. How: exports the
     snapshot and builds a second experiment from it without a dataset."""
-    from ui.services import snapshot as snapshot_adapter
+    from experiments.services import snapshot as snapshot_adapter
 
     _create(client, "iris", upload=False)
     snapshot = snapshot_adapter.snapshot_from_experiment(Experiment.objects.get(data__name="iris"))
@@ -103,7 +103,7 @@ def test_an_upload_counts_and_purging_deletes_its_file(lab, client):
     """What: an uploaded dataset counts its bytes against the group, and
     purging the experiment deletes the file and frees them.
     How: uploads flats, reads the usage, purges, checks the disk."""
-    from ui.services import bin as bin_service
+    from experiments.services import bin as bin_service
 
     _create(client)
     exp = Experiment.objects.get(data__name="flats")

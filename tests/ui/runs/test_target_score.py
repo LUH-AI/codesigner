@@ -36,7 +36,7 @@ def _result(**scores):
 
 
 def _experiment(result=None, metric="accuracy"):
-    from ui.services import snapshot as adapter
+    from experiments.services import snapshot as adapter
 
     exp = adapter.experiment_from_snapshot({
         "version": "0.1.0", "name": "targeted", "model_name": "Random Forest",

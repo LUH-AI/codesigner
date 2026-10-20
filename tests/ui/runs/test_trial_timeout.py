@@ -145,7 +145,7 @@ def test_the_deadline_survives_the_metric_change_confirmation(client, no_thread)
 
 def test_the_stored_spec_becomes_the_policy_the_session_is_given():
     from core.modelhost.deadline import FixedDeadline, PredictedDeadline
-    from ui.services import modelenv
+    from experiments.services import modelenv
 
     fixed = modelenv.session_kwargs({"mode": "fixed", "seconds": 45.0})["trial_timeout"]
     assert isinstance(fixed, FixedDeadline)
@@ -162,7 +162,7 @@ def test_the_stored_spec_becomes_the_policy_the_session_is_given():
 def test_a_run_from_before_the_field_gets_the_deployment_number():
     """`trial_timeout` defaults to `{}` on every row that predates the column,
     and those runs behaved as `MODEL_TRIAL_TIMEOUT` said."""
-    from ui.services import modelenv
+    from experiments.services import modelenv
 
     assert modelenv.session_kwargs({})["trial_timeout"].seconds_for({}) == 77.0
     assert modelenv.session_kwargs(None)["trial_timeout"].seconds_for({}) == 77.0
@@ -171,7 +171,7 @@ def test_a_run_from_before_the_field_gets_the_deployment_number():
 def test_the_predicted_policy_is_seeded_from_the_run():
     """The forest is fitted here, so it is one more stochastic part of an
     experiment that has a seed for exactly this reason."""
-    from ui.services import modelenv
+    from experiments.services import modelenv
 
     policy = modelenv.session_kwargs(
         {"mode": "predicted", "seconds": 300.0}, seed=17)["trial_timeout"]

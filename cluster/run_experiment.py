@@ -1,6 +1,6 @@
 """Run one experiment, here, from files in a directory.
 
-The other half of `ui/services/run.py`'s `execute_run`, for a machine that has
+The other half of `experiments/services/run.py`'s `execute_run`, for a machine that has
 no database and no Django — a Slurm job on a cluster. A plain script rather than
 a management command for exactly that reason: `manage.py` would need settings, a
 database it never queries, and the whole web stack installed beside it.

@@ -77,7 +77,7 @@ def test_the_space_survives_the_file():
 @pytest.mark.django_db
 def test_the_space_survives_the_row():
     """snapshot → Experiment row → snapshot keeps `space` byte-for-byte."""
-    from ui.services import snapshot as adapter
+    from experiments.services import snapshot as adapter
 
     original = io.parse((FIXTURES_DIR / "test.ihpo").read_bytes())
     original["space"] = _a_space()
@@ -96,7 +96,7 @@ def test_an_experiment_without_a_space_writes_no_section():
     Every experiment predating this has none, and a `"space": null` in each of
     their files would claim they answer a question they do not.
     """
-    from ui.services import snapshot as adapter
+    from experiments.services import snapshot as adapter
 
     original = io.parse((FIXTURES_DIR / "test.ihpo").read_bytes())
     assert "space" not in original

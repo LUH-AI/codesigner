@@ -19,7 +19,7 @@ from django.urls import reverse
 
 from ui.figures import FIGURES, autocompute_key, deferred_computations
 from experiments.models import GlobalSettings
-from ui.services.settings import SETTING_DEFAULTS, global_defaults, resolve_settings
+from ui.experiment_settings import SETTING_DEFAULTS, global_defaults, resolve_settings
 
 
 def test_the_deferred_computations_are_declared():
@@ -112,7 +112,7 @@ def test_an_experiment_can_override_the_default(client):
     """Per-experiment, like every other figure setting — one wide model shouldn't
     force the choice on every other experiment."""
     from core import io
-    from ui.services import snapshot as adapter
+    from experiments.services import snapshot as adapter
     from tests.conftest import FIXTURES_DIR
 
     exp = adapter.experiment_from_snapshot(

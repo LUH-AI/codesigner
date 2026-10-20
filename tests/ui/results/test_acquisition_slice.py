@@ -23,7 +23,7 @@ from tests.conftest import FIXTURES_DIR
 
 
 def _experiment():
-    from ui.services import snapshot as adapter
+    from experiments.services import snapshot as adapter
     return adapter.experiment_from_snapshot(
         io.parse((FIXTURES_DIR / "test2.ihpo").read_bytes()))
 
@@ -1158,7 +1158,7 @@ def _smac_experiment():
     """The SMAC fixture rather than the random-search one the rest of this file
     uses. Only a run with a surrogate and an acquisition function has anything
     to rank."""
-    from ui.services import snapshot as adapter
+    from experiments.services import snapshot as adapter
     return adapter.experiment_from_snapshot(
         io.parse((FIXTURES_DIR / "test.ihpo").read_bytes()))
 

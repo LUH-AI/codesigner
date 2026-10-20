@@ -13,7 +13,7 @@ The behaviour they drive is verified in a browser — see the phase walkthrough.
 import json
 
 from core import io
-from ui.services import snapshot as adapter
+from experiments.services import snapshot as adapter
 
 from tests.conftest import FIXTURES_DIR
 
