@@ -9,6 +9,7 @@ from shapiq.game_theory import MoebiusConverter
 
 from ..metrics import (
     METRICS, declarations, describe, from_cost, metric_for, to_cost)
+from ..splits import holdout
 from .timing import CANCELLED, FITTED, RUN_INFO_KEYS, STATUS_SUCCESS
 from .trial import evaluate_trial
 
@@ -1459,6 +1460,46 @@ class BaseOptimizer(ABC):
             on_keep=self.keep_model,
             metric=declared.get(metric_name) or metric_for(metric_name),
             **kwargs)
+
+    def _begin(self, previous_result, primary_metric: str, n_trials, stopping, splits,
+               X_train, y_train, X_val, y_val):
+        """`(splits, previous_result, collector)` for a search that fits no model of
+        the objective: one fold unless the caller divided the data itself (see
+        core.splits), the history re-read under the current metric so the
+        incumbent trajectory means what the page says it means (no surrogate
+        here, so nothing else is stale), and a collector continuing it."""
+        splits = splits if splits is not None else holdout(X_train, y_train, X_val, y_val)
+        previous_result, _ = rebase_history(previous_result, primary_metric)
+        collector = self.new_collector(
+            metric_name=primary_metric,
+            previous_result=previous_result,
+            trial_offset=len(previous_result.trials) if previous_result else 0,
+            # None, not -inf: "nothing to beat yet" is the metric's own worst
+            # end, which for a lower-is-better metric is +inf.
+            initial_best_score=previous_result.best_score if previous_result else None,
+            initial_best_config=previous_result.best_config if previous_result else None,
+            stopping=merge_stopping(n_trials, stopping),
+        )
+        return splits, previous_result, collector
+
+    def _finish(self, collector, previous_result, config_space, metrics, primary_metric: str,
+                seed: int, cancel_event, **result_fields) -> "OptimizationResult":
+        """The result of a search that fits no model: every trial so far, the
+        best of them by the metric's own direction, and the explanation games."""
+        all_trials = (previous_result.trials if previous_result else []) + collector.results
+        metric = collector.metric
+        best = metric.best(all_trials, key=lambda t: t.scores[primary_metric])
+        games = self.compute_hp_games(config_space, all_trials, metrics, seed=seed,
+                                      cancel_event=cancel_event)
+        return OptimizationResult(
+            trials=all_trials,
+            primary_metric=primary_metric,
+            best_config=best.config if best is not None else {},
+            best_score=metric.best((t.scores[primary_metric] for t in all_trials), default=0.0),
+            **game_fields(games),
+            metadata={"stopped_by": collector.stopped_by},
+            **result_fields,
+        )
 
     def evaluate_requested(self, configurations, *, model, splits, metrics, primary_metric,
                            seed, collector, cancel_event=None, told=None) -> set:
