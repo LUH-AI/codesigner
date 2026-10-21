@@ -12,12 +12,11 @@ class SVM(OutputBaseModel):
     for regression. It refuses gaps and measures distances, so its columns are
     filled in and scaled first.
 
-    An SVM has no probabilities of its own: asked for them, it fits an internal
-    five-fold Platt calibration on top, which costs several times what the
-    plain fit costs, so `build` adds it only when ``data["probabilities"]``
-    says they will be asked for. A calibrated SVC's labels can disagree with
-    the argmax of its own probabilities; they are the labels that go with
-    those probabilities, which is what a trial scoring both needs.
+    An SVM has no probabilities of its own: asked for them, it is wrapped in a
+    five-fold sigmoid calibration, which costs several times what the plain fit
+    costs, so `build` adds it only when ``data["probabilities"]`` says they
+    will be asked for. Calibrated, its labels are the argmax of those
+    probabilities.
     """
 
     name = "SVM"
@@ -28,6 +27,7 @@ class SVM(OutputBaseModel):
     costly_probabilities = True
 
     def build(self, hyperparameters, data, seed=0):
+        from sklearn.calibration import CalibratedClassifierCV
         from sklearn.svm import SVC, SVR
 
         shared: dict[str, Any] = dict(
@@ -41,7 +41,9 @@ class SVM(OutputBaseModel):
         if self.task == "regression":
             svm = SVR(epsilon=float(hyperparameters.get("epsilon", 0.1)), **shared)
         else:
-            svm = SVC(random_state=seed, probability=bool(data.get("probabilities")), **shared)  # pyright: ignore[reportArgumentType]
+            svm = SVC(random_state=seed, **shared)
+            if data.get("probabilities"):
+                svm = CalibratedClassifierCV(svm, ensemble=False)  # pyright: ignore[reportArgumentType]
         return svm
 
 
