@@ -203,7 +203,7 @@ def test_both_writers_agree_on_the_cost_they_store(iris_splits, metrics):
         metrics=metrics, primary_metric="accuracy", n_trials=3, seed=0)
 
     base = RandomOptimizer().serialize_result(result)
-    # No live SMAC directory, so this takes `_serialize_without_a_live_run` —
+    # No live SMAC directory, so this takes the pass-through branch —
     # the same path a rebuilt result always takes on the detail page.
     smac = SMACOptimizer().serialize_result(result)
 

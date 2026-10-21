@@ -1132,35 +1132,21 @@ class SMACOptimizer(BaseOptimizer):
             overwrite=True,
         )
 
-    def _serialize_without_a_live_run(self, result: OptimizationResult) -> dict:
-        """The base serialization, plus any SMAC state the result is carrying.
-
-        Reached when there's no live output directory to read a runhistory from:
-        either a run that never wrote one, or — the common case — a result
-        rebuilt by `deserialize_result`, which now carries the embedded state in
-        `metadata` rather than on disk.
-
-        Without the pass-through, a load→save cycle would silently drop
-        `optimizer_state` and with it the ability to resume an imported run.
-        That used to be held together by `deserialize_result` writing the files
-        out so this method could read them back; carrying the dict is the same
-        round trip with the filesystem taken out of the middle.
-        """
-        carried = result.metadata.get("optimizer_state") or {}
-        if not carried:
-            return super().serialize_result(result)
-        return {**super().serialize_result(result), "optimizer_state": carried}
-
     def serialize_result(self, result: OptimizationResult) -> dict:
+        """The base serialization, with SMAC's own runhistory and output
+        directory in place of the base's trial table when the run left one."""
+        out = super().serialize_result(result)
         output_dir = result.metadata.get("smac_output_dir", "")
         root = Path(output_dir) if output_dir else None
-
-        if not root or not root.exists():
-            return self._serialize_without_a_live_run(result)
-
-        rh_files = list(root.rglob("runhistory.json"))
-        if not rh_files:
-            return self._serialize_without_a_live_run(result)
+        rh_files = list(root.rglob("runhistory.json")) if root and root.exists() else []
+        if root is None or not rh_files:
+            # No live output directory: a run that never wrote one, or — the
+            # common case — a result rebuilt by `deserialize_result`, which
+            # carries the embedded state in `metadata`. Passing it through keeps
+            # a load→save cycle from dropping it, and with it the ability to
+            # resume an imported run.
+            carried = result.metadata.get("optimizer_state") or {}
+            return {**out, "optimizer_state": carried} if carried else out
 
         rh_path = rh_files[0]
         rh = json.loads(rh_path.read_text(encoding="utf-8"))
@@ -1189,49 +1175,17 @@ class SMACOptimizer(BaseOptimizer):
             )
             recorded.append(entry)
 
-        best_key = tuple(sorted(result.best_config.items())) if result.best_config else ()
-        best_config_id = config_key_to_id.get(best_key) or (
-            str(result.trials[-1].trial) if result.trials else "0"
-        )
-
-        optimizer_state = {
-            f.relative_to(root).as_posix(): json.loads(f.read_text(encoding="utf-8"))
-            for f in sorted(root.rglob("*"))
-            if f.is_file() and f != rh_path
-        }
-
         return {
+            **out,
             # Counted from what was kept, not from what SMAC happened to hold.
             "stats": {"submitted": len(recorded), "finished": len(recorded), "running": 0},
             "data": recorded,
             "configs": rh["configs"],
-            # Ours, keyed by trial number, not SMAC's, keyed by its own config
-            # ids. Two reasons. The key spaces diverge as soon as a replayed
-            # configuration is dropped or two trials share one configuration.
-            # And SMAC reads origins off the live `Configuration` objects when
-            # it saves, which the local-search maximizer relabels in place — so
-            # its map says what the last local search touched, not where each
-            # trial came from.
-            "config_origins": {str(t.trial): t.origin for t in result.trials},
-            "optimizer_state": optimizer_state,
-            "primary_metric": result.primary_metric,
-            "best_score": storable_score(result.best_score),
-            "best_config_id": best_config_id,
-            "hyperparameter_importance": result.hyperparameter_importance,
-            "hyperparameter_importance_warning": result.hyperparameter_importance_warning,
-            "hyperparameter_sensitivity": result.hyperparameter_sensitivity,
-            "hyperparameter_sensitivity_warning": result.hyperparameter_sensitivity_warning,
-            "hyperparameter_mistunability": result.hyperparameter_mistunability,
-            "hyperparameter_mistunability_warning": result.hyperparameter_mistunability_warning,
-            "hyperparameter_interactions": result.hyperparameter_interactions,
-            "hyperparameter_interactions_warning": result.hyperparameter_interactions_warning,
-            "hyperparameter_moebius": result.hyperparameter_moebius,
-            "hyperparameter_sensitivity_interactions": result.hyperparameter_sensitivity_interactions,
-            "hyperparameter_sensitivity_moebius": result.hyperparameter_sensitivity_moebius,
-            "hyperparameter_mistunability_interactions": result.hyperparameter_mistunability_interactions,
-            "hyperparameter_mistunability_moebius": result.hyperparameter_mistunability_moebius,
-            "hyperparameter_tunability_total": result.hyperparameter_tunability_total,
-            "trials_limit": result.trials_limit,
+            "optimizer_state": {
+                f.relative_to(root).as_posix(): json.loads(f.read_text(encoding="utf-8"))
+                for f in sorted(root.rglob("*"))
+                if f.is_file() and f != rh_path
+            },
         }
 
     def deserialize_result(self, d: dict) -> OptimizationResult:
