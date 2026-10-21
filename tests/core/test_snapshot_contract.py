@@ -1,13 +1,11 @@
 """Contract tests for the experiment snapshot layer (.ihpo semantics).
 
-These pin the behaviors any experiment store must preserve: what a snapshot
-carries, what loading requires, and what survives a save→load cycle. The
-database-backed store (Experiment rows + snapshot adapter) must keep every
-one of these green.
+These pin what a snapshot carries and what loading requires. What survives a
+save→load cycle through the database-backed store is pinned beside that store,
+in tests/experiments/test_snapshot_adapter.py.
 """
 
 import json
-from importlib.metadata import version as dist_version
 
 import pytest
 
@@ -59,87 +57,22 @@ def test_snapshot_carries_all_documented_keys():
             assert key in snapshot, f"{filename} lacks {key!r}"
 
 
-def test_save_load_cycle_preserves_identity_fields(metrics, models, optimizers):
-    """Identity fields survive a full load→save cycle unchanged.
-
-    Setup: build a live experiment from the Random Search fixture (dataset
-    redirected to a real CSV), then save it and re-parse.
-    Expect: every identity field equals the original snapshot's value —
-    per the format docs, only the dataset arrays and model object are not
-    stored, so nothing else may drift.
-    """
-    snapshot = _snapshot("test2.ihpo", dataset_path=str(DATASETS_DIR / "wine.csv"))
-    name, exp = io.build_experiment(snapshot, metrics, models, optimizers)
-
-    again = io.parse(io.save(name, exp))
-
-    for path in IDENTITY_KEYS:
-        assert _at(again, path) == _at(snapshot, path), path
-
-
-def test_save_stamps_current_version_string():
-    """save() writes the running app's version string, not the loaded file's.
-
-    The version field identifies the writer; a file saved by this app must
-    carry this app's version.
-    """
-    snapshot = _snapshot("test2.ihpo")
-    exp = {
-        "model_name":      snapshot["model"]["name"],
-        "model_path":      "",
-        "optimizer":       RandomOptimizer(),
-        "current_metric":  snapshot["metrics"]["current"],
-        "original_metric": snapshot["metrics"]["original"],
-        "metrics":         {m: None for m in snapshot["metrics"]["names"]},
-        "seed":            snapshot["seed"],
-        "dataset_path":    snapshot["dataset"]["path"],
-        "result":          None,
-    }
-    again = io.parse(io.save(snapshot["name"], exp))
-    assert again["version"] == dist_version("codesigner")
-
-
-def test_save_evaluation_section_matches_provenance():
-    """save()'s evaluation section is provenance.evaluation()'s output, not a
-    second copy of the kfold/holdout decision that could quietly drift from
-    it — experiments/services/snapshot.py's live export path already goes through
-    provenance.evaluation() for the same section.
-    """
-    from core import provenance
-
-    exp = {
-        "model_name": "Random Forest", "model_path": "",
-        "optimizer": RandomOptimizer(), "current_metric": "accuracy",
-        "original_metric": "accuracy", "metrics": {"accuracy": None},
-        "seed": 0, "dataset_path": "", "result": None,
-    }
-
-    for folds in (0, 5):
-        exp["cv_folds"] = folds
-        snapshot = io.parse(io.save("readable", exp))
-        assert snapshot["evaluation"] == provenance.evaluation(folds)
-
-
 @pytest.mark.parametrize("filename,opt_cls", [
     ("test.ihpo", SMACOptimizer),      # carries optimizer_state
     ("test2.ihpo", RandomOptimizer),   # base runhistory format
 ])
-def test_result_survives_load_save_cycle(filename, opt_cls, metrics, models, optimizers):
-    """A stored result keeps its trials, configs and best score through
-    load→save, for both the base format and the SMAC state-carrying format.
+def test_a_stored_result_is_rebuilt_with_its_optimizer(filename, opt_cls, metrics, models,
+                                                       optimizers):
+    """Loading rebuilds the stored optimizer's type and every stored trial, for
+    both the base format and the SMAC state-carrying format.
 
-    Expect: 30 trials before and after, identical config dicts, identical
-    best score, and the reconstructed optimizer has the stored type.
+    Expect: the reconstructed optimizer has the stored type, and all 30 trials
+    are there.
     """
     snapshot = _snapshot(filename, dataset_path=str(DATASETS_DIR / "wine.csv"))
-    name, exp = io.build_experiment(snapshot, metrics, models, optimizers)
+    _, exp = io.build_experiment(snapshot, metrics, models, optimizers)
     assert isinstance(exp["optimizer"], opt_cls)
     assert len(exp["result"].trials) == 30
-
-    again = io.parse(io.save(name, exp))
-    assert again["result"]["configs"] == snapshot["result"]["configs"]
-    assert len(again["result"]["data"]) == len(snapshot["result"]["data"])
-    assert again["result"]["best_score"] == snapshot["result"]["best_score"]
 
 
 def test_full_load_requires_dataset_file(metrics, models, optimizers):
@@ -210,20 +143,16 @@ def test_optimizer_params_reconstruct_the_optimizer(metrics, models, optimizers)
     """Stored optimizer_params reconstruct an equivalent optimizer instance.
 
     Setup: a snapshot for Grid Search with numeric_steps=7 (non-default).
-    Expect: the loaded experiment's optimizer reports the same params, and a
-    subsequent save writes them back identically.
+    Expect: the loaded experiment's optimizer reports the same params.
     """
     snapshot = _snapshot("test2.ihpo", dataset_path=str(DATASETS_DIR / "wine.csv"))
     snapshot["optimizer"]["name"] = GridOptimizer.name
     snapshot["optimizer"]["params"] = {"numeric_steps": 7}
     snapshot["result"] = None
 
-    name, exp = io.build_experiment(snapshot, metrics, models, optimizers)
+    _, exp = io.build_experiment(snapshot, metrics, models, optimizers)
     assert isinstance(exp["optimizer"], GridOptimizer)
     assert exp["optimizer"].get_params() == {"numeric_steps": 7}
-
-    again = io.parse(io.save(name, exp))
-    assert again["optimizer"]["params"] == {"numeric_steps": 7}
 
 
 def test_snapshot_json_is_human_readable():
@@ -232,18 +161,6 @@ def test_snapshot_json_is_human_readable():
     Human readability is an explicit design goal of the format; the store
     must not switch to compact or binary encoding.
     """
-    snapshot = _snapshot("test2.ihpo")
-    exp = {
-        "model_name":      snapshot["model"]["name"],
-        "model_path":      "",
-        "optimizer":       RandomOptimizer(),
-        "current_metric":  snapshot["metrics"]["current"],
-        "original_metric": snapshot["metrics"]["original"],
-        "metrics":         {m: None for m in snapshot["metrics"]["names"]},
-        "seed":            snapshot["seed"],
-        "dataset_path":    "",
-        "result":          None,
-    }
-    text = io.save("readable", exp).decode("utf-8")
+    text = io.to_bytes(_snapshot("test2.ihpo")).decode("utf-8")
     assert json.loads(text)
     assert "\n" in text

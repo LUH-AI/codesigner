@@ -222,29 +222,3 @@ def test_build_experiment_missing_dataset_raises(metrics, models, optimizers):
 
 
 # ── save → parse round-trip ───────────────────────────────────────────────────
-
-def test_save_parse_roundtrip(metrics, models, optimizers):
-    """An experiment saved and re-parsed preserves every snapshot field.
-
-    Setup: a live experiment built from the Random Search fixture with a
-    real dataset.
-    Action: save() to bytes, parse() back.
-    Expect: all identity/config fields match the original snapshot, and the
-    result section keeps its configs, trial count and best score.
-    """
-    snapshot = _fixture_snapshot("test2.ihpo", dataset_path=str(DATASETS_DIR / "wine.csv"))
-    name, exp = io.build_experiment(snapshot, metrics, models, optimizers)
-
-    again = io.parse(io.save(name, exp))
-
-    for path in (("name",), ("seed",), ("model", "name"), ("model", "path"),
-                 ("optimizer", "name"), ("optimizer", "params"),
-                 ("metrics", "names"), ("metrics", "current"),
-                 ("metrics", "original")):
-        left, right = again, snapshot
-        for key in path:
-            left, right = left[key], right[key]
-        assert left == right, path
-    assert again["result"]["configs"] == snapshot["result"]["configs"]
-    assert len(again["result"]["data"]) == len(snapshot["result"]["data"])
-    assert again["result"]["best_score"] == snapshot["result"]["best_score"]

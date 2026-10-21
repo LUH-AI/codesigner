@@ -54,10 +54,6 @@ class Splits:
     season: int = 1
     horizon: int = 0
 
-    @property
-    def is_cv(self) -> bool:
-        return len(self.folds) > 1
-
 
 def holdout(X_train, y_train, X_val, y_val) -> Splits:
     """Today's single 80/20 split, expressed as one fold.

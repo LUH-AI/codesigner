@@ -1,13 +1,9 @@
-"""Running experiments: the create-and-run helper, and the background engine.
-
-`run_experiment` runs synchronously and returns a result (used where a caller
-wants to block). The background engine — `create_run` / `execute_run` /
-`start_background_run`, with `DbCancelFlag` — records a run in the database, runs
-it out of band rebuilding everything from the stored experiment, and writes the
-result and status back so the page can poll and cancel.
+"""Running experiments: `create_run` / `execute_run` / `start_background_run`,
+with `DbCancelFlag`, record a run in the database, run it out of band
+rebuilding everything from the stored experiment, and write the result and
+status back so the page can poll and cancel.
 """
 
-import copy
 import logging
 import math
 import random
@@ -19,12 +15,10 @@ from django.utils import timezone
 from django.utils.translation import gettext as _
 
 from access.policy import policy
-from core import encoding, io, registry, tasks
-from core.io import DEFAULT_TEST_SIZE, load_splits
-from core.metrics import metric_for, metrics_for, usable
+from core import io, registry
+from core.metrics import metric_for, usable
 from core.optimizers.base import STOPPED_BY_CANCELLED, OptimizationResult
 from core.optimizers.trial import offers_probabilities
-from core.registry import METRICS, MODELS, OPTIMIZERS
 from remote import jobs
 
 from . import snapshot as snapshot_adapter
@@ -38,33 +32,6 @@ logger = logging.getLogger(__name__)
 def resolve_seed(seed_input: int) -> int:
     """A negative seed means 'pick one at random'; otherwise use it as given."""
     return random.randint(0, 2**31 - 1) if seed_input < 0 else int(seed_input)
-
-
-def run_experiment(*, model_name, optimizer_name, dataset_path, seed,
-                   primary_metric, n_trials, optimizer_params=None,
-                   test_size=None, task=tasks.DEFAULT):
-    """Build the split and run the chosen optimizer over the task's metrics.
-
-    Every metric that scores *task* is scored on each trial; *primary_metric*
-    is the one the optimizer optimizes. The model is a copy of the registry's,
-    told its task and its columns' kinds, as `io.build_experiment` does: the
-    registry instance is shared by everything in the process. Returns the
-    OptimizationResult.
-    """
-    model = copy.copy(MODELS[model_name])
-    io.give_context(model, "task", task)
-    io.give_context(
-        model, "feature_kinds",
-        tuple(encoding.feature_kinds(io.dataset_encoding(Path(dataset_path)))))
-    optimizer = type(OPTIMIZERS[optimizer_name])(**(optimizer_params or {}))
-    X_train, X_val, y_train, y_val = load_splits(
-        Path(dataset_path), seed, test_size or DEFAULT_TEST_SIZE, task)
-    return optimizer.optimize(
-        model, X_train, y_train, X_val, y_val,
-        metrics={name: METRICS[name] for name in metrics_for(task)},
-        primary_metric=primary_metric,
-        n_trials=n_trials, previous_result=None, seed=seed, cancel_event=None,
-    )
 
 
 def scoreable(metrics, model, primary_metric):

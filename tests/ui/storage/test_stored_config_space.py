@@ -5,7 +5,7 @@ trials were drawn from, as ConfigSpace's own serialized dict, and everything
 that needs a space reads it before falling back to asking the model.
 
 *How:* a space is built from a registry model and put through each seam in
-turn — the file (`io.save`/`io.parse`), the row (`experiment_from_snapshot` and
+turn — the file (`io.to_bytes`/`io.parse`), the row (`experiment_from_snapshot` and
 back), and the page (`config_space_for`) — including the case these exist for:
 an experiment with **no resolvable model at all**, which before this could
 answer nothing and now answers from the file.
@@ -69,7 +69,7 @@ def test_no_space_is_not_an_error():
 
 
 def test_the_space_survives_the_file():
-    """`space` written by `io.save` comes back out of `io.parse` unchanged."""
+    """`space` written into a file comes back out of `io.parse` unchanged."""
     snapshot = io.parse((FIXTURES_DIR / "test.ihpo").read_bytes())
     snapshot["space"] = _a_space()
 

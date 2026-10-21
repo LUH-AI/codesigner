@@ -52,10 +52,8 @@ def _accuracy(config):
 
 def _experiment(strategy="gp", n=30):
     """A Random Forest experiment searched by SMAC under *strategy*, with *n*
-    trials of `_accuracy`, written and read back as an `.ihpo` the way this
-    build writes one."""
-    from core import io
-    from core.metrics import METRICS
+    trials of `_accuracy`, read in as an `.ihpo`."""
+    from core import io, provenance
     from core.models import RandomForestModel
     from core.optimizers import SMACOptimizer
     from core.optimizers.base import OptimizationResult, TrialResult
@@ -75,11 +73,15 @@ def _experiment(strategy="gp", n=30):
         trials=trials, primary_metric="accuracy", best_config=best.config,
         best_score=best.score, hyperparameter_importance={},
         hyperparameter_importance_warning={})
-    return adapter.experiment_from_snapshot(io.parse(io.save("prior check", {
-        "seed": 0, "dataset_path": "", "model_name": RandomForestModel().name,
-        "metrics": {"accuracy": METRICS["accuracy"]}, "current_metric": "accuracy",
-        "original_metric": "accuracy", "optimizer": SMACOptimizer(search_strategy=strategy),
-        "result": result})))
+    optimizer = SMACOptimizer(search_strategy=strategy)
+    return adapter.experiment_from_snapshot(io.parse(io.to_bytes({
+        "format": io.SNAPSHOT_FORMAT, "version": "", "name": "prior check", "seed": 0,
+        "dataset": {"filename": "", "path": ""},
+        "model": {"kind": "registry", "name": RandomForestModel().name, "path": ""},
+        "evaluation": provenance.evaluation(0),
+        "metrics": {"names": ["accuracy"], "current": "accuracy", "original": "accuracy"},
+        "optimizer": {"name": optimizer.name, "params": optimizer.get_params()},
+        "result": optimizer.serialize_result(result)})))
 
 
 def _believing(exp, mu):

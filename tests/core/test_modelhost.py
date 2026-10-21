@@ -22,13 +22,14 @@ from core.modelhost import (
     ModelProcessError,
     TrialTimeout,
     describe,
-    launch_local,
     model_session,
 )
 from core.modelhost.errors import ModelTrialError, TrialCancelled
 from core.optimizers.timing import STATUS_CRASHED, STATUS_TIMEOUT, STATUS_SUCCESS
 from core.optimizers.trial import evaluate_trial
 from core.splits import holdout
+
+from tests.conftest import launch_local
 
 #: The classification metrics: every split here has class labels, and a
 #: regression metric scored on them would fail every trial.

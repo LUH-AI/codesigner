@@ -51,7 +51,6 @@ def test_a_holdout_is_one_fold():
     splits = holdout(X_TRAIN, Y_TRAIN, X_VAL, Y_VAL)
 
     assert len(splits.folds) == 1
-    assert splits.is_cv is False
 
 
 def test_a_holdout_keeps_exactly_the_split_it_was_given():
@@ -205,7 +204,6 @@ def test_an_experiment_carries_its_folds_from_the_snapshot(tmp_path):
 
     assert exp["cv_folds"] == 5
     assert len(exp["splits"].folds) == 5
-    assert exp["splits"].is_cv is True
 
 
 def test_an_experiment_without_the_field_is_a_holdout(tmp_path):

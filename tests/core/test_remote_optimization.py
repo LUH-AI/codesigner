@@ -12,10 +12,12 @@ import textwrap
 import pytest
 
 from core.metrics import metrics_for, resolve
-from core.modelhost import launch_local, model_session
+from core.modelhost import model_session
 from core.splits import holdout
 from core.optimizers import GridOptimizer, RandomOptimizer
 from core.optimizers.timing import STATUS_CRASHED, STATUS_SUCCESS
+
+from tests.conftest import launch_local
 
 #: The classification metrics: every split here has class labels, and a
 #: regression metric scored on them would fail every trial.

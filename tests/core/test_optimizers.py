@@ -6,17 +6,17 @@ from core.optimizers import GridOptimizer, RandomOptimizer, SMACOptimizer
 from tests.conftest import FakeModel, FakeOptimizer, PreCancelled
 
 
-def _run(optimizer, model, splits, metrics, n_trials, previous=None, cancel=None):
+def _run(optimizer, model, splits, metrics, n_trials, previous=None, cancel=None, seed=0):
     """Call optimizer.optimize with the standard argument plumbing.
 
-    Fixed seed 0 and primary_metric "accuracy" keep every test deterministic
-    and comparable.
+    Seed 0 unless a test asks otherwise, and primary_metric "accuracy", keep
+    every test deterministic and comparable.
     """
     X_train, X_val, y_train, y_val = splits
     return optimizer.optimize(
         model, X_train, y_train, X_val, y_val,
         metrics=metrics, primary_metric="accuracy",
-        n_trials=n_trials, previous_result=previous, seed=0, cancel_event=cancel,
+        n_trials=n_trials, previous_result=previous, seed=seed, cancel_event=cancel,
     )
 
 
@@ -37,6 +37,15 @@ def test_random_search_runs_and_numbers_trials(iris_splits, metrics):
     assert set(result.hyperparameter_importance) == set(metrics)
     for t in result.trials:
         assert set(t.scores) == set(metrics)
+
+
+def test_random_search_is_seed_deterministic(iris_splits, metrics):
+    """The same seed reproduces the same configurations; a different seed
+    draws different ones."""
+    a, b, c = (_run(RandomOptimizer(), RandomForestModel(), iris_splits, metrics,
+                    n_trials=3, seed=seed) for seed in (0, 0, 1))
+    assert [t.config for t in a.trials] == [t.config for t in b.trials]
+    assert [t.config for t in a.trials] != [t.config for t in c.trials]
 
 
 def test_random_search_resume_continues_numbering(iris_splits, metrics):

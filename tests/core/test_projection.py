@@ -46,9 +46,9 @@ def test_a_log_hyperparameter_is_encoded_logarithmically():
     the projection reports the few large values as the only structure there is."""
     trials = _trials([{"C": 0.01}, {"C": 1.0}, {"C": 100.0}])
 
-    rows, labels = encode_configurations(_space(C=True), trials)
+    rows, columns = encode_configurations(_space(C=True), trials)
 
-    assert labels == ["log10(C)"]
+    assert [c.label for c in columns] == ["log10(C)"]
     # -2, 0, 2 standardised: evenly spaced, which linear encoding would not be
     assert [row[0] for row in rows] == pytest.approx([-math.sqrt(1.5), 0, math.sqrt(1.5)])
 
@@ -60,9 +60,9 @@ def test_a_categorical_becomes_one_column_per_value():
     which is exactly what this figure would then be drawing."""
     trials = _trials([{"kernel": "rbf"}, {"kernel": "linear"}, {"kernel": "rbf"}])
 
-    rows, labels = encode_configurations(None, trials)
+    rows, columns = encode_configurations(None, trials)
 
-    assert labels == ["kernel=linear", "kernel=rbf"]
+    assert [c.label for c in columns] == ["kernel=linear", "kernel=rbf"]
     # the two columns are each other's opposite, which is the only relationship
     # between them that is true
     assert [row[0] for row in rows] == pytest.approx([-r[1] for r in rows])
@@ -73,9 +73,9 @@ def test_a_boolean_is_a_category_not_a_number():
     1 and 0 — two categories a unit apart on a scale nothing else is on."""
     trials = _trials([{"bootstrap": True}, {"bootstrap": False}])
 
-    _rows, labels = encode_configurations(None, trials)
+    _rows, columns = encode_configurations(None, trials)
 
-    assert labels == ["bootstrap=False", "bootstrap=True"]
+    assert [c.label for c in columns] == ["bootstrap=False", "bootstrap=True"]
 
 
 def test_every_column_is_standardised():
@@ -86,7 +86,7 @@ def test_every_column_is_standardised():
                       {"n_estimators": 500, "min_samples_split": 10},
                       {"n_estimators": 255, "min_samples_split": 6}])
 
-    rows, _labels = encode_configurations(None, trials)
+    rows, _columns = encode_configurations(None, trials)
 
     for column in zip(*rows):
         assert sum(column) == pytest.approx(0, abs=1e-9)
@@ -98,7 +98,7 @@ def test_a_hyperparameter_that_never_varied_is_left_at_zero():
     infinity. Zero is the honest answer: it says nothing, because it did."""
     trials = _trials([{"a": 5, "b": 1}, {"a": 5, "b": 2}, {"a": 5, "b": 3}])
 
-    rows, _labels = encode_configurations(None, trials)
+    rows, _columns = encode_configurations(None, trials)
 
     assert [row[0] for row in rows] == [0.0, 0.0, 0.0]
 

@@ -16,9 +16,10 @@ depend on that file, several pinning exact trial numbers, so regenerating it
 would be a wide and unrelated change.
 """
 
+from importlib.metadata import version as dist_version
 from pathlib import Path
 
-from core import io
+from core import io, provenance
 from core.metrics import METRICS
 from core.models import RandomForestModel
 from core.optimizers import RandomOptimizer
@@ -46,17 +47,17 @@ def main() -> None:
         for name in METRIC_NAMES:
             assert getattr(result, field).get(name), f"{field}/{name} came out empty"
 
-    OUT.write_bytes(io.save("analytics", {
+    OUT.write_bytes(io.to_bytes({
+        "format": io.SNAPSHOT_FORMAT,
+        "version": dist_version("codesigner"),
+        "name": "analytics",
         "seed": SEED,
-        "dataset_path": str(DATASET),
-        "model_name": RandomForestModel().name,
-        "model_path": "",
-        "cv_folds": 0,
-        "metrics": metrics,
-        "current_metric": "accuracy",
-        "original_metric": "accuracy",
-        "optimizer": optimizer,
-        "result": result,
+        "dataset": {"filename": DATASET.name, "path": str(DATASET)},
+        "model": {"kind": "registry", "name": RandomForestModel().name, "path": ""},
+        "evaluation": provenance.evaluation(0),
+        "metrics": {"names": list(metrics), "current": "accuracy", "original": "accuracy"},
+        "optimizer": {"name": optimizer.name, "params": optimizer.get_params()},
+        "result": optimizer.serialize_result(result),
     }))
     print(f"wrote {OUT} ({OUT.stat().st_size:,} bytes, {len(result.trials)} trials)")
 

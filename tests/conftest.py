@@ -263,3 +263,11 @@ def post_new_experiment(client, data, **kwargs):
     client.post(reverse("ui:setup_optimizer", args=[draft.pk]), optimizer)
     client.post(reverse("ui:setup_data", args=[draft.pk]), {})
     return client.post(reverse("ui:setup_create", args=[draft.pk]))
+
+
+def launch_local(python, model_file) -> list[str]:
+    """Argv that runs the model harness under *python*, importing *model_file*:
+    a model process with no environment of its own."""
+    from core.modelhost import HARNESS
+
+    return [str(python), "-B", str(HARNESS), "--model-file", str(model_file)]

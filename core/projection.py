@@ -77,13 +77,6 @@ def _is_numeric(value) -> bool:
     return isinstance(value, (int, float)) and not isinstance(value, bool)
 
 
-def encode_configurations(config_space, trials) -> Tuple[List[List[float]], List[str]]:
-    """*trials*' configurations as a numeric matrix, one row each — `_encode`
-    without the record of how to decode it."""
-    rows, columns = _encode(config_space, trials)
-    return rows, [column.label for column in columns]
-
-
 class Column(NamedTuple):
     """One column of the encoded matrix, and what it takes to read it back:
     which hyperparameter it came from, and the value it stands for when it is
@@ -97,10 +90,10 @@ class Column(NamedTuple):
     spread: float
 
 
-def _encode(config_space, trials) -> Tuple[List[List[float]], List[Column]]:
+def encode_configurations(config_space, trials) -> Tuple[List[List[float]], List[Column]]:
     """*trials*' configurations as a numeric matrix, one row each.
 
-    Returns `(rows, feature_names)`. Three things happen to a configuration on
+    Returns `(rows, columns)`. Three things happen to a configuration on
     the way in, each for its own reason:
 
     - a **log-scaled** hyperparameter goes on as `log10`. `C` on the SVM model
@@ -271,7 +264,7 @@ def fit(config_space, trials, scores, method: str):
     if method not in METHODS:
         return None, f"No such projection: {method}."
 
-    rows, columns = _encode(config_space, trials)
+    rows, columns = encode_configurations(config_space, trials)
     if len(columns) < 2:
         return None, "A projection needs more than one hyperparameter."
     # Every column standardised to nothing means every column never varied,

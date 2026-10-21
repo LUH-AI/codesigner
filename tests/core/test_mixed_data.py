@@ -18,10 +18,12 @@ import pytest
 
 from core import encoding, io
 from core.model_export import export_model
-from core.modelhost import launch_local, model_session
+from core.modelhost import model_session
 from core.optimizers.trial import evaluate_trial
 from core.registry import MODELS
 from core.splits import holdout
+
+from tests.conftest import launch_local
 
 from .test_modelhost import HEADER
 

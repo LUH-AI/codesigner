@@ -21,7 +21,6 @@ from .client import (
     ModelProcess,
     RemoteModel,
     describe,
-    launch_local,
     model_session,
 )
 from .deadline import (
@@ -61,6 +60,5 @@ __all__ = [
     "TrialTimeout",
     "as_deadline",
     "describe",
-    "launch_local",
     "model_session",
 ]

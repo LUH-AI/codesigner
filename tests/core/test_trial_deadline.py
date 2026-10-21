@@ -25,7 +25,6 @@ from core.modelhost import (
     PredictedDeadline,
     TrialTimeout,
     as_deadline,
-    launch_local,
     model_session,
 )
 from core.modelhost.deadline import (
@@ -35,6 +34,8 @@ from core.modelhost.deadline import (
 )
 from core.optimizers.timing import STATUS_CRASHED, STATUS_SUCCESS, STATUS_TIMEOUT
 from core.optimizers.trial import evaluate_trial
+
+from tests.conftest import launch_local
 
 from .test_modelhost import METRICS, SPLITS, _model, _session
 

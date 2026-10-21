@@ -57,16 +57,6 @@ def _kill_stragglers() -> None:
             pass
 
 
-def launch_local(python, model_file) -> list[str]:
-    """Argv that runs the harness under *python*, importing *model_file*.
-
-    The plain case: no environment of its own, so the interpreter is named
-    directly. A model with a prepared environment is launched by uv instead, and
-    that argv is built by the application — `core` knows nothing about uv.
-    """
-    return [str(python), "-B", str(HARNESS), "--model-file", str(model_file)]
-
-
 class ModelProcess:
     """One live child: start it, ask it one thing at a time, make sure it dies.
 

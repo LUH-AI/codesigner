@@ -64,7 +64,6 @@ import json
 import math
 import os
 import tempfile
-from importlib.metadata import version as _dist_version
 from pathlib import Path
 from typing import Any
 
@@ -72,7 +71,7 @@ import numpy as np
 import pandas as pd
 from sklearn.model_selection import train_test_split
 
-from . import columns, encoding, forecasting, provenance, tasks
+from . import columns, encoding, forecasting, tasks
 from .metrics import declarations
 from .models.base import Tunable
 from .paths import MAX_STATE_FILES, is_safe_relative
@@ -490,36 +489,6 @@ def to_bytes(snapshot: dict) -> bytes:
     """
     return json.dumps(finite(snapshot), ensure_ascii=False, indent=2,
                       default=_json_default).encode("utf-8")
-
-
-def save(name: str, exp: dict) -> bytes:
-    """Serialize *exp* to UTF-8 JSON bytes."""
-    model_path = exp.get("model_path", "")
-    snapshot = {
-        "format":     SNAPSHOT_FORMAT,
-        "version":    _dist_version("codesigner"),
-        "name":       name,
-        "seed":       exp["seed"],
-        "dataset":    {"filename": Path(exp.get("dataset_path", "")).name,
-                       "path": exp.get("dataset_path", "")},
-        "model":      {"kind": "file" if model_path else "registry",
-                       "name": exp["model_name"], "path": model_path},
-        # Shared with experiments/services/snapshot.py's live export path, so the
-        # kfold/holdout decision has exactly one place to look, not two that
-        # can quietly disagree.
-        "evaluation": provenance.evaluation(exp.get("cv_folds") or 0,
-                                            test_size=exp.get("test_size"),
-                                            task=exp.get("task", tasks.DEFAULT)),
-        "metrics":    {"names": list(exp["metrics"].keys()),
-                       "current": exp["current_metric"],
-                       "original": exp["original_metric"]},
-        "optimizer":  {"name": exp["optimizer"].name,
-                       "params": exp["optimizer"].get_params()},
-        "result":     exp["optimizer"].serialize_result(exp["result"]) if exp["result"] is not None else None,
-    }
-    if exp.get("config_space"):
-        snapshot["space"] = exp["config_space"]
-    return to_bytes(snapshot)
 
 
 def parse(data: bytes) -> dict:

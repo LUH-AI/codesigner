@@ -17,13 +17,13 @@ import pytest
 from core import encoding, forecasting
 from core.forecasters import ReducedForecaster
 from core.metrics import METRICS, metrics_for, score_all
-from core.modelhost import launch_local, model_session
+from core.modelhost import model_session
 from core.models import ETSModel, SeasonalNaiveModel
 from core.optimizers.trial import evaluate_trial
 from core.registry import MODELS
 from core.splits import backtest
 
-from tests.conftest import DATASETS_DIR
+from tests.conftest import DATASETS_DIR, launch_local
 
 from .test_modelhost import HEADER
 
