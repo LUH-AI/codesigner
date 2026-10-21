@@ -39,7 +39,6 @@ CANCELLED = "cancelled"
 #: run info before the trial is recorded (see experiments/services/trial_models.py).
 FITTED = "_fitted"
 
-_STATUS_SUCCESS = STATUS_SUCCESS  # retained: base.py's serializer imports it
 
 
 @contextmanager
@@ -65,7 +64,7 @@ def timed_evaluation(seed, budget=None, instance=None):
             "budget": budget,
             "time": time.perf_counter() - perf0,
             "cpu_time": time.thread_time() - cpu0,
-            "status": _STATUS_SUCCESS,
+            "status": STATUS_SUCCESS,
             "starttime": starttime,
             "endtime": time.time(),
             "additional_info": {},

@@ -6,6 +6,7 @@ from pathlib import Path
 from typing import Any, Optional
 
 import numpy as np
+from scipy.stats import norm
 from ConfigSpace import Configuration
 from smac import BlackBoxFacade, HyperparameterOptimizationFacade, Scenario
 from smac.acquisition.function import PI, IntegratedAcquisitionFunction
@@ -139,13 +140,6 @@ _GP_MODELS = ("vanilla", "mcmc")
 INITIAL_POINTS = "initial_points"
 
 
-def _per_hyperparameter() -> int:
-    """SMAC's own bound when no count is given: this many initial points per
-    hyperparameter in the space. Read from its signature rather than copied, so
-    the trial cap cannot silently stop matching what SMAC would have done."""
-    return _signature_default(
-        AbstractInitialDesign.__init__, "n_configs_per_hyperparameter") or 10
-
 #: The designs whose points are a *sequence*, so that a bigger draw contains a
 #: smaller one. Sobol is one by construction and `sample_configuration` draws
 #: sequentially from a seeded generator, so a resume that asks for more points
@@ -203,13 +197,6 @@ def _signature_default(function, argument) -> Any:
     if parameter is None or parameter.default is inspect.Parameter.empty:
         return None
     return parameter.default
-
-
-def _normal_cdf(z):
-    """Standard normal CDF, without pulling scipy in for one function."""
-    from math import erf, sqrt
-
-    return np.vectorize(lambda v: 0.5 * (1.0 + erf(v / sqrt(2.0))))(z)
 
 
 class _RecordedWalk(list):
@@ -548,7 +535,11 @@ class SMACOptimizer(BaseOptimizer):
         if self._use_trial_cap:
             count = self._trial_cap
             if count is None:
-                count = _per_hyperparameter() * len(list(scenario.configspace.values()))
+                # SMAC's own count per hyperparameter, read from its signature so
+                # this cap keeps matching what SMAC would have done.
+                per_hp = _signature_default(AbstractInitialDesign.__init__,
+                                            "n_configs_per_hyperparameter") or 10
+                count = per_hp * len(list(scenario.configspace.values()))
             caps.append(int(count))
 
         if not caps:
@@ -1352,7 +1343,7 @@ class SMACOptimizer(BaseOptimizer):
         # A candidate the model is certain about beats the incumbent or does not;
         # the floor keeps that from dividing by zero on the way to saying so.
         z = (float(np.asarray(reference).reshape(-1)[0]) - mean) / np.maximum(std, 1e-12)
-        best_chance = float(_normal_cdf(z).max())
+        best_chance = float(norm.cdf(z).max())
         return 1.0 - best_chance
 
     def _replay(self, smac, config_space, trials, primary_metric: str, seed: int,

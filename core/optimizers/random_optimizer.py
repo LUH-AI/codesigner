@@ -21,7 +21,6 @@ class RandomOptimizer(BaseOptimizer):
     """
 
     name = "Random Search"
-    params_schema = []
 
     def optimize(
         self,
