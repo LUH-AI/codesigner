@@ -1,8 +1,7 @@
-"""Contract for BaseOptimizer.compute_hp_importance (core/optimizers/base.py).
+"""Contract for the explanation games in core/analytics.py.
 
 Estimates per-hyperparameter importance from completed trials, with a fallback
-ladder (HyperSHAP → RandomForest surrogate → uniform) returning
-(importance_dict, warning_or_None).
+ladder (HyperSHAP → RandomForest surrogate → uniform).
 """
 
 from typing import cast
@@ -12,9 +11,10 @@ import pytest
 from ConfigSpace import CategoricalHyperparameter
 from ConfigSpace.hyperparameters import NumericalHyperparameter
 
+from core import analytics
+from core.analytics import fit_surrogate
 from core.models import RandomForestModel
 from core.optimizers import RandomOptimizer, TrialResult
-from core.optimizers.base import BaseOptimizer, fit_surrogate
 
 
 def _trials(iris_splits, metrics):
@@ -31,7 +31,7 @@ def test_insufficient_trials_returns_uniform_with_warning():
     one = [TrialResult(trial=1, config=dict(cs.get_default_configuration()),
                        scores={"accuracy": 0.5}, score=0.5,
                        incumbent_score=0.5, incumbent_config={})]
-    imp, warning = RandomOptimizer().compute_hp_importance(cs, one, "accuracy", seed=0)
+    imp, warning, *_ = analytics.compute_hp_game(cs, one, "accuracy", "tunability", seed=0)
     assert set(imp) == set(params)
     assert all(abs(v - 1.0 / len(params)) < 1e-9 for v in imp.values())
     assert warning and "trials" in warning.lower()
@@ -40,8 +40,8 @@ def test_insufficient_trials_returns_uniform_with_warning():
 def test_sufficient_trials_produce_normalized_importance(iris_splits, metrics):
     """Enough trials → a normalized distribution over the config-space hyperparameters."""
     cs = RandomForestModel().get_config_space(seed=0)
-    imp, _ = RandomOptimizer().compute_hp_importance(
-        cs, _trials(iris_splits, metrics), "accuracy", seed=0)
+    imp, *_ = analytics.compute_hp_game(
+        cs, _trials(iris_splits, metrics), "accuracy", "tunability", seed=0)
     assert set(imp) == set(cs.keys())
     assert all(v >= 0.0 for v in imp.values())
     assert abs(sum(imp.values()) - 1.0) < 1e-6
@@ -66,7 +66,7 @@ def test_a_game_that_finds_nothing_reports_nothing_rather_than_zeros():
                         incumbent_score=0.7, incumbent_config={})
             for i in range(1, 7)]
 
-    imp, warning = RandomOptimizer().compute_hp_importance(cs, flat, "accuracy", seed=0)
+    imp, warning, *_ = analytics.compute_hp_game(cs, flat, "accuracy", "tunability", seed=0)
 
     assert imp == {}
     assert warning and "no signal" in warning
@@ -83,8 +83,8 @@ def test_a_game_that_finds_nothing_reports_no_interactions_either():
                         incumbent_score=0.7, incumbent_config={})
             for i in range(1, 7)]
 
-    interactions, warning = RandomOptimizer().compute_hp_interactions(
-        cs, flat, "accuracy", seed=0)
+    _imp, warning, interactions, *_ = analytics.compute_hp_game(
+        cs, flat, "accuracy", "tunability", seed=0)
 
     assert interactions == {}
     assert warning and "no signal" in warning
@@ -92,26 +92,28 @@ def test_a_game_that_finds_nothing_reports_no_interactions_either():
 
 def test_interactions_insufficient_trials_returns_empty_not_uniform():
     """Fewer than two usable trials → empty, with a warning — the same
-    "not enough trials" rung `_compute_hp_game` returns for importance itself,
+    "not enough trials" rung `compute_hp_game` returns for importance itself,
     since there's no `iv` to re-extract pairwise terms from."""
     cs = RandomForestModel().get_config_space(seed=0)
     one = [TrialResult(trial=1, config=dict(cs.get_default_configuration()),
                        scores={"accuracy": 0.5}, score=0.5,
                        incumbent_score=0.5, incumbent_config={})]
-    interactions, warning = RandomOptimizer().compute_hp_interactions(cs, one, "accuracy", seed=0)
+    _imp, warning, interactions, *_ = analytics.compute_hp_game(
+        cs, one, "accuracy", "tunability", seed=0)
     assert interactions == {}
     assert warning and "trials" in warning.lower()
 
 
 def test_interactions_form_a_symmetric_square_grid(iris_splits, metrics):
     """Enough trials → one entry per hyperparameter pair (plus the diagonal),
-    symmetric, and the diagonal matches compute_hp_importance's own order-1
+    symmetric, and the diagonal matches the importance's own order-1
     values before normalization — same HyperSHAP call, just unnormalized and
     signed rather than abs-valued and scaled to sum to 1."""
     cs = RandomForestModel().get_config_space(seed=0)
     trials = _trials(iris_splits, metrics)
     params = list(cs.keys())
-    interactions, warning = RandomOptimizer().compute_hp_interactions(cs, trials, "accuracy", seed=0)
+    _imp, warning, interactions, *_ = analytics.compute_hp_game(
+        cs, trials, "accuracy", "tunability", seed=0)
     assert warning is None
     assert set(interactions) == set(params)
     for a in params:
@@ -135,7 +137,7 @@ def test_fit_surrogate_insufficient_trials_returns_none_with_warning():
 
 def test_fit_surrogate_returns_a_usable_regressor(iris_splits, metrics):
     """Enough trials → a fitted RandomForestRegressor: feature_importances_
-    is the exact thing _compute_hp_game's own fallback rung reads, and
+    is the exact thing compute_hp_game's own fallback rung reads, and
     predict() is what a future surrogate-consumer (Partial Dependencies,
     Phase 6) needs that HyperSHAP's own explainer doesn't expose directly."""
     cs = RandomForestModel().get_config_space(seed=0)
@@ -157,11 +159,10 @@ def test_compute_hp_games_builds_the_explainer_once_per_metric_not_per_game(iris
     f1 explainer, not three of each."""
     cs = RandomForestModel().get_config_space(seed=0)
     trials = _trials(iris_splits, metrics)
-    opt = RandomOptimizer()
 
-    with patch.object(BaseOptimizer, "_build_explainer",
-                     wraps=opt._build_explainer) as spy:
-        opt.compute_hp_games(cs, trials, ["accuracy", "f1"], seed=0)
+    with patch.object(analytics, "_build_explainer",
+                     wraps=analytics._build_explainer) as spy:
+        analytics.compute_hp_games(cs, trials, ["accuracy", "f1"], seed=0)
 
     called_metrics = [call.args[2] for call in spy.call_args_list]
     assert called_metrics == ["accuracy", "f1"]
@@ -180,7 +181,6 @@ def test_the_fallback_surrogate_is_also_fitted_once_per_metric_not_per_game(iris
     """
     cs = RandomForestModel().get_config_space(seed=0)
     trials = _trials(iris_splits, metrics)
-    opt = RandomOptimizer()
 
     def explode(self, *a, **k):
         raise RuntimeError("no shapiq today")
@@ -188,14 +188,14 @@ def test_the_fallback_surrogate_is_also_fitted_once_per_metric_not_per_game(iris
     with patch("hypershap.HyperSHAP.tunability", explode), \
          patch("hypershap.HyperSHAP.sensitivity", explode), \
          patch("hypershap.HyperSHAP.mistunability", explode), \
-         patch("core.optimizers.base.fit_surrogate",
+         patch("core.analytics.fit_surrogate",
                wraps=fit_surrogate) as fits:
-        games = opt.compute_hp_games(cs, trials, ["accuracy", "f1"], seed=0)
+        games = analytics.compute_hp_games(cs, trials, ["accuracy", "f1"], seed=0)
 
     fitted_metrics = [call.args[2] for call in fits.call_args_list]
     assert fitted_metrics == ["accuracy", "f1"], "one fallback fit per metric"
     # And the fallback still produced real answers, not uniform weights.
-    for game in opt.HP_GAMES:
+    for game in analytics.HP_GAMES:
         importance, warning, interactions, moebius = (games[game][0]["accuracy"],
                                                       games[game][1]["accuracy"],
                                                       games[game][2]["accuracy"],
@@ -210,7 +210,7 @@ def test_the_fallback_surrogate_is_also_fitted_once_per_metric_not_per_game(iris
 #
 # Each game is played once through HyperSHAP's facade for its Möbius
 # decomposition, and the FSII values the importance figures use are converted
-# from it. `_compute_hp_game`'s docstring carries the reasoning; the guards that
+# from it. `compute_hp_game`'s docstring carries the reasoning; the guards that
 # the stored numbers are HyperSHAP's own are in test_hypershap_facade.py.
 
 
@@ -229,8 +229,7 @@ def test_the_moebius_transform_is_truncation_independent(iris_splits, metrics):
     """
     cs = RandomForestModel().get_config_space(seed=0)
     trials = _trials(iris_splits, metrics)
-    opt = RandomOptimizer()
-    explainer = opt._build_explainer(cs, trials, "accuracy", 0)
+    explainer = analytics._build_explainer(cs, trials, "accuracy", 0)
     n = len(list(cs.keys()))
 
     from shapiq import ExactComputer
@@ -267,7 +266,7 @@ def test_moebius_covers_every_coalition_of_every_size(iris_splits, metrics):
     params = set(cs.keys())
     trials = _trials(iris_splits, metrics)
 
-    _imp, warning, _inter, moebius, _total = RandomOptimizer()._compute_hp_game(
+    _imp, warning, _inter, moebius, _total = analytics.compute_hp_game(
         cs, trials, "accuracy", "tunability", seed=0)
 
     assert warning is None
@@ -283,7 +282,7 @@ def test_moebius_terms_are_ranked_by_magnitude(iris_splits, metrics):
     """Every view that reads these takes a top-k slice, so the order is part of
     the contract rather than an accident of dict iteration."""
     cs = RandomForestModel().get_config_space(seed=0)
-    _i, _w, _x, moebius, _total = RandomOptimizer()._compute_hp_game(
+    _i, _w, _x, moebius, _total = analytics.compute_hp_game(
         cs, _trials(iris_splits, metrics), "accuracy", "tunability", seed=0)
 
     magnitudes = [abs(row["value"]) for row in moebius]
@@ -298,7 +297,7 @@ def test_ablation_insufficient_trials_returns_empty_not_uniform():
     one = [TrialResult(trial=1, config=dict(cs.get_default_configuration()),
                        scores={"accuracy": 0.5}, score=0.5,
                        incumbent_score=0.5, incumbent_config={})]
-    ablation, warning = RandomOptimizer().compute_hp_ablation(
+    ablation, warning = analytics.compute_hp_ablation(
         cs, one, "accuracy", dict(cs.get_default_configuration()), seed=0)
     assert ablation == {}
     assert warning and "trials" in warning.lower()
@@ -309,7 +308,7 @@ def test_ablation_explains_one_trial_against_the_default(iris_splits, metrics):
     in, not a normalized distribution (no fallback ladder to normalize)."""
     cs = RandomForestModel().get_config_space(seed=0)
     trials = _trials(iris_splits, metrics)
-    ablation, warning = RandomOptimizer().compute_hp_ablation(
+    ablation, warning = analytics.compute_hp_ablation(
         cs, trials, "accuracy", trials[-1].config, seed=0)
     assert warning is None
     assert set(ablation) == set(cs.keys())
@@ -330,15 +329,14 @@ def test_the_explanation_surrogate_actually_uses_the_seed_it_is_given(iris_split
     """
     cs = RandomForestModel().get_config_space(seed=0)
     trials = _trials(iris_splits, metrics)
-    opt = RandomOptimizer()
 
-    a, warn_a = opt.compute_hp_ablation(cs, trials, "accuracy", trials[-1].config, seed=0)
-    b, warn_b = opt.compute_hp_ablation(cs, trials, "accuracy", trials[-1].config, seed=7)
+    a, warn_a = analytics.compute_hp_ablation(cs, trials, "accuracy", trials[-1].config, seed=0)
+    b, warn_b = analytics.compute_hp_ablation(cs, trials, "accuracy", trials[-1].config, seed=7)
     assert warn_a is None and warn_b is None
     assert a != b, "ablation ignored its seed"
 
-    imp_a, *_ = opt._compute_hp_game(cs, trials, "accuracy", "tunability", seed=0)
-    imp_b, *_ = opt._compute_hp_game(cs, trials, "accuracy", "tunability", seed=7)
+    imp_a, *_ = analytics.compute_hp_game(cs, trials, "accuracy", "tunability", seed=0)
+    imp_b, *_ = analytics.compute_hp_game(cs, trials, "accuracy", "tunability", seed=7)
     assert imp_a != imp_b, "the global games ignored their seed"
 
 
@@ -353,7 +351,7 @@ def test_seed_zero_keeps_hypershaps_own_default_estimator(iris_splits, metrics):
     """
     from sklearn.ensemble import RandomForestRegressor
     from hypershap import ExplanationTask, HyperSHAP
-    from core.optimizers.base import pair_trials_with_scores
+    from core.analytics import pair_trials_with_scores
 
     cs = RandomForestModel().get_config_space(seed=0)
     trials = _trials(iris_splits, metrics)
@@ -378,7 +376,7 @@ def test_partial_dependence_insufficient_trials_returns_empty():
     one = [TrialResult(trial=1, config=dict(cs.get_default_configuration()),
                        scores={"accuracy": 0.5}, score=0.5,
                        incumbent_score=0.5, incumbent_config={})]
-    grid, ice_lines, pdp, warning = RandomOptimizer().compute_partial_dependence(
+    grid, ice_lines, pdp, warning = analytics.compute_partial_dependence(
         cs, one, "accuracy", "n_estimators", seed=0)
     assert grid == [] and ice_lines == [] and pdp == []
     assert warning and "trials" in warning.lower()
@@ -389,7 +387,7 @@ def test_partial_dependence_integer_hp_grid_is_all_integers(iris_splits, metrics
     suggest a fractional trial count, unlike a plain linspace would."""
     cs = RandomForestModel().get_config_space(seed=0)
     trials = _trials(iris_splits, metrics)
-    grid, ice_lines, pdp, warning = RandomOptimizer().compute_partial_dependence(
+    grid, ice_lines, pdp, warning = analytics.compute_partial_dependence(
         cs, trials, "accuracy", "n_estimators", seed=0)
     assert warning is None
     assert all(isinstance(v, int) for v in grid)
@@ -405,7 +403,7 @@ def test_partial_dependence_categorical_hp_grid_is_its_choices(iris_splits, metr
     trials = RandomOptimizer().optimize(
         SVMModel(), X_train, y_train, X_val, y_val,
         metrics=metrics, primary_metric="accuracy", n_trials=5, seed=0).trials
-    grid, ice_lines, pdp, warning = RandomOptimizer().compute_partial_dependence(
+    grid, ice_lines, pdp, warning = analytics.compute_partial_dependence(
         cs, trials, "accuracy", "kernel", seed=0)
     assert warning is None
     assert grid == list(cast(CategoricalHyperparameter, cs["kernel"]).choices)
@@ -425,7 +423,7 @@ def test_partial_dependence_log_hp_grid_is_spaced_on_the_log_scale():
     constant difference, since that is exactly what "log-spaced" means.
     """
     from core.models import SVMModel
-    from core.optimizers.base import _hp_grid
+    from core.analytics import _hp_grid
 
     grid = _hp_grid(SVMModel().get_config_space(seed=0)["C"], 20)
 
@@ -446,7 +444,7 @@ def test_partial_dependence_linear_hp_grid_is_unchanged():
     """
     import numpy as np
 
-    from core.optimizers.base import _hp_grid
+    from core.analytics import _hp_grid
 
     cs = RandomForestModel().get_config_space(seed=0)
     for name in cs.keys():
@@ -463,7 +461,7 @@ def test_partial_dependence_ice_lines_and_pdp_share_the_grids_shape(iris_splits,
     curve is the grid-wise mean of those rows, not some other reduction."""
     cs = RandomForestModel().get_config_space(seed=0)
     trials = _trials(iris_splits, metrics)
-    grid, ice_lines, pdp, warning = RandomOptimizer().compute_partial_dependence(
+    grid, ice_lines, pdp, warning = analytics.compute_partial_dependence(
         cs, trials, "accuracy", "max_depth", seed=0)
     assert warning is None
     assert len(ice_lines) == len(trials)
@@ -479,9 +477,9 @@ def test_partial_dependence_cap_limits_the_curves_drawn(iris_splits, metrics):
     cs = RandomForestModel().get_config_space(seed=0)
     trials = _trials(iris_splits, metrics)
 
-    _, uncapped, _, _ = RandomOptimizer().compute_partial_dependence(
+    _, uncapped, _, _ = analytics.compute_partial_dependence(
         cs, trials, "accuracy", "max_depth", seed=0, max_ice_curves=0)
-    _, capped, _, _ = RandomOptimizer().compute_partial_dependence(
+    _, capped, _, _ = analytics.compute_partial_dependence(
         cs, trials, "accuracy", "max_depth", seed=0, max_ice_curves=3)
 
     assert len(uncapped) == len(trials)
@@ -498,7 +496,6 @@ def test_partial_dependence_cap_bounds_the_work_not_just_the_picture():
     be if the middle ones had been predicted and then discarded.
     """
     from ConfigSpace import ConfigurationSpace, Float
-    from core.optimizers.base import fit_surrogate
 
     cs = ConfigurationSpace(seed=0)
     cs.add([Float("a", (0.0, 1.0), default=0.5), Float("b", (0.0, 1.0), default=0.5)])
@@ -507,7 +504,7 @@ def test_partial_dependence_cap_bounds_the_work_not_just_the_picture():
                           incumbent_score=i / 10, incumbent_config={})
               for i in range(1, 11)]
 
-    grid, ice, pdp, warning = RandomOptimizer().compute_partial_dependence(
+    grid, ice, pdp, warning = analytics.compute_partial_dependence(
         cs, trials, "accuracy", "a", seed=0, max_ice_curves=2)
 
     assert warning is None
@@ -526,9 +523,9 @@ def test_partial_dependence_cap_above_the_trial_count_changes_nothing():
                           score=i / 10, incumbent_score=i / 10, incumbent_config={})
               for i in range(1, 6)]
 
-    _, _, uncapped, _ = RandomOptimizer().compute_partial_dependence(
+    _, _, uncapped, _ = analytics.compute_partial_dependence(
         cs, trials, "accuracy", "a", seed=0, max_ice_curves=0)
-    _, _, generous, _ = RandomOptimizer().compute_partial_dependence(
+    _, _, generous, _ = analytics.compute_partial_dependence(
         cs, trials, "accuracy", "a", seed=0, max_ice_curves=500)
 
     assert uncapped == generous
@@ -547,7 +544,7 @@ def test_partial_dependence_batching_matches_predicting_one_at_a_time(iris_split
 
     cs = RandomForestModel().get_config_space(seed=0)
     trials = _trials(iris_splits, metrics)
-    grid, ice_lines, pdp, warning = RandomOptimizer().compute_partial_dependence(
+    grid, ice_lines, pdp, warning = analytics.compute_partial_dependence(
         cs, trials, "accuracy", "max_depth", seed=0)
     assert warning is None
 
@@ -591,7 +588,7 @@ def test_partial_dependence_holes_where_the_config_space_refuses_a_grid_value():
                     score=0.6, incumbent_score=0.6, incumbent_config={}),
     ]
 
-    grid, ice_lines, pdp, warning = RandomOptimizer().compute_partial_dependence(
+    grid, ice_lines, pdp, warning = analytics.compute_partial_dependence(
         cs, trials, "accuracy", "a", seed=0)
 
     assert warning is None
@@ -626,7 +623,6 @@ def test_the_explanation_games_are_drawn_with_the_experiments_own_seed(iris_spli
     facade = importlib.import_module("hypershap.hypershap")
     cs = RandomForestModel().get_config_space(seed=0)
     trials = _trials(iris_splits, metrics)
-    opt = RandomOptimizer()
     seen = []
     real = facade.RandomConfigSpaceSearcher
 
@@ -635,7 +631,7 @@ def test_the_explanation_games_are_drawn_with_the_experiments_own_seed(iris_spli
         return real(*args, **kwargs)
 
     with patch.object(facade, "RandomConfigSpaceSearcher", spy):
-        opt.compute_hp_games(cs, trials, metrics, seed=7)
+        analytics.compute_hp_games(cs, trials, metrics, seed=7)
 
     assert seen, "the searcher is built at all"
     assert set(seen) == {7}, "and every game gets the experiment's seed"

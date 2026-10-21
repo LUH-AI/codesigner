@@ -21,8 +21,10 @@ What the pass decided, and what these tests hold:
 """
 
 import pytest
+
 from django.urls import reverse
 
+from core import analytics
 from core.optimizers import RandomOptimizer
 
 
@@ -59,7 +61,7 @@ def _trials(n=25):
 # ── the computation ─────────────────────────────────────────────────────────
 
 def test_it_returns_a_grid_the_shape_of_its_two_axes(optimizer):
-    x, y, z, warning = optimizer.compute_surrogate_uncertainty(
+    x, y, z, warning = analytics.compute_surrogate_uncertainty(
         _space(), _trials(), "accuracy", "n_estimators", "alpha", n_points=8)
 
     assert warning is None
@@ -69,7 +71,7 @@ def test_it_returns_a_grid_the_shape_of_its_two_axes(optimizer):
 
 
 def test_every_value_is_a_spread_and_so_never_negative(optimizer):
-    _, _, z, _ = optimizer.compute_surrogate_uncertainty(
+    _, _, z, _ = analytics.compute_surrogate_uncertainty(
         _space(), _trials(), "accuracy", "n_estimators", "alpha", n_points=8)
 
     values = [v for row in z for v in row if v is not None]
@@ -83,10 +85,10 @@ def test_it_is_the_trees_disagreeing_and_not_the_prediction(optimizer):
     quantity, and it must not track the score."""
     import numpy as np
 
-    from core.optimizers.base import fit_surrogate
+    from core.analytics import fit_surrogate
 
     space, trials = _space(), _trials()
-    x, y, z, _ = optimizer.compute_surrogate_uncertainty(
+    x, y, z, _ = analytics.compute_surrogate_uncertainty(
         space, trials, "accuracy", "n_estimators", "alpha", n_points=8)
 
     rf, _ = fit_surrogate(space, trials, "accuracy", 0)
@@ -114,35 +116,35 @@ def test_the_slice_is_taken_through_the_best_trial(optimizer):
 
     # Only one hyperparameter is on the axes; the other is held at the
     # reference, so moving the reference must move the answer.
-    _, _, held_at_best, _ = optimizer.compute_surrogate_uncertainty(
+    _, _, held_at_best, _ = analytics.compute_surrogate_uncertainty(
         space, trials, "accuracy", "n_estimators", "alpha", n_points=6)
 
     shifted = [t for t in trials if t.config != best.config]
-    _, _, held_elsewhere, _ = optimizer.compute_surrogate_uncertainty(
+    _, _, held_elsewhere, _ = analytics.compute_surrogate_uncertainty(
         space, shifted, "accuracy", "n_estimators", "alpha", n_points=6)
 
     assert held_at_best != held_elsewhere
 
 
 def test_too_few_trials_is_a_reason_rather_than_a_crash(optimizer):
-    x, y, z, warning = optimizer.compute_surrogate_uncertainty(
+    x, y, z, warning = analytics.compute_surrogate_uncertainty(
         _space(), _trials(1), "accuracy", "n_estimators", "alpha")
 
     assert warning and (x, y, z) == ([], [], [])
 
 
 def test_one_hyperparameter_cannot_span_a_plane(optimizer):
-    _, _, _, warning = optimizer.compute_surrogate_uncertainty(
+    _, _, _, warning = analytics.compute_surrogate_uncertainty(
         _space(), _trials(), "accuracy", "alpha", "alpha")
 
-    assert "different hyperparameters" in warning
+    assert warning and "different hyperparameters" in warning
 
 
 def test_an_unknown_hyperparameter_is_named_in_the_reason(optimizer):
-    _, _, _, warning = optimizer.compute_surrogate_uncertainty(
+    _, _, _, warning = analytics.compute_surrogate_uncertainty(
         _space(), _trials(), "accuracy", "n_estimators", "nonesuch")
 
-    assert "nonesuch" in warning
+    assert warning and "nonesuch" in warning
 
 
 # ── the endpoint ────────────────────────────────────────────────────────────

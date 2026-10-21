@@ -57,7 +57,7 @@ class SelectedConfiguration(Figure):
 
 #: What each game is called where a reader sees it, and what it asks. The
 #: selector's own labels; the keys above are what the code and the stored result
-#: use. The questions are BaseOptimizer.HP_GAMES' own, said without the
+#: use. The questions are core.analytics.HP_GAMES' own, said without the
 #: aggregation names — MAX/VAR/MIN mean nothing to someone reading a figure.
 HP_GAME_LABELS = {
     "tunability": _("Tunability"),
@@ -148,7 +148,7 @@ class _Interactions(Figure):
     the top pairs read the order-2 FSII grid; the graph, the coalitions and the
     orders read the Möbius decomposition, which carries every coalition of every
     size. Those are not the same numbers and deliberately so — see
-    `BaseOptimizer._compute_hp_game`.
+    `core.analytics.compute_hp_game`.
 
     All of it is a free byproduct of the importance figure's own HyperSHAP call
     (order 2 is already its default), so nothing here is fetched on demand —
@@ -362,7 +362,7 @@ class ConfigurationCube(Figure):
     #: as a field under the trials. Deferred for the same reason partial
     #: dependence is: it is per *pair* of hyperparameters, which is not a small
     #: precomputable set — a model with six of them has fifteen pairs, and the
-    #: reader looks at one. See `BaseOptimizer.compute_surrogate_uncertainty`,
+    #: reader looks at one. See `core.analytics.compute_surrogate_uncertainty`,
     #: and `ui.views.analytics.surrogate_uncertainty` for why it is the axes view only.
     deferred = (("surrogate_uncertainty", _("Surrogate uncertainty (axes view)")),)
 

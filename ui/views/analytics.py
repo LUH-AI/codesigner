@@ -237,7 +237,7 @@ def surrogate_uncertainty(request, exp):
                          "so its search space cannot be rebuilt."),
         })
 
-    x_grid, y_grid, z, warning = built["optimizer"].compute_surrogate_uncertainty(
+    x_grid, y_grid, z, warning = analytics.compute_surrogate_uncertainty(
         config_space, result.trials, metric, x_hp, y_hp, seed=built["seed"])
     return JsonResponse({
         "x": x_grid, "y": y_grid, "z": z, "warning": warning,
@@ -313,7 +313,7 @@ def surrogate_prediction(request, exp):
     predictions and every view's coordinates for it come back together, so
     switching view, dimensionality or axes redraws without asking again; only a
     different metric means a different model. See
-    `BaseOptimizer.sample_prediction_space`.
+    `core.analytics.sample_prediction_space`.
     """
     metric = request.GET.get("metric", "")
     if metric not in exp.data.metric_names:
@@ -336,8 +336,8 @@ def surrogate_prediction(request, exp):
     # The same sample the acquisition figure's cloud is drawn from, out of the
     # same cache, so whichever figure asks second costs nothing.
     _surrogate, shared = _slice_model(exp, built, config_space, metric)
-    answer = dict(shared) if shared else optimizer.sample_prediction_space(
-        config_space, result.trials, metric, seed=built["seed"])
+    answer = dict(shared) if shared else analytics.sample_prediction_space(
+        optimizer, config_space, result.trials, metric, seed=built["seed"])
     # The page draws the rounded `values`; the exact ones stay here, for
     # `run_proposal`.
     answer.pop("configurations", None)
@@ -356,7 +356,7 @@ def surrogate_prediction(request, exp):
         decayed = prior_service.decayed_prior(exp, name, len(result.trials), inside)
         if not decayed or decayed.get("kind") in (None, "uniform"):
             continue
-        _grid, positions, kind = optimizer.slice_axis(config_space, name)
+        _grid, positions, kind = analytics.slice_axis(config_space, name)
         density = prior_math.prior_density(decayed, positions, slice_span(positions, kind))
         if density:
             priors[name] = {"positions": positions, "density": density,
@@ -408,11 +408,10 @@ def hypershap_figures(request, exp):
         games = {game: ({metric: {}}, {metric: reason}, {metric: {}}, {metric: []}, {metric: 0.0})
                  for game in HP_GAME_FIELDS}
     else:
-        optimizer = built["optimizer"]
-        optimizer.analytics_max_coalitions = settings.ANALYTICS_EAGER_MAX_COALITIONS or None
-        games = optimizer.compute_hp_games(
+        games = analytics.compute_hp_games(
             config_space, result.trials, {metric: result.metric(metric)},
-            seed=built["seed"], baseline=result.trials[idx].config)
+            seed=built["seed"], baseline=result.trials[idx].config,
+            budget=settings.ANALYTICS_EAGER_MAX_COALITIONS or None)
 
     parts = ("importance", "warning", "interactions", "moebius")
     measured = replace(result, **{
@@ -499,7 +498,7 @@ def _local_ablation_data(built, metric, idx, baseline=None):
     if baseline == idx:
         return None, _("This trial is the baseline."), {}
     result = built["result"]
-    ablation, warning = built["optimizer"].compute_hp_ablation(
+    ablation, warning = analytics.compute_hp_ablation(
         config_space, result.trials, metric, result.trials[idx].config,
         seed=built["seed"],
         # From the result, not the registry: an imported run's objective is
@@ -546,7 +545,7 @@ def _partial_dependence_data(built, metric, hp_name, max_ice_curves=0):
         return None, _("Partial dependence needs the search space, which this "
                        "experiment does not carry and has no model to ask.")
     result = built["result"]
-    grid, ice_lines, pdp, warning = built["optimizer"].compute_partial_dependence(
+    grid, ice_lines, pdp, warning = analytics.compute_partial_dependence(
         config_space, result.trials, metric, hp_name, seed=built["seed"],
         max_ice_curves=max_ice_curves)
     fig = partial_dependence_plot(hp_name, grid, ice_lines, pdp)
@@ -567,7 +566,7 @@ def _local_effects_data(built, metric, max_trials=0, baseline=None):
         return None, _("Local effects need the search space, which this "
                        "experiment does not carry and has no model to ask.")
     result = built["result"]
-    hp_names, rows, warning = built["optimizer"].compute_local_effects(
+    hp_names, rows, warning = analytics.compute_local_effects(
         config_space, result.trials, metric,
         seed=built["seed"], max_trials=max_trials, metric=result.metric(metric),
         baseline=None if baseline is None else result.trials[baseline].config)

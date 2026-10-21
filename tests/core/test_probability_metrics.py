@@ -12,7 +12,7 @@ from sklearn.metrics import log_loss, roc_auc_score
 
 from core.metrics import METRICS, metrics_for, score_all, usable
 from core.model_source import inspect_model_source
-from core.optimizers.base import EAGER_MAX_COALITIONS
+from core.analytics import EAGER_MAX_COALITIONS
 from core.registry import MODELS
 
 

@@ -1,5 +1,5 @@
 """Contract for the configuration cube's prediction layer
-(core/optimizers/base.py `sample_prediction_space`, core/projection.py `Fitted`).
+(core/analytics.py `sample_prediction_space`, core/projection.py `Fitted`).
 
 One even sample of the whole search space is predicted once per metric, and
 placed in every view the cube has: on the hyperparameters' own axes, and through
@@ -7,13 +7,14 @@ the same fitted PCA and PLS the trials are drawn with. Each projection also
 carries the edge of where a legal configuration can land.
 """
 
-from typing import List, cast
+from typing import cast, List
 
 import numpy as np
 import pytest
 from ConfigSpace import Categorical, ConfigurationSpace, Float, Integer
 from ConfigSpace.hyperparameters import NumericalHyperparameter
 
+from core import analytics
 from core.models import RandomForestModel
 from core.optimizers import RandomOptimizer, TrialResult
 from core.projection import fit
@@ -81,7 +82,8 @@ def test_every_legal_configuration_lands_inside_the_outline(iris_splits, metrics
 
     cs = RandomForestModel().get_config_space(seed=0)
     trials = _trials(iris_splits, metrics)
-    answer = RandomOptimizer().sample_prediction_space(cs, trials, "accuracy", seed=0, n=1024)
+    answer = analytics.sample_prediction_space(
+        RandomOptimizer(), cs, trials, "accuracy", seed=0, n=1024)
     projection = answer["projections"][method]
     points = np.array(projection["coordinates"])
 
@@ -133,8 +135,8 @@ def test_the_sample_covers_the_space_evenly_on_its_own_scales():
     failure means the scale is wrong rather than unlucky.
     """
     cs = _space()
-    answer = RandomOptimizer().sample_prediction_space(cs, _synthetic_trials(cs), "accuracy",
-                                                       seed=0, n=4096)
+    answer = analytics.sample_prediction_space(
+        RandomOptimizer(), cs, _synthetic_trials(cs), "accuracy", seed=0, n=4096)
     names = answer["hp_names"]
     columns = {name: [row[names.index(name)] for row in answer["values"]] for name in names}
 
@@ -151,9 +153,9 @@ def test_the_sample_follows_the_experiments_seed():
     trials = _synthetic_trials(cs)
     opt = RandomOptimizer()
 
-    first = opt.sample_prediction_space(cs, trials, "accuracy", seed=0, n=256)
-    again = opt.sample_prediction_space(cs, trials, "accuracy", seed=0, n=256)
-    other = opt.sample_prediction_space(cs, trials, "accuracy", seed=1, n=256)
+    first = analytics.sample_prediction_space(opt, cs, trials, "accuracy", seed=0, n=256)
+    again = analytics.sample_prediction_space(opt, cs, trials, "accuracy", seed=0, n=256)
+    other = analytics.sample_prediction_space(opt, cs, trials, "accuracy", seed=1, n=256)
 
     assert first["values"] == again["values"]
     assert first["values"] != other["values"]
@@ -165,7 +167,8 @@ def test_what_expected_improvement_needs_comes_with_it():
     improvement takes. A forest is not smooth, and says so."""
     cs = _space()
     trials = _synthetic_trials(cs)
-    answer = RandomOptimizer().sample_prediction_space(cs, trials, "accuracy", seed=0, n=256)
+    answer = analytics.sample_prediction_space(
+        RandomOptimizer(), cs, trials, "accuracy", seed=0, n=256)
 
     assert answer["eta"] == pytest.approx(max(t.scores["accuracy"] for t in trials), abs=1e-12)
     assert answer["higher_is_better"] is True
@@ -211,8 +214,8 @@ def test_each_sample_carries_its_vectorized_position():
     from ConfigSpace import Configuration
 
     cs = _space()
-    answer = RandomOptimizer().sample_prediction_space(cs, _synthetic_trials(cs), "accuracy",
-                                                       seed=0, n=64)
+    answer = analytics.sample_prediction_space(
+        RandomOptimizer(), cs, _synthetic_trials(cs), "accuracy", seed=0, n=64)
     names = answer["hp_names"]
     for values, vector in zip(answer["values"], answer["vectors"]):
         expected = Configuration(cs, values=dict(zip(names, values))).get_array()

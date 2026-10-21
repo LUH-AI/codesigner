@@ -18,9 +18,10 @@ import threading
 import pytest
 from ConfigSpace import ConfigurationSpace, Float
 
+from core import analytics
+from core.analytics import EAGER_MAX_COALITIONS
 from core.models import RandomForestModel
 from core.optimizers import RandomOptimizer
-from core.optimizers.base import EAGER_MAX_COALITIONS
 
 
 def _wide_space(n_hp, seed=0):
@@ -40,27 +41,22 @@ def _wide_space(n_hp, seed=0):
 def test_the_budget_counts_coalitions_across_games_and_metrics(n_hp, n_metrics, expected):
     """2^hyperparameters x 3 games x metrics. Pinned because the default is
     chosen against these numbers, so a change to either should be deliberate."""
-    opt = RandomOptimizer()
-    opt.analytics_max_coalitions = expected          # exactly affordable
     metrics = [f"m{i}" for i in range(n_metrics)]
-    assert opt.eager_analytics_budget_exceeded(_wide_space(n_hp), metrics) is None
-
-    opt.analytics_max_coalitions = expected - 1      # one short
-    assert opt.eager_analytics_budget_exceeded(_wide_space(n_hp), metrics)
+    exceeded = analytics.eager_analytics_budget_exceeded
+    assert exceeded(_wide_space(n_hp), metrics, budget=expected) is None    # exactly affordable
+    assert exceeded(_wide_space(n_hp), metrics, budget=expected - 1)        # one short
 
 
 def test_the_default_budget_admits_both_registry_models():
     """The default has to be useless if it turns away the models that ship."""
-    opt = RandomOptimizer()
-    assert opt.analytics_max_coalitions == EAGER_MAX_COALITIONS
+    assert RandomOptimizer().analytics_max_coalitions == EAGER_MAX_COALITIONS
     four_metrics = ["accuracy", "f1", "precision", "recall(macro)"]
     for n_hp in (4, 6):
-        assert opt.eager_analytics_budget_exceeded(_wide_space(n_hp), four_metrics) is None
+        assert analytics.eager_analytics_budget_exceeded(_wide_space(n_hp), four_metrics) is None
 
 
 def test_the_default_budget_turns_away_a_wide_custom_model():
-    opt = RandomOptimizer()
-    reason = opt.eager_analytics_budget_exceeded(
+    reason = analytics.eager_analytics_budget_exceeded(
         _wide_space(10), ["accuracy", "f1", "precision", "recall(macro)"])
     assert reason
     assert "12,288" in reason and "1,024" in reason
@@ -69,21 +65,18 @@ def test_the_default_budget_turns_away_a_wide_custom_model():
 
 def test_no_budget_means_no_limit():
     """0 in the setting becomes None here — an explicit "spend whatever"."""
-    opt = RandomOptimizer()
-    opt.analytics_max_coalitions = None
-    assert opt.eager_analytics_budget_exceeded(_wide_space(20), ["accuracy"]) is None
+    assert analytics.eager_analytics_budget_exceeded(_wide_space(20), ["accuracy"],
+                                                     budget=None) is None
 
 
 # ── What a skip actually returns ─────────────────────────────────────────────
 
 def test_going_over_budget_skips_every_game_with_the_reason(iris_splits, metrics):
-    opt = RandomOptimizer()
-    opt.analytics_max_coalitions = 1
     cs = RandomForestModel().get_config_space(seed=0)
 
-    games = opt.compute_hp_games(cs, [], ["accuracy", "f1"], seed=0)
+    games = analytics.compute_hp_games(cs, [], ["accuracy", "f1"], seed=0, budget=1)
 
-    for game in opt.HP_GAMES:
+    for game in analytics.HP_GAMES:
         importance, warning, interactions, moebius, total = games[game]
         assert importance == {"accuracy": {}, "f1": {}}
         assert interactions == {"accuracy": {}, "f1": {}}
@@ -101,14 +94,13 @@ def test_a_cancelled_run_skips_the_analytics_entirely():
     """The bug this closes: every optimizer breaks out of its trial loop on
     cancel and then computed the analytics anyway, so Cancel bought you the full
     bill on a run you had just stopped."""
-    opt = RandomOptimizer()
     cs = RandomForestModel().get_config_space(seed=0)
     cancelled = threading.Event()
     cancelled.set()
 
-    games = opt.compute_hp_games(cs, [], ["accuracy"], seed=0, cancel_event=cancelled)
+    games = analytics.compute_hp_games(cs, [], ["accuracy"], seed=0, cancel_event=cancelled)
 
-    for game in opt.HP_GAMES:
+    for game in analytics.HP_GAMES:
         assert games[game][0] == {"accuracy": {}}
         reason = games[game][1]["accuracy"]
         assert reason is not None
@@ -118,14 +110,12 @@ def test_a_cancelled_run_skips_the_analytics_entirely():
 
 def test_cancellation_is_reported_before_the_budget():
     """A cancelled run shouldn't be lectured about a budget it never spent."""
-    opt = RandomOptimizer()
-    opt.analytics_max_coalitions = 1
     cancelled = threading.Event()
     cancelled.set()
 
-    games = opt.compute_hp_games(
+    games = analytics.compute_hp_games(
         RandomForestModel().get_config_space(seed=0), [], ["accuracy"],
-        seed=0, cancel_event=cancelled)
+        seed=0, cancel_event=cancelled, budget=1)
 
     reason = games["tunability"][1]["accuracy"]
     assert reason is not None
@@ -141,8 +131,8 @@ def test_an_unset_cancel_event_computes_normally(iris_splits, metrics):
                           n_trials=3, seed=0).trials
     cs = RandomForestModel().get_config_space(seed=0)
 
-    games = opt.compute_hp_games(cs, trials, ["accuracy"], seed=0,
-                                 cancel_event=threading.Event())
+    games = analytics.compute_hp_games(cs, trials, ["accuracy"], seed=0,
+                                       cancel_event=threading.Event())
 
     assert games["tunability"][1]["accuracy"] is None
     assert set(games["tunability"][0]["accuracy"]) == set(cs.keys())
@@ -195,13 +185,10 @@ def test_analytics_are_skipped_when_no_figure_will_show_them():
     """Both figures that display the games switched off means the fields get
     filled and never read — 2^n_hp coalition evaluations per game per metric,
     for nobody."""
-    opt = RandomOptimizer()
-    opt.analytics_wanted = False
+    games = analytics.compute_hp_games(
+        RandomForestModel().get_config_space(seed=0), [], ["accuracy"], seed=0, wanted=False)
 
-    games = opt.compute_hp_games(
-        RandomForestModel().get_config_space(seed=0), [], ["accuracy"], seed=0)
-
-    for game in opt.HP_GAMES:
+    for game in analytics.HP_GAMES:
         assert games[game][0] == {"accuracy": {}}
         reason = games[game][1]["accuracy"]
         assert reason is not None
@@ -216,13 +203,11 @@ def test_wanting_them_is_the_default_for_a_direct_caller():
 
 def test_cancellation_is_reported_before_nobody_wanting_them():
     """A cancelled run gets the reason it can act on."""
-    opt = RandomOptimizer()
-    opt.analytics_wanted = False
     cancelled = threading.Event(); cancelled.set()
 
-    games = opt.compute_hp_games(
+    games = analytics.compute_hp_games(
         RandomForestModel().get_config_space(seed=0), [], ["accuracy"],
-        seed=0, cancel_event=cancelled)
+        seed=0, cancel_event=cancelled, wanted=False)
 
     reason = games["tunability"][1]["accuracy"]
     assert reason is not None

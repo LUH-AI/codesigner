@@ -1,38 +1,36 @@
 import json
 import logging
 import tempfile
-from contextlib import contextmanager
 from collections.abc import Mapping
+from contextlib import contextmanager
 from pathlib import Path
 from typing import Any, Optional
 
 import numpy as np
-from scipy.stats import norm
 from ConfigSpace import Configuration
+from scipy.stats import norm
 from smac import BlackBoxFacade, HyperparameterOptimizationFacade, Scenario
 from smac.acquisition.function import PI, IntegratedAcquisitionFunction
 from smac.initial_design import (
-    AbstractInitialDesign,
-    DefaultInitialDesign,
-    LatinHypercubeInitialDesign,
-    RandomInitialDesign,
-    SobolInitialDesign,
+    AbstractInitialDesign, DefaultInitialDesign, LatinHypercubeInitialDesign,
+    RandomInitialDesign, SobolInitialDesign,
 )
-from smac.model.gaussian_process import GaussianProcess, MCMCGaussianProcess
-from smac.utils.configspace import convert_configurations_to_array
 from smac.main.exceptions import ConfigurationSpaceExhaustedException
+from smac.model.gaussian_process import GaussianProcess, MCMCGaussianProcess
 from smac.runhistory import StatusType
 from smac.runhistory.dataclasses import TrialInfo, TrialValue
+from smac.utils.configspace import convert_configurations_to_array
 
-from ..paths import is_safe_relative
-from .. import priors as priors_module
 from .. import projected_prior
+from ..analytics import compute_hp_games, pair_trials_with_scores
 from ..metrics import metric_for, to_cost
-from .base import (
-    REQUESTED_ORIGIN, STOPPED_BY_EXHAUSTED, BaseOptimizer, OptimizationResult, OptimizerParam,
-    game_fields, merge_stopping, pair_trials_with_scores, rebase_history, storable_score,
-)
+from ..paths import is_safe_relative
 from ..splits import holdout
+from .. import priors as priors_module
+from .base import (
+    REQUESTED_ORIGIN, STOPPED_BY_EXHAUSTED, BaseOptimizer, game_fields, merge_stopping,
+    OptimizationResult, OptimizerParam, rebase_history, storable_score,
+)
 from .timing import STATUS_SUCCESS
 from .trial import evaluate_trial
 
@@ -1502,8 +1500,9 @@ class SMACOptimizer(BaseOptimizer):
         incumbent = smac.intensifier.get_incumbent()
         all_trials = (previous_result.trials if previous_result else []) + collector.results
 
-        games = self.compute_hp_games(config_space, all_trials, metrics, seed=seed,
-                                      cancel_event=cancel_event)
+        games = compute_hp_games(config_space, all_trials, metrics, seed=seed,
+                                 cancel_event=cancel_event, budget=self.analytics_max_coalitions,
+                                 wanted=self.analytics_wanted)
 
         return OptimizationResult(
             trials=all_trials,

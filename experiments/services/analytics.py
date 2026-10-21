@@ -2,6 +2,7 @@
 
 from django.conf import settings
 
+from core import analytics
 from core.optimizers.base import game_fields
 from experiments.models import ExperimentData
 
@@ -17,13 +18,12 @@ def compute_games(exp) -> None:
         return
     assert built is not None
 
-    optimizer = built["optimizer"]
-    optimizer.analytics_max_coalitions = settings.ANALYTICS_EAGER_MAX_COALITIONS or None
-    games = optimizer.compute_hp_games(
-        config_space_for(built), result.trials, built["metrics"], seed=built["seed"])
+    games = analytics.compute_hp_games(
+        config_space_for(built), result.trials, built["metrics"], seed=built["seed"],
+        budget=settings.ANALYTICS_EAGER_MAX_COALITIONS or None)
 
     for name, value in game_fields(games).items():
         setattr(result, name, value)
 
     ExperimentData.objects.filter(experiment__pk=exp.pk).update(
-        result=optimizer.serialize_result(result))
+        result=built["optimizer"].serialize_result(result))

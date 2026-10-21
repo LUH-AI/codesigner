@@ -15,9 +15,8 @@ in the metric's own units.
 import pytest
 
 from core.metrics import METRICS, Metric, unscoreable
-from core.optimizers.base import (
-    TrialResult, _pair_trials_with_oriented_scores, pair_trials_with_scores,
-)
+from core.analytics import _pair_trials_with_oriented_scores, pair_trials_with_scores
+from core.optimizers.base import TrialResult
 
 COST = Metric(name="smac:cost", fn=unscoreable, higher_is_better=False, bounds=(None, None))
 
@@ -95,7 +94,7 @@ def test_the_partial_dependence_surrogate_is_not_turned(config_space):
     on negated costs would draw a PDP whose axis said "smac:cost" and whose
     values were its negation.
     """
-    from core.optimizers.base import fit_surrogate
+    from core.analytics import fit_surrogate
 
     trials = _trials("smac:cost", [0.2, 0.9, 0.5, 0.4])
 

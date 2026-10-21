@@ -10,14 +10,14 @@ from django.utils.translation import gettext as _
 from django.views.decorators.http import require_POST
 
 from access.policy import EDIT, RUN, VIEW, policy
-from core import projected_prior
-from core import priors as prior_math
+from core import analytics, projected_prior
 from core.metrics import metric_for
+from core import priors as prior_math
 from experiments.services import history
-from experiments.services import priors as prior_service
-from experiments.services import run as run_service
 from experiments.services.settings import SETTING_BOUNDS
 from experiments.services.snapshot import config_space_for, rebuild_experiment, rebuild_result
+from experiments.services import priors as prior_service
+from experiments.services import run as run_service
 
 from .. import projected
 from ..experiment_settings import SETTING_DEFAULTS, resolve_settings
@@ -292,7 +292,7 @@ def _slice_model(exp, built, config_space, metric):
     figures that need them.
 
     Returns `(surrogate, sample)`, the sample being
-    `BaseOptimizer.sample_prediction_space`'s answer. Neither depends on which
+    `core.analytics.sample_prediction_space`'s answer. Neither depends on which
     hyperparameter the acquisition figure has on its axis, nor on which view
     the configuration cube is in, nor on the priors — a prior weights the
     acquisition, which both figures compute in the browser from the sample's
@@ -319,8 +319,9 @@ def _slice_model(exp, built, config_space, metric):
         if surrogate is None:
             return None, None
 
-        sample = optimizer.sample_prediction_space(
-            config_space, result.trials, metric, seed=built["seed"], surrogate=surrogate)
+        sample = analytics.sample_prediction_space(
+            optimizer, config_space, result.trials, metric, seed=built["seed"],
+            surrogate=surrogate)
         _SLICE_SURROGATES[key] = (surrogate, sample)
         while len(_SLICE_SURROGATES) > _SLICE_SURROGATE_CACHE:
             evicted, _ = _SLICE_SURROGATES.popitem(last=False)
@@ -706,9 +707,9 @@ def _slice_figures(exp, built, config_space, hp_name, metric):
     """
     surrogate, sample = _slice_model(exp, built, config_space, metric)
     cloud = _sample_cloud(sample)
-    sliced = built["optimizer"].compute_incumbent_slice(
-        config_space, built["result"].trials, metric, hp_name, seed=built["seed"],
-        surrogate=surrogate, cloud=cloud)
+    sliced = analytics.compute_incumbent_slice(
+        built["optimizer"], config_space, built["result"].trials, metric, hp_name,
+        seed=built["seed"], surrogate=surrogate, cloud=cloud)
     if not sliced.positions:
         return None, None, sliced
 
@@ -782,7 +783,7 @@ def acquisition_slice(request, exp):
     # which is what a reader waits on — so the panel they can actually edit is
     # there immediately, and stays there when "compute automatically" is off.
     if request.GET.get("prior_only"):
-        grid, positions, kind = built["optimizer"].slice_axis(config_space, hp_name)
+        grid, positions, kind = analytics.slice_axis(config_space, hp_name)
         if not positions:
             return JsonResponse({"figures": None, "meta": None, "warning": ""})
         zeros = [0.0] * len(positions)

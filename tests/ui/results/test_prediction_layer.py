@@ -220,23 +220,24 @@ def test_the_two_figures_share_one_fit_and_one_sample(client, monkeypatch):
     the same metric.
     Expect: one fit and one sample between them.
     """
+    from core import analytics
     from core.optimizers.base import BaseOptimizer
     from ui.views import priors
 
     priors._SLICE_SURROGATES.clear()
     fits, samples = [], []
-    fit, sample = BaseOptimizer.slice_surrogate, BaseOptimizer.sample_prediction_space
+    fit, sample = BaseOptimizer.slice_surrogate, analytics.sample_prediction_space
 
     def counted_fit(self, *args, **kwargs):
         fits.append(1)
         return fit(self, *args, **kwargs)
 
-    def counted_sample(self, *args, **kwargs):
+    def counted_sample(*args, **kwargs):
         samples.append(1)
-        return sample(self, *args, **kwargs)
+        return sample(*args, **kwargs)
 
     monkeypatch.setattr(BaseOptimizer, "slice_surrogate", counted_fit)
-    monkeypatch.setattr(BaseOptimizer, "sample_prediction_space", counted_sample)
+    monkeypatch.setattr(analytics, "sample_prediction_space", counted_sample)
 
     exp = _experiment()
     slice_url = reverse("ui:acquisition_slice", args=[exp.pk]) + "?metric=accuracy&hp=max_features"

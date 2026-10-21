@@ -126,7 +126,7 @@ STORAGE_WARNING_SHARE = env.float("STORAGE_WARNING_SHARE", default=0.9)
 # The 1024 default admits both registry models (Random Forest 4, SVM 6) and turns
 # away the custom-upload pathology. Raise it if you routinely tune wide models and
 # don't mind the wait; set it to 0 for no limit. See
-# core.optimizers.base.BaseOptimizer.eager_analytics_budget_exceeded.
+# core.analytics.eager_analytics_budget_exceeded.
 ANALYTICS_EAGER_MAX_COALITIONS = env.int("ANALYTICS_EAGER_MAX_COALITIONS", default=1024)
 
 # Never passed to a model's process. The rest of the environment is inherited,

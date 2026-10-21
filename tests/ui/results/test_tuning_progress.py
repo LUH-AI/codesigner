@@ -24,14 +24,14 @@ page offers none of this.
 import json
 
 import pytest
+from tests.conftest import FIXTURES_DIR
+
 from django.urls import reverse
 
-from core import io
+from core import analytics, io
+from core.analytics import SETTLED, tuning_progress
 from core.optimizers import OptimizationResult, TrialResult
 from experiments.services import snapshot as adapter
-from core.analytics import SETTLED, tuning_progress
-
-from tests.conftest import FIXTURES_DIR
 
 
 @pytest.fixture
@@ -116,7 +116,7 @@ def test_falling_short_of_the_ceiling_is_not_marked(enabled):
 
 def test_a_trial_that_has_taken_everything_says_so(enabled):
     """Rather than drawing a pie of rounding — the same lesson as the all-zero
-    guard in `_compute_hp_game`: an empty answer is a finding, and a normalised
+    guard in `compute_hp_game`: an empty answer is a finding, and a normalised
     empty answer is a picture of noise."""
     rows, settled = tuning_progress(
         _result({"a": 0.5, "b": 0.5}, 0.10), "accuracy", {"a": 0.0499, "b": 0.0499})
@@ -180,7 +180,6 @@ def test_the_stored_scale_is_what_the_shares_are_shares_of():
     be the actual denominator the normalisation used — not a recomputation that
     might drift from it."""
     from core.models import RandomForestModel
-    from core.optimizers import RandomOptimizer
 
     trials = [
         TrialResult(trial=i, config={"n_estimators": 10 + 40 * i, "max_depth": 2 + i,
@@ -190,7 +189,7 @@ def test_the_stored_scale_is_what_the_shares_are_shares_of():
                     incumbent_score=0.5 + 0.03 * i, incumbent_config={})
         for i in range(6)]
     space = RandomForestModel().get_config_space(seed=0)
-    shares, _warn, _inter, _moebius, total = RandomOptimizer()._compute_hp_game(
+    shares, _warn, _inter, _moebius, total = analytics.compute_hp_game(
         space, trials, "accuracy", "tunability", 0)
 
     assert total > 0
@@ -248,7 +247,6 @@ def test_both_games_are_measured_from_the_same_zero():
     from hypershap.utils import Aggregation, RandomConfigSpaceSearcher
 
     from core.models import RandomForestModel
-    from core.optimizers import RandomOptimizer
 
     trials = [
         TrialResult(trial=i, config={"n_estimators": 10 + 40 * i, "max_depth": 2 + i,
@@ -258,7 +256,7 @@ def test_both_games_are_measured_from_the_same_zero():
                     incumbent_score=0.5 + 0.03 * i, incumbent_config={})
         for i in range(6)]
     space = RandomForestModel().get_config_space(seed=0)
-    explainer = RandomOptimizer()._build_explainer(space, trials, "accuracy", 0)
+    explainer = analytics._build_explainer(space, trials, "accuracy", 0)
     surrogate = explainer.hs.explanation_task.surrogate_model
     if isinstance(surrogate, list):
         surrogate = surrogate[0]

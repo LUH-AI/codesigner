@@ -520,7 +520,7 @@ def hyperparameter_ablation_plot(ablation: dict):
     plainly rather than looking like a score that starts at zero.
 
     Returns None when *ablation* is empty (not enough trials, or the game
-    failed — see BaseOptimizer.compute_hp_ablation). No "table"/"pie" — a
+    failed — see core.analytics.compute_hp_ablation). No "table"/"pie" — a
     share-of-a-whole framing does not apply to signed values, so this is the
     one view this game gets.
     """
@@ -557,7 +557,7 @@ def hyperparameter_interactions_heatmap_plot(interactions: dict):
     strongest single effects sit nearest the top-left corner.
 
     Returns None when *interactions* is empty (not enough trials, or the
-    game failed — see BaseOptimizer.compute_hp_interactions).
+    game failed — see core.analytics.compute_hp_game).
     """
     if not interactions:
         return None
@@ -668,7 +668,7 @@ def hyperparameter_graph_plot(moebius: list, top_k: int = 15):
     This is the only view in the app that shows anything above order 2, and the
     reason the Möbius decomposition is stored at all: FSII's terms shift when
     the truncation order changes, so they cannot be read at several orders at
-    once (see `BaseOptimizer._compute_hp_game`).
+    once (see `core.analytics.compute_hp_game`).
 
     Only the *top_k* strongest interactions are drawn. A 6-hyperparameter run
     has 57 of them and a 10-hyperparameter one has 1,013; past a dozen or so the
@@ -846,7 +846,7 @@ def hyperparameter_orders_plot(moebius: list):
 
     Reads the Möbius decomposition rather than the order-2 FSII grid, because
     that is the one that assigns a single value per coalition of any size — see
-    `BaseOptimizer._compute_hp_game` for why the two are not
+    `core.analytics.compute_hp_game` for why the two are not
     interchangeable.
 
     Each term is split equally among its members, which is the standard reading
@@ -1352,7 +1352,7 @@ def partial_dependence_plot(hp_name, grid, ice_lines, pdp):
 
     Returns None when *grid* is empty (too few trials to fit a surrogate, or
     no valid configuration anywhere on the grid — see
-    BaseOptimizer.compute_partial_dependence).
+    core.analytics.compute_partial_dependence).
     """
     if not grid:
         return None

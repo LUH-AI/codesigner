@@ -1,5 +1,5 @@
-"""Contract for how BaseOptimizer plays HyperSHAP's global games
-(core/optimizers/base.py, `_compute_hp_game`).
+"""Contract for how core.analytics plays HyperSHAP's global games
+(core/analytics.py, `compute_hp_game`).
 
 Each game is played once through HyperSHAP's public facade and asked for its
 Möbius decomposition. The FSII values that the importance and the pairwise grid
@@ -10,6 +10,7 @@ from unittest.mock import patch
 
 import pytest
 
+from core import analytics
 from core.models import RandomForestModel
 from core.optimizers import RandomOptimizer
 
@@ -23,12 +24,12 @@ def _trials(iris_splits, metrics):
         metrics=metrics, primary_metric="accuracy", n_trials=5, seed=0).trials
 
 
-@pytest.mark.parametrize("game", RandomOptimizer.HP_GAMES)
+@pytest.mark.parametrize("game", analytics.HP_GAMES)
 def test_stored_values_are_hypershaps_own_fsii(iris_splits, metrics, game):
     """The importance, its total and the pairwise grid hold HyperSHAP's own FSII.
 
     Setup: one explainer over five iris trials.
-    Action: play *game* through `_compute_hp_game`, and separately call the
+    Action: play *game* through `compute_hp_game`, and separately call the
     facade's `HyperSHAP.<game>()`, whose default index is FSII at order 2.
     Expect: the grid's diagonal and off-diagonal terms are the facade's order-1
     and order-2 values, and the importance is the facade's order-1 magnitudes
@@ -44,10 +45,9 @@ def test_stored_values_are_hypershaps_own_fsii(iris_splits, metrics, game):
 
     cs = RandomForestModel().get_config_space(seed=0)
     trials = _trials(iris_splits, metrics)
-    opt = RandomOptimizer()
-    explainer = opt._build_explainer(cs, trials, "accuracy", 0)
+    explainer = analytics._build_explainer(cs, trials, "accuracy", 0)
 
-    importance, warning, grid, _moebius, total = opt._compute_hp_game(
+    importance, warning, grid, _moebius, total = analytics.compute_hp_game(
         cs, trials, "accuracy", game, seed=7, explainer=explainer)
     hs = HyperSHAP(explainer.hs.explanation_task)
     theirs = hs.get_interaction_values_with_names(getattr(hs, game)(seed=7))
@@ -81,8 +81,7 @@ def test_a_game_evaluates_its_coalitions_once(iris_splits, metrics):
 
     cs = RandomForestModel().get_config_space(seed=0)
     trials = _trials(iris_splits, metrics)
-    opt = RandomOptimizer()
-    explainer = opt._build_explainer(cs, trials, "accuracy", 0)
+    explainer = analytics._build_explainer(cs, trials, "accuracy", 0)
 
     calls = []
     real = hs_games.TunabilityGame.__call__
@@ -92,7 +91,7 @@ def test_a_game_evaluates_its_coalitions_once(iris_splits, metrics):
         return real(self, *args, **kwargs)
 
     with patch.object(hs_games.TunabilityGame, "__call__", counting):
-        _imp, warning, _grid, moebius, _total = opt._compute_hp_game(
+        _imp, warning, _grid, moebius, _total = analytics.compute_hp_game(
             cs, trials, "accuracy", "tunability", seed=0, explainer=explainer)
 
     assert warning is None and moebius, "the game was actually played"

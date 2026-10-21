@@ -243,7 +243,7 @@ def _partial_result_writer(experiment_pk, optimizer, previous_result, primary_me
     PDP and local effects each cost a surrogate fit or 2^n_hp coalitions, and
     none of them may run per trial. A partial result leaves those fields empty,
     which is a state the page already handles — it is what a cancelled run
-    produces (see `BaseOptimizer.compute_hp_games`).
+    produces (see `core.analytics.compute_hp_games`).
 
     The channel is the database, not the process: under a real huey consumer the
     run is in a worker process and nothing in-process could hand the page
@@ -407,7 +407,7 @@ def _execute_run_locally(run_id):
         optimizer = built["optimizer"]
         # What this machine will spend on the analytics computed at run
         # completion. Set here rather than read inside `core/`, which stays
-        # Django-free; see BaseOptimizer.eager_analytics_budget_exceeded for what
+        # Django-free; see core.analytics.eager_analytics_budget_exceeded for what
         # the number counts. 0 means no limit.
         optimizer.analytics_max_coalitions = (
             settings.ANALYTICS_EAGER_MAX_COALITIONS or None)

@@ -85,7 +85,7 @@ MIN_OBSERVATIONS = 5
 #: logarithmic in the length of the run.
 REFIT_GROWTH = 1.25
 
-#: The forest itself, matching `core.optimizers.base.fit_surrogate` — same
+#: The forest itself, matching `core.analytics.fit_surrogate` — same
 #: estimator, same tree count, fitted against duration instead of a score.
 DURATION_TREES = 100
 
@@ -190,7 +190,7 @@ class PredictedDeadline:
         """A configuration as the vector the forest is fitted over.
 
         `Configuration.get_array()` — ConfigSpace's own internal representation,
-        the same encoding `core.optimizers.base.fit_surrogate` fits the
+        the same encoding `core.analytics.fit_surrogate` fits the
         analytics surrogate over, so a duration model and a performance model
         see a configuration identically. A configuration the space rejects
         encodes to `None` and takes the ceiling rather than raising: a deadline
