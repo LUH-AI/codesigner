@@ -76,6 +76,7 @@ def data_from_snapshot(snapshot: dict, dataset_file=None, model_file=None,
     adopted as `experiment_from_snapshot` describes — not yet saved, though
     its files are. Shared with a draft's setup, which builds a new half each
     time step 1 is saved and puts it in place of the old."""
+    ev = io.evaluation_of(snapshot)
     data = ExperimentData(
         name=snapshot.get("name") or "",
         # A built-in renamed since the file was written is stored under the
@@ -90,13 +91,15 @@ def data_from_snapshot(snapshot: dict, dataset_file=None, model_file=None,
         seed=snapshot["seed"],
         created_at=_when(snapshot.get("began_at")) or timezone.now(),
         time_basis=timestamps.basis_of(snapshot),
-        cv_folds=io.folds_of(snapshot),
-        test_size=io.test_size_of(snapshot),
-        time_column=io.time_column_of(snapshot),
-        time_gap=io.gap_of(snapshot),
-        **io.forecast_of(snapshot),
+        cv_folds=ev["folds"],
+        test_size=ev["test_size"],
+        time_column=ev["time_column"],
+        time_gap=ev["gap"],
+        horizon=ev["horizon"],
+        series_column=ev["series_column"],
+        season=ev["season"],
         task=tasks.task_of(snapshot),
-        processing=io.processing_of(snapshot),
+        processing=choices_of((snapshot.get("dataset") or {}).get("processing")),
         config_space=snapshot.get("space"),
         priors=snapshot.get("priors") or {},
         projected_priors=snapshot.get("projected_priors") or [],

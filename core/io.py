@@ -74,7 +74,9 @@ from sklearn.model_selection import train_test_split
 
 from . import columns, encoding, forecasting, provenance, tasks
 from .metrics import declarations
+from .models.base import Tunable
 from .paths import MAX_STATE_FILES, is_safe_relative
+from .processing import choices_of
 from .splits import (
     MIN_FOLDS, backtest, cross_validation, holdout, time_cross_validation, time_holdout,
 )
@@ -430,51 +432,25 @@ def _lifted_evaluation(snapshot: dict) -> dict:
     }
 
 
-def folds_of(snapshot: dict) -> int:
-    """How many folds this snapshot asks for; 0 is a single holdout."""
-    return int((snapshot.get("evaluation") or {}).get("folds") or 0)
-
-
-def time_column_of(snapshot: dict) -> str:
-    """The column this snapshot's rows are divided in time order by, or "" for
-    a division that ignores time."""
-    return str((snapshot.get("evaluation") or {}).get("time_column") or "")
-
-
-def forecast_of(snapshot: dict) -> dict:
-    """A forecast's horizon, series column and season length; zeros and ""
-    for a snapshot not evaluated by backtests — a horizon above zero is what
-    makes a forecast."""
+def evaluation_of(snapshot: dict) -> dict:
+    """How this snapshot's rows are divided for evaluation, every setting
+    present: `folds` (0 is a single holdout), `test_size` (the holdout's share;
+    under cross-validation `DEFAULT_TEST_SIZE`, so a later switch of scheme has
+    something to start from), `time_column` ("" for a division that ignores
+    time), `gap` (rows left between training and validation), and a
+    forecast's `horizon`, `series_column` and `season` (zeros and "" for a
+    snapshot not evaluated by backtests: a horizon above zero is what makes a
+    forecast)."""
     section = snapshot.get("evaluation") or {}
-    return {"horizon": int(section.get("horizon") or 0),
-            "series_column": str(section.get("series_column") or ""),
-            "season": int(section.get("season") or 0)}
-
-
-def processing_of(snapshot: dict) -> dict:
-    """How the snapshot's dataset is processed before its model sees it
-    (`core.processing`): every step, "auto" where the file says nothing — which
-    is what every file written before processing was a choice means."""
-    from .processing import choices_of
-
-    return choices_of((snapshot.get("dataset") or {}).get("processing"))
-
-
-def gap_of(snapshot: dict) -> int:
-    """How many rows a time-ordered division leaves between training and
-    validation."""
-    return int((snapshot.get("evaluation") or {}).get("gap") or 0)
-
-
-def test_size_of(snapshot: dict) -> float:
-    """What share of the data this snapshot holds out, when it holds out one.
-
-    Meaningless under cross-validation, where every row is validated against
-    once; `DEFAULT_TEST_SIZE` there rather than None so the column always holds
-    a number and a later switch of scheme has something to start from.
-    """
-    section = snapshot.get("evaluation") or {}
-    return float(section.get("test_size") or DEFAULT_TEST_SIZE)
+    return {
+        "folds": int(section.get("folds") or 0),
+        "test_size": float(section.get("test_size") or DEFAULT_TEST_SIZE),
+        "time_column": str(section.get("time_column") or ""),
+        "gap": int(section.get("gap") or 0),
+        "horizon": int(section.get("horizon") or 0),
+        "series_column": str(section.get("series_column") or ""),
+        "season": int(section.get("season") or 0),
+    }
 
 
 def finite(value: Any) -> Any:
@@ -704,6 +680,7 @@ def build_experiment(
     Returns ``(name, exp_dict)`` on success.  Raises ``ValueError`` on failure.
     """
     snapshot = normalize(snapshot)
+    ev = evaluation_of(snapshot)
     metric_names = snapshot["metrics"]["names"]
     model_path = snapshot["model"].get("path", "")
     task = tasks.task_of(snapshot)
@@ -753,7 +730,7 @@ def build_experiment(
             model, err = load_model_from_path(model_path)
             if err:
                 raise ValueError(f"custom model error: {err}")
-            tell_task(model, task)
+            give_context(model, "task", task)
         resolved_model = snapshot["model"]["name"]
     else:
         stored_model = model_name if model_name is not None else snapshot["model"]["name"]
@@ -767,7 +744,7 @@ def build_experiment(
             raise ValueError(f"model '{stored_model}' is not available")
         if task not in tasks.supported(model_entry):
             raise ValueError(f"model '{stored_model}' does not do {task}")
-        forecasts = forecast_of(snapshot)["horizon"] > 0
+        forecasts = ev["horizon"] > 0
         if tasks.forecaster(model_entry) and not forecasts:
             raise ValueError(f"model '{stored_model}' only forecasts")
         # A copy, told its task: the registry's instance is shared by every
@@ -784,8 +761,7 @@ def build_experiment(
     # `splits` is what a trial is actually evaluated over — one fold for a
     # holdout, k for cross-validation. The four arrays stay as they were: plenty
     # of callers read them, and for a holdout they are the same data.
-    cv_folds = folds_of(snapshot)
-    test_size = test_size_of(snapshot)
+    cv_folds, test_size = ev["folds"], ev["test_size"]
     forecast = times = None
     if read_only:
         X_train = X_val = y_train = y_val = None
@@ -798,13 +774,18 @@ def build_experiment(
             raise ValueError(f"dataset not found: {dataset_path}")
         columns = dataset_encoding(path)
         if model is not None:
-            tell_feature_kinds(model, encoding.feature_kinds(columns))
-            tell_processing(model, processing_of(snapshot))
-        time_column, gap = time_column_of(snapshot), gap_of(snapshot)
-        if forecast_of(snapshot)["horizon"] > 0:
+            give_context(model, "feature_kinds", tuple(encoding.feature_kinds(columns)))
+            # A built-in is told how its columns are processed, and so is one
+            # wrapped for forecasting; an uploaded model is given them as they are.
+            processing = choices_of((snapshot.get("dataset") or {}).get("processing"))
+            for told in (getattr(model, "model", None), model):
+                if isinstance(told, Tunable):
+                    told.processing = dict(processing)
+        time_column, gap = ev["time_column"], ev["gap"]
+        if ev["horizon"] > 0:
             if not time_column:
                 raise ValueError("a forecast needs the column its rows are ordered in time by")
-            shape = forecast_of(snapshot)
+            shape = ev
             X_all, y_all, times, series = load_forecast(path, time_column, shape["series_column"])
             season = shape["season"] or forecasting.infer_season(times)
             splits = backtest(X_all, y_all, times, shape["horizon"], max(cv_folds, 1), gap,
@@ -812,7 +793,7 @@ def build_experiment(
             forecast = forecasting.context(columns, time_column, shape["series_column"],
                                            shape["horizon"], season, gap)
             if model is not None:
-                tell_forecast(model, forecast)
+                give_context(model, "forecast", dict(forecast))
             # The latest backtest, as the four arrays: the one nearest to how
             # the forecast would be used.
             train_idx, val_idx = splits.folds[-1]
@@ -860,8 +841,8 @@ def build_experiment(
         "X_val":   X_val,   "y_val":   y_val,
         "cv_folds": cv_folds,
         "test_size": test_size,
-        "time_column": time_column_of(snapshot),
-        "gap": gap_of(snapshot),
+        "time_column": ev["time_column"],
+        "gap": ev["gap"],
         "task":    task,
         "splits":  splits,
         # How the features were encoded (`core.encoding`), and so what kind each
@@ -881,51 +862,13 @@ def build_experiment(
     return snapshot["name"], exp
 
 
-def tell_forecast(model, forecast: dict) -> None:
-    """Tell *model* what its forecast is (`core.forecasting`), as `tell_task`
-    tells it its task."""
+def give_context(model, attribute: str, value) -> None:
+    """Set *attribute* on *model*: its task, the kind of each of its columns, or
+    its forecast. A model written before the attribute existed may not take it
+    (a property with no setter, say) and is left as it is: it was written for
+    what it could be offered then, a classification over numeric columns."""
     try:
-        model.forecast = dict(forecast)
-    except AttributeError:
-        pass
-
-
-def tell_feature_kinds(model, kinds) -> None:
-    """Tell *model* what kind each column of X is (`core.columns`).
-
-    Left alone, like `tell_task`, by a model that cannot take the attribute:
-    one written before columns had kinds expects numbers, and a plain dataset
-    is still all numeric.
-    """
-    try:
-        model.feature_kinds = tuple(kinds)
-    except AttributeError:
-        pass
-
-
-def tell_processing(model, processing: dict) -> None:
-    """Tell a built-in how the experiment's columns are processed before it
-    sees them (`core.processing`). A model wrapped for forecasting passes it on
-    to the model inside. An uploaded model is not told: it is given the
-    columns as they are, which is all it has ever been given."""
-    from .models.base import Tunable
-
-    inner = getattr(model, "model", None)
-    if isinstance(inner, Tunable):
-        inner.processing = dict(processing)
-    if isinstance(model, Tunable):
-        model.processing = dict(processing)
-
-
-def tell_task(model, task: str) -> None:
-    """Tell *model* which task it is being run for.
-
-    A model written before tasks existed may not take the attribute — a
-    `task` property with no setter, say — and is left as it is: it was written
-    for classification, which is the only task it can have been offered for.
-    """
-    try:
-        model.task = task
+        setattr(model, attribute, value)
     except AttributeError:
         pass
 

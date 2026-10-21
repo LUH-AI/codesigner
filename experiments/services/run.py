@@ -52,9 +52,10 @@ def run_experiment(*, model_name, optimizer_name, dataset_path, seed,
     OptimizationResult.
     """
     model = copy.copy(MODELS[model_name])
-    io.tell_task(model, task)
-    io.tell_feature_kinds(
-        model, encoding.feature_kinds(io.dataset_encoding(Path(dataset_path))))
+    io.give_context(model, "task", task)
+    io.give_context(
+        model, "feature_kinds",
+        tuple(encoding.feature_kinds(io.dataset_encoding(Path(dataset_path)))))
     optimizer = type(OPTIMIZERS[optimizer_name])(**(optimizer_params or {}))
     X_train, X_val, y_train, y_val = load_splits(
         Path(dataset_path), seed, test_size or DEFAULT_TEST_SIZE, task)
