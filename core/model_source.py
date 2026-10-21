@@ -160,6 +160,21 @@ def _base_name(node: ast.expr) -> str | None:
     return None
 
 
+def _assigned(cls: ast.ClassDef, attribute: str) -> ast.expr | None:
+    """The value the class body assigns to *attribute*, if it assigns one. An
+    annotation with no value assigns nothing."""
+    for node in cls.body:
+        if isinstance(node, ast.Assign) and len(node.targets) == 1:
+            target = node.targets[0]
+        elif isinstance(node, ast.AnnAssign) and node.value is not None:
+            target = node.target
+        else:
+            continue
+        if isinstance(target, ast.Name) and target.id == attribute:
+            return node.value
+    return None
+
+
 def _literal_name(cls: ast.ClassDef) -> str | None:
     """The class's `name = "..."`, if it is a plain string literal.
 
@@ -168,71 +183,46 @@ def _literal_name(cls: ast.ClassDef) -> str | None:
     environment is still being prepared. Preparation reports the instantiated
     model's real name later and corrects the record if they differ.
     """
-    for node in cls.body:
-        target = None
-        if isinstance(node, ast.Assign) and len(node.targets) == 1:
-            target = node.targets[0]
-        elif isinstance(node, ast.AnnAssign):
-            target = node.target
-        if not isinstance(target, ast.Name) or target.id != "name":
-            continue
-        assert isinstance(node, (ast.Assign, ast.AnnAssign))
-        if node.value is None:
-            return None
-        try:
-            value = ast.literal_eval(node.value)
-        except (ValueError, SyntaxError):
-            return None
-        if isinstance(value, str) and value.strip():
-            return value
-    return None
+    node = _assigned(cls, "name")
+    if node is None:
+        return None
+    try:
+        value = ast.literal_eval(node)
+    except (ValueError, SyntaxError):
+        return None
+    return value if isinstance(value, str) and value.strip() else None
 
 
 def _literal_tasks(cls: ast.ClassDef) -> tuple[tuple, str | None]:
     """The class's `tasks = (...)`, if it sets one. Returns (tasks, error)."""
     from .tasks import TASKS
 
-    for node in cls.body:
-        target = None
-        if isinstance(node, ast.Assign) and len(node.targets) == 1:
-            target = node.targets[0]
-        elif isinstance(node, ast.AnnAssign):
-            target = node.target
-        if not isinstance(target, ast.Name) or target.id != "tasks":
-            continue
-        assert isinstance(node, (ast.Assign, ast.AnnAssign))
-        try:
-            if node.value is None:
-                raise ValueError
-            value = ast.literal_eval(node.value)
-        except (ValueError, SyntaxError):
-            return (), (f"'{cls.name}' must set tasks as a literal, "
-                        f'for example: tasks = ("classification", "regression").')
-        value = (value,) if isinstance(value, str) else tuple(value or ())
-        unknown = [t for t in value if t not in TASKS]
-        if unknown or not value:
-            return (), (f"'{cls.name}' names tasks Codesigner does not know: "
-                        f"{', '.join(map(repr, unknown)) or 'none'}. "
-                        f"Choose from {', '.join(map(repr, TASKS))}.")
-        return value, None
-    return ("classification",), None
+    node = _assigned(cls, "tasks")
+    if node is None:
+        return ("classification",), None
+    try:
+        value = ast.literal_eval(node)
+    except (ValueError, SyntaxError):
+        return (), (f"'{cls.name}' must set tasks as a literal, "
+                    f'for example: tasks = ("classification", "regression").')
+    value = (value,) if isinstance(value, str) else tuple(value or ())
+    unknown = [t for t in value if t not in TASKS]
+    if unknown or not value:
+        return (), (f"'{cls.name}' names tasks Codesigner does not know: "
+                    f"{', '.join(map(repr, unknown)) or 'none'}. "
+                    f"Choose from {', '.join(map(repr, TASKS))}.")
+    return value, None
 
 
 def _literal_flag(cls: ast.ClassDef, attribute: str) -> bool:
     """Whether the class sets *attribute* to a literal true value."""
-    for node in cls.body:
-        target = None
-        if isinstance(node, ast.Assign) and len(node.targets) == 1:
-            target = node.targets[0]
-        elif isinstance(node, ast.AnnAssign) and node.value is not None:
-            target = node.target
-        if isinstance(target, ast.Name) and target.id == attribute:
-            assert isinstance(node, (ast.Assign, ast.AnnAssign)) and node.value is not None
-            try:
-                return bool(ast.literal_eval(node.value))
-            except (ValueError, SyntaxError):
-                return False
-    return False
+    node = _assigned(cls, attribute)
+    if node is None:
+        return False
+    try:
+        return bool(ast.literal_eval(node))
+    except (ValueError, SyntaxError):
+        return False
 
 
 def _declared_dependencies(text: str) -> tuple[list[str], str | None, bool, str | None]:

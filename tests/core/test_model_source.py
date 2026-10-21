@@ -134,6 +134,24 @@ class M(BaseModel):
     assert "My Model" in err          # the message shows the fix
 
 
+def test_an_annotation_without_a_value_does_not_count_as_setting_it():
+    """`tasks: tuple` declares a type and sets nothing, so the class has said
+    nothing about its tasks and is a classifier; and a `name: str` declared
+    before `name = "..."` does not hide the name that follows it."""
+    info, err = _inspect('''
+class M(BaseModel):
+    tasks: tuple
+    name: str
+    name = "Annotated"
+    def get_config_space(self, seed=0): return None
+    def fit_predict(self, c, a, b, d, seed=0): return []
+''')
+    assert err is None
+    assert info is not None
+    assert info.name == "Annotated"
+    assert info.tasks == ("classification",)
+
+
 def test_a_malformed_header_is_refused():
     _, err = _inspect('# /// script\n# dependencies = [oops\n# ///\n' + MODEL)
     assert err is not None
