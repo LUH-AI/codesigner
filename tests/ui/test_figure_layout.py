@@ -325,7 +325,7 @@ def test_the_page_cannot_set_the_site_default(client, hosted, lab):
 
     _save(client, lab["exp"], {"layout": _narrowed(), "site_default": True})
 
-    assert layouts.site_default() == layouts.default_layout()
+    assert layouts.layout_for(lab["exp"], lab["ben"]) == layouts.default_layout()
     assert layouts.layout_for(lab["exp"], lab["ana"]) == layouts.normalize(_narrowed())
 
 
@@ -404,7 +404,6 @@ def test_without_accounts_there_is_one_readers_default(client):
 
     assert DefaultFigureLayout.objects.get().user is None
     assert layouts.user_default(None) == layouts.normalize(_narrowed())
-    assert layouts.site_default() == layouts.default_layout()
     _settings_post(client, exp, "reset_default")
     assert not DefaultFigureLayout.objects.exists()
 

@@ -78,12 +78,16 @@ def _projected_answer(exp, built, config_space, sample):
                                           projected.sample_vectors(sample) if sample else None)}
 
 
-def _drawn(request):
+def _drawn(request, exp):
+    """The posted drawing, or None unless it is a JSON object naming one of
+    *exp*'s metrics."""
     try:
         body = json.loads(request.body or b"{}")
     except ValueError:
         return None
-    return body if isinstance(body, dict) else None
+    if not isinstance(body, dict) or body.get("metric") not in exp.data.metric_names:
+        return None
+    return body
 
 
 @require_POST
@@ -92,8 +96,8 @@ def projected_prior_preview(request, exp):
     """A prior being drawn in the configuration cube, before it is stated: the
     record it would be, its weight over the cube's sample, and the shapes the
     cube draws for it. VIEW: looking at a belief changes nothing."""
-    body = _drawn(request)
-    if body is None or body.get("metric") not in exp.data.metric_names:
+    body = _drawn(request, exp)
+    if body is None:
         return HttpResponseBadRequest("invalid request")
     built, config_space, sample = _cube_sample(exp, body["metric"])
     if sample is None:
@@ -118,8 +122,8 @@ def state_projected_prior(request, exp):
     """State the prior drawn in the cube, or change a stated one's parameters
     and decay. Its points and projection are what it was drawn in and stay put:
     a different shape is a different belief."""
-    body = _drawn(request)
-    if body is None or body.get("metric") not in exp.data.metric_names:
+    body = _drawn(request, exp)
+    if body is None:
         return HttpResponseBadRequest("invalid request")
     built, config_space, sample = _cube_sample(exp, body["metric"])
     if sample is None:
@@ -161,8 +165,8 @@ def state_projected_prior(request, exp):
 @experiment_view(EDIT)
 def withdraw_projected_prior(request, exp):
     """Take a stated projected prior back."""
-    body = _drawn(request)
-    if body is None or body.get("metric") not in exp.data.metric_names:
+    body = _drawn(request, exp)
+    if body is None:
         return HttpResponseBadRequest("invalid request")
     records = list(exp.data.projected_priors or [])
     old = next((r for r in records if r.get("id") == body.get("id")), None)

@@ -256,15 +256,6 @@ def is_primary_lead(user) -> bool:
     return bool(primary_led_group_ids(user))
 
 
-def is_primary_lead_of(user, group_id) -> bool:
-    """The one lead of *this* group who decides who else leads it.
-
-    Every other question about reach asks `is_lead_of`, which this implies.
-    Only the views that appoint and unmake leads ask for this.
-    """
-    return group_id is not None and group_id in primary_led_group_ids(user)
-
-
 class GroupPolicy(OpenPolicy):
     """Experiments belong to their owner, and are visible within a group."""
 

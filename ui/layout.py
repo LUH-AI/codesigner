@@ -121,6 +121,7 @@ def _read_tabs(raw, tab_names, by_key, arrangeable, problems, *, pinned=None, pr
     return tabs
 
 
+@lru_cache
 def read_default(path=None) -> dict:
     """The dashboard's default arrangement in *path*, checked; raises
     `LayoutFileError`.
@@ -137,50 +138,34 @@ def read_default(path=None) -> dict:
     return {"version": VERSION, "tabs": tabs}
 
 
-def read_data_default(path=None) -> dict:
-    """The Data Handling page's arrangement in *path* (its `[data]` table),
-    checked; raises `LayoutFileError`. `{section: [{"key", "w", "c"}]}`."""
+def _read_table(path, name, tab_keys, arrangeable, pinned=None) -> dict:
+    """The `[name]` table of the file at *path*: Data Handling panels on
+    *tab_keys*, checked; raises `LayoutFileError`."""
     path, raw = _read_file(path)
-    table = raw.get(DATA_TABLE)
+    table = raw.get(name)
     if not isinstance(table, dict):
-        raise LayoutFileError(f"{path}:\n  [{DATA_TABLE}] is missing or not a table")
+        raise LayoutFileError(f"{path}:\n  [{name}] is missing or not a table")
     problems = []
-    tabs = _read_tabs(table, [s.slug for s in SECTIONS], DATA_PANELS_BY_KEY, DATA_PANELS,
-                      problems, prefix=f"{DATA_TABLE}.")
+    tabs = _read_tabs(table, tab_keys, DATA_PANELS_BY_KEY, arrangeable, problems,
+                      pinned=pinned, prefix=f"{name}.")
     if problems:
         raise LayoutFileError(f"{path}:\n  " + "\n  ".join(problems))
     return tabs
 
 
-@lru_cache(maxsize=1)
-def _default():
-    return read_default()
+@lru_cache
+def read_data_default(path=None) -> dict:
+    """The Data Handling page's arrangement in *path* (its `[data]` table).
+    `{section: [{"key", "w", "c"}]}`."""
+    return _read_table(path, DATA_TABLE, [s.slug for s in SECTIONS], DATA_PANELS)
 
 
+@lru_cache
 def read_setup_default(path=None) -> list:
-    """A draft's setup Overview in *path* (its `[setup]` table), checked; raises
-    `LayoutFileError`. `[{"key", "w", "c"}]`: any Data Handling panel, as the
-    dashboard's Overview holds figures whose home is another tab."""
-    path, raw = _read_file(path)
-    table = raw.get(SETUP_TABLE)
-    if not isinstance(table, dict):
-        raise LayoutFileError(f"{path}:\n  [{SETUP_TABLE}] is missing or not a table")
-    problems = []
-    tabs = _read_tabs(table, [OVERVIEW], DATA_PANELS_BY_KEY, (), problems,
-                      pinned=OVERVIEW, prefix=f"{SETUP_TABLE}.")
-    if problems:
-        raise LayoutFileError(f"{path}:\n  " + "\n  ".join(problems))
-    return tabs[OVERVIEW]
-
-
-@lru_cache(maxsize=1)
-def _data_default():
-    return read_data_default()
-
-
-@lru_cache(maxsize=1)
-def _setup_default():
-    return read_setup_default()
+    """A draft's setup Overview in *path* (its `[setup]` table). `[{"key", "w",
+    "c"}]`: any Data Handling panel, as the dashboard's Overview holds figures
+    whose home is another tab."""
+    return _read_table(path, SETUP_TABLE, [OVERVIEW], (), pinned=OVERVIEW)[OVERVIEW]
 
 
 def data_tabs(exp, setup=False) -> list:
@@ -188,9 +173,9 @@ def data_tabs(exp, setup=False) -> list:
     dashboard's: each section with its slots, a slot being its panel, its width
     and its column. The site's arrangement, for every reader. With *setup*, a
     draft's: its Overview is the setup's own (`[setup]`)."""
-    arranged = dict(_data_default())
+    arranged = dict(read_data_default())
     if setup:
-        arranged[SECTIONS[0].slug] = _setup_default()
+        arranged[SECTIONS[0].slug] = read_setup_default()
     return [{"section": section,
              "slots": [{"figure": DATA_PANELS_BY_KEY[slot["key"]], "w": slot["w"],
                         "c": slot["c"]}
@@ -201,7 +186,7 @@ def data_tabs(exp, setup=False) -> list:
 
 def default_layout() -> dict:
     """The site's default arrangement: `ui/figure_layout.toml`."""
-    return copy.deepcopy(_default())
+    return copy.deepcopy(read_default())
 
 
 def check(app_configs=None, **kwargs):
@@ -223,7 +208,7 @@ def check(app_configs=None, **kwargs):
 
 def _from_default(tab, key):
     """*key*'s slot on *tab* in the default, if it has one there."""
-    return next((dict(s) for s in _default()["tabs"][tab] if s["key"] == key), None)
+    return next((dict(s) for s in read_default()["tabs"][tab] if s["key"] == key), None)
 
 
 def _width(figure, value, tab) -> int:
@@ -323,17 +308,12 @@ def _reader(user):
     return user if getattr(user, "is_authenticated", False) else None
 
 
-def site_default() -> dict:
-    """What a reader with no default of their own sees."""
-    return default_layout()
-
-
 def user_default(user) -> dict:
     """What an experiment *user* has not arranged opens on: their own default,
     or the site's."""
     from .models import DefaultFigureLayout
     row = DefaultFigureLayout.objects.filter(user=_reader(user)).first()
-    return normalize(row.layout) if row else site_default()
+    return normalize(row.layout) if row else default_layout()
 
 
 def layout_for(experiment, user) -> dict:
@@ -372,4 +352,4 @@ def reset_user_default(user) -> dict:
     """Forget *user*'s default, so the site's applies again; returns that."""
     from .models import DefaultFigureLayout
     DefaultFigureLayout.objects.filter(user=_reader(user)).delete()
-    return site_default()
+    return default_layout()
