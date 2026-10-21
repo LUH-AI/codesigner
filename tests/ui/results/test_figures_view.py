@@ -238,6 +238,7 @@ def test_parallel_coordinates_renders_one_dimension_per_hyperparameter_plus_scor
     cube's, so one precomputed plot per metric is enough."""
     html, exp = _detail(client)
 
+    assert exp.data.result is not None
     hp_count = len(next(iter(exp.data.result["configs"].values())))
 
     for m in exp.data.metric_names:
@@ -257,6 +258,7 @@ def test_partial_dependence_ships_a_picker_but_no_precomputed_data(client):
     client-side (see experiment_detail.html's refreshPartialDependence)."""
     html, exp = _detail(client)
     assert 'id="pdp-hp-select"' in html
+    assert exp.data.result is not None
     for h in next(iter(exp.data.result["configs"].values())):
         assert f'value="{h}"' in html
 

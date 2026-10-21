@@ -92,7 +92,9 @@ def test_going_over_budget_skips_every_game_with_the_reason(iris_splits, metrics
         # "still to gain" against numbers that were never computed.
         assert total == {"accuracy": 0.0, "f1": 0.0}
         for m in ("accuracy", "f1"):
-            assert "skipped" in warning[m] and "hyperparameters" in warning[m]
+            reason = warning[m]
+            assert reason is not None
+            assert "skipped" in reason and "hyperparameters" in reason
 
 
 def test_a_cancelled_run_skips_the_analytics_entirely():
@@ -108,8 +110,10 @@ def test_a_cancelled_run_skips_the_analytics_entirely():
 
     for game in opt.HP_GAMES:
         assert games[game][0] == {"accuracy": {}}
-        assert "cancelled" in games[game][1]["accuracy"]
-        assert "Resuming" in games[game][1]["accuracy"], "say how to get them back"
+        reason = games[game][1]["accuracy"]
+        assert reason is not None
+        assert "cancelled" in reason
+        assert "Resuming" in reason, "say how to get them back"
 
 
 def test_cancellation_is_reported_before_the_budget():
@@ -123,7 +127,9 @@ def test_cancellation_is_reported_before_the_budget():
         RandomForestModel().get_config_space(seed=0), [], ["accuracy"],
         seed=0, cancel_event=cancelled)
 
-    assert "cancelled" in games["tunability"][1]["accuracy"]
+    reason = games["tunability"][1]["accuracy"]
+    assert reason is not None
+    assert "cancelled" in reason
 
 
 def test_an_unset_cancel_event_computes_normally(iris_splits, metrics):
@@ -159,6 +165,7 @@ def test_the_run_service_applies_the_deployment_setting(settings):
     execute_run(run.id)
 
     exp.refresh_from_db()
+    assert exp.data.result is not None
     assert exp.data.result["data"], "trials are still stored"
     assert exp.data.result["hyperparameter_importance"] == {"accuracy": {}, "f1": {},
                                                       "precision": {},
@@ -178,6 +185,7 @@ def test_zero_in_the_setting_means_no_limit(settings):
     execute_run(run.id)
 
     exp.refresh_from_db()
+    assert exp.data.result is not None
     assert exp.data.result["hyperparameter_importance"]["accuracy"], "computed, not skipped"
 
 
@@ -195,7 +203,9 @@ def test_analytics_are_skipped_when_no_figure_will_show_them():
 
     for game in opt.HP_GAMES:
         assert games[game][0] == {"accuracy": {}}
-        assert "switched off" in games[game][1]["accuracy"]
+        reason = games[game][1]["accuracy"]
+        assert reason is not None
+        assert "switched off" in reason
 
 
 def test_wanting_them_is_the_default_for_a_direct_caller():
@@ -214,7 +224,9 @@ def test_cancellation_is_reported_before_nobody_wanting_them():
         RandomForestModel().get_config_space(seed=0), [], ["accuracy"],
         seed=0, cancel_event=cancelled)
 
-    assert "cancelled" in games["tunability"][1]["accuracy"]
+    reason = games["tunability"][1]["accuracy"]
+    assert reason is not None
+    assert "cancelled" in reason
 
 
 @pytest.mark.django_db
@@ -234,6 +246,7 @@ def test_the_run_service_reads_the_experiments_own_figure_settings():
     execute_run(create_run(exp, {"max_trials": 2}, "accuracy").id)
 
     exp.refresh_from_db()
+    assert exp.data.result is not None
     assert exp.data.result["data"], "the trials themselves are still stored"
     assert exp.data.result["hyperparameter_importance"]["accuracy"] == {}
     assert "switched off" in exp.data.result["hyperparameter_importance_warning"]["accuracy"]
@@ -256,4 +269,5 @@ def test_one_display_figure_left_on_is_enough_to_compute_them():
     execute_run(create_run(exp, {"max_trials": 2}, "accuracy").id)
 
     exp.refresh_from_db()
+    assert exp.data.result is not None
     assert exp.data.result["hyperparameter_importance"]["accuracy"], "computed, not skipped"

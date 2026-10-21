@@ -10,6 +10,7 @@ prior at, on a log-scaled hyperparameter as much as a linear one.
 
 import math
 import random
+from typing import cast
 
 import pytest
 from ConfigSpace import Categorical, ConfigurationSpace, Float, Integer
@@ -202,6 +203,7 @@ def test_the_mean_is_the_forests_own_prediction(space, trials):
     import numpy as np
 
     rf, _ = fit_surrogate(space, trials, "accuracy")
+    assert rf is not None
     rows = np.array([c.get_array() for c in space.sample_configuration(20)])
     mean, spread = _predict_with_spread(rf, rows)
 
@@ -254,6 +256,7 @@ def test_a_run_is_read_through_its_own_model(space, trials, strategy, expected):
         space, trials, "accuracy")
 
     assert warning is None
+    assert surrogate is not None
     assert type(surrogate._model).__name__ == expected
 
 
@@ -261,12 +264,15 @@ def test_the_forest_is_not_told_its_targets_are_already_logged(space, trials):
     """SMAC's own `get_model` hardcodes `log_y=True`, and a forest believing
     that exponentiates what it is given. Costs are negative under a metric with
     no upper bound, so refitting on them needs it off."""
+    from smac.model.random_forest import RandomForest
+
     from core.optimizers.smac_optimizer import SMACOptimizer
 
     surrogate, _ = SMACOptimizer(search_strategy="rf").refit_surrogate(
         space, trials, "accuracy")
 
-    assert surrogate._model._log_y is False
+    assert surrogate is not None
+    assert cast(RandomForest, surrogate._model)._log_y is False
 
 
 def test_predictions_come_back_in_the_metrics_units(space, trials):

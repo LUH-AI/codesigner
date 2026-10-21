@@ -90,6 +90,7 @@ def test_it_is_the_trees_disagreeing_and_not_the_prediction(optimizer):
         space, trials, "accuracy", "n_estimators", "alpha", n_points=8)
 
     rf, _ = fit_surrogate(space, trials, "accuracy", 0)
+    assert rf is not None
     from ConfigSpace import Configuration
 
     best = max(trials, key=lambda t: t.scores["accuracy"])

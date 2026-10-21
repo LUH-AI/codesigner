@@ -228,6 +228,7 @@ def test_a_prepared_experiment_runs_through_uv(fake_uv):
     launch, refusal = modelenv.resolve_runner(exp)
 
     assert refusal == ""
+    assert launch is not None
     assert launch[:3] == [str(fake_uv), "run", "--locked"]
     # uv is pointed at the runner, whose header declares the environment and
     # whose name the lock is derived from. The model file has no lock.

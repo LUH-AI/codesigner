@@ -109,6 +109,7 @@ def test_the_deferred_figures_come_back_too(client, rf):
 
     def fetched(pk):
         base = f"/experiments/{pk}/"
+        assert exp.data.result is not None
         hp = next(iter(exp.data.result["configs"].values()))
         first = list(hp.keys())[0]
         return [
@@ -200,6 +201,7 @@ def test_a_stated_prior_survives_a_round_trip(client):
     prior still reaches a real optimizer on the far side, where nothing has ever
     drawn it (`core.priors` rebuilds the density)."""
     exp = _ran_experiment(client)
+    assert exp.data.result is not None
     hp = next(iter(exp.data.result["configs"].values()))
     name = list(hp.keys())[0]
 
@@ -222,5 +224,6 @@ def test_a_stated_prior_survives_a_round_trip(client):
     stated = copy.data.priors[name]
     grid = [i / 256 for i in range(257)]
     values = density_from(stated["kind"], stated["params"], grid)
+    assert values is not None
 
     assert max(values, key=lambda point: point[1])[0] == pytest.approx(0.6, abs=1 / 256)

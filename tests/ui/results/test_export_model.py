@@ -42,7 +42,9 @@ def test_the_selected_trial_is_exported(client):
     resp = client.get(_url(exp, metric="accuracy", idx=3))
 
     assert resp.status_code == 200
-    trial = rebuild_result(exp).trials[3]
+    result = rebuild_result(exp)
+    assert result is not None
+    trial = result.trials[3]
     assert f'filename="random-forest-trial-{trial.trial}.py"' in resp["Content-Disposition"]
     assert _config(resp.content.decode()) == dict(trial.config)
 
@@ -56,7 +58,9 @@ def test_without_a_selection_the_best_trial_is_exported(client):
     resp = client.get(_url(exp))
 
     assert resp.status_code == 200
-    assert _config(resp.content.decode()) == dict(rebuild_result(exp).trials[8].config)
+    result = rebuild_result(exp)
+    assert result is not None
+    assert _config(resp.content.decode()) == dict(result.trials[8].config)
 
 
 @pytest.mark.parametrize("params", [{"metric": "nope", "idx": 0},

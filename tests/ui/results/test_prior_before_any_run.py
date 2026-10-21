@@ -39,7 +39,9 @@ def _page(client, exp):
 def _hp(exp):
     from experiments.services.snapshot import config_space_for, rebuild_experiment
 
-    return list(config_space_for(rebuild_experiment(exp)).keys())[0]
+    space = config_space_for(rebuild_experiment(exp))
+    assert space is not None
+    return list(space.keys())[0]
 
 
 # ── the page ─────────────────────────────────────────────────────────────────

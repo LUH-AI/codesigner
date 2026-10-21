@@ -8,6 +8,7 @@ has a listing date.
 """
 
 from pathlib import Path
+from typing import cast
 
 import numpy as np
 import pandas as pd
@@ -61,7 +62,7 @@ def test_loading_in_order_sorts_by_the_column_and_leaves_out_unplaced_rows(tmp_p
     date is left out. How: a copy of the fixture with its rows reversed and
     two dates blanked, loaded in order of `listed`."""
     frame = pd.read_csv(FLATS).iloc[::-1]
-    frame.iloc[[0, 5], frame.columns.get_loc("listed")] = None
+    frame.iloc[[0, 5], cast(int, frame.columns.get_loc("listed"))] = None
     shuffled = tmp_path / "shuffled.csv"
     frame.to_csv(shuffled, index=False)
 

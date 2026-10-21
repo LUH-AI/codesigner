@@ -11,6 +11,7 @@ actually load use the tag.
 """
 
 import re
+from typing import cast
 
 from django.template import Context, Template
 from django.urls import reverse
@@ -33,7 +34,7 @@ def test_a_static_url_carries_the_files_modification_time():
 
     assert stamp, url
     assert url.startswith("/static/ui/app.css?v=")
-    assert int(stamp.group(1)) == int(Path(finders.find("ui/app.css")).stat().st_mtime)
+    assert int(stamp.group(1)) == int(Path(cast(str, finders.find("ui/app.css"))).stat().st_mtime)
 
 
 def test_editing_the_file_changes_the_url(tmp_path, settings):

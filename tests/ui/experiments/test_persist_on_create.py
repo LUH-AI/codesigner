@@ -38,7 +38,9 @@ def test_creating_persists_the_experiment(client):
 
     assert resp.status_code == 302
     assert exp.data.demo_dataset == "iris"
-    assert exp.data.dataset_path().resolve() == (DATASETS_DIR / "iris.csv").resolve()
+    path = exp.data.dataset_path()
+    assert path is not None
+    assert path.resolve() == (DATASETS_DIR / "iris.csv").resolve()
     assert exp.data.result is None
     assert client.get(reverse("ui:experiment_detail", args=[exp.pk])).status_code == 200
 

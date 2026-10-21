@@ -5,9 +5,12 @@ ladder (HyperSHAP → RandomForest surrogate → uniform) returning
 (importance_dict, warning_or_None).
 """
 
+from typing import cast
 from unittest.mock import patch
 
 import pytest
+from ConfigSpace import CategoricalHyperparameter
+from ConfigSpace.hyperparameters import NumericalHyperparameter
 
 from core.models import RandomForestModel
 from core.optimizers import RandomOptimizer, TrialResult
@@ -139,6 +142,7 @@ def test_fit_surrogate_returns_a_usable_regressor(iris_splits, metrics):
     trials = _trials(iris_splits, metrics)
     rf, warning = fit_surrogate(cs, trials, "accuracy", seed=0)
     assert warning is None
+    assert rf is not None
     assert len(rf.feature_importances_) == len(cs.keys())
     sample = trials[0].config
     from ConfigSpace import Configuration
@@ -404,7 +408,7 @@ def test_partial_dependence_categorical_hp_grid_is_its_choices(iris_splits, metr
     grid, ice_lines, pdp, warning = RandomOptimizer().compute_partial_dependence(
         cs, trials, "accuracy", "kernel", seed=0)
     assert warning is None
-    assert grid == list(cs["kernel"].choices)
+    assert grid == list(cast(CategoricalHyperparameter, cs["kernel"]).choices)
 
 
 def test_partial_dependence_log_hp_grid_is_spaced_on_the_log_scale():
@@ -446,7 +450,7 @@ def test_partial_dependence_linear_hp_grid_is_unchanged():
 
     cs = RandomForestModel().get_config_space(seed=0)
     for name in cs.keys():
-        hp = cs[name]
+        hp = cast(NumericalHyperparameter, cs[name])
         native = np.linspace(hp.lower, hp.upper, 20)
         expected = (sorted({int(round(v)) for v in native})
                     if type(hp).__name__ == "UniformIntegerHyperparameter"
@@ -466,7 +470,7 @@ def test_partial_dependence_ice_lines_and_pdp_share_the_grids_shape(iris_splits,
     assert all(len(row) == len(grid) for row in ice_lines)
     assert len(pdp) == len(grid)
     for i in range(len(grid)):
-        column = [row[i] for row in ice_lines]
+        column = [cast(float, row[i]) for row in ice_lines]
         assert pdp[i] == sum(column) / len(column)
 
 
@@ -509,7 +513,7 @@ def test_partial_dependence_cap_bounds_the_work_not_just_the_picture():
     assert warning is None
     assert len(ice) == 2, "first and last only"
     for i in range(len(grid)):
-        assert pdp[i] == pytest.approx((ice[0][i] + ice[1][i]) / 2)
+        assert pdp[i] == pytest.approx((cast(float, ice[0][i]) + cast(float, ice[1][i])) / 2)
 
 
 def test_partial_dependence_cap_above_the_trial_count_changes_nothing():
@@ -548,6 +552,7 @@ def test_partial_dependence_batching_matches_predicting_one_at_a_time(iris_split
     assert warning is None
 
     rf, _ = fit_surrogate(cs, trials, "accuracy", 0)
+    assert rf is not None
     expected = []
     for t in trials:
         row = []

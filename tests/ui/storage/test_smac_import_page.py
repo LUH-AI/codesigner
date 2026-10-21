@@ -74,6 +74,7 @@ def test_uploading_a_run_creates_an_experiment(client):
     assert response["Location"] == reverse("ui:experiment_detail", args=[exp.pk])
     assert exp.name == "demo-run"
     assert exp.data.metric_names == [COST]
+    assert exp.data.result is not None
     assert len(exp.data.result["data"]) == 25
 
 
@@ -132,6 +133,7 @@ def test_every_trial_based_figure_draws():
     from experiments.services.snapshot import config_space_for, rebuild_experiment
 
     built = rebuild_experiment(_imported())
+    assert built is not None
     space = config_space_for(built)
     assert space is not None
 
@@ -159,6 +161,7 @@ def test_the_analytics_can_be_computed_afterwards(client):
     everything HyperSHAP needs — no dataset, no model.
     """
     exp = _imported()
+    assert exp.data.result is not None
     assert not exp.data.result.get("hyperparameter_importance")
 
     client.post(reverse("ui:experiment_compute_analytics", args=[exp.pk]))
@@ -180,6 +183,7 @@ def test_the_explanation_is_oriented_to_the_cost():
     from ui.views.analytics import _local_ablation_data
 
     built = rebuild_experiment(_imported())
+    assert built is not None
     best = built["result"].best_index(COST)
 
     _figure, warning, effects = _local_ablation_data(built, COST, best)

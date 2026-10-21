@@ -121,8 +121,9 @@ def test_every_metrics_target_is_on_the_page(client):
     exp = _experiment(_result(accuracy=0.9667, f1=0.5))
 
     _, body = _field(client, exp)
-    targets = json.loads(
-        re.search(r'id="incumbent-targets"[^>]*>(.*?)</script>', body, re.S).group(1))
+    found = re.search(r'id="incumbent-targets"[^>]*>(.*?)</script>', body, re.S)
+    assert found is not None
+    targets = json.loads(found.group(1))
 
     assert targets == {"accuracy": "0.9667", "f1": "0.5"}
 
@@ -186,9 +187,9 @@ def test_an_unbounded_metric_accepts_a_negative_target():
     """
     from unittest.mock import patch
 
-    from core.metrics import Metric
+    from core.metrics import Metric, _unscoreable
 
-    cost = Metric(name="smac:cost", fn=None, higher_is_better=False,
+    cost = Metric(name="smac:cost", fn=_unscoreable, higher_is_better=False,
                   bounds=(None, None))
     with patch("ui.views.runs.metric_for", return_value=cost):
         stopping = _posted("smac:cost", target_score="-12.5")

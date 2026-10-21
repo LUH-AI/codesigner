@@ -217,5 +217,6 @@ def test_an_experiment_keeps_its_own_beginning_across_a_file():
     snapshot["name"] = "copy"
     copy = adapter.experiment_from_snapshot(snapshot)
 
+    assert exp.data.created_at is not None
     assert snapshot["began_at"] == exp.data.created_at.isoformat()
     assert copy.data.created_at == exp.data.created_at

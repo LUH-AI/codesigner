@@ -12,9 +12,12 @@ drew. The same assertions are made against `accuracy` to pin that nothing
 changed for a metric that always worked.
 """
 
+from typing import Any
+
+import plotly.graph_objects as go
 import pytest
 
-from core.metrics import METRICS, Metric, error_range, to_error
+from core.metrics import METRICS, Metric, _unscoreable, error_range, to_error
 from ui.figures.plots import (
     configuration_projection_plot, parallel_coordinates_plot,
     performance_over_time_plot,
@@ -23,6 +26,12 @@ from ui.figures.plots import (
 #: Costs for four trials. The best is the smallest, and it is not the first —
 #: so an incumbent line that steps the wrong way is visibly wrong.
 COSTS = [0.8, 0.5, 0.9, 0.2]
+
+
+def _drawn(fig: go.Figure | None) -> Any:
+    """The figure a builder drew, for a test that expects it to draw one."""
+    assert fig is not None
+    return fig
 
 
 def _result(metric_name, scores, *, declared=None):
@@ -71,7 +80,7 @@ def test_a_cost_is_already_its_own_error():
     A metric where lower wins is a distance from perfect already; subtracting
     it from 1.0 would invent a different quantity and call it the same thing.
     """
-    cost = Metric(name="c", fn=None, higher_is_better=False, bounds=(None, None))
+    cost = Metric(name="c", fn=_unscoreable, higher_is_better=False, bounds=(None, None))
 
     assert to_error(cost, 0.8) == 0.8
     assert to_error(METRICS["accuracy"], 0.8) == pytest.approx(0.2)
@@ -79,7 +88,7 @@ def test_a_cost_is_already_its_own_error():
 
 def test_an_unbounded_metric_has_no_error_range():
     """Nothing to pin an axis to, so the absolute toggle has nothing to offer."""
-    unbounded = Metric(name="c", fn=None, higher_is_better=False,
+    unbounded = Metric(name="c", fn=_unscoreable, higher_is_better=False,
                        bounds=(None, None))
 
     assert error_range(unbounded) is None
@@ -90,7 +99,7 @@ def test_an_unbounded_metric_has_no_error_range():
 
 def test_the_incumbent_line_steps_down_for_a_cost():
     """The running best falls, and only at the two trials that improved on it."""
-    fig = performance_over_time_plot(_a_cost_result(), "smac:cost")
+    fig = _drawn(performance_over_time_plot(_a_cost_result(), "smac:cost"))
 
     incumbent = next(t for t in fig.data if t.name == "Incumbent")
     assert list(incumbent.y) == [0.8, 0.5, 0.5, 0.2]
@@ -101,7 +110,7 @@ def test_the_incumbent_line_steps_down_for_a_cost():
 
 def test_the_incumbent_line_still_steps_up_for_an_accuracy():
     """The unchanged case, pinned so the fix cannot invert it."""
-    fig = performance_over_time_plot(_an_accuracy_result(), "accuracy")
+    fig = _drawn(performance_over_time_plot(_an_accuracy_result(), "accuracy"))
 
     incumbent = next(t for t in fig.data if t.name == "Incumbent")
     assert list(incumbent.y) == [0.2, 0.5, 0.5, 0.8]
@@ -109,14 +118,14 @@ def test_the_incumbent_line_still_steps_up_for_an_accuracy():
 
 def test_the_error_view_plots_a_cost_unchanged():
     """A cost is an error, so the error view draws the costs themselves."""
-    fig = performance_over_time_plot(_a_cost_result(), "smac:cost", y_axis="error")
+    fig = _drawn(performance_over_time_plot(_a_cost_result(), "smac:cost", y_axis="error"))
 
     assert list(fig.data[0].y) == COSTS
 
 
 def test_the_error_view_still_inverts_an_accuracy():
-    fig = performance_over_time_plot(_an_accuracy_result(), "accuracy",
-                                     y_axis="error")
+    fig = _drawn(performance_over_time_plot(_an_accuracy_result(), "accuracy",
+                                            y_axis="error"))
 
     assert list(fig.data[0].y) == pytest.approx([0.8, 0.5, 0.9, 0.2])
 
@@ -144,7 +153,7 @@ def test_the_projection_reverses_its_ramp_for_a_cost():
         ("smac:cost", _a_cost_result(), True),
         ("accuracy", _an_accuracy_result(), False),
     ):
-        fig = configuration_projection_plot(result, metric, "pca")
+        fig = _drawn(configuration_projection_plot(result, metric, "pca"))
         assert fig.data[0].marker.reversescale is reversed_, metric
 
 
@@ -154,7 +163,7 @@ def test_parallel_coordinates_draws_the_best_trial_last_for_a_cost():
     "Best" is the smallest cost here, which is the reverse of the sort that was
     correct when every metric was higher-is-better.
     """
-    fig = parallel_coordinates_plot(_a_cost_result(), "smac:cost")
+    fig = _drawn(parallel_coordinates_plot(_a_cost_result(), "smac:cost"))
 
     drawn = [t.name for t in fig.data if (t.name or "").startswith("Trial ")]
     assert drawn[-1] == "Trial 4"   # cost 0.2, the best
@@ -162,7 +171,7 @@ def test_parallel_coordinates_draws_the_best_trial_last_for_a_cost():
 
 
 def test_parallel_coordinates_still_draws_the_highest_accuracy_last():
-    fig = parallel_coordinates_plot(_an_accuracy_result(), "accuracy")
+    fig = _drawn(parallel_coordinates_plot(_an_accuracy_result(), "accuracy"))
 
     drawn = [t.name for t in fig.data if (t.name or "").startswith("Trial ")]
     assert drawn[-1] == "Trial 4"   # accuracy 0.8, the best

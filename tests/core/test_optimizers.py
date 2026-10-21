@@ -51,6 +51,7 @@ def test_random_search_resume_continues_numbering(iris_splits, metrics):
                     n_trials=2, previous=first)
 
     assert [t.trial for t in combined.trials] == [1, 2, 3, 4, 5]
+    assert combined.best_score is not None and first.best_score is not None
     assert combined.best_score >= first.best_score
     keys = [tuple(sorted(t.config.items())) for t in combined.trials]
     assert len(keys) == len(set(keys))
@@ -129,6 +130,7 @@ def test_fake_optimizer_is_instant_and_honours_contract(metrics, tiny_splits):
         previous_result=result, seed=1,
     )
     assert [t.trial for t in resumed.trials] == list(range(1, 16))
+    assert resumed.best_score is not None and result.best_score is not None
     assert resumed.best_score >= result.best_score
 
     cancelled = FakeOptimizer().optimize(
@@ -159,6 +161,7 @@ def test_smac_runs_and_resumes(iris_splits, metrics):
     combined = _run(SMACOptimizer(), RandomForestModel(), iris_splits, metrics,
                     n_trials=2, previous=first)
     assert [t.trial for t in combined.trials] == [1, 2, 3, 4, 5]
+    assert combined.best_score is not None and first.best_score is not None
     assert combined.best_score >= first.best_score
 
 

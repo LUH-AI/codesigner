@@ -10,6 +10,7 @@ when one is what it optimizes. Runs execute inline in tests (see
 
 import numpy as np
 import pytest
+from ConfigSpace import ConfigurationSpace
 from django.core.files.uploadedfile import SimpleUploadedFile
 from django.urls import reverse
 
@@ -48,6 +49,7 @@ def test_a_model_with_probabilities_is_scored_on_them(client):
                 {"max_trials": 3, "optimize_metric": "roc_auc"})
     exp.refresh_from_db()
     result = rebuild_result(exp)
+    assert result is not None
 
     assert len(result.trials) == 3 and not any(t.failed for t in result.trials)
     # 0.5 is allowed: a configuration whose leaves need more rows than a fold
@@ -100,11 +102,11 @@ def test_a_regression_experiment_has_no_class_probabilities(client):
 class _LabelsOnly(BaseModel):
     name = "Labels only"
 
-    def get_config_space(self, seed: int = 0):
-        return None
+    def get_config_space(self, seed: int = 0) -> ConfigurationSpace:
+        return ConfigurationSpace()
 
     def fit_predict(self, config, X_train, y_train, X_val, seed=0):
-        return np.asarray(y_train)[: len(X_val)]
+        return np.asarray(y_train)[: len(X_val)].tolist()
 
 
 def test_a_run_leaves_out_what_its_model_cannot_score():

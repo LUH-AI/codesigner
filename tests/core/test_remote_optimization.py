@@ -67,7 +67,7 @@ def test_random_search_optimizes_a_model_in_another_process(remote_model, iris_s
     assert len(result.trials) == 3
     assert all(t.run_info["status"] == STATUS_SUCCESS for t in result.trials)
     # iris is easy; a real classifier should be well above chance
-    assert result.best_score > 0.5
+    assert result.best_score is not None and result.best_score > 0.5
     assert all(t.duration >= 0.0 for t in result.trials)
 
 

@@ -113,6 +113,7 @@ def test_execute_run_resumes_from_previous_result():
     execute_run(create_run(exp, {"max_trials": 2}, "accuracy").id)
 
     exp.refresh_from_db()
+    assert exp.data.result is not None
     trials = exp.data.result["data"]
     assert [t["config_id"] for t in trials] == [1, 2, 3, 4, 5]
 

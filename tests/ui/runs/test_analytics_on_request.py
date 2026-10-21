@@ -155,6 +155,7 @@ def test_asking_fills_the_games_in_on_the_stored_result(client, cancelled_experi
 
     assert resp.status_code == 302
     after = Experiment.objects.get(pk=cancelled_experiment.pk).data.result
+    assert after is not None
     assert any(after["hyperparameter_importance"].values())
     for game_field in ("hyperparameter_sensitivity", "hyperparameter_mistunability"):
         assert any(after[game_field].values()), game_field
@@ -168,7 +169,9 @@ def test_asking_keeps_every_trial(client, cancelled_experiment):
 
     before = cancelled_experiment.data.result["data"]
     client.post(reverse("ui:experiment_compute_analytics", args=[cancelled_experiment.pk]))
-    after = Experiment.objects.get(pk=cancelled_experiment.pk).data.result["data"]
+    stored = Experiment.objects.get(pk=cancelled_experiment.pk).data.result
+    assert stored is not None
+    after = stored["data"]
 
     assert len(after) == len(before)
     assert [e["scores"] for e in after] == [e["scores"] for e in before]

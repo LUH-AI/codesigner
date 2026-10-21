@@ -11,9 +11,11 @@ import json
 import sys
 import textwrap
 from pathlib import Path
+from typing import cast
 
 import numpy as np
 import pytest
+from ConfigSpace.hyperparameters import NumericalHyperparameter
 
 from core.metrics import metrics_for, resolve
 from core.modelhost import (
@@ -149,7 +151,8 @@ def test_the_config_space_is_rebuilt_as_a_live_object(tmp_path):
     with _session(_model(tmp_path, "return ['a'] * len(X_val)")) as remote:
         space = remote.get_config_space(seed=0)
         assert list(space.keys()) == ["k"]
-        assert (space["k"].lower, space["k"].upper) == (1, 5)
+        k = cast(NumericalHyperparameter, space["k"])
+        assert (k.lower, k.upper) == (1, 5)
 
 
 def test_the_rebuilt_space_samples_reproducibly(tmp_path):
@@ -292,6 +295,7 @@ def test_the_split_directory_is_removed_after_the_session(tmp_path):
     session = _session(_model(tmp_path, "return ['a', 'b']"))
     with session as remote:
         arrays_dir = session._arrays_dir
+        assert arrays_dir is not None
         assert (arrays_dir / "X.npy").is_file()
         assert (arrays_dir / "fold_0_train.npy").is_file()
         assert arrays_dir.stat().st_mode & 0o777 == 0o700

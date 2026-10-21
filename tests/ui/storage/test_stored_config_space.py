@@ -12,8 +12,10 @@ answer nothing and now answers from the file.
 """
 
 import json
+from typing import cast
 
 import pytest
+from ConfigSpace import CategoricalHyperparameter, UniformFloatHyperparameter
 
 from core import io
 
@@ -36,10 +38,11 @@ def _a_space():
 def test_a_space_decodes_back_to_the_same_hyperparameters():
     """`config_space_from_serialized` is the inverse of `to_serialized_dict`."""
     decoded = io.config_space_from_serialized(_a_space(), seed=7)
+    assert decoded is not None
 
     assert list(decoded.keys()) == ["C", "depth", "kernel"]
-    assert decoded["C"].log is True
-    assert list(decoded["kernel"].choices) == ["rbf", "linear"]
+    assert cast(UniformFloatHyperparameter, decoded["C"]).log is True
+    assert list(cast(CategoricalHyperparameter, decoded["kernel"]).choices) == ["rbf", "linear"]
 
 
 def test_decoding_does_not_consume_the_stored_dict():
@@ -53,6 +56,7 @@ def test_decoding_does_not_consume_the_stored_dict():
 
     first = io.config_space_from_serialized(stored)
     second = io.config_space_from_serialized(stored)
+    assert first is not None and second is not None
 
     assert list(first.keys()) == list(second.keys())
     assert stored["hyperparameters"][0]["type"] == "uniform_float"
@@ -118,7 +122,9 @@ def test_the_page_prefers_the_stored_space_over_the_model(models):
     model = next(iter(models.values()))
     built = {"model": model, "seed": 0, "config_space": _a_space()}
 
-    assert list(config_space_for(built).keys()) == ["C", "depth", "kernel"]
+    space = config_space_for(built)
+    assert space is not None
+    assert list(space.keys()) == ["C", "depth", "kernel"]
 
 
 def test_the_page_falls_back_to_the_model(models):
@@ -145,7 +151,9 @@ def test_a_space_with_no_model_still_answers():
 
     built = {"model": None, "seed": 0, "config_space": _a_space()}
 
-    assert list(config_space_for(built).keys()) == ["C", "depth", "kernel"]
+    space = config_space_for(built)
+    assert space is not None
+    assert list(space.keys()) == ["C", "depth", "kernel"]
 
 
 def test_nothing_to_ask_is_still_None():

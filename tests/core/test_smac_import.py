@@ -68,6 +68,7 @@ def test_the_config_space_is_hoisted_rather_than_only_embedded():
     snapshot = snapshot_from_smac(_files())
 
     space = io.config_space_from_serialized(snapshot["space"], seed=0)
+    assert space is not None
     assert sorted(space.keys()) == ["depth", "kind", "rate"]
     assert "configspace.json" in snapshot["result"]["optimizer_state"]
 

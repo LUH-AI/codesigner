@@ -40,6 +40,7 @@ def test_reads_name_class_and_dependencies():
     info, err = _inspect(HEADER + MODEL)
 
     assert err is None
+    assert info is not None
     assert info.name == "My Model"
     assert info.class_name == "MyModel"
     assert info.dependencies == ["scikit-learn"]
@@ -48,6 +49,7 @@ def test_reads_name_class_and_dependencies():
 
 def test_reads_requires_python():
     info, _ = _inspect('# /// script\n# requires-python = ">=3.11"\n# ///\n' + MODEL)
+    assert info is not None
     assert info.requires_python == ">=3.11"
 
 
@@ -64,6 +66,7 @@ class Plain(BaseModel):
     def fit_predict(self, c, a, b, d, seed=0): return []
 ''')
     assert err is None
+    assert info is not None
     assert info.dependencies == []
     assert info.has_header is False
 
@@ -83,6 +86,7 @@ class M({base}):
     def fit_predict(self, c, a, b, d, seed=0): return []
 ''')
     assert err is None, err
+    assert info is not None
     assert info.class_name == "M"
 
 
@@ -91,16 +95,19 @@ class M({base}):
 def test_an_oversized_file_is_refused_before_parsing():
     """Parsing is real work and this runs in a web request."""
     _, err = inspect_model_source(b"x = 1\n" * MAX_SOURCE_BYTES)
+    assert err is not None
     assert "too large" in err
 
 
 def test_non_utf8_is_refused():
     _, err = inspect_model_source(b"\xff\xfe\x00bad")
+    assert err is not None
     assert "UTF-8" in err
 
 
 def test_a_syntax_error_names_the_line():
     _, err = _inspect("class Broken(BaseModel)\n    pass\n")
+    assert err is not None
     assert "not valid Python" in err
     assert "line 1" in err
 
@@ -122,17 +129,20 @@ class M(BaseModel):
     def get_config_space(self, seed=0): return None
     def fit_predict(self, c, a, b, d, seed=0): return []
 ''')
+    assert err is not None
     assert "literal name" in err
     assert "My Model" in err          # the message shows the fix
 
 
 def test_a_malformed_header_is_refused():
     _, err = _inspect('# /// script\n# dependencies = [oops\n# ///\n' + MODEL)
+    assert err is not None
     assert "not valid TOML" in err
 
 
 def test_dependencies_must_be_strings():
     _, err = _inspect('# /// script\n# dependencies = [1, 2]\n# ///\n' + MODEL)
+    assert err is not None
     assert "list of strings" in err
 
 
@@ -140,11 +150,13 @@ def test_listing_the_sdk_is_refused_with_a_reason():
     """It is installed into every model environment already, so listing it gets
     a confusing 'no such package' from the index instead."""
     _, err = _inspect('# /// script\n# dependencies = ["codesigner-model"]\n# ///\n' + MODEL)
+    assert err is not None
     assert "provided automatically" in err
 
 
 def test_two_headers_are_refused():
     _, err = _inspect(HEADER + HEADER + MODEL)
+    assert err is not None
     assert "more than one" in err
 
 
@@ -161,6 +173,7 @@ class M(BaseModel):
     def get_config_space(self, seed=0): return None
     def fit_predict(self, c, a, b, d, seed=0): return []
 ''')
+    assert err is not None
     assert "imports `sklearn`" in err
     assert STARTER_HEADER in err       # and shows exactly what to paste
 
@@ -172,10 +185,12 @@ def test_a_declared_dependency_is_never_second_guessed():
     info, err = _inspect('# /// script\n# dependencies = ["scikit-learn"]\n# ///\n'
                          'import sklearn\nimport cv2\n' + MODEL)
     assert err is None
+    assert info is not None
     assert info.dependencies == ["scikit-learn"]
 
 
 def test_the_sdk_import_is_not_treated_as_undeclared():
     info, err = _inspect(MODEL)
     assert err is None
+    assert info is not None
     assert info.has_header is False

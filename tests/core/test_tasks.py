@@ -148,6 +148,8 @@ def test_an_uploaded_model_says_what_it_supports():
         base.format(line="    tasks = ('classification', 'regression')\n").encode())
     _, error = inspect_model_source(base.format(line="    tasks = ('ranking',)\n").encode())
 
+    assert said_nothing is not None and both is not None
     assert said_nothing.tasks == ("classification",)
     assert both.tasks == ("classification", "regression")
+    assert error is not None
     assert "ranking" in error

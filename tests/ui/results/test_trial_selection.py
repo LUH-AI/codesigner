@@ -108,6 +108,7 @@ def test_every_trials_row_carries_the_trial_it_stands_for(client):
     body = _trials_body(html)
 
     indices = [int(m) for m in re.findall(r'data-trial-idx="(\d+)"', body)]
+    assert exp.data.result is not None
     assert indices == list(range(len(exp.data.result["data"])))
 
 

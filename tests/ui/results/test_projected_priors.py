@@ -10,6 +10,7 @@ sample and a PLS projection to draw in.
 import json
 
 import pytest
+from ConfigSpace.hyperparameters import NumericalHyperparameter
 from django.urls import reverse
 
 from core import io
@@ -31,6 +32,7 @@ def _sample(exp):
     from ui.views.priors import _cube_sample
 
     _built, config_space, sample = _cube_sample(exp, "accuracy")
+    assert config_space is not None and sample is not None
     return config_space, sample
 
 
@@ -114,6 +116,7 @@ def test_stating_editing_and_withdrawing_one(client):
                     "decay": {"shape": "linear", "beta_ratio": 0.2}}).json()
     exp.refresh_from_db()
     record = exp.data.projected_priors[0]
+    assert exp.data.result is not None
     assert record["id"] and record["at_trial"] == len(exp.data.result["data"])
     assert record["decay"]["shape"] == "linear"
     assert len(stated["stated"]) == 1 and stated["weights"]
@@ -165,7 +168,9 @@ def test_a_run_and_the_file_keep_them(client):
 
     assert run.projected_priors == exp.data.projected_priors
     assert copy.data.projected_priors == exp.data.projected_priors
-    assert copy.runs.order_by("-id").first().projected_priors == exp.data.projected_priors
+    latest = copy.runs.order_by("-id").first()
+    assert latest is not None
+    assert latest.projected_priors == exp.data.projected_priors
 
 
 def test_the_timeline_says_where_it_was_drawn(client):
@@ -182,9 +187,9 @@ def test_only_a_reader_who_may_edit_can_state_one(client, settings):
     """Previewing is looking; stating changes what the next run searches."""
     from ui.views import priors
 
-    assert priors.projected_prior_preview.experiment_action == "view"
-    assert priors.state_projected_prior.experiment_action == "edit"
-    assert priors.withdraw_projected_prior.experiment_action == "edit"
+    assert getattr(priors.projected_prior_preview, "experiment_action") == "view"
+    assert getattr(priors.state_projected_prior, "experiment_action") == "edit"
+    assert getattr(priors.withdraw_projected_prior, "experiment_action") == "edit"
 
 
 def test_what_runs_next_is_asked_under_it(client):
@@ -228,7 +233,9 @@ def test_a_point_outside_the_search_space_is_refused_and_named(client):
     """
     exp = _experiment()
     config_space, _sample_ = _sample(exp)
-    upper = config_space["max_depth"].upper
+    max_depth = config_space["max_depth"]
+    assert isinstance(max_depth, NumericalHyperparameter)
+    upper = max_depth.upper
     axes = _post(client, exp, "projected_prior_preview", {"metric": "accuracy", "draft": {
         "view": "axes", "hyperparameters": ["max_depth", "max_features"],
         "points": [[10, 0.5], [upper + 20, 0.5]]}})

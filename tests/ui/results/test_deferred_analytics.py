@@ -96,6 +96,7 @@ def test_the_endpoints_still_work_when_autocompute_is_off(client):
     answer — the Compute button hits the same endpoint."""
     exp = _experiment({"autocompute_partial_dependence": False,
                        "autocompute_local_ablation": False})
+    assert exp.data.result is not None
     hp = next(iter(exp.data.result["configs"].values()))
     first_hp = list(hp.keys())[0]
 

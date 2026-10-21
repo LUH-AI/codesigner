@@ -13,7 +13,9 @@ does the same thing to a copy of a real experiment, for looking at.
 """
 
 import json
+from typing import Any
 
+import plotly.graph_objects as go
 import pytest
 from django.urls import reverse
 
@@ -26,6 +28,19 @@ from tests.conftest import FIXTURES_DIR
 TRACEBACK = 'Traceback (most recent call last):\n  File "m.py"\nValueError: no'
 
 
+def _drawn(fig: go.Figure | None) -> Any:
+    """The figure a builder drew, for a test that expects it to draw one."""
+    assert fig is not None
+    return fig
+
+
+def _rebuilt_result(exp):
+    """The stored run's result, through the same rebuild the page uses."""
+    built = adapter.rebuild_experiment(exp)
+    assert built is not None
+    return built["result"]
+
+
 @pytest.fixture
 def experiment():
     """An experiment whose trial at index 3 crashed and index 5 timed out.
@@ -36,6 +51,7 @@ def experiment():
     """
     exp = adapter.experiment_from_snapshot(
         io.parse((FIXTURES_DIR / "analytics.ihpo").read_bytes()))
+    assert exp.data.result is not None
     data = exp.data.result["data"]
     metrics = list(exp.data.metric_names)
 
@@ -201,6 +217,7 @@ def test_a_failure_survives_a_round_trip(client, experiment):
     body = client.post(reverse("ui:experiment_export", args=[experiment.pk]),
                        {"timestamps": "keep", "tracebacks": "keep"}).content
     reimported = adapter.experiment_from_snapshot(io.parse(body))
+    assert reimported.data.result is not None
     result = RandomOptimizer().deserialize_result(reimported.data.result)
 
     assert [i for i, t in enumerate(result.trials) if t.failed] == [3, 5]
@@ -281,7 +298,7 @@ def _ordinary_point_size():
 
     from tests.ui.results.test_failed_trials import _result
 
-    marker = configuration_cube_plot(_result(failed_at=(2,)), "accuracy").data[0].marker
+    marker = _drawn(configuration_cube_plot(_result(failed_at=(2,)), "accuracy")).data[0].marker
     return marker.size[0]
 
 
@@ -296,10 +313,9 @@ def test_the_projection_carries_failure_marks_at_all(client, experiment):
     """Every view of it. The server has to send them before anything can keep
     them, and this is the figure the marks were missing from."""
     from ui.figures.plots import configuration_cube_plot
-    from experiments.services.snapshot import rebuild_experiment
 
-    result = rebuild_experiment(experiment)["result"]
-    figure = configuration_cube_plot(result, "accuracy")
+    result = _rebuilt_result(experiment)
+    figure = _drawn(configuration_cube_plot(result, "accuracy"))
 
     symbols = list(figure.data[0].marker.symbol)
     assert [i for i, s in enumerate(symbols) if s != "circle"] == [3, 5]
@@ -354,7 +370,9 @@ def test_the_three_dimensional_cross_is_smaller_than_the_points_around_it():
     from ui.figures.plots import FAILURE_SIZE
 
     source = _script()
-    size = int(re.search(r"const FAILURE_SIZE_3D = (\d+);", source).group(1))
+    found = re.search(r"const FAILURE_SIZE_3D = (\d+);", source)
+    assert found is not None
+    size = int(found.group(1))
 
     assert size < _ordinary_point_size(), \
         "a failure should not be the largest thing on the plot"
@@ -500,10 +518,9 @@ def test_the_three_d_trace_the_page_builds_is_one_plotly_accepts(experiment):
     import plotly.graph_objects as go
 
     from ui.figures.plots import configuration_cube_plot
-    from experiments.services.snapshot import rebuild_experiment
 
-    result = rebuild_experiment(experiment)["result"]
-    marker = configuration_cube_plot(result, "accuracy").data[0].marker.to_plotly_json()
+    result = _rebuilt_result(experiment)
+    marker = _drawn(configuration_cube_plot(result, "accuracy")).data[0].marker.to_plotly_json()
     assert isinstance(marker["line"]["width"], (list, tuple)), "no failures to carry"
 
     # What applyCubeAxes does on the way into a scene.
@@ -519,10 +536,9 @@ def test_the_same_payload_is_rejected_without_that_transformation(experiment):
     import plotly.graph_objects as go
 
     from ui.figures.plots import configuration_cube_plot
-    from experiments.services.snapshot import rebuild_experiment
 
-    result = rebuild_experiment(experiment)["result"]
-    marker = configuration_cube_plot(result, "accuracy").data[0].marker.to_plotly_json()
+    result = _rebuilt_result(experiment)
+    marker = _drawn(configuration_cube_plot(result, "accuracy")).data[0].marker.to_plotly_json()
     points = list(range(len(result.trials)))
 
     with pytest.raises(ValueError):

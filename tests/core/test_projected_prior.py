@@ -8,6 +8,7 @@ core/projected_prior.py for the math these tests hold it to.
 
 import math
 from types import SimpleNamespace
+from typing import Any, List, cast
 
 import numpy as np
 import pytest
@@ -122,6 +123,7 @@ def test_one_point_in_hp_space_is_the_normals_each_axis_already_takes():
     for name, mu in zip(record["hyperparameters"], record["points"][0]):
         column = X[:, order.index(name)]
         density = priors_module.density_from("normal", {"mu": mu, "sigma": 0.15}, list(column))
+        assert density is not None
         expected = expected * np.array([y for _, y in density])
     assert w == pytest.approx(expected, rel=1e-9)
 
@@ -169,6 +171,7 @@ def test_each_categorical_choice_gets_its_own_weight_in_a_projection():
     cs = SVMModel().get_config_space(seed=0)
     trials, scores = _trials(cs)
     fitted, _ = fit(cs, trials, scores, "pca")
+    assert fitted is not None
     linear = fitted.linear_map()
     base = dict(cs.get_default_configuration())
     rows = []
@@ -295,9 +298,10 @@ def test_the_search_is_steered_by_a_projected_prior(iris_splits, metrics):
 
     def distance(**extra):
         asked = SMACOptimizer().slice_challengers(cs, result.trials, "accuracy", seed=0, **extra)
+        assert asked is not None
         X = np.array([c.get_array() if hasattr(c, "get_array") else
                       __import__("ConfigSpace").Configuration(cs, values=c).get_array()
-                      for c in asked[0]])[:, cols]
+                      for c in cast(List[Any], asked[0])])[:, cols]
         return np.linalg.norm(X - np.array(record["points"][0]), axis=1).mean()
 
     assert distance(projected_priors=[record]) < distance()

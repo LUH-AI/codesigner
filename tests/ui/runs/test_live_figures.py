@@ -154,7 +154,9 @@ def test_a_real_run_writes_its_trials_before_it_finishes(monkeypatch):
     assert seen[-1] > 0, (
         f"the page could see nothing until the run ended; counts were {seen}")
     assert seen == sorted(seen), "and what it sees only grows"
-    assert len(Experiment.objects.get(pk=exp.pk).data.result["data"]) == 6
+    final = Experiment.objects.get(pk=exp.pk).data.result
+    assert final is not None
+    assert len(final["data"]) == 6
 
 
 @pytest.mark.django_db
@@ -187,8 +189,9 @@ def test_what_a_run_writes_mid_flight_carries_no_analytics(monkeypatch):
         assert not any(stored.get("hyperparameter_importance", {}).values())
     # And the finished run does have them, so the emptiness above is the
     # partial write's doing and not the analytics being off.
-    assert any(Experiment.objects.get(pk=exp.pk)
-               .data.result["hyperparameter_importance"].values())
+    final = Experiment.objects.get(pk=exp.pk).data.result
+    assert final is not None
+    assert any(final["hyperparameter_importance"].values())
 
 
 def _make_experiment():

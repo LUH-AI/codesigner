@@ -11,6 +11,8 @@ sigma" rather than two that would have to agree forever. The browser used to
 evaluate it and send the curve along; that was the second implementation.
 """
 
+from typing import TYPE_CHECKING, cast
+
 import numpy as np
 import pytest
 from ConfigSpace import ConfigurationSpace, Integer
@@ -24,6 +26,9 @@ from core.optimizers import GridOptimizer, RandomOptimizer, SMACOptimizer
 weights = pytest.importorskip(
     "smac.acquisition.weight",
     reason="needs the SMAC branch carrying the acquisition weight layer")
+
+if TYPE_CHECKING:
+    from smac.acquisition.weight import PriorWeight, TabulatedPrior
 
 
 @pytest.fixture
@@ -56,6 +61,10 @@ def _facade(space, trials=40):
     return HPO(scenario, lambda config, seed=0: 0.0, overwrite=True), scenario, directory
 
 
+def _tabulated(smac) -> "TabulatedPrior":
+    return cast("TabulatedPrior", cast("PriorWeight", smac.priors["codesigner"]).prior)
+
+
 def test_a_stated_prior_reaches_the_search(space):
     smac, scenario, _tmp = _facade(space)
 
@@ -63,9 +72,9 @@ def test_a_stated_prior_reaches_the_search(space):
         smac, scenario, space, {"a": dict(_peaked(), decay="logarithmic")})
 
     assert "codesigner" in smac.priors
-    weight = smac.priors["codesigner"]
+    weight = cast("PriorWeight", smac.priors["codesigner"])
     assert type(weight.prior).__name__ == "TabulatedPrior"
-    assert weight.prior.meta["tabulated"] == {"a": _PRIOR_GRID}
+    assert cast("TabulatedPrior", weight.prior).meta["tabulated"] == {"a": _PRIOR_GRID}
 
 
 def test_every_hyperparameter_goes_in_as_one_prior(space):
@@ -79,7 +88,7 @@ def test_every_hyperparameter_goes_in_as_one_prior(space):
         {"a": _peaked(0.9), "b": _peaked(0.2)})
 
     assert list(smac.priors) == ["codesigner"]
-    assert smac.priors["codesigner"].prior.meta["tabulated"] == {
+    assert _tabulated(smac).meta["tabulated"] == {
         "a": _PRIOR_GRID, "b": _PRIOR_GRID}
 
 
@@ -147,7 +156,7 @@ def test_a_log_hyperparameter_needs_no_special_case(caplog):
         smac, scenario, cs, {"lr": _peaked(0.5)})
 
     assert "codesigner" in smac.priors
-    positions, densities = smac.priors["codesigner"].prior.tables["lr"]
+    positions, densities = _tabulated(smac).tables["lr"]
     # The peak sits mid-axis in vector space, which is the geometric middle of
     # the native range — 0.01 for [1e-4, 1].
     peak = positions[int(np.argmax(densities))]

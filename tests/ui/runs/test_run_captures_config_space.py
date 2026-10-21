@@ -61,6 +61,7 @@ def test_the_stored_space_reaches_the_figures():
 
     built = rebuild_experiment(exp)
 
+    assert built is not None
     assert built["config_space"] == exp.data.config_space
     assert config_space_for(built) is not None
 

@@ -105,14 +105,14 @@ def test_the_table_is_paged_with_its_page_size_on_the_page(client, experiment):
     every row is still in the document — paging hides rows, it does not drop
     them, so a sort still sees the whole table.
     """
-    from ui.figures import FIGURES_BY_KEY
+    from ui.figures.catalog import Trials
 
     page, _head, body = _parts(client, experiment)
     pager = page.split("data-trials-pager", 1)[1].split("</div>\n</section>", 1)[0]
 
     assert "data-page-select" in pager
     assert "data-page-prev" in pager and "data-page-next" in pager
-    assert f'value="{FIGURES_BY_KEY["trials"].page_size}"' in pager
+    assert f'value="{Trials.page_size}"' in pager
     assert pager.lstrip().startswith("hidden"), \
         "no pager until the script finds more rows than fit a page"
     assert body.count("<tr") == len(experiment.data.result["data"]), \

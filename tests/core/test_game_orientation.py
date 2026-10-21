@@ -14,12 +14,12 @@ in the metric's own units.
 
 import pytest
 
-from core.metrics import METRICS, Metric
+from core.metrics import METRICS, Metric, _unscoreable
 from core.optimizers.base import (
     TrialResult, _pair_trials_with_oriented_scores, _pair_trials_with_scores,
 )
 
-COST = Metric(name="smac:cost", fn=None, higher_is_better=False, bounds=(None, None))
+COST = Metric(name="smac:cost", fn=_unscoreable, higher_is_better=False, bounds=(None, None))
 
 
 @pytest.fixture
@@ -102,6 +102,7 @@ def test_the_partial_dependence_surrogate_is_not_turned(config_space):
     surrogate, warning = fit_surrogate(config_space, trials, "smac:cost", seed=0)
 
     assert warning is None
+    assert surrogate is not None
     # Predictions sit inside the raw cost range, not its negation.
     predictions = surrogate.predict([c.get_array() for c, _ in
                                      _pair_trials_with_scores(config_space, trials,

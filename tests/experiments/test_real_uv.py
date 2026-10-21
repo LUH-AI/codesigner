@@ -101,6 +101,7 @@ def test_the_environment_is_not_this_one(experiment, sdk_wheel):
 
     launch, refusal = modelenv.resolve_runner(experiment)
     assert refusal == ""
+    assert launch is not None
     assert launch[0].endswith("uv")
     assert sys.executable not in launch
     # The runner is what uv is pointed at, and the lock belongs to the runner —

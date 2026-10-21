@@ -50,6 +50,7 @@ def test_the_games_come_back_for_every_game_figure(client):
     """
     exp = _experiment()
     data = _figures(client, exp).json()
+    assert exp.data.result is not None
     hps = set(next(iter(exp.data.result["configs"].values())))
 
     assert set(data["plots"]) == GAME_FIGURES

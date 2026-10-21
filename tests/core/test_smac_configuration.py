@@ -105,7 +105,8 @@ def test_either_strategy_answers_when_asked_how_sure_it_is(strategy, models, met
     answers = []
     real = optimizer._confidence_nothing_better
     optimizer._confidence_nothing_better = (
-        lambda *a, _r=real: answers.append(_r(*a)) or answers[-1])
+        lambda smac, config_space, incumbent_config, _r=real:
+        answers.append(_r(smac, config_space, incumbent_config)) or answers[-1])
 
     optimizer.optimize(
         models["Random Forest"], X_train, y_train, X_val, y_val,
@@ -135,7 +136,8 @@ def test_the_gaussian_process_gives_an_answer_that_actually_varies(
         answers = []
         real = optimizer._confidence_nothing_better
         optimizer._confidence_nothing_better = (
-            lambda *a, _r=real, _s=answers: _s.append(_r(*a)) or _s[-1])
+            lambda smac, config_space, incumbent_config, _r=real, _s=answers:
+            _s.append(_r(smac, config_space, incumbent_config)) or _s[-1])
         optimizer.optimize(
             models["Random Forest"], X_train, y_train, X_val, y_val,
             metrics=metrics, primary_metric="accuracy", seed=0,

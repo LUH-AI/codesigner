@@ -175,6 +175,7 @@ def test_the_scale_toggle_is_declared_not_hardcoded():
     "absolute" depends on whether the score or the error axis is showing.
     """
     scale = FIGURES_BY_KEY["performance_over_time"].absolute_scale
+    assert scale is not None
     assert scale["trial-score"] == {"yaxis.range": [0, 1], "yaxis.autorange": False}
     assert scale["time-score"] == {"yaxis.range": [0, 1], "yaxis.autorange": False}
     # the error views' y-axis is log, so their range is in log10 units

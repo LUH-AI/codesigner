@@ -6,6 +6,8 @@ back on deserialize, so timing survives a save/load. Trials without run_info
 compatible with existing fixtures.
 """
 
+from typing import Any, Dict
+
 from core.optimizers.base import RUN_INFO_KEYS, OptimizationResult, TrialResult
 
 
@@ -36,8 +38,9 @@ def test_run_info_survives_round_trip(optimizers):
 
 def test_serialized_entry_carries_all_run_info_keys(optimizers):
     opt = optimizers["Random Search"]
-    ri = {k: (1 if k == "status" else (0.0 if k in ("time", "cpu_time", "starttime", "endtime") else None))
-          for k in RUN_INFO_KEYS}
+    ri: Dict[str, Any] = {
+        k: (1 if k == "status" else (0.0 if k in ("time", "cpu_time", "starttime", "endtime") else None))
+        for k in RUN_INFO_KEYS}
     ri["additional_info"] = {}
     d = opt.serialize_result(_result([_trial(1, ri)]))
     entry = d["data"][0]

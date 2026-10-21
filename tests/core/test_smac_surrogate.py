@@ -18,6 +18,7 @@ end-to-end runs are in `test_smac_configuration.py`.
 
 import tempfile
 from pathlib import Path
+from typing import cast
 
 import pytest
 from smac import Scenario
@@ -89,11 +90,12 @@ def test_an_unset_process_is_the_one_the_facade_would_have_built(space):
     `get_model` exposes only the model type and the kernel. With nothing set the
     result has to be indistinguishable from what it would have returned."""
     from smac import BlackBoxFacade
+    from smac.model.gaussian_process import GaussianProcess
 
     ours, _ = _built(space, search_strategy="gp")
     scenario = Scenario(space, name="ihpo", n_trials=40, deterministic=True, seed=0,
                         output_directory=Path(tempfile.mkdtemp()))
-    theirs = BlackBoxFacade.get_model(scenario)
+    theirs = cast(GaussianProcess, BlackBoxFacade.get_model(scenario))
 
     assert type(ours) is type(theirs)
     assert ours._n_restarts == theirs._n_restarts

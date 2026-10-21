@@ -8,12 +8,14 @@ not a task: the same series is also forecast as labels.
 
 import json
 import sys
+from typing import cast
 
 import numpy as np
 import pandas as pd
 import pytest
 
 from core import encoding, forecasting
+from core.forecasters import ReducedForecaster
 from core.metrics import METRICS, metrics_for, score_all
 from core.modelhost import launch_local, model_session
 from core.models import ETSModel, SeasonalNaiveModel
@@ -181,8 +183,9 @@ def test_a_reduced_classifier_is_told_its_lags_are_labels():
     splits, context, kinds = _airline(labels=True)
     model.feature_kinds, model.forecast = kinds, context
     train, _ = splits.folds[0]
-    fitted = model.fit({**dict(model.get_config_space().get_default_configuration()),
-                        "forecast:lags": 3}, splits.X[train], splits.y[train])
+    fitted = cast(ReducedForecaster, model.fit(
+        {**dict(model.get_config_space().get_default_configuration()), "forecast:lags": 3},
+        splits.X[train], splits.y[train]))
 
     assert fitted.processing_.kinds[:5] == ("numeric",) + ("categorical",) * 4
     assert fitted.processing_.plan["labels"] == "one_hot"

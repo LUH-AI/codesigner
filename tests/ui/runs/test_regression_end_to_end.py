@@ -84,6 +84,7 @@ def test_a_regression_run_finds_a_low_error_and_exports_it(client):
                 {"max_trials": 6, "optimize_metric": "rmse"})
 
     result = rebuild_result(exp)
+    assert result is not None
     assert len(result.trials) == 6
     rmses = [t.scores["rmse"] for t in result.trials]
     assert all(0 < r < 200 for r in rmses)

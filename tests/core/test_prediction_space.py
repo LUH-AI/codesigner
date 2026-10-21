@@ -7,9 +7,12 @@ the same fitted PCA and PLS the trials are drawn with. Each projection also
 carries the edge of where a legal configuration can land.
 """
 
+from typing import List, cast
+
 import numpy as np
 import pytest
 from ConfigSpace import Categorical, ConfigurationSpace, Float, Integer
+from ConfigSpace.hyperparameters import NumericalHyperparameter
 
 from core.models import RandomForestModel
 from core.optimizers import RandomOptimizer, TrialResult
@@ -60,6 +63,7 @@ def test_a_configuration_projects_where_a_trial_running_it_would(iris_splits, me
     fitted, warning = fit(cs, trials, [t.scores["accuracy"] for t in trials], method)
 
     assert warning is None
+    assert fitted is not None
     again = fitted.transform([t.config for t in trials])
     assert np.allclose(again, fitted.coordinates, atol=1e-9)
 
@@ -89,6 +93,7 @@ def test_every_legal_configuration_lands_inside_the_outline(iris_splits, metrics
         if k == 3:
             o = projection["outlines"]["3"]
             outline = np.column_stack([o["x"], o["y"], o["z"]])
+        assert outline is not None
         hull = ConvexHull(outline)
         offsets = points[:, :k] @ hull.equations[:, :k].T + hull.equations[:, k]
         assert offsets.max() <= 1e-6, f"{method} {k}D"
@@ -106,11 +111,13 @@ def test_the_outline_is_the_box_and_no_larger(iris_splits, metrics):
     cs = RandomForestModel().get_config_space(seed=0)
     trials = _trials(iris_splits, metrics)
     fitted, _w = fit(cs, trials, [t.scores["accuracy"] for t in trials], "pca")
+    assert fitted is not None
+    numeric = cast(List[NumericalHyperparameter], list(cs.values()))
     corners = [dict(zip([hp.name for hp in cs.values()], ends))
-               for ends in itertools.product(*[(hp.lower, hp.upper) for hp in cs.values()])]
+               for ends in itertools.product(*[(hp.lower, hp.upper) for hp in numeric])]
 
     positions = [row[0] for row in fitted.transform(corners)]
-    low, high = fitted.outline(1)
+    low, high = cast(List[float], fitted.outline(1))
     assert min(positions) == pytest.approx(low, abs=1e-9)
     assert max(positions) == pytest.approx(high, abs=1e-9)
 
@@ -180,6 +187,7 @@ def test_the_linear_map_is_the_projection(iris_splits, metrics, method):
     cs = RandomForestModel().get_config_space(seed=0)
     trials = _trials(iris_splits, metrics)
     fitted, _w = fit(cs, trials, [t.scores["accuracy"] for t in trials], method)
+    assert fitted is not None
     linear = fitted.linear_map()
 
     for trial, expected in zip(trials, fitted.coordinates):
@@ -189,6 +197,7 @@ def test_the_linear_map_is_the_projection(iris_splits, metrics, method):
             if column["value"] is not None:
                 raw = 1.0 if str(value) == column["value"] else 0.0
             else:
+                assert value is not None
                 raw = math.log10(value) if column["log"] else float(value)
             row.append((raw - column["mean"]) / column["spread"] if column["spread"] else 0.0)
         placed = np.array(linear["matrix"]) @ np.array(row) + np.array(linear["offset"])

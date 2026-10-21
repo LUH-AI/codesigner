@@ -68,6 +68,7 @@ def test_a_changed_metric_re_reads_every_trials_score():
     rebased, stale = rebase_history(_result(HISTORY), "f1")
 
     assert stale is True
+    assert rebased is not None
     assert [t.score for t in rebased.trials] == [0.1, 0.4, 0.8]
 
 
@@ -75,6 +76,7 @@ def test_the_incumbent_trajectory_is_recomputed_not_carried_over():
     """Under accuracy the incumbent is trial 1 throughout. Under f1 it has to
     climb 0.1 → 0.4 → 0.8, which is a different curve entirely."""
     rebased, _ = rebase_history(_result(HISTORY), "f1")
+    assert rebased is not None
 
     assert [t.incumbent_score for t in rebased.trials] == [0.1, 0.4, 0.8]
     assert [t.incumbent_config["x"] for t in rebased.trials] == [1, 2, 3]
@@ -82,6 +84,7 @@ def test_the_incumbent_trajectory_is_recomputed_not_carried_over():
 
 def test_the_best_follows_the_new_metric():
     rebased, _ = rebase_history(_result(HISTORY), "f1")
+    assert rebased is not None
 
     assert rebased.best_score == 0.8
     assert rebased.best_config == {"x": 3}
@@ -92,6 +95,7 @@ def test_the_trials_themselves_are_not_rewritten():
     """Only the reading changes. The same configurations were evaluated on the
     same data, and every metric's score stays exactly as it was measured."""
     rebased, _ = rebase_history(_result(HISTORY), "f1")
+    assert rebased is not None
 
     assert [t.config for t in rebased.trials] == [t.config for t in HISTORY]
     assert [t.scores for t in rebased.trials] == [t.scores for t in HISTORY]
@@ -118,6 +122,7 @@ def test_a_history_predating_multi_metric_scores_is_still_reported_stale():
     rebased, stale = rebase_history(_result(thin), "f1")
 
     assert stale is True
+    assert rebased is not None
     assert rebased.trials[0].score == 0.9
 
 

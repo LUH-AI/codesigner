@@ -10,6 +10,7 @@ import io
 import json
 import zipfile
 from pathlib import Path
+from typing import cast
 
 import numpy as np
 import pytest
@@ -61,7 +62,9 @@ def test_a_run_keeps_the_best_trials_models_and_no_others(client):
     exp = _create(client, keep_best_trial_models=3)
     _run(client, exp, 6)
 
-    trials = rebuild_result(exp).trials
+    result = rebuild_result(exp)
+    assert result is not None
+    trials = result.trials
     best = sorted(trials, key=lambda t: (-t.score, t.trial))[:3]
     kept = TrialModel.objects.filter(experiment=exp)
     assert sorted(k.trial for k in kept) == sorted(t.trial for t in best)
@@ -96,6 +99,7 @@ def test_the_download_is_the_trials_model_marked_partially_trained(client, tmp_p
     exp = _create(client, keep_best_trial_models=2)
     _run(client, exp, 4)
     result = rebuild_result(exp)
+    assert result is not None
     idx = result.best_index("accuracy")
 
     response = _download(client, exp, idx)
@@ -133,7 +137,7 @@ def test_a_booster_is_kept_in_its_own_format_and_loads_there(client, model_name,
 
         booster = lightgbm.Booster(model_file=str(path))
         rows = np.random.default_rng(0).random((5, booster.num_feature()))
-        assert booster.predict(rows).shape[0] == 5
+        assert cast(np.ndarray, booster.predict(rows)).shape[0] == 5
     elif model_name == "XGBoost":
         import xgboost
 
@@ -143,7 +147,8 @@ def test_a_booster_is_kept_in_its_own_format_and_loads_there(client, model_name,
     else:
         from catboost import CatBoost
 
-        assert CatBoost().load_model(str(path)).tree_count_ > 0
+        tree_count = CatBoost().load_model(str(path)).tree_count_
+        assert tree_count is not None and tree_count > 0
 
 
 def test_a_trial_whose_model_was_not_kept_says_why(client):
@@ -155,6 +160,7 @@ def test_a_trial_whose_model_was_not_kept_says_why(client):
     exp = _create(client, keep_best_trial_models=1)
     _run(client, exp, 3)
     result = rebuild_result(exp)
+    assert result is not None
     kept = TrialModel.objects.get(experiment=exp).trial
     other = next(i for i, t in enumerate(result.trials) if t.trial != kept)
 
@@ -182,7 +188,9 @@ def test_a_group_without_room_keeps_no_model_and_the_run_still_finishes(
     assert exp.group == group
     _run(client, exp, 3)
 
-    assert len(rebuild_result(exp).trials) == 3
+    result = rebuild_result(exp)
+    assert result is not None
+    assert len(result.trials) == 3
     assert not TrialModel.objects.filter(experiment=exp).exists()
     events = Run.objects.filter(experiment=exp).latest("pk").events
     assert any(e["kind"] == "trial_models_not_kept" and e["count"] >= 1 for e in events)

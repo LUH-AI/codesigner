@@ -164,6 +164,7 @@ def test_too_few_trials_says_so_rather_than_drawing():
         None, _trials([{"a": 1.0, "b": 2.0}, {"a": 2.0, "b": 1.0}]), [0.5, 0.6], "pca")
 
     assert not coordinates and not labels
+    assert warning is not None
     assert "few trials" in warning
 
 
@@ -175,6 +176,7 @@ def test_one_hyperparameter_is_not_a_space_to_project():
     coordinates, _labels, warning = project(None, trials, [0.5, 0.6, 0.7], "pca")
 
     assert not coordinates
+    assert warning is not None
     assert "more than one hyperparameter" in warning
 
 
@@ -187,6 +189,7 @@ def test_trials_that_are_all_the_same_configuration_have_no_directions():
     coordinates, _labels, warning = project(None, trials, [0.5] * 4, "pca")
 
     assert not coordinates
+    assert warning is not None
     assert "same configuration" in warning
 
 
@@ -198,4 +201,5 @@ def test_an_unknown_method_is_refused_rather_than_guessed_at():
     coordinates, _labels, warning = project(None, trials, [0.5, 0.6, 0.7], "mds")
 
     assert not coordinates
+    assert warning is not None
     assert "No such projection" in warning

@@ -113,6 +113,7 @@ def test_rebasing_onto_a_lower_is_better_metric_recomputes_downwards():
     after, stale = rebase_history(before, "rmse")
 
     assert stale is True
+    assert after is not None
     assert after.best_score == 100.0 and after.best_config == {"a": 2}
     assert [t.incumbent_score for t in after.trials] == [800.0, 100.0]
 

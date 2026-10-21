@@ -53,6 +53,7 @@ def test_the_harness_agrees_with_the_protocol_version():
         if isinstance(node, ast.Assign)
         and isinstance(node.targets[0], ast.Name)
         and node.targets[0].id == "PROTOCOL_VERSION"
+        and isinstance(node.value, ast.Constant)
     )
     assert declared == protocol.PROTOCOL_VERSION
 

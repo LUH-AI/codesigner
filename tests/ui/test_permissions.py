@@ -161,14 +161,14 @@ def test_every_experiment_route_goes_through_the_policy():
 
 def test_each_route_declares_a_known_action():
     for pattern in _experiment_routes():
-        action = pattern.callback.experiment_action
+        action = getattr(pattern.callback, "experiment_action")
         assert action in access_policy.ACTIONS, f"{pattern.name}: {action!r}"
 
 
 def test_the_declared_actions_match_what_the_routes_do():
     """Reading the URLconf should tell you what a route is for. Pinned so a
     later policy that refuses, say, RUN refuses the right set of routes."""
-    declared = {p.name: p.callback.experiment_action for p in _experiment_routes()}
+    declared = {p.name: getattr(p.callback, "experiment_action") for p in _experiment_routes()}
 
     assert declared == {
         "experiment_detail": access_policy.VIEW,
@@ -248,7 +248,7 @@ def test_drafts_are_reached_only_where_they_are_set_up():
     requests its last step makes — no other route, so it cannot be run,
     exported, shared or binned before it is created.
     How: reads every experiment route's declared `drafts`."""
-    declared = {p.name: p.callback.experiment_drafts for p in _experiment_routes()}
+    declared = {p.name: getattr(p.callback, "experiment_drafts") for p in _experiment_routes()}
     reach = {name for name, drafts in declared.items() if drafts != CREATED}
 
     assert reach == {"setup", "setup_optimizer", "setup_data", "setup_priors", "setup_resume", "setup_create",

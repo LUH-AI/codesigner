@@ -1,4 +1,5 @@
 import json
+from typing import cast
 from unittest import mock
 
 import numpy as np
@@ -110,7 +111,7 @@ def test_load_splits_detects_semicolon_separator(tmp_path):
     rows = ["f1;f2;label"] + [f"{i};{i * 2};{i % 2}" for i in range(20)]
     csv.write_text("\n".join(rows), encoding="utf-8")
     X_train, X_val, y_train, y_val = io._load_splits(csv, seed=0)
-    assert X_train.shape[1] == 2
+    assert cast(np.ndarray, X_train).shape[1] == 2
     assert len(X_train) + len(X_val) == 20
 
 

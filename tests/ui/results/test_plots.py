@@ -8,6 +8,9 @@ duration bars are the per-trial times. Built from synthetic results with
 hand-chosen numbers so every assertion is exact.
 """
 
+from typing import Any
+
+import plotly.graph_objects as go
 import pytest
 
 from core.optimizers import OptimizationResult, TrialResult
@@ -29,6 +32,12 @@ from ui.figures import (
     performance_over_time_plot,
     trial_duration_plot,
 )
+
+
+def _drawn(fig: go.Figure | None) -> Any:
+    """The figure a builder drew, for a test that expects it to draw one."""
+    assert fig is not None
+    return fig
 
 
 def _result() -> OptimizationResult:
@@ -64,7 +73,7 @@ def test_performance_figure_has_score_and_incumbent_traces():
     marker trace's y equals the per-trial scores; the line trace's y equals
     the running best.
     """
-    fig = performance_over_time_plot(_result(), "accuracy")
+    fig = _drawn(performance_over_time_plot(_result(), "accuracy"))
     markers = next(t for t in fig.data if t.mode == "markers" and t.name == "Trial score")
     line = next(t for t in fig.data if t.mode == "lines")
     assert list(markers.x) == [1, 2, 3]
@@ -78,7 +87,7 @@ def test_performance_figure_highlights_selected_point():
     Selecting trial index 2 must enlarge/recolor only that marker, leaving the
     others at the default size and color.
     """
-    fig = performance_over_time_plot(_result(), "accuracy", selected_idx=2)
+    fig = _drawn(performance_over_time_plot(_result(), "accuracy", selected_idx=2))
     markers = next(t for t in fig.data if t.mode == "markers" and t.name == "Trial score")
     assert markers.marker.size[2] > markers.marker.size[0]
     assert markers.marker.color[2] != markers.marker.color[0]
@@ -86,7 +95,7 @@ def test_performance_figure_highlights_selected_point():
 
 def test_performance_yaxis_labels_the_metric():
     """The y-axis is titled with the metric being shown, for the score view."""
-    fig = performance_over_time_plot(_result(), "f1", y_axis="score")
+    fig = _drawn(performance_over_time_plot(_result(), "f1", y_axis="score"))
     assert fig.layout.yaxis.title.text.lower() == "f1"
 
 
@@ -104,14 +113,14 @@ def test_time_axis_is_cumulative_trial_duration():
         trials=trials, primary_metric="accuracy", best_config={"a": 2}, best_score=0.9,
         hyperparameter_importance={}, hyperparameter_importance_warning={},
     )
-    fig = performance_over_time_plot(result, "accuracy", x_axis="time")
+    fig = _drawn(performance_over_time_plot(result, "accuracy", x_axis="time"))
     markers = next(t for t in fig.data if t.mode == "markers")
     assert list(markers.x) == [2.0, 5.0]
 
 
 def test_error_view_is_one_minus_score_on_a_log_axis():
     """y_axis="error" plots 1 - score (floored at 1e-3) with a log y-axis."""
-    fig = performance_over_time_plot(_result(), "accuracy", y_axis="error")
+    fig = _drawn(performance_over_time_plot(_result(), "accuracy", y_axis="error"))
     markers = next(t for t in fig.data if t.mode == "markers" and t.name == "Trial error")
     assert list(markers.y) == pytest.approx([0.5, 0.7, 0.1])
     assert fig.layout.yaxis.type == "log"
@@ -128,7 +137,7 @@ def test_performance_figure_none_when_no_trials():
 def test_importance_pie_mirrors_the_importance_dict():
     """The default (pie) rendering's labels/values come straight from the
     importance dict handed in — any game's, since they're all the same shape."""
-    fig = hyperparameter_importance_plot(_result().hyperparameter_importance["accuracy"])
+    fig = _drawn(hyperparameter_importance_plot(_result().hyperparameter_importance["accuracy"]))
     pie = fig.data[0]
     assert set(pie.labels) == {"a", "b"}
     assert dict(zip(pie.labels, pie.values)) == {"a": 0.7, "b": 0.3}
@@ -136,7 +145,7 @@ def test_importance_pie_mirrors_the_importance_dict():
 
 def test_importance_bar_mirrors_the_importance_dict():
     """The bar rendering carries the same numbers as pie, as vertical bars."""
-    fig = hyperparameter_importance_plot(_result().hyperparameter_importance["accuracy"], "bar")
+    fig = _drawn(hyperparameter_importance_plot(_result().hyperparameter_importance["accuracy"], "bar"))
     bar = fig.data[0]
     assert dict(zip(bar.x, bar.y)) == {"a": 0.7, "b": 0.3}
 
@@ -155,8 +164,8 @@ def test_importance_figure_none_when_metric_has_no_importance():
 
 def test_figures_serialize_to_json():
     """Both figures survive fig.to_json() — the view embeds them that way."""
-    assert performance_over_time_plot(_result(), "accuracy").to_json()
-    assert hyperparameter_importance_plot(_result().hyperparameter_importance["accuracy"]).to_json()
+    assert _drawn(performance_over_time_plot(_result(), "accuracy")).to_json()
+    assert _drawn(hyperparameter_importance_plot(_result().hyperparameter_importance["accuracy"])).to_json()
 
 
 def test_ablation_plot_walks_from_the_default_to_this_trial():
@@ -168,7 +177,7 @@ def test_ablation_plot_walks_from_the_default_to_this_trial():
     bracketed by labelled endpoints so the axis reads as "relative to the
     default" rather than as a score starting at zero.
     """
-    fig = hyperparameter_ablation_plot({"a": -0.4, "b": 0.6, "c": 0.1})
+    fig = _drawn(hyperparameter_ablation_plot({"a": -0.4, "b": 0.6, "c": 0.1}))
     walk = fig.data[0]
 
     assert walk.type == "waterfall"
@@ -180,7 +189,7 @@ def test_ablation_plot_walks_from_the_default_to_this_trial():
 def test_ablation_plot_colours_gains_and_losses_apart():
     """A hyperparameter that hurt versus the default is a different finding
     from one that helped."""
-    fig = hyperparameter_ablation_plot({"a": -0.4, "b": 0.6})
+    fig = _drawn(hyperparameter_ablation_plot({"a": -0.4, "b": 0.6}))
 
     assert (fig.data[0].increasing.marker.color
             != fig.data[0].decreasing.marker.color)
@@ -203,7 +212,7 @@ def _interactions():
 def test_interactions_heatmap_orders_by_diagonal_magnitude():
     """Hyperparameters are ordered by |diagonal value| descending: a (0.5),
     b (0.2), c (0.15) — and the grid mirrors the dict in that order."""
-    fig = hyperparameter_interactions_heatmap_plot(_interactions())
+    fig = _drawn(hyperparameter_interactions_heatmap_plot(_interactions()))
     heatmap = fig.data[0]
     assert list(heatmap.x) == ["a", "b", "c"]
     assert list(heatmap.y) == ["a", "b", "c"]
@@ -217,7 +226,7 @@ def test_interactions_heatmap_none_when_empty():
 def test_interactions_bar_ranks_off_diagonal_pairs_by_magnitude():
     """Only pairs (never the diagonal), ranked by |value| — a/b (0.3) beats
     a/c (0.1) beats b/c (-0.05)."""
-    fig = hyperparameter_interactions_bar_plot(_interactions())
+    fig = _drawn(hyperparameter_interactions_bar_plot(_interactions()))
     bar = fig.data[0]
     assert list(bar.x) == ["a × b", "a × c", "b × c"]
     assert list(bar.y) == [0.3, 0.1, -0.05]
@@ -226,7 +235,7 @@ def test_interactions_bar_ranks_off_diagonal_pairs_by_magnitude():
 
 
 def test_interactions_bar_respects_top_k():
-    fig = hyperparameter_interactions_bar_plot(_interactions(), top_k=1)
+    fig = _drawn(hyperparameter_interactions_bar_plot(_interactions(), top_k=1))
     assert list(fig.data[0].x) == ["a × b"]
 
 
@@ -253,7 +262,7 @@ def test_graph_draws_a_line_per_pair_and_a_spoke_per_hyper_edge_member():
     """A pair is one line between two nodes; a coalition of three or more is a
     hub at their centroid with a spoke to each — the only way to show that they
     interact *as a set* rather than as three separate pairs."""
-    fig = hyperparameter_graph_plot(_moebius())
+    fig = _drawn(hyperparameter_graph_plot(_moebius()))
 
     # a×b×c is three spokes; a×b is one line. Strongest first.
     assert len(fig.layout.shapes) == 3 + 1
@@ -264,7 +273,7 @@ def test_graph_draws_a_line_per_pair_and_a_spoke_per_hyper_edge_member():
 def test_graph_colours_edges_by_sign_and_sizes_nodes_by_their_own_value():
     """Synergy and redundancy are different findings, and flattening the sign
     would lose the one the reader acts on."""
-    fig = hyperparameter_graph_plot(_moebius())
+    fig = _drawn(hyperparameter_graph_plot(_moebius()))
 
     spoke, pair = fig.layout.shapes[0], fig.layout.shapes[-1]
     assert spoke.line.color != pair.line.color, "a×b×c is +, a×b is -"
@@ -275,7 +284,7 @@ def test_graph_colours_edges_by_sign_and_sizes_nodes_by_their_own_value():
 def test_graph_places_nodes_on_a_circle():
     """The whole layout — HyperSHAP pins its own to a circle too, which is what
     saves this from needing a force-directed algorithm Plotly does not have."""
-    fig = hyperparameter_graph_plot(_moebius())
+    fig = _drawn(hyperparameter_graph_plot(_moebius()))
     nodes = fig.data[1]
 
     for x, y in zip(nodes.x, nodes.y):
@@ -286,7 +295,7 @@ def test_graph_caps_how_much_it_draws():
     """Six hyperparameters give 57 interactions and ten give 1,013; past a dozen
     the picture stops being a graph."""
     many = [{"members": ["a", f"h{i}"], "value": 1.0 / (i + 1)} for i in range(40)]
-    fig = hyperparameter_graph_plot(many, top_k=5)
+    fig = _drawn(hyperparameter_graph_plot(many, top_k=5))
 
     assert len(fig.layout.shapes) == 5
 
@@ -299,7 +308,7 @@ def test_graph_none_when_nothing_can_interact():
 def test_upset_ranks_coalitions_and_keeps_their_sign():
     """Signed bars, so a redundant coalition hangs below the axis instead of
     being flattened to a magnitude."""
-    fig = hyperparameter_upset_plot(_moebius())
+    fig = _drawn(hyperparameter_upset_plot(_moebius()))
     bar = fig.data[0]
 
     assert list(bar.x) == ["a × b × c", "a × b"], "strongest first"
@@ -307,7 +316,7 @@ def test_upset_ranks_coalitions_and_keeps_their_sign():
 
 
 def test_upset_marks_exactly_the_members_of_each_coalition():
-    fig = hyperparameter_upset_plot(_moebius())
+    fig = _drawn(hyperparameter_upset_plot(_moebius()))
     filled = set(zip(fig.data[-1].x, fig.data[-1].y))
 
     assert filled == {("a × b", "a"), ("a × b", "b"),
@@ -329,7 +338,7 @@ def test_orders_plot_splits_each_term_equally_among_its_members():
     a: 0.5 alone, 0.2/2 in the pair, 0.3/3 in the triple.
     c: nothing but 0.3/3.
     """
-    bands = {t.name: dict(zip(t.x, t.y)) for t in hyperparameter_orders_plot(_moebius()).data}
+    bands = {t.name: dict(zip(t.x, t.y)) for t in _drawn(hyperparameter_orders_plot(_moebius())).data}
 
     assert bands["On its own"] == pytest.approx({"a": 0.5, "b": 0.1, "c": 0.0})
     assert bands["In pairs"] == pytest.approx({"a": 0.1, "b": 0.1, "c": 0.0})
@@ -340,13 +349,13 @@ def test_orders_plot_uses_magnitude_so_signs_cannot_cancel():
     """The a/b pair is negative. Stacking it signed would subtract from a's bar
     and show a hyperparameter that matters in both directions as one that does
     not matter."""
-    bands = {t.name: dict(zip(t.x, t.y)) for t in hyperparameter_orders_plot(_moebius()).data}
+    bands = {t.name: dict(zip(t.x, t.y)) for t in _drawn(hyperparameter_orders_plot(_moebius())).data}
 
     assert bands["In pairs"]["a"] > 0
 
 
 def test_orders_plot_stacks_and_ranks_by_total():
-    fig = hyperparameter_orders_plot(_moebius())
+    fig = _drawn(hyperparameter_orders_plot(_moebius()))
 
     assert fig.layout.barmode == "stack"
     assert list(fig.data[0].x) == ["a", "b", "c"], "tallest total first"
@@ -380,7 +389,7 @@ def test_configuration_cube_ships_no_axis_assignment_of_its_own():
     start at None, so a server-chosen pair would answer the question the figure
     exists to ask. Every hyperparameter's values ride along in customdata, keyed
     by hp_names, for the client to fill the axes from (applyCubeAxes)."""
-    fig = configuration_cube_plot(_cube_result(), "accuracy")
+    fig = _drawn(configuration_cube_plot(_cube_result(), "accuracy"))
     trace = fig.data[0]
     assert list(trace.x) == []
     assert list(trace.y) == []
@@ -389,7 +398,7 @@ def test_configuration_cube_ships_no_axis_assignment_of_its_own():
 
 
 def test_configuration_cube_colors_by_the_given_metric():
-    fig = configuration_cube_plot(_cube_result(), "accuracy")
+    fig = _drawn(configuration_cube_plot(_cube_result(), "accuracy"))
     assert list(fig.data[0].marker.color) == [0.5, 0.3, 0.9]
 
 
@@ -411,7 +420,7 @@ def test_configuration_cube_draws_for_a_single_hyperparameter():
         trials=trials, primary_metric="accuracy", best_config={"a": 1}, best_score=0.5,
         hyperparameter_importance={}, hyperparameter_importance_warning={},
     )
-    fig = configuration_cube_plot(result, "accuracy")
+    fig = _drawn(configuration_cube_plot(result, "accuracy"))
 
     assert fig.layout.meta["hp_names"] == ["a"]
     assert [list(row) for row in fig.data[0].customdata] == [[1]]
@@ -447,7 +456,7 @@ def test_configuration_cube_names_the_log_hyperparameters_for_the_client():
     place that fact can live: with it missing, whichever axis `C` lands on is
     silently linear.
     """
-    fig = configuration_cube_plot(_svm_result(), "accuracy", config_space=_svm_space())
+    fig = _drawn(configuration_cube_plot(_svm_result(), "accuracy", config_space=_svm_space()))
 
     assert fig.layout.meta["log_hps"] == ["C", "tol"]
     assert "kernel" not in fig.layout.meta["log_hps"]
@@ -456,7 +465,7 @@ def test_configuration_cube_names_the_log_hyperparameters_for_the_client():
 def test_configuration_cube_without_a_config_space_stays_linear():
     """A custom model viewed read-only has nothing to ask, and a linear axis
     showing real values is a better answer than refusing to draw."""
-    fig = configuration_cube_plot(_svm_result(), "accuracy", config_space=None)
+    fig = _drawn(configuration_cube_plot(_svm_result(), "accuracy", config_space=None))
 
     assert fig.layout.meta["log_hps"] == []
 
@@ -466,7 +475,7 @@ def test_configuration_cube_values_are_untouched_by_the_log_axis():
     values real numbers, which is why this is preferred over encoding them.
     Read off customdata, which is where the values are now that the axes are
     filled in by the client."""
-    fig = configuration_cube_plot(_svm_result(), "accuracy", config_space=_svm_space())
+    fig = _drawn(configuration_cube_plot(_svm_result(), "accuracy", config_space=_svm_space()))
 
     assert [row[0] for row in fig.data[0].customdata] == [0.01, 1.0, 100.0]
 
@@ -517,7 +526,7 @@ def test_parallel_coordinates_recodes_a_log_axis_and_relabels_its_ticks():
     0.01, 1 and 100, which log-spaced are evenly apart and linearly would put
     the first two on top of each other at the bottom of the axis.
     """
-    fig = parallel_coordinates_plot(_svm_result(), "accuracy", config_space=_svm_space())
+    fig = _drawn(parallel_coordinates_plot(_svm_result(), "accuracy", config_space=_svm_space()))
 
     assert _axis_positions(fig, "C") == pytest.approx([0.0, 0.5, 1.0])
     assert [text for _y, text in _axis_ticks(fig, "C")] == \
@@ -527,7 +536,7 @@ def test_parallel_coordinates_recodes_a_log_axis_and_relabels_its_ticks():
 def test_parallel_coordinates_leaves_a_linear_axis_showing_its_own_values():
     """Only the log axes are recoded; everything else reads directly, as
     before — `a` is 1, 2, 3, so it lands evenly and its ticks say so."""
-    fig = parallel_coordinates_plot(_parcoords_result(), "accuracy", config_space=None)
+    fig = _drawn(parallel_coordinates_plot(_parcoords_result(), "accuracy", config_space=None))
 
     assert _axis_positions(fig, "a") == pytest.approx([0.0, 0.5, 1.0])
     assert [text for _y, text in _axis_ticks(fig, "a")] == ["1", "1.5", "2", "2.5", "3"]
@@ -537,7 +546,7 @@ def test_parallel_coordinates_without_a_config_space_matches_the_old_output():
     """The fallback has to be exactly today's figure, not a near-miss: with
     nothing to ask about scales, `C`'s own values go on a linear axis and 0.01
     and 1 collapse into the bottom hundredth of it."""
-    plain = parallel_coordinates_plot(_svm_result(), "accuracy", config_space=None)
+    plain = _drawn(parallel_coordinates_plot(_svm_result(), "accuracy", config_space=None))
 
     assert _axis_positions(plain, "C") == pytest.approx([0.0, 0.0099, 1.0], abs=1e-4)
     assert [text for _y, text in _axis_ticks(plain, "C")] == \
@@ -566,13 +575,13 @@ def _parcoords_result():
 
 
 def test_parallel_coordinates_orders_axes_by_importance():
-    fig = parallel_coordinates_plot(_parcoords_result(), "accuracy")
+    fig = _drawn(parallel_coordinates_plot(_parcoords_result(), "accuracy"))
     assert _axis_labels(fig) == ["b", "a", "c", "Accuracy"]
 
 
 def test_parallel_coordinates_keeps_numeric_axes_as_is():
     """A numeric axis needs no recoding, so its ticks are its own values."""
-    fig = parallel_coordinates_plot(_parcoords_result(), "accuracy")
+    fig = _drawn(parallel_coordinates_plot(_parcoords_result(), "accuracy"))
 
     assert [text for _y, text in _axis_ticks(fig, "a")] == ["1", "1.5", "2", "2.5", "3"]
 
@@ -581,7 +590,7 @@ def test_parallel_coordinates_recodes_non_numeric_axes():
     """Boolean and string hyperparameters become sorted-unique integer codes,
     with the tick naming the original value — a line has to have a height, and
     "True" is not one."""
-    fig = parallel_coordinates_plot(_parcoords_result(), "accuracy")
+    fig = _drawn(parallel_coordinates_plot(_parcoords_result(), "accuracy"))
 
     assert [text for _y, text in _axis_ticks(fig, "b")] == ["False", "True"]
     # True, False, True -> code 1, 0, 1 -> top, bottom, top
@@ -592,7 +601,7 @@ def test_parallel_coordinates_recodes_non_numeric_axes():
 
 
 def test_parallel_coordinates_final_axis_is_the_score():
-    fig = parallel_coordinates_plot(_parcoords_result(), "accuracy")
+    fig = _drawn(parallel_coordinates_plot(_parcoords_result(), "accuracy"))
 
     assert _axis_labels(fig)[-1] == "Accuracy"
     # 0.5, 0.3, 0.9 over a 0.3-0.9 range
@@ -604,7 +613,7 @@ def test_parallel_coordinates_colors_each_line_by_its_score():
     through the same region", so the colour has to be per line. A Scatter line
     takes one colour rather than an array, which is why there is a trace per
     trial — see the builder."""
-    fig = parallel_coordinates_plot(_parcoords_result(), "accuracy")
+    fig = _drawn(parallel_coordinates_plot(_parcoords_result(), "accuracy"))
     traces = _trace_of_trial(fig)
     colors = [fig.data[traces[trial]].line.color for trial in sorted(traces)]
 
@@ -617,7 +626,7 @@ def test_parallel_coordinates_draws_the_better_trials_on_top():
     """Trace order is z-order and nothing can change it after the fact, so with
     hundreds of lines crossing, the ones worth following have to be added last.
     In trial order they were whichever happened to run latest."""
-    fig = parallel_coordinates_plot(_parcoords_result(), "accuracy")
+    fig = _drawn(parallel_coordinates_plot(_parcoords_result(), "accuracy"))
     traces = _trace_of_trial(fig)
 
     # scores are 0.5, 0.3, 0.9 for trials 0, 1, 2
@@ -628,7 +637,7 @@ def test_parallel_coordinates_selection_names_one_trial_per_line():
     """A trial is a polyline here, not a point, so the click that names it
     lands on some vertex of the line and `segment` is what turns that back into
     the trial — see plots.py's `_selection_meta`."""
-    fig = parallel_coordinates_plot(_parcoords_result(), "accuracy")
+    fig = _drawn(parallel_coordinates_plot(_parcoords_result(), "accuracy"))
     sel = fig.layout.meta["selection"]
 
     assert sel["style"] == "line"
@@ -654,16 +663,16 @@ def test_partial_dependence_plot_batches_ice_lines_into_one_none_separated_trace
     """Every ICE row becomes one segment of a single trace, joined by a
     `None` (a gap, not a connecting line) — trace count must not grow with
     trial count."""
-    fig = partial_dependence_plot(
-        "max_depth", grid=[2, 5, 10], ice_lines=[[0.1, 0.2, 0.3], [0.4, 0.5, 0.6]], pdp=[0.25, 0.35, 0.45])
+    fig = _drawn(partial_dependence_plot(
+        "max_depth", grid=[2, 5, 10], ice_lines=[[0.1, 0.2, 0.3], [0.4, 0.5, 0.6]], pdp=[0.25, 0.35, 0.45]))
     ice_trace = fig.data[0]
     assert list(ice_trace.x) == [2, 5, 10, None, 2, 5, 10, None]
     assert list(ice_trace.y) == [0.1, 0.2, 0.3, None, 0.4, 0.5, 0.6, None]
 
 
 def test_partial_dependence_plot_pdp_is_the_bold_second_trace():
-    fig = partial_dependence_plot(
-        "max_depth", grid=[2, 5, 10], ice_lines=[[0.1, 0.2, 0.3], [0.4, 0.5, 0.6]], pdp=[0.25, 0.35, 0.45])
+    fig = _drawn(partial_dependence_plot(
+        "max_depth", grid=[2, 5, 10], ice_lines=[[0.1, 0.2, 0.3], [0.4, 0.5, 0.6]], pdp=[0.25, 0.35, 0.45]))
     pdp_trace = fig.data[1]
     assert list(pdp_trace.x) == [2, 5, 10]
     assert list(pdp_trace.y) == [0.25, 0.35, 0.45]
@@ -688,7 +697,7 @@ def _timed_result(trials):
 
 def test_trial_duration_figure_plots_per_trial_durations():
     """One bar per trial, its height the trial's measured duration."""
-    fig = trial_duration_plot(_timed_result([_timed(1, 0.5, 0.2), _timed(2, 0.6, 0.3)]))
+    fig = _drawn(trial_duration_plot(_timed_result([_timed(1, 0.5, 0.2), _timed(2, 0.6, 0.3)])))
     trace = fig.to_dict()["data"][0]
     assert list(trace["x"]) == [1, 2]
     assert list(trace["y"]) == pytest.approx([0.2, 0.3])
@@ -718,10 +727,10 @@ def test_every_trial_drawing_figure_says_where_its_trials_are():
     result = _cube_result()
     n = len(result.trials)
     figures = [
-        performance_over_time_plot(result, "accuracy"),
-        configuration_cube_plot(result, "accuracy"),
-        trial_duration_plot(result),
-        parallel_coordinates_plot(result, "accuracy"),
+        _drawn(performance_over_time_plot(result, "accuracy")),
+        _drawn(configuration_cube_plot(result, "accuracy")),
+        _drawn(trial_duration_plot(result)),
+        _drawn(parallel_coordinates_plot(result, "accuracy")),
     ]
 
     for fig in figures:
@@ -795,8 +804,8 @@ def test_figures_scaled_to_the_metric_share_one_scale():
     from ui.figures.plots import _INTENSITY_SCALE, _scale_color
 
     result = _cube_result()
-    cube = configuration_cube_plot(result, "accuracy")
-    parcoords = parallel_coordinates_plot(result, "accuracy")
+    cube = _drawn(configuration_cube_plot(result, "accuracy"))
+    parcoords = _drawn(parallel_coordinates_plot(result, "accuracy"))
     colorbar = parcoords.data[len(result.trials)]
 
     assert cube.data[0].marker.colorscale == colorbar.marker.colorscale
@@ -811,7 +820,7 @@ def test_the_selection_color_says_only_that_a_trial_is_selected():
     through every point on the chart."""
     from ui.figures.plots import ACCENT_COLOR, MARKER_COLOR, SELECTION_COLOR
 
-    fig = performance_over_time_plot(_cube_result(), "accuracy", selected_idx=1)
+    fig = _drawn(performance_over_time_plot(_cube_result(), "accuracy", selected_idx=1))
 
     assert len({SELECTION_COLOR, ACCENT_COLOR, MARKER_COLOR}) == 3
     # The selected point at full strength, the rest faded. Per point rather than
@@ -834,8 +843,8 @@ def test_the_negative_side_of_a_signed_figure_is_its_own_color():
     from ui.figures.plots import NEGATIVE_COLOR, SELECTION_COLOR
 
     rows = [{"index": 0, "trial": 1, "effects": {"a": 0.2, "b": -0.3}}]
-    beeswarm = local_effects_plot(["a", "b"], rows)
-    ablation = hyperparameter_ablation_plot({"a": 0.2, "b": -0.3})
+    beeswarm = _drawn(local_effects_plot(["a", "b"], rows))
+    ablation = _drawn(hyperparameter_ablation_plot({"a": 0.2, "b": -0.3}))
 
     assert NEGATIVE_COLOR != SELECTION_COLOR
     assert NEGATIVE_COLOR in [t.marker.color[0] for t in beeswarm.data]
@@ -848,7 +857,7 @@ def test_the_beeswarm_rules_off_one_row_from_the_next():
     and a wide row is the finding this figure exists for."""
     rows = [{"index": i, "trial": i + 1, "effects": {"a": 0.1 * i, "b": -0.1 * i}}
             for i in range(3)]
-    fig = local_effects_plot(["a", "b"], rows)
+    fig = _drawn(local_effects_plot(["a", "b"], rows))
 
     horizontals = [s for s in fig.layout.shapes if s.y0 == s.y1]
     assert [s.y0 for s in horizontals] == [0.5], "one rule, between the two rows"
@@ -865,7 +874,7 @@ def test_a_parallel_coordinates_line_can_be_clicked_between_its_axes():
     """
     from ui.figures.plots import _PARCOORDS_STEPS
 
-    fig = parallel_coordinates_plot(_parcoords_result(), "accuracy")
+    fig = _drawn(parallel_coordinates_plot(_parcoords_result(), "accuracy"))
     sel = fig.layout.meta["selection"]
     line = fig.data[1]
 
@@ -891,10 +900,10 @@ def test_the_heatmap_reads_sign_the_same_way_the_graph_does():
     from ui.figures.plots import MARKER_COLOR, NEGATIVE_COLOR
 
     interactions = {"a": {"a": 0.4, "b": 0.2}, "b": {"a": 0.2, "b": 0.1}}
-    heatmap = hyperparameter_interactions_heatmap_plot(interactions)
+    heatmap = _drawn(hyperparameter_interactions_heatmap_plot(interactions))
     moebius = [{"members": ["a"], "value": 0.4}, {"members": ["b"], "value": 0.1},
                {"members": ["a", "b"], "value": -0.2}]
-    graph = hyperparameter_graph_plot(moebius)
+    graph = _drawn(hyperparameter_graph_plot(moebius))
 
     scale = heatmap.data[0].colorscale
     assert heatmap.data[0].zmid == 0
@@ -909,7 +918,7 @@ def test_the_incumbent_markers_do_not_stand_between_the_reader_and_a_trial():
     with hover on they blocked clicks on exactly the trials most worth
     selecting — and being incumbents rather than trials, a click on one names
     nothing anyway. Out of the hit-testing, the point beneath answers."""
-    fig = performance_over_time_plot(_cube_result(), "accuracy")
+    fig = _drawn(performance_over_time_plot(_cube_result(), "accuracy"))
 
     assert fig.data[2].name == "New incumbent"
     assert fig.data[2].hoverinfo == "skip"
@@ -921,8 +930,8 @@ def test_configuration_points_are_opaque_and_separated():
     than either. On a scale where darker means better, that reads as a trial
     that did not happen — and the ring is what makes an overlap read as two
     points rather than as one good one."""
-    for fig in (configuration_cube_plot(_cube_result(), "accuracy"),
-                configuration_projection_plot(_cube_result(), "accuracy", "pca")):
+    for fig in (_drawn(configuration_cube_plot(_cube_result(), "accuracy")),
+                _drawn(configuration_projection_plot(_cube_result(), "accuracy", "pca"))):
         marker = fig.data[0].marker
         assert marker.opacity == 1
         assert marker.line.width == 1
@@ -932,8 +941,8 @@ def test_configuration_points_are_opaque_and_separated():
 def test_the_plain_importance_figure_is_untouched():
     """The split is its own builder, so the figure everyone sees before asking
     for anything is exactly what it was."""
-    pie = hyperparameter_importance_plot({"a": 0.8, "b": 0.2}, "pie")
-    bar = hyperparameter_importance_plot({"a": 0.8, "b": 0.2}, "bar")
+    pie = _drawn(hyperparameter_importance_plot({"a": 0.8, "b": 0.2}, "pie"))
+    bar = _drawn(hyperparameter_importance_plot({"a": 0.8, "b": 0.2}, "bar"))
 
     assert len(pie.data) == 1 and pie.data[0].type == "pie"
     assert len(bar.data) == 1 and bar.data[0].type == "bar"
@@ -948,7 +957,7 @@ def test_the_progress_bar_stacks_banked_under_what_is_left():
 
     rows = [{"name": "big", "achievable": 0.08, "banked": 0.071, "remaining": 0.009},
             {"name": "small", "achievable": 0.008, "banked": 0.001, "remaining": 0.007}]
-    fig = hyperparameter_progress_plot(rows, "bar")
+    fig = _drawn(hyperparameter_progress_plot(rows, "bar"))
 
     assert [t.name for t in fig.data] == ["Already banked", "Still to gain"]
     assert list(fig.data[0].y) == pytest.approx([0.071, 0.001])
@@ -972,7 +981,7 @@ def test_the_progress_pie_splits_each_wedge_in_place():
     from ui.figures.plots import _PROGRESS_SHADES
 
     rows = [{"name": "a", "achievable": 0.08, "banked": 0.06, "remaining": 0.02}]
-    trace = hyperparameter_progress_plot(rows, "pie").data[0]
+    trace = _drawn(hyperparameter_progress_plot(rows, "pie")).data[0]
 
     assert trace.type == "pie"
     assert trace.hole == 0
@@ -986,10 +995,10 @@ def test_a_hyperparameter_is_named_once_where_there_is_room_for_it():
     would often be a label with nowhere to go."""
     from ui.figures import hyperparameter_progress_plot
 
-    mostly_banked = hyperparameter_progress_plot(
-        [{"name": "a", "achievable": 0.1, "banked": 0.09, "remaining": 0.01}], "pie")
-    mostly_left = hyperparameter_progress_plot(
-        [{"name": "a", "achievable": 0.1, "banked": 0.01, "remaining": 0.09}], "pie")
+    mostly_banked = _drawn(hyperparameter_progress_plot(
+        [{"name": "a", "achievable": 0.1, "banked": 0.09, "remaining": 0.01}], "pie"))
+    mostly_left = _drawn(hyperparameter_progress_plot(
+        [{"name": "a", "achievable": 0.1, "banked": 0.01, "remaining": 0.09}], "pie"))
 
     assert list(mostly_banked.data[0].text) == ["a", ""]
     assert list(mostly_left.data[0].text) == ["", "a"]
@@ -1001,10 +1010,10 @@ def test_a_banked_value_outside_the_achievable_is_clamped_for_drawing():
     true signed value; the picture cannot."""
     from ui.figures import hyperparameter_progress_plot
 
-    over = hyperparameter_progress_plot(
-        [{"name": "a", "achievable": 0.05, "banked": 0.09, "remaining": 0.0}], "bar")
-    under = hyperparameter_progress_plot(
-        [{"name": "a", "achievable": 0.05, "banked": -0.02, "remaining": 0.07}], "bar")
+    over = _drawn(hyperparameter_progress_plot(
+        [{"name": "a", "achievable": 0.05, "banked": 0.09, "remaining": 0.0}], "bar"))
+    under = _drawn(hyperparameter_progress_plot(
+        [{"name": "a", "achievable": 0.05, "banked": -0.02, "remaining": 0.07}], "bar"))
 
     assert list(over.data[0].y) == [0.05] and list(over.data[1].y) == [0.0]
     assert list(under.data[0].y) == [0.0] and list(under.data[1].y) == [0.05]
@@ -1023,7 +1032,7 @@ def test_a_wedge_label_is_one_size_or_absent():
     """
     from ui.figures.plots import _TEXT_SIZE
 
-    pie = hyperparameter_importance_plot({"a": 0.8, "b": 0.2}, "pie")
+    pie = _drawn(hyperparameter_importance_plot({"a": 0.8, "b": 0.2}, "pie"))
 
     assert pie.data[0].textfont.size == _TEXT_SIZE
     assert pie.layout.uniformtext.mode == "hide"
@@ -1034,6 +1043,6 @@ def test_a_wedge_label_is_one_size_or_absent():
 def test_the_pie_says_it_has_no_hole_rather_than_leaving_it_out():
     """`Plotly.react` diffs against what is already drawn, so an attribute that
     is merely absent is a weaker instruction than one set to its default."""
-    pie = hyperparameter_importance_plot({"a": 1.0}, "pie")
+    pie = _drawn(hyperparameter_importance_plot({"a": 1.0}, "pie"))
 
     assert pie.data[0].hole == 0

@@ -3,6 +3,7 @@ is made, carried in the file, and with its times in the form asked for."""
 
 import json
 import re
+from typing import Any, cast
 
 import pytest
 from django.contrib.admin.sites import AdminSite
@@ -76,7 +77,9 @@ def test_importing_records_the_import_after_the_files_own_history(client):
     again = _import(client, body, "again")
 
     assert _kinds(again) == ["created", "imported"]
-    assert again.data.history.last().payload["source"] == "ihpo"
+    last = again.data.history.last()
+    assert last is not None
+    assert last.payload["source"] == "ihpo"
 
 
 def test_a_processing_change_is_one_entry_per_choice_changed(client):
@@ -151,6 +154,7 @@ def test_resetting_a_prior_is_recorded(client):
     client.post(reverse("ui:reset_prior", args=[exp.pk]), {"hp": "max_depth"})
 
     entry = exp.data.history.order_by("-id").first()
+    assert entry is not None
     assert entry.kind == "prior_reset" and entry.payload["new"] is None
 
 
@@ -167,7 +171,7 @@ def test_an_admin_edit_of_the_optimizer_is_recorded(client):
     data.optimizer_params = {"n_initial": 7}
     request = RequestFactory().post("/")
     request.user = AnonymousUser()
-    ExperimentDataAdmin(ExperimentData, AdminSite()).save_model(request, data, None, True)
+    ExperimentDataAdmin(ExperimentData, AdminSite()).save_model(request, data, cast(Any, None), True)
 
     entry = exp.data.history.get(kind="optimizer_params_changed")
     assert entry.payload["new"] == {"n_initial": 7}
@@ -290,6 +294,7 @@ def test_a_relative_file_is_shown_and_exported_as_relative(client):
     exp = _ran(client)
     again = _import(client, _export(client, exp, "relative"), "relative")
     latest = again.data.history.exclude(at=None).order_by("-at").first()
+    assert latest is not None and latest.at is not None
 
     assert again.data.time_basis == "relative"
     assert abs((timezone.now() - latest.at).total_seconds()) < 60
@@ -306,7 +311,9 @@ def test_the_export_offers_the_experiments_choice_then_the_readers(client):
 
     def checked():
         html = client.get(reverse("ui:experiment_export", args=[exp.pk])).content.decode()
-        return re.search(r'name="timestamps" value="(\w+)" checked', html).group(1)
+        found = re.search(r'name="timestamps" value="(\w+)" checked', html)
+        assert found is not None
+        return found.group(1)
 
     assert checked() == "relative"
     client.post(reverse("ui:export_preferences"), {"export_timestamps": "none"})

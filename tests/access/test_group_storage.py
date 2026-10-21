@@ -81,7 +81,9 @@ def test_a_demo_dataset_is_named_not_copied_and_still_runs(lab, client):
     client.post(reverse("ui:experiment_run", args=[exp.pk]),
                 {"max_trials": 2, "optimize_metric": "accuracy"})
     exp.refresh_from_db()
-    assert len(rebuild_result(exp).trials) == 2
+    result = rebuild_result(exp)
+    assert result is not None
+    assert len(result.trials) == 2
 
 
 def test_the_file_names_the_demo_and_another_instance_reads_it_as_its_own(lab, client):

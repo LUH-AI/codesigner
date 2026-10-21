@@ -62,7 +62,9 @@ def test_an_adopted_demo_is_named_rather_than_copied():
 
     assert exp.data.demo_dataset == "iris"
     assert not exp.data.dataset
-    assert exp.data.dataset_path().resolve() == (DATASETS_DIR / "iris.csv").resolve()
+    path = exp.data.dataset_path()
+    assert path is not None
+    assert path.resolve() == (DATASETS_DIR / "iris.csv").resolve()
 
 
 def test_an_attached_upload_is_still_adopted_without_the_flag():

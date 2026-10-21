@@ -34,7 +34,9 @@ def test_a_normal_peaks_where_its_mean_is():
 
 
 def test_a_normal_is_symmetric_about_its_mean():
-    values = dict(density_from("normal", {"mu": 0.5, "sigma": 0.2}, GRID))
+    density = density_from("normal", {"mu": 0.5, "sigma": 0.2}, GRID)
+    assert density is not None
+    values = {x: v for x, v in density}
 
     for offset in (0.125, 0.25, 0.375):
         assert math.isclose(values[0.5 - offset], values[0.5 + offset], rel_tol=1e-9)
@@ -55,6 +57,7 @@ def test_a_beta_below_one_stays_finite_at_the_ends():
     preference zero."""
     values = density_from("beta", {"alpha": 0.5, "beta": 0.5}, GRID)
 
+    assert values is not None
     assert all(math.isfinite(v) for _, v in values)
 
 
@@ -63,7 +66,9 @@ def test_a_hand_placed_curve_does_not_overshoot_its_points():
     overshoot is a preference the reader never placed, and past zero it is a
     negative density."""
     points = [[0.0, 0.1], [0.4, 1.0], [1.0, 0.2]]
-    values = [v for _, v in density_from("tabulated", {"points": points}, GRID)]
+    density = density_from("tabulated", {"points": points}, GRID)
+    assert density is not None
+    values = [v for _, v in density]
 
     assert min(values) >= 0.1 - 1e-9
     assert max(values) <= 1.0 + 1e-9
@@ -71,7 +76,9 @@ def test_a_hand_placed_curve_does_not_overshoot_its_points():
 
 def test_a_hand_placed_curve_passes_through_its_points():
     points = [[0.0, 0.2], [0.5, 0.9], [1.0, 0.4]]
-    values = dict(density_from("tabulated", {"points": points}, GRID))
+    density = density_from("tabulated", {"points": points}, GRID)
+    assert density is not None
+    values = {x: v for x, v in density}
 
     for x, y in points:
         assert math.isclose(values[x], y, rel_tol=1e-9)
@@ -91,7 +98,9 @@ def test_a_density_is_never_negative():
     for kind, params in (("normal", {"mu": 0.5, "sigma": 0.01}),
                          ("beta", {"alpha": 0.2, "beta": 3}),
                          ("tabulated", {"points": [[0.0, 0.0], [1.0, 1.0]]})):
-        assert all(v >= 0 for _, v in density_from(kind, params, GRID)), kind
+        values = density_from(kind, params, GRID)
+        assert values is not None, kind
+        assert all(v >= 0 for _, v in values), kind
 
 
 # ── the canary that says when this module can shrink ─────────────────────────
@@ -114,10 +123,7 @@ def test_configspace_still_mangles_sigma_on_a_log_axis():
     """
     import numpy as np
 
-    try:
-        from ConfigSpace.hyperparameters.hp_components import UnitScaler
-    except ImportError:  # pragma: no cover - layout differs across versions
-        from ConfigSpace.hyperparameters._hp_components import UnitScaler
+    from ConfigSpace.hyperparameters.hp_components import UnitScaler
 
     scaler = UnitScaler(np.float64(1e-4), np.float64(1e0), log=True,
                         dtype=np.float64)
@@ -145,6 +151,7 @@ def test_a_gaussian_on_a_log_axis_is_log_normal_in_native_units():
     hp = UniformFloatHyperparameter("lr", 1e-4, 1e0, log=True)
     grid = [i / 512 for i in range(513)]
     values = density_from("normal", {"mu": 0.5, "sigma": 0.1}, grid)
+    assert values is not None
 
     peak_native = hp.to_value(max(values, key=lambda point: point[1])[0])
 

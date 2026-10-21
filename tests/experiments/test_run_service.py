@@ -5,6 +5,8 @@ the seed rule and the run contract (trials numbered from 1, all metrics
 scored, best_score = max primary score, grid capped at grid size).
 """
 
+from typing import Any
+
 import pytest
 
 from experiments.services.run import resolve_seed, run_experiment
@@ -41,7 +43,7 @@ def test_run_experiment_produces_valid_result(metrics):
 
 def test_run_experiment_is_seed_deterministic():
     """The same seed reproduces the same run; a different seed diverges."""
-    kw = dict(model_name="Random Forest", optimizer_name="Random Search",
+    kw: dict[str, Any] = dict(model_name="Random Forest", optimizer_name="Random Search",
               dataset_path=IRIS, primary_metric="accuracy", n_trials=3)
     a = run_experiment(seed=0, **kw)
     b = run_experiment(seed=0, **kw)

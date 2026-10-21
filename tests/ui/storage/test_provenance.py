@@ -403,6 +403,7 @@ def test_the_upload_survives_being_hashed(client):
     })
 
     imported = Experiment.objects.filter(data__name="recorded").order_by("-id").first()
+    assert imported is not None
     assert imported.data.dataset.size == IRIS.stat().st_size
 
 

@@ -46,6 +46,7 @@ def test_a_mixed_file_runs_every_trial_and_exports_its_encoding(client, model_na
     exp.refresh_from_db()
 
     result = rebuild_result(exp)
+    assert result is not None
     assert len(result.trials) == 4
     assert not any(t.failed for t in result.trials), [t.run_info for t in result.trials]
     assert all(t.scores["accuracy"] > 0.5 for t in result.trials)

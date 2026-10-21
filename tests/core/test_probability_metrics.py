@@ -96,7 +96,7 @@ def test_the_source_says_whether_a_model_gives_probabilities(defines, expected):
               + method)
     info, error = inspect_model_source(source.encode())
 
-    assert error is None and info.has_proba is expected
+    assert error is None and info is not None and info.has_proba is expected
 
 
 @pytest.mark.parametrize("name", sorted(MODELS))

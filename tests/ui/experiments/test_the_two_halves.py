@@ -181,4 +181,5 @@ def test_refreshing_reloads_the_other_half():
         result={"data": [], "primary_metric": "moved"})
     exp.refresh_from_db()
 
+    assert exp.data.result is not None
     assert exp.data.result["primary_metric"] == "moved"

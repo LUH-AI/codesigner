@@ -42,7 +42,9 @@ def test_a_forecast_is_backtested_and_scored_on_mase(client, model_name):
     client.post(reverse("ui:experiment_run", args=[exp.pk]),
                 {"max_trials": 3, "optimize_metric": "mase"})
     exp.refresh_from_db()
-    trials = rebuild_result(exp).trials
+    result = rebuild_result(exp)
+    assert result is not None
+    trials = result.trials
 
     assert len(trials) == 3 and not any(t.failed for t in trials), [t.run_info for t in trials]
     assert all(0 < t.scores["mase"] < 5 and 0 < t.scores["smape"] < 60 for t in trials)
@@ -169,7 +171,9 @@ def test_a_classification_is_forecast_too(client):
     client.post(reverse("ui:experiment_run", args=[exp.pk]),
                 {"max_trials": 2, "optimize_metric": "accuracy"})
     exp.refresh_from_db()
-    trials = rebuild_result(exp).trials
+    result = rebuild_result(exp)
+    assert result is not None
+    trials = result.trials
 
     assert len(trials) == 2 and not any(t.failed for t in trials), [t.run_info for t in trials]
     assert all(0.5 < t.scores["accuracy"] <= 1 for t in trials)

@@ -136,6 +136,7 @@ def test_import_smac_directory_creates_a_read_only_experiment():
 
     exp = Experiment.objects.get()
     assert exp.name == "demo-run"
+    assert exp.data.result is not None
     assert len(exp.data.result["data"]) == 25
     assert exp.data.config_space is not None
     assert not exp.data.dataset

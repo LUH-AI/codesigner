@@ -42,7 +42,9 @@ def _experiment_with_skipped_analytics():
 
 def _rebuilt_result(exp):
     from experiments.services.snapshot import rebuild_experiment
-    return rebuild_experiment(exp)["result"]
+    built = rebuild_experiment(exp)
+    assert built is not None
+    return built["result"]
 
 
 def test_the_detail_page_still_renders(client):

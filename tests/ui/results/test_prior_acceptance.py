@@ -20,6 +20,7 @@ import json
 import random
 import re
 from pathlib import Path
+from typing import Any
 
 import pytest
 from django.urls import reverse
@@ -102,7 +103,7 @@ def _script():
             / "acquisition.js").read_text()
 
 
-def _evaluate(client, exp, hp=""):
+def _evaluate(client, exp, hp="") -> tuple[Any, Any]:
     response = client.post(reverse("ui:evaluate_prior", args=[exp.pk]), {"hp": hp})
     return response, (json.loads(response.content)
                       if response.status_code == 200 else None)
@@ -267,11 +268,15 @@ def test_the_figure_offers_the_question_and_the_answer(client):
 # ── whether it is offered ────────────────────────────────────────────────────
 
 def _evaluate_button(html):
-    return re.search(r'<button[^>]*id="acq-evaluate"[^>]*>', html).group(0)
+    found = re.search(r'<button[^>]*id="acq-evaluate"[^>]*>', html)
+    assert found is not None
+    return found.group(0)
 
 
 def _top_k_field(html):
-    return re.search(r'<input[^>]*id="acq-top-k"[^>]*>', html).group(0)
+    found = re.search(r'<input[^>]*id="acq-top-k"[^>]*>', html)
+    assert found is not None
+    return found.group(0)
 
 
 def test_only_the_gaussian_process_judges_priors():
@@ -420,6 +425,7 @@ def test_without_its_data_an_unbounded_metric_is_scaled_by_its_trials(client, mo
 
     exp = _diabetes(client)
     result = rebuild_result(exp)
+    assert result is not None
 
     def _missing(*args, **kwargs):
         raise ValueError("dataset not found")

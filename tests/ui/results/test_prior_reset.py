@@ -88,6 +88,7 @@ def test_it_goes_back_to_the_last_run(client):
     _run(exp, SEARCHED_UNDER)
 
     response, data = _reset(client, exp)
+    assert data is not None
     exp.refresh_from_db()
 
     assert response.status_code == 200
@@ -121,6 +122,7 @@ def test_without_positions_it_sends_no_curve(client):
     _run(exp, SEARCHED_UNDER)
 
     _, data = _reset(client, exp)
+    assert data is not None
 
     assert data["density"] is None
 
@@ -133,6 +135,7 @@ def test_with_no_run_it_goes_to_uniform(client):
     exp = _experiment(SINCE_DRAGGED)
 
     response, data = _reset(client, exp)
+    assert data is not None
     exp.refresh_from_db()
 
     assert data["restored"] is False
@@ -146,6 +149,7 @@ def test_a_run_that_stated_nothing_resets_to_uniform(client):
     _run(exp, {})
 
     _, data = _reset(client, exp)
+    assert data is not None
     exp.refresh_from_db()
 
     assert data["restored"] is False
@@ -160,6 +164,7 @@ def test_a_pending_run_is_not_what_it_goes_back_to(client):
     _run(exp, SINCE_DRAGGED, status="pending")
 
     _, data = _reset(client, exp)
+    assert data is not None
     exp.refresh_from_db()
 
     assert exp.data.priors["n_estimators"] == SEARCHED_UNDER["n_estimators"]

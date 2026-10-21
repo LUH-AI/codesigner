@@ -62,7 +62,9 @@ def test_every_trial_validates_on_listings_after_its_training_ones(client):
     client.post(reverse("ui:experiment_run", args=[exp.pk]),
                 {"max_trials": 3, "optimize_metric": "accuracy"})
     exp.refresh_from_db()
-    assert not any(t.failed for t in rebuild_result(exp).trials)
+    result = rebuild_result(exp)
+    assert result is not None
+    assert not any(t.failed for t in result.trials)
     page = client.get(reverse("ui:experiment_detail", args=[exp.pk])).content.decode()
     assert "3 time-ordered folds by listed" in page
 

@@ -105,10 +105,12 @@ def test_import_allows_duplicate_names(client):
     but have distinct identifiers (names are no longer unique)."""
     from experiments.models import Experiment
 
+    resp = None
     for _ in range(2):
         with open(FIXTURES_DIR / "test2.ihpo", "rb") as f:
             resp = client.post(reverse("ui:import_experiment"), {"file": f})
 
+    assert resp is not None
     assert resp.status_code == 302
     assert Experiment.objects.count() == 2
     ids = list(Experiment.objects.values_list("identifier", flat=True))

@@ -17,7 +17,7 @@ import json
 from django.urls import reverse
 
 from core import io
-from core.metrics import Metric
+from core.metrics import Metric, _unscoreable
 from ui.figures.catalog import FIGURES_BY_KEY
 from experiments.services import snapshot as snapshot_adapter
 
@@ -75,7 +75,7 @@ def test_an_unbounded_metric_offers_no_absolute_range():
     empty answer is what tells the page to hide the button rather than pin the
     axis to some other metric's range.
     """
-    cost = Metric(name="smac:cost", fn=None, higher_is_better=False,
+    cost = Metric(name="smac:cost", fn=_unscoreable, higher_is_better=False,
                   bounds=(None, None))
 
     assert FIGURES_BY_KEY["performance_over_time"].absolute_scale_for(cost) == {}
@@ -87,10 +87,11 @@ def test_a_lower_is_better_metric_keeps_its_score_axis():
     Only the *error* axis drops out, since a metric where lower wins is already
     an error and 0-to-high on a log axis is what it was going to draw anyway.
     """
-    loss = Metric(name="loss", fn=None, higher_is_better=False, bounds=(0.0, 4.0))
+    loss = Metric(name="loss", fn=_unscoreable, higher_is_better=False, bounds=(0.0, 4.0))
 
     scale = FIGURES_BY_KEY["performance_over_time"].absolute_scale_for(loss)
 
+    assert scale is not None
     assert scale["trial-score"]["yaxis.range"] == [0.0, 4.0]
     assert "trial-error" in scale
 

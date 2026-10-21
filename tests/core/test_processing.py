@@ -6,6 +6,8 @@ exactly what it did for itself before processing was the experiment's to
 choose; a choice the model cannot take is overruled.
 """
 
+from typing import cast
+
 import numpy as np
 import pandas as pd
 import pytest
@@ -63,7 +65,7 @@ def test_processing_learns_from_the_rows_it_is_fitted_on_only():
     processing = Processing({"missing": "keep", "scale": "standardize", "labels": "one_hot"},
                             ("numeric",)).fit(np.arange(10.0).reshape(-1, 1))
 
-    assert processing.transform(np.array([[1000.0]]))[0, 0] > 300
+    assert cast(np.ndarray, processing.transform(np.array([[1000.0]])))[0, 0] > 300
 
 
 def test_label_columns_as_categories_keep_their_kind():

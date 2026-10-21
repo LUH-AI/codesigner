@@ -139,5 +139,6 @@ def test_rebasing_to_another_metric_reports_that_metrics_best():
 
     rebased, stale = rebase_history(r, "f1")
     assert stale
+    assert rebased is not None
     assert rebased.best_index("f1") == 1
     assert rebased.incumbent_scores("f1") == [0.1, 0.9]

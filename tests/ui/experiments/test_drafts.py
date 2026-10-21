@@ -233,6 +233,7 @@ def test_a_draft_can_be_thrown_away(client):
     _save(client, exp, "setup", {**_setup(demo_dataset=""), "dataset_file": upload})
     exp.refresh_from_db()
     path = exp.data.dataset_path()
+    assert path is not None
 
     client.post(reverse("ui:setup_discard", args=[exp.pk]))
     assert not Experiment.objects.filter(pk=exp.pk).exists()

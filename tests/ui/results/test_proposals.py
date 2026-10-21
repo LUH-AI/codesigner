@@ -42,6 +42,7 @@ def _sample(exp, metric="accuracy"):
     from ui.views.priors import _proposals
 
     _built, sample = _proposals(exp, metric)
+    assert sample is not None
     return sample
 
 
@@ -109,9 +110,11 @@ def test_running_a_proposal_makes_it_the_next_trial(client):
     assert response.status_code == 302
     exp.refresh_from_db()
     run = exp.runs.order_by("-id").first()
+    assert run is not None
     assert run.stopping == {"max_trials": 1}
     assert run.configurations[0]["proposal"] == 11
     assert run.configurations[0]["config"] == config
+    assert exp.data.result is not None
     trials = exp.data.result["data"]
     assert len(trials) == 4
     stored = exp.data.result["configs"][str(trials[-1]["config_id"])]

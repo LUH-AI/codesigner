@@ -11,6 +11,7 @@ import copy
 import subprocess
 import sys
 import textwrap
+from typing import cast
 
 import numpy as np
 import pandas as pd
@@ -183,14 +184,14 @@ def test_an_uploaded_model_is_delivered_as_written_without_its_search_space(tmp_
     assert '"numpy"' in header and '"pandas"' in header
     body = script.split("# ///\n", 1)[1]
     assert ast.get_docstring(ast.parse(body)) == "Majority, tuned."
-    assert ast.parse(body).body[1].module == "__future__"
+    assert cast(ast.ImportFrom, ast.parse(body).body[1]).module == "__future__"
     assert "get_config_space" not in script and "def fit_predict" in script
 
     out = tmp_path / "p.csv"
     done = _run(script, tmp_path, DATASETS_DIR / "iris.csv", "--predict",
                 DATASETS_DIR / "iris.csv", "--out", out)
     assert done.returncode == 0, done.stderr
-    assert pd.read_csv(out).iloc[0, 0].endswith("!")
+    assert cast(str, pd.read_csv(out).iloc[0, 0]).endswith("!")
 
 
 def test_an_uploaded_model_without_a_header_gets_one():

@@ -29,6 +29,7 @@ class Perfect:
     """Predicts the validation labels it was never shown, by luck."""
 
     name = "Perfect"
+    last_cpu_time: float
 
     def get_config_space(self, seed=0):
         return None

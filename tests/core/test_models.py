@@ -6,29 +6,38 @@ for a fixed seed. A model is never asked for a score and never sees the
 validation labels — scoring is core.metrics' job.
 """
 
+from typing import cast
+
 import pytest
+from ConfigSpace import CategoricalHyperparameter, ConfigurationSpace
+from ConfigSpace.hyperparameters import NumericalHyperparameter
 
 from core.metrics import score_all
 from core.models import RandomForestModel, SVMModel
+
+
+def _bounds(cs: ConfigurationSpace, name: str) -> tuple:
+    hp = cast(NumericalHyperparameter, cs[name])
+    return hp.lower, hp.upper
 
 
 def test_random_forest_config_space():
     """Random Forest advertises its four documented hyperparameters and bounds."""
     cs = RandomForestModel().get_config_space(seed=0)
     assert set(cs.keys()) == {"n_estimators", "max_depth", "min_samples_split", "max_features"}
-    assert (cs["n_estimators"].lower, cs["n_estimators"].upper) == (10, 500)
+    assert _bounds(cs, "n_estimators") == (10, 500)
     assert cs["n_estimators"].default_value == 100
-    assert (cs["max_depth"].lower, cs["max_depth"].upper) == (2, 50)
-    assert (cs["min_samples_split"].lower, cs["min_samples_split"].upper) == (0.01, 0.5)
-    assert (cs["max_features"].lower, cs["max_features"].upper) == (0.1, 1.0)
+    assert _bounds(cs, "max_depth") == (2, 50)
+    assert _bounds(cs, "min_samples_split") == (0.01, 0.5)
+    assert _bounds(cs, "max_features") == (0.1, 1.0)
 
 
 def test_svm_config_space():
     """SVM advertises its six documented hyperparameters with the right kernels."""
     cs = SVMModel().get_config_space(seed=0)
     assert set(cs.keys()) == {"C", "kernel", "gamma", "degree", "tol", "max_iter"}
-    assert set(cs["kernel"].choices) == {"rbf", "linear", "poly", "sigmoid"}
-    assert set(cs["gamma"].choices) == {"scale", "auto"}
+    assert set(cast(CategoricalHyperparameter, cs["kernel"]).choices) == {"rbf", "linear", "poly", "sigmoid"}
+    assert set(cast(CategoricalHyperparameter, cs["gamma"]).choices) == {"scale", "auto"}
 
 
 @pytest.mark.parametrize("model_cls", [RandomForestModel, SVMModel])
