@@ -2,7 +2,7 @@ import math
 import time
 from collections.abc import Mapping
 from abc import ABC, abstractmethod
-from dataclasses import dataclass, field, replace
+from dataclasses import dataclass, field, fields, replace
 from typing import TYPE_CHECKING, Any, Dict, List, NamedTuple, Optional
 from hypershap import ExplanationTask, HyperSHAP
 from shapiq.game_theory import MoebiusConverter
@@ -314,6 +314,24 @@ class OptimizationResult:
                 running.append(best)
             memo[key] = running
         return memo[key]
+
+
+#: Every OptimizationResult field the explanation games fill.
+GAME_RESULT_FIELDS = tuple(f.name for f in fields(OptimizationResult)
+                           if f.name.startswith("hyperparameter_"))
+
+
+def game_fields(games) -> dict:
+    """*games*, `compute_hp_games`'s answer, as the OptimizationResult fields
+    that hold it."""
+    out = {}
+    for game, names in HP_GAME_FIELDS.items():
+        importance, warning, interactions, moebius, _total = games[game]
+        out.update({names["importance"]: importance, names["warning"]: warning,
+                    names["interactions"]: interactions, names["moebius"]: moebius})
+    out["hyperparameter_interactions_warning"] = games["tunability"][1]
+    out["hyperparameter_tunability_total"] = games["tunability"][4]
+    return out
 
 
 def storable_score(score) -> Optional[float]:
@@ -1270,20 +1288,7 @@ class BaseOptimizer(ABC):
             },
             "best_score": storable_score(result.best_score),
             "best_config_id": best_config_id,
-            "hyperparameter_importance": result.hyperparameter_importance,
-            "hyperparameter_importance_warning": result.hyperparameter_importance_warning,
-            "hyperparameter_sensitivity": result.hyperparameter_sensitivity,
-            "hyperparameter_sensitivity_warning": result.hyperparameter_sensitivity_warning,
-            "hyperparameter_mistunability": result.hyperparameter_mistunability,
-            "hyperparameter_mistunability_warning": result.hyperparameter_mistunability_warning,
-            "hyperparameter_interactions": result.hyperparameter_interactions,
-            "hyperparameter_interactions_warning": result.hyperparameter_interactions_warning,
-            "hyperparameter_moebius": result.hyperparameter_moebius,
-            "hyperparameter_sensitivity_interactions": result.hyperparameter_sensitivity_interactions,
-            "hyperparameter_sensitivity_moebius": result.hyperparameter_sensitivity_moebius,
-            "hyperparameter_mistunability_interactions": result.hyperparameter_mistunability_interactions,
-            "hyperparameter_mistunability_moebius": result.hyperparameter_mistunability_moebius,
-            "hyperparameter_tunability_total": result.hyperparameter_tunability_total,
+            **{name: getattr(result, name) for name in GAME_RESULT_FIELDS},
             "trials_limit": result.trials_limit,
         }
 
@@ -1329,28 +1334,9 @@ class BaseOptimizer(ABC):
             primary_metric=primary_metric,
             best_config=configs.get(best_config_id, {}),
             best_score=storable_score(d.get("best_score", 0.0)),
-            hyperparameter_importance=d.get("hyperparameter_importance", {}),
-            hyperparameter_importance_warning=d.get("hyperparameter_importance_warning", {}),
-            hyperparameter_sensitivity=d.get("hyperparameter_sensitivity", {}),
-            hyperparameter_sensitivity_warning=d.get("hyperparameter_sensitivity_warning", {}),
-            hyperparameter_mistunability=d.get("hyperparameter_mistunability", {}),
-            hyperparameter_mistunability_warning=d.get("hyperparameter_mistunability_warning", {}),
-            hyperparameter_interactions=d.get("hyperparameter_interactions", {}),
-            hyperparameter_interactions_warning=d.get("hyperparameter_interactions_warning", {}),
-            # Absent from every .ihpo written before this field existed, which
-            # reads as "no Möbius views for this run" — the same empty state a
-            # failed game already produces.
-            hyperparameter_moebius=d.get("hyperparameter_moebius", {}),
-            # Likewise absent from anything written before the interaction
-            # figures could show a game other than tunability.
-            hyperparameter_sensitivity_interactions=d.get("hyperparameter_sensitivity_interactions", {}),
-            hyperparameter_sensitivity_moebius=d.get("hyperparameter_sensitivity_moebius", {}),
-            hyperparameter_mistunability_interactions=d.get("hyperparameter_mistunability_interactions", {}),
-            hyperparameter_mistunability_moebius=d.get("hyperparameter_mistunability_moebius", {}),
-            # Absent from anything written before the shares could be read in
-            # the metric's own units, which reads as "no scale for these" — the
-            # figure then offers the achievable view alone.
-            hyperparameter_tunability_total=d.get("hyperparameter_tunability_total", {}),
+            # A field absent from an older file reads as empty: no game, no
+            # Möbius view, no scale to read a share in.
+            **{name: d.get(name, {}) for name in GAME_RESULT_FIELDS},
             trials_limit=d.get("trials_limit"),
             metadata={},
         )

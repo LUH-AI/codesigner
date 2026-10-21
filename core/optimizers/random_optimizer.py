@@ -1,6 +1,8 @@
 from typing import Optional
 
-from .base import BaseOptimizer, OptimizationResult, merge_stopping, rebase_history
+from .base import (
+    BaseOptimizer, OptimizationResult, game_fields, merge_stopping, rebase_history,
+)
 from ..splits import holdout
 from .trial import evaluate_trial
 
@@ -106,19 +108,6 @@ class RandomOptimizer(BaseOptimizer):
             best_config=best.config if best is not None else {},
             best_score=_metric.best((t.scores[primary_metric] for t in all_trials),
                                     default=0.0),
-            hyperparameter_importance=games["tunability"][0],
-            hyperparameter_importance_warning=games["tunability"][1],
-            hyperparameter_sensitivity=games["sensitivity"][0],
-            hyperparameter_sensitivity_warning=games["sensitivity"][1],
-            hyperparameter_mistunability=games["mistunability"][0],
-            hyperparameter_mistunability_warning=games["mistunability"][1],
-            hyperparameter_interactions=games["tunability"][2],
-            hyperparameter_interactions_warning=games["tunability"][1],
-            hyperparameter_moebius=games["tunability"][3],
-            hyperparameter_sensitivity_interactions=games["sensitivity"][2],
-            hyperparameter_sensitivity_moebius=games["sensitivity"][3],
-            hyperparameter_mistunability_interactions=games["mistunability"][2],
-            hyperparameter_mistunability_moebius=games["mistunability"][3],
-            hyperparameter_tunability_total=games["tunability"][4],
+            **game_fields(games),
             metadata={"stopped_by": collector.stopped_by},
         )

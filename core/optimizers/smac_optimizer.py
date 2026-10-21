@@ -30,7 +30,7 @@ from .. import projected_prior
 from ..metrics import metric_for, to_cost
 from .base import (
     REQUESTED_ORIGIN, STOPPED_BY_EXHAUSTED, BaseOptimizer, OptimizationResult, OptimizerParam,
-    merge_stopping, pair_trials_with_scores, rebase_history, storable_score,
+    game_fields, merge_stopping, pair_trials_with_scores, rebase_history, storable_score,
 )
 from ..splits import holdout
 from .timing import STATUS_SUCCESS
@@ -1514,20 +1514,7 @@ class SMACOptimizer(BaseOptimizer):
             # metric) must not contribute a score for a metric it never had.
             best_score=collector.metric.best(
                 (t.scores.get(primary_metric, t.score) for t in all_trials), default=0.0),
-            hyperparameter_importance=games["tunability"][0],
-            hyperparameter_importance_warning=games["tunability"][1],
-            hyperparameter_sensitivity=games["sensitivity"][0],
-            hyperparameter_sensitivity_warning=games["sensitivity"][1],
-            hyperparameter_mistunability=games["mistunability"][0],
-            hyperparameter_mistunability_warning=games["mistunability"][1],
-            hyperparameter_interactions=games["tunability"][2],
-            hyperparameter_interactions_warning=games["tunability"][1],
-            hyperparameter_moebius=games["tunability"][3],
-            hyperparameter_sensitivity_interactions=games["sensitivity"][2],
-            hyperparameter_sensitivity_moebius=games["sensitivity"][3],
-            hyperparameter_mistunability_interactions=games["mistunability"][2],
-            hyperparameter_mistunability_moebius=games["mistunability"][3],
-            hyperparameter_tunability_total=games["tunability"][4],
+            **game_fields(games),
             # `metadata` is where this kind of in-process reporting already
             # lives (`stopped_by`, `initial_design`) and is deliberately not
             # serialized — `core/` knows nothing about a Run, so what the prior
