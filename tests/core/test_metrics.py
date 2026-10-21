@@ -126,14 +126,14 @@ def test_an_unbounded_higher_is_better_metric_is_negated():
 
 
 def test_cost_and_score_are_exact_inverses_for_every_shape():
-    from core.metrics import Metric, from_cost, to_cost
+    from core.metrics import Metric, from_cost, metric_for, to_cost
 
     shapes = [
         METRICS["accuracy"],
         Metric(name="rmse", fn=lambda *_: 0.0, higher_is_better=False, bounds=(0.0, None)),
         Metric(name="cost", fn=lambda *_: 0.0, higher_is_better=False, bounds=(None, None)),
         Metric(name="gain", fn=lambda *_: 0.0, bounds=(0.0, None)),
-        None,   # a name this build has never heard of
+        metric_for("a name this build has never heard of"),
     ]
     for metric in shapes:
         for score in (-2.0, 0.0, 0.375, 17.0):

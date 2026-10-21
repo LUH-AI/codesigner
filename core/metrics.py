@@ -156,135 +156,6 @@ class Metric:
         return picker(items, key=key, default=default)
 
 
-#: Metric name → `Metric`. The names are stored verbatim in .ihpo files, so
-#: renaming one breaks every experiment that used it — and changing what one
-#: *means* is worse, since nothing in the file would say so. The four here are
-#: the ones that predate metrics describing themselves, and they are declared
-#: with exactly the assumptions the whole application used to make about them.
-METRICS: dict[str, Metric] = {
-    "accuracy": Metric(
-        name="accuracy",
-        fn=lambda y, yp: float(accuracy_score(y, yp)),
-    ),
-    "f1": Metric(
-        name="f1",
-        fn=lambda y, yp: float(f1_score(y, yp, average="weighted", zero_division=0)),  # pyright: ignore[reportArgumentType]
-    ),
-    "precision": Metric(
-        name="precision",
-        fn=lambda y, yp: float(precision_score(y, yp, average="weighted", zero_division=0)),  # pyright: ignore[reportArgumentType]
-    ),
-    "recall(macro)": Metric(
-        name="recall(macro)",
-        fn=lambda y, yp: float(recall_score(y, yp, average="macro", zero_division=0)),  # pyright: ignore[reportArgumentType]
-    ),
-    "balanced_accuracy": Metric(
-        name="balanced_accuracy",
-        label="Balanced accuracy",
-        fn=lambda y, yp: float(balanced_accuracy_score(y, yp)),
-    ),
-    # Scored on probabilities, so only for a model that offers them, and only
-    # when asked for: an SVM pays for its probabilities with an internal
-    # calibration costing several plain fits, on every trial.
-    "roc_auc": Metric(
-        name="roc_auc",
-        label="ROC AUC",
-        fn=lambda y, proba, classes: _roc_auc(y, proba, classes),
-        needs=PROBABILITIES,
-        null_score=lambda y: 0.5,
-    ),
-    "log_loss": Metric(
-        name="log_loss",
-        label="Log loss",
-        fn=lambda y, proba, classes: _log_loss(y, proba, classes),
-        higher_is_better=False,
-        bounds=(0.0, None),
-        needs=PROBABILITIES,
-        null_score=lambda y: _prior_log_loss(y),
-    ),
-    # Forecasting. MASE first, so it is what a forecast is optimized on unless
-    # asked otherwise: it is the one that means the same on any series —
-    # below 1 beats repeating last season, above 1 does not.
-    "mase": Metric(
-        name="mase",
-        label="MASE",
-        fn=lambda y, yp, history: _mase(y, yp, history),
-        higher_is_better=False,
-        bounds=(0.0, None),
-        needs=HISTORY,
-        # The no-skill line by construction: a seasonal naive forecast scores
-        # about 1 on the history it is scaled by.
-        null_score=lambda y: 1.0,
-        tasks=(REGRESSION,),
-        forecast_only=True,
-    ),
-    "smape": Metric(
-        name="smape",
-        label="sMAPE (%)",
-        fn=lambda y, yp: _smape(y, yp),
-        higher_is_better=False,
-        bounds=(0.0, 200.0),
-        null_score=lambda y: _smape(y, np.full(len(y), np.mean(np.asarray(y, dtype=float)))),
-        tasks=(REGRESSION,),
-        forecast_only=True,
-    ),
-    # Regression. A trial that produced nothing scores what predicting the
-    # mean scores: the error of a model that knows only the target's average,
-    # which is what R² measures every model against anyway.
-    "rmse": Metric(
-        name="rmse",
-        label="RMSE",
-        fn=lambda y, yp: float(root_mean_squared_error(y, yp)),
-        higher_is_better=False,
-        bounds=(0.0, None),
-        null_score=lambda y: float(np.std(np.asarray(y, dtype=float))),
-        tasks=(REGRESSION,),
-    ),
-    "mae": Metric(
-        name="mae",
-        label="MAE",
-        fn=lambda y, yp: float(mean_absolute_error(y, yp)),
-        higher_is_better=False,
-        bounds=(0.0, None),
-        null_score=lambda y: float(np.mean(np.abs(np.asarray(y, dtype=float)
-                                                  - np.mean(np.asarray(y, dtype=float))))),
-        tasks=(REGRESSION,),
-    ),
-    "r2": Metric(
-        name="r2",
-        label="R²",
-        fn=lambda y, yp: float(r2_score(y, yp)),
-        bounds=(None, 1.0),
-        tasks=(REGRESSION,),
-    ),
-}
-
-
-def metrics_for(task: str, *, probabilities: bool = False, forecast: bool = False) -> list[str]:
-    """The names of the metrics that score *task*, in the order they are listed.
-
-    The first is what a new experiment optimizes unless told otherwise. The
-    ones scored on probabilities are left out unless *probabilities*: they are
-    asked for, not given — see `roc_auc`. A *forecast* also gets the ones only a
-    forecast has, first, so it is optimized on MASE unless told otherwise.
-    """
-    names = [name for name, metric in METRICS.items()
-             if task in metric.tasks and (forecast or not metric.forecast_only)]
-    names.sort(key=lambda name: not METRICS[name].forecast_only)
-    return usable(names, probabilities=probabilities)
-
-
-def usable(names: Iterable[str], *, probabilities: bool) -> list[str]:
-    """*names* without the metrics that need probabilities, unless the model
-    scoring them can give *probabilities*.
-
-    Settled before the first trial, because a metric that cannot be scored
-    does not fail one trial — it fails every one of them.
-    """
-    return [name for name in names
-            if probabilities or metric_for(name).needs != PROBABILITIES]
-
-
 def _roc_auc(y_true, proba, classes) -> float:
     """ROC AUC, one class against the rest, averaged over the classes this
     fold can rank — a class with no rows in the fold, or every row, has no
@@ -348,6 +219,135 @@ def _log_loss(y_true, proba, classes) -> float:
         proba = np.hstack([proba, np.zeros((len(proba), len(unseen)))])
         classes += unseen
     return float(log_loss(y_true, proba, labels=classes))
+
+
+#: Metric name → `Metric`. The names are stored verbatim in .ihpo files, so
+#: renaming one breaks every experiment that used it — and changing what one
+#: *means* is worse, since nothing in the file would say so. The four here are
+#: the ones that predate metrics describing themselves, and they are declared
+#: with exactly the assumptions the whole application used to make about them.
+METRICS: dict[str, Metric] = {
+    "accuracy": Metric(
+        name="accuracy",
+        fn=lambda y, yp: float(accuracy_score(y, yp)),
+    ),
+    "f1": Metric(
+        name="f1",
+        fn=lambda y, yp: float(f1_score(y, yp, average="weighted", zero_division=0)),  # pyright: ignore[reportArgumentType]
+    ),
+    "precision": Metric(
+        name="precision",
+        fn=lambda y, yp: float(precision_score(y, yp, average="weighted", zero_division=0)),  # pyright: ignore[reportArgumentType]
+    ),
+    "recall(macro)": Metric(
+        name="recall(macro)",
+        fn=lambda y, yp: float(recall_score(y, yp, average="macro", zero_division=0)),  # pyright: ignore[reportArgumentType]
+    ),
+    "balanced_accuracy": Metric(
+        name="balanced_accuracy",
+        label="Balanced accuracy",
+        fn=lambda y, yp: float(balanced_accuracy_score(y, yp)),
+    ),
+    # Scored on probabilities, so only for a model that offers them, and only
+    # when asked for: an SVM pays for its probabilities with an internal
+    # calibration costing several plain fits, on every trial.
+    "roc_auc": Metric(
+        name="roc_auc",
+        label="ROC AUC",
+        fn=_roc_auc,
+        needs=PROBABILITIES,
+        null_score=lambda y: 0.5,
+    ),
+    "log_loss": Metric(
+        name="log_loss",
+        label="Log loss",
+        fn=_log_loss,
+        higher_is_better=False,
+        bounds=(0.0, None),
+        needs=PROBABILITIES,
+        null_score=lambda y: _prior_log_loss(y),
+    ),
+    # Forecasting. MASE first, so it is what a forecast is optimized on unless
+    # asked otherwise: it is the one that means the same on any series —
+    # below 1 beats repeating last season, above 1 does not.
+    "mase": Metric(
+        name="mase",
+        label="MASE",
+        fn=_mase,
+        higher_is_better=False,
+        bounds=(0.0, None),
+        needs=HISTORY,
+        # The no-skill line by construction: a seasonal naive forecast scores
+        # about 1 on the history it is scaled by.
+        null_score=lambda y: 1.0,
+        tasks=(REGRESSION,),
+        forecast_only=True,
+    ),
+    "smape": Metric(
+        name="smape",
+        label="sMAPE (%)",
+        fn=_smape,
+        higher_is_better=False,
+        bounds=(0.0, 200.0),
+        null_score=lambda y: _smape(y, np.full(len(y), np.mean(np.asarray(y, dtype=float)))),
+        tasks=(REGRESSION,),
+        forecast_only=True,
+    ),
+    # Regression. A trial that produced nothing scores what predicting the
+    # mean scores: the error of a model that knows only the target's average,
+    # which is what R² measures every model against anyway.
+    "rmse": Metric(
+        name="rmse",
+        label="RMSE",
+        fn=lambda y, yp: float(root_mean_squared_error(y, yp)),
+        higher_is_better=False,
+        bounds=(0.0, None),
+        null_score=lambda y: float(np.std(np.asarray(y, dtype=float))),
+        tasks=(REGRESSION,),
+    ),
+    "mae": Metric(
+        name="mae",
+        label="MAE",
+        fn=lambda y, yp: float(mean_absolute_error(y, yp)),
+        higher_is_better=False,
+        bounds=(0.0, None),
+        null_score=lambda y: float(np.mean(np.abs(np.asarray(y, dtype=float)
+                                                  - np.mean(np.asarray(y, dtype=float))))),
+        tasks=(REGRESSION,),
+    ),
+    "r2": Metric(
+        name="r2",
+        label="R²",
+        fn=lambda y, yp: float(r2_score(y, yp)),
+        bounds=(None, 1.0),
+        tasks=(REGRESSION,),
+    ),
+}
+
+
+def metrics_for(task: str, *, probabilities: bool = False, forecast: bool = False) -> list[str]:
+    """The names of the metrics that score *task*, in the order they are listed.
+
+    The first is what a new experiment optimizes unless told otherwise. The
+    ones scored on probabilities are left out unless *probabilities*: they are
+    asked for, not given — see `roc_auc`. A *forecast* also gets the ones only a
+    forecast has, first, so it is optimized on MASE unless told otherwise.
+    """
+    names = [name for name, metric in METRICS.items()
+             if task in metric.tasks and (forecast or not metric.forecast_only)]
+    names.sort(key=lambda name: not METRICS[name].forecast_only)
+    return usable(names, probabilities=probabilities)
+
+
+def usable(names: Iterable[str], *, probabilities: bool) -> list[str]:
+    """*names* without the metrics that need probabilities, unless the model
+    scoring them can give *probabilities*.
+
+    Settled before the first trial, because a metric that cannot be scored
+    does not fail one trial — it fails every one of them.
+    """
+    return [name for name in names
+            if probabilities or metric_for(name).needs != PROBABILITIES]
 
 
 def _prior_log_loss(y_true) -> float:
@@ -482,7 +482,7 @@ def score_all(y_true, y_pred, metrics: Mapping[str, Metric],
 # trips through both functions unchanged.
 
 
-def to_error(metric: Optional[Metric], score: float) -> Optional[float]:
+def to_error(metric: Metric, score: float) -> Optional[float]:
     """*score* as a distance from perfect, or None when it has no such reading.
 
     Not the same question as `to_cost`, though it agrees with it on two of the
@@ -495,9 +495,6 @@ def to_error(metric: Optional[Metric], score: float) -> Optional[float]:
     A metric that is already a cost (lower wins) is already an error, and
     passes through.
     """
-    if metric is None:
-        # The one convention there was before metrics described themselves.
-        return 1.0 - score
     if not metric.higher_is_better:
         return score
     if metric.high is None:
@@ -505,15 +502,13 @@ def to_error(metric: Optional[Metric], score: float) -> Optional[float]:
     return metric.high - score
 
 
-def error_range(metric: Optional[Metric]) -> Optional[tuple[float, float]]:
+def error_range(metric: Metric) -> Optional[tuple[float, float]]:
     """The span an error axis covers for *metric*, or None if it has no fixed one.
 
     What the absolute-scale toggle pins to. None means the toggle has nothing to
     offer and hides — which is the honest answer for an unbounded metric, where
     the only range there is is the one the data happens to occupy.
     """
-    if metric is None:
-        return (0.0, 1.0)
     if metric.low is None or metric.high is None:
         return None
     if metric.higher_is_better:
@@ -521,13 +516,8 @@ def error_range(metric: Optional[Metric]) -> Optional[tuple[float, float]]:
     return (metric.low, metric.high)
 
 
-def to_cost(metric: Optional[Metric], score: float) -> float:
+def to_cost(metric: Metric, score: float) -> float:
     """*score* as something to minimise."""
-    if metric is None:
-        # A name this build has never heard of, in a file old enough to predate
-        # per-metric scores. Every such file was written under the one
-        # convention there was.
-        return 1.0 - score
     if not metric.higher_is_better:
         return score
     if metric.high is None:
@@ -537,10 +527,8 @@ def to_cost(metric: Optional[Metric], score: float) -> float:
     return metric.high - score
 
 
-def from_cost(metric: Optional[Metric], cost: float) -> float:
+def from_cost(metric: Metric, cost: float) -> float:
     """The inverse of `to_cost`, exactly."""
-    if metric is None:
-        return 1.0 - cost
     if not metric.higher_is_better:
         return cost
     if metric.high is None:
@@ -548,7 +536,7 @@ def from_cost(metric: Optional[Metric], cost: float) -> float:
     return metric.high - cost
 
 
-def scale(metric: Optional[Metric], null_score: Optional[float] = None) -> Optional[float]:
+def scale(metric: Metric, null_score: Optional[float] = None) -> Optional[float]:
     """How far apart a perfect score and a worthless one are, in *metric*'s units.
 
     Its range where it has two ends — 1 for an accuracy, 200 for an sMAPE.
@@ -556,8 +544,6 @@ def scale(metric: Optional[Metric], null_score: Optional[float] = None) -> Optio
     knows nothing scores: the targets' spread for an RMSE, 1 for an R². None
     when neither is known, or they coincide.
     """
-    if metric is None:
-        return 1.0
     if metric.low is not None and metric.high is not None:
         return metric.high - metric.low
     if metric.best_bound is None or null_score is None:
