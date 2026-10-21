@@ -1,6 +1,7 @@
 import json
 import logging
 import tempfile
+from contextlib import contextmanager
 from collections.abc import Mapping
 from pathlib import Path
 from typing import Any, Optional
@@ -722,6 +723,28 @@ class SMACOptimizer(BaseOptimizer):
         """Settings that belong to the scenario rather than to a component."""
         return {"use_default_config": self._use_default_config}
 
+    @contextmanager
+    def _rebuilt(self, config_space, trials, metric_name: str, seed: int, previous_result,
+                 n_trials: int, purpose: str):
+        """`(smac, scenario)`: this run's facade, built as a run builds it with
+        *trials* replayed into it, in a scratch output directory that is gone
+        when the block ends. Never run: its target raises, naming *purpose*."""
+        # The same place `_pinned_points` reads it from: the scenario meta the
+        # run left behind, lifted onto the result by deserialize_result.
+        recorded = ((getattr(previous_result, "metadata", None) or {})
+                    .get("initial_design") or {}).get("n_configs")
+        with tempfile.TemporaryDirectory() as directory:
+            scenario = Scenario(
+                config_space, name="ihpo", n_trials=n_trials, deterministic=True, seed=seed,
+                output_directory=Path(directory), **self._scenario_extras())
+
+            def _unreachable(config, seed: int = 0) -> float:
+                raise RuntimeError(f"target_function called while {purpose}")
+
+            smac = self._facade(scenario, _unreachable, None, initial_points=recorded)
+            self._replay(smac, config_space, trials, metric_name, seed)
+            yield smac, scenario
+
     def slice_challengers(self, config_space, trials, metric_name: str, seed: int = 0,
                           priors=None, count=SLICE_CANDIDATES, previous_result=None,
                           budget=None, with_walks=False, projected_priors=None):
@@ -753,29 +776,11 @@ class SMACOptimizer(BaseOptimizer):
         stopped — see `_record_walks` — or None for one that was not climbed to
         (a random interleave, or a random sample ranked by the acquisition).
         """
-        import tempfile
-        from pathlib import Path as _Path
-
         if not trials:
             return None
         try:
-            # The same place `_pinned_points` reads it from: the scenario meta
-            # the run left behind, lifted onto the result by deserialize_result.
-            recorded = ((getattr(previous_result, "metadata", None) or {})
-                        .get("initial_design") or {}).get("n_configs")
-            with tempfile.TemporaryDirectory() as directory:
-                scenario = Scenario(
-                    config_space, name="ihpo",
-                    n_trials=len(trials) + max(count, 1),
-                    deterministic=True, seed=seed,
-                    output_directory=_Path(directory), **self._scenario_extras())
-
-                def _unreachable(config, seed: int = 0) -> float:
-                    raise RuntimeError("target_function called while ranking candidates")
-
-                smac = self._facade(scenario, _unreachable, None,
-                                    initial_points=recorded)
-                self._replay(smac, config_space, trials, metric_name, seed)
+            with self._rebuilt(config_space, trials, metric_name, seed, previous_result,
+                               len(trials) + max(count, 1), "ranking candidates") as (smac, scenario):
                 self._apply_priors(smac, scenario, config_space, priors, budget=budget,
                                    projected=projected_priors)
                 walks = _record_walks(smac) if with_walks else None
@@ -825,9 +830,6 @@ class SMACOptimizer(BaseOptimizer):
         records whether it compared anything, which is how the two are told
         apart.
         """
-        import tempfile
-        from pathlib import Path as _Path
-
         if not priors and not projected_priors:
             return {"verdict": "unjudged", "reason": "no prior is stated"}
         if not trials:
@@ -854,20 +856,8 @@ class SMACOptimizer(BaseOptimizer):
                 threshold=-abs(tolerance), top_k=int(top_k),
                 n_samples_per_hyperparameter=PRIOR_JUDGING_SAMPLES_PER_HYPERPARAMETER,
                 neighbourhood_std="prior")
-            recorded = ((getattr(previous_result, "metadata", None) or {})
-                        .get("initial_design") or {}).get("n_configs")
-            with tempfile.TemporaryDirectory() as directory:
-                scenario = Scenario(
-                    config_space, name="ihpo", n_trials=len(trials) + 1,
-                    deterministic=True, seed=seed,
-                    output_directory=_Path(directory), **self._scenario_extras())
-
-                def _unreachable(config, seed: int = 0) -> float:
-                    raise RuntimeError("target_function called while judging a prior")
-
-                smac = self._facade(scenario, _unreachable, None,
-                                    initial_points=recorded)
-                self._replay(smac, config_space, trials, metric_name, seed)
+            with self._rebuilt(config_space, trials, metric_name, seed, previous_result,
+                               len(trials) + 1, "judging a prior") as (smac, scenario):
                 applied = self._apply_priors(
                     smac, scenario, config_space, priors, budget=budget,
                     projected=projected_priors,

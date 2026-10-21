@@ -49,10 +49,13 @@ def test_the_two_paths_agree_about_it():
     """`slice_challengers` is what the figure's re-walk asks, and the run is
     what actually spends the trials. A reader who re-walks and then runs has to
     be shown the same search twice."""
+    rebuilt = SOURCE[SOURCE.index("def _rebuilt"):]
+    rebuilt = rebuilt[:rebuilt.index("def slice_challengers")]
     walk = SOURCE[SOURCE.index("def slice_challengers"):]
     walk = walk[:walk.index("def _prior_grid")]
 
-    assert (walk.index("self._replay(")
+    assert rebuilt.index("self._replay(") < rebuilt.index("yield"), "the rebuild replays"
+    assert (walk.index("self._rebuilt(")
             < walk.index("self._apply_priors(")), "the re-walk replays first"
 
 
