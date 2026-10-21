@@ -52,7 +52,7 @@ from typing import Any, Dict, List, Optional
 
 import numpy as np
 
-from .projection import _Column, encode_vectors
+from .projection import Column, encode_vectors
 
 VIEWS = ("axes", "pca", "pls")
 
@@ -207,7 +207,7 @@ def view_coordinates(record, config_space, X) -> np.ndarray:
         order = list(config_space.keys())
         return X[:, [order.index(name) for name in record["hyperparameters"]]]
     projection = record["map"]
-    columns = [_Column(label="", name=c["name"], value=c["value"], log=bool(c["log"]),
+    columns = [Column(label="", name=c["name"], value=c["value"], log=bool(c["log"]),
                        mean=float(c["mean"]), spread=float(c["spread"]))
                for c in projection["columns"]]
     encoded = encode_vectors(config_space, columns, X)

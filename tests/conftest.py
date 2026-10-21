@@ -4,7 +4,7 @@ from pathlib import Path
 import pytest
 from ConfigSpace import ConfigurationSpace, Integer
 
-from core.io import _load_splits
+from core.io import load_splits
 from core.metrics import METRICS, metrics_for
 from core.models import BaseModel
 from core.registry import MODELS
@@ -179,7 +179,7 @@ def optimizers() -> dict:
 @pytest.fixture
 def iris_splits():
     """(X_train, X_val, y_train, y_val) for datasets/iris.csv with seed 0."""
-    return _load_splits(DATASETS_DIR / "iris.csv", seed=0)
+    return load_splits(DATASETS_DIR / "iris.csv", seed=0)
 
 
 @pytest.fixture

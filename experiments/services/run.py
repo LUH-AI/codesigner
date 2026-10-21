@@ -20,7 +20,7 @@ from django.utils.translation import gettext as _
 
 from access.policy import policy
 from core import encoding, io, registry, tasks
-from core.io import DEFAULT_TEST_SIZE, _load_splits
+from core.io import DEFAULT_TEST_SIZE, load_splits
 from core.metrics import metric_for, metrics_for, usable
 from core.optimizers.base import STOPPED_BY_CANCELLED, OptimizationResult
 from core.optimizers.trial import offers_probabilities
@@ -56,7 +56,7 @@ def run_experiment(*, model_name, optimizer_name, dataset_path, seed,
     io.tell_feature_kinds(
         model, encoding.feature_kinds(io.dataset_encoding(Path(dataset_path))))
     optimizer = type(OPTIMIZERS[optimizer_name])(**(optimizer_params or {}))
-    X_train, X_val, y_train, y_val = _load_splits(
+    X_train, X_val, y_train, y_val = load_splits(
         Path(dataset_path), seed, test_size or DEFAULT_TEST_SIZE, task)
     return optimizer.optimize(
         model, X_train, y_train, X_val, y_val,

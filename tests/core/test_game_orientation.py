@@ -14,12 +14,12 @@ in the metric's own units.
 
 import pytest
 
-from core.metrics import METRICS, Metric, _unscoreable
+from core.metrics import METRICS, Metric, unscoreable
 from core.optimizers.base import (
-    TrialResult, _pair_trials_with_oriented_scores, _pair_trials_with_scores,
+    TrialResult, _pair_trials_with_oriented_scores, pair_trials_with_scores,
 )
 
-COST = Metric(name="smac:cost", fn=_unscoreable, higher_is_better=False, bounds=(None, None))
+COST = Metric(name="smac:cost", fn=unscoreable, higher_is_better=False, bounds=(None, None))
 
 
 @pytest.fixture
@@ -45,7 +45,7 @@ def test_a_higher_is_better_metric_is_left_alone(config_space):
     """Every metric this build ships is one, so nothing about them moves."""
     trials = _trials("accuracy", [0.2, 0.9, 0.5])
 
-    raw = _pair_trials_with_scores(config_space, trials, "accuracy")
+    raw = pair_trials_with_scores(config_space, trials, "accuracy")
     oriented = _pair_trials_with_oriented_scores(
         config_space, trials, "accuracy", METRICS["accuracy"])
 
@@ -105,6 +105,6 @@ def test_the_partial_dependence_surrogate_is_not_turned(config_space):
     assert surrogate is not None
     # Predictions sit inside the raw cost range, not its negation.
     predictions = surrogate.predict([c.get_array() for c, _ in
-                                     _pair_trials_with_scores(config_space, trials,
+                                     pair_trials_with_scores(config_space, trials,
                                                               "smac:cost")])
     assert min(predictions) >= 0.0

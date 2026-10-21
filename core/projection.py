@@ -84,7 +84,7 @@ def encode_configurations(config_space, trials) -> Tuple[List[List[float]], List
     return rows, [column.label for column in columns]
 
 
-class _Column(NamedTuple):
+class Column(NamedTuple):
     """One column of the encoded matrix, and what it takes to read it back:
     which hyperparameter it came from, and the value it stands for when it is
     one of a categorical's one-hot columns (None for a numeric one)."""
@@ -97,7 +97,7 @@ class _Column(NamedTuple):
     spread: float
 
 
-def _encode(config_space, trials) -> Tuple[List[List[float]], List[_Column]]:
+def _encode(config_space, trials) -> Tuple[List[List[float]], List[Column]]:
     """*trials*' configurations as a numeric matrix, one row each.
 
     Returns `(rows, feature_names)`. Three things happen to a configuration on
@@ -143,11 +143,11 @@ def _encode(config_space, trials) -> Tuple[List[List[float]], List[_Column]]:
     for column, spec in zip(columns, specs):
         values, mean, spread = _standardised(column)
         standardised.append(values)
-        described.append(_Column(*spec, mean, spread))
+        described.append(Column(*spec, mean, spread))
     return [list(row) for row in zip(*standardised)], described
 
 
-def encode_column(column: "_Column", values):
+def encode_column(column: "Column", values):
     """One encoded column for many configurations — the rule `Fitted.transform`
     encodes by, in one place, for whichever form the values arrive in.
 
@@ -298,7 +298,7 @@ class Fitted(NamedTuple):
     coordinates: List[List[float]]
     labels: List[str]
     model: Any
-    columns: List[_Column]
+    columns: List[Column]
     config_space: Any
 
     def transform(self, configurations) -> List[List[float]]:

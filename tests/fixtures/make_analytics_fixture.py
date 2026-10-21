@@ -33,7 +33,7 @@ SEED = 0
 
 
 def main() -> None:
-    X_train, X_val, y_train, y_val = io._load_splits(DATASET, SEED)
+    X_train, X_val, y_train, y_val = io.load_splits(DATASET, SEED)
     metrics = {name: METRICS[name] for name in METRIC_NAMES}
     optimizer = RandomOptimizer()
     result = optimizer.optimize(

@@ -187,9 +187,9 @@ def test_an_unbounded_metric_accepts_a_negative_target():
     """
     from unittest.mock import patch
 
-    from core.metrics import Metric, _unscoreable
+    from core.metrics import Metric, unscoreable
 
-    cost = Metric(name="smac:cost", fn=_unscoreable, higher_is_better=False,
+    cost = Metric(name="smac:cost", fn=unscoreable, higher_is_better=False,
                   bounds=(None, None))
     with patch("ui.views.runs.metric_for", return_value=cost):
         stopping = _posted("smac:cost", target_score="-12.5")

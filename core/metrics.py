@@ -358,7 +358,7 @@ def _prior_log_loss(y_true) -> float:
     return float(-np.sum(shares * np.log(shares)))
 
 
-def _unscoreable(*_args):
+def unscoreable(*_args):
     raise ValueError(
         "this metric is a reading of a stored number, not a way to compute one")
 
@@ -368,7 +368,7 @@ def _unscoreable(*_args):
 #: file written then is read back exactly as it was written. Its `fn` refuses:
 #: an unknown metric can be *displayed* and *compared*, but a run cannot be
 #: scored by it, and the difference should not be discoverable by surprise.
-ASSUMED = Metric(name="", fn=_unscoreable)
+ASSUMED = Metric(name="", fn=unscoreable)
 
 
 def metric_for(name: str) -> Metric:
@@ -417,7 +417,7 @@ def undescribe(raw: Mapping[str, Any]) -> Metric:
     low, high = (list(raw.get("bounds") or [None, None]) + [None, None])[:2]
     return Metric(
         name=str(raw.get("name") or ""),
-        fn=_unscoreable,
+        fn=unscoreable,
         higher_is_better=bool(raw.get("higher_is_better", True)),
         bounds=(low, high),
         needs=str(raw.get("needs") or LABELS),

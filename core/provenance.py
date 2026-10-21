@@ -107,10 +107,10 @@ def dataset_fingerprint(path, frame=None) -> Dict[str, Any]:
     import pandas as pd
 
     from .columns import infer_kinds
-    from .io import _read_csv
+    from .io import read_dataset
 
     try:
-        df = _read_csv(path) if frame is None else frame
+        df = read_dataset(path) if frame is None else frame
     except Exception:  # noqa: BLE001 — an unreadable file still gets its digest
         return record
     if not isinstance(df, pd.DataFrame) or df.empty:

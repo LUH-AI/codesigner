@@ -72,7 +72,7 @@ def metric_scale(exp, metric_name, result):
     whose data is not here falls back to the spread of the scores its trials
     reached.
     """
-    from core.optimizers.trial import _null_scores
+    from core.optimizers.trial import null_scores
 
     metric = result.metric(metric_name)
     found = metric_scale_of(metric)
@@ -81,7 +81,7 @@ def metric_scale(exp, metric_name, result):
     try:
         built = io.build_experiment(snapshot_from_experiment(exp),
                                     METRICS, MODELS, OPTIMIZERS, load_model=False)[1]
-        null = _null_scores({metric_name: metric}, built["splits"])[metric_name]
+        null = null_scores({metric_name: metric}, built["splits"])[metric_name]
         found = metric_scale_of(metric, null)
     except Exception as error:  # noqa: BLE001 — the fallback below still answers
         logger.info("No null score for %s: %s", metric_name, error)

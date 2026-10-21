@@ -56,7 +56,7 @@ def test_a_holdout_is_one_fold():
 
 def test_a_holdout_keeps_exactly_the_split_it_was_given():
     """Reassembled and re-indexed, not re-split — so the stratification
-    `_load_splits` produced survives rather than being approximated."""
+    `load_splits` produced survives rather than being approximated."""
     splits = holdout(X_TRAIN, Y_TRAIN, X_VAL, Y_VAL)
     train_idx, val_idx = splits.folds[0]
 
@@ -231,10 +231,10 @@ def test_an_experiment_without_the_field_is_a_holdout(tmp_path):
 
 
 def test_an_optimizer_runs_a_cross_validated_search(optimizers, models):
-    from core.io import _load_frame
+    from core.io import load_frame
     from tests.conftest import DATASETS_DIR
 
-    X, y = _load_frame(DATASETS_DIR / "iris.csv")
+    X, y = load_frame(DATASETS_DIR / "iris.csv")
     splits = cross_validation(X, y, folds=3, seed=0)
 
     result = optimizers["Random Search"].optimize(
@@ -264,12 +264,12 @@ def test_the_target_keeps_the_type_the_file_gave_it(dataset, kind):
 
     Both shipped demo datasets are covered because that is exactly the gap —
     every test here used iris, whose labels are strings, so nothing noticed."""
-    from core.io import _load_frame, _load_splits
+    from core.io import load_frame, load_splits
     from tests.conftest import DATASETS_DIR
 
     path = DATASETS_DIR / dataset
-    X, y = _load_frame(path)
-    X_train, X_val, y_train, y_val = _load_splits(path, 0)
+    X, y = load_frame(path)
+    X_train, X_val, y_train, y_val = load_splits(path, 0)
 
     assert holdout(X_train, y_train, X_val, y_val).y.dtype == y.dtype, kind
     assert cross_validation(X, y, folds=3, seed=0).y.dtype == y.dtype, kind
@@ -279,7 +279,7 @@ def test_the_target_keeps_the_type_the_file_gave_it(dataset, kind):
 @pytest.mark.parametrize("folds", [0, 5])
 def test_a_real_model_fits_both_demo_datasets_either_way(dataset, folds):
     """The end the user sees: a trial that succeeds and scores something."""
-    from core.io import _load_frame, _load_splits
+    from core.io import load_frame, load_splits
     from core.models.random_forest import RandomForestModel
     from tests.conftest import DATASETS_DIR
 
@@ -288,9 +288,9 @@ def test_a_real_model_fits_both_demo_datasets_either_way(dataset, folds):
     config = dict(model.get_config_space(seed=0).sample_configuration())
 
     if folds:
-        splits = cross_validation(*_load_frame(path), folds=folds, seed=0)
+        splits = cross_validation(*load_frame(path), folds=folds, seed=0)
     else:
-        X_train, X_val, y_train, y_val = _load_splits(path, 0)
+        X_train, X_val, y_train, y_val = load_splits(path, 0)
         splits = holdout(X_train, y_train, X_val, y_val)
 
     scores, run_info = evaluate_trial(model, config, splits, METRICS, seed=0)

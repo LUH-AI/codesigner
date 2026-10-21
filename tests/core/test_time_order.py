@@ -66,7 +66,7 @@ def test_loading_in_order_sorts_by_the_column_and_leaves_out_unplaced_rows(tmp_p
     shuffled = tmp_path / "shuffled.csv"
     frame.to_csv(shuffled, index=False)
 
-    X, y = io._load_frame(shuffled, order_by="listed")
+    X, y = io.load_frame(shuffled, order_by="listed")
     days = X[:, io.encoding.feature_names(io.dataset_encoding(shuffled)).index("listed:days")]
 
     assert len(X) == len(y) == 238
@@ -76,12 +76,12 @@ def test_loading_in_order_sorts_by_the_column_and_leaves_out_unplaced_rows(tmp_p
 def test_a_number_column_orders_and_a_label_column_does_not():
     """What: rows can be ordered by a number (a year, a period), never by a
     label. How: orders the fixture by `rooms`, then asks for `city`."""
-    X, _ = io._load_frame(FLATS, order_by="rooms")
+    X, _ = io.load_frame(FLATS, order_by="rooms")
     rooms = X[:, io.encoding.feature_names(io.dataset_encoding(FLATS)).index("rooms")]
     assert np.all(np.diff(rooms) >= 0)
 
     with pytest.raises(ValueError, match="labels"):
-        io._load_frame(FLATS, order_by="city")
+        io.load_frame(FLATS, order_by="city")
 
 
 def test_the_suggestions_are_the_dates_then_the_numbers():

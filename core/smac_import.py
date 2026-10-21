@@ -35,10 +35,12 @@ dataset here — nothing in the files could check that it was the right one.
 from __future__ import annotations
 
 import math
+from importlib.metadata import version as dist_version
 from typing import Any, Mapping, Optional
 
-from .io import SNAPSHOT_FORMAT
-from .metrics import LABELS, Metric, _unscoreable, describe
+from .io import SNAPSHOT_FORMAT, finite
+from .metrics import LABELS, Metric, unscoreable, describe
+from .optimizers.smac_optimizer import INITIAL_DESIGNS, STRATEGIES
 from .optimizers.timing import RUN_INFO_KEYS, STATUS_SUCCESS
 
 #: The files SMAC writes, by basename. Only the first three are read; the other
@@ -86,7 +88,7 @@ def snapshot_from_smac(files: Mapping[str, Any], *, name: str = "") -> dict:
 
     objective = _objective(scenario)
     metric_name = NAMESPACE + objective
-    metric = Metric(name=metric_name, fn=_unscoreable, higher_is_better=False,
+    metric = Metric(name=metric_name, fn=unscoreable, higher_is_better=False,
                     bounds=(None, None), needs=LABELS)
 
     trials = _trials(runhistory, metric_name)
@@ -104,7 +106,7 @@ def snapshot_from_smac(files: Mapping[str, Any], *, name: str = "") -> dict:
         "format": SNAPSHOT_FORMAT,
         # The application version is the one reading it. The file this came from
         # was not written by codesigner and has no such field.
-        "version": _version(),
+        "version": dist_version("codesigner"),
         "name": name or str(scenario.get("name") or "Imported SMAC run"),
         "seed": seed,
         "dataset": {"filename": "", "path": ""},
@@ -164,7 +166,7 @@ def _carried(files: Mapping[str, Any]) -> dict:
 
     Flattened to basenames rather than kept at their uploaded depth: the keys
     are validated as relative paths on the way into an `.ihpo`
-    (`io._check_optimizer_state`), and a browser reports whatever the person
+    (`io.check_optimizer_state`), and a browser reports whatever the person
     picked, which is not something to write into a file unexamined.
     """
     wanted = (RUNHISTORY, CONFIGSPACE, SCENARIO) + CARRIED
@@ -213,7 +215,7 @@ def _trials(runhistory: Mapping[str, Any], metric_name: str) -> list:
             continue
 
         number = len(trials) + 1
-        entry = {key: _sanitised(row.get(key)) for key in RUN_INFO_KEYS
+        entry = {key: finite(row.get(key)) for key in RUN_INFO_KEYS
                  if key in row}
         entry["status"] = status
         # Where this row came from, so a renumbered trial can still be traced
@@ -246,16 +248,8 @@ def _trials(runhistory: Mapping[str, Any], metric_name: str) -> list:
 #: maximizer at all, and the model's `max_features` is a *count* where
 #: `rf_feature_ratio` is a fraction — guessing either would put a number on the
 #: page that the run never used, which is worse than leaving the field blank.
-_FACADE_STRATEGIES = {
-    "HyperparameterOptimizationFacade": "rf",
-    "BlackBoxFacade": "gp",
-}
-_DESIGNS = {
-    "SobolInitialDesign": "sobol",
-    "LatinHypercubeInitialDesign": "latin_hypercube",
-    "RandomInitialDesign": "random",
-    "DefaultInitialDesign": "default_only",
-}
+_FACADE_STRATEGIES = {facade.__name__: key for key, facade in STRATEGIES.items()}
+_DESIGNS = {design.__name__: key for key, design in INITIAL_DESIGNS.items()}
 #: What SMAC's random forest uses for "no limit". Recorded as a real number, so
 #: it would otherwise import as a depth cap of a million.
 _UNBOUNDED_DEPTH = 2 ** 20
@@ -388,15 +382,6 @@ def _model_name(scenario: Mapping[str, Any]) -> str:
     return f"SMAC run ({run})" if run else "SMAC run"
 
 
-def _version() -> str:
-    from importlib.metadata import version
-
-    try:
-        return version("codesigner")
-    except Exception:  # noqa: BLE001 — a version is a record, not a requirement
-        return "0"
-
-
 # ── numbers that a strict reader can carry ───────────────────────────────────
 
 def _finite(value) -> Optional[float]:
@@ -409,19 +394,6 @@ def _finite(value) -> Optional[float]:
     if isinstance(value, bool) or not isinstance(value, (int, float)):
         return None
     return float(value) if math.isfinite(value) else None
-
-
-def _sanitised(value: Any) -> Any:
-    """*value* with any non-finite number in it replaced by None, recursively."""
-    if isinstance(value, bool):
-        return value
-    if isinstance(value, float):
-        return value if math.isfinite(value) else None
-    if isinstance(value, dict):
-        return {k: _sanitised(v) for k, v in value.items()}
-    if isinstance(value, list):
-        return [_sanitised(v) for v in value]
-    return value
 
 
 def _int(value, default: int) -> int:

@@ -16,7 +16,7 @@ import pytest
 from ConfigSpace import Categorical, ConfigurationSpace, Float, Integer
 
 from core.optimizers.base import (
-    TrialResult, _pair_trials_with_scores, _predict_with_spread, fit_surrogate)
+    TrialResult, pair_trials_with_scores, _predict_with_spread, fit_surrogate)
 from core.optimizers import RandomOptimizer
 
 
@@ -219,7 +219,7 @@ def test_a_values_callable_that_raises_loses_only_that_trial(space, trials):
             raise KeyError("no reading for this one")
         return t.scores["accuracy"]
 
-    data = _pair_trials_with_scores(space, trials, "accuracy", values=sometimes)
+    data = pair_trials_with_scores(space, trials, "accuracy", values=sometimes)
 
     assert len(data) == len([t for t in trials if t.trial % 5])
 

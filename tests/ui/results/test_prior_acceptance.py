@@ -409,7 +409,7 @@ def test_an_unbounded_metric_is_scaled_by_what_knowing_nothing_scores(client):
     from experiments.services.priors import metric_scale
 
     exp = _diabetes(client)
-    _, _, _, y_val = io._load_splits(DATASETS_DIR / "diabetes.csv", 0, task="regression")
+    _, _, _, y_val = io.load_splits(DATASETS_DIR / "diabetes.csv", 0, task="regression")
 
     assert metric_scale(exp, "rmse", rebuild_result(exp)) == pytest.approx(float(np.std(y_val)))
 

@@ -766,7 +766,7 @@ class TrialCollector:
         return trial
 
 
-def _pair_trials_with_scores(config_space, trials: List[TrialResult], metric_name: str,
+def pair_trials_with_scores(config_space, trials: List[TrialResult], metric_name: str,
                              values=None):
     """Every trial's config, as a `ConfigSpace.Configuration`, paired with its
     *metric_name* score — the input shape both HyperSHAP and a plain
@@ -804,7 +804,7 @@ def _pair_trials_with_scores(config_space, trials: List[TrialResult], metric_nam
 
 def _pair_trials_with_oriented_scores(config_space, trials: List[TrialResult],
                                       metric_name: str, metric=None):
-    """As `_pair_trials_with_scores`, with every score turned so bigger is better.
+    """As `pair_trials_with_scores`, with every score turned so bigger is better.
 
     `HP_GAMES` map MAX/VAR/MIN onto tunability/sensitivity/mistunability, and
     those names are only true of a score where bigger wins. Handed an optimizer
@@ -827,7 +827,7 @@ def _pair_trials_with_oriented_scores(config_space, trials: List[TrialResult],
     decision at every call site instead of in the two that need it.
     """
     metric = metric or metric_for(metric_name)
-    data = _pair_trials_with_scores(config_space, trials, metric_name)
+    data = pair_trials_with_scores(config_space, trials, metric_name)
     if metric.higher_is_better:
         return data
     return [(cfg, -score) for cfg, score in data]
@@ -852,7 +852,7 @@ def fit_surrogate(config_space, trials: List[TrialResult], metric_name: str, see
     (a further fallback rung, an empty plot, ...) is the caller's call, not
     this function's.
 
-    *values* is passed through to `_pair_trials_with_scores`: a callable
+    *values* is passed through to `pair_trials_with_scores`: a callable
     naming what to learn, for a surrogate over a measured output that is not a
     metric (trial duration, say). *metric_name* is then only what the warning
     text talks about.
@@ -860,7 +860,7 @@ def fit_surrogate(config_space, trials: List[TrialResult], metric_name: str, see
     import numpy as np
     from sklearn.ensemble import RandomForestRegressor
 
-    data = _pair_trials_with_scores(config_space, trials, metric_name, values=values)
+    data = pair_trials_with_scores(config_space, trials, metric_name, values=values)
     if len(data) < 2:
         return None, "Not enough trials to fit a surrogate."
 
@@ -2234,7 +2234,7 @@ class BaseOptimizer(ABC):
         slice_rows = np.array(rows)
         mu, sigma = predict_mean_std(rf, slice_rows)
 
-        observed = [v for _, v in _pair_trials_with_scores(
+        observed = [v for _, v in pair_trials_with_scores(
             config_space, trials, metric_name, values=values)]
         eta = None
         if observed:

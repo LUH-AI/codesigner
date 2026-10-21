@@ -353,11 +353,11 @@ def test_seed_zero_keeps_hypershaps_own_default_estimator(iris_splits, metrics):
     """
     from sklearn.ensemble import RandomForestRegressor
     from hypershap import ExplanationTask, HyperSHAP
-    from core.optimizers.base import _pair_trials_with_scores
+    from core.optimizers.base import pair_trials_with_scores
 
     cs = RandomForestModel().get_config_space(seed=0)
     trials = _trials(iris_splits, metrics)
-    data = _pair_trials_with_scores(cs, trials, "accuracy")
+    data = pair_trials_with_scores(cs, trials, "accuracy")
     params = list(cs.keys())
 
     def order1(task):

@@ -160,7 +160,7 @@ def _forecast(exp, columns):
     columns, the season inferred from the data when the experiment left it."""
     season = exp.data.season
     if not season:
-        _, _, times, _ = io._load_forecast(exp.data.dataset_path(), exp.data.time_column,
+        _, _, times, _ = io.load_forecast(exp.data.dataset_path(), exp.data.time_column,
                                            exp.data.series_column)
         season = forecasting.infer_season(times)
     return forecasting.context(columns, exp.data.time_column, exp.data.series_column,

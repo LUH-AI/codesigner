@@ -64,7 +64,7 @@ def holdout(X_train, y_train, X_val, y_val) -> Splits:
 
     The arrays are already divided, so they are concatenated back and indexed —
     train first, validation second — rather than re-splitting the frame. That
-    keeps this exactly the split `_load_splits` produced, including its
+    keeps this exactly the split `load_splits` produced, including its
     stratification, instead of a second attempt at reproducing it.
     """
     n_train, n_val = len(X_train), len(X_val)

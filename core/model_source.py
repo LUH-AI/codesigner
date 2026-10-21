@@ -47,7 +47,7 @@ STARTER_HEADER = """\
 """
 
 # From PEP 723. Matches the `# /// script` block and captures its body.
-_PEP723_BLOCK = re.compile(
+PEP723_BLOCK = re.compile(
     r"(?m)^# /// (?P<type>[a-zA-Z0-9-]+)$\s(?P<content>(^#(| .*)$\s)+)^# ///$"
 )
 _PEP723_OPENING = re.compile(r"(?m)^# /// script$")
@@ -233,7 +233,7 @@ def _declared_dependencies(text: str) -> tuple[list[str], str | None, bool, str 
     if len(_PEP723_OPENING.findall(text)) > 1:
         return [], None, True, "The file has more than one `# /// script` block."
 
-    blocks = [m for m in _PEP723_BLOCK.finditer(text) if m.group("type") == "script"]
+    blocks = [m for m in PEP723_BLOCK.finditer(text) if m.group("type") == "script"]
     if not blocks:
         return [], None, False, None
 

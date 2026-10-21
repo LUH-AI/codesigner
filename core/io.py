@@ -182,27 +182,19 @@ def _json_default(obj: Any) -> Any:
     raise TypeError(f"Object of type {type(obj).__name__} is not JSON serializable")
 
 
-def _read_csv(csv_path: Path):
-    """The dataset as a DataFrame, with the separator sniffed."""
-    raw = csv_path.read_bytes()
-    sample = raw[:2048].decode("utf-8", errors="replace")
-    sep = ";" if sample.count(";") > sample.count(",") else ","
-    return pd.read_csv(csv_path, sep=sep)
-
-
 def read_dataset(source):
-    """A dataset as a DataFrame, from a path or from the file's bytes.
+    """A dataset as a DataFrame, from a path or from the file's bytes, with the
+    separator sniffed.
 
     The create form has an upload in hand and should not have to write it out
     to look at it.
     """
-    if isinstance(source, (bytes, bytearray)):
-        from io import BytesIO
+    from io import BytesIO
 
-        sample = bytes(source[:2048]).decode("utf-8", errors="replace")
-        sep = ";" if sample.count(";") > sample.count(",") else ","
-        return pd.read_csv(BytesIO(source), sep=sep)
-    return _read_csv(Path(source))
+    raw = bytes(source) if isinstance(source, (bytes, bytearray)) else Path(source).read_bytes()
+    sample = raw[:2048].decode("utf-8", errors="replace")
+    sep = ";" if sample.count(";") > sample.count(",") else ","
+    return pd.read_csv(BytesIO(raw), sep=sep)
 
 
 def target_of(source) -> tuple[str, Any]:
@@ -264,7 +256,7 @@ def dataset_encoding(csv_path: Path) -> dict:
     """How the dataset's feature columns become the floats a model is given —
     see `core.encoding`. A function of the file alone, so every caller that
     reads the same file encodes it the same way."""
-    df = _labelled(_read_csv(csv_path))
+    df = _labelled(read_dataset(csv_path))
     return encoding.fit(df.iloc[:, :-1])
 
 
@@ -291,7 +283,7 @@ def _in_time_order(df, column: str):
     return df[known].iloc[order], times[known].iloc[order].to_numpy()
 
 
-def _load_frame(csv_path: Path, order_by: str | None = None):
+def load_frame(csv_path: Path, order_by: str | None = None):
     """The dataset as (X, y). The last column is the target.
 
     X is floats whatever the columns held: text and dates are encoded
@@ -299,7 +291,7 @@ def _load_frame(csv_path: Path, order_by: str | None = None):
     out. With *order_by*, the rows come oldest first by that column, and rows
     without a time are left out too.
     """
-    df = _labelled(_read_csv(csv_path))
+    df = _labelled(read_dataset(csv_path))
     # Fitted before any row is left out for having no time, so it is the same
     # encoding `dataset_encoding` gives and the models are told about.
     spec = encoding.fit(df.iloc[:, :-1])
@@ -308,11 +300,11 @@ def _load_frame(csv_path: Path, order_by: str | None = None):
     return encoding.encode(spec, df.iloc[:, :-1]), df.iloc[:, -1].to_numpy()
 
 
-def _load_forecast(csv_path: Path, time_column: str, series_column: str = ""):
+def load_forecast(csv_path: Path, time_column: str, series_column: str = ""):
     """A forecast's rows, oldest first: (X, y, times, series). *series* is each
     row's series as text ("" when there is one series), *times* each row's time
     — the values a backtest is cut on."""
-    df = _labelled(_read_csv(csv_path))
+    df = _labelled(read_dataset(csv_path))
     spec = encoding.fit(df.iloc[:, :-1])
     df, times = _in_time_order(df, time_column)
     series = None
@@ -330,7 +322,7 @@ def _load_forecast(csv_path: Path, time_column: str, series_column: str = ""):
 DEFAULT_TEST_SIZE = 0.2
 
 
-def _load_splits(csv_path: Path, seed: int, test_size: float = DEFAULT_TEST_SIZE,
+def load_splits(csv_path: Path, seed: int, test_size: float = DEFAULT_TEST_SIZE,
                  task: str = tasks.DEFAULT):
     """Reconstruct the identical train/val split from a CSV path, seed and
     validation share.
@@ -340,7 +332,7 @@ def _load_splits(csv_path: Path, seed: int, test_size: float = DEFAULT_TEST_SIZE
     numeric target whose values each occur twice, treating every distinct
     number as a class.
     """
-    X, y = _load_frame(csv_path)
+    X, y = load_frame(csv_path)
     size = float(test_size or DEFAULT_TEST_SIZE)
     if task == tasks.CLASSIFICATION:
         try:
@@ -485,7 +477,7 @@ def test_size_of(snapshot: dict) -> float:
     return float(section.get("test_size") or DEFAULT_TEST_SIZE)
 
 
-def finite(value):
+def finite(value: Any) -> Any:
     """*value* with every non-finite number in it replaced by None, recursively.
 
     `json.dumps` writes `inf` and `nan` as the bare tokens `Infinity` and `NaN`,
@@ -591,12 +583,12 @@ def parse(data: bytes) -> dict:
         raise ValueError(f"missing field: {missing[0]!r}")
 
     snapshot = normalize(raw)
-    _check_optimizer_state(snapshot)
+    check_optimizer_state(snapshot)
     _check_trial_scores(snapshot)
     return snapshot
 
 
-def _check_optimizer_state(snapshot: dict) -> None:
+def check_optimizer_state(snapshot: dict) -> None:
     """Refuse a result whose optimizer files name paths of their own choosing.
 
     `optimizer_state` is keyed by the relative path each file was written to,
@@ -670,7 +662,7 @@ def attach_dataset(exp: dict, dataset_path: str) -> None:
     path = Path(dataset_path)
     if not path.is_file():
         raise ValueError(f"dataset not found: {dataset_path}")
-    X_train, X_val, y_train, y_val = _load_splits(
+    X_train, X_val, y_train, y_val = load_splits(
         path, exp["seed"], exp.get("test_size") or DEFAULT_TEST_SIZE,
         exp.get("task", tasks.DEFAULT))
     exp["X_train"]      = X_train
@@ -813,7 +805,7 @@ def build_experiment(
             if not time_column:
                 raise ValueError("a forecast needs the column its rows are ordered in time by")
             shape = forecast_of(snapshot)
-            X_all, y_all, times, series = _load_forecast(path, time_column, shape["series_column"])
+            X_all, y_all, times, series = load_forecast(path, time_column, shape["series_column"])
             season = shape["season"] or forecasting.infer_season(times)
             splits = backtest(X_all, y_all, times, shape["horizon"], max(cv_folds, 1), gap,
                               series=series, season=season)
@@ -830,16 +822,16 @@ def build_experiment(
             # In time order: never shuffled, never stratified, the seed has no
             # say in it. The holdout's four arrays are its one fold, so callers
             # reading them see the same division a trial does.
-            X_all, y_all = _load_frame(path, order_by=time_column)
+            X_all, y_all = load_frame(path, order_by=time_column)
             splits = (time_cross_validation(X_all, y_all, cv_folds, gap) if cv_folds >= MIN_FOLDS
                       else time_holdout(X_all, y_all, test_size, gap))
             train_idx, val_idx = splits.folds[0]
             X_train, X_val = X_all[train_idx], X_all[val_idx]
             y_train, y_val = y_all[train_idx], y_all[val_idx]
         else:
-            X_train, X_val, y_train, y_val = _load_splits(path, seed, test_size, task)
+            X_train, X_val, y_train, y_val = load_splits(path, seed, test_size, task)
             if cv_folds >= MIN_FOLDS:
-                X_all, y_all = _load_frame(path)
+                X_all, y_all = load_frame(path)
                 splits = cross_validation(X_all, y_all, cv_folds, seed, task)
             else:
                 splits = holdout(X_train, y_train, X_val, y_val)

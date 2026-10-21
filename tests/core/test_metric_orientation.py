@@ -215,12 +215,12 @@ def test_both_writers_agree_on_the_cost_they_store(iris_splits, metrics):
 def test_a_failure_still_scores_zero_on_every_original_metric(iris_splits, metrics):
     """The null score has to reproduce this exactly, or every stored file
     disagrees with the code that reads it."""
-    from core.optimizers.trial import _null_scores
+    from core.optimizers.trial import null_scores
 
     X_train, X_val, y_train, y_val = iris_splits
     from core.splits import holdout
 
-    assert _null_scores(metrics, holdout(X_train, y_train, X_val, y_val)) == {
+    assert null_scores(metrics, holdout(X_train, y_train, X_val, y_val)) == {
         name: 0.0 for name in metrics}
 
 
@@ -229,7 +229,7 @@ def test_a_failure_scores_the_null_predictor_not_the_best_one(iris_splits):
     be the best result in the run."""
     import numpy as np
 
-    from core.optimizers.trial import _null_scores
+    from core.optimizers.trial import null_scores
     from core.splits import holdout
 
     X_train, X_val, y_train, y_val = iris_splits
@@ -240,7 +240,7 @@ def test_a_failure_scores_the_null_predictor_not_the_best_one(iris_splits):
         null_score=lambda y: float(np.std(np.arange(len(y), dtype=float))),
     )
 
-    scores = _null_scores({"rmse": rmse}, holdout(X_train, y_train, X_val, y_val))
+    scores = null_scores({"rmse": rmse}, holdout(X_train, y_train, X_val, y_val))
 
     assert scores["rmse"] > 0.0, "a crash is not a perfect regression"
 
@@ -248,14 +248,14 @@ def test_a_failure_scores_the_null_predictor_not_the_best_one(iris_splits):
 def test_a_null_score_that_cannot_be_computed_does_not_kill_the_run(iris_splits):
     """This runs on the path already handling a failure. Failing there would
     turn a recorded bad trial into a dead run."""
-    from core.optimizers.trial import _null_scores
+    from core.optimizers.trial import null_scores
     from core.splits import holdout
 
     X_train, X_val, y_train, y_val = iris_splits
     broken = Metric(name="broken", fn=lambda *_: 0.0,
                     null_score=lambda y: 1 / 0)
 
-    assert _null_scores({"broken": broken},
+    assert null_scores({"broken": broken},
                         holdout(X_train, y_train, X_val, y_val)) == {"broken": 0.0}
 
 

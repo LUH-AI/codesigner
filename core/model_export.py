@@ -42,7 +42,7 @@ from types import ModuleType
 from codesigner_model import ModelBase, OptimizableBaseModel, OutputBaseModel
 
 from . import encoding, forecasters, processing
-from .model_source import _PEP723_BLOCK
+from .model_source import PEP723_BLOCK
 from .models import parts
 
 #: The imports the delivered model's own code needs, before any module's.
@@ -533,7 +533,7 @@ def export_upload(source: str, *, class_name: str, task: str, config: dict, seed
     """The runnable file for a person's own model, tuned to *config*: their
     code as they wrote it, its search space taken out, the hyperparameters and
     how the columns are read beside it."""
-    match = _PEP723_BLOCK.search(source)
+    match = PEP723_BLOCK.search(source)
     if match:
         header, body = source[:match.end()] + "\n", source[match.end():]
         if not re.search(r"""["']pandas["'\s<>=!~\[;]""", header):

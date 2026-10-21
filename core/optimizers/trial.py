@@ -49,7 +49,7 @@ def _history(splits, train_idx, metrics):
             "season": getattr(splits, "season", 1)}
 
 
-def _null_scores(metrics, splits) -> dict:
+def null_scores(metrics, splits) -> dict:
     """What a trial that produced nothing scores, per metric.
 
     Not zero. Zero is what the four metrics this app shipped with happen to give
@@ -100,7 +100,7 @@ def evaluate_trial(model, config, splits, metrics, seed=0, keep=False):
 
     Returns ``(scores, run_info)``. A trial that failed — the model raised, was
     stopped for exceeding its deadline, or returned something unscoreable —
-    scores what a model that knows nothing would score (see `_null_scores`;
+    scores what a model that knows nothing would score (see `null_scores`;
     still 0.0 for every metric this app shipped with), with
     ``run_info["status"]`` set, the reason under
     ``additional_info["error"]`` and, where there is one worth keeping, the
@@ -230,7 +230,7 @@ def evaluate_trial(model, config, splits, metrics, seed=0, keep=False):
     if failure is None:
         scores = {name: float(np.mean([s[name] for s in fold_scores])) for name in metrics}
     else:
-        scores = _null_scores(metrics, splits)
+        scores = null_scores(metrics, splits)
         run_info.pop(FITTED, None)
         run_info["status"] = status
         run_info["additional_info"] = {"error": failure}

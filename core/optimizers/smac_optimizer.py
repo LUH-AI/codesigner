@@ -28,7 +28,7 @@ from .. import projected_prior
 from ..metrics import metric_for, to_cost
 from .base import (
     REQUESTED_ORIGIN, STOPPED_BY_EXHAUSTED, BaseOptimizer, OptimizationResult, OptimizerParam,
-    merge_stopping, rebase_history, storable_score,
+    merge_stopping, pair_trials_with_scores, rebase_history, storable_score,
 )
 from ..splits import holdout
 from .timing import STATUS_SUCCESS
@@ -121,7 +121,7 @@ PRIOR_JUDGING_SAMPLES_PER_HYPERPARAMETER = 1000
 #: The two search strategies, and the SMAC facade behind each. A facade is a
 #: bundle — surrogate, acquisition function, maximizer, encoder — chosen to work
 #: together, so this is one decision rather than four.
-_STRATEGIES = {
+STRATEGIES = {
     "gp": BlackBoxFacade,
     "rf": HyperparameterOptimizationFacade,
 }
@@ -157,7 +157,7 @@ def _per_hyperparameter() -> int:
 #: into a 7-point one. A resume under it must therefore keep the size it had.
 _EXTENDABLE_DESIGNS = frozenset({"sobol", "random", "default_only"})
 
-_INITIAL_DESIGNS = {
+INITIAL_DESIGNS = {
     "sobol": SobolInitialDesign,
     "latin_hypercube": LatinHypercubeInitialDesign,
     "random": RandomInitialDesign,
@@ -344,7 +344,7 @@ class SMACOptimizer(BaseOptimizer):
         with maps back to roughly zero cost everywhere under it, so every prior
         would pass."""
         strategy = self.known_params(params).get("search_strategy")
-        return (strategy if strategy in _STRATEGIES else "gp") == "gp"
+        return (strategy if strategy in STRATEGIES else "gp") == "gp"
 
     params_schema = [
         OptimizerParam("search_strategy", "Search strategy", "select", "gp",
@@ -438,7 +438,7 @@ class SMACOptimizer(BaseOptimizer):
                  gp_model_type="vanilla", gp_restarts=None, gp_normalize_y=True):
         # `self._<name>` for every schema entry: the convention `get_params()`
         # reads back, and what makes the round trip through `.ihpo` work.
-        self._search_strategy = search_strategy if search_strategy in _STRATEGIES else "gp"
+        self._search_strategy = search_strategy if search_strategy in STRATEGIES else "gp"
         self._use_share_cap = bool(use_share_cap)
         self._share_cap = share_cap
         self._use_trial_cap = bool(use_trial_cap)
@@ -446,7 +446,7 @@ class SMACOptimizer(BaseOptimizer):
         self._initial_points_use_max = bool(initial_points_use_max)
         self._random_probability = random_probability
         self._use_default_config = bool(use_default_config)
-        self._initial_design = initial_design if initial_design in _INITIAL_DESIGNS else "sobol"
+        self._initial_design = initial_design if initial_design in INITIAL_DESIGNS else "sobol"
         self._acquisition = acquisition if acquisition in ("ei", "pi") else "ei"
         self._acquisition_xi = acquisition_xi
         self._challengers = challengers
@@ -580,7 +580,7 @@ class SMACOptimizer(BaseOptimizer):
         n_configs = recorded.get("n_configs")
         if n_configs is None:
             return None
-        if recorded.get("name") != _INITIAL_DESIGNS[self._initial_design].__name__:
+        if recorded.get("name") != INITIAL_DESIGNS[self._initial_design].__name__:
             return None
         return max(1, int(n_configs))
 
@@ -601,7 +601,7 @@ class SMACOptimizer(BaseOptimizer):
         """
         return {
             name: {strategy: _signature_default(getattr(facade, getter), argument)
-                   for strategy, facade in _STRATEGIES.items()}
+                   for strategy, facade in STRATEGIES.items()}
             for name, (getter, argument) in _FACADE_DEFAULTS.items()
         }
 
@@ -618,7 +618,7 @@ class SMACOptimizer(BaseOptimizer):
         strategy, which has no default for them because it has no such
         component. Left as null: honest, and correct on re-import.
         """
-        facade = _STRATEGIES[self._search_strategy]
+        facade = STRATEGIES[self._search_strategy]
         filled = dict(self.get_params())
         for name, (getter, argument) in _FACADE_DEFAULTS.items():
             if filled.get(name) is None:
@@ -648,15 +648,7 @@ class SMACOptimizer(BaseOptimizer):
         Returns `(None, warning)` rather than raising: a refit that fails
         should cost the caller its fidelity, not its figure.
         """
-        import tempfile
-        from pathlib import Path
-
-        import numpy as np
-
-        from core.metrics import metric_for, to_cost
-        from core.optimizers.base import _pair_trials_with_scores
-
-        data = _pair_trials_with_scores(config_space, trials, metric_name, values=values)
+        data = pair_trials_with_scores(config_space, trials, metric_name, values=values)
         if len(data) < 2:
             return None, "Not enough trials to fit a surrogate."
 
@@ -669,7 +661,7 @@ class SMACOptimizer(BaseOptimizer):
             with tempfile.TemporaryDirectory() as directory:
                 scenario = Scenario(config_space, n_trials=max(len(y), 1), seed=seed,
                                     deterministic=True, output_directory=Path(directory))
-                model = self._surrogate(_STRATEGIES[self._search_strategy], scenario,
+                model = self._surrogate(STRATEGIES[self._search_strategy], scenario,
                                         log_y=False)
                 model.train(X, y)
         except Exception as error:  # noqa: BLE001 — any refit failure falls back
@@ -1091,9 +1083,9 @@ class SMACOptimizer(BaseOptimizer):
         trial and refits every one, the random forest scores ten thousand and
         refits every eighth — and neither number is right for the other.
         """
-        facade = _STRATEGIES[self._search_strategy]
+        facade = STRATEGIES[self._search_strategy]
 
-        design = _INITIAL_DESIGNS[self._initial_design]
+        design = INITIAL_DESIGNS[self._initial_design]
         # The count is worked out here and handed over, rather than letting SMAC
         # derive it: `max_ratio` is opened up so it cannot clamp the number a
         # second time, and `n_configs` overrides the per-hyperparameter bound.
@@ -1275,7 +1267,7 @@ class SMACOptimizer(BaseOptimizer):
         makes traversal unreachable *here*, but the state is carried forward into
         whatever `serialize_result` writes next, and refusing a bad path at the
         boundary keeps it from being laundered through a new .ihpo. `io.parse`
-        checks this too (`_check_optimizer_state`); this is the same guard for a
+        checks this too (`check_optimizer_state`); this is the same guard for a
         result that reached the optimizer without passing through parse.
         """
         optimizer_state = d.get("optimizer_state", {})

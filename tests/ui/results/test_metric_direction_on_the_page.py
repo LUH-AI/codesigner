@@ -17,7 +17,7 @@ from typing import Any
 import plotly.graph_objects as go
 import pytest
 
-from core.metrics import METRICS, Metric, _unscoreable, error_range, to_error
+from core.metrics import METRICS, Metric, unscoreable, error_range, to_error
 from ui.figures.plots import (
     configuration_projection_plot, parallel_coordinates_plot,
     performance_over_time_plot,
@@ -80,7 +80,7 @@ def test_a_cost_is_already_its_own_error():
     A metric where lower wins is a distance from perfect already; subtracting
     it from 1.0 would invent a different quantity and call it the same thing.
     """
-    cost = Metric(name="c", fn=_unscoreable, higher_is_better=False, bounds=(None, None))
+    cost = Metric(name="c", fn=unscoreable, higher_is_better=False, bounds=(None, None))
 
     assert to_error(cost, 0.8) == 0.8
     assert to_error(METRICS["accuracy"], 0.8) == pytest.approx(0.2)
@@ -88,7 +88,7 @@ def test_a_cost_is_already_its_own_error():
 
 def test_an_unbounded_metric_has_no_error_range():
     """Nothing to pin an axis to, so the absolute toggle has nothing to offer."""
-    unbounded = Metric(name="c", fn=_unscoreable, higher_is_better=False,
+    unbounded = Metric(name="c", fn=unscoreable, higher_is_better=False,
                        bounds=(None, None))
 
     assert error_range(unbounded) is None

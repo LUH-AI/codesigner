@@ -92,9 +92,9 @@ def test_load_splits_deterministic_per_seed():
     Expect: two calls with seed 0 return identical arrays (this is what lets
     .ihpo files omit the data itself), and seed 1 produces a different split.
     """
-    a = io._load_splits(DATASETS_DIR / "iris.csv", seed=0)
-    b = io._load_splits(DATASETS_DIR / "iris.csv", seed=0)
-    c = io._load_splits(DATASETS_DIR / "iris.csv", seed=1)
+    a = io.load_splits(DATASETS_DIR / "iris.csv", seed=0)
+    b = io.load_splits(DATASETS_DIR / "iris.csv", seed=0)
+    c = io.load_splits(DATASETS_DIR / "iris.csv", seed=1)
     for x, y in zip(a, b):
         np.testing.assert_array_equal(x, y)
     assert not np.array_equal(a[0], c[0])
@@ -110,7 +110,7 @@ def test_load_splits_detects_semicolon_separator(tmp_path):
     csv = tmp_path / "semi.csv"
     rows = ["f1;f2;label"] + [f"{i};{i * 2};{i % 2}" for i in range(20)]
     csv.write_text("\n".join(rows), encoding="utf-8")
-    X_train, X_val, y_train, y_val = io._load_splits(csv, seed=0)
+    X_train, X_val, y_train, y_val = io.load_splits(csv, seed=0)
     assert cast(np.ndarray, X_train).shape[1] == 2
     assert len(X_train) + len(X_val) == 20
 

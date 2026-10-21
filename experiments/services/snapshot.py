@@ -380,7 +380,7 @@ def _target(dataset_path: str):
     if not dataset_path or not Path(dataset_path).is_file():
         return None
     try:
-        _, y = io._load_frame(Path(dataset_path))
+        _, y = io.load_frame(Path(dataset_path))
     except Exception:  # noqa: BLE001 — an unreadable dataset leaves it unanswered
         return None
     return y
