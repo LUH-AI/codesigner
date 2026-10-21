@@ -1,7 +1,7 @@
 import tempfile
 from pathlib import Path
 
-from django.contrib.auth.decorators import login_not_required
+from django.contrib.auth.decorators import login_not_required  # pyright: ignore[reportAttributeAccessIssue]
 from django.core.paginator import Paginator
 from django.http import HttpResponse
 from django.shortcuts import redirect, render

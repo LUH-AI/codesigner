@@ -14,7 +14,7 @@ configuration, and the difference is one boolean rather than a file that drifts.
 """
 
 from django.conf import settings
-from django.contrib.auth.middleware import LoginRequiredMiddleware
+from django.contrib.auth.middleware import LoginRequiredMiddleware  # pyright: ignore[reportAttributeAccessIssue]
 
 
 class LoginWallMiddleware(LoginRequiredMiddleware):

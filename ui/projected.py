@@ -16,6 +16,7 @@ from __future__ import annotations
 
 import math
 import uuid
+from typing import cast
 
 import numpy as np
 from django.utils.translation import gettext as _
@@ -60,7 +61,7 @@ def sample_vectors(sample) -> np.ndarray:
 
 def label(record) -> str:
     """"PLS · 2D · 2 points", or "HP Space (max_depth, n_estimators) · 1 point"."""
-    view = _VIEW_NAMES.get(record["view"], record["view"])
+    view = cast(str, _VIEW_NAMES.get(record["view"], record["view"]))
     if record["view"] == "axes":
         view += " (" + ", ".join(record["hyperparameters"]) + ")"
     else:

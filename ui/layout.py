@@ -231,6 +231,7 @@ def _width(figure, value, tab) -> int:
         return figure.fit(int(value))
     except (TypeError, ValueError):
         fallback = _from_default(tab, figure.key) or _from_default(figure.home_tab, figure.key)
+        assert fallback is not None
         return fallback["w"]
 
 
@@ -261,7 +262,7 @@ def normalize(layout) -> dict:
         for slot in stored.get(tab) or []:
             if not isinstance(slot, dict):
                 continue
-            figure = FIGURES_BY_KEY.get(slot.get("key"))
+            figure = FIGURES_BY_KEY.get(slot.get("key", ""))
             if figure is None or figure.in_sidebar or figure.key in seen:
                 continue
             if tab != OVERVIEW and figure.home_tab != tab:

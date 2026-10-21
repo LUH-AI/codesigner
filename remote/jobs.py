@@ -23,6 +23,7 @@ import shlex
 import subprocess
 from dataclasses import dataclass
 from pathlib import Path
+from typing import cast
 
 from django.conf import settings
 
@@ -112,7 +113,7 @@ class SshTransport:
         """
         done = self._exec(["ssh", *self._OPTS, self.host,
                            f"cat {shlex.quote(remote)} 2>/dev/null"], text=False)
-        return done.stdout if done.ok and done.stdout else None
+        return cast(bytes, done.stdout) if done.ok and done.stdout else None
 
     def _exec(self, argv, stdin: bytes | None = None, text: bool = True) -> Command:
         try:
@@ -123,7 +124,7 @@ class SshTransport:
         except OSError as exc:
             raise ClusterError(f"could not run {argv[0]}: {exc}") from exc
         decode = (lambda b: (b or b"").decode("utf-8", "replace")) if text else (lambda b: b or b"")
-        return Command(done.returncode, decode(done.stdout),
+        return Command(done.returncode, cast(str, decode(done.stdout)),
                        (done.stderr or b"").decode("utf-8", "replace"))
 
 

@@ -23,6 +23,7 @@ Two distinct questions, because they fail differently:
 """
 
 from functools import wraps
+from typing import Any, Callable
 
 from django.core.exceptions import PermissionDenied
 from django.http import Http404
@@ -66,7 +67,7 @@ def experiment_view(action, drafts=CREATED):
     if drafts not in DRAFTS:
         raise ValueError(f"unknown drafts {drafts!r}; expected one of {DRAFTS}")
 
-    def decorate(view):
+    def decorate(view: Callable[..., Any]) -> Callable[..., Any]:
         @wraps(view)
         def wrapped(request, pk, *args, **kwargs):
             current = policy()
@@ -84,8 +85,8 @@ def experiment_view(action, drafts=CREATED):
 
         #: Read by the URLconf audit. `functools.wraps` copies `__dict__`, so
         #: these survive an outer `require_POST`.
-        wrapped.experiment_action = action
-        wrapped.experiment_drafts = drafts
+        setattr(wrapped, "experiment_action", action)
+        setattr(wrapped, "experiment_drafts", drafts)
         return wrapped
 
     return decorate

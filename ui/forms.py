@@ -354,6 +354,7 @@ class NewExperimentForm(forms.Form):
         if err:
             self.add_error(field, err)
             return
+        assert info is not None
         cleaned["model_name"] = info.name
         cleaned["model_source"] = info
 

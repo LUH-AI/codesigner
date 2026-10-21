@@ -21,17 +21,17 @@ env = environ.Env(
 # Values already present in the process environment win over .env entries.
 environ.Env.read_env(BASE_DIR / ".env")
 
-DEBUG = env("DEBUG")
+DEBUG = env.bool("DEBUG")
 
 # Running locally needs no .env at all. Outside DEBUG it is required and has no
 # default: a deployment that forgets to set one should fail loudly rather than
 # sign its cookies with a value that is in the repository.
 if DEBUG:
-    SECRET_KEY = env("SECRET_KEY", default="django-insecure-local-development-only")
+    SECRET_KEY = env("SECRET_KEY", default="django-insecure-local-development-only")  # pyright: ignore[reportArgumentType]
 else:
     SECRET_KEY = env("SECRET_KEY")
 
-ALLOWED_HOSTS = env.list("ALLOWED_HOSTS", default=["localhost", "127.0.0.1"])
+ALLOWED_HOSTS = env.list("ALLOWED_HOSTS", default=["localhost", "127.0.0.1"])  # pyright: ignore[reportArgumentType]
 
 # Whether this instance has accounts. Off is the primary case: run it locally
 # or on a trusted private network and there is no login and no per-user
@@ -283,7 +283,7 @@ WSGI_APPLICATION = "config.wsgi.application"
 # SQLite by default; set DATABASE_URL (e.g. postgres://...) to switch.
 
 DATABASES = {
-    "default": env.db_url("DATABASE_URL", default=f"sqlite:///{BASE_DIR / 'db.sqlite3'}"),
+    "default": env.db_url("DATABASE_URL", default=f"sqlite:///{BASE_DIR / 'db.sqlite3'}"),  # pyright: ignore[reportArgumentType]
 }
 
 
@@ -418,7 +418,7 @@ if SECURE_BEHIND_TLS:
 # so the common case needs no second list saying the same names twice.
 CSRF_TRUSTED_ORIGINS = env.list(
     "CSRF_TRUSTED_ORIGINS",
-    default=[f"https://{host}" for host in ALLOWED_HOSTS if host != "*"],
+    default=[f"https://{host}" for host in ALLOWED_HOSTS if host != "*"],  # pyright: ignore[reportArgumentType]
 )
 
 

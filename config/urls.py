@@ -7,7 +7,7 @@ admin).  `include()` keeps app routes self-contained so apps stay portable.
 from django.conf import settings
 from django.conf.urls.static import static
 from django.contrib import admin
-from django.contrib.auth.decorators import login_not_required
+from django.contrib.auth.decorators import login_not_required  # pyright: ignore[reportAttributeAccessIssue]
 from django.urls import include, path
 from django.views.i18n import set_language
 

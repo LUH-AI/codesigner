@@ -124,6 +124,7 @@ def state_projected_prior(request, exp):
     built, config_space, sample = _cube_sample(exp, body["metric"])
     if sample is None:
         return JsonResponse({"error": _("There is no sample of this space to draw on.")}, status=400)
+    assert built is not None
     result = built["result"]
     records = list(exp.data.projected_priors or [])
     try:
@@ -149,7 +150,7 @@ def state_projected_prior(request, exp):
     if old is None:
         records.append(new)
     else:
-        records[at] = new
+        records[at] = new  # pyright: ignore[reportPossiblyUnboundVariable]
     exp.data.projected_priors = records
     exp.data.save(update_fields=["projected_priors"])
     history.record_projected_prior(exp, new["id"], old, new, user=request.user)
@@ -206,6 +207,7 @@ def proposal_panel(request, exp):
     built, sample = _proposals(exp, metric)
     if sample is None or n is None or n >= len(sample["configurations"]):
         return HttpResponseBadRequest("invalid proposal")
+    assert built is not None
 
     result = built["result"]
     scoring = result.metric(metric)
@@ -530,6 +532,7 @@ def evaluate_prior(request, exp):
         return unjudged(_("Nothing has been run yet, so there is no model to "
                           "judge this against. A belief stated now is acted on "
                           "in full."))
+    assert built is not None
 
     optimizer = built["optimizer"]
     if not hasattr(optimizer, "evaluate_prior"):
@@ -597,6 +600,7 @@ def _next_trials(exp, anchor_hp=None):
     result = built["result"] if built else None
     if result is None or not result.trials:
         return None
+    assert built is not None
     config_space = config_space_for(built)
     if config_space is None:
         return None
@@ -710,6 +714,7 @@ def _slice_figures(exp, built, config_space, hp_name, metric):
         higher_is_better=metric_for(metric).higher_is_better,
         kind="categorical" if hasattr(config_space[hp_name], "choices") else "continuous",
     )
+    assert meta is not None
     meta["acquisitionFunction"] = _acquisition_function(built["optimizer"])
     # Priors drawn in the cube weigh whole configurations, so they are
     # evaluated at the configurations this figure predicted at: along the
@@ -753,6 +758,7 @@ def acquisition_slice(request, exp):
         return JsonResponse({"figure": None, "warning": _(
             "The model this experiment used is not available here, so its "
             "search space cannot be rebuilt.")})
+    assert built is not None
 
     # Checked against the search space rather than against a trial's
     # configuration. A prior is a statement about the space, and the space
@@ -780,6 +786,7 @@ def acquisition_slice(request, exp):
             hp_name, positions, grid, zeros, zeros, metric,
             eta=0.0, incumbent=None, cloud=None,
             higher_is_better=metric_for(metric).higher_is_better, kind=kind)
+        assert figures is not None and meta is not None
         stated = (exp.data.priors or {}).get(hp_name)
         return JsonResponse({
             # Only the panel that needed nothing. The other two are what the
@@ -801,6 +808,7 @@ def acquisition_slice(request, exp):
                         "cloud": None},
         })
 
+    assert result is not None
     figures, meta, sliced = _slice_figures(exp, built, config_space, hp_name, metric)
     if figures is None:
         return JsonResponse({"figure": None, "warning": sliced.warning})

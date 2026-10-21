@@ -15,6 +15,8 @@ Falls back to a bare `{% static %}` when the file cannot be found — a missing
 asset is the storage's problem to report, not this tag's.
 """
 
+from typing import cast
+
 from django import template
 from django.contrib.staticfiles import finders
 from django.templatetags.static import static
@@ -30,4 +32,4 @@ def asset(path: str) -> str:
         return static(path)
     from pathlib import Path
 
-    return f"{static(path)}?v={int(Path(found).stat().st_mtime)}"
+    return f"{static(path)}?v={int(Path(cast(str, found)).stat().st_mtime)}"

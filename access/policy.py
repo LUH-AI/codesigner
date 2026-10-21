@@ -103,7 +103,7 @@ class OpenPolicy:
         """
         return self.experiments(request)
 
-    def may(self, request, experiment, action):
+    def may(self, request, experiment, action) -> bool:
         """Whether this request may perform *action* on a visible experiment."""
         return True
 
@@ -117,7 +117,7 @@ class OpenPolicy:
         """
         return settings.ALLOW_CUSTOM_MODELS
 
-    def custom_model_refusal(self, experiment, user):
+    def custom_model_refusal(self, experiment, user) -> str:
         """Why *user* may not run *experiment*'s custom model, or "" if they may.
 
         A string rather than a boolean because this is the last thing standing
@@ -126,7 +126,7 @@ class OpenPolicy:
         """
         return ""
 
-    def may_change_defaults(self, request):
+    def may_change_defaults(self, request) -> bool:
         """Whether this request may edit the default experiment settings, which
         every inheriting experiment on the instance follows."""
         return True

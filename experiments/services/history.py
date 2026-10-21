@@ -99,15 +99,15 @@ def _folded(exp, kinds, key, value, old, new, user):
     folding = (last is not None and last.kind in kinds
                and last.payload.get(key) == value
                and not exp.runs.filter(created_at__gt=last.at).exists())
-    if folding:
+    if folding and last is not None:
         old = last.payload.get("old")
     if old == new:
-        if folding:
+        if folding and last is not None:
             last.delete()
         return None
     stated, edited, withdrawn = kinds
     kind = stated if old is None else withdrawn if new is None else edited
-    if folding:
+    if folding and last is not None:
         last.kind, last.at, last.at_trial = kind, timezone.now(), _trials(exp)
         last.payload = {key: value, "old": old, "new": copy.deepcopy(new)}
         last.actor = _actor(user) or last.actor
@@ -147,9 +147,9 @@ def serialized(exp) -> list[dict]:
 def restore(exp, entries) -> None:
     """Rebuild *exp*'s history from a file's `history` section. Who did each
     thing is not restored, as for runs."""
-    from experiments.models import ExperimentEvent
+    from experiments.models import ExperimentEvent, Run
 
-    runs = dict(enumerate(exp.runs.order_by("id"), start=1))
+    runs: dict[object, Run] = dict(enumerate(exp.runs.order_by("id"), start=1))
     for entry in entries or []:
         if not isinstance(entry, dict) or entry.get("kind") not in KINDS:
             continue

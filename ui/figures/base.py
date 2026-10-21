@@ -21,6 +21,13 @@ Then add it to `FIGURES` in `catalog.py` (order there is its default order on
 its tab) and write `ui/templates/ui/figures/trial_duration.html`.
 """
 
+from __future__ import annotations
+
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    import plotly.graph_objects as go
+
 #: The tabs of an experiment page, in the order the tab bar shows them. Every
 #: figure lives on exactly one of the last three; Overview holds whichever of
 #: them a reader pinned there — see `ui/layout.py`.
@@ -148,7 +155,7 @@ class Figure(Panel):
     #: shapes differ enough that forcing one generic widget would fit neither
     #: well; only the underlying draw/lookup plumbing is shared (see
     #: experiment_detail.html's `payloadFor`).
-    views = ()
+    views: tuple[str, ...] = ()
     #: Which of `views` a figure opens on, when that is not the first one
     #: declared. Separate from the order of `views`, because the order they read
     #: in and the one worth showing first are different questions — a figure can
@@ -159,7 +166,7 @@ class Figure(Panel):
     #: a figure with `views`, this is instead a dict keyed by view, since the
     #: sensible "absolute" range can differ per view (e.g. a linear 0-1 score
     #: vs. a log-scale error).
-    absolute_scale = None
+    absolute_scale: dict | None = None
     #: Computations this figure fetches on demand rather than shipping in the
     #: page payload, as `(name, label)` pairs. Each gets its own
     #: `autocompute_<name>` setting: on (the default) fetches as soon as the
@@ -229,7 +236,7 @@ class Figure(Panel):
         return cls.default_view or (cls.views[0] if cls.views else None)
 
     @classmethod
-    def absolute_scale_for(cls, metric):
+    def absolute_scale_for(cls, metric) -> dict | None:
         """This figure's absolute scale under *metric*, or None for no toggle.
 
         The declaration above is the answer for every figure whose axes mean the
@@ -245,7 +252,7 @@ class Figure(Panel):
     setting_key = ""
 
     @classmethod
-    def plot(cls, result, metric=None, view=None):
+    def plot(cls, result, metric=None, view=None) -> go.Figure | None:
         """This figure's Plotly plot, or None if it draws a table instead.
 
         Figures with `per_metric = True` are called once per metric; the rest

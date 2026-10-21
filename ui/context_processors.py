@@ -12,7 +12,7 @@ SIDEBAR_LIMIT = 20
 #: Which of an experiment's three views a page belongs to, by route. Its
 #: settings, delete and metric-change pages are reached from the dashboard's
 #: header, so they count as the dashboard.
-_EXPERIMENT_VIEWS = {
+_EXPERIMENT_VIEWS: dict[str | None, str] = {
     "experiment_detail": "dashboard",
     "experiment_settings": "dashboard",
     "experiment_delete": "dashboard",
@@ -46,7 +46,7 @@ def sidebar_experiments(request):
     experiments = list(visible_experiments(request)[:SIDEBAR_LIMIT])
     match = getattr(request, "resolver_match", None)
     view = _EXPERIMENT_VIEWS.get(getattr(match, "url_name", None))
-    open_pk = match.kwargs.get("pk") if view else None
+    open_pk = match.kwargs.get("pk") if view and match is not None else None
 
     if open_pk is not None and all(e.pk != open_pk for e in experiments):
         opened = policy().experiments(request).filter(pk=open_pk).first()

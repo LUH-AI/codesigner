@@ -508,7 +508,7 @@ def what_changed(before, after) -> set[str]:
     return changed
 
 
-def rebuild_experiment(exp):
+def rebuild_experiment(exp) -> dict | None:
     """Rebuild the full `build_experiment` dict from a saved experiment's
     snapshot (read-only — no dataset needed), or None if it can't be rebuilt
     (e.g. it names a metric/optimizer no longer available).

@@ -35,7 +35,7 @@ admin.site.unregister(User)
 class GuardedUserAdmin(UserAdmin):
     """Django's user editor, refusing to delete anyone who owns experiments."""
 
-    list_display = UserAdmin.list_display + ("is_active", "experiment_count")
+    list_display = (*UserAdmin.list_display, "is_active", "experiment_count")
 
     def get_queryset(self, request):
         return super().get_queryset(request).annotate(

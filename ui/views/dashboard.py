@@ -1,4 +1,5 @@
 import json
+from typing import Any
 
 from django.conf import settings
 from django.contrib import messages
@@ -19,10 +20,11 @@ from experiments.services.snapshot import config_space_for, rebuild_experiment, 
 from .. import optimizer_form, projected
 from ..experiment_settings import resolve_settings
 from ..figures import (
-    FIGURES_BY_KEY, HP_GAME_FIELDS, HP_GAME_HELP, HP_GAME_LABELS, ACCENT_COLOR, MARKER_COLOR,
+    HP_GAME_FIELDS, HP_GAME_HELP, HP_GAME_LABELS, ACCENT_COLOR, MARKER_COLOR,
     NEGATIVE_COLOR, PRIOR_COLOR, PROPOSAL_COLOR, SELECTION_COLOR, autocompute_key,
     deferred_computations,
 )
+from ..figures.catalog import Trials
 from ..optimizer_labels import STOPPED_BY_LABELS
 from ..permissions import experiment_view
 from ..registry import MODELS
@@ -339,7 +341,7 @@ def save_layout(request, exp):
 
 
 #: `experiment_header`'s "rebuild it yourself", told apart from a result of None.
-_UNBUILT = object()
+_UNBUILT: Any = object()
 
 
 def _prepared_summary(exp) -> str:
@@ -381,7 +383,7 @@ def experiment_header(request, exp, result=_UNBUILT):
     # whether Export trial parameters starts as a link.
     current = exp.data.current_metric or (exp.data.metric_names or [None])[0]
     best = (result.best_index(current)
-            if has_result and current in exp.data.metric_names else None)
+            if has_result and result is not None and current in exp.data.metric_names else None)
 
     return {
         "experiment": exp,  # the _run_status.html include reverses URLs from experiment.pk
@@ -673,7 +675,7 @@ def _detail_context(request, exp):
         trial_rows=_trial_rows(result, metric_names, hp_names),
         # The table's own page size, so its field and the script that reads it
         # start from the figure's number rather than each restating one.
-        trials_page_size=FIGURES_BY_KEY["trials"].page_size,
+        trials_page_size=Trials.page_size,
         trials_exhausted=(
             result.trials_limit is not None
             and len(result.trials) >= result.trials_limit

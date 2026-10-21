@@ -27,6 +27,8 @@ from django.conf import settings as django_settings
 from django.db import models
 
 if TYPE_CHECKING:
+    from collections.abc import Callable
+
     from django.db.models.manager import RelatedManager
 
     from experiments.models import Experiment
@@ -133,6 +135,7 @@ class Membership(models.Model):
     id: int
     user_id: int
     group_id: int
+    get_role_display: Callable[[], str]
 
     MEMBER = "member"
     LEAD = "lead"

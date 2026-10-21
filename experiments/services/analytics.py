@@ -15,6 +15,7 @@ def compute_games(exp) -> None:
     result = built["result"] if built else None
     if result is None or not result.trials:
         return
+    assert built is not None
 
     optimizer = built["optimizer"]
     optimizer.analytics_max_coalitions = settings.ANALYTICS_EAGER_MAX_COALITIONS or None

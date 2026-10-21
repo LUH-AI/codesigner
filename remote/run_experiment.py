@@ -188,6 +188,7 @@ def _config_space(built):
 
 
 def main(argv=None) -> int:
+    assert __doc__ is not None
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     parser.add_argument("workdir", type=Path,
                         help="directory holding snapshot.json, dataset.csv and run.json")

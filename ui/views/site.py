@@ -4,7 +4,9 @@ A site admin reaches no experiment at all, so none of these go through
 `@experiment_view`.
 """
 
+from datetime import datetime
 from functools import wraps
+from typing import cast
 
 from django.contrib import messages
 from django.core.exceptions import ValidationError
@@ -54,9 +56,9 @@ def site_groups(request):
     groups = list(Group.objects.annotate(members=Count("memberships")))
     for group in groups:
         now = storage_usage(group)
-        group.storage_used = human(now["total"])
-        group.storage_limit_gb = round(group.storage_limit / 1024 ** 3, 2)
-        group.storage_percent = round(100 * now["share"])
+        setattr(group, "storage_used", human(now["total"]))
+        setattr(group, "storage_limit_gb", round(group.storage_limit / 1024 ** 3, 2))
+        setattr(group, "storage_percent", round(100 * now["share"]))
     return render(request, "ui/panels/site_groups.html", {"groups": groups})
 
 
@@ -183,7 +185,7 @@ def site_trash(request):
                .select_related("owner")
                .annotate(run_count=Count("runs", distinct=True)))
     # Newest first, by whichever of the two put it here.
-    trashed = sorted(trashed, key=lambda e: e.deleted_at or e.trashed_at, reverse=True)
+    trashed = sorted(trashed, key=lambda e: cast(datetime, e.deleted_at or e.trashed_at), reverse=True)
     return render(request, "ui/panels/site_trash.html", {
         "experiments": trashed,
         "groups": Group.objects.all(),

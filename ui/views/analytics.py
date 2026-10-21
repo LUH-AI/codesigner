@@ -1,5 +1,6 @@
 import json
 from dataclasses import replace
+from typing import cast
 
 import numpy as np
 
@@ -164,6 +165,8 @@ def forecast_figure(request, exp):
     if not exp.data.forecasts or metric not in exp.data.metric_names:
         return HttpResponseBadRequest("not a forecast")
     result = rebuild_result(exp)
+    if result is None:
+        return HttpResponseBadRequest("unknown trial")
     try:
         idx = int(request.GET.get("idx", ""))
         trial = result.trials[idx]
@@ -224,6 +227,7 @@ def surrogate_uncertainty(request, exp):
     result = built["result"] if built else None
     if result is None or not result.trials:
         return HttpResponseBadRequest("no result")
+    assert built is not None
 
     config_space = config_space_for(built)
     if config_space is None:
@@ -319,6 +323,7 @@ def surrogate_prediction(request, exp):
     result = built["result"] if built else None
     if result is None or not result.trials:
         return HttpResponseBadRequest("no result")
+    assert built is not None
     config_space = config_space_for(built)
     if config_space is None:
         return JsonResponse({
@@ -360,7 +365,7 @@ def surrogate_prediction(request, exp):
     answer["priors"] = priors
     # Each numeric hyperparameter's range, which is HP Space's legal box: a
     # point drawn for a prior outside it is no configuration at all.
-    answer["bounds"] = {name: [float(hp.lower), float(hp.upper)]
+    answer["bounds"] = {name: [float(hp.lower), float(hp.upper)]  # pyright: ignore[reportAttributeAccessIssue]
                         for name, hp in config_space.items()
                         if hasattr(hp, "lower") and getattr(hp, "choices", None) is None}
     # And every prior drawn in the cube itself, as one weight per sample.
@@ -394,6 +399,7 @@ def hypershap_figures(request, exp):
     idx = int(idx_raw)
     if result is None or idx >= len(result.trials):
         return HttpResponseBadRequest("invalid trial index")
+    assert built is not None
 
     config_space = config_space_for(built)
     if config_space is None:
@@ -502,7 +508,7 @@ def _local_ablation_data(built, metric, idx, baseline=None):
         metric=result.metric(metric),
         baseline=None if baseline is None else result.trials[baseline].config)
     fig = hyperparameter_ablation_plot(ablation)
-    return (json.loads(fig.to_json()) if fig is not None else None), warning, ablation
+    return (json.loads(cast(str, fig.to_json())) if fig is not None else None), warning, ablation
 
 
 #: Whether the page offers "still to gain" at all.
@@ -544,7 +550,7 @@ def _partial_dependence_data(built, metric, hp_name, max_ice_curves=0):
         config_space, result.trials, metric, hp_name, seed=built["seed"],
         max_ice_curves=max_ice_curves)
     fig = partial_dependence_plot(hp_name, grid, ice_lines, pdp)
-    return (json.loads(fig.to_json()) if fig is not None else None), warning
+    return (json.loads(cast(str, fig.to_json())) if fig is not None else None), warning
 
 
 def _local_effects_data(built, metric, max_trials=0, baseline=None):
@@ -566,4 +572,4 @@ def _local_effects_data(built, metric, max_trials=0, baseline=None):
         seed=built["seed"], max_trials=max_trials, metric=result.metric(metric),
         baseline=None if baseline is None else result.trials[baseline].config)
     fig = local_effects_plot(hp_names, rows)
-    return (json.loads(fig.to_json()) if fig is not None else None), warning
+    return (json.loads(cast(str, fig.to_json())) if fig is not None else None), warning

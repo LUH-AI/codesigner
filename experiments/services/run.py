@@ -558,7 +558,8 @@ def execute_run_on_cluster(run_id):
     _start(run, backend="slurm")
 
     try:
-        if not experiment.data.has_dataset:
+        dataset = experiment.data.dataset_path()
+        if dataset is None:
             raise RuntimeError(
                 "this experiment has no dataset stored, so there is nothing to "
                 "send to the cluster")
@@ -581,7 +582,7 @@ def execute_run_on_cluster(run_id):
                 # What it was told to evaluate rather than search for.
                 "configurations": run.configurations or None,
             },
-            dataset=experiment.data.dataset_path(),
+            dataset=dataset,
             model=Path(experiment.data.model_file.path) if experiment.data.model_file else None,
         )
         job_id = jobs.submit(ssh, run_id, workdir, hours=_hours_for(run))

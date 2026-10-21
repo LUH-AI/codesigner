@@ -4,6 +4,10 @@ Each is a `Figure` subclass declaring how it is named, how wide it sits, and how
 it draws — see `base.py` for the full set of options and how to add one.
 """
 
+from __future__ import annotations
+
+from typing import TYPE_CHECKING
+
 from django.utils.translation import gettext_lazy as _
 
 from core.optimizers.base import HP_GAME_FIELDS
@@ -23,6 +27,11 @@ from .plots import (
     performance_over_time_plot,
     trial_duration_plot,
 )
+
+if TYPE_CHECKING:
+    from collections.abc import Callable
+
+    import plotly.graph_objects as go
 
 
 class BestConfiguration(Figure):
@@ -162,12 +171,13 @@ class _Interactions(Figure):
     source = "interactions"
     #: The builder. `staticmethod` so it stays a plain function rather than
     #: becoming a method of the figure that happens to take a dict.
-    builder = None
+    builder: Callable[..., go.Figure | None] | None = None
 
     @classmethod
     def plot(cls, result, metric=None, view=None):
         game = view or cls.views[0]
         empty = [] if cls.source == "moebius" else {}
+        assert cls.builder is not None
         return cls.builder(game_field(result, game, cls.source, metric, empty))
 
 
@@ -390,7 +400,7 @@ class ParallelCoordinates(Figure):
     needs_config_space = True
 
     @classmethod
-    def plot(cls, result, metric=None, config_space=None):
+    def plot(cls, result, metric=None, view=None, config_space=None):
         return parallel_coordinates_plot(result, metric, config_space=config_space)
 
 
@@ -539,7 +549,7 @@ class TrialDuration(Figure):
     selects_trials = True
 
     @classmethod
-    def plot(cls, result, metric=None):
+    def plot(cls, result, metric=None, view=None):
         return trial_duration_plot(result)
 
 

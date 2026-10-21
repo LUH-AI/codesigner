@@ -14,6 +14,7 @@ from __future__ import annotations
 
 from datetime import datetime
 from datetime import timezone as dt_timezone
+from typing import Any
 
 from django.utils.dateparse import parse_datetime
 from django.utils.translation import gettext as _
@@ -221,7 +222,7 @@ def _name(user):
 def _configuration_details(configuration):
     model = configuration.get("model") or {}
     dataset = configuration.get("dataset") or {}
-    evaluation = configuration.get("evaluation") or {}
+    evaluation: Any = configuration.get("evaluation") or {}
     optimizer = configuration.get("optimizer") or {}
     scheme = evaluation.get("scheme")
     split = (_("%(n)s-fold cross-validation") % {"n": evaluation.get("folds")}
@@ -270,7 +271,7 @@ def _data_handling_entry(exp, configuration, at, at_trial, seq):
 
 
 def _event_entry(exp, event):
-    p = event.payload or {}
+    p: Any = event.payload or {}
     kind = event.kind
     hp = p.get("hyperparameter")
     if kind == "created":
@@ -370,7 +371,7 @@ def _at(value):
 def _run_event_entry(exp, event):
     kind = event.get("kind")
     at_trial = event.get("at_trial") or 0
-    details = []
+    details: list[tuple[str, str | None]] = []
     if kind == "metric_changed":
         summary = _("Optimized metric changed: %(old)s → %(new)s.") % {
             "old": event.get("from"), "new": event.get("to")}

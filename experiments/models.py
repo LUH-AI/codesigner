@@ -131,7 +131,7 @@ class ExperimentData(models.Model):
     # a page rendered later has nobody to ask. Filled from the model at the
     # moment a run has one (see services/run.py), or straight from the file for
     # an experiment read out of somebody else's run, which has no model at all.
-    config_space = models.JSONField(blank=True, null=True, default=None)
+    config_space: models.JSONField[dict | None] = models.JSONField(blank=True, null=True, default=None)
     result = SafeJSONField(blank=True, null=True, default=None)
     # What the reader believes about where the optimum lies, by hyperparameter:
     # `{hp_name: {kind, params, exponent, decay, knots}}`. Stated on the
@@ -335,7 +335,7 @@ class Experiment(models.Model):
         cache restores exactly that, so "refresh and read the result" keeps
         meaning what it has always meant.
         """
-        self.__dict__.pop("data", None)
+        vars(self).pop("data", None)
         return super().refresh_from_db(*args, **kwargs)
 
     @property
@@ -380,6 +380,7 @@ class Experiment(models.Model):
         inventing the boundary as well.
         """
         if self._state.adding and self.group_id is None and self.owner_id:
+            assert self.owner is not None
             groups = list(self.owner.memberships.values_list("group_id", flat=True)[:2])
             if len(groups) == 1:
                 self.group_id = groups[0]

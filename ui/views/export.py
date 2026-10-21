@@ -3,7 +3,7 @@ from pathlib import Path
 from django.http import Http404, HttpResponse, HttpResponseBadRequest
 from django.shortcuts import render
 from django.utils import timezone
-from django.utils.http import content_disposition_header
+from django.utils.http import content_disposition_header  # pyright: ignore[reportAttributeAccessIssue]
 
 from access.policy import EXPORT, VIEW
 from experiments.services import model_export, timestamps
@@ -129,6 +129,7 @@ def experiment_export_trial_model(request, exp):
     folder = Path(kept.directory) if kept else None
     if folder is None or not folder.is_dir():
         raise Http404(trial_models_reason(exp))
+    assert kept is not None
 
     buffer = bytes_io.BytesIO()
     stem = model_export.filename(exp, trial.trial).removesuffix(".py") + "-parameters"

@@ -112,7 +112,7 @@ def restore(exp, by=None):
     decides who else may reach it.
     """
     with transaction.atomic():
-        if (getattr(by, "is_authenticated", False) and exp.owner_id != by.pk
+        if (by is not None and getattr(by, "is_authenticated", False) and exp.owner_id != by.pk
                 and not exp.bin_entries.filter(user_id=exp.owner_id).exists()):
             exp.shares.filter(user=by).delete()
             exp.owner = by

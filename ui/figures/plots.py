@@ -17,6 +17,7 @@ rather than a per-point one.
 """
 
 import math
+from typing import Any, cast
 
 import plotly.graph_objects as go
 
@@ -277,7 +278,7 @@ def performance_over_time_plot(result, display_metric, *, x_axis="trial",
         # The floor keeps a log axis off zero. Applied only when the axis is
         # actually logarithmic: a metric that is already an error can be
         # negative or span zero, and clamping those to 1e-3 would move points.
-        y_type = "log" if all(e > 0 for e in errors) else "linear"
+        y_type = "log" if all(e > 0 for e in cast(list[float], errors)) else "linear"
         floor = (lambda e: max(1e-3, e)) if y_type == "log" else (lambda e: e)
         ys = [floor(e) for e in errors]
         incumbent_ys = [floor(e) for e in incumbent_errors]
@@ -400,7 +401,7 @@ def hyperparameter_importance_plot(importance: dict, rendering: str = "pie",
 #: scaling again, which is the thing being prevented.
 _TEXT_SIZE = 12
 _TEXT_FONT = {"size": _TEXT_SIZE}
-_UNIFORM_TEXT = {"uniformtext": {"minsize": _TEXT_SIZE, "mode": "hide"}}
+_UNIFORM_TEXT: dict[str, Any] = {"uniformtext": {"minsize": _TEXT_SIZE, "mode": "hide"}}
 
 #: The two parts of a hyperparameter's achievable gain, darkest first. One hue
 #: at two intensities, like `hyperparameter_orders_plot`'s three: these are parts
@@ -1097,12 +1098,9 @@ def _axis_positions(values):
     sits down the middle.
     """
     lo, hi = min(values), max(values)
-    if hi == lo:
-        def place(_value):
-            return 0.5
-    else:
-        def place(value):
-            return (value - lo) / (hi - lo)
+    def place(value):
+        return 0.5 if hi == lo else (value - lo) / (hi - lo)
+
     return [place(v) for v in values], place
 
 
@@ -1428,6 +1426,10 @@ def slice_span(positions, kind):
     return [0.0, 1.0]
 
 
+def _trace_count(fig: go.Figure) -> int:
+    return len(cast(tuple, fig.data))
+
+
 def acquisition_slice_plots(hp_name, positions, labels, mu, sigma, metric_label,
                             eta=None, higher_is_better=True, kind="continuous",
                             incumbent=None, cloud=None):
@@ -1511,12 +1513,12 @@ def acquisition_slice_plots(hp_name, positions, labels, mu, sigma, metric_label,
         # reader's statement actually did to the space the search looks at.
         # Empty until a prior is stated, where it would lie exactly under the
         # curve below and say nothing.
-        traces["acquisition"]["cloudBare"] = len(acquisition.data)
+        traces["acquisition"]["cloudBare"] = _trace_count(acquisition)
         acquisition.add_trace(go.Scatter(
             x=positions, y=list(blank), mode="lines", connectgaps=False,
             name=_("Best sampled, unweighted"), hoverinfo="skip",
             line=dict(width=1.2, color=MARKER_COLOR, dash="dot")))
-        traces["acquisition"]["cloud"] = len(acquisition.data)
+        traces["acquisition"]["cloud"] = _trace_count(acquisition)
         acquisition.add_trace(go.Scatter(
             x=positions, y=list(blank), mode="lines", connectgaps=False,
             name=_("Best sampled, weighted"), hoverinfo="skip",
@@ -1527,11 +1529,11 @@ def acquisition_slice_plots(hp_name, positions, labels, mu, sigma, metric_label,
     # own peak first. Only the ranking of an acquisition function means
     # anything, so that constant is free — and it is what lets the curves be
     # read against each other instead of each filling the panel on its own.
-    traces["acquisition"]["acquisition"] = len(acquisition.data)
+    traces["acquisition"]["acquisition"] = _trace_count(acquisition)
     acquisition.add_trace(go.Scatter(
         x=positions, y=list(blank), mode="lines", name=_("Acquisition"),
         hoverinfo="skip", line=dict(width=1.4, color=MARKER_COLOR, dash="dash")))
-    traces["acquisition"]["weighted"] = len(acquisition.data)
+    traces["acquisition"]["weighted"] = _trace_count(acquisition)
     acquisition.add_trace(go.Scatter(
         x=positions, y=list(blank), mode="lines", name=_("Weighted by the prior"),
         hoverinfo="skip", line=dict(width=2.5, color=PRIOR_COLOR)))
@@ -1545,7 +1547,7 @@ def acquisition_slice_plots(hp_name, positions, labels, mu, sigma, metric_label,
     # that is not there. Its height is an acquisition value, computed where the
     # curves are, rather than the incumbent's score — that belongs to a
     # different axis.
-    traces["acquisition"]["incumbent"] = len(acquisition.data)
+    traces["acquisition"]["incumbent"] = _trace_count(acquisition)
     acquisition.add_trace(go.Scatter(
         x=[], y=[], mode="markers", name=_("Incumbent"),
         marker=dict(size=9, color=MARKER_COLOR,
@@ -1565,7 +1567,7 @@ def acquisition_slice_plots(hp_name, positions, labels, mu, sigma, metric_label,
     #: candidates can be told apart at all. The browser converts it to axis
     #: units against the panel it actually got, and merges anything closer.
     _MARKER_PX = 13
-    traces["acquisition"]["candidates"] = len(acquisition.data)
+    traces["acquisition"]["candidates"] = _trace_count(acquisition)
     acquisition.add_trace(go.Scatter(
         # One trace, one appearance. Ranking them by eye was the job the height
         # was doing, and the height had to go; a second marker style would only
@@ -1596,7 +1598,7 @@ def acquisition_slice_plots(hp_name, positions, labels, mu, sigma, metric_label,
     # panel would show a spike on a flat floor; on a log axis the decay exponent
     # is a plain vertical squash toward the neutral line. A tabulated prior
     # switches this to linear in the browser — see `applyPriorAxis`.
-    traces["prior"]["prior"] = len(prior.data)
+    traces["prior"]["prior"] = _trace_count(prior)
     prior.add_trace(go.Scatter(
         x=positions, y=list(blank), mode="lines", name=_("Prior"), fill="tozeroy",
         fillcolor=_rgba(PRIOR_COLOR, 0.13), line=dict(width=2, color=PRIOR_COLOR),
@@ -1605,7 +1607,7 @@ def acquisition_slice_plots(hp_name, positions, labels, mu, sigma, metric_label,
     # rather than by parameters. The one trace whose x moves, because a point is
     # dragged along the axis as well as up it. A categorical uses the same
     # editor with its points pinned to the choice indices.
-    traces["prior"]["priorPoints"] = len(prior.data)
+    traces["prior"]["priorPoints"] = _trace_count(prior)
     prior.add_trace(go.Scatter(
         x=[], y=[], mode="markers", name=_("Control points"), showlegend=False,
         marker=dict(size=9, color=PRIOR_COLOR, line=dict(width=1.5, color="#FFFFFF")),
@@ -1661,7 +1663,7 @@ def acquisition_slice_plots(hp_name, positions, labels, mu, sigma, metric_label,
     # nothing where a prior claims more improvement than any finite mean could
     # justify, and bridging that gap would draw a plateau the function
     # deliberately refuses to invent.
-    lo = len(surrogate.data)
+    lo = _trace_count(surrogate)
     surrogate.add_trace(go.Scatter(
         x=positions, y=list(blank), mode="lines", hoverinfo="skip",
         line=dict(width=0), connectgaps=False, showlegend=False))
@@ -1670,7 +1672,7 @@ def acquisition_slice_plots(hp_name, positions, labels, mu, sigma, metric_label,
         line=dict(width=0), fill="tonexty", fillcolor=_rgba(PRIOR_COLOR, _GHOST_ALPHA),
         connectgaps=False, showlegend=False))
     traces["surrogate"]["fictionBand"] = [lo, lo + 1]
-    traces["surrogate"]["fiction"] = len(surrogate.data)
+    traces["surrogate"]["fiction"] = _trace_count(surrogate)
     surrogate.add_trace(go.Scatter(
         x=positions, y=list(blank), mode="lines", name=_("Implied by the prior"),
         hoverinfo="skip", connectgaps=False,
