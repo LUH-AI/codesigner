@@ -65,16 +65,19 @@ class ModelBase(ABC):
     #: Empty for every other run.
     forecast: dict = {}
 
-    @property
-    @abstractmethod
-    def name(self) -> str:
-        """Display name, shown in the interface and stored in ``.ihpo`` files.
+    if TYPE_CHECKING:
+        name: str
+    else:
+        @property
+        @abstractmethod
+        def name(self) -> str:
+            """Display name, shown in the interface and stored in ``.ihpo`` files.
 
-        A plain class attribute — ``name = "My Model"`` — satisfies this, and is
-        what you should use: the name is read from your file's source before
-        anything runs it, so an experiment has something to be called while its
-        environment is still being built.
-        """
+            A plain class attribute — ``name = "My Model"`` — satisfies this, and is
+            what you should use: the name is read from your file's source before
+            anything runs it, so an experiment has something to be called while its
+            environment is still being built.
+            """
 
 
 class OptimizableBaseModel(ModelBase):
@@ -231,7 +234,7 @@ class OutputBaseModel(ModelBase):
     native_categories: str | None = None
 
     @abstractmethod
-    def build(self, hyperparameters: dict[str, Any], data: dict[str, Any], seed: int = 0):
+    def build(self, hyperparameters: dict[str, Any], data: dict[str, Any], seed: int = 0) -> Any:
         """The unfitted estimator *hyperparameters* describe, for data like
         *data* (see :meth:`describe`, plus ``"probabilities"`` — see
         :meth:`fit`), every source of randomness seeded with *seed*."""
@@ -330,4 +333,4 @@ class OutputBaseModel(ModelBase):
 #:
 #: A flag on the function survives both. An older SDK has no attribute and no
 #: flag; this one has both; an override has the attribute and not the flag.
-OptimizableBaseModel.fit_predict_proba._is_stub = True
+setattr(OptimizableBaseModel.fit_predict_proba, "_is_stub", True)

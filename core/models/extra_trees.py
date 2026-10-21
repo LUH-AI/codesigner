@@ -1,5 +1,7 @@
 """Extremely randomized trees: scikit-learn's, classifying or regressing."""
 
+from typing import Any
+
 from ConfigSpace import Categorical, ConfigurationSpace, Float, Integer
 
 from .base import OutputBaseModel, Tunable
@@ -17,7 +19,7 @@ class ExtraTrees(OutputBaseModel):
     def build(self, hyperparameters, data, seed=0):
         from sklearn.ensemble import ExtraTreesClassifier, ExtraTreesRegressor
 
-        shared = dict(
+        shared: dict[str, Any] = dict(
             n_estimators=int(hyperparameters["n_estimators"]),
             max_depth=int(hyperparameters["max_depth"]),
             min_samples_split=float(hyperparameters["min_samples_split"]),

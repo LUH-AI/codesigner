@@ -29,7 +29,7 @@ from pathlib import Path
 
 from . import protocol
 from .arrays import fold_labels_for_json, write_dataset
-from .deadline import DEFAULT_TRIAL_TIMEOUT, as_deadline
+from .deadline import DEFAULT_TRIAL_TIMEOUT, DeadlineSpec, as_deadline
 from .errors import ModelProcessError, ModelTrialError, TrialCancelled, TrialTimeout
 
 HARNESS = Path(__file__).with_name("harness.py")
@@ -161,6 +161,7 @@ class ModelProcess:
         if self.alive:
             try:
                 self._write({"t": protocol.SHUTDOWN, "id": self._seq + 1})
+                assert self._proc is not None
                 self._proc.wait(timeout=_STOP_GRACE)
             except Exception:  # noqa: BLE001 — it is going to be killed anyway
                 pass
@@ -219,8 +220,11 @@ class ModelProcess:
     def _write(self, message: dict) -> None:
         try:
             payload = json.dumps(message, ensure_ascii=True, allow_nan=False)
-            self._proc.stdin.write(payload.encode("ascii") + b"\n")
-            self._proc.stdin.flush()
+            stdin = self._proc.stdin if self._proc is not None else None
+            if stdin is None:
+                raise AttributeError("the model process has no stdin")
+            stdin.write(payload.encode("ascii") + b"\n")
+            stdin.flush()
         except (BrokenPipeError, OSError, ValueError, AttributeError) as exc:
             raise ModelProcessError(
                 f"the model process is gone{self.stderr_tail()}") from exc
@@ -233,6 +237,7 @@ class ModelProcess:
         """
         proc = self._proc
         try:
+            assert proc is not None and proc.stdout is not None
             for raw in iter(proc.stdout.readline, b""):
                 self._lines.put(raw)
         except (ValueError, OSError):
@@ -243,6 +248,7 @@ class ModelProcess:
     def _pump_stderr(self) -> None:
         proc = self._proc
         try:
+            assert proc is not None and proc.stderr is not None
             for raw in iter(proc.stderr.readline, b""):
                 self._stderr.append(raw.decode("utf-8", "replace"))
         except (ValueError, OSError):
@@ -292,7 +298,7 @@ class RemoteModel:
     """
 
     def __init__(self, process: ModelProcess, hello: dict, *, seed: int = 0,
-                 trial_timeout: float = DEFAULT_TRIAL_TIMEOUT, cancel=None,
+                 trial_timeout: DeadlineSpec = DEFAULT_TRIAL_TIMEOUT, cancel=None,
                  restart=None):
         self._process = process
         self._hello = hello
@@ -500,7 +506,7 @@ class model_session:
     def __init__(self, launch, splits, *,
                  seed: int = 0, task: str = "classification", feature_kinds=None,
                  forecast=None, cancel=None, env=None, cwd=None,
-                 trial_timeout: float = DEFAULT_TRIAL_TIMEOUT,
+                 trial_timeout: DeadlineSpec = DEFAULT_TRIAL_TIMEOUT,
                  start_timeout: float = DEFAULT_START_TIMEOUT):
         self._launch = launch
         self._splits = splits

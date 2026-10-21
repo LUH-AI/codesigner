@@ -168,15 +168,15 @@ METRICS: dict[str, Metric] = {
     ),
     "f1": Metric(
         name="f1",
-        fn=lambda y, yp: float(f1_score(y, yp, average="weighted", zero_division=0)),
+        fn=lambda y, yp: float(f1_score(y, yp, average="weighted", zero_division=0)),  # pyright: ignore[reportArgumentType]
     ),
     "precision": Metric(
         name="precision",
-        fn=lambda y, yp: float(precision_score(y, yp, average="weighted", zero_division=0)),
+        fn=lambda y, yp: float(precision_score(y, yp, average="weighted", zero_division=0)),  # pyright: ignore[reportArgumentType]
     ),
     "recall(macro)": Metric(
         name="recall(macro)",
-        fn=lambda y, yp: float(recall_score(y, yp, average="macro", zero_division=0)),
+        fn=lambda y, yp: float(recall_score(y, yp, average="macro", zero_division=0)),  # pyright: ignore[reportArgumentType]
     ),
     "balanced_accuracy": Metric(
         name="balanced_accuracy",

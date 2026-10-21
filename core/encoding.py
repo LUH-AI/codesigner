@@ -45,7 +45,7 @@ def fit(frame: pd.DataFrame, kinds: dict[str, str] | None = None) -> dict:
     columns = []
     for name, kind in inferred.items():
         series = frame[name]
-        column = {"name": name, "kind": kind}
+        column: dict[str, str | list[str]] = {"name": name, "kind": kind}
         if kind == CATEGORICAL:
             column["levels"] = sorted({str(v) for v in series.dropna()})
         elif kind == DATETIME:

@@ -1,5 +1,7 @@
 """CatBoost's gradient boosting, classifying or regressing."""
 
+from typing import Any
+
 from ConfigSpace import Categorical, ConfigurationSpace, Float, Integer
 
 from .base import OutputBaseModel, Tunable
@@ -20,7 +22,7 @@ class CatBoost(OutputBaseModel):
         from catboost import CatBoostClassifier, CatBoostRegressor
 
         categorical = categorical_columns(data)
-        shared = dict(
+        shared: dict[str, Any] = dict(
             iterations=int(hyperparameters["iterations"]),
             learning_rate=float(hyperparameters["learning_rate"]),
             depth=int(hyperparameters["depth"]),

@@ -10,14 +10,20 @@ module only preserves the import path the application has always used.
 New model files should ``from codesigner_model import BaseModel``.
 """
 
+from typing import TYPE_CHECKING, cast
+
 from codesigner_model import BaseModel, ModelBase, OptimizableBaseModel, OutputBaseModel
 
 from ..processing import Processing, resolve
 
+if TYPE_CHECKING:
+    import numpy as np
+    import pandas as pd
+
 __all__ = ["BaseModel", "ModelBase", "OptimizableBaseModel", "OutputBaseModel", "Tunable"]
 
 
-class Tunable(OptimizableBaseModel):
+class Tunable(OptimizableBaseModel, OutputBaseModel):
     """A built-in: an output model with a search space, tuned through its own
     `fit` and `predict`.
 
@@ -46,7 +52,7 @@ class Tunable(OptimizableBaseModel):
         plan, _ = resolve(self.processing, self)
         return Processing(plan, kinds)
 
-    def fit(self, config, X, y, seed: int = 0, *, probabilities: bool = False, kinds=None):
+    def fit(self, hyperparameters, X, y, seed: int = 0, *, probabilities: bool = False, kinds=None):
         """The experiment's processing, fitted on these rows, in front of the
         model fitted on what it makes of them — one estimator, so whatever
         predicts with it processes new rows exactly as the training rows were.
@@ -55,10 +61,10 @@ class Tunable(OptimizableBaseModel):
 
         processing = self.processing_for(X.shape[1])
         if not self.takes_processing or processing.is_identity():
-            return super().fit(config, X, y, seed, probabilities=probabilities)
-        processed = processing.fit_transform(X, y)
+            return super().fit(hyperparameters, X, y, seed, probabilities=probabilities)
+        processed = cast("np.ndarray | pd.DataFrame", processing.fit_transform(X, y))
         out = processing.kinds_out()
-        model = super().fit(config, processed, y, seed, probabilities=probabilities,
+        model = super().fit(hyperparameters, processed, y, seed, probabilities=probabilities,
                             kinds=out if out is not None else ("numeric",) * processed.shape[1])
         return Pipeline([("processing", processing), ("model", model)])
 

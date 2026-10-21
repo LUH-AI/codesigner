@@ -43,7 +43,7 @@ principle be read.
 """
 
 import math
-from typing import Dict, List, NamedTuple, Optional, Tuple
+from typing import Any, Dict, List, NamedTuple, Optional, Tuple
 
 #: How many components a projection offers at most. Three, because three is
 #: what can be drawn — a fourth would be computed for nobody.
@@ -124,7 +124,7 @@ def _encode(config_space, trials) -> Tuple[List[List[float]], List[_Column]]:
     logs = set(log_hyperparameters(config_space, names))
 
     columns: List[List[float]] = []
-    specs: List[tuple] = []
+    specs: List[Tuple[str, str, Optional[str], bool]] = []
     for name in names:
         raw = [t.config.get(name) for t in trials]
         if all(_is_numeric(v) for v in raw):
@@ -297,9 +297,9 @@ class Fitted(NamedTuple):
 
     coordinates: List[List[float]]
     labels: List[str]
-    model: object
+    model: Any
     columns: List[_Column]
-    config_space: object
+    config_space: Any
 
     def transform(self, configurations) -> List[List[float]]:
         """*configurations* (dicts) in this projection's coordinates.
@@ -405,11 +405,11 @@ class Fitted(NamedTuple):
             first = self.columns[indices[0]]
             if first.value is None:
                 hp = self.config_space[name] if name in self.config_space else None
-                ends = (getattr(hp, "lower", None), getattr(hp, "upper", None))
-                if None in ends:
+                lower, upper = getattr(hp, "lower", None), getattr(hp, "upper", None)
+                if lower is None or upper is None:
                     continue
                 rows = []
-                for end in ends:
+                for end in (lower, upper):
                     raw = math.log10(end) if first.log and end > 0 else float(end)
                     row = [0.0] * width
                     row[indices[0]] = (raw - first.mean) / first.spread if first.spread else 0.0

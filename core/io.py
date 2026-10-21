@@ -135,6 +135,7 @@ def load_model_from_path(model_path: str) -> tuple:
 
     try:
         spec = importlib.util.spec_from_file_location("_custom_model", tmp_path)
+        assert spec is not None and spec.loader is not None
         module = importlib.util.module_from_spec(spec)
         try:
             spec.loader.exec_module(module)

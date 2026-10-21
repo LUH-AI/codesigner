@@ -1,5 +1,7 @@
 """Histogram gradient boosting: scikit-learn's, classifying or regressing."""
 
+from typing import Any
+
 from ConfigSpace import Categorical, ConfigurationSpace, Float, Integer
 
 from .base import OutputBaseModel, Tunable
@@ -29,7 +31,7 @@ class HistGradientBoosting(OutputBaseModel):
     def build(self, hyperparameters, data, seed=0):
         from sklearn.ensemble import HistGradientBoostingClassifier, HistGradientBoostingRegressor
 
-        shared = dict(
+        shared: dict[str, Any] = dict(
             learning_rate=float(hyperparameters["learning_rate"]),
             max_iter=int(hyperparameters["max_iter"]),
             max_leaf_nodes=int(hyperparameters["max_leaf_nodes"]),

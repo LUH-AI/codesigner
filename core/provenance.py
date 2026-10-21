@@ -158,7 +158,7 @@ def model_fingerprint(model_name: str, model_path: str, env_meta=None,
     }
 
 
-def evaluation(cv_folds: int, y=None, test_size: float = None,
+def evaluation(cv_folds: int, y=None, test_size: Optional[float] = None,
                task: str = CLASSIFICATION, time_column: str = "",
                gap: int = 0, horizon: int = 0, series_column: str = "",
                season: int = 0) -> Dict[str, Any]:

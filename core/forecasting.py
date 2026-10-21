@@ -57,7 +57,7 @@ def infer_season(times) -> int:
     stamps = pd.DatetimeIndex(np.unique(stamps.to_numpy()))
     if len(stamps) < 3:
         return 1
-    step = (stamps[1:] - stamps[:-1]).median()
+    step = (stamps[1:] - stamps[:-1]).median()  # pyright: ignore[reportAttributeAccessIssue]
     days = step / pd.Timedelta(days=1)
     for low, high, season in ((0.035, 0.05, 24), (0.9, 1.1, 7), (6.5, 7.5, 52),
                               (27, 32, 12), (88, 93, 4)):

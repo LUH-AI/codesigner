@@ -1,5 +1,7 @@
 """LightGBM's gradient boosted trees, classifying or regressing."""
 
+from typing import Any
+
 from ConfigSpace import Categorical, ConfigurationSpace, Float, Integer
 
 from .base import OutputBaseModel, Tunable
@@ -23,7 +25,7 @@ class LightGBM(OutputBaseModel):
     def build(self, hyperparameters, data, seed=0):
         from lightgbm import LGBMClassifier, LGBMRegressor
 
-        shared = dict(
+        shared: dict[str, Any] = dict(
             n_estimators=int(hyperparameters["n_estimators"]),
             learning_rate=float(hyperparameters["learning_rate"]),
             num_leaves=int(hyperparameters["num_leaves"]),

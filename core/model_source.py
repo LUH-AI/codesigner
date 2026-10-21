@@ -176,6 +176,9 @@ def _literal_name(cls: ast.ClassDef) -> str | None:
             target = node.target
         if not isinstance(target, ast.Name) or target.id != "name":
             continue
+        assert isinstance(node, (ast.Assign, ast.AnnAssign))
+        if node.value is None:
+            return None
         try:
             value = ast.literal_eval(node.value)
         except (ValueError, SyntaxError):
@@ -197,7 +200,10 @@ def _literal_tasks(cls: ast.ClassDef) -> tuple[tuple, str | None]:
             target = node.target
         if not isinstance(target, ast.Name) or target.id != "tasks":
             continue
+        assert isinstance(node, (ast.Assign, ast.AnnAssign))
         try:
+            if node.value is None:
+                raise ValueError
             value = ast.literal_eval(node.value)
         except (ValueError, SyntaxError):
             return (), (f"'{cls.name}' must set tasks as a literal, "
@@ -221,6 +227,7 @@ def _literal_flag(cls: ast.ClassDef, attribute: str) -> bool:
         elif isinstance(node, ast.AnnAssign) and node.value is not None:
             target = node.target
         if isinstance(target, ast.Name) and target.id == attribute:
+            assert isinstance(node, (ast.Assign, ast.AnnAssign)) and node.value is not None
             try:
                 return bool(ast.literal_eval(node.value))
             except (ValueError, SyntaxError):

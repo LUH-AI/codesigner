@@ -55,6 +55,9 @@ class _Estimator:
     """What every forecaster here shares: its parameters are its constructor's
     arguments, as scikit-learn expects."""
 
+    _params: tuple[str, ...]
+    forecast: dict
+
     def get_params(self, deep=True):
         return {name: getattr(self, name) for name in self._params}
 
@@ -245,11 +248,12 @@ class ReducedForecaster(_Estimator):
         self.processing_ = Processing(self.plan or {}, example_kinds)
         examples = self.processing_.fit_transform(np.array(rows))
         out = self.processing_.kinds_out()
+        assert self.model is not None
         # The delivered model's own fit: the examples are processed already,
         # and a tuned model's fit would process them again.
         self.fitted_ = OutputBaseModel.fit(
             self.model, self.hyperparameters, examples, np.array(targets), self.seed,
-            kinds=out if out is not None else (NUMERIC,) * examples.shape[1])
+            kinds=out if out is not None else (NUMERIC,) * examples.shape[1])  # pyright: ignore[reportOptionalSubscript]
         self.classes_ = getattr(self.fitted_, "classes_", None)
         return self
 
@@ -267,6 +271,7 @@ class ReducedForecaster(_Estimator):
 
     def predict(self, X):
         examples, last = self._asked(X)
+        assert self.model is not None
         predicted = self.model.predict(self.fitted_, examples)
         if self.classifies:
             return np.ravel(predicted)
@@ -274,4 +279,5 @@ class ReducedForecaster(_Estimator):
 
     def predict_proba(self, X):
         examples, _ = self._asked(X)
+        assert self.model is not None
         return self.model.predict_proba(self.fitted_, examples)

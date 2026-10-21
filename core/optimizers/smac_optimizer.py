@@ -1,7 +1,9 @@
 import json
 import logging
 import tempfile
+from collections.abc import Mapping
 from pathlib import Path
+from typing import Any, Optional
 
 import numpy as np
 from ConfigSpace import Configuration
@@ -193,7 +195,7 @@ _FACADE_DEFAULTS = {
 }
 
 
-def _signature_default(function, argument):
+def _signature_default(function, argument) -> Any:
     """*function*'s default for *argument*, or None if it has neither."""
     import inspect
 
@@ -461,7 +463,7 @@ class SMACOptimizer(BaseOptimizer):
         self._gp_normalize_y = bool(gp_normalize_y)
 
     @classmethod
-    def migrate_params(cls, stored: dict) -> dict:
+    def migrate_params(cls, stored: Mapping[str, Any]) -> Mapping[str, Any]:
         """Read the two settings the initial design used to have onto the four
         it has now.
 
@@ -1300,7 +1302,7 @@ class SMACOptimizer(BaseOptimizer):
             result.metadata["initial_design"] = pinned
         return result
 
-    def _confidence_nothing_better(self, smac, config_space, incumbent_config: dict):
+    def _confidence_nothing_better(self, smac, config_space, incumbent_config: Optional[dict]):
         """How sure the surrogate is that no remaining configuration wins.
 
         This is what a Bayesian optimizer already knows and normally spends on

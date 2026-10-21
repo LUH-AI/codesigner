@@ -3,7 +3,7 @@ import time
 from collections.abc import Mapping
 from abc import ABC, abstractmethod
 from dataclasses import dataclass, field, replace
-from typing import Any, Dict, List, NamedTuple, Optional
+from typing import TYPE_CHECKING, Any, Dict, List, NamedTuple, Optional
 from hypershap import ExplanationTask, HyperSHAP
 from shapiq.game_theory import MoebiusConverter
 
@@ -11,6 +11,9 @@ from ..metrics import (
     METRICS, declarations, describe, from_cost, metric_for, to_cost)
 from .timing import CANCELLED, FITTED, RUN_INFO_KEYS, STATUS_SUCCESS
 from .trial import evaluate_trial
+
+if TYPE_CHECKING:
+    import numpy as np
 
 
 @dataclass
@@ -787,8 +790,7 @@ def _pair_trials_with_scores(config_space, trials: List[TrialResult], metric_nam
     from ConfigSpace import Configuration
 
     if values is None:
-        def values(t):
-            return t.scores[metric_name]
+        values = lambda t: t.scores[metric_name]
 
     data = []
     for t in trials:
@@ -902,8 +904,8 @@ class IncumbentSlice(NamedTuple):
     #: The configurations the slice and the cloud were predicted at, in
     #: ConfigSpace's vectorized form — what a prior over whole configurations
     #: is evaluated at to weigh them.
-    slice_rows: Optional[list] = None
-    cloud_rows: Optional[list] = None
+    slice_rows: Optional["np.ndarray"] = None
+    cloud_rows: Optional["np.ndarray"] = None
 
 
 def predict_mean_std(surrogate, rows):
@@ -1089,6 +1091,10 @@ def _sample_evenly(items: list, limit: int) -> list:
     return [items[round(i * step)] for i in range(limit)]
 
 
+_GameResults = tuple[Dict[str, Dict[str, float]], Dict[str, Optional[str]],
+                     Dict[str, Dict[str, Dict[str, float]]], Dict[str, list], Dict[str, float]]
+
+
 class BaseOptimizer(ABC):
     """Base class for all hyperparameter optimizers."""
 
@@ -1099,12 +1105,10 @@ class BaseOptimizer(ABC):
     #: before it.
     aliases: tuple = ()
 
-    @property
-    @abstractmethod
-    def name(self) -> str: ...
+    name: str
 
     def refit_surrogate(self, config_space, trials, metric_name: str, seed: int = 0,
-                        values=None):
+                        values=None) -> tuple[Any, Optional[str]]:
         """The model *this optimizer* would have fitted, refit on *trials*.
 
         Returns `(surrogate, warning)`, or `(None, None)` for an optimizer that
@@ -1376,7 +1380,7 @@ class BaseOptimizer(ABC):
         return dict(self.get_params())
 
     @classmethod
-    def known_params(cls, stored: Dict[str, Any]) -> Dict[str, Any]:
+    def known_params(cls, stored: Mapping[str, Any]) -> Dict[str, Any]:
         """*stored* narrowed to parameters this optimizer still has.
 
         A parameter that was renamed or withdrawn would otherwise reach
@@ -1390,7 +1394,7 @@ class BaseOptimizer(ABC):
         return {k: v for k, v in stored.items() if k in known}
 
     @classmethod
-    def migrate_params(cls, stored: Dict[str, Any]) -> Dict[str, Any]:
+    def migrate_params(cls, stored: Mapping[str, Any]) -> Mapping[str, Any]:
         """*stored* with settings from an earlier shape read onto today's.
 
         Dropping a renamed setting is safe but silent, and silent is the wrong
@@ -1843,7 +1847,7 @@ class BaseOptimizer(ABC):
 
         pdp = []
         for i in range(len(grid)):
-            column = [row[i] for row in ice_lines if row[i] is not None]
+            column = [v for row in ice_lines if (v := row[i]) is not None]
             pdp.append(sum(column) / len(column) if column else None)
 
         return grid, ice_lines, pdp, None
@@ -2013,7 +2017,7 @@ class BaseOptimizer(ABC):
 
         hps = list(config_space.values())
         names = [hp.name for hp in hps]
-        unit = qmc.Sobol(d=len(hps), scramble=True, seed=seed).random(n)
+        unit = qmc.Sobol(d=len(hps), scramble=True, seed=seed).random(n)  # pyright: ignore[reportCallIssue]
         configurations, rows = [], []
         for point in unit:
             values = {hp.name: _from_unit(hp, u) for hp, u in zip(hps, point)}
@@ -2313,7 +2317,7 @@ class BaseOptimizer(ABC):
         seed: int = 0,
         cancel_event=None,
         baseline: Optional[Dict[str, Any]] = None,
-    ) -> Dict[str, tuple[Dict[str, Dict[str, float]], Dict[str, Optional[str]], Dict[str, Dict[str, Dict[str, float]]]]]:
+    ) -> Dict[str, _GameResults]:
         """Every metric's per-game hyperparameter importance, for all of
         `HP_GAMES` — what each optimizer's `optimize()` calls once, instead of
         looping `compute_hp_importance`/`_sensitivity`/`_mistunability`
@@ -2373,7 +2377,7 @@ class BaseOptimizer(ABC):
         if too_wide:
             return self._skipped_games(metrics, too_wide)
 
-        by_game = {game: ({}, {}, {}, {}, {}) for game in self.HP_GAMES}
+        by_game: Dict[str, _GameResults] = {game: ({}, {}, {}, {}, {}) for game in self.HP_GAMES}
         # *metrics* is a mapping of name to `Metric` from the application and a
         # bare list of names from plenty of callers that only need the names.
         # Both iterate the same way, but only a mapping can say which direction
@@ -2447,7 +2451,7 @@ class BaseOptimizer(ABC):
         seed: int = 0,
         explainer=None,
         baseline: Optional[Dict[str, Any]] = None,
-    ) -> tuple[Dict[str, float], Optional[str], Dict[str, Dict[str, float]], list]:
+    ) -> tuple[Dict[str, float], Optional[str], Dict[str, Dict[str, float]], list, float]:
         """Shared scaffolding behind `compute_hp_importance`/`_sensitivity`/
         `_mistunability`/`_interactions`: ask HyperSHAP's *game* for order-1
         (and, as a free byproduct, order-2) values from the built explainer,

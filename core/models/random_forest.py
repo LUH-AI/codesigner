@@ -22,8 +22,8 @@ class RandomForest(OutputBaseModel):
         model = forest(
             n_estimators=int(hyperparameters["n_estimators"]),
             max_depth=int(hyperparameters["max_depth"]),
-            min_samples_split=float(hyperparameters["min_samples_split"]),
-            max_features=float(hyperparameters["max_features"]),
+            min_samples_split=float(hyperparameters["min_samples_split"]),  # pyright: ignore[reportArgumentType]
+            max_features=float(hyperparameters["max_features"]),  # pyright: ignore[reportArgumentType]
             random_state=seed,
             n_jobs=-1,
         )

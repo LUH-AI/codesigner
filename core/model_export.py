@@ -37,6 +37,7 @@ import pprint
 import re
 import sys
 import textwrap
+from types import ModuleType
 
 from codesigner_model import ModelBase, OptimizableBaseModel, OutputBaseModel
 
@@ -46,7 +47,8 @@ from .models import parts
 
 #: The imports the delivered model's own code needs, before any module's.
 _PREAMBLE_IMPORTS = ("from __future__ import annotations", "",
-                     "from abc import ABC, abstractmethod", "from typing import Any", "",
+                     "from abc import ABC, abstractmethod",
+                     "from typing import TYPE_CHECKING, Any", "",
                      "import numpy as np")
 
 #: Top-level packages whose imports an exported file drops: it defines what it
@@ -198,7 +200,8 @@ def export_model(model, *, config: dict, task: str, seed: int = 0, columns: dict
 
     # The processing's two classes only: choosing a plan is the experiment's
     # business, and the plan is written out below.
-    modules = [(processing, ("Processing", "TextCategories"))]
+    modules: list[tuple[ModuleType, tuple[str, ...] | None]] = [
+        (processing, ("Processing", "TextCategories"))]
     used = _names_in(inspect.getsource(cls))
     shared = [name for name, _ in inspect.getmembers(parts) if name in used
               and getattr(getattr(parts, name), "__module__", "") == parts.__name__]

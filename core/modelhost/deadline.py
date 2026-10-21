@@ -236,7 +236,11 @@ MODE_PREDICTED = "predicted"
 MODES = (MODE_FIXED, MODE_PREDICTED)
 
 
-def as_deadline(spec):
+#: What a caller may pass as `trial_timeout`: see `as_deadline`.
+DeadlineSpec = float | dict | FixedDeadline | PredictedDeadline | None
+
+
+def as_deadline(spec) -> FixedDeadline | PredictedDeadline:
     """Whatever a caller passed as `trial_timeout`, as a policy.
 
     Accepts a policy (returned as-is), a bare number or `None` (the old

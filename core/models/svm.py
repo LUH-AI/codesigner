@@ -1,5 +1,7 @@
 """Support vector machine: scikit-learn's, classifying or regressing."""
 
+from typing import Any
+
 from ConfigSpace import Categorical, ConfigurationSpace, Float, Integer
 
 from .base import OutputBaseModel, Tunable
@@ -28,7 +30,7 @@ class SVM(OutputBaseModel):
     def build(self, hyperparameters, data, seed=0):
         from sklearn.svm import SVC, SVR
 
-        shared = dict(
+        shared: dict[str, Any] = dict(
             C=float(hyperparameters["C"]),
             kernel=hyperparameters["kernel"],
             gamma=hyperparameters["gamma"],
@@ -39,7 +41,7 @@ class SVM(OutputBaseModel):
         if self.task == "regression":
             svm = SVR(epsilon=float(hyperparameters.get("epsilon", 0.1)), **shared)
         else:
-            svm = SVC(random_state=seed, probability=bool(data.get("probabilities")), **shared)
+            svm = SVC(random_state=seed, probability=bool(data.get("probabilities")), **shared)  # pyright: ignore[reportArgumentType]
         return svm
 
 

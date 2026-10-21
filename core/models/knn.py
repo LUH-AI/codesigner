@@ -1,5 +1,7 @@
 """k nearest neighbours: scikit-learn's, classifying or regressing."""
 
+from typing import Any
+
 from ConfigSpace import Categorical, ConfigurationSpace, Integer
 
 from .base import OutputBaseModel, Tunable
@@ -22,8 +24,9 @@ class KNN(OutputBaseModel):
     def build(self, hyperparameters, data, seed=0):
         from sklearn.neighbors import KNeighborsClassifier, KNeighborsRegressor
 
-        shared = dict(n_neighbors=min(int(hyperparameters["n_neighbors"]), data["rows"]),
-                      weights=hyperparameters["weights"], p=int(hyperparameters["p"]))
+        shared: dict[str, Any] = dict(
+            n_neighbors=min(int(hyperparameters["n_neighbors"]), data["rows"]),
+            weights=hyperparameters["weights"], p=int(hyperparameters["p"]))
         knn = (KNeighborsRegressor(**shared) if self.task == "regression"
                else KNeighborsClassifier(**shared))
         return knn

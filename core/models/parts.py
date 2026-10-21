@@ -58,11 +58,14 @@ class LabelCoded:
 
         self.labels_ = LabelEncoder().fit(y)
         self.classes_ = self.labels_.classes_
+        assert self.classifier is not None
         self.classifier.fit(X, self.labels_.transform(y), **fit_args)
         return self
 
     def predict(self, X):
+        assert self.classifier is not None
         return self.labels_.inverse_transform(self.classifier.predict(X).astype(int))
 
     def predict_proba(self, X):
+        assert self.classifier is not None
         return self.classifier.predict_proba(X)

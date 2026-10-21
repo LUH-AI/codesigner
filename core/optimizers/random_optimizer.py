@@ -95,6 +95,8 @@ class RandomOptimizer(BaseOptimizer):
 
         all_trials = (previous_result.trials if previous_result else []) + collector.results
         _metric = collector.metric
+        # The metric's own best — an argmin for a metric where lower wins.
+        best = _metric.best(all_trials, key=lambda t: t.scores[primary_metric])
 
         games = self.compute_hp_games(config_space, all_trials, metrics, seed=seed,
                                       cancel_event=cancel_event)
@@ -102,10 +104,7 @@ class RandomOptimizer(BaseOptimizer):
         return OptimizationResult(
             trials=all_trials,
             primary_metric=primary_metric,
-            # The metric's own best — an argmin for a metric where lower wins.
-            best_config=(_metric.best(all_trials,
-                                      key=lambda t: t.scores[primary_metric]).config
-                         if all_trials else {}),
+            best_config=best.config if best is not None else {},
             best_score=_metric.best((t.scores[primary_metric] for t in all_trials),
                                     default=0.0),
             hyperparameter_importance=games["tunability"][0],

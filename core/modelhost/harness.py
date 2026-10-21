@@ -26,6 +26,7 @@ import sys
 import time
 import traceback
 from pathlib import Path
+from typing import Any
 
 PROTOCOL_VERSION = 2
 #: Restated rather than imported, like the version above: this file is executed
@@ -40,6 +41,7 @@ def _send(message: dict) -> None:
     stdout is the protocol, so anything the model prints would corrupt it —
     which is why stdout is redirected to stderr before the model is imported.
     """
+    assert sys.__stdout__ is not None
     sys.__stdout__.write(json.dumps(message, ensure_ascii=True, allow_nan=False) + "\n")
     sys.__stdout__.flush()
 
@@ -87,6 +89,7 @@ def _load_model(model_file: Path):
     sys.path.insert(0, str(model_file.parent))
 
     spec = importlib.util.spec_from_file_location("_codesigner_model", model_file)
+    assert spec is not None and spec.loader is not None
     module = importlib.util.module_from_spec(spec)
     # Registered before execution so a model containing dataclasses or pickling
     # anything can resolve its own module by name.
@@ -262,6 +265,8 @@ def main(argv=None) -> int:
             # plain fit, and a run that scores nothing needing probabilities
             # should never pay it.
             want_proba = bool(request.get("want_proba"))
+            y_proba: Any
+            classes: Any
             cpu0 = time.process_time()
             try:
                 if want_proba:

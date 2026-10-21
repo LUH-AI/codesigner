@@ -38,7 +38,7 @@ import math
 from typing import Any, Mapping, Optional
 
 from .io import SNAPSHOT_FORMAT
-from .metrics import LABELS, Metric, describe
+from .metrics import LABELS, Metric, _unscoreable, describe
 from .optimizers.timing import RUN_INFO_KEYS, STATUS_SUCCESS
 
 #: The files SMAC writes, by basename. Only the first three are read; the other
@@ -86,7 +86,7 @@ def snapshot_from_smac(files: Mapping[str, Any], *, name: str = "") -> dict:
 
     objective = _objective(scenario)
     metric_name = NAMESPACE + objective
-    metric = Metric(name=metric_name, fn=None, higher_is_better=False,
+    metric = Metric(name=metric_name, fn=_unscoreable, higher_is_better=False,
                     bounds=(None, None), needs=LABELS)
 
     trials = _trials(runhistory, metric_name)
@@ -280,7 +280,7 @@ def _optimizer_settings(scenario: dict) -> dict:
     if not meta:
         return {}
 
-    def block(name):
+    def block(name: str) -> Any:
         return meta.get(name) or {}
 
     out: dict = {}
@@ -411,7 +411,7 @@ def _finite(value) -> Optional[float]:
     return float(value) if math.isfinite(value) else None
 
 
-def _sanitised(value):
+def _sanitised(value: Any) -> Any:
     """*value* with any non-finite number in it replaced by None, recursively."""
     if isinstance(value, bool):
         return value
