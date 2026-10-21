@@ -4,7 +4,7 @@ from pathlib import Path
 import pytest
 from ConfigSpace import ConfigurationSpace, Integer
 
-from core.io import load_splits
+from core.datasets import load_splits
 from core.metrics import METRICS, metrics_for
 from core.models import BaseModel
 from core.registry import MODELS

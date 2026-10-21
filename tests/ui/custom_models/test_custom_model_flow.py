@@ -15,7 +15,7 @@ import pytest
 from django.core.files.uploadedfile import SimpleUploadedFile
 from django.urls import reverse
 
-from core import io
+from core import datasets
 from core.metrics import metrics_for
 from experiments.models import Experiment
 from experiments.services import run as run_service
@@ -31,7 +31,7 @@ def _demo_dataset_path():
     Named rather than the first demo: the demos include a regression one now,
     and the models here only classify.
     """
-    return io.demo_datasets()["iris"]
+    return datasets.demo_datasets()["iris"]
 
 
 def _custom_snapshot(name="cm", dataset_path=None):

@@ -7,7 +7,7 @@ from django.http import HttpResponse
 from django.shortcuts import redirect, render
 
 from access.policy import visible_experiments
-from core import io, tasks
+from core import datasets, tasks
 from experiments.models import Experiment
 
 from ..forms import EVALUATION_SCHEMES
@@ -97,9 +97,9 @@ def _demo_time_columns():
     """{demo dataset path: the columns it could be ordered by in time}, for the
     create form to suggest. An uploaded file's columns are read in the page."""
     out = {}
-    for path in io.demo_datasets().values():
+    for path in datasets.demo_datasets().values():
         try:
-            out[path] = io.orderable_columns(io.read_dataset(Path(path)))
+            out[path] = datasets.orderable_columns(datasets.read_dataset(Path(path)))
         except Exception:  # noqa: BLE001 — an unreadable demo just suggests nothing
             out[path] = []
     return out

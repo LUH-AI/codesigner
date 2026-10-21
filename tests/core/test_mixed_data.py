@@ -16,7 +16,7 @@ import numpy as np
 import pandas as pd
 import pytest
 
-from core import encoding, io
+from core import datasets, encoding
 from core.model_export import export_model
 from core.modelhost import model_session
 from core.optimizers.trial import evaluate_trial
@@ -53,8 +53,8 @@ def test_loading_a_mixed_file_gives_floats_and_drops_unlabelled_rows(tmp_path):
     """What: `load_frame` encodes every feature to floats and leaves out a row
     whose target is missing. How: loads the fixture, then a copy of it with two
     targets blanked."""
-    X, y = io.load_frame(FLATS)
-    spec = io.dataset_encoding(FLATS)
+    X, y = datasets.load_frame(FLATS)
+    spec = datasets.dataset_encoding(FLATS)
     assert X.dtype == float and X.shape == (240, len(encoding.feature_names(spec)))
     assert np.isnan(X).any(), "the gaps survive as NaN for the model to handle"
 
@@ -62,7 +62,7 @@ def test_loading_a_mixed_file_gives_floats_and_drops_unlabelled_rows(tmp_path):
     frame.iloc[[3, 7], -1] = None
     gappy = tmp_path / "gappy.csv"
     frame.to_csv(gappy, index=False)
-    X, y = io.load_frame(gappy)
+    X, y = datasets.load_frame(gappy)
     assert len(X) == len(y) == 238
 
 

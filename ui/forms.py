@@ -5,7 +5,7 @@ from django.conf import settings
 from django.utils.translation import gettext_lazy as _
 
 from core import tasks
-from core.io import (
+from core.datasets import (
     DEFAULT_TEST_SIZE, demo_datasets, forecast_problem, mounted_models, orderable_columns,
     read_dataset, target_of, time_order_problem,
 )

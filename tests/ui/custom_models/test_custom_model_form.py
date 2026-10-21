@@ -9,7 +9,7 @@ field is absent and only registry models are offered.
 
 import pytest
 
-from core import io
+from core import datasets
 from ui.forms import NewExperimentForm
 
 
@@ -19,7 +19,7 @@ def _demo_dataset_path():
     Named rather than the first demo: the demos include a regression one now,
     and the models here only classify.
     """
-    return io.demo_datasets()["iris"]
+    return datasets.demo_datasets()["iris"]
 
 
 def _data(**overrides):

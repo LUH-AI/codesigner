@@ -405,13 +405,13 @@ def test_an_unbounded_metric_is_scaled_by_what_knowing_nothing_scores(client):
     holdout split."""
     import numpy as np
 
-    from core import io
+    from core import datasets
     from tests.conftest import DATASETS_DIR
     from experiments.services.snapshot import rebuild_result
     from experiments.services.priors import metric_scale
 
     exp = _diabetes(client)
-    _, _, _, y_val = io.load_splits(DATASETS_DIR / "diabetes.csv", 0, task="regression")
+    _, _, _, y_val = datasets.load_splits(DATASETS_DIR / "diabetes.csv", 0, task="regression")
 
     assert metric_scale(exp, "rmse", rebuild_result(exp)) == pytest.approx(float(np.std(y_val)))
 

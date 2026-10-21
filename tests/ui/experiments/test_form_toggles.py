@@ -19,8 +19,8 @@ def _demo_dataset_path():
     Named rather than the first demo: the demos include a regression one now,
     and the models here only classify.
     """
-    from core import io
-    return io.demo_datasets()["iris"]
+    from core import datasets
+    return datasets.demo_datasets()["iris"]
 
 
 def test_dataset_toggle_present(client):

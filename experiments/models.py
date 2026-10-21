@@ -164,7 +164,7 @@ class ExperimentData(models.Model):
         stored copy — or None when there is neither on this instance."""
         from pathlib import Path
 
-        from core.io import demo_datasets
+        from core.datasets import demo_datasets
 
         if self.demo_dataset:
             path = demo_datasets().get(self.demo_dataset)

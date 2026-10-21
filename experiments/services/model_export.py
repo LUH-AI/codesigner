@@ -13,7 +13,7 @@ import sys
 from django.utils.translation import gettext as _
 from django.utils.translation import ngettext
 
-from core import encoding, forecasting, io, processing, tasks
+from core import datasets, encoding, forecasting, processing, tasks
 from core.model_export import export_model, export_upload
 from core.model_source import inspect_model_source
 from core.registry import MODELS
@@ -128,7 +128,7 @@ def _about(exp, trial, metric, result):
     rows = None
     if dataset is not None and dataset.is_file():
         try:
-            target, values = io.target_of(dataset)
+            target, values = datasets.target_of(dataset)
             rows = len(values)
         except Exception:  # noqa: BLE001 — the file is still exportable without it
             pass
@@ -160,7 +160,7 @@ def _forecast(exp, columns):
     columns, the season inferred from the data when the experiment left it."""
     season = exp.data.season
     if not season:
-        _, _, times, _ = io.load_forecast(exp.data.dataset_path(), exp.data.time_column,
+        _, _, times, _ = datasets.load_forecast(exp.data.dataset_path(), exp.data.time_column,
                                            exp.data.series_column)
         season = forecasting.infer_season(times)
     return forecasting.context(columns, exp.data.time_column, exp.data.series_column,
@@ -174,4 +174,4 @@ def _columns(exp):
     dataset = exp.data.dataset_path()
     if dataset is None or not dataset.is_file():
         return None
-    return io.dataset_encoding(dataset)
+    return datasets.dataset_encoding(dataset)

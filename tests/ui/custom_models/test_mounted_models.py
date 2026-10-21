@@ -1,7 +1,7 @@
 """Step 10: pick a server-side "mounted" model instead of uploading one.
 
 InteractiveHPO's headless fallback offered a dropdown of .py models found in a
-mounted directory (core.io.mounted_models(), scanning mounted_models/). This is
+mounted directory (core.datasets.mounted_models(), scanning mounted_models/). This is
 the Docker-volume workflow: mount a models/ dir and choose from it without
 uploading. It's gated by ALLOW_CUSTOM_MODELS (loading one is arbitrary code
 execution, same as an upload) and only appears when the directory has models.
@@ -13,7 +13,7 @@ adapter's existing model_path adoption), so the experiment is self-contained.
 import pytest
 from django.urls import reverse
 
-from core import io
+from core import datasets
 from ui.forms import NewExperimentForm
 from experiments.models import Experiment
 
@@ -23,11 +23,11 @@ from tests.conftest import post_new_experiment
 
 @pytest.fixture
 def mounted_dir(tmp_path, monkeypatch):
-    """A mounted_models/ dir holding one valid model .py, wired into core.io."""
+    """A mounted_models/ dir holding one valid model .py, wired into core.datasets."""
     d = tmp_path / "mounted_models"
     d.mkdir()
     (d / "mymodel.py").write_text(VALID_MODEL_SRC, encoding="utf-8")
-    monkeypatch.setattr(io, "_MODELS_DIR", d)
+    monkeypatch.setattr(datasets, "_MODELS_DIR", d)
     return d
 
 
@@ -37,7 +37,7 @@ def _demo_dataset_path():
     Named rather than the first demo: the demos include a regression one now,
     and the models here only classify.
     """
-    return io.demo_datasets()["iris"]
+    return datasets.demo_datasets()["iris"]
 
 
 def _mounted_path(mounted_dir):
@@ -58,7 +58,7 @@ def test_form_hides_mounted_models_when_flag_off(mounted_dir, settings):
 
 def test_form_hides_mounted_models_when_none_present(tmp_path, monkeypatch, settings):
     settings.ALLOW_CUSTOM_MODELS = True
-    monkeypatch.setattr(io, "_MODELS_DIR", tmp_path / "empty")  # nonexistent → {}
+    monkeypatch.setattr(datasets, "_MODELS_DIR", tmp_path / "empty")  # nonexistent → {}
     assert "mounted_model" not in NewExperimentForm().fields
 
 

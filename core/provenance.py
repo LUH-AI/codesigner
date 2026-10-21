@@ -107,7 +107,7 @@ def dataset_fingerprint(path, frame=None) -> Dict[str, Any]:
     import pandas as pd
 
     from .columns import infer_kinds
-    from .io import read_dataset
+    from .datasets import read_dataset
 
     try:
         df = read_dataset(path) if frame is None else frame

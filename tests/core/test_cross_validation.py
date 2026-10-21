@@ -229,7 +229,7 @@ def test_an_experiment_without_the_field_is_a_holdout(tmp_path):
 
 
 def test_an_optimizer_runs_a_cross_validated_search(optimizers, models):
-    from core.io import load_frame
+    from core.datasets import load_frame
     from tests.conftest import DATASETS_DIR
 
     X, y = load_frame(DATASETS_DIR / "iris.csv")
@@ -262,7 +262,7 @@ def test_the_target_keeps_the_type_the_file_gave_it(dataset, kind):
 
     Both shipped demo datasets are covered because that is exactly the gap —
     every test here used iris, whose labels are strings, so nothing noticed."""
-    from core.io import load_frame, load_splits
+    from core.datasets import load_frame, load_splits
     from tests.conftest import DATASETS_DIR
 
     path = DATASETS_DIR / dataset
@@ -277,7 +277,7 @@ def test_the_target_keeps_the_type_the_file_gave_it(dataset, kind):
 @pytest.mark.parametrize("folds", [0, 5])
 def test_a_real_model_fits_both_demo_datasets_either_way(dataset, folds):
     """The end the user sees: a trial that succeeds and scores something."""
-    from core.io import load_frame, load_splits
+    from core.datasets import load_frame, load_splits
     from core.models.random_forest import RandomForestModel
     from tests.conftest import DATASETS_DIR
 

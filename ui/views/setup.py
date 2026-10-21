@@ -16,7 +16,7 @@ from django.views.decorators.http import require_POST
 
 from access.policy import EDIT, groups_to_choose_from, policy
 from core import io, provenance, tasks
-from core.io import demo_datasets
+from core.datasets import demo_datasets
 from core.metrics import metrics_for
 from core.optimizers.trial import offers_probabilities
 from experiments.services import history, modelenv, processing, storage

@@ -14,7 +14,7 @@ import numpy as np
 import pandas as pd
 import pytest
 
-from core import io, provenance
+from core import datasets, io, provenance
 from core.splits import time_cross_validation, time_holdout
 
 FLATS = Path(__file__).parent.parent / "fixtures" / "flats.csv"
@@ -66,8 +66,8 @@ def test_loading_in_order_sorts_by_the_column_and_leaves_out_unplaced_rows(tmp_p
     shuffled = tmp_path / "shuffled.csv"
     frame.to_csv(shuffled, index=False)
 
-    X, y = io.load_frame(shuffled, order_by="listed")
-    days = X[:, io.encoding.feature_names(io.dataset_encoding(shuffled)).index("listed:days")]
+    X, y = datasets.load_frame(shuffled, order_by="listed")
+    days = X[:, io.encoding.feature_names(datasets.dataset_encoding(shuffled)).index("listed:days")]
 
     assert len(X) == len(y) == 238
     assert np.all(np.diff(days) >= 0)
@@ -76,18 +76,18 @@ def test_loading_in_order_sorts_by_the_column_and_leaves_out_unplaced_rows(tmp_p
 def test_a_number_column_orders_and_a_label_column_does_not():
     """What: rows can be ordered by a number (a year, a period), never by a
     label. How: orders the fixture by `rooms`, then asks for `city`."""
-    X, _ = io.load_frame(FLATS, order_by="rooms")
-    rooms = X[:, io.encoding.feature_names(io.dataset_encoding(FLATS)).index("rooms")]
+    X, _ = datasets.load_frame(FLATS, order_by="rooms")
+    rooms = X[:, io.encoding.feature_names(datasets.dataset_encoding(FLATS)).index("rooms")]
     assert np.all(np.diff(rooms) >= 0)
 
     with pytest.raises(ValueError, match="labels"):
-        io.load_frame(FLATS, order_by="city")
+        datasets.load_frame(FLATS, order_by="city")
 
 
 def test_the_suggestions_are_the_dates_then_the_numbers():
     """What: the columns a dataset could be ordered by, dates first, never a
     label or the target. How: reads them off the fixture."""
-    assert io.orderable_columns(pd.read_csv(FLATS)) == [
+    assert datasets.orderable_columns(pd.read_csv(FLATS)) == [
         "listed", "first_viewing", "rooms", "area_m2"]
 
 

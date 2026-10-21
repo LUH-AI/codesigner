@@ -20,7 +20,7 @@ def _digest(path):
 
 
 def forwards(apps, schema_editor):
-    from core.io import demo_datasets
+    from core.datasets import demo_datasets
 
     demos = {}
     for name, path in demo_datasets().items():

@@ -15,7 +15,7 @@ from django.db import transaction
 from django.utils import timezone
 from django.utils.dateparse import parse_datetime
 
-from core import io, tasks
+from core import datasets, io, tasks
 from core.processing import choices_of
 from core.provenance import (
     dataset_fingerprint, environment, evaluation, model_fingerprint, sha256,
@@ -209,7 +209,7 @@ def _demo_named(snapshot, adopt_paths) -> str:
     names that this instance has, or — for a path the caller produced itself —
     one whose file it is."""
     section = snapshot.get("dataset") or {}
-    demos = io.demo_datasets()
+    demos = datasets.demo_datasets()
     named = section.get("demo")
     if named and named in demos:
         return named
@@ -383,7 +383,7 @@ def _target(dataset_path: str):
     if not dataset_path or not Path(dataset_path).is_file():
         return None
     try:
-        _, y = io.load_frame(Path(dataset_path))
+        _, y = datasets.load_frame(Path(dataset_path))
     except Exception:  # noqa: BLE001 — an unreadable dataset leaves it unanswered
         return None
     return y

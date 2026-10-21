@@ -5,7 +5,7 @@ import copy
 import numpy as np
 import pytest
 
-from core import io, tasks
+from core import datasets, io, tasks
 from core.metrics import METRICS, metrics_for, to_cost
 from core.model_source import inspect_model_source
 from core.models import RandomForestModel, SVMModel
@@ -89,7 +89,7 @@ def test_a_regression_split_is_never_stratified():
 def test_the_built_ins_regress(model_cls):
     """What: told the task is regression, a built-in predicts numbers.
     How: fits the diabetes data with the default configuration."""
-    X, y = io.load_frame(DATASETS_DIR / "diabetes.csv")
+    X, y = datasets.load_frame(DATASETS_DIR / "diabetes.csv")
     model = model_cls()
     model.task = tasks.REGRESSION
     config = dict(model.get_config_space().get_default_configuration())

@@ -7,7 +7,7 @@ available as sources.
 
 import textwrap
 
-from core import io
+from core import datasets, io
 
 from tests.conftest import DATASETS_DIR
 
@@ -65,13 +65,13 @@ def test_load_model_from_path_missing_abstract_methods(tmp_path):
 def test_demo_datasets_includes_bundled_csvs():
     """demo_datasets() surfaces the bundled iris/wine CSVs as {stem: path}."""
     from pathlib import Path
-    demos = io.demo_datasets()
+    demos = datasets.demo_datasets()
     assert {"iris", "wine"} <= set(demos)
     assert all(Path(p).is_file() for p in demos.values())
 
 
 def test_mounted_models_returns_stem_path_dict():
     """mounted_models() returns a {stem: path} dict of .py files it scans."""
-    mounts = io.mounted_models()
+    mounts = datasets.mounted_models()
     assert isinstance(mounts, dict)
     assert all(p.endswith(".py") for p in mounts.values())

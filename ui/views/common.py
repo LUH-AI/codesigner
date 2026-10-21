@@ -9,7 +9,7 @@ from django.utils.translation import gettext as _
 from django.utils.translation import ngettext
 
 from access.policy import groups_to_choose_from
-from core import io
+from core import datasets
 from experiments.models import Experiment
 from experiments.services import storage
 from experiments.services.settings import SETTING_BOUNDS
@@ -193,7 +193,7 @@ def _plot_json(plot):
 def _target_name(exp):
     """The dataset's target column, for the forecast's axis."""
     try:
-        return io.target_of(exp.data.dataset_path())[0]
+        return datasets.target_of(exp.data.dataset_path())[0]
     except Exception:  # noqa: BLE001 — an axis title is not worth an error
         return ""
 
