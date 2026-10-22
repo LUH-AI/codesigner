@@ -39,9 +39,9 @@ def _ran_experiment(client, name="proposals"):
 
 
 def _sample(exp, metric="accuracy"):
-    from ui.views.priors import _proposals
+    from ui.views.priors import _cube_sample
 
-    _built, sample = _proposals(exp, metric)
+    _built, _config_space, sample = _cube_sample(exp, metric)
     assert sample is not None
     return sample
 

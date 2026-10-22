@@ -31,8 +31,8 @@ from ..optimizer_labels import STOPPED_BY_LABELS
 from ..permissions import experiment_view
 from .analytics import _analytics_absent
 from .common import (
-    _ACTIVE, _figure_plots, _model_available, _ownership, _poll_seconds,
-    _prior_judging_context, _shown_figures, metric_label, surpass_target,
+    _ACTIVE, _best_panels, _figure_plots, _model_available, _ownership, _poll_seconds,
+    _prior_judging_context, _shown_figures, surpass_target,
 )
 
 
@@ -188,9 +188,18 @@ def _trial_rows(result, metric_names, hp_names, start: int = 0) -> list:
     ]
 
 
-def _importance_rows(importance) -> list:
-    """One game's importance as the table rendering lists it, largest first."""
-    return sorted(importance.items(), key=lambda kv: kv[1], reverse=True)
+def metric_label(current_metric, original_metric):
+    """The label shown for an experiment's metric.
+
+    "~" when no metric has been committed by a run yet, "Inconsistent" when
+    the current metric no longer matches the one the results were produced
+    with, otherwise the metric name itself.
+    """
+    if original_metric is None:
+        return "~"
+    if current_metric != original_metric:
+        return _("Inconsistent")
+    return current_metric
 
 
 def _selected_panel_data(result, metric, idx):
@@ -505,29 +514,11 @@ def _detail_context(request, exp):
     shown = resolve_settings(exp)
     hp_names = list(result.trials[0].config.keys()) if result.trials else []
 
-    panels = []
-    for m in metric_names:
-        best_idx = result.best_index(m)
-        # No trial carries a score for this metric, so there is no best trial to
-        # describe and no selection to open on — `best_index` documents None as
-        # the answer a caller handles. The panel is left out rather than built
-        # around a trial that isn't there, which is the same decline the
-        # per-metric figures make through `has_every_score`. The page script
-        # keys its maps by metric and the Run form's incumbent target is built
-        # from these panels, so both simply have nothing for this one.
-        if best_idx is None:
-            continue
+    panels = _best_panels(result, metric_names)
+    for panel in panels:
+        m, best_idx = panel["metric"], panel["best_idx"]
         best = result.trials[best_idx]
-        panels.append({
-            "metric": m,
-            "best_n": best.trial,
-            # The array index (as opposed to best_n, the trial's own number)
-            # of the metric's best trial — what the local-explanation fetch
-            # asks for by default, before any click. The same index
-            # click-to-select already works in (Plotly's pointIndex).
-            "best_idx": best_idx,
-            "best_score": best.scores[m],
-            "best_config": list(best.config.items()),
+        panel.update({
             # No selection has been clicked yet, so it defaults to the best trial.
             "selected": _selected_panel_data(result, m, best_idx),
             # One entry per HyperSHAP game: its warning, and its "table"
@@ -547,7 +538,8 @@ def _detail_context(request, exp):
                     # table also has the incumbent's and the selected trial's
                     # columns, which the page fills whether or not there is a
                     # default one.
-                    "table": (_importance_rows(getattr(result, fields["importance"]).get(m, {}))
+                    "table": (sorted(getattr(result, fields["importance"]).get(m, {}).items(),
+                                     key=lambda kv: kv[1], reverse=True)
                               or [(hp, None) for hp in hp_names]),
                 }
                 for game, fields in HP_GAME_FIELDS.items()

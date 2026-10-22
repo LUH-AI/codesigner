@@ -28,15 +28,6 @@ from ..permissions import BOTH, experiment_view
 from .common import _judges_priors, _model_available, _plot_json, logger
 
 
-def _proposals(exp, metric):
-    """The sampled configurations a proposal is picked from, and what the
-    surrogate predicts of each for *metric* — the configuration cube's point
-    cloud, out of the same cache. `(built, sample)`, or `(built, None)` when
-    there is no sample to pick from."""
-    built, _config_space, sample = _cube_sample(exp, metric)
-    return built, sample
-
-
 def _cube_sample(exp, metric):
     """`(built, config_space, sample)`: the configuration cube's shared sample
     for *metric*, with what it was drawn from — any of the last two None when
@@ -80,7 +71,7 @@ def proposal_panel(request, exp):
     if metric not in exp.data.metric_names:
         return HttpResponseBadRequest("unknown metric")
     n = _proposal_index(request.GET)
-    built, sample = _proposals(exp, metric)
+    built, _config_space, sample = _cube_sample(exp, metric)
     if sample is None or n is None or n >= len(sample["configurations"]):
         return HttpResponseBadRequest("invalid proposal")
     assert built is not None
@@ -118,7 +109,7 @@ def run_proposal(request, exp):
     n = _proposal_index(request.POST)
     if metric not in exp.data.metric_names or n is None or _run_refusal(request, exp):
         return redirect("ui:experiment_detail", pk=exp.pk)
-    _built, sample = _proposals(exp, metric)
+    _built, _config_space, sample = _cube_sample(exp, metric)
     if sample is None or n >= len(sample["configurations"]):
         return redirect("ui:experiment_detail", pk=exp.pk)
 

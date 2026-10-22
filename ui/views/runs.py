@@ -18,8 +18,8 @@ from experiments.services import run as run_service
 from ..figures import FIGURES_BY_KEY
 from ..permissions import experiment_view
 from .common import (
-    _ACTIVE, _figure_plots, _hp_names, _model_available, _poll_seconds, _posted_number,
-    _shown_figures,
+    _ACTIVE, _best_panels, _figure_plots, _hp_names, _model_available, _poll_seconds,
+    _posted_number, _shown_figures,
 )
 from .dashboard import _dashboard, _detail_context, _trial_rows
 
@@ -153,32 +153,6 @@ def experiment_run(request, exp):
     return redirect("ui:experiment_detail", pk=exp.pk)
 
 
-def _stored_trial_count(exp) -> int:
-    """How many trials *exp*'s saved result holds, without rebuilding it.
-
-    Read straight off the JSON rather than through `rebuild_experiment`,
-    because this is polled every two seconds and the answer is usually "the same
-    as last time" — the whole point of asking is to decide whether it is worth
-    doing any of the expensive work at all.
-    """
-    return len((exp.data.result or {}).get("data") or [])
-
-
-def _best_panels(result, metric_names):
-    """Each metric's best trial so far, as the best-configuration cards show
-    it. A metric no trial has scored has no card — see `_detail_context`."""
-    panels = []
-    for m in metric_names:
-        best_idx = result.best_index(m)
-        if best_idx is None:
-            continue
-        best = result.trials[best_idx]
-        panels.append({"metric": m, "best_n": best.trial, "best_idx": best_idx,
-                       "best_score": best.scores[m],
-                       "best_config": list(best.config.items())})
-    return panels
-
-
 def _live_payloads(exp, since: int = 0):
     """Fresh plots for every live figure of *exp*, for every metric, and the
     table rows for the trials the page has not seen.
@@ -260,7 +234,12 @@ def run_status(request, exp):
         response["HX-Refresh"] = "true"
         return response
 
-    stored = _stored_trial_count(exp)
+    # How many trials the saved result holds, read straight off the JSON rather
+    # than through `rebuild_experiment`, because this is polled every two
+    # seconds and the answer is usually "the same as last time" — the whole
+    # point of asking is to decide whether it is worth doing any of the
+    # expensive work at all.
+    stored = len((exp.data.result or {}).get("data") or [])
     try:
         seen = int(request.GET.get("trials", stored))
     except (TypeError, ValueError):

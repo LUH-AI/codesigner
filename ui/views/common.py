@@ -122,18 +122,34 @@ def _prior_judging_context(exp):
             "prior_top_k_bounds": SETTING_BOUNDS["prior_acceptance_top_k"]}
 
 
-def metric_label(current_metric, original_metric):
-    """The label shown for an experiment's metric.
-
-    "~" when no metric has been committed by a run yet, "Inconsistent" when
-    the current metric no longer matches the one the results were produced
-    with, otherwise the metric name itself.
-    """
-    if original_metric is None:
-        return "~"
-    if current_metric != original_metric:
-        return _("Inconsistent")
-    return current_metric
+def _best_panels(result, metric_names):
+    """Each metric's best trial so far, as the best-configuration cards show
+    it."""
+    panels = []
+    for m in metric_names:
+        best_idx = result.best_index(m)
+        # No trial carries a score for this metric, so there is no best trial to
+        # describe and no selection to open on — `best_index` documents None as
+        # the answer a caller handles. The panel is left out rather than built
+        # around a trial that isn't there, which is the same decline the
+        # per-metric figures make through `has_every_score`. The page script
+        # keys its maps by metric and the Run form's incumbent target is built
+        # from these panels, so both simply have nothing for this one.
+        if best_idx is None:
+            continue
+        best = result.trials[best_idx]
+        panels.append({
+            "metric": m,
+            "best_n": best.trial,
+            # The array index (as opposed to best_n, the trial's own number)
+            # of the metric's best trial — what the local-explanation fetch
+            # asks for by default, before any click. The same index
+            # click-to-select already works in (Plotly's pointIndex).
+            "best_idx": best_idx,
+            "best_score": best.scores[m],
+            "best_config": list(best.config.items()),
+        })
+    return panels
 
 
 def _settle_storage(request, exp) -> bool:
