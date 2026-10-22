@@ -18,13 +18,8 @@ import pytest
 from ConfigSpace.hyperparameters import NumericalHyperparameter
 
 from core.metrics import metrics_for, resolve
-from core.modelhost import (
-    ModelProcessError,
-    TrialTimeout,
-    describe,
-    model_session,
-)
-from core.modelhost.errors import ModelTrialError, TrialCancelled
+from core.modelhost import describe, model_session
+from core.modelhost.errors import ModelProcessError, ModelTrialError, TrialCancelled, TrialTimeout
 from core.optimizers.timing import STATUS_CRASHED, STATUS_TIMEOUT, STATUS_SUCCESS
 from core.optimizers.trial import evaluate_trial
 from core.splits import holdout

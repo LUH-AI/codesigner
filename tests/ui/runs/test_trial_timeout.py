@@ -79,7 +79,7 @@ def test_a_blank_deadline_falls_back_to_the_deployment_default(client, no_thread
 
 @pytest.mark.django_db
 def test_zero_seconds_is_stored_and_means_no_limit(client, no_thread):
-    from core.modelhost import as_deadline
+    from core.modelhost.deadline import as_deadline
     from core.modelhost.deadline import NO_LIMIT
     from experiments.models import Run
 

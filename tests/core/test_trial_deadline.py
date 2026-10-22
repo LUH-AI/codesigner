@@ -19,19 +19,12 @@ import time
 
 import pytest
 
-from core.modelhost import (
-    DEFAULT_TRIAL_TIMEOUT,
-    FixedDeadline,
-    PredictedDeadline,
-    TrialTimeout,
-    as_deadline,
-    model_session,
-)
+from core.modelhost import model_session
 from core.modelhost.deadline import (
-    MIN_OBSERVATIONS,
-    MIN_PREDICTED_DEADLINE,
-    NO_LIMIT,
+    DEFAULT_TRIAL_TIMEOUT, MIN_OBSERVATIONS, MIN_PREDICTED_DEADLINE, NO_LIMIT, FixedDeadline,
+    PredictedDeadline, as_deadline,
 )
+from core.modelhost.errors import TrialTimeout
 from core.optimizers.timing import STATUS_CRASHED, STATUS_SUCCESS, STATUS_TIMEOUT
 from core.optimizers.trial import evaluate_trial
 

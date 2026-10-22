@@ -62,6 +62,3 @@ def optimizer_class(name: str, optimizers=OPTIMIZERS):
     `aliases`, or None."""
     return next((kind for kind in optimizers.values()
                  if name == kind.name or name in kind.aliases), None)
-
-
-__all__ = ["MODELS", "OPTIMIZERS", "METRICS", "canonical_model_name", "optimizer_class"]

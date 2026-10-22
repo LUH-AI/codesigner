@@ -10,5 +10,3 @@ from the same place rather than from a copy that can drift.
 """
 
 from core.registry import METRICS, MODELS, OPTIMIZERS, canonical_model_name
-
-__all__ = ["MODELS", "OPTIMIZERS", "METRICS", "canonical_model_name"]
