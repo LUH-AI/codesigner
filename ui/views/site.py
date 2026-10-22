@@ -288,15 +288,6 @@ def _usage_by_person():
             .order_by("group__name", "user__username"))
 
 
-#: What a site admin is shown about a run. Names the fields rather than the
-#: model so that adding one to `Run` does not quietly widen this: experiment
-#: names, models, metrics and scores are all deliberately absent, and the only
-#: thing identifying the work is the experiment's own opaque identifier, which
-#: is what makes a job nameable in a support conversation.
-JOB_FIELDS = ("id", "job_id", "status", "started_at", "finished_at",
-              "trial_count", "trial_seconds")
-
-
 @site_admin_required
 def site_jobs(request):
     """What is running now, across every group, with a way to stop it."""

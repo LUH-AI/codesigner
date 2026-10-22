@@ -311,4 +311,3 @@ def _panel(section, capability):
 DATA_PANELS = tuple(_panel(section, capability)
                     for section in SECTIONS for capability in section.planned)
 DATA_PANELS_BY_KEY = {panel.key: panel for panel in DATA_PANELS}
-PROCESSING_PANELS = tuple(p for p in DATA_PANELS if issubclass(p, ProcessingStep))
