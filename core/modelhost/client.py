@@ -28,8 +28,9 @@ from copy import deepcopy
 from pathlib import Path
 
 from . import protocol
+from ..jsonable import plain
 from .arrays import fold_labels_for_json, write_dataset
-from .deadline import DEFAULT_TRIAL_TIMEOUT, DeadlineSpec, as_deadline
+from .deadline import DEFAULT_TRIAL_TIMEOUT, as_deadline, DeadlineSpec
 from .errors import ModelProcessError, ModelTrialError, TrialCancelled, TrialTimeout
 
 HARNESS = Path(__file__).with_name("harness.py")
@@ -414,8 +415,8 @@ class RemoteModel:
         process = self._live_process()
         allowed = self._deadline_seconds(config)
         started = time.monotonic()
-        message = {"t": protocol.TRIAL, "config": _jsonable(config), "seed": seed,
-                   "fold": self._fold}
+        message = {"t": protocol.TRIAL, "seed": seed, "fold": self._fold,
+                   "config": {key: plain(value) for key, value in config.items()}}
         if want_proba:
             # Omitted rather than sent as false, so a child that predates the
             # key never sees one it does not understand.
@@ -462,12 +463,6 @@ class RemoteModel:
             except Exception:  # noqa: BLE001 — an unbound policy stays on its ceiling
                 pass
         return self._deadline.seconds_for(config)
-
-
-def _jsonable(config: dict) -> dict:
-    """A configuration as JSON. ConfigSpace hands back numpy scalars."""
-    return {key: (value.item() if hasattr(value, "item") else value)
-            for key, value in config.items()}
 
 
 def describe(launch, *, seed: int = 0, env=None, task: str | None = None,

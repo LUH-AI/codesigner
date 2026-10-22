@@ -191,12 +191,6 @@ def _target_name(exp):
         return ""
 
 
-def _plain(value):
-    """A configuration value as JSON sees it — numpy scalars are not."""
-    item = getattr(value, "item", None)
-    return item() if callable(item) else value
-
-
 def _baseline_index(request, result):
     """The `baseline` query parameter as a trial index, or None when absent.
 

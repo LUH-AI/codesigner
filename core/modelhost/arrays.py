@@ -20,6 +20,7 @@ from pathlib import Path
 import numpy as np
 
 from . import protocol
+from ..jsonable import plain
 
 
 def write_dataset(splits, directory: Path | None = None) -> Path:
@@ -60,9 +61,5 @@ def fold_labels_for_json(splits) -> list:
     so the size is not the problem the features can be.
     """
     y = np.asarray(splits.y)
-    return [[_plain(value) for value in y[train_idx]]
+    return [[plain(value) for value in y[train_idx]]
             for train_idx, _ in splits.folds]
-
-
-def _plain(value):
-    return value.item() if hasattr(value, "item") else value

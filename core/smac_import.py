@@ -38,8 +38,9 @@ import math
 from importlib.metadata import version as dist_version
 from typing import Any, Mapping, Optional
 
-from .io import SNAPSHOT_FORMAT, finite
-from .metrics import LABELS, Metric, unscoreable, describe
+from .io import SNAPSHOT_FORMAT
+from .jsonable import finite
+from .metrics import LABELS, describe, Metric, unscoreable
 from .optimizers.smac_optimizer import INITIAL_DESIGNS, STRATEGIES
 from .optimizers.timing import RUN_INFO_KEYS, STATUS_SUCCESS
 

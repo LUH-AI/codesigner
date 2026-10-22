@@ -12,6 +12,8 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
+from .jsonable import plain
+
 
 class NothingToKeep(Exception):
     """The model has no fitted parameters — its prediction is its history."""
@@ -58,4 +60,4 @@ def classes_of(fitted):
     classes = getattr(fitted, "classes_", None)
     if classes is None:
         return None
-    return [value.item() if hasattr(value, "item") else value for value in classes]
+    return [plain(value) for value in classes]

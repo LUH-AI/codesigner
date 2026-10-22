@@ -61,7 +61,6 @@ import copy
 import importlib.util
 import inspect
 import json
-import math
 import os
 import tempfile
 from pathlib import Path
@@ -73,6 +72,7 @@ from . import encoding, forecasting, tasks
 from .datasets import (
     DEFAULT_TEST_SIZE, dataset_encoding, load_forecast, load_frame, load_splits,
 )
+from .jsonable import finite
 from .metrics import declarations
 from .models.base import Tunable
 from .paths import MAX_STATE_FILES, is_safe_relative
@@ -262,35 +262,6 @@ def evaluation_of(snapshot: dict) -> dict:
         "series_column": str(section.get("series_column") or ""),
         "season": int(section.get("season") or 0),
     }
-
-
-def finite(value: Any) -> Any:
-    """*value* with every non-finite number in it replaced by None, recursively.
-
-    `json.dumps` writes `inf` and `nan` as the bare tokens `Infinity` and `NaN`,
-    which Python reads back and a strict parser refuses — so an `.ihpo`
-    containing one is not the portable file it claims to be. Two sources put
-    them there and neither is a measurement:
-
-    - SMAC's `scenario.json`, carried verbatim in `optimizer_state`, whose
-      `crash_cost` and `walltime_limit` default to infinity. Every `.ihpo` ever
-      written for a SMAC run carries four of them.
-    - a run imported from somebody else's output, where SMAC writes the same
-      tokens itself.
-
-    None rather than a large number: infinity is not a value here, it is the
-    absence of a limit, and nothing reads these fields back. `default=` on
-    `json.dumps` cannot do this — it is never called for a float.
-    """
-    if isinstance(value, bool):
-        return value
-    if isinstance(value, float):
-        return value if math.isfinite(value) else None
-    if isinstance(value, dict):
-        return {k: finite(v) for k, v in value.items()}
-    if isinstance(value, (list, tuple)):
-        return [finite(v) for v in value]
-    return value
 
 
 def to_bytes(snapshot: dict) -> bytes:

@@ -11,6 +11,7 @@ from django.views.decorators.http import require_POST
 
 from access.policy import EDIT, RUN, VIEW, policy
 from core import analytics, projected_prior
+from core.jsonable import plain
 from core.metrics import metric_for
 from core import priors as prior_math
 from experiments.services import history
@@ -24,7 +25,7 @@ from ..experiment_settings import SETTING_DEFAULTS, resolve_settings
 from ..figures import acquisition_slice_plots
 from ..formatting import sigfigs
 from ..permissions import BOTH, experiment_view
-from .common import _judges_priors, _model_available, _owner, _plain, _plot_json, logger
+from .common import _judges_priors, _model_available, _owner, _plot_json, logger
 
 
 def _proposals(exp, metric):
@@ -640,14 +641,14 @@ def _candidate(rank, config, origin, walk=None, config_space=None):
     from, every value, the whole of it pre-formatted for a hover — a point
     differs from the incumbent in every coordinate, not only the ones on show —
     and the path its local search climbed to get there, start first."""
-    values = {k: _plain(v) for k, v in sorted(config.items())}
+    values = {k: plain(v) for k, v in sorted(config.items())}
     return {"rank": rank, "origin": origin, "config": values,
             "label": "<br>".join(f"{k} = {sigfigs(v)}" for k, v in values.items()),
             # Where it sits on every hyperparameter's vectorized axis, so either
             # figure can place it on whichever axis it is drawing — the
             # acquisition figure's rug as well as the cube.
             "positions": _vector_positions(config_space, config),
-            "walk": ([{k: _plain(v) for k, v in step.items()} for step in walk]
+            "walk": ([{k: plain(v) for k, v in step.items()} for step in walk]
                      if walk else None)}
 
 

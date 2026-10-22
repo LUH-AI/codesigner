@@ -42,6 +42,7 @@ from types import ModuleType
 from codesigner_model import ModelBase, OptimizableBaseModel, OutputBaseModel
 
 from . import encoding, forecasters, processing
+from .jsonable import plain
 from .model_source import PEP723_BLOCK
 from .models import parts
 
@@ -54,14 +55,6 @@ _PREAMBLE_IMPORTS = ("from __future__ import annotations", "",
 #: Top-level packages whose imports an exported file drops: it defines what it
 #: needs of them itself, or (the search space) does not need it at all.
 _DEFINED_HERE = ("core", "codesigner_model", "ConfigSpace")
-
-
-def plain(value):
-    """*value* as a Python literal `pprint` writes back readably: numpy scalars
-    as the Python number or string they hold."""
-    if hasattr(value, "item") and not isinstance(value, (str, bytes)):
-        value = value.item()
-    return value
 
 
 def configuration(config: dict) -> dict:
