@@ -23,7 +23,16 @@ from core.provenance import (
 from core.registry import METRICS, MODELS, OPTIMIZERS, canonical_model_name
 from experiments.models import Experiment, ExperimentData
 
-from . import history, timestamps
+from . import history, modelenv, timestamps
+
+
+def finish_import(exp, *, source: str, filename: str, user=None) -> None:
+    """What every import does once *exp* exists: record it in the history, and
+    start preparing its model's environment. An imported model is re-locked
+    rather than trusting pins chosen by whoever exported it."""
+    history.record(exp, "imported", user=user, source=source, filename=filename,
+                   dataset_attached=exp.data.has_dataset)
+    modelenv.start_preparation(exp)
 
 
 def experiment_from_snapshot(snapshot: dict, dataset_file=None, model_file=None,

@@ -7,7 +7,6 @@ from django.utils.translation import gettext as _
 from access.policy import groups_to_choose_from, policy
 from core import io, smac_import
 from experiments.models import account
-from experiments.services import history, modelenv
 from experiments.services import snapshot as snapshot_adapter
 
 from ..forms import ImportForm
@@ -48,11 +47,8 @@ def import_experiment(request):
         )
         if not _settle_storage(request, exp):
             return render(request, "ui/import.html", context)
-        history.record(exp, "imported", user=request.user, source="ihpo",
-                       filename=upload.name, dataset_attached=exp.data.has_dataset)
-        # An imported model is re-locked here rather than trusting pins chosen by
-        # whoever exported it.
-        modelenv.start_preparation(exp)
+        snapshot_adapter.finish_import(exp, source="ihpo", filename=upload.name,
+                                       user=request.user)
         return redirect("ui:experiment_detail", pk=exp.pk)
 
     return render(request, "ui/import.html", context)
@@ -109,6 +105,6 @@ def _import_smac_directory(request, context):
         return render(request, "ui/import.html", context)
     exp = snapshot_adapter.experiment_from_snapshot(snapshot, owner=account(request.user),
                                                     group=group)
-    history.record(exp, "imported", user=request.user, source="smac",
-                   filename=snapshot.get("name") or "", dataset_attached=False)
+    snapshot_adapter.finish_import(exp, source="smac", filename=snapshot.get("name") or "",
+                                   user=request.user)
     return redirect("ui:experiment_detail", pk=exp.pk)

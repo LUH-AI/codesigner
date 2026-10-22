@@ -187,3 +187,19 @@ def test_import_smac_refuses_a_directory_that_is_not_one(tmp_path):
     with pytest.raises(CommandError, match="configspace.json"):
         call_command("import_ihpo", str(tmp_path), smac=True)
     assert Experiment.objects.count() == 0
+
+
+@pytest.mark.django_db
+def test_the_command_prepares_the_model_environment_as_the_page_does(monkeypatch):
+    """What: an experiment imported from the command line has its model's
+    environment prepared, as one imported through the page does.
+    How: records what `start_preparation` is called with during the import."""
+    from experiments.models import Experiment
+    from experiments.services import modelenv
+
+    prepared = []
+    monkeypatch.setattr(modelenv, "start_preparation", lambda exp, *a, **k: prepared.append(exp.pk))
+
+    call_command("import_ihpo", str(FIXTURES_DIR / "test2.ihpo"))
+
+    assert prepared == [Experiment.objects.latest("pk").pk]
