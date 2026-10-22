@@ -239,18 +239,6 @@ def check(record, config_space) -> None:
 
 # ── as SMAC takes it ─────────────────────────────────────────────────────────
 
-def _smac_prior_base():
-    from smac.acquisition.weight.prior import AbstractInputPrior
-
-    return AbstractInputPrior
-
-
-def _coarsen(values, resolution):
-    from smac.acquisition.weight.prior import _coarsen as coarsen
-
-    return coarsen(values, 1.0, resolution) if resolution is not None else values
-
-
 def _resample(config_space, target, n, rng, proposal=None) -> list:
     """*n* configurations drawn in proportion to *target* (a function of
     vectorized rows), by drawing many from *proposal* — or uniformly from the
@@ -279,9 +267,9 @@ def _resample(config_space, target, n, rng, proposal=None) -> list:
 def smac_prior(config_space, record):
     """*record* as a prior SMAC's weight layer takes: an `AbstractInputPrior`
     over the whole space, so it can say something about combinations."""
-    base = _smac_prior_base()
+    from smac.acquisition.weight.prior import AbstractInputPrior, _coarsen
 
-    class ProjectedPrior(base):
+    class ProjectedPrior(AbstractInputPrior):
         """One projected prior, evaluated on SMAC's vectorized configurations."""
 
         #: Samples only by resampling, so a combined prior draws from the
@@ -304,7 +292,9 @@ def smac_prior(config_space, record):
 
         def pdf(self, X, resolution: Optional[int] = None):
             values = weight(record, config_space, X)
-            return _coarsen(values, resolution).reshape(-1, 1)
+            if resolution is not None:
+                values = _coarsen(values, 1.0, resolution)
+            return values.reshape(-1, 1)
 
         def sample(self, n, rng=None):
             return _resample(config_space, lambda rows: weight(record, config_space, rows), n, rng)
@@ -320,10 +310,11 @@ def combined_prior(config_space, parts):
     Sampled by drawing from the per-hyperparameter prior when there is one,
     since it samples itself exactly, and keeping each draw with the weight the
     projected ones give it."""
-    base = _smac_prior_base()
+    from smac.acquisition.weight.prior import AbstractInputPrior
+
     parts = list(parts)
 
-    class CombinedPrior(base):
+    class CombinedPrior(AbstractInputPrior):
         """Several priors over the same space, multiplied."""
 
         @property
