@@ -361,7 +361,7 @@ def test_each_fold_gets_its_own_rows(tmp_path):
 def test_the_child_is_never_sent_the_labels_of_the_fold_it_is_scored_on(tmp_path):
     """The property `core.splits` claims. Per fold the child holds the training
     labels only; what it is about to be judged on is not in the message."""
-    from core.modelhost.arrays import fold_labels_for_json
+    from core.modelhost.client import fold_labels_for_json
     from core.splits import cross_validation
 
     X = np.arange(12, dtype=float).reshape(-1, 1)
@@ -376,7 +376,7 @@ def test_the_child_is_never_sent_the_labels_of_the_fold_it_is_scored_on(tmp_path
 def test_a_holdout_sends_only_the_training_labels(tmp_path):
     """One fold, and the stronger statement still holds outright: the child
     never sees a validation label at all."""
-    from core.modelhost.arrays import fold_labels_for_json
+    from core.modelhost.client import fold_labels_for_json
 
     labels = fold_labels_for_json(SPLITS)
 
