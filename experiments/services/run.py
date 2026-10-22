@@ -1,5 +1,5 @@
-"""Running experiments: `create_run` / `execute_run` / `start_background_run`,
-with `DbCancelFlag`, record a run in the database, run it out of band
+"""Running experiments: `create_run` / `execute_run` / `start_background_run`
+record a run in the database, run it out of band
 rebuilding everything from the stored experiment, and write the result and
 status back so the page can poll and cancel.
 """
@@ -17,7 +17,7 @@ from django.utils.translation import gettext as _
 from access.policy import policy
 from core import io, registry
 from core.metrics import metric_for, usable
-from core.optimizers.base import STOPPED_BY_CANCELLED, OptimizationResult
+from core.optimizers.base import STOPPED_BY_CANCELLED, OptimizationResult, PolledFlag
 from core.optimizers.trial import offers_probabilities
 from remote import jobs
 
@@ -54,26 +54,6 @@ def scoreable(metrics, model, primary_metric):
 
 
 # ── Background run engine ──────────────────────────────────────────────────────
-
-class DbCancelFlag:
-    """A cancel flag backed by the Run row, honouring the optimizer's
-    ``.is_set()`` contract. The value is cached for *ttl* seconds so the
-    optimizer's per-trial checks don't hammer the database."""
-
-    def __init__(self, run_id, ttl: float = 1.0):
-        self.run_id = run_id
-        self._ttl = ttl
-        self._value = False
-        self._checked = None
-
-    def is_set(self) -> bool:
-        from experiments.models import Run
-        now = time.monotonic()
-        if self._checked is None or (now - self._checked) >= self._ttl:
-            self._value = Run.objects.filter(pk=self.run_id, cancel_requested=True).exists()
-            self._checked = now
-        return self._value
-
 
 def create_run(experiment, stopping, optimize_metric, started_by=None,
                trial_timeout=None, configurations=None):
@@ -414,7 +394,9 @@ def _execute_run_locally(run_id):
         optimizer.progress = _partial_result_writer(
             experiment.pk, optimizer, built["result"], run.primary_metric)
         offset = len(built["result"].trials) if built["result"] else 0
-        cancel = DbCancelFlag(run_id)
+        # Cancel is a flag on the Run row.
+        cancel = PolledFlag(
+            lambda: Run.objects.filter(pk=run_id, cancel_requested=True).exists())
         # And which trials' fitted models to keep for export: only a model
         # fitted in this process can hand one over (see trial_models.keeper_for).
         keeper = (trial_models.keeper_for(run, built, metric_for(run.primary_metric))

@@ -3,7 +3,7 @@
 `create_run` records a pending run and commits the run's metric onto the
 experiment; `execute_run` does the work synchronously (rebuild from the DB, run
 the optimizer with a DB-backed cancel flag, write the result and status back);
-`DbCancelFlag` reads the cancel request from the database.
+the cancel flag reads the cancel request from the database.
 
 The resume and cancel *engine* semantics are already validated against the
 Streamlit oracle in tests/core/test_optimizers; here we pin the DB wiring
@@ -158,19 +158,21 @@ def test_execute_run_records_errors():
     assert run.error
 
 
-# ── DbCancelFlag ─────────────────────────────────────────────────────────────
+# ── PolledFlag ─────────────────────────────────────────────────────────────
 
 @pytest.mark.django_db
-def test_db_cancel_flag_reflects_database():
-    """DbCancelFlag.is_set() reports the run's current cancel_requested value."""
+def test_a_polled_flag_reflects_the_database():
+    """A `PolledFlag` asking the Run row reports its current cancel_requested
+    value."""
+    from core.optimizers.base import PolledFlag
     from experiments.models import Run
-    from experiments.services.run import DbCancelFlag
 
     exp = _make_experiment()
     from experiments.services.run import create_run
     run = create_run(exp, {"max_trials": 3}, "accuracy")
 
-    flag = DbCancelFlag(run.id, ttl=0)
+    flag = PolledFlag(
+        lambda: Run.objects.filter(pk=run.id, cancel_requested=True).exists(), ttl=0)
     assert flag.is_set() is False
     Run.objects.filter(pk=run.id).update(cancel_requested=True)
     assert flag.is_set() is True

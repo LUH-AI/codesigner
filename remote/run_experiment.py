@@ -38,7 +38,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 from core import io                                      # noqa: E402
-from core.optimizers.base import OptimizationResult      # noqa: E402
+from core.optimizers.base import OptimizationResult, PolledFlag  # noqa: E402
 from core.registry import METRICS, MODELS, OPTIMIZERS    # noqa: E402
 
 #: How often the result so far is rewritten. The submitter reads it to keep the
@@ -47,8 +47,8 @@ from core.registry import METRICS, MODELS, OPTIMIZERS    # noqa: E402
 #: `PARTIAL_RESULT_SECONDS` on the application side.
 PARTIAL_SECONDS = 5.0
 
-#: Checked no more often than this, for the same reason `DbCancelFlag` caches:
-#: the optimizer asks once per trial and an NFS stat per trial is waste.
+#: How often the cancel file is checked at most: the optimizer asks once per
+#: trial, and an NFS stat per trial is waste.
 CANCEL_TTL = 2.0
 
 
@@ -63,30 +63,6 @@ def write_json(path: Path, payload) -> None:
     tmp = path.with_suffix(path.suffix + ".tmp")
     tmp.write_text(io.to_bytes(payload).decode("utf-8"), encoding="utf-8")
     os.replace(tmp, path)
-
-
-class FileCancelFlag:
-    """`cancel_event` backed by a file the submitter creates.
-
-    The optimizer's contract is `.is_set()`, the same one `DbCancelFlag`
-    answers. Asking the filesystem is how a machine with no database learns that
-    somebody pressed Cancel — and it is a *request*, not a kill: the run breaks
-    out of its loop and still writes what it has, which is what keeps the trials
-    already paid for. `scancel` is the other thing, and it is not this.
-    """
-
-    def __init__(self, path: Path, ttl: float = CANCEL_TTL):
-        self._path = path
-        self._ttl = ttl
-        self._value = False
-        self._checked = None
-
-    def is_set(self) -> bool:
-        now = time.monotonic()
-        if self._checked is None or (now - self._checked) >= self._ttl:
-            self._value = self._path.exists()
-            self._checked = now
-        return self._value
 
 
 def partial_writer(workdir: Path, optimizer, previous_result, primary_metric):
@@ -144,7 +120,12 @@ def run(workdir: Path) -> int:
     optimizer.analytics_wanted = settings.get("analytics_wanted", True)
     optimizer.progress = partial_writer(workdir, optimizer, previous, primary_metric)
 
-    cancel = FileCancelFlag(workdir / "CANCEL")
+    # Cancel is a file the submitter creates. Asking the filesystem is how a
+    # machine with no database learns that somebody pressed Cancel — and it is
+    # a *request*, not a kill: the run breaks out of its loop and still writes
+    # what it has, which is what keeps the trials already paid for. `scancel`
+    # is the other thing, and it is not this.
+    cancel = PolledFlag((workdir / "CANCEL").exists, ttl=CANCEL_TTL)
     result = optimizer.optimize(
         built["model"],
         built["X_train"], built["y_train"], built["X_val"], built["y_val"],

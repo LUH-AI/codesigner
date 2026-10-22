@@ -483,6 +483,25 @@ def merge_stopping(n_trials, stopping) -> Dict[str, Any]:
     return merged
 
 
+class PolledFlag:
+    """A `cancel_event` that asks *check* whether the run should stop, at most
+    once every *ttl* seconds: the optimizer asks once per trial, and the
+    answer lives somewhere it would be wasteful to ask that often."""
+
+    def __init__(self, check, ttl: float = 1.0):
+        self._check = check
+        self._ttl = ttl
+        self._value = False
+        self._checked = None
+
+    def is_set(self) -> bool:
+        now = time.monotonic()
+        if self._checked is None or (now - self._checked) >= self._ttl:
+            self._value = bool(self._check())
+            self._checked = now
+        return self._value
+
+
 class TrialCollector:
     """Reusable bookkeeper for optimizer trial results, and what ends a run.
 
