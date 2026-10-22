@@ -1,15 +1,17 @@
 import json
 
+from django.core.exceptions import ValidationError
 from django.shortcuts import redirect, render
 from django.utils.translation import gettext as _
 
 from access.policy import groups_to_choose_from, policy
-from core import io, provenance, smac_import
+from core import io, smac_import
 from experiments.models import account
 from experiments.services import history, modelenv
 from experiments.services import snapshot as snapshot_adapter
 
-from ..validators import dataset_upload_error, model_upload_error, oversized
+from ..forms import ImportForm
+from ..validators import validate_size
 from .common import _chosen_group, _settle_storage
 
 
@@ -23,49 +25,23 @@ def import_experiment(request):
     may_upload = policy().may_upload_models(request)
     context = {"allow_custom_models": may_upload,
                "groups": groups_to_choose_from(request.user)}
-    upload = request.FILES.get("file")
     if request.method == "POST" and request.FILES.getlist("smac_dir"):
         return _import_smac_directory(request, context)
-    if request.method == "POST" and upload is not None:
-        # No Form here to hang a validator off, so the same checks the create
-        # form's file fields run are called directly — see ui/validators.py.
-        size_error = oversized(upload)
-        if size_error:
-            context["error"] = size_error
+    if request.method == "POST" and request.FILES.get("file") is not None:
+        form = ImportForm(request.POST, request.FILES, allow_model=may_upload)
+        if not form.is_valid():
+            context["error"] = " ".join(str(message) for messages in form.errors.values()
+                                        for message in messages)
             return render(request, "ui/import.html", context)
-        try:
-            snapshot = io.parse(upload.read())
-        except ValueError as exc:
-            context["error"] = _("Invalid or unreadable experiment file.") + f" ({exc})"
-            return render(request, "ui/import.html", context)
-
-        # The file records which dataset produced its trials. Attaching a
-        # different one here is the one way an experiment could go on adding
-        # trials to a history they do not belong to, and nothing downstream —
-        # not the incumbent, not the surrogate, not the importance — could tell.
-        dataset_upload = request.FILES.get("dataset")
-        if dataset_upload is not None:
-            dataset_error = dataset_upload_error(dataset_upload)
-            if dataset_error:
-                context["error"] = dataset_error
-                return render(request, "ui/import.html", context)
-            mismatch = provenance.dataset_mismatch(
-                snapshot.get("dataset"), provenance.sha256_stream(dataset_upload))
-            if mismatch:
-                context["error"] = mismatch
-                return render(request, "ui/import.html", context)
-
         group, error = _chosen_group(request, context)
         if error:
             context["error"] = error
             return render(request, "ui/import.html", context)
 
-        model_upload = request.FILES.get("model") if may_upload else None
-        if model_upload is not None:
-            model_error = model_upload_error(model_upload)
-            if model_error:
-                context["error"] = model_error
-                return render(request, "ui/import.html", context)
+        upload = form.cleaned_data["file"]
+        dataset_upload = form.cleaned_data.get("dataset")
+        model_upload = form.cleaned_data.get("model")
+        snapshot = form.snapshot
         exp = snapshot_adapter.experiment_from_snapshot(
             snapshot, dataset_file=dataset_upload, model_file=model_upload,
             owner=account(request.user), group=group,
@@ -94,9 +70,10 @@ def _import_smac_directory(request, context):
     """
     files = {}
     for upload in request.FILES.getlist("smac_dir"):
-        size_error = oversized(upload)
-        if size_error:
-            context["error"] = size_error
+        try:
+            validate_size(upload)
+        except ValidationError as error:
+            context["error"] = error.messages[0]
             return render(request, "ui/import.html", context)
         # Django's uploader keeps only the basename, so a directory picker's
         # relative paths do not survive the post — which is why the importer

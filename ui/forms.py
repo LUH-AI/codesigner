@@ -4,11 +4,11 @@ from django import forms
 from django.conf import settings
 from django.utils.translation import gettext_lazy as _
 
-from core import tasks
 from core.datasets import (
     DEFAULT_TEST_SIZE, demo_datasets, forecast_problem, mounted_models, orderable_columns,
     read_dataset, target_of, time_order_problem,
 )
+from core import io, provenance, tasks
 from core.model_source import inspect_model_source
 from core.registry import MODELS
 from core.splits import MIN_FOLDS
@@ -17,7 +17,7 @@ from experiments.services import timestamps
 
 from . import times
 from .figures import FIGURES, autocompute_key, deferred_computations
-from .validators import validate_dataset_upload, validate_model_upload
+from .validators import validate_dataset_upload, validate_model_upload, validate_size
 
 
 #: The ways a trial can be evaluated, and what the number beside the selector
@@ -51,6 +51,43 @@ EVALUATION_SCHEMES = {
                   "Costs one model fit per backtest."),
     },
 }
+
+
+class ImportForm(forms.Form):
+    """An `.ihpo` file, and optionally the dataset and model that make it
+    runnable. The model field is there only for a reader who may upload one."""
+
+    file = forms.FileField(validators=[validate_size])
+    dataset = forms.FileField(required=False, validators=[validate_dataset_upload])
+    model = forms.FileField(required=False, validators=[validate_model_upload])
+
+    def __init__(self, *args, allow_model=False, **kwargs):
+        super().__init__(*args, **kwargs)
+        if not allow_model:
+            del self.fields["model"]
+
+    def clean_file(self):
+        upload = self.cleaned_data["file"]
+        try:
+            self.snapshot = io.parse(upload.read())
+        except ValueError as exc:
+            raise forms.ValidationError(
+                _("Invalid or unreadable experiment file.") + f" ({exc})") from exc
+        return upload
+
+    def clean(self):
+        # The file records which dataset produced its trials. Attaching a
+        # different one here is the one way an experiment could go on adding
+        # trials to a history they do not belong to, and nothing downstream —
+        # not the incumbent, not the surrogate, not the importance — could tell.
+        cleaned = super().clean()
+        dataset = cleaned.get("dataset")
+        if dataset is not None and hasattr(self, "snapshot"):
+            mismatch = provenance.dataset_mismatch(
+                self.snapshot.get("dataset"), provenance.sha256_stream(dataset))
+            if mismatch:
+                raise forms.ValidationError(mismatch)
+        return cleaned
 
 
 class NewExperimentForm(forms.Form):
