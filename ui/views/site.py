@@ -16,7 +16,6 @@ from django.db.models.deletion import ProtectedError
 from django.db.models.functions import Coalesce
 from django.http import Http404
 from django.shortcuts import get_object_or_404, redirect, render
-from django.utils import timezone
 from django.utils.translation import gettext as _
 from django.views.decorators.http import require_POST
 
@@ -341,9 +340,7 @@ def site_job_stop(request, pk):
     run = get_object_or_404(Run, pk=pk, status__in=("pending", "running"))
     if run.job_id:
         run_service.abandon_cluster_job(run.job_id)
-    Run.objects.filter(pk=run.pk).update(
-        status="error", finished_at=timezone.now(),
-        error=_("Stopped by a site administrator."))
+    run_service.fail_runs([run], _("Stopped by a site administrator."))
     messages.success(request, _("Stopped job %(job)s.")
                      % {"job": run.job_id or run.pk})
     return redirect("ui:site_jobs")

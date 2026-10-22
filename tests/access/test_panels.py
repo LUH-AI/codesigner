@@ -323,6 +323,24 @@ def test_a_site_admin_can_stop_a_job_they_cannot_see_the_experiment_for(
     assert run.status == "error"
 
 
+def test_a_job_a_site_admin_stops_keeps_count_of_its_trials(client, hosted, lab):
+    """What: a run stopped from the site panel says how many trials it produced,
+    as one given up on from its own page does.
+    How: three trials stored, the run started after the first, then stopped."""
+    exp = _experiment(lab["ana"], "running")
+    exp.data.result = {"data": [{}, {}, {}]}
+    exp.data.save(update_fields=["result"])
+    run = Run.objects.create(experiment=exp, primary_metric="accuracy",
+                             status="running", stopping={"max_trials": 5},
+                             started_by=lab["ana"], trial_offset=1)
+    client.force_login(lab["site"])
+
+    client.post(reverse("ui:site_job_stop", args=[run.pk]), follow=True)
+
+    run.refresh_from_db()
+    assert run.trial_count == 2
+
+
 def test_nobody_else_can_stop_a_job_that_way(client, hosted, lab):
     exp = _experiment(lab["ana"], "running")
     run = Run.objects.create(experiment=exp, primary_metric="accuracy",
