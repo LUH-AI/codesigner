@@ -6,7 +6,7 @@ from ConfigSpace import ConfigurationSpace, Integer
 
 from core.datasets import load_splits
 from core.metrics import METRICS, metrics_for
-from core.models import BaseModel
+from codesigner_model import BaseModel
 from core.registry import MODELS
 from core.optimizers.trial import evaluate_trial
 from core.optimizers import (

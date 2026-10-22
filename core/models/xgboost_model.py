@@ -1,8 +1,9 @@
 """XGBoost's gradient boosted trees, classifying or regressing."""
 
 from ConfigSpace import Categorical, ConfigurationSpace, Float, Integer
+from codesigner_model import OutputBaseModel
 
-from .base import OutputBaseModel, Tunable
+from .base import Tunable
 from .parts import LabelCoded
 
 

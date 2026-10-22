@@ -1,9 +1,10 @@
 """Exponential smoothing: statsmodels' Holt–Winters, one smoother per series."""
 
 from ConfigSpace import Categorical, ConfigurationSpace
+from codesigner_model import OutputBaseModel
 
 from ..forecasters import ETSForecaster
-from .base import OutputBaseModel, Tunable
+from .base import Tunable
 
 
 class ETS(OutputBaseModel):

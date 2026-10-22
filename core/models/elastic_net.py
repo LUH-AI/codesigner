@@ -1,8 +1,9 @@
 """Elastic net: scikit-learn's. Regression only."""
 
 from ConfigSpace import ConfigurationSpace, Float
+from codesigner_model import OutputBaseModel
 
-from .base import OutputBaseModel, Tunable
+from .base import Tunable
 
 
 class ElasticNet(OutputBaseModel):

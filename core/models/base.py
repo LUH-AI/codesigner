@@ -1,26 +1,14 @@
-"""The model contracts, re-exported from the SDK, and the one a built-in adds.
-
-The contracts live in the standalone, dependency-free ``codesigner_model``
-package (``model_sdk/`` in this repo) because a model file is imported in *its
-own* environment, where ``core`` does not exist and cannot be reached for.
-Defining the classes twice would give two unrelated ABCs and ``issubclass``
-would be False across the seam — so there is exactly one of each, and this
-module only preserves the import path the application has always used.
-
-New model files should ``from codesigner_model import BaseModel``.
-"""
+"""The contract a built-in model adds to the SDK's (``codesigner_model``)."""
 
 from typing import TYPE_CHECKING, cast
 
-from codesigner_model import BaseModel, ModelBase, OptimizableBaseModel, OutputBaseModel
+from codesigner_model import OptimizableBaseModel, OutputBaseModel
 
 from ..processing import Processing, resolve
 
 if TYPE_CHECKING:
     import numpy as np
     import pandas as pd
-
-__all__ = ["BaseModel", "ModelBase", "OptimizableBaseModel", "OutputBaseModel", "Tunable"]
 
 
 class Tunable(OptimizableBaseModel, OutputBaseModel):

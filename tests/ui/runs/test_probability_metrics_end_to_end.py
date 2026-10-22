@@ -15,7 +15,7 @@ from django.core.files.uploadedfile import SimpleUploadedFile
 from django.urls import reverse
 
 from core.metrics import METRICS
-from core.models import BaseModel
+from codesigner_model import BaseModel
 from experiments.services.run import scoreable
 
 from tests.conftest import DATASETS_DIR, post_new_experiment

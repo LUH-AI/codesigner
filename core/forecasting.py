@@ -41,9 +41,10 @@ import copy
 
 import numpy as np
 import pandas as pd
+from codesigner_model import OutputBaseModel
 
 from .columns import DATETIME
-from .models.base import OutputBaseModel, Tunable
+from .models.base import Tunable
 
 #: The prefix that marks a hyperparameter as the forecast's rather than the
 #: wrapped regressor's.

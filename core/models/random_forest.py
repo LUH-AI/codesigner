@@ -1,8 +1,9 @@
 """Random forest: scikit-learn's, classifying or regressing."""
 
 from ConfigSpace import ConfigurationSpace, Float, Integer
+from codesigner_model import OutputBaseModel
 
-from .base import OutputBaseModel, Tunable
+from .base import Tunable
 
 
 class RandomForest(OutputBaseModel):

@@ -3,8 +3,9 @@
 from typing import Any
 
 from ConfigSpace import Categorical, ConfigurationSpace, Integer
+from codesigner_model import OutputBaseModel
 
-from .base import OutputBaseModel, Tunable
+from .base import Tunable
 
 
 class KNN(OutputBaseModel):

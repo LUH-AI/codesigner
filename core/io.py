@@ -95,7 +95,7 @@ def load_model_from_path(model_path: str) -> tuple:
     Returns ``(instance, None)`` on success or ``(None, error_str)`` on failure.
     Error strings are plain English and not translated.
     """
-    from .models import BaseModel
+    from codesigner_model import BaseModel
 
     path = Path(model_path)
     if not path.is_file():

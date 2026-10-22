@@ -3,8 +3,9 @@
 from typing import Any
 
 from ConfigSpace import Categorical, ConfigurationSpace, Float, Integer
+from codesigner_model import OutputBaseModel
 
-from .base import OutputBaseModel, Tunable
+from .base import Tunable
 from .parts import categorical_mask
 
 #: The most labels a column can have and still be split as categories: the

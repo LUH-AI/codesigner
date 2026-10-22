@@ -1,8 +1,9 @@
 """Logistic regression: scikit-learn's. Classification only."""
 
 from ConfigSpace import Categorical, ConfigurationSpace, Float
+from codesigner_model import OutputBaseModel
 
-from .base import OutputBaseModel, Tunable
+from .base import Tunable
 
 
 class LogisticRegression(OutputBaseModel):

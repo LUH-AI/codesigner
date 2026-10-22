@@ -1,9 +1,10 @@
 """Seasonal naive: the forecasts every other forecaster has to beat."""
 
 from ConfigSpace import Categorical, ConfigurationSpace
+from codesigner_model import OutputBaseModel
 
 from ..forecasters import SeasonalNaiveForecaster
-from .base import OutputBaseModel, Tunable
+from .base import Tunable
 
 
 class SeasonalNaive(OutputBaseModel):

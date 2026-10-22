@@ -1,4 +1,6 @@
-from .base import BaseModel
+# What a model file written before the SDK imports its base class from.
+from codesigner_model import BaseModel
+
 from .catboost_model import CatBoostModel
 from .elastic_net import ElasticNetModel
 from .ets import ETSModel
