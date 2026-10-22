@@ -39,6 +39,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 from core import io                                      # noqa: E402
 from core.optimizers.base import OptimizationResult, PolledFlag  # noqa: E402
+from core.optimizers.trial import scoreable                # noqa: E402
 from core.registry import METRICS, MODELS, OPTIMIZERS    # noqa: E402
 
 #: How often the result so far is rewritten. The submitter reads it to keep the
@@ -129,7 +130,7 @@ def run(workdir: Path) -> int:
     result = optimizer.optimize(
         built["model"],
         built["X_train"], built["y_train"], built["X_val"], built["y_val"],
-        metrics=built["metrics"],
+        metrics=scoreable(built["metrics"], built["model"], primary_metric),
         primary_metric=primary_metric,
         previous_result=previous,
         seed=built["seed"],

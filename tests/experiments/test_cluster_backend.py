@@ -328,3 +328,40 @@ def test_the_default_backend_still_runs_here(settings, experiment):
     assert run.status == "done"
     assert run.backend == "local"
     assert run.job_id == ""
+
+
+def test_a_cluster_run_refuses_a_metric_its_model_cannot_score(tmp_path, monkeypatch):
+    """What: on the cluster, as in the app, a run optimizing a metric scored on
+    probabilities with a model that gives none ends with the reason, before a
+    trial is spent.
+    How: stages a work directory, stands in for `build_experiment` with a
+    labels-only model, and reads status.json back."""
+    from ConfigSpace import ConfigurationSpace
+    from codesigner_model import BaseModel
+
+    from core.metrics import METRICS
+    from core.optimizers import RandomOptimizer
+    from remote import run_experiment
+
+    class LabelsOnly(BaseModel):
+        name = "Labels only"
+
+        def get_config_space(self, seed: int = 0):
+            return ConfigurationSpace()
+
+        def fit_predict(self, config, X_train, y_train, X_val, seed=0):
+            return list(y_train)[: len(X_val)]
+
+    built = {"optimizer": RandomOptimizer(), "result": None, "model": LabelsOnly(), "seed": 0,
+             "metrics": {n: METRICS[n] for n in ("accuracy", "roc_auc")},
+             "X_train": None, "y_train": None, "X_val": None, "y_val": None, "splits": None}
+    monkeypatch.setattr(run_experiment.io, "build_experiment", lambda *a, **k: ("x", built))
+    (tmp_path / "snapshot.json").write_text(json.dumps({"dataset": {}, "model": {}}))
+    (tmp_path / "run.json").write_text(json.dumps(
+        {"primary_metric": "roc_auc", "stopping": {"max_trials": 1}}))
+
+    run_experiment.main([str(tmp_path)])
+
+    status = json.loads((tmp_path / "status.json").read_text())
+    assert status["state"] == "error"
+    assert "class probabilities" in status["error"]

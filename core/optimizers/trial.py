@@ -18,7 +18,7 @@ import traceback
 
 import numpy as np
 
-from ..metrics import HISTORY, PROBABILITIES, score_all
+from ..metrics import HISTORY, PROBABILITIES, score_all, usable
 from ..modelhost.errors import ModelTrialError, TrialCancelled, TrialTimeout
 from .timing import CANCELLED, FITTED, STATUS_CRASHED, STATUS_TIMEOUT, timed_evaluation
 
@@ -35,6 +35,33 @@ def offers_probabilities(model) -> bool:
     fn = getattr(model, "fit_predict_proba", None)
     return (callable(fn) and not getattr(fn, "_is_stub", False)
             and bool(getattr(model, "probabilities", True)))
+
+
+class NoProbabilities(ValueError):
+    """The metric a run optimizes is scored on class probabilities, and its
+    model does not give them."""
+
+    def __init__(self, metric: str):
+        super().__init__(f"{metric} is scored on class probabilities, and this model does "
+                         "not give them. Optimize another metric.")
+        self.metric = metric
+
+
+def scoreable(metrics, model, primary_metric):
+    """*metrics* without those *model* cannot score, before the first trial.
+
+    The create form only lists the metrics scored on probabilities for a model
+    that gives them, but a model file can be replaced after that. Without the
+    probabilities those metrics fail every trial, so they are left out of the
+    run — unless one of them is what the run optimizes, which makes the run
+    impossible rather than partial, and raises `NoProbabilities`.
+    """
+    can = (model.supports_proba if hasattr(model, "supports_proba")
+           else offers_probabilities(model))
+    keep = usable(metrics, probabilities=can)
+    if primary_metric not in keep:
+        raise NoProbabilities(primary_metric)
+    return {name: metrics[name] for name in keep}
 
 
 def _history(splits, train_idx, metrics):

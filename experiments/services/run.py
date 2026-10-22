@@ -16,9 +16,9 @@ from django.utils.translation import gettext as _
 
 from access.policy import policy
 from core import io, registry
-from core.metrics import metric_for, usable
+from core.metrics import metric_for
 from core.optimizers.base import STOPPED_BY_CANCELLED, OptimizationResult, PolledFlag
-from core.optimizers.trial import offers_probabilities
+from core.optimizers import trial
 from remote import jobs
 
 from . import snapshot as snapshot_adapter
@@ -35,22 +35,14 @@ def resolve_seed(seed_input: int) -> int:
 
 
 def scoreable(metrics, model, primary_metric):
-    """*metrics* without those *model* cannot score, before the first trial.
-
-    The create form only lists the metrics scored on probabilities for a model
-    that gives them, but a model file can be replaced after that. Without the
-    probabilities those metrics fail every trial, so they are left out of the
-    run — unless one of them is what the run optimizes, which makes the run
-    impossible rather than partial.
-    """
-    can = (model.supports_proba if hasattr(model, "supports_proba")
-           else offers_probabilities(model))
-    keep = usable(metrics, probabilities=can)
-    if primary_metric not in keep:
+    """`core.optimizers.trial.scoreable`, its refusal said in the reader's
+    language."""
+    try:
+        return trial.scoreable(metrics, model, primary_metric)
+    except trial.NoProbabilities as error:
         raise ValueError(_(
             "%(metric)s is scored on class probabilities, and this model does not "
-            "give them. Optimize another metric.") % {"metric": primary_metric})
-    return {name: metrics[name] for name in keep}
+            "give them. Optimize another metric.") % {"metric": error.metric}) from error
 
 
 # ── Background run engine ──────────────────────────────────────────────────────
