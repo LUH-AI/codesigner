@@ -77,6 +77,7 @@ from .metrics import declarations
 from .models.base import Tunable
 from .paths import MAX_STATE_FILES, is_safe_relative
 from .processing import choices_of
+from .registry import optimizer_class
 from .splits import (
     MIN_FOLDS, backtest, cross_validation, holdout, time_cross_validation, time_holdout,
 )
@@ -480,12 +481,8 @@ def build_experiment(
     opt_name = snapshot["optimizer"]["name"]
     # Aliases too: an optimizer that has been renamed still has to answer to
     # what it was called in every .ihpo written before the rename.
-    opt_entry = next(
-        (o for o in available_optimizers.values()
-         if o.name == opt_name or opt_name in getattr(o, "aliases", ())),
-        None,
-    )
-    if opt_entry is None:
+    opt_type = optimizer_class(opt_name, available_optimizers)
+    if opt_type is None:
         raise ValueError(f"optimizer '{opt_name}' is not available")
 
     seed = snapshot["seed"]
@@ -600,7 +597,6 @@ def build_experiment(
     # The registry first: a later build correcting what a metric means must not
     # be overruled by a file written before the correction.
     metrics   = {m: available_metrics.get(m) or declared[m] for m in metric_names}
-    opt_type  = type(opt_entry)
     # Narrowed to what this optimizer still accepts. A withdrawn or renamed
     # parameter would otherwise be an unexpected keyword, raised from whichever
     # page happened to rebuild the result.

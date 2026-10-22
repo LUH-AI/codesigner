@@ -5,11 +5,12 @@ import statistics
 from django.conf import settings
 from django.contrib import messages
 from django.urls import reverse
-from django.utils.translation import gettext as _
 from django.utils.translation import ngettext
+from django.utils.translation import gettext as _
 
 from access.policy import groups_to_choose_from
 from core import datasets
+from core.registry import optimizer_class
 from experiments.models import Experiment
 from experiments.services import storage
 from experiments.services.settings import SETTING_BOUNDS
@@ -17,7 +18,7 @@ from experiments.services.settings import SETTING_BOUNDS
 from ..experiment_settings import resolve_settings
 from ..figures import FIGURES
 from ..formatting import human
-from ..registry import MODELS, OPTIMIZERS
+from ..registry import MODELS
 
 
 _ACTIVE = ["pending", "running"]
@@ -118,18 +119,10 @@ def _posted_number(request, key: str, default: float, *, low: float) -> float:
         return float(default)
 
 
-def _optimizer_for(name):
-    """The registry optimizer an experiment names, or None. Aliases included, so
-    an experiment stored under an optimizer's older name still resolves."""
-    return OPTIMIZERS.get(name) or next(
-        (o for o in OPTIMIZERS.values()
-         if o.name == name or name in getattr(o, "aliases", ())), None)
-
-
 def _judges_priors(exp):
     """Whether the experiment's optimizer, as configured now, can judge a
     prior — which decides whether "Evaluate Prior" is offered."""
-    optimizer = _optimizer_for(exp.data.optimizer_name)
+    optimizer = optimizer_class(exp.data.optimizer_name)
     return bool(optimizer) and optimizer.judges_priors(exp.data.optimizer_params or {})
 
 

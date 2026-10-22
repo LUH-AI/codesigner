@@ -51,9 +51,17 @@ def canonical_model_name(name: str) -> str:
                  if name in getattr(model, "aliases", ())), name)
 
 OPTIMIZERS = {
-    "SMAC": SMACOptimizer(),
-    "Random Search": RandomOptimizer(),
-    "Grid Search": GridOptimizer(),
+    "SMAC": SMACOptimizer,
+    "Random Search": RandomOptimizer,
+    "Grid Search": GridOptimizer,
 }
 
-__all__ = ["MODELS", "OPTIMIZERS", "METRICS", "canonical_model_name"]
+
+def optimizer_class(name: str, optimizers=OPTIMIZERS):
+    """The optimizer class *name* names, under its name or an older one in its
+    `aliases`, or None."""
+    return next((kind for kind in optimizers.values()
+                 if name == kind.name or name in kind.aliases), None)
+
+
+__all__ = ["MODELS", "OPTIMIZERS", "METRICS", "canonical_model_name", "optimizer_class"]

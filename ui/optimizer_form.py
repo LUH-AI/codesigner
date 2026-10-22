@@ -55,7 +55,7 @@ def save(request, exp) -> str | None:
     chosen = OPTIMIZERS.get(request.POST.get("optimizer_name"))
     if chosen is None:
         return _("Choose an optimizer.")
-    optimizer = type(chosen)(**type(chosen).known_params(_posted_params(request, chosen)))
+    optimizer = chosen(**chosen.known_params(_posted_params(request, chosen)))
     data = exp.data
     old = {"name": data.optimizer_name, "params": data.optimizer_params or {}}
     new = {"name": optimizer.name, "params": optimizer.get_params()}

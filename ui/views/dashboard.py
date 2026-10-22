@@ -6,33 +6,33 @@ from django.contrib import messages
 from django.http import HttpResponseBadRequest, JsonResponse
 from django.shortcuts import redirect, render
 from django.utils.http import url_has_allowed_host_and_scheme
-from django.utils.translation import gettext as _
 from django.utils.translation import gettext_lazy, ngettext
+from django.utils.translation import gettext as _
 from django.views.decorators.http import require_POST
 
 from access.policy import DELETE, EDIT, EXPORT, RENAME, RUN, SHARE, VIEW, policy
-from core import priors as prior_math
 from core.modelhost import deadline
+from core.registry import optimizer_class
+from core import priors as prior_math
 from experiments.models import Experiment
 from experiments.services import model_export
 from experiments.services.snapshot import config_space_for, rebuild_experiment, rebuild_result
 
+from . import analytics
 from .. import optimizer_form, projected
 from ..experiment_settings import resolve_settings
 from ..figures import (
-    HP_GAME_FIELDS, HP_GAME_HELP, HP_GAME_LABELS, ACCENT_COLOR, MARKER_COLOR,
-    NEGATIVE_COLOR, PRIOR_COLOR, PROPOSAL_COLOR, SELECTION_COLOR, autocompute_key,
-    deferred_computations,
+    ACCENT_COLOR, HP_GAME_FIELDS, HP_GAME_HELP, HP_GAME_LABELS, MARKER_COLOR, NEGATIVE_COLOR,
+    PRIOR_COLOR, PROPOSAL_COLOR, SELECTION_COLOR, autocompute_key, deferred_computations,
 )
 from ..figures.catalog import Trials
 from ..optimizer_labels import STOPPED_BY_LABELS
 from ..permissions import experiment_view
 from ..registry import MODELS
-from . import analytics
 from .analytics import _analytics_absent
 from .common import (
-    _ACTIVE, _figure_plots, _model_available, _optimizer_for, _ownership,
-    _poll_seconds, _prior_judging_context, _shown_figures, metric_label, surpass_target,
+    _ACTIVE, _figure_plots, _model_available, _ownership, _poll_seconds,
+    _prior_judging_context, _shown_figures, metric_label, surpass_target,
 )
 
 
@@ -458,13 +458,13 @@ def _detail_context(request, exp):
         # Only an optimizer that fits a model of the objective can answer the
         # confidence criterion, so only then is it offered.
         "supports_confidence": getattr(
-            _optimizer_for(exp.data.optimizer_name), "supports_confidence_stopping", False),
+            optimizer_class(exp.data.optimizer_name), "supports_confidence_stopping", False),
         # And only one that can be asked what it would run next can offer the
         # configuration cube's Requery — see `next_trials`.
-        "can_requery": hasattr(_optimizer_for(exp.data.optimizer_name), "slice_challengers"),
+        "can_requery": hasattr(optimizer_class(exp.data.optimizer_name), "slice_challengers"),
         # Drawing a prior in the cube: for an optimizer a prior can steer, and
         # a reader who may change what the next run searches under.
-        "can_draw_priors": (bool(getattr(_optimizer_for(exp.data.optimizer_name),
+        "can_draw_priors": (bool(getattr(optimizer_class(exp.data.optimizer_name),
                                          "fits_surrogate", False))
                             and policy().may(request, exp, EDIT)),
         **_prior_judging_context(exp),

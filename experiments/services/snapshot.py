@@ -409,11 +409,10 @@ def _defaults_used(data) -> dict:
     default for them because it has no such component: `BlackBoxFacade` has no
     forest to have a tree count of.
     """
-    optimizer = OPTIMIZERS.get(data.optimizer_name)
+    kind = OPTIMIZERS.get(data.optimizer_name)
     params = data.optimizer_params or {}
-    if optimizer is None:
+    if kind is None:
         return {}
-    kind = type(optimizer)
     try:
         resolved = kind(**kind.known_params(params)).resolved_params()
     except Exception:  # noqa: BLE001 — a record is never worth a failed export

@@ -200,7 +200,7 @@ def test_an_experiment_carries_its_folds_from_the_snapshot(tmp_path):
     }
     _, exp = build_experiment(
         snapshot, METRICS, {"Random Forest": RandomForestModel()},
-        {"Random Search": RandomOptimizer()})
+        {"Random Search": RandomOptimizer})
 
     assert exp["cv_folds"] == 5
     assert len(exp["splits"].folds) == 5
@@ -222,7 +222,7 @@ def test_an_experiment_without_the_field_is_a_holdout(tmp_path):
     }
     _, exp = build_experiment(
         snapshot, METRICS, {"Random Forest": RandomForestModel()},
-        {"Random Search": RandomOptimizer()})
+        {"Random Search": RandomOptimizer})
 
     assert exp["cv_folds"] == 0
     assert len(exp["splits"].folds) == 1
@@ -235,7 +235,7 @@ def test_an_optimizer_runs_a_cross_validated_search(optimizers, models):
     X, y = load_frame(DATASETS_DIR / "iris.csv")
     splits = cross_validation(X, y, folds=3, seed=0)
 
-    result = optimizers["Random Search"].optimize(
+    result = optimizers["Random Search"]().optimize(
         models["Random Forest"], None, None, None, None,
         metrics=METRICS, primary_metric="accuracy", n_trials=3, seed=0,
         splits=splits)

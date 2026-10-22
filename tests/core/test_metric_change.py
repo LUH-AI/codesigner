@@ -136,7 +136,7 @@ def test_no_previous_result_is_not_a_change():
 def two_runs(optimizers, models, metrics, iris_splits):
     """A real SMAC experiment run once on accuracy, then resumed on f1."""
     X_train, X_val, y_train, y_val = iris_splits
-    smac = optimizers["SMAC"]
+    smac = optimizers["SMAC"]()
 
     def run(primary, n_trials, previous=None):
         return smac.optimize(
@@ -186,7 +186,7 @@ def test_every_resume_rebuilds_and_replays(optimizers, models, metrics, iris_spl
     model. A rebuild costs one `tell` per past trial and no evaluations, so the
     history survives and the budget can be honest."""
     X_train, X_val, y_train, y_val = iris_splits
-    smac = optimizers["SMAC"]
+    smac = optimizers["SMAC"]()
     first = smac.optimize(models["Random Forest"], X_train, y_train, X_val, y_val,
                           metrics=metrics, primary_metric="accuracy", n_trials=3, seed=0)
     second = smac.optimize(models["Random Forest"], X_train, y_train, X_val, y_val,

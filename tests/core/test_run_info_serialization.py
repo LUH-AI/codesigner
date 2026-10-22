@@ -27,7 +27,7 @@ def _trial(n, run_info=None):
 
 
 def test_run_info_survives_round_trip(optimizers):
-    opt = optimizers["Random Search"]
+    opt = optimizers["Random Search"]()
     ri = {"instance": None, "seed": 0, "budget": None, "time": 0.5, "cpu_time": 0.4,
           "status": 1, "starttime": 1000.0, "endtime": 1000.5, "additional_info": {}}
     result = _result([_trial(1, ri)])
@@ -37,7 +37,7 @@ def test_run_info_survives_round_trip(optimizers):
 
 
 def test_serialized_entry_carries_all_run_info_keys(optimizers):
-    opt = optimizers["Random Search"]
+    opt = optimizers["Random Search"]()
     ri: Dict[str, Any] = {
         k: (1 if k == "status" else (0.0 if k in ("time", "cpu_time", "starttime", "endtime") else None))
         for k in RUN_INFO_KEYS}
@@ -51,7 +51,7 @@ def test_serialized_entry_carries_all_run_info_keys(optimizers):
 def test_empty_run_info_emits_no_timing_keys(optimizers):
     """A trial with no run_info serializes to an entry without timing keys, and
     deserializes back to an empty run_info (duration 0)."""
-    opt = optimizers["Random Search"]
+    opt = optimizers["Random Search"]()
     d = opt.serialize_result(_result([_trial(1)]))
     entry = d["data"][0]
     assert not any(k in entry for k in ("time", "starttime", "endtime", "cpu_time"))

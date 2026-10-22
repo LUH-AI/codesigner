@@ -324,12 +324,13 @@ class SMACOptimizer(BaseOptimizer):
     def acquisition_function(self):
         return {"kind": self._acquisition, "xi": float(self._acquisition_xi or 0.0)}
 
-    def judges_priors(self, params):
+    @classmethod
+    def judges_priors(cls, params):
         """Only under the Gaussian process. The random forest is fitted to
         log-scaled costs, and the lower confidence bound the judgement scores
         with maps back to roughly zero cost everywhere under it, so every prior
         would pass."""
-        strategy = self.known_params(params).get("search_strategy")
+        strategy = cls.known_params(params).get("search_strategy")
         return (strategy if strategy in STRATEGIES else "gp") == "gp"
 
     params_schema = [

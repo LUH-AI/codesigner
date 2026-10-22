@@ -251,7 +251,7 @@ def test_an_optimizer_stops_early_and_reports_why(optimizers, models, metrics, i
     criteria reach an actual search."""
     X_train, X_val, y_train, y_val = iris_splits
 
-    result = optimizers["Random Search"].optimize(
+    result = optimizers["Random Search"]().optimize(
         models["Random Forest"], X_train, y_train, X_val, y_val,
         metrics=metrics, primary_metric="accuracy", n_trials=50, seed=0,
         stopping={"target_score": 0.5})
@@ -265,7 +265,7 @@ def test_n_trials_is_spelling_for_the_trial_cap(optimizers, models, metrics, iri
     the same criterion under a different name — including in what gets reported."""
     X_train, X_val, y_train, y_val = iris_splits
 
-    result = optimizers["Random Search"].optimize(
+    result = optimizers["Random Search"]().optimize(
         models["Random Forest"], X_train, y_train, X_val, y_val,
         metrics=metrics, primary_metric="accuracy", n_trials=4, seed=0)
 
@@ -276,7 +276,7 @@ def test_n_trials_is_spelling_for_the_trial_cap(optimizers, models, metrics, iri
 def test_an_explicit_cap_beats_the_shorthand(optimizers, models, metrics, iris_splits):
     X_train, X_val, y_train, y_val = iris_splits
 
-    result = optimizers["Random Search"].optimize(
+    result = optimizers["Random Search"]().optimize(
         models["Random Forest"], X_train, y_train, X_val, y_val,
         metrics=metrics, primary_metric="accuracy", n_trials=50, seed=0,
         stopping={"max_trials": 3})
@@ -297,7 +297,7 @@ def test_smac_answers_with_its_surrogate_and_stops(optimizers, models, metrics, 
     a run that would otherwise have taken 40 trials."""
     X_train, X_val, y_train, y_val = iris_splits
 
-    result = optimizers["SMAC"].optimize(
+    result = optimizers["SMAC"]().optimize(
         models["Random Forest"], X_train, y_train, X_val, y_val,
         metrics=metrics, primary_metric="accuracy", n_trials=40, seed=0,
         stopping={"max_trials": 40, "incumbent_confidence": 0.6})
@@ -313,7 +313,7 @@ def test_smac_will_not_stop_on_confidence_before_it_has_evidence(
     two points is. Below the minimum, the criterion cannot end a run."""
     X_train, X_val, y_train, y_val = iris_splits
 
-    result = optimizers["SMAC"].optimize(
+    result = optimizers["SMAC"]().optimize(
         models["Random Forest"], X_train, y_train, X_val, y_val,
         metrics=metrics, primary_metric="accuracy", n_trials=3, seed=0,
         stopping={"max_trials": 3, "incumbent_confidence": 0.01})
@@ -430,7 +430,7 @@ def test_a_trial_that_was_never_run_is_not_serialized(optimizers, models, metric
     from pathlib import Path
 
     X_train, X_val, y_train, y_val = iris_splits
-    smac = optimizers["SMAC"]
+    smac = optimizers["SMAC"]()
     result = smac.optimize(
         models["Random Forest"], X_train, y_train, X_val, y_val,
         metrics=metrics, primary_metric="accuracy", n_trials=3, seed=0)

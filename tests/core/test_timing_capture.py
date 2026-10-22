@@ -55,7 +55,7 @@ def test_optimizer_records_timing_for_every_trial(optimizer_key, optimizers, mod
     non-negative duration, consistent start/end timestamps, SUCCESS, the seed,
     and null budget/instance."""
     X_train, X_val, y_train, y_val = iris_splits
-    result = optimizers[optimizer_key].optimize(
+    result = optimizers[optimizer_key]().optimize(
         models["Random Forest"], X_train, y_train, X_val, y_val,
         metrics=metrics, primary_metric="accuracy", n_trials=3, seed=0,
     )

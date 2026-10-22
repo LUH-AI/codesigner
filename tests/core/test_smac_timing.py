@@ -14,7 +14,8 @@ def test_smac_run_records_and_serializes_timing(optimizers, models, metrics, iri
     from core.optimizers.base import RUN_INFO_KEYS
 
     X_train, X_val, y_train, y_val = iris_splits
-    result = optimizers["SMAC"].optimize(
+    optimizer = optimizers["SMAC"]()
+    result = optimizer.optimize(
         models["Random Forest"], X_train, y_train, X_val, y_val,
         metrics=metrics, primary_metric="accuracy", n_trials=3, seed=0,
     )
@@ -26,7 +27,7 @@ def test_smac_run_records_and_serializes_timing(optimizers, models, metrics, iri
 
     # And SMAC's runhistory (copied verbatim by serialize_result) carries the
     # timing on each data entry.
-    d = optimizers["SMAC"].serialize_result(result)
+    d = optimizer.serialize_result(result)
     for entry in d["data"]:
         assert entry["time"] >= 0.0
         assert entry["endtime"] >= entry["starttime"]

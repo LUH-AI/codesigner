@@ -244,7 +244,7 @@ def save_setup(request, exp):
         # Step 2's to choose; until it has been, the first offered on its
         # defaults, so the draft is whole.
         chosen = OPTIMIZERS.get(old.optimizer_name) or next(iter(OPTIMIZERS.values()))
-        optimizer = type(chosen)(**type(chosen).known_params(old.optimizer_params or {}))
+        optimizer = chosen(**chosen.known_params(old.optimizer_params or {}))
         # A mounted model is adopted from its server-side path (unless an upload
         # was given, which takes precedence); a kept one from where it is.
         mounted = cleaned.get("mounted_model") or ""

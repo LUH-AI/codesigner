@@ -38,7 +38,7 @@ def _result(metric_name, scores, *, declared=None):
     """An OptimizationResult over four trials scoring *scores* on *metric_name*."""
     from ui.registry import OPTIMIZERS
 
-    optimizer = type(OPTIMIZERS["Random Search"])()
+    optimizer = OPTIMIZERS["Random Search"]()
     return optimizer.deserialize_result({
         "data": [{"config_id": i + 1, "cost": s, "time": 0.1,
                   "scores": {metric_name: s}, "incumbent_config_id": i + 1}

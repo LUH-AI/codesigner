@@ -170,9 +170,9 @@ def models() -> dict:
 def optimizers() -> dict:
     """The registry optimizers, keyed as the app registers them."""
     return {
-        "SMAC": SMACOptimizer(),
-        "Random Search": RandomOptimizer(),
-        "Grid Search": GridOptimizer(),
+        "SMAC": SMACOptimizer,
+        "Random Search": RandomOptimizer,
+        "Grid Search": GridOptimizer,
     }
 
 

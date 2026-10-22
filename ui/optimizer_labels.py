@@ -388,12 +388,11 @@ def summary(optimizer_name, params) -> list[tuple[str, str]]:
     use), a switch that is off, and anything left to the strategy's own
     default — which is not a choice anybody made.
     """
-    from .registry import OPTIMIZERS
     from django.utils.translation import gettext as _now
 
-    optimizer = OPTIMIZERS.get(optimizer_name) or next(
-        (o for o in OPTIMIZERS.values()
-         if o.name == optimizer_name or optimizer_name in getattr(o, "aliases", ())), None)
+    from core.registry import optimizer_class
+
+    optimizer = optimizer_class(optimizer_name)
     if optimizer is None:
         return [(name, sigfigs(value) if isinstance(value, float) else str(value))
                 for name, value in (params or {}).items() if value is not None]
