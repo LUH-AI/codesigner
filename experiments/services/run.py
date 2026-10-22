@@ -146,8 +146,6 @@ def _record_prior_event(run_id, report, offset):
     event per run announcing the absence of a belief would bury the ones that
     are about something.
     """
-    from experiments.models import Run
-
     if not report:
         return
 
@@ -166,12 +164,7 @@ def _record_prior_event(run_id, report, offset):
     if report.get("at"):
         event["at"] = report["at"]
 
-    run = Run.objects.filter(pk=run_id).first()
-    if run is None:
-        return
-    # Read and rewritten rather than appended in the database, because the list
-    # is small and this is the only writer at this point in a run's life.
-    Run.objects.filter(pk=run_id).update(events=list(run.events or []) + [event])
+    _record_event(run_id, event)
 
 
 def _record_event(run_id, event):

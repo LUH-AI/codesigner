@@ -9,9 +9,10 @@ from datetime import datetime
 from datetime import timezone as dt_timezone
 
 from django.utils.dateparse import parse_datetime
-from django.utils.translation import gettext as _
 from django.utils.translation import gettext_lazy
+from django.utils.translation import gettext as _
 
+from experiments.models import account
 from experiments.services.settings import resolve_settings
 from experiments.services.timestamps import (
     ABSOLUTE, DEFAULT, MODES, NONE, RELATIVE, clamp, origin,
@@ -30,18 +31,15 @@ LABELS = {
 
 def reader_preference(user) -> str:
     """The form *user* exports times in unless an experiment says otherwise."""
-    row = ReaderPreferences.objects.filter(user=_reader(user)).first()
+    row = ReaderPreferences.objects.filter(user=account(user)).first()
     return row.export_timestamps if row and row.export_timestamps in MODES else DEFAULT
 
 
 def set_reader_preference(user, mode) -> None:
     if mode in MODES:
         ReaderPreferences.objects.update_or_create(
-            user=_reader(user), defaults={"export_timestamps": mode})
+            user=account(user), defaults={"export_timestamps": mode})
 
-
-def _reader(user):
-    return user if getattr(user, "is_authenticated", False) else None
 
 
 def for_export(exp, user) -> str:

@@ -14,6 +14,7 @@ from core import analytics
 from core.jsonable import plain
 from core.metrics import metric_for
 from core import priors as prior_math
+from experiments.models import account
 from experiments.services import history
 from experiments.services.settings import SETTING_BOUNDS
 from experiments.services.snapshot import config_space_for, rebuild_experiment, rebuild_result
@@ -24,7 +25,7 @@ from ..experiment_settings import SETTING_DEFAULTS, resolve_settings
 from ..figures import acquisition_slice_plots
 from ..formatting import sigfigs
 from ..permissions import BOTH, experiment_view
-from .common import _judges_priors, _model_available, _owner, _plot_json, logger
+from .common import _judges_priors, _model_available, _plot_json, logger
 
 
 def _proposals(exp, metric):
@@ -124,7 +125,7 @@ def run_proposal(request, exp):
     number = n + 1
     run = run_service.create_run(
         exp, {"max_trials": 1}, exp.data.current_metric or metric,
-        started_by=_owner(request),
+        started_by=account(request.user),
         configurations=[{"config": dict(sample["configurations"][n]),
                          "origin": _("Proposal %(n)s") % {"n": number},
                          "proposal": number}])

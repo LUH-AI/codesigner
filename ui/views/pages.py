@@ -9,10 +9,9 @@ from django.shortcuts import redirect, render
 from access.policy import visible_experiments
 from core import datasets, tasks
 from core.registry import MODELS
-from experiments.models import Experiment
+from experiments.models import account, Experiment
 
 from ..forms import EVALUATION_SCHEMES
-from .common import _owner
 
 
 def home(request):
@@ -89,7 +88,7 @@ def new_experiment(request):
         return render(request, "ui/new_experiment.html")
     exp = Experiment.objects.create(
         name="", model_name="", optimizer_name="",
-        metric_names=[], seed=0, owner=_owner(request), draft=True)
+        metric_names=[], seed=0, owner=account(request.user), draft=True)
     return redirect("ui:setup", pk=exp.pk)
 
 

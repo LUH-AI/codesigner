@@ -26,10 +26,10 @@ from datetime import timedelta
 
 from django.conf import settings
 from django.db import transaction
-from django.db.models import Exists, OuterRef, Q
+from django.db.models import Q, Exists, OuterRef
 from django.utils import timezone
 
-from experiments.models import BinEntry, Experiment, ExperimentShare
+from experiments.models import account, BinEntry, Experiment, ExperimentShare
 
 #: A run in one of these is stopped when its experiment is deleted.
 _ACTIVE = ("pending", "running")
@@ -80,7 +80,7 @@ def delete(exp, by=None):
     with transaction.atomic():
         exp.runs.filter(status__in=_ACTIVE).update(cancel_requested=True)
         exp.deleted_at = timezone.now()
-        exp.deleted_by = by if getattr(by, "is_authenticated", False) else None
+        exp.deleted_by = account(by)
         exp.save(update_fields=["deleted_at", "deleted_by"])
         BinEntry.objects.bulk_create(
             [BinEntry(experiment=exp, user_id=user) for user in its_people(exp)],

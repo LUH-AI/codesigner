@@ -21,6 +21,12 @@ if TYPE_CHECKING:
 UNTITLED = _("Untitled Experiment")
 
 
+def account(user):
+    """*user* as a column stores them: their account, or None for a visitor
+    who is not signed in (and on an install without accounts)."""
+    return user if getattr(user, "is_authenticated", False) else None
+
+
 def generate_identifier() -> str:
     """A short, stable handle shown beside an experiment's name.
 

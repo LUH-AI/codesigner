@@ -5,7 +5,7 @@ from django.conf import settings
 from django.contrib import messages
 from django.http import HttpResponseBadRequest, JsonResponse
 from django.shortcuts import redirect, render
-from django.utils.http import url_has_allowed_host_and_scheme
+from django.urls import reverse
 from django.utils.translation import gettext_lazy, ngettext
 from django.utils.translation import gettext as _
 from django.views.decorators.http import require_POST
@@ -26,6 +26,7 @@ from ..figures import (
     PROPOSAL_COLOR, SELECTION_COLOR, autocompute_key, deferred_computations,
 )
 from ..figures.catalog import Trials
+from ..navigation import safe_next
 from ..optimizer_labels import STOPPED_BY_LABELS
 from ..permissions import experiment_view
 from .analytics import _analytics_absent
@@ -60,11 +61,7 @@ def experiment_rename(request, exp):
     "Untitled Experiment". Back to the page it was renamed from."""
     exp.data.name = (request.POST.get("name") or "").strip()[:200]
     exp.data.save(update_fields=["name"])
-    back = request.POST.get("next")
-    if back and url_has_allowed_host_and_scheme(back, allowed_hosts={request.get_host()},
-                                                require_https=request.is_secure()):
-        return redirect(back)
-    return redirect("ui:experiment_detail", pk=exp.pk)
+    return redirect(safe_next(request) or reverse("ui:experiment_detail", args=[exp.pk]))
 
 
 @require_POST

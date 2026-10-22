@@ -9,16 +9,17 @@ from access.policy import RUN, VIEW
 from core.metrics import metric_for
 from core.modelhost import deadline
 from core.optimizers.base import FAILURE_CRITERIA
+from experiments.models import account
 from experiments.services import modelenv
-from experiments.services import run as run_service
 from experiments.services.run_logic import decide_run, resolve_metric_change
 from experiments.services.snapshot import config_space_for, rebuild_experiment
+from experiments.services import run as run_service
 
 from ..figures import FIGURES_BY_KEY
 from ..permissions import experiment_view
 from .common import (
-    _ACTIVE, _figure_plots, _hp_names, _model_available, _owner, _poll_seconds,
-    _posted_number, _shown_figures,
+    _ACTIVE, _figure_plots, _hp_names, _model_available, _poll_seconds, _posted_number,
+    _shown_figures,
 )
 from .dashboard import _dashboard, _detail_context, _trial_rows
 
@@ -146,7 +147,7 @@ def experiment_run(request, exp):
             })
 
     run = run_service.create_run(exp, stopping, optimize_metric,
-                                 started_by=_owner(request),
+                                 started_by=account(request.user),
                                  trial_timeout=trial_timeout)
     run_service.start_background_run(run.id)
     return redirect("ui:experiment_detail", pk=exp.pk)
@@ -320,7 +321,7 @@ def run_cancel(request, exp):
     POST only: it changes something, and on GET a prefetcher or an <img> tag
     pointing here would cancel someone's run without CSRF ever being consulted.
     """
-    run_service.request_cancel(exp, _owner(request))
+    run_service.request_cancel(exp, account(request.user))
     return redirect("ui:experiment_detail", pk=exp.pk)
 
 

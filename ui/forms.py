@@ -427,10 +427,6 @@ class ExperimentSettingsFields(forms.Form):
         return [self[autocompute_key(name)] for name, _label in deferred_computations()]
 
 
-class DefaultExperimentSettingsForm(ExperimentSettingsFields):
-    """The defaults every inheriting experiment uses."""
-
-
 class ExperimentSettingsForm(ExperimentSettingsFields):
     """One experiment's settings, plus whether it just inherits the defaults."""
 

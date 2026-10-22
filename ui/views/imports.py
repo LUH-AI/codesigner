@@ -5,11 +5,12 @@ from django.utils.translation import gettext as _
 
 from access.policy import groups_to_choose_from, policy
 from core import io, provenance, smac_import
+from experiments.models import account
 from experiments.services import history, modelenv
 from experiments.services import snapshot as snapshot_adapter
 
 from ..validators import dataset_upload_error, model_upload_error, oversized
-from .common import _chosen_group, _owner, _settle_storage
+from .common import _chosen_group, _settle_storage
 
 
 def import_experiment(request):
@@ -67,7 +68,7 @@ def import_experiment(request):
                 return render(request, "ui/import.html", context)
         exp = snapshot_adapter.experiment_from_snapshot(
             snapshot, dataset_file=dataset_upload, model_file=model_upload,
-            owner=_owner(request), group=group,
+            owner=account(request.user), group=group,
         )
         if not _settle_storage(request, exp):
             return render(request, "ui/import.html", context)
@@ -129,7 +130,7 @@ def _import_smac_directory(request, context):
     if error:
         context["error"] = error
         return render(request, "ui/import.html", context)
-    exp = snapshot_adapter.experiment_from_snapshot(snapshot, owner=_owner(request),
+    exp = snapshot_adapter.experiment_from_snapshot(snapshot, owner=account(request.user),
                                                     group=group)
     history.record(exp, "imported", user=request.user, source="smac",
                    filename=snapshot.get("name") or "", dataset_attached=False)

@@ -11,7 +11,7 @@ from experiments.services.settings import SETTING_BOUNDS, SETTING_CHOICES
 
 from .. import times
 from ..experiment_settings import SETTING_DEFAULTS, global_defaults, resolve_settings
-from ..forms import DefaultExperimentSettingsForm, ExperimentSettingsForm
+from ..forms import ExperimentSettingsFields, ExperimentSettingsForm
 from ..permissions import experiment_view
 
 
@@ -179,5 +179,5 @@ def default_experiment_settings(request):
         gs.save(update_fields=["default_experiment_settings"])
         return redirect("ui:default_experiment_settings")
 
-    form = DefaultExperimentSettingsForm(initial=global_defaults())
+    form = ExperimentSettingsFields(initial=global_defaults())
     return render(request, "ui/default_experiment_settings.html", {"form": form})

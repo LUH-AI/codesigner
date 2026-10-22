@@ -28,6 +28,8 @@ import tomllib
 from functools import lru_cache
 from pathlib import Path
 
+from experiments.models import account
+
 from .figures import FIGURES, FIGURES_BY_KEY, OVERVIEW, TABS
 from .figures.data_handling import DATA_PANELS, DATA_PANELS_BY_KEY, SECTIONS
 
@@ -302,24 +304,18 @@ def placed(layout, shown) -> list:
 # file. Each is normalised as it is read, so a stale one is repaired rather
 # than passed on.
 
-def _reader(user):
-    """The row a reader's arrangement is stored under: their account, or none
-    on an install without accounts, where there is one reader."""
-    return user if getattr(user, "is_authenticated", False) else None
-
-
 def user_default(user) -> dict:
     """What an experiment *user* has not arranged opens on: their own default,
     or the site's."""
     from .models import DefaultFigureLayout
-    row = DefaultFigureLayout.objects.filter(user=_reader(user)).first()
+    row = DefaultFigureLayout.objects.filter(user=account(user)).first()
     return normalize(row.layout) if row else default_layout()
 
 
 def layout_for(experiment, user) -> dict:
     """*user*'s arrangement of *experiment*, falling back to their default."""
     from .models import FigureLayout
-    row = FigureLayout.objects.filter(experiment=experiment, user=_reader(user)).first()
+    row = FigureLayout.objects.filter(experiment=experiment, user=account(user)).first()
     return normalize(row.layout) if row else user_default(user)
 
 
@@ -327,7 +323,7 @@ def save(experiment, user, layout) -> dict:
     """Keep *layout* as *user*'s for *experiment*, normalised; returns it."""
     from .models import FigureLayout
     layout = normalize(layout)
-    FigureLayout.objects.update_or_create(experiment=experiment, user=_reader(user),
+    FigureLayout.objects.update_or_create(experiment=experiment, user=account(user),
                                           defaults={"layout": layout})
     return layout
 
@@ -336,7 +332,7 @@ def reset(experiment, user) -> dict:
     """Forget *user*'s arrangement of *experiment*, so their default applies
     again; returns that."""
     from .models import FigureLayout
-    FigureLayout.objects.filter(experiment=experiment, user=_reader(user)).delete()
+    FigureLayout.objects.filter(experiment=experiment, user=account(user)).delete()
     return user_default(user)
 
 
@@ -344,12 +340,12 @@ def save_user_default(user, layout) -> dict:
     """Make *layout* what every experiment *user* has not arranged opens on."""
     from .models import DefaultFigureLayout
     layout = normalize(layout)
-    DefaultFigureLayout.objects.update_or_create(user=_reader(user), defaults={"layout": layout})
+    DefaultFigureLayout.objects.update_or_create(user=account(user), defaults={"layout": layout})
     return layout
 
 
 def reset_user_default(user) -> dict:
     """Forget *user*'s default, so the site's applies again; returns that."""
     from .models import DefaultFigureLayout
-    DefaultFigureLayout.objects.filter(user=_reader(user)).delete()
+    DefaultFigureLayout.objects.filter(user=account(user)).delete()
     return default_layout()

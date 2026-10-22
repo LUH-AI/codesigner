@@ -46,16 +46,6 @@ def _model_available(exp):
     return not exp.env_pending and not settings.REQUIRE_LOGIN
 
 
-def _owner(request):
-    """The account creating an experiment, or None with no accounts.
-
-    `AnonymousUser` is not a row, so it cannot be stored; None is the column's
-    way of saying nobody's.
-    """
-    user = request.user
-    return user if user.is_authenticated else None
-
-
 def _group_by_pk(groups, pk):
     return next((g for g in groups if g.pk == pk), None)
 

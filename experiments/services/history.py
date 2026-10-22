@@ -17,6 +17,8 @@ import copy
 from django.utils import timezone
 from django.utils.dateparse import parse_datetime
 
+from experiments.models import account
+
 #: Every kind of entry, and what its payload holds. Kinds nothing records yet
 #: are here so the file format and the timeline know them before they exist.
 KINDS = {
@@ -48,10 +50,6 @@ def _trials(exp) -> int:
     return len(((exp.data.result or {}).get("data")) or [])
 
 
-def _actor(user):
-    return user if getattr(user, "is_authenticated", False) else None
-
-
 def record(exp, kind, *, user=None, run=None, **payload):
     """Write one entry in *exp*'s history. Returns it, or None for a draft:
     what is done while setting one up is part of how it was set up, which its
@@ -64,7 +62,7 @@ def record(exp, kind, *, user=None, run=None, **payload):
         return None
     return ExperimentEvent.objects.create(
         data=exp.data, at=timezone.now(), at_trial=_trials(exp), kind=kind,
-        payload=copy.deepcopy(payload), run=run, actor=_actor(user))
+        payload=copy.deepcopy(payload), run=run, actor=account(user))
 
 
 def record_prior(exp, hp, old, new, *, user=None):
@@ -93,7 +91,7 @@ def record_prior(exp, hp, old, new, *, user=None):
     if folding and last is not None:
         last.kind, last.at, last.at_trial = kind, timezone.now(), _trials(exp)
         last.payload = {"hyperparameter": hp, "old": old, "new": copy.deepcopy(new)}
-        last.actor = _actor(user) or last.actor
+        last.actor = account(user) or last.actor
         last.save(update_fields=["kind", "at", "at_trial", "payload", "actor"])
         return last
     return record(exp, kind, user=user, hyperparameter=hp, old=old, new=new)
