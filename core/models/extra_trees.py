@@ -37,7 +37,7 @@ class ExtraTrees(OutputBaseModel):
 
 
 class ExtraTreesModel(Tunable, ExtraTrees):
-    """Extra trees, tuned over the forest's four parameters and, for a
+    """Extra trees, tuned over the forest's four hyperparameters and, for a
     classification, whether to weight classes by their rarity."""
 
     def get_config_space(self, seed: int = 0) -> ConfigurationSpace:

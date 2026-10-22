@@ -542,7 +542,7 @@ def compute_local_effects(
         return [], [], (explainer.warning
                         or "Not enough trials for local explanations.")
 
-    params = list(config_space.keys())
+    names = list(config_space.keys())
     rows = []
     # Positions, not just the trials: the sample skips trials, so a row's
     # place in this list says nothing about which trial it explains, and the
@@ -557,7 +557,7 @@ def compute_local_effects(
 
     if not rows:
         return [], [], "No trials to explain."
-    return params, rows, None
+    return names, rows, None
 
 
 def compute_partial_dependence(
@@ -1335,15 +1335,15 @@ def compute_hp_game(
     those of an order-2 fit — so raising it would change what every stored
     importance means.
     """
-    params = list(config_space.keys())
+    names = list(config_space.keys())
 
     if explainer is None:
         explainer = _build_explainer(config_space, trials, metric_name, seed)
     build_warning = explainer.warning
 
     if explainer.insufficient:
-        uniform = 1.0 / len(params) if params else 0.0
-        return {p: uniform for p in params}, build_warning, {}, [], 0.0
+        uniform = 1.0 / len(names) if names else 0.0
+        return {p: uniform for p in names}, build_warning, {}, [], 0.0
 
     warning = None
     if explainer.hs is not None:
@@ -1351,11 +1351,11 @@ def compute_hp_game(
         try:
             moebius_iv = getattr(hs, game)(
                 baseline_config=_baseline_config(config_space, baseline),
-                index="Moebius", order=len(params), seed=seed)
+                index="Moebius", order=len(names), seed=seed)
             fsii = hs.get_interaction_values_with_names(
                 MoebiusConverter(moebius_iv)(index="FSII", order=2))
             moebius = _moebius_terms(hs.get_interaction_values_with_names(moebius_iv))
-            raw = {p: abs(fsii.get((p,), 0.0)) for p in params}
+            raw = {p: abs(fsii.get((p,), 0.0)) for p in names}
             total = sum(raw.values())
             if not total:
                 # Every contribution was exactly zero — which happens on a
@@ -1377,7 +1377,7 @@ def compute_hp_game(
                     f"usually means the objective is saturated — try a "
                     f"harder dataset or a wider search space."), {}, [], 0.0
             importance = {k: v / total for k, v in raw.items()}
-            interactions = _extract_pairwise(fsii, params)
+            interactions = _extract_pairwise(fsii, names)
             return importance, None, interactions, moebius, total
         except Exception as e:
             warning = f"HyperSHAP ({game}) failed ({e}) — falling back to surrogate feature importances."
@@ -1391,14 +1391,14 @@ def compute_hp_game(
     if rf is not None:
         importances = rf.feature_importances_
         total = importances.sum() or 1.0
-        return ({p: float(importances[i] / total) for i, p in enumerate(params)},
+        return ({p: float(importances[i] / total) for i, p in enumerate(names)},
                 warning, {}, [], 0.0)
     warning += f" Surrogate fallback also failed ({fit_warning}); showing uniform weights."
-    uniform = 1.0 / len(params) if params else 0.0
-    return {p: uniform for p in params}, warning, {}, [], 0.0
+    uniform = 1.0 / len(names) if names else 0.0
+    return {p: uniform for p in names}, warning, {}, [], 0.0
 
 
-def _extract_pairwise(named: Dict[tuple, float], params: List[str]) -> Dict[str, Dict[str, float]]:
+def _extract_pairwise(named: Dict[tuple, float], names: List[str]) -> Dict[str, Dict[str, float]]:
     """Reshape order-1 and order-2 terms, as
     `HyperSHAP.get_interaction_values_with_names` keys them, into one
     square hyperparameter × hyperparameter grid — `{hp_a: {hp_b: value}}`,
@@ -1408,9 +1408,9 @@ def _extract_pairwise(named: Dict[tuple, float], params: List[str]) -> Dict[str,
     sign and a shared scale between the diagonal and off-diagonal, not a
     share-of-100%.
     """
-    grid = {p: {p: float(named.get((p,), 0.0))} for p in params}
-    for i, a in enumerate(params):
-        for b in params[i + 1:]:
+    grid = {p: {p: float(named.get((p,), 0.0))} for p in names}
+    for i, a in enumerate(names):
+        for b in names[i + 1:]:
             grid[a][b] = grid[b][a] = float(named.get((a, b), 0.0))
     return grid
 

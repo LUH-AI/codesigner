@@ -129,7 +129,7 @@ class Reduced(Tunable, OutputBaseModel):
         import json
         from pathlib import Path
 
-        from .parameters import save_processing
+        from .fitted_model import save_processing
 
         files = list(self.model.save_parameters(fitted.fitted_, directory))
         files += save_processing(fitted.processing_, directory)

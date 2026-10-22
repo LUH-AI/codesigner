@@ -89,7 +89,7 @@ class Keeper:
                 discard(kept)
 
     def __call__(self, trial, fitted):
-        from core import parameters
+        from core import fitted_model
         from core.optimizers.timing import STATUS_SUCCESS
 
         from experiments.models import TrialModel
@@ -104,9 +104,9 @@ class Keeper:
             staging = folder.with_name(folder.name + ".new")
             shutil.rmtree(staging, ignore_errors=True)
             try:
-                files = parameters.save(self.model, fitted, staging)
+                files = fitted_model.save(self.model, fitted, staging)
                 (staging / "trial.json").write_text(self._note(trial, fitted, files))
-            except parameters.NothingToKeep:
+            except fitted_model.NothingToKeep:
                 shutil.rmtree(staging, ignore_errors=True)
                 return
             size = sum(p.stat().st_size for p in staging.iterdir() if p.is_file())
@@ -127,7 +127,7 @@ class Keeper:
         import json
 
         from core.model_export import configuration
-        from core.parameters import classes_of
+        from core.fitted_model import classes_of
 
         from .model_export import evaluation_label
 
