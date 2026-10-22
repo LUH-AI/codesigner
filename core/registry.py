@@ -9,8 +9,6 @@ entirely has to resolve the same names with no Django installation to do it in
 (see `remote/run_experiment.py`). Duplicating the three dicts there instead
 would work until somebody added a model, at which point the cluster would refuse
 that model alone, and say only that it "is not available".
-
-`ui.registry` re-exports this, so the application's own vocabulary is unchanged.
 """
 
 from .metrics import METRICS

@@ -10,7 +10,7 @@ from django.utils.translation import gettext as _
 
 from access.policy import groups_to_choose_from
 from core import datasets
-from core.registry import optimizer_class
+from core.registry import MODELS, optimizer_class
 from experiments.models import Experiment
 from experiments.services import storage
 from experiments.services.settings import SETTING_BOUNDS
@@ -18,7 +18,6 @@ from experiments.services.settings import SETTING_BOUNDS
 from ..experiment_settings import resolve_settings
 from ..figures import FIGURES
 from ..formatting import human
-from ..registry import MODELS
 
 
 _ACTIVE = ["pending", "running"]

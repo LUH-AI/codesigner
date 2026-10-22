@@ -36,7 +36,7 @@ def _drawn(fig: go.Figure | None) -> Any:
 
 def _result(metric_name, scores, *, declared=None):
     """An OptimizationResult over four trials scoring *scores* on *metric_name*."""
-    from ui.registry import OPTIMIZERS
+    from core.registry import OPTIMIZERS
 
     optimizer = OPTIMIZERS["Random Search"]()
     return optimizer.deserialize_result({

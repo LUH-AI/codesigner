@@ -207,7 +207,7 @@ def test_a_crash_with_a_real_cost_is_kept_and_marked():
         [_row(cost=0.5), _row(cost=9.0, status=2)])})
 
     snapshot = io.parse(io.to_bytes(snapshot_from_smac(files)))
-    from ui.registry import OPTIMIZERS
+    from core.registry import OPTIMIZERS
     result = OPTIMIZERS["SMAC"]().deserialize_result(snapshot["result"])
 
     assert [t.failed for t in result.trials] == [False, True]

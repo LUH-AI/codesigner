@@ -10,10 +10,10 @@ from __future__ import annotations
 
 from django.utils.translation import gettext as _
 
+from core.registry import OPTIMIZERS
 from experiments.services import history
 
 from .optimizer_labels import describe_all, grouped
-from .registry import OPTIMIZERS
 
 
 def why_fixed(exp) -> str | None:

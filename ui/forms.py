@@ -9,14 +9,14 @@ from core.datasets import (
     DEFAULT_TEST_SIZE, demo_datasets, forecast_problem, mounted_models, orderable_columns,
     read_dataset, target_of, time_order_problem,
 )
-from core.splits import MIN_FOLDS
 from core.model_source import inspect_model_source
+from core.registry import MODELS
+from core.splits import MIN_FOLDS
 from experiments.models import UNTITLED
 from experiments.services import timestamps
 
 from . import times
 from .figures import FIGURES, autocompute_key, deferred_computations
-from .registry import MODELS
 from .validators import validate_dataset_upload, validate_model_upload
 
 

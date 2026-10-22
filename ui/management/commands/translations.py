@@ -61,7 +61,7 @@ SECTIONS = (
         "ui/templates/ui/_",
     )),
     ("Optimizer and model settings", (
-        "ui/optimizer_labels.py", "ui/forms.py", "ui/registry.py",
+        "ui/optimizer_labels.py", "ui/forms.py",
         "ui/templates/ui/experiment_settings", "ui/templates/ui/default_experiment",
     )),
     ("Panels — groups, jobs, site administration", (

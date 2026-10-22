@@ -31,7 +31,7 @@ def _an_experiment():
 
 def test_a_run_stores_the_search_space():
     """After a run the row carries a space, and it is the model's own."""
-    from ui.registry import MODELS
+    from core.registry import MODELS
     from experiments.services.run import create_run, execute_run
 
     exp = _an_experiment()

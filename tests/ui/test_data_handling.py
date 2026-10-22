@@ -225,7 +225,7 @@ def test_a_run_is_given_the_experiments_processing(client):
     choice on the page is the one its trials are scored under.
     How: creates iris with an SVM, sets scaling off, and builds the run's model."""
     from core import io
-    from ui.registry import METRICS, MODELS, OPTIMIZERS
+    from core.registry import METRICS, MODELS, OPTIMIZERS
     from experiments.services.snapshot import snapshot_from_experiment
 
     from tests.conftest import DATASETS_DIR

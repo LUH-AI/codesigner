@@ -12,7 +12,7 @@ from django.views.decorators.http import require_POST
 
 from access.policy import DELETE, EDIT, EXPORT, RENAME, RUN, SHARE, VIEW, policy
 from core.modelhost import deadline
-from core.registry import optimizer_class
+from core.registry import MODELS, optimizer_class
 from core import priors as prior_math
 from experiments.models import Experiment
 from experiments.services import model_export
@@ -28,7 +28,6 @@ from ..figures import (
 from ..figures.catalog import Trials
 from ..optimizer_labels import STOPPED_BY_LABELS
 from ..permissions import experiment_view
-from ..registry import MODELS
 from .analytics import _analytics_absent
 from .common import (
     _ACTIVE, _figure_plots, _model_available, _ownership, _poll_seconds,

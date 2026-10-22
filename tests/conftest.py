@@ -252,7 +252,7 @@ def post_new_experiment(client, data, **kwargs):
     a redirect to the new experiment's dashboard."""
     from django.urls import reverse
 
-    from ui.registry import OPTIMIZERS
+    from core.registry import OPTIMIZERS
 
     draft = start_draft(client)
     response = client.post(reverse("ui:setup", args=[draft.pk]), data, **kwargs)

@@ -8,10 +8,10 @@ from django.shortcuts import redirect, render
 
 from access.policy import visible_experiments
 from core import datasets, tasks
+from core.registry import MODELS
 from experiments.models import Experiment
 
 from ..forms import EVALUATION_SCHEMES
-from ..registry import MODELS
 from .common import _owner
 
 

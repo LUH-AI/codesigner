@@ -12,20 +12,20 @@ from django.views.decorators.http import require_POST
 
 from access.policy import RUN, VIEW
 from core import analytics, forecasting, io, tasks
+from core.registry import METRICS, MODELS, OPTIMIZERS
 from core import priors as prior_math
+from experiments.services.snapshot import config_space_for, rebuild_experiment, rebuild_result
 from experiments.services import analytics as analytics_service
 from experiments.services import priors as prior_service
 from experiments.services import snapshot as snapshot_adapter
-from experiments.services.snapshot import config_space_for, rebuild_experiment, rebuild_result
 
 from ..experiment_settings import resolve_settings
 from ..figures import (
-    HP_GAME_FIELDS, UNCERTAINTY_SCALE, hyperparameter_ablation_plot,
-    hyperparameter_importance_plot, forecast_plot, hyperparameter_progress_plot,
-    local_effects_plot, partial_dependence_plot, slice_span,
+    HP_GAME_FIELDS, UNCERTAINTY_SCALE, forecast_plot, hyperparameter_ablation_plot,
+    hyperparameter_importance_plot, hyperparameter_progress_plot, local_effects_plot,
+    partial_dependence_plot, slice_span,
 )
 from ..permissions import experiment_view
-from ..registry import METRICS, MODELS, OPTIMIZERS
 from .common import _baseline_index, _figure_plots, _plot_json, _shown_figures, _target_name
 from .priors import _acquisition_function, _slice_model
 

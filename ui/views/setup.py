@@ -19,6 +19,7 @@ from core import io, provenance, tasks
 from core.datasets import demo_datasets
 from core.metrics import metrics_for
 from core.optimizers.trial import offers_probabilities
+from core.registry import MODELS, OPTIMIZERS
 from experiments.services import history, modelenv, processing, storage
 from experiments.services.run import resolve_seed
 from experiments.services import snapshot as snapshot_adapter
@@ -29,7 +30,6 @@ from ..forms import (
     EVALUATION_BACKTEST, EVALUATION_HOLDOUT, EVALUATION_KFOLD, NewExperimentForm,
 )
 from ..permissions import ONLY, experiment_view
-from ..registry import MODELS, OPTIMIZERS
 from .. import setup_steps as steps
 from .common import _group_by_pk, _settle_storage
 from .dashboard import _prior_only_context, experiment_header
