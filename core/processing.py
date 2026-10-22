@@ -27,6 +27,8 @@ Imports nothing from this package, so an exported model carries this module as
 its processing step.
 """
 
+from sklearn.base import BaseEstimator
+
 AUTO = "auto"
 
 #: Every choice, in the order the Data Handling page offers them.
@@ -97,7 +99,7 @@ def resolve(processing, model):
     return plan, overruled
 
 
-class Processing:
+class Processing(BaseEstimator):
     """The processing a plan (see `resolve`) describes, for columns of *kinds*.
 
     A scikit-learn transformer: `fit` learns the medians, the scale and the
@@ -111,14 +113,6 @@ class Processing:
     def __init__(self, plan=None, kinds=()):
         self.plan = dict(plan or {})
         self.kinds = tuple(kinds)
-
-    def get_params(self, deep=True):
-        return {"plan": self.plan, "kinds": self.kinds}
-
-    def set_params(self, **params):
-        for key, value in params.items():
-            setattr(self, key, value)
-        return self
 
     # ── what it does ────────────────────────────────────────────────────
 
@@ -193,7 +187,7 @@ class Processing:
         return self._parts() is None
 
 
-class TextCategories:
+class TextCategories(BaseEstimator):
     """Label codes as text, for a learner that takes a category as a word.
 
     CatBoost takes a category as text or a whole number and refuses NaN in
@@ -205,14 +199,6 @@ class TextCategories:
 
     def __init__(self, columns=()):
         self.columns = columns
-
-    def get_params(self, deep=True):
-        return {"columns": self.columns}
-
-    def set_params(self, **params):
-        for key, value in params.items():
-            setattr(self, key, value)
-        return self
 
     def fit(self, X, y=None):
         return self

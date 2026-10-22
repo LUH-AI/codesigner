@@ -21,8 +21,8 @@ exported forecaster carries this module as it is.
 import warnings
 
 import numpy as np
-
 from codesigner_model import OutputBaseModel
+from sklearn.base import BaseEstimator
 
 from .processing import Processing
 
@@ -51,20 +51,11 @@ def steps_ahead(X, forecast):
     return keys, ahead
 
 
-class _Estimator:
+class _Estimator(BaseEstimator):
     """What every forecaster here shares: its parameters are its constructor's
     arguments, as scikit-learn expects."""
 
-    _params: tuple[str, ...]
     forecast: dict
-
-    def get_params(self, deep=True):
-        return {name: getattr(self, name) for name in self._params}
-
-    def set_params(self, **params):
-        for key, value in params.items():
-            setattr(self, key, value)
-        return self
 
     def _history(self, X, y):
         """Each series' values, oldest first, as the training rows give them."""
@@ -78,7 +69,6 @@ class SeasonalNaiveForecaster(_Estimator):
     again (``"last"``), or the straight line from the first value to the last
     (``"drift"``). Its only state is the history itself."""
 
-    _params = ("strategy", "forecast")
 
     def __init__(self, strategy="seasonal", forecast=None):
         self.strategy = strategy
@@ -115,7 +105,6 @@ class ETSForecaster(_Estimator):
     every value positive; a series without either gets the next simpler model.
     """
 
-    _params = ("trend", "damped", "seasonal", "forecast")
 
     def __init__(self, trend="add", damped=False, seasonal="add", forecast=None):
         self.trend = trend
@@ -175,7 +164,6 @@ class ReducedForecaster(_Estimator):
     examples are made here.
     """
 
-    _params = ("model", "hyperparameters", "lags", "forecast", "plan", "task", "seed")
 
     def __init__(self, model=None, hyperparameters=None, lags=3, forecast=None, plan=None,
                  task="regression", seed=0):

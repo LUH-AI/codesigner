@@ -13,6 +13,7 @@ as it is.
 """
 
 import numpy as np
+from sklearn.base import BaseEstimator
 
 
 def categorical_mask(data, most_labels):
@@ -37,21 +38,13 @@ def categorical_columns(data):
     return [i for i, kind in enumerate(data["kinds"]) if kind == "categorical"]
 
 
-class LabelCoded:
+class LabelCoded(BaseEstimator):
     """A classifier that knows only the labels 0..k-1, answering in the
     dataset's own labels: they are encoded on the way in and decoded on the
     way out. Sample weights pass straight through."""
 
     def __init__(self, classifier=None):
         self.classifier = classifier
-
-    def get_params(self, deep=True):
-        return {"classifier": self.classifier}
-
-    def set_params(self, **params):
-        for key, value in params.items():
-            setattr(self, key, value)
-        return self
 
     def fit(self, X, y, **fit_args):
         from sklearn.preprocessing import LabelEncoder
