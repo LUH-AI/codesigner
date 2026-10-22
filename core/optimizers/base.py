@@ -864,10 +864,6 @@ class BaseOptimizer(ABC):
         # Configurations to evaluate before searching for any — see
         # `evaluate_requested`. None searches from the first trial.
         configurations=None,
-        # Beliefs stated in a view of the space rather than on one axis — see
-        # `core.projected_prior`. Ignored, like `priors`, by a search with no
-        # acquisition function to weight.
-        projected_priors=None,
     ) -> OptimizationResult: ...
 
     def serialize_result(self, result: "OptimizationResult") -> dict:

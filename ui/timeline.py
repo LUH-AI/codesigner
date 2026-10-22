@@ -96,32 +96,6 @@ def prior_rows(prior) -> list:
     return rows
 
 
-def projected_rows(record) -> list:
-    """A projected prior as rows, the way its card sets it: where it was drawn,
-    through which points, its position, spread and width, and how it fades."""
-    if not record:
-        return [(_("Distribution"), _("none"))]
-    params = record.get("params") or {}
-    view = str(_VIEWS_SHOWN.get(record.get("view"), record.get("view")))
-    if record.get("view") == "axes":
-        view += " (" + ", ".join(record.get("hyperparameters") or []) + ")"
-    points = "; ".join("(" + ", ".join(_value(v) for v in point) + ")"
-                       for point in record.get("points") or [])
-    rows = [(_("Drawn in"), view), (_("Points"), points),
-            (_("Distribution"), str(_PRIOR_KINDS_SHOWN.get("normal")))]
-    if params.get("mean"):
-        rows.append((_("Position"), ", ".join(_value(v) for v in params["mean"])))
-    if params.get("spread"):
-        rows.append((_("Spread"), ", ".join(_value(v) for v in params["spread"])))
-    if params.get("width") is not None:
-        rows.append((_("Width"), _value(params["width"])))
-    return rows + prior_rows(dict(record, kind="normal", params={}))[1:]
-
-
-#: Where a projected prior was drawn, by the names the cube's method picker uses.
-_VIEWS_SHOWN = {"axes": gettext_lazy("HP Space"), "pca": "PCA", "pls": "PLS"}
-
-
 #: The stopping criteria, in the run form's order, by short names for what the
 #: form asks ("Run until… this many trials have run").
 _CRITERIA = {
@@ -316,19 +290,6 @@ def _event_entry(exp, event):
                     "%(new)s.") % {"hp": hp, "new": describe_prior(p.get("new"))}
         details = [(_("Hyperparameter"), hp), (_("Before"), prior_rows(p.get("old"))),
                    (_("After"), prior_rows(p.get("new")))]
-    elif kind == "projected_prior_stated":
-        new = p.get("new") or {}
-        summary = _("Prior drawn in %(label)s.") % {"label": new.get("label") or "?"}
-        details = [(_("Prior"), projected_rows(new))]
-    elif kind == "projected_prior_edited":
-        new = p.get("new") or {}
-        summary = _("Prior drawn in %(label)s changed.") % {"label": new.get("label") or "?"}
-        details = [(_("Before"), projected_rows(p.get("old"))),
-                   (_("After"), projected_rows(new))]
-    elif kind == "projected_prior_withdrawn":
-        old = p.get("old") or {}
-        summary = _("Prior drawn in %(label)s withdrawn.") % {"label": old.get("label") or "?"}
-        details = [(_("Was"), projected_rows(old))]
     elif kind == "optimizer_params_changed":
         summary = _("Optimizer settings changed.")
         details = [(_("Before"), optimizer_summary(exp.data.optimizer_name, p.get("old"))),
@@ -446,8 +407,6 @@ def _run_entry(exp, run, number):
         (_("Time in trials"), _duration(run.trial_seconds) if run.trial_seconds else None),
         (_("Error"), run.error or None),
         (_("Priors"), [(hp, describe_prior(prior)) for hp, prior in (run.priors or {}).items()]),
-        (_("Priors drawn in a view"), [(record.get("label") or "?", record.get("view") or "")
-                                       for record in run.projected_priors or []]),
         # A configuration picked off the page rather than found by the search.
         (_("Proposal"), [(name, _value(value)) for requested in run.configurations or []
                          for name, value in sorted((requested.get("config") or {}).items())]),

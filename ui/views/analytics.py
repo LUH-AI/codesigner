@@ -18,7 +18,6 @@ from experiments.services import priors as prior_service
 from experiments.services import snapshot as snapshot_adapter
 from experiments.services.snapshot import config_space_for, rebuild_experiment, rebuild_result
 
-from .. import projected
 from ..experiment_settings import resolve_settings
 from ..figures import (
     HP_GAME_FIELDS, UNCERTAINTY_SCALE, hyperparameter_ablation_plot,
@@ -28,7 +27,7 @@ from ..figures import (
 from ..permissions import experiment_view
 from ..registry import METRICS, MODELS, OPTIMIZERS
 from .common import _baseline_index, _figure_plots, _plot_json, _shown_figures, _target_name
-from .priors import _acquisition_function, _projected_weights, _slice_model
+from .priors import _acquisition_function, _slice_model
 
 
 @experiment_view(VIEW)
@@ -363,14 +362,6 @@ def surrogate_prediction(request, exp):
                             "exponent": decayed["exponent"],
                             "categorical": kind == "categorical"}
     answer["priors"] = priors
-    # Each numeric hyperparameter's range, which is HP Space's legal box: a
-    # point drawn for a prior outside it is no configuration at all.
-    answer["bounds"] = {name: [float(hp.lower), float(hp.upper)]  # pyright: ignore[reportAttributeAccessIssue]
-                        for name, hp in config_space.items()
-                        if hasattr(hp, "lower") and getattr(hp, "choices", None) is None}
-    # And every prior drawn in the cube itself, as one weight per sample.
-    answer["projected_weights"] = _projected_weights(
-        exp, built, config_space, projected.sample_vectors(answer) if answer.get("vectors") else None)
     return JsonResponse(answer)
 
 

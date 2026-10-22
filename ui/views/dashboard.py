@@ -19,11 +19,11 @@ from experiments.services import model_export
 from experiments.services.snapshot import config_space_for, rebuild_experiment, rebuild_result
 
 from . import analytics
-from .. import optimizer_form, projected
+from .. import optimizer_form
 from ..experiment_settings import resolve_settings
 from ..figures import (
     ACCENT_COLOR, HP_GAME_FIELDS, HP_GAME_HELP, HP_GAME_LABELS, MARKER_COLOR, NEGATIVE_COLOR,
-    PRIOR_COLOR, PROPOSAL_COLOR, SELECTION_COLOR, autocompute_key, deferred_computations,
+    PROPOSAL_COLOR, SELECTION_COLOR, autocompute_key, deferred_computations,
 )
 from ..figures.catalog import Trials
 from ..optimizer_labels import STOPPED_BY_LABELS
@@ -279,14 +279,11 @@ def _computed_version(exp, result):
     trials under its settings, so an answer is good for exactly as long as the
     trials, the run they came from and the settings stay as they were. Anything
     else — the reader's prior, the selected trial, the hyperparameter shown — is
-    part of the question each figure asks, and is in its own key. Except the
-    priors drawn in the configuration cube: they weigh whole configurations, so
-    the acquisition figure's answer carries their weight, and is only good while
-    they stand as they were.
+    part of the question each figure asks, and is in its own key.
     """
     import hashlib
     last = exp.runs.order_by("-id").values_list("pk", "status").first()
-    digest = hashlib.sha1(json.dumps([resolve_settings(exp), exp.data.projected_priors or []],
+    digest = hashlib.sha1(json.dumps(resolve_settings(exp),
                                      sort_keys=True, default=str).encode()).hexdigest()[:12]
     return {"experiment": exp.pk,
             "version": f"{len(result.trials)}:{last}:{digest}"}
@@ -462,11 +459,6 @@ def _detail_context(request, exp):
         # And only one that can be asked what it would run next can offer the
         # configuration cube's Requery — see `next_trials`.
         "can_requery": hasattr(optimizer_class(exp.data.optimizer_name), "slice_challengers"),
-        # Drawing a prior in the cube: for an optimizer a prior can steer, and
-        # a reader who may change what the next run searches under.
-        "can_draw_priors": (bool(getattr(optimizer_class(exp.data.optimizer_name),
-                                         "fits_surrogate", False))
-                            and policy().may(request, exp, EDIT)),
         **_prior_judging_context(exp),
         "run_default_metric": exp.data.current_metric or (metric_names[0] if metric_names else None),
         # What the deadline fields open on. The deployment's number, so an
@@ -589,9 +581,6 @@ def _detail_context(request, exp):
     # Metric-independent figures are still drawn once, here.
     opening_metric = context["run_default_metric"]
     config_space = config_space_for(built)
-    # The priors drawn in the configuration cube, as their card lists them.
-    context["projected_priors"] = [projected.summary(record, config_space)
-                                   for record in exp.data.projected_priors or []]
     metric_plots = {
         opening_metric: _figure_plots(
             result, [f for f in figures if f.per_metric], opening_metric,
@@ -651,10 +640,7 @@ def _detail_context(request, exp):
         # in the script, so the page restates no colour — see NEGATIVE_COLOR.
         selection_colors={"base": MARKER_COLOR, "selected": SELECTION_COLOR,
                           "comparison": ACCENT_COLOR,
-                          "failure": NEGATIVE_COLOR, "proposal": PROPOSAL_COLOR,
-                          # The priors drawn in the cube, in the prior figure's
-                          # own colour.
-                          "prior": PRIOR_COLOR},
+                          "failure": NEGATIVE_COLOR, "proposal": PROPOSAL_COLOR},
         # The one game selector, and what each game asks — resolved here rather
         # than in the template because the labels are lazy translations and
         # `json_script` cannot serialize those.

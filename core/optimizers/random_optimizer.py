@@ -39,7 +39,6 @@ class RandomOptimizer(BaseOptimizer):
         # the reader stated without having to know which optimizer will get it.
         priors=None,
         configurations=None,
-        projected_priors=None,
     ) -> OptimizationResult:
         splits, previous_result, collector = self._begin(
             previous_result, primary_metric, n_trials, stopping, splits,

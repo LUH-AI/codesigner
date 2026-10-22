@@ -174,7 +174,6 @@ def test_the_declared_actions_match_what_the_routes_do():
         "experiment_detail": access_policy.VIEW,
         "trial_panel": access_policy.VIEW,
         "proposal_panel": access_policy.VIEW,
-        "projected_prior_preview": access_policy.VIEW,
         "trial_ablation": access_policy.VIEW,
         "trial_traceback": access_policy.VIEW,
         "partial_dependence": access_policy.VIEW,
@@ -190,8 +189,6 @@ def test_the_declared_actions_match_what_the_routes_do():
         "env_status": access_policy.VIEW,
         "experiment_run": access_policy.RUN,
         "run_proposal": access_policy.RUN,
-        "state_projected_prior": access_policy.EDIT,
-        "withdraw_projected_prior": access_policy.EDIT,
         "experiment_optimizer": access_policy.EDIT,
         "experiment_rename": access_policy.RENAME,
         # Computing the explanations a cancelled run skipped: it spends this

@@ -49,12 +49,7 @@ def decayed_prior(exp, hp_name, trials, inside_design=False):
     curves in the browser would be a second definition of a decay to keep in
     step with the first. One number crosses instead.
     """
-    return decayed(exp, (exp.data.priors or {}).get(hp_name), trials, inside_design)
-
-
-def decayed(exp, stated, trials, inside_design=False):
-    """`decayed_prior` for any stated belief with a `decay` and an `at_trial`
-    — a hyperparameter's, or one drawn in the configuration cube."""
+    stated = (exp.data.priors or {}).get(hp_name)
     if not stated:
         return None
     budget = run_budget(exp, int(stated.get("at_trial") or 0))

@@ -13,8 +13,6 @@ from shapiq.game_theory import MoebiusConverter
 from .metrics import metric_for
 
 if TYPE_CHECKING:
-    import numpy as np
-
     from .optimizers.base import TrialResult
 
 #: HyperSHAP's global "explanation games" this app surfaces, each answering
@@ -185,11 +183,6 @@ class IncumbentSlice(NamedTuple):
     #: no cloud was sampled.
     cloud: Optional[tuple]
     warning: Optional[str]
-    #: The configurations the slice and the cloud were predicted at, in
-    #: ConfigSpace's vectorized form — what a prior over whole configurations
-    #: is evaluated at to weigh them.
-    slice_rows: Optional["np.ndarray"] = None
-    cloud_rows: Optional["np.ndarray"] = None
 
 
 def predict_mean_std(surrogate, rows):
@@ -1046,7 +1039,6 @@ def compute_incumbent_slice(
     # every one of them at once — three lists the browser indexes in
     # lockstep must not be able to fall out of step here.
     kept_values, kept_positions, rows = [], [], []
-    cloud_rows = None
     positions = np.asarray(hp.to_vector(np.asarray(grid)), dtype=float).ravel()
     for value, position in zip(grid, positions):
         try:
@@ -1061,8 +1053,7 @@ def compute_incumbent_slice(
     if len(rows) < 2:
         return IncumbentSlice([], [], [], [], None, None, None, f"No valid configurations along {hp_name}.")
 
-    slice_rows = np.array(rows)
-    mu, sigma = predict_mean_std(rf, slice_rows)
+    mu, sigma = predict_mean_std(rf, np.array(rows))
 
     observed = [v for _, v in pair_trials_with_scores(
         config_space, trials, metric_name, values=values)]
@@ -1113,14 +1104,12 @@ def compute_incumbent_slice(
             projected = ([float(sampled[i, column]) for i in kept],
                          [float(cloud_mu[i]) for i in kept],
                          [float(cloud_sigma[i]) for i in kept])
-            cloud_rows = sampled[kept]
         except Exception:  # noqa: BLE001 — a shadow must not cost the slice
             projected = None
 
     return IncumbentSlice(kept_values, kept_positions,
                           [float(v) for v in mu], [float(v) for v in sigma],
-                          eta, incumbent, projected, None,
-                          slice_rows=slice_rows, cloud_rows=cloud_rows)
+                          eta, incumbent, projected, None)
 
 
 def _skipped_games(metrics, reason: str) -> Dict[str, tuple]:

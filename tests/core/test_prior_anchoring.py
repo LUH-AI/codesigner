@@ -69,8 +69,8 @@ def test_a_waiting_prior_is_applied_after_the_design_not_before():
     """
     body = _after_the_facade()
 
-    # Every stated belief, drawn in the cube or on one axis, decides together.
-    assert "waiting = _waits_for_the_design(priors, projected_priors)" in body
+    # Every stated belief decides together.
+    assert "waiting = _waits_for_the_design(priors)" in body
     assert "if not waiting:" in body, "applied up front only when nothing waits"
     assert "len(smac.runhistory) >= design_end" in body, (
         "the wait has to be measured against the count the anchor is taken from")
@@ -96,5 +96,3 @@ def test_one_waiting_belief_decides_for_the_statement():
     assert not _waits_for_the_design({"a": {"delay_decay": False}})
     assert not _waits_for_the_design({})
     assert not _waits_for_the_design(None)
-    # A prior drawn in the configuration cube is part of the same statement.
-    assert _waits_for_the_design({"a": {"delay_decay": False}}, [{"delay_decay": True}])

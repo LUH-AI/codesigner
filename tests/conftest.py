@@ -56,7 +56,7 @@ class FakeOptimizer(BaseOptimizer):
                  metrics: dict, primary_metric: str,
                  n_trials=None, previous_result=None, seed: int = 0, cancel_event=None,
                  stopping: dict | None = None, splits=None,
-                 priors=None, configurations=None, projected_priors=None):
+                 priors=None, configurations=None):
         from core.splits import holdout
         splits = splits if splits is not None else holdout(X_train, y_train, X_val, y_val)
         config_space = model.get_config_space(seed=seed)

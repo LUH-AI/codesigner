@@ -576,9 +576,8 @@ def test_everything_on_the_acquisition_panel_shares_one_divisor():
     source = _script()
 
     # The weight is still peak-normalized first, which is what stops a sharp
-    # prior squashing the unweighted curve to invisibility — the whole weight,
-    # this hyperparameter's prior times any drawn in the cube.
-    assert "peak = maxOf(combined)" in source
+    # prior squashing the unweighted curve to invisibility.
+    assert "peak = maxOf(weights)" in source
 
     # And the divisor is the largest of everything the panel draws, not the
     # curve's own maximum. The candidates outscore the slice by several times,
@@ -725,10 +724,8 @@ def test_a_uniform_prior_weights_nothing_and_casts_no_ghost():
     source = _script()
 
     assert 'prior.kind !== "uniform"' in source
-    # Only while something weighs the curve: this hyperparameter's own prior,
-    # or one drawn in the cube.
-    assert "weighing = stated || !!drawn;" in source
-    assert "fiction.push(weighing" in source
+    # Only while the prior weighs the curve.
+    assert "fiction.push(stated" in source
 
 
 def test_uniform_cannot_decay():
@@ -1460,11 +1457,10 @@ def test_the_sampled_envelope_keeps_an_unweighted_ghost(client):
 
 def test_the_ghost_is_empty_without_a_prior(client):
     """With nothing stated it would lie exactly under the weighted curve, which
-    is a second line in the legend claiming to say something. Something stated
-    is this hyperparameter's prior, or a prior drawn in the cube."""
+    is a second line in the legend claiming to say something."""
     source = _script()
 
-    assert "bare = (stated && cloudWeight) || drawn ? [] : null;" in source
+    assert "bare = stated && cloudWeight ? [] : null;" in source
     assert "values.cloudBare || []" in source
 
 

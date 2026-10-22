@@ -41,7 +41,6 @@ acquisition = [
     { figure = "acquisition_slice",  width = 2, column = 1 },
     { figure = "configuration_cube", width = 2, column = 3 },
     { figure = "prior",              width = 2, column = 1 },
-    { figure = "projected_prior",    width = 2, column = 3 },
 ]
 
 misc = [

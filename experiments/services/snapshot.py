@@ -102,7 +102,6 @@ def data_from_snapshot(snapshot: dict, dataset_file=None, model_file=None,
         processing=choices_of((snapshot.get("dataset") or {}).get("processing")),
         config_space=snapshot.get("space"),
         priors=snapshot.get("priors") or {},
-        projected_priors=snapshot.get("projected_priors") or [],
         result=snapshot.get("result"),
     )
 
@@ -166,7 +165,6 @@ def _restore_runs(exp: Experiment, recorded: list) -> None:
             stopped_by=entry.get("stopped_by") or "",
             events=entry.get("events") or [],
             priors=entry.get("priors") or {},
-            projected_priors=entry.get("projected_priors") or [],
             configurations=entry.get("configurations") or [],
             trial_timeout=entry.get("trial_timeout") or {},
             created_at=_when(entry.get("created_at")),
@@ -286,11 +284,6 @@ def snapshot_from_experiment(exp: Experiment, *, provenance: bool = False) -> di
     if data.priors:
         snapshot["priors"] = {name: _prior_record(stated)
                               for name, stated in sorted(data.priors.items())}
-    # Beside them, for the same reason: beliefs drawn in a view of the space,
-    # each a whole record — the projection it was drawn in included, since the
-    # belief is only what it was in that projection.
-    if data.projected_priors:
-        snapshot["projected_priors"] = list(data.projected_priors)
     if provenance:
         _add_provenance(snapshot, exp, dataset, model_path)
     snapshot["result"] = data.result
@@ -451,7 +444,6 @@ def _run_record(index: int, run) -> dict:
         # What it searched under, as it was then: the beliefs stated, and how
         # long a trial was allowed.
         "priors": run.priors or {},
-        "projected_priors": run.projected_priors or [],
         "trial_timeout": run.trial_timeout or {},
         # What it was told to evaluate rather than search for.
         "configurations": run.configurations or [],

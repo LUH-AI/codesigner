@@ -21,7 +21,6 @@ from smac.runhistory import StatusType
 from smac.runhistory.dataclasses import TrialInfo, TrialValue
 from smac.utils.configspace import convert_configurations_to_array
 
-from .. import projected_prior
 from ..analytics import compute_hp_games, pair_trials_with_scores
 from ..metrics import metric_for, to_cost
 from ..paths import is_safe_relative
@@ -89,15 +88,14 @@ def _when(report, smac):
             "at": datetime.now(timezone.utc).isoformat()}
 
 
-def _waits_for_the_design(priors, projected=None) -> bool:
+def _waits_for_the_design(priors) -> bool:
     """Whether any stated belief asked to start counting after the design.
 
     Any, not all: one weight carries the whole statement — `_apply_priors`
     puts every belief into a single prior — so there is one moment to apply it
     at, and a belief that asked to wait is the one that decides it.
     """
-    return any(bool((stated or {}).get("delay_decay"))
-               for stated in list((priors or {}).values()) + list(projected or []))
+    return any(bool((stated or {}).get("delay_decay")) for stated in (priors or {}).values())
 
 
 def scenario_budget(trial_offset, max_trials=None) -> int:
@@ -746,7 +744,7 @@ class SMACOptimizer(BaseOptimizer):
 
     def slice_challengers(self, config_space, trials, metric_name: str, seed: int = 0,
                           priors=None, count=SLICE_CANDIDATES, previous_result=None,
-                          budget=None, with_walks=False, projected_priors=None):
+                          budget=None, with_walks=False):
         """What this optimizer would ask for next, asked of the optimizer.
 
         Not a lookalike. The facade is built by `_facade` — the same call a run
@@ -780,8 +778,7 @@ class SMACOptimizer(BaseOptimizer):
         try:
             with self._rebuilt(config_space, trials, metric_name, seed, previous_result,
                                len(trials) + max(count, 1), "ranking candidates") as (smac, scenario):
-                self._apply_priors(smac, scenario, config_space, priors, budget=budget,
-                                   projected=projected_priors)
+                self._apply_priors(smac, scenario, config_space, priors, budget=budget)
                 walks = _record_walks(smac) if with_walks else None
                 asked = [smac.ask() for _ in range(count)]
             configs = [dict(info.config) for info in asked]
@@ -795,7 +792,7 @@ class SMACOptimizer(BaseOptimizer):
 
     def evaluate_prior(self, config_space, trials, metric_name: str, seed: int = 0,
                        priors=None, tolerance: float = 0.15, previous_result=None,
-                       budget=None, top_k: int = 10, projected_priors=None):
+                       budget=None, top_k: int = 10):
         """Ask this run's optimizer whether the stated belief is worth acting on.
 
         DynaBO's safeguard, run on demand rather than at launch. A belief that
@@ -829,7 +826,7 @@ class SMACOptimizer(BaseOptimizer):
         records whether it compared anything, which is how the two are told
         apart.
         """
-        if not priors and not projected_priors:
+        if not priors:
             return {"verdict": "unjudged", "reason": "no prior is stated"}
         if not trials:
             return {"verdict": "unjudged",
@@ -858,9 +855,7 @@ class SMACOptimizer(BaseOptimizer):
             with self._rebuilt(config_space, trials, metric_name, seed, previous_result,
                                len(trials) + 1, "judging a prior") as (smac, scenario):
                 applied = self._apply_priors(
-                    smac, scenario, config_space, priors, budget=budget,
-                    projected=projected_priors,
-                    acceptance=policy)
+                    smac, scenario, config_space, priors, budget=budget, acceptance=policy)
         except Exception as error:  # noqa: BLE001 — a diagnostic must not cost the figure
             logger.warning("Could not judge the stated prior: %s", error)
             return {"verdict": "unjudged", "reason": str(error)}
@@ -906,7 +901,7 @@ class SMACOptimizer(BaseOptimizer):
         return grid, grid
 
     def _apply_priors(self, smac, scenario, config_space, priors, budget=None,
-                      acceptance=None, projected=None):
+                      acceptance=None):
         """Hand whatever the reader stated to the search, before it asks.
 
         *priors* is `{hyperparameter: {knots, exponent, decay}}` — the density
@@ -923,11 +918,6 @@ class SMACOptimizer(BaseOptimizer):
         uniform — and separate priors would also multiply as an ensemble, which
         means something different from a single joint statement.
 
-        *projected* are beliefs stated in a view of the space rather than on
-        one axis (see `core.projected_prior`): each a prior over whole
-        configurations, multiplied with the tabulated one into the same single
-        prior, so every belief has to hold at once.
-
         Reported and skipped rather than raised: a prior that cannot be applied
         should cost the reader their prior, not their run.
 
@@ -937,7 +927,7 @@ class SMACOptimizer(BaseOptimizer):
         every way this fails is silent, because all of them end in the run
         proceeding normally.
         """
-        if not priors and not projected:
+        if not priors:
             return None
         try:
             from smac.acquisition.weight import TabulatedPrior, get_decay_schedule
@@ -968,18 +958,6 @@ class SMACOptimizer(BaseOptimizer):
                 tables[name] = [[v, y] for v, (_, y) in zip(vectors, values)]
                 statements.append(stated or {})
 
-        parts, shown = [], []
-        if tables:
-            parts.append(TabulatedPrior(config_space, tables))
-        for record in projected or []:
-            try:
-                parts.append(projected_prior.smac_prior(config_space, record))
-            except Exception as error:  # noqa: BLE001 — one bad belief, not the run
-                logger.warning("Could not read a projected prior, leaving it out: %s", error)
-                continue
-            statements.append(record)
-            shown.append(record.get("label") or record.get("view"))
-
         # One weight carries one schedule, and every belief here is part of
         # the same statement, so the last one named settles it. The figure
         # states them together.
@@ -996,7 +974,7 @@ class SMACOptimizer(BaseOptimizer):
                     stated_beta = float(decay["beta"])
             else:
                 shape = decay or "none"
-        if not parts:
+        if not tables:
             return {"applied": False,
                     "reason": "no stated prior named a hyperparameter of this "
                               "search space, or none described a curve"}
@@ -1024,8 +1002,7 @@ class SMACOptimizer(BaseOptimizer):
             beta = decay_beta(run_budget)
 
         try:
-            prior = (parts[0] if len(parts) == 1
-                     else projected_prior.combined_prior(config_space, parts))
+            prior = TabulatedPrior(config_space, tables)
             prior.validate_against(config_space)
             # `add_prior` returns the key it registered the belief under, or
             # None when an acceptance policy refused it — that is the whole of
@@ -1044,14 +1021,13 @@ class SMACOptimizer(BaseOptimizer):
             # disagree with: the search proceeds unweighted either way, but only
             # this one is a judgement about their belief rather than a fault.
             return {"applied": False, "rejected": True,
-                    "hyperparameters": sorted(tables), "projected": shown,
-                    "decay": shape, "beta": beta,
+                    "hyperparameters": sorted(tables), "decay": shape, "beta": beta,
                     "reason": "the surrogate scores this region worse than the "
                               "incumbent's neighbourhood by more than the "
                               "tolerance allows"}
 
         return {"applied": True, "key": key, "hyperparameters": sorted(tables),
-                "projected": shown, "decay": shape, "beta": beta}
+                "decay": shape, "beta": beta}
 
     def _facade(self, scenario, target_function, previous_result=None,
                 initial_points=None):
@@ -1338,7 +1314,7 @@ class SMACOptimizer(BaseOptimizer):
                  metrics: dict, primary_metric: str,
                  n_trials=None, previous_result=None, seed: int = 0, cancel_event=None,
                  stopping: dict | None = None, splits=None, priors=None,
-                 configurations=None, projected_priors=None):
+                 configurations=None):
         # One fold unless the caller divided the data itself; see core.splits.
         splits = splits if splits is not None else holdout(X_train, y_train, X_val, y_val)
 
@@ -1418,7 +1394,7 @@ class SMACOptimizer(BaseOptimizer):
         #
         # `anchor` refusing to move is what forces this to be a matter of *when*
         # `add_prior` is called rather than what it is passed.
-        waiting = _waits_for_the_design(priors, projected_priors)
+        waiting = _waits_for_the_design(priors)
         # An absolute count from the start of the whole search, not from this
         # run's offset: the design is the first N trials the search ever draws,
         # and a resume picks up inside it rather than starting another one.
@@ -1426,8 +1402,7 @@ class SMACOptimizer(BaseOptimizer):
                       if waiting else 0)
         prior_report = None
         if not waiting:
-            prior_report = _when(self._apply_priors(smac, scenario, config_space, priors,
-                                                    projected=projected_priors), smac)
+            prior_report = _when(self._apply_priors(smac, scenario, config_space, priors), smac)
 
         # Asked for by name before SMAC is asked for anything, and told to it
         # like any trial it had asked for itself — what the model learns from
@@ -1458,8 +1433,7 @@ class SMACOptimizer(BaseOptimizer):
             # `add_prior` will take the anchor from — comparing anything else
             # would be comparing to a number the anchor is not.
             if prior_report is None and len(smac.runhistory) >= design_end:
-                prior_report = _when(self._apply_priors(smac, scenario, config_space, priors,
-                                                        projected=projected_priors),
+                prior_report = _when(self._apply_priors(smac, scenario, config_space, priors),
                                      smac)
             try:
                 info = smac.ask()

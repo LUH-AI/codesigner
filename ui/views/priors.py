@@ -10,7 +10,7 @@ from django.utils.translation import gettext as _
 from django.views.decorators.http import require_POST
 
 from access.policy import EDIT, RUN, VIEW, policy
-from core import analytics, projected_prior
+from core import analytics
 from core.jsonable import plain
 from core.metrics import metric_for
 from core import priors as prior_math
@@ -20,7 +20,6 @@ from experiments.services.snapshot import config_space_for, rebuild_experiment, 
 from experiments.services import priors as prior_service
 from experiments.services import run as run_service
 
-from .. import projected
 from ..experiment_settings import SETTING_DEFAULTS, resolve_settings
 from ..figures import acquisition_slice_plots
 from ..formatting import sigfigs
@@ -49,135 +48,6 @@ def _cube_sample(exp, metric):
         return built, None, None
     _surrogate, sample = _slice_model(exp, built, config_space, metric)
     return built, config_space, sample if sample and sample.get("configurations") else None
-
-
-def _projected_exponents(exp, records, trials, inside_design):
-    """How strongly each stated projected prior still counts — the same decay
-    every prior has, see `experiments.services.priors.decayed`."""
-    return [(prior_service.decayed(exp, record, trials, inside_design) or {}).get("exponent", 1.0)
-            for record in records]
-
-
-def _projected_weights(exp, built, config_space, X):
-    """Every stated projected prior's weight at the vectorized rows *X*, as the
-    page multiplies it in — rounded for the wire, or None with nothing stated."""
-    records = list(exp.data.projected_priors or [])
-    if not records or config_space is None or X is None or not len(X):
-        return None
-    result = built["result"]
-    exponents = _projected_exponents(exp, records, len(result.trials),
-                                     prior_math.inside_initial_design(result))
-    weights = projected.stated_weights(records, exponents, config_space, np.asarray(X, float))
-    return projected.rounded(weights) if weights is not None else None
-
-
-def _projected_answer(exp, built, config_space, sample):
-    """What the card and the cube are told after a projected prior changes: the
-    stated priors as the card lists them, and their weight over the sample."""
-    return {"stated": [projected.summary(r, config_space) for r in exp.data.projected_priors or []],
-            "weights": _projected_weights(exp, built, config_space,
-                                          projected.sample_vectors(sample) if sample else None)}
-
-
-def _drawn(request, exp):
-    """The posted drawing, or None unless it is a JSON object naming one of
-    *exp*'s metrics."""
-    try:
-        body = json.loads(request.body or b"{}")
-    except ValueError:
-        return None
-    if not isinstance(body, dict) or body.get("metric") not in exp.data.metric_names:
-        return None
-    return body
-
-
-@require_POST
-@experiment_view(VIEW)
-def projected_prior_preview(request, exp):
-    """A prior being drawn in the configuration cube, before it is stated: the
-    record it would be, its weight over the cube's sample, and the shapes the
-    cube draws for it. VIEW: looking at a belief changes nothing."""
-    body = _drawn(request, exp)
-    if body is None:
-        return HttpResponseBadRequest("invalid request")
-    built, config_space, sample = _cube_sample(exp, body["metric"])
-    if sample is None:
-        return JsonResponse({"error": _("There is no sample of this space to draw on.")}, status=400)
-    try:
-        record, Z = projected.draft_record(config_space, sample, body.get("draft") or {},
-                                           body["metric"])
-    except (projected_prior.PriorError, KeyError, TypeError, ValueError) as error:
-        return JsonResponse({"error": str(error), "point": getattr(error, "point", None)},
-                            status=400)
-    return JsonResponse({
-        "record": {k: v for k, v in record.items() if k != "map"},
-        "weights": projected.rounded(projected_prior.density(Z, record)),
-        "geometry": projected.geometry(record, Z, config_space),
-        "profile": projected_prior.profile(record),
-    })
-
-
-@require_POST
-@experiment_view(EDIT)
-def state_projected_prior(request, exp):
-    """State the prior drawn in the cube, or change a stated one's parameters
-    and decay. Its points and projection are what it was drawn in and stay put:
-    a different shape is a different belief."""
-    body = _drawn(request, exp)
-    if body is None:
-        return HttpResponseBadRequest("invalid request")
-    built, config_space, sample = _cube_sample(exp, body["metric"])
-    if sample is None:
-        return JsonResponse({"error": _("There is no sample of this space to draw on.")}, status=400)
-    assert built is not None
-    result = built["result"]
-    records = list(exp.data.projected_priors or [])
-    try:
-        if body.get("id"):
-            at = next((i for i, r in enumerate(records) if r.get("id") == body["id"]), None)
-            if at is None:
-                return HttpResponseBadRequest("no such prior")
-            old = records[at]
-            new = projected.with_params(old, body.get("params") or {})
-        else:
-            old = None
-            new, _Z = projected.draft_record(config_space, sample, body.get("draft") or {},
-                                             body["metric"])
-            new["id"] = projected.new_id()
-            new["at_trial"] = len(result.trials)
-        new["decay"] = prior_math.decay_record(
-            body.get("decay"), prior_service.run_budget(exp, int(new.get("at_trial") or 0)))
-        new["delay_decay"] = bool(body.get("delay_decay") and prior_math.inside_initial_design(result))
-        projected_prior.check(new, config_space)
-    except (projected_prior.PriorError, KeyError, TypeError, ValueError) as error:
-        return JsonResponse({"error": str(error)}, status=400)
-
-    if old is None:
-        records.append(new)
-    else:
-        records[at] = new  # pyright: ignore[reportPossiblyUnboundVariable]
-    exp.data.projected_priors = records
-    exp.data.save(update_fields=["projected_priors"])
-    history.record_projected_prior(exp, new["id"], old, new, user=request.user)
-    return JsonResponse(_projected_answer(exp, built, config_space, sample))
-
-
-@require_POST
-@experiment_view(EDIT)
-def withdraw_projected_prior(request, exp):
-    """Take a stated projected prior back."""
-    body = _drawn(request, exp)
-    if body is None:
-        return HttpResponseBadRequest("invalid request")
-    records = list(exp.data.projected_priors or [])
-    old = next((r for r in records if r.get("id") == body.get("id")), None)
-    if old is None:
-        return HttpResponseBadRequest("no such prior")
-    exp.data.projected_priors = [r for r in records if r is not old]
-    exp.data.save(update_fields=["projected_priors"])
-    history.record_projected_prior(exp, old["id"], old, None, user=request.user)
-    built, config_space, sample = _cube_sample(exp, body["metric"])
-    return JsonResponse(_projected_answer(exp, built, config_space, sample))
 
 
 def _proposal_index(source):
@@ -554,7 +424,6 @@ def evaluate_prior(request, exp):
     outcome = optimizer.evaluate_prior(
         config_space, result.trials, metric, built["seed"],
         priors=exp.data.priors or None,
-        projected_priors=exp.data.projected_priors or None,
         tolerance=margin,
         top_k=top_k,
         previous_result=result,
@@ -628,7 +497,6 @@ def _next_trials(exp, anchor_hp=None):
     asked = optimizer.slice_challengers(
         config_space, result.trials, metric, built["seed"],
         priors=priors or None, previous_result=result,
-        projected_priors=exp.data.projected_priors or None,
         budget=prior_service.run_budget(exp, int(at_trial or len(result.trials))), with_walks=True)
     if not asked:
         return None
@@ -722,13 +590,6 @@ def _slice_figures(exp, built, config_space, hp_name, metric):
     )
     assert meta is not None
     meta["acquisitionFunction"] = _acquisition_function(built["optimizer"])
-    # Priors drawn in the cube weigh whole configurations, so they are
-    # evaluated at the configurations this figure predicted at: along the
-    # slice, and over its cloud.
-    slice_weights = _projected_weights(exp, built, config_space, sliced.slice_rows)
-    meta["projectedWeights"] = (None if slice_weights is None else {
-        "slice": slice_weights,
-        "cloud": _projected_weights(exp, built, config_space, sliced.cloud_rows) or []})
     return figures, meta, sliced
 
 
