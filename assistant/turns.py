@@ -70,11 +70,17 @@ def tools_for(conversation):
     after that, the lookups among them, without the plan's own."""
     from .tools.basic import basic
     from .tools.client import client
+    from .tools.data import data_tools
+    from .tools.knowledge import knowledge
     from .tools.planning import lookups, planning
     from .tools.registry import ToolRegistry
 
-    specs = basic() + client()
-    specs += planning() if conversation.phase == Conversation.PLANNING else lookups()
+    planning_now = conversation.phase == Conversation.PLANNING
+    # While planning there is no experiment to open or fill: only looking at
+    # the page and pointing at what is on it.
+    page = [t for t in client() if not planning_now or t.name in ("look_at_page", "highlight")]
+    specs = basic() + data_tools() + knowledge() + page
+    specs += planning() if planning_now else lookups()
     return ToolRegistry(specs)
 
 

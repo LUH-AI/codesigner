@@ -422,3 +422,22 @@ def test_removing_the_dataset_lets_it_go(client, on):
     assert data["dataset"] == "" and conversation.dataset_path() is None
     assert not stored.exists()
     assert conversation.events.filter(kind="dataset").last().payload == {"name": "", "demo": False}
+
+
+def test_the_plan_takes_a_reason_for_each_field(on):
+    """What: update_plan takes `reasons`, a reason per field by name, and keeps
+    them with the plan; a reason that is not text is refused, named by its
+    place.
+    How: the plan written with two reasons, then with a number for one."""
+    conversation = _planning()
+    tools = tools_for(conversation)
+    ok = tools.execute("update_plan", {"task": "classification", "reasons": {
+        "task": "Three named classes.", "model_name": "Quick on small tables."}},
+        Context(conversation))
+    bad = tools.execute("update_plan", {"reasons": {"task": 3}}, Context(conversation))
+    conversation.refresh_from_db()
+
+    assert "Invalid" not in ok.output
+    assert conversation.plan["reasons"] == {"task": "Three named classes.",
+                                            "model_name": "Quick on small tables."}
+    assert "reasons.task must be a string" in bad.output

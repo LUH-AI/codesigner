@@ -181,3 +181,24 @@ def test_the_history_starts_with_the_persons_message():
 
     assert [m["role"] for m in trimmed] == ["user", "assistant", "tool", "assistant"]
     assert Message.objects.filter(conversation=conversation).count() == 16
+
+
+def test_a_turn_always_ends_in_words(settings):
+    """What: the last step a turn may take offers the model no tools, so a turn
+    that keeps calling tools still ends in an answer to the person.
+    How: a model that would call a tool every time, given two steps."""
+    from assistant.models import Conversation
+    from assistant.turns import tools_for
+
+    settings.ASSISTANT_MAX_STEPS = 2
+    offered = []
+
+    class Model:
+        def chat(self, messages, tools=None, progress=None):
+            offered.append(tools)
+            return call("explain_how", action="run") if tools else text("Press Run yourself.")
+
+    conversation = Conversation.objects.create()
+    ended = run_turn(conversation, "run it", llm=Model(), tools=tools_for(conversation), stream=False)
+
+    assert ended == "answered" and offered[-1] is None and offered[0]

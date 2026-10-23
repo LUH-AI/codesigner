@@ -127,8 +127,8 @@ def invalid(value, schema: dict, where: str = "") -> str:
     properties, required names and nothing else; arrays of items; the plain
     types; enums. Anything a schema leaves out of an object is refused, so a
     model cannot slip in an argument a handler would quietly take — unless the
-    object says `additionalProperties`, for a map of names the handler checks
-    itself.
+    object says `additionalProperties`: true for a map of names the handler
+    checks itself, or a schema every value under a name not listed must fit.
     """
     kind = schema.get("type")
     if kind:
@@ -144,12 +144,20 @@ def invalid(value, schema: dict, where: str = "") -> str:
         for name in schema.get("required", []):
             if name not in value:
                 return f"{name} is required"
+        extra = schema.get("additionalProperties")
         for name, item in value.items():
+            path = f"{where}.{name}" if where else name
             if name not in properties:
-                if schema.get("additionalProperties") is True:
+                if extra is True:
                     continue
-                return f"{name} is not an argument of this tool"
-            problem = invalid(item, properties[name], name)
+                if isinstance(extra, dict):
+                    problem = invalid(item, extra, path)
+                    if problem:
+                        return problem
+                    continue
+                return (f"{path} is not one of {where}'s fields" if where
+                        else f"{name} is not an argument of this tool")
+            problem = invalid(item, properties[name], path)
             if problem:
                 return problem
     if kind == "array" and "items" in schema:

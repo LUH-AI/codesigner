@@ -202,7 +202,7 @@ def test_the_assistant_cannot_take_the_person_where_they_may_not_go(client, on, 
     How: ben's conversation asked for ana's private dashboard, then for a site panel."""
     client.force_login(world["ben"])
     _report(client, "/")
-    conversation = Conversation.objects.create(owner=world["ben"],
+    conversation = Conversation.objects.create(owner=world["ben"], phase=Conversation.DASHBOARD,
                                                browser=client.session.session_key)
 
     refused = _run(conversation, "navigate", page="dashboard", experiment=world["ana_private"].pk)
@@ -278,16 +278,19 @@ def test_the_assistant_points_at_what_is_on_the_page(client, on):
     assert "no 'run'" in absent.output
 
 
-def test_the_page_tools_are_offered_in_every_phase_and_the_plan_tools_only_while_planning(client, on):
-    """What: every conversation can act on the page; after approval the plan
-    is no longer written, though what Codesigner offers can still be looked up.
+def test_planning_only_looks_and_points_and_the_plan_tools_go_after_approval(client, on):
+    """What: while planning there is no experiment to open or fill, so the
+    page tools are only looking and pointing; once approved, all of them, and
+    the plan is no longer written, though what Codesigner offers can still be
+    looked up.
     How: the tools of a planning conversation and of one setting up."""
     planning = set(tools_for(Conversation.objects.create()).names)
     conversation, _ = _setting_up(client)
     setting_up = set(tools_for(conversation).names)
 
-    page_tools = {"look_at_page", "navigate", "fill", "highlight"}
-    assert page_tools <= planning and page_tools <= setting_up
+    assert {"look_at_page", "highlight"} <= planning
+    assert not {"navigate", "fill"} & planning
+    assert {"look_at_page", "navigate", "fill", "highlight"} <= setting_up
     assert "update_plan" in planning and "update_plan" not in setting_up
     assert "list_models" in setting_up
 

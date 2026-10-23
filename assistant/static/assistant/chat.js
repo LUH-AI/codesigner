@@ -100,6 +100,66 @@
         }).join(", ");
     }
 
+    // A chart the assistant drew from the data, under its reply: Plotly, from
+    // the page when it has it, else loaded once. Colours follow the page.
+    var plotly = null;
+    function withPlotly(then) {
+        if (window.Plotly) return then(window.Plotly);
+        if (!plotly) {
+            plotly = new Promise(function (resolve, reject) {
+                var script = document.createElement("script");
+                script.src = root.dataset.plotlyUrl;
+                script.onload = function () { resolve(window.Plotly); };
+                script.onerror = reject;
+                document.head.appendChild(script);
+            });
+        }
+        plotly.then(then).catch(function () {});
+    }
+
+    function drawChart(title, spec) {
+        if (!spec || !spec.data) return;
+        var box = document.createElement("div");
+        box.className = "assistant-chart";
+        box.setAttribute("role", "img");
+        box.setAttribute("aria-label", title || "");
+        log.appendChild(box);
+        scroll();
+        var colour = getComputedStyle(root).color;
+        var layout = Object.assign({}, spec.layout || {}, {
+            paper_bgcolor: "rgba(0,0,0,0)", plot_bgcolor: "rgba(0,0,0,0)",
+            font: {color: colour, size: 11}
+        });
+        withPlotly(function (Plotly) {
+            Plotly.newPlot(box, spec.data, layout, {displayModeBar: false, responsive: true});
+        });
+    }
+
+    // The papers an answer cites, under it, each linking to where it can be
+    // read. Only web links are drawn as links.
+    function drawSources(papers) {
+        if (!papers.length) return;
+        var list = document.createElement("ol");
+        list.className = "assistant-sources";
+        papers.forEach(function (paper) {
+            var item = document.createElement("li");
+            var label = "[" + paper.key + "] " + paper.authors + " (" + paper.year + "). " + paper.title;
+            if (/^https:\/\//.test(paper.link || "")) {
+                var link = document.createElement("a");
+                link.href = paper.link;
+                link.target = "_blank";
+                link.rel = "noopener noreferrer";
+                link.textContent = label;
+                item.appendChild(link);
+            } else {
+                item.textContent = label;
+            }
+            list.appendChild(item);
+        });
+        log.appendChild(list);
+        scroll();
+    }
+
     function drawPlan(plan, problems) {
         if (planCard) planCard.remove();
         planCard = document.createElement("div");
@@ -267,6 +327,10 @@
             } else {
                 bubble("notice dataset", text("dataset", {name: payload.name}));
             }
+        } else if (kind === "sources") {
+            drawSources(payload.papers || []);
+        } else if (kind === "chart") {
+            drawChart(payload.title, payload.spec);
         } else if (kind === "approved") {
             if (planCard) planCard.querySelectorAll("button").forEach(function (b) { b.disabled = true; });
             bubble("notice dataset", text("approved"));
@@ -285,7 +349,7 @@
         root.dataset.conversation = conversation;
         source = new EventSource(eventsUrl(conversation));
         ["user", "status", "text", "tool_call", "tool_result", "choices", "turn_end",
-         "plan", "dataset", "approved"]
+         "plan", "dataset", "approved", "chart", "sources"]
             .forEach(function (kind) {
                 source.addEventListener(kind, function (e) {
                     after = Math.max(after, parseInt(e.lastEventId || "0", 10));

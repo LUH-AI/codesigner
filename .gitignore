@@ -16,3 +16,6 @@ wheels/
 
 # One-off scripts for looking at something locally.
 scratch/
+
+# The assistant's library index, built per instance (assistant/library.py).
+var/

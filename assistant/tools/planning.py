@@ -115,8 +115,10 @@ def _update_plan(context, **changes) -> ToolResult:
     emit(conversation, "plan", plan=conversation.plan, problems=found)
     if found:
         return ToolResult(output="Plan updated. Not ready yet: " + " ".join(found))
-    return ToolResult(output="Plan updated. It can be set up as it stands; the person "
-                             "approves it with the button under it.")
+    return ToolResult(output="Plan updated. It can be set up as it stands. Stop here: tell the "
+                             "person in a sentence or two what the plan is, and that they "
+                             "approve it with the button under it or say what to change. "
+                             "There is nothing to open or fill yet.")
 
 
 UPDATE_PLAN = ToolSpec(
@@ -134,7 +136,8 @@ def _check_plan(context) -> ToolResult:
     found = _check(context)
     if found:
         return ToolResult(output="Not ready: " + " ".join(found))
-    return ToolResult(output="The plan can be set up as it stands.")
+    return ToolResult(output="The plan can be set up as it stands. Stop here: tell the person "
+                             "it is ready and that they approve it with the button under it.")
 
 
 CHECK_PLAN = ToolSpec(

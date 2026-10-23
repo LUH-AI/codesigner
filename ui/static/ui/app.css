@@ -1149,6 +1149,9 @@ hr.divider { border: none; border-top: 1px solid var(--border); margin: 1.5rem 0
 .assistant-compose textarea.is-missing { border-color: var(--red); box-shadow: 0 0 0 1px var(--red); }
 .assistant-missing { margin: 0; }
 .assistant-dataset label.check { display: inline-flex; align-items: center; gap: 0.35rem; }
+.assistant-sources { margin: 0.25rem 0 0.5rem; padding-left: 1.25rem; font-size: 0.8rem; color: var(--muted); }
+.assistant-sources a { color: inherit; }
+.assistant-chart { width: 100%; min-height: 220px; margin: 0.25rem 0; }
 .assistant-plan {
     border: 1px solid var(--border);
     border-radius: var(--radius);

@@ -1,0 +1,618 @@
+# The assistant's library: the papers SMAC and Codesigner rest on, and the
+# background a person tuning hyperparameters may ask about.
+#
+# Built into a searchable index by `manage.py assistant_knowledge build`
+# (assistant/library.py), which fetches each open-access source — `arxiv`, or a
+# `pdf` or `html` address — and splits it into passages. An entry with no open
+# source is indexed by its `summary` alone, which is ours, not the paper's,
+# and is shown as such. The papers' text is not kept in the repository.
+#
+# Fields: key (how the assistant cites it), title, authors, year, venue;
+# arxiv | pdf | html | summary; topics; used_by (what in SMAC or Codesigner
+# rests on it).
+
+# ── What SMAC implements ─────────────────────────────────────────────────────
+
+[[paper]]
+key = "LEF+22"
+title = "SMAC3: A Versatile Bayesian Optimization Package for Hyperparameter Optimization"
+authors = "Lindauer, Eggensperger, Feurer, Biedenkapp, Deng, Benjamins, Ruhkopf, Sass, Hutter"
+year = 2022
+venue = "JMLR 23(54)"
+arxiv = "2109.09831"
+topics = ["smac", "bayesian optimization", "hyperparameter optimization"]
+used_by = ["SMAC", "Codesigner's SMAC optimizer"]
+
+[[paper]]
+key = "HHL11"
+title = "Sequential Model-Based Optimization for General Algorithm Configuration (extended version)"
+authors = "Hutter, Hoos, Leyton-Brown"
+year = 2010
+venue = "LION 5 (2011); UBC technical report TR-2010-10"
+pdf = "https://ai.dmi.unibas.ch/research/reading_group/hutter-et-al-tr2010.pdf"
+topics = ["smac", "random forest surrogate", "intensification", "local search", "roar"]
+used_by = ["SMAC intensifier", "SMAC local search", "ROAR (random facade)"]
+
+[[paper]]
+key = "LJDR18"
+title = "Hyperband: A Novel Bandit-Based Approach to Hyperparameter Optimization"
+authors = "Li, Jamieson, DeSalvo, Rostamizadeh, Talwalkar"
+year = 2018
+venue = "JMLR 18"
+arxiv = "1603.06560"
+topics = ["multi-fidelity", "hyperband", "successive halving", "bandits"]
+used_by = ["SMAC Hyperband intensifier", "SMAC multi-fidelity facade"]
+
+[[paper]]
+key = "JT16"
+title = "Non-stochastic Best Arm Identification and Hyperparameter Optimization"
+authors = "Jamieson, Talwalkar"
+year = 2016
+venue = "AISTATS"
+arxiv = "1502.07943"
+topics = ["successive halving", "multi-fidelity", "bandits"]
+used_by = ["SMAC successive halving intensifier"]
+
+[[paper]]
+key = "FKH18"
+title = "BOHB: Robust and Efficient Hyperparameter Optimization at Scale"
+authors = "Falkner, Klein, Hutter"
+year = 2018
+venue = "ICML"
+arxiv = "1807.01774"
+topics = ["multi-fidelity", "hyperband", "bayesian optimization"]
+used_by = ["SMAC multi-fidelity facade (closest to BOHB)"]
+
+[[paper]]
+key = "HSSL22"
+title = "πBO: Augmenting Acquisition Functions with User Beliefs for Bayesian Optimization"
+authors = "Hvarfner, Stoll, Souza, Lindauer, Hutter, Nardi"
+year = 2022
+venue = "ICLR"
+arxiv = "2204.11051"
+topics = ["priors", "user beliefs", "acquisition function", "decay"]
+used_by = ["SMAC prior-weighted acquisition", "Codesigner priors and their decay (β = N/10)"]
+
+[[paper]]
+key = "FWS+25"
+title = "Dynamic Priors in Bayesian Optimization for Hyperparameter Optimization"
+authors = "Fehring, Wever, Spliethöver, Hennig, Wachsmuth, Lindauer"
+year = 2025
+venue = "arXiv"
+arxiv = "2511.02570"
+topics = ["priors", "dynabo", "prior acceptance", "decay schedules"]
+used_by = ["SMAC add_prior and decay shapes", "SMAC prior acceptance policies", "Codesigner Evaluate Prior"]
+
+[[paper]]
+key = "SKKS10"
+title = "Gaussian Process Optimization in the Bandit Setting: No Regret and Experimental Design"
+authors = "Srinivas, Krause, Kakade, Seeger"
+year = 2010
+venue = "ICML"
+arxiv = "0912.3995"
+topics = ["gp-ucb", "confidence bound", "acquisition function", "regret"]
+used_by = ["SMAC LCB/UCB acquisition"]
+
+[[paper]]
+key = "ADE+23"
+title = "Unexpected Improvements to Expected Improvement for Bayesian Optimization"
+authors = "Ament, Daulton, Eriksson, Balandat, Bakshy"
+year = 2023
+venue = "NeurIPS"
+arxiv = "2310.20708"
+topics = ["expected improvement", "logei", "acquisition function"]
+used_by = ["SMAC LogEI"]
+
+[[paper]]
+key = "JSW98"
+title = "Efficient Global Optimization of Expensive Black-Box Functions"
+authors = "Jones, Schonlau, Welch"
+year = 1998
+venue = "Journal of Global Optimization 13"
+summary = "Introduces EGO: model an expensive function with a Gaussian process (kriging) and choose each next point by maximising the expected improvement over the best value so far, which trades off a low predicted value against high uncertainty. The founding paper of expected improvement as an acquisition function."
+topics = ["expected improvement", "ego", "kriging", "acquisition function"]
+used_by = ["SMAC EI acquisition", "Codesigner acquisition figure"]
+
+[[paper]]
+key = "HHLM09"
+title = "An Experimental Investigation of Model-Based Parameter Optimisation: SPO and Beyond"
+authors = "Hutter, Hoos, Leyton-Brown, Murphy"
+year = 2009
+venue = "GECCO"
+summary = "Studies sequential parameter optimisation (SPO) for algorithm configuration and improves it, including fitting the model to log-transformed costs and computing expected improvement on that scale, which SMAC's EI(log=True) follows."
+topics = ["expected improvement", "log transform", "algorithm configuration"]
+used_by = ["SMAC EI on log costs (the HPO facade's default)"]
+
+[[paper]]
+key = "Wat24"
+title = "Derivation of Closed Form of Expected Improvement for Gaussian Process Trained on Log-Transformed Objective"
+authors = "Watanabe"
+year = 2024
+venue = "arXiv"
+arxiv = "2411.18095"
+topics = ["expected improvement", "log transform"]
+used_by = ["SMAC EI on log costs"]
+
+[[paper]]
+key = "MPP+22"
+title = "Automatic Termination for Hyperparameter Optimization"
+authors = "Makarova, Shen, Perrone, Klein, Faddoul, Krause, Seeger, Archambeau"
+year = 2022
+venue = "AutoML Conference"
+arxiv = "2104.08166"
+topics = ["stopping", "termination", "regret bound", "confidence bound"]
+used_by = ["SMAC confidence-bound β scaling", "Codesigner's confidence stopping criterion (close in spirit)"]
+
+[[paper]]
+key = "SLA12"
+title = "Practical Bayesian Optimization of Machine Learning Algorithms"
+authors = "Snoek, Larochelle, Adams"
+year = 2012
+venue = "NeurIPS"
+arxiv = "1206.2944"
+topics = ["bayesian optimization", "gaussian process", "mcmc", "integrated acquisition"]
+used_by = ["SMAC integrated acquisition", "SMAC MCMC Gaussian process"]
+
+[[paper]]
+key = "KFMH17"
+title = "RoBO: A Flexible and Robust Bayesian Optimization Framework in Python"
+authors = "Klein, Falkner, Mansur, Hutter"
+year = 2017
+venue = "NeurIPS Bayesian Optimization Workshop"
+pdf = "https://bayesopt.github.io/papers/2017/22.pdf"
+topics = ["gaussian process", "gp hyperparameter priors", "bayesian optimization"]
+used_by = ["SMAC Gaussian process models and their priors"]
+
+[[paper]]
+key = "HG14"
+title = "The No-U-Turn Sampler: Adaptively Setting Path Lengths in Hamiltonian Monte Carlo"
+authors = "Hoffman, Gelman"
+year = 2014
+venue = "JMLR 15"
+arxiv = "1111.4246"
+topics = ["mcmc", "hamiltonian monte carlo"]
+used_by = ["SMAC MCMC Gaussian process"]
+
+[[paper]]
+key = "CPS10"
+title = "The Horseshoe Estimator for Sparse Signals"
+authors = "Carvalho, Polson, Scott"
+year = 2010
+venue = "Biometrika 97(2)"
+summary = "Proposes the horseshoe prior, a continuous shrinkage prior with an infinite spike at zero and heavy tails, which shrinks small effects strongly while leaving large ones nearly untouched. SMAC uses it as a prior on Gaussian-process hyperparameters."
+topics = ["priors", "shrinkage", "gaussian process hyperparameters"]
+used_by = ["SMAC horseshoe prior"]
+
+[[paper]]
+key = "LDGS17"
+title = "Bayesian Optimization for Conditional Hyperparameter Spaces"
+authors = "Lévesque, Durand, Gagné, Sabourin"
+year = 2017
+venue = "IJCNN"
+summary = "Addresses Bayesian optimization over conditional hyperparameter spaces, where some hyperparameters only take effect for certain values of others, by adapting how the Gaussian process treats hyperparameters that are inactive in a configuration."
+topics = ["conditional hyperparameters", "bayesian optimization", "kernels"]
+used_by = ["SMAC handling of inactive (conditional) hyperparameters"]
+
+[[paper]]
+key = "SP97"
+title = "Differential Evolution: A Simple and Efficient Heuristic for Global Optimization over Continuous Spaces"
+authors = "Storn, Price"
+year = 1997
+venue = "Journal of Global Optimization 11"
+summary = "Introduces differential evolution: a population-based optimiser that perturbs candidates by scaled differences of other population members, then crosses over and keeps the better of parent and child. Simple, derivative-free and effective on continuous problems."
+topics = ["differential evolution", "optimisation", "acquisition maximisation"]
+used_by = ["SMAC differential evolution acquisition maximizer"]
+
+[[paper]]
+key = "GSA14"
+title = "Bayesian Optimization with Unknown Constraints"
+authors = "Gelbart, Snoek, Adams"
+year = 2014
+venue = "UAI"
+arxiv = "1403.5607"
+topics = ["constraints", "probability of feasibility", "bayesian optimization"]
+used_by = ["SMAC output constraints: feasible incumbent and feasibility fallback"]
+
+[[paper]]
+key = "GKZ+14"
+title = "Bayesian Optimization with Inequality Constraints"
+authors = "Gardner, Kusner, Xu, Weinberger, Cunningham"
+year = 2014
+venue = "ICML"
+pdf = "https://proceedings.mlr.press/v32/gardner14.pdf"
+topics = ["constraints", "constrained expected improvement", "bayesian optimization"]
+used_by = ["SMAC constrained acquisition function", "SMAC feasibility weight"]
+
+[[paper]]
+key = "EP21"
+title = "Scalable Constrained Bayesian Optimization"
+authors = "Eriksson, Poloczek"
+year = 2021
+venue = "AISTATS"
+arxiv = "2002.08526"
+topics = ["constraints", "scbo", "trust regions", "bilog transform"]
+used_by = ["SMAC bilog transform of constraint residuals"]
+
+[[paper]]
+key = "Kno06"
+title = "ParEGO: A Hybrid Algorithm with On-Line Landscape Approximation for Expensive Multiobjective Optimization Problems"
+authors = "Knowles"
+year = 2006
+venue = "IEEE Transactions on Evolutionary Computation 10(1)"
+summary = "Extends EGO to several objectives by scalarising them with a randomly drawn weight vector at each iteration (augmented Tchebycheff), so a single-objective surrogate and expected improvement can be used while the weights sweep the Pareto front over time."
+topics = ["multi-objective", "parego", "scalarisation"]
+used_by = ["SMAC ParEGO multi-objective algorithm"]
+
+[[paper]]
+key = "HHLS09"
+title = "ParamILS: An Automatic Algorithm Configuration Framework"
+authors = "Hutter, Hoos, Leyton-Brown, Stützle"
+year = 2009
+venue = "JAIR 36"
+arxiv = "1401.3492"
+topics = ["algorithm configuration", "adaptive capping", "iterated local search"]
+used_by = ["SMAC adaptive capping"]
+
+[[paper]]
+key = "HXHL14"
+title = "Algorithm Runtime Prediction: Methods & Evaluation"
+authors = "Hutter, Xu, Hoos, Leyton-Brown"
+year = 2014
+venue = "Artificial Intelligence 206"
+arxiv = "1211.0906"
+topics = ["random forest", "empirical performance models", "uncertainty"]
+used_by = ["SMAC random forest surrogate and its variance"]
+
+[[paper]]
+key = "SSPA20"
+title = "A Quantile-based Approach for Hyperparameter Transfer Learning"
+authors = "Salinas, Shen, Perrone"
+year = 2020
+venue = "ICML"
+arxiv = "1909.13595"
+topics = ["gaussian copula", "transfer learning", "output transformation"]
+used_by = ["SMAC Gaussian copula runhistory encoder"]
+
+[[paper]]
+key = "Bre01"
+title = "Random Forests"
+authors = "Breiman"
+year = 2001
+venue = "Machine Learning 45"
+summary = "Introduces random forests: many decision trees, each grown on a bootstrap sample with a random subset of features considered at each split, averaged for prediction. Their spread across trees is what SMAC uses as a cheap uncertainty estimate."
+topics = ["random forest", "ensembles", "surrogate model"]
+used_by = ["SMAC random forest surrogate", "Codesigner surrogate uncertainty"]
+
+[[paper]]
+key = "MBC79"
+title = "A Comparison of Three Methods for Selecting Values of Input Variables in the Analysis of Output from a Computer Code"
+authors = "McKay, Beckman, Conover"
+year = 1979
+venue = "Technometrics 21(2)"
+summary = "Introduces Latin hypercube sampling: each input's range is cut into n equal-probability strata and every stratum is sampled exactly once, giving better coverage of each dimension than independent random sampling for the same number of points."
+topics = ["latin hypercube", "initial design", "space filling"]
+used_by = ["SMAC LHS initial design", "Codesigner initial design option"]
+
+[[paper]]
+key = "Sob67"
+title = "On the Distribution of Points in a Cube and the Approximate Evaluation of Integrals"
+authors = "Sobol'"
+year = 1967
+venue = "USSR Computational Mathematics and Mathematical Physics 7(4)"
+summary = "Introduces the Sobol' low-discrepancy sequence, quasi-random points that fill a cube more evenly than random draws. Used to spread the initial configurations of a search across the space."
+topics = ["sobol sequence", "quasi-random", "initial design", "space filling"]
+used_by = ["SMAC Sobol initial design", "Codesigner prediction-space sample (8192 Sobol points)"]
+
+[[paper]]
+key = "YJ00"
+title = "A New Family of Power Transformations to Improve Normality or Symmetry"
+authors = "Yeo, Johnson"
+year = 2000
+venue = "Biometrika 87(4)"
+summary = "Introduces the Yeo–Johnson power transformation, an extension of Box–Cox that also accepts zero and negative values, used to make skewed data more symmetric before modelling."
+topics = ["power transform", "output transformation"]
+used_by = ["SMAC power-transform runhistory encoder"]
+
+[[paper]]
+key = "Kus64"
+title = "A New Method of Locating the Maximum Point of an Arbitrary Multipeak Curve in the Presence of Noise"
+authors = "Kushner"
+year = 1964
+venue = "Journal of Basic Engineering 86(1)"
+summary = "Proposes choosing the next evaluation where the probability of improving on the best value so far (by some margin) is highest under a Brownian-motion model: the origin of the probability-of-improvement acquisition function."
+topics = ["probability of improvement", "acquisition function"]
+used_by = ["SMAC PI acquisition", "Codesigner acquisition figure (PI)"]
+
+[[paper]]
+key = "Tho33"
+title = "On the Likelihood that One Unknown Probability Exceeds Another in View of the Evidence of Two Samples"
+authors = "Thompson"
+year = 1933
+venue = "Biometrika 25(3/4)"
+summary = "The origin of Thompson sampling: act according to a draw from the posterior over which option is best. In Bayesian optimization this means maximising one sample of the surrogate's posterior."
+topics = ["thompson sampling", "acquisition function", "bandits"]
+used_by = ["SMAC Thompson sampling acquisition"]
+
+# ── What Codesigner's analytics rest on ──────────────────────────────────────
+
+[[paper]]
+key = "WMFL25"
+title = "HyperSHAP: Shapley Values and Interactions for Explaining Hyperparameter Optimization"
+authors = "Wever, Muschalik, Fumagalli, Lindauer"
+year = 2025
+venue = "arXiv"
+arxiv = "2502.01276"
+topics = ["hyperparameter importance", "shapley values", "interactions", "tunability", "sensitivity", "mistunability", "ablation"]
+used_by = ["Codesigner HyperSHAP figures", "Codesigner explanation games", "Codesigner local explanation (ablation game)"]
+
+[[paper]]
+key = "MBF+24"
+title = "shapiq: Shapley Interactions for Machine Learning"
+authors = "Muschalik, Baniecki, Fumagalli, Kolpaczki, Hammer, Hüllermeier"
+year = 2024
+venue = "NeurIPS Datasets and Benchmarks"
+arxiv = "2410.01649"
+topics = ["shapley interactions", "möbius transform", "fsii"]
+used_by = ["Codesigner interaction figures (Möbius, FSII)"]
+
+[[paper]]
+key = "TYR23"
+title = "Faith-Shap: The Faithful Shapley Interaction Index"
+authors = "Tsai, Yeh, Ravikumar"
+year = 2023
+venue = "JMLR 24"
+arxiv = "2203.00870"
+topics = ["shapley interactions", "fsii", "faithfulness"]
+used_by = ["Codesigner interactions (FSII at order 2)"]
+
+[[paper]]
+key = "LL17"
+title = "A Unified Approach to Interpreting Model Predictions"
+authors = "Lundberg, Lee"
+year = 2017
+venue = "NeurIPS"
+arxiv = "1705.07874"
+topics = ["shap", "shapley values", "explainability"]
+used_by = ["background for Codesigner's Shapley-based explanations"]
+
+[[paper]]
+key = "Sha53"
+title = "A Value for n-Person Games"
+authors = "Shapley"
+year = 1953
+venue = "Contributions to the Theory of Games II"
+summary = "Defines the Shapley value: the unique way to share a cooperative game's total payoff among players that is efficient, symmetric, additive and gives nothing to players who add nothing — each player's average marginal contribution over all orders of joining."
+topics = ["shapley value", "cooperative game theory"]
+used_by = ["Codesigner hyperparameter importance (HyperSHAP)"]
+
+[[paper]]
+key = "Gra16"
+title = "Set Functions, Games and Capacities in Decision Making"
+authors = "Grabisch"
+year = 2016
+venue = "Springer"
+summary = "A reference on set functions and cooperative games, including the Möbius transform (Harsanyi dividends): every game is a sum over coalitions of their pure joint contribution, which separates what hyperparameters do alone from what they do only together."
+topics = ["möbius transform", "harsanyi dividends", "interactions"]
+used_by = ["Codesigner interaction graph, coalitions and orders figures"]
+
+[[paper]]
+key = "Fri01"
+title = "Greedy Function Approximation: A Gradient Boosting Machine"
+authors = "Friedman"
+year = 2001
+venue = "Annals of Statistics 29(5)"
+summary = "Introduces gradient boosting, and with it the partial dependence plot: the model's prediction averaged over the data while one input is varied, showing that input's average effect."
+topics = ["partial dependence", "gradient boosting", "explainability"]
+used_by = ["Codesigner partial dependence figure"]
+
+[[paper]]
+key = "GKBP15"
+title = "Peeking Inside the Black Box: Visualizing Statistical Learning with Plots of Individual Conditional Expectation"
+authors = "Goldstein, Kapelner, Bleich, Pitkin"
+year = 2015
+venue = "Journal of Computational and Graphical Statistics 24(1)"
+arxiv = "1309.6392"
+topics = ["ice curves", "partial dependence", "explainability"]
+used_by = ["Codesigner partial dependence figure (ICE curves)"]
+
+[[paper]]
+key = "MHSL21"
+title = "Explaining Hyperparameter Optimization via Partial Dependence Plots"
+authors = "Moosbauer, Herbinger, Casalicchio, Lindauer, Bischl"
+year = 2021
+venue = "NeurIPS"
+arxiv = "2111.04820"
+topics = ["partial dependence", "hyperparameter optimization", "uncertainty", "sampling bias"]
+used_by = ["Codesigner partial dependence figure"]
+
+[[paper]]
+key = "HHL14"
+title = "An Efficient Approach for Assessing Hyperparameter Importance"
+authors = "Hutter, Hoos, Leyton-Brown"
+year = 2014
+venue = "ICML"
+pdf = "https://proceedings.mlr.press/v32/hutter14.pdf"
+topics = ["fanova", "hyperparameter importance", "functional anova"]
+used_by = ["background: the importance measure DeepCAVE uses and HyperSHAP is compared with"]
+
+[[paper]]
+key = "FH16"
+title = "Analysing Differences Between Algorithm Configurations Through Ablation"
+authors = "Fawcett, Hoos"
+year = 2016
+venue = "Journal of Heuristics 22"
+summary = "Ablation analysis: walk from one configuration to another, changing one parameter at a time and each time taking the change that helps most, to see which differences account for the improvement."
+topics = ["ablation", "hyperparameter importance", "algorithm configuration"]
+used_by = ["Codesigner local explanation (ablation game)", "Codesigner local effects"]
+
+[[paper]]
+key = "RH18"
+title = "Hyperparameter Importance Across Datasets"
+authors = "van Rijn, Hutter"
+year = 2018
+venue = "KDD"
+arxiv = "1710.04725"
+topics = ["hyperparameter importance", "fanova", "defaults"]
+used_by = ["background for hyperparameter importance"]
+
+[[paper]]
+key = "PBB19"
+title = "Tunability: Importance of Hyperparameters of Machine Learning Algorithms"
+authors = "Probst, Boulesteix, Bischl"
+year = 2019
+venue = "JMLR 20"
+arxiv = "1802.09596"
+topics = ["tunability", "defaults", "hyperparameter importance"]
+used_by = ["Codesigner tunability game (background)"]
+
+[[paper]]
+key = "SBE+22"
+title = "DeepCAVE: An Interactive Analysis Tool for Automated Machine Learning"
+authors = "Sass, Bergman, Biedenkapp, Hutter, Lindauer"
+year = 2022
+venue = "ICML ReALML Workshop"
+arxiv = "2206.03493"
+topics = ["analysis", "visualisation", "configuration footprint", "partial dependence"]
+used_by = ["Codesigner figures modelled on DeepCAVE's (configuration cube, PDP/ICE, parallel coordinates)"]
+
+[[paper]]
+key = "JC16"
+title = "Principal Component Analysis: A Review and Recent Developments"
+authors = "Jolliffe, Cadima"
+year = 2016
+venue = "Philosophical Transactions of the Royal Society A 374"
+summary = "A review of principal component analysis: linear combinations of the variables that capture the most variance in turn, uncorrelated with each other; how to compute, interpret and choose how many to keep."
+topics = ["pca", "dimensionality reduction", "projection"]
+used_by = ["Codesigner hyperparameter space projection (PCA)", "Codesigner projected priors"]
+
+[[paper]]
+key = "WSE01"
+title = "PLS-Regression: A Basic Tool of Chemometrics"
+authors = "Wold, Sjöström, Eriksson"
+year = 2001
+venue = "Chemometrics and Intelligent Laboratory Systems 58(2)"
+summary = "Partial least squares regression: components that capture the inputs' covariance with the response rather than the inputs' own variance, so a projection shows the directions that matter for the outcome."
+topics = ["pls", "dimensionality reduction", "projection"]
+used_by = ["Codesigner hyperparameter space projection (PLS, the default view)", "Codesigner projected priors"]
+
+[[paper]]
+key = "HK06"
+title = "Another Look at Measures of Forecast Accuracy"
+authors = "Hyndman, Koehler"
+year = 2006
+venue = "International Journal of Forecasting 22(4)"
+pdf = "https://robjhyndman.com/papers/mase.pdf"
+topics = ["mase", "forecast accuracy", "smape", "metrics"]
+used_by = ["Codesigner MASE and sMAPE metrics"]
+
+[[paper]]
+key = "Tas00"
+title = "Out-of-Sample Tests of Forecasting Accuracy: An Analysis and Review"
+authors = "Tashman"
+year = 2000
+venue = "International Journal of Forecasting 16(4)"
+summary = "Reviews how to test forecasts out of sample, recommending rolling-origin evaluation: fit on data up to an origin, forecast the next horizon, move the origin forward and repeat, averaging the errors."
+topics = ["backtesting", "rolling origin", "time series cross-validation"]
+used_by = ["Codesigner backtest evaluation scheme"]
+
+[[paper]]
+key = "HA21"
+title = "Forecasting: Principles and Practice (3rd edition)"
+authors = "Hyndman, Athanasopoulos"
+year = 2021
+venue = "OTexts"
+html = "https://otexts.com/fpp3/accuracy.html"
+topics = ["forecasting", "forecast accuracy", "time series cross-validation", "exponential smoothing"]
+used_by = ["Codesigner forecasting: ETS, seasonal naive baselines, MASE, backtests"]
+
+# ── Background ───────────────────────────────────────────────────────────────
+
+[[paper]]
+key = "FH19"
+title = "Hyperparameter Optimization"
+authors = "Feurer, Hutter"
+year = 2019
+venue = "Automated Machine Learning: Methods, Systems, Challenges (Springer), chapter 1"
+pdf = "https://link.springer.com/content/pdf/10.1007/978-3-030-05318-5_1.pdf"
+topics = ["hyperparameter optimization", "bayesian optimization", "multi-fidelity", "overview"]
+used_by = ["background"]
+
+[[paper]]
+key = "BBL+23"
+title = "Hyperparameter Optimization: Foundations, Algorithms, Best Practices and Open Challenges"
+authors = "Bischl, Binder, Lang, Pielok, Richter, Coors, Thomas, Ullmann, Becker, Boulesteix, Deng, Lindauer"
+year = 2023
+venue = "WIREs Data Mining and Knowledge Discovery"
+arxiv = "2107.05847"
+topics = ["hyperparameter optimization", "overview", "resampling", "best practices"]
+used_by = ["background"]
+
+[[paper]]
+key = "Fra18"
+title = "A Tutorial on Bayesian Optimization"
+authors = "Frazier"
+year = 2018
+venue = "arXiv"
+arxiv = "1807.02811"
+topics = ["bayesian optimization", "gaussian process", "expected improvement", "tutorial"]
+used_by = ["background"]
+
+[[paper]]
+key = "BCF10"
+title = "A Tutorial on Bayesian Optimization of Expensive Cost Functions, with Application to Active User Modeling and Hierarchical Reinforcement Learning"
+authors = "Brochu, Cora, de Freitas"
+year = 2010
+venue = "arXiv"
+arxiv = "1012.2599"
+topics = ["bayesian optimization", "acquisition function", "tutorial"]
+used_by = ["background"]
+
+[[paper]]
+key = "Gar23"
+title = "Bayesian Optimization"
+authors = "Garnett"
+year = 2023
+venue = "Cambridge University Press"
+pdf = "https://bayesoptbook.com/book/bayesoptbook.pdf"
+topics = ["bayesian optimization", "gaussian process", "acquisition function", "textbook"]
+used_by = ["background"]
+
+[[paper]]
+key = "RW06"
+title = "Gaussian Processes for Machine Learning"
+authors = "Rasmussen, Williams"
+year = 2006
+venue = "MIT Press"
+pdf = "https://gaussianprocess.org/gpml/chapters/RW.pdf"
+topics = ["gaussian process", "kernels", "textbook"]
+used_by = ["background: SMAC's Gaussian process strategy"]
+
+[[paper]]
+key = "BB12"
+title = "Random Search for Hyper-Parameter Optimization"
+authors = "Bergstra, Bengio"
+year = 2012
+venue = "JMLR 13"
+pdf = "https://www.jmlr.org/papers/volume13/bergstra12a/bergstra12a.pdf"
+topics = ["random search", "grid search", "hyperparameter optimization"]
+used_by = ["Codesigner Random Search and Grid Search optimizers (background)"]
+
+[[paper]]
+key = "BBBK11"
+title = "Algorithms for Hyper-Parameter Optimization"
+authors = "Bergstra, Bardenet, Bengio, Kégl"
+year = 2011
+venue = "NeurIPS"
+pdf = "https://papers.nips.cc/paper_files/paper/2011/file/86e8f7ab32cfd12577bc2619bc635690-Paper.pdf"
+topics = ["tpe", "bayesian optimization", "hyperparameter optimization"]
+used_by = ["background"]
+
+[[paper]]
+key = "KPS+23"
+title = "Multi-Objective Hyperparameter Optimization in Machine Learning: An Overview"
+authors = "Karl, Pielok, Moosbauer, Pfisterer, Coors, Binder, Schneider, Thomas, Richter, Lang, Garrido-Merchán, Branke, Bischl"
+year = 2023
+venue = "ACM Transactions on Evolutionary Learning and Optimization"
+arxiv = "2206.07438"
+topics = ["multi-objective", "pareto front", "hyperparameter optimization", "overview"]
+used_by = ["background: SMAC multi-objective"]

@@ -212,3 +212,48 @@ def _text_tool_calls(content: str) -> list[ToolCall]:
         calls.append(ToolCall(id=f"parsed_{uuid.uuid4().hex[:8]}", name=match.group(1),
                               arguments=arguments))
     return calls
+
+
+class EmbeddingClient:
+    """A model behind an OpenAI-compatible embeddings endpoint, turning text
+    into vectors for searching the assistant's library."""
+
+    #: How many texts go to the server in one request.
+    BATCH = 64
+
+    def __init__(self, *, base_url: str, model: str, api_key: str, timeout: float = 120.0,
+                 retries: int = 2) -> None:
+        from openai import OpenAI
+
+        self._client = OpenAI(base_url=base_url, api_key=api_key or "not-needed",
+                              timeout=timeout, max_retries=retries)
+        self.model = model
+
+    @classmethod
+    def from_settings(cls) -> "EmbeddingClient | None":
+        """The configured embedding model, or None when there is none."""
+        from django.conf import settings
+
+        if not settings.ASSISTANT_EMBED_BASE_URL:
+            return None
+        return cls(base_url=settings.ASSISTANT_EMBED_BASE_URL, model=settings.ASSISTANT_EMBED_MODEL,
+                   api_key=settings.ASSISTANT_EMBED_TOKEN, timeout=settings.ASSISTANT_LLM_TIMEOUT,
+                   retries=settings.ASSISTANT_LLM_RETRIES)
+
+    def embed(self, texts: list[str]):
+        """One unit-length vector per text, as rows of a float32 array."""
+        import numpy as np
+        import openai
+
+        rows = []
+        try:
+            for start in range(0, len(texts), self.BATCH):
+                response = self._client.embeddings.create(model=self.model,
+                                                          input=texts[start:start + self.BATCH])
+                rows += [item.embedding for item in sorted(response.data, key=lambda d: d.index)]
+        except (openai.APIConnectionError, openai.APITimeoutError,
+                openai.InternalServerError) as exc:
+            raise Unavailable(str(exc)) from exc
+        vectors = np.asarray(rows, dtype=np.float32).reshape(len(rows), -1)
+        norms = np.linalg.norm(vectors, axis=1, keepdims=True)
+        return vectors / np.where(norms > 0, norms, 1.0)

@@ -101,7 +101,8 @@ def run_turn(conversation, text: str, *, llm, tools: ToolRegistry, stream: bool 
     context = Context(conversation)
     calls_made, seen = 0, {}
 
-    for _step in range(max(1, settings.ASSISTANT_MAX_STEPS)):
+    steps = max(1, settings.ASSISTANT_MAX_STEPS)
+    for step in range(steps):
         if tokens_today(conversation.owner_id) >= settings.ASSISTANT_DAILY_TOKENS:
             return _end(conversation, "budget")
         emit(conversation, "status", state="working")
@@ -109,7 +110,10 @@ def run_turn(conversation, text: str, *, llm, tools: ToolRegistry, stream: bool 
         messages = [{"role": "system", "content": system_prompt(conversation)}]
         messages += history(conversation)
         try:
-            reply = llm.chat(messages, tools=tools.schemas, progress=progress)
+            # The last step offers no tools, so a turn always ends in an answer
+            # to the person rather than in one more call.
+            reply = llm.chat(messages, tools=tools.schemas if step < steps - 1 else None,
+                             progress=progress)
         except Unavailable as exc:
             return _end(conversation, "unavailable", detail=str(exc))
         if progress is not None:
@@ -120,6 +124,7 @@ def run_turn(conversation, text: str, *, llm, tools: ToolRegistry, stream: bool 
                                content=reply.content or "",
                                tool_calls=reply.message.get("tool_calls"), tokens=reply.tokens)
         if not reply.tool_calls:
+            _cite(conversation, reply.content)
             return _end(conversation, "answered")
 
         waiting, stopped = False, None
@@ -150,6 +155,15 @@ def run_turn(conversation, text: str, *, llm, tools: ToolRegistry, stream: bool 
         if waiting:
             return _end(conversation, "waiting")
     return _end(conversation, "steps")
+
+
+def _cite(conversation, text: str) -> None:
+    """The papers the answer cites from the library, listed under it."""
+    from .library import cited
+
+    sources = cited(text)
+    if sources:
+        emit(conversation, "sources", papers=sources)
 
 
 def _answer(conversation, call, output: str) -> None:

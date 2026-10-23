@@ -45,6 +45,9 @@ class Conversation(models.Model):
     #: The group the experiment will go in, for a person with more than one.
     group = models.ForeignKey("access.Group", null=True, blank=True,
                               on_delete=models.SET_NULL, related_name="+")
+    #: What the dataset says, worked out once and kept while it is the same
+    #: file (`assistant.tools.data.brief_for`): {"for": file and target, "facts"}.
+    data_brief = models.JSONField(default=dict, blank=True)
     #: When the turn now running began, or None: one turn at a time, and one
     #: left by a server that stopped is taken as over (assistant/turns.py).
     turn_started_at = models.DateTimeField(null=True, blank=True)

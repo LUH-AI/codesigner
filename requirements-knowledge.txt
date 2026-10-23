@@ -1,0 +1,1 @@
+pypdf>=4.0          # reading papers when building the assistant library (assistant_knowledge build)

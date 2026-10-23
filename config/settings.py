@@ -146,12 +146,31 @@ ASSISTANT_LLM_RETRIES = env.int("ASSISTANT_LLM_RETRIES", default=2)
 # when set.
 ASSISTANT_LLM_REPETITION_PENALTY = env.float("ASSISTANT_LLM_REPETITION_PENALTY", default=None)
 ASSISTANT_LLM_ENABLE_THINKING = env.bool("ASSISTANT_LLM_ENABLE_THINKING", default=None)
+# The model that turns text into vectors, for searching the assistant's
+# library (assistant/knowledge): any server with the OpenAI embeddings API.
+# Without one, the library is searched by its words alone.
+ASSISTANT_EMBED_BASE_URL = env.str("ASSISTANT_EMBED_BASE_URL", default="")
+ASSISTANT_EMBED_MODEL = env.str("ASSISTANT_EMBED_MODEL", default="qwen3-embedding-0.6b")
+ASSISTANT_EMBED_TOKEN = env.str("ASSISTANT_EMBED_TOKEN", default="not-needed")
+# Put before a search query, never before a passage: instruction-tuned
+# embedding models (Qwen3-Embedding's format here) rank better told what the
+# query is for. Empty for models that take none.
+ASSISTANT_EMBED_QUERY_PREFIX = env.str(
+    "ASSISTANT_EMBED_QUERY_PREFIX",
+    default="Instruct: Given a question about hyperparameter optimization, retrieve passages "
+            "of papers that answer it\nQuery: ")
+# Where the library's index is built (manage.py assistant_knowledge build) and
+# read from. Built from open-access sources on each instance, never committed.
+ASSISTANT_KNOWLEDGE_DIR = Path(env.str("ASSISTANT_KNOWLEDGE_DIR",
+                                       default=str(BASE_DIR / "var" / "assistant-knowledge")))
 # How many example values of each column the model is shown when it looks at a
 # dataset. 0 shows it none: only names, kinds and counts leave this machine.
 ASSISTANT_SAMPLE_ROWS = env.int("ASSISTANT_SAMPLE_ROWS", default=5)
 # What one person's conversations may spend: model tokens a day, model calls per
 # turn, and tool calls per turn.
-ASSISTANT_DAILY_TOKENS = env.int("ASSISTANT_DAILY_TOKENS", default=500_000)
+# A model call resends the instructions, the tool definitions and the
+# conversation, about 12 000 tokens each, so this is some 250 calls a day.
+ASSISTANT_DAILY_TOKENS = env.int("ASSISTANT_DAILY_TOKENS", default=3_000_000)
 ASSISTANT_MAX_STEPS = env.int("ASSISTANT_MAX_STEPS", default=10)
 ASSISTANT_MAX_TOOL_CALLS = env.int("ASSISTANT_MAX_TOOL_CALLS", default=20)
 # How many turns run at once on this web process, in threads of their own: a
@@ -174,6 +193,7 @@ MODEL_ENV_DENYLIST = (
     "SECRET_KEY", "DATABASE_URL", "DJANGO_SETTINGS_MODULE", "HUEY_FILENAME",
     "MEDIA_ROOT", "ALLOWED_HOSTS", "REQUIRE_LOGIN", "ALLOW_CUSTOM_MODELS",
     "ASSISTANT_LLM_TOKEN", "ASSISTANT_LLM_BASE_URL",
+    "ASSISTANT_EMBED_TOKEN", "ASSISTANT_EMBED_BASE_URL",
 )
 
 # ── Where a run executes ─────────────────────────────────────────────────────

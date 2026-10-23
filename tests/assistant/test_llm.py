@@ -114,3 +114,28 @@ def test_server_specific_switches_are_sent_only_when_set():
 
     assert "extra_body" not in seen[0]
     assert seen[1]["extra_body"] == {"repetition_penalty": 1.05, "enable_thinking": False}
+
+
+def test_texts_become_unit_vectors_in_their_order_and_in_batches(settings):
+    """What: the embedding client sends texts in batches and hands back one
+    unit-length vector per text, in the order given, whatever order the server
+    answers in.
+    How: a stand-in embeddings API answering in reverse order, a batch of two."""
+    from assistant.llm import EmbeddingClient
+
+    sent = []
+
+    def create(model, input):
+        sent.append(list(input))
+        data = [NS(index=i, embedding=[float(len(text)), 0.0]) for i, text in enumerate(input)]
+        return NS(data=list(reversed(data)))
+
+    client = EmbeddingClient(base_url="http://model.invalid/v1", model="e", api_key="")
+    client._client = NS(embeddings=NS(create=create))
+    client.BATCH = 2
+    vectors = client.embed(["a", "bbb", "cc"])
+
+    assert sent == [["a", "bbb"], ["cc"]]
+    assert vectors.shape == (3, 2) and vectors[:, 0] == pytest.approx([1.0, 1.0, 1.0])
+    settings.ASSISTANT_EMBED_BASE_URL = ""
+    assert EmbeddingClient.from_settings() is None

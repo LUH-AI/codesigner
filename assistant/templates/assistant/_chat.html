@@ -1,4 +1,4 @@
-{% load i18n assets %}
+{% load i18n assets static %}
 {% comment %}The chat: what has been said, what the assistant is doing, and a
 box to say something. Three places show it: the home page, as the page itself
 (`full`); every other page, as a window docked to the bottom right (`dock`); and
@@ -24,6 +24,7 @@ The words the script shows are here, translated, as data attributes.{% endcommen
          data-after="{{ assistant.after }}"
          data-busy="{% if assistant.busy %}1{% endif %}"
          data-csrf="{{ csrf_token }}"
+         data-plotly-url="{% static 'ui/plotly.min.js' %}"
          data-text-working="{% translate 'Working…' %}"
          data-text-thinking="{% translate 'Thinking…' %}"
          data-text-tool="{% translate 'Used {tool}' %}"
