@@ -206,14 +206,10 @@
      * the run would do next, left alone". */
     function compute(meta, prior) {
         var n = meta.positions.length,
-            acq = [], weighted = [], weights = [], fiction = [], combined = [],
+            acq = [], weighted = [], weights = [], fiction = [],
             lo = Infinity, hi = -Infinity,
             band, k, stated, pts, envelope, slots, cloudWeight, j, slot, value,
-            i, w, raw, scale, peak, pad, bare, weighing, own,
-            /* Priors drawn in the configuration cube weigh whole
-             * configurations; the server evaluates them at the ones this
-             * figure predicted at, along the slice and over the cloud. */
-            drawn = meta.projectedWeights || null;
+            i, w, raw, scale, peak, pad, bare;
 
         for (i = 0; i < n; i++) {
             if (meta.mu[i] < lo) lo = meta.mu[i];
@@ -239,7 +235,6 @@
             raw = densityFor("grid");
             if (!raw || raw.length !== n) stated = false;
         }
-        weighing = stated || !!drawn;
         for (i = 0; i < n; i++) {
             /* The floor goes on before the exponent, not after: zero raised
              * to any positive power is still zero, so flooring afterwards
@@ -248,13 +243,11 @@
              * AbstractAcquisitionWeight adds it where it does. */
             w = stated ? Math.pow(raw[i] + 1e-12, prior.exponent) : 1;
             weights.push(w);
-            /* Every belief at once, multiplied, as the search applies them. */
-            combined.push(w * (drawn ? drawn.slice[i] : 1));
-            weighted.push(acq[i] * combined[i]);
+            weighted.push(acq[i] * w);
         }
 
         for (i = 0; i < n; i++) {
-            fiction.push(weighing
+            fiction.push(stated
                 ? impliedMean(weighted[i], meta.sigma[i], meta.eta, meta.higherIsBetter, lo, hi)
                 : null);
         }
@@ -279,8 +272,7 @@
          * the weighted curve lies at or below the unweighted one, meeting it
          * where the prior is strongest, and the gap elsewhere is what the
          * prior has written off. */
-        peak = maxOf(combined) || 1;
-        own = maxOf(weights) || 1;
+        peak = maxOf(weights) || 1;
         for (i = 0; i < n; i++) {
             weighted[i] = weighted[i] / peak;
         }
@@ -296,10 +288,8 @@
          * weighting above is untouched: that division is what keeps the
          * weighted acquisition comparable to the unweighted one, and it is
          * ranking-invariant either way. */
-        /* By its own peak: the panel draws this hyperparameter's prior, not
-         * what the drawn ones add to it along the slice. */
         if (!(stated && prior.kind === "tabulated")) {
-            for (i = 0; i < n; i++) weights[i] = weights[i] / own;
+            for (i = 0; i < n; i++) weights[i] = weights[i] / peak;
         }
 
         /* The fiction's own spread, from the same σ the surrogate reports: the
@@ -377,7 +367,7 @@
              * Its own maximum, not the weighted one's: the two are separate
              * maxima over the same points, and a prior can move which sample
              * wins a slot. */
-            bare = (stated && cloudWeight) || drawn ? [] : null;
+            bare = stated && cloudWeight ? [] : null;
             for (i = 0; i < n; i++) {
                 envelope.push(null);
                 if (bare) bare.push(null);
@@ -389,10 +379,8 @@
                 if (bare && (bare[slot] === null || value > bare[slot])) {
                     bare[slot] = value;
                 }
-                if ((stated && cloudWeight) || drawn) {
-                    value *= (stated && cloudWeight
-                              ? Math.pow(cloudWeight[j] + 1e-12, prior.exponent) : 1)
-                        * (drawn && drawn.cloud ? drawn.cloud[j] : 1) / peak;
+                if (stated && cloudWeight) {
+                    value *= Math.pow(cloudWeight[j] + 1e-12, prior.exponent) / peak;
                 }
                 if (envelope[slot] === null || value > envelope[slot]) envelope[slot] = value;
             }
@@ -599,9 +587,6 @@
         latest = {},
         defaultBeta = null,
         inflight = {},
-        /* How many times the drawn priors have changed on this page, which
-         * every kept slice's key carries — see "projected-priors:changed". */
-        drawnVersion = 0,
         state = null,
         autocompute = true;
 
@@ -1766,7 +1751,7 @@
         if (!hpSelect || !(plotEl || priorEl)) return;
         var m = metric(), hp = hpSelect.value, key;
         if (!hp) return;
-        key = m + ":" + hp + (drawnVersion ? ":" + drawnVersion : "");
+        key = m + ":" + hp;
 
         function apply(data) {
             /* Stale by the time it resolved — the reader moved on while it was
@@ -1899,17 +1884,6 @@
      * metric's slice from stale state and then immediately replace it. Waiting
      * to be told the page has settled is both simpler and flicker-free. */
     document.addEventListener("figures:redrawn", function () { refresh(); });
-
-    /* A prior drawn in the configuration cube was stated, changed or
-     * withdrawn. It weighs this figure's slice and cloud too, and the server
-     * works out by how much, so every slice kept so far is out of date: the
-     * key moves on, and the one showing is asked for again. */
-    document.addEventListener("projected-priors:changed", function () {
-        drawnVersion += 1;
-        remember();
-        state = null;
-        refresh();
-    });
 
     /* New trials landed. Two things this panel shows are functions of the trial
      * count and of nothing else: the surrogate, and the prior's exponent, which

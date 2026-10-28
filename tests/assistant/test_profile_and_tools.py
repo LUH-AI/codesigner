@@ -87,7 +87,7 @@ def test_a_dataset_is_reached_through_the_conversations_experiment():
     from django.contrib.auth.models import AnonymousUser
     from django.test import RequestFactory
 
-    from ui.services import drafts
+    from ui import drafts
 
     request = RequestFactory().post("/")
     request.user = AnonymousUser()

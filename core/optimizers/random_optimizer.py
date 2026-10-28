@@ -1,27 +1,21 @@
 from typing import Optional
 
-from .base import BaseOptimizer, OptimizationResult, TrialCollector, merge_stopping, rebase_history
-from ..splits import holdout
+from .base import BaseOptimizer, OptimizationResult
 from .trial import evaluate_trial
 
-_MAX_CONSECUTIVE_DUPES = 200  # give up after this many consecutive duplicate samples
+_MAX_CONSECUTIVE_DUPES = 200  # consecutive duplicates before giving up
 
 
-#: Where every configuration this optimizer proposes comes from. Recorded per
-#: trial like SMAC's, so a reader of the file does not have to know which
-#: optimizer wrote it to know how a configuration was arrived at.
+#: Each trial's origin, as SMAC records one.
 _ORIGIN = "Random sample"
 
 
 class RandomOptimizer(BaseOptimizer):
-    """Uniform random search over the hyperparameter space.
-
-    Samples configurations independently at random using ConfigSpace's built-in
+    """`RandomOptimizer` extends `BaseOptimizer` with ConfigSpace's uniform
     sampler.
     """
 
     name = "Random Search"
-    params_schema = []
 
     def optimize(
         self,
@@ -36,39 +30,16 @@ class RandomOptimizer(BaseOptimizer):
         cancel_event=None,
         stopping: Optional[dict] = None,
         splits=None,
-        # Accepted and ignored: a search that fits no model of the objective has
-        # no acquisition function for a prior to weight. The caller passes what
-        # the reader stated without having to know which optimizer will get it.
+        # Random search has no acquisition function, so `priors` is ignored.
         priors=None,
         configurations=None,
-        projected_priors=None,
     ) -> OptimizationResult:
-        # One fold unless the caller divided the data itself; see core.splits.
-        splits = splits if splits is not None else holdout(X_train, y_train, X_val, y_val)
-
-        # The metric may have changed since the last run; re-read the history
-        # under the current one so the incumbent trajectory means what the page
-        # says it means. No surrogate here, so nothing else is stale.
-        previous_result, _ = rebase_history(previous_result, primary_metric)
-
+        splits, previous_result, collector = self._begin(
+            previous_result, primary_metric, n_trials, stopping, splits,
+            X_train, y_train, X_val, y_val)
         config_space = model.get_config_space(seed=seed)
-
-        evaluated: set = set()
-        trial_offset = 0
-        if previous_result is not None:
-            evaluated = {tuple(sorted(t.config.items())) for t in previous_result.trials}
-            trial_offset = len(previous_result.trials)
-
-        collector = self.new_collector(
-            metric_name=primary_metric,
-            previous_result=previous_result,
-            trial_offset=trial_offset,
-            # None, not -inf: "nothing to beat yet" is the metric's own worst
-            # end, which for a lower-is-better metric is +inf.
-            initial_best_score=previous_result.best_score if previous_result else None,
-            initial_best_config=previous_result.best_config if previous_result else None,
-            stopping=merge_stopping(n_trials, stopping),
-        )
+        evaluated = ({tuple(sorted(t.config.items())) for t in previous_result.trials}
+                     if previous_result is not None else set())
 
         evaluated |= self.evaluate_requested(
             configurations, model=model, splits=splits, metrics=metrics,
@@ -93,34 +64,5 @@ class RandomOptimizer(BaseOptimizer):
             collector.record(cfg, all_scores[primary_metric], all_scores,
                              run_info=run_info, origin=_ORIGIN)
 
-        all_trials = (previous_result.trials if previous_result else []) + collector.results
-        _metric = collector.metric
-
-        games = self.compute_hp_games(config_space, all_trials, metrics, seed=seed,
-                                      cancel_event=cancel_event)
-
-        return OptimizationResult(
-            trials=all_trials,
-            primary_metric=primary_metric,
-            # The metric's own best — an argmin for a metric where lower wins.
-            best_config=(_metric.best(all_trials,
-                                      key=lambda t: t.scores[primary_metric]).config
-                         if all_trials else {}),
-            best_score=_metric.best((t.scores[primary_metric] for t in all_trials),
-                                    default=0.0),
-            hyperparameter_importance=games["tunability"][0],
-            hyperparameter_importance_warning=games["tunability"][1],
-            hyperparameter_sensitivity=games["sensitivity"][0],
-            hyperparameter_sensitivity_warning=games["sensitivity"][1],
-            hyperparameter_mistunability=games["mistunability"][0],
-            hyperparameter_mistunability_warning=games["mistunability"][1],
-            hyperparameter_interactions=games["tunability"][2],
-            hyperparameter_interactions_warning=games["tunability"][1],
-            hyperparameter_moebius=games["tunability"][3],
-            hyperparameter_sensitivity_interactions=games["sensitivity"][2],
-            hyperparameter_sensitivity_moebius=games["sensitivity"][3],
-            hyperparameter_mistunability_interactions=games["mistunability"][2],
-            hyperparameter_mistunability_moebius=games["mistunability"][3],
-            hyperparameter_tunability_total=games["tunability"][4],
-            metadata={"stopped_by": collector.stopped_by},
-        )
+        return self._finish(collector, previous_result, config_space, metrics, primary_metric,
+                            seed, cancel_event)

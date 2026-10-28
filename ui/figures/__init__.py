@@ -1,8 +1,4 @@
-"""Figures: the analytics panels on an experiment page.
-
-`catalog.py` declares which figures exist; `plots.py` builds the Plotly plot
-for each figure that draws one. Their templates live in
-`ui/templates/ui/figures/`, one per figure, named for its key.
+"""`catalog.py` declares the figures, and `plots.py` builds their Plotly plots.
 """
 
 from .base import (
@@ -40,54 +36,3 @@ from .plots import (
     performance_over_time_plot,
     trial_duration_plot,
 )
-
-__all__ = [
-    "FIGURES",
-    "slice_span",
-    "ACCENT_COLOR",
-    "PRIOR_COLOR",
-    "MARKER_COLOR",
-    "NEGATIVE_COLOR",
-    "PROPOSAL_COLOR",
-    "SELECTION_COLOR",
-    "UNCERTAINTY_SCALE",
-    "FIGURES_BY_KEY",
-    "ACQUISITION",
-    "CARD",
-    "DASHBOARD",
-    "DATA",
-    "Panel",
-    "HYPERSHAP",
-    "LONG",
-    "MISC",
-    "OVERVIEW",
-    "SHAPES",
-    "SQUAT",
-    "STACK",
-    "TABLE",
-    "TABS",
-    "HP_GAME_FIELDS",
-    "HP_GAME_HELP",
-    "HP_GAME_LABELS",
-    "Figure",
-    "autocompute_key",
-    "deferred_computations",
-    "configuration_cube_plot",
-    "configuration_projection_plot",
-    "hyperparameter_ablation_plot",
-    "hyperparameter_importance_plot",
-    "hyperparameter_interactions_bar_plot",
-    "hyperparameter_interactions_heatmap_plot",
-    "hyperparameter_graph_plot",
-    "hyperparameter_orders_plot",
-    "hyperparameter_progress_plot",
-    "hyperparameter_upset_plot",
-    "incumbent_scores",
-    "local_effects_plot",
-    "parallel_coordinates_plot",
-    "acquisition_slice_plots",
-    "forecast_plot",
-    "partial_dependence_plot",
-    "performance_over_time_plot",
-    "trial_duration_plot",
-]

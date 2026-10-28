@@ -1,21 +1,17 @@
-"""ROC AUC and log loss, tracked with every other metric when they come free.
-
-They are scored on class probabilities, so a classification experiment tracks
-them when its model gives probabilities from its own fit — not for a model
-with none, and not for the SVM, whose probabilities cost a calibration on every
-trial. A run that would score them without any leaves them out, or refuses
-when one is what it optimizes. Runs execute inline in tests (see
-`runs_execute_synchronously`).
+"""A classification experiment tracks ROC AUC and log loss when its model's own
+fit gives probabilities. The SVM is excluded, since its probabilities cost a
+calibration on every trial.
 """
 
 import numpy as np
 import pytest
+from ConfigSpace import ConfigurationSpace
 from django.core.files.uploadedfile import SimpleUploadedFile
 from django.urls import reverse
 
 from core.metrics import METRICS
-from core.models import BaseModel
-from ui.services.run import scoreable
+from codesigner_model import BaseModel
+from experiments.services.run import scoreable
 
 from tests.conftest import DATASETS_DIR, post_new_experiment
 from tests.ui.custom_models.conftest import VALID_MODEL_SRC
@@ -33,12 +29,8 @@ def _create(client, **overrides):
 
 @pytest.mark.django_db
 def test_a_model_with_probabilities_is_scored_on_them(client):
-    """What: a classification experiment whose model gives probabilities
-    tracks ROC AUC and log loss without being asked, and a run optimizing ROC
-    AUC measures every trial. How: creates iris with LightGBM, runs three
-    trials on roc_auc, and reads the scores back."""
-    from ui.models import Experiment
-    from ui.views import _rebuild_result
+    from experiments.models import Experiment
+    from experiments.services.snapshot import rebuild_result
 
     assert _create(client).status_code == 302
     exp = Experiment.objects.get(data__name="iris")
@@ -47,11 +39,12 @@ def test_a_model_with_probabilities_is_scored_on_them(client):
     client.post(reverse("ui:experiment_run", args=[exp.pk]),
                 {"max_trials": 3, "optimize_metric": "roc_auc"})
     exp.refresh_from_db()
-    result = _rebuild_result(exp)
+    result = rebuild_result(exp)
+    assert result is not None
 
     assert len(result.trials) == 3 and not any(t.failed for t in result.trials)
-    # 0.5 is allowed: a configuration whose leaves need more rows than a fold
-    # has cannot split, and predicts the class shares — a coin flip's AUC.
+    # The tree predicts class shares, an AUC of 0.5, when its leaves outgrow a
+    # fold.
     assert all(0.5 <= t.scores["roc_auc"] <= 1 and t.scores["log_loss"] > 0
                for t in result.trials)
     assert max(t.scores["roc_auc"] for t in result.trials) > 0.9
@@ -59,10 +52,8 @@ def test_a_model_with_probabilities_is_scored_on_them(client):
 
 @pytest.mark.django_db
 def test_the_svm_is_spared_its_calibration(client):
-    """What: the SVM gives probabilities only by calibrating on every trial,
-    so its experiment tracks the label metrics alone.
-    How: creates iris with the SVM and reads its metrics."""
-    from ui.models import Experiment
+    """`SVM` experiments track only the label metrics."""
+    from experiments.models import Experiment
 
     _create(client, model_name="SVM")
     names = Experiment.objects.get(data__name="iris").data.metric_names
@@ -73,9 +64,7 @@ def test_the_svm_is_spared_its_calibration(client):
 
 @pytest.mark.django_db
 def test_a_model_without_probabilities_is_created_without_them(client, settings):
-    """What: an uploaded model with no `fit_predict_proba` is created as usual,
-    tracking the label metrics. How: creates one from an upload."""
-    from ui.models import Experiment
+    from experiments.models import Experiment
 
     settings.ALLOW_CUSTOM_MODELS = True
     upload = SimpleUploadedFile("m.py", VALID_MODEL_SRC.encode(), content_type="text/x-python")
@@ -87,9 +76,8 @@ def test_a_model_without_probabilities_is_created_without_them(client, settings)
 
 @pytest.mark.django_db
 def test_a_regression_experiment_has_no_class_probabilities(client):
-    """What: a regression experiment tracks the regression metrics only —
-    there are no classes to score probabilities of. How: creates diabetes."""
-    from ui.models import Experiment
+    """A regression experiment tracks only `rmse`, `mae` and `r2`."""
+    from experiments.models import Experiment
 
     _create(client, name="diabetes", demo_dataset=str(DATASETS_DIR / "diabetes.csv"),
             task="regression")
@@ -100,17 +88,16 @@ def test_a_regression_experiment_has_no_class_probabilities(client):
 class _LabelsOnly(BaseModel):
     name = "Labels only"
 
-    def get_config_space(self, seed: int = 0):
-        return None
+    def get_config_space(self, seed: int = 0) -> ConfigurationSpace:
+        return ConfigurationSpace()
 
     def fit_predict(self, config, X_train, y_train, X_val, seed=0):
-        return np.asarray(y_train)[: len(X_val)]
+        return np.asarray(y_train)[: len(X_val)].tolist()
 
 
 def test_a_run_leaves_out_what_its_model_cannot_score():
-    """What: at run start, a model that gives no probabilities loses ROC AUC
-    and log loss, and optimizing one of them is refused with the reason.
-    How: asks `scoreable` with accuracy and with roc_auc as the run's metric."""
+    """`scoreable` drops ROC AUC and log loss for a labels-only model and
+    refuses to optimize one."""
     metrics = {n: METRICS[n] for n in ("accuracy", "roc_auc", "log_loss")}
 
     assert list(scoreable(metrics, _LabelsOnly(), "accuracy")) == ["accuracy"]

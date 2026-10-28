@@ -3,10 +3,7 @@ import textwrap
 import pytest
 from django.core.files.uploadedfile import SimpleUploadedFile
 
-# A minimal valid custom model: one integer hyperparameter, constant scores so
-# a run is instant and deterministic. Mirrors the fixture in
-# tests/core/test_model_loading.py. The PEP 723 header is what a real model
-# needs to declare the environment it runs in.
+# Constant scores keep runs instant; real models carry the PEP 723 header.
 VALID_MODEL_SRC = textwrap.dedent("""
     # /// script
     # dependencies = ["ConfigSpace"]
@@ -24,13 +21,13 @@ VALID_MODEL_SRC = textwrap.dedent("""
             return [next(iter(y_train))] * len(X_val)
 """)
 
-# A .py with no BaseModel subclass — must be rejected at upload time.
+# No BaseModel subclass: upload must reject it.
 INVALID_MODEL_SRC = "x = 1\n"
 
 
 @pytest.fixture
 def model_upload():
-    """A valid uploaded model .py (Django SimpleUploadedFile)."""
+    """`model_upload` is a valid upload."""
     return SimpleUploadedFile(
         "mymodel.py", VALID_MODEL_SRC.encode("utf-8"), content_type="text/x-python"
     )
@@ -38,7 +35,6 @@ def model_upload():
 
 @pytest.fixture
 def bad_model_upload():
-    """An uploaded .py that contains no BaseModel subclass."""
     return SimpleUploadedFile(
         "bad.py", INVALID_MODEL_SRC.encode("utf-8"), content_type="text/x-python"
     )

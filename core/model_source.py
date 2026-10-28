@@ -1,19 +1,6 @@
-"""Reading a model file without running it.
-
-Finding out whether an uploaded `.py` is a usable model used to mean importing
-it, which executes everything in it. That happened while the user waited on the
-form, in the web process — so an upload could hold a worker for as long as its
-imports took, and the app's own environment ran code it had not vetted.
-
-Almost everything the form needs is visible in the source text: does it parse,
-is there a model class, what is it called, and what does it say it needs. This
-module answers those from the syntax tree. What genuinely requires execution —
-that the file *imports* cleanly and that the class instantiates — is left to the
-background preparation step, which runs it in its own environment where it
-belongs.
-
-Takes bytes rather than a path: the caller has the upload in hand and should not
-have to write a temp file for a syntax check.
+"""`inspect_model_source` checks an uploaded model from its syntax tree, since
+importing the upload would run unvetted code in the web process. The background
+preparation step later runs the import in the model's own environment.
 """
 
 from __future__ import annotations
@@ -24,17 +11,14 @@ import sys
 import tomllib
 from dataclasses import dataclass, field
 
-#: Refuse anything implausible as a model before parsing it. `ast.parse` on a
-#: large file is real work, and this runs in a web request.
+#: `ast.parse` on a large file is real work inside a web request.
 MAX_SOURCE_BYTES = 1_000_000
 
-#: The distribution that provides `BaseModel`. It is installed into every model
-#: environment automatically, so a file that also lists it gets a confusing
-#: "no such package" from the index.
+#: Every model environment installs the SDK, and a file listing the SDK gets a
+#: confusing index error.
 SDK_DISTRIBUTION = "codesigner-model"
 
-#: What to paste at the top of a model file. Exported so the upload page, the
-#: docs and the error messages cannot drift apart.
+#: The upload page, the docs and the error messages share `STARTER_HEADER`.
 STARTER_HEADER = """\
 # /// script
 # requires-python = ">=3.11"
@@ -46,8 +30,8 @@ STARTER_HEADER = """\
 # ///
 """
 
-# From PEP 723. Matches the `# /// script` block and captures its body.
-_PEP723_BLOCK = re.compile(
+# From PEP 723; captures the `# /// script` body.
+PEP723_BLOCK = re.compile(
     r"(?m)^# /// (?P<type>[a-zA-Z0-9-]+)$\s(?P<content>(^#(| .*)$\s)+)^# ///$"
 )
 _PEP723_OPENING = re.compile(r"(?m)^# /// script$")
@@ -57,37 +41,27 @@ _ALWAYS_AVAILABLE = frozenset({"codesigner_model"})
 
 @dataclass(frozen=True)
 class ModelSourceInfo:
-    """What a model file says about itself, read from its source."""
 
-    #: The model's display name — a literal `name = "..."` in the class body.
+    #: A literal `name = "..."` in the class body.
     name: str
-    #: The class implementing the model.
     class_name: str
-    #: Dependencies declared in the PEP 723 header, verbatim.
     dependencies: list[str] = field(default_factory=list)
-    #: The header's `requires-python`, if it gave one.
     requires_python: str | None = None
-    #: Whether the file carried a PEP 723 header at all.
     has_header: bool = False
-    #: The tasks the class says it supports — a literal `tasks = (...)` in its
-    #: body. A class that says nothing is a classifier, which is all a model
-    #: could be before tasks existed.
+    #: A class that names no tasks is a classifier, as every model was before
+    #: tasks.
     tasks: tuple = ("classification",)
-    #: Whether the class forecasts — a literal `forecaster = True` in its body.
-    #: Only a forecaster can be evaluated by backtests: an upload runs in its
-    #: own process, where nothing can make it into one.
+    #: Only a forecaster can be backtested, since an upload runs in its own
+    #: process.
     forecaster: bool = False
-    #: Whether the class defines `fit_predict_proba` itself — read from the
-    #: source, so a run can be offered the metrics scored on probabilities
-    #: before anything has run the file.
+    #: `has_proba` comes from the source, so a run can offer probability metrics
+    #: before the file runs.
     has_proba: bool = False
 
 
 def inspect_model_source(source: bytes) -> tuple[ModelSourceInfo | None, str | None]:
-    """Read *source* as a model file. Returns (info, None) or (None, error).
-
-    Errors are plain English and deliberately untranslated, matching the rest of
-    the loading path — the caller wraps them in a translated sentence.
+    """The result is (info, None) or (None, error), and the caller wraps the
+    untranslated English error.
     """
     if len(source) > MAX_SOURCE_BYTES:
         return None, (f"That file is too large to be a model "
@@ -105,8 +79,7 @@ def inspect_model_source(source: bytes) -> tuple[ModelSourceInfo | None, str | N
 
     model_class = _find_model_class(tree)
     if model_class is None:
-        # Kept word-for-word from the loader this replaces, so the message a
-        # user sees does not depend on which check caught it.
+        # Matches the harness's wording for the same failure.
         return None, "No BaseModel subclass found in the file."
 
     name = _literal_name(model_class)
@@ -139,11 +112,8 @@ def inspect_model_source(source: bytes) -> tuple[ModelSourceInfo | None, str | N
 
 
 def _find_model_class(tree: ast.Module) -> ast.ClassDef | None:
-    """The first top-level class inheriting something called BaseModel.
-
-    Matched on the trailing name, so `BaseModel`, `codesigner_model.BaseModel`
-    and an aliased import all count — the file is not imported, so there is
-    nothing to resolve the reference against.
+    """`_find_model_class` matches the trailing base name, since an unimported
+    file has nothing to resolve aliases against.
     """
     for node in tree.body:
         if isinstance(node, ast.ClassDef) and any(
@@ -160,83 +130,73 @@ def _base_name(node: ast.expr) -> str | None:
     return None
 
 
-def _literal_name(cls: ast.ClassDef) -> str | None:
-    """The class's `name = "..."`, if it is a plain string literal.
-
-    A `@property def name` is legal in the contract but cannot be read without
-    running the file, and the experiment needs something to be called while its
-    environment is still being prepared. Preparation reports the instantiated
-    model's real name later and corrects the record if they differ.
-    """
+def _assigned(cls: ast.ClassDef, attribute: str) -> ast.expr | None:
+    """`_assigned` skips annotations without a value."""
     for node in cls.body:
-        target = None
-        if isinstance(node, ast.Assign) and len(node.targets) == 1:
-            target = node.targets[0]
-        elif isinstance(node, ast.AnnAssign):
-            target = node.target
-        if not isinstance(target, ast.Name) or target.id != "name":
-            continue
-        try:
-            value = ast.literal_eval(node.value)
-        except (ValueError, SyntaxError):
-            return None
-        if isinstance(value, str) and value.strip():
-            return value
-    return None
-
-
-def _literal_tasks(cls: ast.ClassDef) -> tuple[tuple, str | None]:
-    """The class's `tasks = (...)`, if it sets one. Returns (tasks, error)."""
-    from .tasks import TASKS
-
-    for node in cls.body:
-        target = None
-        if isinstance(node, ast.Assign) and len(node.targets) == 1:
-            target = node.targets[0]
-        elif isinstance(node, ast.AnnAssign):
-            target = node.target
-        if not isinstance(target, ast.Name) or target.id != "tasks":
-            continue
-        try:
-            value = ast.literal_eval(node.value)
-        except (ValueError, SyntaxError):
-            return (), (f"'{cls.name}' must set tasks as a literal, "
-                        f'for example: tasks = ("classification", "regression").')
-        value = (value,) if isinstance(value, str) else tuple(value or ())
-        unknown = [t for t in value if t not in TASKS]
-        if unknown or not value:
-            return (), (f"'{cls.name}' names tasks Codesigner does not know: "
-                        f"{', '.join(map(repr, unknown)) or 'none'}. "
-                        f"Choose from {', '.join(map(repr, TASKS))}.")
-        return value, None
-    return ("classification",), None
-
-
-def _literal_flag(cls: ast.ClassDef, attribute: str) -> bool:
-    """Whether the class sets *attribute* to a literal true value."""
-    for node in cls.body:
-        target = None
         if isinstance(node, ast.Assign) and len(node.targets) == 1:
             target = node.targets[0]
         elif isinstance(node, ast.AnnAssign) and node.value is not None:
             target = node.target
+        else:
+            continue
         if isinstance(target, ast.Name) and target.id == attribute:
-            try:
-                return bool(ast.literal_eval(node.value))
-            except (ValueError, SyntaxError):
-                return False
-    return False
+            return node.value
+    return None
+
+
+def _literal_name(cls: ast.ClassDef) -> str | None:
+    """A `@property` name needs the file to run, and the experiment needs a name
+    while the environment builds.
+    """
+    node = _assigned(cls, "name")
+    if node is None:
+        return None
+    try:
+        value = ast.literal_eval(node)
+    except (ValueError, SyntaxError):
+        return None
+    return value if isinstance(value, str) and value.strip() else None
+
+
+def _literal_tasks(cls: ast.ClassDef) -> tuple[tuple, str | None]:
+    from .tasks import TASKS
+
+    node = _assigned(cls, "tasks")
+    if node is None:
+        return ("classification",), None
+    try:
+        value = ast.literal_eval(node)
+    except (ValueError, SyntaxError):
+        return (), (f"'{cls.name}' must set tasks as a literal, "
+                    f'for example: tasks = ("classification", "regression").')
+    value = (value,) if isinstance(value, str) else tuple(value or ())
+    unknown = [t for t in value if t not in TASKS]
+    if unknown or not value:
+        return (), (f"'{cls.name}' names tasks Codesigner does not know: "
+                    f"{', '.join(map(repr, unknown)) or 'none'}. "
+                    f"Choose from {', '.join(map(repr, TASKS))}.")
+    return value, None
+
+
+def _literal_flag(cls: ast.ClassDef, attribute: str) -> bool:
+    node = _assigned(cls, attribute)
+    if node is None:
+        return False
+    try:
+        return bool(ast.literal_eval(node))
+    except (ValueError, SyntaxError):
+        return False
 
 
 def _declared_dependencies(text: str) -> tuple[list[str], str | None, bool, str | None]:
-    """Parse the PEP 723 header. Returns (deps, requires_python, present, error)."""
-    # Counted separately from the match below: the PEP's regex is greedy, so two
-    # blocks match as one whose body contains a stray delimiter, and the user
-    # would get a TOML syntax error instead of being told what they did.
+    """`_declared_dependencies` returns the tuple (deps, requires_python,
+    present, error)."""
+    # The PEP's greedy regex would merge two blocks into one with a stray
+    # delimiter, and the user would get a TOML error.
     if len(_PEP723_OPENING.findall(text)) > 1:
         return [], None, True, "The file has more than one `# /// script` block."
 
-    blocks = [m for m in _PEP723_BLOCK.finditer(text) if m.group("type") == "script"]
+    blocks = [m for m in PEP723_BLOCK.finditer(text) if m.group("type") == "script"]
     if not blocks:
         return [], None, False, None
 
@@ -265,23 +225,15 @@ def _declared_dependencies(text: str) -> tuple[list[str], str | None, bool, str 
 
 
 def _requirement_name(requirement: str) -> str:
-    """The distribution name from a requirement string, lowercased."""
     name = re.split(r"[\s\[<>=!~;@]", requirement.strip(), maxsplit=1)[0]
     return name.replace("_", "-").lower()
 
 
 def _check_undeclared_imports(tree: ast.Module, deps: list[str],
                               has_header: bool) -> str | None:
-    """Catch a file with no header that imports something it will not have.
-
-    Only when there is no header at all. A model environment contains exactly
-    what the file declares, so such an import is certain to fail — several
-    minutes later, once the environment has been built. Saying so now turns a
-    slow, confusing failure into an immediate one.
-
-    A header that *is* present is never second-guessed: import names and
-    distribution names disagree often enough (`sklearn` from `scikit-learn`,
-    `cv2` from `opencv-python`) that checking them would reject working files.
+    """A model environment holds only what the file declares, so an undeclared
+    import would fail minutes later. A present header goes unchecked, because
+    import and distribution names differ (`sklearn` from `scikit-learn`).
     """
     if has_header or deps:
         return None
@@ -296,7 +248,6 @@ def _check_undeclared_imports(tree: ast.Module, deps: list[str],
 
 
 def _toplevel_imports(tree: ast.Module) -> set[str]:
-    """Every root package the module imports, at any nesting level."""
     found: set[str] = set()
     for node in ast.walk(tree):
         if isinstance(node, ast.Import):

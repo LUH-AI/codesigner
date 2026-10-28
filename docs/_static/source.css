@@ -1,0 +1,15 @@
+/* The source folded under each function and class. */
+details.source { margin: 0.5rem 0 1rem; }
+details.source > summary {
+    cursor: pointer; font-size: 0.85em; color: var(--color-foreground-secondary);
+}
+details.source > summary:hover { color: var(--color-link); }
+details.source[open] > summary { margin-bottom: 0.25rem; }
+
+/* Documentation | Source, at the top of a module's two pages. */
+p.source-switch { font-size: 0.85em; margin-top: -0.5rem; display: flex; gap: 0.5em; }
+p.source-switch span { color: var(--color-foreground-muted); }
+
+/* Names in code that lead to where they are defined. */
+a.source-ref { color: inherit; text-decoration: none; }
+a.source-ref:hover { text-decoration: underline; }

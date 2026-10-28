@@ -10,7 +10,7 @@ class Migration(migrations.Migration):
     initial = True
 
     dependencies = [
-        ('ui', '0043_experimentdata_target_column'),
+        ('ui', '0042_experiment_name_optional'),
         migrations.swappable_dependency(settings.AUTH_USER_MODEL),
     ]
 

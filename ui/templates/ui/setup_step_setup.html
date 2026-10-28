@@ -1,9 +1,9 @@
-{% extends "base.html" %}
+{% extends "ui/base.html" %}
 {% load i18n %}
 
 {% block title %}{% translate "Setup" %} · {% translate "New experiment" %} · Codesigner{% endblock %}
 
-{% comment %}Step 1 of a draft's setup (ui/services/setup.py): what the
+{% comment %}Step 1 of a draft's setup (ui/setup_steps.py): what the
 experiment is. Filled from the draft once it has been saved; what it already
 has — its dataset, an uploaded model — is kept unless something new is
 chosen.{% endcomment %}

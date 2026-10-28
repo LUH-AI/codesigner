@@ -1,13 +1,5 @@
-"""A run records the search space it drew from, while it still has a model.
-
-*What:* `execute_run` stores the model's search space on the experiment. It is
-the only moment the space is certainly available — a custom model runs in its
-own process and is gone afterwards, and every page rendered later rebuilds
-read-only — so a run that did not capture it leaves every surrogate-backed
-figure with nothing to ask.
-
-*How:* a three-trial run over iris, then the row is re-read and its stored
-space decoded and compared against what the model itself reports.
+"""`execute_run` stores the model's search space, since a custom model's process
+ends with the run and later pages rebuild read-only.
 """
 
 import pytest
@@ -18,7 +10,7 @@ from tests.conftest import DATASETS_DIR
 
 
 def _an_experiment():
-    from ui.services import snapshot as adapter
+    from experiments.services import snapshot as adapter
 
     return adapter.experiment_from_snapshot({
         "version": "0.1.0", "name": "space", "model_name": "Random Forest",
@@ -30,9 +22,9 @@ def _an_experiment():
 
 
 def test_a_run_stores_the_search_space():
-    """After a run the row carries a space, and it is the model's own."""
-    from ui.registry import MODELS
-    from ui.services.run import create_run, execute_run
+    """The stored space has the model's own keys."""
+    from core.registry import MODELS
+    from experiments.services.run import create_run, execute_run
 
     exp = _an_experiment()
     assert exp.data.config_space is None
@@ -47,32 +39,28 @@ def test_a_run_stores_the_search_space():
 
 
 def test_the_stored_space_reaches_the_figures():
-    """A run's own space is what `_config_space_for` answers with afterwards.
-
-    Going through `_rebuild_experiment` rather than asking the row directly,
-    since that is the path every page render takes.
+    """`config_space_for` answers with the run's space through
+    `rebuild_experiment`, the path every page render takes.
     """
-    from ui.services.run import create_run, execute_run
-    from ui.views import _config_space_for, _rebuild_experiment
+    from experiments.services.run import create_run, execute_run
+    from experiments.services.snapshot import config_space_for, rebuild_experiment
 
     exp = _an_experiment()
     execute_run(create_run(exp, {"max_trials": 3}, "accuracy").id)
     exp.refresh_from_db()
 
-    built = _rebuild_experiment(exp)
+    built = rebuild_experiment(exp)
 
+    assert built is not None
     assert built["config_space"] == exp.data.config_space
-    assert _config_space_for(built) is not None
+    assert config_space_for(built) is not None
 
 
 def test_a_model_that_cannot_describe_its_space_does_not_fail_the_run():
-    """Bookkeeping must not be able to end a run.
-
-    The capture is a convenience — without it the experiment simply goes on
-    asking its model, which is where it was before — so a model that raises
-    here leaves the run untouched and the stored space unset.
+    """`_remember_config_space` leaves the stored space unset when the model
+    raises.
     """
-    from ui.services.run import _remember_config_space
+    from experiments.services.run import _remember_config_space
 
     class _Mute:
         def get_config_space(self, seed=0):

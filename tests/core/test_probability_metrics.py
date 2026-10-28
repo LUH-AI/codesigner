@@ -1,9 +1,5 @@
-"""The metrics scored on class probabilities, and which runs get them.
-
-ROC AUC and log loss need a model that gives probabilities, so they are asked
-for rather than given: `metrics_for` leaves them out unless told otherwise and
-`usable` drops them for a model that cannot answer. Balanced accuracy needs
-only labels and is in every classification experiment.
+"""`metrics_for` adds ROC AUC and log loss only on request, and `usable` drops
+them without probabilities.
 """
 
 import numpy as np
@@ -12,14 +8,11 @@ from sklearn.metrics import log_loss, roc_auc_score
 
 from core.metrics import METRICS, metrics_for, score_all, usable
 from core.model_source import inspect_model_source
-from core.optimizers.base import EAGER_MAX_COALITIONS
+from core.analytics import EAGER_MAX_COALITIONS
 from core.registry import MODELS
 
 
 def test_probability_metrics_come_with_probabilities():
-    """What: a classification experiment gets balanced accuracy always, and
-    ROC AUC and log loss when its model gives probabilities.
-    How: compares the two lists."""
     plain = metrics_for("classification")
     asked = metrics_for("classification", probabilities=True)
 
@@ -30,8 +23,7 @@ def test_probability_metrics_come_with_probabilities():
 
 
 def test_usable_drops_what_a_model_without_probabilities_cannot_score():
-    """What: the probability metrics go, everything else stays in order, and a
-    name this build does not know is kept. How: filters a mixed list both ways."""
+    """`usable` keeps the order and any unknown metric name."""
     names = ["accuracy", "roc_auc", "f1", "log_loss", "someones_own"]
 
     assert usable(names, probabilities=False) == ["accuracy", "f1", "someones_own"]
@@ -39,8 +31,7 @@ def test_usable_drops_what_a_model_without_probabilities_cannot_score():
 
 
 def test_roc_auc_is_the_usual_binary_auc():
-    """What: with two classes it is scikit-learn's AUC for the second class.
-    How: scores the same probabilities both ways."""
+    """Two-class ROC AUC equals scikit-learn's AUC for the second class."""
     y = np.array(["no", "yes", "yes", "no", "yes"])
     proba = np.array([[.9, .1], [.3, .7], [.6, .4], [.8, .2], [.1, .9]])
 
@@ -49,8 +40,8 @@ def test_roc_auc_is_the_usual_binary_auc():
 
 
 def test_roc_auc_skips_a_class_a_fold_cannot_rank():
-    """What: a class with no rows in the fold has no curve and is left out of
-    the average instead of failing the trial. How: three classes, one absent."""
+    """`roc_auc` leaves a class absent from the fold out of the average instead
+    of failing the trial."""
     y = np.array(["a", "b", "a", "b"])
     proba = np.array([[.8, .1, .1], [.2, .7, .1], [.6, .3, .1], [.3, .6, .1]])
 
@@ -58,9 +49,8 @@ def test_roc_auc_skips_a_class_a_fold_cannot_rank():
 
 
 def test_log_loss_is_lower_is_better_and_a_failed_trial_scores_the_class_balance():
-    """What: log loss matches scikit-learn's, is minimised, and a trial with
-    no predictions scores what predicting the class shares would.
-    How: scores probabilities, then asks the metric's null score."""
+    """`null_score` gives a trial without predictions the log loss of predicting
+    the class shares."""
     metric = METRICS["log_loss"]
     y = np.array(["a", "a", "a", "b"])
     proba = np.array([[.9, .1], [.8, .2], [.7, .3], [.4, .6]])
@@ -71,8 +61,6 @@ def test_log_loss_is_lower_is_better_and_a_failed_trial_scores_the_class_balance
 
 
 def test_every_metric_scores_a_perfect_prediction_at_its_best():
-    """What: accuracy-like metrics give 1, log loss nearly 0, for a model that
-    is sure and right. How: scores certain, correct probabilities."""
     y = np.array(["a", "b", "c", "a"])
     proba = np.eye(3)[[0, 1, 2, 0]] * 0.999 + 0.001 / 3
     scores = score_all(y, list(y), {n: METRICS[n] for n in
@@ -85,8 +73,8 @@ def test_every_metric_scores_a_perfect_prediction_at_its_best():
 
 @pytest.mark.parametrize("defines, expected", [(True, True), (False, False)])
 def test_the_source_says_whether_a_model_gives_probabilities(defines, expected):
-    """What: an upload's `fit_predict_proba` is found without running it.
-    How: inspects a model with and one without the method."""
+    """`inspect_model_source` finds `fit_predict_proba` without running the
+    upload."""
     method = ("    def fit_predict_proba(self, config, X_train, y_train, X_val, seed=0):\n"
               "        return [], [], []\n") if defines else ""
     source = ('from codesigner_model import BaseModel\n\n'
@@ -96,14 +84,11 @@ def test_the_source_says_whether_a_model_gives_probabilities(defines, expected):
               + method)
     info, error = inspect_model_source(source.encode())
 
-    assert error is None and info.has_proba is expected
+    assert error is None and info is not None and info.has_proba is expected
 
 
 @pytest.mark.parametrize("name", sorted(MODELS))
 def test_class_weights_are_a_classification_choice(name):
-    """What: a classifier with class weights offers them as none/balanced, and
-    no model offers them for regression. How: reads each model's space for
-    each task it supports."""
     model = MODELS[name].__class__()
     for task in model.tasks:
         model.task = task
@@ -115,10 +100,8 @@ def test_class_weights_are_a_classification_choice(name):
 
 @pytest.mark.parametrize("name", sorted(set(MODELS) - {"SVM"}))
 def test_every_new_model_can_afford_its_analytics_with_probabilities(name):
-    """What: 2^hyperparameters × 3 games × 7 classification metrics stays within
-    the eager analytics budget, so turning on the probability metrics does not
-    push a run's explanations off to "compute on request". The SVM, with six
-    hyperparameters, is the one that does. How: counts each space."""
+    """The coalition count 2^hp × 3 games × 7 metrics must fit
+    `EAGER_MAX_COALITIONS`, which the six-hyperparameter SVM exceeds."""
     model = MODELS[name].__class__()
     model.task = model.tasks[0]
     n_hp = len(list(model.get_config_space().values()))
@@ -128,10 +111,8 @@ def test_every_new_model_can_afford_its_analytics_with_probabilities(name):
 
 
 def test_a_class_the_training_rows_lacked_is_scored_not_fatal():
-    """What: a validation label the model was never trained on counts as one it
-    gave no probability to — a large log loss for that row — instead of making
-    the trial unscoreable. How: scores three rows, one of a class outside the
-    model's two."""
+    """`log_loss` treats an unseen validation label as zero probability and
+    returns a large finite loss."""
     y = np.array(["a", "b", "c"])
     proba = np.array([[.6, .4], [.3, .7], [.5, .5]])
 

@@ -1,11 +1,10 @@
-"""An experiment's name is optional: one without is shown as "Untitled
-Experiment" (`Experiment.title`), and its owner may name it, rename it, or take
-the name away again from its heading."""
+"""`Experiment.title` shows a nameless experiment as "Untitled Experiment", and
+its owner names, renames or clears the name from the heading."""
 
 import pytest
 from django.urls import reverse
 
-from ui.models import Experiment
+from experiments.models import Experiment
 
 pytestmark = pytest.mark.django_db
 
@@ -17,9 +16,7 @@ def _experiment(name=""):
 
 
 def test_an_unnamed_experiment_is_shown_as_untitled(client):
-    """What: with no name, the sidebar, the heading and the breadcrumbs all say
-    "Untitled Experiment", and the breadcrumb is still a link. How: makes one
-    and reads its timeline page."""
+    """Sidebar, heading and breadcrumb link all read "Untitled Experiment"."""
     exp = _experiment()
     html = client.get(reverse("ui:experiment_timeline", args=[exp.pk])).content.decode()
     crumbs = html.split('class="breadcrumbs"', 1)[1].split("</nav>", 1)[0]
@@ -30,9 +27,7 @@ def test_an_unnamed_experiment_is_shown_as_untitled(client):
 
 
 def test_renaming_from_the_heading(client):
-    """What: the heading's form names the experiment and returns to the page it
-    was sent from; an empty name takes the name away. How: names it from the
-    timeline, then clears it."""
+    """`experiment_rename` follows `next`; an empty name resets the title."""
     exp = _experiment("first")
     here = reverse("ui:experiment_timeline", args=[exp.pk])
     url = reverse("ui:experiment_rename", args=[exp.pk])
@@ -47,9 +42,7 @@ def test_renaming_from_the_heading(client):
 
 
 def test_the_rename_form_offers_the_name_as_given(client):
-    """What: the heading's rename field holds the name itself, empty for an
-    unnamed experiment, with "Untitled Experiment" only as its placeholder.
-    How: reads the field on an unnamed experiment's dashboard."""
+    """"Untitled Experiment" is only the field's placeholder."""
     exp = _experiment()
     html = client.get(reverse("ui:experiment_detail", args=[exp.pk])).content.decode()
     field = html.split('id="rename-name"', 1)[1].split(">", 1)[0]
@@ -58,8 +51,6 @@ def test_the_rename_form_offers_the_name_as_given(client):
 
 
 def test_an_unnamed_experiment_exports_under_its_identifier(client):
-    """What: the .ihpo of an experiment with no name is named after its
-    identifier, not ".ihpo". How: exports one and reads the filename."""
     from tests.conftest import export_ihpo
 
     exp = _experiment()

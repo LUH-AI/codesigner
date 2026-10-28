@@ -17,7 +17,9 @@ from django.conf import settings
 from django.core.exceptions import PermissionDenied
 from django.http import Http404
 
-from ui.permissions import BOTH, HUMAN_ONLY, resolve_experiment
+from access.policy import HUMAN_ONLY
+
+from ui.permissions import BOTH, resolve_experiment
 
 from .tools.registry import Refused
 

@@ -24,7 +24,9 @@ from django.core.exceptions import PermissionDenied
 from django.http import Http404, HttpResponseBadRequest, JsonResponse, StreamingHttpResponse
 from django.views.decorators.http import require_GET, require_POST
 
-from ui.permissions import BOTH, VIEW, resolve_experiment
+from access.policy import VIEW
+
+from ui.permissions import BOTH, resolve_experiment
 
 from . import turns
 from .models import AssistantEvent, Conversation
@@ -85,7 +87,7 @@ def chat_context(request, experiment_id=None, url_name="") -> dict:
     }
     if planning:
         from access.policy import groups_to_choose_from
-        from core.io import demo_datasets
+        from core.datasets import demo_datasets
 
         out["dataset"] = conversation.dataset_name if conversation else ""
         out["dataset_is_demo"] = bool(conversation and conversation.demo_dataset)
@@ -99,7 +101,7 @@ def _fill(conversation, url_name) -> list:
     """What the page at *url_name* is filled with from *conversation*'s
     approved plan: a setup step until it has been saved, when the values saved
     are the person's; the run form until the experiment's first run."""
-    from ui.services import setup as steps
+    from ui import setup_steps as steps
 
     from .plan import RUN, fill_for
     from .tools.client import FILLABLE
@@ -172,7 +174,7 @@ def dataset(request):
     (`drafts.check_dataset`). No draft is made for it yet: that happens when the
     plan is approved. With `clear`, the dataset is let go. Only while the
     conversation is planning."""
-    from ui.services import drafts
+    from ui import drafts
 
     from .loop import emit
 
@@ -211,8 +213,10 @@ def approve(request):
     filling the setup in. Only the person can: no tool does this."""
     from django.core.files import File
 
-    from ui.services import drafts, storage
-    from ui.services import setup as steps
+    from ui import drafts
+
+    from experiments.services import storage
+    from ui import setup_steps as steps
 
     from . import plan as plans
     from .loop import emit

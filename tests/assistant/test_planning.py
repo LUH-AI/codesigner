@@ -19,7 +19,7 @@ from assistant.gateway import Context
 from assistant.models import AgentAction, Conversation
 from assistant.turns import tools_for
 from tests.access.test_groups import hosted, world  # noqa: F401 — fixtures
-from ui.services import setup as steps
+from ui import setup_steps as steps
 
 from .helpers import MockLLM, call, calls, text
 
@@ -63,7 +63,7 @@ def _planning(demo="iris", **fields):
 
 
 def _iris():
-    from core.io import demo_datasets
+    from core.datasets import demo_datasets
     from pathlib import Path
 
     return Path(demo_datasets()["iris"])
@@ -117,7 +117,7 @@ def test_a_plan_the_setup_would_refuse_says_why(change, expected):
 def test_nothing_is_made_by_checking():
     """What: checking a plan makes no experiment, draft or otherwise.
     How: the experiments before and after `problems`."""
-    from ui.models import Experiment
+    from experiments.models import Experiment
 
     plans.problems(IRIS, _request(), _iris())
 
@@ -195,7 +195,7 @@ def test_choosing_a_dataset_makes_no_draft(client, on):
     """What: the dataset chosen is kept with a new conversation, and the chat is
     told its name; no draft exists until the plan is approved.
     How: a demo chosen on the home page, then the experiments."""
-    from ui.models import Experiment
+    from experiments.models import Experiment
 
     data = json.loads(client.post(reverse("assistant:dataset"), {"demo": "wine"}).content)
     conversation = Conversation.objects.get(pk=data["conversation"])

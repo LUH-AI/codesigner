@@ -1329,17 +1329,3 @@ label[data-slice-control][hidden] { display: inline-flex; }
 .run-proposal button[type="submit"]:hover:not(:disabled) {
     background: #7C3AED; border-color: #7C3AED; color: #fff;
 }
-
-/* The Projected prior card: the points it was drawn through, one row each with
-   a field per coordinate, and the stated ones listed under it. */
-.pp-points { display: flex; flex-direction: column; gap: 0.25rem; margin: 0.25rem 0; }
-.pp-point { display: flex; align-items: center; gap: 0.35rem; font-size: 0.85rem; color: var(--muted); }
-.pp-point input { width: 6.5rem; }
-.pp-actions { display: flex; gap: 0.5rem; margin-top: 0.5rem; }
-.pp-stated { list-style: none; margin: 0.75rem 0 0; padding: 0; display: flex; flex-direction: column; gap: 0.35rem; }
-.pp-item { display: flex; align-items: center; gap: 0.5rem; font-size: 0.875rem; }
-.pp-item > span { flex: 1; min-width: 0; }
-.pp-item.is-editing > span { font-weight: 600; }
-/* Picking points: a crosshair over the cube while Draw Prior is ticked. */
-.drawing-prior .js-plotly-plot .nsewdrag, .drawing-prior .js-plotly-plot .gl-container { cursor: crosshair !important; }
-.pp-plot { width: 100%; height: 220px; margin-top: 0.25rem; }

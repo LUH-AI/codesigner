@@ -4,29 +4,29 @@ from django import forms
 from django.conf import settings
 from django.utils.translation import gettext_lazy as _
 
-from core import tasks
-from core.io import (
+from core.datasets import (
     DEFAULT_TEST_SIZE, demo_datasets, forecast_problem, mounted_models, orderable_columns,
     read_dataset, target_last, time_order_problem,
 )
-from core.splits import MIN_FOLDS
+from core import io, provenance, tasks
 from core.model_source import inspect_model_source
+from core.registry import MODELS
+from core.splits import MIN_FOLDS
+from experiments.models import UNTITLED
+from experiments.services import timestamps
 
+from . import times
 from .figures import FIGURES, autocompute_key, deferred_computations
-from .models import UNTITLED
-from .registry import MODELS
-from .services import timestamps
-from .validators import validate_dataset_upload, validate_model_upload
+from .validators import validate_dataset_upload, validate_model_upload, validate_size
 
 
-#: The ways a trial can be evaluated, and what the number beside the selector
-#: means under each. One place, so the form, the template and the script cannot
-#: disagree about the bounds or what to call it.
+#: `EVALUATION_SCHEMES` keeps each scheme's bounds and label in one place for
+#: the form, template and script.
 EVALUATION_KFOLD = "kfold"
 EVALUATION_HOLDOUT = "holdout"
-#: A forecast: each fold trains on a series' past and predicts its next steps
-#: (`core.splits.backtest`). Either task can be forecast — the next labels or
-#: the next numbers — so it is a way of evaluating, not a task.
+#: Backtests train each fold on a series' past and predict its next steps
+#: (`core.splits.backtest`). Either task can be forecast, so backtesting is an
+#: evaluation scheme.
 EVALUATION_BACKTEST = "backtest"
 EVALUATION_SCHEMES = {
     EVALUATION_KFOLD: {
@@ -52,24 +52,47 @@ EVALUATION_SCHEMES = {
 }
 
 
-class NewExperimentForm(forms.Form):
-    """Set up an experiment: name, model, dataset, seed. The optimizer is a
-    step of its own (ui/services/optimizer_form.py).
+class ImportForm(forms.Form):
+    """`ImportForm` takes an `.ihpo` plus an optional dataset and, for readers
+    allowed to upload, a model."""
 
-    The model is either a registry choice or — when the person filling the form
-    is allowed to bring one — an uploaded ``.py`` file defining a BaseModel
-    subclass. That permission is decided by the policy and passed in, so the
-    form does not have to know whether the instance has accounts. A dataset comes from
-    either the demo dropdown or an upload; exactly one is required. How a trial
-    is evaluated — one holdout or k folds — is settled here too, because it
-    cannot change later without making the experiment's own trials incomparable.
-    Creating an experiment does not run it — the metric to optimize and what
-    stops the run are chosen per-run on the detail page. Every metric is always
-    computed; the primary one is only the one the search optimizes.
+    file = forms.FileField(validators=[validate_size])
+    dataset = forms.FileField(required=False, validators=[validate_dataset_upload])
+    model = forms.FileField(required=False, validators=[validate_model_upload])
+
+    def __init__(self, *args, allow_model=False, **kwargs):
+        super().__init__(*args, **kwargs)
+        if not allow_model:
+            del self.fields["model"]
+
+    def clean_file(self):
+        upload = self.cleaned_data["file"]
+        try:
+            self.snapshot = io.parse(upload.read())
+        except ValueError as exc:
+            raise forms.ValidationError(
+                _("Invalid or unreadable experiment file.") + f" ({exc})") from exc
+        return upload
+
+    def clean(self):
+        # An attached dataset must match the one recorded in the file, since
+        # nothing downstream could detect trials added to the wrong history.
+        cleaned = super().clean()
+        dataset = cleaned.get("dataset")
+        if dataset is not None and hasattr(self, "snapshot"):
+            mismatch = provenance.dataset_mismatch(
+                self.snapshot.get("dataset"), provenance.sha256_stream(dataset))
+            if mismatch:
+                raise forms.ValidationError(mismatch)
+        return cleaned
+
+
+class NewExperimentForm(forms.Form):
+    """`NewExperimentForm` sets up the name, model, dataset, seed and
+    evaluation, while ui/optimizer_form.py handles the optimizer. The policy
+    decides whether a `.py` model upload is allowed.
     """
 
-    # Optional: an experiment is told apart by its identifier, and one left
-    # unnamed is shown as "Untitled Experiment" (`Experiment.title`).
     name = forms.CharField(label=_("Experiment name"), max_length=200, required=False,
                            widget=forms.TextInput(attrs={"placeholder": UNTITLED}))
     model_name = forms.ChoiceField(label=_("Model"), required=False)
@@ -79,16 +102,15 @@ class NewExperimentForm(forms.Form):
     demo_dataset = forms.ChoiceField(label=_("Dataset (demo)"), required=False)
     dataset_file = forms.FileField(label=_("Dataset (.csv)"), required=False,
                                     validators=[validate_dataset_upload])
-    #: The draft's dataset, removed with the picker's ×: kept no longer.
+    #: The picker's × clears the draft's dataset, so step 1 keeps it no longer.
     clear_dataset = forms.BooleanField(required=False, widget=forms.HiddenInput)
-    #: Named rather than picked from a list, like the time column: the columns
-    #: belong to whichever dataset is chosen above.
+    #: The target column is typed rather than listed, since the columns belong
+    #: to whichever dataset is chosen above.
     target_column = forms.CharField(
         label=_("Target"), required=False, max_length=255,
         help_text=_("The column to predict. Empty is the dataset's last column."))
-    #: Asked, never guessed: a column of whole numbers is classes to one
-    #: person and a quantity to the next, and which models are offered follows
-    #: from the answer.
+    #: The task is asked because whole numbers may be classes or quantities, and
+    #: the answer filters the models.
     task = forms.ChoiceField(
         label=_("Task"),
         help_text=_("What the experiment predicts: one of a set of labels, or a "
@@ -105,16 +127,9 @@ class NewExperimentForm(forms.Form):
                     "of the experiment: how the data is divided, the model's own "
                     "randomness, which configurations the search tries, and the "
                     "surrogates behind partial dependence and the explanations."))
-    # Fixed for the experiment's life, so it is asked here rather than per run:
-    # trials scored k-fold and trials scored on one holdout are not comparable,
-    # and an experiment's own history has to be.
-    # Two fields rather than one dropdown of preset combinations. The scheme and
-    # the number are separate decisions — how the data is divided, and how
-    # finely — and folding them into a fixed menu meant 7-fold or a 70/30 split
-    # were simply not offerable. Cross-validation by default: a single split on
-    # a small table is noisy enough that a search can spend its budget chasing
-    # the split rather than the model, and the tables this is pointed at are
-    # small.
+    # The scheme is fixed for the experiment's life, since k-fold and holdout
+    # scores are incomparable. Cross-validation is the default because one split
+    # on a small table is noisy.
     evaluation_scheme = forms.ChoiceField(
         label=_("Validation method"), initial=EVALUATION_KFOLD, required=False,
         help_text=_("Fixed once the experiment exists: trials evaluated "
@@ -128,18 +143,13 @@ class NewExperimentForm(forms.Form):
             (EVALUATION_BACKTEST, _("Backtests")),
         ],
     )
-    #: The number the scheme needs: folds under cross-validation, the share held
-    #: out under a single split. One field because only one of them applies at a
-    #: time, and two would leave whichever is inactive sitting there inviting a
-    #: value that goes nowhere. Its label, bounds and default follow the scheme —
-    #: see EVALUATION_SCHEMES and new_experiment.html's script.
+    #: `evaluation_value` is the number the scheme needs, and its label, bounds
+    #: and default follow `EVALUATION_SCHEMES`.
     evaluation_value = forms.FloatField(
         label=_("Folds"), required=False,
         initial=EVALUATION_SCHEMES[EVALUATION_KFOLD]["default"])
 
-    #: Empty is a random division, as before. Named rather than chosen from a
-    #: list because the columns are the dataset's, and the dataset is chosen on
-    #: the same form; the page suggests the ones that can be ordered by.
+    #: Empty divides at random; the page suggests orderable columns.
     time_column = forms.CharField(
         label=_("Order by"), required=False, max_length=255,
         help_text=_("A date or number column to divide the rows in time order by: "
@@ -151,8 +161,7 @@ class NewExperimentForm(forms.Form):
         help_text=_("Only with an order: rows left out between training and "
                     "validation, for labels that arrive late."))
 
-    #: Backtests only. The validation method's number is then how many
-    #: backtests there are, each one horizon later than the last.
+    #: Backtests only, where the validation number counts the backtests.
     horizon = forms.IntegerField(
         label=_("Horizon (steps)"), required=False, min_value=1, initial=12,
         help_text=_("How many time steps ahead each forecast predicts. Each "
@@ -171,15 +180,13 @@ class NewExperimentForm(forms.Form):
 
     def __init__(self, *args, may_upload_models=None, groups=(), current_dataset=None,
                  current_model=None, **kwargs):
-        """*current_dataset* (a path) and *current_model* (a custom model's
-        source, bytes) are what a draft being set up already has: given
-        nothing new, the form keeps them, and checks against them."""
+        """*current_dataset* and *current_model* are the draft's existing files,
+        kept when nothing new is posted."""
         super().__init__(*args, **kwargs)
         self.current_dataset = current_dataset
         self.current_model = current_model
-        # Only when there is a choice to make: somebody in one group has their
-        # experiment filed there without being asked. Required when present —
-        # a guess would file work under a boundary nobody chose.
+        # The group field appears only with a choice to make, and is required
+        # then, since a guess would misfile work.
         if groups:
             self.fields["group"] = forms.TypedChoiceField(
                 label=_("Group"), coerce=int,
@@ -199,17 +206,9 @@ class NewExperimentForm(forms.Form):
             del self.fields["model_file"]
 
     def _resolve_evaluation(self, cleaned) -> None:
-        """Fold the scheme and its number into what the experiment stores.
-
-        `cv_folds` stays the single source of truth for which scheme is in use —
-        0 is a split, 2 or more is cross-validation — because everything
-        downstream already reads it that way, and a second flag would be a
-        second thing to keep in step. `test_size` is carried under either
-        scheme, so switching one later has somewhere to start from.
-
-        Out of range is clamped rather than refused: these are two ends of one
-        continuum and every value between them is meaningful, so there is no
-        typo here worth failing a form over.
+        """`cv_folds` stays the one record of the scheme, with 0 a split and 2
+        or more cross-validation. Out-of-range values are clamped, since every
+        value in range is meaningful.
         """
         scheme = cleaned.get("evaluation_scheme") or self.fields["evaluation_scheme"].initial
         cleaned["evaluation_scheme"] = scheme
@@ -220,9 +219,8 @@ class NewExperimentForm(forms.Form):
         value = max(spec["min"], min(spec["max"], value))
 
         if scheme in (EVALUATION_KFOLD, EVALUATION_BACKTEST):
-            # Backtests are counted in the same place as folds: one backtest
-            # is stored as 1, which reads as no cross-validation everywhere
-            # that does not forecast and as one backtest where it does.
+            # Backtests are counted in `cv_folds` too, and one backtest stored
+            # as 1 reads as no cross-validation outside forecasting.
             cleaned["cv_folds"] = str(int(round(value)))
             cleaned["test_size"] = DEFAULT_TEST_SIZE
         else:
@@ -234,10 +232,8 @@ class NewExperimentForm(forms.Form):
         cleaned = super().clean()
         self._resolve_evaluation(cleaned)
 
-        # Model: a custom .py takes precedence over a registry choice, and is
-        # read rather than run — see core.model_source. Its declared name and
-        # dependencies are carried through for the view to record; whether it
-        # actually imports is settled later, in its own environment.
+        # A custom .py beats a registry choice and is read, never run (see
+        # core.model_source).
         upload = cleaned.get("model_file")
         mounted = cleaned.get("mounted_model")
         if upload:
@@ -247,7 +243,6 @@ class NewExperimentForm(forms.Form):
         elif mounted:
             self._read_model_source(cleaned, Path(mounted).read_bytes(), "mounted_model")
         elif not cleaned.get("model_name") and self.current_model is not None:
-            # A draft's uploaded model, kept.
             self._read_model_source(cleaned, self.current_model, "model_name")
             cleaned["keep_model"] = True
         elif not cleaned.get("model_name"):
@@ -256,15 +251,13 @@ class NewExperimentForm(forms.Form):
         if not cleaned.get("demo_dataset") and not cleaned.get("dataset_file"):
             if self.current_dataset is None or cleaned.get("clear_dataset"):
                 raise forms.ValidationError(_("Choose a demo dataset or upload a CSV file."))
-            # A draft's dataset, kept.
             cleaned["keep_dataset"] = Path(self.current_dataset)
         self._resolve_task(cleaned)
         self._resolve_time_order(cleaned)
         return cleaned
 
     def _resolve_task(self, cleaned) -> None:
-        """Check that the target and the model can both do the task asked for,
-        evaluated the way asked."""
+        """`_resolve_task` checks target and model against the task and scheme."""
         cleaned["target_column"] = (cleaned.get("target_column") or "").strip()
         task = cleaned.get("task")
         if not task:
@@ -304,8 +297,8 @@ class NewExperimentForm(forms.Form):
             self.add_error(field, _("%(model)s does not do %(task)s.") % {
                 "model": name, "task": TASK_LABELS[task]})
             return
-        # Every built-in forecasts through `core.forecasting`; an upload runs
-        # in its own process, so it forecasts only if it says it does.
+        # `core.forecasting` serves every built-in model, and an upload
+        # forecasts only if it says so.
         backtests = cleaned.get("evaluation_scheme") == EVALUATION_BACKTEST
         forecaster = (info.forecaster if info is not None
                       else tasks.forecaster(MODELS[name]) if name in MODELS else None)
@@ -320,8 +313,8 @@ class NewExperimentForm(forms.Form):
             return
 
     def _resolve_time_order(self, cleaned) -> None:
-        """Check the rows can be divided in time order the way the evaluation
-        asks, by the column named."""
+        """`_resolve_time_order` checks the time-order column against the
+        evaluation."""
         column = (cleaned.get("time_column") or "").strip()
         cleaned["time_column"] = column
         cleaned["time_gap"] = int(cleaned.get("time_gap") or 0) if column else 0
@@ -365,16 +358,15 @@ class NewExperimentForm(forms.Form):
                 "problem": problem, "columns": ", ".join(orderable) or _("none")})
 
     def _read_model_source(self, cleaned, source: bytes, field: str) -> None:
-        """Inspect a custom model's source, recording its name or an error."""
         info, err = inspect_model_source(source)
         if err:
             self.add_error(field, err)
             return
+        assert info is not None
         cleaned["model_name"] = info.name
         cleaned["model_source"] = info
 
 
-#: What to call each task where a sentence names one.
 TASK_LABELS = {tasks.CLASSIFICATION: _("classification"), tasks.REGRESSION: _("regression")}
 
 
@@ -385,14 +377,9 @@ _PRIOR_TOP_K_LABEL = _("Prior acceptance top k")
 
 
 class ExperimentSettingsFields(forms.Form):
-    """The experiment settings themselves.
-
-    Both settings pages show exactly these, so both forms inherit them: the
-    defaults page edits the template new experiments follow, the per-experiment
-    page edits one experiment's own copy. One field per figure (`show_<key>`) and
-    one per deferred computation (`autocompute_<name>`) come from the catalog, so
-    a newly declared figure gets its checkboxes on both pages without touching
-    this class.
+    """Both settings pages inherit `ExperimentSettingsFields`. The catalog
+    supplies the figure and deferred-computation checkboxes, and a new figure
+    reaches both pages without changes here.
     """
 
     ice_max_curves = forms.IntegerField(
@@ -417,7 +404,7 @@ class ExperimentSettingsFields(forms.Form):
     export_timestamps = forms.ChoiceField(
         label=_("Time"), required=False,
         choices=[("", _("The exporter's preference"))]
-                + [(mode, timestamps.LABELS[mode][0]) for mode in timestamps.MODES],
+                + [(mode, times.LABELS[mode][0]) for mode in timestamps.MODES],
         help_text=_("What the export page preselects."))
 
     def __init__(self, *args, **kwargs):
@@ -433,21 +420,14 @@ class ExperimentSettingsFields(forms.Form):
 
     @property
     def figure_fields(self):
-        """The figure checkboxes, in catalog order — for the template to loop."""
         return [self[figure.setting_key] for figure in FIGURES]
 
     @property
     def autocompute_fields(self):
-        """The deferred-computation checkboxes, in catalog order."""
         return [self[autocompute_key(name)] for name, _label in deferred_computations()]
 
 
-class DefaultExperimentSettingsForm(ExperimentSettingsFields):
-    """The defaults every inheriting experiment uses."""
-
-
 class ExperimentSettingsForm(ExperimentSettingsFields):
-    """One experiment's settings, plus whether it just inherits the defaults."""
 
     use_default_settings = forms.BooleanField(
         label=_("Use default experiment settings"), required=False)

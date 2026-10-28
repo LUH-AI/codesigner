@@ -12,7 +12,7 @@ from .registry import Refused, ToolResult, ToolSpec
 def _list_models(context, task: str = "") -> ToolResult:
     from core import tasks
 
-    from ui.registry import MODELS
+    from core.registry import MODELS
 
     out = []
     for name, model in MODELS.items():
@@ -64,7 +64,7 @@ LIST_METRICS = ToolSpec(
 
 
 def _list_optimizers(context) -> ToolResult:
-    from ui.registry import OPTIMIZERS
+    from core.registry import OPTIMIZERS
 
     out = []
     for name, optimizer in OPTIMIZERS.items():

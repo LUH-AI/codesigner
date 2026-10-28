@@ -1,0 +1,10 @@
+{% extends "ui/_experiment_page.html" %}
+{% load i18n %}
+
+{% block view_title %}{{ section.title }} · {% translate "Data Handling" %} · {% endblock %}
+
+{% comment %}Its sections as tabs of panels (ui/data_handling/_tabs.html), under
+the experiment's heading (ui/_experiment_page.html).{% endcomment %}
+{% block experiment_body %}
+    {% include "ui/data_handling/_tabs.html" %}
+{% endblock %}

@@ -1,133 +1,76 @@
-"""How long one call to a model may be given.
-
-A run has always enforced a single number on every trial of it —
-`DEFAULT_TRIAL_TIMEOUT`, generous on purpose, a "this is wedged" line rather
-than a budget. That is the right shape while nobody knows the model, and the
-wrong one once someone does: the number that catches a hung fit on a small
-table is minutes away from the number that catches one on a large table, and a
-search over `n_estimators` spans both inside a single run.
-
-So the deadline becomes a policy, consulted per call rather than fixed at the
-top of the run. Two of them:
-
-`FixedDeadline` is the behaviour there has always been, named and given a
-zero that means "no limit".
-
-`PredictedDeadline` fits a RandomForest over the durations this run has already
-measured and allows each configuration `factor` times what the forest predicts
-for that configuration.
-
-**Prediction-relative, and deliberately not median-relative.** A cap set as a
-multiple of the typical trial adapts by itself and is biased: duration tracks
-capacity — `n_estimators=500` is legitimately 50x `n_estimators=10` — and
-capacity tracks performance, so a median-relative cap systematically prunes the
-high-capacity end of the space, which is often where the best configuration is.
-It kills a trial for being big. A prediction conditioned on the configuration
-does not: one predicted to take ten minutes gets ten minutes, and one predicted
-at ten seconds and still running after five minutes is stuck.
-
-**What it cannot do is extrapolate.** A forest's prediction never leaves the
-range of the targets it was trained on, so a configuration much larger than
-anything measured yet is predicted at roughly the slowest thing seen so far.
-That is what `ceiling` is for — the fixed deadline, still asked for, still the
-outer bound — and `floor` is for the opposite end, where a configuration
-predicted at a twentieth of a second would otherwise be given a deadline
-shorter than the round trip that carries it.
-
-**And it only ever learns from calls that finished.** A call that timed out is
-censored — all it says is "longer than the deadline it was given" — and one
-that raised died early rather than ran. Training on either would teach the
-forest that the region is fast and tighten the deadline over it, which is the
-one feedback loop worth refusing outright. The cost of that choice is that a
-configuration killed once contributes nothing towards understanding why, which
-is why `ceiling` is an absolute bound and not itself predicted.
+"""`DEFAULT_TRIAL_TIMEOUT` catches a wedged model, but a hung fit on a small
+table and on a large table differ by minutes, and one search over `n_estimators`
+spans both. `PredictedDeadline` allows each configuration `factor` times a
+RandomForest's prediction of its duration, since a median-relative cap would
+prune the slow, high-capacity configurations that often score best. The forest
+cannot extrapolate past the slowest duration seen, so `ceiling` bounds the
+deadline above and `floor` keeps it above the round-trip cost. The forest learns
+only from completed calls, because a timeout or a crash would teach it that a
+region is fast.
 """
 
 from __future__ import annotations
 
-#: Generous on purpose. Measured trials run 0.07-4.7s, so this is not a
-#: performance budget — it is the line past which a model is presumed wedged
-#: rather than slow, and a real dataset may legitimately sit in `fit` for
-#: minutes.
+#: Measured trials run 0.07-4.7s, and `DEFAULT_TRIAL_TIMEOUT` marks a wedged
+#: model, since a real dataset may spend minutes in `fit`.
 DEFAULT_TRIAL_TIMEOUT = 600.0
 
-#: What a deadline of "none" is, arithmetically. `_await` compares against it
-#: and subtracts from it, so a sentinel that behaves like a number is worth more
-#: than a `None` every caller has to branch on.
+#: `_await` compares against and subtracts from `NO_LIMIT`, so infinity spares
+#: callers a `None` branch.
 NO_LIMIT = float("inf")
 
-#: How many multiples of the predicted duration a call is allowed. Five rather
-#: than two: the prediction is a forest's mean over trees, so half the
-#: configurations it has actually seen are slower than their own prediction,
-#: and the margin has to cover that as well as the genuine variance between two
-#: fits of the same configuration.
+#: A forest predicts the mean over trees, so half the seen configurations run
+#: slower than predicted, and the margin also covers run-to-run variance.
 DEFAULT_FACTOR = 5.0
 
-#: No predicted deadline is ever shorter than this, however fast the forest
-#: thinks a configuration is. A round trip to another process costs a JSON
-#: encode, a pipe write and a scheduler wakeup at each end, and the fastest
-#: measured trials are already inside a tenth of a second — a deadline derived
-#: from those without a floor would be enforcing the noise.
+#: The fastest trials take under 0.1s, and a deadline below the cost of a
+#: process round trip would enforce noise.
 MIN_PREDICTED_DEADLINE = 30.0
 
-#: Completed calls needed before the forest is trusted with a kill decision.
-#: Two is enough to *fit* one (`fit_surrogate` accepts that) and nowhere near
-#: enough to act on it. Five keeps the earliest, least-informed trials on the
-#: ceiling — which is exactly the fixed timeout they would have had anyway —
-#: while leaving most of a thirty-trial run adaptive.
+#: Two calls can fit a forest; five keep the earliest trials on the ceiling
+#: while most of a thirty-trial run stays adaptive.
 MIN_OBSERVATIONS = 5
 
-#: Refit once the observations have grown by this much since the last fit,
-#: rather than after every call. A forest over a few hundred rows is tens of
-#: milliseconds, which is real against a trial that takes 0.07s, and a duration
-#: model does not move discontinuously — the fit from 40 observations is a fine
-#: predictor at 45. Growth-proportional rather than every-nth so the cost stays
-#: logarithmic in the length of the run.
+#: A forest over a few hundred rows takes tens of milliseconds, real against a
+#: 0.07s trial, and growth-proportional refits keep the cost logarithmic in run
+#: length.
 REFIT_GROWTH = 1.25
 
-#: The forest itself, matching `core.optimizers.base.fit_surrogate` — same
-#: estimator, same tree count, fitted against duration instead of a score.
+#: Matches `core.analytics.fit_surrogate`.
 DURATION_TREES = 100
 
 
 class FixedDeadline:
-    """The same number for every call.
-
-    What a bare float handed to `model_session` means, kept as a class so the
-    two policies answer the same three questions and the client has one shape to
-    talk to.
+    """A bare float passed to `model_session` becomes a `FixedDeadline`, so the
+    client talks to one policy shape.
     """
 
-    #: Read by `RemoteModel`, so building a search space this will not look at
-    #: is skipped rather than paid for once a run.
+    #: `RemoteModel` reads `needs_config_space` to skip building an unused
+    #: search space.
     needs_config_space = False
 
     __slots__ = ("seconds",)
 
     def __init__(self, seconds: float | None = DEFAULT_TRIAL_TIMEOUT):
-        # 0 and None both read as "no limit", matching the run form, where an
-        # empty box has never meant "stop immediately".
+        # 0 and None mean no limit, as an empty run-form box does.
         self.seconds = NO_LIMIT if not seconds or seconds <= 0 else float(seconds)
 
     def bind(self, config_space) -> None:
-        """Nothing here needs the search space."""
+        """`bind` ignores the space."""
 
     def seconds_for(self, config) -> float:
         return self.seconds
 
     def observe(self, config, elapsed: float, *, completed: bool) -> None:
-        """Nothing here learns."""
+        """`observe` learns nothing."""
 
     def __repr__(self) -> str:
         return f"FixedDeadline({self.seconds!r})"
 
 
 class PredictedDeadline:
-    """`factor` times what a forest predicts this configuration will take.
-
-    Bounded below by `floor` and above by `ceiling`, and equal to `ceiling`
-    until `MIN_OBSERVATIONS` calls have completed — so a run that never gets
-    that far behaves exactly as `FixedDeadline(ceiling)` would have.
+    """`PredictedDeadline` stays between `floor` and `ceiling`, and equals
+    `ceiling` until `MIN_OBSERVATIONS` calls complete.
     """
 
     needs_config_space = True
@@ -141,20 +84,15 @@ class PredictedDeadline:
         self.floor = max(0.0, float(floor))
         self.seed = seed
         self._space = None
-        self._rows: list = []          # one internal-representation vector per completed call
+        self._rows: list = []
         self._durations: list = []
         self._forest = None
-        self._fitted_at = 0            # len(self._rows) when the forest was last fitted
+        self._fitted_at = 0
 
-    # ── the three questions ──────────────────────────────────────────────────
 
     def bind(self, config_space) -> None:
-        """The space configurations are encoded against.
-
-        Handed over by `model_session` once the child has described itself,
-        because that is the first moment there is one. Unbound — a caller that
-        never binds — the policy simply never leaves the ceiling, which is a
-        safe way to be uninformed rather than a crash.
+        """`RemoteModel` binds the space on first use, from the child's
+        greeting. An unbound `PredictedDeadline` stays at the ceiling.
         """
         self._space = config_space
 
@@ -174,8 +112,7 @@ class PredictedDeadline:
         return min(self.ceiling, max(self.floor, self.factor * predicted))
 
     def observe(self, config, elapsed: float, *, completed: bool) -> None:
-        """Record one call. Only a completed one is a measurement — see module
-        docstring on why a timeout and a crash are both refused."""
+        """`observe` records only completed calls (see the module docstring)."""
         if not completed or elapsed <= 0:
             return
         row = self._encode(config)
@@ -184,17 +121,12 @@ class PredictedDeadline:
         self._rows.append(row)
         self._durations.append(float(elapsed))
 
-    # ── plumbing ─────────────────────────────────────────────────────────────
 
     def _encode(self, config):
-        """A configuration as the vector the forest is fitted over.
-
-        `Configuration.get_array()` — ConfigSpace's own internal representation,
-        the same encoding `core.optimizers.base.fit_surrogate` fits the
-        analytics surrogate over, so a duration model and a performance model
-        see a configuration identically. A configuration the space rejects
-        encodes to `None` and takes the ceiling rather than raising: a deadline
-        is not the place to discover that a search space has moved.
+        """`get_array()` gives the same encoding as
+        `core.analytics.fit_surrogate`, and the duration and performance models
+        see a configuration alike. `_encode` returns None for a configuration
+        the space rejects, and the call gets the ceiling.
         """
         if self._space is None:
             return None
@@ -206,7 +138,6 @@ class PredictedDeadline:
             return None
 
     def _fitted(self):
-        """The forest, refitted if enough has been learned since the last one."""
         n = len(self._rows)
         if n < MIN_OBSERVATIONS:
             return None
@@ -229,21 +160,20 @@ class PredictedDeadline:
                 f"ceiling={self.ceiling!r}, observations={len(self._rows)})")
 
 
-#: How a run says which of the two it wants. Stored on the Run row and posted by
-#: the run form; `as_deadline` is the one place it turns into a policy.
+#: The Run row stores the mode and the run form posts it; `as_deadline` turns it
+#: into a policy.
 MODE_FIXED = "fixed"
 MODE_PREDICTED = "predicted"
 MODES = (MODE_FIXED, MODE_PREDICTED)
 
 
-def as_deadline(spec):
-    """Whatever a caller passed as `trial_timeout`, as a policy.
+DeadlineSpec = float | dict | FixedDeadline | PredictedDeadline | None
 
-    Accepts a policy (returned as-is), a bare number or `None` (the old
-    contract, and what every caller that does not care still passes), or the
-    `{"mode": ..., "seconds": ..., "factor": ...}` dict a Run stores. Unknown
-    modes and unreadable numbers fall back to the fixed deadline rather than
-    raising — this is read from a JSON column that predates the field.
+
+def as_deadline(spec) -> FixedDeadline | PredictedDeadline:
+    """`as_deadline` accepts a policy, a number or None, or the dict a Run
+    stores. Unknown modes and unreadable numbers fall back to a fixed deadline,
+    since the JSON column predates the field.
     """
     if spec is None or isinstance(spec, (int, float)):
         return FixedDeadline(spec if spec is not None else DEFAULT_TRIAL_TIMEOUT)

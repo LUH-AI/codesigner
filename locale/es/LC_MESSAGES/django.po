@@ -8,7 +8,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: PACKAGE VERSION\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2026-10-16 16:01+0000\n"
+"POT-Creation-Date: 2026-10-16 09:45+0000\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
 "Language-Team: LANGUAGE <LL@li.org>\n"
@@ -18,12 +18,12 @@ msgstr ""
 "Content-Transfer-Encoding: 8bit\n"
 "Plural-Forms: nplurals=2; plural=(n != 1);\n"
 
-#: access/policy.py:351
+#: access/policy.py:349
 #, python-format
 msgid "%(user)s is not allowed to run custom models here."
 msgstr "%(user)s no puede ejecutar modelos propios aquí."
 
-#: access/policy.py:352
+#: access/policy.py:350
 msgid ""
 "This experiment's custom model has no account behind it, so it cannot be "
 "run. Give the experiment an owner who is allowed to run custom models."
@@ -80,235 +80,6 @@ msgstr ""
 msgid "Back to your account"
 msgstr "Volver a su cuenta"
 
-#: assistant/templates/assistant/_chat.html:16
-#: assistant/templates/assistant/_chat.html:62
-#: assistant/templates/assistant/_chat.html:74
-#: assistant/templates/assistant/window.html:10
-msgid "Assistant"
-msgstr "Asistente"
-
-#: assistant/templates/assistant/_chat.html:28
-msgid "Working…"
-msgstr "Trabajando…"
-
-#: assistant/templates/assistant/_chat.html:29
-msgid "Thinking…"
-msgstr "Pensando…"
-
-#: assistant/templates/assistant/_chat.html:30
-#, python-brace-format
-msgid "Used {tool}"
-msgstr "Usó {tool}"
-
-#: assistant/templates/assistant/_chat.html:31
-msgid ""
-"The assistant’s model cannot be reached right now. Everything else works as "
-"usual."
-msgstr ""
-"No se puede acceder al modelo del asistente en este momento. Todo lo demás "
-"funciona como siempre."
-
-#: assistant/templates/assistant/_chat.html:32
-msgid "Today’s assistant budget is used up."
-msgstr "El presupuesto del asistente para hoy está agotado."
-
-#: assistant/templates/assistant/_chat.html:33
-msgid "The assistant stopped before finishing. Ask again, more specifically."
-msgstr ""
-"El asistente se detuvo antes de terminar. Vuelva a preguntar, con más "
-"precisión."
-
-#: assistant/templates/assistant/_chat.html:34
-msgid "Something went wrong on the assistant’s side."
-msgstr "Algo salió mal por parte del asistente."
-
-#: assistant/templates/assistant/_chat.html:35
-msgid "The assistant is still answering."
-msgstr "El asistente todavía está respondiendo."
-
-#: assistant/templates/assistant/_chat.html:36
-#: ui/templates/ui/figures/projected_prior.html:97
-msgid "Could not reach the server."
-msgstr "No se pudo contactar con el servidor."
-
-#: assistant/templates/assistant/_chat.html:37
-#, python-brace-format
-msgid "Dataset: {name}"
-msgstr "Conjunto de datos: {name}"
-
-#: assistant/templates/assistant/_chat.html:38
-msgid "Upload or choose a dataset."
-msgstr "Suba o elija un conjunto de datos."
-
-#: assistant/templates/assistant/_chat.html:39
-msgid "Enter a prompt."
-msgstr "Escriba una petición."
-
-#: assistant/templates/assistant/_chat.html:40
-msgid "The plan"
-msgstr "El plan"
-
-#: assistant/templates/assistant/_chat.html:41
-msgid "Approve and set up"
-msgstr "Aprobar y configurar"
-
-#: assistant/templates/assistant/_chat.html:42
-msgid "Not ready yet:"
-msgstr "Todavía no está listo:"
-
-#: assistant/templates/assistant/_chat.html:43
-msgid "Plan approved."
-msgstr "Plan aprobado."
-
-#: assistant/templates/assistant/_chat.html:44
-msgid "Goal"
-msgstr "Objetivo"
-
-#: assistant/templates/assistant/_chat.html:45
-#: ui/templates/ui/experiment_list.html:12
-#: ui/templates/ui/panels/site_groups.html:70
-msgid "Name"
-msgstr "Nombre"
-
-#: assistant/templates/assistant/_chat.html:46 ui/forms.py:93
-#: ui/timeline.py:230
-msgid "Task"
-msgstr "Tarea"
-
-#: assistant/templates/assistant/_chat.html:47 datahandling/sections.py:57
-#: ui/forms.py:87
-msgid "Target"
-msgstr "Objetivo"
-
-#: assistant/templates/assistant/_chat.html:48 ui/forms.py:75
-#: ui/templates/ui/_experiment_header.html:35
-#: ui/templates/ui/experiment_list.html:13 ui/timeline.py:233
-msgid "Model"
-msgstr "Modelo"
-
-#: assistant/templates/assistant/_chat.html:49 ui/forms.py:119
-msgid "Validation method"
-msgstr "Método de validación"
-
-#: assistant/templates/assistant/_chat.html:50 ui/services/setup.py:98
-#: ui/templates/ui/_experiment_header.html:36
-#: ui/templates/ui/_optimizer_form.html:9
-#: ui/templates/ui/experiment_list.html:14
-#: ui/templates/ui/experiment_prerun.html:52
-#: ui/templates/ui/setup_step_optimizer.html:4 ui/timeline.py:237
-#: ui/timeline.py:341 ui/timeline.py:343
-msgid "Optimizer"
-msgstr "Optimizador"
-
-#: assistant/templates/assistant/_chat.html:51
-msgid "Data handling"
-msgstr "Tratamiento de datos"
-
-#: assistant/templates/assistant/_chat.html:52
-#: ui/templates/ui/_experiment_header.html:37
-msgid "Metric"
-msgstr "Métrica"
-
-#: assistant/templates/assistant/_chat.html:53
-msgid "Stopping criteria"
-msgstr "Criterios de parada"
-
-#: assistant/templates/assistant/_chat.html:54 ui/forms.py:103
-#: ui/templates/ui/_experiment_header.html:39 ui/timeline.py:239
-msgid "Seed"
-msgstr "Semilla"
-
-#: assistant/templates/assistant/_chat.html:63
-msgid "in its own window"
-msgstr "en una ventana propia"
-
-#: assistant/templates/assistant/_chat.html:67
-msgid "Open in its own window"
-msgstr "Abrir en una ventana propia"
-
-#: assistant/templates/assistant/_chat.html:69
-msgid "Bring the chat back here"
-msgstr "Traer el chat de vuelta aquí"
-
-#: assistant/templates/assistant/_chat.html:71
-msgid "Minimize"
-msgstr "Minimizar"
-
-#: assistant/templates/assistant/_chat.html:75
-msgid "Return to page"
-msgstr "Volver a la página"
-
-#: assistant/templates/assistant/_chat.html:89 ui/forms.py:79
-msgid "Dataset (demo)"
-msgstr "Conjunto de datos (demostración)"
-
-#: assistant/templates/assistant/_chat.html:91
-msgid "Choose a demo dataset"
-msgstr "Elija un conjunto de datos de demostración"
-
-#: assistant/templates/assistant/_chat.html:94
-#: ui/templates/ui/setup_step_setup.html:89
-msgid "Use demo dataset"
-msgstr "Usar conjunto de datos de demostración"
-
-#: assistant/templates/assistant/_chat.html:96
-#: assistant/templates/assistant/_chat.html:97 templates/base.html:26
-#: templates/base.html:28 templates/base.html:108 ui/forms.py:185
-#: ui/templates/ui/_group_picker.html:7
-#: ui/templates/ui/panels/group_none.html:4
-#: ui/templates/ui/panels/group_none.html:7
-#: ui/templates/ui/panels/site_groups.html:17
-#: ui/templates/ui/panels/site_jobs.html:20
-#: ui/templates/ui/panels/site_trash.html:42
-#: ui/templates/ui/panels/site_usage.html:18
-#: ui/templates/ui/panels/site_usage.html:46
-msgid "Group"
-msgstr "Grupo"
-
-#: assistant/templates/assistant/_chat.html:105
-msgid "Message to the assistant"
-msgstr "Mensaje para el asistente"
-
-#: assistant/templates/assistant/_chat.html:107
-msgid ""
-"Upload a dataset and enter a prompt to get started optimizing with your "
-"Design Assistant, or create a new experiment yourself by clicking “+ New” in "
-"the sidebar."
-msgstr ""
-"Suba un conjunto de datos y escriba una petición para empezar a optimizar "
-"con su asistente de diseño, o cree usted mismo un experimento nuevo con «+ "
-"Nuevo» en la barra lateral."
-
-#: assistant/templates/assistant/_chat.html:107
-msgid "Ask a question or request help setting or running your experiment"
-msgstr ""
-"Haga una pregunta o pida ayuda para configurar o ejecutar su experimento"
-
-#: assistant/templates/assistant/_chat.html:109
-msgid "Send"
-msgstr "Enviar"
-
-#: assistant/templates/assistant/_chat.html:111
-#: assistant/templates/assistant/_chat.html:121
-#: ui/templates/ui/figures/prior.html:170
-msgid "Reset"
-msgstr "Restablecer"
-
-#: assistant/templates/assistant/_chat.html:118
-msgid "Reset the conversation?"
-msgstr "¿Restablecer la conversación?"
-
-#: assistant/templates/assistant/_chat.html:119
-msgid "This deletes the chat and the dataset given to it. It cannot be undone."
-msgstr ""
-"Esto borra el chat y el conjunto de datos que se le dio. No se puede "
-"deshacer."
-
-#: assistant/templates/assistant/_chat.html:122
-#: ui/templates/ui/_confirm_page.html:33
-msgid "Cancel"
-msgstr "Cancelar"
-
 #: datahandling/panels.py:29
 msgid "Fill in"
 msgstr "Rellenar"
@@ -342,7 +113,7 @@ msgstr "Según lo necesite el modelo"
 msgid "%(choice)s (%(model)s default)"
 msgstr "%(choice)s (por defecto en %(model)s)"
 
-#: datahandling/sections.py:41 ui/views.py:3404
+#: datahandling/sections.py:41 ui/views.py:3544
 msgid "Overview"
 msgstr "Resumen"
 
@@ -402,6 +173,10 @@ msgstr ""
 #: datahandling/sections.py:55
 msgid "Columns"
 msgstr "Columnas"
+
+#: datahandling/sections.py:57
+msgid "Target"
+msgstr "Objetivo"
 
 #: datahandling/sections.py:57
 msgid "Choose the column to predict, rather than it having to be the last."
@@ -935,7 +710,7 @@ msgstr ""
 "Hay una ejecución en curso, y usa las columnas procesadas como lo están "
 "ahora."
 
-#: datahandling/views.py:90 ui/views.py:417
+#: datahandling/views.py:89 ui/views.py:513
 msgid "Saved."
 msgstr "Guardado."
 
@@ -943,6 +718,18 @@ msgstr "Guardado."
 #: ui/templates/ui/panels/group.html:153
 msgid "Experiments"
 msgstr "Experimentos"
+
+#: templates/base.html:26 templates/base.html:28 templates/base.html:108
+#: ui/forms.py:178 ui/templates/ui/_group_picker.html:7
+#: ui/templates/ui/panels/group_none.html:4
+#: ui/templates/ui/panels/group_none.html:7
+#: ui/templates/ui/panels/site_groups.html:17
+#: ui/templates/ui/panels/site_jobs.html:20
+#: ui/templates/ui/panels/site_trash.html:42
+#: ui/templates/ui/panels/site_usage.html:18
+#: ui/templates/ui/panels/site_usage.html:46
+msgid "Group"
+msgstr "Grupo"
 
 #: templates/base.html:33 templates/base.html:35 templates/base.html:120
 msgid "Site"
@@ -1071,10 +858,6 @@ msgstr ""
 "%(group)s ha usado el %(percent)s%% de su almacenamiento (%(used)s de "
 "%(limit)s). Cuando se llene, un conjunto de datos nuevo sustituirá a los "
 "modelos de las pruebas conservados más antiguos."
-
-#: templates/base.html:244
-msgid "Filled by the assistant"
-msgstr "Rellenado por el asistente"
 
 #: ui/figures/catalog.py:31
 msgid "Best configuration"
@@ -1213,7 +996,7 @@ msgid "Already banked"
 msgstr "Ya obtenido"
 
 #: ui/figures/plots.py:456 ui/templates/ui/figures/_importance_table.html:25
-#: ui/templates/ui/figures/hyperparameter_importance.html:55 ui/views.py:768
+#: ui/templates/ui/figures/hyperparameter_importance.html:55 ui/views.py:864
 msgid "Still to gain"
 msgstr "Aún por ganar"
 
@@ -1274,7 +1057,7 @@ msgid "Best sampled, weighted"
 msgstr "Mejor muestreado, ponderado"
 
 #: ui/figures/plots.py:1532 ui/figures/plots.py:1580
-#: ui/templates/ui/figures/configuration_cube.html:83 ui/views.py:3406
+#: ui/templates/ui/figures/configuration_cube.html:83 ui/views.py:3546
 msgid "Acquisition"
 msgstr "Adquisición"
 
@@ -1328,7 +1111,7 @@ msgstr "Backtest %(n)s"
 msgid "forecast"
 msgstr "pronóstico"
 
-#: ui/forms.py:33 ui/forms.py:137
+#: ui/forms.py:33 ui/forms.py:130
 msgid "Folds"
 msgstr "Pliegues"
 
@@ -1351,7 +1134,7 @@ msgstr ""
 "Una única división de los datos. La más barata, y más ruidosa con una tabla "
 "pequeña — la búsqueda puede acabar persiguiendo la división."
 
-#: ui/forms.py:45 ui/forms.py:128
+#: ui/forms.py:45 ui/forms.py:121
 msgid "Backtests"
 msgstr "Backtests"
 
@@ -1370,6 +1153,11 @@ msgstr ""
 msgid "Experiment name"
 msgstr "Nombre del experimento"
 
+#: ui/forms.py:75 ui/templates/ui/_experiment_header.html:35
+#: ui/templates/ui/experiment_list.html:13 ui/timeline.py:233
+msgid "Model"
+msgstr "Modelo"
+
 #: ui/forms.py:76
 msgid "…or upload a model .py"
 msgstr "…o suba un modelo .py"
@@ -1378,17 +1166,19 @@ msgstr "…o suba un modelo .py"
 msgid "…or a mounted model .py"
 msgstr "…o un modelo .py montado"
 
+#: ui/forms.py:79
+msgid "Demo dataset"
+msgstr "Conjunto de datos de demostración"
+
 #: ui/forms.py:80
-msgid "Dataset (.csv)"
-msgstr "Conjunto de datos (.csv)"
+msgid "…or upload a CSV (last column = target)"
+msgstr "…o suba un CSV (última columna = objetivo)"
 
-#: ui/forms.py:88
-msgid "The column to predict. Empty is the dataset's last column."
-msgstr ""
-"La columna que se predice. Vacío significa la última columna del conjunto de "
-"datos."
+#: ui/forms.py:86 ui/timeline.py:230
+msgid "Task"
+msgstr "Tarea"
 
-#: ui/forms.py:94
+#: ui/forms.py:87
 msgid ""
 "What the experiment predicts: one of a set of labels, or a number. Only the "
 "models that can do it are offered. Fixed once the experiment exists. To "
@@ -1400,20 +1190,24 @@ msgstr ""
 "existe el experimento. Para predecir las próximas etiquetas o números de una "
 "serie, elija backtests como método de validación."
 
-#: ui/forms.py:98 ui/forms.py:186 ui/forms.py:189
+#: ui/forms.py:91 ui/forms.py:179 ui/forms.py:182
 #: ui/templates/ui/_group_picker.html:9
 msgid "— select —"
 msgstr "— elegir —"
 
-#: ui/forms.py:99 ui/timeline.py:230
+#: ui/forms.py:92 ui/timeline.py:230
 msgid "Classification"
 msgstr "Clasificación"
 
-#: ui/forms.py:100 ui/timeline.py:231
+#: ui/forms.py:93 ui/timeline.py:231
 msgid "Regression"
 msgstr "Regresión"
 
-#: ui/forms.py:104
+#: ui/forms.py:96 ui/templates/ui/_experiment_header.html:39 ui/timeline.py:239
+msgid "Seed"
+msgstr "Semilla"
+
+#: ui/forms.py:97
 msgid ""
 "Negative picks one at random. Drives every stochastic part of the "
 "experiment: how the data is divided, the model's own randomness, which "
@@ -1425,7 +1219,11 @@ msgstr ""
 "qué configuraciones prueba la búsqueda y los sustitutos que hay detrás de la "
 "dependencia parcial y de las explicaciones."
 
-#: ui/forms.py:120
+#: ui/forms.py:112
+msgid "Validation method"
+msgstr "Método de validación"
+
+#: ui/forms.py:113
 msgid ""
 "Fixed once the experiment exists: trials evaluated different ways cannot be "
 "compared with each other. Cross-validation costs one fit per fold. Backtests "
@@ -1438,19 +1236,19 @@ msgstr ""
 "pronóstico: cada uno predice los siguientes pasos de una serie a partir de "
 "su pasado."
 
-#: ui/forms.py:126
+#: ui/forms.py:119
 msgid "Cross-validation"
 msgstr "Validación cruzada"
 
-#: ui/forms.py:127
+#: ui/forms.py:120
 msgid "Dataset split"
 msgstr "División de los datos"
 
-#: ui/forms.py:144
+#: ui/forms.py:137
 msgid "Order by"
 msgstr "Ordenar por"
 
-#: ui/forms.py:145
+#: ui/forms.py:138
 msgid ""
 "A date or number column to divide the rows in time order by: every trial "
 "trains on earlier rows and is validated on later ones, as it would be used. "
@@ -1462,11 +1260,11 @@ msgstr ""
 "posteriores, tal como se usaría. Déjela vacía para dividir al azar. Las "
 "filas sin valor en esta columna se descartan."
 
-#: ui/forms.py:150
+#: ui/forms.py:143
 msgid "Gap (rows)"
 msgstr "Separación (filas)"
 
-#: ui/forms.py:151
+#: ui/forms.py:144
 msgid ""
 "Only with an order: rows left out between training and validation, for "
 "labels that arrive late."
@@ -1474,11 +1272,11 @@ msgstr ""
 "Solo con un orden: filas que se dejan fuera entre entrenamiento y "
 "validación, para etiquetas que llegan tarde."
 
-#: ui/forms.py:157
+#: ui/forms.py:150
 msgid "Horizon (steps)"
 msgstr "Horizonte (pasos)"
 
-#: ui/forms.py:158
+#: ui/forms.py:151
 msgid ""
 "How many time steps ahead each forecast predicts. Each backtest forecasts "
 "this many steps from an origin one horizon later than the last."
@@ -1487,11 +1285,11 @@ msgstr ""
 "pronostica este número de pasos desde un origen un horizonte posterior al "
 "del anterior."
 
-#: ui/forms.py:162
+#: ui/forms.py:155
 msgid "Series column"
 msgstr "Columna de serie"
 
-#: ui/forms.py:163
+#: ui/forms.py:156
 msgid ""
 "A column naming which series each row belongs to, when the file holds "
 "several — one per store, say. Each is forecast from its own history. Leave "
@@ -1501,11 +1299,11 @@ msgstr ""
 "contiene varias — una por tienda, por ejemplo. Cada una se pronostica a "
 "partir de su propio historial. Déjela vacía si hay una sola serie."
 
-#: ui/forms.py:167
+#: ui/forms.py:160
 msgid "Season length (steps)"
 msgstr "Periodo estacional (pasos)"
 
-#: ui/forms.py:168
+#: ui/forms.py:161
 msgid ""
 "How many steps make a season — 12 for monthly data, 7 for daily. Leave empty "
 "to infer it from the order column's spacing."
@@ -1513,48 +1311,44 @@ msgstr ""
 "Cuántos pasos forman un periodo estacional — 12 para datos mensuales, 7 para "
 "diarios. Déjelo vacío para deducirlo del espaciado de la columna de orden."
 
-#: ui/forms.py:191 ui/forms.py:195
+#: ui/forms.py:184 ui/forms.py:188
 msgid "— none —"
 msgstr "— ninguno —"
 
-#: ui/forms.py:254
+#: ui/forms.py:247
 msgid "Choose a model or upload a model .py file."
 msgstr "Elija un modelo o suba un archivo .py de modelo."
 
-#: ui/forms.py:258 ui/services/drafts.py:113
+#: ui/forms.py:251
 msgid "Choose a demo dataset or upload a CSV file."
 msgstr "Elija un conjunto de datos de demostración o suba un archivo CSV."
 
-#: ui/forms.py:281 ui/services/drafts.py:120
+#: ui/forms.py:273
 #, python-format
 msgid "The dataset could not be read: %(error)s"
 msgstr "No se pudo leer el conjunto de datos: %(error)s"
 
-#: ui/forms.py:286
-#, python-format
-msgid "The dataset has no column named “%(column)s”."
-msgstr "El conjunto de datos no tiene ninguna columna llamada «%(column)s»."
-
-#: ui/forms.py:292
+#: ui/forms.py:277
 #, python-format
 msgid ""
 "The target column, “%(column)s”, is not numbers, so it cannot be regressed "
-"on. Choose classification, or another target."
+"on. Choose classification, or put the column to predict last."
 msgstr ""
-"La columna objetivo, «%(column)s», no contiene números, así que no se puede "
-"hacer regresión sobre ella. Elija clasificación u otro objetivo."
+"La columna objetivo, «%(column)s», no es numérica, así que no se puede hacer "
+"regresión sobre ella. Elija clasificación, o ponga la columna que se va a "
+"predecir en último lugar."
 
-#: ui/forms.py:304
+#: ui/forms.py:289
 #, python-format
 msgid "%(model)s does not do %(task)s."
 msgstr "%(model)s no hace %(task)s."
 
-#: ui/forms.py:313
+#: ui/forms.py:298
 #, python-format
 msgid "%(model)s only forecasts: choose backtests as the validation method."
 msgstr "%(model)s solo pronostica: elija backtests como método de validación."
 
-#: ui/forms.py:317
+#: ui/forms.py:302
 #, python-format
 msgid ""
 "%(model)s does not forecast, so it cannot be backtested. A model file that "
@@ -1563,17 +1357,17 @@ msgstr ""
 "%(model)s no pronostica, así que no se le pueden hacer backtests. Un archivo "
 "de modelo que sí lo hace lo indica con forecaster = True."
 
-#: ui/forms.py:333
+#: ui/forms.py:318
 msgid "A forecast needs the column its rows are ordered in time by."
 msgstr ""
 "Un pronóstico necesita la columna por la que sus filas están ordenadas en el "
 "tiempo."
 
-#: ui/forms.py:337
+#: ui/forms.py:322
 msgid "A forecast needs a horizon of at least one step."
 msgstr "Un pronóstico necesita un horizonte de al menos un paso."
 
-#: ui/forms.py:362
+#: ui/forms.py:345
 #, python-format
 msgid ""
 "This dataset cannot be ordered that way: %(problem)s. Columns it can be "
@@ -1582,83 +1376,83 @@ msgstr ""
 "Este conjunto de datos no se puede ordenar así: %(problem)s. Columnas por "
 "las que se puede ordenar: %(columns)s."
 
-#: ui/forms.py:365 ui/timeline.py:66 ui/timeline.py:81 ui/timeline.py:100
+#: ui/forms.py:348 ui/timeline.py:66 ui/timeline.py:81 ui/timeline.py:100
 #: ui/timeline.py:442
 msgid "none"
 msgstr "ninguno"
 
-#: ui/forms.py:378
+#: ui/forms.py:361
 msgid "classification"
 msgstr "clasificación"
 
-#: ui/forms.py:378
+#: ui/forms.py:361
 msgid "regression"
 msgstr "regresión"
 
-#: ui/forms.py:381
+#: ui/forms.py:364
 msgid "Trials drawn on the partial-dependence figure"
 msgstr "Pruebas dibujadas en la figura de dependencia parcial"
 
-#: ui/forms.py:382
+#: ui/forms.py:365
 msgid "Trials explained on the local-effects figure"
 msgstr "Pruebas explicadas en la figura de efectos locales"
 
-#: ui/forms.py:383
+#: ui/forms.py:366
 msgid "Prior acceptance tolerance"
 msgstr "Tolerancia de aceptación del prior"
 
-#: ui/forms.py:384
+#: ui/forms.py:367
 msgid "Prior acceptance top k"
 msgstr "Top k de aceptación del prior"
 
-#: ui/forms.py:400
+#: ui/forms.py:383
 msgid "0 draws every trial."
 msgstr "0 dibuja todas las pruebas."
 
-#: ui/forms.py:403
+#: ui/forms.py:386
 msgid "0 explains every trial."
 msgstr "0 explica todas las pruebas."
 
-#: ui/forms.py:407
+#: ui/forms.py:390
 msgid "Share of the metric's scale a prior may fall short by."
 msgstr ""
 "Fracción de la escala de la métrica en la que un prior puede quedarse corto."
 
-#: ui/forms.py:410 ui/templates/ui/figures/prior.html:154
+#: ui/forms.py:393 ui/templates/ui/figures/prior.html:154
 #: ui/templates/ui/figures/prior.html:159
 msgid "Best configurations compared on each side."
 msgstr "Mejores configuraciones comparadas en cada lado."
 
-#: ui/forms.py:412
+#: ui/forms.py:395
 msgid "Trial models kept for export"
 msgstr "Modelos de las pruebas conservados para exportar"
 
-#: ui/forms.py:413
+#: ui/forms.py:396
 msgid "0 keeps none."
 msgstr "0 no conserva ninguno."
 
-#: ui/forms.py:415
+#: ui/forms.py:398
 msgid "Also keep every trial of the last run"
 msgstr "Conservar también todas las pruebas de la última ejecución"
 
-#: ui/forms.py:416
+#: ui/forms.py:399
 msgid "Kept until the next run starts."
 msgstr "Se conservan hasta que empieza la siguiente ejecución."
 
-#: ui/forms.py:418 ui/templates/ui/export_confirm.html:30
+#: ui/forms.py:401 ui/templates/ui/export_confirm.html:30
 #: ui/templates/ui/export_preferences.html:11
 msgid "Time"
 msgstr "Tiempo"
 
-#: ui/forms.py:419
+#: ui/forms.py:402
 msgid "The exporter's preference"
 msgstr "La preferencia de quien exporta"
 
-#: ui/forms.py:421
+#: ui/forms.py:404
 msgid "What the export page preselects."
 msgstr "Lo que la página de exportación preselecciona."
 
-#: ui/forms.py:453
+#: ui/forms.py:436
 msgid "Use default experiment settings"
 msgstr "Usar los ajustes predeterminados de los experimentos"
 
@@ -1666,19 +1460,19 @@ msgstr "Usar los ajustes predeterminados de los experimentos"
 msgid "Untitled Experiment"
 msgstr "Experimento sin título"
 
-#: ui/models.py:409
+#: ui/models.py:406
 msgid "Viewer"
 msgstr "Lector"
 
-#: ui/models.py:412
+#: ui/models.py:409
 msgid "Contributor"
 msgstr "Colaborador"
 
-#: ui/models.py:448
+#: ui/models.py:445
 msgid "The owner already has every kind of access."
 msgstr "El propietario ya tiene todo tipo de acceso."
 
-#: ui/models.py:452
+#: ui/models.py:449
 #, python-format
 msgid ""
 "%(user)s is not in this experiment's group, so it cannot be shared with them."
@@ -2243,25 +2037,6 @@ msgstr "Detenido por la administración del sitio."
 msgid "Stopped job %(job)s."
 msgstr "Se detuvo el trabajo %(job)s."
 
-#: ui/services/drafts.py:70
-msgid "This draft's first step is saved: change its dataset there."
-msgstr ""
-"El primer paso de este borrador está guardado: cambie su conjunto de datos "
-"allí."
-
-#: ui/services/drafts.py:110
-#, python-format
-msgid "There is no demo dataset called “%(name)s”."
-msgstr "No hay ningún conjunto de datos de demostración llamado «%(name)s»."
-
-#: ui/services/drafts.py:139 ui/views.py:131
-msgid "Choose which group this experiment is in."
-msgstr "Elija en qué grupo está este experimento."
-
-#: ui/services/drafts.py:158
-msgid "Save the first step before this one."
-msgstr "Guarde primero el primer paso."
-
 #: ui/services/model_export.py:30
 msgid ""
 "This forecast's dataset is not on this instance, and the exported file needs "
@@ -2292,7 +2067,7 @@ msgstr ""
 msgid "A run is under way with this optimizer."
 msgstr "Hay una ejecución en curso con este optimizador."
 
-#: ui/services/optimizer_form.py:66
+#: ui/services/optimizer_form.py:59
 msgid "Choose an optimizer."
 msgstr "Elija un optimizador."
 
@@ -2330,6 +2105,15 @@ msgstr "Al paso 1 le falta un conjunto de datos o un modelo."
 msgid "Step 2 is missing an optimizer."
 msgstr "Al paso 2 le falta un optimizador."
 
+#: ui/services/setup.py:98 ui/templates/ui/_experiment_header.html:36
+#: ui/templates/ui/_optimizer_form.html:9
+#: ui/templates/ui/experiment_list.html:14
+#: ui/templates/ui/experiment_prerun.html:52
+#: ui/templates/ui/setup_step_optimizer.html:4 ui/timeline.py:237
+#: ui/timeline.py:341 ui/timeline.py:343
+msgid "Optimizer"
+msgstr "Optimizador"
+
 #: ui/services/setup.py:98 ui/templates/ui/setup_step_data.html:4
 msgid "Data"
 msgstr "Datos"
@@ -2337,32 +2121,6 @@ msgstr "Datos"
 #: ui/services/setup.py:99 ui/templates/ui/setup_step_priors.html:4
 msgid "Priors & constraints"
 msgstr "Priores y restricciones"
-
-#: ui/services/storage.py:156
-#, python-format
-msgid ""
-"%(group)s has no room for this: its datasets and model files alone would "
-"take %(used)s of its %(limit)s. Delete experiments it no longer needs, or "
-"ask a site administrator for more."
-msgstr ""
-"%(group)s no tiene espacio para esto: solo sus conjuntos de datos y archivos "
-"de modelo ocuparían %(used)s de sus %(limit)s. Elimine los experimentos que "
-"ya no necesite, o pida más a la administración del sitio."
-
-#: ui/services/storage.py:161
-#, python-format
-msgid ""
-"To make room in %(group)s, %(n)s kept trial model was deleted, the stalest "
-"first. It now uses %(used)s of %(limit)s."
-msgid_plural ""
-"To make room in %(group)s, %(n)s kept trial models were deleted, the stalest "
-"first. It now uses %(used)s of %(limit)s."
-msgstr[0] ""
-"Para hacer sitio en %(group)s, se eliminó %(n)s modelo de prueba conservado, "
-"empezando por el más antiguo. Ahora usa %(used)s de %(limit)s."
-msgstr[1] ""
-"Para hacer sitio en %(group)s, se eliminaron %(n)s modelos de pruebas "
-"conservados, empezando por los más antiguos. Ahora usa %(used)s de %(limit)s."
 
 #: ui/services/timestamps.py:48
 msgid "Real Times"
@@ -2408,12 +2166,12 @@ msgstr "+%(h)d h %(m)d min"
 msgid "+%(d)d d %(h)d h"
 msgstr "+%(d)d d %(h)d h"
 
-#: ui/setup_views.py:92 ui/templates/ui/setup_step_optimizer.html:16
-#: ui/templates/ui/setup_step_setup.html:218
+#: ui/setup_views.py:93 ui/templates/ui/setup_step_optimizer.html:16
+#: ui/templates/ui/setup_step_setup.html:194
 msgid "Save and continue"
 msgstr "Guardar y continuar"
 
-#: ui/setup_views.py:134
+#: ui/setup_views.py:148
 #, python-format
 msgid "Discarded the draft “%(name)s”."
 msgstr "Se descartó el borrador «%(name)s»."
@@ -2426,6 +2184,10 @@ msgstr "Ruta de navegación"
 #, python-format
 msgid "← Back to %(page)s"
 msgstr "← Volver a %(page)s"
+
+#: ui/templates/ui/_confirm_page.html:33
+msgid "Cancel"
+msgstr "Cancelar"
 
 #: ui/templates/ui/_env_status.html:10
 msgid "Preparing this model's environment…"
@@ -2448,6 +2210,10 @@ msgstr "Experimento: %(name)s"
 #: ui/templates/ui/_experiment_header.html:22
 msgid "Rename"
 msgstr "Renombrar"
+
+#: ui/templates/ui/_experiment_header.html:37
+msgid "Metric"
+msgstr "Métrica"
 
 #: ui/templates/ui/_experiment_header.html:38 ui/timeline.py:235
 msgid "Evaluation"
@@ -2590,18 +2356,6 @@ msgstr "Figuras mostradas en la página de un experimento"
 #: ui/templates/ui/_experiment_settings_fields.html:79
 msgid "Analytics computed as soon as a figure needs them"
 msgstr "Analíticas calculadas en cuanto una figura las necesita"
-
-#: ui/templates/ui/_file_pick.html:17
-msgid "Upload"
-msgstr "Subir"
-
-#: ui/templates/ui/_file_pick.html:18
-msgid "Upload Dataset"
-msgstr "Subir conjunto de datos"
-
-#: ui/templates/ui/_file_pick.html:20 ui/templates/ui/panels/group.html:198
-msgid "Remove"
-msgstr "Quitar"
 
 #: ui/templates/ui/_info.html:13
 msgid "What this setting means"
@@ -2896,7 +2650,7 @@ msgstr ""
 "Adjunte un conjunto de datos para ejecutar este experimento (se carga solo "
 "para lectura)."
 
-#: ui/templates/ui/_side_explanation.html:18 ui/views.py:3405
+#: ui/templates/ui/_side_explanation.html:18 ui/views.py:3545
 msgid "HyperSHAP"
 msgstr "HyperSHAP"
 
@@ -3233,6 +2987,11 @@ msgstr "(ponderada)"
 #: ui/templates/ui/experiment_detail.html:3116
 msgid "Uncertainty"
 msgstr "Incertidumbre"
+
+#: ui/templates/ui/experiment_list.html:12
+#: ui/templates/ui/panels/site_groups.html:70
+msgid "Name"
+msgstr "Nombre"
 
 #: ui/templates/ui/experiment_list.html:15
 #: ui/templates/ui/panels/group.html:127
@@ -3836,7 +3595,7 @@ msgstr "Retrasar el decaimiento hasta después del diseño inicial"
 msgid "Top k"
 msgstr "Top k"
 
-#: ui/templates/ui/figures/prior.html:162 ui/views.py:1082
+#: ui/templates/ui/figures/prior.html:162 ui/views.py:1234
 msgid "Needs the Gaussian process search strategy."
 msgstr "Requiere la estrategia de búsqueda de proceso gaussiano."
 
@@ -3851,6 +3610,10 @@ msgid ""
 msgstr ""
 "Devolver este prior a lo que usó la última ejecución, o a uniforme si no "
 "hubo ninguna."
+
+#: ui/templates/ui/figures/prior.html:170
+msgid "Reset"
+msgstr "Restablecer"
 
 #: ui/templates/ui/figures/prior.html:172
 msgid ""
@@ -3984,6 +3747,10 @@ msgstr "Cambiando: {label}"
 msgid "You can view this experiment but not change it."
 msgstr "Puede ver este experimento, pero no cambiarlo."
 
+#: ui/templates/ui/figures/projected_prior.html:97
+msgid "Could not reach the server."
+msgstr "No se pudo contactar con el servidor."
+
 #: ui/templates/ui/figures/trials.html:6
 #, python-format
 msgid "Trials (%(n)s)"
@@ -4013,7 +3780,7 @@ msgstr "Página siguiente"
 msgid "Rows per page"
 msgstr "Filas por página"
 
-#: ui/templates/ui/home.html:14
+#: ui/templates/ui/home.html:6
 msgid "Use the sidebar to create a new experiment."
 msgstr "Usa la barra lateral para crear un nuevo experimento."
 
@@ -4274,6 +4041,10 @@ msgstr "desactivada"
 msgid "Make primary lead"
 msgstr "Hacer dirección principal"
 
+#: ui/templates/ui/panels/group.html:198
+msgid "Remove"
+msgstr "Quitar"
+
 #: ui/templates/ui/panels/group.html:214
 msgid "Add somebody"
 msgstr "Añadir a alguien"
@@ -4527,13 +4298,14 @@ msgid "Use demo models"
 msgstr "Usar modelos de demostración"
 
 #: ui/templates/ui/setup_step_setup.html:61
+#: ui/templates/ui/setup_step_setup.html:88
 #, python-format
 msgid "Currently %(name)s; kept unless another is chosen."
 msgstr "Actualmente %(name)s; se mantiene salvo que se elija otro."
 
-#: ui/templates/ui/setup_step_setup.html:108
-msgid "Last column"
-msgstr "Última columna"
+#: ui/templates/ui/setup_step_setup.html:79
+msgid "Use demo datasets"
+msgstr "Usar conjuntos de datos de demostración"
 
 #: ui/timeline.py:31
 msgid "missing values"
@@ -5026,68 +4798,98 @@ msgstr "%(name)s supera el límite de subida de %(mb)s MB."
 msgid "%(name)s must be a .%(ext)s file."
 msgstr "%(name)s debe ser un archivo .%(ext)s."
 
-#: ui/views.py:157
+#: ui/views.py:130
+msgid "Choose which group this experiment is in."
+msgstr "Elija en qué grupo está este experimento."
+
+#: ui/views.py:172
 msgid "all the requested trials ran"
 msgstr "se hicieron todas las pruebas solicitadas"
 
-#: ui/views.py:158
+#: ui/views.py:173
 msgid "performance surpassed the target"
 msgstr "el rendimiento superó el objetivo"
 
-#: ui/views.py:159
+#: ui/views.py:174
 msgid "the time limit was reached"
 msgstr "se alcanzó el límite de tiempo"
 
-#: ui/views.py:160
+#: ui/views.py:175
 msgid "the compute budget was used up"
 msgstr "se agotó el presupuesto de cómputo"
 
-#: ui/views.py:161
+#: ui/views.py:176
 msgid "the score had stopped improving"
 msgstr "la puntuación había dejado de mejorar"
 
-#: ui/views.py:162
+#: ui/views.py:177
 msgid "the search was confident nothing better remained"
 msgstr "la búsqueda estaba segura de que no quedaba nada mejor"
 
-#: ui/views.py:163
+#: ui/views.py:178
 msgid "it was interrupted"
 msgstr "se interrumpió"
 
-#: ui/views.py:164
+#: ui/views.py:179
 msgid "too many trials were failing"
 msgstr "fallaban demasiadas pruebas"
 
-#: ui/views.py:165
+#: ui/views.py:180
 msgid "every configuration had been tried"
 msgstr "se habían probado todas las configuraciones"
 
-#: ui/views.py:282
+#: ui/views.py:358
 msgid "Inconsistent"
 msgstr "Inconsistente"
 
-#: ui/views.py:523 ui/views.py:549
+#: ui/views.py:413
+#, python-format
+msgid ""
+"%(group)s has no room for this: its datasets and model files alone would "
+"take %(used)s of its %(limit)s. Delete experiments it no longer needs, or "
+"ask a site administrator for more."
+msgstr ""
+"%(group)s no tiene espacio para esto: solo sus conjuntos de datos y archivos "
+"de modelo ocuparían %(used)s de sus %(limit)s. Elimine los experimentos que "
+"ya no necesite, o pida más a la administración del sitio."
+
+#: ui/views.py:419
+#, python-format
+msgid ""
+"To make room in %(group)s, %(n)s kept trial model was deleted, the stalest "
+"first. It now uses %(used)s of %(limit)s."
+msgid_plural ""
+"To make room in %(group)s, %(n)s kept trial models were deleted, the stalest "
+"first. It now uses %(used)s of %(limit)s."
+msgstr[0] ""
+"Para hacer sitio en %(group)s, se eliminó %(n)s modelo de prueba conservado, "
+"empezando por el más antiguo. Ahora usa %(used)s de %(limit)s."
+msgstr[1] ""
+"Para hacer sitio en %(group)s, se eliminaron %(n)s modelos de pruebas "
+"conservados, empezando por los más antiguos. Ahora usa %(used)s de %(limit)s."
+
+#: ui/views.py:619 ui/views.py:645
 msgid "There is no sample of this space to draw on."
 msgstr "No hay ninguna muestra de este espacio sobre la que dibujar."
 
-#: ui/views.py:608
+#: ui/views.py:704
 msgid "You can view this experiment but not run it."
 msgstr "Puede ver este experimento, pero no ejecutarlo."
 
-#: ui/views.py:610
+#: ui/views.py:706
 msgid "A run is under way."
 msgstr "Hay una ejecución en curso."
 
-#: ui/views.py:612
+#: ui/views.py:708
 msgid "This experiment cannot be run here."
 msgstr "Este experimento no se puede ejecutar aquí."
 
-#: ui/views.py:674
+#: ui/views.py:770
 #, python-format
 msgid "Proposal %(n)s"
 msgstr "Propuesta %(n)s"
 
-#: ui/views.py:825
+#: ui/views.py:921
 msgid ""
 "The forecast is drawn for built-in models only: an uploaded model runs in "
 "its own environment, which this page does not start."
@@ -5095,12 +4897,12 @@ msgstr ""
 "El pronóstico solo se dibuja para los modelos integrados: un modelo subido "
 "se ejecuta en su propio entorno, que esta página no inicia."
 
-#: ui/views.py:850
+#: ui/views.py:946
 #, python-format
 msgid "This configuration failed to forecast: %(error)s"
 msgstr "Esta configuración no pudo pronosticar: %(error)s"
 
-#: ui/views.py:1073
+#: ui/views.py:1225
 msgid ""
 "Nothing has been run yet, so there is no model to judge this against. A "
 "belief stated now is acted on in full."
@@ -5108,7 +4910,7 @@ msgstr ""
 "Todavía no se ha ejecutado nada, así que no hay ningún modelo con el que "
 "juzgarlo. Un prior indicado ahora se aplica por completo."
 
-#: ui/views.py:1079
+#: ui/views.py:1231
 msgid ""
 "This optimizer fits no model of the objective, so it has no opinion about "
 "where the optimum is."
@@ -5116,11 +4918,11 @@ msgstr ""
 "Este optimizador no ajusta ningún modelo del objetivo, así que no tiene "
 "opinión sobre dónde está el óptimo."
 
-#: ui/views.py:1085
+#: ui/views.py:1237
 msgid "This metric has no scale to measure the tolerance against yet."
 msgstr "Esta métrica aún no tiene una escala con la que medir la tolerancia."
 
-#: ui/views.py:1110
+#: ui/views.py:1262
 msgid ""
 "This prior is potentially informative: the model rates the region it points "
 "at as promising as where the search is already headed."
@@ -5129,7 +4931,7 @@ msgstr ""
 "que apunta tan prometedora como aquella hacia la que ya se dirige la "
 "búsqueda."
 
-#: ui/views.py:1114
+#: ui/views.py:1266
 #, python-format
 msgid ""
 "This prior is unlikely to be helpful: the model rates the region it points "
@@ -5140,12 +4942,12 @@ msgstr ""
 "apunta más de %(margin)s por debajo de aquella hacia la que ya se dirige la "
 "búsqueda, así que aplicarlo costaría pruebas."
 
-#: ui/views.py:1120
+#: ui/views.py:1272
 msgid "This prior could not be judged, so it stands as stated."
 msgstr ""
 "Este prior no se ha podido juzgar, así que se mantiene tal como se indicó."
 
-#: ui/views.py:1478 ui/views.py:1700 ui/views.py:1808
+#: ui/views.py:1630 ui/views.py:1852 ui/views.py:1960
 msgid ""
 "The model this experiment used is not available here, so its search space "
 "cannot be rebuilt."
@@ -5153,7 +4955,7 @@ msgstr ""
 "El modelo que usó este experimento no está disponible aquí, así que no se "
 "puede reconstruir su espacio de búsqueda."
 
-#: ui/views.py:1661
+#: ui/views.py:1813
 msgid ""
 "This SMAC has no acquisition weight layer, so a stated prior does not affect "
 "the search or the candidates below. Install the version requirements.txt "
@@ -5163,7 +4965,7 @@ msgstr ""
 "declarado no afecta ni a la búsqueda ni a las candidatas de abajo. Instale "
 "la versión que fija requirements.txt."
 
-#: ui/views.py:1883
+#: ui/views.py:2035
 msgid ""
 "HyperSHAP needs the search space, which this experiment does not carry and "
 "has no model to ask."
@@ -5171,28 +4973,28 @@ msgstr ""
 "HyperSHAP necesita el espacio de búsqueda, que este experimento no lleva "
 "consigo y para el que no hay modelo al que preguntar."
 
-#: ui/views.py:1929
+#: ui/views.py:2081
 msgid ""
 "Set at least one stopping criterion, so the run has something to end on."
 msgstr ""
 "Fije al menos un criterio de parada, para que la ejecución tenga algo con lo "
 "que terminar."
 
-#: ui/views.py:2246
+#: ui/views.py:2398
 msgid "Unknown sharing level."
 msgstr "Nivel de acceso desconocido."
 
-#: ui/views.py:2283
+#: ui/views.py:2435
 #, python-format
 msgid "%(name)s now belongs to %(user)s. You are a contributor."
 msgstr "%(name)s ahora pertenece a %(user)s. Usted colabora."
 
-#: ui/views.py:2337
+#: ui/views.py:2489
 msgid ""
 "Given up on by hand: it stopped answering, and cancelling it had no effect."
 msgstr "Abandonada a mano: dejó de responder y cancelarla no surtió efecto."
 
-#: ui/views.py:2502
+#: ui/views.py:2654
 msgid ""
 "Trial parameters are kept for the built-in models only: an uploaded model is "
 "fitted in its own environment, which nothing is brought back from."
@@ -5201,7 +5003,7 @@ msgstr ""
 "un modelo subido se ajusta en su propio entorno, del que no se trae nada de "
 "vuelta."
 
-#: ui/views.py:2505
+#: ui/views.py:2657
 #, python-format
 msgid ""
 "%(model)s has no fitted parameters to keep: its forecast is its history "
@@ -5210,7 +5012,7 @@ msgstr ""
 "%(model)s no tiene parámetros ajustados que conservar: su pronóstico es su "
 "historial reproducido."
 
-#: ui/views.py:2509
+#: ui/views.py:2661
 msgid ""
 "This experiment keeps no trial models. Turn it on in Settings; a new run "
 "keeps them from then on."
@@ -5218,7 +5020,7 @@ msgstr ""
 "Este experimento no conserva modelos de las pruebas. Actívelo en Ajustes; a "
 "partir de entonces, una ejecución nueva los conserva."
 
-#: ui/views.py:2512
+#: ui/views.py:2664
 #, python-format
 msgid ""
 "This trial's model was not kept: a run keeps only the best %(n)s trial's "
@@ -5237,49 +5039,49 @@ msgstr[1] ""
 "modelos, los de las mejores pruebas (y, con la opción activada, los de sus "
 "propias pruebas), o su grupo no tenía espacio. Cámbielo en Ajustes."
 
-#: ui/views.py:2666
+#: ui/views.py:2818
 msgid "Light"
 msgstr "Claro"
 
-#: ui/views.py:2666
+#: ui/views.py:2818
 msgid "Dark"
 msgstr "Oscuro"
 
-#: ui/views.py:2667
+#: ui/views.py:2819
 msgid "Same as my system"
 msgstr "Igual que mi sistema"
 
-#: ui/views.py:2703
+#: ui/views.py:2855
 msgid "See every experiment on this instance"
 msgstr "Ver todos los experimentos de esta instancia"
 
-#: ui/views.py:2705
+#: ui/views.py:2857
 msgid "Run, edit and delete other people's experiments"
 msgstr "Ejecutar, editar y eliminar experimentos de otras personas"
 
-#: ui/views.py:2707
+#: ui/views.py:2859
 msgid "Change the settings every experiment inherits"
 msgstr "Cambiar los ajustes que hereda cada experimento"
 
-#: ui/views.py:2709
+#: ui/views.py:2861
 msgid "Upload and run custom models"
 msgstr "Subir y ejecutar modelos propios"
 
-#: ui/views.py:2744
+#: ui/views.py:2896
 #, python-format
 msgid "Moved %(name)s to the bin."
 msgstr "%(name)s se movió a la papelera."
 
-#: ui/views.py:2792
+#: ui/views.py:2944
 #, python-format
 msgid "Restored %(name)s."
 msgstr "%(name)s se restauró."
 
-#: ui/views.py:2851
+#: ui/views.py:3003
 msgid "Invalid or unreadable experiment file."
 msgstr "Archivo de experimento inválido o ilegible."
 
-#: ui/views.py:2924
+#: ui/views.py:3076
 #, python-format
 msgid ""
 "This looks like more than one run — two files here are called %(name)s. "
@@ -5288,16 +5090,16 @@ msgstr ""
 "Esto parece más de una ejecución — dos archivos de aquí se llaman %(name)s. "
 "Elija un único directorio de ejecución, el que contiene su runhistory.json."
 
-#: ui/views.py:2931
+#: ui/views.py:3083
 #, python-format
 msgid "Could not read %(name)s."
 msgstr "No se pudo leer %(name)s."
 
-#: ui/views.py:2938
+#: ui/views.py:3090
 msgid "This is not a readable SMAC run."
 msgstr "Esta no es una ejecución de SMAC legible."
 
-#: ui/views.py:3002
+#: ui/views.py:3154
 msgid ""
 "Local explanation needs the search space, which this experiment does not "
 "carry and has no model to ask."
@@ -5305,11 +5107,11 @@ msgstr ""
 "La explicación local necesita el espacio de búsqueda, que este experimento "
 "no lleva consigo y para el que no hay modelo al que preguntar."
 
-#: ui/views.py:3005
+#: ui/views.py:3157
 msgid "This trial is the baseline."
 msgstr "Esta prueba es la referencia."
 
-#: ui/views.py:3124
+#: ui/views.py:3276
 msgid ""
 "Partial dependence needs the search space, which this experiment does not "
 "carry and has no model to ask."
@@ -5317,7 +5119,7 @@ msgstr ""
 "La dependencia parcial necesita el espacio de búsqueda, que este experimento "
 "no lleva consigo y para el que no hay modelo al que preguntar."
 
-#: ui/views.py:3262
+#: ui/views.py:3414
 msgid ""
 "Local effects need the search space, which this experiment does not carry "
 "and has no model to ask."
@@ -5325,37 +5127,37 @@ msgstr ""
 "Los efectos locales necesitan el espacio de búsqueda, que este experimento "
 "no lleva consigo y para el que no hay modelo al que preguntar."
 
-#: ui/views.py:3385
+#: ui/views.py:3525
 msgid "Not recorded"
 msgstr "No registrado"
 
-#: ui/views.py:3387
+#: ui/views.py:3527
 #, python-format
 msgid "%(k)s backtest of %(h)s steps by %(column)s"
 msgid_plural "%(k)s backtests of %(h)s steps by %(column)s"
 msgstr[0] "%(k)s backtest de %(h)s pasos según %(column)s"
 msgstr[1] "%(k)s backtests de %(h)s pasos según %(column)s"
 
-#: ui/views.py:3393
+#: ui/views.py:3533
 #, python-format
 msgid "%(k)s time-ordered folds by %(column)s"
 msgstr "%(k)s pliegues ordenados en el tiempo según %(column)s"
 
-#: ui/views.py:3395
+#: ui/views.py:3535
 #, python-format
 msgid "latest %(pct)s%% by %(column)s held out"
 msgstr "último %(pct)s%% según %(column)s reservado"
 
-#: ui/views.py:3398
+#: ui/views.py:3538
 #, python-format
 msgid "%(k)s-fold CV"
 msgstr "Validación cruzada de %(k)s pliegues"
 
-#: ui/views.py:3399
+#: ui/views.py:3539
 #, python-format
 msgid "%(pct)s%% held out"
 msgstr "%(pct)s%% reservado"
 
-#: ui/views.py:3407
+#: ui/views.py:3547
 msgid "Misc"
 msgstr "Varios"

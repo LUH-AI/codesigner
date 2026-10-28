@@ -33,7 +33,8 @@ class Command(BaseCommand):
         from assistant.models import AssistantEvent, Conversation
         from assistant.tools.registry import Refused
         from assistant.turns import tools_for
-        from ui.permissions import BOTH, VIEW
+        from access.policy import VIEW
+        from ui.permissions import BOTH
 
         owner = None
         if settings.REQUIRE_LOGIN:

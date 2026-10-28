@@ -15,9 +15,9 @@ from assistant.gateway import AgentRequest, Context
 from assistant.models import Conversation
 from assistant.tools.registry import Refused
 from tests.access.test_groups import hosted, world  # noqa: F401 — fixtures
-from ui import permissions
-from ui.models import Experiment
-from ui.permissions import ACTIONS, HUMAN_ONLY
+from access import policy as permissions
+from experiments.models import Experiment
+from access.policy import ACTIONS, HUMAN_ONLY
 
 pytestmark = pytest.mark.django_db
 

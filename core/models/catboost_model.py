@@ -1,15 +1,16 @@
-"""CatBoost's gradient boosting, classifying or regressing."""
+"""`CatBoost` wraps CatBoost."""
+
+from typing import Any
 
 from ConfigSpace import Categorical, ConfigurationSpace, Float, Integer
+from codesigner_model import OutputBaseModel
 
-from .base import OutputBaseModel, Tunable
+from .base import Tunable
 from .parts import categorical_columns
 
 
 class CatBoost(OutputBaseModel):
-    """CatBoost's ordered gradient boosting on symmetric trees, which encodes
-    categories with target statistics instead of one-hot. Its label columns
-    arrive as text, which is how it takes a category (see `core.processing`)."""
+    """`CatBoost` encodes categories itself, so label columns arrive as text."""
 
     name = "CatBoost"
     tasks = ("classification", "regression")
@@ -20,7 +21,7 @@ class CatBoost(OutputBaseModel):
         from catboost import CatBoostClassifier, CatBoostRegressor
 
         categorical = categorical_columns(data)
-        shared = dict(
+        shared: dict[str, Any] = dict(
             iterations=int(hyperparameters["iterations"]),
             learning_rate=float(hyperparameters["learning_rate"]),
             depth=int(hyperparameters["depth"]),
@@ -29,7 +30,7 @@ class CatBoost(OutputBaseModel):
             random_seed=seed,
             thread_count=-1,
             verbose=False,
-            # It writes a training log beside wherever it runs, by default.
+            # Skip CatBoost's default training log files.
             allow_writing_files=False,
         )
         if self.task == "regression":
@@ -41,7 +42,6 @@ class CatBoost(OutputBaseModel):
         return model
 
     def save_parameters(self, fitted, directory):
-        """CatBoost's own format, which it can train on from."""
         from pathlib import Path
 
         fitted.save_model(str(Path(directory) / "model.cbm"))
@@ -54,16 +54,13 @@ class CatBoost(OutputBaseModel):
                 "# label columns as text, as processing.json says.")
 
     def predict(self, fitted, X):
-        """One label or number per row: CatBoost's classifier answers in a
-        column."""
+        """CatBoost's classifier returns a column; `ravel` flattens it."""
         import numpy as np
 
         return np.ravel(fitted.predict(X))
 
 
 class CatBoostModel(Tunable, CatBoost):
-    """CatBoost, tuned over its size, learning rate, depth and leaf
-    regularization, and for a classification its class weighting."""
 
     def get_config_space(self, seed: int = 0) -> ConfigurationSpace:
         cs = ConfigurationSpace(seed=seed)

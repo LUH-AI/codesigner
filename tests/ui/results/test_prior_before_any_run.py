@@ -1,18 +1,5 @@
-"""Stating a belief before the first trial.
-
-*What:* a prior is a statement about the **search space**, and the space exists
-before the search does. Before the first run is exactly when somebody has
-something to say about where the optimum might be — and until now the page gave
-them nowhere to say it, because the whole figure grid waits on a result.
-
-So one figure comes through that early return: the acquisition card, carrying
-its prior panel alone. The acquisition curve, the candidates and the incumbent
-are all the surrogate's, and there is no surrogate to ask.
-
-*How:* at the page for what is rendered, and at the endpoint for what it will
-answer — the two have to agree, since the card immediately asks for a density
-and a card that asked for something refused would show a failure instead of the
-panel it exists for.
+"""An unrun experiment shows the prior card alone, because a prior describes the
+search space and the space exists before any trial.
 """
 
 import json
@@ -20,13 +7,13 @@ import json
 import pytest
 from django.urls import reverse
 
-from ui.models import Experiment
+from experiments.models import Experiment
 
 pytestmark = pytest.mark.django_db
 
 
 def _unrun():
-    """An experiment created and never run. No result, no trials, a space."""
+    """`_unrun` creates a never-run experiment, a space without trials."""
     return Experiment.objects.create(
         name="fresh", model_name="Random Forest", optimizer_name="SMAC",
         metric_names=["accuracy"], seed=0)
@@ -37,15 +24,16 @@ def _page(client, exp):
 
 
 def _hp(exp):
-    from ui.views import _config_space_for, _rebuild_experiment
+    from experiments.services.snapshot import config_space_for, rebuild_experiment
 
-    return list(_config_space_for(_rebuild_experiment(exp)).keys())[0]
+    space = config_space_for(rebuild_experiment(exp))
+    assert space is not None
+    return list(space.keys())[0]
 
 
-# ── the page ─────────────────────────────────────────────────────────────────
+# the page
 
 def test_the_card_is_there_before_any_run(client):
-    """The prior figure, alone: the acquisition function is the surrogate's."""
     html = _page(client, _unrun())
 
     assert 'data-figure="prior"' in html
@@ -54,8 +42,7 @@ def test_the_card_is_there_before_any_run(client):
 
 
 def test_only_the_prior_panel_is(client):
-    """The other two are the surrogate's. Rendered empty they would be two
-    blank rectangles claiming a model nobody fitted."""
+    """The surrogate panels would be blank without a fitted model."""
     html = _page(client, _unrun())
 
     assert 'id="acq-plot-acquisition"' not in html
@@ -64,17 +51,15 @@ def test_only_the_prior_panel_is(client):
 
 
 def test_the_card_says_it_wants_the_prior_alone(client):
-    """The script reads this to decide which request to make. Without it the
-    card would ask for a full slice, the server would refuse for want of a
-    surrogate, and the reader would get the refusal."""
+    """The script reads `data-prior-only` to skip the full slice the server
+    would refuse."""
     html = _page(client, _unrun())
 
     assert 'data-prior-only="1"' in html
 
 
 def test_it_carries_a_metric_of_its_own(client):
-    """There is no metric switcher on a page with no results, so the card has
-    to carry one or its request goes out without a metric and is refused."""
+    """With no metric switcher, the card carries its own metric."""
     exp = _unrun()
     html = _page(client, exp)
 
@@ -82,8 +67,7 @@ def test_it_carries_a_metric_of_its_own(client):
 
 
 def test_the_hyperparameters_come_from_the_space(client):
-    """Not from a trial's configuration, which is where they normally come
-    from. There are no trials — that is the entire situation."""
+    """With no trials, the hyperparameter options come from the space."""
     exp = _unrun()
     html = _page(client, exp)
 
@@ -91,10 +75,9 @@ def test_the_hyperparameters_come_from_the_space(client):
 
 
 def test_a_page_with_results_still_has_the_whole_card(client):
-    """The pre-run case is an addition, not a replacement."""
     from core import io
     from tests.conftest import FIXTURES_DIR
-    from ui.services import snapshot as adapter
+    from experiments.services import snapshot as adapter
 
     exp = adapter.experiment_from_snapshot(
         io.parse((FIXTURES_DIR / "test2.ihpo").read_bytes()))
@@ -105,7 +88,7 @@ def test_a_page_with_results_still_has_the_whole_card(client):
     assert 'data-prior-only=""' in html, "and does not ask for the prior alone"
 
 
-# ── the endpoint it will ask ─────────────────────────────────────────────────
+# the endpoint
 
 def test_the_density_is_served_without_a_run(client):
     exp = _unrun()
@@ -119,8 +102,7 @@ def test_the_density_is_served_without_a_run(client):
 
 
 def test_the_full_slice_is_still_refused_without_a_run(client):
-    """There is no surrogate. Refusing is right; what changed is that the prior
-    no longer needs one."""
+    """Without a surrogate the full slice is still refused."""
     exp = _unrun()
     response = client.get(reverse("ui:acquisition_slice", args=[exp.pk]),
                           {"metric": "accuracy", "hp": _hp(exp)})
@@ -129,7 +111,6 @@ def test_the_full_slice_is_still_refused_without_a_run(client):
 
 
 def test_a_hyperparameter_outside_the_space_is_still_refused(client):
-    """The check moved from the trials to the space; it did not go away."""
     exp = _unrun()
     response = client.get(reverse("ui:acquisition_slice", args=[exp.pk]),
                           {"metric": "accuracy", "hp": "not_a_hyperparameter",
@@ -139,8 +120,8 @@ def test_a_hyperparameter_outside_the_space_is_still_refused(client):
 
 
 def test_a_belief_stated_now_has_not_started_fading(client):
-    """Zero steps, and inside the initial design by definition — so the wait
-    the checkbox offers is both available and, by default, on."""
+    """Before any trial, a new belief has zero decay steps and lies inside the
+    initial design."""
     exp = _unrun()
     hp = _hp(exp)
     client.post(reverse("ui:save_prior", args=[exp.pk]),

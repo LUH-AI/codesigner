@@ -1,14 +1,17 @@
-"""The figures an experiment page can show, in page order.
-
-Each is a `Figure` subclass declaring how it is named, how wide it sits, and how
-it draws — see `base.py` for the full set of options and how to add one.
+"""Each figure here is a `Figure` subclass, and `base.py` lists the options and
+how to add one.
 """
+
+from __future__ import annotations
+
+from typing import TYPE_CHECKING
 
 from django.utils.translation import gettext_lazy as _
 
+from core.optimizers.base import HP_GAME_FIELDS
 from core.projection import METHODS
 
-from .base import ACQUISITION, CARD, HYPERSHAP, LONG, MISC, SQUAT, TABLE, Figure
+from .base import ACQUISITION, HYPERSHAP, LONG, MISC, TABLE, Figure
 from .plots import (
     configuration_cube_plot,
     configuration_projection_plot,
@@ -23,9 +26,14 @@ from .plots import (
     trial_duration_plot,
 )
 
+if TYPE_CHECKING:
+    from collections.abc import Callable
+
+    import plotly.graph_objects as go
+
 
 class BestConfiguration(Figure):
-    """The best trial for the viewed metric, as a table. No plot."""
+    """`BestConfiguration` tabulates the viewed metric's best trial."""
 
     key = "best_configuration"
     label = _("Best configuration")
@@ -33,11 +41,8 @@ class BestConfiguration(Figure):
 
 
 class SelectedConfiguration(Figure):
-    """The selected trial, as a table. No plot.
-
-    Lives in the sidebar: it is what every other figure's click is asking about,
-    so it has to be readable while you are clicking rather than wherever the
-    page happens to be scrolled to.
+    """The sidebar holds the selected trial's table, so it stays readable while
+    the reader clicks figures.
     """
 
     key = "selected_configuration"
@@ -45,43 +50,8 @@ class SelectedConfiguration(Figure):
     in_sidebar = True
 
 
-#: Which OptimizationResult fields back each HyperSHAP "explanation game" —
-#: see core.optimizers.base.BaseOptimizer.HP_GAMES for what each one answers.
-#: Order here is the games' order in the page's one game selector.
-#:
-#: Four fields each, because a game is not only an importance: the same call
-#: produces the order-2 interaction grid and the full Möbius decomposition, and
-#: every figure that reads any of them reads the game the sidebar names. The
-#: tunability entry's names have no game in them — they were the only ones
-#: stored back when only tunability's had anywhere to go, and they are in every
-#: .ihpo ever written.
-HP_GAME_FIELDS = {
-    "tunability": {
-        "importance": "hyperparameter_importance",
-        "warning": "hyperparameter_importance_warning",
-        "interactions": "hyperparameter_interactions",
-        "moebius": "hyperparameter_moebius",
-    },
-    # Mistunability before sensitivity: it is tunability's mirror — what there
-    # is to lose against what there is to gain — and the two read as a pair.
-    "mistunability": {
-        "importance": "hyperparameter_mistunability",
-        "warning": "hyperparameter_mistunability_warning",
-        "interactions": "hyperparameter_mistunability_interactions",
-        "moebius": "hyperparameter_mistunability_moebius",
-    },
-    "sensitivity": {
-        "importance": "hyperparameter_sensitivity",
-        "warning": "hyperparameter_sensitivity_warning",
-        "interactions": "hyperparameter_sensitivity_interactions",
-        "moebius": "hyperparameter_sensitivity_moebius",
-    },
-}
-
-#: What each game is called where a reader sees it, and what it asks. The
-#: selector's own labels; the keys above are what the code and the stored result
-#: use. The questions are BaseOptimizer.HP_GAMES' own, said without the
-#: aggregation names — MAX/VAR/MIN mean nothing to someone reading a figure.
+#: The selector shows the game names and questions, without the MAX/VAR/MIN
+#: aggregation names.
 HP_GAME_LABELS = {
     "tunability": _("Tunability"),
     "mistunability": _("Mistunability"),
@@ -95,33 +65,26 @@ HP_GAME_HELP = {
 
 
 def game_field(result, game: str, part: str, metric, default):
-    """One game's *part* for *metric*, or *default*.
-
-    The indirection every HyperSHAP figure goes through, so that "which game"
-    is one lookup rather than a branch in each of them.
+    """`game_field` makes "which game" one lookup for every HyperSHAP figure.
     """
     return getattr(result, HP_GAME_FIELDS[game][part]).get(metric, default)
 
-#: The three ways to draw one game's numbers — see hyperparameter_importance_plot.
+#: Ways to draw a game; see hyperparameter_importance_plot.
 HP_RENDERINGS = ("pie", "bar", "table")
 
 
 class HyperparameterImportance(Figure):
-    # The heading keeps its existing wording: it is already translated, and
-    # rewording it would orphan the de/es entries for no visible gain.
+    # Rewording the heading would orphan its de/es translations.
     key = "hyperparameter_importance"
     label = _("Hyperparameter importance (HyperSHAP)")
     home_tab = HYPERSHAP
     per_metric = True
     explains_games = True
-    # Measured from anything but the config space's default, the games are
-    # computed when asked for rather than stored. Declared here, on the first
-    # figure that reads them, though it fills the interaction figures too.
+    # The page computes games against any non-default baseline on request, and
+    # the interaction figures share the declaration.
     deferred = (("hypershap_baseline", _("HyperSHAP against the incumbent or selected trial")),)
-    # Two independent choices compose into one flat view key: which game — now
-    # chosen once for the whole page, in the sidebar — and how to draw it, which
-    # is this figure's own and stays on it. Tunability + pie is first, matching
-    # the figure's pre-existing default look.
+    # The view key composes the page-wide game with the importance figure's own
+    # rendering, and tunability plus pie comes first.
     views = tuple(f"{game}-{rendering}"
                   for game in HP_GAME_FIELDS for rendering in HP_RENDERINGS)
 
@@ -134,54 +97,25 @@ class HyperparameterImportance(Figure):
 
 
 class LocalExplanation(Figure):
-    """The selected trial's score, built from the config-space default one
-    hyperparameter at a time — HyperSHAP's ablation game.
-
-    Its own figure rather than a fourth option on the game selector, because it
-    is a different question about a different subject: the other three explain
-    the search, this explains one trial, and it has no interactions to give the
-    five interaction figures. It also cannot be precomputed the way they are —
-    its value depends on which trial is selected, not just the metric, and it
-    needs the live model and config space, which only `ui/views.py`'s
-    `_detail_context` (defaulting to the metric's best trial) and the
-    `trial_ablation` endpoint (a click) have. So `plot()` stays None and the
-    page fetches it, like partial dependence and local effects.
+    """`LocalExplanation` explains one trial, so its value depends on the
+    selection and needs the live model. The page fetches it, and `plot()` stays
+    None.
     """
 
     key = "local_explanation"
     label = _("Local explanation (selected trial)")
     home_tab = HYPERSHAP
     per_metric = True
-    # The computation's name, not the figure's, and unchanged: it is stored in
-    # settings, and it was already named for the computation back when this was
-    # one view of the importance figure.
+    # The stored settings key keeps the computation's name.
     deferred = (("local_ablation", _("Local explanation (selected trial)")),)
 
 
 class _Interactions(Figure):
-    """One way of reading the same set of hyperparameter interactions.
-
-    The five below are five figures rather than five views of one, because they
-    answer different questions and are wanted side by side: the heatmap is a
-    grid you scan, the graph is a shape you recognise, the coalitions are a
-    ranked list you read. Behind a single selector only one could ever be on the
-    page at a time, and each now has its own visibility setting.
-
-    They are also two different computations wearing one name. The heatmap and
-    the top pairs read the order-2 FSII grid; the graph, the coalitions and the
-    orders read the Möbius decomposition, which carries every coalition of every
-    size. Those are not the same numbers and deliberately so — see
-    `BaseOptimizer._compute_hp_game`.
-
-    All of it is a free byproduct of the importance figure's own HyperSHAP call
-    (order 2 is already its default), so nothing here is fetched on demand —
-    and that is true of all three games, which is what lets one selector drive
-    every figure here as well as the importance figure. The games are these
-    figures' `views`: a game is a different set of numbers to draw rather than a
-    different way to draw them, but the page's view machinery is exactly the
-    "one precomputed payload per option" plumbing that needs, so they use it.
-    Nothing switches them individually — the sidebar's selector switches all of
-    them at once (see experiment_detail.html).
+    """The five interaction figures sit side by side, each answering a different
+    question. The heatmap and top pairs read the order-2 FSII grid, and the
+    others read the Möbius decomposition (see `core.analytics.compute_hp_game`).
+    All of them come free with the importance figure's HyperSHAP call, and the
+    sidebar's game selector switches their `views` together.
     """
 
     home_tab = HYPERSHAP
@@ -189,22 +123,21 @@ class _Interactions(Figure):
     per_metric = True
     explains_games = True
     views = tuple(HP_GAME_FIELDS)
-    #: Which of a game's fields this reading comes out of: "interactions" for
-    #: the order-2 FSII grid, "moebius" for the full decomposition.
+    #: The game field read: "interactions" (order-2 FSII) or "moebius".
     source = "interactions"
-    #: The builder. `staticmethod` so it stays a plain function rather than
-    #: becoming a method of the figure that happens to take a dict.
-    builder = None
+    #: `staticmethod` keeps the builder a plain function.
+    builder: Callable[..., go.Figure | None] | None = None
 
     @classmethod
     def plot(cls, result, metric=None, view=None):
         game = view or cls.views[0]
         empty = [] if cls.source == "moebius" else {}
+        assert cls.builder is not None
         return cls.builder(game_field(result, game, cls.source, metric, empty))
 
 
 class InteractionsHeatmap(_Interactions):
-    """Hyperparameter × hyperparameter, every pair at once."""
+    """`InteractionsHeatmap` shows all pairs."""
 
     key = "interactions_heatmap"
     label = _("Interactions: heatmap")
@@ -212,7 +145,7 @@ class InteractionsHeatmap(_Interactions):
 
 
 class InteractionsTopPairs(_Interactions):
-    """The handful of pairs that matter, ranked, without scanning a grid."""
+    """The top pairs, ranked."""
 
     key = "interactions_top_pairs"
     label = _("Interactions: top pairs")
@@ -220,7 +153,7 @@ class InteractionsTopPairs(_Interactions):
 
 
 class InteractionsGraph(_Interactions):
-    """The Möbius graph — the only reading that shows anything above order 2."""
+    """`InteractionsGraph` gives the only reading above order 2."""
 
     key = "interactions_graph"
     label = _("Interactions: graph")
@@ -229,8 +162,8 @@ class InteractionsGraph(_Interactions):
 
 
 class InteractionsCoalitions(_Interactions):
-    """UpSet: which named combinations carry value. Stays legible where the
-    graph stops, which is around six hyperparameters."""
+    """`InteractionsCoalitions` draws an UpSet plot, legible past the graph's
+    six-hyperparameter limit."""
 
     key = "interactions_coalitions"
     label = _("Interactions: coalitions")
@@ -239,8 +172,7 @@ class InteractionsCoalitions(_Interactions):
 
 
 class InteractionsOrders(_Interactions):
-    """Alone, in pairs, or in larger groups — where each hyperparameter's
-    attributed value actually comes from."""
+    """Where each hyperparameter's value comes from, by order."""
 
     key = "interactions_orders"
     label = _("Interactions: by order")
@@ -249,31 +181,22 @@ class InteractionsOrders(_Interactions):
 
 
 class PerformanceOverTime(Figure):
-    """Every trial's outcome and the running-best line — what used to be two
-    figures (performance-over-trials, error-over-time) are four views of one
-    curve here: trial index or elapsed time on x, score or error on y."""
+    """Four views plot each trial's outcome and the running best by trial or
+    time."""
 
     key = "performance_over_time"
     home_tab = MISC
     shape = LONG
-    # Drawn from the trials alone, so it can be updated mid-run. See Figure.live.
+    # See `Figure.live`.
     live = True
-    # Renamed from "Performance over time": every figure here is over time in
-    # some sense, and what distinguishes this one is that its unit is the
-    # trial. The key is unchanged — it is stored in settings, so renaming that
-    # would be a data migration.
+    # The label names the trial as the unit, and the key stays for stored
+    # settings.
     label = _("Trial performance")
-    # The figure the click-to-select gesture started on, and still the most
-    # natural place to make it — but no longer the only one.
+    # Clicks here select a trial, as in other figures.
     selects_trials = True
-    # Full width: the chart every other figure is read against, and the one
-    # most often clicked. A spanning grid item always begins a fresh row, so it
-    # lands below whatever tiles precede it however many are switched off —
-    # which an ordering alone would not guarantee.
     per_metric = True
     views = ("trial-score", "trial-error", "time-score", "time-error")
-    # Present so the toggle is offered at all; the ranges in it are the four
-    # original metrics', and `absolute_scale_for` is what actually answers.
+    # `absolute_scale_for` supplies the real ranges; this enables the toggle.
     absolute_scale = {
         "trial-score": {"yaxis.range": [0, 1], "yaxis.autorange": False},
         "trial-error": {"yaxis.range": [-3, 0], "yaxis.autorange": False},
@@ -283,21 +206,10 @@ class PerformanceOverTime(Figure):
 
     @classmethod
     def absolute_scale_for(cls, metric):
-        """The four views' absolute ranges under *metric*, or None for none.
-
-        Keyed by view, since the sensible "absolute" range depends on which
-        y-axis is showing — and now by metric too, since a range that is right
-        for an accuracy is a fiction for an RMSE. Both axes resolve from the
-        metric's own bounds, and either can come back empty:
-
-        - **score** is linear over `[low, high]`, and needs both. An unbounded
-          metric has no full range to pin to, so it offers no toggle.
-        - **error** is `core.metrics.error_range`, drawn on a log axis, so the
-          pinned range is its log10. `1e-3` is the floor the figure itself
-          applies to keep a log axis off zero, and it is the same number here.
-
-        A view with no range is dropped rather than set to None, so a metric
-        with neither leaves an empty dict — which the page reads as "no toggle".
+        """Each view's absolute range comes from the metric's bounds, and a view
+        without one is dropped. The error axis is log10 of
+        `core.metrics.error_range`, floored at 1e-3 like the figure. An empty
+        dict means no toggle.
         """
         import math
 
@@ -319,7 +231,7 @@ class PerformanceOverTime(Figure):
 
     @classmethod
     def plot(cls, result, metric=None, view=None):
-        """Highlights the metric's best trial until another is clicked."""
+        """`plot` initially highlights the best trial."""
         view = view or cls.views[0]
         x_axis, y_axis = view.split("-")
         return performance_over_time_plot(
@@ -328,64 +240,29 @@ class PerformanceOverTime(Figure):
 
 
 class ConfigurationCube(Figure):
-    """Where the search went, three ways.
-
-    **Axes** is DeepCave's "Configuration Cube": two or three actual
-    hyperparameters as the axes, chosen by the reader, so a position on an axis
-    is a literal hyperparameter value. That also means a *distance* between two
-    points is not one — the axes carry unrelated units — which is what the other
-    two views add.
-
-    **PCA** and **PLS** project the whole configuration space down to two or
-    three components, where a distance is a distance: PCA along the directions
-    the trials varied in most, PLS along the directions that move the metric.
-    See `core.projection`, which also says why a categorical is one-hot here and
-    integer-coded on parallel coordinates.
-
-    All three ship with the page. A projection costs 0.2–5 ms, from twenty
-    trials to five thousand — a fetch and a Compute button would take longer to
-    press than to compute.
-
-    The reader's choices are not `views`, though the method is: which
-    hyperparameters are on which axis, and how many components to draw, are
-    per-experiment and unbounded, so every payload here carries its numbers in
-    `customdata` and the client assembles the axes from them without a round
-    trip. See `configuration_cube_plot` and experiment_detail.html's
-    applyCubeAxes, which draws all three.
+    """The axes view uses chosen hyperparameters as axes, while PCA and PLS
+    project the space so distances mean something. All three views come with the
+    page, since a projection costs 0.2 to 5 ms. The client builds axes from
+    `customdata` without a round trip.
     """
 
     key = "configuration_cube"
     home_tab = ACQUISITION
-    # Drawn from the trials alone, so it can be updated mid-run. See Figure.live.
+    # See `Figure.live`.
     live = True
-    # Renamed from "Configuration cube", which now names one of its three views.
-    # "Projection" covers all three: each keeps two or three linear coordinates
-    # of hyperparameter space and drops the rest, differing only in which
-    # subspace they keep. The key is unchanged — it is stored in settings.
+    # "Projection" covers all three views, and the key stays for stored
+    # settings.
     label = _("Hyperparameter space projection")
-    # Two rows as well as two columns. Every one of its three views is a scatter
-    # over a space with no privileged direction, and a scatter squeezed into a
-    # single row is a strip: the vertical axis gets a fifth of the room the
-    # horizontal one does and reports a fifth of what it has to say.
     per_metric = True
     selects_trials = True
-    # Listed simplest first, because that is how they read in the selector, and
-    # opened on the last of them: PLS answers the question the page is actually
-    # about — which directions through this space moved the metric — and axes is
-    # the one that needs three decisions before it says anything at all.
+    # The page opens on PLS, since PLS shows which directions moved the metric.
     views = ("axes",) + METHODS
     default_view = "pls"
-    # For the axes view: a hyperparameter the search treats logarithmically
-    # needs a logarithmic axis, and the stored result carries values, not the
-    # space they were drawn from. The projections need it too, for the same
-    # reason one column further back — see `encode_configurations`.
+    # A logarithmic hyperparameter needs a log axis, and the projections need
+    # the space as well.
     needs_config_space = True
-    #: How unsure the surrogate is across the plane the axes view spans, drawn
-    #: as a field under the trials. Deferred for the same reason partial
-    #: dependence is: it is per *pair* of hyperparameters, which is not a small
-    #: precomputable set — a model with six of them has fifteen pairs, and the
-    #: reader looks at one. See `BaseOptimizer.compute_surrogate_uncertainty`,
-    #: and `views.surrogate_uncertainty` for why it is the axes view only.
+    #: Surrogate uncertainty is per hyperparameter pair, too many to precompute,
+    #: and covers the axes view only.
     deferred = (("surrogate_uncertainty", _("Surrogate uncertainty (axes view)")),)
 
     @classmethod
@@ -398,52 +275,30 @@ class ConfigurationCube(Figure):
 
 
 class ParallelCoordinates(Figure):
-    """Every trial as one line across its hyperparameters, ending at its
-    score — see parallel_coordinates_plot for why the axis order is
-    HyperSHAP tunability rather than DeepCave's own fANOVA ordering.
-
-    No `views`, no special client-side wiring: unlike the cube, axis order is
-    a full, fixed ranking (not a per-experiment unbounded combination), so
-    one precomputed plot per metric — the ordinary per_metric contract every
-    figure before Phase 3 already used — is enough.
+    """Each trial is a line across its hyperparameters ending at its score,
+    ordered by HyperSHAP tunability (see `parallel_coordinates_plot`).
     """
 
     key = "parallel_coordinates"
     home_tab = MISC
     shape = LONG
-    # Drawn from the trials alone, so it can be updated mid-run. See Figure.live.
+    # See `Figure.live`.
     live = True
     label = _("Parallel coordinates")
     selects_trials = True
     per_metric = True
-    # Same reason as the cube's, different remedy — Parcoords has no log axis,
-    # so a log hyperparameter's values are recoded and its ticks relabelled.
-    # See parallel_coordinates_plot.
+    # Parcoords lacks log axes, so log values are recoded and relabelled.
     needs_config_space = True
 
     @classmethod
-    def plot(cls, result, metric=None, config_space=None):
+    def plot(cls, result, metric=None, view=None, config_space=None):
         return parallel_coordinates_plot(result, metric, config_space=config_space)
 
 
 class PartialDependence(Figure):
-    """One hyperparameter's partial dependence + ICE curves, picked via a
-    dropdown — DeepCave's own small multiples become one Figure entry with a
-    picker, matching every other multi-facet figure in this app.
-
-    No `views`: which hyperparameter is showing isn't a small enumerable set
-    of ways to look at the *same* data (contrast importance's game/rendering
-    or performance's axis choices) — it changes what's being explained. And
-    unlike the cube, it isn't cheap enough to precompute every option's data
-    upfront: fitting a surrogate and predicting across a grid for every
-    hyperparameter, on every page load, for a figure that only ever shows
-    one at a time, would be pure waste. So, like local ablation
-    (`hyperparameter_importance`'s "Local" game), this is fetched on demand
-    — see the `partial_dependence` endpoint (ui/views.py) and
-    experiment_detail.html's `refreshPartialDependence`. `plot()` is never
-    called; it stays `None` (the base class default) so `plot_json` ships
-    nothing for it and the client fetches everything, including the default
-    hyperparameter shown on load.
+    """The page fetches one hyperparameter's PDP and ICE curves on demand from
+    the `partial_dependence` endpoint. Precomputing every hyperparameter would
+    waste each page load, so `plot()` stays None.
     """
 
     key = "partial_dependence"
@@ -451,40 +306,14 @@ class PartialDependence(Figure):
     home_tab = MISC
     shape = LONG
     per_metric = True
-    # The whole figure is deferred, so the computation's name matches the key
-    # here — unlike local ablation, which is one view of a figure whose other
-    # views are precomputed.
+    # The whole figure is deferred, so the computation shares the key.
     deferred = (("partial_dependence", _("Partial dependence (PDP/ICE)")),)
 
 
 class AcquisitionSlice(Figure):
-    """What the optimizer would look at next along one hyperparameter, and how a
-    stated prior changes that.
-
-    The acquisition function along that hyperparameter, weighted by the prior
-    stated on `Prior` beside it. A prior does not move the surrogate's
-    prediction — it multiplies the acquisition — so this curve is where its
-    effect actually is. The two are separate figures so each can be placed and
-    sized on its own; one script draws both, and one request feeds them.
-
-    Deferred and fetched per (metric, hyperparameter), for partial dependence's
-    reason exactly: it fits a surrogate and predicts across a grid, and a model
-    with six hyperparameters would pay that six times on every page load for a
-    panel that shows one.
-
-    Three attributes deliberately unset. `needs_config_space` would do nothing,
-    since `plot()` is never called here — the endpoint does that work itself, as
-    `surrogate_uncertainty` does. `views` would be the wrong shape: which
-    hyperparameter is shown is not another way of looking at the same data, the
-    argument `PartialDependence` makes above. And `absolute_scale` would give
-    the reader a toggle the script redraws over, since the page's scale toggle
-    only ever relayouts `yaxis`.
-
-    Unlike every other figure here, this one's drawing is owned by its own
-    script rather than by experiment_detail.html — see
-    `ui/static/ui/acquisition.js`. The prior is dragged, so its traces depend
-    on state the server never sees; shipping expected improvement in Python as
-    well would mean maintaining it twice.
+    """The acquisition curve shows a prior's effect, since the prior multiplies
+    the acquisition. The slice is fetched per metric and hyperparameter, and
+    `ui/static/ui/acquisition.js` draws it with `Prior` from one request.
     """
 
     key = "acquisition_slice"
@@ -492,23 +321,14 @@ class AcquisitionSlice(Figure):
     home_tab = ACQUISITION
     shape = LONG
     per_metric = True
-    # The computation feeds `Prior` as well, and keeps its name: it is stored in
-    # settings.
+    # `Prior` reads it too; the stored name stays.
     deferred = (("acquisition_slice", _("Acquisition and priors")),)
 
 
 class Prior(Figure):
-    """A belief about where one hyperparameter's good values are, and what the
-    model makes of it.
-
-    Stated by a distribution and its parameters, or drawn freehand by dragging
-    the curve, with a decay that weakens it as the run proceeds. It weights the
-    acquisition on `AcquisitionSlice` and is drawn by the same script, from the
-    same request — so it has no `plot()` and nothing deferred of its own.
-
-    Not per metric: a belief is about the search space, and is the same
-    whichever score is being read. And usable before any run, when it is the
-    only figure the page has.
+    """A stated or freehand belief about one hyperparameter weights the
+    acquisition, with a decay over the run. `AcquisitionSlice`'s script draws
+    it, and it applies across metrics and before any run.
     """
 
     key = "prior"
@@ -517,99 +337,55 @@ class Prior(Figure):
     shape = LONG
 
 
-class ProjectedPrior(Figure):
-    """A belief drawn in the configuration cube rather than stated on one
-    hyperparameter: a bump around a point, a ridge along a line, a slab around
-    a plane, in whichever view the cube shows.
-
-    The points are picked in the cube; this card shapes what they span — where
-    along it the belief peaks, how far it spreads, how wide it is — and states
-    it, or changes and withdraws one already stated. Drawn by its own script
-    (`ui/static/ui/projected_prior.js`) with the cube's, so it has no `plot()`;
-    not per metric, because a belief is about the search space.
-    """
-
-    key = "projected_prior"
-    label = _("Projected prior")
-    home_tab = ACQUISITION
-    shape = CARD
-
-
 class LocalEffects(Figure):
-    """Every sampled trial's local ablation as a beeswarm — the spread of each
-    hyperparameter's effect, rather than one trial's or an average.
-
-    Deferred, and the only new figure that is: it needs one ablation game per
-    trial, which no amount of sharing makes free (43 ms each with the explainer
-    shared, against 79 ms without). So it is fetched on request like partial
-    dependence, capped by `local_effects_max_trials`, and its autocompute
-    setting is off by default like every other deferred computation.
+    """A beeswarm of sampled trials' local ablations needs one game per trial.
+    The page fetches it on request, capped by `local_effects_max_trials`.
     """
 
     key = "local_effects"
     label = _("Local effects across trials")
-    # One HyperSHAP ablation game per sampled trial: local explanation's game,
-    # across the run rather than for one trial.
+    # Local explanation's game, across the run.
     home_tab = HYPERSHAP
     shape = LONG
-    # Sampled, so most trials have no point here to click or to light up — see
-    # `_selection_meta`, which is why a plot names its trials rather than
-    # letting position imply them.
+    # Most sampled trials have no point here, so the plot names its trials (see
+    # `_selection_meta`).
     selects_trials = True
     per_metric = True
     deferred = (("local_effects", _("Local effects across trials")),)
 
 
 class TrialDuration(Figure):
-    """One bar per trial. The same for every metric, so it is drawn once."""
+    """`TrialDuration` draws one figure for every metric."""
 
     key = "trial_duration"
     home_tab = MISC
-    # Drawn from the trials alone, so it can be updated mid-run. See Figure.live.
+    # See `Figure.live`.
     live = True
     label = _("Trial duration")
     selects_trials = True
 
     @classmethod
-    def plot(cls, result, metric=None):
+    def plot(cls, result, metric=None, view=None):
         return trial_duration_plot(result)
 
 
 class Trials(Figure):
-    """Every trial as a sortable table — a column per metric needs the width."""
+    """`Trials` shows a sortable table with one column per metric."""
 
     key = "trials"
     label = _("Trials")
     home_tab = MISC
     shape = TABLE
-    #: Rows to a page. A long run's table is one you scroll past rather than
-    #: read, so it is paged; the page holds enough that a short run never sees a
-    #: pager at all, and the reader can change it on the page. Declared here so
-    #: the template's field and the script that reads it start from one number.
+    #: `page_size` sets the rows per page for the template field and its script,
+    #: and readers can change it on the page.
     page_size = 50
-    # A table, not a plot: its rows carry the trial index themselves and the
-    # highlight is a class, not a restyle.
+    # Rows carry the trial index, and the highlight is a class.
     selects_trials = True
 
 
-#: The default order of each tab, read per `Figure.home_tab`, and of Overview,
-#: read among the pinned ones. A reader rearranges either from there — see
-#: `ui/layout.py`.
-#:
-#: The two configuration panels first, then the chart everything else is read
-#: against, then the interactions in the order they get harder (a grid, a
-#: ranking, a shape, a list, a breakdown). `SelectedConfiguration` is in this
-#: list for its settings checkbox and its per-metric panels; the page renders it
-#: into the sidebar rather than a tab (`Figure.in_sidebar`), so its position
-#: here is not a position on one.
 class Forecast(Figure):
-    """The series, and what the selected trial's configuration forecast at
-    every backtest.
-
-    Only on a forecast's page (`forecast_only`). Deferred and fetched per
-    trial, because drawing it runs the model once per backtest exactly as the
-    trial did — see the `forecast` endpoint and experiment_detail.html's
-    `refreshForecast`. `plot()` is never called.
+    """The page fetches the forecast per trial, since drawing it reruns the
+    model once per backtest.
     """
 
     key = "forecast"
@@ -632,18 +408,13 @@ FIGURES = (
     InteractionsOrders,
     TrialDuration,
     Forecast,
-    # Every trial at once, then one hyperparameter at a time, then one trial at
-    # a time — the same run at three magnifications, in that order.
     ParallelCoordinates,
     PartialDependence,
     LocalExplanation,
     LocalEffects,
     AcquisitionSlice,
     Prior,
-    # Under the acquisition function and its prior, on their tab: where the
-    # search has been, beside where it would go next.
     ConfigurationCube,
-    ProjectedPrior,
     Trials,
 )
 

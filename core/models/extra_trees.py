@@ -1,14 +1,15 @@
-"""Extremely randomized trees: scikit-learn's, classifying or regressing."""
+"""`core.models.extra_trees` wraps scikit-learn's extra trees."""
+
+from typing import Any
 
 from ConfigSpace import Categorical, ConfigurationSpace, Float, Integer
+from codesigner_model import OutputBaseModel
 
-from .base import OutputBaseModel, Tunable
+from .base import Tunable
 
 
 class ExtraTrees(OutputBaseModel):
-    """scikit-learn's extremely randomized trees: a random forest that also
-    draws each split's threshold at random, which is cheaper to fit and often
-    as accurate."""
+    """`ExtraTrees` draws split thresholds at random, cheaper than a forest."""
 
     name = "Extra Trees"
     tasks = ("classification", "regression")
@@ -17,7 +18,7 @@ class ExtraTrees(OutputBaseModel):
     def build(self, hyperparameters, data, seed=0):
         from sklearn.ensemble import ExtraTreesClassifier, ExtraTreesRegressor
 
-        shared = dict(
+        shared: dict[str, Any] = dict(
             n_estimators=int(hyperparameters["n_estimators"]),
             max_depth=int(hyperparameters["max_depth"]),
             min_samples_split=float(hyperparameters["min_samples_split"]),
@@ -34,8 +35,6 @@ class ExtraTrees(OutputBaseModel):
 
 
 class ExtraTreesModel(Tunable, ExtraTrees):
-    """Extra trees, tuned over the forest's four parameters and, for a
-    classification, whether to weight classes by their rarity."""
 
     def get_config_space(self, seed: int = 0) -> ConfigurationSpace:
         cs = ConfigurationSpace(seed=seed)

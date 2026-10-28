@@ -1,41 +1,44 @@
-"""What the page does with a trial that produced no measurement.
-
-The figures mark it (see test_failed_trials.py); this is the rest of the
-surfacing. Three things a reader needs and none of which a mark on a chart can
-carry: which row of the table it was, that the big number in the sidebar is a
-placeholder rather than a result, and why it failed — the last of which is a
-traceback, which is a file to open rather than a panel to read.
-
-Built by editing a stored result rather than by running a model that crashes: a
-failure is a `status` and an `additional_info` on the trial's data entry, so
-everything here is reachable without an optimizer. `scratch/fabricate_failures.py`
-does the same thing to a copy of a real experiment, for looking at.
+"""The page tints a failed trial's row, flags its sidebar score as a
+placeholder, and serves its traceback as a file. The fixture builds failures by
+editing a stored result.
 """
 
 import json
+from typing import Any
 
+import plotly.graph_objects as go
 import pytest
 from django.urls import reverse
 
 from core import io
 from core.optimizers.timing import STATUS_CRASHED, STATUS_TIMEOUT
-from ui.services import snapshot as adapter
+from experiments.services import snapshot as adapter
 
 from tests.conftest import FIXTURES_DIR
 
 TRACEBACK = 'Traceback (most recent call last):\n  File "m.py"\nValueError: no'
 
 
+def _drawn(fig: go.Figure | None) -> Any:
+    assert fig is not None
+    return fig
+
+
+def _rebuilt_result(exp):
+    """`_rebuilt_result` returns the result the page rebuilds."""
+    built = adapter.rebuild_experiment(exp)
+    assert built is not None
+    return built["result"]
+
+
 @pytest.fixture
 def experiment():
-    """An experiment whose trial at index 3 crashed and index 5 timed out.
-
-    The crash carries a traceback and the timeout does not, which is what
-    `evaluate_trial` records: a deadline expiring says nothing about where the
-    model was when it ran out.
+    """The trial at index 3 crashed with a traceback, and the one at index 5
+    timed out without one, as `evaluate_trial` records.
     """
     exp = adapter.experiment_from_snapshot(
         io.parse((FIXTURES_DIR / "analytics.ihpo").read_bytes()))
+    assert exp.data.result is not None
     data = exp.data.result["data"]
     metrics = list(exp.data.metric_names)
 
@@ -53,12 +56,11 @@ def experiment():
     return exp
 
 
-# ── the table ────────────────────────────────────────────────────────────────
+# the table
 
 def test_the_table_marks_the_failed_rows(client, experiment):
-    """Tinted rather than crossed: a row is a fill. Its zeros are shown as
-    stored — blanking them would leave the score columns unsortable and hide
-    that the search was handed those numbers."""
+    """Failed rows get a tint and keep their stored zeros, which keeps the score
+    columns sortable."""
     html = client.get(reverse("ui:experiment_detail", args=[experiment.pk])).content.decode()
     rows = [r for r in html.split("<tr ") if "data-trial-idx" in r]
 
@@ -67,7 +69,7 @@ def test_the_table_marks_the_failed_rows(client, experiment):
     assert "ValueError: no" in rows[3], "the reason is in reach without leaving the table"
 
 
-# ── the sidebar ──────────────────────────────────────────────────────────────
+# the sidebar
 
 def _panel(client, exp, idx):
     return client.get(
@@ -76,8 +78,7 @@ def _panel(client, exp, idx):
 
 
 def test_the_panel_says_the_score_is_not_a_result(client, experiment):
-    """The number above it reads as a measurement of 0.0 otherwise, which is the
-    one thing it is not."""
+    """Without the notice, the 0.0 would read as a measurement."""
     body = _panel(client, experiment, 3)
 
     assert "placeholder" in body
@@ -86,13 +87,11 @@ def test_the_panel_says_the_score_is_not_a_result(client, experiment):
 
 
 def test_the_panel_links_the_traceback_when_there_is_one(client, experiment):
-    """A dozen lines of paths and frames is the wrong shape for a sidebar."""
     assert "trial-traceback" in _panel(client, experiment, 3)
 
 
 def test_the_panel_offers_no_link_when_there_is_no_traceback(client, experiment):
-    """The timeout. A link to a 404 is worse than no link, and the reason on its
-    own is the whole story for a deadline that expired."""
+    """A timeout has no traceback, and its reason alone explains it."""
     body = _panel(client, experiment, 5)
 
     assert "past its 600s deadline" in body
@@ -100,15 +99,13 @@ def test_the_panel_offers_no_link_when_there_is_no_traceback(client, experiment)
 
 
 def test_a_trial_that_succeeded_says_nothing_about_failure(client, experiment):
-    """The notice is absent rather than empty, so the panel keeps its shape for
-    the trials that are the normal case."""
     body = _panel(client, experiment, 0)
 
     assert "placeholder" not in body
     assert "metric-value failed" not in body
 
 
-# ── the traceback itself ─────────────────────────────────────────────────────
+# the traceback
 
 def _traceback(client, exp, idx):
     return client.get(
@@ -116,8 +113,7 @@ def _traceback(client, exp, idx):
 
 
 def test_the_traceback_is_served_as_plain_text(client, experiment):
-    """Something to scroll, search and paste elsewhere — and inline, so a click
-    opens it rather than downloading it."""
+    """`trial_traceback` responds inline, and a click opens the file in place."""
     response = _traceback(client, experiment, 3)
 
     assert response.status_code == 200
@@ -129,8 +125,7 @@ def test_the_traceback_is_served_as_plain_text(client, experiment):
 
 
 def test_a_trial_with_no_traceback_has_no_page(client, experiment):
-    """Which covers three cases at once: it succeeded, it timed out, or its
-    traceback was left out of an export."""
+    """The 404 covers success, timeout, and a traceback stripped by export."""
     assert _traceback(client, experiment, 5).status_code == 404
     assert _traceback(client, experiment, 0).status_code == 404
 
@@ -140,7 +135,7 @@ def test_an_index_outside_the_run_is_refused(client, experiment):
     assert _traceback(client, experiment, "nope").status_code == 400
 
 
-# ── and what leaves in an export ─────────────────────────────────────────────
+# the export
 
 def _exported(client, exp, **answers):
     response = client.post(reverse("ui:experiment_export", args=[exp.pk]), answers)
@@ -148,8 +143,8 @@ def _exported(client, exp, **answers):
 
 
 def test_the_export_asks_about_tracebacks(client, experiment):
-    """A second question beside the timestamps one, because a traceback is the
-    same kind of thing: a fact about this machine rather than about the search."""
+    """A traceback, like the timestamps, describes the exporting machine instead
+    of the search."""
     body = client.get(reverse("ui:experiment_export", args=[experiment.pk])).content.decode()
 
     assert 'name="tracebacks" value="keep"' in body
@@ -157,8 +152,6 @@ def test_the_export_asks_about_tracebacks(client, experiment):
 
 
 def test_the_export_does_not_ask_when_there_is_nothing_to_send(client):
-    """Asking about something the file does not contain is a question with no
-    answer."""
     clean = adapter.experiment_from_snapshot(
         io.parse((FIXTURES_DIR / "analytics.ihpo").read_bytes()))
     body = client.get(reverse("ui:experiment_export", args=[clean.pk])).content.decode()
@@ -168,7 +161,7 @@ def test_the_export_does_not_ask_when_there_is_nothing_to_send(client):
 
 
 def test_the_traceback_is_left_out_unless_it_is_asked_for(client, experiment):
-    """Unticked is the safer answer, so the default strips it."""
+    """The safe default strips the traceback."""
     data = _exported(client, experiment, timestamps="keep")
 
     assert "traceback" not in data[3]["additional_info"]
@@ -177,15 +170,13 @@ def test_the_traceback_is_left_out_unless_it_is_asked_for(client, experiment):
 
 
 def test_the_traceback_travels_when_it_is_asked_for(client, experiment):
-    """So an .ihpo sent to someone can carry the crash they need to see."""
     data = _exported(client, experiment, timestamps="keep", tracebacks="keep")
 
     assert data[3]["additional_info"]["traceback"] == TRACEBACK
 
 
 def test_the_two_answers_are_independent(client, experiment):
-    """Two questions, not one with two settings: keeping the traceback must not
-    smuggle the timestamps out with it."""
+    """Keeping the traceback must leave the timestamps out."""
     data = _exported(client, experiment, tracebacks="keep")
 
     assert data[3]["additional_info"]["traceback"] == TRACEBACK
@@ -194,13 +185,14 @@ def test_the_two_answers_are_independent(client, experiment):
 
 
 def test_a_failure_survives_a_round_trip(client, experiment):
-    """The status and the reason are the trial's result, so re-importing the file
-    has to produce a run the page marks the same way."""
+    """A re-import must keep the status and reason, which belong to the trial's
+    result."""
     from core.optimizers import RandomOptimizer
 
     body = client.post(reverse("ui:experiment_export", args=[experiment.pk]),
                        {"timestamps": "keep", "tracebacks": "keep"}).content
     reimported = adapter.experiment_from_snapshot(io.parse(body))
+    assert reimported.data.result is not None
     result = RandomOptimizer().deserialize_result(reimported.data.result)
 
     assert [i for i, t in enumerate(result.trials) if t.failed] == [3, 5]
@@ -208,7 +200,7 @@ def test_a_failure_survives_a_round_trip(client, experiment):
     assert result.trials[5].traceback == "", "it never had one"
 
 
-# ── the selection must not paint over the failure marks ─────────────────────
+# selection versus failure marks
 
 def _script():
     from pathlib import Path
@@ -217,7 +209,7 @@ def _script():
 
 
 def _recolor_branch():
-    """The half of `applySelection` that repaints a trace's points."""
+    """`_recolor_branch` extracts `applySelection`'s repaint half."""
     source = _script()
     start = source.index("function applySelection(")
     end = source.index("const trialsPager", start)
@@ -225,15 +217,8 @@ def _recolor_branch():
 
 
 def test_the_selection_repaints_from_what_was_drawn_not_from_a_default():
-    """Found by looking at the running app, which is the only way it could have
-    been: selecting any trial anywhere on the page used to flatten every failure
-    mark on the two figures whose selection style is "recolor". The duration bar
-    lost its tint outright — repainted the ordinary blue — and the crosses on
-    trial performance shrank from their own size back to an ordinary point's.
-
-    The repaint has to put back what the server drew, so the guard is that it
-    reads the drawn values rather than painting a constant over everything that
-    is not selected.
+    """The "recolor" repaint must restore the drawn colours and sizes, or
+    selecting any trial flattens every failure mark.
     """
     branch = _recolor_branch()
 
@@ -242,8 +227,8 @@ def test_the_selection_repaints_from_what_was_drawn_not_from_a_default():
 
 
 def test_the_drawn_marker_styling_is_captured_before_anything_touches_it():
-    """From the payload rather than the DOM, which by the time a second
-    selection happens already carries the first one."""
+    """`draw` captures markers from the payload instead of the selection-tainted
+    DOM."""
     source = _script()
     start = source.index("function draw(key, plot)")
     end = source.index("function clearPlot", start)
@@ -253,53 +238,42 @@ def test_the_drawn_marker_styling_is_captured_before_anything_touches_it():
 
 
 def test_selecting_a_failure_keeps_its_cross_and_changes_its_colour():
-    """`_failure_marks` says the shape carries the failure and the colour
-    carries the selection. The client has to agree: a cross has no fill, so on a
-    failure it is the outline that has to turn."""
+    """A cross has no fill, so the selection colours a failure's outline."""
     branch = _recolor_branch()
 
     assert "marker.line.color" in branch
     assert "isFailure" in branch
 
 
-
-# ── …including on the figures whose colour already means something ──────────
-#
-# The two projections (the cube's axes view and its PCA/PLS views) style
-# selection as an *outline* rather than a recolour, because the fill is the
-# score. That branch painted a constant over every point's outline — and a
-# failure's glyph is an open cross, so the outline *is* the mark.
+# The projections mark selection with an outline because the fill shows the
+# score, and a failure's cross is all outline.
 
 
 def _ordinary_point_size():
-    """What the cube draws a trial that succeeded at.
-
-    Read off the builder rather than repeated here, so the size the 3D failure
-    mark has to sit below cannot drift away from the size it is sitting among.
+    """`_ordinary_point_size` reads a successful cube point's size from the
+    builder.
     """
     from ui.figures.plots import configuration_cube_plot
 
     from tests.ui.results.test_failed_trials import _result
 
-    marker = configuration_cube_plot(_result(failed_at=(2,)), "accuracy").data[0].marker
+    marker = _drawn(configuration_cube_plot(_result(failed_at=(2,)), "accuracy")).data[0].marker
     return marker.size[0]
 
 
 def _outline_branch():
-    """The half of `applySelection` that rings a trace's selected point."""
+    """`_outline_branch` extracts the outline half of `applySelection`."""
     branch = _recolor_branch()
     start = branch.index('if (sel.style === "outline")')
     return branch[start:branch.index("Plotly.restyle(el, update", start)]
 
 
 def test_the_projection_carries_failure_marks_at_all(client, experiment):
-    """Every view of it. The server has to send them before anything can keep
-    them, and this is the figure the marks were missing from."""
+    """The server must send the failure marks on every view of the cube."""
     from ui.figures.plots import configuration_cube_plot
-    from ui.views import _rebuild_experiment
 
-    result = _rebuild_experiment(experiment)["result"]
-    figure = configuration_cube_plot(result, "accuracy")
+    result = _rebuilt_result(experiment)
+    figure = _drawn(configuration_cube_plot(result, "accuracy"))
 
     symbols = list(figure.data[0].marker.symbol)
     assert [i for i, s in enumerate(symbols) if s != "circle"] == [3, 5]
@@ -307,12 +281,8 @@ def test_the_projection_carries_failure_marks_at_all(client, experiment):
 
 
 def test_the_outline_selection_keeps_a_failures_cross_visible():
-    """The bug: an outline width of 0 erases an open cross entirely.
-
-    Every point that was not the selected one had its outline zeroed, so on the
-    hyperparameter space projection a failed trial looked exactly like a trial
-    that scored badly — and something is always selected, so it was never
-    visible at all.
+    """An outline width of 0 erases an open cross, which hid failures while any
+    point was selected.
     """
     branch = _outline_branch()
 
@@ -321,19 +291,15 @@ def test_the_outline_selection_keeps_a_failures_cross_visible():
 
 
 def test_the_outline_selection_keeps_a_failures_colour():
-    """Red says "not measured"; the selection colour is reserved for the one
-    point that was clicked."""
+    """Failures keep red; only the clicked point gets selection colour."""
     branch = _outline_branch()
 
     assert "baseLine[i]" in branch
 
 
 def test_a_three_dimensional_view_uses_a_symbol_a_scene_can_draw():
-    """`x-thin` is outline-only, and a 3D scene draws no marker outline.
-
-    So the shape has to change with the dimensionality, or a failure in the 3D
-    view is drawn as nothing at all. The red cannot come with it — the same
-    limitation the selection ring already has in a scene.
+    """A 3D scene draws no marker outline, so the outline-only `x-thin` becomes
+    `x` there and loses its red.
     """
     branch = _recolor_branch()
 
@@ -342,19 +308,17 @@ def test_a_three_dimensional_view_uses_a_symbol_a_scene_can_draw():
 
 
 def test_the_three_dimensional_cross_is_smaller_than_the_points_around_it():
-    """Below the size the ordinary points are drawn at, not above it.
-
-    A filled glyph covers its whole extent where an open one does not, a cross
-    reads wider than a disc of the same nominal size, and in a scene size is a
-    depth cue — an enlarged marker reads as one nearer the camera. The red is
-    what carries the signal in 3D, so the shape does not have to.
+    """Marker size reads as depth in a scene, and a cross looks wider than a
+    disc of equal size.
     """
     import re
 
     from ui.figures.plots import FAILURE_SIZE
 
     source = _script()
-    size = int(re.search(r"const FAILURE_SIZE_3D = (\d+);", source).group(1))
+    found = re.search(r"const FAILURE_SIZE_3D = (\d+);", source)
+    assert found is not None
+    size = int(found.group(1))
 
     assert size < _ordinary_point_size(), \
         "a failure should not be the largest thing on the plot"
@@ -363,20 +327,9 @@ def test_the_three_dimensional_cross_is_smaller_than_the_points_around_it():
 
 
 def test_the_cube_rebuilds_its_marker_from_the_payload_not_the_element():
-    """The root cause of two separate disappearing-cross bugs, pinned once.
-
-    `applyCubeAxes` rebuilds the trace on every axis change, and whatever it
-    builds becomes `el.data[0]` — so anything it reads off the element is
-    whatever the *previous* view needed, not what the server drew. Adjusting a
-    marker in place therefore feeds forward and never recovers:
-
-    - substituting the 3D symbol left the open cross filled on the way back;
-    - dropping `marker.line` for 3D (a scene rejects an array width) left the
-      2D cross with no outline at all, which is the whole mark.
-
-    Neither is fixed by undoing the specific adjustment. The fix is that the
-    rebuild starts from the payload every time, which makes both self-correcting
-    and any future one too.
+    """`applyCubeAxes` rebuilds the trace on every axis change, and a marker
+    read off the element carries the previous view's edits. The rebuild starts
+    from the payload each time instead.
     """
     cube = _cube_function()
 
@@ -386,16 +339,12 @@ def test_the_cube_rebuilds_its_marker_from_the_payload_not_the_element():
 
 
 def test_the_drawn_marker_survives_a_change_of_dimensionality():
-    """2D and 3D are different Plotly subplot types, so switching between them
-    is a `newPlot` rather than a `react` — and `applySelection` runs afterwards
-    and needs what the server drew. Carried across rather than assumed to
-    survive: without it no point is a failure any more, and every cross is
-    repainted as an ordinary ring.
+    """`applyCubeAxes` saves the drawn markers before `Plotly.newPlot` and
+    restores them afterwards for `applySelection`.
     """
     source = _script()
     start = source.index("function applyCubeAxes(")
-    # To the end of the function, which `_cube_function` stops short of: the
-    # replot is the last thing it does.
+    # Whole function; `_cube_function` stops before the replot.
     whole = source[start:source.index('applySelection("configuration_cube"', start)]
 
     assert "const drawn = el._baseMarkers" in whole
@@ -403,8 +352,7 @@ def test_the_drawn_marker_survives_a_change_of_dimensionality():
 
 
 def test_the_whole_marker_is_kept_not_only_what_the_selection_repaints():
-    """The rebuild needs the colour scale, the colour bar and the score array
-    too, not just the four keys the repaint touches."""
+    """The rebuild also needs the colour scale, colour bar and score array."""
     source = _script()
     start = source.index("function draw(key, plot)")
     capture = source[start:source.index("function clearPlot", start)]
@@ -413,12 +361,8 @@ def test_the_whole_marker_is_kept_not_only_what_the_selection_repaints():
 
 
 def test_the_flat_view_gets_its_open_cross_back_after_a_three_d_one():
-    """The bug this caused: `applyCubeAxes` rebuilds the trace from whatever is
-    on the element, so a symbol substituted in place while 3D was showing came
-    back as the base on the next call and the open cross never returned.
-
-    The guard is that the substitution reads the *payload* every time rather
-    than the element, which is self-correcting in both directions.
+    """The 3D symbol substitution reads the payload each time, because an edit
+    on the element would stick after leaving the 3D view.
     """
     source = _script()
     start = source.index("function applyCubeAxes(")
@@ -435,25 +379,16 @@ def _cube_function():
 
 
 def test_a_scene_is_not_handed_an_array_it_rejects():
-    """`scatter3d.marker.line.width` is scalar-only, and `_failure_marks` makes
-    it an array. Plotly takes the whole trace down over an invalid attribute, so
-    a run with any failure in it drew *nothing at all* in three dimensions —
-    not the crosses, not the other points either.
-
-    Dropped rather than flattened to a scalar: a scene draws no marker outline,
-    so `marker.line` carries nothing there in the first place.
+    """`scatter3d.marker.line.width` is scalar-only, and Plotly drops the whole
+    trace over an invalid attribute. The cube deletes `marker.line` in 3D, where
+    a scene draws no outline anyway.
     """
     assert "delete newTrace.marker.line" in _cube_function()
 
 
 def test_the_scene_draws_the_crosses_again_in_red():
-    """With no outline to carry it, a failure in a scene is filled with its own
-    score — and a failure scores at the pale end of the ramp, so the crosses
-    come out very nearly white.
-
-    Redrawn on top as scenery, the same pattern the incumbent markers and the
-    uncertainty field use: skipping hover takes it out of hit-testing so a click
-    still reaches the real point underneath.
+    """A scene fills a failure with its pale score colour. A red overlay trace
+    redraws the crosses and skips hover, and clicks still reach the real point.
     """
     cube = _cube_function()
 
@@ -463,8 +398,8 @@ def test_the_scene_draws_the_crosses_again_in_red():
 
 
 def test_the_extra_trace_goes_after_the_ones_the_selection_names():
-    """`layout.meta.selection` names trace 0 as the trials and trace 1 as the
-    highlight, so anything inserted in front of them renumbers both."""
+    """The overlay goes after traces 0 and 1, which `layout.meta.selection`
+    names."""
     cube = _cube_function()
 
     assert cube.index("const traces = [newTrace, highlight]") < cube.index(
@@ -473,8 +408,7 @@ def test_the_extra_trace_goes_after_the_ones_the_selection_names():
 
 @pytest.mark.django_db
 def test_the_page_is_told_the_failure_colour(client, experiment):
-    """Sent from the palette rather than repeated in the script, so the page
-    restates no colour it does not own."""
+    """The palette sends the failure colour, and the script hardcodes none."""
     import json
 
     from ui.figures import NEGATIVE_COLOR
@@ -489,24 +423,18 @@ def test_the_page_is_told_the_failure_colour(client, experiment):
 
 
 def test_the_three_d_trace_the_page_builds_is_one_plotly_accepts(experiment):
-    """The check that would have caught it, done against Plotly's own schema.
-
-    The client rebuilds the cube's trace as `scatter3d` from the server payload,
-    and a scene's marker validates differently from a plane's — `line.width`
-    array-valued is the one that bit, and an invalid attribute costs the whole
-    trace rather than the attribute. So the payload is put through the same
-    transformation the page performs and handed to the validator.
+    """The test applies the page's `scatter3d` transformation to the payload and
+    validates the result against Plotly's schema.
     """
     import plotly.graph_objects as go
 
     from ui.figures.plots import configuration_cube_plot
-    from ui.views import _rebuild_experiment
 
-    result = _rebuild_experiment(experiment)["result"]
-    marker = configuration_cube_plot(result, "accuracy").data[0].marker.to_plotly_json()
+    result = _rebuilt_result(experiment)
+    marker = _drawn(configuration_cube_plot(result, "accuracy")).data[0].marker.to_plotly_json()
     assert isinstance(marker["line"]["width"], (list, tuple)), "no failures to carry"
 
-    # What applyCubeAxes does on the way into a scene.
+    # Mirror of applyCubeAxes entering a scene.
     marker.pop("line")
     marker["symbol"] = [("x" if s == "x-thin" else s) for s in marker["symbol"]]
 
@@ -515,14 +443,13 @@ def test_the_three_d_trace_the_page_builds_is_one_plotly_accepts(experiment):
 
 
 def test_the_same_payload_is_rejected_without_that_transformation(experiment):
-    """Otherwise the test above proves only that some dict validates."""
+    """Rejection here keeps the test above honest."""
     import plotly.graph_objects as go
 
     from ui.figures.plots import configuration_cube_plot
-    from ui.views import _rebuild_experiment
 
-    result = _rebuild_experiment(experiment)["result"]
-    marker = configuration_cube_plot(result, "accuracy").data[0].marker.to_plotly_json()
+    result = _rebuilt_result(experiment)
+    marker = _drawn(configuration_cube_plot(result, "accuracy")).data[0].marker.to_plotly_json()
     points = list(range(len(result.trials)))
 
     with pytest.raises(ValueError):

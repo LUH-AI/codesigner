@@ -1,24 +1,14 @@
-"""The two management surfaces, and who can open them.
-
-*What:* everybody with an account gets a Group tab — a page per group they are
-in, with its people and its experiments as they may reach them. A lead's page
-adds their colleagues' experiments and the controls for the group's people. A site admin gets a Site tab —
-groups, usage, running jobs and the bin, and **nobody else's experiments
-anywhere on it**, which is the claim this file exists to hold. What a site admin
-may read is their own membership's business and is checked in `test_groups.py`;
-these panels show none of it either way.
-
-*How:* through the pages as each role, including the cases that should 404. A
-panel nobody may open is not an error page; it is a page that is not there, so
-a member asking for the Site tab gets the same answer as somebody asking for a
-URL that was never routed.
+"""Every account gets a Group tab, and a lead's group page adds colleagues'
+experiments and people controls. The Site tab shows a site admin groups, usage,
+jobs and the bin, without naming any experiment. Panels outside a user's role
+return 404.
 """
 
 import pytest
 from django.urls import reverse
 
 from access.models import Group, Membership
-from ui.models import Experiment, Run
+from experiments.models import Experiment, Run
 
 pytestmark = pytest.mark.django_db
 
@@ -60,10 +50,8 @@ def _experiment(owner, name, **kw):
         metric_names=["accuracy"], seed=0, owner=owner, **kw)
 
 
-# ── who may open what ────────────────────────────────────────────────────────
-
 def test_a_member_opens_their_group_without_the_lead_controls(client, hosted, lab):
-    """Who is in the group is everybody's to see; changing it is the leads'."""
+    """`group_detail` shows a member the people list without lead controls."""
     client.force_login(lab["ana"])
 
     resp = client.get(reverse("ui:group_detail", args=[lab["group"].pk]))
@@ -76,8 +64,7 @@ def test_a_member_opens_their_group_without_the_lead_controls(client, hosted, la
 
 
 def test_somebody_outside_it_gets_a_404(client, hosted, lab):
-    """Not a 403: a page that is not theirs is not a page they were refused, it
-    is a page that is not there."""
+    """Another group's page looks unrouted to an outsider."""
     client.force_login(lab["outsider"])
 
     assert client.get(reverse("ui:group_detail", args=[lab["group"].pk])
@@ -111,8 +98,6 @@ def test_a_lead_opens_their_own_group_and_no_other(client, hosted, lab):
                       ).status_code == 404
 
 
-# ── the seat limit ───────────────────────────────────────────────────────────
-
 def test_a_lead_fills_the_seats_they_were_given(client, hosted, lab,
                                                 django_user_model):
     client.force_login(lab["lead"])
@@ -125,8 +110,7 @@ def test_a_lead_fills_the_seats_they_were_given(client, hosted, lab,
 
 
 def test_and_is_refused_past_them_with_the_number(client, hosted, lab):
-    """"No" without the count reads as a bug when the limit is somebody else's
-    to change."""
+    """The refusal states the count and whose limit applies."""
     client.force_login(lab["lead"])
     add = reverse("ui:group_add_person", args=[lab["group"].pk])
     client.post(add, {"email": "third@example.org", "role": "member"})
@@ -140,8 +124,7 @@ def test_and_is_refused_past_them_with_the_number(client, hosted, lab):
 
 
 def test_a_lead_cannot_raise_their_own_limit(client, hosted, lab):
-    """A lead who could would be a lead without one — the save route is the site
-    admin's, and it is not theirs to post to."""
+    """The save route belongs to the site admin."""
     client.force_login(lab["lead"])
 
     resp = client.post(reverse("ui:site_group_save"),
@@ -163,11 +146,8 @@ def test_a_site_admin_can(client, hosted, lab):
     assert lab["group"].user_limit == 9
 
 
-# ── removing somebody ────────────────────────────────────────────────────────
-
 def test_removing_somebody_who_owns_work_is_refused(client, hosted, lab):
-    """Out of the group nobody could reach it — the same silence deleting the
-    account would cause, which `access/admin.py` refuses for the same reason."""
+    """Removing an owner would strand the work, as deleting the account would."""
     _experiment(lab["ana"], "hers")
     client.force_login(lab["lead"])
 
@@ -190,8 +170,7 @@ def test_a_lead_cannot_remove_themselves(client, hosted, lab):
 
 
 def test_a_lead_cannot_reach_into_another_group(client, hosted, lab):
-    """The membership is addressed by pk, so this is the route where a wrong
-    number would cross the boundary."""
+    """The route takes a membership pk from any group."""
     client.force_login(lab["lead"])
 
     resp = client.post(reverse("ui:group_remove_person",
@@ -201,8 +180,6 @@ def test_a_lead_cannot_reach_into_another_group(client, hosted, lab):
     assert resp.status_code == 404
     assert Membership.objects.filter(user=lab["outsider"]).exists()
 
-
-# ── what the group page lists ────────────────────────────────────────────────
 
 def _page(client, lab, who):
     client.force_login(lab[who])
@@ -220,7 +197,7 @@ def test_a_lead_sees_everybody_elses_apart_from_their_own(client, hosted, lab):
 
 
 def test_a_member_sees_their_own_and_what_was_shared_with_them(client, hosted, lab):
-    from ui.models import ExperimentShare
+    from experiments.models import ExperimentShare
 
     _experiment(lab["lead"], "vera's, unshared")
     shared = _experiment(lab["lead"], "vera's, shared")
@@ -234,7 +211,7 @@ def test_a_member_sees_their_own_and_what_was_shared_with_them(client, hosted, l
 
 
 def test_the_sharing_controls_name_every_colleague(client, hosted, lab):
-    """And only colleagues: a grant can only name somebody in the group."""
+    """A grant can name only group members."""
     _experiment(lab["ana"], "hers")
 
     row = _page(client, lab, "ana")["mine"][0]
@@ -275,11 +252,8 @@ def test_somebody_in_no_group_is_told_so(client, hosted, lab):
     assert "not in a group" in resp.content.decode()
 
 
-# ── what a site admin is not shown ───────────────────────────────────────────
-
 def test_the_site_panels_name_no_experiment(client, hosted, lab):
-    """The privacy claim, asserted as an absence — which is the only way to
-    assert it, and the reason it is worth a test rather than a comment."""
+    """The test asserts the privacy claim as an absence."""
     exp = _experiment(lab["ana"], "Secret cancer model")
     Run.objects.create(experiment=exp, primary_metric="accuracy", status="running",
                        stopping={"max_trials": 5}, started_by=lab["ana"],
@@ -292,8 +266,7 @@ def test_the_site_panels_name_no_experiment(client, hosted, lab):
 
 
 def test_a_job_is_identified_without_saying_what_it_is(client, hosted, lab):
-    """The experiment's own short code: enough to talk about a job in a support
-    conversation, and it says nothing about the work."""
+    """The short code identifies a job without describing the work."""
     exp = _experiment(lab["ana"], "Secret cancer model")
     Run.objects.create(experiment=exp, primary_metric="accuracy", status="running",
                        stopping={"max_trials": 5}, started_by=lab["ana"],
@@ -308,9 +281,8 @@ def test_a_job_is_identified_without_saying_what_it_is(client, hosted, lab):
 
 def test_a_site_admin_can_stop_a_job_they_cannot_see_the_experiment_for(
         client, hosted, lab):
-    """Addressed by run, not experiment — there is no experiment visibility for
-    `@experiment_view` to check, and granting some so a decorator would fit
-    would defeat the separation."""
+    """The stop route takes a run, since the site admin has no experiment
+    visibility."""
     exp = _experiment(lab["ana"], "running")
     run = Run.objects.create(experiment=exp, primary_metric="accuracy",
                              status="running", stopping={"max_trials": 5},
@@ -321,6 +293,23 @@ def test_a_site_admin_can_stop_a_job_they_cannot_see_the_experiment_for(
 
     run.refresh_from_db()
     assert run.status == "error"
+
+
+def test_a_job_a_site_admin_stops_keeps_count_of_its_trials(client, hosted, lab):
+    """The stopped run counts its trials past `trial_offset`, as a page stop
+    does."""
+    exp = _experiment(lab["ana"], "running")
+    exp.data.result = {"data": [{}, {}, {}]}
+    exp.data.save(update_fields=["result"])
+    run = Run.objects.create(experiment=exp, primary_metric="accuracy",
+                             status="running", stopping={"max_trials": 5},
+                             started_by=lab["ana"], trial_offset=1)
+    client.force_login(lab["site"])
+
+    client.post(reverse("ui:site_job_stop", args=[run.pk]), follow=True)
+
+    run.refresh_from_db()
+    assert run.trial_count == 2
 
 
 def test_nobody_else_can_stop_a_job_that_way(client, hosted, lab):
@@ -335,10 +324,8 @@ def test_nobody_else_can_stop_a_job_that_way(client, hosted, lab):
     assert run.status == "running"
 
 
-# ── and the tabs only appear for whoever they belong to ─────────────────────
-
 def test_the_rail_offers_each_tab_to_its_own_role(client, hosted, lab):
-    """The Group tab is everybody's; the Site tab only a site admin's."""
+    """Only site admins see the Site tab."""
     for who, expected in [("ana", ["ui:group_index"]), ("vera", ["ui:group_index"]),
                           ("site", ["ui:group_index", "ui:site_groups"])]:
         client.force_login(lab["site"] if who == "site"

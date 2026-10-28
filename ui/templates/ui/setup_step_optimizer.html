@@ -1,9 +1,9 @@
-{% extends "base.html" %}
+{% extends "ui/base.html" %}
 {% load i18n %}
 
 {% block title %}{% translate "Optimizer" %} · {% translate "New experiment" %} · Codesigner{% endblock %}
 
-{% comment %}Step 2 of a draft's setup (ui/services/setup.py): what searches the
+{% comment %}Step 2 of a draft's setup (ui/setup_steps.py): what searches the
 experiment's hyperparameters, and with what settings.{% endcomment %}
 {% block content %}
     {% include "ui/_setup_heading.html" %}

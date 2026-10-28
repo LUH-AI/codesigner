@@ -3,7 +3,9 @@ something, and saying how to do what only the person may do."""
 
 from __future__ import annotations
 
-from ui.permissions import BOTH, VIEW
+from access.policy import VIEW
+
+from ui.permissions import BOTH
 
 from .registry import Refused, ToolResult, ToolSpec
 
@@ -11,16 +13,16 @@ from .registry import Refused, ToolResult, ToolSpec
 def _profile_dataset(context, demo: str = "") -> ToolResult:
     import json
 
-    from core import io
+    from core import datasets
 
     from ..profile import profile
 
     experiment_id = None
     if demo:
-        path = io.demo_datasets().get(demo)
+        path = datasets.demo_datasets().get(demo)
         if path is None:
             raise Refused(f"there is no demo dataset called {demo!r}; there are "
-                          f"{sorted(io.demo_datasets())}")
+                          f"{sorted(datasets.demo_datasets())}")
         target = ""
     elif context.conversation.dataset_path() is not None:
         path, target = context.conversation.dataset_path(), ""

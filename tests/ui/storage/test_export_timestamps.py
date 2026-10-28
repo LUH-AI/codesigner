@@ -1,15 +1,6 @@
-"""Exporting asks whether the per-trial timestamps go in the file.
-
-`starttime`/`endtime` say what time of day someone was working and on which
-days — a fact about a person rather than about a search. The durations that make
-the timing figures readable survive without them, so leaving them out costs the
-file nothing it is for.
-
-Asked at the point of export rather than kept as a setting, which is the change
-these cover. A setting is answered once, by whoever set the instance up, for
-every file it will ever send; the right answer depends on the file and on who is
-about to receive it, neither of which is known when a settings page is being
-filled in.
+"""`starttime` and `endtime` reveal when a person worked, and the durations
+survive without them. Export asks per file, because the right answer depends on
+the file and its recipient.
 """
 
 import json
@@ -17,7 +8,7 @@ import re
 
 from django.urls import reverse
 
-from ui.models import Experiment
+from experiments.models import Experiment
 
 from tests.conftest import export_ihpo
 
@@ -47,9 +38,7 @@ def _exported(client, exp, timestamps):
 
 
 def test_asking_comes_before_downloading(client):
-    """A link to the export URL is a page, not a file: the question has to be
-    put before the file exists, and it says what is at stake rather than naming
-    a field."""
+    """The question comes before the file exists and names what is at stake."""
     exp = _experiment_with_timestamps()
 
     page = client.get(reverse("ui:experiment_export", args=[exp.pk]))
@@ -58,9 +47,8 @@ def test_asking_comes_before_downloading(client):
     assert page.status_code == 200
     assert "Content-Disposition" not in page
     assert "Real times show when you were working." in body
-    # A choice of three, preselected without the date and time of day — and
-    # one Export button, since the page asks two independent questions and
-    # two of those do not compose into buttons.
+    # Relative times are preselected, and a single Export button serves two
+    # independent questions.
     assert re.search(r'name="timestamps" value="relative" checked', body)
     assert 'name="timestamps" value="absolute"' in body
     assert not re.search(r'name="tracebacks"[^>]*checked', body)
@@ -75,8 +63,6 @@ def test_keeping_them_keeps_them(client):
 
 
 def test_leaving_them_out_costs_the_file_nothing_else(client):
-    """Which is why it is worth offering: every score, every configuration and
-    how long each trial took are all still there."""
     entry = _exported(client, _experiment_with_timestamps(), "strip")
 
     assert "starttime" not in entry
@@ -86,9 +72,8 @@ def test_leaving_them_out_costs_the_file_nothing_else(client):
 
 
 def test_anything_but_keeping_them_strips_them(client):
-    """The safe answer is the default one. A request that says nothing about
-    timestamps — a stale bookmark, a script written against the old URL — gets
-    the file without them rather than the file with."""
+    """A request silent on timestamps, such as a stale bookmark, gets the file
+    without them."""
     exp = _experiment_with_timestamps()
 
     entry = json.loads(client.post(
@@ -98,8 +83,7 @@ def test_anything_but_keeping_them_strips_them(client):
 
 
 def test_a_stripped_export_still_reimports(client):
-    """Deserialize ignores the missing keys, so the file is a whole experiment
-    either way."""
+    """Deserialize ignores the missing keys."""
     from core import io
 
     body = export_ihpo(client, _experiment_with_timestamps().pk, "strip").content

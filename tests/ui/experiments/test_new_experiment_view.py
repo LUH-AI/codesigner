@@ -1,11 +1,5 @@
-"""Step 3 (updated in Step 6): the new-experiment page *creates* an experiment.
-
-Since Step 6 separated create from run, submitting this form saves the
-experiment (no result yet) and redirects to its detail page; running happens
-there, in the background (see tests/ui/runs/). These tests cover creation and its
-validation; the run flow and results rendering live in step6/step4.
-
-DB access + isolated media come from tests/ui/conftest.py.
+"""The new-experiment form saves an experiment without a result and redirects to
+its detail page, where runs happen.
 """
 
 import io as _io
@@ -16,7 +10,6 @@ from tests.conftest import DATASETS_DIR, get_new_experiment, post_new_experiment
 
 
 def _valid_post(**overrides):
-    """A valid create-experiment POST: Random Forest + Random Search on iris."""
     data = {
         "name": "my-exp",
         "model_name": "Random Forest",
@@ -29,11 +22,8 @@ def _valid_post(**overrides):
 
 
 def test_get_shows_the_form(client):
-    """GET renders the setup form: model, dataset, seed. The optimizer is
-    step 2's.
-
-    The metric and trial-count fields are gone from creation — they are chosen
-    per run on the detail page.
+    """Metric and stopping rule are picked per run on the detail page, and the
+    optimizer has its own step.
     """
     response = get_new_experiment(client)
     assert response.status_code == 200
@@ -43,12 +33,9 @@ def test_get_shows_the_form(client):
 
 
 def test_post_creates_experiment_and_redirects(client):
-    """A valid submission saves an experiment with no result and redirects to detail.
-
-    Expect: 302 to the experiment's detail page, and an Experiment row with no
-    result and no committed metric (creating does not run).
+    """Creating leaves the result and committed metric empty.
     """
-    from ui.models import Experiment
+    from experiments.models import Experiment
 
     resp = post_new_experiment(client, _valid_post(name="created"))
     exp = Experiment.objects.get(data__name="created")
@@ -60,8 +47,7 @@ def test_post_creates_experiment_and_redirects(client):
 
 
 def test_post_with_uploaded_csv_stores_the_dataset(client):
-    """Creating with an uploaded CSV stores that dataset on the experiment."""
-    from ui.models import Experiment
+    from experiments.models import Experiment
 
     with open(DATASETS_DIR / "iris.csv", "rb") as f:
         upload = _io.BytesIO(f.read())
@@ -75,8 +61,7 @@ def test_post_with_uploaded_csv_stores_the_dataset(client):
 
 
 def test_missing_dataset_is_rejected(client):
-    """Submitting with neither a demo dataset nor an upload re-renders with an error."""
-    from ui.models import Experiment
+    from experiments.models import Experiment
 
     resp = post_new_experiment(client, _valid_post(demo_dataset=""))
     assert resp.status_code == 200
@@ -85,10 +70,7 @@ def test_missing_dataset_is_rejected(client):
 
 
 def test_a_name_is_optional(client):
-    """What: an experiment may be created with no name, and is then shown as
-    "Untitled Experiment". How: creates one with a blank name and reads it and
-    its dashboard."""
-    from ui.models import Experiment
+    from experiments.models import Experiment
 
     post_new_experiment(client, _valid_post(name=""))
     exp = Experiment.objects.get(draft=False)
@@ -99,15 +81,10 @@ def test_a_name_is_optional(client):
 
 
 def test_five_fold_cross_validation_is_the_default(client):
-    """A single 80/20 split on a small table is noisy enough that a search can
-    spend its budget chasing the split rather than the model, and the tables
-    this is pointed at are small. Holdout stays one selection away.
-
-    The page is asked for the scheme selector's own state and the number beside
-    it, and the form is submitted with neither, since leaving both alone is how
-    someone gets the default.
+    """A single 80/20 split on a small table is noisy enough that a search
+    chases the split instead of the model.
     """
-    from ui.models import Experiment
+    from experiments.models import Experiment
 
     html = get_new_experiment(client).content.decode()
     post_new_experiment(client, _valid_post(name="folded"))
@@ -118,10 +95,8 @@ def test_five_fold_cross_validation_is_the_default(client):
 
 
 def test_a_choice_of_holdout_is_still_honoured(client):
-    """Picking the other scheme stores no folds and the share that was typed —
-    the number beside the selector means something different under each, and
-    only the one the scheme asked for is kept."""
-    from ui.models import Experiment
+    """A holdout choice saves no folds and the typed share."""
+    from experiments.models import Experiment
 
     post_new_experiment(client,
                 _valid_post(name="split", evaluation_scheme="holdout",
@@ -133,9 +108,8 @@ def test_a_choice_of_holdout_is_still_honoured(client):
 
 
 def test_the_number_beside_the_scheme_is_read_as_that_scheme_asks(client):
-    """One field carries folds under cross-validation and a held-out share
-    under a split, so the same number has to land in a different column."""
-    from ui.models import Experiment
+    """One field holds folds under k-fold, a share under holdout."""
+    from experiments.models import Experiment
 
     post_new_experiment(client,
                 _valid_post(name="sevenfold", evaluation_scheme="kfold",
@@ -147,9 +121,7 @@ def test_the_number_beside_the_scheme_is_read_as_that_scheme_asks(client):
 
 
 def test_the_scheme_and_its_number_sit_in_one_row(client):
-    """They are one decision — how the data is divided, and how finely — so the
-    number has to read as the selector's and not as a setting of its own.
-    Stacked, the two look like unrelated fields that happen to be adjacent."""
+    """The number reads as part of the scheme decision."""
     html = get_new_experiment(client).content.decode()
     row = html.split('class="field-row" data-evaluation', 1)[1].split("</div>\n        </div>", 1)[0]
 
@@ -158,10 +130,8 @@ def test_the_scheme_and_its_number_sit_in_one_row(client):
 
 
 def test_the_page_carries_the_bounds_the_selector_switches_between(client):
-    """The number's label, range and default follow the scheme, and the script
-    that swaps them reads the form's own EVALUATION_SCHEMES rather than a copy.
-    This asserts the page actually ships that table, since a restated copy in
-    the template is exactly the drift it exists to prevent."""
+    """The page ships the form's `EVALUATION_SCHEMES` as JSON, so the script
+    keeps no copy that could drift."""
     import json
 
     from ui.forms import EVALUATION_BACKTEST, EVALUATION_HOLDOUT, EVALUATION_KFOLD
@@ -178,10 +148,9 @@ def test_the_page_carries_the_bounds_the_selector_switches_between(client):
 
 
 def test_an_out_of_range_number_is_clamped_rather_than_refused(client):
-    """The two ends of the range are both meaningful and everything between
-    them is too, so there is no typo here worth failing a form over: 40 folds
-    becomes the most that is offered, and the experiment is still created."""
-    from ui.models import Experiment
+    """Any in-range value is plausible, so the form clamps other numbers into
+    range."""
+    from experiments.models import Experiment
 
     post_new_experiment(client,
                 _valid_post(name="greedy", evaluation_scheme="kfold",

@@ -1,9 +1,5 @@
-"""A run told which configurations to evaluate before it searches.
-
-What the page's "Run as Trial" stands on: a proposal picked off the
-configuration cube is handed to the optimizer, which evaluates exactly that
-configuration as the run's trial rather than asking its search for one, and
-records where it came from. Every optimizer takes it the same way.
+"""The page's "Run as Trial" relies on `optimize` evaluating requested
+configurations, with their origin, before any search.
 """
 
 import pytest
@@ -13,8 +9,8 @@ from core.optimizers import GridOptimizer, RandomOptimizer, SMACOptimizer
 
 
 def _requested(seed=0):
-    """A configuration of the forest's space that no search would pick first,
-    so finding it in the result can only mean it was asked for."""
+    """`_requested` sets `max_depth` to 7 so no search would pick the
+    configuration first."""
     config_space = RandomForestModel().get_config_space(seed=seed)
     config = dict(config_space.get_default_configuration())
     config["max_depth"] = 7
@@ -33,12 +29,6 @@ def _run(optimizer, splits, metrics, configurations, n_trials=1, previous=None):
 
 @pytest.mark.parametrize("optimizer", [RandomOptimizer, GridOptimizer])
 def test_a_run_of_one_evaluates_exactly_what_it_was_given(optimizer, iris_splits, metrics):
-    """A run of one trial with one requested configuration: that configuration
-    is the trial, under the origin it was given.
-
-    Expect: one trial, its configuration the requested one, its origin the one
-    passed in.
-    """
     config = _requested()
     result = _run(optimizer(), iris_splits, metrics,
                   [{"config": config, "origin": "Proposal 7"}])
@@ -50,11 +40,7 @@ def test_a_run_of_one_evaluates_exactly_what_it_was_given(optimizer, iris_splits
 
 @pytest.mark.parametrize("optimizer", [RandomOptimizer, GridOptimizer])
 def test_the_search_carries_on_after_what_was_requested(optimizer, iris_splits, metrics):
-    """Requested configurations come first and count against the budget; the
-    search fills the rest.
-
-    Expect: three trials, the first the requested one, the other two the
-    search's own.
+    """Requested configurations count against the budget.
     """
     config = _requested()
     result = _run(optimizer(), iris_splits, metrics, [{"config": config}], n_trials=3)
@@ -66,8 +52,7 @@ def test_the_search_carries_on_after_what_was_requested(optimizer, iris_splits, 
 
 
 def test_without_requests_a_run_searches_as_it_always_did(iris_splits, metrics):
-    """None requested is the run every caller made before this existed: the
-    same seed gives the same trials."""
+    """`None` and `[]` give the same trials for one seed."""
     before = _run(RandomOptimizer(), iris_splits, metrics, None, n_trials=2)
     after = _run(RandomOptimizer(), iris_splits, metrics, [], n_trials=2)
 
@@ -76,14 +61,8 @@ def test_without_requests_a_run_searches_as_it_always_did(iris_splits, metrics):
 
 @pytest.mark.slow
 def test_smac_evaluates_the_request_and_learns_from_it(iris_splits, metrics):
-    """SMAC evaluates the requested configuration as the run's trial and is
-    told about it like any trial it asked for — so a run resumed after it
-    replays it with the rest, and SMAC's own record names it.
-
-    Setup: a two-trial SMAC search, then a run of one requested configuration
-    resumed from it.
-    Expect: the third trial is the requested configuration with its origin,
-    and the runhistory SMAC kept holds three trials.
+    """`SMACOptimizer` tells SMAC the requested trial like its own, and the
+    runhistory of the resumed run holds all three trials.
     """
     first = _run(SMACOptimizer(), iris_splits, metrics, None, n_trials=2)
     config = _requested()

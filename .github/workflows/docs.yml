@@ -1,0 +1,44 @@
+name: docs
+
+# Builds the documentation site from the code on every push to main and
+# publishes it with GitHub Pages. Pages must be set to deploy from GitHub
+# Actions (Settings → Pages → Source).
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      # The application's requirements too, so the source's names can be
+      # followed into the libraries they come from. Nothing is imported.
+      - run: pip install -r requirements.txt -r requirements-docs.txt
+      - run: sphinx-build -b html docs docs/_build/html
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: docs/_build/html
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@v4

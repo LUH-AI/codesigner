@@ -29,7 +29,7 @@ class Conversation(models.Model):
     #: The browser session the person last wrote from: where the assistant's
     #: actions on a page go (assistant/acts.py). Kept with or without accounts.
     browser = models.CharField(max_length=40, blank=True, default="")
-    experiment = models.ForeignKey("ui.Experiment", null=True, blank=True,
+    experiment = models.ForeignKey("experiments.Experiment", null=True, blank=True,
                                    on_delete=models.SET_NULL, related_name="conversations")
     phase = models.CharField(max_length=20, choices=PHASES, default=PLANNING)
     #: The plan agreed with the person; what the assistant fills the forms from.
@@ -61,7 +61,7 @@ class Conversation(models.Model):
         """The planned dataset's file, as a `Path`, or None without one."""
         from pathlib import Path
 
-        from core.io import demo_datasets
+        from core.datasets import demo_datasets
 
         if self.demo_dataset:
             path = demo_datasets().get(self.demo_dataset)
@@ -155,7 +155,7 @@ class AgentAction(models.Model):
     arguments = models.JSONField(default=dict, blank=True)
     outcome = models.CharField(max_length=10, choices=OUTCOMES)
     detail = models.TextField(blank=True, default="")
-    experiment = models.ForeignKey("ui.Experiment", null=True, blank=True,
+    experiment = models.ForeignKey("experiments.Experiment", null=True, blank=True,
                                    on_delete=models.SET_NULL, related_name="+")
     duration_ms = models.PositiveIntegerField(default=0)
     created_at = models.DateTimeField(auto_now_add=True)

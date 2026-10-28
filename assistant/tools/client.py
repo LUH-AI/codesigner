@@ -14,7 +14,9 @@ import json
 
 from django.urls import NoReverseMatch, resolve, reverse
 
-from ui.permissions import BOTH, EDIT
+from access.policy import EDIT
+
+from ui.permissions import BOTH
 
 from .. import acts
 from ..models import ClientAct
@@ -45,7 +47,7 @@ RUN_FIELDS = {"optimize_metric", "trial_timeout_mode", "trial_timeout_seconds",
 
 
 def _run_fields():
-    from ui.services.run_form import STOPPING_FIELDS
+    from ui.run_form import STOPPING_FIELDS
 
     return RUN_FIELDS | set(STOPPING_FIELDS)
 
@@ -184,7 +186,7 @@ def _plain(value):
 def _setup_errors(context, exp, page, values) -> list[str]:
     """What step 1's own form says against *values*, laid over the page as it
     stands — only about the fields being filled."""
-    from ui.services import drafts
+    from ui import drafts
 
     data = {f["name"]: f.get("value") for f in page.fields if f.get("name")}
     for name, value in list(data.items()):
@@ -205,7 +207,7 @@ def _run_errors(page, values) -> list[str]:
     criterion it would drop as unusable, or a run with nothing to end it."""
     from core.optimizers.base import FAILURE_CRITERIA
 
-    from ui.services.run_form import STOPPING_FIELDS, stopping_from
+    from ui.run_form import STOPPING_FIELDS, stopping_from
 
     data = {f["name"]: f.get("value") for f in page.fields if f.get("name")}
     data.update({k: _plain(v) for k, v in values.items()})

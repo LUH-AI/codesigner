@@ -21,7 +21,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: PACKAGE VERSION\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2026-10-16 16:01+0000\n"
+"POT-Creation-Date: 2026-10-16 09:45+0000\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
 "Language-Team: LANGUAGE <LL@li.org>\n"
@@ -31,12 +31,12 @@ msgstr ""
 "Content-Transfer-Encoding: 8bit\n"
 "Plural-Forms: nplurals=2; plural=(n != 1);\n"
 
-#: access/policy.py:351
+#: access/policy.py:349
 #, python-format
 msgid "%(user)s is not allowed to run custom models here."
 msgstr "%(user)s is not allowed to run custom models here."
 
-#: access/policy.py:352
+#: access/policy.py:350
 msgid ""
 "This experiment's custom model has no account behind it, so it cannot be "
 "run. Give the experiment an owner who is allowed to run custom models."
@@ -92,252 +92,6 @@ msgstr ""
 msgid "Back to your account"
 msgstr "Back to your account"
 
-#: assistant/templates/assistant/_chat.html:16
-#: assistant/templates/assistant/_chat.html:62
-#: assistant/templates/assistant/_chat.html:74
-#: assistant/templates/assistant/window.html:10
-msgid "Assistant"
-msgstr ""
-
-#: assistant/templates/assistant/_chat.html:28
-#, fuzzy
-#| msgid "Asking…"
-msgid "Working…"
-msgstr "Asking…"
-
-#: assistant/templates/assistant/_chat.html:29
-#, fuzzy
-#| msgid "Asking…"
-msgid "Thinking…"
-msgstr "Asking…"
-
-#: assistant/templates/assistant/_chat.html:30
-#, python-brace-format
-msgid "Used {tool}"
-msgstr ""
-
-#: assistant/templates/assistant/_chat.html:31
-msgid ""
-"The assistant’s model cannot be reached right now. Everything else works as "
-"usual."
-msgstr ""
-
-#: assistant/templates/assistant/_chat.html:32
-msgid "Today’s assistant budget is used up."
-msgstr ""
-
-#: assistant/templates/assistant/_chat.html:33
-msgid "The assistant stopped before finishing. Ask again, more specifically."
-msgstr ""
-
-#: assistant/templates/assistant/_chat.html:34
-msgid "Something went wrong on the assistant’s side."
-msgstr ""
-
-#: assistant/templates/assistant/_chat.html:35
-#, fuzzy
-#| msgid "This trial is the baseline."
-msgid "The assistant is still answering."
-msgstr "This trial is the baseline."
-
-#: assistant/templates/assistant/_chat.html:36
-#: ui/templates/ui/figures/projected_prior.html:97
-#, fuzzy
-#| msgid "Could not reset this prior"
-msgid "Could not reach the server."
-msgstr "Could not reset this prior"
-
-#: assistant/templates/assistant/_chat.html:37
-#, fuzzy, python-brace-format
-#| msgid "Dataset attached"
-msgid "Dataset: {name}"
-msgstr "Dataset attached"
-
-#: assistant/templates/assistant/_chat.html:38
-msgid "Upload or choose a dataset."
-msgstr ""
-
-#: assistant/templates/assistant/_chat.html:39
-msgid "Enter a prompt."
-msgstr ""
-
-#: assistant/templates/assistant/_chat.html:40
-msgid "The plan"
-msgstr ""
-
-#: assistant/templates/assistant/_chat.html:41
-msgid "Approve and set up"
-msgstr ""
-
-#: assistant/templates/assistant/_chat.html:42
-#, fuzzy
-#| msgid "Not recorded"
-msgid "Not ready yet:"
-msgstr "Not recorded"
-
-#: assistant/templates/assistant/_chat.html:43
-msgid "Plan approved."
-msgstr ""
-
-#: assistant/templates/assistant/_chat.html:44
-msgid "Goal"
-msgstr ""
-
-#: assistant/templates/assistant/_chat.html:45
-#: ui/templates/ui/experiment_list.html:12
-#: ui/templates/ui/panels/site_groups.html:70
-msgid "Name"
-msgstr "Name"
-
-#: assistant/templates/assistant/_chat.html:46 ui/forms.py:93
-#: ui/timeline.py:230
-msgid "Task"
-msgstr "Task"
-
-#: assistant/templates/assistant/_chat.html:47 datahandling/sections.py:57
-#: ui/forms.py:87
-msgid "Target"
-msgstr "Target"
-
-#: assistant/templates/assistant/_chat.html:48 ui/forms.py:75
-#: ui/templates/ui/_experiment_header.html:35
-#: ui/templates/ui/experiment_list.html:13 ui/timeline.py:233
-msgid "Model"
-msgstr "Model"
-
-#: assistant/templates/assistant/_chat.html:49 ui/forms.py:119
-msgid "Validation method"
-msgstr "Validation method"
-
-#: assistant/templates/assistant/_chat.html:50 ui/services/setup.py:98
-#: ui/templates/ui/_experiment_header.html:36
-#: ui/templates/ui/_optimizer_form.html:9
-#: ui/templates/ui/experiment_list.html:14
-#: ui/templates/ui/experiment_prerun.html:52
-#: ui/templates/ui/setup_step_optimizer.html:4 ui/timeline.py:237
-#: ui/timeline.py:341 ui/timeline.py:343
-msgid "Optimizer"
-msgstr "Optimizer"
-
-#: assistant/templates/assistant/_chat.html:51
-#, fuzzy
-#| msgid "Data Handling"
-msgid "Data handling"
-msgstr "Data Handling"
-
-#: assistant/templates/assistant/_chat.html:52
-#: ui/templates/ui/_experiment_header.html:37
-msgid "Metric"
-msgstr "Metric"
-
-#: assistant/templates/assistant/_chat.html:53
-#, fuzzy
-#| msgid "Stopping"
-msgid "Stopping criteria"
-msgstr "Stopping"
-
-#: assistant/templates/assistant/_chat.html:54 ui/forms.py:103
-#: ui/templates/ui/_experiment_header.html:39 ui/timeline.py:239
-msgid "Seed"
-msgstr "Seed"
-
-#: assistant/templates/assistant/_chat.html:63
-#, fuzzy
-#| msgid "Lags and windows"
-msgid "in its own window"
-msgstr "Lags and windows"
-
-#: assistant/templates/assistant/_chat.html:67
-msgid "Open in its own window"
-msgstr ""
-
-#: assistant/templates/assistant/_chat.html:69
-msgid "Bring the chat back here"
-msgstr ""
-
-#: assistant/templates/assistant/_chat.html:71
-msgid "Minimize"
-msgstr ""
-
-#: assistant/templates/assistant/_chat.html:75
-#, fuzzy
-#| msgid "Next page"
-msgid "Return to page"
-msgstr "Next page"
-
-#: assistant/templates/assistant/_chat.html:89 ui/forms.py:79
-#, fuzzy
-#| msgid "Dataset"
-msgid "Dataset (demo)"
-msgstr "Dataset"
-
-#: assistant/templates/assistant/_chat.html:91
-#, fuzzy
-#| msgid "Use demo datasets"
-msgid "Choose a demo dataset"
-msgstr "Use demo datasets"
-
-#: assistant/templates/assistant/_chat.html:94
-#: ui/templates/ui/setup_step_setup.html:89
-#, fuzzy
-#| msgid "Use demo datasets"
-msgid "Use demo dataset"
-msgstr "Use demo datasets"
-
-#: assistant/templates/assistant/_chat.html:96
-#: assistant/templates/assistant/_chat.html:97 templates/base.html:26
-#: templates/base.html:28 templates/base.html:108 ui/forms.py:185
-#: ui/templates/ui/_group_picker.html:7
-#: ui/templates/ui/panels/group_none.html:4
-#: ui/templates/ui/panels/group_none.html:7
-#: ui/templates/ui/panels/site_groups.html:17
-#: ui/templates/ui/panels/site_jobs.html:20
-#: ui/templates/ui/panels/site_trash.html:42
-#: ui/templates/ui/panels/site_usage.html:18
-#: ui/templates/ui/panels/site_usage.html:46
-msgid "Group"
-msgstr "Group"
-
-#: assistant/templates/assistant/_chat.html:105
-msgid "Message to the assistant"
-msgstr ""
-
-#: assistant/templates/assistant/_chat.html:107
-msgid ""
-"Upload a dataset and enter a prompt to get started optimizing with your "
-"Design Assistant, or create a new experiment yourself by clicking “+ New” in "
-"the sidebar."
-msgstr ""
-
-#: assistant/templates/assistant/_chat.html:107
-msgid "Ask a question or request help setting or running your experiment"
-msgstr ""
-
-#: assistant/templates/assistant/_chat.html:109
-msgid "Send"
-msgstr ""
-
-#: assistant/templates/assistant/_chat.html:111
-#: assistant/templates/assistant/_chat.html:121
-#: ui/templates/ui/figures/prior.html:170
-msgid "Reset"
-msgstr "Reset"
-
-#: assistant/templates/assistant/_chat.html:118
-#, fuzzy
-#| msgid "Best configuration"
-msgid "Reset the conversation?"
-msgstr "Best configuration"
-
-#: assistant/templates/assistant/_chat.html:119
-msgid "This deletes the chat and the dataset given to it. It cannot be undone."
-msgstr ""
-
-#: assistant/templates/assistant/_chat.html:122
-#: ui/templates/ui/_confirm_page.html:33
-msgid "Cancel"
-msgstr "Cancel"
-
 #: datahandling/panels.py:29
 msgid "Fill in"
 msgstr "Fill in"
@@ -371,7 +125,7 @@ msgstr "As the model needs"
 msgid "%(choice)s (%(model)s default)"
 msgstr "%(choice)s (%(model)s default)"
 
-#: datahandling/sections.py:41 ui/views.py:3404
+#: datahandling/sections.py:41 ui/views.py:3544
 msgid "Overview"
 msgstr "Overview"
 
@@ -430,6 +184,10 @@ msgstr "The first rows, a random sample, and the rows that look unusual."
 #: datahandling/sections.py:55
 msgid "Columns"
 msgstr "Columns"
+
+#: datahandling/sections.py:57
+msgid "Target"
+msgstr "Target"
 
 #: datahandling/sections.py:57
 msgid "Choose the column to predict, rather than it having to be the last."
@@ -939,7 +697,7 @@ msgid ""
 msgstr ""
 "A run is under way, and it is using the columns processed as they are now."
 
-#: datahandling/views.py:90 ui/views.py:417
+#: datahandling/views.py:89 ui/views.py:513
 msgid "Saved."
 msgstr "Saved."
 
@@ -947,6 +705,18 @@ msgstr "Saved."
 #: ui/templates/ui/panels/group.html:153
 msgid "Experiments"
 msgstr "Experiments"
+
+#: templates/base.html:26 templates/base.html:28 templates/base.html:108
+#: ui/forms.py:178 ui/templates/ui/_group_picker.html:7
+#: ui/templates/ui/panels/group_none.html:4
+#: ui/templates/ui/panels/group_none.html:7
+#: ui/templates/ui/panels/site_groups.html:17
+#: ui/templates/ui/panels/site_jobs.html:20
+#: ui/templates/ui/panels/site_trash.html:42
+#: ui/templates/ui/panels/site_usage.html:18
+#: ui/templates/ui/panels/site_usage.html:46
+msgid "Group"
+msgstr "Group"
 
 #: templates/base.html:33 templates/base.html:35 templates/base.html:120
 msgid "Site"
@@ -1073,10 +843,6 @@ msgid ""
 msgstr ""
 "%(group)s has used %(percent)s%% of its storage (%(used)s of %(limit)s). "
 "When it is full, a new dataset replaces the stalest kept trial models."
-
-#: templates/base.html:244
-msgid "Filled by the assistant"
-msgstr ""
 
 #: ui/figures/catalog.py:31
 msgid "Best configuration"
@@ -1217,7 +983,7 @@ msgid "Already banked"
 msgstr "Already banked"
 
 #: ui/figures/plots.py:456 ui/templates/ui/figures/_importance_table.html:25
-#: ui/templates/ui/figures/hyperparameter_importance.html:55 ui/views.py:768
+#: ui/templates/ui/figures/hyperparameter_importance.html:55 ui/views.py:864
 msgid "Still to gain"
 msgstr "Still to gain"
 
@@ -1278,7 +1044,7 @@ msgid "Best sampled, weighted"
 msgstr "Best sampled, weighted"
 
 #: ui/figures/plots.py:1532 ui/figures/plots.py:1580
-#: ui/templates/ui/figures/configuration_cube.html:83 ui/views.py:3406
+#: ui/templates/ui/figures/configuration_cube.html:83 ui/views.py:3546
 msgid "Acquisition"
 msgstr "Acquisition"
 
@@ -1331,7 +1097,7 @@ msgstr "Backtest %(n)s"
 msgid "forecast"
 msgstr "forecast"
 
-#: ui/forms.py:33 ui/forms.py:137
+#: ui/forms.py:33 ui/forms.py:130
 msgid "Folds"
 msgstr "Folds"
 
@@ -1353,7 +1119,7 @@ msgstr ""
 "One division of the data. Cheapest, and noisier on a small table — the "
 "search can end up chasing the split."
 
-#: ui/forms.py:45 ui/forms.py:128
+#: ui/forms.py:45 ui/forms.py:121
 msgid "Backtests"
 msgstr "Backtests"
 
@@ -1371,6 +1137,11 @@ msgstr ""
 msgid "Experiment name"
 msgstr "Experiment name"
 
+#: ui/forms.py:75 ui/templates/ui/_experiment_header.html:35
+#: ui/templates/ui/experiment_list.html:13 ui/timeline.py:233
+msgid "Model"
+msgstr "Model"
+
 #: ui/forms.py:76
 msgid "…or upload a model .py"
 msgstr "…or upload a model .py"
@@ -1379,17 +1150,19 @@ msgstr "…or upload a model .py"
 msgid "…or a mounted model .py"
 msgstr "…or a mounted model .py"
 
+#: ui/forms.py:79
+msgid "Demo dataset"
+msgstr "Demo dataset"
+
 #: ui/forms.py:80
-#, fuzzy
-#| msgid "Dataset split"
-msgid "Dataset (.csv)"
-msgstr "Dataset split"
+msgid "…or upload a CSV (last column = target)"
+msgstr "…or upload a CSV (last column = target)"
 
-#: ui/forms.py:88
-msgid "The column to predict. Empty is the dataset's last column."
-msgstr ""
+#: ui/forms.py:86 ui/timeline.py:230
+msgid "Task"
+msgstr "Task"
 
-#: ui/forms.py:94
+#: ui/forms.py:87
 msgid ""
 "What the experiment predicts: one of a set of labels, or a number. Only the "
 "models that can do it are offered. Fixed once the experiment exists. To "
@@ -1401,20 +1174,24 @@ msgstr ""
 "predict a series' next labels or numbers, choose backtests as the validation "
 "method."
 
-#: ui/forms.py:98 ui/forms.py:186 ui/forms.py:189
+#: ui/forms.py:91 ui/forms.py:179 ui/forms.py:182
 #: ui/templates/ui/_group_picker.html:9
 msgid "— select —"
 msgstr "— select —"
 
-#: ui/forms.py:99 ui/timeline.py:230
+#: ui/forms.py:92 ui/timeline.py:230
 msgid "Classification"
 msgstr "Classification"
 
-#: ui/forms.py:100 ui/timeline.py:231
+#: ui/forms.py:93 ui/timeline.py:231
 msgid "Regression"
 msgstr "Regression"
 
-#: ui/forms.py:104
+#: ui/forms.py:96 ui/templates/ui/_experiment_header.html:39 ui/timeline.py:239
+msgid "Seed"
+msgstr "Seed"
+
+#: ui/forms.py:97
 msgid ""
 "Negative picks one at random. Drives every stochastic part of the "
 "experiment: how the data is divided, the model's own randomness, which "
@@ -1426,7 +1203,11 @@ msgstr ""
 "configurations the search tries, and the surrogates behind partial "
 "dependence and the explanations."
 
-#: ui/forms.py:120
+#: ui/forms.py:112
+msgid "Validation method"
+msgstr "Validation method"
+
+#: ui/forms.py:113
 msgid ""
 "Fixed once the experiment exists: trials evaluated different ways cannot be "
 "compared with each other. Cross-validation costs one fit per fold. Backtests "
@@ -1438,19 +1219,19 @@ msgstr ""
 "make the experiment a forecast: each predicts the next steps of a series "
 "from its past."
 
-#: ui/forms.py:126
+#: ui/forms.py:119
 msgid "Cross-validation"
 msgstr "Cross-validation"
 
-#: ui/forms.py:127
+#: ui/forms.py:120
 msgid "Dataset split"
 msgstr "Dataset split"
 
-#: ui/forms.py:144
+#: ui/forms.py:137
 msgid "Order by"
 msgstr "Order by"
 
-#: ui/forms.py:145
+#: ui/forms.py:138
 msgid ""
 "A date or number column to divide the rows in time order by: every trial "
 "trains on earlier rows and is validated on later ones, as it would be used. "
@@ -1462,11 +1243,11 @@ msgstr ""
 "Leave empty to divide at random. Rows without a value in this column are "
 "left out."
 
-#: ui/forms.py:150
+#: ui/forms.py:143
 msgid "Gap (rows)"
 msgstr "Gap (rows)"
 
-#: ui/forms.py:151
+#: ui/forms.py:144
 msgid ""
 "Only with an order: rows left out between training and validation, for "
 "labels that arrive late."
@@ -1474,11 +1255,11 @@ msgstr ""
 "Only with an order: rows left out between training and validation, for "
 "labels that arrive late."
 
-#: ui/forms.py:157
+#: ui/forms.py:150
 msgid "Horizon (steps)"
 msgstr "Horizon (steps)"
 
-#: ui/forms.py:158
+#: ui/forms.py:151
 msgid ""
 "How many time steps ahead each forecast predicts. Each backtest forecasts "
 "this many steps from an origin one horizon later than the last."
@@ -1486,11 +1267,11 @@ msgstr ""
 "How many time steps ahead each forecast predicts. Each backtest forecasts "
 "this many steps from an origin one horizon later than the last."
 
-#: ui/forms.py:162
+#: ui/forms.py:155
 msgid "Series column"
 msgstr "Series column"
 
-#: ui/forms.py:163
+#: ui/forms.py:156
 msgid ""
 "A column naming which series each row belongs to, when the file holds "
 "several — one per store, say. Each is forecast from its own history. Leave "
@@ -1500,11 +1281,11 @@ msgstr ""
 "several — one per store, say. Each is forecast from its own history. Leave "
 "empty for one series."
 
-#: ui/forms.py:167
+#: ui/forms.py:160
 msgid "Season length (steps)"
 msgstr "Season length (steps)"
 
-#: ui/forms.py:168
+#: ui/forms.py:161
 msgid ""
 "How many steps make a season — 12 for monthly data, 7 for daily. Leave empty "
 "to infer it from the order column's spacing."
@@ -1512,51 +1293,43 @@ msgstr ""
 "How many steps make a season — 12 for monthly data, 7 for daily. Leave empty "
 "to infer it from the order column's spacing."
 
-#: ui/forms.py:191 ui/forms.py:195
+#: ui/forms.py:184 ui/forms.py:188
 msgid "— none —"
 msgstr "— none —"
 
-#: ui/forms.py:254
+#: ui/forms.py:247
 msgid "Choose a model or upload a model .py file."
 msgstr "Choose a model or upload a model .py file."
 
-#: ui/forms.py:258 ui/services/drafts.py:113
+#: ui/forms.py:251
 msgid "Choose a demo dataset or upload a CSV file."
 msgstr "Choose a demo dataset or upload a CSV file."
 
-#: ui/forms.py:281 ui/services/drafts.py:120
+#: ui/forms.py:273
 #, python-format
 msgid "The dataset could not be read: %(error)s"
 msgstr "The dataset could not be read: %(error)s"
 
-#: ui/forms.py:286
+#: ui/forms.py:277
 #, python-format
-msgid "The dataset has no column named “%(column)s”."
-msgstr ""
-
-#: ui/forms.py:292
-#, fuzzy, python-format
-#| msgid ""
-#| "The target column, “%(column)s”, is not numbers, so it cannot be "
-#| "regressed on. Choose classification, or put the column to predict last."
 msgid ""
 "The target column, “%(column)s”, is not numbers, so it cannot be regressed "
-"on. Choose classification, or another target."
+"on. Choose classification, or put the column to predict last."
 msgstr ""
 "The target column, “%(column)s”, is not numbers, so it cannot be regressed "
 "on. Choose classification, or put the column to predict last."
 
-#: ui/forms.py:304
+#: ui/forms.py:289
 #, python-format
 msgid "%(model)s does not do %(task)s."
 msgstr "%(model)s does not do %(task)s."
 
-#: ui/forms.py:313
+#: ui/forms.py:298
 #, python-format
 msgid "%(model)s only forecasts: choose backtests as the validation method."
 msgstr "%(model)s only forecasts: choose backtests as the validation method."
 
-#: ui/forms.py:317
+#: ui/forms.py:302
 #, python-format
 msgid ""
 "%(model)s does not forecast, so it cannot be backtested. A model file that "
@@ -1565,15 +1338,15 @@ msgstr ""
 "%(model)s does not forecast, so it cannot be backtested. A model file that "
 "does says so with forecaster = True."
 
-#: ui/forms.py:333
+#: ui/forms.py:318
 msgid "A forecast needs the column its rows are ordered in time by."
 msgstr "A forecast needs the column its rows are ordered in time by."
 
-#: ui/forms.py:337
+#: ui/forms.py:322
 msgid "A forecast needs a horizon of at least one step."
 msgstr "A forecast needs a horizon of at least one step."
 
-#: ui/forms.py:362
+#: ui/forms.py:345
 #, python-format
 msgid ""
 "This dataset cannot be ordered that way: %(problem)s. Columns it can be "
@@ -1582,82 +1355,82 @@ msgstr ""
 "This dataset cannot be ordered that way: %(problem)s. Columns it can be "
 "ordered by: %(columns)s."
 
-#: ui/forms.py:365 ui/timeline.py:66 ui/timeline.py:81 ui/timeline.py:100
+#: ui/forms.py:348 ui/timeline.py:66 ui/timeline.py:81 ui/timeline.py:100
 #: ui/timeline.py:442
 msgid "none"
 msgstr "none"
 
-#: ui/forms.py:378
+#: ui/forms.py:361
 msgid "classification"
 msgstr "classification"
 
-#: ui/forms.py:378
+#: ui/forms.py:361
 msgid "regression"
 msgstr "regression"
 
-#: ui/forms.py:381
+#: ui/forms.py:364
 msgid "Trials drawn on the partial-dependence figure"
 msgstr "Trials drawn on the partial-dependence figure"
 
-#: ui/forms.py:382
+#: ui/forms.py:365
 msgid "Trials explained on the local-effects figure"
 msgstr "Trials explained on the local-effects figure"
 
-#: ui/forms.py:383
+#: ui/forms.py:366
 msgid "Prior acceptance tolerance"
 msgstr "Prior acceptance tolerance"
 
-#: ui/forms.py:384
+#: ui/forms.py:367
 msgid "Prior acceptance top k"
 msgstr "Prior acceptance top k"
 
-#: ui/forms.py:400
+#: ui/forms.py:383
 msgid "0 draws every trial."
 msgstr "0 draws every trial."
 
-#: ui/forms.py:403
+#: ui/forms.py:386
 msgid "0 explains every trial."
 msgstr "0 explains every trial."
 
-#: ui/forms.py:407
+#: ui/forms.py:390
 msgid "Share of the metric's scale a prior may fall short by."
 msgstr "Share of the metric's scale a prior may fall short by."
 
-#: ui/forms.py:410 ui/templates/ui/figures/prior.html:154
+#: ui/forms.py:393 ui/templates/ui/figures/prior.html:154
 #: ui/templates/ui/figures/prior.html:159
 msgid "Best configurations compared on each side."
 msgstr "Best configurations compared on each side."
 
-#: ui/forms.py:412
+#: ui/forms.py:395
 msgid "Trial models kept for export"
 msgstr "Trial models kept for export"
 
-#: ui/forms.py:413
+#: ui/forms.py:396
 msgid "0 keeps none."
 msgstr "0 keeps none."
 
-#: ui/forms.py:415
+#: ui/forms.py:398
 msgid "Also keep every trial of the last run"
 msgstr "Also keep every trial of the last run"
 
-#: ui/forms.py:416
+#: ui/forms.py:399
 msgid "Kept until the next run starts."
 msgstr "Kept until the next run starts."
 
-#: ui/forms.py:418 ui/templates/ui/export_confirm.html:30
+#: ui/forms.py:401 ui/templates/ui/export_confirm.html:30
 #: ui/templates/ui/export_preferences.html:11
 msgid "Time"
 msgstr "Time"
 
-#: ui/forms.py:419
+#: ui/forms.py:402
 msgid "The exporter's preference"
 msgstr "The exporter's preference"
 
-#: ui/forms.py:421
+#: ui/forms.py:404
 msgid "What the export page preselects."
 msgstr "What the export page preselects."
 
-#: ui/forms.py:453
+#: ui/forms.py:436
 msgid "Use default experiment settings"
 msgstr "Use default experiment settings"
 
@@ -1665,19 +1438,19 @@ msgstr "Use default experiment settings"
 msgid "Untitled Experiment"
 msgstr "Untitled Experiment"
 
-#: ui/models.py:409
+#: ui/models.py:406
 msgid "Viewer"
 msgstr "Viewer"
 
-#: ui/models.py:412
+#: ui/models.py:409
 msgid "Contributor"
 msgstr "Contributor"
 
-#: ui/models.py:448
+#: ui/models.py:445
 msgid "The owner already has every kind of access."
 msgstr "The owner already has every kind of access."
 
-#: ui/models.py:452
+#: ui/models.py:449
 #, python-format
 msgid ""
 "%(user)s is not in this experiment's group, so it cannot be shared with them."
@@ -2229,24 +2002,6 @@ msgstr "Stopped by a site administrator."
 msgid "Stopped job %(job)s."
 msgstr "Stopped job %(job)s."
 
-#: ui/services/drafts.py:70
-msgid "This draft's first step is saved: change its dataset there."
-msgstr ""
-
-#: ui/services/drafts.py:110
-#, fuzzy, python-format
-#| msgid "There is already a group called “%(name)s”."
-msgid "There is no demo dataset called “%(name)s”."
-msgstr "There is already a group called “%(name)s”."
-
-#: ui/services/drafts.py:139 ui/views.py:131
-msgid "Choose which group this experiment is in."
-msgstr "Choose which group this experiment is in."
-
-#: ui/services/drafts.py:158
-msgid "Save the first step before this one."
-msgstr ""
-
 #: ui/services/model_export.py:30
 msgid ""
 "This forecast's dataset is not on this instance, and the exported file needs "
@@ -2276,7 +2031,7 @@ msgstr "This experiment has trials, and the next run continues their search."
 msgid "A run is under way with this optimizer."
 msgstr "A run is under way with this optimizer."
 
-#: ui/services/optimizer_form.py:66
+#: ui/services/optimizer_form.py:59
 msgid "Choose an optimizer."
 msgstr "Choose an optimizer."
 
@@ -2314,6 +2069,15 @@ msgstr "Step 1 is missing a dataset or a model."
 msgid "Step 2 is missing an optimizer."
 msgstr "Step 2 is missing an optimizer."
 
+#: ui/services/setup.py:98 ui/templates/ui/_experiment_header.html:36
+#: ui/templates/ui/_optimizer_form.html:9
+#: ui/templates/ui/experiment_list.html:14
+#: ui/templates/ui/experiment_prerun.html:52
+#: ui/templates/ui/setup_step_optimizer.html:4 ui/timeline.py:237
+#: ui/timeline.py:341 ui/timeline.py:343
+msgid "Optimizer"
+msgstr "Optimizer"
+
 #: ui/services/setup.py:98 ui/templates/ui/setup_step_data.html:4
 msgid "Data"
 msgstr "Data"
@@ -2321,32 +2085,6 @@ msgstr "Data"
 #: ui/services/setup.py:99 ui/templates/ui/setup_step_priors.html:4
 msgid "Priors & constraints"
 msgstr "Priors & constraints"
-
-#: ui/services/storage.py:156
-#, python-format
-msgid ""
-"%(group)s has no room for this: its datasets and model files alone would "
-"take %(used)s of its %(limit)s. Delete experiments it no longer needs, or "
-"ask a site administrator for more."
-msgstr ""
-"%(group)s has no room for this: its datasets and model files alone would "
-"take %(used)s of its %(limit)s. Delete experiments it no longer needs, or "
-"ask a site administrator for more."
-
-#: ui/services/storage.py:161
-#, python-format
-msgid ""
-"To make room in %(group)s, %(n)s kept trial model was deleted, the stalest "
-"first. It now uses %(used)s of %(limit)s."
-msgid_plural ""
-"To make room in %(group)s, %(n)s kept trial models were deleted, the stalest "
-"first. It now uses %(used)s of %(limit)s."
-msgstr[0] ""
-"To make room in %(group)s, %(n)s kept trial model was deleted, the stalest "
-"first. It now uses %(used)s of %(limit)s."
-msgstr[1] ""
-"To make room in %(group)s, %(n)s kept trial models were deleted, the stalest "
-"first. It now uses %(used)s of %(limit)s."
 
 #: ui/services/timestamps.py:48
 msgid "Real Times"
@@ -2392,12 +2130,12 @@ msgstr "+%(h)d h %(m)d min"
 msgid "+%(d)d d %(h)d h"
 msgstr "+%(d)d d %(h)d h"
 
-#: ui/setup_views.py:92 ui/templates/ui/setup_step_optimizer.html:16
-#: ui/templates/ui/setup_step_setup.html:218
+#: ui/setup_views.py:93 ui/templates/ui/setup_step_optimizer.html:16
+#: ui/templates/ui/setup_step_setup.html:194
 msgid "Save and continue"
 msgstr "Save and continue"
 
-#: ui/setup_views.py:134
+#: ui/setup_views.py:148
 #, python-format
 msgid "Discarded the draft “%(name)s”."
 msgstr "Discarded the draft “%(name)s”."
@@ -2410,6 +2148,10 @@ msgstr "Breadcrumb"
 #, python-format
 msgid "← Back to %(page)s"
 msgstr "← Back to %(page)s"
+
+#: ui/templates/ui/_confirm_page.html:33
+msgid "Cancel"
+msgstr "Cancel"
 
 #: ui/templates/ui/_env_status.html:10
 msgid "Preparing this model's environment…"
@@ -2432,6 +2174,10 @@ msgstr "Experiment: %(name)s"
 #: ui/templates/ui/_experiment_header.html:22
 msgid "Rename"
 msgstr "Rename"
+
+#: ui/templates/ui/_experiment_header.html:37
+msgid "Metric"
+msgstr "Metric"
 
 #: ui/templates/ui/_experiment_header.html:38 ui/timeline.py:235
 msgid "Evaluation"
@@ -2568,20 +2314,6 @@ msgstr "Figures shown on an experiment page"
 #: ui/templates/ui/_experiment_settings_fields.html:79
 msgid "Analytics computed as soon as a figure needs them"
 msgstr "Analytics computed as soon as a figure needs them"
-
-#: ui/templates/ui/_file_pick.html:17
-msgid "Upload"
-msgstr ""
-
-#: ui/templates/ui/_file_pick.html:18
-#, fuzzy
-#| msgid "Dataset"
-msgid "Upload Dataset"
-msgstr "Dataset"
-
-#: ui/templates/ui/_file_pick.html:20 ui/templates/ui/panels/group.html:198
-msgid "Remove"
-msgstr "Remove"
 
 #: ui/templates/ui/_info.html:13
 msgid "What this setting means"
@@ -2874,7 +2606,7 @@ msgstr "Environment: %(summary)s"
 msgid "Attach a dataset to run this experiment (loaded read-only)."
 msgstr "Attach a dataset to run this experiment (loaded read-only)."
 
-#: ui/templates/ui/_side_explanation.html:18 ui/views.py:3405
+#: ui/templates/ui/_side_explanation.html:18 ui/views.py:3545
 msgid "HyperSHAP"
 msgstr "HyperSHAP"
 
@@ -3206,6 +2938,11 @@ msgstr ""
 #: ui/templates/ui/experiment_detail.html:3116
 msgid "Uncertainty"
 msgstr "Uncertainty"
+
+#: ui/templates/ui/experiment_list.html:12
+#: ui/templates/ui/panels/site_groups.html:70
+msgid "Name"
+msgstr "Name"
 
 #: ui/templates/ui/experiment_list.html:15
 #: ui/templates/ui/panels/group.html:127
@@ -3818,7 +3555,7 @@ msgstr "Delay decay until after the initial design"
 msgid "Top k"
 msgstr "Top k"
 
-#: ui/templates/ui/figures/prior.html:162 ui/views.py:1082
+#: ui/templates/ui/figures/prior.html:162 ui/views.py:1234
 msgid "Needs the Gaussian process search strategy."
 msgstr "Needs the Gaussian process search strategy."
 
@@ -3833,6 +3570,10 @@ msgid ""
 msgstr ""
 "Put this belief back to what the last run searched under, or to uniform if "
 "there was none."
+
+#: ui/templates/ui/figures/prior.html:170
+msgid "Reset"
+msgstr "Reset"
 
 #: ui/templates/ui/figures/prior.html:172
 msgid ""
@@ -3976,6 +3717,12 @@ msgstr ""
 msgid "You can view this experiment but not change it."
 msgstr "you can view this experiment but not change it"
 
+#: ui/templates/ui/figures/projected_prior.html:97
+#, fuzzy
+#| msgid "Could not reset this prior"
+msgid "Could not reach the server."
+msgstr "Could not reset this prior"
+
 #: ui/templates/ui/figures/trials.html:6
 #, python-format
 msgid "Trials (%(n)s)"
@@ -4005,7 +3752,7 @@ msgstr "Next page"
 msgid "Rows per page"
 msgstr "Rows per page"
 
-#: ui/templates/ui/home.html:14
+#: ui/templates/ui/home.html:6
 msgid "Use the sidebar to create a new experiment."
 msgstr "Use the sidebar to create a new experiment."
 
@@ -4261,6 +4008,10 @@ msgstr "deactivated"
 msgid "Make primary lead"
 msgstr "Make primary lead"
 
+#: ui/templates/ui/panels/group.html:198
+msgid "Remove"
+msgstr "Remove"
+
 #: ui/templates/ui/panels/group.html:214
 msgid "Add somebody"
 msgstr "Add somebody"
@@ -4512,15 +4263,14 @@ msgid "Use demo models"
 msgstr "Use demo models"
 
 #: ui/templates/ui/setup_step_setup.html:61
+#: ui/templates/ui/setup_step_setup.html:88
 #, python-format
 msgid "Currently %(name)s; kept unless another is chosen."
 msgstr "Currently %(name)s; kept unless another is chosen."
 
-#: ui/templates/ui/setup_step_setup.html:108
-#, fuzzy
-#| msgid "Label columns"
-msgid "Last column"
-msgstr "Label columns"
+#: ui/templates/ui/setup_step_setup.html:79
+msgid "Use demo datasets"
+msgstr "Use demo datasets"
 
 #: ui/timeline.py:31
 msgid "missing values"
@@ -5009,75 +4759,105 @@ msgstr "%(name)s is larger than the %(mb)s MB upload limit."
 msgid "%(name)s must be a .%(ext)s file."
 msgstr "%(name)s must be a .%(ext)s file."
 
-#: ui/views.py:157
+#: ui/views.py:130
+msgid "Choose which group this experiment is in."
+msgstr "Choose which group this experiment is in."
+
+#: ui/views.py:172
 msgid "all the requested trials ran"
 msgstr "all the requested trials ran"
 
-#: ui/views.py:158
+#: ui/views.py:173
 msgid "performance surpassed the target"
 msgstr "performance surpassed the target"
 
-#: ui/views.py:159
+#: ui/views.py:174
 msgid "the time limit was reached"
 msgstr "the time limit was reached"
 
-#: ui/views.py:160
+#: ui/views.py:175
 msgid "the compute budget was used up"
 msgstr "the compute budget was used up"
 
-#: ui/views.py:161
+#: ui/views.py:176
 msgid "the score had stopped improving"
 msgstr "the score had stopped improving"
 
-#: ui/views.py:162
+#: ui/views.py:177
 msgid "the search was confident nothing better remained"
 msgstr "the search was confident nothing better remained"
 
-#: ui/views.py:163
+#: ui/views.py:178
 msgid "it was interrupted"
 msgstr "it was interrupted"
 
-#: ui/views.py:164
+#: ui/views.py:179
 msgid "too many trials were failing"
 msgstr "too many trials were failing"
 
-#: ui/views.py:165
+#: ui/views.py:180
 msgid "every configuration had been tried"
 msgstr "every configuration had been tried"
 
-#: ui/views.py:282
+#: ui/views.py:358
 msgid "Inconsistent"
 msgstr "Inconsistent"
 
-#: ui/views.py:523 ui/views.py:549
+#: ui/views.py:413
+#, python-format
+msgid ""
+"%(group)s has no room for this: its datasets and model files alone would "
+"take %(used)s of its %(limit)s. Delete experiments it no longer needs, or "
+"ask a site administrator for more."
+msgstr ""
+"%(group)s has no room for this: its datasets and model files alone would "
+"take %(used)s of its %(limit)s. Delete experiments it no longer needs, or "
+"ask a site administrator for more."
+
+#: ui/views.py:419
+#, python-format
+msgid ""
+"To make room in %(group)s, %(n)s kept trial model was deleted, the stalest "
+"first. It now uses %(used)s of %(limit)s."
+msgid_plural ""
+"To make room in %(group)s, %(n)s kept trial models were deleted, the stalest "
+"first. It now uses %(used)s of %(limit)s."
+msgstr[0] ""
+"To make room in %(group)s, %(n)s kept trial model was deleted, the stalest "
+"first. It now uses %(used)s of %(limit)s."
+msgstr[1] ""
+"To make room in %(group)s, %(n)s kept trial models were deleted, the stalest "
+"first. It now uses %(used)s of %(limit)s."
+
+#: ui/views.py:619 ui/views.py:645
 msgid "There is no sample of this space to draw on."
 msgstr ""
 
-#: ui/views.py:608
+#: ui/views.py:704
 #, fuzzy
 #| msgid "you can view this experiment but not run it"
 msgid "You can view this experiment but not run it."
 msgstr "you can view this experiment but not run it"
 
-#: ui/views.py:610
+#: ui/views.py:706
 #, fuzzy
 #| msgid "A run is under way with this optimizer."
 msgid "A run is under way."
 msgstr "A run is under way with this optimizer."
 
-#: ui/views.py:612
+#: ui/views.py:708
 #, fuzzy
 #| msgid "This experiment has no owner, so everyone here can change it."
 msgid "This experiment cannot be run here."
 msgstr "This experiment has no owner, so everyone here can change it."
 
-#: ui/views.py:674
+#: ui/views.py:770
 #, fuzzy, python-format
 #| msgid "Trial %(n)s"
 msgid "Proposal %(n)s"
 msgstr "Trial %(n)s"
 
-#: ui/views.py:825
+#: ui/views.py:921
 msgid ""
 "The forecast is drawn for built-in models only: an uploaded model runs in "
 "its own environment, which this page does not start."
@@ -5085,12 +4865,12 @@ msgstr ""
 "The forecast is drawn for built-in models only: an uploaded model runs in "
 "its own environment, which this page does not start."
 
-#: ui/views.py:850
+#: ui/views.py:946
 #, python-format
 msgid "This configuration failed to forecast: %(error)s"
 msgstr "This configuration failed to forecast: %(error)s"
 
-#: ui/views.py:1073
+#: ui/views.py:1225
 msgid ""
 "Nothing has been run yet, so there is no model to judge this against. A "
 "belief stated now is acted on in full."
@@ -5098,7 +4878,7 @@ msgstr ""
 "Nothing has been run yet, so there is no model to judge this against. A "
 "belief stated now is acted on in full."
 
-#: ui/views.py:1079
+#: ui/views.py:1231
 msgid ""
 "This optimizer fits no model of the objective, so it has no opinion about "
 "where the optimum is."
@@ -5106,11 +4886,11 @@ msgstr ""
 "This optimizer fits no model of the objective, so it has no opinion about "
 "where the optimum is."
 
-#: ui/views.py:1085
+#: ui/views.py:1237
 msgid "This metric has no scale to measure the tolerance against yet."
 msgstr "This metric has no scale to measure the tolerance against yet."
 
-#: ui/views.py:1110
+#: ui/views.py:1262
 msgid ""
 "This prior is potentially informative: the model rates the region it points "
 "at as promising as where the search is already headed."
@@ -5118,7 +4898,7 @@ msgstr ""
 "This prior is potentially informative: the model rates the region it points "
 "at as promising as where the search is already headed."
 
-#: ui/views.py:1114
+#: ui/views.py:1266
 #, python-format
 msgid ""
 "This prior is unlikely to be helpful: the model rates the region it points "
@@ -5129,11 +4909,11 @@ msgstr ""
 "at more than %(margin)s worse than where the search is already headed, so "
 "acting on it would cost trials."
 
-#: ui/views.py:1120
+#: ui/views.py:1272
 msgid "This prior could not be judged, so it stands as stated."
 msgstr "This prior could not be judged, so it stands as stated."
 
-#: ui/views.py:1478 ui/views.py:1700 ui/views.py:1808
+#: ui/views.py:1630 ui/views.py:1852 ui/views.py:1960
 msgid ""
 "The model this experiment used is not available here, so its search space "
 "cannot be rebuilt."
@@ -5141,7 +4921,7 @@ msgstr ""
 "The model this experiment used is not available here, so its search space "
 "cannot be rebuilt."
 
-#: ui/views.py:1661
+#: ui/views.py:1813
 msgid ""
 "This SMAC has no acquisition weight layer, so a stated prior does not affect "
 "the search or the candidates below. Install the version requirements.txt "
@@ -5151,7 +4931,7 @@ msgstr ""
 "the search or the candidates below. Install the version requirements.txt "
 "pins."
 
-#: ui/views.py:1883
+#: ui/views.py:2035
 msgid ""
 "HyperSHAP needs the search space, which this experiment does not carry and "
 "has no model to ask."
@@ -5159,28 +4939,28 @@ msgstr ""
 "HyperSHAP needs the search space, which this experiment does not carry and "
 "has no model to ask."
 
-#: ui/views.py:1929
+#: ui/views.py:2081
 msgid ""
 "Set at least one stopping criterion, so the run has something to end on."
 msgstr ""
 "Set at least one stopping criterion, so the run has something to end on."
 
-#: ui/views.py:2246
+#: ui/views.py:2398
 msgid "Unknown sharing level."
 msgstr "Unknown sharing level."
 
-#: ui/views.py:2283
+#: ui/views.py:2435
 #, python-format
 msgid "%(name)s now belongs to %(user)s. You are a contributor."
 msgstr "%(name)s now belongs to %(user)s. You are a contributor."
 
-#: ui/views.py:2337
+#: ui/views.py:2489
 msgid ""
 "Given up on by hand: it stopped answering, and cancelling it had no effect."
 msgstr ""
 "Given up on by hand: it stopped answering, and cancelling it had no effect."
 
-#: ui/views.py:2502
+#: ui/views.py:2654
 msgid ""
 "Trial parameters are kept for the built-in models only: an uploaded model is "
 "fitted in its own environment, which nothing is brought back from."
@@ -5188,7 +4968,7 @@ msgstr ""
 "Trial parameters are kept for the built-in models only: an uploaded model is "
 "fitted in its own environment, which nothing is brought back from."
 
-#: ui/views.py:2505
+#: ui/views.py:2657
 #, python-format
 msgid ""
 "%(model)s has no fitted parameters to keep: its forecast is its history "
@@ -5197,7 +4977,7 @@ msgstr ""
 "%(model)s has no fitted parameters to keep: its forecast is its history "
 "replayed."
 
-#: ui/views.py:2509
+#: ui/views.py:2661
 msgid ""
 "This experiment keeps no trial models. Turn it on in Settings; a new run "
 "keeps them from then on."
@@ -5205,7 +4985,7 @@ msgstr ""
 "This experiment keeps no trial models. Turn it on in Settings; a new run "
 "keeps them from then on."
 
-#: ui/views.py:2512
+#: ui/views.py:2664
 #, python-format
 msgid ""
 "This trial's model was not kept: a run keeps only the best %(n)s trial's "
@@ -5224,49 +5004,49 @@ msgstr[1] ""
 "models (and with the option on, its own), or its group had no room. Change "
 "it in Settings."
 
-#: ui/views.py:2666
+#: ui/views.py:2818
 msgid "Light"
 msgstr "Light"
 
-#: ui/views.py:2666
+#: ui/views.py:2818
 msgid "Dark"
 msgstr "Dark"
 
-#: ui/views.py:2667
+#: ui/views.py:2819
 msgid "Same as my system"
 msgstr "Same as my system"
 
-#: ui/views.py:2703
+#: ui/views.py:2855
 msgid "See every experiment on this instance"
 msgstr "See every experiment on this instance"
 
-#: ui/views.py:2705
+#: ui/views.py:2857
 msgid "Run, edit and delete other people's experiments"
 msgstr "Run, edit and delete other people's experiments"
 
-#: ui/views.py:2707
+#: ui/views.py:2859
 msgid "Change the settings every experiment inherits"
 msgstr "Change the settings every experiment inherits"
 
-#: ui/views.py:2709
+#: ui/views.py:2861
 msgid "Upload and run custom models"
 msgstr "Upload and run custom models"
 
-#: ui/views.py:2744
+#: ui/views.py:2896
 #, python-format
 msgid "Moved %(name)s to the bin."
 msgstr "Moved %(name)s to the bin."
 
-#: ui/views.py:2792
+#: ui/views.py:2944
 #, python-format
 msgid "Restored %(name)s."
 msgstr "Restored %(name)s."
 
-#: ui/views.py:2851
+#: ui/views.py:3003
 msgid "Invalid or unreadable experiment file."
 msgstr "Invalid or unreadable experiment file."
 
-#: ui/views.py:2924
+#: ui/views.py:3076
 #, python-format
 msgid ""
 "This looks like more than one run — two files here are called %(name)s. "
@@ -5275,16 +5055,16 @@ msgstr ""
 "This looks like more than one run — two files here are called %(name)s. "
 "Choose a single run directory, the one holding its runhistory.json."
 
-#: ui/views.py:2931
+#: ui/views.py:3083
 #, python-format
 msgid "Could not read %(name)s."
 msgstr "Could not read %(name)s."
 
-#: ui/views.py:2938
+#: ui/views.py:3090
 msgid "This is not a readable SMAC run."
 msgstr "This is not a readable SMAC run."
 
-#: ui/views.py:3002
+#: ui/views.py:3154
 msgid ""
 "Local explanation needs the search space, which this experiment does not "
 "carry and has no model to ask."
@@ -5292,11 +5072,11 @@ msgstr ""
 "Local explanation needs the search space, which this experiment does not "
 "carry and has no model to ask."
 
-#: ui/views.py:3005
+#: ui/views.py:3157
 msgid "This trial is the baseline."
 msgstr "This trial is the baseline."
 
-#: ui/views.py:3124
+#: ui/views.py:3276
 msgid ""
 "Partial dependence needs the search space, which this experiment does not "
 "carry and has no model to ask."
@@ -5304,7 +5084,7 @@ msgstr ""
 "Partial dependence needs the search space, which this experiment does not "
 "carry and has no model to ask."
 
-#: ui/views.py:3262
+#: ui/views.py:3414
 msgid ""
 "Local effects need the search space, which this experiment does not carry "
 "and has no model to ask."
@@ -5312,37 +5092,37 @@ msgstr ""
 "Local effects need the search space, which this experiment does not carry "
 "and has no model to ask."
 
-#: ui/views.py:3385
+#: ui/views.py:3525
 msgid "Not recorded"
 msgstr "Not recorded"
 
-#: ui/views.py:3387
+#: ui/views.py:3527
 #, python-format
 msgid "%(k)s backtest of %(h)s steps by %(column)s"
 msgid_plural "%(k)s backtests of %(h)s steps by %(column)s"
 msgstr[0] "%(k)s backtest of %(h)s steps by %(column)s"
 msgstr[1] "%(k)s backtests of %(h)s steps by %(column)s"
 
-#: ui/views.py:3393
+#: ui/views.py:3533
 #, python-format
 msgid "%(k)s time-ordered folds by %(column)s"
 msgstr "%(k)s time-ordered folds by %(column)s"
 
-#: ui/views.py:3395
+#: ui/views.py:3535
 #, python-format
 msgid "latest %(pct)s%% by %(column)s held out"
 msgstr "latest %(pct)s%% by %(column)s held out"
 
-#: ui/views.py:3398
+#: ui/views.py:3538
 #, python-format
 msgid "%(k)s-fold CV"
 msgstr "%(k)s-fold CV"
 
-#: ui/views.py:3399
+#: ui/views.py:3539
 #, python-format
 msgid "%(pct)s%% held out"
 msgstr "%(pct)s%% held out"
 
-#: ui/views.py:3407
+#: ui/views.py:3547
 msgid "Misc"
 msgstr "Misc"

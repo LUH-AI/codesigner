@@ -17,7 +17,7 @@ import pandas as pd
 from django.conf import settings
 
 from core import columns as kinds
-from core import io, tasks
+from core import datasets, tasks
 
 #: More distinct values than this, in a target of whole numbers, reads as a
 #: quantity rather than as classes.
@@ -27,7 +27,7 @@ _FEW_CLASSES = 20
 def profile(path: Path, target: str = "") -> dict:
     """The facts about the dataset at *path*, *target* the column predicted
     (the last when "")."""
-    frame = io.read_dataset(path, target or None)
+    frame = datasets.read_dataset(path, target or None)
     samples = max(0, int(settings.ASSISTANT_SAMPLE_ROWS))
     feature_kinds = kinds.infer_kinds(frame.iloc[:, :-1])
     target_name = str(frame.columns[-1])
@@ -35,7 +35,7 @@ def profile(path: Path, target: str = "") -> dict:
         "rows": int(len(frame)),
         "columns": [],
         "target": _target(frame.iloc[:, -1], target_name, samples, chosen=bool(target)),
-        "time_order_candidates": io.orderable_columns(frame),
+        "time_order_candidates": datasets.orderable_columns(frame),
     }
     for name in frame.columns[:-1]:
         out["columns"].append(_column(frame[name], str(name), feature_kinds.get(name), samples))

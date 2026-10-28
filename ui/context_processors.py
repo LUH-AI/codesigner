@@ -1,18 +1,16 @@
 from django.conf import settings
 
 from . import navigation as nav
-from .permissions import policy, visible_experiments
+from access.policy import policy, visible_experiments
 
-#: The sidebar is rendered on every page, so it stays cheap and recent rather
-#: than listing every experiment an instance has ever run — the full,
-#: paginated list lives at `ui:experiment_list`, linked from the sidebar.
+#: The sidebar renders on every page, so it lists only recent experiments;
+#: `ui:experiment_list` has the rest.
 SIDEBAR_LIMIT = 20
 
 
-#: Which of an experiment's three views a page belongs to, by route. Its
-#: settings, delete and metric-change pages are reached from the dashboard's
-#: header, so they count as the dashboard.
-_EXPERIMENT_VIEWS = {
+#: Each route maps to an experiment view, and pages reached from the dashboard's
+#: header count as the dashboard.
+_EXPERIMENT_VIEWS: dict[str | None, str] = {
     "experiment_detail": "dashboard",
     "experiment_settings": "dashboard",
     "experiment_delete": "dashboard",
@@ -22,7 +20,7 @@ _EXPERIMENT_VIEWS = {
     "data_overview": "data",
     "data_section": "data",
     "experiment_timeline": "timeline",
-    # A draft's setup: the draft is open, and has no views yet.
+    # An open draft has no views yet.
     "setup": "setup",
     "setup_optimizer": "setup",
     "setup_data": "setup",
@@ -31,22 +29,13 @@ _EXPERIMENT_VIEWS = {
 
 
 def sidebar_experiments(request):
-    """Expose the most recent saved experiments to every template, for the
-    sidebar list — see `ui:experiment_list` for the rest — and, on a page of
-    one experiment, which one is open and which of its views is showing.
-
-    Through the policy, so the sidebar never lists an experiment a page would
-    then refuse to open. `Experiment.Meta.ordering` (`-created_at`) already
-    puts the most recent first, so slicing is all a "most recent N" needs.
-
-    The open experiment is always listed, since its views hang from its row:
-    one older than the most recent N, or one a group lead reached through
-    their group rather than their own list, is added at the end.
+    """`sidebar_experiments` gives templates the recent visible experiments plus
+    the open one, which joins the list when missing.
     """
     experiments = list(visible_experiments(request)[:SIDEBAR_LIMIT])
     match = getattr(request, "resolver_match", None)
     view = _EXPERIMENT_VIEWS.get(getattr(match, "url_name", None))
-    open_pk = match.kwargs.get("pk") if view else None
+    open_pk = match.kwargs.get("pk") if view and match is not None else None
 
     if open_pk is not None and all(e.pk != open_pk for e in experiments):
         opened = policy().experiments(request).filter(pk=open_pk).first()
@@ -70,7 +59,7 @@ _SITE_URL_NAMES = {"site_groups", "site_group_save", "site_group_delete",
 
 
 def active_tab(request):
-    """Which icon-rail tab is selected, driving which inner sidebar renders."""
+    """`active_tab`'s rail tab chooses the inner sidebar."""
     url_name = getattr(request.resolver_match, "url_name", None)
     if url_name in _SETTINGS_URL_NAMES:
         tab = "settings"
@@ -84,10 +73,8 @@ def active_tab(request):
 
 
 def navigation(request):
-    """Where this page sits (breadcrumbs) and where the user came from (?next=).
-
-    Both are derived from the request, so pages get them without passing
-    anything — see ui/navigation.py for why the two are separate.
+    """`navigation` derives breadcrumbs and the `?next=` back link from the
+    request.
     """
     return {
         "breadcrumbs": nav.breadcrumbs(request),
@@ -96,60 +83,48 @@ def navigation(request):
 
 
 def offered_languages(request):
-    """The languages the rail's selector shows.
-
-    Not `LANGUAGES`, which is what Django will actually serve and is English
-    alone until the German and Spanish drafts have been reviewed. The selector
-    shows what the interface is going to offer so that its place on the page is
-    settled before the catalogs are; picking one does nothing yet. See
-    `OFFERED_LANGUAGES` in config/settings.py.
+    """The rail's language selector offers `OFFERED_LANGUAGES`, which a test
+    keeps equal to `LANGUAGES`.
     """
     return {"offered_languages": settings.OFFERED_LANGUAGES}
 
 
 def capabilities(request):
-    """Instance-wide permissions the layout itself branches on.
-
-    Only what a template outside one experiment's pages needs — the sidebar's
-    link to the default experiment settings, and the button that promotes an
-    experiment's settings to be those defaults.
+    """`capabilities` gives the layout instance-wide permissions for pages
+    outside an experiment.
     """
     from access.policy import is_lead, is_site_admin, memberships_of
 
     user = getattr(request, "user", None)
     return {
         "may_change_defaults": policy().may_change_defaults(request),
-        # Which rail tabs exist for this person. Computed here rather than in
-        # the template so the layout asks one question rather than reaching
-        # into the policy through three.
+        # The template reads the signed-in user's rail tabs from here, computed
+        # once.
         "is_group_lead": is_lead(user),
         "is_site_admin": is_site_admin(user),
-        # For the Group tab's sidebar: every group this person is in, each its
-        # own page. From the cached memberships, so no query of its own.
+        # Groups for the Group tab's sidebar, from cached memberships.
         "my_groups": sorted((m.group for m in memberships_of(user)),
                             key=lambda g: g.name.lower()),
     }
 
 
-#: The themes Settings → Appearance offers, and the cookie that remembers which.
-#: A cookie rather than a setting on the account, because it is a fact about
-#: this browser — the same person may want a dark laptop and a light projector
-#: — and because the page has to know it before it draws anything, which a
-#: cookie allows on an install without accounts too.
+#: A cookie keeps the theme per browser and works without accounts, before the
+#: page draws.
 THEMES = ("light", "dark", "system")
 THEME_COOKIE = "codesigner-theme"
 
 
 def theme(request):
-    """Which theme to draw the page in: the one chosen, or the system's."""
+    """`theme` returns the chosen theme, or the system's."""
     chosen = request.COOKIES.get(THEME_COOKIE)
     return {"theme": chosen if chosen in THEMES else "system"}
 
 
 def storage(request):
-    """The groups the signed-in person belongs to that are nearly out of room,
-    for the warning banner on every page (see ui/services/storage.py)."""
-    from .services.storage import human, warnings_for
+    """`storage` lists the signed-in person's nearly full groups for the banner."""
+    from experiments.services.storage import warnings_for
+
+    from .formatting import human
 
     try:
         nearly_full = warnings_for(getattr(request, "user", None))

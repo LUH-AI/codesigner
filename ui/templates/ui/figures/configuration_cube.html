@@ -88,20 +88,6 @@ hidden.{% endcomment %}
             trials. One pair of controls with the acquisition figure's — see
             next_trials.js.{% endcomment %}
             {% if can_requery %}{% include "ui/figures/_next_trials.html" with prefix="cube" %}{% endif %}
-            {% comment %}Drawing a prior: while ticked, a click in the plot puts
-            down a point instead of selecting — up to as many as the view has
-            dimensions — and the Projected prior card shapes and states what
-            they span. Clear lifts them. Disabled while a run is adding trials,
-            like the layer it weighs.{% endcomment %}
-            {% if can_draw_priors %}
-            <span class="control-stack">
-                <label class="acq-toggle">
-                    <input type="checkbox" id="cube-draw-prior" autocomplete="off"{% if active_run %} disabled{% endif %}>
-                    {% translate "Draw Prior" %}
-                </label>
-                <button type="button" id="cube-clear-prior" disabled>{% translate "Clear" %}</button>
-            </span>
-            {% endif %}
         </p>
     </div>
     <p id="prediction-warning" class="caption" hidden></p>

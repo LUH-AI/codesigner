@@ -2,7 +2,7 @@
 code the model writes.
 
 Each analysis is a fixed operation on the dataset as Codesigner reads it
-(`core.io.read_dataset`, the predicted column last), with its arguments
+(`core.datasets.read_dataset`, the predicted column last), with its arguments
 checked: a column must be one of the dataset's, an operator one of a short
 list. What goes back to the model is aggregates — counts, shares, statistics.
 Values of the data themselves (a category's name, a row) only as far as
@@ -24,7 +24,7 @@ import numpy as np
 import pandas as pd
 
 from core import columns as kinds
-from core import io, tasks
+from core import datasets, tasks
 
 #: Above this many rows, associations and correlations are worked out on a
 #: sample of this many.
@@ -62,7 +62,7 @@ def load(path, target: str = "") -> pd.DataFrame:
         if key in _frames:
             _frames.move_to_end(key)
             return _frames[key]
-    frame = io.read_dataset(path, target or None)
+    frame = datasets.read_dataset(path, target or None)
     with _lock:
         _frames[key] = frame
         while len(_frames) > CACHED:

@@ -1,20 +1,7 @@
-"""Changing which metric an experiment optimizes, without corrupting the search.
-
-An experiment accumulates trials, and each trial records a score for *every*
-metric. So when the optimized metric changes, none of that history has to be
-thrown away — it is re-read under the new metric. Two things depend on that
-being done rather than skipped:
-
-* **The incumbent trajectory.** Every optimizer seeds its collector from the
-  previous run's best. Left alone, that best is the *old* metric's, so the
-  "performance of incumbent" figure draws a curve for an objective nobody is
-  optimizing any more.
-* **SMAC's surrogate.** It is fitted on the costs in its runhistory. Resuming a
-  stored run after a metric change would fit one Gaussian process across two
-  different cost functions, and every suggestion after that is steered by an
-  objective that does not exist. The stored state is discarded and the history
-  replayed with recomputed costs instead — so the search keeps what it learned
-  without keeping what is wrong.
+"""Each trial records every metric, and a metric change re-reads the history
+under the new metric. The incumbent trajectory follows the new metric, and SMAC
+replays the history with recomputed costs instead of resuming its stored state.
+Otherwise one surrogate would fit two cost functions.
 """
 
 import pytest
@@ -23,7 +10,7 @@ from core.optimizers.base import OptimizationResult, TrialResult, rebase_history
 
 
 def _trial(n, cfg, accuracy, f1):
-    """One recorded trial, with an incumbent trajectory as accuracy would see it."""
+    """`_trial` builds one trial with accuracy's incumbent trajectory."""
     return TrialResult(
         trial=n, config=cfg, scores={"accuracy": accuracy, "f1": f1},
         score=accuracy, incumbent_score=accuracy, incumbent_config=cfg,
@@ -44,7 +31,7 @@ def _result(trials, primary="accuracy"):
     )
 
 
-# The orderings disagree on purpose: accuracy prefers trial 1, f1 prefers 3.
+# Accuracy prefers trial 1, and f1 prefers trial 3.
 HISTORY = [
     _trial(1, {"x": 1}, accuracy=0.9, f1=0.1),
     _trial(2, {"x": 2}, accuracy=0.5, f1=0.4),
@@ -52,10 +39,8 @@ HISTORY = [
 ]
 
 
-# ── re-reading the history ───────────────────────────────────────────────────
-
 def test_the_same_metric_is_left_completely_alone():
-    """The common case must not pay for the rare one."""
+    """The common case pays nothing."""
     result = _result(HISTORY)
 
     rebased, stale = rebase_history(result, "accuracy")
@@ -68,13 +53,14 @@ def test_a_changed_metric_re_reads_every_trials_score():
     rebased, stale = rebase_history(_result(HISTORY), "f1")
 
     assert stale is True
+    assert rebased is not None
     assert [t.score for t in rebased.trials] == [0.1, 0.4, 0.8]
 
 
 def test_the_incumbent_trajectory_is_recomputed_not_carried_over():
-    """Under accuracy the incumbent is trial 1 throughout. Under f1 it has to
-    climb 0.1 → 0.4 → 0.8, which is a different curve entirely."""
+    """Under f1 the incumbent climbs 0.1, 0.4, 0.8."""
     rebased, _ = rebase_history(_result(HISTORY), "f1")
+    assert rebased is not None
 
     assert [t.incumbent_score for t in rebased.trials] == [0.1, 0.4, 0.8]
     assert [t.incumbent_config["x"] for t in rebased.trials] == [1, 2, 3]
@@ -82,6 +68,7 @@ def test_the_incumbent_trajectory_is_recomputed_not_carried_over():
 
 def test_the_best_follows_the_new_metric():
     rebased, _ = rebase_history(_result(HISTORY), "f1")
+    assert rebased is not None
 
     assert rebased.best_score == 0.8
     assert rebased.best_config == {"x": 3}
@@ -89,16 +76,16 @@ def test_the_best_follows_the_new_metric():
 
 
 def test_the_trials_themselves_are_not_rewritten():
-    """Only the reading changes. The same configurations were evaluated on the
-    same data, and every metric's score stays exactly as it was measured."""
+    """`rebase_history` changes only the reading and keeps every measured score."""
     rebased, _ = rebase_history(_result(HISTORY), "f1")
+    assert rebased is not None
 
     assert [t.config for t in rebased.trials] == [t.config for t in HISTORY]
     assert [t.scores for t in rebased.trials] == [t.scores for t in HISTORY]
 
 
 def test_the_original_result_is_not_mutated():
-    """It is the caller's, and the detail page may still be rendering from it."""
+    """The detail page may still render from the original."""
     result = _result(HISTORY)
 
     rebase_history(result, "f1")
@@ -108,16 +95,15 @@ def test_the_original_result_is_not_mutated():
 
 
 def test_a_history_predating_multi_metric_scores_is_still_reported_stale():
-    """A very old .ihpo recorded only the optimized metric, so there is nothing
-    to re-read from. The trials stay as they are — but the optimizer must still
-    hear that its state is stale, or it would resume against the wrong
-    objective."""
+    """Old files hold only the optimized metric, yet the optimizer must still
+    hear that its state is stale."""
     thin = [TrialResult(trial=1, config={"x": 1}, scores={"accuracy": 0.9},
                         score=0.9, incumbent_score=0.9, incumbent_config={"x": 1})]
 
     rebased, stale = rebase_history(_result(thin), "f1")
 
     assert stale is True
+    assert rebased is not None
     assert rebased.trials[0].score == 0.9
 
 
@@ -125,13 +111,11 @@ def test_no_previous_result_is_not_a_change():
     assert rebase_history(None, "accuracy") == (None, False)
 
 
-# ── SMAC: the surrogate must not span two objectives ─────────────────────────
-
 @pytest.fixture
 def two_runs(optimizers, models, metrics, iris_splits):
-    """A real SMAC experiment run once on accuracy, then resumed on f1."""
+    """SMAC on accuracy, then resumed on f1."""
     X_train, X_val, y_train, y_val = iris_splits
-    smac = optimizers["SMAC"]
+    smac = optimizers["SMAC"]()
 
     def run(primary, n_trials, previous=None):
         return smac.optimize(
@@ -145,14 +129,12 @@ def two_runs(optimizers, models, metrics, iris_splits):
 
 @pytest.mark.slow
 def test_smac_resuming_under_a_new_metric_holds_no_old_costs(two_runs):
-    """The regression that matters. Every cost in the rebuilt runhistory must be
-    computed from f1; a single 1 - accuracy left in there is a point the
-    Gaussian process fits against the wrong objective."""
+    """One leftover accuracy cost would fit the Gaussian process against the
+    wrong objective."""
     smac, _, second = two_runs
 
-    # On iris the two metrics agree to four decimals and coincide outright on a
-    # perfect trial, so without this the assertion below could pass while the
-    # old costs were still in there.
+    # The metrics nearly coincide on iris, and the guard proves they diverge
+    # somewhere.
     assert any(t.scores["accuracy"] != t.scores["f1"] for t in second.trials), \
         "the metrics did not diverge on any trial; this test proves nothing"
 
@@ -164,8 +146,7 @@ def test_smac_resuming_under_a_new_metric_holds_no_old_costs(two_runs):
 
 @pytest.mark.slow
 def test_smac_keeps_the_history_across_a_metric_change(two_runs):
-    """Discarding the surrogate must not discard the trials — the replay is what
-    stops the search restarting blind."""
+    """The replay keeps the search from restarting blind."""
     _, _, second = two_runs
 
     assert len(second.trials) == 5
@@ -175,13 +156,9 @@ def test_smac_keeps_the_history_across_a_metric_change(two_runs):
 
 @pytest.mark.slow
 def test_every_resume_rebuilds_and_replays(optimizers, models, metrics, iris_splits):
-    """Resuming used to reuse SMAC's stored directory, which required the
-    scenario to be byte-identical between runs — and that is what forced the
-    budget to be a constant, which is what stopped the search ever reaching its
-    model. A rebuild costs one `tell` per past trial and no evaluations, so the
-    history survives and the budget can be honest."""
+    """A rebuild costs one `tell` per past trial and no evaluations."""
     X_train, X_val, y_train, y_val = iris_splits
-    smac = optimizers["SMAC"]
+    smac = optimizers["SMAC"]()
     first = smac.optimize(models["Random Forest"], X_train, y_train, X_val, y_val,
                           metrics=metrics, primary_metric="accuracy", n_trials=3, seed=0)
     second = smac.optimize(models["Random Forest"], X_train, y_train, X_val, y_val,

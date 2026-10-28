@@ -16,7 +16,7 @@ from assistant.models import BrowserPage, ClientAct, Conversation
 from assistant.tools.client import PAGES
 from assistant.turns import tools_for
 from tests.access.test_groups import hosted, world  # noqa: F401 — fixtures
-from ui.services import setup as steps
+from ui import setup_steps as steps
 
 pytestmark = pytest.mark.django_db
 
@@ -393,7 +393,7 @@ def _created(client, plan=DASHBOARD_PLAN):
     """A plan approved in *client*'s browser and its draft set up and created
     through the setup's own services: the conversation and the experiment."""
     from assistant import plan as plans
-    from ui.services import drafts
+    from ui import drafts
 
     conversation = Conversation.objects.create(demo_dataset="iris", plan=plan)
     client.post(reverse("assistant:approve"), {"conversation": conversation.pk})
@@ -440,7 +440,7 @@ def test_the_run_form_opens_filled_from_the_plan_until_the_first_run(client, on)
     the plan's metric and stopping criteria and their reason, clearing the
     form's own trial limit the plan did not keep; after a run, nothing.
     How: the page fetched before and after a run is recorded."""
-    from ui.models import Run
+    from experiments.models import Run
 
     _, exp = _created(client)
     url = reverse("ui:experiment_detail", args=[exp.pk])

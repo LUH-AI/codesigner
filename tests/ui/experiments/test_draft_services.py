@@ -1,4 +1,4 @@
-"""Setting a draft up without a page: ui/services/drafts.py and its neighbours.
+"""Setting a draft up without a page: ui/drafts.py and its neighbours.
 
 The setup pages are thin over these functions, and anything else that sets a
 draft up — the assistant to come — calls them with plain values: who is acting
@@ -11,8 +11,9 @@ from django.contrib.auth.models import AnonymousUser
 from django.test import RequestFactory
 
 from tests.conftest import DATASETS_DIR
-from ui.services import drafts, priors, run_form, storage
-from ui.services import setup as steps
+from ui import drafts, run_form
+from experiments.services import priors
+from ui import setup_steps as steps
 
 pytestmark = pytest.mark.django_db
 
@@ -128,12 +129,12 @@ def test_a_prior_is_stated_and_taken_back_without_a_page():
     since no run searched under one.
     How: `priors.state` and `priors.reset` on a draft."""
     request, exp = _saved_through_step_one()
-    stated = priors.state(request, exp, "max_depth",
+    stated = priors.state(exp, "max_depth",
                           {"kind": "normal", "params": {"mu": 0.3, "sigma": 0.1},
-                           "decay": {"shape": "none"}})
+                           "decay": {"shape": "none"}}, user=request.user)
     assert stated["max_depth"]["kind"] == "normal"
 
-    assert priors.reset(request, exp, "max_depth") is False
+    assert priors.reset(exp, "max_depth", user=request.user) is False
     exp.refresh_from_db()
     assert "max_depth" not in (exp.data.priors or {})
 
@@ -154,10 +155,10 @@ def test_the_run_form_reads_numbers_as_well_as_text():
 def test_settling_storage_answers_with_notices():
     """What: an experiment with no group has no limit, so settling keeps it and
     has nothing to say.
-    How: `storage.settle` on a draft saved without accounts."""
+    How: `drafts.settle_storage` on a draft saved without accounts."""
     _request_, exp = _saved_through_step_one()
 
-    assert storage.settle(exp) == (True, [])
+    assert drafts.settle_storage(exp) == (True, [])
 
 
 # ── a dataset before step 1 ──────────────────────────────────────────────────

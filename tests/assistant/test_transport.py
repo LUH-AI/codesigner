@@ -15,7 +15,7 @@ from django.urls import reverse
 from assistant import llm as llm_module
 from assistant.models import AssistantEvent, Conversation
 from tests.access.test_groups import hosted, world  # noqa: F401 — fixtures
-from ui.models import Experiment
+from experiments.models import Experiment
 
 from .helpers import MockLLM, call, text
 

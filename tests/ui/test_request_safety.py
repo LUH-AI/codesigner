@@ -1,12 +1,9 @@
-"""Requests that change something must say so, and uploads stay unserved.
-
-Two properties that only bite once the app is reachable by more than its
-operator, but cost nothing to hold now.
+"""Changing requests need POST, and uploads stay unserved.
 """
 
 from django.urls import reverse
 
-from ui.models import Experiment, Run
+from experiments.models import Experiment, Run
 
 
 def _experiment_with_active_run():
@@ -19,8 +16,6 @@ def _experiment_with_active_run():
 
 
 def test_cancelling_a_run_requires_a_post(client):
-    """On GET this used to cancel, which means an <img> tag or a link
-    prefetcher could stop someone's run and CSRF never entered into it."""
     exp = _experiment_with_active_run()
 
     resp = client.get(reverse("ui:run_cancel", args=[exp.pk]))
@@ -39,8 +34,8 @@ def test_cancelling_still_works_on_post(client):
 
 
 def test_uploads_are_not_served_once_the_instance_has_accounts(settings):
-    """MEDIA_ROOT is one flat directory shared by everyone, so serving it from
-    disk would publish every user's dataset at a guessable URL."""
+    """Serving the flat MEDIA_ROOT would publish every dataset at a guessable
+    URL."""
     from importlib import reload
 
     from django.urls import clear_url_caches

@@ -1,5 +1,6 @@
 .env
 .venv
+.venv-docs/
 db.sqlite3
 media/
 __pycache__/
@@ -19,3 +20,12 @@ scratch/
 
 # The assistant's library index, built per instance (assistant/library.py).
 var/
+
+.vscode/
+
+# The built documentation site (sphinx-build).
+docs/_build/
+docs/autoapi/
+
+# The comment check's baseline and scores; the tooling lives outside this repository.
+.commentcheck/

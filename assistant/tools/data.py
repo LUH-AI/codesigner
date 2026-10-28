@@ -15,7 +15,9 @@ import json
 
 from django.conf import settings
 
-from ui.permissions import BOTH, VIEW
+from access.policy import VIEW
+
+from ui.permissions import BOTH
 
 from .. import data
 from .registry import Refused, ToolResult, ToolSpec

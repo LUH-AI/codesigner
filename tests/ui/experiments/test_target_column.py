@@ -14,11 +14,11 @@ import pytest
 from django.contrib.auth.models import AnonymousUser
 from django.test import RequestFactory
 
-from core import io
+from core import datasets, io
 from tests.conftest import DATASETS_DIR
-from ui.services import drafts
-from ui.services import setup as steps
-from ui.services import snapshot as adapter
+from ui import drafts
+from ui import setup_steps as steps
+from experiments.services import snapshot as adapter
 
 pytestmark = pytest.mark.django_db
 
@@ -70,7 +70,7 @@ def test_an_experiment_trains_on_the_column_it_chose():
 
     _, built = io.build_experiment(adapter.snapshot_from_experiment(exp),
                                    *_registries(), read_only=False)
-    frame = io.read_dataset(IRIS)
+    frame = datasets.read_dataset(IRIS)
     y = np.concatenate([built["y_train"], built["y_val"]])
 
     assert sorted(y) == sorted(frame["petal.width"])
@@ -88,11 +88,11 @@ def test_without_a_choice_the_last_column_is_the_target():
     snapshot = adapter.snapshot_from_experiment(exp)
     assert "target_column" not in snapshot["dataset"]
     _, built = io.build_experiment(snapshot, *_registries(), read_only=False)
-    assert set(built["y_train"]) <= set(io.read_dataset(IRIS)["variety"])
+    assert set(built["y_train"]) <= set(datasets.read_dataset(IRIS)["variety"])
 
 
 def _registries():
-    from ui.registry import METRICS, MODELS, OPTIMIZERS
+    from core.registry import METRICS, MODELS, OPTIMIZERS
 
     return METRICS, MODELS, OPTIMIZERS
 

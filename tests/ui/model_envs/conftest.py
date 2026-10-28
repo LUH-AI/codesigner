@@ -1,10 +1,5 @@
-"""A stand-in for uv, so these tests do not need it installed.
-
-The shim is a real executable that gets a real argv, exits with a real status and
-writes real files — so what is under test is the whole command-construction,
-exit-code and output-parsing path, rather than a mock of it. What it does not
-test is whether uv itself accepts those arguments; that needs uv, and lives
-behind the `uv` marker.
+"""The `uv` shim is a real executable, so tests cover argv, exit codes and
+output parsing; tests against real uv carry the `uv` marker.
 """
 
 import json
@@ -36,9 +31,7 @@ sys.exit(0)
 '''
 
 _WRITES_LOCK = 'Path(str(script) + ".lock").write_text("# fake lock\\n")'
-# The version comes from the protocol module rather than a literal: the client
-# refuses a mismatch, so a hardcoded number here would turn the next protocol
-# bump into a wall of unrelated failures in the environment tests.
+# `_GREETS` reads `PROTOCOL_VERSION` because the client refuses a mismatch.
 _GREETS = (
     'print(json.dumps({"t": "hello", "protocol": ' + str(PROTOCOL_VERSION) + ', '
     '"name": "Fake Model", '
@@ -57,7 +50,7 @@ def _write_shim(path, *, lock_behaviour, run_behaviour):
 
 @pytest.fixture
 def fake_uv(tmp_path, settings):
-    """A uv that resolves and greets successfully."""
+    """`fake_uv` installs a shim that resolves and greets."""
     shim = _write_shim(tmp_path / "uv", lock_behaviour=_WRITES_LOCK, run_behaviour=_GREETS)
     settings.UV_BIN = str(shim)
     return shim
@@ -65,7 +58,7 @@ def fake_uv(tmp_path, settings):
 
 @pytest.fixture
 def failing_uv(tmp_path, settings):
-    """A uv whose resolution fails, the way a bad dependency name would."""
+    """Resolution fails as for a bad dependency name."""
     shim = _write_shim(
         tmp_path / "uv",
         lock_behaviour='sys.stderr.write("x No solution found: no such package `nope`\\n"); sys.exit(1)',
@@ -76,5 +69,4 @@ def failing_uv(tmp_path, settings):
 
 @pytest.fixture
 def no_uv(tmp_path, settings):
-    """No uv on this machine."""
     settings.UV_BIN = str(tmp_path / "definitely-not-here")

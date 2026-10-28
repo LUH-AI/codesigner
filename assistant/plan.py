@@ -140,7 +140,7 @@ def run_items(plan: dict) -> list[tuple]:
     """The run form's fields from *plan*: the metric, and the stopping criteria
     it states. The form's default trial limit is cleared when the plan does
     not keep one, so the run ends on what was agreed."""
-    from ui.services.run_form import STOPPING_FIELDS
+    from ui.run_form import STOPPING_FIELDS
 
     items = [("optimize_metric", plan["metric"])] if plan.get("metric") else []
     stopping = plan.get("stopping") or {}
@@ -167,7 +167,7 @@ def fill_for(plan: dict, step: str) -> list[dict]:
     value and the plan's reason for it, in the order the page needs them (a
     field that decides what the next offers comes first). Only what the plan
     says; the rest of the page is left as it is."""
-    from ui.services import setup as steps
+    from ui import setup_steps as steps
 
     if step == steps.SETUP:
         data = setup_data(plan)
@@ -207,8 +207,8 @@ def problems(plan: dict, request, dataset, group_id=None) -> list[str]:
     before the person approves the plan, and again when they do."""
     from core.processing import CHOICES, unavailable
 
-    from ui.registry import MODELS, OPTIMIZERS
-    from ui.services import drafts, run_form
+    from core.registry import MODELS, OPTIMIZERS
+    from ui import drafts, run_form
 
     found = [f"The plan has no {key}." for key in REQUIRED if not plan.get(key)]
     if dataset is None:
