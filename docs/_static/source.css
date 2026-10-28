@@ -1,0 +1,7 @@
+/* The source folded under each function and class. */
+details.source { margin: 0.5rem 0 1rem; }
+details.source > summary {
+    cursor: pointer; font-size: 0.85em; color: var(--color-foreground-secondary);
+}
+details.source > summary:hover { color: var(--color-link); }
+details.source[open] > summary { margin-bottom: 0.25rem; }
