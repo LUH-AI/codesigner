@@ -8,7 +8,6 @@
 #   ./run.sh queue              the real queue instead of in-process runs
 #   ./run.sh docker             web + worker in containers
 #   ./run.sh docker --hosted    ... over Redis and Postgres (configuration C)
-#   ./run.sh docs [port]        the docstrings and comments, editable in a browser
 #
 # Extra arguments reach `runserver`, so `./run.sh 8001` moves the port.
 #
@@ -34,9 +33,9 @@ CUSTOM_MODELS=false
 EXTRA=()
 
 case "${1:-}" in
-    auth | queue | docker | docs) MODE="$1"; shift ;;
+    auth | queue | docker) MODE="$1"; shift ;;
     "" | -* | [0-9]*) ;;
-    *) echo "run.sh: unknown mode '$1' (auth, queue, docker, docs)" >&2; exit 2 ;;
+    *) echo "run.sh: unknown mode '$1' (auth, queue, docker)" >&2; exit 2 ;;
 esac
 
 while [ $# -gt 0 ]; do
@@ -44,18 +43,11 @@ while [ $# -gt 0 ]; do
         --demo)          DEMO=true ;;
         --hosted)        HOSTED=true ;;
         --custom-models) CUSTOM_MODELS=true ;;
-        -h | --help)     sed -n '2,14p' "$0" | cut -c3-; exit 0 ;;
+        -h | --help)     sed -n '2,13p' "$0" | cut -c3-; exit 0 ;;
         *)               EXTRA+=("$1") ;;
     esac
     shift
 done
-
-# ── docs ─────────────────────────────────────────────────────────────────────
-# Its own small server, not Django's: it reads the source, never the database,
-# so none of the setup below applies. See tools/docsite/__main__.py.
-if [ "$MODE" = docs ]; then
-    exec "$PY" -m tools.docsite "${EXTRA[@]}"
-fi
 
 # ── containers ───────────────────────────────────────────────────────────────
 # Nothing below applies: the image runs its own migrations and sweeps through

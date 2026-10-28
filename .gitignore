@@ -21,3 +21,6 @@ scratch/
 
 # The built documentation site (mkdocs build).
 site/
+
+# The comment check's baseline and scores; the tooling lives outside this repository.
+.commentcheck/
