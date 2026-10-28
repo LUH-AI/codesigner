@@ -1,6 +1,8 @@
-# Building the documentation site (docs/conf.py). AutoAPI reads the source
-# without importing it, so none of the application's requirements are needed.
+# Building the documentation site (docs/conf.py). AutoAPI and Jedi read the
+# source without importing it; Jedi needs the application's requirements
+# installed beside it to follow names into the libraries they come from.
 sphinx>=8
 sphinx-autoapi>=3.3
 furo>=2024.8.6
 myst-parser>=4
+jedi>=0.19

@@ -26,6 +26,17 @@ autoapi_keep_files = False
 # Python objects, linked where they resolve.
 default_role = "py:obj"
 
+# Other projects' documentation, which the names in the source link into.
+intersphinx_mapping = {
+    "python": ("https://docs.python.org/3", None),
+    "django": ("https://docs.djangoproject.com/en/stable/", "https://docs.djangoproject.com/en/stable/_objects/"),
+    "numpy": ("https://numpy.org/doc/stable", None),
+    "pandas": ("https://pandas.pydata.org/docs", None),
+    "sklearn": ("https://scikit-learn.org/stable", None),
+    "smac": ("https://automl.github.io/SMAC3/main", None),
+    "ConfigSpace": ("https://automl.github.io/ConfigSpace/latest", None),
+}
+
 html_theme = "furo"
 html_title = "Codesigner"
 exclude_patterns = ["_build"]
