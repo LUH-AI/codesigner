@@ -20,18 +20,13 @@ from .base import BaseOptimizer, OptimizationResult, OptimizerParam
 _NUMERIC_STEPS = 5
 
 
-#: Where every configuration this optimizer proposes comes from — one point of
-#: the grid, in order. See `_ORIGIN` in random_optimizer.
+#: Each trial's origin label.
 _ORIGIN = "Grid point"
 
 
 class GridOptimizer(BaseOptimizer):
-    """Exhaustive grid search over a discretized hyperparameter space.
-
-    Continuous and large integer ranges are sampled into a fixed number of
-    evenly-spaced values.  All valid combinations (respecting ConfigSpace
-    conditions) are evaluated in order up to n_trials.  Resume skips configs
-    already present in previous_result.
+    """`GridOptimizer` evaluates valid grid points in order and skips those
+    already in *previous_result*.
     """
 
     name = "Grid Search"
@@ -56,9 +51,7 @@ class GridOptimizer(BaseOptimizer):
         cancel_event=None,
         stopping: Optional[dict] = None,
         splits=None,
-        # Accepted and ignored: a search that fits no model of the objective has
-        # no acquisition function for a prior to weight. The caller passes what
-        # the reader stated without having to know which optimizer will get it.
+        # Grid search has no acquisition function, so `priors` is ignored.
         priors=None,
         configurations=None,
     ) -> OptimizationResult:
@@ -91,10 +84,8 @@ class GridOptimizer(BaseOptimizer):
             cancel_event=cancel_event)
         to_run = [cfg for cfg in to_run if tuple(sorted(cfg.items())) not in requested]
 
-        # Two ways to finish, and the grid's own is not a stopping criterion:
-        # running out of configurations is the search being *complete*, not a
-        # limit being hit. So the loop ends on either, and only the criteria get
-        # to name themselves in `stopped_by`.
+        # Exhausting the grid completes the search, so only stopping criteria
+        # set `stopped_by`.
         for cfg in to_run:
             if cancel_event and cancel_event.is_set():
                 break
@@ -109,10 +100,7 @@ class GridOptimizer(BaseOptimizer):
                             seed, cancel_event, trials_limit=grid_size)
 
 
-    # ── Helpers ───────────────────────────────────────────────────────────────
-
     def _hp_values(self, hp) -> list:
-        """Discrete list of values to evaluate for one hyperparameter."""
         if isinstance(hp, CategoricalHyperparameter):
             return list(hp.choices)
         if isinstance(hp, OrdinalHyperparameter):

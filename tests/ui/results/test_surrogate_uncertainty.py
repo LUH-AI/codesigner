@@ -1,23 +1,6 @@
-"""How sure the surrogate is, drawn under the trials.
-
-`docs/plan_today.md` Step 4, which asked for a design pass rather than a sketch.
-What the pass decided, and what these tests hold:
-
-- **The estimate is the spread across the forest's own trees.** No new fit and
-  no second model: `fit_surrogate` already builds a `RandomForestRegressor` for
-  partial dependence and for the games' fallback rung, and each tree in it
-  predicts separately. Standard deviation rather than variance, so the number is
-  in the metric's own units and a colour bar can be read.
-- **A slice through the best trial**, not an average over every trial. The
-  average costs `n_trials x n_points^2` rows through every tree instead of
-  `n_points^2`, and a plane through the incumbent passes through a configuration
-  that was actually evaluated — where a plane through the config-space default
-  may sit somewhere the search never went.
-- **The axes view at exactly two axes.** `core.projection.project` returns
-  coordinates and discards the fitted PCA/PLS, so there is no inverse to carry a
-  grid in component space back to configurations. Three axes would be a volume
-  through a point cloud; one is a strip with no second dimension to vary in.
-- **Deferred**, like partial dependence, because it is per *pair*.
+"""The surrogate's uncertainty is the standard deviation across the trees of the
+`fit_surrogate` forest, in the metric's units. The field is a slice through the
+best trial, drawn on the axes view at two axes and computed on request per pair.
 """
 
 import pytest
@@ -43,8 +26,8 @@ def _space():
 
 
 def _trials(n=25):
-    """A run whose score depends on one hyperparameter and ignores the other, so
-    the forest has something to be sure about and something not to be."""
+    """The score depends on `n_estimators` only, so the forest is sure of one
+    axis."""
     from core.optimizers.base import TrialResult
 
     out = []
@@ -58,7 +41,7 @@ def _trials(n=25):
     return out
 
 
-# ── the computation ─────────────────────────────────────────────────────────
+# computation
 
 def test_it_returns_a_grid_the_shape_of_its_two_axes(optimizer):
     x, y, z, warning = analytics.compute_surrogate_uncertainty(
@@ -80,9 +63,8 @@ def test_every_value_is_a_spread_and_so_never_negative(optimizer):
 
 
 def test_it_is_the_trees_disagreeing_and_not_the_prediction(optimizer):
-    """The distinction that makes this worth drawing: a field of predictions is
-    the metric again, which the points already carry. This is a different
-    quantity, and it must not track the score."""
+    """The field is the trees' disagreement, distinct from the predicted score
+    the points already show."""
     import numpy as np
 
     from core.analytics import fit_surrogate
@@ -108,14 +90,12 @@ def test_it_is_the_trees_disagreeing_and_not_the_prediction(optimizer):
 
 
 def test_the_slice_is_taken_through_the_best_trial(optimizer):
-    """A plane through the incumbent passes through a configuration that was
-    actually evaluated. The config-space default may be somewhere the search
-    never went, and a field sliced there would report uniform ignorance."""
+    """A slice through the incumbent passes an evaluated configuration, where
+    the default may lie unexplored."""
     space, trials = _space(), _trials()
     best = max(trials, key=lambda t: t.scores["accuracy"])
 
-    # Only one hyperparameter is on the axes; the other is held at the
-    # reference, so moving the reference must move the answer.
+    # The off-axis hyperparameter is held at the reference.
     _, _, held_at_best, _ = analytics.compute_surrogate_uncertainty(
         space, trials, "accuracy", "n_estimators", "alpha", n_points=6)
 
@@ -147,7 +127,7 @@ def test_an_unknown_hyperparameter_is_named_in_the_reason(optimizer):
     assert warning and "nonesuch" in warning
 
 
-# ── the endpoint ────────────────────────────────────────────────────────────
+# endpoint
 
 @pytest.fixture
 def experiment(client):
@@ -175,20 +155,17 @@ def test_the_endpoint_answers_with_a_field_and_its_ramp(client, experiment):
 
 @pytest.mark.django_db
 def test_the_ramp_is_neither_the_best_so_far_green_nor_the_metric_blue(client, experiment):
-    """`ACCENT_COLOR` means "the best so far" on every figure that uses it, and a
-    field underneath the points is not that. `_INTENSITY_SCALE` ramps blue for
-    the metric — on this very figure, on the points sitting on top of the
-    field."""
+    """The field needs its own colour, because green marks the best so far and
+    blue marks the metric."""
     from ui.figures.plots import ACCENT_COLOR, UNCERTAINTY_SCALE
 
     colours = " ".join(str(stop[1]) for stop in UNCERTAINTY_SCALE)
 
     assert ACCENT_COLOR.lower() not in colours.lower()
-    # rgba(124, 58, 237, ...) — red and blue high, green low: a violet, and one
-    # the palette does not otherwise use.
+    # violet: red and blue high, green low
     red, green, blue = 124, 58, 237
     assert green < red < blue, f"expected a violet ramp, got {colours}"
-    # Translucent at both ends: it is scenery behind the trials.
+    # translucent scenery behind the trials
     assert all(str(stop[1]).startswith("rgba") for stop in UNCERTAINTY_SCALE)
 
 
@@ -201,8 +178,8 @@ def test_an_unknown_metric_is_refused(client, experiment):
 
 @pytest.mark.django_db
 def test_an_unusable_pair_answers_with_a_reason_not_an_error(client, experiment):
-    """The page shows it as a caption. A 400 would make it look like the request
-    was malformed, when what happened is that this pair has nothing to say."""
+    """The page shows the reason as a caption, since a 400 would suggest a
+    malformed request."""
     x_hp = _hps(experiment)[0]
 
     resp = client.get(reverse("ui:surrogate_uncertainty", args=[experiment.pk])
@@ -213,11 +190,11 @@ def test_an_unusable_pair_answers_with_a_reason_not_an_error(client, experiment)
     assert resp.json()["z"] == []
 
 
-# ── and it is deferred, like partial dependence ─────────────────────────────
+# deferred, like partial dependence
 
 def test_it_waits_to_be_asked_by_default():
-    """It is per pair — six hyperparameters make fifteen pairs and the reader is
-    looking at one — so it gets a Compute button rather than fetching itself."""
+    """Six hyperparameters make fifteen pairs, so the field waits for its
+    Compute button."""
     from ui.experiment_settings import SETTING_DEFAULTS
 
     assert SETTING_DEFAULTS["autocompute_surrogate_uncertainty"] is False

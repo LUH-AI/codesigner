@@ -1,15 +1,5 @@
-"""What more than one built-in model's `build` needs, written once.
-
-* `categorical_mask`, `categorical_columns` — which columns a booster should
-  split as categories;
-* `LabelCoded` — a classifier that only knows 0..k-1, answering in the
-  dataset's own labels (XGBoost).
-
-How the columns are prepared — filled in, scaled, one-hot — is not here: that
-is the experiment's processing (`core.processing`), done before the model.
-
-Imports nothing from this package, so an exported model can carry this module
-as it is.
+"""An exported model can carry `parts` unchanged because `parts` imports nothing
+from `core.models`.
 """
 
 import numpy as np
@@ -17,13 +7,8 @@ from sklearn.base import BaseEstimator
 
 
 def categorical_mask(data, most_labels):
-    """Which columns a booster should split as categories, as a boolean mask,
-    or None when there are none.
-
-    Codes, not one-hot: the booster groups labels itself, which is better than
-    one-hot on a column with many of them. A column with more labels than the
-    booster can take (*most_labels*) is left numeric, codes and all — still
-    usable, just split by code.
+    """`categorical_mask` returns the columns a booster splits as categories, or
+    None. A column over *most_labels* labels stays numeric and splits by code.
     """
     mask = np.array([kind == "categorical" for kind in data["kinds"]], dtype=bool)
     for column in np.flatnonzero(mask):
@@ -34,14 +19,12 @@ def categorical_mask(data, most_labels):
 
 
 def categorical_columns(data):
-    """The indices of *data*'s label columns."""
     return [i for i, kind in enumerate(data["kinds"]) if kind == "categorical"]
 
 
 class LabelCoded(BaseEstimator):
-    """A classifier that knows only the labels 0..k-1, answering in the
-    dataset's own labels: they are encoded on the way in and decoded on the
-    way out. Sample weights pass straight through."""
+    """`LabelCoded` encodes labels to 0..k-1 for its classifier and decodes
+    predictions back."""
 
     def __init__(self, classifier=None):
         self.classifier = classifier

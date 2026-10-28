@@ -1,7 +1,4 @@
-"""Template mistakes that render as something rather than failing.
-
-Checked against the template *sources* rather than rendered output, so a
-template no test happens to render is covered too.
+"""Checking template sources covers templates no test renders.
 """
 
 import re
@@ -21,9 +18,7 @@ def test_there_are_templates_to_check():
 
 
 def test_no_comment_spans_more_than_one_line():
-    """`{# … #}` is single-line only. Spanning two lines does not raise — the
-    text is simply emitted into the page, so the note you wrote for the next
-    developer ships to the browser. `{% comment %}` is the multi-line form."""
+    """A two-line `{# … #}` renders into the page; `{% comment %}` spans lines."""
     leaking = []
     for path in _templates():
         text = path.read_text()
@@ -37,21 +32,8 @@ def test_no_comment_spans_more_than_one_line():
 
 
 def test_every_template_with_text_of_its_own_marks_it_for_translation():
-    """The i18n completeness check only sees strings that were *marked*, so a
-    new template that forgets i18n entirely is invisible to it. This catches
-    that case.
-
-    Exempt: anything whose visible text comes from somewhere already
-    translated — the figure partials render `figure.label` (translated in
-    `ui/figures/catalog.py`), the breadcrumb bar renders labels from
-    `ui/navigation.py`, and the metric select and selected-config panel render
-    metric names, numbers and config keys, which are data. The optimizer field
-    renders one setting, and every word of it — name, explanation, placeholder —
-    comes from `ui/optimizer_labels.py`, which is where they are marked, and
-    the info label and the initial-points group render names and
-    explanations they are handed. The experiment page layer's only text is
-    the experiment's name and the product's. A Data Handling control renders
-    labels marked in `ui/figures/data_handling.py`.
+    """The i18n check sees only marked strings, so a template with no i18n at
+    all escapes it. Exempt templates render text translated elsewhere or data.
     """
     exempt = {"_selected_config_inner.html", "_breadcrumbs.html", "_metric_select.html",
               "_optimizer_param_field.html", "_info_label.html",

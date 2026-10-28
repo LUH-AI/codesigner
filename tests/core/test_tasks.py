@@ -1,4 +1,4 @@
-"""Classification and regression: what decides the task, and what follows from it."""
+"""`test_tasks` covers `core.tasks` and what the chosen task implies."""
 
 import copy
 
@@ -15,39 +15,30 @@ from core.splits import cross_validation
 from tests.conftest import DATASETS_DIR
 
 
-# ── the target ───────────────────────────────────────────────────────────────
-
 def test_regression_needs_a_numeric_target():
-    """What: a text target cannot be regressed on; a numeric one can be either.
-    How: asks `target_problem` of both."""
+    """`target_problem` refuses a text target only for regression."""
     assert tasks.target_problem(np.array(["a", "b"]), tasks.REGRESSION)
     assert tasks.target_problem(np.array(["a", "b"]), tasks.CLASSIFICATION) is None
     assert tasks.target_problem(np.array([1, 2]), tasks.REGRESSION) is None
 
 
 def test_a_snapshot_without_a_task_is_classification():
-    """What: files from before tasks existed read as classification.
-    How: asks `task_of` of a snapshot with no task, and with an unknown one."""
+    """`task_of` reads a missing task as classification."""
     assert tasks.task_of({"evaluation": {}}) == tasks.CLASSIFICATION
     assert tasks.task_of({}) == tasks.CLASSIFICATION
     assert tasks.task_of({"evaluation": {"task": "regression"}}) == tasks.REGRESSION
 
 
-# ── metrics ──────────────────────────────────────────────────────────────────
-
 def test_each_task_has_its_own_metrics():
-    """What: classification keeps its four metrics, in their order, then
-    balanced accuracy; regression gets RMSE, MAE and R². How: compares
-    `metrics_for` for each task."""
+    """`metrics_for` lists balanced accuracy after the four classification
+    metrics."""
     assert metrics_for(tasks.CLASSIFICATION) == [
         "accuracy", "f1", "precision", "recall(macro)", "balanced_accuracy"]
     assert metrics_for(tasks.REGRESSION) == ["rmse", "mae", "r2"]
 
 
 def test_regression_metrics_point_the_right_way():
-    """What: lower RMSE and MAE are better, higher R² is, and each turns into a
-    cost that a better model has less of. How: compares the costs of a perfect
-    and an imperfect prediction."""
+    """`to_cost` falls for every regression metric as the prediction improves."""
     y = np.array([1.0, 2.0, 3.0, 4.0])
     good, bad = y, y + 1.0
     for name in metrics_for(tasks.REGRESSION):
@@ -56,9 +47,7 @@ def test_regression_metrics_point_the_right_way():
 
 
 def test_a_failed_regression_trial_scores_like_predicting_the_mean():
-    """What: a trial that produced nothing scores the mean predictor's error,
-    not zero — zero RMSE would be a perfect score. How: compares each null
-    score with the score of predicting the mean."""
+    """`null_score` is the mean predictor's error, because zero RMSE is perfect."""
     y = np.array([1.0, 2.0, 4.0, 9.0])
     mean = np.full_like(y, y.mean())
     for name in metrics_for(tasks.REGRESSION):
@@ -66,12 +55,8 @@ def test_a_failed_regression_trial_scores_like_predicting_the_mean():
         assert metric.null_score(y) == pytest.approx(metric.fn(y, mean)), name
 
 
-# ── splitting ────────────────────────────────────────────────────────────────
-
 def test_a_regression_split_is_never_stratified():
-    """What: integer-valued regression targets are not treated as classes.
-    How: a target where every value occurs exactly twice stratifies as
-    classification — each fold gets one of each — and not as regression."""
+    """`cross_validation` stratifies integer targets only for classification."""
     X = np.arange(40).reshape(-1, 1)
     y = np.repeat(np.arange(20), 2)
 
@@ -83,12 +68,9 @@ def test_a_regression_split_is_never_stratified():
     assert per_fold(tasks.REGRESSION) != [list(range(20))] * 2
 
 
-# ── models ───────────────────────────────────────────────────────────────────
-
 @pytest.mark.parametrize("model_cls", [RandomForestModel, SVMModel])
 def test_the_built_ins_regress(model_cls):
-    """What: told the task is regression, a built-in predicts numbers.
-    How: fits the diabetes data with the default configuration."""
+    """`fit_predict` returns floats for every built-in on a regression task."""
     X, y = datasets.load_frame(DATASETS_DIR / "diabetes.csv")
     model = model_cls()
     model.task = tasks.REGRESSION
@@ -102,8 +84,7 @@ def test_the_built_ins_regress(model_cls):
 
 
 def test_the_svm_tunes_epsilon_only_when_regressing():
-    """What: the tube width is a regression hyperparameter.
-    How: compares the SVM's search space under each task."""
+    """Epsilon, the tube width, is a regression-only hyperparameter."""
     model = SVMModel()
     assert "epsilon" not in model.get_config_space()
     model.task = tasks.REGRESSION
@@ -111,8 +92,8 @@ def test_the_svm_tunes_epsilon_only_when_regressing():
 
 
 def test_building_an_experiment_tells_a_copy_its_task(models, metrics, optimizers):
-    """What: the registry's shared instance is not mutated; the experiment's
-    copy is told the task. How: builds a regression snapshot read-only."""
+    """`build_experiment` sets the task on a copy, leaving the registry's model
+    untouched."""
     snapshot = io.normalize({
         "version": "0.1.0", "name": "r", "model_name": "Random Forest", "model_path": "",
         "optimizer_name": "Random Search", "optimizer_params": {},
@@ -129,15 +110,13 @@ def test_building_an_experiment_tells_a_copy_its_task(models, metrics, optimizer
 
 
 def test_the_old_svm_name_still_resolves():
-    """What: files naming "SVM Classifier" open on the renamed model.
-    How: canonicalises the old name and resolves it through the registry."""
     assert canonical_model_name("SVM Classifier") == "SVM"
     assert canonical_model_name("Something Else") == "Something Else"
 
 
 def test_an_uploaded_model_says_what_it_supports():
-    """What: `tasks` is read from the source without running it, and a model
-    that says nothing classifies. How: inspects three small sources."""
+    """`inspect_model_source` reads `tasks` statically, defaults to
+    classification and rejects unknown tasks."""
     base = ("from codesigner_model import BaseModel\n\n"
             "class M(BaseModel):\n    name = 'M'\n{line}"
             "    def get_config_space(self, seed=0): return None\n"

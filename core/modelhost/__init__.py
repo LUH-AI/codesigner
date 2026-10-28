@@ -1,18 +1,6 @@
-"""Running a model in its own process, and its own Python environment.
-
-A user's model can need anything — a library the application does not have, or a
-version of one it does. So it is not imported here: it runs as a subprocess,
-under an interpreter chosen for it, and talks over a pipe.
-
-    from core.modelhost import describe, model_session
-
-    hello = describe(python, "model.py")          # its name and search space
-
-    with model_session(python, "model.py", X_train, y_train, X_val) as model:
-        optimizer.optimize(model, ...)            # indistinguishable from a local one
-
-`harness.py` is the other end, and is executed rather than imported — it runs in
-the model's environment, where this package does not exist.
+"""`core.modelhost` runs a user's model as a subprocess under the model's own
+interpreter, over a pipe, since the model may need libraries the app lacks. The
+subprocess executes `harness.py`, where `core.modelhost` is unavailable.
 """
 
 from .client import HARNESS, describe, model_session

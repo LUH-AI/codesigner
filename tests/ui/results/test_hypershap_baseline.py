@@ -1,13 +1,6 @@
-"""What the HyperSHAP figures are measured from, chosen once in the sidebar.
-
-The stored games are gains over the config space's default, worked out at run
-completion. "Compare against" offers two more baselines, the incumbent (the
-default choice) and the selected trial, and both are computed on request by the
-`hypershap_figures` endpoint: which configuration they start from depends on
-the metric and on the click, so neither can be stored ahead of time.
-
-Uses the test2.ihpo fixture (Random Forest, 30 trials), whose best trial by
-accuracy is at index 8, and analytics.ihpo where the page needs stored games.
+"""Each stored game holds gains over the config space default. The incumbent and
+selected-trial baselines depend on the metric and the click, so
+`hypershap_figures` computes them on request.
 """
 
 import pytest
@@ -25,7 +18,7 @@ GAME_FIGURES = {"hyperparameter_importance", "interactions_heatmap", "interactio
 
 
 def _experiment(fixture="test2.ihpo"):
-    """An experiment read from a stored .ihpo, as the import page would create it."""
+    """`_experiment` imports an experiment from a stored .ihpo fixture."""
     return adapter.experiment_from_snapshot(io.parse((FIXTURES_DIR / fixture).read_bytes()))
 
 
@@ -39,13 +32,7 @@ def _page(client, exp):
 
 
 def test_the_games_come_back_for_every_game_figure(client):
-    """One request answers every figure the game selector drives, for every game.
-
-    Setup: test2.ihpo, every figure shown.
-    Action: ask for the games measured from trial 8.
-    Expect: a payload for the importance figure (one per game and rendering)
-    and each interaction figure (one per game), plus each game's warning and
-    importance shares for the table's column, so switching game afterwards
+    """One request covers every game figure for every game, so switching game
     costs no second request.
     """
     exp = _experiment()
@@ -63,11 +50,8 @@ def test_the_games_come_back_for_every_game_figure(client):
 
 
 def test_the_games_differ_from_the_stored_default_ones(client):
-    """Measured from a trial, the games give a different answer from the stored default ones.
-
-    Compared on mistunability's heatmap, since tunability measured from the
-    incumbent can legitimately come out near zero everywhere. analytics.ihpo,
-    because test2.ihpo predates stored interactions.
+    """The comparison uses mistunability, since tunability from the incumbent
+    can be near zero everywhere.
     """
     exp = _experiment("analytics.ihpo")
     stored = client.get(reverse("ui:metric_figures", args=[exp.pk]) + "?metric=accuracy").json()
@@ -80,7 +64,6 @@ def test_the_games_differ_from_the_stored_default_ones(client):
 
 
 def test_a_switched_off_figure_is_not_computed(client):
-    """A figure the settings switch off is absent here too, not reachable by asking directly."""
     from experiments.models import GlobalSettings
 
     gs = GlobalSettings.get_solo()
@@ -103,11 +86,8 @@ def test_rejects_a_trial_that_is_not_there(client, idx):
 
 
 def test_a_trial_explained_against_itself_says_so_rather_than_drawing_zeros(client):
-    """Under "Selected" the local explanation compares a trial with itself.
-
-    Nothing is computed for that: every effect would be zero by construction,
-    and a waterfall of zeros reads as a finding. The figure is empty and the
-    warning says why.
+    """A trial compared with itself gets no figure and a warning, since a
+    waterfall of zeros would read as a finding.
     """
     exp = _experiment()
     url = reverse("ui:trial_ablation", args=[exp.pk]) + "?metric=accuracy&idx=8&baseline=8"
@@ -118,11 +98,6 @@ def test_a_trial_explained_against_itself_says_so_rather_than_drawing_zeros(clie
 
 
 def test_a_trial_can_be_explained_against_another_trial(client):
-    """The local explanation measures from the baseline trial when one is named.
-
-    Expect: a waterfall, and a different one from the same trial explained
-    against the config space's default.
-    """
     exp = _experiment()
     base = reverse("ui:trial_ablation", args=[exp.pk]) + "?metric=accuracy&idx=0"
     from_default = client.get(base).json()
@@ -142,7 +117,7 @@ def test_the_local_explanation_rejects_a_baseline_that_is_not_there(client, base
 
 
 def test_local_effects_can_be_measured_from_a_trial(client):
-    """The beeswarm takes the same baseline, and moves with it."""
+    """The beeswarm moves with the baseline."""
     exp = _experiment()
     base = reverse("ui:local_effects", args=[exp.pk]) + "?metric=accuracy"
     from_default = client.get(base).json()
@@ -153,12 +128,8 @@ def test_local_effects_can_be_measured_from_a_trial(client):
 
 
 def test_the_sidebar_section_is_hypershap_and_opens_on_the_incumbent(client):
-    """The section is named for the method, and offers the three baselines, incumbent first chosen.
-
-    Setup: analytics.ihpo, which carries stored games.
-    Expect: the sidebar's section heading reads HyperSHAP, and its "Compare
-    against" selector offers default, incumbent and selected, with incumbent
-    the one selected as the page is served.
+    """The sidebar's "Compare against" selector offers default, incumbent and
+    selected, with incumbent preselected.
     """
     html = _page(client, _experiment("analytics.ihpo"))
     sidebar = html.split('<nav class="sidebar"', 1)[1].split("</nav>", 1)[0]
@@ -172,22 +143,15 @@ def test_the_sidebar_section_is_hypershap_and_opens_on_the_incumbent(client):
 
 
 def test_the_baseline_computation_fetches_without_being_asked_by_default():
-    """Unlike the other deferred figures, this one is what the page opens on.
-
-    Every other deferred computation waits for its Compute button by default.
-    This one is the default view of six figures, so waiting would open every
-    experiment on six blank figures.
+    """`autocompute_hypershap_baseline` defaults on because six figures open on
+    its result.
     """
     assert SETTING_DEFAULTS["autocompute_hypershap_baseline"] is True
 
 
 def test_a_click_moves_the_figures_when_the_selected_trial_is_the_baseline(client):
-    """Under "Selected", choosing another trial recomputes every HyperSHAP figure.
-
-    Asserted on the page script, the way the other page-script contracts are:
-    the one function every selection goes through — a trial clicked, or a
-    proposal picked in a trial's place — refreshes the game figures and the
-    beeswarm when the baseline is the selection.
+    """Under "Selected", `selectionMoved` refreshes every HyperSHAP figure, and
+    both `selectTrial` and `selectProposal` call it.
     """
     html = _page(client, _experiment("analytics.ihpo"))
     def body(name):
@@ -203,12 +167,8 @@ def test_a_click_moves_the_figures_when_the_selected_trial_is_the_baseline(clien
 
 
 def test_the_table_has_a_column_for_every_baseline(client):
-    """Every game's table sets the default, the incumbent and the selected trial side by side.
-
-    Setup: analytics.ihpo, which carries stored games.
-    Expect: each table header names all three baselines, and each row carries
-    the default's share plus an empty cell for each of the other two, which
-    the page fills as their games arrive.
+    """Each table has default, incumbent and selected columns, and the page
+    fills the empty two as games arrive.
     """
     html = _page(client, _experiment("analytics.ihpo"))
     table = html.split('class="importance-table"', 1)[1].split("</table>", 1)[0]
@@ -222,10 +182,8 @@ def test_the_table_has_a_column_for_every_baseline(client):
 
 
 def test_the_bars_offer_every_baseline_to_compare_with(client):
-    """The bar view's comparison offers none and the three baselines, none chosen to start.
-
-    The page hides whichever one the sidebar is already measuring from, which
-    leaves three; asserted on the markup, which offers all four.
+    """The bar comparison offers none plus all three baselines and starts at
+    none; the page hides the active baseline.
     """
     html = _page(client, _experiment("analytics.ihpo"))
     group = html.split("data-bar-comparison", 1)[1].split("</span>", 1)[0]

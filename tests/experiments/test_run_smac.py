@@ -1,8 +1,4 @@
-"""Step 6: a real SMAC run through the background engine (slow).
-
-Preserves the end-to-end SMAC coverage the old synchronous create+run had:
-create an experiment configured for SMAC, execute a small run, and confirm the
-result is stored and the run is marked done.
+"""Real SMAC runs via the background engine (slow).
 """
 
 import pytest
@@ -32,22 +28,15 @@ def test_smac_run_completes_and_stores_result():
     assert exp.data.result is not None
     assert run.status == "done"
     assert len(exp.data.result["data"]) == 3
-    assert exp.data.result["optimizer_state"]  # SMAC embeds its working dir
+    assert exp.data.result["optimizer_state"]  # SMAC's working dir
 
 
 @pytest.mark.slow
 @pytest.mark.django_db
 def test_smac_resume_through_the_web_engine_keeps_all_trials():
-    """Resuming a SMAC run through create_run/execute_run must not lose the
-    first run's trials — the exact path a user driving the browser exercises.
-
-    Reproduces a real bug: SMAC's Scenario auto-generates its on-disk
-    directory name from a hash of facade metadata that isn't stable across
-    separate BlackBoxFacade constructions, so a resumed run (a fresh
-    optimizer instance rebuilt from the saved Experiment row, exactly what
-    execute_run does every time) could persist its new trials to a
-    different directory than the one being read back from — silently
-    dropping the accumulated history from the saved result.
+    """`execute_run` keeps the first run's trials on resume. The SMAC Scenario
+    names its directory after a facade-metadata hash that differs between
+    `BlackBoxFacade` constructions, so a resume could open the wrong directory.
     """
     from experiments.services import snapshot as adapter
     from experiments.services.run import create_run, execute_run

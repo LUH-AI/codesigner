@@ -1,14 +1,5 @@
-"""Step 6: the background run engine (experiments/services/run.py).
-
-`create_run` records a pending run and commits the run's metric onto the
-experiment; `execute_run` does the work synchronously (rebuild from the DB, run
-the optimizer with a DB-backed cancel flag, write the result and status back);
-the cancel flag reads the cancel request from the database.
-
-The resume and cancel *engine* semantics are already validated against the
-Streamlit oracle in tests/core/test_optimizers; here we pin the DB wiring
-around them. Real Random Forest + Random Search on iris keeps the runs small
-and deterministic.
+"""`test_run_execution` pins the database wiring of `create_run` and
+`execute_run` on small, deterministic iris runs.
 """
 
 import pytest
@@ -19,7 +10,7 @@ from tests.conftest import DATASETS_DIR, FIXTURES_DIR
 
 
 def _make_experiment(metric_names=None, primary=None, original=None):
-    """A saved experiment with the iris dataset attached and no result yet."""
+    """`_make_experiment` saves an iris experiment without a result."""
     from experiments.services import snapshot as adapter
 
     snapshot = {
@@ -39,14 +30,10 @@ def _make_experiment(metric_names=None, primary=None, original=None):
     return adapter.experiment_from_snapshot(snapshot, adopt_paths=True)
 
 
-# ── create_run ────────────────────────────────────────────────────────────────
-
 @pytest.mark.django_db
 def test_create_run_records_pending_run_and_commits_first_metric():
-    """create_run makes a pending Run and commits the metric on a fresh experiment.
-
-    Expect: Run status "pending", cancel not requested; the experiment's primary
-    and original both become the chosen metric (first run pins the original).
+    """`create_run` makes a pending run and pins the chosen metric as primary
+    and original.
     """
     from experiments.services.run import create_run
 
@@ -65,7 +52,6 @@ def test_create_run_records_pending_run_and_commits_first_metric():
 
 @pytest.mark.django_db
 def test_create_run_metric_change_moves_primary_not_original():
-    """Optimizing a different metric later moves primary but leaves original."""
     from experiments.services.run import create_run
 
     exp = _make_experiment(primary="accuracy", original="accuracy")
@@ -76,14 +62,9 @@ def test_create_run_metric_change_moves_primary_not_original():
     assert exp.data.original_metric == "accuracy"
 
 
-# ── execute_run ────────────────────────────────────────────────────────────────
-
 @pytest.mark.django_db
 def test_execute_run_completes_and_stores_result():
-    """A run executes to completion, storing the result and marking the run done.
-
-    Expect: status "done" with started_at and finished_at set, and the
-    experiment carrying a 3-trial result.
+    """The run ends "done" with both timestamps and a 3-trial result.
     """
     from experiments.services.run import create_run, execute_run
 
@@ -101,10 +82,8 @@ def test_execute_run_completes_and_stores_result():
 
 @pytest.mark.django_db
 def test_execute_run_resumes_from_previous_result():
-    """A second run continues the trial history rather than restarting it.
-
-    Expect: after a 3-trial run then a 2-trial run, the stored result holds 5
-    trials numbered 1..5 (resume via trial_offset).
+    """After runs of 3 and 2 trials, `trial_offset` numbers the stored trials 1
+    to 5.
     """
     from experiments.services.run import create_run, execute_run
 
@@ -120,11 +99,8 @@ def test_execute_run_resumes_from_previous_result():
 
 @pytest.mark.django_db
 def test_execute_run_honours_a_preset_cancel():
-    """A run whose cancel is already requested stops and is marked cancelled.
-
-    Pre-setting cancel_requested makes the DB cancel flag report set on the
-    optimizer's first check, so no new trials run — deterministic regardless of
-    optimizer speed.
+    """A preset `cancel_requested` stops the run at the first check, independent
+    of optimizer speed.
     """
     from experiments.models import Run
     from experiments.services.run import create_run, execute_run
@@ -142,10 +118,7 @@ def test_execute_run_honours_a_preset_cancel():
 
 @pytest.mark.django_db
 def test_execute_run_records_errors():
-    """If the run cannot be built or executed, the run is marked errored.
-
-    An experiment naming a metric the app doesn't have fails to rebuild; the
-    error is captured on the run rather than crashing the worker.
+    """An unknown metric fails the rebuild, and the run records the error.
     """
     from experiments.services.run import create_run, execute_run
 
@@ -158,12 +131,9 @@ def test_execute_run_records_errors():
     assert run.error
 
 
-# ── PolledFlag ─────────────────────────────────────────────────────────────
-
 @pytest.mark.django_db
 def test_a_polled_flag_reflects_the_database():
-    """A `PolledFlag` asking the Run row reports its current cancel_requested
-    value."""
+    """`PolledFlag` reports the row's current `cancel_requested`."""
     from core.optimizers.base import PolledFlag
     from experiments.models import Run
 

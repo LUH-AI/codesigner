@@ -1,7 +1,4 @@
-"""A regression experiment, from the create form to an exported model.
-
-Runs execute inline in tests (see `runs_execute_synchronously`), so posting
-the Run form leaves a finished result behind.
+"""A regression experiment runs from the create form to an exported model.
 """
 
 import ast
@@ -28,9 +25,6 @@ def _create(client, **overrides):
 
 @pytest.mark.django_db
 def test_a_regression_is_scored_on_the_regression_metrics(client):
-    """What: diabetes created as a regression is stored as one and scored
-    with the regression metrics. How: creates it and reads back what was
-    stored."""
     from experiments.models import Experiment
 
     assert _create(client).status_code == 302
@@ -41,10 +35,7 @@ def test_a_regression_is_scored_on_the_regression_metrics(client):
 
 @pytest.mark.django_db
 def test_the_task_is_asked_never_guessed(client):
-    """What: a form without a task is refused rather than guessed from the
-    target, and a whole-number target is whatever the person says it is —
-    wine's quality as classes, or as a quantity. How: posts diabetes with no
-    task, then wine both ways."""
+    """The form refuses a missing task and never guesses it from the target."""
     from experiments.models import Experiment
 
     resp = _create(client, name="unsaid", task="")
@@ -58,8 +49,7 @@ def test_the_task_is_asked_never_guessed(client):
 
 @pytest.mark.django_db
 def test_a_text_target_cannot_be_regressed_on(client):
-    """What: asking for regression on iris' text labels is refused, naming the
-    column. How: posts the form and reads the error."""
+    """The refusal mentions the target column."""
     from experiments.models import Experiment
 
     resp = _create(client, name="nope", demo_dataset=str(DATASETS_DIR / "iris.csv"),
@@ -71,10 +61,7 @@ def test_a_text_target_cannot_be_regressed_on(client):
 
 @pytest.mark.django_db
 def test_a_regression_run_finds_a_low_error_and_exports_it(client):
-    """What: a regression run is scored and optimized in the right direction,
-    the page draws it, and the best trial exports.
-    How: runs six random-search trials on RMSE, checks the incumbent is the
-    trial with the lowest RMSE, renders the page and downloads the model."""
+    """The incumbent has the lowest RMSE and exports."""
     from experiments.models import Experiment
     from experiments.services.snapshot import rebuild_result
 

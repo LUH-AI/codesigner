@@ -14,9 +14,7 @@ from .export import _export
 
 @experiment_view(DELETE)
 def experiment_delete(request, exp):
-    """Confirm (GET) then delete (POST) a saved experiment, stopping any run.
-
-    Into its people's bins, not gone — see `experiments/services/bin.py`.
+    """GET confirms; POST moves *exp* to its people's bins.
     """
     if request.method == "POST":
         bin_service.delete(exp, by=request.user)
@@ -29,7 +27,6 @@ def experiment_delete(request, exp):
 
 
 def _bin_holders(exp):
-    """Who else will find it in their bin, for the confirmation to name."""
     from django.contrib.auth import get_user_model
     if not settings.REQUIRE_LOGIN:
         return []
@@ -43,13 +40,11 @@ def _binned(request, pk):
 
 
 def experiment_bin(request):
-    """What this person deleted, or had deleted from under them."""
     binned = (policy().bin(request)
               .select_related("owner", "deleted_by").order_by("-deleted_at"))
     return render(request, "ui/bin.html", {
         "binned": [{"experiment": exp,
-                    # Without accounts there is no site bin for it to move to,
-                    # so it stays until somebody removes it.
+                    # No site bin without accounts, so no expiry.
                     "expires_at": (bin_service.expires_at(exp)
                                    if settings.REQUIRE_LOGIN else None)}
                    for exp in binned],
@@ -66,21 +61,15 @@ def bin_restore(request, pk):
 
 
 def bin_download(request, pk):
-    """The same file an export makes, asked about the same way — deleting it
-    did not change what it would be safe to hand over."""
+    """Binning leaves export rules unchanged."""
     return _export(request, _binned(request, pk),
                    cancel_url=reverse("ui:experiment_bin"))
 
 
 def bin_dismiss(request, pk):
-    """Confirm (GET) then take it out of *my* bin (POST).
-
-    Only mine: everyone else's bin keeps it, and any of them can still restore
-    it — without me, since my access goes too. When the last of its people has
-    done this it moves to the site admins' bin rather than being destroyed.
-
-    Without accounts there is one bin and nobody else to keep it for, so there
-    this is what it says: deleting it for good.
+    """`bin_dismiss` confirms on GET. On POST it drops the experiment from the
+    requester's bin only, and the last dismissal leaves the experiment to the
+    site admins' bin. Without accounts, POST purges the experiment.
     """
     exp = _binned(request, pk)
     if request.method == "POST":
@@ -89,8 +78,7 @@ def bin_dismiss(request, pk):
         else:
             bin_service.purge(exp)
         return redirect("ui:experiment_bin")
-    # Who will still have it — the bin, not the grants, since that is what
-    # decides whether it moves to the site's.
+    # Bin entries decide the move to the site bin.
     others = [entry.user for entry in exp.bin_entries.select_related("user")
               .exclude(user_id=request.user.pk).order_by("user__username")]
     return render(request, "ui/bin_dismiss_confirm.html",

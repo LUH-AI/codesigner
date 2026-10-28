@@ -1,12 +1,6 @@
-"""An uploaded .ihpo cannot name files on this machine.
-
-A snapshot's `dataset_path` and `model_path` are strings inside a file that came
-from wherever the user got it. The adapter used to read them as paths and copy
-whatever they pointed at into the new experiment — so uploading an .ihpo naming
-any readable server file put a copy in an experiment the uploader could then
-export. Adoption is now something a caller opts into, and only the two callers
-that produced the paths themselves do: the create form, and the operator's
-import command.
+"""A snapshot's `dataset_path` and `model_path` come from an untrusted file.
+Only callers that wrote the paths themselves, the create form and the import
+command, pass `adopt_paths`.
 """
 
 from pathlib import Path
@@ -30,20 +24,16 @@ def _snapshot(**overrides):
     return fields
 
 
-# ── The adapter's default ────────────────────────────────────────────────────
+# Adapter default
 
 def test_a_snapshot_path_is_not_read_by_default():
-    """Even a perfectly real, readable path is ignored: the caller has not said
-    the snapshot is one whose paths can be trusted."""
+    """A real, readable path is still ignored."""
     exp = adapter.experiment_from_snapshot(_snapshot())
     assert not exp.data.dataset
     assert not exp.data.demo_dataset
 
 
 def test_a_caller_that_owns_the_paths_can_adopt_them(tmp_path):
-    """What: a trusted caller's path is copied into the experiment.
-    How: adopts a CSV that is not one of the bundled demos and reads the
-    stored copy back."""
     own = tmp_path / "measurements.csv"
     own.write_bytes((DATASETS_DIR / "iris.csv").read_bytes())
 
@@ -55,9 +45,7 @@ def test_a_caller_that_owns_the_paths_can_adopt_them(tmp_path):
 
 
 def test_an_adopted_demo_is_named_rather_than_copied():
-    """What: a trusted path that is a bundled demo is recorded by the demo's
-    name, and no copy is stored. How: adopts iris' own path and reads back
-    where the experiment's dataset is."""
+    """A trusted demo path is recorded by name."""
     exp = adapter.experiment_from_snapshot(_snapshot(), adopt_paths=True)
 
     assert exp.data.demo_dataset == "iris"
@@ -68,8 +56,7 @@ def test_an_adopted_demo_is_named_rather_than_copied():
 
 
 def test_an_attached_upload_is_still_adopted_without_the_flag():
-    """Attaching the dataset is how an imported experiment becomes runnable, and
-    it never depended on the snapshot's own path."""
+    """An attached upload never depended on the snapshot's path."""
     exp = adapter.experiment_from_snapshot(
         _snapshot(dataset_path="/nowhere/at/all.csv"),
         dataset_file=SimpleUploadedFile("mine.csv", b"a,b,t\n1,2,0\n"),
@@ -79,19 +66,17 @@ def test_an_attached_upload_is_still_adopted_without_the_flag():
 
 
 def test_a_model_path_is_not_read_by_default(tmp_path):
-    """The model branch is the sharper one: adopting a path here means the file
-    is later executed."""
+    """Adopting a model path means later executing the file."""
     planted = tmp_path / "evil.py"
     planted.write_text("raise SystemExit\n")
     exp = adapter.experiment_from_snapshot(_snapshot(model_path=str(planted)))
     assert not exp.data.model_file
 
 
-# ── Through the web importer ─────────────────────────────────────────────────
+# Web importer
 
 def test_uploading_an_ihpo_cannot_take_a_server_file(client, tmp_path):
-    """The whole point: a file naming someone else's data yields an experiment
-    with no dataset, not a copy of it."""
+    """A file naming server data yields an experiment with no dataset."""
     import json
 
     secret = tmp_path / "someone_elses.csv"
@@ -111,7 +96,6 @@ def test_uploading_an_ihpo_cannot_take_a_server_file(client, tmp_path):
 
 
 def test_importing_with_an_attached_dataset_still_works(client):
-    """The documented import flow — attach the dataset — is unaffected."""
     import json
 
     ihpo = SimpleUploadedFile(

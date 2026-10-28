@@ -1,4 +1,5 @@
-"""Computing an experiment's stored analytics after the fact."""
+"""`experiments.services.analytics` runs the analytics that wait until an
+experiment has finished."""
 
 from django.conf import settings
 
@@ -10,8 +11,10 @@ from .snapshot import config_space_for, rebuild_experiment
 
 
 def compute_games(exp) -> None:
-    """Compute *exp*'s explanation games and write them onto its stored result,
-    as a completed run would have. Nothing to do without trials."""
+    """`compute_games` stores HyperSHAP explanation games on a finished run's
+    result, skips a run without trials, and passes
+    `ANALYTICS_EAGER_MAX_COALITIONS` as the coalition budget, where zero means
+    no cap."""
     built = rebuild_experiment(exp)
     result = built["result"] if built else None
     if result is None or not result.trials:

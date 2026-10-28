@@ -1,17 +1,7 @@
-"""One trial, measured: predict, score, and record what happened.
-
-Every optimizer's inner loop is this function. It exists because a trial can now
-fail in ways that are not the run's fault — a model that raises on a particular
-configuration, one that stops answering — and all three optimizers must treat
-those identically, or a run's history would depend on which one produced it.
-
-It is also where scoring happens, now that models return predictions rather than
-scores: the validation labels stay here and never reach the model.
-
-A trial is evaluated over the folds of `core.splits.Splits` — one for a holdout,
-k for cross-validation — and the fold scores are averaged. Whichever it is, the
-trial still yields one score per metric, so nothing downstream (the figures, the
-incumbent, resume, `.ihpo`) has to know which happened.
+"""`evaluate_trial` is the inner loop of all three optimizers, so each records a
+failing model the same way. Scoring happens here, and validation labels never
+reach the model. Scores are averaged over the folds of `core.splits.Splits`, so
+holdout and cross-validation both yield one score per metric.
 """
 
 import traceback
@@ -24,13 +14,10 @@ from .timing import CANCELLED, FITTED, STATUS_CRASHED, STATUS_TIMEOUT, timed_eva
 
 
 def offers_probabilities(model) -> bool:
-    """Whether a model *in this process* actually implements probabilities.
-
-    Every model inherits the SDK's stub, so presence says nothing — the stub
-    marks itself. A built-in's method is never the stub (see
-    `core.models.base.Tunable`), so it says with `probabilities` instead. See `core.modelhost.harness._capabilities`, which asks the
-    same question of a model in its own process and has to survive a cached
-    environment holding an older SDK.
+    """`offers_probabilities` looks for a method other than the SDK's
+    self-marking stub, then reads the model's `probabilities` flag.
+    `core.modelhost.harness._capabilities` asks the same of a model in its own
+    process.
     """
     fn = getattr(model, "fit_predict_proba", None)
     return (callable(fn) and not getattr(fn, "_is_stub", False)
@@ -38,8 +25,6 @@ def offers_probabilities(model) -> bool:
 
 
 class NoProbabilities(ValueError):
-    """The metric a run optimizes is scored on class probabilities, and its
-    model does not give them."""
 
     def __init__(self, metric: str):
         super().__init__(f"{metric} is scored on class probabilities, and this model does "
@@ -48,13 +33,10 @@ class NoProbabilities(ValueError):
 
 
 def scoreable(metrics, model, primary_metric):
-    """*metrics* without those *model* cannot score, before the first trial.
-
-    The create form only lists the metrics scored on probabilities for a model
-    that gives them, but a model file can be replaced after that. Without the
-    probabilities those metrics fail every trial, so they are left out of the
-    run — unless one of them is what the run optimizes, which makes the run
-    impossible rather than partial, and raises `NoProbabilities`.
+    """A model file can change after the create form filtered the metrics, so
+    `scoreable` drops metrics that need missing probabilities. `scoreable`
+    raises `NoProbabilities` when the optimized metric is among them, since the
+    run would be impossible.
     """
     can = (model.supports_proba if hasattr(model, "supports_proba")
            else offers_probabilities(model))
@@ -65,9 +47,6 @@ def scoreable(metrics, model, primary_metric):
 
 
 def _history(splits, train_idx, metrics):
-    """What a forecast in this fold was made from, for the metrics that ask —
-    the fold's training values, their series and the season length — or None
-    when nothing being scored needs it."""
     if not any(m.needs == HISTORY for m in metrics.values()):
         return None
     series = getattr(splits, "series", None)
@@ -77,23 +56,11 @@ def _history(splits, train_idx, metrics):
 
 
 def null_scores(metrics, splits) -> dict:
-    """What a trial that produced nothing scores, per metric.
-
-    Not zero. Zero is what the four metrics this app shipped with happen to give
-    a model that knows nothing, and it was written down as though it were a
-    property of failure itself — so on an RMSE, where 0.0 is a *perfect* score, a
-    crashed trial would have been the best result in the run.
-
-    Each metric says instead what a model that knows nothing gets: still 0.0 for
-    accuracy and friends, a coin flip for ROC AUC, the null predictor's error for
-    an RMSE. Scored against the labels the trial would have been measured on —
-    every fold's validation rows, which under cross-validation is each row once
-    and under a holdout is the held-out slice.
-
-    A metric whose null score cannot be computed falls back to the worst end of
-    its range, or to 0.0 when it has no worst end. Defensive rather than
-    expected: this runs on the path that is already handling a failure, and
-    failing there would turn a recorded bad trial into a dead run.
+    """`null_scores` gives each metric the score of a model that knows nothing,
+    such as a coin flip for ROC AUC or the null predictor's error for RMSE. A
+    zero would make a crashed trial the best RMSE in the run. A metric whose
+    null score fails falls back to the worst end of its range or 0.0, because
+    raising here would kill the run.
     """
     import numpy as np
 
@@ -109,61 +76,24 @@ def null_scores(metrics, splits) -> dict:
 
 
 def keeps_its_fit(model) -> bool:
-    """Whether *model* can hand over what a trial fitted: a built-in, fitted
-    and asked in this process through its own `fit` and `predict` — not a model
-    in another process, whose fitted state never crosses back."""
+    """Only an in-process built-in can hand over its fit, since a remote model's
+    fitted state stays in the child."""
     from codesigner_model import OptimizableBaseModel, OutputBaseModel
 
     return isinstance(model, OutputBaseModel) and isinstance(model, OptimizableBaseModel)
 
 
 def evaluate_trial(model, config, splits, metrics, seed=0, keep=False):
-    """Run *config* through *model* over every fold of *splits*, and score it.
+    """`evaluate_trial` returns ``(scores, run_info)``, and with *keep* a model
+    passing `keeps_its_fit` fits the last fold through its own `fit` and returns
+    that partial model as ``run_info[FITTED]``.
 
-    With *keep*, a model that can (`keeps_its_fit`) is fitted on the last fold
-    through its own `fit` — the same one fit `fit_predict` makes — and what it
-    fitted is handed back as ``run_info[FITTED]``, for a trial worth keeping:
-    partially trained, on that fold's training rows only.
-
-    Returns ``(scores, run_info)``. A trial that failed — the model raised, was
-    stopped for exceeding its deadline, or returned something unscoreable —
-    scores what a model that knows nothing would score (see `null_scores`;
-    still 0.0 for every metric this app shipped with), with
-    ``run_info["status"]`` set, the reason under
-    ``additional_info["error"]`` and, where there is one worth keeping, the
-    traceback under ``additional_info["traceback"]``. That is a data point (this
-    configuration is unusable), not the end of the run; whether too many
-    failures should stop the search is the collector's decision, not this
-    function's.
-
-    The reason is one line, for a reader who wants to know what happened; the
-    traceback is for one who needs to know where. A timeout has no traceback
-    worth storing, since nothing over here is what went wrong.
-
-    A fold that fails fails the whole trial. A configuration that works on four
-    fifths of the data and dies on the rest is not one to hand the search as a
-    partial success.
-
-    A trial that ran out of time is recorded and the run goes on. Enforcing a
-    deadline means killing the child that missed it, so the next trial is
-    answered by a replacement — see `RemoteModel._live_process`. Whether a run
-    of timeouts is worth continuing is the collector's decision through
-    `max_failures`, the same as for any other failure.
-
-    `ModelProcessError` — the conversation itself breaking rather than the model
-    disagreeing with a configuration — is caught with everything else and
-    recorded as a crashed trial. It reads as one: the failure limits stop a run
-    that keeps producing them, and a broken child is replaced before the next
-    attempt rather than poisoning every trial after it.
-
-    `TrialCancelled` is the one outcome that is neither a success nor a failure.
-    The run was stopped while this trial was in flight, so nothing was measured
-    and there is nothing to say about the configuration — scoring it 0.0 would
-    put a trial that never happened in the history, at the worst possible score,
-    where every figure and every surrogate would read it as a measurement. It is
-    marked with `CANCELLED` instead and `TrialCollector.record` drops it, which
-    is where that decision belongs: it is the same for all three optimizers, and
-    all three already call `record`.
+    A failed trial (an exception, a timeout, unscoreable output, or a broken
+    child process) scores `null_scores` and records the status,
+    ``additional_info["error"]`` and any traceback. One failing fold fails the
+    whole trial, and the collector's failure limits decide whether the run
+    stops. A cancelled trial gets `CANCELLED` instead, and
+    `TrialCollector.record` drops the trial because nothing was measured.
     """
     failure = None
     detail = ""
@@ -172,19 +102,13 @@ def evaluate_trial(model, config, splits, metrics, seed=0, keep=False):
     fold_scores = []
     cpu_reported = 0.0
 
-    # A model in another process cannot be handed a slice — its copy of the
-    # dataset is over there — so it is told which fold instead. A local model
-    # needs nothing: it gets the arrays. Asked for rather than required, so the
-    # contract user models implement does not grow a method none of them wants.
+    # A model in another process holds its own copy of the dataset, so
+    # `use_fold` names the fold instead of slicing.
     select_fold = getattr(model, "use_fold", None)
 
-    # Whether anything being computed needs more than a label. Asked once, not
-    # per fold: it is a property of the metrics, and an SVM fits an internal
-    # calibration to answer it — several times the cost of the plain fit — so a
-    # run scoring nothing that needs probabilities must never take this path.
-    #
-    # `supports_proba` is False for a model in another process that did not say
-    # it could; a local model is asked directly.
+    # `wants_proba` is computed once from the metrics, because an SVM fits a
+    # costly calibration for probabilities. `supports_proba` is False for a
+    # remote model that never claimed them.
     wants_proba = any(m.needs == PROBABILITIES for m in metrics.values())
     can_proba = (model.supports_proba if hasattr(model, "supports_proba")
                  else offers_probabilities(model))
@@ -214,30 +138,24 @@ def evaluate_trial(model, config, splits, metrics, seed=0, keep=False):
                         config, splits.X[train_idx], splits.y[train_idx],
                         splits.X[val_idx], seed=seed)
             except TrialCancelled as exc:
-                # Not a failure, and not a measurement: the run was stopped
-                # while this trial was in flight, so nothing is known about this
-                # configuration. Marked rather than scored, and `record` drops
-                # it — see the module docstring.
+                # A cancelled trial is marked, then dropped by `record`.
                 failure, cancelled = str(exc), True
                 break
             except TrialTimeout as exc:
                 failure, status = str(exc), STATUS_TIMEOUT
-                # No traceback worth keeping: the exception is raised here, by
-                # the deadline expiring, so a traceback would show this loop
-                # rather than whatever the model was doing when time ran out.
+                # A traceback would show only the fold loop, where the deadline
+                # raised `TrialTimeout`.
                 break
             except ModelTrialError as exc:
-                # The model's own traceback, from over in its process. A
-                # `format_exc()` here would show this loop receiving the reply.
+                # The model's traceback comes from its own process.
                 failure, detail = str(exc), getattr(exc, "detail", "")
                 break
             except Exception as exc:  # noqa: BLE001 — a local model may fail any way it likes
                 failure, detail = f"{type(exc).__name__}: {exc}", traceback.format_exc()
                 break
 
-            # A model running in its own process timed itself: this thread's CPU
-            # clock measured none of the work. Summed, because each fold is a
-            # separate round trip. See core.modelhost.
+            # An out-of-process model reports its own CPU time, summed over
+            # folds.
             reported = getattr(model, "last_cpu_time", None)
             if reported is not None:
                 cpu_reported += reported
@@ -264,10 +182,8 @@ def evaluate_trial(model, config, splits, metrics, seed=0, keep=False):
         if detail:
             run_info["additional_info"]["traceback"] = detail
         if cancelled:
-            # The zeros above are returned because the shape has to be the same
-            # either way — every loop reads `all_scores[primary_metric]` — but
-            # they are never recorded. `status` stays CRASHED so that SMAC's
-            # `tell` still gets a value its own enum accepts on the way past.
+            # The null scores keep the return shape, and `record` discards them.
+            # `status` stays CRASHED so SMAC's `tell` gets a valid `StatusType`.
             run_info[CANCELLED] = True
 
     return scores, run_info

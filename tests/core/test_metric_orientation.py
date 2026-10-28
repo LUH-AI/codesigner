@@ -1,15 +1,6 @@
-"""What a score means, and who is allowed to be the best.
-
-Everything here used to be assumed rather than asked: that a bigger number is a
-better one, that the worst possible score is 0.0, and that the cost an optimizer
-minimises is `1 - score`. All three are true of the four metrics this app
-shipped with, and none of them is true of an RMSE, a log-loss, or a raw SMAC
-objective imported from somebody else's run.
-
-The tests that matter most here are the ones asserting **nothing changed** for
-the original four. The derivation is only worth having if it reproduces them
-exactly — a stored `.ihpo` carries costs written under the old rule, and a file
-that reads back differently than it was written is a corrupted file.
+"""A metric declares its direction, worst score and cost conversion. The
+original four metrics must reproduce higher-is-better, 0.0 and `1 - score`, or
+stored `.ihpo` costs read back wrong.
 """
 
 import pytest
@@ -30,13 +21,9 @@ def _trial(n, score, metric="accuracy", status=STATUS_SUCCESS, incumbent=None):
         run_info={"status": status, "time": 0.1}, origin="")
 
 
-# ── a failed trial is never the best one ─────────────────────────────────────
-
 def test_a_crash_does_not_become_the_incumbent():
-    """A latent bug before any of this: with every failure scoring 0.0 and the
-    incumbent seeded at -inf, the first crash of an all-failing run passed
-    `0.0 > -inf` and the page reported a crashed configuration as the best.
-    Being <= every real score is what kept it from being noticed."""
+    """With failures scoring 0.0 and the incumbent seeded at -inf, a crash would
+    pass `0.0 > -inf` and become the best."""
     collector = TrialCollector(stopping={"max_trials": 10, "max_failures": 5})
 
     collector.record({"a": 1}, 0.0, {"accuracy": 0.0},
@@ -47,9 +34,7 @@ def test_a_crash_does_not_become_the_incumbent():
 
 
 def test_a_crash_cannot_beat_a_real_trial_under_a_lower_is_better_metric():
-    """Where it stops being latent. A failure scores what a model that knows
-    nothing scores, which for an RMSE is a real number on the scale — and a bad
-    real trial can be numerically worse than it."""
+    """A failure's RMSE is a real number, and a bad real trial can score worse."""
     collector = TrialCollector(stopping={"max_trials": 10, "max_failures": 5},
                                metric=RMSE)
     collector.record({"a": 1}, 900.0, {"rmse": 900.0}, run_info={"status": STATUS_SUCCESS})
@@ -58,8 +43,6 @@ def test_a_crash_cannot_beat_a_real_trial_under_a_lower_is_better_metric():
     assert collector.incumbent_config == {"a": 1}
     assert collector.incumbent_score == 900.0
 
-
-# ── the incumbent runs in the metric's own direction ─────────────────────────
 
 def test_nothing_to_beat_yet_is_the_metric_s_own_worst_end():
     assert TrialCollector(stopping={"max_trials": 1}).incumbent_score == float("-inf")
@@ -88,15 +71,14 @@ def test_best_index_and_the_incumbent_curve_follow_the_metric():
         hyperparameter_importance={}, hyperparameter_importance_warning={},
         declared_metrics={"rmse": RMSE})
 
-    assert higher.best_index("accuracy") == 1        # the largest
-    assert lower.best_index("rmse") == 0             # the smallest
+    assert higher.best_index("accuracy") == 1        # largest
+    assert lower.best_index("rmse") == 0             # smallest
     assert higher.incumbent_scores("accuracy") == [0.4, 0.9, 0.9]
     assert lower.incumbent_scores("rmse") == [0.4, 0.4, 0.4]
 
 
 def test_rebasing_onto_a_lower_is_better_metric_recomputes_downwards():
-    """Changing the optimized metric re-reads the history under the new one —
-    including which direction "best so far" runs in."""
+    """The rebase also flips the direction of best-so-far."""
     trials = [
         TrialResult(trial=1, config={"a": 1}, scores={"accuracy": 0.9, "rmse": 800.0},
                     score=0.9, incumbent_score=0.9, incumbent_config={"a": 1},
@@ -118,11 +100,9 @@ def test_rebasing_onto_a_lower_is_better_metric_recomputes_downwards():
     assert [t.incumbent_score for t in after.trials] == [800.0, 100.0]
 
 
-# ── the stored cost ──────────────────────────────────────────────────────────
-
 def test_the_stored_cost_is_unchanged_for_every_original_metric(iris_splits, metrics):
-    """The claim the whole derivation rests on. A `.ihpo` written before today
-    carries `1 - score`; if this ever fails, every stored file reads back wrong."""
+    """Old `.ihpo` files carry `1 - score`, and every stored file depends on
+    this."""
     from core.optimizers import RandomOptimizer
     from core.models import RandomForestModel
 
@@ -137,9 +117,8 @@ def test_the_stored_cost_is_unchanged_for_every_original_metric(iris_splits, met
 
 
 def test_a_cost_metric_is_stored_without_conversion():
-    """An imported SMAC objective. SMAC minimises it and so do we, so it goes in
-    as it came out — which is what makes importing one honest rather than a
-    guess about what the number meant."""
+    """An imported SMAC objective is stored as it came, since both sides
+    minimise it."""
     cost = Metric(name="cost", fn=lambda *_: 0.0,
                   higher_is_better=False, bounds=(None, None))
     result = OptimizationResult(
@@ -174,9 +153,7 @@ def test_a_declared_metric_survives_the_round_trip():
 
 
 def test_the_registry_s_own_metrics_are_not_frozen_into_files():
-    """A file must not overrule the code. If a later build corrects what one of
-    these means, every file written before the correction would otherwise
-    reinstate the old reading."""
+    """Files must leave registry metric definitions to the code."""
     from core.optimizers import RandomOptimizer
 
     result = OptimizationResult(
@@ -190,10 +167,8 @@ def test_the_registry_s_own_metrics_are_not_frozen_into_files():
 
 
 def test_both_writers_agree_on_the_cost_they_store(iris_splits, metrics):
-    """`SmacOptimizer.serialize_result` copies SMAC's runhistory cost verbatim
-    while the base class derives it, so nothing but this holds the two
-    conventions together. If they drift, the same run stores different costs
-    depending on which optimizer produced it."""
+    """`SMACOptimizer.serialize_result` copies SMAC's cost while the base class
+    derives it, and only the comparison below ties the two."""
     from core.models import RandomForestModel
     from core.optimizers import RandomOptimizer, SMACOptimizer
 
@@ -203,18 +178,15 @@ def test_both_writers_agree_on_the_cost_they_store(iris_splits, metrics):
         metrics=metrics, primary_metric="accuracy", n_trials=3, seed=0)
 
     base = RandomOptimizer().serialize_result(result)
-    # No live SMAC directory, so this takes the pass-through branch —
-    # the same path a rebuilt result always takes on the detail page.
+    # `serialize_result` takes the pass-through branch without a live SMAC
+    # directory, as on the detail page.
     smac = SMACOptimizer().serialize_result(result)
 
     assert [e["cost"] for e in base["data"]] == [e["cost"] for e in smac["data"]]
 
 
-# ── what a trial that produced nothing scores ────────────────────────────────
-
 def test_a_failure_still_scores_zero_on_every_original_metric(iris_splits, metrics):
-    """The null score has to reproduce this exactly, or every stored file
-    disagrees with the code that reads it."""
+    """Stored files assume a failure scores zero."""
     from core.optimizers.trial import null_scores
 
     X_train, X_val, y_train, y_val = iris_splits
@@ -225,8 +197,7 @@ def test_a_failure_still_scores_zero_on_every_original_metric(iris_splits, metri
 
 
 def test_a_failure_scores_the_null_predictor_not_the_best_one(iris_splits):
-    """The whole point. On an RMSE, 0.0 is *perfect* — a crash scoring it would
-    be the best result in the run."""
+    """On an RMSE a crash scoring 0.0 would be the best result."""
     import numpy as np
 
     from core.optimizers.trial import null_scores
@@ -246,8 +217,7 @@ def test_a_failure_scores_the_null_predictor_not_the_best_one(iris_splits):
 
 
 def test_a_null_score_that_cannot_be_computed_does_not_kill_the_run(iris_splits):
-    """This runs on the path already handling a failure. Failing there would
-    turn a recorded bad trial into a dead run."""
+    """Raising on the failure path would kill the run."""
     from core.optimizers.trial import null_scores
     from core.splits import holdout
 
@@ -259,13 +229,9 @@ def test_a_null_score_that_cannot_be_computed_does_not_kill_the_run(iris_splits)
                         holdout(X_train, y_train, X_val, y_val)) == {"broken": 0.0}
 
 
-# ── nothing a file cannot hold ───────────────────────────────────────────────
-
 def test_no_best_yet_is_stored_as_null_rather_than_negative_infinity():
-    """A run whose opening trials all fail has an incumbent of -inf, and
-    `experiments/services/run.py` writes a partial result while that is still true.
-    `json.dumps` emits the bare token `-Infinity`, which Python reads back and
-    nothing else does — so such an .ihpo is not openable by a strict parser."""
+    """`json.dumps` writes a -inf incumbent as `-Infinity`, which strict parsers
+    reject."""
     import json
 
     from core.optimizers import RandomOptimizer
@@ -282,12 +248,11 @@ def test_no_best_yet_is_stored_as_null_rather_than_negative_infinity():
     stored = RandomOptimizer().serialize_result(partial)
 
     assert stored["best_score"] is None
-    json.dumps(stored, allow_nan=False)   # would raise on an infinity
+    json.dumps(stored, allow_nan=False)   # raises on infinity
 
 
 def test_a_stored_null_best_score_resumes_as_nothing_to_beat():
-    """It flows back through the collector, which already reads None as
-    "nothing has beaten anything yet" — so a resume needs no special case."""
+    """The collector already reads None as nothing to beat."""
     from core.optimizers import RandomOptimizer
 
     partial = OptimizationResult(

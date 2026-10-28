@@ -1,15 +1,7 @@
-"""The explanation games are told which way the metric runs.
-
-*What:* `HP_GAMES` map MAX/VAR/MIN onto tunability/sensitivity/mistunability,
-and those names hold only when bigger is better. Handed an optimizer cost — what
-a run imported from somebody else's output carries — MAX finds the configuration
-that performed *worst* and the page labels it the most tunable. So the training
-data handed to the explainer is turned, not the games.
-
-*How:* `_pair_trials_with_oriented_scores` is checked directly against both
-directions, and then against `fit_surrogate`, which must **not** be turned: it
-feeds partial dependence, whose axis is labelled with the metric and has to stay
-in the metric's own units.
+"""`HP_GAMES` names hold only when bigger is better, and
+`_pair_trials_with_oriented_scores` negates a cost before the games see the
+scores. `fit_surrogate` stays in the metric's units because partial dependence
+plots them.
 """
 
 import pytest
@@ -41,7 +33,6 @@ def _trials(metric_name, scores):
 
 
 def test_a_higher_is_better_metric_is_left_alone(config_space):
-    """Every metric this build ships is one, so nothing about them moves."""
     trials = _trials("accuracy", [0.2, 0.9, 0.5])
 
     raw = pair_trials_with_scores(config_space, trials, "accuracy")
@@ -52,11 +43,7 @@ def test_a_higher_is_better_metric_is_left_alone(config_space):
 
 
 def test_a_cost_is_negated(config_space):
-    """Negation, so the best trial carries the largest number.
-
-    Not `high - score`: an imported objective has no upper bound to subtract
-    from. Both preserve every difference between two scores, which is what the
-    games are built out of.
+    """Negation needs no upper bound, which an imported objective lacks.
     """
     trials = _trials("smac:cost", [0.2, 0.9, 0.5])
 
@@ -64,11 +51,11 @@ def test_a_cost_is_negated(config_space):
         config_space, trials, "smac:cost", COST)
 
     assert [s for _, s in oriented] == [-0.2, -0.9, -0.5]
-    assert max(s for _, s in oriented) == -0.2  # the cheapest trial
+    assert max(s for _, s in oriented) == -0.2  # cheapest trial
 
 
 def test_differences_survive_the_turn(config_space):
-    """The games read gaps between scores, and the gaps are unchanged."""
+    """The games read gaps, which stay unchanged."""
     trials = _trials("smac:cost", [0.2, 0.9])
 
     (_, a), (_, b) = _pair_trials_with_oriented_scores(
@@ -78,7 +65,7 @@ def test_differences_survive_the_turn(config_space):
 
 
 def test_the_registry_answers_when_no_metric_is_handed_over(config_space):
-    """Every call site that predates this passes nothing and is unaffected."""
+    """Older call sites pass no metric."""
     trials = _trials("accuracy", [0.2, 0.9, 0.5])
 
     oriented = _pair_trials_with_oriented_scores(config_space, trials, "accuracy")
@@ -87,12 +74,8 @@ def test_the_registry_answers_when_no_metric_is_handed_over(config_space):
 
 
 def test_the_partial_dependence_surrogate_is_not_turned(config_space):
-    """`fit_surrogate` stays in the metric's own units, deliberately.
-
-    Partial dependence labels its y-axis with the metric, and the uncertainty
-    field's spread across trees is the same either way — so a surrogate fitted
-    on negated costs would draw a PDP whose axis said "smac:cost" and whose
-    values were its negation.
+    """Negated predictions would contradict the metric label on the partial
+    dependence axis.
     """
     from core.analytics import fit_surrogate
 
@@ -102,7 +85,7 @@ def test_the_partial_dependence_surrogate_is_not_turned(config_space):
 
     assert warning is None
     assert surrogate is not None
-    # Predictions sit inside the raw cost range, not its negation.
+    # Predictions stay inside the raw cost range.
     predictions = surrogate.predict([c.get_array() for c, _ in
                                      pair_trials_with_scores(config_space, trials,
                                                               "smac:cost")])

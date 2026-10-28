@@ -1,14 +1,5 @@
-"""A SMAC run, imported, browsed, and exported again.
-
-*What:* the end of the import path — the upload form, the row it creates, what
-the detail page does with it, and the round trip back out to an `.ihpo`. The
-claim being pinned is the one that made the work worth doing: with the config
-space hoisted out of the file, **every figure draws** for a run that has no
-model and no dataset behind it.
-
-*How:* posts `tests/fixtures/smac_run`'s five files at the import page the way a
-directory picker would, then asks each figure in the catalog to draw and each
-deferred computation to run.
+"""With the config space hoisted out of the file, the trial-based figures draw
+for an imported SMAC run with no model or dataset.
 """
 
 import json
@@ -29,10 +20,8 @@ pytestmark = pytest.mark.django_db
 
 
 def _uploads(names=None):
-    """The fixture run's files as a directory picker would post them.
-
-    Django keeps only the basename of an upload, so that is what the browser's
-    relative paths arrive as — which is why the importer matches on basenames.
+    """Django keeps only an upload's basename, so the importer matches on
+    basenames.
     """
     return [SimpleUploadedFile(p.name, p.read_bytes(), "application/json")
             for p in sorted(RUN_DIR.glob("*.json"))
@@ -46,7 +35,7 @@ def _import(client, uploads=None):
 
 
 def _imported():
-    """The row, built through the importer without going via the page."""
+    """`_imported` builds the row through the importer directly."""
     from core.smac_import import snapshot_from_smac
     from experiments.services import snapshot as adapter
 
@@ -55,7 +44,7 @@ def _imported():
         io.parse(io.to_bytes(snapshot_from_smac(files))))
 
 
-# ── the upload ───────────────────────────────────────────────────────────────
+# Upload
 
 def test_the_import_page_offers_a_directory_picker(client):
     body = client.get(reverse("ui:import_experiment")).content.decode()
@@ -79,10 +68,8 @@ def test_uploading_a_run_creates_an_experiment(client):
 
 
 def test_two_runs_at_once_are_refused_rather_than_blended(client):
-    """Django keeps only basenames, so two runs cannot be told apart.
-
-    A runhistory read against another run's config space is not a run that
-    happened, so this is refused rather than resolved by picking one.
+    """A runhistory read against another run's config space never happened, so
+    two runs are refused.
     """
     from experiments.models import Experiment
 
@@ -105,10 +92,10 @@ def test_something_that_is_not_a_run_is_refused_with_a_reason(client):
     assert not Experiment.objects.exists()
 
 
-# ── what the page does with it ───────────────────────────────────────────────
+# Detail page
 
 def test_the_detail_page_renders_and_offers_no_run(client):
-    """Read-only: there is no dataset, no model, and nothing to verify one with."""
+    """A read-only run has no dataset and no model."""
     exp = _imported()
 
     body = client.get(reverse("ui:experiment_detail", args=[exp.pk])).content.decode()
@@ -117,11 +104,8 @@ def test_the_detail_page_renders_and_offers_no_run(client):
 
 
 def test_the_page_does_not_invent_an_evaluation_scheme():
-    """A SMAC scenario records no split, so the box says so.
-
-    The columns still hold their defaults — they have to hold something — and
-    reporting those as fact would put a 20% holdout on the page for a run that
-    may have used no such thing.
+    """The columns hold defaults, and reporting them as fact would claim a 20%
+    holdout.
     """
     from experiments.services.model_export import evaluation_label
 
@@ -129,7 +113,6 @@ def test_the_page_does_not_invent_an_evaluation_scheme():
 
 
 def test_every_trial_based_figure_draws():
-    """The claim the config-space hoist was for."""
     from experiments.services.snapshot import config_space_for, rebuild_experiment
 
     built = rebuild_experiment(_imported())
@@ -154,11 +137,8 @@ def test_every_trial_based_figure_draws():
 
 
 def test_the_analytics_can_be_computed_afterwards(client):
-    """An imported run's games start empty, like a cancelled run's, and fill in.
-
-    Nothing new was needed for this: `experiment_compute_analytics` already
-    recomputes from the trials, and the trials plus the config space are
-    everything HyperSHAP needs — no dataset, no model.
+    """`experiment_compute_analytics` needs only the trials and the config
+    space.
     """
     exp = _imported()
     assert exp.data.result is not None
@@ -173,11 +153,7 @@ def test_the_analytics_can_be_computed_afterwards(client):
 
 
 def test_the_explanation_is_oriented_to_the_cost():
-    """The incumbent's own hyperparameters helped, and the figure says so.
-
-    Read against a cost as though bigger were better, every sign here inverts
-    and the best configuration's best hyperparameter reads as the one that hurt
-    it most.
+    """Read as a gain, a cost would invert every sign.
     """
     from experiments.services.snapshot import rebuild_experiment
     from ui.views.analytics import _local_ablation_data
@@ -192,14 +168,11 @@ def test_the_explanation_is_oriented_to_the_cost():
     assert effects["depth"] > 0
 
 
-# ── back out again ───────────────────────────────────────────────────────────
+# Export
 
 def test_an_imported_run_exports_and_re_imports(client):
-    """Including the two things that are easy to lose on the way through.
-
-    `kind: external` — recomputed as "registry" it names a model the registry
-    cannot resolve, and the experiment stops rebuilding at all — and `space`,
-    without which the re-imported copy has no search space to draw from.
+    """A recomputed `kind: registry` would stop the rebuild, and a missing
+    `space` leaves the copy nothing to draw.
     """
     from experiments.services import snapshot as adapter
 

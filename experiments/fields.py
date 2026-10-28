@@ -1,11 +1,5 @@
-"""A JSONField that survives non-finite floats.
-
-SMAC's stored scenario state contains infinities (e.g. walltime_limit = inf,
-meaning "no limit"). Python serializes those as the `Infinity` token, which
-SQLite's JSON column rejects as invalid JSON. This field stores such values as
-a sentinel object and restores them on read, so the database holds valid JSON
-without losing fidelity — the plain .ihpo file format keeps the `Infinity`
-token, which is fine there.
+"""`SafeJSONField` stores the non-finite floats in SMAC's scenario state as
+sentinel objects, because SQLite's JSON column rejects the `Infinity` token.
 """
 
 import math
@@ -39,10 +33,9 @@ def _decode(obj):
 
 
 class SafeJSONField(models.JSONField):
-    """JSONField that round-trips inf/-inf/nan losslessly as valid JSON."""
+    """`SafeJSONField` keeps inf and nan intact."""
 
     def get_prep_value(self, value):
-        # Hand the backend a sanitized object; it serializes to valid JSON.
         if value is None:
             return value
         return super().get_prep_value(_encode(value))

@@ -1,12 +1,6 @@
-"""The target the Run form opens on, and what "reaching" it means.
-
-The criterion is a score to *surpass*, strictly — and the field is filled with
-the incumbent's own score, so the two go together: an experiment sitting at
-0.9667 is set up to run until something does better than 0.9667, and stopping on
-an equal score would end the run without having improved on anything.
-
-The number is per metric, because the incumbent is, so the field follows the
-metric dropdown until someone types in it.
+"""The target is a score to surpass strictly, and the field opens on the
+incumbent's score per metric. The field follows the metric dropdown until
+someone types in it.
 """
 
 import json
@@ -22,7 +16,7 @@ pytestmark = pytest.mark.django_db
 
 
 def _result(**scores):
-    """A one-trial result whose incumbent scores exactly *scores*."""
+    """`_result` builds one trial scoring *scores*."""
     return {
         "stats": {"submitted": 1, "finished": 1, "running": 0},
         "data": [{"config_id": 1, "cost": 0.0, "scores": scores,
@@ -55,7 +49,7 @@ def _field(client, exp):
     return body[body.rindex("<", 0, at):body.index(">", at)], body
 
 
-# ── the wording, and the behaviour under it ──────────────────────────────────
+# Wording and behaviour
 
 def test_the_field_asks_to_be_surpassed(client):
     _, body = _field(client, _experiment())
@@ -64,7 +58,6 @@ def test_the_field_asks_to_be_surpassed(client):
 
 
 def test_an_equal_score_does_not_end_the_run(client):
-    """The behaviour the wording promises, at the boundary that matters."""
     from core.optimizers.base import TrialCollector
 
     collector = TrialCollector(stopping={"target_score": 0.5})
@@ -78,7 +71,7 @@ def test_an_equal_score_does_not_end_the_run(client):
     assert collector.stopped_by == "target_score"
 
 
-# ── the number it opens on ───────────────────────────────────────────────────
+# Starting value
 
 def test_the_target_starts_at_the_score_there_is_to_beat(client):
     exp = _experiment(_result(accuracy=0.9667, f1=0.9))
@@ -89,8 +82,7 @@ def test_the_target_starts_at_the_score_there_is_to_beat(client):
 
 
 def test_an_experiment_with_no_trials_yet_leaves_it_empty(client):
-    """Nothing to beat, so nothing to fill in — and a filled field is an active
-    criterion, which would bound a run nobody asked to bound."""
+    """A filled field is an active criterion and would bound the run."""
     field, _ = _field(client, _experiment())
 
     assert 'value=""' in field
@@ -98,14 +90,11 @@ def test_an_experiment_with_no_trials_yet_leaves_it_empty(client):
 
 @pytest.mark.parametrize("score", [0.96663, 1 / 3, 0.8, 0.5000049])
 def test_the_shown_target_is_never_below_the_score_it_came_from(score):
-    """Rounded for the field, but rounding *down* would mean the incumbent
-    already surpasses the target — the run would end after one trial without
-    improving on anything."""
+    """Rounding down would end the run after one trial without improvement."""
     assert float(surpass_target(score)) >= score
 
 
 def test_the_target_is_rounded_rather_than_shown_in_full(client):
-    """A raw float is fifteen digits of noise in a form field."""
     exp = _experiment(_result(accuracy=0.9666666666666667, f1=0.9))
 
     field, _ = _field(client, exp)
@@ -113,11 +102,10 @@ def test_the_target_is_rounded_rather_than_shown_in_full(client):
     assert 'value="0.9667"' in field
 
 
-# ── following the metric ─────────────────────────────────────────────────────
+# Following the metric
 
 def test_every_metrics_target_is_on_the_page(client):
-    """The incumbent is per metric, so a number left over from the previous one
-    would be nonsense against the new one."""
+    """Each metric gets its own target, since the incumbent is per metric."""
     exp = _experiment(_result(accuracy=0.9667, f1=0.5))
 
     _, body = _field(client, exp)
@@ -129,8 +117,7 @@ def test_every_metrics_target_is_on_the_page(client):
 
 
 def test_typing_a_target_stops_the_page_replacing_it(client):
-    """At the point someone has chosen a target, keeping it up to date with the
-    dropdown is not help."""
+    """A typed target stays when the dropdown changes."""
     exp = _experiment(_result(accuracy=0.9667, f1=0.5))
 
     _, body = _field(client, exp)
@@ -140,15 +127,12 @@ def test_typing_a_target_stops_the_page_replacing_it(client):
     assert "if (untouched) field.value = targets[metric.value]" in body
 
 
-# ── what counts as out of range ──────────────────────────────────────────────
-#
-# The bound is the metric's, not a constant. A target is compared against a
-# score, so 0-to-1 is accuracy's range rather than every metric's — and an
-# unbounded one (an imported optimizer cost) bounds a target not at all.
+# The range is the metric's own, and an unbounded metric (an imported optimizer
+# cost) leaves the target unbounded.
 
 
 def _posted(metric_name, **fields):
-    """`_posted_stopping` over a form carrying *fields*, optimizing *metric_name*."""
+    """`_posted` posts *fields* through `_posted_stopping`."""
     from django.test import RequestFactory
 
     from ui.views.runs import _posted_stopping
@@ -166,11 +150,7 @@ def test_a_target_above_the_metrics_range_is_clamped():
 
 
 def test_a_negative_target_is_clamped_rather_than_dropped():
-    """The bug this replaces: below-range meant *absent*.
-
-    A run asking only for a target of -1 was then refused for having no
-    stopping criterion at all — which reports a different problem from the one
-    the reader created, and gives no hint that the number was the issue.
+    """Dropping a target of -1 would refuse the run for lacking any criterion.
     """
     stopping = _posted("accuracy", target_score="-1")
 
@@ -179,11 +159,8 @@ def test_a_negative_target_is_clamped_rather_than_dropped():
 
 
 def test_an_unbounded_metric_accepts_a_negative_target():
-    """Nothing to clamp to, so nothing is clamped.
-
-    A metric this build has never heard of falls back to the one convention
-    there was, so the case is exercised through a metric that *is* declared
-    unbounded — which is what an imported run carries.
+    """An imported run declares its metric unbounded, and nothing clamps the
+    target.
     """
     from unittest.mock import patch
 
@@ -198,7 +175,6 @@ def test_an_unbounded_metric_accepts_a_negative_target():
 
 
 def test_the_field_takes_a_minus_sign_and_an_exponent(client):
-    """A text input patterned `[0-9]*[.,]?[0-9]*` rejected both."""
     field, _ = _field(client, _experiment())
 
     assert 'type="number"' in field

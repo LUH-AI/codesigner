@@ -1,26 +1,7 @@
-"""How an experiment page's figures are arranged: which tab, what order, how wide.
-
-An arrangement is a dict, stored as JSON:
-
-    {"version": 1,
-     "tabs": {"overview":    [{"key": "performance_over_time", "w": 2, "c": 0}, ...],
-              "hypershap":   [...], "acquisition": [...], "misc": [...]}}
-
-Each tab is an ordered list of slots, and each slot names a figure, how many of
-the grid's four columns it takes, and which column it starts in. A figure is on
-its home tab (`Figure.home_tab`) always, and on Overview as well when it has
-been pinned there; the two slots are independent, so it can be wide on one and
-narrow on the other.
-
-The site's default is `ui/figure_layout.toml`, and nothing else: there is no
-order implied by the catalog and no default stored in the database. The file is
-required, and `check` — run at start-up as a system check — refuses one that is
-missing, unreadable or does not place every figure.
-
-Everything that reads or writes an arrangement goes through `normalize`. A
-stored one outlives the catalog it was saved against — figures are added,
-renamed, given a different shape — and `normalize` turns whatever was stored
-into one that is valid now, taking anything it has to fill in from the default.
+"""An arrangement maps each tab to ordered slots `{"key", "w", "c"}`, giving the
+figure, its width out of four grid columns, and its start column. A figure sits
+on its home tab and may also be pinned to Overview with an independent slot.
+Every read or write goes through `normalize`.
 """
 
 import copy
@@ -35,27 +16,26 @@ from .figures.data_handling import DATA_PANELS, DATA_PANELS_BY_KEY, SECTIONS
 
 VERSION = 1
 
-#: The file's table for the Data Handling page, and for a draft setup's own
-#: Overview of it; everything outside the two is the dashboard's.
+#: The `[data]` and `[setup]` tables hold Data Handling layouts, and every other
+#: table is the dashboard's.
 DATA_TABLE = "data"
 SETUP_TABLE = "setup"
 
-#: The site's default arrangement. Required; see the file for its format.
+#: Site default arrangement; required.
 DEFAULT_PATH = Path(__file__).with_name("figure_layout.toml")
 
 
 class LayoutFileError(Exception):
-    """`ui/figure_layout.toml` is missing, unreadable, or wrong."""
+    """`LayoutFileError` flags `ui/figure_layout.toml` errors."""
 
 
 def _arrangeable():
-    """The figures a tab can hold. Not the sidebar's."""
     return [f for f in FIGURES if not f.in_sidebar]
 
 
 def _column(value, w):
-    """*value* as the column a figure *w* wide starts in on the four-column
-    grid, or None: the first of a pair when two wide, the first when four."""
+    """`_column` checks that a figure *w* wide can start at *value* on the
+    four-column grid, and returns None otherwise."""
     if isinstance(value, bool) or not isinstance(value, int):
         return None
     return value if 0 <= value and value + w <= 4 and value % w == 0 else None
@@ -73,10 +53,8 @@ def _read_file(path):
 
 
 def _read_tabs(raw, tab_names, by_key, arrangeable, problems, *, pinned=None, prefix=""):
-    """One page's tabs from the file: `{tab: [{"key", "w", "c"}]}`, checked.
-
-    Every panel in *arrangeable* must be on its home tab exactly once. The
-    *pinned* tab, if the page has one, may hold any of them besides.
+    """Every panel in *arrangeable* must sit on its home tab once, and the
+    *pinned* tab may hold any panel too.
     """
     unknown = sorted(set(raw) - set(tab_names))
     if unknown:
@@ -125,11 +103,7 @@ def _read_tabs(raw, tab_names, by_key, arrangeable, problems, *, pinned=None, pr
 
 @lru_cache
 def read_default(path=None) -> dict:
-    """The dashboard's default arrangement in *path*, checked; raises
-    `LayoutFileError`.
-
-    The file counts columns from 1, as a person placing figures does; an
-    arrangement counts them from 0.
+    """The file counts columns from 1, and an arrangement counts from 0.
     """
     path, raw = _read_file(path)
     problems = []
@@ -141,8 +115,6 @@ def read_default(path=None) -> dict:
 
 
 def _read_table(path, name, tab_keys, arrangeable, pinned=None) -> dict:
-    """The `[name]` table of the file at *path*: Data Handling panels on
-    *tab_keys*, checked; raises `LayoutFileError`."""
     path, raw = _read_file(path)
     table = raw.get(name)
     if not isinstance(table, dict):
@@ -157,24 +129,20 @@ def _read_table(path, name, tab_keys, arrangeable, pinned=None) -> dict:
 
 @lru_cache
 def read_data_default(path=None) -> dict:
-    """The Data Handling page's arrangement in *path* (its `[data]` table).
-    `{section: [{"key", "w", "c"}]}`."""
     return _read_table(path, DATA_TABLE, [s.slug for s in SECTIONS], DATA_PANELS)
 
 
 @lru_cache
 def read_setup_default(path=None) -> list:
-    """A draft's setup Overview in *path* (its `[setup]` table). `[{"key", "w",
-    "c"}]`: any Data Handling panel, as the dashboard's Overview holds figures
-    whose home is another tab."""
+    """The `[setup]` table may hold any Data Handling panel, like the
+    dashboard's Overview."""
     return _read_table(path, SETUP_TABLE, [OVERVIEW], (), pinned=OVERVIEW)[OVERVIEW]
 
 
 def data_tabs(exp, setup=False) -> list:
-    """The Data Handling page's tabs for *exp*, as `placed` gives the
-    dashboard's: each section with its slots, a slot being its panel, its width
-    and its column. The site's arrangement, for every reader. With *setup*, a
-    draft's: its Overview is the setup's own (`[setup]`)."""
+    """`data_tabs` shapes *exp*'s Data Handling tabs like `placed`, from the
+    site arrangement for every reader. With *setup*, the Overview comes from
+    `[setup]`."""
     arranged = dict(read_data_default())
     if setup:
         arranged[SECTIONS[0].slug] = read_setup_default()
@@ -187,14 +155,12 @@ def data_tabs(exp, setup=False) -> list:
 
 
 def default_layout() -> dict:
-    """The site's default arrangement: `ui/figure_layout.toml`."""
     return copy.deepcopy(read_default())
 
 
 def check(app_configs=None, **kwargs):
-    """The system check that makes the file required: the app will not start
-    without a readable one that places every figure and every Data Handling
-    panel."""
+    """Django's system check fails unless the file places every figure and Data
+    Handling panel."""
     from django.core.checks import Error
     try:
         read_default()
@@ -209,7 +175,6 @@ def check(app_configs=None, **kwargs):
 
 
 def _from_default(tab, key):
-    """*key*'s slot on *tab* in the default, if it has one there."""
     return next((dict(s) for s in read_default()["tabs"][tab] if s["key"] == key), None)
 
 
@@ -223,21 +188,11 @@ def _width(figure, value, tab) -> int:
 
 
 def normalize(layout) -> dict:
-    """*layout*, made valid against the catalog as it is now.
-
-    - anything that is not an arrangement is the default;
-    - a slot naming no figure, a figure off its home tab, or a figure twice on
-      one tab is dropped — Overview is the one tab that may hold any figure;
-    - a width the figure's shape does not allow is the widest it allows that
-      is no wider — three columns becomes two — and a width that is not a
-      number is the default's;
-    - a column (`c`, which of the four a figure starts in) that its width
-      cannot start in is dropped, and the page finds it one;
-    - a figure the stored arrangement has never heard of — added since it was
-      saved — goes at the end of its home tab as the default has it, and on
-      Overview too if the default pins it. "Never heard of" is read off the
-      home tabs, which always hold every figure: a figure missing from
-      Overview alone was unpinned, and stays unpinned.
+    """`normalize` drops slots naming no figure, off their home tab outside
+    Overview, or repeated on a tab. An unallowed width shrinks to the widest
+    allowed, and an invalid column is dropped for the page to choose. A figure
+    absent from every home tab is new and goes where the default puts it, while
+    a figure absent only from Overview stays unpinned.
     """
     if not isinstance(layout, dict) or not isinstance(layout.get("tabs"), dict):
         return default_layout()
@@ -275,12 +230,8 @@ def normalize(layout) -> dict:
 
 
 def placed(layout, shown) -> list:
-    """The tabs as the page renders them: each a list of slots, a slot being
-    its figure, its width and the widths it may be.
-
-    *shown* is the figures this experiment shows (its `show_<key>` settings).
-    One that is switched off is skipped here but kept in the arrangement, so
-    switching it back on puts it back where it was.
+    """`placed` skips a figure switched off in *shown* but keeps the figure's
+    slot in the arrangement.
     """
     shown = {f.key for f in shown}
     layout = normalize(layout)
@@ -297,30 +248,22 @@ def placed(layout, shown) -> list:
     return tabs
 
 
-# ── where an arrangement comes from ──────────────────────────────────────────
-#
-# Three places, most particular first: this reader's arrangement of this
-# experiment, this reader's default for any experiment, and the site's default
-# file. Each is normalised as it is read, so a stale one is repaired rather
-# than passed on.
+# Sources: this experiment's arrangement, the reader's default, the site file.
 
 def user_default(user) -> dict:
-    """What an experiment *user* has not arranged opens on: their own default,
-    or the site's."""
+    """`user_default` returns *user*'s own default, else the site's."""
     from .models import DefaultFigureLayout
     row = DefaultFigureLayout.objects.filter(user=account(user)).first()
     return normalize(row.layout) if row else default_layout()
 
 
 def layout_for(experiment, user) -> dict:
-    """*user*'s arrangement of *experiment*, falling back to their default."""
     from .models import FigureLayout
     row = FigureLayout.objects.filter(experiment=experiment, user=account(user)).first()
     return normalize(row.layout) if row else user_default(user)
 
 
 def save(experiment, user, layout) -> dict:
-    """Keep *layout* as *user*'s for *experiment*, normalised; returns it."""
     from .models import FigureLayout
     layout = normalize(layout)
     FigureLayout.objects.update_or_create(experiment=experiment, user=account(user),
@@ -329,15 +272,14 @@ def save(experiment, user, layout) -> dict:
 
 
 def reset(experiment, user) -> dict:
-    """Forget *user*'s arrangement of *experiment*, so their default applies
-    again; returns that."""
+    """`reset` drops the arrangement and returns *user*'s default."""
     from .models import FigureLayout
     FigureLayout.objects.filter(experiment=experiment, user=account(user)).delete()
     return user_default(user)
 
 
 def save_user_default(user, layout) -> dict:
-    """Make *layout* what every experiment *user* has not arranged opens on."""
+    """`save_user_default` writes *user*'s default arrangement."""
     from .models import DefaultFigureLayout
     layout = normalize(layout)
     DefaultFigureLayout.objects.update_or_create(user=account(user), defaults={"layout": layout})
@@ -345,7 +287,7 @@ def save_user_default(user, layout) -> dict:
 
 
 def reset_user_default(user) -> dict:
-    """Forget *user*'s default, so the site's applies again; returns that."""
+    """`reset_user_default` drops *user*'s default for the site's."""
     from .models import DefaultFigureLayout
     DefaultFigureLayout.objects.filter(user=account(user)).delete()
     return default_layout()

@@ -23,19 +23,13 @@ from ..formatting import human
 _ACTIVE = ["pending", "running"]
 
 
-#: Reaches the console handler configured in settings.LOGGING. Used only where
-#: something went wrong that the reader cannot be told about, because the thing
-#: they asked for succeeded anyway.
 logger = logging.getLogger(__name__)
 
 
 def _model_available(exp):
-    """Whether *exp*'s model can be built to run it.
-
-    Registry models are always available. A custom model needs its .py present,
-    the feature enabled, and either a prepared environment or permission to be
-    imported into this process. Reads `env_status` — a column — so rendering a
-    page never shells out.
+    """Registry models always run. A custom model needs its .py and
+    `ALLOW_CUSTOM_MODELS`, plus a ready environment or, with `REQUIRE_LOGIN` off
+    and no environment pending, in-process import.
     """
     if exp.data.model_name in MODELS:
         return True
@@ -51,11 +45,9 @@ def _group_by_pk(groups, pk):
 
 
 def _chosen_group(request, context):
-    """The group an import goes in, or an error, for the pages with no Form.
-
-    `(group, None)` when it was chosen, or there was nothing to choose — then
-    `Experiment.save` files it in the one group there is. `(None, message)`
-    when a choice was needed and none of this person's groups was given.
+    """`_chosen_group` returns `(None, None)` when there is no group to choose,
+    leaving `Experiment.save` to pick one. A needed but missing choice gives
+    `(None, message)`.
     """
     groups = groups_to_choose_from(request.user)
     context["groups"] = groups
@@ -71,13 +63,11 @@ def _chosen_group(request, context):
 
 
 def _ownership(request, exp):
-    """Who this experiment belongs to, or None when the instance has no
-    accounts and there is nothing to say."""
+    """`_ownership` returns ownership details, or None without accounts."""
     if not settings.REQUIRE_LOGIN:
         return None
     from access.policy import membership_in, share_of
-    # Where sharing is done, for somebody who can open it — a member of the
-    # experiment's group. Anybody else would be linked to a 404.
+    # Only group members get the group link, since others would hit a 404.
     in_group = membership_in(request.user, exp.group_id) is not None
     return {"owner": exp.owner, "mine": exp.owner_id == request.user.pk,
             "shared_with": exp.shares.count(),
@@ -88,11 +78,8 @@ def _ownership(request, exp):
 
 
 def surpass_target(score: float, places: int = 4) -> str:
-    """The incumbent's score, as a target for the next run to beat.
-
-    Rounded for the field it goes in, but never *below* the score itself: the
-    criterion is a strict improvement, so a target a hair under what is already
-    in hand would be met before the run started and end it after one trial.
+    """`surpass_target` rounds the incumbent's score up, since a target under
+    the score would meet the strict-improvement criterion at once.
     """
     shown = round(score, places)
     if shown < score:
@@ -109,42 +96,31 @@ def _posted_number(request, key: str, default: float, *, low: float) -> float:
 
 
 def _judges_priors(exp):
-    """Whether the experiment's optimizer, as configured now, can judge a
-    prior — which decides whether "Evaluate Prior" is offered."""
     optimizer = optimizer_class(exp.data.optimizer_name)
     return bool(optimizer) and optimizer.judges_priors(exp.data.optimizer_params or {})
 
 
 def _prior_judging_context(exp):
-    """What the prior figure's "Evaluate Prior" controls open on."""
     return {"judges_priors": _judges_priors(exp),
             "prior_top_k": resolve_settings(exp)["prior_acceptance_top_k"],
             "prior_top_k_bounds": SETTING_BOUNDS["prior_acceptance_top_k"]}
 
 
 def _best_panels(result, metric_names):
-    """Each metric's best trial so far, as the best-configuration cards show
-    it."""
     panels = []
     for m in metric_names:
         best_idx = result.best_index(m)
-        # No trial carries a score for this metric, so there is no best trial to
-        # describe and no selection to open on — `best_index` documents None as
-        # the answer a caller handles. The panel is left out rather than built
-        # around a trial that isn't there, which is the same decline the
-        # per-metric figures make through `has_every_score`. The page script
-        # keys its maps by metric and the Run form's incumbent target is built
-        # from these panels, so both simply have nothing for this one.
+        # `best_index` returns None when no trial scores a metric, and such a
+        # metric gets no panel, as with `has_every_score` in the per-metric
+        # figures.
         if best_idx is None:
             continue
         best = result.trials[best_idx]
         panels.append({
             "metric": m,
             "best_n": best.trial,
-            # The array index (as opposed to best_n, the trial's own number)
-            # of the metric's best trial — what the local-explanation fetch
-            # asks for by default, before any click. The same index
-            # click-to-select already works in (Plotly's pointIndex).
+            # `best_idx` is the array index, unlike `best_n`, and matches
+            # Plotly's pointIndex for the local-explanation fetch.
             "best_idx": best_idx,
             "best_score": best.scores[m],
             "best_config": list(best.config.items()),
@@ -153,13 +129,9 @@ def _best_panels(result, metric_names):
 
 
 def _settle_storage(request, exp) -> bool:
-    """Make room in *exp*'s group for what creating it stored, or undo it.
-
-    Datasets and model files come first: kept trial models are deleted, the
-    stalest first, until the group is within its limit, and the person is told
-    how many. Only when the datasets and model files alone are over is the
-    experiment refused — deleted again, files and all. See
-    experiments/services/storage.py.
+    """`_settle_storage` deletes kept trial models, stalest first, until *exp*'s
+    group fits its limit. The experiment is refused and its files deleted only
+    when datasets and model files alone exceed the limit.
     """
     group = exp.group
     if group is None or (not exp.data.dataset and not exp.data.model_file):
@@ -189,7 +161,6 @@ def _plot_json(plot):
 
 
 def _target_name(exp):
-    """The dataset's target column, for the forecast's axis."""
     try:
         return datasets.target_of(exp.data.dataset_path())[0]
     except Exception:  # noqa: BLE001 — an axis title is not worth an error
@@ -197,11 +168,8 @@ def _target_name(exp):
 
 
 def _baseline_index(request, result):
-    """The `baseline` query parameter as a trial index, or None when absent.
-
-    The trial every HyperSHAP explanation on the page is measured from, when it
-    is not the config space's default. Raises ValueError for a value naming no
-    trial, which the caller answers with a 400 like any other bad index.
+    """`_baseline_index` returns None when `baseline` is absent and raises
+    ValueError for an unknown trial, which callers answer with a 400.
     """
     raw = request.GET.get("baseline", "")
     if raw == "":
@@ -211,13 +179,9 @@ def _baseline_index(request, result):
     return int(raw)
 
 
-#: How often the run-status fragment is polled, in seconds. The floor is what a
-#: poll can usefully be — the run writes at most every
-#: `PARTIAL_RESULT_SECONDS`, so anything faster is a request that can only
-#: answer "nothing yet". Above it the interval follows the trials themselves:
-#: polling ten times per trial is ten times the traffic for one new row, and on
-#: a real dataset a trial is minutes rather than milliseconds. The ceiling keeps
-#: a long-trial run from feeling stopped.
+#: The floor matches the run's write interval, `PARTIAL_RESULT_SECONDS`, and
+#: `POLL_MAX_SECONDS` keeps a long-trial run from looking stopped. Between them
+#: the interval follows trial durations.
 POLL_MIN_SECONDS = 5
 
 
@@ -225,17 +189,9 @@ POLL_MAX_SECONDS = 30
 
 
 def _poll_seconds(exp) -> int:
-    """How long the page should wait before asking again.
-
-    Read off the trials already stored — their own recorded durations — so it
-    adapts as a run goes and needs nothing measured on the page. The median of
-    the last few rather than the mean of all of them: a run's first trials are
-    not like its later ones, and one pathological trial should not slow the poll
-    for the rest of the run.
-
-    Rendered into the fragment's own `hx-trigger`, which poll.js re-reads off
-    each replacement — so the interval adapts per swap with no state anywhere
-    and no second mechanism.
+    """`_poll_seconds` uses the median duration of the last ten stored trials,
+    so a single outlier trial cannot slow the poll. poll.js re-reads the
+    interval from the fragment's `hx-trigger` on each swap.
     """
     data = (exp.data.result or {}).get("data") or []
     recent = [entry.get("time") or 0.0 for entry in data[-10:]]
@@ -244,11 +200,8 @@ def _poll_seconds(exp) -> int:
 
 
 def _shown_figures(exp):
-    """The figures *exp*'s settings switch on, in catalog order.
-
-    Shared by the detail page and the `metric_figures` endpoint so a figure
-    switched off is absent from both — the endpoint must not become a way to
-    fetch what the page deliberately did not build.
+    """`_shown_figures` serves the detail page and `metric_figures`, so the
+    endpoint never returns a figure the settings switch off.
     """
     shown = resolve_settings(exp)
     return [figure for figure in FIGURES if shown[figure.setting_key]
@@ -256,24 +209,13 @@ def _shown_figures(exp):
 
 
 def _hp_names(result) -> list:
-    """The hyperparameters a result's trials carry, in config order."""
     return list(result.trials[0].config.keys()) if result.trials else []
 
 
 def _figure_plots(result, figures, metric=None, config_space=None):
-    """`{figure key: plot JSON}` for *figures* at *metric*.
-
-    A figure with declared views gets a dict of view key -> plot JSON (or None)
-    instead of a single plot, one entry per view — the browser picks which to
-    show; see experiment_detail.html's `payloadFor`.
-
-    A figure whose `plot()` returns None gets None, which `draw()` reads as "no
-    data yet" — that is how the three fetched figures (partial dependence, local
-    explanation, local effects) end up here without being computed.
-
-    Module-level, and taking the metric rather than closing over one, because
-    `metric_figures` answers with exactly this for a metric the page did not
-    ship — see `_detail_context` for why it only ships one.
+    """Each view of a figure gets its own plot JSON, and None tells `draw()`
+    there is no data yet. `metric_figures` reuses `_figure_plots` for a metric
+    missing from the page.
     """
     def fig_json(plot):
         return json.loads(plot.to_json()) if plot is not None else None

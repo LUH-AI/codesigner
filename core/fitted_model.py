@@ -1,10 +1,5 @@
-"""A fitted trial model's parameters, written out in its library's own format.
-
-What a trial fitted is the experiment's processing in front of the model (see
-`core.models.base.Tunable.fit`). Both are written: the model by the model,
-which knows its library's format (`OutputBaseModel.save_parameters`), and the
-processing's fitted state — medians, scale, the labels it saw — beside it, so
-new rows can be prepared exactly as the training rows were.
+"""`save` writes a fitted model in its library's format, beside the fitted
+processing that prepares new rows like the training rows.
 """
 
 from __future__ import annotations
@@ -16,13 +11,10 @@ from .jsonable import plain
 
 
 class NothingToKeep(Exception):
-    """The model has no fitted parameters — its prediction is its history."""
+    """`save` raises `NothingToKeep` for models without fitted parameters."""
 
 
 def save_processing(processing, directory) -> list[str]:
-    """*processing*'s fitted state: ``processing.json`` (the plan and the kind
-    of each column it was given) and, when it learned anything,
-    ``processing.skops`` (the fitted scikit-learn transformer)."""
     from sklearn.base import BaseEstimator
     from skops.io import dump
 
@@ -38,9 +30,7 @@ def save_processing(processing, directory) -> list[str]:
 
 
 def save(model, fitted, directory) -> list[str]:
-    """Write *fitted* — what *model* fitted in a trial — into *directory*,
-    and return the files written. Raises `NothingToKeep` for a model with
-    nothing fitted to keep."""
+    """`save` returns the files written, or raises `NothingToKeep`."""
     from sklearn.pipeline import Pipeline
 
     if not getattr(model, "has_parameters", True):
@@ -55,8 +45,7 @@ def save(model, fitted, directory) -> list[str]:
 
 
 def classes_of(fitted):
-    """A fitted classifier's labels, in the order its probabilities and codes
-    use, as plain values — or None for a regression."""
+    """`classes_of` lists labels in probability order, or None for regression."""
     classes = getattr(fitted, "classes_", None)
     if classes is None:
         return None

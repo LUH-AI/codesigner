@@ -1,15 +1,5 @@
-"""Rebuilding a prior's density from the numbers that define it.
-
-`core.priors` is the *only* implementation of each density. The figure asks the
-server for its curve through `core.priors.prior_density` and the search gets its
-table through `SMACOptimizer._apply_priors`, and both come through here — so
-what the reader watches and what the optimizer weights by cannot disagree,
-rather than merely being expected not to.
-
-It was briefly two: the browser evaluated the density in JavaScript as well, so
-a drag could redraw at pointer speed. That stopped being needed when the
-parameterised shapes stopped being draggable, and one implementation is worth
-more than the latency it costs.
+"""`core.priors` is the one density implementation, shared by the figure's
+`prior_density` and `SMACOptimizer._apply_priors`.
 """
 
 import math
@@ -26,8 +16,6 @@ def _peak(values):
 
 
 def test_a_normal_peaks_where_its_mean_is():
-    """Within a grid step, because the mean need not land on a grid point —
-    0.6 is not representable in 256ths."""
     for mu in (0.6, 0.25, 0.9):
         peak = _peak(density_from("normal", {"mu": mu, "sigma": 0.15}, GRID))
         assert abs(peak - mu) <= 1 / 256
@@ -43,8 +31,7 @@ def test_a_normal_is_symmetric_about_its_mean():
 
 
 def test_a_beta_peaks_at_its_analytic_mode():
-    """(α−1)/(α+β−2), which is the check that catches an exponent off by one —
-    the most likely way to mistranscribe this from the JS."""
+    """The analytic mode catches an exponent off by one."""
     for alpha, beta in ((2, 5), (5, 2), (3, 3)):
         mode = (alpha - 1) / (alpha + beta - 2)
         peak = _peak(density_from("beta", {"alpha": alpha, "beta": beta}, GRID))
@@ -52,9 +39,8 @@ def test_a_beta_peaks_at_its_analytic_mode():
 
 
 def test_a_beta_below_one_stays_finite_at_the_ends():
-    """α or β under one puts an asymptote at an endpoint. Unclamped this is
-    `inf`, and one infinite weight makes every other configuration's relative
-    preference zero."""
+    """Shapes below one diverge at the ends, and one infinite weight would zero
+    every other preference."""
     values = density_from("beta", {"alpha": 0.5, "beta": 0.5}, GRID)
 
     assert values is not None
@@ -62,9 +48,8 @@ def test_a_beta_below_one_stays_finite_at_the_ends():
 
 
 def test_a_hand_placed_curve_does_not_overshoot_its_points():
-    """The reason the interpolation is monotone rather than a plain cubic. An
-    overshoot is a preference the reader never placed, and past zero it is a
-    negative density."""
+    """A plain cubic would overshoot, placing preferences nobody stated and,
+    below zero, a negative density."""
     points = [[0.0, 0.1], [0.4, 1.0], [1.0, 0.2]]
     density = density_from("tabulated", {"points": points}, GRID)
     assert density is not None
@@ -85,12 +70,10 @@ def test_a_hand_placed_curve_passes_through_its_points():
 
 
 def test_stating_nothing_rebuilds_nothing():
-    """A uniform prior multiplies the acquisition by a constant, which cannot
-    reorder it. Returning a flat table instead would have the optimizer carry a
-    weight that does nothing, and report that a prior was applied."""
+    """A uniform prior scales the acquisition by a constant, so `density_from`
+    returns None instead of a weight that changes nothing."""
     assert density_from("uniform", {}, GRID) is None
     assert density_from("something else", {}, GRID) is None
-    # Fewer than two points is not a curve.
     assert density_from("tabulated", {"points": [[0.5, 1.0]]}, GRID) is None
 
 
@@ -103,23 +86,10 @@ def test_a_density_is_never_negative():
         assert all(v >= 0 for _, v in values), kind
 
 
-# ── the canary that says when this module can shrink ─────────────────────────
-
 def test_configspace_still_mangles_sigma_on_a_log_axis():
-    """Pins the defect that keeps the Normal and Beta formulas above alive.
-
-    `ConfigSpacePrior` is the class SMAC provides for stated priors and would
-    replace them outright — `NormalFloatHyperparameter(log=True)` is a Gaussian
-    on the log axis, which is exactly what the figure draws. But σ is passed
-    through `UnitScaler.vectorize_size`, which applies the hyperparameter's log
-    transform to it. σ is a scale, not a position, so that is a category error,
-    and it shows: the effective width is |log10(σ)| / log-span, so σ = 1 has no
-    width at all and σ and 1/σ are the same distribution.
-
-    **When this test fails, ConfigSpace has fixed it.** At that point delete the
-    `normal` and `beta` branches of `_values_for` and build a `ConfigSpacePrior`
-    instead, keeping only the freeform interpolation. Until then the formulas
-    here are the correct implementation, not a duplicate of a working one.
+    """`UnitScaler.vectorize_size` log-transforms σ, so σ = 1 has no width and σ
+    matches 1/σ. A ConfigSpace fix fails the test and lets `ConfigSpacePrior`
+    replace the `normal` and `beta` branches of `_values_for`.
     """
     import numpy as np
 
@@ -128,23 +98,18 @@ def test_configspace_still_mangles_sigma_on_a_log_axis():
     scaler = UnitScaler(np.float64(1e-4), np.float64(1e0), log=True,
                         dtype=np.float64)
 
-    # A unit standard deviation vanishes.
+    # Unit σ vanishes.
     assert float(scaler.vectorize_size(np.float64(1.0))) < 1e-4
 
-    # And σ is indistinguishable from 1/σ, because only |log σ| survives.
+    # Only |log σ| survives.
     narrow = float(scaler.vectorize_size(np.float64(0.5)))
     wide = float(scaler.vectorize_size(np.float64(2.0)))
     assert abs(narrow - wide) < 1e-3, (narrow, wide)
 
 
 def test_a_gaussian_on_a_log_axis_is_log_normal_in_native_units():
-    """Why one formula serves both kinds of hyperparameter.
-
-    The density is stated on the vectorized axis, and for a log hyperparameter
-    that axis is log space — so the same expression that gives a Gaussian on a
-    linear hyperparameter gives a log-normal on a log one. That is the right
-    belief to hold about a learning rate, and it means nothing here needs to
-    know whether a transform is in play.
+    """`density_from` works on the vectorized axis, and that axis is log space
+    for a log hyperparameter.
     """
     from ConfigSpace import UniformFloatHyperparameter
 
@@ -155,7 +120,6 @@ def test_a_gaussian_on_a_log_axis_is_log_normal_in_native_units():
 
     peak_native = hp.to_value(max(values, key=lambda point: point[1])[0])
 
-    # The peak sits at the geometric centre of the range, not the arithmetic
-    # one — which is what makes it a log-normal.
+    # A log-normal peaks at the geometric centre of the range.
     assert peak_native == pytest.approx(math.sqrt(1e-4 * 1e0), rel=1e-2)
     assert peak_native < (1e-4 + 1e0) / 2

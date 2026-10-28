@@ -1,19 +1,7 @@
-"""Running an experiment on a cluster, over ssh.
-
-The only module that knows a cluster exists. Everything above it deals in runs
-and results; everything below it is `ssh`, `sbatch` and a directory of files.
-
-**Why a directory of files rather than a connection.** A Slurm job cannot reach
-back into this process — it starts minutes later on a node with no route here —
-so the two sides share the one thing they both have, which is the cluster's own
-filesystem. `remote/run_experiment.py` documents the contract; this side writes
-the inputs, reads the outputs, and asks Slurm what is happening in between.
-
-**Why the system `ssh` rather than a library.** The host is a name out of
-`~/.ssh/config`, so the key, the user and any ProxyJump are configured once, in
-the place the rest of the system already reads — and stay out of this
-application's settings. It also adds no dependency. `ControlMaster` makes the
-repeated polls one connection rather than one each.
+"""`jobs` runs experiments on a Slurm cluster over ssh. A Slurm job has no route
+back to the app, so the job and the app exchange files on the cluster's
+filesystem. `remote/run_experiment.py` documents the file contract. The host is
+a name from `~/.ssh/config`, which holds the key, the user and any ProxyJump.
 """
 
 from __future__ import annotations
@@ -27,28 +15,24 @@ from typing import cast
 
 from django.conf import settings
 
-#: A job Slurm is still going to run, is running, has finished, or has lost.
-#: `GONE` is its own answer rather than an error: a job can age out of `sacct`,
-#: and "I cannot tell you" is different from "it failed", though both end a run.
+#: `GONE` means the job aged out of `sacct`, an outcome distinct from failure.
 QUEUED, RUNNING, DONE, FAILED, GONE = "queued", "running", "done", "failed", "gone"
 
-#: `squeue` states that mean the job has not started yet. Anything else it
-#: reports is running or on its way out, and `sacct` has the final word.
+#: `squeue` reports these states before a job starts.
 _PENDING_STATES = {"PENDING", "CONFIGURING", "SUSPENDED", "REQUEUED", "RESIZING"}
 _OK_STATES = {"COMPLETED"}
 
-#: Where the repository was deployed to, relative to the cluster account's home.
-#: `remote/deploy.sh` puts it there; `CLUSTER_ROOT` has to agree with it.
+#: `_RUNS` names the directory under `CLUSTER_ROOT` that holds one directory per
+#: run.
 _RUNS = "runs"
 
 
 class ClusterError(RuntimeError):
-    """The cluster could not be reached, or refused something."""
+    """The cluster was unreachable or refused."""
 
 
 @dataclass(frozen=True)
 class Command:
-    """One finished command: what it returned and what it said."""
 
     returncode: int
     stdout: str
@@ -60,16 +44,11 @@ class Command:
 
 
 class SshTransport:
-    """Commands and files, on the far side of an ssh connection.
-
-    A class rather than four functions so a test can put something else here —
-    the suite must not need a cluster, and a double returning canned `sbatch`
-    and `squeue` output is the whole of what it needs to stand in.
+    """A test swaps `SshTransport` for a double returning canned `sbatch` and
+    `squeue` output.
     """
 
-    #: Shared connection, so a run polling every few seconds opens one channel
-    #: rather than one per poll. Persisting briefly past the last command keeps
-    #: the next poll cheap without holding a socket open all day.
+    #: `ControlPersist` keeps one shared connection open between frequent polls.
     _OPTS = ["-o", "BatchMode=yes", "-o", "ConnectTimeout=15",
              "-o", "ControlMaster=auto", "-o", "ControlPersist=60s",
              "-o", "ControlPath=~/.ssh/codesigner-%r@%h:%p"]
@@ -82,16 +61,12 @@ class SshTransport:
         self.timeout = timeout
 
     def run(self, command: str) -> Command:
-        """*command*, run by a shell on the cluster."""
+        """`run` executes *command* on the cluster."""
         return self._exec(["ssh", *self._OPTS, self.host, command])
 
     def put(self, data: bytes, remote: str) -> None:
-        """Write *data* to *remote*, creating its directory.
-
-        Piped through `cat` rather than scp'd from a temp file: the things sent
-        are a snapshot and a small JSON document, and writing them to local disk
-        first only to delete them is a step with nothing to recommend it. The
-        dataset goes by `put_file`, which does have a file already.
+        """`put` sends in-memory payloads through `cat`, and `put_file` copies
+        files.
         """
         self.run(f"mkdir -p {shlex.quote(str(Path(remote).parent))}")
         done = self._exec(["ssh", *self._OPTS, self.host,
@@ -106,10 +81,7 @@ class SshTransport:
             raise ClusterError(f"could not copy {local.name}: {done.stderr.strip()}")
 
     def get(self, remote: str) -> bytes | None:
-        """*remote*'s contents, or None when it is not there yet.
-
-        Absent is the ordinary case — `partial.json` does not exist until the
-        first trials land — so it is an answer rather than an error.
+        """`get` returns None until *remote* exists.
         """
         done = self._exec(["ssh", *self._OPTS, self.host,
                            f"cat {shlex.quote(remote)} 2>/dev/null"], text=False)
@@ -133,23 +105,16 @@ def transport() -> SshTransport:
 
 
 def workdir_for(run_id) -> str:
-    """Where this run's files live on the cluster.
-
-    Under the deployed root and named by the run, so a directory left behind is
-    traceable to the row that made it — and so two runs never share one.
+    """`workdir_for` names the directory after the run to keep leftovers
+    traceable.
     """
     return f"{settings.CLUSTER_ROOT}/{_RUNS}/run-{run_id}"
 
 
-# ── sending the work ─────────────────────────────────────────────────────────
-
 def stage(ssh: SshTransport, run_id, snapshot: dict, run_settings: dict,
           dataset: Path, model: Path | None = None) -> str:
-    """Put everything one run needs into a directory, and say where.
-
-    The snapshot's `dataset.path` is left exactly as it is: the far side
-    repoints it at what was staged beside it, because only the far side knows
-    where that ended up. See `remote/run_experiment.py`.
+    """`run_experiment.py` repoints the snapshot's `dataset.path` at the staged
+    dataset.
     """
     from core import io
 
@@ -164,22 +129,19 @@ def stage(ssh: SshTransport, run_id, snapshot: dict, run_settings: dict,
 
 
 def submit(ssh: SshTransport, run_id, workdir: str, *, hours: int | None = None) -> str:
-    """Render the job script, send it, and hand it to Slurm. Returns the job id."""
+    """`submit` queues the rendered job script and returns the job ID."""
     script = render_job(
         run_id=run_id, workdir=f"~/{workdir}".replace("~/", ""), hours=hours)
     ssh.put(script.encode("utf-8"), f"{workdir}/job.sbatch")
     done = ssh.run(f"cd {shlex.quote(workdir)} && sbatch --parsable job.sbatch")
     if not done.ok or not done.stdout.strip():
         raise ClusterError(f"sbatch refused this run: {done.stderr.strip() or done.stdout.strip()}")
-    # `--parsable` prints the id alone, or `id;cluster` on a federation.
+    # `--parsable` prints `id;cluster` on a federation.
     return done.stdout.strip().splitlines()[-1].split(";")[0]
 
 
 def render_job(*, run_id, workdir: str, hours: int | None = None) -> str:
-    """`remote/job.sbatch` with its markers filled in.
-
-    Kept here rather than in a string so the script an operator reads is the
-    script that runs — see that file on why the markers are not `str.format`.
+    """`render_job` fills the markers of `remote/job.sbatch`.
     """
     template = Path(__file__).with_name("job.sbatch")
     hours = max(1, min(hours or settings.CLUSTER_MAX_HOURS, settings.CLUSTER_MAX_HOURS))
@@ -188,8 +150,8 @@ def render_job(*, run_id, workdir: str, hours: int | None = None) -> str:
         "PARTITION": settings.CLUSTER_PARTITION,
         "TIME_LIMIT": f"{hours}:00:00",
         "CPUS": str(settings.CLUSTER_CPUS),
-        # Absolute, because sbatch resolves --output before the shell runs and
-        # a relative path would land wherever the daemon happened to be.
+        # `sbatch` resolves --output before the shell runs, so the path must be
+        # absolute.
         "WORKDIR": f"$HOME/{workdir}",
         "ROOT": f"$HOME/{settings.CLUSTER_ROOT}",
     }
@@ -201,14 +163,8 @@ def render_job(*, run_id, workdir: str, hours: int | None = None) -> str:
     return text
 
 
-# ── watching it ──────────────────────────────────────────────────────────────
-
 def poll(ssh: SshTransport, job_id: str) -> str:
-    """What Slurm currently says about *job_id*.
-
-    `squeue` first because it answers while the job is alive and is the cheaper
-    of the two; `sacct` once it is not, because `squeue` forgets a job the moment
-    it ends and silence there means "finished", not "never existed".
+    """`squeue` forgets a finished job, so `poll` falls back to `sacct`.
     """
     live = ssh.run(f"squeue -j {shlex.quote(job_id)} --noheader -o %T")
     state = live.stdout.strip().splitlines()[0].strip() if live.stdout.strip() else ""
@@ -223,11 +179,8 @@ def poll(ssh: SshTransport, job_id: str) -> str:
 
 
 def fetch(ssh: SshTransport, workdir: str, name: str) -> dict | None:
-    """One of the job's JSON outputs, or None if it has not written it yet.
-
-    A half-written file is not a case to handle: the far side writes through a
-    rename, which is atomic within a directory. A file that does not parse is
-    therefore a real problem and is reported as one rather than retried.
+    """`run_experiment.py` writes outputs by atomic rename, so an unparseable
+    file raises `ClusterError`.
     """
     raw = ssh.get(f"{workdir}/{name}")
     if not raw:
@@ -239,27 +192,20 @@ def fetch(ssh: SshTransport, workdir: str, name: str) -> dict | None:
 
 
 def tail_error(ssh: SshTransport, workdir: str, lines: int = 20) -> str:
-    """The end of the job's stderr, for a failure that wrote no status.
-
-    A job killed by the scheduler — out of time, out of memory — never reaches
-    its own error handling, so this is the only thing that can say why.
+    """A scheduler kill for time or memory skips the job's error handling,
+    leaving `job.err` as the only record.
     """
     done = ssh.run(f"tail -n {int(lines)} {shlex.quote(workdir)}/job.err 2>/dev/null")
     return done.stdout.strip()
 
 
-# ── stopping it ──────────────────────────────────────────────────────────────
-
 def request_cancel(ssh: SshTransport, workdir: str) -> None:
-    """Ask the run to stop and keep what it has.
-
-    A file, not a signal: the optimizer checks it between trials and then writes
-    its result, so the trials already paid for survive. `scancel` is the other
-    thing and it throws them away — see `kill`.
+    """The optimizer checks `CANCEL` between trials and keeps finished ones;
+    `kill` discards them.
     """
     ssh.run(f"touch {shlex.quote(workdir)}/CANCEL")
 
 
 def kill(ssh: SshTransport, job_id: str) -> None:
-    """Take the job away from Slurm, losing whatever it had not written."""
+    """`kill` cancels the job in Slurm, losing unwritten results."""
     ssh.run(f"scancel {shlex.quote(job_id)}")

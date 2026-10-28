@@ -1,15 +1,6 @@
-"""One trial is selected at a time, and every figure showing it says so.
-
-Clicking a point used to mean something on exactly one figure — Trial
-performance — and be seen by exactly one other, the Selected configuration
-panel. Every other figure that draws all the trials (the cube, parallel
-coordinates, trial duration, local effects, the trials table) drew a point you
-could see and had no way to ask about.
-
-Now a figure declares `selects_trials` and its plot carries a
-`layout.meta["selection"]` saying where its trials are, so the page's selection
-bus needs no per-figure knowledge. These cover the declaration and the page
-plumbing; the bus itself is JavaScript, which this suite does not run.
+"""The page's selection bus needs no per-figure knowledge, because each figure
+declaring `selects_trials` says where its trials are in
+`layout.meta["selection"]`.
 """
 
 from django.urls import reverse
@@ -18,8 +9,7 @@ from ui.figures import FIGURES, FIGURES_BY_KEY
 from experiments.models import Experiment
 
 def _experiment():
-    """An experiment with three finished trials, so a highlight has somewhere
-    to move to and the table has rows to tell apart."""
+    """`_experiment` holds three finished trials, so a highlight can move."""
     def trial(n, estimators, accuracy):
         return {"config_id": n, "cost": 1 - accuracy, "time": 2.5,
                 "scores": {"accuracy": accuracy, "f1": accuracy - 0.05},
@@ -49,17 +39,14 @@ def _page(client, exp):
 
 
 def _trials_body(html):
-    """The trials table's rows — anchored on the figure, since the page has
-    other tables (the configuration panels, the importance view)."""
+    """Trials table rows, anchored past the page's other tables."""
     return html.split('data-figure="trials"', 1)[1] \
                .split("<tbody>", 1)[1].split("</tbody>", 1)[0]
 
 
 def test_the_figures_that_draw_every_trial_are_the_ones_that_select_one():
-    """The declaration, stated as the rule behind it: a figure can offer a
-    trial to click and a trial to highlight exactly when it draws the trials
-    themselves. A summary over them — importance, interactions, partial
-    dependence — has no point that is a trial."""
+    """Only the figures that draw each trial can select one; summaries have no
+    trial points."""
     selectable = {f.key for f in FIGURES if f.selects_trials}
 
     assert selectable == {
@@ -71,8 +58,7 @@ def test_the_figures_that_draw_every_trial_are_the_ones_that_select_one():
 
 
 def test_the_page_ships_the_declaration_rather_than_a_list_of_names(client):
-    """The bus iterates what the catalog says, so a figure that starts drawing
-    trials becomes selectable by declaring it and nothing else."""
+    """Declaring `selects_trials` alone makes a figure selectable."""
     html = _page(client, _experiment())
     shipped = html.split('id="selectable-figures-data"', 1)[1].split(">", 1)[1]
     shipped = shipped.split("</script>", 1)[0]
@@ -83,10 +69,8 @@ def test_the_page_ships_the_declaration_rather_than_a_list_of_names(client):
 
 
 def test_the_highlight_colors_come_from_the_builders(client):
-    """The page draws the highlight itself — a restyle, not a rebuilt figure —
-    so it needs the colours the plots are already drawn in. Restating them in
-    the script is one place for the two to disagree about what selected looks
-    like."""
+    """The page restyles the highlight itself, so the server sends the plot
+    colours instead of the script restating them."""
     from ui.figures import MARKER_COLOR, SELECTION_COLOR
 
     html = _page(client, _experiment())
@@ -98,9 +82,8 @@ def test_the_highlight_colors_come_from_the_builders(client):
 
 
 def test_every_trials_row_carries_the_trial_it_stands_for(client):
-    """The table's identity has to be an attribute, not a position: its outcome
-    columns sort by reordering these very rows, so after one click on a header
-    the nth row is not the nth trial."""
+    """The table keeps each row's trial in `data-trial-idx`, because a sort
+    reorders the rows."""
     import re
 
     exp = _experiment()
@@ -113,7 +96,6 @@ def test_every_trials_row_carries_the_trial_it_stands_for(client):
 
 
 def test_the_rows_can_be_reached_without_a_mouse(client):
-    """Every row selects a trial, so every row is a control."""
     html = _page(client, _experiment())
     body = _trials_body(html)
 

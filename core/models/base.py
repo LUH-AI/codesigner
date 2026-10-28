@@ -1,4 +1,4 @@
-"""The contract a built-in model adds to the SDK's (``codesigner_model``)."""
+"""`base` extends the `codesigner_model` contract."""
 
 from typing import TYPE_CHECKING, cast
 
@@ -12,39 +12,25 @@ if TYPE_CHECKING:
 
 
 class Tunable(OptimizableBaseModel, OutputBaseModel):
-    """A built-in: an output model with a search space, tuned through its own
-    `fit` and `predict`.
-
-    Mixed into a model's output class — ``class RandomForestModel(Tunable,
-    RandomForest)`` — so the class that is delivered (`RandomForest`) carries
-    nothing of the search, and the one that is tuned adds only
-    `get_config_space`. A trial's prediction is then exactly what the
-    delivered model, fitted on the same rows, would predict.
+    """`Tunable` adds only `get_config_space` to the delivered output class, so
+    a trial predicts what the delivered model would.
     """
 
-    #: How the experiment's columns are processed before the model sees them
-    #: (`core.processing`), as stored: every step "auto" when it says nothing.
-    #: Set by Codesigner before the first trial, like `feature_kinds`.
+    #: Codesigner sets `processing` before the first trial; empty means "auto".
     processing: dict = {}
 
-    #: Whether the experiment's processing applies to this model's columns. Not
-    #: a forecaster's: its columns are a series' times, and what it learns from
-    #: is the series itself.
+    #: A forecaster's columns are times, so it skips processing.
     takes_processing: bool = True
 
     def processing_for(self, n_columns):
-        """The (unfitted) processing this model is given, for *n_columns*
-        columns of `feature_kinds`."""
         kinds = tuple(self.feature_kinds) if len(self.feature_kinds) == n_columns \
             else ("numeric",) * n_columns
         plan, _ = resolve(self.processing, self)
         return Processing(plan, kinds)
 
     def fit(self, hyperparameters, X, y, seed: int = 0, *, probabilities: bool = False, kinds=None):
-        """The experiment's processing, fitted on these rows, in front of the
-        model fitted on what it makes of them — one estimator, so whatever
-        predicts with it processes new rows exactly as the training rows were.
-        Without processing to do, the model alone."""
+        """`fit` returns processing and model as one `Pipeline`, so new rows get
+        the training rows' processing."""
         from sklearn.pipeline import Pipeline
 
         processing = self.processing_for(X.shape[1])
@@ -60,8 +46,8 @@ class Tunable(OptimizableBaseModel, OutputBaseModel):
         return self.predict(self.fit(config, X_train, y_train, seed), X_val)
 
     def fit_predict_proba(self, config, X_train, y_train, X_val, seed: int = 0):
-        """Labels and probabilities from the one fit. A model whose
-        probabilities cost an extra fit says so in `build` (see the SVM)."""
+        """`fit_predict_proba` fits a single model with `probabilities=True`
+        (see `SVM`)."""
         if self.task == "regression" or not self.probabilities:
             raise NotImplementedError(f"{self.name} gives no class probabilities here")
         fitted = self.fit(config, X_train, y_train, seed, probabilities=True)

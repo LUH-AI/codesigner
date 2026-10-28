@@ -1,9 +1,5 @@
-"""Effective settings resolve from per-experiment overrides over global defaults.
-
-An experiment either inherits the global default experiment settings
-(`use_default_settings=True`) or overrides them (its `settings` dict wins, per
-key, falling back to the global default). The global default itself falls back
-to the built-in `SETTING_DEFAULTS`.
+"""An experiment's overrides win over global defaults, which fall back to
+`SETTING_DEFAULTS`.
 """
 
 from experiments.models import Experiment, GlobalSettings
@@ -28,7 +24,7 @@ def test_inherits_changed_global_default():
     gs = GlobalSettings.get_solo()
     gs.default_experiment_settings = {"show_trials": False}
     gs.save()
-    exp = _exp()  # inherits
+    exp = _exp()
     assert resolve_settings(exp)["show_trials"] is False
 
 
@@ -44,7 +40,7 @@ def test_override_missing_key_falls_back_to_global():
     gs = GlobalSettings.get_solo()
     gs.default_experiment_settings = {"show_trials": False}
     gs.save()
-    exp = _exp(use_default_settings=False, settings={})  # overriding, but empty
+    exp = _exp(use_default_settings=False, settings={})  # empty override
     assert resolve_settings(exp)["show_trials"] is False
 
 

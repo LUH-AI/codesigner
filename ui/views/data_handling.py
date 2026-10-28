@@ -14,10 +14,8 @@ from .dashboard import experiment_header
 
 
 def tabs_for(exp, url_for, setup=False):
-    """The Data Handling page's tabs for *exp*: each section, its address
-    (`url_for`), and its slots — every panel with what it needs to render — and
-    whether the tab holds controls to save. With *setup*, a draft's, whose
-    Overview is its own (`ui.layout.data_tabs`)."""
+    """`tabs_for` gives each Data Handling tab of *exp* its `url_for` address
+    and slot controls; *setup* uses the draft's Overview."""
     tabs = []
     for tab in data_tabs(exp, setup=setup):
         slots = []
@@ -48,8 +46,6 @@ def _data_page(request, exp, section):
             messages.success(request, _("Saved."))
         return redirect(request.path)
 
-    # One page, every section a tab of it: the experiment's own heading above
-    # (as on its dashboard and timeline), the section asked for showing.
     fixed = processing.why_fixed(exp)
     return render(request, "ui/data_handling/section.html", {
         **experiment_header(request, exp),
@@ -63,13 +59,13 @@ def _data_page(request, exp, section):
 
 @experiment_view(VIEW)
 def data_overview(request, exp):
-    """The first of the sections, at the section's own root."""
+    """`data_overview` serves the first section."""
     return _data_page(request, exp, SECTIONS[0])
 
 
 @experiment_view(VIEW)
 def data_section(request, exp, section):
-    """Any other section, by its slug."""
+    """`data_section` serves other sections."""
     found = BY_SLUG.get(section)
     if found is None or found is SECTIONS[0]:
         raise Http404

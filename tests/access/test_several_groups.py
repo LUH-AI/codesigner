@@ -1,17 +1,6 @@
-"""A person in several groups, and accounts found by email.
-
-*What:* membership is no longer one-per-person. Somebody can be in two groups,
-with a different role in each, and every rule that used to ask "their group"
-now asks about one named group — so a lead of one group and a member of another
-is a lead only where they lead, and nothing from either group leaks into the
-other. Alongside that, an email address is how a person is found: adding an
-address somebody already has joins that account to the group rather than making
-a second one, and a new group cannot exist without a primary lead named by one.
-
-*How:* at the policy for reach, through the panels for adding people, creating
-groups and usage, and at the database for the case-insensitive email index —
-which has to hold when nobody has been near a view, because the Django admin
-edits `User` directly.
+"""A person can hold a different role in each of several groups, and every rule
+asks about one named group. Adding a known email address joins that account to
+the group.
 """
 
 import pytest
@@ -48,7 +37,7 @@ def _experiment(owner, name, group, **kw):
 
 @pytest.fixture
 def two_labs(django_user_model):
-    """Two groups, and Mia in both — a lead of `a`, a member of `b`."""
+    """Mia leads `a` and is a member of `b`."""
     from django.contrib.auth.models import Permission
 
     a = Group.objects.create(name="a", user_limit=5)
@@ -76,11 +65,8 @@ def _reach(user):
     return set(GroupPolicy().experiments(request).values_list("data__name", flat=True))
 
 
-# ── reach, per group ─────────────────────────────────────────────────────────
-
 def test_somebody_in_two_groups_reaches_each_as_their_role_there(hosted, two_labs):
-    """A lead of `a` reaches all of `a`; a member of `b` reaches only what was
-    shared with them in `b`. Each group answered on its own, with its own role."""
+    """`GroupPolicy` answers each group with Mia's role there."""
     _experiment(two_labs["ann"], "a private", two_labs["a"])
     _experiment(two_labs["bob"], "b private", two_labs["b"])
     _shared(_experiment(two_labs["bob"], "b shared", two_labs["b"]), two_labs["mia"])
@@ -89,8 +75,7 @@ def test_somebody_in_two_groups_reaches_each_as_their_role_there(hosted, two_lab
 
 
 def test_neither_group_sees_the_other_through_somebody_in_both(hosted, two_labs):
-    """Mia being in both is not a bridge: what she owns in `a` is `a`'s, and the
-    primary lead of `b` does not reach it by leading somebody who is in `a`."""
+    """Membership in both groups opens no path between them."""
     _experiment(two_labs["mia"], "hers in a", two_labs["a"])
     _experiment(two_labs["mia"], "hers in b", two_labs["b"])
 
@@ -99,8 +84,7 @@ def test_neither_group_sees_the_other_through_somebody_in_both(hosted, two_labs)
 
 
 def test_leading_one_group_grants_nothing_in_the_other(hosted, two_labs):
-    """The rule `may()` applies to a colleague's work asks about the
-    experiment's group, not whether the person leads anything at all."""
+    """`may()` asks about the experiment's group only."""
     exp = _shared(_experiment(two_labs["bob"], "b shared", two_labs["b"]),
                   two_labs["mia"])
     request = type("R", (), {"user": two_labs["mia"]})()
@@ -139,7 +123,7 @@ def test_the_group_tab_lands_on_their_first_group(client, hosted, two_labs):
 
 
 def test_removing_somebody_from_one_group_leaves_the_other(client, hosted, two_labs):
-    """A removal is of one membership — the account and its other groups stay."""
+    """A removal ends one membership only."""
     client.force_login(two_labs["bob"])
     in_b = two_labs["mia"].memberships.get(group=two_labs["b"])
 
@@ -149,7 +133,7 @@ def test_removing_somebody_from_one_group_leaves_the_other(client, hosted, two_l
 
 
 def test_work_held_in_another_group_does_not_block_a_removal(client, hosted, two_labs):
-    """Only what they own *in this group* would be stranded by leaving it."""
+    """`group_remove_person` weighs only work in the group being left."""
     _experiment(two_labs["mia"], "hers in a", two_labs["a"])
     client.force_login(two_labs["bob"])
     in_b = two_labs["mia"].memberships.get(group=two_labs["b"])
@@ -158,8 +142,6 @@ def test_work_held_in_another_group_does_not_block_a_removal(client, hosted, two
 
     assert not two_labs["mia"].memberships.filter(group=two_labs["b"]).exists()
 
-
-# ── which group a new experiment is in ───────────────────────────────────────
 
 def test_one_membership_still_decides_the_group(hosted, two_labs):
     exp = Experiment.objects.create(
@@ -170,8 +152,8 @@ def test_one_membership_still_decides_the_group(hosted, two_labs):
 
 
 def test_two_memberships_are_not_guessed_between(hosted, two_labs):
-    """Filing work under a boundary the owner did not choose is worse than not
-    filing it — the caller says which, and the create form will ask."""
+    """`Experiment` leaves the group empty rather than guess; the create form
+    asks."""
     exp = Experiment.objects.create(
         name="x", model_name="Random Forest", optimizer_name="Random Search",
         metric_names=["accuracy"], seed=0, owner=two_labs["mia"])
@@ -185,10 +167,7 @@ def test_a_group_the_caller_names_is_kept(hosted, two_labs):
     assert exp.group_id == two_labs["b"].pk
 
 
-# ── usage ────────────────────────────────────────────────────────────────────
-
 def test_usage_counts_each_run_under_its_own_group_once(client, hosted, two_labs):
-    """Somebody in two groups used to have their runs counted under both."""
     exp = _experiment(two_labs["mia"], "hers in a", two_labs["a"])
     Run.objects.create(experiment=exp, primary_metric="accuracy", status="done",
                        stopping={"max_trials": 5}, started_by=two_labs["mia"],
@@ -205,12 +184,10 @@ def test_usage_counts_each_run_under_its_own_group_once(client, hosted, two_labs
     assert people[("mia", "b")].runs == 0
 
 
-# ── adding somebody by email ─────────────────────────────────────────────────
-
 def test_adding_an_address_somebody_has_joins_that_account(
         client, hosted, two_labs, django_user_model):
-    """No second account, and nothing about the existing one changes — in
-    particular not its password, which is not the lead's to set."""
+    """The existing account keeps its password, which the lead has no right to
+    set."""
     client.force_login(two_labs["ann"])
     before = django_user_model.objects.count()
 
@@ -225,7 +202,7 @@ def test_adding_an_address_somebody_has_joins_that_account(
 
 def test_adding_an_unknown_address_creates_the_account(
         client, hosted, two_labs, django_user_model):
-    """Signed in by the address itself, and told its first password once."""
+    """The username is the address itself."""
     client.force_login(two_labs["ann"])
 
     resp = client.post(reverse("ui:group_add_person", args=[two_labs["a"].pk]),
@@ -260,10 +237,8 @@ def test_an_address_that_is_not_one_creates_nothing(
     assert django_user_model.objects.count() == before
 
 
-# ── creating a group ─────────────────────────────────────────────────────────
-
 def test_a_new_group_is_refused_without_a_primary_lead(client, hosted, two_labs):
-    """A group nobody can appoint a lead in is a group that cannot grow."""
+    """Without a primary lead, nobody could appoint leads."""
     client.force_login(two_labs["site"])
 
     client.post(reverse("ui:site_group_save"), {"name": "c", "user_limit": "3"})
@@ -287,7 +262,7 @@ def test_a_new_group_starts_with_its_primary_lead(client, hosted, two_labs,
 
 def test_a_new_groups_primary_lead_may_already_have_an_account(
         client, hosted, two_labs):
-    """Which is how a site admin comes to lead a group of their own."""
+    """`site_group_save` lets a site admin lead a new group."""
     client.force_login(two_labs["site"])
 
     client.post(reverse("ui:site_group_save"),
@@ -298,7 +273,7 @@ def test_a_new_groups_primary_lead_may_already_have_an_account(
 
 
 def test_a_bad_primary_lead_address_leaves_no_group_behind(client, hosted, two_labs):
-    """The two are made together or not at all."""
+    """Group and lead are created atomically."""
     client.force_login(two_labs["site"])
 
     client.post(reverse("ui:site_group_save"),
@@ -317,8 +292,6 @@ def test_a_new_group_needs_a_seat_for_its_lead(client, hosted, two_labs):
     assert not Group.objects.filter(name="c").exists()
 
 
-# ── the database backs it up ─────────────────────────────────────────────────
-
 def test_one_membership_per_person_per_group(hosted, two_labs):
     with pytest.raises(IntegrityError), transaction.atomic():
         Membership.objects.create(user=two_labs["mia"], group=two_labs["a"])
@@ -326,15 +299,14 @@ def test_one_membership_per_person_per_group(hosted, two_labs):
 
 def test_an_address_is_one_account_whatever_its_case(hosted, two_labs,
                                                      django_user_model):
-    """The admin's user editor does not go through `find_or_create_by_email`,
-    so the index is what stops it making a second Mia."""
+    """The index stops duplicates because the admin's user editor skips
+    `find_or_create_by_email`."""
     with pytest.raises(IntegrityError), transaction.atomic():
         django_user_model.objects.create_user(username="mia2", email="MIA@example.org")
 
 
 def test_accounts_without_an_address_do_not_collide(hosted, django_user_model):
-    """A stock `createsuperuser` leaves the address blank, and two of them are
-    not the same person."""
+    """A stock `createsuperuser` leaves the address blank."""
     django_user_model.objects.create_user(username="one")
     django_user_model.objects.create_user(username="two")
 

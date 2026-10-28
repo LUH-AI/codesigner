@@ -1,22 +1,7 @@
-"""Who belongs to which group, and the permissions that are not about a row.
-
-An instance hosted for several research groups exists so that the groups do
-**not** see each other. That is what `Group` and `Membership` are for, and it is
-the reason almost everything here is about *narrowing* rather than granting.
-
-Three roles, and only one of them says "admin":
-
-* **Member** — creates and runs experiments, and chooses for each whether it is
-  shared with their group, with named colleagues, or with nobody.
-* **Group lead** — a member who also manages their group's people, and can see
-  and act on anything in it. A `Membership` with `role = LEAD`.
-* **Site admin** — manages groups: how large, whether active, what they are
-  using. Holds `manage_site`, belongs to no group, and is shown no experiments.
-
-The first two are a membership because they are a fact about a person *within* a
-group. The third is a permission because it is a fact about the instance, and
-because it must be grantable without making somebody a Django superuser — see
-the site panel on why that distinction carries weight.
+"""`Group` and `Membership` draw the boundary that keeps research groups on one
+instance from seeing each other's work. `Membership` holds the member and lead
+roles, per group. The site-admin role is the `manage_site` permission, which a
+site admin can hold without being a Django superuser.
 """
 
 from __future__ import annotations
@@ -33,27 +18,16 @@ if TYPE_CHECKING:
 
     from experiments.models import Experiment
 
-#: `Membership.PRIMARY_LEAD`, at module scope because the constraint that keeps
-#: it unique is declared in `Membership.Meta`, and a class body's own names are
-#: not visible from there.
+#: `_PRIMARY_LEAD` lives at module scope because `Membership.Meta` cannot see
+#: the class body's names.
 _PRIMARY_LEAD = "primary_lead"
 
 
 class Group(models.Model):
-    """A research group: the boundary experiments are not visible across.
-
-    `user_limit` is the seats a group lead may fill. It is theirs to fill and
-    not theirs to raise — a lead who could change it would be a lead with no
-    limit — so only a site admin may edit it.
-
-    `storage_limit_bytes` is how much disk its experiments may take (see
-    experiments/services/storage.py); null is the site's default. Like the seats, a
-    site admin's to set.
-
-    `is_active` is how a site admin restricts a group without destroying
-    anything: its members cannot sign in or start runs, and every experiment
-    stays exactly where it was. Deletion is deliberately not the tool for that,
-    and `Membership.group` is `PROTECT` so it cannot become one by accident.
+    """`Group` is the boundary experiments stay inside. Only a site admin edits
+    `user_limit`, the seats a lead may fill, and `storage_limit_bytes`, where
+    null means the site default. `is_active` lets a site admin mark a group
+    restricted without deleting anything.
     """
 
     id: int
@@ -74,7 +48,7 @@ class Group(models.Model):
 
     @property
     def storage_limit(self) -> int:
-        """How many bytes this group may store: its own limit, else the site's."""
+        """`storage_limit` prefers the group's limit to the site default."""
         if self.storage_limit_bytes is not None:
             return self.storage_limit_bytes
         return django_settings.GROUP_STORAGE_LIMIT_BYTES
@@ -84,18 +58,11 @@ class Group(models.Model):
         return self.memberships.count()
 
     def delete(self, *args, **kwargs):
-        """Empty the group's work into the bin, then go.
-
-        `Experiment.group` is PROTECT, so without this a group that still holds
-        anything cannot be deleted at all. Taking the experiments down with it
-        is the other obvious answer and the wrong one: a group is removed once
-        its people have gone, which is exactly the moment nobody is left to say
-        whether the results still matter. So they are set aside for a site admin
-        to rehome or discard, and the deletion goes through.
-
-        A queryset delete does not come through here and will raise
-        `ProtectedError` instead, which is the safe way round: it refuses rather
-        than quietly taking a different route.
+        """`delete` moves the group's experiments to the site trash for a site
+        admin to rehome or discard, since nobody is left to judge whether the
+        results matter. `PROTECT` on `Experiment.group` would otherwise block
+        the deletion. A queryset delete skips `delete` and raises
+        `ProtectedError` for a group that still holds experiments.
         """
         from django.utils import timezone
 
@@ -107,29 +74,13 @@ class Group(models.Model):
 
     @property
     def seats_left(self) -> int:
-        """How many more people may be added. Never negative.
-
-        A limit lowered below the number of people already in the group leaves
-        it full rather than in deficit: nobody is removed by arithmetic, and the
-        lead simply cannot add more until somebody leaves.
-        """
+        """`seats_left` stays at 0 for a group over a lowered limit."""
         return max(0, self.user_limit - self.member_count)
 
 
 class Membership(models.Model):
-    """Which groups somebody is in, and what they are within each.
-
-    One row per (person, group). This was a OneToOne while "which group is this
-    experiment in" was answered by reading the owner's membership: one answer
-    was needed, so one row was allowed. `Experiment.group` records that answer
-    now, on the work itself, which is what frees a person to be in two places.
-    The boundary is stored on what it bounds rather than derived from who made
-    it.
-
-    A role is per group and not per person. Somebody can be a member of one
-    group and the primary lead of another, and neither fact leaks into the
-    other — which is the whole reason the role lives here rather than on the
-    account.
+    """`Membership` has one row per person and group, and the role lives here
+    because a person may lead one group and only belong to another.
     """
 
     id: int
@@ -139,24 +90,18 @@ class Membership(models.Model):
 
     MEMBER = "member"
     LEAD = "lead"
-    #: A lead with one thing more: leads are theirs to appoint and to unmake.
-    #:
-    #: A separate role rather than a flag on the group, because it is a fact
-    #: about a person *within* a group in exactly the way the other two are, and
-    #: the answer to "what is this person here" should come from one field. The
-    #: constraint below is what makes it at most one.
+    #: A primary lead is a lead who also appoints and removes leads. The
+    #: constraint in `Meta` keeps it to one per group.
     PRIMARY_LEAD = _PRIMARY_LEAD
     ROLES = [(MEMBER, "Member"), (LEAD, "Group lead"),
              (PRIMARY_LEAD, "Primary group lead")]
-    #: The roles that carry a lead's reach over the group. Named rather than
-    #: written out at each test, so adding a fourth role is one edit here.
+    #: Roles with a lead's reach over the group.
     LEAD_ROLES = (LEAD, PRIMARY_LEAD)
 
     user = models.ForeignKey(
         django_settings.AUTH_USER_MODEL, on_delete=models.CASCADE,
         related_name="memberships")
-    # PROTECT: a group with people in it is not something to delete by way of
-    # tidying up. Restricting it is `is_active`; emptying it is deliberate.
+    # `PROTECT` keeps a group with members from being deleted by accident.
     group = models.ForeignKey(Group, on_delete=models.PROTECT,
                               related_name="memberships")
     role = models.CharField(max_length=20, choices=ROLES, default=MEMBER)
@@ -165,16 +110,11 @@ class Membership(models.Model):
     class Meta:
         ordering = ["group__name", "user__username"]
         constraints = [
-            # Being in a group twice is not a state with a meaning: the two rows
-            # would carry two roles and nothing would say which applies.
             models.UniqueConstraint(
                 fields=["user", "group"],
                 name="one_membership_per_person_per_group"),
-            # One per group, enforced in the database rather than in the views
-            # that appoint one: a second primary lead is not a state the
-            # application should be able to reach by any route, including the
-            # admin and a data migration. Partial, so the other two roles are
-            # unaffected — a group has many members and may have many leads.
+            # The database enforces one primary lead per group, so the admin and
+            # data migrations cannot create a second one either.
             models.UniqueConstraint(
                 fields=["group"],
                 condition=models.Q(role=_PRIMARY_LEAD),
@@ -186,12 +126,8 @@ class Membership(models.Model):
 
     @property
     def is_lead(self) -> bool:
-        """Whether this membership carries a lead's reach over the group.
-
-        True for the primary lead as well: they are a lead who can also appoint
-        them, not a different thing that happens to sit above one. Every rule
-        about what a lead may see and do reads this, so the extra power stays
-        confined to `is_primary_lead` and the two views that ask for it.
+        """`is_lead` is True for the primary lead too; every lead rule reads
+        `is_lead`, and only `is_primary_lead` carries the extra power.
         """
         return self.role in self.LEAD_ROLES
 
@@ -201,16 +137,9 @@ class Membership(models.Model):
 
 
 class AccessPermissions(models.Model):
-    """Permissions that are not about a row.
-
-    Properties of an account rather than of any particular experiment, so there
-    is no model they naturally hang off. Django's answer is an unmanaged model
-    with no default permissions: no table is created, but the `Permission` rows
-    are, so each appears in the admin's user editor and
-    `user.has_perm("access.…")` works.
-
-    An active superuser holds all of them without being granted anything,
-    because that is what Django's `ModelBackend` does with `has_perm`.
+    """`AccessPermissions` is an unmanaged model with no table, present only so
+    Django creates its `Permission` rows for the admin and `has_perm`. An active
+    superuser holds every one through `ModelBackend`.
     """
 
     id: int
@@ -225,12 +154,9 @@ class AccessPermissions(models.Model):
              "Can manage groups, their size and their usage (a site admin)"),
             ("change_defaults",
              "Can change the experiment settings every experiment inherits"),
-            # ── the escape hatch ────────────────────────────────────────────
-            # Instance-wide, and therefore straight through the group boundary
-            # everything else here exists to draw. Granted to nobody, and meant
-            # to be handed out for a support case and taken back afterwards —
-            # not to describe a role. A group lead gets the same reach inside
-            # their own group from their membership, which is the ordinary way.
+            # `view_all_experiments` and `manage_experiments` reach across every
+            # group, so nobody holds them by default; an admin grants them for a
+            # support case and takes them back afterwards.
             ("view_all_experiments",
              "Can see every experiment on the instance, across all groups"),
             ("manage_experiments",

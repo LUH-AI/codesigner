@@ -1,13 +1,6 @@
-"""The experiment's history: every change to how it searches, when and by whom.
-
-`record` is called wherever such a change is made, and writes one
-`ExperimentEvent` with the whole value before and after. Runs are recorded by
-their own rows (`Run`); the timeline puts the two together. Everything here
-travels in the `.ihpo` as its `history` section, so an experiment opened
-elsewhere can say what was done to it.
-
-What counts is what changes the search, not what changes the page: stating a
-prior does, switching a figure off does not.
+"""`record` writes one `ExperimentEvent` per change to how an experiment
+searches, and the events travel in the `.ihpo` `history` section. `record`
+counts a stated prior as such a change and skips a hidden figure.
 """
 
 from __future__ import annotations
@@ -19,8 +12,7 @@ from django.utils.dateparse import parse_datetime
 
 from experiments.models import account
 
-#: Every kind of entry, and what its payload holds. Kinds nothing records yet
-#: are here so the file format and the timeline know them before they exist.
+#: Kinds map to payloads; some are reserved before anything records them.
 KINDS = {
     "created": "configuration — how the experiment was set up",
     "imported": "source, filename, dataset_attached",
@@ -32,17 +24,16 @@ KINDS = {
     "optimizer_params_changed": "old, new",
     "optimizer_changed": "old, new — each {name, params}, before the first trial",
     "environment_rebuilt": "old, new — the model environment's lock digest",
-    # Reserved: output constraints, once an experiment can state them.
+    # Reserved for output constraints.
     "constraint_added": "constraint, new",
     "constraint_changed": "constraint, old, new",
     "constraint_removed": "constraint, old",
-    # Reserved: Data Handling's recipe steps (augmentation, cleaning).
+    # Reserved for recipe steps.
     "data_step_added": "step, new",
     "data_step_removed": "step, old",
 }
 
-#: Edits that arrive as a stream — every drag of a prior's curve saves — and
-#: are worth one entry per change of mind rather than one per keystroke.
+#: Streamed prior edits fold into one entry per change of mind.
 _PRIOR_KINDS = ("prior_stated", "prior_edited", "prior_withdrawn")
 
 
@@ -51,9 +42,7 @@ def _trials(exp) -> int:
 
 
 def record(exp, kind, *, user=None, run=None, **payload):
-    """Write one entry in *exp*'s history. Returns it, or None for a draft:
-    what is done while setting one up is part of how it was set up, which its
-    `created` entry records whole."""
+    """`record` returns None for a draft, whose `created` entry holds the setup."""
     from experiments.models import ExperimentEvent
 
     if kind not in KINDS:
@@ -66,13 +55,8 @@ def record(exp, kind, *, user=None, run=None, **payload):
 
 
 def record_prior(exp, hp, old, new, *, user=None):
-    """A prior stated, edited or withdrawn — folded into the last entry when
-    it is about the same hyperparameter and nothing has run since.
-
-    The curve saves as it is dragged, so a minute's adjusting would otherwise
-    be a hundred entries. What a run searches under is what stood when it
-    started; until one starts, the edits are one change of mind, kept with the
-    value it started from. Ending where it began leaves no entry at all.
+    """`record_prior` folds an edit into the last entry for the same
+    hyperparameter when nothing has run since.
     """
     if getattr(exp, "draft", False):
         return None
@@ -98,8 +82,8 @@ def record_prior(exp, hp, old, new, *, user=None):
 
 
 def configuration(snapshot: dict) -> dict:
-    """What a `created` entry keeps: everything that decides the search, as
-    the file states it — not the results, not where the dataset lived."""
+    """`configuration` keeps the search-deciding sections, without results or
+    file paths."""
     kept = {key: copy.deepcopy(snapshot[key])
             for key in ("seed", "dataset", "model", "evaluation", "metrics", "optimizer",
                         "priors")
@@ -110,11 +94,8 @@ def configuration(snapshot: dict) -> dict:
     return kept
 
 
-# ── in the file ──────────────────────────────────────────────────────────────
-
 def serialized(exp) -> list[dict]:
-    """The `history` section: each entry, with the run it belongs to by its
-    index in the file's `runs`."""
+    """`serialized` identifies each entry's run by index in `runs`."""
     index = {pk: i for i, pk in enumerate(exp.runs.order_by("id").values_list("pk", flat=True),
                                           start=1)}
     return [{"kind": e.kind,
@@ -126,8 +107,8 @@ def serialized(exp) -> list[dict]:
 
 
 def restore(exp, entries) -> None:
-    """Rebuild *exp*'s history from a file's `history` section. Who did each
-    thing is not restored, as for runs."""
+    """`restore` rebuilds the events from *entries* without their actors, like
+    runs."""
     from experiments.models import ExperimentEvent, Run
 
     runs: dict[object, Run] = dict(enumerate(exp.runs.order_by("id"), start=1))

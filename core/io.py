@@ -1,52 +1,11 @@
-"""The `.ihpo` experiment file, and building a runnable experiment from one.
-
-File format (.ihpo): UTF-8 JSON. One object per subject, each stating its
-subject once, and `result` last because it is the longest by two orders of
-magnitude:
-
-    format      int   — the shape of this file (see SNAPSHOT_FORMAT)
-    version     str   — the application version that wrote it
-    name        str
-    seed        int   — one seed for the whole experiment: the split, the
-                        sampler, the scenario, fit_predict, the importance
-    dataset     dict  — path, filename, and (on export) digest and shape
-    model       dict  — kind, name, path, and (on export) digest and lock
-    evaluation  dict  — scheme, folds, test_size, and (on export) stratified
-    metrics     dict  — names, current, original
-    optimizer   dict  — name, params, and (on export) defaults_used. For a run
-                        imported from a SMAC directory, `params` is read back
-                        out of `scenario.json`'s `_meta` (see
-                        `smac_import._optimizer_settings`), so an imported run
-                        says how it was configured rather than coming back as a
-                        bare name with defaults underneath it.
-    space       dict | absent — the search space, as ConfigSpace's own
-                        serialized dict; byte-identical to SMAC's
-                        configspace.json. Optional: a file without one falls
-                        back to asking the model, which is what every file
-                        written before this section existed does.
-    priors      dict | absent — beliefs stated about the search space, by
-                        hyperparameter: `kind`, `params`, `decay`
-                        (`{shape, beta}`) and `at_trial`, the trial the belief
-                        was stated at. These steer the *next* run rather than
-                        describing a past one, which is why they are here and
-                        not under `runs`. Absent when nothing was stated.
-    runs        list  — export only: the history of runs over the trials
-    environment dict  — export only: the versions behind the numbers
-    result      dict | null — serialized OptimizationResult, a strict superset
-                        of SMAC's runhistory.json (see serialize_result)
-
-The superset property is about `result`, not about the file. A runhistory has
-none of `name`, `seed`, `dataset.path`, `model.name` or `metrics.names`, all of
-which `parse` requires — so a runhistory is not an .ihpo, while every .ihpo's
-`result` contains everything a runhistory does. `smac_import` is what bridges
-the two, filling the rest from the directory around the runhistory.
-
-The dataset arrays and model object are NOT stored. On load the two paths are
-resolved from disk; missing files must be re-supplied by the caller (or the
-experiment loaded read-only).
-
-Every reader goes through :func:`normalize`, so an older file — which spelled
-all of this as one flat namespace — is lifted rather than refused.
+"""`core.io` reads and writes the `.ihpo` file, UTF-8 JSON with one object per
+subject (format, version, name, seed, dataset, model, evaluation, metrics,
+optimizer, optional space and priors, runs, environment) and `result` last as
+the longest. `result` is a strict superset of SMAC's runhistory.json, and
+`smac_import` fills the other fields from a SMAC directory. The file keeps only
+the dataset and model paths, and a caller must resupply a missing file or load
+the experiment read-only. Every reader goes through `normalize`, which lifts
+older flat files.
 """
 
 from __future__ import annotations
@@ -76,18 +35,11 @@ from .splits import (
     MIN_FOLDS, backtest, cross_validation, holdout, time_cross_validation, time_holdout,
 )
 
-# ── Dataset / model discovery ─────────────────────────────────────────────────
-
-# ── Custom model loading ──────────────────────────────────────────────────────
 
 def load_model_from_path(model_path: str) -> tuple:
-    """Load a BaseModel subclass from a .py file at *model_path*.
-
-    Executes the file as Python — callers are responsible for only passing
-    trusted paths (see the ALLOW_CUSTOM_MODELS setting).
-
-    Returns ``(instance, None)`` on success or ``(None, error_str)`` on failure.
-    Error strings are plain English and not translated.
+    """Callers must pass only trusted paths (see `ALLOW_CUSTOM_MODELS`), because
+    `load_model_from_path` executes the file. The result is ``(instance, None)``
+    or ``(None, error)``, with untranslated errors.
     """
     from codesigner_model import BaseModel
 
@@ -135,10 +87,7 @@ def load_model_from_path(model_path: str) -> tuple:
         os.unlink(tmp_path)
 
 
-# ── JSON helpers ──────────────────────────────────────────────────────────────
-
 def _json_default(obj: Any) -> Any:
-    """Coerce numpy scalars / arrays to plain Python types."""
     if isinstance(obj, np.integer):
         return int(obj)
     if isinstance(obj, np.floating):
@@ -148,25 +97,14 @@ def _json_default(obj: Any) -> Any:
     raise TypeError(f"Object of type {type(obj).__name__} is not JSON serializable")
 
 
-
-# ── Public API ────────────────────────────────────────────────────────────────
-
-#: The shape of the file. Format 1 was one flat namespace, and the sections
-#: describing how an experiment was made were added beside it — so the optimizer
-#: was named twice, the fold count lived under two names, and every setting
-#: appeared once as asked for and again as resolved. Format 2 gives each subject
-#: one object and states it once. A file without the key is format 1.
+#: Format 1 was one flat namespace that named some settings twice, and format 2
+#: states each subject once. A file without the key is format 1.
 SNAPSHOT_FORMAT = 2
 
 
 def _check_format(snapshot: dict) -> None:
-    """Refuse a file written in a format newer than this build understands.
-
-    Only formats *older* than the current one can be lifted. `normalize`
-    dispatched on exact equality, so anything that was not the current format
-    fell through to the format 1 lifter — which does not fail on a future file.
-    It quietly returns a snapshot with most of its sections empty, and the
-    failure then surfaces several screens later as something else entirely.
+    """`normalize` would push a future file through the format 1 lifter, which
+    returns mostly empty sections and fails screens later.
     """
     written_as = snapshot.get("format")
     if isinstance(written_as, int) and written_as > SNAPSHOT_FORMAT:
@@ -176,16 +114,9 @@ def _check_format(snapshot: dict) -> None:
 
 
 def normalize(snapshot: dict) -> dict:
-    """A snapshot of either format, in the current one.
-
-    Everything that reads a snapshot calls this, so the rest of the application
-    knows one shape. A format 1 file is lifted rather than refused: those files
-    are on other people's disks and there is nothing wrong with them.
-
-    The record-only parts of a format 1 file are dropped rather than lifted —
-    its `optimizer.resolved`, and the copies of the settings that its `runs[]`
-    entries carried. Nothing reconstructs from them, and an export rebuilds the
-    record from the experiment as it stands.
+    """Every snapshot reader calls `normalize`, so the application knows one
+    shape. A format 1 file is lifted, minus its record-only `optimizer.resolved`
+    and per-run settings copies, since an export rebuilds the record.
     """
     if snapshot.get("format") == SNAPSHOT_FORMAT:
         return snapshot
@@ -220,11 +151,8 @@ def normalize(snapshot: dict) -> dict:
 
 
 def _lifted_evaluation(snapshot: dict) -> dict:
-    """Format 1's `cv_folds`, plus whatever its `evaluation` section resolved.
-
-    `scheme`, `folds` and `test_size` are all derivable from `cv_folds`, which
-    is why they are not carried separately any more. `stratified` is not — it is
-    what scikit-learn agreed to do with that target, not what was asked for.
+    """`_lifted_evaluation` derives `scheme`, `folds` and `test_size` from
+    `cv_folds` and keeps the recorded `stratified` value.
     """
     folds = int(snapshot.get("cv_folds") or 0)
     kfold = folds >= MIN_FOLDS
@@ -238,14 +166,9 @@ def _lifted_evaluation(snapshot: dict) -> dict:
 
 
 def evaluation_of(snapshot: dict) -> dict:
-    """How this snapshot's rows are divided for evaluation, every setting
-    present: `folds` (0 is a single holdout), `test_size` (the holdout's share;
-    under cross-validation `DEFAULT_TEST_SIZE`, so a later switch of scheme has
-    something to start from), `time_column` ("" for a division that ignores
-    time), `gap` (rows left between training and validation), and a
-    forecast's `horizon`, `series_column` and `season` (zeros and "" for a
-    snapshot not evaluated by backtests: a horizon above zero is what makes a
-    forecast)."""
+    """`evaluation_of` fills every setting: `folds` 0 means a holdout,
+    `test_size` keeps `DEFAULT_TEST_SIZE` under cross-validation for a later
+    scheme switch, and a positive `horizon` makes a forecast."""
     section = snapshot.get("evaluation") or {}
     return {
         "folds": int(section.get("folds") or 0),
@@ -259,20 +182,16 @@ def evaluation_of(snapshot: dict) -> dict:
 
 
 def to_bytes(snapshot: dict) -> bytes:
-    """*snapshot* as the bytes of an `.ihpo` file.
-
-    The one place a snapshot becomes a file, so `save` and the export view
-    cannot disagree about what one may contain — see `finite`.
+    """`save` and the export view both go through `to_bytes`, so neither can
+    write a non-finite number.
     """
     return json.dumps(finite(snapshot), ensure_ascii=False, indent=2,
                       default=_json_default).encode("utf-8")
 
 
 def parse(data: bytes) -> dict:
-    """Decode and validate raw bytes; return the snapshot dict, normalized.
-
-    Raises ``ValueError`` with a human-readable message on any problem.
-    Does NOT reconstruct any objects — call :func:`build_experiment` for that.
+    """`parse` raises ``ValueError`` with a readable message; `build_experiment`
+    reconstructs the objects.
     """
     try:
         raw = json.loads(data.decode("utf-8"))
@@ -282,14 +201,11 @@ def parse(data: bytes) -> dict:
     if not isinstance(raw, dict) or not isinstance(raw.get("version"), str):
         raise ValueError("not a valid .ihpo file or unsupported version")
 
-    # Before the field checks below, which are chosen by format: asked of a
-    # newer file they report whichever format 1 field it happens to lack, which
-    # names a consequence rather than the problem.
+    # A newer file would otherwise report a missing format 1 field instead of
+    # the real problem.
     _check_format(raw)
 
-    # Checked before normalizing, against the names the file itself uses: a
-    # field missing from a format 1 file should be reported by the name it is
-    # missing under, not by whatever normalizing would have called it.
+    # A missing field is reported under the name the file itself uses.
     if raw.get("format") == SNAPSHOT_FORMAT:
         missing = [f"{section}.{key}"
                    for section, key in (("dataset", "path"), ("model", "name"),
@@ -311,12 +227,8 @@ def parse(data: bytes) -> dict:
 
 
 def check_optimizer_state(snapshot: dict) -> None:
-    """Refuse a result whose optimizer files name paths of their own choosing.
-
-    `optimizer_state` is keyed by the relative path each file was written to,
-    and deserializing writes them back out. Checking here means a file edited to
-    point somewhere else is refused when it is read, rather than at whatever
-    later moment something happens to rebuild its result.
+    """Deserializing writes each `optimizer_state` file to its relative path, so
+    an edited path is refused at read time.
     """
     state = (snapshot.get("result") or {}).get("optimizer_state")
     if state is None:
@@ -331,21 +243,10 @@ def check_optimizer_state(snapshot: dict) -> None:
 
 
 def _check_trial_scores(snapshot: dict) -> None:
-    """Refuse a result whose trials don't carry every metric the file declares.
-
-    Every figure reads `trial.scores[metric]` for whichever metric is being
-    viewed, and the metric selector offers whatever `metrics.names` lists — so a
-    trial missing one of them is not a degraded figure, it is a KeyError at
-    render time, i.e. a 500 on the detail page for a file that imported
-    cleanly. Refusing it here means the failure lands where it can be
-    explained, naming the trial and the metric, instead of several screens
-    later with no indication which file was at fault.
-
-    Mirrors `BaseOptimizer.deserialize_result`'s own fallback so the two agree
-    on what a valid entry is: an entry with no `scores` at all is read as
-    carrying the primary metric alone (that is how single-metric files written
-    before per-metric scores existed are still loadable), and is therefore fine
-    exactly when the file declares no other metric.
+    """A trial missing a declared metric would raise a KeyError at render time,
+    a 500 on the detail page. Like `BaseOptimizer.deserialize_result`,
+    `_check_trial_scores` reads an entry without `scores` as the primary metric
+    alone.
     """
     result = snapshot.get("result") or {}
     names = list(snapshot.get("metrics", {}).get("names") or [])
@@ -365,21 +266,17 @@ def _check_trial_scores(snapshot: dict) -> None:
 
 
 def dataset_path_ok(snapshot: dict) -> bool:
-    """Return True if the stored dataset path exists and is a readable file."""
     p = (normalize(snapshot).get("dataset") or {}).get("path", "")
     return bool(p) and Path(p).is_file()
 
 
 def model_path_ok(snapshot: dict) -> bool:
-    """Return True if the model is a registry model (no path) or its file exists."""
     p = (normalize(snapshot).get("model") or {}).get("path", "")
     return not p or Path(p).is_file()
 
 
 def attach_dataset(exp: dict, dataset_path: str) -> None:
-    """Load *dataset_path*, reproduce the stored train/val split, and update *exp* in-place.
-
-    Raises ``ValueError`` if the file cannot be found or read.
+    """`attach_dataset` raises ``ValueError`` when the file cannot be read.
     """
     path = Path(dataset_path)
     if not path.is_file():
@@ -403,27 +300,10 @@ def build_experiment(
     read_only: bool = False,
     load_model: bool = True,
 ) -> tuple[str, dict]:
-    """Construct a live experiment dict from a parsed snapshot.
-
-    Parameters
-    ----------
-    snapshot:
-        Output of :func:`parse`.
-    available_metrics / available_models / available_optimizers:
-        The registries from the running app.
-    model_name:
-        Override the registry key when the stored built-in model name is missing.
-        Ignored when ``snapshot["model_path"]`` is non-empty.
-    read_only:
-        If True, skip all file-based loading: dataset arrays are None and any
-        custom model file is not loaded (model will be None).  Registry-based
-        models are still resolved normally since they require no file I/O.
-    load_model:
-        If False, a custom model file is not imported and ``model`` is None,
-        while the dataset is still loaded.  For a caller that runs the model in
-        its own process and only needs everything around it.
-
-    Returns ``(name, exp_dict)`` on success.  Raises ``ValueError`` on failure.
+    """*model_name* overrides the stored built-in name and is ignored for a file
+    model. *read_only* skips all file loading, and *load_model* False skips only
+    the custom model import. The result is ``(name, exp)``, and a failure raises
+    ``ValueError``.
     """
     snapshot = normalize(snapshot)
     ev = evaluation_of(snapshot)
@@ -431,12 +311,8 @@ def build_experiment(
     model_path = snapshot["model"].get("path", "")
     task = tasks.task_of(snapshot)
 
-    # A file may bring its own metric. A run imported from somewhere else names
-    # an objective this build has never heard of, and refusing it would mean the
-    # file cannot be opened at all — so the result's own declarations are
-    # consulted alongside the registry. They are enough to read, compare and
-    # draw the numbers in the file, which is everything except computing new
-    # ones; `undescribe` makes that explicit by refusing to score.
+    # A file may declare its own metrics, so an imported run with an unknown
+    # objective still opens; `undescribe` refuses to score them.
     declared = declarations((snapshot.get("result") or {}).get("declared_metrics"))
     missing_metrics = [m for m in metric_names
                        if m not in available_metrics and m not in declared]
@@ -444,29 +320,23 @@ def build_experiment(
         raise ValueError(f"unknown metric(s): {', '.join(missing_metrics)}")
 
     opt_name = snapshot["optimizer"]["name"]
-    # Aliases too: an optimizer that has been renamed still has to answer to
-    # what it was called in every .ihpo written before the rename.
+    # Aliases keep renamed optimizers loadable from old files.
     opt_type = optimizer_class(opt_name, available_optimizers)
     if opt_type is None:
         raise ValueError(f"optimizer '{opt_name}' is not available")
 
     seed = snapshot["seed"]
 
-    # ── Model ─────────────────────────────────────────────────────────────────
     if snapshot["model"].get("kind") == "external":
-        # A run somebody else produced. There is no model to resolve and no
-        # dataset to run it against — the file records what was searched and
-        # what it scored, not what was doing the searching. `model = None` is
-        # the state a custom-model experiment viewed read-only is already in, so
-        # nothing downstream needs a new branch; `_model_available` reads it as
-        # not runnable, which is the whole of what "read-only" means here.
+        # The file of an external run holds the search and its scores, with no
+        # model or dataset. `model = None` matches a read-only custom model, and
+        # `_model_available` treats such an experiment as unrunnable.
         model = None
         resolved_model = snapshot["model"].get("name") or "External"
     elif model_path:
         if read_only or not load_model:
-            # `load_model=False` means the caller will supply the model itself —
-            # a custom model usually runs in its own process now, and importing
-            # it here to then throw it away is exactly what that avoids.
+            # The caller supplies the model, usually in its own process, so
+            # importing the file here would be waste.
             model = None
         else:
             model, err = load_model_from_path(model_path)
@@ -489,9 +359,9 @@ def build_experiment(
         forecasts = ev["horizon"] > 0
         if tasks.forecaster(model_entry) and not forecasts:
             raise ValueError(f"model '{stored_model}' only forecasts")
-        # A copy, told its task: the registry's instance is shared by every
-        # experiment in the process, and the task is this one's. A model asked
-        # to forecast that does not by itself does so through `core.forecasting`.
+        # The registry instance is shared, so each experiment gets a copy with
+        # its own task; `core.forecasting` wraps a non-forecaster asked to
+        # forecast.
         if forecasts and not tasks.forecaster(model_entry):
             model = forecasting.Reduced(model_entry, task)
         else:
@@ -499,10 +369,8 @@ def build_experiment(
             model.task = task
         resolved_model = stored_model
 
-    # ── Dataset ───────────────────────────────────────────────────────────────
-    # `splits` is what a trial is actually evaluated over — one fold for a
-    # holdout, k for cross-validation. The four arrays stay as they were: plenty
-    # of callers read them, and for a holdout they are the same data.
+    # `splits` holds what a trial is evaluated over; the four arrays stay for
+    # their many callers.
     cv_folds, test_size = ev["folds"], ev["test_size"]
     forecast = times = None
     if read_only:
@@ -517,8 +385,8 @@ def build_experiment(
         columns = dataset_encoding(path)
         if model is not None:
             give_context(model, "feature_kinds", tuple(encoding.feature_kinds(columns)))
-            # A built-in is told how its columns are processed, and so is one
-            # wrapped for forecasting; an uploaded model is given them as they are.
+            # Each built-in model gets the processing plan, while an uploaded
+            # model gets its columns unprocessed.
             processing = choices_of((snapshot.get("dataset") or {}).get("processing"))
             for told in (getattr(model, "model", None), model):
                 if isinstance(told, Tunable):
@@ -536,15 +404,13 @@ def build_experiment(
                                            shape["horizon"], season, gap)
             if model is not None:
                 give_context(model, "forecast", dict(forecast))
-            # The latest backtest, as the four arrays: the one nearest to how
-            # the forecast would be used.
+            # The latest backtest, nearest to real use.
             train_idx, val_idx = splits.folds[-1]
             X_train, X_val = X_all[train_idx], X_all[val_idx]
             y_train, y_val = y_all[train_idx], y_all[val_idx]
         elif time_column:
-            # In time order: never shuffled, never stratified, the seed has no
-            # say in it. The holdout's four arrays are its one fold, so callers
-            # reading them see the same division a trial does.
+            # A time split is never shuffled or stratified, and the holdout's
+            # arrays equal its one fold.
             X_all, y_all = load_frame(path, order_by=time_column)
             splits = (time_cross_validation(X_all, y_all, cv_folds, gap) if cv_folds >= MIN_FOLDS
                       else time_holdout(X_all, y_all, test_size, gap))
@@ -559,12 +425,10 @@ def build_experiment(
             else:
                 splits = holdout(X_train, y_train, X_val, y_val)
 
-    # The registry first: a later build correcting what a metric means must not
-    # be overruled by a file written before the correction.
+    # The registry wins, since a later build may correct a metric.
     metrics   = {m: available_metrics.get(m) or declared[m] for m in metric_names}
-    # Narrowed to what this optimizer still accepts. A withdrawn or renamed
-    # parameter would otherwise be an unexpected keyword, raised from whichever
-    # page happened to rebuild the result.
+    # A withdrawn or renamed parameter would otherwise raise as an unexpected
+    # keyword.
     optimizer = opt_type(**opt_type.known_params(snapshot["optimizer"].get("params") or {}))
     result    = optimizer.deserialize_result(snapshot["result"]) if snapshot.get("result") else None
 
@@ -586,17 +450,15 @@ def build_experiment(
         "gap": ev["gap"],
         "task":    task,
         "splits":  splits,
-        # How the features were encoded (`core.encoding`), and so what kind each
-        # column of X is. None when nothing was read.
+        # `core.encoding` spec; None when nothing was read.
         "encoding": columns,
         "feature_kinds": encoding.feature_kinds(columns) if columns else None,
-        # What a forecaster is told (`core.forecasting`), None for any other run.
+        # None outside a forecast.
         "forecast": forecast,
-        # Each row of the splits' time, in their order; a forecast's only.
+        # Each split row's time, forecasts only.
         "times": times,
-        # Undecoded. Kept as the serialized dict the file carries, because the
-        # one caller that wants a live object also wants it seeded, and
-        # `config_space_from_serialized` does both.
+        # The serialized dict, since `config_space_from_serialized` decodes and
+        # seeds it.
         "config_space": snapshot.get("space"),
         "result":  result,
     }
@@ -604,10 +466,8 @@ def build_experiment(
 
 
 def give_context(model, attribute: str, value) -> None:
-    """Set *attribute* on *model*: its task, the kind of each of its columns, or
-    its forecast. A model written before the attribute existed may not take it
-    (a property with no setter, say) and is left as it is: it was written for
-    what it could be offered then, a classification over numeric columns."""
+    """A model written before *attribute* existed may refuse it and stays as
+    written, for numeric classification."""
     try:
         setattr(model, attribute, value)
     except AttributeError:
@@ -615,17 +475,10 @@ def give_context(model, attribute: str, value) -> None:
 
 
 def config_space_from_serialized(space: dict | None, seed: int = 0):
-    """A stored `space` section as a live `ConfigurationSpace`, or None.
-
-    Copied before decoding because `from_serialized_dict` *consumes* what it is
-    given — it pops each hyperparameter's `type` — so a second call on the same
-    dict raises, and the dict here belongs to a snapshot the caller keeps using.
-    The same rule `core/modelhost/client.py`'s `get_config_space` follows, for
-    the same reason.
-
-    Serializing loses the seed, and `RandomOptimizer` samples from this, so it
-    is re-applied rather than inherited. None in, None out: a file without a
-    space is not an error, it is a file that predates the section.
+    """`from_serialized_dict` pops each hyperparameter's `type`, so
+    `config_space_from_serialized` decodes a copy of the caller's dict and
+    reapplies the lost seed. `config_space_from_serialized` gives None for a
+    missing space, since older files predate the section.
     """
     if not space:
         return None

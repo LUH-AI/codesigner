@@ -1,14 +1,6 @@
-"""The endpoint the metric switcher fetches from.
-
-The detail page ships plot payloads for the metric it opens on only. Every
-other metric comes from here, once each, the first time it is selected — the
-same lazy-fetch-and-cache shape partial dependence and local ablation already
-use (test_partial_dependence_view.py, test_trial_ablation.py).
-
-Unlike those two this computes nothing new: the numbers were all worked out at
-run completion and stored, so what is deferred is building the Plotly objects
-and serializing them. That was 72 `plot()` calls and ~300KB of JSON on every
-page load, for six payloads that end up on screen.
+"""The metric switcher fetches each other metric here once. The numbers are
+stored at run completion, so the endpoint defers only building and serializing
+the Plotly objects.
 """
 
 import pytest
@@ -44,8 +36,6 @@ def test_it_answers_with_every_per_metric_figure(client):
 
 
 def test_it_omits_the_figures_that_are_not_per_metric(client):
-    """Those are drawn once, from the page's own static payload — fetching them
-    again per metric switch would be the waste this endpoint exists to end."""
     exp = _experiment_with_result()
     payload = client.get(_url(exp.pk, "f1")).json()
 
@@ -54,8 +44,8 @@ def test_it_omits_the_figures_that_are_not_per_metric(client):
 
 
 def test_it_agrees_with_what_the_page_ships_for_its_own_metric(client):
-    """The page and the switcher must not serve different shapes for the same
-    figure — they go through one `_figure_plots`, and this is what pins that."""
+    """Both paths go through one `_figure_plots`, so page and switcher serve the
+    same shape."""
     exp = _experiment_with_result()
     import json
     html = client.get(reverse("ui:experiment_detail", args=[exp.pk])).content.decode()
@@ -68,8 +58,7 @@ def test_it_agrees_with_what_the_page_ships_for_its_own_metric(client):
 
 
 def test_a_hidden_figure_is_absent_here_too(client):
-    """The endpoint must not become a way to fetch what the settings switched
-    off — it reads the same `_shown_figures` the page does."""
+    """The endpoint reads the same `_shown_figures` as the page."""
     gs = GlobalSettings.get_solo()
     gs.default_experiment_settings = {"show_configuration_cube": False}
     gs.save(update_fields=["default_experiment_settings"])

@@ -1,14 +1,5 @@
-"""How a reader arranges an experiment page, and how that is kept.
-
-*What:* an arrangement is each tab's figures in order, each with a width in
-grid columns (`ui/layout.py`). It is normalised against the catalog whenever it
-is read or written, so a stored one stays valid as figures are added or change
-shape. Each reader has their own per experiment; one who has arranged nothing
-sees the site default, and without one of those the catalog's own order.
-
-*How:* `normalize` directly, for what it repairs; the save endpoint through the
-client, as different readers, for whose row a request writes and who may set
-the site default.
+"""An arrangement lists each tab's figures with grid widths. Each reader keeps
+one per experiment over the site default.
 """
 
 import json
@@ -29,11 +20,10 @@ def _keys(layout, tab):
     return [s["key"] for s in layout["tabs"][tab]]
 
 
-# ── the default ──────────────────────────────────────────────────────────────
+# Default
 
 def test_every_figure_has_a_home_and_a_shape():
-    """The rot guard: a figure added to the catalog has to say where it goes
-    and what shape it is, or it has no place on the page."""
+    """A new catalog figure must declare its home tab and shape."""
     for figure in FIGURES:
         if figure.in_sidebar:
             continue
@@ -42,9 +32,7 @@ def test_every_figure_has_a_home_and_a_shape():
 
 
 def test_the_default_is_the_file():
-    """ui/figure_layout.toml, figure for figure, columns counted from 1
-    there and from 0 here. It ships with the code, so every install opens on
-    it; there is no other default."""
+    """The file counts columns from 1, and the code counts from 0."""
     import tomllib
 
     raw = tomllib.loads(layouts.DEFAULT_PATH.read_text(encoding="utf-8"))
@@ -56,9 +44,7 @@ def test_the_default_is_the_file():
 
 
 def test_the_file_places_every_figure():
-    """The rot guard the app itself applies at start-up: a figure added to the
-    catalog and not placed in the file stops the app, rather than turning up
-    wherever some other order would put it."""
+    """An unplaced figure stops the app at start-up."""
     assert layouts.check() == []
 
 
@@ -83,7 +69,7 @@ def test_the_app_refuses_a_file_that_is_missing_or_wrong(tmp_path):
             layouts.read_default(path)
 
 
-# ── what normalising repairs ─────────────────────────────────────────────────
+# Normalising
 
 @pytest.mark.parametrize("stored", [None, [], "x", {"tabs": "x"}, {"version": 1}])
 def test_anything_that_is_not_an_arrangement_is_the_default(stored):
@@ -102,7 +88,6 @@ def test_unknown_figures_and_duplicates_are_dropped():
 
 
 def test_a_figure_cannot_be_moved_off_its_home_tab():
-    """Only Overview holds figures from other tabs."""
     layout = layouts.default_layout()
     layout["tabs"]["hypershap"].append({"key": "trials", "w": 2})
 
@@ -113,13 +98,13 @@ def test_a_figure_cannot_be_moved_off_its_home_tab():
 
 
 @pytest.mark.parametrize("key, asked, kept", [
-    ("hyperparameter_importance", 9, 4),   # squat: 1, 2 or 4
-    ("hyperparameter_importance", 3, 2),   # never 3: the widest that fits
+    ("hyperparameter_importance", 9, 4),   # squat shape
+    ("hyperparameter_importance", 3, 2),   # widest fit
     ("hyperparameter_importance", 0, 1),
-    ("parallel_coordinates", 1, 2),        # long: 2 or 4
+    ("parallel_coordinates", 1, 2),        # long shape
     ("parallel_coordinates", 3, 2),
-    ("trials", 4, 2),                      # the table is always 2
-    ("trial_duration", "wide", 1),         # nonsense: its opening width
+    ("trials", 4, 2),                      # fixed table width
+    ("trial_duration", "wide", 1),         # opening width
 ])
 def test_widths_are_held_to_the_shape(key, asked, kept):
     layout = layouts.default_layout()
@@ -134,19 +119,18 @@ def test_widths_are_held_to_the_shape(key, asked, kept):
 
 
 @pytest.mark.parametrize("w, c, kept", [
-    (1, 3, 3),         # a one-column figure may start in any column
-    (2, 2, 2),         # a two-column one in 1 or 3 (0-based 0 or 2)…
-    (2, 1, None),      # …never across the middle
+    (1, 3, 3),         # any column
+    (2, 2, 2),         # columns 0 or 2
+    (2, 1, None),      # straddles middle
     (4, 0, 0),
     (4, 2, None),
-    (1, 4, None),      # off the grid
-    (1, "2", None),    # not a number
+    (1, 4, None),      # columns 0-3
+    (1, "2", None),
     (1, True, None),
 ])
 def test_a_column_is_kept_only_where_the_width_can_start(w, c, kept):
-    """The column a figure stays in on the four-column grid, so that something
-    above it growing moves it down rather than across. One its width cannot
-    start in is dropped, and the page finds it one."""
+    """Keeping the column means growth above moves a figure down instead of
+    across."""
     layout = layouts.default_layout()
     slot = next(s for s in layout["tabs"]["hypershap"] if s["key"] == "hyperparameter_importance")
     slot["w"], slot["c"] = w, c
@@ -158,7 +142,7 @@ def test_a_column_is_kept_only_where_the_width_can_start(w, c, kept):
 
 
 def test_the_page_carries_each_column(client):
-    """On the slot, for layout.js to place it by; absent where none is kept."""
+    """`layout.js` places slots by `data-c`."""
     from core import io
     from tests.conftest import FIXTURES_DIR
     from experiments.services import snapshot
@@ -182,7 +166,7 @@ def test_the_page_carries_each_column(client):
 
 
 def test_a_figure_new_to_the_catalog_is_added_where_it_belongs():
-    """Absent from its home tab means the arrangement predates it."""
+    """`normalize` adds figures the layout lacks."""
     layout = layouts.default_layout()
     layout["tabs"]["misc"] = [s for s in layout["tabs"]["misc"] if s["key"] != "trials"]
     layout["tabs"][OVERVIEW] = [s for s in layout["tabs"][OVERVIEW] if s["key"] != "trials"]
@@ -208,8 +192,7 @@ def test_overview_may_hold_any_figure():
 
 
 def test_a_switched_off_figure_keeps_its_place():
-    """Skipped on the page, kept in the arrangement, so turning it back on puts
-    it back where it was."""
+    """Turning a figure back on restores its place."""
     shown = [f for f in FIGURES if f.key != "trial_duration"]
     layout = layouts.default_layout()
 
@@ -220,7 +203,7 @@ def test_a_switched_off_figure_keeps_its_place():
     assert "trial_duration" in _keys(layouts.normalize(layout), "misc")
 
 
-# ── whose arrangement ────────────────────────────────────────────────────────
+# Whose arrangement
 
 @pytest.fixture
 def hosted(settings):
@@ -266,8 +249,7 @@ def test_a_reader_keeps_their_own_arrangement(client, hosted, lab):
 
 
 def test_a_reader_who_may_only_look_can_still_arrange(client, hosted, lab):
-    """Ben leads the group and reaches Ana's experiment without any grant to
-    change it. The arrangement is his, not the experiment's."""
+    """Ben, a lead without edit rights, still saves his own figure layout."""
     client.force_login(lab["ben"])
 
     assert _save(client, lab["exp"], {"layout": _narrowed()}).status_code == 200
@@ -282,7 +264,6 @@ def test_somebody_who_cannot_see_it_cannot_arrange_it(client, hosted, lab):
 
 
 def test_the_page_opens_as_it_was_left(client, hosted, lab):
-    """On an experiment with results, which is when the page has tabs."""
     from core import io
     from tests.conftest import FIXTURES_DIR
     from experiments.services import snapshot
@@ -297,8 +278,7 @@ def test_the_page_opens_as_it_was_left(client, hosted, lab):
     from ui.figures import FIGURES_BY_KEY
 
     misc = next(t for t in page["figure_tabs"] if t["tab"] == "misc")
-    # The first of the reader's order that this experiment shows: a figure for
-    # forecasts only (Figure.forecast_only) has no slot on its page.
+    # Forecast-only figures have no slot on this page.
     first = next(s["key"] for s in _narrowed()["tabs"]["misc"]
                  if not FIGURES_BY_KEY[s["key"]].forecast_only)
     assert misc["slots"][0]["figure"].key == first
@@ -319,8 +299,7 @@ def test_the_site_default_is_what_a_new_reader_sees(client, hosted, lab):
 
 
 def test_the_page_cannot_set_the_site_default(client, hosted, lab):
-    """There is no button for it, and the endpoint does not take it from
-    anybody: what is sent is kept as the sender's own."""
+    """The endpoint keeps whatever is sent as the sender's own."""
     client.force_login(lab["ana"])
 
     _save(client, lab["exp"], {"layout": _narrowed(), "site_default": True})
@@ -330,7 +309,7 @@ def test_the_page_cannot_set_the_site_default(client, hosted, lab):
 
 
 def test_the_settings_page_resets_it(client, hosted, lab):
-    """An ordinary form there, so it goes back to the experiment afterwards."""
+    """The form returns to the experiment."""
     client.force_login(lab["ana"])
     _save(client, lab["exp"], {"layout": _narrowed()})
 
@@ -343,7 +322,7 @@ def test_the_settings_page_resets_it(client, hosted, lab):
     assert not FigureLayout.objects.exists()
 
 
-# ── a reader's own default ───────────────────────────────────────────────────
+# Reader defaults
 
 def _settings_post(client, exp, button):
     return client.post(reverse("ui:save_layout", args=[exp.pk]), {button: "1"})
@@ -357,8 +336,7 @@ def second(lab):
 
 
 def test_a_reader_can_make_an_arrangement_their_default(client, hosted, lab, second):
-    """Every experiment they have not arranged opens on it; nobody else's
-    does, and nor does one they have."""
+    """`make_default` sets one reader's layout for every unarranged experiment."""
     client.force_login(lab["ana"])
     _save(client, lab["exp"], {"layout": _narrowed()})
 
@@ -392,8 +370,7 @@ def test_resetting_the_default_goes_back_to_the_sites(client, hosted, lab, secon
 
 
 def test_without_accounts_there_is_one_readers_default(client):
-    """One reader, one row — and the site's default, the file, is untouched by
-    it either way."""
+    """The file, the site default, stays untouched."""
     exp = Experiment.objects.create(
         name="solo", model_name="Random Forest", optimizer_name="Random Search",
         metric_names=["accuracy"], seed=0)

@@ -1,11 +1,7 @@
-"""What a group stores, its limit, and what gives way when it is full.
-
-A group's usage is its experiments' datasets and model files plus the trial
-models kept for export; the bundled demo datasets are shared and count against
-nobody. Datasets come first: an upload past the limit is accepted and the
-stalest kept trial models are deleted to make room, and only datasets and
-model files alone past the limit refuse it. Every member is warned on every
-page past 90%.
+"""A group's usage counts datasets, model files and kept trial models, and
+bundled demos count for nobody. An upload past the limit evicts the stalest kept
+models, and the app refuses the upload only when datasets and model files alone
+exceed the limit.
 """
 
 from pathlib import Path
@@ -26,7 +22,7 @@ FLATS = FIXTURES_DIR / "flats.csv"
 
 @pytest.fixture
 def lab(settings, django_user_model, client):
-    """A group of two, Ana signed in."""
+    """`lab` enrols Ana and Ben."""
     settings.REQUIRE_LOGIN = True
     group = Group.objects.create(name="lab", user_limit=5)
     people = {}
@@ -53,7 +49,7 @@ def _create(client, name="flats", upload=True, **extra):
 
 
 def _kept(exp, trial, size, tmp_path, minutes_ago):
-    """A kept trial model of *size* bytes, kept *minutes_ago*."""
+    """`_kept` stores a model used *minutes_ago*."""
     from datetime import timedelta
 
     from django.utils import timezone
@@ -68,9 +64,6 @@ def _kept(exp, trial, size, tmp_path, minutes_ago):
 
 
 def test_a_demo_dataset_is_named_not_copied_and_still_runs(lab, client):
-    """What: choosing a demo stores its name and no file, counts nothing
-    against the group, and the experiment runs on the bundled file.
-    How: creates iris from the demo, reads the row and the usage, runs it."""
     from experiments.services.snapshot import rebuild_result
 
     _create(client, "iris", upload=False)
@@ -87,9 +80,8 @@ def test_a_demo_dataset_is_named_not_copied_and_still_runs(lab, client):
 
 
 def test_the_file_names_the_demo_and_another_instance_reads_it_as_its_own(lab, client):
-    """What: the .ihpo says which demo the dataset is, and opening it again
-    uses the bundled demo rather than needing the file. How: exports the
-    snapshot and builds a second experiment from it without a dataset."""
+    """`experiment_from_snapshot` reopens a demo-backed `.ihpo` without the
+    dataset file."""
     from experiments.services import snapshot as snapshot_adapter
 
     _create(client, "iris", upload=False)
@@ -102,9 +94,6 @@ def test_the_file_names_the_demo_and_another_instance_reads_it_as_its_own(lab, c
 
 
 def test_an_upload_counts_and_purging_deletes_its_file(lab, client):
-    """What: an uploaded dataset counts its bytes against the group, and
-    purging the experiment deletes the file and frees them.
-    How: uploads flats, reads the usage, purges, checks the disk."""
     from experiments.services import bin as bin_service
 
     _create(client)
@@ -118,10 +107,8 @@ def test_an_upload_counts_and_purging_deletes_its_file(lab, client):
 
 
 def test_a_dataset_past_the_limit_replaces_the_stalest_kept_models(lab, client, tmp_path):
-    """What: an upload that takes the group past its limit is accepted, and
-    kept trial models are deleted, the stalest first, until it fits — the
-    person is told how many. How: a limit just above one file plus one kept
-    model, two kept models of different ages, then a second upload."""
+    """`storage` deletes the stalest kept models until the upload fits and
+    reports how many."""
     _create(client, "first")
     first = Experiment.objects.get(data__name="first")
     size = FLATS.stat().st_size
@@ -142,9 +129,7 @@ def test_a_dataset_past_the_limit_replaces_the_stalest_kept_models(lab, client, 
 
 
 def test_datasets_alone_past_the_limit_are_refused(lab, client):
-    """What: when the datasets and model files alone would be over the limit
-    there is nothing to make room with, so the upload is refused and nothing
-    of it is left behind. How: a limit smaller than one file."""
+    """The refused upload leaves nothing behind."""
     lab["group"].storage_limit_bytes = 100
     lab["group"].save()
 
@@ -156,9 +141,7 @@ def test_datasets_alone_past_the_limit_are_refused(lab, client):
 
 
 def test_every_member_is_warned_past_ninety_percent(lab, client):
-    """What: once the group uses 90% of its limit, every member sees the
-    warning on every page — not only whoever uploaded. How: fills the group
-    to about 95% and signs Ben in."""
+    """The warning reaches members other than the uploader."""
     from django.core.cache import cache
 
     _create(client)
@@ -172,9 +155,7 @@ def test_every_member_is_warned_past_ninety_percent(lab, client):
 
 
 def test_a_site_admin_sets_a_groups_limit(lab, client, django_user_model):
-    """What: a site admin sets the storage limit beside the seats; the group's
-    page shows its usage against it. How: posts the site form, then opens the
-    group page as a member."""
+    """The group page shows its usage against the limit."""
     from django.contrib.auth.models import Permission
 
     admin = django_user_model.objects.create_user(username="site", password="pw")

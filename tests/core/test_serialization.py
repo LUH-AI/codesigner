@@ -8,10 +8,8 @@ from tests.conftest import FIXTURES_DIR
 
 
 def _synthetic_result() -> OptimizationResult:
-    """A small hand-built OptimizationResult covering the tricky cases:
-    a mid-run non-improving trial (trial 2) and a config whose dict key
-    order differs from insertion order (trial 3) — key order must not
-    affect config identity during (de)serialization."""
+    """Trial 2 is non-improving, and trial 3 lists its config keys b before a,
+    because key order must leave config identity unchanged."""
     trials = [
         TrialResult(trial=1, config={"a": 1, "b": 2}, scores={"accuracy": 0.5, "f1": 0.4},
                     score=0.5, incumbent_score=0.5, incumbent_config={"a": 1, "b": 2}),
@@ -32,14 +30,7 @@ def _synthetic_result() -> OptimizationResult:
 
 
 def test_serialize_deserialize_inverse():
-    """deserialize_result reconstructs every field serialize_result wrote.
-
-    Action: round-trip the synthetic result through the base implementation
-    (RandomOptimizer adds no optimizer_state).
-    Expect: trials (number, config, scores, incumbents), primary metric,
-    best config/score, importance dicts and trials_limit all survive.
-    score/incumbent_score use approx because they travel as cost = 1 - score,
-    which loses a few float ulps.
+    """Scores use approx because they travel as cost = 1 - score.
     """
     opt = RandomOptimizer()
     original = _synthetic_result()
@@ -63,13 +54,7 @@ def test_serialize_deserialize_inverse():
 
 
 def test_serialized_dict_mirrors_runhistory_shape():
-    """The serialized result dict keeps the exact runhistory-style shape the
-    .ihpo format promises.
-
-    This pins the stored format itself (not just round-trip consistency), so
-    accidental schema drift fails loudly. Checks: stats counters, config_id
-    set, the cost = 1 - score convention, best_config_id recovery, and
-    config_origins recording where each configuration came from.
+    """`serialize_result` keeps the runhistory shape the .ihpo format promises.
     """
     opt = RandomOptimizer()
     d = opt.serialize_result(_synthetic_result())
@@ -79,21 +64,13 @@ def test_serialized_dict_mirrors_runhistory_shape():
     by_id = {e["config_id"]: e for e in d["data"]}
     assert by_id[3]["cost"] == approx(0.2)
     assert d["best_config_id"] == "3"
-    # The synthetic trials were built without one, and an unrecorded origin is
-    # written through as empty rather than filled in with the optimizer's name:
-    # "we do not know where this came from" and "the model chose it" are
-    # different facts, and the resume logic reads them apart.
+    # An unrecorded origin stays empty, because the resume logic tells "unknown"
+    # apart from "the model chose it".
     assert d["config_origins"] == {"1": "", "2": "", "3": ""}
 
 
 def test_fixture_result_roundtrips_through_base_format():
-    """A result dict from a stored .ihpo file survives deserialize→serialize.
-
-    Setup: the 30-trial Random Search fixture (test2.ihpo), which has no
-    optimizer_state and therefore exercises the base-format path.
-    Expect: configs, per-trial cost/scores/incumbent ids, best_score and
-    primary_metric all match the stored dict (cost via approx: it is
-    recomputed as 1 - score on the way back out).
+    """test2.ihpo carries no optimizer_state and exercises the base-format path.
     """
     snapshot = json.loads((FIXTURES_DIR / "test2.ihpo").read_text(encoding="utf-8"))
     opt = RandomOptimizer()

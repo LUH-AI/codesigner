@@ -1,5 +1,5 @@
-"""The experiment's history: each change to how it searches, recorded where it
-is made, carried in the file, and with its times in the form asked for."""
+"""The history records each change to the search where it is made, and the file
+carries it."""
 
 import json
 import re
@@ -54,11 +54,10 @@ def _import(client, body, name):
     return Experiment.objects.get(data__name=name)
 
 
-# ── where it is recorded ─────────────────────────────────────────────────────
+# Recording
 
 def test_creating_an_experiment_records_how_it_was_set_up(client):
-    """What: the first entry holds everything that decides the search, and
-    not where the dataset lives. How: creates one and reads the entry."""
+    """The first entry omits where the dataset lives."""
     exp = _create(client)
     (entry,) = exp.data.history.all()
     configuration = entry.payload["configuration"]
@@ -70,8 +69,6 @@ def test_creating_an_experiment_records_how_it_was_set_up(client):
 
 
 def test_importing_records_the_import_after_the_files_own_history(client):
-    """What: an imported experiment keeps the history its file carried and
-    adds that it was imported here. How: exports one and imports it."""
     exp = _create(client)
     body = json.loads(export_ihpo(client, exp.pk).content)
     again = _import(client, body, "again")
@@ -83,8 +80,7 @@ def test_importing_records_the_import_after_the_files_own_history(client):
 
 
 def test_a_processing_change_is_one_entry_per_choice_changed(client):
-    """What: changing two Data Handling choices records two entries, each with
-    the value before and after. How: posts the Features page."""
+    """Each entry holds the value before and after."""
     exp = _create(client)
     client.post(reverse("ui:data_section", args=[exp.pk, "features"]),
                 {"labels": "categories", "scale": "standardize"})
@@ -95,8 +91,7 @@ def test_a_processing_change_is_one_entry_per_choice_changed(client):
 
 
 def test_processing_cannot_change_while_a_run_is_under_way(client):
-    """What: a run that has not written a trial yet still fixes the columns.
-    How: creates a pending run, then posts a change."""
+    """A pending run with no trial yet still fixes the columns."""
     from experiments.services.run import create_run
 
     exp = _create(client)
@@ -115,9 +110,8 @@ def _state(client, exp, hp, prior):
 
 
 def test_dragging_a_prior_is_one_change_of_mind(client):
-    """What: a prior saved over and over — as dragging its curve does — is one
-    entry holding where it started and where it ended; ending where it began
-    leaves none. How: states, edits and withdraws a prior with no run between."""
+    """Repeated saves of one prior make one entry; ending where it began leaves
+    none."""
     exp = _create(client)
     normal = {"kind": "normal", "params": {"mu": 0.5, "sigma": 0.1}}
 
@@ -133,8 +127,7 @@ def test_dragging_a_prior_is_one_change_of_mind(client):
 
 
 def test_a_run_between_two_edits_keeps_them_apart(client):
-    """What: the prior a run searched under is its own entry; an edit after
-    the run starts a new one. How: states a prior, starts a run, edits it."""
+    """A run splits a prior's edits into separate entries."""
     from experiments.services.run import create_run
 
     exp = _create(client)
@@ -147,8 +140,6 @@ def test_a_run_between_two_edits_keeps_them_apart(client):
 
 
 def test_resetting_a_prior_is_recorded(client):
-    """What: putting a prior back to what the last run searched under is an
-    entry of its own. How: states a prior with no run behind it and resets."""
     exp = _create(client)
     _state(client, exp, "max_depth", {"kind": "normal", "params": {"mu": 0.5, "sigma": 0.1}})
     client.post(reverse("ui:reset_prior", args=[exp.pk]), {"hp": "max_depth"})
@@ -159,8 +150,7 @@ def test_resetting_a_prior_is_recorded(client):
 
 
 def test_an_admin_edit_of_the_optimizer_is_recorded(client):
-    """What: optimizer parameters changed in the admin — the only place they
-    can change — are an entry. How: saves the row through its ModelAdmin."""
+    """The admin is the only place optimizer parameters can change."""
     from django.contrib.auth.models import AnonymousUser
 
     from experiments.admin import ExperimentDataAdmin
@@ -178,19 +168,17 @@ def test_an_admin_edit_of_the_optimizer_is_recorded(client):
 
 
 def test_an_unknown_kind_is_a_mistake():
-    """What: only declared kinds can be recorded, so the file format and the
-    timeline know every one. How: records a made-up kind."""
+    """Declared kinds let the file format and the timeline know every one."""
     from experiments.services import history
 
     with pytest.raises(ValueError):
         history.record(None, "made_up")
 
 
-# ── in the file, and its times ───────────────────────────────────────────────
+# File and times
 
 def _ran(client):
-    """An experiment with a history, then a run launched now whose trials
-    start a second later, ten seconds apart."""
+    """`_ran` adds a run whose trials start a second later, ten seconds apart."""
     from django.utils import timezone
 
     from experiments.models import ExperimentData, Run
@@ -212,8 +200,6 @@ def _export(client, exp, mode):
 
 
 def test_the_history_travels_in_the_file(client):
-    """What: every entry comes back from a file, still tied to its run.
-    How: exports with absolute times, imports, and compares."""
     exp = _ran(client)
     body = _export(client, exp, "absolute")
     again = _import(client, body, "travelled")
@@ -224,9 +210,7 @@ def test_the_history_travels_in_the_file(client):
 
 
 def test_relative_times_carry_no_date(client):
-    """What: in relative form no wall-clock time is left anywhere in the file,
-    and how long things took survives.
-    How: exports relative and looks for anything shaped like a date."""
+    """Durations survive while every wall-clock time leaves the file."""
     exp = _ran(client)
     body = _export(client, exp, "relative")
     text = json.dumps({k: v for k, v in body.items() if k != "environment"})
@@ -238,9 +222,8 @@ def test_relative_times_carry_no_date(client):
 
 
 def test_relative_times_count_from_the_first_run(client):
-    """What: relative times are seconds since the first run was launched, and
-    what came before it — the set-up, a prior stated first — carries no time.
-    How: exports relative and reads the history's, the run's and a trial's."""
+    """Times count in seconds from the first run's launch; earlier entries carry
+    none."""
     exp = _ran(client)
     body = _export(client, exp, "relative")
 
@@ -251,10 +234,7 @@ def test_relative_times_count_from_the_first_run(client):
 
 
 def test_a_relative_file_keeps_what_came_before_its_first_run_in_order(client):
-    """What: opened again, a relative file's untimed set-up and first prior
-    sit below its run, in the order they were made, still with no time.
-    How: exports relative, imports, and reads the timeline's summaries and
-    times."""
+    """Untimed entries sit below the run, in the order they were made."""
     import re
 
     exp = _ran(client)
@@ -273,9 +253,7 @@ def test_a_relative_file_keeps_what_came_before_its_first_run_in_order(client):
 
 
 def test_no_times_means_none(client):
-    """What: in no-times form the file keeps the order of things and how many
-    trials there were, and no time at all.
-    How: exports with none and reads every time field."""
+    """The file keeps the order and the trial count without any time."""
     exp = _ran(client)
     body = _export(client, exp, "none")
 
@@ -286,9 +264,7 @@ def test_no_times_means_none(client):
 
 
 def test_a_relative_file_is_shown_and_exported_as_relative(client):
-    """What: an experiment opened from a relative file keeps that basis — it
-    has no dates to give — and its history ends when it was imported.
-    How: imports a relative export, then asks for absolute times again."""
+    """A relative file has no dates, so absolute exports stay relative."""
     from django.utils import timezone
 
     exp = _ran(client)
@@ -302,9 +278,7 @@ def test_a_relative_file_is_shown_and_exported_as_relative(client):
 
 
 def test_the_export_offers_the_experiments_choice_then_the_readers(client):
-    """What: the export page preselects the experiment's own setting, else the
-    reader's preference, else relative.
-    How: reads the checked radio button as each is set."""
+    """The experiment's setting comes first, then the reader's preference."""
     from ui import times
 
     exp = _ran(client)

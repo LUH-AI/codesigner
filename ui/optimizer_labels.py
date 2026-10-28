@@ -1,14 +1,6 @@
-"""What to call an optimizer's settings, and how to explain them.
-
-The settings themselves are declared in `core.optimizers` — name, type, bounds,
-default. This layer has the words. The split is the same one the stopping
-criteria use: `core` has no Django and so cannot mark a string for translation,
-and a plain-English label frozen into the domain layer would be untranslatable
-wherever it surfaced.
-
-Keyed by parameter name. A parameter with no entry falls back to the plain label
-on its `OptimizerParam`, so adding a setting is never blocked on writing prose
-for it first.
+"""`core.optimizers` declares the settings, and `optimizer_labels` supplies
+their translatable words, since `core` has no Django. A parameter without an
+entry falls back to its `OptimizerParam` label.
 """
 
 import json
@@ -17,8 +9,7 @@ from django.utils.translation import gettext_lazy as _
 
 from .formatting import sigfigs
 
-#: What ended a run, for the summary line. Every criterion is named: with no
-#: privileged default, "it stopped" no longer implies the trial count.
+#: Every stopping criterion is named, since none is the default.
 STOPPED_BY_LABELS = {
     "max_trials": _("all the requested trials ran"),
     "target_score": _("performance surpassed the target"),
@@ -32,14 +23,9 @@ STOPPED_BY_LABELS = {
 }
 
 
-#: label, and what it means. The label is a *name* — as short as the thing can
-#: be called — and everything that explains it goes in the second string, which
-#: the form shows as a tooltip rather than as a line of prose under the control.
-#: An empty string means there is nothing to add to the name.
-#:
-#: Terminology is shared with the settings themselves: what the dropdown calls a
-#: "search strategy" is called that everywhere, including the placeholder on the
-#: fields whose default it supplies.
+#: Each entry pairs a short label with tooltip text, and "" means the label
+#: needs no tooltip. "Search strategy" names the same thing everywhere,
+#: placeholders included.
 LABELS = {
     "search_strategy": (
         _("Search strategy"),
@@ -116,10 +102,8 @@ LABELS = {
         _("Values tried per numeric hyperparameter. Combinations multiply."),
     ),
 
-    # The surrogate. Every label leads with "surrogate" deliberately: the model
-    # being tuned can have settings of the same names — a Random Forest tuned
-    # over `max_depth` while the search's own forest has one too — and the two
-    # appear on the same page.
+    # Surrogate labels lead with "surrogate", since the tuned model can have
+    # settings of the same names on the same page.
     "rf_trees": (
         _("Surrogate trees"),
         _("Trees in the forest the search fits over your trials — not in the "
@@ -166,10 +150,8 @@ LABELS = {
     ),
 }
 
-#: The values of `select` parameters. Kept apart from `LABELS` because a choice
-#: is named per parameter, not globally — "random" means something different
-#: under a sampling scheme than it would elsewhere. Names only: what
-#: distinguishes them belongs in the parameter's tooltip, said once.
+#: `select` values are named per parameter, since "random" differs between
+#: parameters; tooltips explain them.
 CHOICES = {
     "search_strategy": {
         "gp": _("Gaussian process"),
@@ -192,17 +174,14 @@ CHOICES = {
 }
 
 
-#: What an empty field means, where it is not "whatever the search strategy
-#: uses". Only a setting with no default of its own can be empty at all, and
-#: most of those are the strategy's to decide — these are the exceptions.
+#: Exceptions to the strategy-default placeholder, for settings without a
+#: default.
 PLACEHOLDERS = {
     "share_cap": _("0.25"),
     "trial_cap": _("10 per hyperparameter"),
     "rf_max_depth": _("no limit"),
 }
 
-#: A group's title, for the blocks the form lays out itself. Keyed by the
-#: `group` on the parameters that belong to it.
 GROUPS = {
     "initial_points": (
         _("Initial points"),
@@ -211,31 +190,21 @@ GROUPS = {
     ),
 }
 
-#: The rest of them, when the strategy's own default cannot be read (a setting
-#: that belongs to the other strategy, so that strategy has no component with
-#: an opinion about it).
+#: Fallback placeholder when the strategy's default cannot be read.
 STRATEGY_DEFAULT = _("search strategy default")
 
 
 def _number(value):
-    """A default as a field placeholder: short enough to sit in one.
-
-    SMAC's own numbers are not all tidy — the Gaussian process's random-trial
-    rate is 0.08447232371720552 — and a placeholder that long is unreadable and
-    pushes the field wide. The app's one display rule (`ui.formatting`) says
-    four significant figures; the exact value is what gets used, and is recorded
-    in the .ihpo either way.
+    """`_number` rounds placeholders to four significant figures, since SMAC
+    defaults such as 0.08447232371720552 would widen the field. The exact value
+    is used and recorded.
     """
     return sigfigs(value)
 
 
 def placeholder_for(param, strategy_default=None):
-    """What to show in *param*'s field while it is empty, if anything.
-
-    *strategy_default* is the search strategy's own value for this setting,
-    which is what an empty field actually means. Showing it beats naming it:
-    "search strategy default" tells the reader there is a number and declines
-    to say which, and finding out meant reading SMAC's source.
+    """An empty field means *strategy_default*, so the placeholder shows that
+    number instead of naming the strategy.
     """
     if param.default is not None:
         return ""
@@ -247,13 +216,8 @@ def placeholder_for(param, strategy_default=None):
 
 
 def range_for(param):
-    """*param*'s accepted range, as a short phrase, or "" if it is unbounded.
-
-    Said rather than left to the `min`/`max` attributes, which only speak up
-    once a value is already wrong. A range is something you want to know while
-    deciding what to type — but it belongs with the rest of what the setting
-    means, behind the circled i, rather than as a second line of prose under
-    every field. See `info_for`.
+    """`range_for` returns the range as a phrase for the info bubble, since
+    browsers report a `min`/`max` breach only after a wrong entry.
     """
     low, high = param.min, param.max
     if low is None and high is None:
@@ -264,15 +228,8 @@ def range_for(param):
 
 
 def info_for(param, help_text: str) -> str:
-    """Everything the circled i beside *param* should say.
-
-    What the setting means and what it will accept, in one bubble. A dozen
-    settings with two lines of prose under each is a wall to read past while
-    filling in a form, and neither line is wanted every time — the range is
-    wanted once, while deciding what to type.
-
-    What an empty field would use is not here: it is the field's own
-    placeholder, which is where it can be read without opening anything.
+    """The info bubble holds meaning and range, and the empty-field value lives
+    in the placeholder instead.
     """
     accepted = range_for(param)
     if not accepted:
@@ -282,13 +239,6 @@ def info_for(param, help_text: str) -> str:
 
 
 def described(param, value=None, strategy_defaults=None, strategy_defaults_all=None):
-    """One `OptimizerParam` as the template needs it: words, and a value.
-
-    *strategy_defaults* is `{param: default}` for the strategy currently
-    selected, and *strategy_defaults_all* is `{param: {strategy: default}}` for
-    every one of them — the first fills the placeholder the page renders with,
-    the second lets the page change it when the selector moves.
-    """
     label, help_text = LABELS.get(param.name, (param.label, ""))
     return {
         "name": param.name,
@@ -299,19 +249,9 @@ def described(param, value=None, strategy_defaults=None, strategy_defaults_all=N
         "max": param.max,
         "advanced": param.advanced,
         "group": param.group,
-        # Space-separated for the data attribute: every one of these has to be
-        # checked for the field to be worth filling in.
         "enabled_by": " ".join(param.enabled_by),
-        # "search_strategy=rf" — the form hides this field unless that setting
-        # has that value. A string because it is going into a data attribute.
         "when": ("=".join(param.depends_on) if param.depends_on else ""),
-        # A setting with a default of its own shows it, and needs no
-        # placeholder; one without is empty, and the field says what filling it
-        # in would displace.
         "placeholder": placeholder_for(param, (strategy_defaults or {}).get(param.name)),
-        # Every strategy's default for this setting, so the form can swap the
-        # placeholder when the strategy selector changes without a round trip.
-        # JSON-ready: it goes into a data attribute.
         "defaults_by_strategy_json": json.dumps(
             {k: _number(v)
              for k, v in (strategy_defaults_all or {}).get(param.name, {}).items()
@@ -327,11 +267,8 @@ def described(param, value=None, strategy_defaults=None, strategy_defaults_all=N
 
 
 def describe_all(optimizer, stored=None):
-    """Every setting of *optimizer*, with the experiment's stored values applied.
-
-    Optimizers that have strategy-dependent defaults say so by offering
-    `strategy_defaults()`; the rest simply have none, and their fields fall back
-    to naming the strategy rather than quoting it.
+    """Optimizers without `strategy_defaults()` get placeholders that name the
+    strategy instead of quoting a value.
     """
     stored = stored or {}
     by_param = (optimizer.strategy_defaults()
@@ -344,12 +281,8 @@ def describe_all(optimizer, stored=None):
 
 
 def grouped(described_params):
-    """The panel's layout: what to render, in the order it was declared.
-
-    Each entry is either a single setting or a whole group, and a group sits
-    where its first member was declared rather than after everything loose —
-    otherwise a block of important settings would drift to the bottom of the
-    panel because it happens to be a block.
+    """`grouped` places a group where its first member was declared, keeping a
+    block of settings from drifting to the bottom.
     """
     layout, advanced, seen = [], [], set()
     for param in described_params:
@@ -373,20 +306,14 @@ def _group(name, described_params):
         "label": label,
         "help": help_text,
         "template": f"ui/_group_{name}.html",
-        # Keyed by name so the group's own template can place each setting
-        # deliberately rather than take them in declaration order.
         "params": {p["name"]: p for p in described_params if p["group"] == name},
     }
 
 
 def summary(optimizer_name, params) -> list[tuple[str, str]]:
-    """*params* as a reader wants them listed: each setting that applies,
-    under the name the form gives it, with its value in words.
-
-    Left out: a setting that belongs to the other search strategy, one whose
-    switch is off, the switches themselves (a cap being listed says it is in
-    use), a switch that is off, and anything left to the strategy's own
-    default — which is not a choice anybody made.
+    """`summary` leaves out other-strategy settings, settings whose switch is
+    off, the switches themselves, false booleans, and values left to the
+    strategy's default.
     """
     from django.utils.translation import gettext as _now
 

@@ -1,4 +1,4 @@
-"""Elastic net: scikit-learn's. Regression only."""
+"""`elastic_net` offers elastic net regression."""
 
 from ConfigSpace import ConfigurationSpace, Float
 from codesigner_model import OutputBaseModel
@@ -7,9 +7,7 @@ from .base import Tunable
 
 
 class ElasticNet(OutputBaseModel):
-    """A linear regression with a blend of L1 and L2 penalties: L1 drops
-    columns that do not help, L2 shares weight among ones that move together.
-    Its classification counterpart is Logistic Regression."""
+    """`ElasticNet` mixes L1 and L2 penalties."""
 
     name = "Elastic Net"
     tasks = ("regression",)
@@ -28,7 +26,6 @@ class ElasticNet(OutputBaseModel):
 
 
 class ElasticNetModel(Tunable, ElasticNet):
-    """Elastic net, tuned over its penalty's strength and blend."""
 
     def get_config_space(self, seed: int = 0) -> ConfigurationSpace:
         cs = ConfigurationSpace(seed=seed)

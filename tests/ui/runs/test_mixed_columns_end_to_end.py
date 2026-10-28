@@ -1,9 +1,5 @@
-"""A dataset of text, dates and gaps, from the create form to an exported model.
-
-`tests/fixtures/flats.csv` is uploaded as it is — a city with missing values,
-a yes/no column, dates, a timestamp — and run with each built-in model. Runs
-execute inline in tests (see `runs_execute_synchronously`), so posting the Run
-form leaves a finished result behind.
+"""`tests/fixtures/flats.csv`, with text, dates and gaps, runs from the create
+form to an exported model.
 """
 
 import ast
@@ -29,12 +25,8 @@ def _create(client, name, model_name):
 @pytest.mark.django_db
 @pytest.mark.parametrize("model_name", ["Random Forest", "SVM"])
 def test_a_mixed_file_runs_every_trial_and_exports_its_encoding(client, model_name):
-    """What: an uploaded file with text, dates and missing values is a
-    classification experiment whose trials all measure something, and the
-    exported model carries the encoding to read such a CSV itself.
-    How: creates the experiment from the raw upload, runs four cross-validated
-    random-search trials, checks none of them failed, then reads `COLUMNS`
-    and `PROCESSING` out of the exported file."""
+    """The exported model carries `COLUMNS` and `PROCESSING` to encode such a
+    CSV itself."""
     from experiments.models import Experiment
     from experiments.services.snapshot import rebuild_result
 

@@ -1,13 +1,5 @@
-"""Projecting configuration space, where a distance is a distance.
-
-The configuration cube plots literal hyperparameter values, so position means
-something and distance does not — the axes carry unrelated units. PCA and PLS
-project the whole space instead, and the whole claim they make is that two
-points near each other are two configurations near each other.
-
-That claim rests entirely on the encoding, which is why most of this is about
-the encoding: a projection of a badly encoded matrix is not a wrong number, it
-is a plausible picture of nothing.
+"""PCA and PLS plot distances, and `encode_configurations` must make distance
+mean similarity.
 """
 
 import math
@@ -31,46 +23,40 @@ class _Hyperparameter:
 
 
 class _Space(dict):
-    """The two things a config space is asked here: membership, and `.log`."""
+    """`_Space` stubs a space with membership and `.log` only."""
 
 
 def _space(**logs):
     return _Space({name: _Hyperparameter(log) for name, log in logs.items()})
 
 
-# ── the encoding ─────────────────────────────────────────────────────────────
-
 def test_a_log_hyperparameter_is_encoded_logarithmically():
-    """`C` on the SVM model is sampled log-uniformly over 0.01 to 100. Left
-    linear, three quarters of a real run sits within a hundredth of the rest and
-    the projection reports the few large values as the only structure there is."""
+    """A linear encoding of log-uniform `C` over 0.01 to 100 would hide all but
+    the largest values."""
     trials = _trials([{"C": 0.01}, {"C": 1.0}, {"C": 100.0}])
 
     rows, columns = encode_configurations(_space(C=True), trials)
 
     assert [c.label for c in columns] == ["log10(C)"]
-    # -2, 0, 2 standardised: evenly spaced, which linear encoding would not be
+    # Evenly spaced after log and standardising.
     assert [row[0] for row in rows] == pytest.approx([-math.sqrt(1.5), 0, math.sqrt(1.5)])
 
 
 def test_a_categorical_becomes_one_column_per_value():
-    """Not an integer code, which is what parallel coordinates uses because it
-    needs one column per axis to draw. A code would put `linear` one unit from
-    `poly` and two from `rbf` — an ordering and a distance that do not exist,
-    which is exactly what this figure would then be drawing."""
+    """An integer code would put `linear` one unit from `poly` and two from
+    `rbf`."""
     trials = _trials([{"kernel": "rbf"}, {"kernel": "linear"}, {"kernel": "rbf"}])
 
     rows, columns = encode_configurations(None, trials)
 
     assert [c.label for c in columns] == ["kernel=linear", "kernel=rbf"]
-    # the two columns are each other's opposite, which is the only relationship
-    # between them that is true
+    # The two columns are exact opposites.
     assert [row[0] for row in rows] == pytest.approx([-r[1] for r in rows])
 
 
 def test_a_boolean_is_a_category_not_a_number():
-    """`bool` is a subclass of `int` in Python, so it would otherwise arrive as
-    1 and 0 — two categories a unit apart on a scale nothing else is on."""
+    """`bool` subclasses `int`, so `True` and `False` would otherwise arrive as
+    1 and 0."""
     trials = _trials([{"bootstrap": True}, {"bootstrap": False}])
 
     _rows, columns = encode_configurations(None, trials)
@@ -79,9 +65,8 @@ def test_a_boolean_is_a_category_not_a_number():
 
 
 def test_every_column_is_standardised():
-    """Without it PCA reports whichever hyperparameter has the widest raw range:
-    `n_estimators` over 10-500 would drown `min_samples_split` over 2-10
-    whatever either did to the score."""
+    """Raw ranges would let `n_estimators` over 10-500 drown `min_samples_split`
+    over 2-10."""
     trials = _trials([{"n_estimators": 10, "min_samples_split": 2},
                       {"n_estimators": 500, "min_samples_split": 10},
                       {"n_estimators": 255, "min_samples_split": 6}])
@@ -94,8 +79,7 @@ def test_every_column_is_standardised():
 
 
 def test_a_hyperparameter_that_never_varied_is_left_at_zero():
-    """It has no spread to divide by, and dividing anyway is a crash or an
-    infinity. Zero is the honest answer: it says nothing, because it did."""
+    """A constant column has no spread, so zero avoids a division crash."""
     trials = _trials([{"a": 5, "b": 1}, {"a": 5, "b": 2}, {"a": 5, "b": 3}])
 
     rows, _columns = encode_configurations(None, trials)
@@ -103,11 +87,9 @@ def test_a_hyperparameter_that_never_varied_is_left_at_zero():
     assert [row[0] for row in rows] == [0.0, 0.0, 0.0]
 
 
-# ── the projections ──────────────────────────────────────────────────────────
-
 def _spread(n=12):
-    """Trials whose configurations vary mostly along `a`, with the score driven
-    entirely by `b` — so the two methods have different right answers."""
+    """Configurations vary along `a` while `b` drives the score, so PCA and PLS
+    disagree."""
     configs = [{"a": i * 10.0, "b": float(i % 3)} for i in range(n)]
     scores = [0.5 + 0.1 * (i % 3) for i in range(n)]
     return _trials(configs, scores), scores
@@ -127,10 +109,8 @@ def test_pca_orders_its_components_by_how_much_they_explain():
 
 
 def test_pls_finds_the_direction_that_moves_the_metric():
-    """The entire reason for offering both. PCA looks at the configurations
-    alone and reports where the search spread out; PLS is fitted against the
-    score, so its first component is the direction that changes it — and here
-    those are deliberately different directions."""
+    """PCA follows the search's spread, while PLS fits the score and finds the
+    direction moving it."""
     trials, scores = _spread()
 
     pca, _labels, _w = project(None, trials, scores, "pca")
@@ -148,16 +128,12 @@ def test_pls_finds_the_direction_that_moves_the_metric():
 
 
 def test_a_projection_is_a_plane_at_most_three_deep():
-    """Three is what can be drawn; a fourth component would be computed for
-    nobody."""
     configs = [{f"h{j}": float((i * (j + 1)) % 7) for j in range(6)} for i in range(20)]
     coordinates, labels, warning = project(None, _trials(configs), [0.5] * 20, "pca")
 
     assert warning is None
     assert len(labels) == len(coordinates[0]) == 3
 
-
-# ── when there is nothing to say ─────────────────────────────────────────────
 
 def test_too_few_trials_says_so_rather_than_drawing():
     coordinates, labels, warning = project(
@@ -169,8 +145,7 @@ def test_too_few_trials_says_so_rather_than_drawing():
 
 
 def test_one_hyperparameter_is_not_a_space_to_project():
-    """There is nothing to reduce: the one axis it has is already the picture,
-    and the cube's own view draws it better."""
+    """One axis needs no reduction, and the cube's own view draws it better."""
     trials = _trials([{"a": 1.0}, {"a": 2.0}, {"a": 3.0}])
 
     coordinates, _labels, warning = project(None, trials, [0.5, 0.6, 0.7], "pca")
@@ -181,9 +156,8 @@ def test_one_hyperparameter_is_not_a_space_to_project():
 
 
 def test_trials_that_are_all_the_same_configuration_have_no_directions():
-    """No column varied, so there is no direction to find — and sklearn does not
-    say so, it returns a plane of NaNs and a divide-by-zero warning. Caught here
-    rather than drawn."""
+    """`project` warns here because sklearn would return NaNs and a
+    divide-by-zero warning."""
     trials = _trials([{"a": 1.0, "b": 2.0}] * 4)
 
     coordinates, _labels, warning = project(None, trials, [0.5] * 4, "pca")
@@ -194,8 +168,6 @@ def test_trials_that_are_all_the_same_configuration_have_no_directions():
 
 
 def test_an_unknown_method_is_refused_rather_than_guessed_at():
-    """It used to fall through to PCA, which would have drawn a picture under
-    the wrong name — the one failure mode worse than no picture."""
     trials = _trials([{"a": 1.0, "b": 2.0}, {"a": 2.0, "b": 1.0}, {"a": 3.0, "b": 4.0}])
 
     coordinates, _labels, warning = project(None, trials, [0.5, 0.6, 0.7], "mds")

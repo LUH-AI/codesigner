@@ -1,8 +1,5 @@
-"""Which experiments' models can be exported, and the source to export them from.
-
-Two kinds can: a built-in, from its module in `core/models/`, and an uploaded
-model, from its file. A run imported from a SMAC directory never had a model
-here, so there is nothing to export.
+"""`model_export` exports a built-in model from `core/models/` or an uploaded
+model from its file; a SMAC import has none.
 """
 
 import copy
@@ -20,9 +17,7 @@ from core.registry import MODELS
 
 
 def unavailable(exp):
-    """Why *exp*'s model cannot be exported, or None if it can.
-
-    Reads nothing but the row, so the page can ask on every render.
+    """The check reads only the row, so a page may call it on each render.
     """
     data = exp.data
     if data.forecasts and not _columns(exp):
@@ -38,7 +33,7 @@ def unavailable(exp):
 
 
 def source(exp):
-    """(source text, class name) for *exp*'s model. Call `unavailable` first."""
+    """`source` returns code and class after `unavailable`."""
     data = exp.data
     if data.model_file:
         with data.model_file.open("rb") as f:
@@ -52,15 +47,12 @@ def source(exp):
 
 
 def filename(exp, trial_n):
-    """`random-forest-trial-15.py`: the model, then the trial it was tuned to."""
     slug = re.sub(r"[^a-z0-9]+", "-", exp.data.model_name.lower()).strip("-") or "model"
     return f"{slug}-trial-{trial_n}.py"
 
 
 def build(exp, trial, metric, result=None):
-    """The exported file's text for *trial* of *exp*: the tuned model, its
-    hyperparameters and the experiment's data processing (see
-    `core.model_export`)."""
+    """`build` exports the tuned model, hyperparameters and data processing."""
     columns = _columns(exp)
     forecast = _forecast(exp, columns) if exp.data.forecasts else None
     about = _about(exp, trial, metric, result)
@@ -78,9 +70,8 @@ def build(exp, trial, metric, result=None):
 
 
 def _model(exp, columns, forecast):
-    """The built-in as this experiment ran it: told its task and its columns,
-    and forecasting by reduction where the experiment forecasts and the model
-    does not by itself."""
+    """`_model` sets up the built-in with the experiment's task and columns, and
+    `Reduced` wraps a non-forecaster when the experiment forecasts."""
     entry = MODELS[exp.data.model_name]
     model = copy.copy(entry)
     model.task = exp.data.task
@@ -94,13 +85,9 @@ def _model(exp, columns, forecast):
 
 
 def evaluation_label(exp):
-    """How a trial was scored, for the run-configuration box.
-
-    "Not recorded" for an experiment imported from somebody else's output: a
-    SMAC scenario says nothing about what was being optimized, so there is no
-    split to report. The columns still hold their defaults — they have to hold
-    something — and reporting those as fact would put a 20% holdout on the page
-    for a run that may have used no such thing.
+    """`evaluation_label` marks a SMAC import as unrecorded because its split
+    columns hold placeholder defaults, and reporting them would invent a
+    holdout.
     """
     if exp.data.model_name not in MODELS and not exp.data.model_file:
         return _("Not recorded")
@@ -121,8 +108,6 @@ def evaluation_label(exp):
 
 
 def _about(exp, trial, metric, result):
-    """The exported file's docstring: what it predicts, and in two lines where
-    its hyperparameters came from."""
     target = ""
     dataset = exp.data.dataset_path()
     rows = None
@@ -156,8 +141,7 @@ def _about(exp, trial, metric, result):
 
 
 def _forecast(exp, columns):
-    """What the exported forecaster is told — the run's horizon, season and
-    columns, the season inferred from the data when the experiment left it."""
+    """Season falls back to inference from the data."""
     season = exp.data.season
     if not season:
         _, _, times, _ = datasets.load_forecast(exp.data.dataset_path(), exp.data.time_column,
@@ -168,9 +152,8 @@ def _forecast(exp, columns):
 
 
 def _columns(exp):
-    """How *exp*'s dataset was encoded, for the file to encode its CSVs the
-    same way — or None when the dataset is not on this instance, and the file
-    falls back to the CSV's values as they are."""
+    """`_columns` returns None without the dataset, and the file then keeps raw
+    CSV values."""
     dataset = exp.data.dataset_path()
     if dataset is None or not dataset.is_file():
         return None

@@ -1,4 +1,4 @@
-"""Logistic regression: scikit-learn's. Classification only."""
+"""`core.models.logistic_regression` holds the logistic regression classifier."""
 
 from ConfigSpace import Categorical, ConfigurationSpace, Float
 from codesigner_model import OutputBaseModel
@@ -7,8 +7,7 @@ from .base import Tunable
 
 
 class LogisticRegression(OutputBaseModel):
-    """Logistic regression with an L2 penalty: a linear model of the classes'
-    log-odds. Its regression counterpart is Elastic Net."""
+    """`LogisticRegression` uses an L2 penalty."""
 
     name = "Logistic Regression"
     tasks = ("classification",)
@@ -27,7 +26,6 @@ class LogisticRegression(OutputBaseModel):
 
 
 class LogisticRegressionModel(Tunable, LogisticRegression):
-    """Logistic regression, tuned over its penalty and class weighting."""
 
     def get_config_space(self, seed: int = 0) -> ConfigurationSpace:
         cs = ConfigurationSpace(seed=seed)

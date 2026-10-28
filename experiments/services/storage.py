@@ -1,23 +1,10 @@
-"""What a group stores, its limit, and making room.
+"""A group's usage counts datasets (except bundled demos), uploaded model files
+with their runner and lock, and kept trial models. Binned experiments count
+until purged, and uv's shared environment cache belongs to no group.
 
-A group's usage is the bytes its experiments keep on this instance:
-
-* each experiment's dataset — unless it is a bundled demo, which is shared by
-  every experiment and counts against nobody;
-* an uploaded model's file, and the runner and lock generated beside it;
-* the trial models kept for export (`TrialModel`, experiments/services/trial_models.py).
-
-Experiments in the bin count until they are purged: their files are all still
-there. The model environments are not counted — uv keeps them in one cache
-that every experiment's packages share, so none of it is any one group's.
-
-**Datasets come first.** A dataset or model upload that takes a group past its
-limit is still accepted, and kept trial models — the stalest first, by when
-they were kept or last exported — are deleted until it fits. Only when the
-datasets and model files alone exceed the limit is an upload refused. A trial
-model that does not fit is simply not kept: parameters never displace data.
-
-An experiment with no group — an instance without accounts — has no limit.
+An upload over the limit deletes the stalest kept trial models, and only
+datasets and model files alone over the limit refuse it. An experiment without a
+group has no limit.
 """
 
 from __future__ import annotations
@@ -28,9 +15,7 @@ from django.conf import settings
 from django.core.cache import cache
 from django.db.models import Sum
 
-#: How long a group's usage is remembered for the banner on every page, in
-#: seconds. Long enough that a page load does not walk the disk, short enough
-#: that the banner follows an upload or a purge within a page or two.
+#: Seconds; spares page loads a disk walk.
 USAGE_CACHE_SECONDS = 60
 
 
@@ -42,7 +27,7 @@ def _size(path) -> int:
 
 
 def _model_files(data):
-    """An uploaded model's file and what was generated beside it."""
+    """`_model_files` lists the model, runner and lock."""
     if not data.model_file:
         return []
     model = Path(data.model_file.path)
@@ -51,15 +36,13 @@ def _model_files(data):
 
 
 def fixed_bytes(exp) -> int:
-    """What *exp* stores that is not a kept trial model: its dataset, unless a
-    demo, and its model's files."""
+    """`fixed_bytes` counts the dataset (unless a demo) and model files."""
     data = exp.data
     total = 0 if data.demo_dataset or not data.dataset else _size(data.dataset.path)
     return total + sum(_size(path) for path in _model_files(data))
 
 
 def experiment_bytes(exp) -> int:
-    """Everything *exp* stores on this instance."""
     kept = exp.trial_models.aggregate(total=Sum("bytes"))["total"] or 0
     return fixed_bytes(exp) + kept
 
@@ -71,9 +54,7 @@ def _group_experiments(group):
 
 
 def usage(group) -> dict:
-    """*group*'s storage: ``{"fixed", "models", "total", "limit", "share"}`` —
-    datasets and model files, kept trial models, their sum, the limit, and
-    the share of it used."""
+    """`usage` returns the keys fixed, models, total, limit and share."""
     from experiments.models import TrialModel
 
     experiments = list(_group_experiments(group))
@@ -87,7 +68,6 @@ def usage(group) -> dict:
 
 
 def cached_usage(group) -> dict:
-    """`usage`, remembered briefly — for what every page shows."""
     key = f"storage-usage-{group.pk}"
     found = cache.get(key)
     if found is None:
@@ -97,18 +77,14 @@ def cached_usage(group) -> dict:
 
 
 def forget(group) -> None:
-    """Drop *group*'s remembered usage, after it changed."""
     if group is not None:
         cache.delete(f"storage-usage-{group.pk}")
 
 
 def make_room(group, *, keep=None) -> tuple[bool, int]:
-    """Bring *group* within its limit by deleting kept trial models, the
-    stalest first. Returns (within the limit now, how many were deleted).
-
-    Not within it when its datasets and model files alone are over: those are
-    never deleted here. *keep* is a kept model not to delete — the one being
-    kept now.
+    """`make_room` deletes the stalest kept trial models and returns (within the
+    limit, how many went). The datasets and model files stay, and *keep*
+    protects the model being kept now.
     """
     from experiments.models import TrialModel
     from . import trial_models
@@ -132,8 +108,7 @@ def make_room(group, *, keep=None) -> tuple[bool, int]:
 
 
 def has_room(group, more: int) -> bool:
-    """Whether *group* can store *more* bytes of kept trial models without
-    passing its limit. Always, for no group."""
+    """`has_room` returns True for no group."""
     if group is None:
         return True
     now = usage(group)
@@ -141,9 +116,8 @@ def has_room(group, more: int) -> bool:
 
 
 def delete_experiment_files(exp) -> None:
-    """Delete *exp* for good: its files — dataset (unless a demo, or another
-    experiment's too), model and what was generated beside it, kept trial
-    models — then its data, which takes the experiment and its runs with it."""
+    """The dataset survives when a demo or shared with another experiment. The
+    data row's deletion cascades to the experiment and its runs."""
     from experiments.models import ExperimentData
     from . import trial_models
 
@@ -161,8 +135,8 @@ def delete_experiment_files(exp) -> None:
 
 
 def warnings_for(user) -> list[dict]:
-    """The groups *user* belongs to that are past the warning share of their
-    limit, with their usage — for the banner on every page."""
+    """`warnings_for` lists groups past `STORAGE_WARNING_SHARE` for the page
+    banner."""
     if not getattr(user, "is_authenticated", False):
         return []
     from access.models import Group

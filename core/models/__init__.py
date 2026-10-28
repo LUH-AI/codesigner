@@ -1,4 +1,4 @@
-# What a model file written before the SDK imports its base class from.
+# Pre-SDK `BaseModel` import path.
 from codesigner_model import BaseModel
 
 from .catboost_model import CatBoostModel

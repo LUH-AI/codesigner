@@ -1,5 +1,4 @@
-"""The sidebar shows the most recent experiments; the rest are reachable at
-`ui:experiment_list`, paginated, through the same policy-scoped queryset."""
+"""`ui:experiment_list` paginates everything the sidebar cuts off."""
 
 import pytest
 from django.urls import reverse
@@ -65,8 +64,7 @@ def test_an_out_of_range_page_settles_on_the_last_one(client, monkeypatch):
 
 
 def test_the_full_list_is_scoped_by_the_policy(client, django_user_model, settings):
-    """Same queryset the sidebar uses — an OwnerPolicy viewer never sees an
-    experiment on the full list they couldn't already reach from the sidebar."""
+    """The default `GroupPolicy` hides another user's experiment."""
     settings.REQUIRE_LOGIN = True
     ana = django_user_model.objects.create_user(username="ana", password="pw")
     django_user_model.objects.create_user(username="ben", password="pw")

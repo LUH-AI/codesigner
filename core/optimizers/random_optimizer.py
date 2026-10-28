@@ -3,19 +3,15 @@ from typing import Optional
 from .base import BaseOptimizer, OptimizationResult
 from .trial import evaluate_trial
 
-_MAX_CONSECUTIVE_DUPES = 200  # give up after this many consecutive duplicate samples
+_MAX_CONSECUTIVE_DUPES = 200  # consecutive duplicates before giving up
 
 
-#: Where every configuration this optimizer proposes comes from. Recorded per
-#: trial like SMAC's, so a reader of the file does not have to know which
-#: optimizer wrote it to know how a configuration was arrived at.
+#: Each trial's origin, as SMAC records one.
 _ORIGIN = "Random sample"
 
 
 class RandomOptimizer(BaseOptimizer):
-    """Uniform random search over the hyperparameter space.
-
-    Samples configurations independently at random using ConfigSpace's built-in
+    """`RandomOptimizer` extends `BaseOptimizer` with ConfigSpace's uniform
     sampler.
     """
 
@@ -34,9 +30,7 @@ class RandomOptimizer(BaseOptimizer):
         cancel_event=None,
         stopping: Optional[dict] = None,
         splits=None,
-        # Accepted and ignored: a search that fits no model of the objective has
-        # no acquisition function for a prior to weight. The caller passes what
-        # the reader stated without having to know which optimizer will get it.
+        # Random search has no acquisition function, so `priors` is ignored.
         priors=None,
         configurations=None,
     ) -> OptimizationResult:

@@ -1,4 +1,4 @@
-"""Reclaim disk from uv's cache of model environments."""
+"""`prune_model_envs` prunes uv's cache."""
 
 import subprocess
 
@@ -20,9 +20,7 @@ class Command(BaseCommand):
         if done.returncode != 0:
             raise CommandError((done.stderr or done.stdout).strip())
         self.stdout.write(done.stdout.strip() or "Nothing to prune.")
-        # Said plainly because it is the surprising part: deleting an experiment
-        # removes its model, runner and lock, but not the environment uv built
-        # from them.
+        # Experiment deletion leaves its uv environment behind.
         self.stdout.write(self.style.WARNING(
             "Environments belonging to deleted experiments are not tracked; "
             "this prunes whatever uv considers unused."))

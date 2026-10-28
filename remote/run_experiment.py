@@ -1,28 +1,10 @@
-"""Run one experiment, here, from files in a directory.
+"""The script runs one experiment from the files in a directory.
 
-The other half of `experiments/services/run.py`'s `execute_run`, for a machine that has
-no database and no Django — a Slurm job on a cluster. A plain script rather than
-a management command for exactly that reason: `manage.py` would need settings, a
-database it never queries, and the whole web stack installed beside it.
-
-That is affordable because `core/` imports no Django at all. What has to be
-installed here is `remote/requirements-cluster.txt` — six packages — and what
-has to be copied here is `core/` and `model_sdk/`.
-
-**The contract is a directory**, which is what crosses the machine boundary:
-
-    snapshot.json   in    the experiment, in the .ihpo format it already has
-    dataset.csv     in    what the snapshot's trials were measured on
-    run.json        in    what bounds this run: criteria, metric, timeout, priors
-    CANCEL          in    created by the submitter; asks for a clean stop
-    partial.json    out   the result so far, rewritten as trials land
-    result.json     out   the finished result, in `Experiment.result` shape
-    status.json     out   how it ended, and what the Run row needs to say so
-
-`execute_run` reaches the database at three moments — a progress callback, a
-cancellation check, and the final write. None of them is reachable from here, so
-each has a file standing in for it; the optimizer itself is called exactly as it
-is at home, and does not know the difference.
+A Slurm node runs the script without Django or a database. The directory holds
+the inputs `snapshot.json`, `dataset.csv`, `run.json` and an optional
+`model.py`, and the script writes `partial.json`, `result.json` and
+`status.json` there. The submitter creates a `CANCEL` file to ask for a clean
+stop.
 """
 
 from __future__ import annotations
@@ -42,24 +24,17 @@ from core.optimizers.base import OptimizationResult, PolledFlag  # noqa: E402
 from core.optimizers.trial import scoreable                # noqa: E402
 from core.registry import METRICS, MODELS, OPTIMIZERS    # noqa: E402
 
-#: How often the result so far is rewritten. The submitter reads it to keep the
-#: page's figures moving, so this is the resolution of "live"; it is also a whole
-#: re-serialization of every trial, which is why it is not per trial. Mirrors
-#: `PARTIAL_RESULT_SECONDS` on the application side.
+#: Each rewrite of `partial.json` re-serializes every trial;
+#: `PARTIAL_RESULT_SECONDS` is the app-side twin.
 PARTIAL_SECONDS = 5.0
 
-#: How often the cancel file is checked at most: the optimizer asks once per
-#: trial, and an NFS stat per trial is waste.
+#: `CANCEL_TTL` spares an NFS stat on every trial.
 CANCEL_TTL = 2.0
 
 
 def write_json(path: Path, payload) -> None:
-    """Write *payload* so a reader never sees half of it.
-
-    The submitter is polling these files across NFS while they are being
-    written. `os.replace` is atomic within a directory, so a reader sees either
-    the previous complete file or the next one — never a truncated parse error
-    that would look like a corrupted run.
+    """`os.replace` is atomic within a directory, so the submitter polling over
+    NFS never reads a truncated file.
     """
     tmp = path.with_suffix(path.suffix + ".tmp")
     tmp.write_text(io.to_bytes(payload).decode("utf-8"), encoding="utf-8")
@@ -67,13 +42,8 @@ def write_json(path: Path, payload) -> None:
 
 
 def partial_writer(workdir: Path, optimizer, previous_result, primary_metric):
-    """A `BaseOptimizer.progress` callback that writes the trials so far.
-
-    The same shape as the application's `_partial_result_writer`, and empty in
-    the same places: importance, interactions, PDP and local effects each cost a
-    surrogate fit or 2^n_hp coalitions and none may run per trial. A partial
-    result leaves those fields empty, which is the state a cancelled run already
-    produces and the page already handles.
+    """Like `_partial_result_writer`, the callback leaves the costly analytics
+    fields empty.
     """
     previous_trials = previous_result.trials if previous_result else []
     state = {"at": time.monotonic()}
@@ -101,9 +71,8 @@ def run(workdir: Path) -> int:
     snapshot = json.loads((workdir / "snapshot.json").read_text(encoding="utf-8"))
     settings = json.loads((workdir / "run.json").read_text(encoding="utf-8"))
 
-    # The snapshot names the dataset by the path it had on the machine that
-    # wrote it, which does not exist here. Repointed at what was staged beside
-    # it — the same rewrite the export view performs on the way out.
+    # The original dataset path exists only on the machine that wrote the
+    # snapshot.
     snapshot["dataset"]["path"] = str(workdir / "dataset.csv")
 
     model_file = workdir / "model.py"
@@ -121,11 +90,8 @@ def run(workdir: Path) -> int:
     optimizer.analytics_wanted = settings.get("analytics_wanted", True)
     optimizer.progress = partial_writer(workdir, optimizer, previous, primary_metric)
 
-    # Cancel is a file the submitter creates. Asking the filesystem is how a
-    # machine with no database learns that somebody pressed Cancel — and it is
-    # a *request*, not a kill: the run breaks out of its loop and still writes
-    # what it has, which is what keeps the trials already paid for. `scancel`
-    # is the other thing, and it is not this.
+    # `CANCEL` asks for a clean stop that keeps finished trials, unlike
+    # `scancel`.
     cancel = PolledFlag((workdir / "CANCEL").exists, ttl=CANCEL_TTL)
     result = optimizer.optimize(
         built["model"],
@@ -146,12 +112,11 @@ def run(workdir: Path) -> int:
         "state": "cancelled" if cancel.is_set() else "done",
         "stopped_by": result.metadata.get("stopped_by") or "",
         "offset": offset,
-        # What the stated prior did — applied, skipped or refused, and at which
-        # trial — for the submitter to record on the run as the local path does.
+        # `prior` records whether the prior was applied, skipped or refused, and
+        # at which trial.
         "prior": result.metadata.get("prior"),
-        # Captured here for the same reason the application captures it at the
-        # start of a run: this is the only moment there is a model to ask, and
-        # every surrogate-backed figure needs the space afterwards.
+        # `_config_space` asks the model now because surrogate-backed figures
+        # need the space after the run.
         "config_space": _config_space(built),
         "error": "",
     })
@@ -178,8 +143,7 @@ def main(argv=None) -> int:
     try:
         return run(workdir)
     except Exception as exc:  # noqa: BLE001 — the submitter reads the reason, not a traceback
-        # Written rather than raised: the submitter is polling files, and a job
-        # that dies leaving no status is indistinguishable from one still going.
+        # A job that dies without `status.json` looks like one still running.
         write_json(workdir / "status.json", {
             "state": "error",
             "error": f"{type(exc).__name__}: {exc}",

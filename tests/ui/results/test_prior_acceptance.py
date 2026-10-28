@@ -1,19 +1,6 @@
-"""Asking the model whether a stated belief is worth acting on.
-
-*What:* DynaBO's safeguard, reachable from the figure. A belief that points
-somewhere the surrogate already thinks is bad costs trials, and the model
-usually has an opinion about where it leads — so "Evaluate Prior" offers the
-belief to SMAC's `ClimbingComparisonPolicy` and reports what came back.
-
-The rule the whole feature turns on: a refusal is not an instruction. The
-reader may know something the model does not, which is the reason for stating a
-belief in the first place, so nothing is written either way and a rejected
-prior is left exactly where it was while the page asks what to do about it.
-
-*How:* through the endpoint for the contract it answers with, at the page for
-the controls, and at the source for the two things that cannot be reached from
-a test without a model fitted by the branch SMAC — that the verdict is SMAC's
-and that only a refusal asks a question.
+""""Evaluate Prior" offers a stated belief to SMAC's `ClimbingComparisonPolicy`
+and reports the verdict. A refusal writes nothing, because the reader may know
+something the model lacks.
 """
 
 import json
@@ -31,28 +18,24 @@ from ui.experiment_settings import SETTING_DEFAULTS, resolve_settings
 
 pytestmark = pytest.mark.django_db
 
-#: The three answers, and the only three. `unjudged` is not a failure: the
-#: policy is required to accept when there is nothing to judge on, and
-#: reporting that as approval would claim a check that never ran.
+#: `unjudged` means the policy had nothing to judge on, which differs from
+#: approval.
 VERDICTS = {"accepted", "rejected", "unjudged"}
 
 
-#: Where the made-up accuracy below peaks along `min_samples_split`, the
-#: hyperparameter the priors here are about, as a position on its unit axis.
+#: Unit-axis position of the `min_samples_split` optimum.
 OPTIMUM = 0.04
 
 
 def _accuracy(config):
-    """Peaks at `min_samples_split` = 0.03 and `max_features` = 0.8, and falls
-    off steeply enough along the first that a belief at its far end costs
-    about 0.4 — far past the default tolerance."""
+    """A belief at the far end of `min_samples_split` costs about 0.4 accuracy."""
     return (0.95 - 3.0 * (config["min_samples_split"] - 0.03) ** 2
             - 0.2 * (config["max_features"] - 0.8) ** 2)
 
 
 def _experiment(strategy="gp", n=30):
-    """A Random Forest experiment searched by SMAC under *strategy*, with *n*
-    trials of `_accuracy`, read in as an `.ihpo`."""
+    """`_experiment` builds a SMAC experiment with *n* trials of `_accuracy`
+    under *strategy*."""
     from core import io, provenance
     from core.models import RandomForestModel
     from core.optimizers import SMACOptimizer
@@ -85,7 +68,7 @@ def _experiment(strategy="gp", n=30):
 
 
 def _believing(exp, mu):
-    """*exp* with a Normal belief about `min_samples_split` at *mu*."""
+    """`_believing` centres `min_samples_split` on *mu*."""
     exp.data.priors = {"min_samples_split": {
         "kind": "normal", "params": {"mu": mu, "sigma": 0.05},
         "decay": {"shape": "none"}, "at_trial": 0}}
@@ -94,7 +77,7 @@ def _believing(exp, mu):
 
 
 def _bare_experiment():
-    """One that has never been run, so there is no model to judge against."""
+    """`_bare_experiment` has no run and no model to judge."""
     return Experiment.objects.create(
         name="unrun", model_name="Random Forest", optimizer_name="SMAC",
         metric_names=["accuracy"], seed=0)
@@ -111,12 +94,11 @@ def _evaluate(client, exp, hp="") -> tuple[Any, Any]:
                       if response.status_code == 200 else None)
 
 
-# ── what it answers with ─────────────────────────────────────────────────────
+# the answer
 
 def test_an_unrun_experiment_is_not_judged(client):
-    """And says so rather than approving. Before the first trial the policy has
-    no model and no incumbent, so it is contractually bound to accept — which
-    is the one case where "accepted" would be a lie."""
+    """Without a model the policy must accept, so the endpoint reports
+    `unjudged` instead."""
     response, data = _evaluate(client, _bare_experiment())
 
     assert response.status_code == 200
@@ -125,11 +107,6 @@ def test_an_unrun_experiment_is_not_judged(client):
 
 
 def test_a_belief_at_the_optimum_is_accepted(client):
-    """*What:* the whole path, page request to SMAC and back, accepts a belief
-    pointing where the objective peaks.
-
-    *How:* posted for an experiment whose made-up accuracy peaks where the
-    belief points."""
     response, data = _evaluate(client, _believing(_experiment(), OPTIMUM),
                                "min_samples_split")
 
@@ -138,10 +115,7 @@ def test_a_belief_at_the_optimum_is_accepted(client):
 
 
 def test_a_belief_far_from_the_optimum_is_refused(client):
-    """*What:* the whole path refuses a belief pointing where the objective is
-    far worse, and says by how much it was allowed to be.
-
-    *How:* the same experiment, believing in the far end of the axis."""
+    """The refusal also reports the allowed margin."""
     response, data = _evaluate(client, _believing(_experiment(), 0.95),
                                "min_samples_split")
 
@@ -151,9 +125,8 @@ def test_a_belief_far_from_the_optimum_is_refused(client):
 
 
 def test_every_answer_is_one_of_the_three(client):
-    """Whatever the installed SMAC can do. Without the acquisition weight layer
-    the verdict is `unjudged`; with it, the model decides — and the page has to
-    handle exactly this set either way."""
+    """The page must handle the three `VERDICTS`, with or without SMAC's
+    acquisition weight layer."""
     exp = _experiment()
     response, data = _evaluate(client, exp)
 
@@ -164,8 +137,7 @@ def test_every_answer_is_one_of_the_three(client):
 
 
 def test_judging_writes_nothing(client):
-    """The point of asking rather than enforcing. Whatever the model thinks, the
-    belief is still the reader's until they withdraw it themselves."""
+    """The belief stays the reader's until withdrawn."""
     exp = _experiment()
     exp.data.priors = {"n_estimators": {"kind": "normal", "params": {"mu": 0.5, "sigma": 0.1},
                                    "decay": {"shape": "none"}, "at_trial": 0}}
@@ -179,29 +151,24 @@ def test_judging_writes_nothing(client):
 
 
 def test_it_is_a_post(client):
-    """It costs a model fit, thousands of acquisition evaluations and a local
-    search per climb. A GET that expensive is one a link, a prefetch or a
-    crawler can spend for you."""
+    """A model fit and many acquisition evaluations are too costly for a GET
+    that prefetchers could trigger."""
     response = client.get(reverse("ui:evaluate_prior", args=[_bare_experiment().pk]))
 
     assert response.status_code == 405
 
 
-# ── the setting behind it ────────────────────────────────────────────────────
+# the setting
 
 def test_the_tolerance_is_a_share_of_the_metrics_scale():
-    """*What:* the tolerance is a share, DynaBO's 0.15 by default, so it can
-    run from refusing anything worse to accepting all but the worthless.
-
-    *How:* read from the settings tables."""
+    """DynaBO's 0.15 is the default share."""
     assert SETTING_DEFAULTS["prior_acceptance_tolerance"] == 0.15
     assert SETTING_BOUNDS["prior_acceptance_tolerance"] == (0.0, 1.0)
 
 
 def test_the_tolerance_keeps_its_decimals(client):
-    """The settings form reads each value as the type of its default, and this
-    is the first one that is not a whole number. Read as an integer it would
-    truncate to zero and silently start refusing every prior."""
+    """Read as an integer, the tolerance would truncate to zero and refuse every
+    prior."""
     from django.test import RequestFactory
 
     from ui.views.preferences import _posted_settings
@@ -219,10 +186,8 @@ def test_the_tolerance_is_offered_on_the_settings_page(client):
 
 
 def test_top_k_defaults_to_smacs():
-    """*What:* the setting starts at `ClimbingComparisonPolicy`'s own top k and
-    can never ask for no climbs at all.
-
-    *How:* read from the settings tables."""
+    """The default matches `ClimbingComparisonPolicy`'s top k, and the bounds
+    forbid zero climbs."""
     assert SETTING_DEFAULTS["prior_acceptance_top_k"] == 10
     assert SETTING_BOUNDS["prior_acceptance_top_k"] == (1, 100)
 
@@ -231,12 +196,7 @@ def test_top_k_defaults_to_smacs():
     ({}, 10), ({"top_k": "3"}, 3), ({"top_k": "0"}, 1), ({"top_k": "5000"}, 100),
     ({"top_k": "many"}, 10)])
 def test_the_posted_top_k_is_clamped_or_falls_back(client, monkeypatch, posted, used):
-    """*What:* the top k from the field beside the button is used, clamped to
-    the setting's bounds, and the setting's value when it is missing or not a
-    number.
-
-    *How:* SMAC's judgement replaced by one that records the top k it was
-    handed, for each kind of posted value."""
+    """A missing or non-numeric top k falls back to the setting."""
     from core.optimizers.smac_optimizer import SMACOptimizer
 
     seen = {}
@@ -255,7 +215,7 @@ def test_the_posted_top_k_is_clamped_or_falls_back(client, monkeypatch, posted, 
     assert json.loads(response.content)["top_k"] == used
 
 
-# ── the page ─────────────────────────────────────────────────────────────────
+# the page
 
 def test_the_figure_offers_the_question_and_the_answer(client):
     exp = _experiment()
@@ -267,7 +227,7 @@ def test_the_figure_offers_the_question_and_the_answer(client):
     assert 'id="acq-verdict-keep"' in html and 'id="acq-verdict-discard"' in html
 
 
-# ── whether it is offered ────────────────────────────────────────────────────
+# availability
 
 def _evaluate_button(html):
     found = re.search(r'<button[^>]*id="acq-evaluate"[^>]*>', html)
@@ -282,13 +242,8 @@ def _top_k_field(html):
 
 
 def test_only_the_gaussian_process_judges_priors():
-    """*What:* which optimizer settings can judge a prior. Under the random
-    forest the bound the judgement scores with is so optimistic that every prior
-    passes, and an optimizer with no model has nothing to judge with.
-
-    *How:* asked of the optimizers directly, for both strategies, for none
-    stated, and for a strategy that no longer exists, which SMAC reads as the
-    Gaussian process."""
+    """Under the random forest every prior passes, and a model-free optimizer
+    has nothing to judge with."""
     from core.optimizers.random_optimizer import RandomOptimizer
     from core.optimizers.smac_optimizer import SMACOptimizer
 
@@ -301,11 +256,8 @@ def test_only_the_gaussian_process_judges_priors():
 
 
 def test_the_button_is_disabled_under_the_random_forest(client):
-    """*What:* "Evaluate Prior" is greyed out, with the reason as its tooltip,
-    when the experiment's optimizer cannot judge a prior, and the script is told
-    so it never re-enables it.
-
-    *How:* the dashboards of two experiments that differ only in strategy."""
+    """Under the random forest the button is greyed out with a tooltip, and the
+    script learns it must stay disabled."""
     url = reverse("ui:experiment_detail", args=[_experiment().pk])
     rf_url = reverse("ui:experiment_detail", args=[_experiment("rf").pk])
 
@@ -323,11 +275,8 @@ def test_the_button_is_disabled_under_the_random_forest(client):
 
 
 def test_the_random_forest_is_not_judged_even_if_asked(client, monkeypatch):
-    """*What:* a stale page whose button is still live gets "unjudged" rather
-    than a verdict every prior would pass.
-
-    *How:* the endpoint posted to under the random forest, with SMAC's judgement
-    replaced by one that fails the test if it is reached."""
+    """A stale page's live button gets `unjudged`, never a random forest
+    verdict."""
     from core.optimizers.smac_optimizer import SMACOptimizer
 
     def _reached(*args, **kwargs):
@@ -343,10 +292,7 @@ def test_the_random_forest_is_not_judged_even_if_asked(client, monkeypatch):
 
 
 def test_the_script_never_re_enables_a_button_it_cannot_use():
-    """*What:* the script's two paths that enable the button, after an answer
-    and on a change of shape, both defer to the server's flag.
-
-    *How:* read from the source, since no test here runs the script."""
+    """The script's two enabling paths both defer to the server's flag."""
     source = _script()
 
     assert 'evaluateBtn.disabled = !judgesPriors;' in source
@@ -354,18 +300,15 @@ def test_the_script_never_re_enables_a_button_it_cannot_use():
 
 
 def test_only_a_refusal_asks_a_question():
-    """Approval and "could not be judged" are things to read, not things to
-    answer — a dialog for either would be a dialog people learn to dismiss."""
+    """A dialog for approval would teach people to dismiss it."""
     source = _script()
 
     assert 'data.verdict === "rejected" && verdictDialog' in source
 
 
 def test_the_verdict_is_smacs():
-    """Nothing here re-decides it. The server offers the belief to `add_prior`
-    behind an acceptance policy and reports whether it was registered, which is
-    where SMAC makes the judgement — a second implementation would be a second
-    opinion to keep in step forever."""
+    """The server relies on SMAC's `add_prior` acceptance policy, keeping one
+    implementation of the judgement."""
     optimizer = (Path(__file__).parents[3] / "core" / "optimizers"
                  / "smac_optimizer.py").read_text()
 
@@ -375,15 +318,14 @@ def test_the_verdict_is_smacs():
 
 
 def test_a_changed_belief_drops_its_verdict():
-    """A stale approval is the one outcome that could mislead: it would sit
-    under a curve it no longer describes and suggest there is nothing to ask."""
+    """A stale approval would mislead under a curve it no longer describes."""
     assert "setVerdict(null);" in _script()
 
 
-# ── the tolerance's scale ────────────────────────────────────────────────────
+# tolerance scale
 
 def _diabetes(client):
-    """A regression on diabetes, run for three trials, scored as an RMSE."""
+    """`_diabetes` runs a three-trial diabetes regression scored by RMSE."""
     from tests.conftest import DATASETS_DIR, post_new_experiment
 
     post_new_experiment(client, {
@@ -398,11 +340,8 @@ def _diabetes(client):
 
 
 def test_an_unbounded_metric_is_scaled_by_what_knowing_nothing_scores(client):
-    """*What:* an RMSE has no worst end, so its scale is what predicting the
-    mean scores: the spread of the validation targets.
-
-    *How:* a real diabetes run, against that spread worked out from the same
-    holdout split."""
+    """An RMSE has no worst end, so its scale is the spread of the validation
+    targets."""
     import numpy as np
 
     from core import datasets
@@ -417,10 +356,8 @@ def test_an_unbounded_metric_is_scaled_by_what_knowing_nothing_scores(client):
 
 
 def test_without_its_data_an_unbounded_metric_is_scaled_by_its_trials(client, monkeypatch):
-    """*What:* an experiment whose dataset is not here — an imported one — is
-    scaled by the spread of the scores its trials reached instead.
-
-    *How:* the same run, with rebuilding it from its data made to fail."""
+    """An imported experiment without its dataset is scaled by the spread of
+    trial scores."""
     from core import io
     from experiments.services.snapshot import rebuild_result
     from experiments.services.priors import metric_scale
@@ -439,11 +376,7 @@ def test_without_its_data_an_unbounded_metric_is_scaled_by_its_trials(client, mo
 
 
 def test_smac_is_handed_the_tolerance_in_the_metrics_units(client, monkeypatch):
-    """*What:* the share from the settings, times the metric's scale, is the
-    threshold SMAC compares against.
-
-    *How:* SMAC's judgement replaced by one that records the tolerance it was
-    handed, for a tolerance of 0.2 on an accuracy."""
+    """SMAC receives the setting's share times the metric's scale."""
     from core.optimizers.smac_optimizer import SMACOptimizer
 
     seen = {}

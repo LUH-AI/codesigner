@@ -1,12 +1,6 @@
-"""Choosing how an experiment's search runs.
-
-The form is generic: it loops what the optimizer declares, so a new setting is a
-line in `params_schema` and no template changes.
-
-They are chosen at creation and fixed for the experiment's life, like
-`cv_folds`. An experiment's settings therefore describe every trial in it, which
-is what lets the record say what produced the history rather than what would
-produce the next run.
+"""The form renders whatever `params_schema` declares, and a new setting needs
+no template change. Settings are fixed at creation, like `cv_folds`, and
+describe every trial in the experiment.
 """
 
 import pytest
@@ -37,7 +31,7 @@ def _settings(client, exp):
     return client.get(reverse("ui:experiment_settings", args=[exp.pk])).content.decode()
 
 
-# ── the create form ──────────────────────────────────────────────────────────
+# Create form
 
 def test_the_create_form_offers_the_search_settings(client):
     html = get_optimizer_step(client).content.decode()
@@ -48,8 +42,6 @@ def test_the_create_form_offers_the_search_settings(client):
 
 
 def test_the_advanced_ones_are_folded_away(client):
-    """Four settings anyone can reason about, and six that need you to already
-    know what they do. Both present, only one group unfolded."""
     html = get_optimizer_step(client).content.decode()
 
     assert "<details" in html and "Advanced search settings" in html
@@ -82,12 +74,11 @@ def test_creating_without_touching_them_stores_the_defaults(client):
 
     stored = Experiment.objects.get(data__name="plain").data.optimizer_params
     assert stored["search_strategy"] == "gp"
-    # Unset stays unset rather than becoming a number of ours: the two
-    # strategies disagree about these, and the one in use should decide.
+    # The two strategies disagree on unset values, so the one in use decides.
     assert stored["challengers"] is None
 
 
-# ── fixed once the experiment exists ─────────────────────────────────────────
+# Fixed after creation
 
 def _create(client, **overrides):
     data = {"name": "created", "model_name": "Random Forest",
@@ -99,11 +90,8 @@ def _create(client, **overrides):
 
 
 def test_the_settings_page_does_not_offer_them(client):
-    """The one page that could plausibly host them, and deliberately does not.
-
-    Its display settings are inherit/override/promote-to-default; these have
-    none of that, and changing them mid-experiment would leave the trials
-    already recorded describing a search that no longer runs.
+    """Changing the settings mid-experiment would leave the recorded trials
+    describing a search that no longer runs.
     """
     exp = _experiment(params={"search_strategy": "rf"})
 
@@ -111,9 +99,8 @@ def test_the_settings_page_does_not_offer_them(client):
 
 
 def test_posting_them_at_the_settings_page_changes_nothing(client):
-    """Absent from the form is not the same as refused by the view. A page that
-    rendered no fields but accepted them would be editable by anyone who knew
-    the names."""
+    """Accepting unrendered fields would let anyone who knew the names edit
+    them."""
     exp = _experiment(params={"search_strategy": "gp"})
 
     client.post(reverse("ui:experiment_settings", args=[exp.pk]),
@@ -132,17 +119,15 @@ def test_an_unreadable_value_falls_back_to_the_default(client):
 
 
 def test_an_unreadable_value_with_no_default_falls_back_to_blank(client):
-    """Blank is a real answer for these — it means "whatever SMAC does" — so
-    "falls back to the default" and "falls back to empty" are the same thing."""
+    """Blank means whatever SMAC does, the same as the default."""
     assert _create(client, opt_share_cap="lots")["share_cap"] is None
 
 
-# ── surviving a rename ───────────────────────────────────────────────────────
+# Renames
 
 def test_an_experiment_stored_under_the_old_name_still_works(client):
-    """SMAC was called "SMAC (BlackBox)" while it was hardwired to that facade.
-    Rows were migrated; an .ihpo on someone else's disk was not, so the alias
-    has to resolve."""
+    """The alias must resolve, since an `.ihpo` on another disk still names
+    "SMAC (BlackBox)"."""
     exp = _experiment(optimizer_name="SMAC (BlackBox)")
 
     assert client.get(
@@ -152,24 +137,19 @@ def test_an_experiment_stored_under_the_old_name_still_works(client):
 
 
 def test_a_stored_setting_the_optimizer_no_longer_has_is_ignored(client):
-    """Renaming or withdrawing a setting would otherwise reach `__init__` as an
-    unexpected keyword — raised from the page that rebuilds the result to draw
-    it, which catches ValueError and nothing else."""
+    """A withdrawn setting would reach `__init__` as an unexpected keyword, and
+    the page catches only ValueError."""
     exp = _experiment(params={"search_strategy": "gp", "withdrawn_long_ago": 7})
 
     assert client.get(
         reverse("ui:experiment_detail", args=[exp.pk])).status_code == 200
 
 
-# ── the create page's panel per optimizer ────────────────────────────────────
+# Panels per optimizer
 
 def _without_scripts(html):
-    """*html* with every `<script>` block removed.
-
-    These tests scrape rendered form fields by looking for `name="opt_…"`, and
-    the panel's own script now selects fields by that same attribute — so a
-    script mentioning a setting would otherwise read as the setting being
-    present. Strip the scripts and the scrape means what it says again.
+    """`_without_scripts` drops every `<script>` block, because the panel's
+    script also mentions the scraped `name="opt_…"` attributes.
     """
     import re
 
@@ -177,7 +157,7 @@ def _without_scripts(html):
 
 
 def _panels(html):
-    """Each `data-optimizer` panel on the page: key → (hidden, field names)."""
+    """`_panels` maps each `data-optimizer` key to (hidden, fields)."""
     import re
 
     html = _without_scripts(html)
@@ -191,9 +171,8 @@ def _panels(html):
 
 
 def test_every_optimizer_with_settings_gets_a_panel(client):
-    """All of them are rendered so the dropdown can swap between them without a
-    request. Random Search declares nothing, so it contributes nothing rather
-    than an empty box."""
+    """The dropdown swaps panels without a request, and Random Search declares
+    no settings."""
     panels = _panels(get_optimizer_step(client).content.decode())
 
     assert set(panels) == {"SMAC", "Grid Search"}
@@ -207,8 +186,6 @@ def test_only_the_selected_optimizers_panel_is_shown(client):
 
 
 def test_the_panel_is_the_same_bordered_box_as_the_figure_settings(client):
-    """`check-group` — the fieldset the figures checkboxes live in. It already
-    carries number inputs elsewhere, so this needs no CSS of its own."""
     html = get_optimizer_step(client).content.decode()
 
     assert '<fieldset class="check-group">' in html
@@ -216,8 +193,6 @@ def test_the_panel_is_the_same_bordered_box_as_the_figure_settings(client):
 
 
 def test_grid_search_settings_are_reachable_at_last(client):
-    """`numeric_steps` has round-tripped correctly since Step 2 and no page has
-    ever offered it — the create form only ever rendered SMAC's schema."""
     panels = _panels(get_optimizer_step(client).content.decode())
 
     assert panels["Grid Search"][1] == ["opt_numeric_steps"]
@@ -236,8 +211,7 @@ def test_creating_with_grid_search_stores_what_its_panel_said(client):
 
 
 def test_the_hidden_panels_settings_do_not_leak_into_the_chosen_one(client):
-    """The browser disables them so they are never submitted. Even posted by
-    hand they belong to another optimizer and are not in its schema."""
+    """Hand-posted fields from another optimizer fall outside its schema."""
     post_new_experiment(client, {
         "name": "clean", "model_name": "Random Forest",
         "optimizer_name": "Grid Search", "seed": "0",
@@ -249,9 +223,8 @@ def test_the_hidden_panels_settings_do_not_leak_into_the_chosen_one(client):
 
 
 def test_an_optimizer_whose_panel_was_hidden_gets_its_own_defaults(client):
-    """A disabled input is not submitted, and the parser reads a missing value
-    as that setting's default — so picking an optimizer without opening its
-    panel stores exactly what it would have shown."""
+    """The parser reads a missing value as its default, so an unopened panel
+    stores what it showed."""
     post_new_experiment(client, {
         "name": "untouched", "model_name": "Random Forest",
         "optimizer_name": "Grid Search", "seed": "0",
@@ -262,9 +235,6 @@ def test_an_optimizer_whose_panel_was_hidden_gets_its_own_defaults(client):
 
 
 def test_the_optimizer_step_reopens_on_what_was_saved(client):
-    """What: step 2 opened again shows the optimizer saved there and its
-    numbers still in their boxes, rather than the first one on its defaults.
-    How: saves Grid Search with a step count, then reads the step again."""
     page = get_optimizer_step(client)
     url = page.request["PATH_INFO"]
     client.post(url, {"optimizer_name": "Grid Search", "opt_numeric_steps": "8"})
@@ -277,11 +247,8 @@ def test_the_optimizer_step_reopens_on_what_was_saved(client):
 
 
 def test_an_unchosen_panel_is_inert_as_rendered_not_only_hidden(client):
-    """`hidden` is a browser hint; `disabled` is what keeps a panel's values out
-    of the POST. Rendering it on the fieldset means the page is correct with no
-    JavaScript at all, and the switch is an enhancement rather than the
-    mechanism — which matters, because two optimizers could one day declare a
-    setting under the same name."""
+    """`disabled` on the fieldset keeps a panel out of the POST without
+    JavaScript, since two optimizers could one day share a setting name."""
     import re
 
     html = get_optimizer_step(client).content.decode()
@@ -295,15 +262,14 @@ def test_an_unchosen_panel_is_inert_as_rendered_not_only_hidden(client):
 
 
 def test_the_switch_toggles_the_fieldset_and_not_just_its_inputs(client):
-    """A disabled fieldset overrides its children, so re-enabling the inputs one
-    by one would leave the panel dead."""
+    """A disabled fieldset overrides its children."""
     html = get_optimizer_step(client).content.decode()
 
     assert 'querySelectorAll("input, select, textarea, fieldset")' in html
     assert 'select.addEventListener("change", apply)' in html
 
 
-# ── what the fields say, and where they say it ───────────────────────────────
+# Labels and help
 
 def _smac_panel(client):
     html = get_optimizer_step(client).content.decode()
@@ -312,16 +278,14 @@ def _smac_panel(client):
 
 
 def test_a_setting_is_named_and_not_described_in_place(client):
-    """A dozen settings with a line of prose under each is a wall to read past
-    while filling in a form. The label is the setting's name; the explanation is
-    hidden until someone wants it."""
+    """The label names the setting, and the explanation stays hidden until asked
+    for."""
     assert '<p class="caption">' not in _smac_panel(client)
 
 
 def test_the_explanation_is_behind_a_marked_control(client):
-    """A circled i beside the name. A `title` on the label would have been
-    invisible until hovered, so nothing on the page would say there was
-    anything to read."""
+    """The help sits behind a circled mark, since a `title` gives no sign until
+    hovered."""
     panel = _smac_panel(client)
 
     assert '<button type="button" class="info-mark"' in panel
@@ -330,9 +294,8 @@ def test_the_explanation_is_behind_a_marked_control(client):
 
 
 def test_the_explanation_is_readable_without_a_pointer_too(client):
-    """The bubble is the control's description, so the words are announced on
-    reaching the field whether or not anyone opens it — and the mark is a
-    button, so opening it takes a keypress rather than a hover."""
+    """The bubble describes the control for screen readers, and the mark is a
+    button reachable by keyboard."""
     panel = _smac_panel(client)
     mark = panel[panel.index('class="info-mark"'):]
 
@@ -341,15 +304,13 @@ def test_the_explanation_is_readable_without_a_pointer_too(client):
 
 
 def _control(panel, name):
-    """The whole opening tag of one setting's control."""
+    """`_control` returns one control's opening tag."""
     at = panel.index(f'id="opt_{name}"')
     return panel[panel.rindex("<", 0, at):panel.index(">", at) + 1]
 
 
 def test_a_decimal_field_is_not_a_stepper_at_all(client):
-    """A number input's arrows step by one, which on a fraction between 0 and 1
-    is the entire range. Worse than useless: they make the field look like it
-    wants a whole number."""
+    """A step of one covers a fraction's whole range."""
     panel = _smac_panel(client)
     control = _control(panel, "share_cap")
 
@@ -359,8 +320,6 @@ def test_a_decimal_field_is_not_a_stepper_at_all(client):
 
 
 def test_a_whole_number_field_still_steps_by_one(client):
-    """Where one is a real increment the arrows are worth having, and the
-    difference between the two kinds of field is then visible."""
     panel = _smac_panel(client)
     control = _control(panel, "trial_cap")
 
@@ -368,16 +327,8 @@ def test_a_whole_number_field_still_steps_by_one(client):
 
 
 def test_an_empty_field_shows_the_value_it_would_actually_use(client):
-    """The placeholder is the default itself, not the words "search strategy
-    default".
-
-    Naming the source told the reader there was a number and declined to say
-    which, and finding out meant reading SMAC's source. The values come from
-    SMAC's own signatures through `SMACOptimizer.strategy_defaults`, so they
-    cannot drift from what a blank field actually does.
-
-    Not every blank is a strategy's, though: some are SMAC's own regardless of
-    strategy, and Grid Search has no strategy at all.
+    """The placeholder shows the default itself, taken from
+    `SMACOptimizer.strategy_defaults`.
     """
     html = get_optimizer_step(client).content.decode()
     panel = _smac_panel(client)
@@ -397,10 +348,8 @@ def test_an_empty_field_shows_the_value_it_would_actually_use(client):
 
 
 def test_a_strategy_dependent_default_carries_both_strategies_values(client):
-    """The two strategies disagree — the random-trial rate is 0.08447 under the
-    Gaussian process and 0.2 under the random forest — and the selector changes
-    without a request, so a placeholder rendered for one of them would be wrong
-    the moment it moved. Both travel with the field."""
+    """The selector changes without a request, so the field carries both
+    strategies' defaults."""
     import json
     import re
 
@@ -414,8 +363,7 @@ def test_a_strategy_dependent_default_carries_both_strategies_values(client):
 
 
 def test_a_bounded_setting_shows_its_range(client):
-    """`min`/`max` alone only speak up once a value is already wrong. A range is
-    something you want while deciding what to type."""
+    """`min` and `max` speak only once a value is wrong."""
     panel = _smac_panel(client)
     at = panel.index('id="opt_random_probability"')
     field = panel[panel.rindex('<div class="field"', 0, at):panel.index("</div>", at)]
@@ -423,11 +371,10 @@ def test_a_bounded_setting_shows_its_range(client):
     assert "0–1" in field
 
 
-# ── the initial-points block ─────────────────────────────────────────────────
+# Initial points
 
 def test_both_caps_are_offered_side_by_side(client):
-    """They are alternatives to each other, and reading them together is what
-    makes "the smaller of these" mean anything."""
+    """The caps sit together, giving "the smaller of these" a meaning."""
     panel = _smac_panel(client)
     block = panel[panel.index('<fieldset class="param-group">'):]
 
@@ -448,15 +395,13 @@ def test_both_caps_are_on_and_both_values_blank_to_begin_with(client):
 
 
 def test_the_smaller_of_the_two_is_the_default(client):
-    """SMAC only ever takes the smaller. The larger is arithmetic of ours, so it
-    is the one that has to be asked for."""
+    """SMAC takes the smaller; the larger is arithmetic of ours."""
     assert " checked" not in _control(_smac_panel(client), "initial_points_use_max")
 
 
 def test_use_default_is_a_control_and_not_a_setting(client):
-    """An empty field already means "SMAC's own", so a second thing recording
-    the same fact could disagree with it. It is checked because the field is
-    empty, and it is never submitted."""
+    """The checkbox is never submitted, since an empty field already means
+    SMAC's own."""
     panel = _smac_panel(client)
     row = panel[panel.index('data-default-for="opt_share_cap"'):]
     row = row[:row.index("</div>")]
@@ -483,8 +428,6 @@ def test_creating_stores_the_caps(client):
 
 
 def test_a_cap_switched_off_is_stored_as_off(client):
-    """An unchecked box is simply absent from the POST, which is how HTML says
-    no — and how the parser reads it."""
     post_new_experiment(client, {
         "name": "uncapped", "model_name": "Random Forest",
         "optimizer_name": "SMAC", "seed": "0",
@@ -497,7 +440,7 @@ def test_a_cap_switched_off_is_stored_as_off(client):
     assert params["use_trial_cap"] is True
 
 
-# ── the surrogate settings, and the strategy each belongs to ─────────────────
+# Surrogate settings
 
 def test_the_surrogate_settings_are_all_there(client):
     panel = _smac_panel(client)
@@ -509,8 +452,6 @@ def test_the_surrogate_settings_are_all_there(client):
 
 
 def test_they_are_all_folded_away(client):
-    """Nobody reaches for the surrogate's leaf size without knowing what one
-    is."""
     advanced = _smac_panel(client).split("Advanced search settings", 1)[1]
 
     assert 'name="opt_rf_trees"' in advanced
@@ -518,11 +459,8 @@ def test_they_are_all_folded_away(client):
 
 
 def test_every_surrogate_setting_says_surrogate(client):
-    """The hazard this guards is specific. The demo Random Forest *model* is
-    tuned over `max_depth` and `min_samples_split`; the random forest
-    *surrogate* has settings of those same two names, and both can be on the
-    page at once. The prefix keeps the form fields apart; the word keeps the
-    reader's two models apart."""
+    """The demo Random Forest model has two setting names that the forest
+    surrogate also has."""
     from ui.optimizer_labels import LABELS
     from core.optimizers import SMACOptimizer
 
@@ -535,8 +473,7 @@ def test_every_surrogate_setting_says_surrogate(client):
 
 
 def test_a_setting_declares_when_it_applies(client):
-    """`data-when="search_strategy=rf"` — the form hides it under the other
-    strategy without knowing what a surrogate is."""
+    """`data-when` lets the form hide fields generically."""
     panel = _smac_panel(client)
 
     at = panel.index('id="opt_rf_trees"')
@@ -546,9 +483,8 @@ def test_a_setting_declares_when_it_applies(client):
 
 
 def test_the_panel_wires_its_own_switch(client):
-    """It travels with the partial rather than living on the page, and scopes
-    itself to its own fieldset — the create page renders one panel per optimizer
-    and each has to switch only its own fields."""
+    """The panel's script limits itself to its own fieldset, since the create
+    page renders one panel per optimizer."""
     html = get_optimizer_step(client).content.decode()
 
     assert 'querySelectorAll("[data-when]")' in html
@@ -556,10 +492,8 @@ def test_the_panel_wires_its_own_switch(client):
 
 
 def test_a_setting_for_the_other_strategy_is_hidden_and_not_disabled(client):
-    """Disabling it would drop it from the POST, and the parser reads a missing
-    value as the default — so switching strategy and back would silently reset
-    everything set for the other one. The names are prefixed per strategy, so
-    there is nothing to gain by dropping them."""
+    """Disabling would drop the value from the POST, and switching strategy and
+    back would reset it."""
     html = get_optimizer_step(client).content.decode()
 
     hiding = html[html.index("[data-when]"):html.index("[data-enabled-by]")]
@@ -583,9 +517,8 @@ def test_creating_stores_the_surrogate_settings(client):
 
 
 def test_a_feature_ratio_above_one_is_clamped_on_the_way_in(client):
-    """Above 1.0 SMAC computes `max_features = 0`. The field caps it, the
-    parser caps it, and the optimizer caps it again — three, because only the
-    last one covers a hand-edited `.ihpo`."""
+    """SMAC computes `max_features = 0` above 1.0, and only the optimizer's cap
+    covers a hand-edited `.ihpo`."""
     post_new_experiment(client, {
         "name": "greedy", "model_name": "Random Forest",
         "optimizer_name": "SMAC", "seed": "0",
@@ -597,7 +530,6 @@ def test_a_feature_ratio_above_one_is_clamped_on_the_way_in(client):
 
 
 def test_the_slow_fitting_method_says_so_where_it_is_chosen(client):
-    """An order of magnitude per trial is not something to find out afterwards."""
     panel = _smac_panel(client)
 
     assert '<option value="mcmc">MCMC (slow)</option>' in panel

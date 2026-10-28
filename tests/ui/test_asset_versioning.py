@@ -1,13 +1,5 @@
-"""Static assets are asked for by a URL that changes when the file does.
-
-The filenames WhiteNoise serves here are plain (see STORAGES), so nothing in a
-static URL says which version of the file it points at. A browser holding an old
-`app.css` then lays the page out by rules that are no longer the rules — which
-is invisible from the server, because the server rendered the right markup.
-
-These check the tag itself rather than a live browser: that the URL carries the
-file's mtime, that editing the file changes it, and that the pages people
-actually load use the tag.
+"""WhiteNoise serves plain filenames (see STORAGES), so the `asset` tag appends
+the file's mtime to bust stale browser caches.
 """
 
 import re
@@ -22,9 +14,8 @@ def _render(path="ui/app.css"):
 
 
 def test_a_static_url_carries_the_files_modification_time():
-    """The version has to come from the file, not from the process or the
-    clock: a restart must not invalidate assets that did not change, and an
-    edit must invalidate them without one."""
+    """A restart keeps unchanged assets valid, and an edit invalidates them
+    without one."""
     from pathlib import Path
 
     from django.contrib.staticfiles import finders
@@ -38,7 +29,6 @@ def test_a_static_url_carries_the_files_modification_time():
 
 
 def test_editing_the_file_changes_the_url(tmp_path, settings):
-    """The whole point, stated as the behaviour rather than the mechanism."""
     asset = tmp_path / "probe.css"
     asset.write_text(".a {}")
     settings.STATICFILES_DIRS = [str(tmp_path)]
@@ -54,15 +44,13 @@ def test_editing_the_file_changes_the_url(tmp_path, settings):
 
 
 def test_a_missing_asset_is_left_to_the_storage_to_report():
-    """No file, no mtime — the tag falls back rather than raising, so a typo
-    surfaces as a 404 on the asset instead of a 500 on every page."""
+    """A typo then gives a 404 on the asset instead of a 500 on every page."""
     assert _render("ui/nope.css") == "/static/ui/nope.css"
 
 
 def test_the_pages_people_load_ask_for_versioned_assets(client, settings):
-    """A tag nothing uses fixes nothing. Both templates carrying a stylesheet
-    link are checked — the app shell, and the sign-in page, which does not
-    extend it and so had to be changed separately."""
+    """The sign-in page carries its own stylesheet link, since that page extends
+    no shell."""
     settings.REQUIRE_LOGIN = True
     signin = client.get(reverse("ui:home"), follow=True)
     shell = signin.content.decode()

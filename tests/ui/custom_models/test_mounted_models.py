@@ -1,13 +1,5 @@
-"""Step 10: pick a server-side "mounted" model instead of uploading one.
-
-InteractiveHPO's headless fallback offered a dropdown of .py models found in a
-mounted directory (core.datasets.mounted_models(), scanning mounted_models/). This is
-the Docker-volume workflow: mount a models/ dir and choose from it without
-uploading. It's gated by ALLOW_CUSTOM_MODELS (loading one is arbitrary code
-execution, same as an upload) and only appears when the directory has models.
-
-A chosen mounted model is adopted into MEDIA on create (via the snapshot
-adapter's existing model_path adoption), so the experiment is self-contained.
+"""`NewExperimentForm` offers the `.py` files in `mounted_models/` when
+ALLOW_CUSTOM_MODELS is on and the directory has any.
 """
 
 import pytest
@@ -23,7 +15,7 @@ from tests.conftest import post_new_experiment
 
 @pytest.fixture
 def mounted_dir(tmp_path, monkeypatch):
-    """A mounted_models/ dir holding one valid model .py, wired into core.datasets."""
+    """`mounted_dir` patches `_MODELS_DIR` to hold one valid model."""
     d = tmp_path / "mounted_models"
     d.mkdir()
     (d / "mymodel.py").write_text(VALID_MODEL_SRC, encoding="utf-8")
@@ -32,10 +24,7 @@ def mounted_dir(tmp_path, monkeypatch):
 
 
 def _demo_dataset_path():
-    """Path of the iris demo, to satisfy the form's dataset rule.
-
-    Named rather than the first demo: the demos include a regression one now,
-    and the models here only classify.
+    """`_demo_dataset_path` names iris since the models here only classify.
     """
     return datasets.demo_datasets()["iris"]
 
@@ -58,7 +47,7 @@ def test_form_hides_mounted_models_when_flag_off(mounted_dir, settings):
 
 def test_form_hides_mounted_models_when_none_present(tmp_path, monkeypatch, settings):
     settings.ALLOW_CUSTOM_MODELS = True
-    monkeypatch.setattr(datasets, "_MODELS_DIR", tmp_path / "empty")  # nonexistent → {}
+    monkeypatch.setattr(datasets, "_MODELS_DIR", tmp_path / "empty")
     assert "mounted_model" not in NewExperimentForm().fields
 
 
@@ -73,8 +62,7 @@ def test_selecting_a_mounted_model_resolves_its_name(mounted_dir):
 
 
 def test_create_view_adopts_a_mounted_model(client, mounted_dir):
-    """Creating with a mounted model copies it into MEDIA and stores the
-    resolved model name — the experiment is runnable and self-contained."""
+    """The created experiment holds its own copy of the mounted model in MEDIA."""
     from pathlib import Path
 
     resp = post_new_experiment(client, {

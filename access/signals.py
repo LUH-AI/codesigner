@@ -1,9 +1,5 @@
-"""What leaving a group takes with it.
-
-A receiver rather than a step in the view that removes somebody, because that
-view is not the only route: the Django admin deletes memberships, and so does
-deleting the account. `post_delete` fires for each of them, a queryset delete
-included — Django gives up its fast path for a model with receivers.
+"""Deleting a `Membership` drops the member's shares in the group's experiments.
+The `post_delete` receiver also catches admin, account and queryset deletes.
 """
 
 from django.db.models.signals import post_delete
@@ -14,8 +10,7 @@ from .models import Membership
 
 @receiver(post_delete, sender=Membership)
 def _grants_leave_with_the_member(sender, instance, **kwargs):
-    """A grant is access *within* a group. Out of the group, it is access
-    across the boundary, which nothing is allowed to grant."""
+    """Grants never cross a group boundary."""
     from experiments.models import ExperimentShare
 
     ExperimentShare.objects.filter(

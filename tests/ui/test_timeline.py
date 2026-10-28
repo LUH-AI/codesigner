@@ -1,5 +1,4 @@
-"""The timeline page: what was done to an experiment, newest first, each in a
-sentence, with a run's own events inside it."""
+"""The timeline lists changes newest first, nesting each run's events inside it."""
 
 import re
 from datetime import timedelta
@@ -38,8 +37,7 @@ def _summaries(client, exp):
 
 
 def _story(exp):
-    """Set up, a prior, a run with a prior event and a metric change, then a
-    processing change — each a minute apart."""
+    """`_story` records set-up, prior, run and processing events."""
     from experiments.models import ExperimentEvent, Run
 
     t0 = timezone.now() - timedelta(hours=1)
@@ -67,8 +65,6 @@ def _story(exp):
 
 
 def test_newest_first_down_to_the_set_up(client):
-    """What: entries run from the latest change back to how the experiment was
-    set up. How: builds a short history and reads the summaries in order."""
     exp = _experiment()
     _story(exp)
     summaries = _summaries(client, exp)
@@ -80,8 +76,6 @@ def test_newest_first_down_to_the_set_up(client):
 
 
 def test_a_runs_events_are_inside_it_newest_first(client):
-    """What: what happened during a run is listed under it, latest first.
-    How: reads the run's nested list."""
     exp = _experiment()
     _story(exp)
     html = client.get(reverse("ui:experiment_timeline", args=[exp.pk])).content.decode()
@@ -93,8 +87,7 @@ def test_a_runs_events_are_inside_it_newest_first(client):
 
 
 def test_an_experiment_from_before_the_history_still_begins_somewhere(client):
-    """What: an experiment with no recorded history gets a set-up entry made
-    from what it is, below its runs. How: makes one with only a run."""
+    """A history-less experiment gets a set-up entry built from what it is."""
     from experiments.models import Run
 
     exp = _experiment()
@@ -109,8 +102,7 @@ def test_an_experiment_from_before_the_history_still_begins_somewhere(client):
 
 
 def test_a_failed_and_a_cancelled_run_say_so(client):
-    """What: a run that failed says why; one cancelled by somebody says so.
-    How: records one of each and reads their sentences."""
+    """A failed run gives its reason."""
     from django.contrib.auth import get_user_model
 
     from experiments.models import Run
@@ -131,10 +123,8 @@ def test_a_failed_and_a_cancelled_run_say_so(client):
 
 
 def test_relative_times_are_shown_as_time_since_the_first_run(client):
-    """What: an experiment whose times are relative shows each as an offset
-    from when its first run was launched, never a date; what came before the
-    run shows no time. How: sets the basis on a story whose run is launched
-    two minutes in, and reads each entry's time."""
+    """Each relative time is an offset from the first run's launch, and earlier
+    entries have none."""
     exp = _experiment()
     _story(exp)
     exp.data.time_basis = "relative"
@@ -149,8 +139,7 @@ def test_relative_times_are_shown_as_time_since_the_first_run(client):
 
 
 def test_without_times_the_order_still_holds(client):
-    """What: an experiment with no times shows none, and its entries are still
-    in order — by how many trials there were. How: clears every time."""
+    """Trial counts keep the order without times."""
     from experiments.models import Run
 
     exp = _experiment()
@@ -168,14 +157,12 @@ def test_without_times_the_order_still_holds(client):
 
 
 def test_the_timeline_is_for_those_who_can_see_the_experiment(client, settings):
-    """What: an experiment nobody here may see has no timeline either.
-    How: hides everything and asks for the page."""
     exp = _experiment()
     settings.EXPERIMENT_POLICY = f"{__name__}.HidesEverything"
     assert client.get(reverse("ui:experiment_timeline", args=[exp.pk])).status_code == 404
 
 
-# ── priors: shown when they influenced the search ───────────────────────────
+# Priors
 
 def _prior_event(exp, kind, at, new, old=None):
     from experiments.models import ExperimentEvent
@@ -199,10 +186,7 @@ NORMAL = {"kind": "normal", "params": {"mu": 0.5}}
 
 
 def test_a_prior_withdrawn_before_it_was_applied_leaves_no_trace(client):
-    """What: a prior stated and withdrawn without any run applying it — say a
-    run ended inside the initial design it was waiting for — is not on the
-    timeline, nor is its withdrawal. How: states one, records a run that did
-    not apply it, withdraws it."""
+    """A prior no run applied leaves no trace, withdrawal included."""
     exp = _experiment()
     t0 = timezone.now() - timedelta(hours=1)
     _prior_event(exp, "prior_stated", t0, {**NORMAL, "delay_decay": True})
@@ -214,10 +198,7 @@ def test_a_prior_withdrawn_before_it_was_applied_leaves_no_trace(client):
 
 
 def test_a_scheduled_prior_is_shown_as_scheduled(client):
-    """What: a prior still standing that waits for the initial design is on
-    the timeline as what is to come: first, above a "Now" stop, marked
-    scheduled, with no time. How: states one with a delayed decay and no run
-    behind it, and reads the page."""
+    """A waiting prior sits above a "Now" stop, marked scheduled."""
     exp = _experiment()
     _prior_event(exp, "prior_stated", timezone.now(), {**NORMAL, "delay_decay": True})
     html = client.get(reverse("ui:experiment_timeline", args=[exp.pk])).content.decode()
@@ -230,9 +211,7 @@ def test_a_scheduled_prior_is_shown_as_scheduled(client):
 
 
 def test_an_applied_prior_and_its_withdrawal_are_both_shown(client):
-    """What: once a run applied a prior it is part of the experiment, and
-    withdrawing it is a change worth showing. How: states one, records a run
-    that applied it, withdraws it."""
+    """Once a run applied a prior, its withdrawal is worth showing."""
     exp = _experiment()
     t0 = timezone.now() - timedelta(hours=1)
     _prior_event(exp, "prior_stated", t0, NORMAL)
@@ -245,9 +224,7 @@ def test_an_applied_prior_and_its_withdrawal_are_both_shown(client):
 
 
 def test_an_unapplied_change_is_folded_into_the_one_that_counted(client):
-    """What: a prior applied, then changed twice with nothing applying the
-    middle version, reads as one change from the applied version to the
-    standing one. How: three statements around one applying run."""
+    """`experiment_timeline` folds an unapplied middle version into one change."""
     exp = _experiment()
     t0 = timezone.now() - timedelta(hours=1)
     first, middle, last = (NORMAL, {"kind": "normal", "params": {"mu": 0.6}},
@@ -265,10 +242,8 @@ def test_an_unapplied_change_is_folded_into_the_one_that_counted(client):
 
 
 def test_the_optimizers_settings_are_listed_by_name(client):
-    """What: the set-up entry lists the optimizer's settings under the names
-    the form gives them, in words, leaving out what does not apply — the other
-    strategy's settings and what is left to the strategy's default.
-    How: reads the details of an experiment with a Gaussian-process SMAC."""
+    """The entry uses the form's names and skips the other strategy's settings
+    and blank defaults."""
     from ui.optimizer_labels import summary
 
     rows = dict(summary("SMAC", {"search_strategy": "gp", "acquisition": "ei",
@@ -280,16 +255,13 @@ def test_the_optimizers_settings_are_listed_by_name(client):
 
 
 def _details(html, label):
-    """The rows under *label* in the first entry whose details have it."""
+    """`_details` reads the rows under the first *label* found."""
     block = html.split(f"<dt>{label}</dt>", 1)[1].split("</dl>", 1)[0]
     return dict(re.findall(r"<dt>([^<]+)</dt><dd>([^<]*)</dd>", block))
 
 
 def test_a_runs_stopping_and_deadline_are_listed_by_name(client):
-    """What: a run's stopping criteria and its deadline on a model fit are
-    rows under the names the run form gives them, seconds as durations, the
-    multiple only under a predicted deadline. How: records a run with three
-    criteria and a predicted deadline and reads its details."""
+    """Rows use the run form's names, with seconds as durations."""
     from experiments.models import Run
 
     exp = _experiment()
@@ -308,10 +280,8 @@ def test_a_runs_stopping_and_deadline_are_listed_by_name(client):
 
 
 def test_a_changed_prior_is_listed_as_the_figure_sets_it(client):
-    """What: a prior's before and after are rows — distribution, its
-    parameters under the figure's symbols, and its decay — rather than one
-    run-on line. How: states a normal prior, has a run apply it, edits it
-    into a decaying beta one and reads the edit's details."""
+    """`experiment_timeline` lists distribution, symbols and decay in the before
+    and after rows."""
     exp = _experiment()
     t0 = timezone.now() - timedelta(hours=1)
     normal = {"kind": "normal", "params": {"mu": 0.5, "sigma": 0.1}}
@@ -328,8 +298,7 @@ def test_a_changed_prior_is_listed_as_the_figure_sets_it(client):
 
 
 def test_changed_optimizer_settings_are_listed_before_and_after(client):
-    """What: an admin's change to the optimizer's settings is an entry with
-    both versions listed by name. How: records the event and reads the page."""
+    """An admin's optimizer change lists both versions by name."""
     from experiments.models import ExperimentEvent
 
     exp = _experiment()
@@ -353,10 +322,8 @@ def _created_with(exp, processing):
 
 
 def test_the_data_handling_set_up_is_an_entry_of_its_own(client):
-    """What: the Data Handling an experiment was set up with is an entry just
-    above its set-up, every step listed — the model's defaults too — and the
-    summary naming what differs from them. It is not a change: nothing ran
-    under anything else. How: sets up with scaling on and reads the page."""
+    """The initial Data Handling gets its own entry above the set-up, since
+    nothing ran under anything else."""
     exp = _experiment()
     _created_with(exp, {"missing": "auto", "scale": "standardize", "labels": "auto"})
     html = client.get(reverse("ui:experiment_timeline", args=[exp.pk])).content.decode()
@@ -373,9 +340,7 @@ def test_the_data_handling_set_up_is_an_entry_of_its_own(client):
 
 
 def test_data_handling_left_to_the_model_says_so(client):
-    """What: an experiment set up on its model's defaults says that in one
-    line, rather than saying nothing about its data. How: sets up on "auto"
-    throughout, and once naming the default outright."""
+    """Model defaults throughout take one line."""
     exp = _experiment()
     _created_with(exp, {"missing": "auto", "scale": "none", "labels": "auto"})
 
@@ -383,9 +348,7 @@ def test_data_handling_left_to_the_model_says_so(client):
 
 
 def test_a_run_lays_out_what_its_sentence_says(client):
-    """What: a run's details state outright what its summary says in words —
-    status, trial range, optimized metric, what stopped it — under the fields
-    its record in the file has. How: reads the run's details in the story."""
+    """A run's details spell out its summary under the file's field names."""
     exp = _experiment()
     _story(exp)
     html = client.get(reverse("ui:experiment_timeline", args=[exp.pk])).content.decode()
@@ -399,8 +362,7 @@ def test_a_run_lays_out_what_its_sentence_says(client):
 
 
 def test_a_runs_events_have_details_of_their_own(client):
-    """What: an event inside a run lays its parts out too — a metric change
-    its from and to. How: reads the nested list in the story."""
+    """A nested metric change lists its from and to."""
     exp = _experiment()
     _story(exp)
     html = client.get(reverse("ui:experiment_timeline", args=[exp.pk])).content.decode()

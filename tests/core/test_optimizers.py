@@ -7,10 +7,7 @@ from tests.conftest import FakeModel, FakeOptimizer, PreCancelled
 
 
 def _run(optimizer, model, splits, metrics, n_trials, previous=None, cancel=None, seed=0):
-    """Call optimizer.optimize with the standard argument plumbing.
-
-    Seed 0 unless a test asks otherwise, and primary_metric "accuracy", keep
-    every test deterministic and comparable.
+    """Seed 0 and primary metric accuracy keep every test deterministic.
     """
     X_train, X_val, y_train, y_val = splits
     return optimizer.optimize(
@@ -20,14 +17,9 @@ def _run(optimizer, model, splits, metrics, n_trials, previous=None, cancel=None
     )
 
 
-# ── Random Search ─────────────────────────────────────────────────────────────
-
 def test_random_search_runs_and_numbers_trials(iris_splits, metrics):
-    """A fresh random search evaluates exactly n_trials, numbered from 1.
-
-    Also checks the result invariants every optimizer must satisfy: best_score
-    equals the max primary-metric score, every trial has a score for every
-    metric, and importance is computed per metric.
+    """Every optimizer's result keeps best_score at the max primary score, a
+    score per metric, and per-metric importance.
     """
     result = _run(RandomOptimizer(), RandomForestModel(), iris_splits, metrics, n_trials=3)
 
@@ -40,8 +32,7 @@ def test_random_search_runs_and_numbers_trials(iris_splits, metrics):
 
 
 def test_random_search_is_seed_deterministic(iris_splits, metrics):
-    """The same seed reproduces the same configurations; a different seed
-    draws different ones."""
+    """Different seeds draw different configurations."""
     a, b, c = (_run(RandomOptimizer(), RandomForestModel(), iris_splits, metrics,
                     n_trials=3, seed=seed) for seed in (0, 0, 1))
     assert [t.config for t in a.trials] == [t.config for t in b.trials]
@@ -49,11 +40,8 @@ def test_random_search_is_seed_deterministic(iris_splits, metrics):
 
 
 def test_random_search_resume_continues_numbering(iris_splits, metrics):
-    """Resuming a random search extends the history instead of restarting it.
-
-    Setup: a finished 3-trial run passed as previous_result to a 2-trial run.
-    Expect: 5 trials numbered 1..5, best score never decreases, and no
-    config is evaluated twice (the resume set feeds duplicate-skipping).
+    """A resume numbers trials 1..5, never lowers the best score, and skips
+    evaluated configs.
     """
     first = _run(RandomOptimizer(), RandomForestModel(), iris_splits, metrics, n_trials=3)
     combined = _run(RandomOptimizer(), RandomForestModel(), iris_splits, metrics,
@@ -67,24 +55,16 @@ def test_random_search_resume_continues_numbering(iris_splits, metrics):
 
 
 def test_random_search_cancellation(iris_splits, metrics):
-    """A cancel flag that is already set stops the run before any trial.
-
-    Uses PreCancelled (a bare object with is_set() → True) to pin down that
-    optimizers rely only on the .is_set() contract.
+    """`PreCancelled` proves optimizers rely only on `.is_set()`.
     """
     result = _run(RandomOptimizer(), RandomForestModel(), iris_splits, metrics,
                   n_trials=5, cancel=PreCancelled())
     assert result.trials == []
 
 
-# ── Grid Search ───────────────────────────────────────────────────────────────
-
 def test_grid_search_reports_grid_size_as_trials_limit(iris_splits, metrics):
-    """Grid search exposes the full grid size as trials_limit.
-
-    Setup: numeric_steps=2 over Random Forest's 4 numeric hyperparameters
-    → 2⁴ = 16 valid combinations, of which only 4 are run.
-    Expect: trials_limit says 16 (the UI uses it to cap the trials slider).
+    """numeric_steps=2 over four numeric hyperparameters gives a 16-point grid,
+    and the UI caps the trials slider at `trials_limit`.
     """
     result = _run(GridOptimizer(numeric_steps=2), RandomForestModel(), iris_splits,
                   metrics, n_trials=4)
@@ -94,11 +74,7 @@ def test_grid_search_reports_grid_size_as_trials_limit(iris_splits, metrics):
 
 
 def test_grid_search_resume_skips_evaluated_configs(iris_splits, metrics):
-    """Resuming a grid search finishes the grid without repeating configs.
-
-    Setup: 4 of 16 grid points evaluated, then a resume asking for 12 more.
-    Expect: exactly 16 total trials and 16 distinct configs — the resumed
-    run walked only the remaining grid points.
+    """The resume walks only the 12 remaining grid points.
     """
     opt = GridOptimizer(numeric_steps=2)
     first = _run(opt, RandomForestModel(), iris_splits, metrics, n_trials=4)
@@ -111,19 +87,13 @@ def test_grid_search_resume_skips_evaluated_configs(iris_splits, metrics):
 
 
 def test_grid_search_get_params_roundtrip():
-    """get_params() returns constructor kwargs under their schema names,
-    which is how optimizer settings survive a save/load cycle."""
+    """Optimizer settings survive save and load through schema-named kwargs."""
     assert GridOptimizer(numeric_steps=7).get_params() == {"numeric_steps": 7}
 
 
-# ── Fake optimizer (used by later run-lifecycle tests) ───────────────────────
-
 def test_fake_optimizer_is_instant_and_honours_contract(metrics, tiny_splits):
-    """FakeOptimizer implements the full optimize() contract it advertises.
-
-    It backs later web-layer run-lifecycle tests, so its behavior is pinned
-    here once: fresh runs number from 1, resumes continue numbering and never
-    lower the best score, and a pre-set cancel flag yields zero trials.
+    """Later run-lifecycle tests rely on `FakeOptimizer` honouring numbering,
+    resume and cancellation.
     """
     model = FakeModel()
     X_train, X_val, y_train, y_val = tiny_splits
@@ -150,16 +120,10 @@ def test_fake_optimizer_is_instant_and_honours_contract(metrics, tiny_splits):
     assert cancelled.trials == []
 
 
-# ── SMAC ──────────────────────────────────────────────────────────────────────
-
 @pytest.mark.slow
 def test_smac_runs_and_resumes(iris_splits, metrics):
-    """SMAC's ask/tell loop runs, records its working dir, and resumes.
-
-    Setup: 3 trials, then 2 more with the first result as previous_result.
-    Expect: metadata carries smac_output_dir (needed for state persistence),
-    per-metric importance is present, resumed numbering is 1..5, and the
-    best score never decreases. Marked slow: real SMAC + model training.
+    """SMAC records `smac_output_dir`, computes per-metric importance, and
+    resumes with numbering 1..5.
     """
     first = _run(SMACOptimizer(), RandomForestModel(), iris_splits, metrics, n_trials=3)
 
@@ -176,17 +140,9 @@ def test_smac_runs_and_resumes(iris_splits, metrics):
 
 @pytest.mark.slow
 def test_smac_serialize_embeds_optimizer_state(iris_splits, metrics):
-    """Serializing a SMAC result embeds the working directory; deserializing
-    carries it forward.
-
-    Expect: optimizer_state holds SMAC's files (scenario.json among them),
-    each data entry keeps the extension fields (scores, incumbent_score),
-    and a deserialized copy carries that state on the result — the mechanism
-    that lets a loaded experiment resume SMAC exactly where it stopped.
-
-    A live run still has a real directory (it is where SMAC itself wrote), so
-    serializing reads from disk as before. Only the *deserialize* direction
-    changed: it no longer writes the files back out, since nothing read them.
+    """`optimizer_state` carries SMAC's files, letting a loaded experiment
+    resume where SMAC stopped. Deserializing keeps the state in memory and
+    writes no files.
     """
     opt = SMACOptimizer()
     result = _run(opt, RandomForestModel(), iris_splits, metrics, n_trials=3)
@@ -205,13 +161,8 @@ def test_smac_serialize_embeds_optimizer_state(iris_splits, metrics):
 
 @pytest.mark.slow
 def test_smac_resume_through_serialization_preserves_all_trials(iris_splits, metrics):
-    """A resumed SMAC run must not lose trials when persisted between runs.
-
-    Every real run gets a fresh SMACOptimizer instance, and "previous result"
-    always arrives via serialize_result/deserialize_result (a saved
-    Experiment row or .ihpo file), never the same in-memory object — this is
-    the exact round trip resume must survive. (test_smac_runs_and_resumes
-    above resumes from the same in-memory object and can't catch this.)
+    """Real resumes arrive through serialize and deserialize on a fresh
+    `SMACOptimizer`, a path the in-memory resume test misses.
     """
     opt1 = SMACOptimizer()
     first = _run(opt1, RandomForestModel(), iris_splits, metrics, n_trials=3)

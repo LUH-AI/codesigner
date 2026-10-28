@@ -1,29 +1,12 @@
-"""What an experiment's times are, and how they leave in a file.
+"""`timestamps` exports an experiment's times in one of three forms, since
+working hours are personal. *absolute* keeps UTC wall-clock times, *relative*
+gives seconds since the first run launched, and *none* keeps only the order of
+events.
 
-A time says when somebody was working, which is theirs to share or not, and
-how much of it a file should carry depends on the experiment and on who is
-sending it. So a file carries its times in one of three forms:
-
-- **absolute**: wall-clock times in UTC, as they were recorded;
-- **relative**: seconds since the first run was launched. How long things took
-  and in what order survive; the date and the time of day do not. What came
-  before the first run — setting it up, its first priors — has no time at
-  all: until something runs, only the order of things says anything;
-- **none**: no times at all. The order of things, and how many trials there
-  were when each happened, still say what happened in what sequence.
-
-The form is chosen for each export, preselected from the experiment's own
-setting, else the reader's preference, else relative. A file says which form
-it is in (`snapshot["timestamps"]`), and an experiment opened from one keeps
-that form as its `time_basis`: an experiment whose file had only relative
-times has nothing more precise to give, so it is shown, and can be exported
-again, in that form or a vaguer one.
-
-Times are stored as datetimes whatever the basis. A relative file's are placed
-so that its history ends at the moment it was imported, which keeps every
-ordering and every duration true and lets later actions on this instance be
-recorded as they happen; only the date is invented, and the basis says not to
-show it.
+A file states its form in `snapshot["timestamps"]`; an experiment opened from
+the file keeps that form as `time_basis` and exports it or a vaguer one. On
+import, `anchor` places relative times so the history ends at the import moment,
+inventing only the date.
 """
 
 from __future__ import annotations
@@ -37,11 +20,10 @@ ABSOLUTE = "absolute"
 RELATIVE = "relative"
 NONE = "none"
 
-#: Most precise first.
+#: Precision order.
 MODES = (ABSOLUTE, RELATIVE, NONE)
 
-#: What a reader who has said nothing gets: no wall-clock time leaves the
-#: machine, and nothing about the experiment's course is lost.
+#: Relative keeps the course and hides wall-clock time.
 DEFAULT = RELATIVE
 
 
@@ -50,19 +32,18 @@ def _rank(mode):
 
 
 def allowed(exp) -> tuple[str, ...]:
-    """The forms *exp*'s times can be exported in: its own, or vaguer."""
+    """`allowed` offers the experiment's form or a vaguer one."""
     return MODES[_rank(exp.data.time_basis):]
 
 
 def clamp(exp, mode) -> str:
-    """*mode*, or the most precise form *exp* has when it asks for more."""
+    """`clamp` caps *mode* at the most precise form allowed."""
     options = allowed(exp)
     return mode if mode in options else options[0]
 
 
 def origin(exp):
-    """When the first run was launched: what relative times count from. None
-    before there is one."""
+    """`origin` returns the first run's start, or None before any run."""
     first = (exp.runs.exclude(created_at=None).order_by("created_at").first()
              or exp.runs.exclude(started_at=None).order_by("started_at").first())
     if first is None:
@@ -70,10 +51,7 @@ def origin(exp):
     return first.created_at or first.started_at
 
 
-# ── on the way out ───────────────────────────────────────────────────────────
-
 def _out(value, mode, t0):
-    """An ISO time from the snapshot, in *mode*."""
     if not value or mode == NONE:
         return None
     if mode == ABSOLUTE:
@@ -85,7 +63,7 @@ def _out(value, mode, t0):
 
 
 def _out_posix(value, mode, t0):
-    """A POSIX time (a trial's start or end), in *mode*."""
+    """`_out_posix` converts a trial's start or end."""
     if value is None or mode == NONE:
         return None
     if mode == ABSOLUTE:
@@ -96,13 +74,9 @@ def _out_posix(value, mode, t0):
 
 
 def apply(snapshot: dict, mode: str, t0) -> dict:
-    """*snapshot* with every time in it in *mode*, and saying so.
-
-    Every time there is: when the experiment began, each run's queue, start,
-    end and cancel, each run event and history entry, and each trial's start
-    and end. In *relative* form *t0* is `origin`, and a time before it — or
-    any time, when nothing has run — is left out. Changed in place and
-    returned.
+    """`apply` converts every time in *snapshot* to *mode* in place and records
+    the mode. In relative form, *t0* is `origin`, and a time before it is
+    dropped.
     """
     snapshot["timestamps"] = mode
     snapshot["began_at"] = _out(snapshot.get("began_at"), mode, t0)
@@ -126,17 +100,13 @@ def apply(snapshot: dict, mode: str, t0) -> dict:
     return snapshot
 
 
-# ── on the way in ────────────────────────────────────────────────────────────
-
 def basis_of(snapshot: dict) -> str:
-    """What form a file's times are in. A file from before the choice existed
-    carries wall-clock times where it carries any."""
+    """Files from before the choice carry absolute times."""
     mode = snapshot.get("timestamps")
     return mode if mode in MODES else ABSOLUTE
 
 
 def _offsets(snapshot):
-    """Every relative time in *snapshot*, in seconds."""
     found = [snapshot.get("began_at")]
     for run in snapshot.get("runs") or []:
         found += [run.get(k) for k in ("created_at", "started_at", "finished_at",
@@ -149,9 +119,8 @@ def _offsets(snapshot):
 
 
 def anchor(snapshot: dict, now=None) -> dict:
-    """*snapshot* with relative times turned back into datetimes, placed so
-    that the last of them is *now* (the import). Absolute and absent times are
-    left as they are. Changed in place and returned."""
+    """`anchor` turns relative times into datetimes ending at *now*, the import
+    moment, in place."""
     if basis_of(snapshot) != RELATIVE:
         return snapshot
     offsets = _offsets(snapshot)
@@ -160,8 +129,8 @@ def anchor(snapshot: dict, now=None) -> dict:
     def back(value):
         if isinstance(value, (int, float)) and not isinstance(value, bool):
             return (t0 + timedelta(seconds=float(value))).isoformat()
-        # Already a time: a snapshot taken of an experiment that was itself
-        # opened from a relative file carries its anchored times.
+        # Snapshots of an experiment opened from a relative file carry anchored
+        # times already.
         return value if isinstance(value, str) else None
 
     snapshot["began_at"] = back(snapshot.get("began_at")) or t0.isoformat()

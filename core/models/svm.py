@@ -1,4 +1,4 @@
-"""Support vector machine: scikit-learn's, classifying or regressing."""
+"""`SVM` wraps scikit-learn's SVMs."""
 
 from typing import Any
 
@@ -9,15 +9,8 @@ from .base import Tunable
 
 
 class SVM(OutputBaseModel):
-    """scikit-learn's support vector machine: `SVC` for classification, `SVR`
-    for regression. It refuses gaps and measures distances, so its columns are
-    filled in and scaled first.
-
-    An SVM has no probabilities of its own: asked for them, it is wrapped in a
-    five-fold sigmoid calibration, which costs several times what the plain fit
-    costs, so `build` adds it only when ``data["probabilities"]`` says they
-    will be asked for. Calibrated, its labels are the argmax of those
-    probabilities.
+    """`build` wraps `SVC` in five-fold sigmoid calibration only when
+    ``data["probabilities"]`` is set, since calibrating costs several fits.
     """
 
     name = "SVM"
@@ -49,11 +42,8 @@ class SVM(OutputBaseModel):
 
 
 class SVMModel(Tunable, SVM):
-    """The SVM, tuned over its kernel and penalties; for a regression also the
-    width of its insensitive tube."""
 
-    #: What it was called while it could only classify, which every `.ihpo`
-    #: written then still says.
+    #: The name in `.ihpo` files from before SVM regression.
     aliases = ("SVM Classifier",)
 
     def get_config_space(self, seed: int = 0) -> ConfigurationSpace:

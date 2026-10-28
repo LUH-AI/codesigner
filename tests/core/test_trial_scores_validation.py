@@ -1,14 +1,6 @@
-"""A trial has to carry every metric its experiment declares.
-
-Every per-metric figure reads `trial.scores[metric]` for whichever metric the
-page is showing, and the metric selector offers whatever `metrics.names` lists.
-So a trial missing one of them is not a degraded chart — it is a KeyError at
-render time, i.e. a 500 on a file that imported without complaint.
-
-`io.parse` refuses it at the boundary instead, where the message can name the
-trial and the metric. The accessors on `OptimizationResult` still guard, for
-rows stored before that check existed; those are pinned in
-`tests/core/test_derived_values.py`.
+"""`io.parse` refuses a trial missing a declared metric, which would raise
+KeyError when a figure renders. `tests/core/test_derived_values.py` covers the
+guards for older rows.
 """
 
 import json
@@ -47,8 +39,8 @@ def _parse(mutate=None):
 
 
 def test_a_complete_result_parses():
-    """The premise: this shape is accepted, so the failures below are about the
-    missing score and not about the fixture."""
+    """`io.parse` accepts `_SNAPSHOT`, so the refusals below come from the
+    missing score."""
     assert len(_parse()["result"]["data"]) == 2
 
 
@@ -73,10 +65,8 @@ def test_a_trial_with_no_scores_at_all_is_refused_when_more_than_one_metric():
 
 
 def test_a_single_metric_file_without_scores_still_parses():
-    """The legacy shape `deserialize_result` already reads: an entry with no
-    `scores` carries the primary metric alone, reconstructed from `cost`. That
-    is complete exactly when the file declares no other metric, and refusing it
-    would make every pre-multi-metric .ihpo unimportable."""
+    """`deserialize_result` rebuilds a scoreless entry's primary metric from
+    `cost`, which suffices for single-metric files."""
     def single_metric(snapshot):
         snapshot["metric_names"] = ["accuracy"]
         for entry in snapshot["result"]["data"]:
@@ -93,7 +83,6 @@ def test_a_result_with_no_trials_is_unaffected():
 
 
 def test_the_shipped_fixtures_still_parse():
-    """Both fixtures predate this check; neither should be caught by it."""
     from tests.conftest import FIXTURES_DIR
 
     for name in ("test.ihpo", "test2.ihpo"):

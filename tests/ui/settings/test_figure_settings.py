@@ -1,8 +1,5 @@
-"""The default-experiment-settings page controls which figures appear.
-
-One checkbox per figure in `ui.figures.catalog`, checked by default. Saving writes
-a visibility flag per figure into the global default experiment settings, which is
-what an experiment page reads when deciding what to render.
+"""The default-experiment-settings page has one checkbox per figure, checked by
+default.
 """
 
 from django.urls import reverse
@@ -26,14 +23,13 @@ def test_page_renders_a_checkbox_per_figure(client):
 
 def test_checkboxes_start_checked_when_no_choice_is_stored(client):
     body = client.get(reverse("ui:default_experiment_settings")).content.decode()
-    # each figure's checkbox input carries `checked`
     for figure in FIGURES:
         field = body.split(f'name="{figure.setting_key}"', 1)[1].split(">", 1)[0]
         assert "checked" in field, figure.key
 
 
 def test_saving_records_each_figure_choice(client):
-    """Posting with one figure's box unticked stores that one off and the rest on."""
+    """`default_experiment_settings` stores unticked boxes as off, others as on."""
     kept = [c for c in FIGURES if c.key != "trial_duration"]
     client.post(reverse("ui:default_experiment_settings"),
                 {

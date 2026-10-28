@@ -1,15 +1,5 @@
-"""Which figures an experiment page shows is a setting.
-
-A "figure" is one analytics panel on an experiment page. The eleven of them are
-declared once in `ui.figures.catalog`; each has a visibility setting, on by
-default, editable on the default-experiment-settings page. Turning one off must
-remove it from the page without disturbing the rest — the panels share a script,
-so a hidden figure is exactly where a stale DOM lookup would break the others.
-
-Performance-over-trials and error-over-time used to be two separate figures;
-they are now one ("performance_over_time") with four views (trial/time x
-score/error axes) — see test_plots.py for the view builder itself and
-test_figures_view.py for the per-view JSON shape this collapses into.
+"""Each catalog figure has a visibility setting, on by default, and hiding one
+must leave the rest of the shared script working.
 """
 
 import re
@@ -23,45 +13,34 @@ from ui.figures import (
 from experiments.models import Experiment, GlobalSettings
 
 EXPECTED_KEYS = [
-    # Rendered into the sidebar rather than the grid (Figure.in_sidebar), but
-    # still a figure with a visibility setting like any other.
+    # Sidebar figure (`Figure.in_sidebar`) with its own visibility setting.
     "selected_configuration",
     "best_configuration",
     "hyperparameter_importance",
     "performance_over_time",
-    # Five readings of one computation, each its own figure so they can be read
-    # side by side and switched off one at a time.
     "interactions_heatmap",
     "interactions_top_pairs",
     "interactions_graph",
     "interactions_coalitions",
     "interactions_orders",
     "trial_duration",
-    # Only on a forecast's page (Figure.forecast_only).
+    # Forecast pages only (`Figure.forecast_only`).
     "forecast",
-    # Every trial at once, then one hyperparameter at a time, then one trial at
-    # a time.
     "parallel_coordinates",
     "partial_dependence",
-    # Beside it: the same slice through the same surrogate, read forwards.
-    # The ablation game, as its own figure: the other three games explain the
-    # search, this explains one trial, and it has no interactions to give the
-    # figures that read them.
+    # `local_explanation` is a separate figure because it explains one trial and
+    # has no interactions.
     "local_explanation",
     "local_effects",
-    # The acquisition function and the prior that weights it: one script and
-    # one request, two figures.
     "acquisition_slice",
     "prior",
-    # On the acquisition tab: where the search has been, beside where it would
-    # go next.
     "configuration_cube",
     "trials",
 ]
 
 
 def _experiment():
-    """An experiment with one finished trial, so every figure has data."""
+    """One finished trial gives every figure data."""
     return Experiment.objects.create(
         name="figures", model_name="Random Forest", optimizer_name="Random Search",
         metric_names=["accuracy", "f1"], current_metric="accuracy",
@@ -91,8 +70,7 @@ def _hide(*keys):
 
 
 def test_catalog_declares_every_figure_in_page_order():
-    """The catalog is the one list defining what a figure is; everything else
-    (settings keys, the settings page, the detail page) reads it."""
+    """Settings keys and both pages read the catalog."""
     assert [c.key for c in FIGURES] == EXPECTED_KEYS
 
 
@@ -104,9 +82,7 @@ def test_every_figure_has_a_label_and_a_template():
 
 
 def test_declaring_a_subclass_derives_everything_from_its_key():
-    """Adding a figure is subclassing it: the template it renders, the setting
-    that hides it and the id its plot mounts in all follow from the key, so a
-    new figure needs no wiring anywhere else."""
+    """`Figure` derives template, setting key and DOM id from `key`."""
     class Whatever(Figure):
         key = "whatever"
         label = "Whatever"
@@ -114,7 +90,7 @@ def test_declaring_a_subclass_derives_everything_from_its_key():
     assert Whatever.template == "ui/figures/whatever.html"
     assert Whatever.setting_key == "show_whatever"
     assert Whatever.dom_id == "figure-whatever"
-    # unspecified display characteristics fall back to the common case
+    # unset traits take the common case
     assert (Whatever.home_tab, Whatever.shape) == (MISC, SQUAT)
     assert Whatever.per_metric is False
     assert Whatever.absolute_scale is None
@@ -122,11 +98,8 @@ def test_declaring_a_subclass_derives_everything_from_its_key():
 
 
 def test_each_figure_declares_a_tab_and_a_shape():
-    """Every figure has a home tab and one of the four shapes, and opens at a
-    width its shape allows — one, two or four columns, never three.
-
-    The tabs gather what is read together: the HyperSHAP explanations, the
-    acquisition function and its prior, and the rest of the run."""
+    """Each figure has a home tab and one of the four shapes, opening one, two
+    or four columns wide."""
     for figure in FIGURES:
         if figure.in_sidebar:
             continue
@@ -142,7 +115,7 @@ def test_each_figure_declares_a_tab_and_a_shape():
         "local_explanation", "local_effects"]
     assert by_tab[ACQUISITION] == ["acquisition_slice", "prior", "configuration_cube"]
     assert by_tab[OVERVIEW] == []
-    # Read along an axis, so wider than tall and never narrower than two.
+    # Axis-read figures: wider than tall, at least two columns.
     assert [f.key for f in FIGURES if f.shape == LONG] == [
         "performance_over_time", "forecast", "parallel_coordinates", "partial_dependence",
         "local_effects", "acquisition_slice", "prior"]
@@ -151,8 +124,8 @@ def test_each_figure_declares_a_tab_and_a_shape():
 
 
 def test_only_metric_dependent_figures_are_marked_per_metric():
-    """Per-metric figures are rebuilt when the metric changes; trial duration
-    is the same plot for every metric, and the tables aren't plots at all."""
+    """Per-metric figures rebuild on a metric change; trial duration and the
+    tables stay the same."""
     per_metric = {f.key for f in FIGURES if f.per_metric}
     assert per_metric == {
         "hyperparameter_importance",
@@ -165,26 +138,22 @@ def test_only_metric_dependent_figures_are_marked_per_metric():
 
 
 def test_the_scale_toggle_is_declared_not_hardcoded():
-    """A figure opts into the absolute/relative y-scale button by declaring the
-    range its 'absolute' means; the page builds the button from that.
-
-    performance_over_time declares one range per view, since which one is
-    "absolute" depends on whether the score or the error axis is showing.
+    """A figure gets the scale button by declaring its absolute range, one per
+    view for `performance_over_time`.
     """
     scale = FIGURES_BY_KEY["performance_over_time"].absolute_scale
     assert scale is not None
     assert scale["trial-score"] == {"yaxis.range": [0, 1], "yaxis.autorange": False}
     assert scale["time-score"] == {"yaxis.range": [0, 1], "yaxis.autorange": False}
-    # the error views' y-axis is log, so their range is in log10 units
+    # log y-axis, so the range is in log10 units
     assert scale["trial-error"] == {"yaxis.range": [-3, 0], "yaxis.autorange": False}
     assert scale["time-error"] == {"yaxis.range": [-3, 0], "yaxis.autorange": False}
     assert FIGURES_BY_KEY["trials"].absolute_scale is None
 
 
 def _applies(figure):
-    """Whether *figure* belongs on the page `_experiment()` makes — one that is
-    not a forecast. A figure only for a forecast (Figure.forecast_only) does
-    not."""
+    """`_applies` excludes forecast-only figures, since `_experiment()` has no
+    forecast."""
     return not figure.forecast_only
 
 
@@ -193,8 +162,6 @@ def _applying_slots(slots):
 
 
 def test_all_figures_show_by_default(client):
-    """Every figure for the experiment's task is on its page; one for another
-    task — the forecast, on a classification page — is not."""
     html = _page(client, _experiment())
     for figure in FIGURES:
         assert (f'data-figure="{figure.key}"' in html) == _applies(figure), figure.key
@@ -205,14 +172,14 @@ def test_unchecking_a_figure_removes_it_from_the_page(client):
     html = _page(client, _experiment())
 
     assert 'data-figure="hyperparameter_importance"' not in html
-    # the others are untouched
+    # others stay
     assert 'data-figure="performance_over_time"' in html
     assert 'data-figure="trials"' in html
 
 
 def test_hiding_the_performance_figure_keeps_the_page_working(client):
-    """The performance figure owns click-to-select, so the script reaches for it
-    by id. Hidden, the page must still render its remaining figures."""
+    """The click-to-select handler finds the performance figure through an id
+    lookup."""
     _hide("performance_over_time")
     html = _page(client, _experiment())
 
@@ -232,8 +199,7 @@ def test_all_figures_can_be_hidden_at_once(client):
 
 
 def test_a_hidden_figure_ships_no_plot_data(client):
-    """A figure that is off is not computed either — the JSON exists only to be
-    drawn, so an absent figure should leave nothing behind in it."""
+    """A hidden figure is never computed and leaves no entry in the plot JSON."""
     _hide("trial_duration", "performance_over_time")
     html = _page(client, _experiment())
     static = html.split('id="static-plots-data"', 1)[1].split("</script>", 1)[0]
@@ -241,20 +207,18 @@ def test_a_hidden_figure_ships_no_plot_data(client):
 
     assert "trial_duration" not in static
     assert "performance_over_time" not in per_metric
-    # the figure still on the page is unaffected
+    # visible figures unaffected
     assert "hyperparameter_importance" in per_metric
 
 
 def _panel(html, tab):
-    """One tab's panel of the page."""
+    """`_panel` extracts one tab's panel."""
     return html.split(f'id="fig-panel-{tab}"', 1)[1].split('class="fig-panel"', 1)[0]
 
 
 def test_the_selected_configuration_panel_is_not_in_a_tab(client):
-    """It answers a click made anywhere on the page, so it lives in the sidebar
-    (Figure.in_sidebar) where it stays readable while the figures are being
-    clicked. It is still a figure — still in the catalog, still with a
-    visibility setting — only somewhere else."""
+    """`selected_configuration` sits in the sidebar to stay readable during
+    clicks and stays in the catalog."""
     html = _page(client, _experiment())
     panels = html.split('class="fig-tabs"', 1)[1]
     sidebar = html.split('<nav class="sidebar"', 1)[1].split("</nav>", 1)[0]
@@ -276,8 +240,8 @@ def test_there_is_a_tab_bar_under_the_run_summary(client):
 
 
 def test_each_figure_is_drawn_once_on_its_home_tab(client):
-    """Rendered into one tab only, so its `#figure-<key>` id is unique and the
-    page script draws into it without knowing about tabs."""
+    """A unique `#figure-<key>` id lets the script draw without knowing about
+    tabs."""
     html = _page(client, _experiment())
 
     for figure in FIGURES:
@@ -290,8 +254,7 @@ def test_each_figure_is_drawn_once_on_its_home_tab(client):
 
 
 def test_overview_holds_empty_slots_for_what_is_pinned(client):
-    """Filled by layout.js, which moves each figure into the slot on whichever
-    tab is showing."""
+    """`layout.js` fills the slots on the visible tab."""
     html = _page(client, _experiment())
     overview = _panel(html, OVERVIEW)
 
@@ -303,14 +266,8 @@ def test_overview_holds_empty_slots_for_what_is_pinned(client):
 
 
 def test_a_figures_pickers_sit_in_one_row_above_it(client):
-    """A figure's selects are its own control, not a stack of settings.
-
-    The page's base rule stretches every `select` to full width, which is right
-    for a form field and wrong here: three full-width selects in a card become
-    three rows, and the axis pickers stop reading as one choice about one
-    figure. So they go in a `.selectors` row, which sizes them to their
-    contents. This asserts the row exists and that nothing escaped it, since a
-    select added outside one would silently go back to a row of its own.
+    """Each figure's pickers sit in a `.selectors` row sized to their content,
+    because the base rule stretches every `select` to full width.
     """
     import re
 
@@ -324,8 +281,7 @@ def test_a_figures_pickers_sit_in_one_row_above_it(client):
         if not selects:
             continue
         with_pickers += 1
-        # Modifier classes are allowed beside it — a figure that needs its row
-        # to hold its height still has one row holding its pickers.
+        # Modifier classes on the row are allowed.
         rows = [(m.start(), body.index("</p>", m.start()))
                 for m in re.finditer(r'<p class="selectors[^"]*">', body)]
         assert rows, f"{key} has pickers but no row to hold them"
@@ -337,13 +293,8 @@ def test_a_figures_pickers_sit_in_one_row_above_it(client):
 
 
 def test_each_reading_of_the_interactions_is_its_own_figure(client):
-    """Five figures over one computation, not five views of one figure.
-
-    They answer different questions and are wanted side by side — the heatmap is
-    a grid you scan, the graph a shape you recognise, the coalitions a ranked
-    list you read — and behind a single selector only one could ever be on the
-    page at a time. Each now has its own visibility setting, and none of them
-    has a view selector left.
+    """Each interaction reading is its own figure with its own setting, because
+    readers want them side by side.
     """
     keys = [f.key for f in FIGURES if f.key.startswith("interactions_")]
     html = _page(client, _experiment())
@@ -353,16 +304,15 @@ def test_each_reading_of_the_interactions_is_its_own_figure(client):
                     "interactions_orders"]
     for key in keys:
         assert FIGURES_BY_KEY[key].per_metric
-        # Their only `views` are the three games, and nothing switches those
-        # per figure — the page's one selector switches all of them together.
+        # Each figure's only views are the three games, switched together by the
+        # page's one selector.
         assert list(FIGURES_BY_KEY[key].views) == list(HP_GAME_FIELDS)
         assert f'data-figure="{key}"' in html
 
 
 def test_one_warning_reaches_every_reading_of_the_interactions(client):
-    """It is the tunability game's caveat and all five read that game, so a
-    warning that appeared on only whichever was showing would be a warning most
-    readers never saw."""
+    """The interactions warning appears on all five figures, so a reader of any
+    one sees it."""
     html = _page(client, _experiment())
     keys = [f.key for f in FIGURES if f.key.startswith("interactions_")]
 
@@ -370,8 +320,8 @@ def test_one_warning_reaches_every_reading_of_the_interactions(client):
 
 
 def test_each_tab_reads_in_the_declared_order(client):
-    """The site's default layout file is each tab's order and widths until a
-    reader rearranges it — see ui/figure_layout.toml."""
+    """`ui/figure_layout.toml` sets each tab's order and widths until a reader
+    rearranges them."""
     from ui.layout import default_layout
 
     html = _page(client, _experiment())
@@ -384,7 +334,7 @@ def test_each_tab_reads_in_the_declared_order(client):
 
 
 def test_a_slot_says_its_shape(client):
-    """layout.js turns shape and width into rows and columns."""
+    """Shapes and widths feed `layout.js`."""
     html = _page(client, _experiment())
 
     found = dict((key, shape) for shape, key in
@@ -404,9 +354,8 @@ def test_a_tab_whose_figures_are_all_off_says_so(client):
 
 
 def test_a_figures_title_and_its_pickers_share_a_line(client):
-    """The pickers say what the title is currently showing, so they belong to
-    the heading rather than sitting under it as a caption. One row per figure,
-    whether or not it has any."""
+    """The pickers describe what the title shows, so they share its line in the
+    card head."""
     import re
 
     html = _page(client, _experiment())
@@ -423,10 +372,8 @@ def test_a_figures_title_and_its_pickers_share_a_line(client):
 
 
 def test_a_projection_opens_flat(client):
-    """Three dimensions of a space with no privileged direction is a shape to be
-    rotated before it says anything; two is the reading you can take at a
-    glance. Declared rather than left to option order, like the axis pickers'
-    None."""
+    """A projection opens in 2D, readable at a glance, and the markup declares
+    that default."""
     html = _page(client, _experiment())
     picker = html.split('id="cube-dimensions"', 1)[1].split("</select>", 1)[0]
 
@@ -435,14 +382,8 @@ def test_a_projection_opens_flat(client):
 
 
 def test_the_page_reads_its_view_selectors_before_drawing(client):
-    """A browser restores a select's value across a reload, and a handler bound
-    to `change` never runs for a value the reader did not just set.
-
-    Which is what the method picker did: it came back saying "PLS" while the
-    figure drew axes and the axis pickers sat beside it, and only agreed once it
-    had been moved away and back. Every view selector is read once at startup
-    instead, so the control and the view cannot disagree — including the game,
-    which is one selector driving six figures.
+    """Browsers restore a select's value on reload without firing `change`, so
+    `readViewSelectors` reads every view selector once at startup.
     """
     html = _page(client, _experiment())
     script = html.split("readViewSelectors", 1)[1].split("})();", 1)[0]
@@ -452,6 +393,5 @@ def test_the_page_reads_its_view_selectors_before_drawing(client):
     assert "currentView.hyperparameter_importance" in script
     assert "currentView.performance_over_time" in script
     assert "gameFigures.forEach" in script
-    # and it runs before anything is drawn, or it would be describing a page
-    # that had already been built from the wrong views
+    # `readViewSelectors` must run before the first draw.
     assert html.index("readViewSelectors") < html.index("redraw(key, null)")

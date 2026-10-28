@@ -1,9 +1,5 @@
-"""Breadcrumbs say where a page sits; the back link says where you came from.
-
-Breadcrumbs are derived from the resolved route, so they are the same however
-you arrived and survive a bookmark or a shared link. `?next=` is only for links
-that leave the hierarchy — the global defaults page reached from one experiment
-— and must be validated, or it would be an open redirect.
+"""Breadcrumbs come from the resolved route; `?next=` serves only links leaving
+the hierarchy and must be validated against open redirects.
 """
 
 from django.urls import reverse
@@ -18,7 +14,7 @@ def _exp(name="Iris tuning"):
 
 
 def _trail(client, url):
-    """The breadcrumb labels on a page, in order."""
+    """`_trail` lists breadcrumb labels in order."""
     html = client.get(url).content.decode()
     nav = html.split('class="breadcrumbs"', 1)[1].split("</nav>", 1)[0]
     import re
@@ -37,8 +33,7 @@ def test_an_experiment_page_sits_under_experiments(client):
 
 
 def test_experiment_settings_sits_under_its_experiment(client):
-    """This is what replaced the hand-written back button: the trail already
-    links to the experiment, one level up."""
+    """The settings breadcrumb includes a link to the experiment."""
     exp = _exp()
     trail = _trail(client, reverse("ui:experiment_settings", args=[exp.pk]))
     assert trail == ["Experiments", "Iris tuning", "Settings"]
@@ -56,8 +51,7 @@ def test_the_current_page_is_not_a_link(client):
 
 
 def test_the_global_defaults_page_sits_under_settings(client):
-    """It is global, so its trail never mentions an experiment however it was
-    reached — that is the difference the back link exists to cover."""
+    """The global page's trail never names an experiment."""
     assert _trail(client, reverse("ui:default_experiment_settings")) == [
         "Settings", "Default experiment settings"]
 
@@ -68,8 +62,7 @@ def test_no_back_link_without_next(client):
 
 
 def test_next_offers_a_labelled_way_back(client):
-    """Reaching the global defaults from an experiment carries where to return
-    to, and the label is resolved from the target rather than passed along."""
+    """The back label is resolved from the target, never passed along."""
     exp = _exp()
     target = reverse("ui:experiment_detail", args=[exp.pk])
     html = client.get(
@@ -81,7 +74,6 @@ def test_next_offers_a_labelled_way_back(client):
 
 
 def test_the_experiment_settings_page_carries_next_to_the_defaults(client):
-    """The link out of the hierarchy is where ?next= gets set."""
     exp = _exp()
     html = client.get(reverse("ui:experiment_settings", args=[exp.pk])).content.decode()
     expected = (reverse("ui:default_experiment_settings")
@@ -90,8 +82,7 @@ def test_the_experiment_settings_page_carries_next_to_the_defaults(client):
 
 
 def test_an_offsite_next_is_ignored(client):
-    """Honoured blindly, ?next= would let a crafted link bounce a user off-site
-    from a page that still looks like ours."""
+    """A crafted link could otherwise bounce a user off-site."""
     html = client.get(reverse("ui:default_experiment_settings")
                       + "?next=https://evil.example.com/").content.decode()
 
@@ -100,26 +91,23 @@ def test_an_offsite_next_is_ignored(client):
 
 
 def test_an_unresolvable_next_is_ignored(client):
-    """A local URL that isn't a route of ours has no page to name."""
+    """Unknown routes have no page to name."""
     html = client.get(reverse("ui:default_experiment_settings")
                       + "?next=/nope/nowhere/").content.decode()
     assert "back-link" not in html
 
 
 def test_a_deleted_experiment_leaves_the_trail_intact(client):
-    """The trail is built from the route, so a missing object degrades to the
-    root rather than raising on a page that would otherwise render."""
+    """A missing object degrades the trail to the root."""
     exp = _exp()
     url = reverse("ui:experiment_settings", args=[exp.pk])
     exp.delete()
     assert client.get(url).status_code == 404
-    # the root trail still renders for a page that does exist
+    # the root trail still renders
     assert _trail(client, reverse("ui:home")) == ["Experiments"]
 
 
 def test_the_timeline_sits_under_its_experiment(client):
-    """What: the timeline's trail reads Experiments / <name> / Timeline.
-    How: reads the breadcrumb labels off the timeline page."""
     exp = _exp()
     assert _trail(client, reverse("ui:experiment_timeline", args=[exp.pk])) == [
         "Experiments", "Iris tuning", "Timeline"]

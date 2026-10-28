@@ -1,10 +1,5 @@
-"""Step 3 TDD: contracts for the row ↔ snapshot adapter (experiments/services/snapshot.py).
-
-Written before the adapter exists — imports are deferred into the tests so
-the suite collects while these fail. The adapter is the single seam between
-the .ihpo format and the database: import, export, and run reconstruction
-all go through it, so it must preserve exactly what the snapshot-contract
-tests say a store preserves.
+"""`experiments/services/snapshot.py` is the only seam between .ihpo files and
+the database, so it must preserve what the snapshot-contract tests require.
 """
 
 from importlib.metadata import version as dist_version
@@ -23,11 +18,8 @@ def _fixture_snapshot(name: str) -> dict:
 
 @pytest.mark.django_db
 def test_row_round_trip_preserves_identity_fields():
-    """snapshot → Experiment row → snapshot preserves every identity field.
-
-    This is the database analog of the .ihpo load→save contract: names,
-    model/optimizer identity and params, metrics (with order), and seed all
-    survive the row round-trip for both fixtures.
+    """`snapshot_from_experiment` keeps names, model and optimizer identity,
+    ordered metrics and seed for both fixtures.
     """
     from experiments.services import snapshot as adapter
 
@@ -42,11 +34,8 @@ def test_row_round_trip_preserves_identity_fields():
 
 @pytest.mark.django_db
 def test_row_round_trip_preserves_result():
-    """The stored result survives the row round-trip byte-for-byte.
-
-    The result dict is opaque to the store (only optimizers interpret it),
-    so the adapter must pass it through unchanged — including SMAC's
-    embedded optimizer_state in the test.ihpo fixture.
+    """`snapshot_from_experiment` passes the opaque result through unchanged,
+    including SMAC's `optimizer_state`.
     """
     from experiments.services import snapshot as adapter
 
@@ -59,11 +48,8 @@ def test_row_round_trip_preserves_result():
 
 @pytest.mark.django_db
 def test_exported_snapshot_carries_all_documented_keys_and_current_version():
-    """An exported snapshot is a complete, current-version .ihpo document.
-
-    Expect: all documented top-level keys present, version stamped with this
-    the app version from package metadata (the writer owns the version field), and the whole thing
-    accepted by io.parse — i.e. a Streamlit-loadable file.
+    """The export carries every documented key and the package version, and
+    `io.parse` accepts it.
     """
     from experiments.services import snapshot as adapter
 
@@ -80,11 +66,8 @@ def test_exported_snapshot_carries_all_documented_keys_and_current_version():
 
 @pytest.mark.django_db
 def test_dataset_path_reflects_stored_file_not_foreign_machine():
-    """The exported dataset path points at this store's file, or is empty.
-
-    The fixtures carry dataset paths from another machine; importing them
-    without re-supplying data must not leak that path back out. Once a
-    dataset file is attached to the row, the exported path must point at it.
+    """Imported fixtures carry another machine's dataset path, and the export
+    must drop it.
     """
     from experiments.services import snapshot as adapter
 

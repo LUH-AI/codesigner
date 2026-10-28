@@ -1,11 +1,5 @@
-"""A result that carries no trials must not break the detail page.
-
-`io.parse` accepts a snapshot whose result has an empty `data` list, so this is
-reachable by importing a hand-written or truncated .ihpo. A run never produces
-one — `experiments/services/run.py` only writes a result that has trials — which is why
-it went unnoticed until the derived-values consolidation walked past it.
-
-Before the fix this raised (an argmax over an empty range) and returned a 500.
+"""`io.parse` accepts a result with an empty `data` list from a hand-written or
+truncated .ihpo, and the detail page must render it without a 500.
 """
 
 import json
@@ -34,8 +28,6 @@ def _experiment_with_an_empty_result():
 
 
 def test_parse_still_accepts_a_result_with_no_trials():
-    """Pinning the premise: this is a real shape reaching the app, not one the
-    parser was already rejecting."""
     parsed = io.parse(json.dumps(_EMPTY_RESULT_SNAPSHOT).encode())
     assert parsed["result"]["data"] == []
 
@@ -47,23 +39,16 @@ def test_the_detail_page_renders(client):
 
 
 def test_it_renders_the_waiting_state_rather_than_empty_figures(client):
-    """It takes the same path as "no result at all": no panels, so the template
-    shows its waiting state instead of drawing figures over nothing."""
+    """An empty result takes the "no result" path, so the template shows its
+    waiting state."""
     exp = _experiment_with_an_empty_result()
     resp = client.get(f"/experiments/{exp.pk}/")
     assert "panels" not in resp.context or not resp.context["panels"]
 
 
 def test_the_figure_script_is_not_rendered_at_all(client):
-    """The gap the status-code check above missed.
-
-    Returning 200 was not enough: `has_result` was `result is not None`, so an
-    empty-trials result still rendered the whole plotting script while the early
-    return meant `panels`/`metric_plots` were absent from the context. Django
-    resolves the missing variables to `""`, so the page loaded and then broke in
-    the browser on `JSON.parse('""').forEach`. `has_result` now means "a result
-    with trials", which is what the early return actually keys on — and a
-    result with no trials gets the page for before the first trial.
+    """`has_result` requires trials, so the plotting script stays off the page
+    instead of breaking in the browser on `JSON.parse('""')`.
     """
     exp = _experiment_with_an_empty_result()
     body = client.get(f"/experiments/{exp.pk}/").content.decode()

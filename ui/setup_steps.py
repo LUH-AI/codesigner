@@ -1,26 +1,7 @@
-"""A new experiment's setup: four steps, and what saving each one means.
-
-**New** makes a draft at once (`Experiment.draft`), listed in Experiment
-Selection, and it is set up in four steps before it becomes an experiment:
-
-1. **Setup** — what the experiment is: its dataset, task, model, how it is
-   evaluated.
-2. **Optimizer** — what searches its hyperparameters, and with what settings
-   (`ui/optimizer_form.py`, also on the page before its first run).
-3. **Data** — how its columns are processed before a model sees them: the
-   Data Handling panels that can be set now.
-4. **Priors & constraints** — what is believed about where the optimum is.
-
-Steps 1 to 3 have to be saved, each explicitly, before the draft can be
-created; step 4 is optional. Saving step 1 again with a different dataset,
-task or model asks for the Data step again — what the model needs, and so
-what the processing comes to, depends on all three — and a different model
-withdraws the priors, which were statements about the old model's search
-space.
-
-A draft is its owner's alone, and nothing about it is history yet: the
-experiment's history starts with its creation, which records how it was set
-up, every step included.
+"""`setup_steps` defines the four steps (Setup, Optimizer, Data, Priors &
+constraints) that a draft from **New** goes through before creation. Steps 1 to
+3 must each be saved, and step 4 is optional. A new dataset, task or model in
+step 1 asks for the Data step again.
 """
 
 from __future__ import annotations
@@ -29,9 +10,8 @@ from django.urls import reverse
 from django.utils import timezone
 
 SETUP, OPTIMIZER, DATA, PRIORS = "setup", "optimizer", "data", "priors"
-#: In order.
 STEPS = (SETUP, OPTIMIZER, DATA, PRIORS)
-#: The steps that must be saved before the draft can be created.
+#: Steps required before creation.
 REQUIRED = (SETUP, OPTIMIZER, DATA)
 
 _URLS = {SETUP: "ui:setup", OPTIMIZER: "ui:setup_optimizer", DATA: "ui:setup_data",
@@ -47,34 +27,31 @@ def saved(exp, step) -> bool:
 
 
 def mark(exp, step) -> None:
-    """Record that *step* was saved, now."""
+    """`mark` saves *step*'s timestamp."""
     exp.setup_saved = {**(exp.setup_saved or {}), step: timezone.now().isoformat()}
     exp.save(update_fields=["setup_saved"])
 
 
 def unmark(exp, step) -> None:
-    """Ask for *step* to be saved again."""
+    """`unmark` clears *step*'s saved mark."""
     if saved(exp, step):
         exp.setup_saved = {k: v for k, v in exp.setup_saved.items() if k != step}
         exp.save(update_fields=["setup_saved"])
 
 
 def reachable(exp, step) -> bool:
-    """Whether *step* can be opened yet: the first always, the rest once the
-    first has been saved — there is nothing to search, process or believe
-    about before there is a dataset and a model."""
+    """`reachable` allows later steps once step 1 is saved, since they need its
+    dataset and model."""
     return step == SETUP or saved(exp, SETUP)
 
 
 def resume(exp) -> str:
-    """Where to pick the setup up again: the first step not yet saved, or the
-    last."""
+    """`resume` opens the first unsaved required step, else the last."""
     step = next((s for s in REQUIRED if not saved(exp, s)), PRIORS)
     return url(exp, step)
 
 
 def not_ready(exp) -> str | None:
-    """Why *exp* cannot be created yet, or None."""
     from django.utils.translation import gettext as _
 
     if not saved(exp, SETUP):
@@ -92,7 +69,7 @@ def not_ready(exp) -> str | None:
 
 
 def bar(exp, current) -> list[dict]:
-    """The step bar: each step's number, label, address and state."""
+    """`bar` lists every step with its state."""
     from django.utils.translation import gettext_lazy as _
 
     labels = {SETUP: _("Setup"), OPTIMIZER: _("Optimizer"), DATA: _("Data"),

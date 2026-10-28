@@ -1,27 +1,10 @@
-"""An instance with people in it, to sign in to and look at.
+"""`seed_demo` builds a demo instance with groups, roles and sharing to sign in
+to.
 
-Setting up groups, roles and sharing by hand to check one page is tedious enough
-that it does not get done. This builds the whole shape in one go:
-
-    manage.py seed_demo            # build it, leaving anything already there
-    manage.py seed_demo --reset    # tear the demo down first and rebuild
-
-Every account's password is its username, which is exactly as bad as it sounds
-and exactly why this refuses to run unless `DEBUG` is on or `--force` is given.
-
-What it makes, and why each piece is there:
-
-* a **site admin** in a group of one, so the Site tab has an owner and the
-  "a site admin sees no experiments" claim has somebody to be true of;
-* **two groups at different limits**, so one of them is full and the seat
-  arithmetic is visible rather than theoretical;
-* a **lead and two members** in each, so the lead's two views have something to
-  be different about;
-* experiments at **all three sharing levels** — group, named, and neither —
-  because the interesting cases are the boundaries between them;
-* **finished runs** with real trial counts and durations, so Usage totals
-  something; and one run left **running with a job id**, so Jobs has a row and
-  Stop has a target.
+Every password equals its username, so the command refuses to run unless `DEBUG`
+is on or `--force` is given. The demo includes two groups at different seat
+limits, experiments at all three sharing levels, finished runs, and one running
+job.
 """
 
 from django.conf import settings
@@ -37,9 +20,7 @@ from experiments.models import Experiment, ExperimentShare, Run
 
 VIEWER, CONTRIBUTOR = ExperimentShare.VIEWER, ExperimentShare.CONTRIBUTOR
 
-#: Groups this command owns. `--reset` removes these and everyone in them, and
-#: nothing else — a demo that deleted an operator's real group would be a worse
-#: problem than the one it solves.
+#: `--reset` removes only these groups and their people.
 DEMO_GROUPS = ("site", "vision-lab", "nlp-group")
 
 
@@ -74,9 +55,7 @@ class Command(BaseCommand):
         lead_n = self._person("nils", nlp, Membership.PRIMARY_LEAD)
         cleo = self._person("cleo", nlp)
 
-        # All three sharing levels, on one person's work, so a colleague signing
-        # in sees exactly two of the three and can be asked what each lets them
-        # do.
+        # Ana's three levels; a colleague sees two of them.
         self._experiment(ana, "Wine — Ben contributes", shares={ben: CONTRIBUTOR},
                          runs=[(24, 41.2), (12, 18.9)])
         self._experiment(ana, "Wine — Ben may look", shares={ben: VIEWER},
@@ -86,12 +65,11 @@ class Command(BaseCommand):
         self._experiment(ben, "Iris — Ana may look", shares={ana: VIEWER},
                          runs=[(15, 9.8)])
         self._experiment(lead_v, "Vera's own", runs=[(6, 7.1)])
-        # Another group's, so the boundary has something on the other side.
+        # Experiments in nlp-group test the group boundary.
         self._experiment(cleo, "Sentiment", runs=[(18, 27.3)])
         self._experiment(lead_n, "Nils's own")
 
-        # One left running, with a job id, so the Jobs panel is not empty and
-        # Stop has something to stop.
+        # Gives the Jobs panel a row and Stop a target.
         running = self._experiment(ben, "Iris — running now")
         Run.objects.get_or_create(
             experiment=running, status="running",
@@ -102,17 +80,14 @@ class Command(BaseCommand):
 
         self._report(site, [(vision, lead_v, [ana, ben]), (nlp, lead_n, [cleo])])
 
-    # ── the pieces ───────────────────────────────────────────────────────────
 
     def _reset(self) -> None:
         User = get_user_model()
         groups = Group.objects.filter(name__in=DEMO_GROUPS)
-        # Distinct, because somebody in two of the demo groups is reached
-        # through both and would otherwise be listed — and deleted — twice.
+        # Distinct, so a user in two demo groups appears once.
         users = User.objects.filter(memberships__group__in=groups).distinct()
-        # Experiments first: `Membership.group` is PROTECT and `owner` is
-        # SET_NULL, so deleting people first would leave rows nobody can reach,
-        # which is the exact state `access/admin.py` refuses to create by hand.
+        # Experiments go first, since deleting people would leave them ownerless
+        # (`owner` is SET_NULL).
         Experiment.objects.filter(owner__in=users).delete()
         Membership.objects.filter(group__in=groups).delete()
         users.delete()
@@ -145,17 +120,14 @@ class Command(BaseCommand):
         if made:
             user.set_password(username)
             user.save(update_fields=["password"])
-        # Keyed on the pair: a person may be in several groups, so "their
-        # membership" is not a thing to look up by person alone.
+        # Pair-keyed: a person may belong to several groups.
         Membership.objects.get_or_create(
             user=user, group=group, defaults={"role": role})
         return user
 
     def _experiment(self, owner, name, *, shares=None, runs=(), task="classification"):
-        # Looked up by name across the join, and created through the manager so
-        # both halves are written. `get_or_create` cannot do either: its lookup
-        # names a column this row does not have, and its create would write only
-        # the instance half.
+        # `get_or_create` would look up a missing column and write only the
+        # instance half, so the manager creates both halves.
         exp = Experiment.objects.filter(data__name=name, owner=owner).first()
         if exp is None:
             metric = metrics_for(task)[0]

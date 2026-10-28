@@ -1,14 +1,5 @@
-"""Configuring SMAC, and the bug that made configuring it pointless.
-
-SMAC spends the first part of a run sampling the space — the initial design —
-and only then starts choosing from a fitted model. It sizes that design as a
-fraction of the budget it was told about, and the budget it was told about used
-to be a fixed 100,000, so the fraction never bit: a 30-trial run was 30 trials
-of initial design and the model was never asked for anything. Every SMAC run in
-this application was quasi-random search.
-
-The first test here is the one that matters. The rest are the settings that
-steer a search that now happens.
+"""`SMACOptimizer` must tell SMAC the real budget, because SMAC sizes the
+initial design as a share of that budget.
 """
 
 import pytest
@@ -21,7 +12,7 @@ INITIAL = "Initial Design"
 
 
 def _origins(optimizer, result):
-    """Where each configuration came from, counted by kind."""
+    """`_origins` counts initial and model origins."""
     from collections import Counter
 
     return Counter(
@@ -37,13 +28,11 @@ def _run(optimizer, models, metrics, iris_splits, trials=30, previous=None):
         stopping={"max_trials": trials}, previous_result=previous)
 
 
-# ── the bug ──────────────────────────────────────────────────────────────────
+# the regression
 
 def test_a_run_reaches_the_model_rather_than_sampling_throughout(
         models, metrics, iris_splits):
-    """The regression. Every trial coming out of the initial design means the
-    surrogate was fitted every iteration and consulted never — Bayesian
-    optimization in name only."""
+    """A run with only initial-design trials never consulted the surrogate."""
     optimizer = SMACOptimizer()
 
     counts = _origins(optimizer, _run(optimizer, models, metrics, iris_splits))
@@ -53,7 +42,7 @@ def test_a_run_reaches_the_model_rather_than_sampling_throughout(
 
 
 def test_the_share_cap_is_what_moves_that_line(models, metrics, iris_splits):
-    """And it is the knob for it: a bigger share explores longer."""
+    """A bigger `share_cap` keeps SMAC exploring longer."""
     little = SMACOptimizer(share_cap=0.1)
     plenty = SMACOptimizer(share_cap=0.6)
 
@@ -63,15 +52,12 @@ def test_the_share_cap_is_what_moves_that_line(models, metrics, iris_splits):
     assert many["initial"] > few["initial"], (few, many)
 
 
-# ── saying it as a count instead ─────────────────────────────────────────────
+# trial cap
 
 def test_a_trial_cap_is_taken_exactly_by_a_real_search(
         models, metrics, iris_splits):
-    """The other cap, end to end. What the number should be, for every
-    combination of the two caps and their edges, is pinned against the design
-    object in `test_initial_points.py` — thirty-trial searches are too slow to
-    ask the same question of twenty times. This asks whether the number the
-    arithmetic produces is the number of trials that actually get sampled."""
+    """`test_initial_points.py` pins the arithmetic for every cap combination,
+    and a real search here samples the computed count."""
     optimizer = SMACOptimizer(trial_cap=7, use_share_cap=False)
 
     counts = _origins(optimizer, _run(optimizer, models, metrics, iris_splits, trials=30))
@@ -79,7 +65,7 @@ def test_a_trial_cap_is_taken_exactly_by_a_real_search(
     assert counts["initial"] == 7, counts
 
 
-# ── the strategies ───────────────────────────────────────────────────────────
+# strategies
 
 @pytest.mark.parametrize("strategy", ["gp", "rf"])
 def test_either_strategy_runs_and_searches(strategy, models, metrics, iris_splits):
@@ -94,12 +80,8 @@ def test_either_strategy_runs_and_searches(strategy, models, metrics, iris_split
 @pytest.mark.parametrize("strategy", ["gp", "rf"])
 def test_either_strategy_answers_when_asked_how_sure_it_is(strategy, models, metrics,
                                                            iris_splits):
-    """Answering at all is the thing being pinned. The random forest refuses the
-    standard deviation the Gaussian process gives happily, and the refusal
-    lands inside an `except` — so asking the wrong way turned the criterion off
-    for that strategy with no error and no output.
-
-    What the answer is worth is a separate matter: see the test below."""
+    """The random forest raises on any covariance type except "diagonal", and
+    the surrounding `except` would turn the criterion off without an error."""
     X_train, X_val, y_train, y_val = iris_splits
     optimizer = SMACOptimizer(search_strategy=strategy)
     answers = []
@@ -120,15 +102,8 @@ def test_either_strategy_answers_when_asked_how_sure_it_is(strategy, models, met
 
 def test_the_gaussian_process_gives_an_answer_that_actually_varies(
         models, metrics, iris_splits):
-    """The forest's answer is coarser, and only the process's is asserted here.
-
-    A forest's uncertainty is its trees disagreeing, and the default ten do not
-    disagree much: its readings come in a handful of steps and lean on 0.5,
-    where 0.5 means the best candidate's predicted cost equals the incumbent's
-    and the trees are unanimous about it. How coarse depends on the split and
-    the data, which is why only the process's variation is pinned — raising
-    `rf_trees` is the knob to reach for, but it is not reliable enough on one
-    small dataset to assert on."""
+    """The test asserts variation for the Gaussian process only, because a
+    forest of the default ten trees gives coarse readings near 0.5."""
     X_train, X_val, y_train, y_val = iris_splits
     seen = {}
     for strategy in ("gp", "rf"):
@@ -148,20 +123,18 @@ def test_the_gaussian_process_gives_an_answer_that_actually_varies(
 
 
 def test_an_unknown_strategy_falls_back_rather_than_failing(models, metrics, iris_splits):
-    """A hand-edited .ihpo can say anything. A search that still runs beats one
-    that raises out of the worker."""
+    """A hand-edited .ihpo can name any strategy."""
     optimizer = SMACOptimizer(search_strategy="quantum")
 
     assert optimizer.get_params()["search_strategy"] == "gp"
     assert len(_run(optimizer, models, metrics, iris_splits, trials=3).trials) == 3
 
 
-# ── resuming ─────────────────────────────────────────────────────────────────
+# resuming
 
 def test_a_resumed_run_does_not_start_exploring_again(models, metrics, iris_splits):
-    """The history now reaches SMAC by replay rather than from its own stored
-    directory. If that left the initial design unconsumed, every resume would
-    spend its first trials re-sampling a space it had already sampled."""
+    """SMAC receives the history by replay, and the replay must consume the
+    initial design."""
     optimizer = SMACOptimizer()
     first = _run(optimizer, models, metrics, iris_splits, trials=20)
 
@@ -176,8 +149,6 @@ def test_a_resumed_run_does_not_start_exploring_again(models, metrics, iris_spli
 
 def test_changed_settings_take_effect_without_losing_the_history(
         models, metrics, iris_splits):
-    """Settings are editable between runs precisely because this holds: the
-    trials were measured the same way whatever the search strategy was."""
     first = _run(SMACOptimizer(), models, metrics, iris_splits, trials=10)
 
     second = _run(SMACOptimizer(search_strategy="rf"), models, metrics,
@@ -188,12 +159,10 @@ def test_changed_settings_take_effect_without_losing_the_history(
     assert [t.config for t in second.trials[:10]] == [t.config for t in first.trials]
 
 
-# ── the surrogate, end to end ────────────────────────────────────────────────
+# surrogate, end to end
 
 def test_a_configured_forest_actually_searches(models, metrics, iris_splits):
-    """The construction is pinned in `test_smac_surrogate`; what this adds is
-    that a forest built with settings on it still fits, still gets asked, and
-    still produces model-chosen trials."""
+    """`test_smac_surrogate` pins the construction."""
     optimizer = SMACOptimizer(search_strategy="rf", rf_trees=64, rf_max_depth=7,
                               rf_feature_ratio=0.5, rf_bootstrapping=False)
 
@@ -203,8 +172,7 @@ def test_a_configured_forest_actually_searches(models, metrics, iris_splits):
 
 
 def test_an_mcmc_process_runs_and_is_told_its_trials(models, metrics, iris_splits):
-    """Slow enough to be worth pinning that it works at all: three walkers per
-    kernel dimension over 250-step chains, resampled on every ask."""
+    """MCMC runs three walkers per kernel dimension over 250-step chains."""
     optimizer = SMACOptimizer(search_strategy="gp", gp_model_type="mcmc")
 
     result = _run(optimizer, models, metrics, iris_splits, trials=3)

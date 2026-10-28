@@ -1,9 +1,5 @@
-"""A forecast, from the create form to a run and a file.
-
-Airline passengers (`datasets/airline.csv`, monthly, 1949–1960) is forecast 12
-months ahead from three rolling origins: a regression evaluated by backtests.
-And the same months as labels, a classification evaluated the same way. Runs
-execute inline in tests (see `runs_execute_synchronously`).
+"""Airline passengers are forecast 12 months ahead from three backtest origins,
+as a regression and as a classification.
 """
 
 import pytest
@@ -27,10 +23,8 @@ def _create(client, name="airline", model_name="ETS", **overrides):
 @pytest.mark.django_db
 @pytest.mark.parametrize("model_name", ["ETS", "LightGBM", "Seasonal Naive"])
 def test_a_forecast_is_backtested_and_scored_on_mase(client, model_name):
-    """What: airline as a forecast stores its shape, infers a 12-month season,
-    and a run measures every trial on the forecasting metrics — whether the
-    model forecasts natively or is a regressor reduced to one.
-    How: creates it, runs three trials on MASE, and reads the scores back."""
+    """Native forecasters and reduced regressors both score every trial on the
+    forecasting metrics."""
     from experiments.models import Experiment
     from experiments.services.snapshot import rebuild_result
 
@@ -54,9 +48,8 @@ def test_a_forecast_is_backtested_and_scored_on_mase(client, model_name):
 
 @pytest.mark.django_db
 def test_the_forecast_survives_a_round_trip_through_a_file(client):
-    """What: the file records the horizon, the season and the series column,
-    and opening it again forecasts the same way. How: exports the snapshot and
-    builds a second experiment from it."""
+    """A reopened copy behaves the same, because the file keeps horizon, season
+    and series column."""
     from experiments.models import Experiment
     from experiments.services import snapshot as snapshot_adapter
 
@@ -77,9 +70,7 @@ def test_the_forecast_survives_a_round_trip_through_a_file(client):
     ({"series_column": "nowhere"}, "time_column", "no feature column named"),
 ])
 def test_a_forecast_that_cannot_be_backtested_is_refused(client, overrides, field, says):
-    """What: no time column, more backtests than the history allows, or a
-    series column the file lacks, each refused with the reason.
-    How: posts the form with each and reads the page."""
+    """Each unbacktestable form is refused with its reason."""
     from experiments.models import Experiment
 
     resp = _create(client, name="nope", **overrides)
@@ -90,9 +81,8 @@ def test_a_forecast_that_cannot_be_backtested_is_refused(client, overrides, fiel
 
 @pytest.mark.django_db
 def test_a_model_that_only_forecasts_needs_backtests(client):
-    """What: Seasonal Naive has nothing to predict from but a series' past, so
-    an experiment validated any other way is refused for it.
-    How: posts the form with cross-validation."""
+    """Other validation is refused for Seasonal Naive, which needs a series'
+    past."""
     resp = _create(client, name="nope", model_name="Seasonal Naive",
                    evaluation_scheme="kfold", evaluation_value=3)
 
@@ -102,8 +92,6 @@ def test_a_model_that_only_forecasts_needs_backtests(client):
 
 @pytest.mark.django_db
 def test_a_model_that_only_classifies_cannot_forecast_numbers(client):
-    """What: backtests do not change what a model can predict: Logistic
-    Regression still cannot regress. How: posts a regression forecast with it."""
     resp = _create(client, name="nope", model_name="Logistic Regression")
 
     assert resp.status_code == 200
@@ -112,9 +100,8 @@ def test_a_model_that_only_classifies_cannot_forecast_numbers(client):
 
 @pytest.mark.django_db
 def test_an_upload_forecasts_only_if_it_says_so(client, settings):
-    """What: an uploaded model runs in its own process, where nothing can make
-    it a forecaster, so backtesting one is refused unless it declares
-    `forecaster = True`. How: posts the same model file without and with it."""
+    """Backtests need the upload's `forecaster = True` declaration, because an
+    upload runs in its own process."""
     from django.core.files.uploadedfile import SimpleUploadedFile
 
     from experiments.models import Experiment
@@ -145,12 +132,8 @@ def test_an_upload_forecasts_only_if_it_says_so(client, settings):
 
 @pytest.mark.django_db
 def test_a_classification_is_forecast_too(client):
-    """What: forecasting is a way of evaluating, not a task: whether each month
-    is busier than the last is backtested like the passenger counts, scored on
-    the classification metrics, the page says how, and the Forecast figure
-    draws labels. How: uploads airline with a label target, creates a Random
-    Forest classification under backtests, runs two trials, and fetches the
-    figure."""
+    """Backtesting is an evaluation scheme, so a label target forecasts too,
+    scored on classification metrics with a label-axis figure."""
     import numpy as np
     import pandas as pd
     from django.core.files.uploadedfile import SimpleUploadedFile
@@ -187,9 +170,8 @@ def test_a_classification_is_forecast_too(client):
 
 @pytest.mark.django_db
 def test_the_exported_forecaster_carries_its_forecast(client):
-    """What: a forecast's Export model download is the forecasting script —
-    its horizon and columns, and a regressor forecasting by reduction.
-    How: runs one LightGBM trial and reads the downloaded file's constants."""
+    """The download is the forecasting script, reducing a regressor to a
+    forecaster."""
     import ast
 
     from experiments.models import Experiment
@@ -212,11 +194,7 @@ def test_the_exported_forecaster_carries_its_forecast(client):
 
 @pytest.mark.django_db
 def test_the_forecast_figure_draws_every_backtest_and_only_for_a_forecast(client):
-    """What: a forecast's page has the Forecast figure, which draws the series
-    and one forecast per backtest for the trial asked about; a classification
-    experiment's page — validated any other way — has no such figure, and its
-    endpoint refuses.
-    How: runs one ETS trial, fetches the figure, then creates iris."""
+    """Only a forecast gets the figure, with one trace per backtest."""
     from experiments.models import Experiment
 
     _create(client)

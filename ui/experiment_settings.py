@@ -1,19 +1,6 @@
-"""The experiment-settings schema as the pages see it: the run's own settings
-(`experiments/services/settings.py`) and a switch per figure.
-
-- `show_<figure>`: draw that figure on an experiment page
-- `autocompute_<name>`: compute that deferred analytic as soon as the figure
-  needs it, rather than waiting to be asked
-
-Both are derived from the catalog rather than listed here, so declaring a
-figure — or declaring that a figure defers something — is all it takes to give
-it a setting.
-
-Together the flags cover three states without a tri-state widget: figure off =
-never computed; on + autocompute = computed the moment the figure needs it;
-on + no autocompute = a "Compute" button, and a page reload computes nothing.
-The last of those is the default, so opening an experiment costs nothing until
-it is asked to.
+"""`SETTING_DEFAULTS` adds a `show_<figure>` and an `autocompute_<name>` flag
+per catalog entry to the run's settings. A figure that is on without autocompute
+shows a Compute button, which is the default.
 """
 
 from experiments.services import settings as run_settings
@@ -24,10 +11,8 @@ SETTING_DEFAULTS = {
     **run_settings.SETTING_DEFAULTS,
     **{figure.setting_key: True for figure in FIGURES},
     **{autocompute_key(name): False for name, _label in deferred_computations()},
-    # The exceptions. Measuring the HyperSHAP games from the incumbent is what
-    # the page opens on, so waiting to be asked would open every experiment on
-    # six blank figures. And the acquisition function's sample is the one the
-    # configuration cube opens its field on, so it is drawn anyway.
+    # The incumbent's HyperSHAP games and the cube's acquisition sample are
+    # drawn on page open anyway.
     autocompute_key("hypershap_baseline"): True,
     autocompute_key("acquisition_slice"): True,
 }

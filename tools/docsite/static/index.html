@@ -1,0 +1,61 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>codesigner docs</title>
+<link rel="icon" href="data:,">
+<link rel="stylesheet" href="/style.css">
+<link rel="stylesheet" href="/pygments.css">
+<script>window.DOCSITE_TOKEN = "{{TOKEN}}";</script>
+<script src="/app.js" defer></script>
+</head>
+<body>
+<header class="top">
+  <button id="navToggle" class="icon" aria-label="Files">☰</button>
+  <a class="brand" href="#/">codesigner <span>docs</span></a>
+  <div class="search">
+    <input id="q" type="search" placeholder="Search prose and names" autocomplete="off" spellcheck="false">
+    <kbd class="slash">/</kbd>
+    <div id="hits" hidden></div>
+  </div>
+  <div class="tools">
+    <label class="toggle" title="Show the code between the prose (c)"><input type="checkbox" id="showCode"><span>Code</span></label>
+    <button id="undoBtn" disabled title="Undo the last save made here">Undo</button>
+    <button id="changesBtn" title="Everything saved from this page since it started">Changes</button>
+    <button id="helpBtn" class="icon" title="Keys (?)">?</button>
+  </div>
+</header>
+<div class="layout">
+  <nav id="nav">
+    <input id="filter" type="search" placeholder="Filter files" autocomplete="off" spellcheck="false">
+    <div id="tree"></div>
+  </nav>
+  <main id="main"><p class="loading">Reading the source…</p></main>
+</div>
+<div id="banner" hidden></div>
+<div id="toast" hidden></div>
+<dialog id="changes">
+  <div class="dlg-head"><h2>Saved this run</h2><button class="icon" data-close>✕</button></div>
+  <div id="changesBody"></div>
+</dialog>
+<dialog id="help">
+  <div class="dlg-head"><h2>Keys</h2><button class="icon" data-close>✕</button></div>
+  <table class="keys">
+    <tr><td><kbd>j</kbd> <kbd>k</kbd></td><td>Next / previous block of prose, or a def that has none</td></tr>
+    <tr><td><kbd>Enter</kbd> <kbd>e</kbd></td><td>Edit the focused block (or click it)</td></tr>
+    <tr><td><kbd>Ctrl</kbd>+<kbd>Enter</kbd></td><td>Save</td></tr>
+    <tr><td><kbd>Esc</kbd></td><td>Cancel the edit</td></tr>
+    <tr><td><kbd>Alt</kbd>+<kbd>q</kbd></td><td>While editing: switch Paragraphs / Lines</td></tr>
+    <tr><td><kbd>c</kbd></td><td>Show or hide the code</td></tr>
+    <tr><td><kbd>[</kbd> <kbd>]</kbd></td><td>Previous / next file</td></tr>
+    <tr><td><kbd>/</kbd></td><td>Search</td></tr>
+  </table>
+  <p class="note"><b>Paragraphs</b> puts each paragraph on one line, so you can write without
+  breaking lines by hand; on save, each paragraph you changed is wrapped to the line width, and
+  the ones you didn't keep their lines exactly. <b>Lines</b> shows the text as it is in the file
+  and saves it as typed. Each save goes straight into the .py file, and is refused if it would
+  change anything but prose. Line numbers open the file in VS Code.</p>
+</dialog>
+</body>
+</html>

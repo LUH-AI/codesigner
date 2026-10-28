@@ -1,9 +1,5 @@
-"""What an experiment page says while its model's environment is built.
-
-An environment takes minutes to resolve, so creating an experiment cannot wait
-for it. The page reports progress with the same polling the run box uses, and
-what it offers depends on how things ended: retry a failure, or build a real
-environment for a model that is currently being imported in-process.
+"""An environment build takes minutes, so creation queues one and the page polls
+like the run box.
 """
 
 import textwrap
@@ -46,10 +42,8 @@ def _page(client, exp) -> str:
     return client.get(reverse("ui:experiment_detail", args=[exp.pk])).content.decode()
 
 
-# ── creating one queues the build ────────────────────────────────────────────
-
 def test_uploading_a_model_queues_its_environment(client, fake_uv):
-    """Creation returns immediately; the environment is built behind it."""
+    """Creation queues the build."""
     upload = SimpleUploadedFile("mine.py", MODEL_SOURCE, content_type="text/x-python")
 
     resp = post_new_experiment(client, {
@@ -60,9 +54,9 @@ def test_uploading_a_model_queues_its_environment(client, fake_uv):
 
     assert resp.status_code == 302
     exp = Experiment.objects.get(data__name="queued")
-    # the fake uv resolves instantly, and tests run tasks inline
+    # fake uv is instant, tasks inline
     assert exp.env_status == Experiment.ENV_READY
-    # what the source declared was recorded before anything was built
+    # dependencies recorded before building
     assert exp.env_meta["dependencies"] == ["ConfigSpace"]
 
 
@@ -76,8 +70,6 @@ def test_a_registry_model_needs_no_environment(client):
     assert Experiment.objects.get(data__name="plain").env_status == Experiment.ENV_NONE
 
 
-# ── while it is building ─────────────────────────────────────────────────────
-
 def test_the_page_polls_while_preparing(client):
     exp = _experiment(env_status=Experiment.ENV_PREPARING,
                       env_meta={"dependencies": ["scikit-learn"]})
@@ -85,8 +77,8 @@ def test_the_page_polls_while_preparing(client):
 
     assert reverse("ui:env_status", args=[exp.pk]) in html
     assert "hx-trigger" in html
-    assert "scikit-learn" in html          # says what it is installing
-    assert 'name="max_trials"' not in html  # and nothing can be run yet
+    assert "scikit-learn" in html          # lists dependencies
+    assert 'name="max_trials"' not in html  # run form hidden
 
 
 def test_the_poll_target_reports_progress_then_asks_for_a_reload(client):
@@ -112,8 +104,6 @@ def test_the_sidebar_marks_an_experiment_whose_environment_is_building(client):
     _experiment(env_status=Experiment.ENV_PENDING)
     assert "⏳" in client.get(reverse("ui:home")).content.decode()
 
-
-# ── when it fails ────────────────────────────────────────────────────────────
 
 def test_a_failure_shows_the_tool_output_and_offers_a_retry(client):
     exp = _experiment(env_status=Experiment.ENV_FAILED,
@@ -141,7 +131,7 @@ def test_retrying_requires_a_post(client):
 
 
 def test_a_run_in_flight_blocks_a_rebuild(client, fake_uv):
-    """Rebuilding under a running optimization would change what it is using."""
+    """Rebuilding would change a running optimization's environment."""
     exp = _experiment(env_status=Experiment.ENV_FAILED)
     Run.objects.create(experiment=exp, stopping={"max_trials": 3}, primary_metric="accuracy",
                        status="running")
@@ -152,7 +142,7 @@ def test_a_run_in_flight_blocks_a_rebuild(client, fake_uv):
     assert exp.env_status == Experiment.ENV_FAILED
 
 
-# ── when it is running in-process instead ────────────────────────────────────
+# ── in-process models ──
 
 def test_an_in_process_model_says_so_and_offers_to_build_one(client, settings):
     settings.REQUIRE_LOGIN = False
@@ -172,24 +162,17 @@ def test_an_in_process_model_can_still_be_run_locally(client, settings):
 
 def test_an_in_process_model_cannot_be_run_on_a_hosted_instance(client, settings,
                                                                 django_user_model):
-    """The whole point of the refusal: one user's code would run in the process
-    holding everyone's data.
-
-    Signed in, because `REQUIRE_LOGIN` also raises the login wall — being signed
-    in is what makes this a hosted instance's *user* rather than a stranger, and
-    the refusal has to hold for them too."""
+    """In-process user code would run beside everyone's data, and the refusal
+    must hold for signed-in users."""
     settings.REQUIRE_LOGIN = True
     someone = django_user_model.objects.create_user(username="someone", password="pw")
     client.login(username="someone", password="pw")
-    # Theirs, so the refusal is the thing being tested. An unowned experiment is
-    # reachable by nobody now that experiments belong to groups, and this would
-    # be a 404 for a reason that has nothing to do with in-process models.
+    # The user owns the experiment, since an unowned one would 404 before the
+    # refusal.
     exp = _experiment(env_status=Experiment.ENV_LEGACY, owner=someone)
 
     assert client.get(reverse("ui:experiment_detail", args=[exp.pk])).context["can_run"] is False
 
-
-# ── when it is ready ─────────────────────────────────────────────────────────
 
 def test_a_ready_experiment_shows_the_run_form_and_its_environment(client):
     exp = _experiment(env_status=Experiment.ENV_READY,
@@ -201,11 +184,9 @@ def test_a_ready_experiment_shows_the_run_form_and_its_environment(client):
     assert "Python 3.12.4" in html
 
 
-# ── recovering from an interrupted worker ────────────────────────────────────
-
 def test_a_build_interrupted_by_a_restart_is_swept(client):
-    """Not re-queued: a build that killed the worker would restart-loop, so the
-    user decides whether to try again."""
+    """`sweep_stale_environments` fails worker-killing builds instead of
+    re-queueing them."""
     exp = _experiment(env_status=Experiment.ENV_PREPARING)
 
     assert modelenv.sweep_stale_environments() == 1

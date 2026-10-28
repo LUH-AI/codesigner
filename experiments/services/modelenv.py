@@ -1,17 +1,10 @@
-"""Building and pinning the environment a custom model runs in.
+"""`prepare_environment` builds a custom model's uv environment once, at
+creation, so every run uses the same pinned dependencies. The `modelenv` module
+holds every uv call, and the rest of the application reads
+`Experiment.env_status`.
 
-A model declares its dependencies in a PEP 723 header and uv builds an
-environment from them. That happens **once**, when the experiment is created:
-resolving hits the network and can take minutes, and pinning it means every run
-of that experiment uses the same dependencies rather than whatever resolves that
-day. Runs then only have to start a process.
-
-Everything that shells out to uv lives here, so the rest of the application asks
-`Experiment.env_status` — a column — rather than the filesystem.
-
-This buys **dependency isolation, not a security boundary**: the model runs as
-the same user with the same filesystem and network access. Real sandboxing is a
-separate piece of work, and the README must not imply otherwise.
+The environment isolates dependencies only, and the model runs with the
+application's user, filesystem and network.
 """
 
 from __future__ import annotations
@@ -30,56 +23,39 @@ from core.modelhost import deadline
 
 from core.modelhost import describe
 
-#: The PEP 723 block delimiters, named so nothing reformats them by accident.
+#: Named so nothing reformats them.
 BLOCK_OPEN = "# /// script"
 BLOCK_CLOSE = "# ///"
 
-#: What `uv --version` must answer within before we treat uv as unusable.
+#: Seconds before uv counts as unusable.
 _PROBE_TIMEOUT = 15.0
-
-# ── where things are ─────────────────────────────────────────────────────────
 
 
 def script_path(exp) -> Path:
-    """The model file uv operates on."""
     return Path(exp.data.model_file.path)
 
 
 def runner_path(exp) -> Path:
-    """The script uv actually runs, generated beside the model.
-
-    uv builds an environment from the PEP 723 header of *the script it runs*, so
-    pointing it at the model file would run the model rather than our harness.
-    The runner declares the model's dependencies and then hands off to the
-    harness — which is how the harness comes to execute inside the model's
-    environment.
-
-    Written beside the model in MEDIA rather than in a temp directory: uv keys a
-    script's cached environment off its path, so a stable path means the
-    environment is built once and reused by every run instead of being rebuilt.
+    """uv builds the environment from the header of the script it runs, so the
+    runner declares the model's dependencies and hands off to the harness. The
+    stable path lets uv reuse its cached environment.
     """
     script = script_path(exp)
     return script.with_name(script.stem + "_runner.py")
 
 
 def lock_path(exp) -> Path:
-    """Where uv keeps the runner's lock (`uv lock --script` writes it here)."""
+    """`uv lock --script` writes it here."""
     runner = runner_path(exp)
     return runner.with_name(runner.name + ".lock")
 
 
-#: The harness needs numpy to read the dataset arrays it is handed. That is the
-#: runner's requirement rather than the model's, and it is the one package a
-#: model environment gets without asking — worth saying out loud.
+#: Numpy is the one package every model environment gets unasked.
 _RUNNER_REQUIREMENTS = ("numpy",)
 
 
 def write_runner(exp, info=None) -> Path:
-    """(Re)generate the runner for *exp* and return its path.
-
-    *info* is the `ModelSourceInfo` read from the model's source. Without it the
-    dependencies already recorded in `env_meta` are used, so retrying does not
-    have to re-read the file.
+    """Without *info*, the dependencies recorded in `env_meta` are reused.
     """
     from core.modelhost import HARNESS
 
@@ -116,10 +92,8 @@ def write_runner(exp, info=None) -> Path:
 
 
 def sdk_requirement() -> str:
-    """What to install the contract from.
-
-    A built wheel if the image made one, otherwise the source tree — which
-    works locally but makes uv fetch a build backend, so it is the fallback.
+    """`sdk_requirement` prefers a built wheel over the source tree, which makes
+    uv fetch a build backend.
     """
     wheels = Path(settings.MODEL_SDK_WHEEL)
     if wheels.is_dir():
@@ -131,15 +105,9 @@ def sdk_requirement() -> str:
     return settings.MODEL_SDK_PATH
 
 
-# ── is uv usable, and what does that mean ────────────────────────────────────
-
-
 def uv_path() -> str | None:
-    """uv's path if it is installed and runs, else None.
-
-    Being on PATH is not proof it works, so it is asked its version. Called from
-    the worker and from `execute_run`, never from a page render — a request reads
-    `env_status` instead.
+    """`uv_path` asks uv its version, because being on PATH proves nothing.
+    Pages read `env_status` instead of calling `uv_path`.
     """
     found = shutil.which(settings.UV_BIN)
     if not found:
@@ -152,7 +120,7 @@ def uv_path() -> str | None:
     return found if probe.returncode == 0 else None
 
 
-#: Why a hosted instance will not fall back to importing the model here.
+#: Refusal text for a hosted instance without uv.
 HOSTED_WITHOUT_UV = (
     "This server runs uploaded models in isolated environments, which requires "
     "uv. uv is not installed, so custom models cannot run here. Ask the operator "
@@ -161,13 +129,9 @@ HOSTED_WITHOUT_UV = (
 
 
 def decide_mode() -> tuple[str, str]:
-    """How custom models run on this instance: ``(mode, explanation)``.
-
-    ``subprocess`` — uv is here; environments get built.
-    ``in_process``  — no uv, and this instance has no accounts, so a model is
-                      imported the way it was before environments existed.
-    ``refused``     — no uv on an instance with accounts. Falling back would run
-                      one user's code in the process holding everyone's data.
+    """Without uv, `decide_mode` falls back to the application process on an
+    instance without accounts. An instance with accounts refuses, since the
+    model would run beside everyone's data.
     """
     if uv_path():
         return "subprocess", ""
@@ -180,11 +144,7 @@ def decide_mode() -> tuple[str, str]:
     )
 
 
-# ── the commands ─────────────────────────────────────────────────────────────
-
-
 def lock_command(uv: str, runner: Path) -> list[str]:
-    """Resolve the runner's dependencies and write its lock."""
     argv = [uv, "lock", "--script", str(runner)]
     if settings.MODEL_ENV_OFFLINE:
         argv.append("--offline")
@@ -194,13 +154,9 @@ def lock_command(uv: str, runner: Path) -> list[str]:
 
 
 def run_command(uv: str, runner: Path) -> list[str]:
-    """Argv that runs the harness in the model's locked environment.
-
-    ``--locked`` refuses to re-resolve: a lock that no longer matches its script
-    is a mismatch to report, not something to paper over silently. The contract
-    arrives with ``--with`` rather than being declared in the header, so it is
-    not part of what was locked — the SDK's path differs between a local checkout
-    and the image, and that should not invalidate a lock.
+    """`--locked` reports a stale lock instead of re-resolving. The SDK arrives
+    through `--with`, outside the lock, because its path differs between a
+    checkout and the image.
     """
     argv = [uv, "run", "--locked", "--with", sdk_requirement(), "--script", str(runner)]
     if settings.MODEL_ENV_OFFLINE:
@@ -211,28 +167,18 @@ def run_command(uv: str, runner: Path) -> list[str]:
 
 
 def child_env() -> dict:
-    """The environment a model's process inherits.
-
-    A denylist rather than an allowlist: proxy, certificate and index settings
-    are numerous and operator-specific, and removing the few that matter is
-    both safer and less likely to break a deployment than guessing at a
-    complete list of what to keep.
+    """The environment uses a denylist because proxy, certificate and index
+    settings vary by operator.
     """
     env = {k: v for k, v in os.environ.items() if k not in settings.MODEL_ENV_DENYLIST}
     env["CODESIGNER_MAX_FILE_BYTES"] = str(settings.MODEL_MAX_FILE_BYTES)
     return env
 
 
-# ── preparing ────────────────────────────────────────────────────────────────
-
-
 def prepare_environment(experiment_id) -> None:
-    """Resolve, build and check one experiment's model environment.
-
-    Runs in the worker. Three steps, and the third is the one that makes the
-    wait worth it: the model is imported and instantiated in its own
-    environment, so everything the create form stopped checking is checked here
-    — where a failure can be reported without holding a request open.
+    """`prepare_environment` runs in the worker and finishes by importing and
+    instantiating the model in its own environment, which reports failures
+    without holding a request open.
     """
     from experiments.models import Experiment
 
@@ -255,10 +201,6 @@ def prepare_environment(experiment_id) -> None:
     try:
         runner = write_runner(exp, _source_info(exp))
         _run_uv(lock_command(uv, runner), "resolving this model's dependencies")  # pyright: ignore[reportArgumentType]
-        # Building the environment and checking the model are the same step: uv
-        # materialises the environment to run this, and answering means the model
-        # imported and instantiated. Everything the create form stopped doing is
-        # done here, where a failure need not hold a request open.
         hello = describe(run_command(uv, runner), env=child_env(), task=exp.data.task,  # pyright: ignore[reportArgumentType]
                          start_timeout=settings.MODEL_ENV_PREPARE_TIMEOUT)
     except Exception as exc:  # noqa: BLE001 — whatever went wrong, the page shows it
@@ -272,23 +214,20 @@ def prepare_environment(experiment_id) -> None:
         "python": hello.get("python"),
         "lock_sha256": _digest(lock_path(exp)),
     })
-    # A rebuild that resolved to different packages can change what a trial
-    # scores, so it belongs in the history; the first build, and one that
-    # resolved the same, do not.
+    # A rebuild that resolved differently can change scores, so the history
+    # records it.
     if locked_before and locked_before != meta["lock_sha256"]:
         from . import history
 
         history.record(exp, "environment_rebuilt", old=locked_before,
                        new=meta["lock_sha256"])
-    # The name in the source is what the form read before anything ran. Now that
-    # the class has actually been built, its own name is the authority.
+    # The built class's own name overrides the name read from source.
     declared = hello.get("name")
     if declared and declared != exp.data.model_name:
         meta["name_from_source"] = exp.data.model_name
         exp.data.model_name = declared
-        # Which half each fact belongs to, written out: the class's real name
-        # is what was searched and travels in the file; everything the build
-        # produced describes what *this* machine made of it and does not.
+        # The real class name travels in the file; build details describe the
+        # local machine only.
         exp.data.save(update_fields=["model_name"])
 
     exp.env_status = Experiment.ENV_READY
@@ -300,11 +239,8 @@ def prepare_environment(experiment_id) -> None:
 
 
 def _source_info(exp):
-    """What the model file declares, re-read from disk.
-
-    Read again rather than trusted from `env_meta` so a retry picks up an edited
-    file, and so the dependencies the runner declares always match the source
-    that is actually there.
+    """`_source_info` re-reads the file so a retry picks up edits and the
+    runner's dependencies match the source.
     """
     from core.model_source import inspect_model_source
 
@@ -322,9 +258,7 @@ def _run_uv(argv: list[str], what: str) -> None:
     except OSError as exc:
         raise RuntimeError(f"Could not run uv: {exc}") from exc
     if done.returncode != 0:
-        # uv leads with a readable diagnosis, so the head of its output is the
-        # useful part. Not translated — it is a tool's output, like the model
-        # errors beside it.
+        # uv leads with its diagnosis; tool output stays untranslated.
         detail = (done.stderr or done.stdout or "").strip()[:4000]
         raise RuntimeError(f"Failed {what}:\n{detail}")
 
@@ -343,24 +277,17 @@ def _digest(path: Path) -> str:
         return ""
 
 
-# ── using it, at run time ────────────────────────────────────────────────────
-
-
 def resolve_runner(exp) -> tuple[list[str] | None, str]:
-    """How to start this experiment's model: ``(argv_prefix, error)``.
-
-    ``argv_prefix`` is what to put before the harness — `uv run …` for a
-    prepared environment, or None to mean "import it here". An error string
-    means the run cannot proceed.
+    """`resolve_runner` returns a `uv run` prefix, None to import in-process, or
+    an error that stops the run.
     """
     from experiments.models import Experiment
 
     if exp.env_status == Experiment.ENV_READY:
         uv = uv_path()
         if not uv:
-            # Falling back here would run the model against a completely
-            # different dependency set than the one it was pinned to, and the
-            # failures from that are arbitrarily strange.
+            # A fallback would run the model against dependencies other than the
+            # pinned ones.
             return None, ("This model's environment was built with uv, which is no "
                           "longer available on this server.")
         if not lock_path(exp).is_file():
@@ -373,8 +300,7 @@ def resolve_runner(exp) -> tuple[list[str] | None, str]:
         if not runner_path(exp).is_file():
             return None, ("This model's runner is missing. Prepare its environment "
                           "again from the experiment page.")
-        # The runner, not the model: uv builds the environment from the header of
-        # the script it runs, and the lock belongs to the runner.
+        # The runner owns the header and the lock.
         return run_command(uv, runner_path(exp)), ""
 
     if exp.env_status == Experiment.ENV_FAILED:
@@ -383,21 +309,15 @@ def resolve_runner(exp) -> tuple[list[str] | None, str]:
     if exp.env_pending:
         return None, "This model's environment is still being prepared."
 
-    # Everything else — skipped, legacy, or never prepared at all (a row created
-    # by the import command, or before any of this existed) — is imported here,
-    # exactly as it was. Except on an instance with accounts, where doing that
-    # would run one user's code in the process holding everyone's data.
+    # An instance without accounts loads skipped, legacy and unprepared models
+    # in-process.
     if settings.REQUIRE_LOGIN:
         return None, HOSTED_WITHOUT_UV
     return None, ""
 
 
 def start_preparation(exp, info=None) -> None:
-    """Queue an environment build for *exp*, if it needs one.
-
-    Called after creating or importing an experiment with a custom model, and by
-    the retry button. What the source declared is recorded first so the page can
-    show it while the build is still running.
+    """The page shows the declared dependencies while the build runs.
     """
     from experiments.models import Experiment
     from ..tasks import prepare_model_env_task
@@ -418,11 +338,9 @@ def start_preparation(exp, info=None) -> None:
 
 
 def sweep_stale_environments() -> int:
-    """Fail environments left ``preparing`` by an interrupted worker.
-
-    Run at worker startup, beside the stale-run sweep. Deliberately not
-    re-queued: a build that killed the worker would restart-loop, so the user
-    presses Try again instead.
+    """The container entrypoint runs `sweep_stale_environments` at startup. A
+    re-queued build that killed the worker would loop, so the user retries
+    instead.
     """
     from experiments.models import Experiment
 
@@ -432,16 +350,8 @@ def sweep_stale_environments() -> int:
 
 
 def session_kwargs(trial_timeout=None, seed: int = 0) -> dict:
-    """How `core.modelhost.model_session` should be configured here.
-
-    A fresh empty working directory per run, so a model that writes
-    `./output.csv` does not scribble in the application's own directory.
-
-    *trial_timeout* is the run's own deadline choice — see
-    `core.modelhost.deadline` — which becomes a policy here rather than in
-    `core/`, since only this side knows what the deployment's default is. A run
-    that has none (one started before the field existed, or by a caller that
-    does not care) gets the deployment number it always got.
+    """Each run gets a fresh empty working directory, and only the application
+    side knows the deployment's default timeout.
     """
     if not trial_timeout:
         policy = deadline.FixedDeadline(settings.MODEL_TRIAL_TIMEOUT)

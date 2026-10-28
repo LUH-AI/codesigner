@@ -1,18 +1,6 @@
-"""Every number on the experiment page is in the .ihpo, or comes from it.
-
-The file is the experiment. If the page can show something the file cannot say,
-then exporting an experiment loses it and an experiment reopened elsewhere is a
-different experiment — quietly, and only in the places nobody checked.
-
-So rather than reading the file's schema against the page's markup, this runs an
-experiment, exports it, imports the file into a fresh experiment, and asserts the
-two pages are built from the same values. Anything the file failed to carry shows
-up as a difference.
-
-What is deliberately *not* compared: who may edit it, whether its model's
-environment is ready, whether a run is in flight. Those are facts about this
-instance and this reader, not about the experiment, and they have no business in
-a file that gets sent to someone else.
+"""The audit runs an experiment, imports its exported file into a fresh one, and
+compares the values both pages are built from. Facts about the local instance
+and its reader stay out of the comparison and the file.
 """
 
 import json
@@ -27,16 +15,16 @@ from ui.views.dashboard import _detail_context
 
 from tests.conftest import DATASETS_DIR, export_ihpo, post_new_experiment
 
-#: Everything the page draws a number, a label or a plot from.
+#: Every value the page draws from.
 DISPLAYED = [
-    "summary",            # the identity strip: model, optimizer, metric, evaluation, seed
-    "panels",             # best/selected configuration, and every game's warning and table
-    "metric_plots",       # every per-metric figure's plot, for every view
-    "static_plots",       # the figures that are the same for every metric
-    "trial_rows",         # the trials table
-    "run_summary",        # last run: trials, time in trials, overhead, why it stopped
+    "summary",            # identity strip
+    "panels",             # configurations and game tables
+    "metric_plots",       # per-metric plots
+    "static_plots",       # metric-independent figures
+    "trial_rows",
+    "run_summary",        # last run's trials, time and stop reason
     "hp_names",
-    "incumbent_targets",  # what the run form's target opens at
+    "incumbent_targets",  # run form's opening target
     "incumbent_target",
     "metric_names",
     "run_default_metric",
@@ -45,14 +33,13 @@ DISPLAYED = [
     "figure_views",
 ]
 
-#: Keys that differ by construction — the copy is a different row in a different
-#: database, and says so.
+#: The copy is a different row and says so.
 LOCAL_TO_THIS_COPY = ("pk", "identifier", "name", "given_name")
 
 
 def _ran_experiment(client):
-    """An experiment with a real run behind it, so there is a run summary and a
-    stored optimizer state to carry as well as trials."""
+    """`_ran_experiment` runs three trials, leaving a run summary and optimizer
+    state to carry."""
     from experiments.services.run import create_run, execute_run
 
     post_new_experiment(client, {
@@ -83,7 +70,6 @@ def _normalised(context, key):
 
 
 def test_the_page_is_built_from_the_same_values_after_a_round_trip(client, rf):
-    """The audit itself, over every displayed value at once."""
     exp = _ran_experiment(client)
     copy = _reimported(client, exp)
     request = rf.get("/")
@@ -98,11 +84,8 @@ def test_the_page_is_built_from_the_same_values_after_a_round_trip(client, rf):
 
 
 def test_the_deferred_figures_come_back_too(client, rf):
-    """Partial dependence, the local explanation and the beeswarm are not in the
-    file — they are computed on request from the model and the dataset, which is
-    the one thing the file is allowed to assume you have. So they have to come
-    out the same on the far side, and that is what makes leaving them out of the
-    file correct rather than lossy."""
+    """Deferred figures recompute from the model and dataset, the one input the
+    file assumes, so they must match after the trip."""
     exp = _ran_experiment(client)
     copy = _reimported(client, exp)
 
@@ -121,11 +104,8 @@ def test_the_deferred_figures_come_back_too(client, rf):
 
 
 def test_what_is_left_out_is_about_the_reader_not_the_experiment(client, rf):
-    """The keys this audit skips, named, so that skipping them stays a decision.
-
-    Whether you may edit an experiment, whether its model's environment has been
-    built here, whether a run is in flight — none of that belongs in a file that
-    gets sent to someone else, and all of it is rebuilt from this instance.
+    """The audit names the keys it skips, all rebuilt from the local instance
+    and kept out of shared files.
     """
     exp = _ran_experiment(client)
     request = rf.get("/")
@@ -134,69 +114,45 @@ def test_what_is_left_out_is_about_the_reader_not_the_experiment(client, rf):
 
     about_the_instance = {"experiment", "may", "ownership", "env", "can_run",
                           "model_refusal", "run_error", "active_run", "result",
-                          # This deployment's own MODEL_TRIAL_TIMEOUT, which is a
-                          # statement about the machine's patience and means
-                          # nothing on anyone else's.
+                          # The machine's own patience, meaningless elsewhere.
                           "default_trial_timeout",
-                          # How often this page should poll, from the trials'
-                          # own durations on this machine.
+                          # From trial durations on this machine.
                           "poll_seconds",
-                          # Whether this instance holds the model file to
-                          # write out: a reader who imported the run does not.
+                          # An importing reader lacks the model file.
                           "model_export_unavailable",
-                          # Which trials' fitted models this instance kept, and
-                          # why it keeps none: the models are files here, and
-                          # an imported run arrives without them.
+                          # Kept models are local files that an import lacks.
                           "kept_trial_indices", "trial_models_reason",
                           "export_default_kept"}
     declarations = {"figures", "sidebar_figures", "selectable_figures",
                     "selection_colors",
-                    # The tabs and where each figure sits on them: how this
-                    # reader arranged the page, not anything the experiment is.
+                    # This reader's page arrangement.
                     "figure_tabs", "figure_layout",
-                    # What this browser's kept answers are labelled with: the
-                    # results' state on this instance, not part of them.
+                    # Labels for this browser's kept answers.
                     "computed_version",
-                    # The β field's bounds on the acquisition figure — two
-                    # constants, not anything this experiment decided.
+                    # Two constants.
                     "beta_min", "beta_max",
                     "autocompute", "explanation_games", "explanation_game_help",
                     "has_result", "supports_confidence", "can_requery", "trials_page_size",
                     "tuning_progress",
-                    # Whether the optimizer as configured can judge a prior,
-                    # from its capabilities rather than anything it has run,
-                    # and what the controls for it open on: a setting, and
-                    # the bounds every setting of its kind has.
+                    # The prior controls show the optimizer's capability and a
+                    # setting with its bounds.
                     "judges_priors", "prior_top_k", "prior_top_k_bounds",
-                    # A built-in constant the run form opens on, not anything
-                    # this experiment or this instance decided.
+                    # A built-in constant.
                     "default_trial_factor",
-                    # Which figures a running run can redraw, from the catalog.
                     "live_figures",
-                    # Which figures draw the HyperSHAP games, from the catalog.
                     "game_figures",
-                    # Whether this instance could compute the explanations this
-                    # result is missing — about what may be done here, not about
-                    # the experiment, which carries the emptiness itself.
+                    # This instance's ability to fill the result's gaps.
                     "analytics_absent",
-                    # How much of the run this page drew — about this render,
-                    # not about the experiment, and it is what the run-status
-                    # poll sends back to ask whether anything has moved.
+                    # This render's trial count, echoed by the status poll.
                     "trial_count"}
 
     assert set(context) - set(DISPLAYED) == about_the_instance | declarations
 
 
 def test_a_stated_prior_survives_a_round_trip(client):
-    """Goal one of the file format, as a test: everything but the dataset needed
-    to replicate the optimization. A prior steers what the next run searches, so
-    an experiment reopened from its file without one would search unweighted
-    while the page still showed the belief.
-
-    The knots are deliberately not in the file — they are a few hundred samples
-    restating what `kind` and `params` say exactly — so this also checks the
-    prior still reaches a real optimizer on the far side, where nothing has ever
-    drawn it (`core.priors` rebuilds the density)."""
+    """The file must carry a stated prior, since the prior steers the next run.
+    The file omits the knots, and `core.priors` rebuilds the density from `kind`
+    and `params`."""
     exp = _ran_experiment(client)
     assert exp.data.result is not None
     hp = next(iter(exp.data.result["configs"].values()))
@@ -212,10 +168,7 @@ def test_a_stated_prior_survives_a_round_trip(client):
     assert copy.data.priors == exp.data.priors
     assert "knots" not in copy.data.priors[name]
 
-    # And not merely stored: what came back is enough to rebuild the density
-    # the optimizer weights by, which is the whole reason the knots can be left
-    # out. Peaking at the stated mean is the cheapest proof that the numbers
-    # survived meaning intact rather than just surviving.
+    # The rebuilt density has its peak at the stated mean.
     from core.priors import density_from
 
     stated = copy.data.priors[name]

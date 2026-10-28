@@ -1,10 +1,6 @@
-"""A dataset of text, dates and gaps, end to end through `core`.
-
-`tests/fixtures/flats.csv` has a city (with missing cities), a room count, an
-area (with missing areas), a yes/no column, a listing date and a viewing
-timestamp. Every built-in model is trained on it for both tasks, a model in its
-own process is told what kind each column is, and an exported model predicts
-from the raw CSV exactly what the model predicted inside Codesigner.
+"""`tests/fixtures/flats.csv` mixes cities, counts, areas with gaps, a yes/no
+column and dates. Every built-in model trains on the fixture, and an exported
+model reproduces its in-app predictions from the raw CSV.
 """
 
 import json
@@ -31,8 +27,8 @@ FLATS = Path(__file__).parent.parent / "fixtures" / "flats.csv"
 
 
 def _flats(target=None):
-    """The fixture's encoded features and a target: its own last column, or
-    *target* taken out of the features."""
+    """`_flats` returns encoded features plus the target, the last column by
+    default."""
     frame = pd.read_csv(FLATS)
     if target:
         frame = frame.drop(columns=frame.columns[-1])
@@ -50,9 +46,7 @@ def _told(name, task, spec):
 
 
 def test_loading_a_mixed_file_gives_floats_and_drops_unlabelled_rows(tmp_path):
-    """What: `load_frame` encodes every feature to floats and leaves out a row
-    whose target is missing. How: loads the fixture, then a copy of it with two
-    targets blanked."""
+    """`load_frame` keeps feature gaps as NaN and drops rows missing a target."""
     X, y = datasets.load_frame(FLATS)
     spec = datasets.dataset_encoding(FLATS)
     assert X.dtype == float and X.shape == (240, len(encoding.feature_names(spec)))
@@ -73,10 +67,8 @@ REGRESSORS = sorted(n for n, m in MODELS.items()
 
 @pytest.mark.parametrize("name", CLASSIFIERS)
 def test_every_built_in_classifies_the_mixed_file(name):
-    """What: text, dates and gaps go in, labels come out — with probabilities
-    where the model has them — and the pattern in the data is learnt.
-    How: trains on 180 rows, predicts 60, and scores accuracy against the
-    roughly even split of the classes."""
+    """Classifiers must beat an even split and return probabilities where
+    supported."""
     spec, X, y = _flats()
     model = _told(name, "classification", spec)
     config = dict(model.get_config_space().get_default_configuration())
@@ -91,9 +83,7 @@ def test_every_built_in_classifies_the_mixed_file(name):
 
 @pytest.mark.parametrize("name", REGRESSORS)
 def test_every_built_in_regresses_on_the_mixed_file(name):
-    """What: the same columns predict a number. How: takes the area as the
-    target (dropping the rows where it is missing) and checks the predictions
-    are finite and correlate with the truth."""
+    """The area is the target, minus rows missing it."""
     spec, X, y = _flats(target="area_m2")
     known = ~pd.isna(y)
     X, y = X[known], y[known].astype(float)
@@ -107,9 +97,8 @@ def test_every_built_in_regresses_on_the_mixed_file(name):
 
 
 def test_a_model_in_its_own_process_is_told_the_kinds(tmp_path):
-    """What: `feature_kinds` reaches a model running in another process before
-    its first trial. How: a model that writes what it was told to a file, run
-    for one trial in a session given the kinds."""
+    """`feature_kinds` reaches a model in another process before its first
+    trial."""
     seen = tmp_path / "kinds.json"
     model_file = tmp_path / "model.py"
     model_file.write_text(HEADER + f'''
@@ -139,10 +128,7 @@ class Recorder(BaseModel):
 
 
 def test_an_exported_model_predicts_from_the_raw_csv_what_it_predicted_here(tmp_path):
-    """What: the exported file encodes a CSV of text and dates the way
-    Codesigner did, so its predictions are the model's own. How: exports the
-    forest with the fixture's encoding, runs it on the raw CSV in a fresh
-    interpreter, and compares with fitting the same configuration here."""
+    """`export_model` keeps Codesigner's text and date encoding."""
     from core.processing import resolve
 
     spec, X, y = _flats()
@@ -163,10 +149,8 @@ def test_an_exported_model_predicts_from_the_raw_csv_what_it_predicted_here(tmp_
 
 
 def test_a_very_wide_datasets_kinds_reach_a_model_in_its_own_process(tmp_path):
-    """What: a kinds list too long for one command-line argument (Linux caps one
-    at 128 KiB) still reaches the model, through a file the harness reads, and
-    the file is gone once the model is. How: tells a recording model twenty
-    thousand kinds and reads back how many and which it got."""
+    """Linux caps one argument at 128 KiB, and the kinds travel in a temporary
+    file instead."""
     import glob
     import tempfile
 

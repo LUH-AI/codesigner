@@ -1,24 +1,7 @@
-"""What a figure is.
-
-A **figure** is one analytics panel on an experiment page. Subclass `Figure` to
-declare a new one; the class *is* the declaration — its attributes say how the
-figure is named, which tab it is on, what shape it is, whether it is per-metric,
-and how it draws.
-Nothing outside the class needs editing: the visibility setting, its checkbox on
-the settings pages, its slot on the page and the id its plot is drawn into are
-all derived from `key`.
-
-    class TrialDuration(Figure):
-        key = "trial_duration"
-        label = _("Trial duration")
-        home_tab = MISC
-
-        @classmethod
-        def plot(cls, result, metric=None):
-            return trial_duration_plot(result)
-
-Then add it to `FIGURES` in `catalog.py` (order there is its default order on
-its tab) and write `ui/templates/ui/figures/trial_duration.html`.
+"""A `Figure` subclass declares one panel, and its visibility setting, checkbox,
+slot and DOM id all derive from `key`. A new figure also needs an entry in
+`FIGURES` in `catalog.py` and a template at
+`ui/templates/ui/figures/<key>.html`.
 """
 
 from __future__ import annotations
@@ -28,35 +11,26 @@ from typing import TYPE_CHECKING
 if TYPE_CHECKING:
     import plotly.graph_objects as go
 
-#: The tabs of an experiment page, in the order the tab bar shows them. Every
-#: figure lives on exactly one of the last three; Overview holds whichever of
-#: them a reader pinned there — see `ui/layout.py`.
+#: The tab bar shows the tabs in order, and each figure's home is one of the
+#: last three. Overview holds pinned figures.
 OVERVIEW = "overview"
 HYPERSHAP = "hypershap"
 ACQUISITION = "acquisition"
 MISC = "misc"
 TABS = (OVERVIEW, HYPERSHAP, ACQUISITION, MISC)
 
-#: The shapes a figure can take on the page's four-column grid. Each says which
-#: widths it may be given, in columns — one, two or the whole row, never three
-#: — and `app.css` gives each shape a height at each width.
-#:
-#: SQUAT is a tile a little taller than it is wide at one column, growing with
-#: each step until, the whole row wide, it is about a screen tall: importance,
-#: the interaction figures, a projected space. LONG is for anything read along
-#: an axis — a run over time, one coordinate per hyperparameter — so it starts
-#: at two columns and the height of a one-column squat figure. STACK is sized by
-#: its own content, for a figure that is several panels and the controls between
-#: them. TABLE is a fixed block, about a screen tall, that scrolls inside itself.
+#: Each shape allows widths of one, two or four grid columns, and `app.css` sets
+#: its height per width. SQUAT tiles grow to about a screen tall at full width.
+#: LONG plots read along an axis and start at two columns. STACK fits its
+#: content, and TABLE scrolls inside a fixed block.
 SQUAT = "squat"
 LONG = "long"
 STACK = "stack"
 TABLE = "table"
-#: A card of controls or text, as tall as what it holds at any width — the
-#: Data Handling page's panels.
+#: A card holds Data Handling controls or text at its natural height.
 CARD = "card"
 
-#: shape -> the widths it may be, in grid columns, narrowest first.
+#: shape -> allowed widths, narrowest first.
 SHAPES = {
     SQUAT: (1, 2, 4),
     LONG: (2, 4),
@@ -66,55 +40,42 @@ SHAPES = {
 }
 
 
-#: The pages an experiment's panels are on: its dashboard, whose tabs are
-#: above, and its Data Handling, whose tabs are its sections
-#: (`data_handling.py`).
+#: An experiment's pages: the dashboard and Data Handling.
 DASHBOARD = "dashboard"
 DATA = "data"
 
 
 class Panel:
-    """One block on one of an experiment's pages: a card in a slot of the
-    page's grid, on one of its tabs.
-
-    Every panel is placed, sized and drawn the same way, wherever it is. A
-    dashboard figure (`Figure`) and a Data Handling control or card
-    (`data_handling.DataPanel`) differ in what they show, not in how the
-    page holds them: the same slot, the same shapes and widths, the same
-    placement from `ui/figure_layout.toml`.
+    """Every block gets the same slot, shapes and placement, whether it is a
+    `Figure` or a `data_handling.DataPanel`. Placement comes from
+    `ui/figure_layout.toml`.
     """
 
-    # Django would otherwise *instantiate* the class when a template resolves it.
+    # Stops Django instantiating the class in templates.
     do_not_call_in_templates = True
 
-    #: Stable identifier. Names the template and the DOM id — and, for a
-    #: figure, its setting, which is stored, so renaming one is a data
-    #: migration.
+    #: Renaming a key is a data migration, since the key names the template, DOM
+    #: id and stored setting.
     key = ""
-    #: The heading shown on the panel.
+    #: Panel heading.
     label = ""
-    #: Which page it is on: DASHBOARD or DATA.
+    #: DASHBOARD or DATA.
     page = DASHBOARD
-    #: Which tab of that page it lives on. On the dashboard, not Overview: that
-    #: tab holds figures pinned from the others.
+    #: Home tab; on the dashboard, never Overview.
     home_tab = MISC
-    #: SQUAT, LONG, STACK or TABLE (see above). Where on its tab it goes and how
-    #: wide it opens are not the panel's to say: that is the site's default
-    #: layout, `ui/figure_layout.toml`.
+    #: The shape is SQUAT, LONG, STACK, TABLE or CARD, and
+    #: `ui/figure_layout.toml` decides placement and opening width.
     shape = SQUAT
-    #: Where its template is: `<template_dir>/<key>.html`.
+    #: Template directory.
     template_dir = "ui/figures"
-    #: Whether this panel only means something for a forecast — an experiment
-    #: evaluated by backtests. Left off every other page entirely rather than
-    #: shown empty. See `applies`.
+    #: True for panels meaningful only for a forecast; see `applies`.
     forecast_only = False
 
-    #: Set by __init_subclass__; declared here so the base class is usable too.
+    #: Set by `__init_subclass__`.
     template = ""
     dom_id = ""
 
     def __init_subclass__(cls, **kwargs):
-        """Derive the template and the id from the key, once per subclass."""
         super().__init_subclass__(**kwargs)
         if cls.key:
             cls.template = f"{cls.template_dir}/{cls.key}.html"
@@ -122,165 +83,93 @@ class Panel:
 
     @classmethod
     def applies(cls, data) -> bool:
-        """Whether this panel belongs on the page of the experiment *data*
-        (an `ExperimentData`) describes."""
+        """`applies` accepts the panel for *data*'s page."""
         return not cls.forecast_only or data.forecasts
 
     @classmethod
     def columns(cls):
-        """The widths this panel may be, in grid columns, narrowest first."""
+        """`columns` lists allowed widths, narrowest first."""
         return SHAPES[cls.shape]
 
     @classmethod
     def fit(cls, columns):
-        """*columns* made a width this panel may be: the widest allowed that
-        is no wider, or the narrowest if it is narrower than all of them."""
+        """`fit` picks the widest allowed width within *columns*, else the
+        narrowest."""
         allowed = cls.columns()
         fitting = [w for w in allowed if w <= columns]
         return fitting[-1] if fitting else allowed[0]
 
 
 class Figure(Panel):
-    """A dashboard panel that analyses the experiment's trials: a plot, a
-    table, a configuration. Each has a setting (`show_<key>`) that switches it
-    on and off for the experiment."""
-    #: True when the figure is drawn per evaluation metric, so it is rebuilt
-    #: when the metric selector changes; False when one plot covers the run.
+    """`Figure` extends `Panel` to trial plots that `show_<key>` switches."""
+    #: Per-metric figures rebuild when the metric selector changes.
     per_metric = False
-    #: Named view keys this figure offers, in declaration order; the first is
-    #: shown until the switcher is touched. Empty (the default) means no
-    #: switcher — every figure that predates this renders exactly as before.
-    #: A figure with views owns its own selector markup in its template (a
-    #: flat dropdown, two composed axis pickers, whatever fits it), since the
-    #: shapes differ enough that forcing one generic widget would fit neither
-    #: well; only the underlying draw/lookup plumbing is shared (see
-    #: experiment_detail.html's `payloadFor`).
+    #: The first named view shows by default, and an empty tuple means no
+    #: switcher. A figure with views writes its own selector markup and shares
+    #: only the draw plumbing (`payloadFor`).
     views: tuple[str, ...] = ()
-    #: Which of `views` a figure opens on, when that is not the first one
-    #: declared. Separate from the order of `views`, because the order they read
-    #: in and the one worth showing first are different questions — a figure can
-    #: list its views from simplest to richest and still open on the richest.
+    #: `default_view` overrides the first view as the opening one.
     default_view = ""
-    #: A Plotly relayout for this figure's "absolute" y-scale, which gives it
-    #: the absolute/relative toggle in its toolbar. None means no toggle. For
-    #: a figure with `views`, this is instead a dict keyed by view, since the
-    #: sensible "absolute" range can differ per view (e.g. a linear 0-1 score
-    #: vs. a log-scale error).
+    #: The "absolute" y-scale toggle takes a Plotly relayout, or a dict of
+    #: relayouts keyed by view. None means no toggle.
     absolute_scale: dict | None = None
-    #: Computations this figure fetches on demand rather than shipping in the
-    #: page payload, as `(name, label)` pairs. Each gets its own
-    #: `autocompute_<name>` setting: on (the default) fetches as soon as the
-    #: figure needs it, off puts a "Compute" button there instead, so a page
-    #: reload costs nothing until asked. Empty means the figure has nothing
-    #: deferred and gains no such setting.
-    #:
-    #: The names are the *computation's*, not the figure's, because one of them
-    #: isn't a whole figure: local ablation is a **view of** the importance
-    #: figure, so `autocompute_hyperparameter_importance` would claim the
-    #: importance numbers are deferred when they are computed once at run
-    #: completion and stored.
+    #: Each `(name, label)` computation is fetched on demand and has an
+    #: `autocompute_<name>` setting. The names follow the computation, since
+    #: local ablation is a view of the importance figure.
     deferred = ()
-    #: True when this figure's `plot()` takes a `config_space` keyword.
-    #: A builder that draws hyperparameter *values* on an axis needs to know how
-    #: each one is scaled — a log hyperparameter drawn on a linear axis crushes
-    #: the region the search actually explored into a stripe — and the stored
-    #: result carries values, not the space they came from. Declared rather than
-    #: passed to everything, so the figures that don't need it keep the plain
-    #: `(result, metric)` signature they have always had.
+    #: Figures setting `needs_config_space` get `config_space` in `plot()` to
+    #: draw log-scaled values correctly.
     needs_config_space = False
-    #: True when this figure draws every trial, and so can both take a click
-    #: naming one and show which one is selected. One trial is selected at a
-    #: time across the whole page, so these agree with each other and with the
-    #: Selected configuration panel — see experiment_detail.html's selection
-    #: bus, and `_selection_meta` in plots.py for how a plot says where its
-    #: trials are. A figure that draws a summary rather than the trials
-    #: themselves (importance, interactions, partial dependence) has no point to
-    #: click and nothing to highlight.
+    #: A figure that draws every trial takes clicks and shows the page-wide
+    #: selection.
     selects_trials = False
-    #: True when this figure draws one of the HyperSHAP games the sidebar's game
-    #: selector names (`HP_GAME_FIELDS`). Those are stored as gains over the
-    #: config space's default, and every other baseline the sidebar offers is
-    #: computed on request for exactly these figures — see `hypershap_figures`
-    #: in ui/views/analytics.py.
+    #: A HyperSHAP game figure gets its other baselines from `hypershap_figures`
+    #: on request.
     explains_games = False
-    #: True when this figure belongs in the page's sidebar rather than in the
-    #: figure grid. For a figure that answers a click made anywhere on the page
-    #: rather than showing something of its own: in the grid it scrolls out of
-    #: view exactly while it is being used. Everything else about such a figure
-    #: — its visibility setting, its per-metric panels, its place in the
-    #: catalog — is unchanged; only where the page puts it.
+    #: True for a figure that answers clicks elsewhere, since in the grid it
+    #: would scroll away while in use.
     in_sidebar = False
-    #: True when this figure can be redrawn from the trials alone, and so can be
-    #: updated while a run is still going. Trial performance, trial duration, the
-    #: projection and parallel coordinates all read nothing but `result.trials`;
-    #: importance, interactions, partial dependence and local effects each need a
-    #: surrogate fit or 2^n_hp coalition evaluations, and none of those may run
-    #: per trial. A partial result leaves their fields empty, which every one of
-    #: them already handles — it is what a cancelled run produces.
-    #:
-    #: About *plot* payloads only. A figure rendered as server-side HTML is not
-    #: redrawn by swapping Plotly JSON, so it does not set this even when it
-    #: does update live: the trials table takes rendered rows through the same
-    #: poll and appends them (see `ui/views/runs.py`'s `_live_payloads`), and the two
-    #: configuration panels do not update at all. See `run_status`.
+    #: Live figures redraw from the trials alone during a run. Surrogate-backed
+    #: figures cannot run per trial, and the trials table updates through
+    #: `_live_payloads` instead.
     live = False
     def __init_subclass__(cls, **kwargs):
-        """A figure's setting is derived from its key too."""
         super().__init_subclass__(**kwargs)
         if cls.key:
             cls.setting_key = f"show_{cls.key}"
 
     @classmethod
     def opening_view(cls):
-        """The view this figure draws before anything is switched."""
+        """`opening_view` is drawn before any switch."""
         return cls.default_view or (cls.views[0] if cls.views else None)
 
     @classmethod
     def absolute_scale_for(cls, metric) -> dict | None:
-        """This figure's absolute scale under *metric*, or None for no toggle.
-
-        The declaration above is the answer for every figure whose axes mean the
-        same thing whatever is being measured. A figure drawing the *score* on
-        an axis has to resolve it instead: "absolute" means the metric's own
-        full range, and an unbounded metric has none — so it overrides this and
-        returns None for those, which hides the toggle rather than pinning the
-        axis to a range invented for a different metric.
+        """A figure that plots the score overrides this to return None for an
+        unbounded metric, hiding the toggle.
         """
         return cls.absolute_scale
 
-    #: Set by __init_subclass__; declared here so the base class is usable too.
+    #: Set by `__init_subclass__`.
     setting_key = ""
 
     @classmethod
     def plot(cls, result, metric=None, view=None) -> go.Figure | None:
-        """This figure's Plotly plot, or None if it draws a table instead.
-
-        Figures with `per_metric = True` are called once per metric; the rest
-        are called once with `metric=None`. A figure with `views` is called
-        once per declared view (`view` is one of `views`; None means the
-        first/default); a figure with no views ignores the argument. A figure
-        declaring `needs_config_space` also takes `config_space`, which is None
-        when the model isn't available to build one from (a custom model viewed
-        read-only).
+        """Per-metric figures get one call per metric, and view figures one per
+        view. `config_space` is None when no model can build one.
         """
         return None
 
 
 def autocompute_key(name: str) -> str:
-    """The settings key for a deferred computation named *name*.
-
-    A boolean, not a tri-state: "never compute this" is already expressible as
-    switching the figure off (`show_<key>`), which suppresses its fetch too. Two
-    states means `_posted_settings`' `bool()` coercion needs no special case and
-    no new widget type is needed.
+    """Two states suffice, since switching the figure off already means never
+    computing.
     """
     return f"autocompute_{name}"
 
 
 def deferred_computations():
-    """Every `(name, label)` any figure defers, in catalog order.
-
-    Imported lazily to avoid a cycle: `catalog` imports from this module.
+    """`deferred_computations` defers importing `catalog`, which imports `base`.
     """
     from .catalog import FIGURES
     return [pair for figure in FIGURES for pair in figure.deferred]

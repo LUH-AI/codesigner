@@ -1,12 +1,6 @@
-"""The experiment page's inner sidebar: three sections, and they stay put.
-
-Everything in the sidebar is a decision the figures are an answer to — which
-experiment, which metric, which trial. A control that scrolls out of view while
-you are using it is one you have to go and find, so the sidebar is fixed and the
-figures scroll past it.
-
-The first section is the sidebar's own (base.html) and shows on every page; the
-experiment page adds the other two through `sidebar_sections`.
+"""The figures scroll past a fixed sidebar, since its controls choose the
+experiment, metric and trial. The experiment page adds sections to the base
+section through `sidebar_sections`.
 """
 
 import re
@@ -33,8 +27,7 @@ _RESULT = {
 
 
 def _experiment(**overrides):
-    """A runnable experiment with a result, so every section has something to
-    show — a dataset it can actually reach is what puts the run form there."""
+    """A reachable dataset puts the run form in the sidebar."""
     from experiments.services import snapshot as adapter
 
     fields = dict(
@@ -57,8 +50,7 @@ def _sidebar(client, exp):
 
 
 def test_the_sidebar_has_its_sections_in_order(client):
-    """Which experiment, then what it is scored on, then what is selected —
-    each one narrowing the last."""
+    """Each section narrows the last."""
     sidebar = _sidebar(client, _experiment())
     headings = re.findall(r"<h2>([^<]+)</h2>", sidebar)
 
@@ -66,8 +58,7 @@ def test_the_sidebar_has_its_sections_in_order(client):
 
 
 def test_other_pages_keep_the_first_section_alone(client):
-    """The sections come from the page, not from the sidebar: a page with only
-    one decision to offer shows one."""
+    """A page with one decision to offer shows one section."""
     _experiment()
     html = client.get(reverse("ui:home")).content.decode()
     sidebar = html.split('<nav class="sidebar"', 1)[1].split("</nav>", 1)[0]
@@ -76,9 +67,7 @@ def test_other_pages_keep_the_first_section_alone(client):
 
 
 def test_a_read_only_experiment_still_gets_them_all(client):
-    """No dataset means no run to configure, but the metric still drives every
-    figure and a trial can still be selected — so the sections are there with
-    the run form left out, rather than the sections disappearing."""
+    """A read-only experiment keeps every section and loses only the run form."""
     sidebar = _sidebar(client, _experiment(name="frozen", dataset_path=""))
 
     assert re.findall(r"<h2>([^<]+)</h2>", sidebar) == SECTIONS
@@ -87,9 +76,7 @@ def test_a_read_only_experiment_still_gets_them_all(client):
 
 
 def test_what_bounds_the_next_run_is_folded_away(client):
-    """It is set once; the metric above it is chosen constantly. So the metric
-    is the section and the rest is behind a fold — closed, since a page that
-    opens with a form open is a page asking to be filled in."""
+    """The run bounds sit in a closed fold, since people set them once."""
     sidebar = _sidebar(client, _experiment())
     details = sidebar.split("<details class=", 1)[1]
 
@@ -99,8 +86,7 @@ def test_what_bounds_the_next_run_is_folded_away(client):
 
 
 def test_a_run_in_flight_replaces_the_fold(client):
-    """There is nothing to configure until it finishes, and the alternative is
-    a form offering to start a run you cannot have."""
+    """A running run leaves nothing to configure until it finishes."""
     exp = _experiment(name="busy")
     exp.runs.create(primary_metric="accuracy", status="running", stopping={})
 
@@ -111,11 +97,10 @@ def test_a_run_in_flight_replaces_the_fold(client):
     assert 'id="metric-select"' in sidebar, "the figures still need it"
 
 
-# ── the open experiment's three views ───────────────────────────────────────
+# Experiment views
 
 def _views(html):
-    """The labels of the views listed under the open experiment, and which
-    one is marked current."""
+    """View labels under the open experiment, and the current one."""
     sidebar = html.split('<nav class="sidebar"', 1)[1].split("</nav>", 1)[0]
     if 'class="tab-list experiment-views"' not in sidebar:
         return [], []
@@ -127,10 +112,6 @@ def _views(html):
 
 
 def test_the_open_experiment_lists_its_three_views(client):
-    """What: under the open experiment are Dashboard, Data Handling and
-    Timeline, with the page's own view marked — Dashboard on the experiment
-    page and on the pages its header leads to.
-    How: fetches the dashboard, settings, data and timeline pages."""
     exp = _experiment()
     pages = {
         reverse("ui:experiment_detail", args=[exp.pk]): "Dashboard",
@@ -145,9 +126,7 @@ def test_the_open_experiment_lists_its_three_views(client):
 
 
 def test_only_the_open_experiment_shows_its_views(client):
-    """What: every other experiment stays one row, and its link opens its
-    dashboard. How: makes two experiments, opens one, and counts the view
-    lists and where the other's row points."""
+    """Every other experiment stays one row linking to its dashboard."""
     first = _experiment(name="first")
     second = _experiment(name="second")
     html = client.get(reverse("ui:experiment_timeline", args=[first.pk])).content.decode()
@@ -159,17 +138,13 @@ def test_only_the_open_experiment_shows_its_views(client):
 
 
 def test_pages_of_no_experiment_show_no_views(client):
-    """What: the home page and the list of all experiments open none.
-    How: fetches both and looks for a view list."""
     _experiment()
     for url in (reverse("ui:home"), reverse("ui:experiment_list")):
         assert _views(client.get(url).content.decode()) == ([], []), url
 
 
 def test_an_open_experiment_beyond_the_recent_ones_is_still_listed(client):
-    """What: an experiment older than the sidebar's most recent ones still
-    gets its row and its views while it is open.
-    How: makes more experiments than the sidebar lists, opens the oldest."""
+    """An open experiment keeps its row beyond the sidebar's limit."""
     from ui.context_processors import SIDEBAR_LIMIT
 
     oldest = _experiment(name="oldest")

@@ -1,14 +1,5 @@
-"""The search space travels with the experiment, not only with the model.
-
-*What:* the optional `space` section — a `.ihpo` may carry the search space its
-trials were drawn from, as ConfigSpace's own serialized dict, and everything
-that needs a space reads it before falling back to asking the model.
-
-*How:* a space is built from a registry model and put through each seam in
-turn — the file (`io.to_bytes`/`io.parse`), the row (`experiment_from_snapshot` and
-back), and the page (`config_space_for`) — including the case these exist for:
-an experiment with **no resolvable model at all**, which before this could
-answer nothing and now answers from the file.
+"""An `.ihpo` may carry its search space as ConfigSpace's serialized dict, and
+every reader of a space checks it before asking the model.
 """
 
 import json
@@ -23,7 +14,7 @@ from tests.conftest import FIXTURES_DIR
 
 
 def _a_space():
-    """A small space with a log scale and a category, as a serialized dict."""
+    """`_a_space` serializes a space with log scale and category."""
     from ConfigSpace import Categorical, ConfigurationSpace, Float, Integer
 
     space = ConfigurationSpace(
@@ -36,7 +27,6 @@ def _a_space():
 
 
 def test_a_space_decodes_back_to_the_same_hyperparameters():
-    """`config_space_from_serialized` is the inverse of `to_serialized_dict`."""
     decoded = io.config_space_from_serialized(_a_space(), seed=7)
     assert decoded is not None
 
@@ -46,11 +36,8 @@ def test_a_space_decodes_back_to_the_same_hyperparameters():
 
 
 def test_decoding_does_not_consume_the_stored_dict():
-    """Decoding twice works — `from_serialized_dict` pops keys off its input.
-
-    The stored dict belongs to a snapshot the caller keeps using, and
-    `config_space_for` runs several times per page render, so a decode that
-    destroyed its argument would work once and then raise.
+    """`from_serialized_dict` pops keys, and `config_space_for` decodes several
+    times per render.
     """
     stored = _a_space()
 
@@ -63,13 +50,12 @@ def test_decoding_does_not_consume_the_stored_dict():
 
 
 def test_no_space_is_not_an_error():
-    """None and {} both mean "this file predates the section", not a failure."""
+    """None and {} mean an older file."""
     assert io.config_space_from_serialized(None) is None
     assert io.config_space_from_serialized({}) is None
 
 
 def test_the_space_survives_the_file():
-    """`space` written into a file comes back out of `io.parse` unchanged."""
     snapshot = io.parse((FIXTURES_DIR / "test.ihpo").read_bytes())
     snapshot["space"] = _a_space()
 
@@ -80,7 +66,6 @@ def test_the_space_survives_the_file():
 
 @pytest.mark.django_db
 def test_the_space_survives_the_row():
-    """snapshot → Experiment row → snapshot keeps `space` byte-for-byte."""
     from experiments.services import snapshot as adapter
 
     original = io.parse((FIXTURES_DIR / "test.ihpo").read_bytes())
@@ -95,10 +80,8 @@ def test_the_space_survives_the_row():
 
 @pytest.mark.django_db
 def test_an_experiment_without_a_space_writes_no_section():
-    """An absent space is absent, not null.
-
-    Every experiment predating this has none, and a `"space": null` in each of
-    their files would claim they answer a question they do not.
+    """A `"space": null` would claim older experiments answer a question they
+    cannot.
     """
     from experiments.services import snapshot as adapter
 
@@ -112,10 +95,8 @@ def test_an_experiment_without_a_space_writes_no_section():
 
 
 def test_the_page_prefers_the_stored_space_over_the_model(models):
-    """`config_space_for` reads the file's space before asking the model.
-
-    The two can legitimately differ — a model whose search space was widened
-    since the run — and the trials belong to the one that produced them.
+    """A widened model space may differ, and the trials belong to the space that
+    produced them.
     """
     from experiments.services.snapshot import config_space_for
 
@@ -128,7 +109,6 @@ def test_the_page_prefers_the_stored_space_over_the_model(models):
 
 
 def test_the_page_falls_back_to_the_model(models):
-    """With no stored space, the model answers — exactly as it always did."""
     from experiments.services.snapshot import config_space_for
 
     model = next(iter(models.values()))
@@ -141,11 +121,8 @@ def test_the_page_falls_back_to_the_model(models):
 
 
 def test_a_space_with_no_model_still_answers():
-    """The case the section exists for: trials, a space, and no model at all.
-
-    A run read out of somebody else's output has no model, and a custom-model
-    experiment viewed read-only cannot import the one it has. Before the stored
-    space, both answered None here and lost every surrogate-backed figure.
+    """An imported run or a read-only custom-model experiment has no importable
+    model.
     """
     from experiments.services.snapshot import config_space_for
 
@@ -157,7 +134,7 @@ def test_a_space_with_no_model_still_answers():
 
 
 def test_nothing_to_ask_is_still_None():
-    """No space and no model stays None — the figures' supported empty answer."""
+    """None is the figures' supported empty answer."""
     from experiments.services.snapshot import config_space_for
 
     assert config_space_for({"model": None, "seed": 0}) is None
@@ -165,11 +142,7 @@ def test_nothing_to_ask_is_still_None():
 
 
 def test_a_newer_format_is_refused_rather_than_lifted():
-    """A format this build does not know is an error, not a format 1 file.
-
-    `normalize` dispatched on exact equality, so anything that was not format 2
-    fell to the format 1 lifter — which does not fail on a future file, it
-    quietly returns a snapshot with most of its sections empty.
+    """The format 1 lifter would return a future file with most sections empty.
     """
     snapshot = io.parse((FIXTURES_DIR / "test.ihpo").read_bytes())
     snapshot["format"] = io.SNAPSHOT_FORMAT + 1

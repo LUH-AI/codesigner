@@ -1,9 +1,6 @@
-"""An exported model is the tuned model, and runs on its own.
-
-Every tabular built-in, for every task it does, is exported with a sampled
-configuration and run in a fresh interpreter that cannot import Codesigner or
-its SDK, on a bundled dataset — and must predict what the same model, fitted on
-the same rows here, predicts. Its file must carry nothing of the search.
+"""`export_model` writes a sampled configuration of each tabular model, and the
+file runs without Codesigner and predicts what the in-app fit predicts. The
+exported file carries nothing of the search.
 """
 
 import ast
@@ -23,15 +20,13 @@ from core.registry import MODELS
 
 from tests.conftest import DATASETS_DIR, FIXTURES_DIR
 
-#: The built-ins that train on a table and predict another — every one but the
-#: forecasters, whose export forecasts from a history instead (see
-#: tests/core/test_forecasting.py).
+#: Forecasters export a history-based forecast instead.
 TABULAR = sorted(n for n, m in MODELS.items() if not getattr(m, "forecaster", False))
 
-#: Every (model, task) a tabular built-in can be exported for.
+#: Every exportable (model, task) pair.
 CASES = [(name, task) for name in TABULAR for task in MODELS[name].tasks]
 
-#: What only a search has: none of it may appear in an exported built-in.
+#: Names an exported built-in must never contain.
 SEARCH_NAMES = {"get_config_space", "ConfigurationSpace", "ConfigSpace", "codesigner_model",
                 "Tunable", "OptimizableBaseModel", "fit_predict", "CONFIG", "TASK", "SEED",
                 "FEATURE_KINDS"}
@@ -59,9 +54,8 @@ def _export(model, spec, config):
 
 
 def _run(script, tmp_path, *args):
-    """Runs *script* in a fresh interpreter where neither Codesigner nor its
-    SDK can be imported: a package of each name that refuses to import is
-    found first."""
+    """`_run` shadows `core`, `codesigner_model` and `ConfigSpace` with blocking
+    packages."""
     path = tmp_path / "model.py"
     path.write_text(script)
     blockers = tmp_path / "blockers"
@@ -75,10 +69,7 @@ def _run(script, tmp_path, *args):
 
 @pytest.mark.parametrize("name, task", CASES, ids=[f"{n}-{t}" for n, t in CASES])
 def test_an_export_predicts_what_the_tuned_model_does(name, task, tmp_path):
-    """What: the exported file, run without Codesigner on the dataset, predicts
-    exactly what the model fitted here on the same rows does — processing and
-    all. How: exports a sampled configuration, trains it on the whole file,
-    predicts its first 20 rows both ways."""
+    """The export and the in-app fit must predict the same first 20 rows."""
     model, spec, frame, X, y = _model_for(name, task, _data(task))
     config = dict(model.get_config_space(seed=3).sample_configuration())
     new = tmp_path / "new.csv"
@@ -91,7 +82,7 @@ def test_an_export_predicts_what_the_tuned_model_does(name, task, tmp_path):
     here = model.fit_predict(config, X, y, X[:20], seed=0)
 
     if task == "regression":
-        # Some boosters predict in single precision, which a CSV writes as such.
+        # Some boosters predict in single precision.
         np.testing.assert_allclose(there.astype(float), np.asarray(here, dtype=float), rtol=1e-6)
     else:
         assert list(map(str, there)) == list(map(str, here))
@@ -99,9 +90,7 @@ def test_an_export_predicts_what_the_tuned_model_does(name, task, tmp_path):
 
 @pytest.mark.parametrize("name, task", CASES, ids=[f"{n}-{t}" for n, t in CASES])
 def test_an_export_carries_nothing_of_the_search(name, task):
-    """What: no search space, no SDK, no trial machinery — only the model, its
-    hyperparameters and the data processing, each in its own section.
-    How: reads every name the exported file defines or uses."""
+    """Only the model, hyperparameters and processing remain, each in a section."""
     model, spec, *_ = _model_for(name, task, _data(task))
     script = _export(model, spec, dict(model.get_config_space().get_default_configuration()))
     tree = ast.parse(script)
@@ -118,9 +107,7 @@ def test_an_export_carries_nothing_of_the_search(name, task):
 
 
 def test_the_hyperparameters_are_the_trials_and_the_processing_the_experiments():
-    """What: HYPERPARAMETERS is the configuration as plain values, and
-    PROCESSING the experiment's choices as this model resolves them.
-    How: exports an SVM told to leave its numbers unscaled, and reads both."""
+    """`PROCESSING` holds the experiment's choices as the model resolves them."""
     model, spec, *_ = _model_for("SVM", "classification", _data("classification"),
                                  {"scale": "none"})
     config = dict(model.get_config_space().get_default_configuration())
@@ -133,8 +120,7 @@ def test_the_hyperparameters_are_the_trials_and_the_processing_the_experiments()
 
 
 def test_a_dataset_of_numbers_needs_no_column_reading():
-    """What: COLUMNS is None when every column is already a number — the file
-    reads them as they are. How: exports for diabetes."""
+    """All-numeric data needs no column reading."""
     model, spec, *_ = _model_for("Elastic Net", "regression", DATASETS_DIR / "diabetes.csv")
     script = _export(model, spec, dict(model.get_config_space().get_default_configuration()))
 
@@ -142,9 +128,6 @@ def test_a_dataset_of_numbers_needs_no_column_reading():
 
 
 def test_inactive_hyperparameters_are_left_out():
-    """What: a conditional hyperparameter that does not apply is absent from
-    HYPERPARAMETERS, not written as NaN. How: passes NaN and a numpy scalar
-    through."""
     assert configuration({"a": float("nan"), "b": np.int64(3), "c": "x"}) == {"b": 3, "c": "x"}
 
 
@@ -174,9 +157,8 @@ CUSTOM = textwrap.dedent('''\
 
 
 def test_an_uploaded_model_is_delivered_as_written_without_its_search_space(tmp_path):
-    """What: a person's own model keeps its code and its header (pandas added
-    for the runner) and `from __future__` first, loses `get_config_space`, and
-    runs without the SDK. How: exports a small model and runs it."""
+    """An upload keeps its code and header, gains pandas, and loses
+    `get_config_space`."""
     script = export_upload(CUSTOM, class_name="Majority", task="classification",
                            config={"suffix": "!"}, seed=0, about="Majority, tuned.")
 
@@ -195,8 +177,7 @@ def test_an_uploaded_model_is_delivered_as_written_without_its_search_space(tmp_
 
 
 def test_an_uploaded_model_without_a_header_gets_one():
-    """What: a model with no PEP 723 header gets one naming what the runner
-    needs. How: exports a header-less source and reads its header."""
+    """`export_upload` adds a header naming what the runner needs."""
     source = CUSTOM.split("\n# ///\n", 1)[1]
     script = export_upload(source, class_name="Majority", task="classification", config={})
 

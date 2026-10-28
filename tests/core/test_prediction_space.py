@@ -1,10 +1,5 @@
-"""Contract for the configuration cube's prediction layer
-(core/analytics.py `sample_prediction_space`, core/projection.py `Fitted`).
-
-One even sample of the whole search space is predicted once per metric, and
-placed in every view the cube has: on the hyperparameters' own axes, and through
-the same fitted PCA and PLS the trials are drawn with. Each projection also
-carries the edge of where a legal configuration can land.
+"""`sample_prediction_space` predicts one even sample of the search space per
+metric and places it in every cube view, with an outline per projection.
 """
 
 from typing import cast, List
@@ -21,8 +16,7 @@ from core.projection import fit
 
 
 def _trials(iris_splits, metrics):
-    """Twelve random-search trials of a random forest on iris, seed 0: enough
-    for three components and a surrogate."""
+    """`_trials` runs twelve seeded random-search trials of a forest on iris."""
     X_train, X_val, y_train, y_val = iris_splits
     return RandomOptimizer().optimize(
         RandomForestModel(), X_train, y_train, X_val, y_val,
@@ -30,8 +24,7 @@ def _trials(iris_splits, metrics):
 
 
 def _space():
-    """A small space with one of each kind: a log float, an integer and a
-    categorical."""
+    """`_space` mixes a log float, an integer and a categorical."""
     cs = ConfigurationSpace(seed=0)
     cs.add([Float("C", (0.01, 100.0), log=True), Integer("n", (1, 10)),
             Categorical("kernel", ["a", "b", "c"])])
@@ -39,8 +32,7 @@ def _space():
 
 
 def _synthetic_trials(cs, count=20):
-    """*count* trials of *cs*, scored by a smooth function of C so a surrogate
-    has something to learn."""
+    """`_synthetic_trials` scores each trial by a smooth function of `C`."""
     rng = np.random.default_rng(0)
     trials = []
     for i, config in enumerate(cs.sample_configuration(count)):
@@ -52,12 +44,8 @@ def _synthetic_trials(cs, count=20):
 
 @pytest.mark.parametrize("method", ["pca", "pls"])
 def test_a_configuration_projects_where_a_trial_running_it_would(iris_splits, metrics, method):
-    """Pushed through the fitted projection, the trials' own configurations land
-    on the trials' own coordinates.
-
-    That is what lets a sampled configuration share a picture with the trials:
-    one encoding, one fitted model. Agreement to 1e-9 — the same arithmetic in
-    a different order.
+    """`Fitted.transform` maps the trials' configurations onto their coordinates
+    to 1e-9.
     """
     cs = RandomForestModel().get_config_space(seed=0)
     trials = _trials(iris_splits, metrics)
@@ -71,13 +59,6 @@ def test_a_configuration_projects_where_a_trial_running_it_would(iris_splits, me
 
 @pytest.mark.parametrize("method", ["pca", "pls"])
 def test_every_legal_configuration_lands_inside_the_outline(iris_splits, metrics, method):
-    """No sampled configuration falls outside the edge drawn for it, in one,
-    two or three dimensions.
-
-    Setup: the prediction layer's own sample of the random forest's space.
-    Expect: every sample inside the interval, the polygon and the polyhedron,
-    allowing 1e-6 for points that sit exactly on a face.
-    """
     from scipy.spatial import ConvexHull
 
     cs = RandomForestModel().get_config_space(seed=0)
@@ -102,11 +83,8 @@ def test_every_legal_configuration_lands_inside_the_outline(iris_splits, metrics
 
 
 def test_the_outline_is_the_box_and_no_larger(iris_splits, metrics):
-    """The one-dimensional outline's ends are where the box's own corners land.
-
-    The image of a box under a linear map is spanned by its corners, so the
-    furthest any legal configuration can reach along a component is a corner's
-    position — the outline is exact, not a padded guess.
+    """A box's image under a linear map is spanned by its corners, so the
+    outline is exact.
     """
     import itertools
 
@@ -125,14 +103,8 @@ def test_the_outline_is_the_box_and_no_larger(iris_splits, metrics):
 
 
 def test_the_sample_covers_the_space_evenly_on_its_own_scales():
-    """A log hyperparameter is sampled logarithmically, a categorical takes each
-    choice equally often, an integer stays in its range.
-
-    Setup: a space with one of each, 4,096 samples.
-    Expect: about half of C below 1 (the middle of 0.01–100 on its log scale),
-    each kernel about a third of the time, every n an integer in 1–10. Within
-    two points either way: a Sobol sample is far more even than that, so a
-    failure means the scale is wrong rather than unlucky.
+    """A Sobol sample is far more even than the two-point tolerance, so a
+    failure points to a wrong scale.
     """
     cs = _space()
     answer = analytics.sample_prediction_space(
@@ -148,7 +120,6 @@ def test_the_sample_covers_the_space_evenly_on_its_own_scales():
 
 
 def test_the_sample_follows_the_experiments_seed():
-    """The same seed draws the same sample, and another seed another one."""
     cs = _space()
     trials = _synthetic_trials(cs)
     opt = RandomOptimizer()
@@ -162,9 +133,8 @@ def test_the_sample_follows_the_experiments_seed():
 
 
 def test_what_expected_improvement_needs_comes_with_it():
-    """Each sample carries a mean and a spread, and the answer the best observed
-    score and which way the metric runs — everything the page's expected
-    improvement takes. A forest is not smooth, and says so."""
+    """`sample_prediction_space` returns everything the page's expected
+    improvement needs."""
     cs = _space()
     trials = _synthetic_trials(cs)
     answer = analytics.sample_prediction_space(
@@ -178,12 +148,8 @@ def test_what_expected_improvement_needs_comes_with_it():
 
 @pytest.mark.parametrize("method", ["pca", "pls"])
 def test_the_linear_map_is_the_projection(iris_splits, metrics, method):
-    """Encoding a configuration by the map's columns and applying its matrix and
-    offset lands exactly where `transform` puts it.
-
-    The page places proposed configurations with these numbers alone, so they
-    must be the projection rather than an approximation of it. Checked on the
-    trials' own configurations, in plain numpy, the way the page computes it.
+    """The page places proposed configurations with `linear_map` alone, so the
+    map must match `transform` to 1e-9.
     """
     import math
 
@@ -208,9 +174,8 @@ def test_the_linear_map_is_the_projection(iris_splits, metrics, method):
 
 
 def test_each_sample_carries_its_vectorized_position():
-    """Every sample comes with its row in ConfigSpace's vectorized form — the
-    axis a prior's density is stated on — so the page can weight it by any
-    prior without asking again."""
+    """`vectors` holds each sample's ConfigSpace array, the axis priors are
+    stated on."""
     from ConfigSpace import Configuration
 
     cs = _space()

@@ -16,20 +16,10 @@ from ..permissions import experiment_view
 
 
 def _posted_settings(request):
-    """The settings as submitted, coerced to the type of each default.
-
-    Almost every setting is a checkbox, where absent means off. The exceptions
-    are the numeric ones — counts like `ice_max_curves`, and
-    `prior_acceptance_tolerance`, which is a fraction of an objective's own
-    scale — clamped to `SETTING_BOUNDS`. A display preference typed into a box
-    is not worth failing a form over, and anything unreadable falls back to the
-    built-in default rather than to zero, which would mean something specific
-    and wrong ("no limit", or "refuse every prior").
-
-    Keyed off `type(default)` rather than a second list of which settings are
-    numbers, so declaring one in `SETTING_DEFAULTS` is all it takes — and that
-    type is what each is read as, so a count stays a count and a tolerance
-    keeps its decimals.
+    """`_posted_settings` coerces each field to the type of its
+    `SETTING_DEFAULTS` entry. An absent checkbox is off, numbers clamp to
+    `SETTING_BOUNDS`, and unreadable or off-list values take the default, since
+    zero would mean "no limit" or "refuse every prior".
     """
     posted = {}
     for key, default in SETTING_DEFAULTS.items():
@@ -51,12 +41,8 @@ def _posted_settings(request):
 
 @experiment_view(EDIT)
 def experiment_settings(request, exp):
-    """One experiment's settings: inherit the defaults, override, reset, or
-    promote its own settings to be the defaults (which asks first).
-
-    How the search runs is not here. An optimizer's settings are chosen when the
-    experiment is created and fixed for its life, like `cv_folds` — see
-    `optimizer_form._posted_params`.
+    """`experiment_settings` inherits, overrides, resets or promotes one
+    experiment's settings; optimizer settings stay fixed from creation.
     """
     if request.method == "POST":
         if "reset" in request.POST or request.POST.get("use_default_settings"):
@@ -73,7 +59,6 @@ def experiment_settings(request, exp):
                 raise PermissionDenied
 
         if "save_as_default" in request.POST:
-            # Ask before changing what every inheriting experiment shows.
             return render(request, "ui/save_as_default_confirm.html", {
                 "experiment": exp,
                 "pending": [key for key, on in posted.items() if on],
@@ -99,10 +84,8 @@ def experiment_settings(request, exp):
 
 
 def appearance(request):
-    """How the pages look in this browser: light, dark, or as the system is.
-
-    Kept in a cookie for a year — see `context_processors.theme` on why there
-    and not on the account. A choice that is not one of the three is ignored.
+    """`appearance` saves the theme (light, dark or system) in a year-long
+    cookie and ignores any other choice.
     """
     from ..context_processors import THEME_COOKIE, THEMES
     if request.method == "POST":
@@ -119,10 +102,8 @@ def appearance(request):
 
 
 def export_preferences(request):
-    """How this reader's exported files carry times, unless an experiment says
-    otherwise (ui/times.py). Kept for the reader rather than for
-    the browser: it is a decision about what they send, wherever they send it
-    from."""
+    """`export_preferences` keeps the reader's export time format on the
+    account, so the format follows the reader to any browser."""
     if request.method == "POST":
         times.set_reader_preference(request.user, request.POST.get("export_timestamps"))
         return redirect("ui:export_preferences")
@@ -133,22 +114,14 @@ def export_preferences(request):
 
 
 def account(request):
-    """Who you are signed in as, and what you may do here.
-
-    Assembled rather than looked up: the answer now comes from four separate
-    grants, held directly or through a group, and before this there was no page
-    anywhere that could say what they added up to. An operator reading a bug
-    report needs it as much as the person does.
-
-    Absent without accounts — `REQUIRE_LOGIN` off means there is no account to
-    describe and every answer would be an unconditional yes.
+    """`account` lists what the signed-in user may do, assembled from four
+    grants held directly or through a group. With `REQUIRE_LOGIN` off, the page
+    is a 404.
     """
     if not settings.REQUIRE_LOGIN:
         raise Http404
     current = policy()
     return render(request, "ui/account.html", {
-        # Each paired with what it lets you do rather than its codename, which
-        # names the grant and not the consequence.
         "powers": [
             (_("See every experiment on this instance"),
              request.user.has_perm("access.view_all_experiments")),
@@ -159,17 +132,15 @@ def account(request):
             (_("Upload and run custom models"),
              current.may_upload_models(request)),
         ],
-        # Its own line because it is an instance-wide floor rather than
-        # something about this account: off means off, for everyone.
+        # An instance-wide floor, separate from this account's grants.
         "custom_models_off": not settings.ALLOW_CUSTOM_MODELS,
         "is_administrator": request.user.is_superuser,
     })
 
 
 def default_experiment_settings(request):
-    """Edit the default experiment settings that inheriting experiments use.
-
-    Every key in the schema is a checkbox, so an absent key means unchecked.
+    """`default_experiment_settings` edits the defaults inheriting experiments
+    use.
     """
     if not policy().may_change_defaults(request):
         raise PermissionDenied

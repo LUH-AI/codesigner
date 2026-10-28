@@ -1,8 +1,4 @@
-"""Figures: the analytics panels on an experiment page.
-
-`catalog.py` declares which figures exist; `plots.py` builds the Plotly plot
-for each figure that draws one. Their templates live in
-`ui/templates/ui/figures/`, one per figure, named for its key.
+"""`catalog.py` declares the figures, and `plots.py` builds their Plotly plots.
 """
 
 from .base import (

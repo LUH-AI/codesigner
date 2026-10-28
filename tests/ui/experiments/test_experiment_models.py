@@ -1,16 +1,13 @@
-"""Step 3 TDD: contracts for the Experiment and Run database models.
-
-Written before the models exist — each test imports inside its body so the
-suite collects cleanly while these fail. They define the store's shape:
-an Experiment row mirrors an .ihpo snapshot; a Run row tracks one
-optimization run's lifecycle with a DB-readable cancel flag.
+"""`Experiment` holds an `.ihpo` snapshot's fields through `exp.data`, and `Run`
+tracks one run with a cancel flag the database can read.
 """
 
 import pytest
 
 
 def _snapshot_fields():
-    """Minimal valid field values for creating an Experiment row directly."""
+    """`_snapshot_fields` gives minimal valid fields for
+    `Experiment.objects.create`."""
     return dict(
         name="exp-1",
         model_name="Random Forest",
@@ -25,10 +22,7 @@ def _snapshot_fields():
 
 @pytest.mark.django_db
 def test_experiments_may_share_a_name():
-    """Two experiments can share a name; the identifier tells them apart.
-
-    Names are a human label, not an identity — each row carries its own
-    unique identifier, so the database allows duplicate names.
+    """The unique identifier tells same-named experiments apart.
     """
     from experiments.models import Experiment
 
@@ -40,11 +34,7 @@ def test_experiments_may_share_a_name():
 
 @pytest.mark.django_db
 def test_experiment_defaults_for_fresh_rows():
-    """A freshly created experiment has no result, no files, and timestamps.
-
-    Expect: result is None (JSONField, nullable — an experiment that has
-    never run), dataset/model_file are falsy (no uploads yet), and
-    created_at is populated automatically.
+    """A new row has no result or uploads, and gets `created_at`.
     """
     from experiments.models import Experiment
 
@@ -57,10 +47,8 @@ def test_experiment_defaults_for_fresh_rows():
 
 @pytest.mark.django_db
 def test_experiment_json_fields_round_trip():
-    """optimizer_params and metric_names survive a save/reload cycle intact.
-
-    JSONFields must preserve dict/list structure exactly — these values are
-    fed back into optimizer constructors and metric registries.
+    """The JSON values feed optimizer constructors and metric lookups, so their
+    structure must survive.
     """
     from experiments.models import Experiment
 
@@ -75,10 +63,8 @@ def test_experiment_json_fields_round_trip():
 
 @pytest.mark.django_db
 def test_run_lifecycle_defaults():
-    """A new Run starts pending with cancellation unrequested.
-
-    Expect: status "pending", cancel_requested False, error empty, and no
-    finished_at — the state a run is in between form-submit and pickup.
+    """A new Run is pending, uncancelled and unfinished until a worker picks it
+    up.
     """
     from experiments.models import Experiment, Run
 
@@ -93,11 +79,6 @@ def test_run_lifecycle_defaults():
 
 @pytest.mark.django_db
 def test_runs_are_deleted_with_their_experiment():
-    """Deleting an experiment removes its runs (no orphaned lifecycle rows).
-
-    Mirrors delete-with-confirm semantics: the experiment and everything
-    about it disappears together.
-    """
     from experiments.models import Experiment, Run
 
     exp = Experiment.objects.create(**_snapshot_fields())
@@ -109,11 +90,6 @@ def test_runs_are_deleted_with_their_experiment():
 
 @pytest.mark.django_db
 def test_experiment_and_run_are_registered_in_admin():
-    """Both models appear in the Django admin registry.
-
-    The admin is the Step 3 inspection surface; unregistered models would
-    make the verify step impossible.
-    """
     from django.contrib import admin
     from experiments.models import Experiment, Run
 

@@ -1,9 +1,5 @@
-"""run_info round-trips through the .ihpo serialize/deserialize, uniformly.
-
-A trial's run_info is splatted into its data entry on serialize and collected
-back on deserialize, so timing survives a save/load. Trials without run_info
-(old files) emit no timing keys and deserialize to duration 0.0 — backward
-compatible with existing fixtures.
+"""`serialize_result` spreads run_info into each data entry, and
+`deserialize_result` collects run_info back.
 """
 
 from typing import Any, Dict
@@ -49,8 +45,7 @@ def test_serialized_entry_carries_all_run_info_keys(optimizers):
 
 
 def test_empty_run_info_emits_no_timing_keys(optimizers):
-    """A trial with no run_info serializes to an entry without timing keys, and
-    deserializes back to an empty run_info (duration 0)."""
+    """`deserialize_result` loads old files without run_info with duration 0."""
     opt = optimizers["Random Search"]()
     d = opt.serialize_result(_result([_trial(1)]))
     entry = d["data"][0]

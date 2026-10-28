@@ -1,15 +1,6 @@
-"""The login wall, and the two things that have to stay outside it.
-
-`REQUIRE_LOGIN` is the whole switch. Off, the wall must be invisible — that is
-the primary case, and a local install regressing into a login prompt would be
-the worst outcome of this package existing at all. On, everything is gated
-*except* the healthcheck and the language switcher, and the tests below pin why
-each exception is there rather than just that it is.
-
-The wall is default-closed: Django's `LoginRequiredMiddleware` gates a view
-unless it is marked exempt, so a route added later is protected by having been
-forgotten about. `test_the_url_space_has_no_unintended_exemptions` is what keeps
-the exempt list from quietly growing.
+"""`REQUIRE_LOGIN` switches the wall, and a local install with the switch off
+never sees a login prompt. `LoginWallMiddleware` exempts the login page, the
+healthcheck and the language switcher.
 """
 
 import pytest
@@ -20,7 +11,6 @@ pytestmark = pytest.mark.django_db
 
 @pytest.fixture
 def hosted(settings):
-    """An instance with accounts."""
     settings.REQUIRE_LOGIN = True
 
 
@@ -29,10 +19,8 @@ def user(django_user_model):
     return django_user_model.objects.create_user(username="ana", password="pw")
 
 
-# ── off: nothing changes ─────────────────────────────────────────────────────
-
 def test_without_the_setting_no_page_asks_for_a_login(client, settings):
-    """The primary case. Most installs are one person on their own machine."""
+    """Most installs are one person on one machine."""
     settings.REQUIRE_LOGIN = False
 
     for name in ("ui:home", "ui:new_experiment", "ui:import_experiment",
@@ -41,24 +29,21 @@ def test_without_the_setting_no_page_asks_for_a_login(client, settings):
 
 
 def test_the_wall_is_installed_even_when_it_is_off():
-    """Inert, not absent: the hosted and unhosted configurations are the same
-    configuration, so turning the switch on cannot miss a step."""
+    """One configuration serves both modes, so turning the switch on cannot miss
+    a step."""
     from django.conf import settings as django_settings
 
     assert "access.middleware.LoginWallMiddleware" in django_settings.MIDDLEWARE
 
 
 def test_the_switch_is_read_per_request(client, settings):
-    """Not captured at startup — an operator's `.env` and a test both change it
-    after the middleware was constructed."""
+    """Tests change the setting after the middleware is built."""
     settings.REQUIRE_LOGIN = True
     assert client.get(reverse("ui:home")).status_code == 302
 
     settings.REQUIRE_LOGIN = False
     assert client.get(reverse("ui:home")).status_code == 200
 
-
-# ── on: the wall ─────────────────────────────────────────────────────────────
 
 def test_a_stranger_is_sent_to_the_login_page(client, hosted):
     resp = client.get(reverse("ui:home"))
@@ -68,7 +53,7 @@ def test_a_stranger_is_sent_to_the_login_page(client, hosted):
 
 
 def test_the_page_they_wanted_is_carried_across_the_login(client, hosted):
-    """A shared link to an experiment should still land on that experiment."""
+    """Shared links should land on their experiment."""
     target = reverse("ui:appearance")
     resp = client.get(target)
 
@@ -99,8 +84,7 @@ def test_a_wrong_password_says_so_rather_than_signing_in(client, hosted, user):
 
 
 def test_signing_out_needs_a_post(client, hosted, user):
-    """A GET logout can be triggered by anything that makes the browser fetch a
-    URL — an <img> tag on another site is enough."""
+    """An `<img>` tag on another site can trigger a GET logout."""
     client.force_login(user)
     assert client.get(reverse("ui:logout")).status_code == 405
 
@@ -113,11 +97,8 @@ def test_signing_out_ends_the_session(client, hosted, user):
     assert client.get(reverse("ui:home")).status_code == 302
 
 
-# ── on: the two exemptions ───────────────────────────────────────────────────
-
 def test_the_healthcheck_answers_without_a_session(client, hosted):
-    """The container runtime has no session. A healthcheck that 302s to a login
-    page reports a healthy instance as down, and the orchestrator restarts it
+    """A 302 healthcheck would make the orchestrator restart a healthy instance
     forever."""
     resp = client.get(reverse("ui:healthz"))
 
@@ -126,12 +107,8 @@ def test_the_healthcheck_answers_without_a_session(client, hosted):
 
 
 def test_the_language_route_is_reachable_before_signing_in(client, hosted):
-    """The login page carries the switcher whenever more than one language is
-    offered, so the route has to work while gated — otherwise the one page a
-    stranger can reach would be the one page they might not be able to read.
-
-    Only English is offered at the moment (see `config.settings.LANGUAGES`), so
-    what this pins is the exemption, not a translation.
+    """`set_language` must work before sign-in because the login page carries
+    the switcher.
     """
     resp = client.post(reverse("set_language"),
                        {"language": "en", "next": reverse("ui:login")})
@@ -141,8 +118,7 @@ def test_the_language_route_is_reachable_before_signing_in(client, hosted):
 
 
 def test_the_url_space_has_no_unintended_exemptions(hosted):
-    """The wall is default-closed, so an exemption is always deliberate. This
-    lists the deliberate ones; anything else appearing here is a hole."""
+    """The wall is default-closed, so every exemption listed here is deliberate."""
     exempt = set()
     for pattern in get_resolver().url_patterns:
         for route in getattr(pattern, "url_patterns", [pattern]):

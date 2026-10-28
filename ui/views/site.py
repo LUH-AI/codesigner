@@ -1,6 +1,4 @@
-"""The site admin's pages: groups, the trash, usage and running jobs.
-
-A site admin reaches no experiment at all, so none of these go through
+"""A site admin reaches no experiment, so the site views skip
 `@experiment_view`.
 """
 
@@ -33,9 +31,8 @@ from ..formatting import human
 
 
 def site_admin_required(view):
-    """Holds `manage_site`. Deliberately not "is a superuser": see
-    `access/management/commands/create_site_admin.py` on why the role is a
-    permission rather than a rank."""
+    """`site_admin_required` demands `manage_site`, a permission rather than
+    superuser."""
     @wraps(view)
     def wrapped(request, *args, **kwargs):
         if not is_site_admin(request.user):
@@ -46,11 +43,8 @@ def site_admin_required(view):
 
 @site_admin_required
 def site_groups(request):
-    """Every group, its size and whether it is active.
-
-    No experiments anywhere on this page or the two below it. A site admin
-    manages groups; showing them colleagues' work is the thing the separation
-    exists to prevent.
+    """`site_groups` lists every group's size, storage and status, and shows no
+    experiments.
     """
     groups = list(Group.objects.annotate(members=Count("memberships")))
     for group in groups:
@@ -64,7 +58,7 @@ def site_groups(request):
 @require_POST
 @site_admin_required
 def site_group_save(request):
-    """Create a group, or change one's limit or whether it is active."""
+    """`site_group_save` creates a group or edits one."""
     pk = request.POST.get("pk")
     name = (request.POST.get("name") or "").strip()
     try:
@@ -86,7 +80,7 @@ def site_group_save(request):
         group.name = name
         group.user_limit = limit
         group.is_active = bool(request.POST.get("is_active"))
-        if storage_gb == storage_gb:  # not NaN: a limit was given
+        if storage_gb == storage_gb:  # NaN means left blank
             group.storage_limit_bytes = int(storage_gb * 1024 ** 3)
         group.save(update_fields=["name", "user_limit", "is_active", "storage_limit_bytes"])
         forget_storage(group)
@@ -100,16 +94,9 @@ def site_group_save(request):
 
 
 def _create_group(request, name, limit):
-    """A new group, and the primary lead it cannot be created without.
-
-    A group with nobody able to appoint a lead is a group that cannot grow —
-    the reason `access/migrations/0007` exists — so the two are made together
-    or not at all. The lead is named by email, and an unknown address creates
-    the account, the same door `group_add_person` uses.
-
-    A seat limit of zero is refused here for the same reason: the primary lead
-    occupies a seat, and a group created already over its own limit is a state
-    nothing else in this module expects.
+    """`_create_group` creates the group and its primary lead in one
+    transaction, since a group without one could never appoint leads. The lead
+    takes a seat, which requires a seat limit of at least 1.
     """
 
     address = normalize(request.POST.get("primary_lead_email"))
@@ -143,15 +130,9 @@ def _create_group(request, name, limit):
 @require_POST
 @site_admin_required
 def site_group_delete(request):
-    """Remove a group, setting its work aside rather than destroying it.
-
-    `Group.delete()` empties the group's experiments into the bin first — see
-    `access/models.py` on why that rather than taking them with it.
-
-    A group that still has people in it is refused. `Membership.group` is
-    PROTECT and always has been: emptying a group of its accounts is a separate
-    decision, made person by person on the group panel, and doing it as a side
-    effect of one button would delete accounts nobody asked to delete.
+    """`site_group_delete` moves the group's experiments to the bin via
+    `Group.delete()`. `Membership.group` is `PROTECT`, so a group with members
+    is refused.
     """
     group = get_object_or_404(Group, pk=request.POST.get("pk") or 0)
     name = group.name
@@ -168,22 +149,13 @@ def site_group_delete(request):
 
 @site_admin_required
 def site_trash(request):
-    """The site's bin, and the two things to do about what is in it.
-
-    Two ways in: a deleted group's work, and what somebody deleted that none of
-    its people kept — see `experiments/services/bin.py`. Settled the same way either way,
-    so listed together, each saying which it is.
-
-    Shown with the same discipline as the jobs panel: an opaque identifier, who
-    used to own it and how much it cost, and nothing about what it was *for*.
-    Deciding whether work should be rehomed or discarded does not require
-    reading it, and a bin that listed experiment names would be a way around the
-    boundary rather than a consequence of one.
+    """`site_trash` lists the bin by identifier, former owner and cost, without
+    names, so the admin can rehome or discard without reading the work.
     """
     trashed = (policy().trash(request)
                .select_related("owner")
                .annotate(run_count=Count("runs", distinct=True)))
-    # Newest first, by whichever of the two put it here.
+    # Newest first, by deletion or trash time.
     trashed = sorted(trashed, key=lambda e: cast(datetime, e.deleted_at or e.trashed_at), reverse=True)
     return render(request, "ui/panels/site_trash.html", {
         "experiments": trashed,
@@ -194,12 +166,8 @@ def site_trash(request):
 @require_POST
 @site_admin_required
 def site_trash_rehome(request, pk):
-    """Put an experiment from the site's bin into a group again.
-
-    Which makes it that group's — its lead can reach it, and whoever it was
-    shared with can again. The owner is left as it was, including when that is
-    nobody: an experiment can outlive the account that made it, and a group is
-    what decides who may see it. See `bin.put_back`.
+    """`site_trash_rehome` puts an experiment back into a group, which decides
+    who may reach it; the owner stays as is, even when absent.
     """
     experiment = get_object_or_404(policy().trash(request), pk=pk)
     group = get_object_or_404(Group, pk=request.POST.get("group") or 0)
@@ -212,8 +180,8 @@ def site_trash_rehome(request, pk):
 @require_POST
 @site_admin_required
 def site_trash_delete(request, pk):
-    """Discard one for good. The only route by which a group's deletion
-    eventually destroys anything, and it is a second, separate decision."""
+    """`site_trash_delete` is the only path that destroys a deleted group's
+    work."""
     experiment = get_object_or_404(policy().trash(request), pk=pk)
     number = experiment.pk
     delete_experiment_files(experiment)
@@ -222,16 +190,9 @@ def site_trash_delete(request, pk):
 
 
 def _run_total(aggregate, *, empty=None, **scope):
-    """One aggregate over the runs matching *scope*, as a correlated subquery.
-
-    A subquery rather than a join so that it cannot be multiplied by whatever
-    else the outer query joins: beside `Count("memberships")`, a joined sum
-    counts each run once per member.
-
-    Grouped by exactly the fields *scope* correlates on, so the inner query
-    yields one row per outer row. With no runs it yields none, which reads as
-    null — *empty* is what to say instead, so a count keeps saying 0 as the
-    joined `Count` it replaces did, while a sum keeps saying nothing.
+    """`_run_total` aggregates runs in a correlated subquery so joins elsewhere
+    cannot multiply the total. A group without runs gets *empty* in place of
+    null, and counts then read 0.
     """
     runs = (Run.objects.filter(**scope).order_by()
             .values(*scope)
@@ -243,18 +204,11 @@ def _run_total(aggregate, *, empty=None, **scope):
 
 @site_admin_required
 def site_usage(request):
-    """What each group is using — and nothing about what they are using it for.
-
-    Aggregated from `Run`, which carries `trial_count` and `trial_seconds`
-    already, so this counts what was actually spent rather than estimating it.
-    Group first, with the people underneath, because the unit being managed is
-    the group.
+    """`site_usage` totals each group's runs, trials and seconds from `Run`,
+    with people listed under their group.
     """
-    # The group's own work, through `Experiment.group`, and summed in a
-    # subquery. Two things were wrong with the join through its members: it
-    # counted a person's runs under every group they are in, and a `Sum`
-    # joined alongside `Count("memberships")` is multiplied by the headcount.
-    # Each run belongs to exactly one group, so each is counted exactly once.
+    # Grouping by `Experiment.group` counts each run once, whereas a join
+    # through members repeats runs across groups and headcount.
     groups = Group.objects.annotate(
         members=Count("memberships", distinct=True),
         runs=_run_total(Count("pk"), empty=0, experiment__group=OuterRef("pk")),
@@ -268,16 +222,13 @@ def site_usage(request):
 
 
 def _usage_by_person():
-    """The same totals per account, for the group each belongs to.
-
-    Deliberately totals and not a history: how much somebody has spent is a
-    thing a site admin may need to know; what they spent it on is not.
+    """`_usage_by_person` gives per-account totals within each group and no
+    history.
     """
     return (Membership.objects
             .select_related("user", "group")
-            # What they spent *in this group*. The same person appears once per
-            # group they are in, and each row has to be about that group's work
-            # or their totals repeat in full under every one of them.
+            # Scoping to the row's group keeps a member's totals from repeating
+            # under every group.
             .annotate(**{name: _run_total(agg, empty=empty,
                                           experiment__owner=OuterRef("user"),
                                           experiment__group=OuterRef("group"))
@@ -289,7 +240,7 @@ def _usage_by_person():
 
 @site_admin_required
 def site_jobs(request):
-    """What is running now, across every group, with a way to stop it."""
+    """`site_jobs` lists active runs across every group."""
     active = (Run.objects
               .filter(status__in=("pending", "running"))
               .select_related("experiment", "started_by")
@@ -300,11 +251,10 @@ def site_jobs(request):
 
 
 def _job_row(run) -> dict:
-    """One run, projected to what a site admin may see."""
+    """What a site admin may see."""
     owner = run.started_by or run.experiment.owner
-    # The experiment's group, which is the recorded boundary. It used to be read
-    # off the owner's membership, and a person may now be in several — the job
-    # belongs to the group its work does, whichever of theirs that is.
+    # The job belongs to the experiment's group, since one owner may hold
+    # several memberships.
     group = run.experiment.group
     return {
         "pk": run.pk,
@@ -314,8 +264,7 @@ def _job_row(run) -> dict:
         "started_at": run.started_at,
         "duration": run.duration,
         "trial_count": run.trial_count,
-        # The experiment's own short code: enough to talk about a job, and it
-        # says nothing about what the job is.
+        # A short code that hides what the job is.
         "identifier": run.experiment.identifier,
         "who": owner.get_username() if owner else "",
         "email": getattr(owner, "email", ""),
@@ -326,16 +275,9 @@ def _job_row(run) -> dict:
 @require_POST
 @site_admin_required
 def site_job_stop(request, pk):
-    """Stop a run from outside its group.
-
-    Addressed by **run**, not by experiment: a site admin has no experiment
-    visibility for `@experiment_view` to check, and giving them some so that a
-    decorator would fit would defeat the separation. This is a second, narrower
-    door into the same action, and `tests/ui/test_permissions.py` knows it is
-    one.
-
-    Forcible by nature. There is no cooperative version from here — a site admin
-    stopping somebody else's job is already the escalation.
+    """`site_job_stop` addresses the run directly, since the site admin lacks
+    experiment access for `@experiment_view`. The stop is forcible and also
+    cancels a cluster job.
     """
     run = get_object_or_404(Run, pk=pk, status__in=("pending", "running"))
     if run.job_id:

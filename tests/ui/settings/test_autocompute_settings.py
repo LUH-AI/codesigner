@@ -1,18 +1,6 @@
-"""Per-computation control over the analytics that are worked out on request.
-
-Two figures don't ship their numbers with the page, because those numbers depend
-on a choice rather than only on the metric: the importance figure's "Local" game
-(which trial) and partial dependence (which hyperparameter). Each declares itself
-in `Figure.deferred` and gets an `autocompute_<name>` setting.
-
-Booleans, not a three-way choice. "Never compute this" is already expressible by
-switching the figure off, so two states is the honest shape — which also means
-`_posted_settings`' blanket `bool()` needs no special case.
-
-The keys name the *computation*, not the figure, because local ablation is a view
-*of* the importance figure: `autocompute_hyperparameter_importance` would claim
-the importance numbers are deferred, when they are computed once at run completion
-and stored.
+"""Each computation a figure defers in `Figure.deferred` gets a boolean
+`autocompute_<name>` setting. Switching the figure off already means never
+computing it, so two states suffice.
 """
 
 from django.urls import reverse
@@ -23,20 +11,15 @@ from ui.experiment_settings import SETTING_DEFAULTS, global_defaults, resolve_se
 
 
 def test_the_deferred_computations_are_declared():
-    """In catalog order: the HyperSHAP games measured from a trial (declared on
-    the importance figure), the forecast, partial dependence, the local
-    explanation, the beeswarm, the acquisition slice, then the projection's
-    uncertainty field, which is on the acquisition tab now."""
+    """`deferred_computations` lists them in catalog order."""
     assert [name for name, _ in deferred_computations()] == [
         "hypershap_baseline", "forecast", "partial_dependence", "local_ablation",
         "local_effects", "acquisition_slice", "surrogate_uncertainty"]
 
 
 def test_a_deferred_name_is_the_computations_not_the_figures():
-    """`local_ablation` is the computation the local-explanation figure fetches,
-    and it keeps that name: it is stored in settings, and it was named for the
-    computation back when the figure was one view of the importance figure.
-    Renaming it to match the figure would be a data migration for nothing."""
+    """`local_ablation` keeps its stored name, since renaming it would need a
+    data migration."""
     local = next(f for f in FIGURES if f.key == "local_explanation")
     assert [name for name, _ in local.deferred] == ["local_ablation"]
     assert local.setting_key == "show_local_explanation"
@@ -49,22 +32,14 @@ def test_figures_with_nothing_deferred_declare_nothing():
                              "configuration_cube", "acquisition_slice", "forecast"}
 
 
-#: The deferred computations on by default: the HyperSHAP games measured from
-#: the incumbent are what the page opens on, so waiting to be asked would open
-#: every experiment on six blank figures; and the acquisition function's sample
-#: is what the configuration cube opens its field on.
+#: The incumbent's HyperSHAP games fill the opening page, and the cube opens its
+#: field on the acquisition sample.
 ON_BY_DEFAULT = {"hypershap_baseline", "acquisition_slice"}
 
 
 def test_every_deferred_computation_has_a_setting_defaulting_to_off():
-    """Off by default, so opening or reloading an experiment page computes
-    nothing at all until it is asked to, except for `ON_BY_DEFAULT`.
-
-    These were on when the setting shipped, on the argument that it was an
-    opt-out rather than a change. The measurements said otherwise: partial
-    dependence fires on page open and costs 6.9 s and a 4.5 MB response on a
-    10,000-trial run, and local ablation is 1.4 s at the same size. Neither is
-    worth spending on a page the reader may not be looking at."""
+    """On a 10,000-trial run, partial dependence costs 6.9 s and a 4.5 MB
+    response."""
     for name, _label in deferred_computations():
         expected = name in ON_BY_DEFAULT
         assert SETTING_DEFAULTS[autocompute_key(name)] is expected, name
@@ -72,15 +47,13 @@ def test_every_deferred_computation_has_a_setting_defaulting_to_off():
 
 
 def test_the_settings_are_booleans():
-    """The whole reason no tri-state was built — `_posted_settings` coerces every
-    settings key with `bool()`, so a non-boolean here would silently become True."""
+    """`_posted_settings` coerces every key with `bool()`, so a non-boolean
+    default would turn into True."""
     for name, _label in deferred_computations():
         assert isinstance(SETTING_DEFAULTS[autocompute_key(name)], bool)
 
 
 def test_both_settings_pages_offer_them(client):
-    """test_settings_page_parity already requires every SETTING_DEFAULTS key on
-    both pages; this names them so a failure points here rather than at parity."""
     for url in (reverse("ui:default_experiment_settings"),):
         body = client.get(url).content.decode()
         for name, _label in deferred_computations():
@@ -95,12 +68,12 @@ def test_they_start_unchecked(client):
 
 
 def test_saving_records_each_choice(client):
-    """Posting with partial dependence's box unticked stores that one off."""
+    """An unticked box comes out False."""
     client.post(reverse("ui:default_experiment_settings"), {
         "ice_max_curves": "100",
         **{f.setting_key: "on" for f in FIGURES},
         "autocompute_local_ablation": "on",
-        # autocompute_partial_dependence omitted — an unticked checkbox
+        # an unticked checkbox
     })
 
     stored = GlobalSettings.get_solo().default_experiment_settings
@@ -109,8 +82,8 @@ def test_saving_records_each_choice(client):
 
 
 def test_an_experiment_can_override_the_default(client):
-    """Per-experiment, like every other figure setting — one wide model shouldn't
-    force the choice on every other experiment."""
+    """`resolve_settings` prefers an experiment's own autocompute setting over
+    the default."""
     from core import io
     from experiments.services import snapshot as adapter
     from tests.conftest import FIXTURES_DIR
@@ -127,8 +100,7 @@ def test_an_experiment_can_override_the_default(client):
 
 
 def test_a_stored_setting_from_before_these_existed_still_resolves():
-    """`resolve_settings` backfills, so no migration was needed — every settings
-    row written before this phase simply reads as on."""
+    """`global_defaults` fills in keys that older stored rows lack."""
     gs = GlobalSettings.get_solo()
     gs.default_experiment_settings = {"show_trials": False}
     gs.save(update_fields=["default_experiment_settings"])

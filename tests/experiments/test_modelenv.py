@@ -1,9 +1,4 @@
-"""Building, pinning and using a model's own environment.
-
-The commands are pure functions, so the exact argv is pinned here — that is what
-actually encodes the design (locked, offline when asked, the contract layered on
-rather than declared). The lifecycle runs against a fake uv, so a failure is a
-real exit code and real stderr rather than a mock's opinion.
+"""`test_modelenv` pins the uv argv and runs the lifecycle against a fake uv.
 """
 
 import textwrap
@@ -39,8 +34,6 @@ def _experiment(source: bytes = MODEL_SOURCE, **overrides) -> Experiment:
     return exp
 
 
-# ── the commands ─────────────────────────────────────────────────────────────
-
 def test_lock_command_targets_the_runner():
     exp = _experiment()
     argv = modelenv.lock_command("/bin/uv", modelenv.runner_path(exp))
@@ -50,10 +43,8 @@ def test_lock_command_targets_the_runner():
 
 
 def test_run_command_is_locked_and_layers_the_contract():
-    """`--locked` refuses to re-resolve, so a run cannot silently drift from what
-    was pinned. The contract comes in with `--with` rather than being declared,
-    so the SDK's path differing between a checkout and the image does not
-    invalidate a lock."""
+    """`--locked` stops drift from the pin; `--with` keeps the per-checkout SDK
+    path out of the lock."""
     exp = _experiment()
     argv = modelenv.run_command("/bin/uv", modelenv.runner_path(exp))
 
@@ -64,8 +55,7 @@ def test_run_command_is_locked_and_layers_the_contract():
 
 
 def test_offline_and_no_downloads_are_passed_through(settings):
-    """Both belong on for an air-gapped deployment, and neither should be a
-    surprise at run time."""
+    """Air-gapped deployments need both flags."""
     settings.MODEL_ENV_OFFLINE = True
     settings.MODEL_ENV_PYTHON_DOWNLOADS = False
     exp = _experiment()
@@ -84,16 +74,12 @@ def test_the_child_environment_does_not_carry_the_secret_key(settings, monkeypat
 
     assert "SECRET_KEY" not in env
     assert "DATABASE_URL" not in env
-    # a denylist, so operator-specific things a resolve needs still get through
+    # A denylist strips secrets and lets `HTTPS_PROXY` through.
     assert env["HTTPS_PROXY"] == "http://proxy.invalid"
 
 
-# ── the generated runner ─────────────────────────────────────────────────────
-
 def test_the_runner_declares_the_model_dependencies_and_numpy():
-    """uv builds an environment from the header of the script it runs, so the
-    runner is what declares the model's dependencies. numpy is the harness's own
-    requirement — it reads the dataset arrays."""
+    """uv reads the runner's header; numpy is the harness's own need."""
     exp = _experiment()
     info, _ = inspect_model_source(MODEL_SOURCE)
 
@@ -116,13 +102,11 @@ def test_the_runner_hands_off_to_the_harness_with_the_model():
 
 
 def test_the_runner_forwards_extra_arguments():
-    """`--describe` and `--seed` reach the harness through it."""
+    """`--describe` and `--seed` pass through."""
     exp = _experiment()
     text = modelenv.write_runner(exp, inspect_model_source(MODEL_SOURCE)[0]).read_text()
     assert "*sys.argv[1:]" in text
 
-
-# ── how this instance decides to run models ──────────────────────────────────
 
 def test_uv_present_means_environments(fake_uv):
     assert modelenv.decide_mode()[0] == "subprocess"
@@ -137,8 +121,7 @@ def test_no_uv_locally_falls_back_with_an_explanation(no_uv, settings):
 
 
 def test_no_uv_on_a_hosted_instance_refuses(no_uv, settings):
-    """Falling back would run one user's model in the process holding
-    everyone's data."""
+    """A fallback would put user models beside everyone's data."""
     settings.REQUIRE_LOGIN = True
     mode, explanation = modelenv.decide_mode()
 
@@ -147,7 +130,6 @@ def test_no_uv_on_a_hosted_instance_refuses(no_uv, settings):
 
 
 def test_a_path_hit_that_does_not_run_is_not_uv(tmp_path, settings):
-    """Being on PATH is not proof it works."""
     broken = tmp_path / "uv"
     broken.write_text("#!/bin/sh\nexit 1\n")
     broken.chmod(0o755)
@@ -155,8 +137,6 @@ def test_a_path_hit_that_does_not_run_is_not_uv(tmp_path, settings):
 
     assert modelenv.uv_path() is None
 
-
-# ── preparing ────────────────────────────────────────────────────────────────
 
 def test_preparing_locks_the_environment_and_records_what_it_built(fake_uv):
     exp = _experiment()
@@ -174,8 +154,8 @@ def test_preparing_locks_the_environment_and_records_what_it_built(fake_uv):
 
 
 def test_preparing_corrects_the_name_the_source_only_claimed(fake_uv):
-    """The form read a literal from the source before anything ran it. Now the
-    class has actually been built, so its own name is the authority."""
+    """`prepare_environment` replaces the name the form read from a source
+    literal with the built class's name."""
     exp = _experiment(model_name="Mine")
 
     modelenv.prepare_environment(exp.pk)
@@ -186,8 +166,7 @@ def test_preparing_corrects_the_name_the_source_only_claimed(fake_uv):
 
 
 def test_a_failed_resolve_is_reported_verbatim(failing_uv):
-    """uv leads with a readable diagnosis, so it is shown rather than
-    paraphrased."""
+    """uv's diagnosis reads well enough to show verbatim."""
     exp = _experiment()
 
     modelenv.prepare_environment(exp.pk)
@@ -218,8 +197,6 @@ def test_preparing_without_uv_on_a_hosted_instance_fails(no_uv, settings):
     assert exp.env_status == Experiment.ENV_FAILED
 
 
-# ── using it at run time ─────────────────────────────────────────────────────
-
 def test_a_prepared_experiment_runs_through_uv(fake_uv):
     exp = _experiment()
     modelenv.prepare_environment(exp.pk)
@@ -230,14 +207,12 @@ def test_a_prepared_experiment_runs_through_uv(fake_uv):
     assert refusal == ""
     assert launch is not None
     assert launch[:3] == [str(fake_uv), "run", "--locked"]
-    # uv is pointed at the runner, whose header declares the environment and
-    # whose name the lock is derived from. The model file has no lock.
+    # The lock follows the runner; the model file has none.
     assert launch[launch.index("--script") + 1] == str(modelenv.runner_path(exp))
 
 
 def test_a_changed_lock_is_refused_rather_than_re_resolved(fake_uv):
-    """Running against a different dependency set than the one pinned produces
-    failures with no sensible explanation, so it says so instead."""
+    """A drifted dependency set fails without explanation."""
     exp = _experiment()
     modelenv.prepare_environment(exp.pk)
     exp.refresh_from_db()
@@ -283,8 +258,7 @@ def test_an_experiment_that_predates_environments_runs_in_process(settings):
 
 
 def test_an_unprepared_experiment_runs_in_process(settings):
-    """A row created by the import command knows nothing about environments; it
-    behaves as it always did."""
+    """Imported rows know nothing of environments and run as before."""
     settings.REQUIRE_LOGIN = False
     exp = _experiment(env_status=Experiment.ENV_NONE)
 

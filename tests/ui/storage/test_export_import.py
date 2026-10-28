@@ -1,10 +1,5 @@
-"""Step 5: .ihpo export (download) and import (upload) through the browser,
-plus delete (into the bin — `tests/ui/test_the_bin.py` has the rest).
-
-Export streams a parseable, Streamlit-loadable .ihpo built by the snapshot
-adapter. Import parses an uploaded file (reusing core.io.parse's validation and
-messages), creates an experiment, and lands on its detail page. Delete removes
-the experiment after a confirmation, into the bin.
+"""The browser exports `.ihpo` files, imports them through `core.io.parse`, and
+bins experiments; `tests/ui/test_the_bin.py` covers the bin.
 """
 
 import json
@@ -19,19 +14,16 @@ from tests.conftest import DATASETS_DIR, FIXTURES_DIR, export_ihpo
 
 
 def _make(name_source="test2.ihpo"):
-    """Create a saved Experiment from a fixture via the adapter."""
+    """`_make` saves an Experiment from a fixture."""
     from experiments.services import snapshot as adapter
     return adapter.experiment_from_snapshot(io.parse((FIXTURES_DIR / name_source).read_bytes()))
 
 
-# ── Export ──────────────────────────────────────────────────────────────────
+# Export
 
 @pytest.mark.django_db
 def test_export_downloads_parseable_ihpo(client):
-    """Exporting an experiment downloads a parseable .ihpo named after it.
-
-    Expect: 200, an attachment named "{name}.ihpo", and a body that io.parse
-    accepts (i.e. a file the Streamlit app could load).
+    """The download is an attachment named after the experiment.
     """
     exp = _make()
     resp = export_ihpo(client, exp.pk)
@@ -45,12 +37,8 @@ def test_export_downloads_parseable_ihpo(client):
 
 @pytest.mark.django_db
 def test_export_body_matches_adapter_snapshot(client):
-    """The exported bytes are exactly the adapter's snapshot for the row.
-
-    With provenance: export is the one caller that asks for it. The run engine
-    and the detail page go through the same function without it, because they
-    only need what the experiment *is* and the fingerprint means reading and
-    hashing the dataset.
+    """Export alone asks for provenance, since the fingerprint means hashing the
+    dataset.
     """
     from experiments.services import snapshot as adapter
     exp = _make()
@@ -59,11 +47,10 @@ def test_export_body_matches_adapter_snapshot(client):
     assert json.loads(body) == adapter.snapshot_from_experiment(exp, provenance=True)
 
 
-# ── Import ──────────────────────────────────────────────────────────────────
+# Import
 
 @pytest.mark.django_db
 def test_import_page_shows_upload_form(client):
-    """GET the import page returns an upload form."""
     resp = client.get(reverse("ui:import_experiment"))
     assert resp.status_code == 200
     assert b'type="file"' in resp.content
@@ -71,7 +58,6 @@ def test_import_page_shows_upload_form(client):
 
 @pytest.mark.django_db
 def test_import_creates_experiment_and_redirects_to_detail(client):
-    """Uploading a valid .ihpo creates the experiment and lands on its detail page."""
     from experiments.models import Experiment
 
     with open(FIXTURES_DIR / "test2.ihpo", "rb") as f:
@@ -84,10 +70,7 @@ def test_import_creates_experiment_and_redirects_to_detail(client):
 
 @pytest.mark.django_db
 def test_import_rejects_invalid_file(client):
-    """An unparseable upload re-renders the page with the load error, no row.
-
-    Mirrors the import command: same "Invalid or unreadable experiment file."
-    message, validation no weaker than core.io.parse.
+    """The error matches the import command's message.
     """
     from experiments.models import Experiment
 
@@ -101,8 +84,7 @@ def test_import_rejects_invalid_file(client):
 
 @pytest.mark.django_db
 def test_import_allows_duplicate_names(client):
-    """Importing the same file twice creates two experiments; they share a name
-    but have distinct identifiers (names are no longer unique)."""
+    """The two copies share a name and differ in identifier."""
     from experiments.models import Experiment
 
     resp = None
@@ -119,10 +101,7 @@ def test_import_allows_duplicate_names(client):
 
 @pytest.mark.django_db
 def test_cross_app_round_trip(client):
-    """A Django-exported file re-imports to an equivalent experiment.
-
-    Export an experiment, feed the downloaded bytes back through import under a
-    new name, and confirm the identity fields survive — the interop guarantee.
+    """The identity fields survive an export and re-import.
     """
     from experiments.models import Experiment
     exp = _make()
@@ -140,11 +119,10 @@ def test_cross_app_round_trip(client):
     assert reimported.data.result == exp.data.result
 
 
-# ── Delete ──────────────────────────────────────────────────────────────────
+# Delete
 
 @pytest.mark.django_db
 def test_delete_confirmation_page(client):
-    """GET the delete URL shows a confirmation naming the experiment."""
     exp = _make()
     resp = client.get(reverse("ui:experiment_delete", args=[exp.pk]))
     assert resp.status_code == 200
@@ -153,8 +131,7 @@ def test_delete_confirmation_page(client):
 
 @pytest.mark.django_db
 def test_delete_bins_and_redirects_home(client):
-    """POST to the delete URL takes the experiment off every page — its own URL
-    included — and redirects home. It is in the bin, not gone."""
+    """The binned experiment leaves every page, including its own URL."""
     exp = _make()
     resp = client.post(reverse("ui:experiment_delete", args=[exp.pk]))
     exp.refresh_from_db()

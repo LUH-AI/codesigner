@@ -1,5 +1,5 @@
-"""Data Handling's pages: reachable from the experiment, under it in the trail,
-with their own sidebar — and, for now, only saying what they will do."""
+"""Data Handling's pages sit under the experiment in the trail and show its
+processing choices."""
 
 import re
 
@@ -13,7 +13,7 @@ from tests.conftest import post_new_experiment
 
 
 class HidesEverything(OpenPolicy):
-    """A policy that sees no experiment at all."""
+    """`HidesEverything` extends `OpenPolicy` to hide everything."""
 
     def experiments(self, request):
         return Experiment.objects.none()
@@ -43,8 +43,7 @@ def _sidebar(html):
 
 @pytest.mark.parametrize("section", SECTIONS, ids=[s.slug for s in SECTIONS])
 def test_every_section_renders_what_it_plans(client, section):
-    """What: each section's page shows its title and every capability it lists.
-    How: fetches the page and looks for each capability's title in it."""
+    """Each section shows its title and every planned capability."""
     exp = _exp()
     response = client.get(_url(exp, section))
 
@@ -56,24 +55,20 @@ def test_every_section_renders_what_it_plans(client, section):
 
 
 def test_the_first_sections_slug_is_not_a_second_address(client):
-    """What: the overview is only reachable at the data root.
-    How: requests the overview's slug as a section and expects a 404."""
+    """The overview lives only at the data root."""
     exp = _exp()
     url = reverse("ui:data_section", args=[exp.pk, SECTIONS[0].slug])
     assert client.get(url).status_code == 404
 
 
 def test_an_unknown_section_is_a_404(client):
-    """What: a slug no section has is not a page.
-    How: requests a made-up slug."""
     exp = _exp()
     url = reverse("ui:data_section", args=[exp.pk, "no-such-section"])
     assert client.get(url).status_code == 404
 
 
 def test_an_invisible_experiment_has_no_data_pages(client, settings):
-    """What: the data pages exist only for experiments the reader can see.
-    How: with a policy that hides everything, both kinds of page 404."""
+    """The data pages exist only for experiments the reader can see."""
     exp = _exp()
     settings.EXPERIMENT_POLICY = f"{__name__}.HidesEverything"
 
@@ -82,9 +77,7 @@ def test_an_invisible_experiment_has_no_data_pages(client, settings):
 
 
 def test_every_section_sits_under_data_handling(client):
-    """What: the trail reads Experiments / <name> / Data Handling whichever
-    section is showing — the sections are tabs on one page, as the dashboard's
-    figures are. How: reads the breadcrumb labels off two sections' pages."""
+    """The sections are tabs on one page, as the dashboard's figures are."""
     exp = _exp()
     for section in SECTIONS[:2]:
         html = client.get(_url(exp, section)).content.decode()
@@ -92,9 +85,8 @@ def test_every_section_sits_under_data_handling(client):
 
 
 def test_the_sections_are_tabs_on_the_page(client):
-    """What: the sections are the page's tabs, drawn as the dashboard's are,
-    each with its own address, the one asked for selected and its panel the
-    one showing. How: reads the tab bar and the panels of one section's page."""
+    """Each tab has its own address, and the requested one is selected and
+    showing."""
     exp = _exp(name="tabbed")
     section = SECTIONS[2]
     html = client.get(_url(exp, section)).content.decode()
@@ -109,10 +101,7 @@ def test_the_sections_are_tabs_on_the_page(client):
 
 
 def test_the_experiments_heading_is_shared(client):
-    """What: Data Handling and the timeline open under the same heading and
-    buttons as the dashboard. How: compares the heading block of each page,
-    less what is particular to one request — the rename form's token and the
-    page it returns to."""
+    """The comparison drops the rename form's token and return page."""
     exp = _exp()
 
     def heading(url):
@@ -128,17 +117,12 @@ def test_the_experiments_heading_is_shared(client):
 
 
 def test_the_experiment_page_links_to_its_data(client):
-    """What: the open experiment's Data Handling view is one click away from
-    its dashboard. How: looks for the overview's URL in the dashboard's
-    sidebar."""
     exp = _exp()
     html = client.get(reverse("ui:experiment_detail", args=[exp.pk])).content.decode()
     assert f'href="{_url(exp, SECTIONS[0])}"' in _sidebar(html)
 
 
 def test_the_section_slugs_are_unique():
-    """What: no two sections share an address.
-    How: compares the number of slugs with the number of distinct ones."""
     slugs = [s.slug for s in SECTIONS]
     assert len(slugs) == len(set(slugs))
 
@@ -148,10 +132,8 @@ def _section(slug):
 
 
 def test_processing_choices_start_on_the_models_own_defaults(client):
-    """What: each processing control lists the real choices, the model's own
-    default among them named "(Random Forest default)" and selected, with no
-    separate "as the model needs" entry; it is posted as "auto", so it keeps
-    following the model. How: reads the page for a Random Forest experiment."""
+    """The model's default is posted as "auto", so the choice keeps following
+    the model."""
     exp = _exp()
     html = client.get(_url(exp, SECTIONS[0])).content.decode()
 
@@ -168,9 +150,7 @@ def test_processing_choices_start_on_the_models_own_defaults(client):
 
 
 def test_a_model_that_cannot_take_gaps_cannot_be_given_them(client):
-    """What: for a model that cannot take a missing value, filling in is its
-    default and leaving gaps is offered disabled.
-    How: reads the page for an SVM experiment."""
+    """Leaving gaps is offered disabled for such a model."""
     exp = _exp()
     exp.data.model_name = "SVM"
     exp.data.save()
@@ -184,9 +164,7 @@ def test_a_model_that_cannot_take_gaps_cannot_be_given_them(client):
 
 
 def test_a_processing_choice_is_saved_and_travels_in_the_file(client):
-    """What: choosing "standardize" on Features is stored, and the experiment's
-    .ihpo records it in its dataset section. How: posts the form, then builds
-    the snapshot."""
+    """The `.ihpo` records the choice in its dataset section."""
     from experiments.services.snapshot import snapshot_from_experiment
 
     exp = _exp()
@@ -199,9 +177,7 @@ def test_a_processing_choice_is_saved_and_travels_in_the_file(client):
 
 
 def test_processing_is_fixed_once_there_are_trials(client):
-    """What: an experiment with trials keeps the processing they were scored
-    under — the controls are disabled and a post changes nothing.
-    How: gives the experiment a result with one trial and posts a change."""
+    """Trials keep the processing they were scored under."""
     exp = _exp()
     exp.data.result = {
         "stats": {"submitted": 1, "finished": 1, "running": 0},
@@ -221,9 +197,7 @@ def test_processing_is_fixed_once_there_are_trials(client):
 
 @pytest.mark.django_db
 def test_a_run_is_given_the_experiments_processing(client):
-    """What: the model a run builds is told the experiment's processing, so the
-    choice on the page is the one its trials are scored under.
-    How: creates iris with an SVM, sets scaling off, and builds the run's model."""
+    """The page's choice is the one a run's trials are scored under."""
     from core import io
     from core.registry import METRICS, MODELS, OPTIMIZERS
     from experiments.services.snapshot import snapshot_from_experiment
@@ -242,12 +216,10 @@ def test_a_run_is_given_the_experiments_processing(client):
     assert built["model"].processing == {"missing": "auto", "scale": "none", "labels": "auto"}
 
 
-# ── panels: the same kind of thing as a figure ──────────────────────────────
+# Panels
 
 def test_data_panels_and_figures_are_one_type():
-    """What: a Data Handling panel and a dashboard figure are both `Panel`s,
-    with the same shape, width and template machinery.
-    How: checks the class hierarchy and the derived attributes."""
+    """Panels and figures share shape, width and template machinery."""
     from ui.figures.data_handling import DATA_PANELS
     from ui.figures import FIGURES, Panel
 
@@ -257,9 +229,6 @@ def test_data_panels_and_figures_are_one_type():
 
 
 def test_every_data_panel_is_placed_once_on_its_tab():
-    """What: the layout file places each Data Handling panel on its section's
-    tab, and a file missing one is refused.
-    How: reads the file's data table, then a copy with one panel removed."""
     from ui.figures.data_handling import DATA_PANELS
     from ui import layout
 
@@ -269,8 +238,7 @@ def test_every_data_panel_is_placed_once_on_its_tab():
 
 
 def test_a_layout_file_without_a_data_panel_is_refused(tmp_path):
-    """What: like a figure, a Data Handling panel the file forgets is an error.
-    How: writes the file without the scaling panel and reads it."""
+    """A forgotten panel is an error, like a forgotten figure."""
     from ui import layout
 
     text = layout.DEFAULT_PATH.read_text()
@@ -285,9 +253,7 @@ def _panel(html, slug):
 
 
 def test_a_created_experiments_overview_describes_its_data(client):
-    """What: once created, Overview is about the dataset and holds no
-    controls; missing values sits on Cleaning, scaling and label columns on
-    Features, each tab saving its own. How: reads the three tabs' panels."""
+    """Overview holds no controls; each other tab saves its own."""
     exp = _exp()
     html = client.get(_url(exp, SECTIONS[0])).content.decode()
     overview, cleaning, features = (_panel(html, s) for s in ("overview", "cleaning", "features"))
@@ -300,11 +266,8 @@ def test_a_created_experiments_overview_describes_its_data(client):
 
 
 def test_a_drafts_overview_is_the_choices_to_make_first(client):
-    """What: step 2 of a draft's setup opens on an Overview of its own — the
-    three choices to make before a run, in one form, and none of the dataset
-    cards. Each control is drawn once, in its own tab, and moved into the
-    Overview's slot while it shows. How: saves step 1 of a draft and reads
-    step 2's Overview and Features panels."""
+    """Each control is drawn once in its own tab and moved into the Overview's
+    slot while shown."""
     from tests.ui.experiments.test_drafts import _save, _setup
     from tests.conftest import start_draft
 
@@ -322,8 +285,7 @@ def test_a_drafts_overview_is_the_choices_to_make_first(client):
 
 
 def test_a_setup_overview_naming_an_unknown_panel_is_refused(tmp_path):
-    """What: the draft Overview's arrangement is checked like the others; a
-    panel nobody defines is an error. How: renames one in a copy of the file."""
+    """The draft Overview's arrangement is checked like the others."""
     from ui import layout
 
     text = layout.DEFAULT_PATH.read_text()

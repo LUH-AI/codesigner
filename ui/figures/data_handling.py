@@ -1,24 +1,8 @@
-"""Data Handling: looking at, cleaning, reshaping and augmenting an
-experiment's dataset before it is tuned on.
-
-The page renders from `SECTIONS` and from nothing else: its tabs, and the
-capabilities on each. Each capability is a panel on its section's tab, a
-`Panel` like a dashboard figure and placed by `ui/figure_layout.toml` the same
-way. Most are planned, shown as a card saying what they will do. One with a
-`step` is built: it is one of the experiment's processing choices
-(`core.processing`), shown as a control. A draft's setup gathers those on an
-Overview of its own — what can be decided before anything runs — while a
-created experiment's Overview describes its dataset.
-
-How the pieces are meant to fit, once they are built: Data Handling produces a
-*recipe* — an ordered list of steps (choose the target, set a column's kind,
-impute, encode, drop duplicates, oversample, ...) applied to the uploaded CSV
-before it is split. The raw file is never rewritten. The recipe would travel in
-the ``.ihpo`` with the rest of the experiment, and into an exported model, so
-that predictions made outside Codesigner see exactly the transforms the tuned
-model was scored on. Steps that only make sense on training rows —
-augmentation, resampling — would apply inside each fold rather than before the
-split, so they never leak into what a model is validated on.
+"""`SECTIONS` alone defines the Data Handling page's tabs and panels. A
+capability with a `step` is a built processing choice (`core.processing`), and
+the rest are planned cards. The planned recipe applies its steps to the uploaded
+CSV before the split, with training-only steps such as resampling inside each
+fold.
 """
 
 from __future__ import annotations
@@ -34,13 +18,11 @@ from .base import CARD, DATA, Panel
 
 @dataclass(frozen=True)
 class Capability:
-    #: Stable identifier: the key of the panel this becomes, named in
-    #: `ui/figure_layout.toml`.
+    #: Panel key, as named in `ui/figure_layout.toml`.
     key: str
     title: str
     description: str
-    #: The processing step this capability sets (a key of
-    #: `core.processing.CHOICES`), or "" while it is only planned.
+    #: A `core.processing.CHOICES` key, or "" while planned.
     step: str = ""
 
 
@@ -200,7 +182,6 @@ SECTIONS = (
 BY_SLUG = {s.slug: s for s in SECTIONS}
 
 
-#: What each processing choice is called on the page.
 CHOICE_LABELS = {
     "impute": _("Fill in"),
     "keep": _("Leave for the model"),
@@ -212,14 +193,13 @@ CHOICE_LABELS = {
 
 
 class DataPanel(Panel):
-    """A panel on the Data Handling page."""
 
     page = DATA
     shape = CARD
     template_dir = "ui/data_handling/panels"
-    #: One template for every panel of a kind, rather than one per key.
+    #: One template per kind of panel.
     shared_template = ""
-    #: What the panel is for, said under its heading.
+    #: Shown under the panel's heading.
     description = ""
 
     def __init_subclass__(cls, **kwargs):
@@ -229,19 +209,16 @@ class DataPanel(Panel):
 
 
 class ProcessingStep(DataPanel):
-    """One processing choice, as a labelled select."""
+    """`ProcessingStep` renders one processing select."""
 
     shared_template = "ui/data_handling/panels/processing_step.html"
-    #: Its key in `core.processing.CHOICES`.
     step = ""
 
     @classmethod
     def control(cls, exp):
-        """The select for *exp*: one option per choice, the model's own
-        default among them named as such — "Leave as they are (Random Forest
-        default)" — and chosen until something else is. The default is posted
-        as "auto", so it goes on following the model if the model changes.
-        A choice the model cannot take is offered disabled."""
+        """`control` posts the model's default as "auto", so the choice follows
+        the model through a model change, and offers choices the model cannot
+        take as disabled."""
         model = model_of(exp)
         chosen = choices_of(exp.data.processing)[cls.step]
         if model is None:
@@ -267,9 +244,8 @@ class ProcessingStep(DataPanel):
 
 
 def describe(exp, step, choice, lower=True) -> str:
-    """*choice* at *step* as a reader says it: "auto" as what it is for
-    *exp*'s model — "standardize (SVM default)". Mid-sentence unless *lower*
-    is false, when it reads as the card's option does."""
+    """`describe` renders "auto" as the model's default, such as "standardize
+    (SVM default)", with a lowercase first letter unless *lower* is false."""
     model = model_of(exp)
     if choice == AUTO:
         if model is None:
@@ -283,13 +259,13 @@ def describe(exp, step, choice, lower=True) -> str:
 
 
 def is_default(exp, step, choice) -> bool:
-    """Whether *choice* is what *exp*'s model is given at *step* anyway."""
+    """`is_default` tells whether *exp*'s model gets *choice* anyway."""
     model = model_of(exp)
     return choice == AUTO or (model is not None and model_defaults(model)[step] == choice)
 
 
 class Planned(DataPanel):
-    """A capability not built yet: what it will do."""
+    """`Planned` draws unbuilt capabilities as cards."""
 
     shared_template = "ui/data_handling/panels/planned.html"
 
@@ -306,8 +282,6 @@ def _panel(section, capability):
     })
 
 
-#: Every Data Handling panel, section by section, in the order `SECTIONS`
-#: lists them.
 DATA_PANELS = tuple(_panel(section, capability)
                     for section in SECTIONS for capability in section.planned)
 DATA_PANELS_BY_KEY = {panel.key: panel for panel in DATA_PANELS}

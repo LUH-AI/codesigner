@@ -1,13 +1,6 @@
-"""An experiment's timeline: what was done to it, newest first.
-
-Two records make it up. Runs are their own rows (`Run`), each with the events
-that happened inside it — the metric changing at its start, a prior taking
-effect at some trial. Everything done between runs is the experiment's history
-(`ExperimentEvent`, see experiments/services/history.py). This puts the two in one list
-and says each entry in a sentence.
-
-An experiment from before the history existed has no `created` entry; one is
-made up from what the experiment is, so the list still ends where it began.
+"""`timeline` merges runs and between-run history (`ExperimentEvent`) into one
+list, newest first. An experiment older than the history gets a made-up
+`created` entry.
 """
 
 from __future__ import annotations
@@ -26,11 +19,10 @@ from .formatting import sigfigs
 from .optimizer_labels import STOPPED_BY_LABELS
 from .optimizer_labels import summary as optimizer_summary
 
-#: Data Handling's steps, by what each is called on the page.
 _STEPS = {"missing": gettext_lazy("Missing values"), "scale": gettext_lazy("Scaling"),
           "labels": gettext_lazy("Label columns")}
-#: The same, as they read inside a sentence — a translation's own decision, not
-#: a lowercasing: a German noun keeps its capital.
+#: Translators choose the in-sentence forms, since a German noun keeps its
+#: capital.
 _STEPS_IN_SENTENCE = {"missing": gettext_lazy("missing values"), "scale": gettext_lazy("scaling"),
                       "labels": gettext_lazy("label columns")}
 
@@ -43,8 +35,6 @@ def _value(value) -> str:
     return str(value)
 
 
-#: A prior's distributions and parameters, by the names the prior figure gives
-#: them.
 _PRIOR_KINDS_SHOWN = {"uniform": gettext_lazy("Uniform"), "normal": gettext_lazy("Normal"), "beta": gettext_lazy("Beta"),
                       "tabulated": gettext_lazy("Freeform")}
 _PRIOR_PARAMS = {"mu": "μ", "sigma": "σ", "alpha": "α", "beta": "β"}
@@ -64,7 +54,7 @@ def _prior_params(prior):
 
 
 def describe_prior(prior) -> str:
-    """A stated prior in a few words: "normal (μ 0.5, σ 0.1), fading (linear)"."""
+    """`describe_prior` renders a prior like "normal (μ 0.5, σ 0.1)"."""
     if not prior:
         return _("none")
     params = ", ".join(f"{name} {value}" for name, value in _prior_params(prior))
@@ -78,8 +68,7 @@ def describe_prior(prior) -> str:
 
 
 def prior_rows(prior) -> list:
-    """A stated prior as rows, the way the prior figure sets it: distribution,
-    its parameters, and how it fades."""
+    """`prior_rows` lists a prior's distribution, parameters and fading as rows."""
     if not prior:
         return [(_("Distribution"), _("none"))]
     kind = prior.get("kind") or "uniform"
@@ -96,8 +85,7 @@ def prior_rows(prior) -> list:
     return rows
 
 
-#: The stopping criteria, in the run form's order, by short names for what the
-#: form asks ("Run until… this many trials have run").
+#: Stopping criteria in run-form order, by short names.
 _CRITERIA = {
     "max_trials": gettext_lazy("Trials"),
     "target_score": gettext_lazy("Target score"),
@@ -115,7 +103,6 @@ def _duration(seconds) -> str:
     return times.offset_text(float(seconds)).lstrip("+")
 
 
-#: What ended a run, by the name of what was reached.
 _STOPPED_BY = {**_CRITERIA, "cancelled": gettext_lazy("Cancelled"), "all_failing": gettext_lazy("Too many failures"),
                "exhausted": gettext_lazy("Every configuration tried")}
 _STATUSES = {"pending": gettext_lazy("Waiting"), "running": gettext_lazy("Running"), "done": gettext_lazy("Done"),
@@ -124,8 +111,7 @@ _SURROGATES = {"none": gettext_lazy("Kept"), "rebuilt_and_replayed": gettext_laz
 
 
 def _time(exp, when) -> str | None:
-    """*when* as a detail's value, as *exp*'s basis allows: by the clock in
-    UTC, as time since the first run, or not at all."""
+    """`_time` shows *when* in UTC or relative per *exp*'s basis, else None."""
     from django.utils.dateformat import format as date_format
 
     shown = times.shown(exp, when)
@@ -141,8 +127,6 @@ def _yes_no(value) -> str:
 
 
 def stopping_rows(stopping) -> list:
-    """A run's stopping criteria as rows, each under its name, seconds as a
-    duration."""
     stopping = stopping or {}
     known = [k for k in _CRITERIA if stopping.get(k) is not None]
     other = [k for k in stopping if k not in _CRITERIA and stopping[k] is not None]
@@ -152,8 +136,8 @@ def stopping_rows(stopping) -> list:
 
 
 def timeout_rows(timeout) -> list:
-    """A run's deadline on one model fit as rows: fixed or predicted, the
-    outer bound in seconds, and under prediction the multiple allowed."""
+    """`timeout_rows` lists the per-fit deadline: fixed or predicted, bound,
+    multiple."""
     if not timeout:
         return []
     predicted = timeout.get("mode") == "predicted"
@@ -170,10 +154,8 @@ def timeout_rows(timeout) -> list:
 
 def _entry(exp, kind, at, at_trial, summary, details=(), children=(), actor=None, seq=0,
            scheduled=False):
-    """One entry. *details* are `(label, value)` pairs, or `(label, rows)`
-    with rows a list of pairs for a value that is itself a short list; empty
-    ones are left out. A *scheduled* one has not happened yet, and has no
-    time."""
+    """*details* are `(label, value)` or `(label, rows)` pairs, and empty ones
+    are dropped. A *scheduled* entry has no time."""
     shown = []
     for label, value in details:
         if isinstance(value, list):
@@ -190,8 +172,6 @@ def _entry(exp, kind, at, at_trial, summary, details=(), children=(), actor=None
 def _name(user):
     return user.get_username() if user is not None else None
 
-
-# ── what was done between runs ───────────────────────────────────────────────
 
 def _configuration_details(configuration):
     model = configuration.get("model") or {}
@@ -218,10 +198,9 @@ def _configuration_details(configuration):
 
 
 def _data_handling_entry(exp, configuration, at, at_trial, seq):
-    """The Data Handling choices an experiment was set up with, as an entry of
-    their own beside its set-up: every step as a row, the summary naming the
-    ones that are not the model's own default. None for a configuration from
-    before processing was recorded."""
+    """`_data_handling_entry` lists every step as a row and names the
+    non-default ones in the summary. It returns None for configurations recorded
+    before processing."""
     from core.processing import choices_of
 
     dataset = configuration.get("dataset") or {}
@@ -310,16 +289,14 @@ def _event_entry(exp, event):
     else:
         summary = kind.replace("_", " ").capitalize() + "."
         details = [(key, _value(value)) for key, value in p.items()]
-    # A prior waiting for the initial design to end has not happened: it is
-    # shown as what is coming, with no time.
+    # The page shows a prior awaiting the initial design's end as scheduled,
+    # without a time.
     if p.get("scheduled"):
         return _entry(exp, kind, None, None, summary, details, actor=_name(event.actor),
                       seq=event.pk or 0, scheduled=True)
     return _entry(exp, kind, event.at, event.at_trial, summary, details,
                   actor=_name(event.actor), seq=event.pk or 0)
 
-
-# ── the runs ─────────────────────────────────────────────────────────────────
 
 def _at(value):
     if isinstance(value, str):
@@ -389,8 +366,7 @@ def _run_entry(exp, run, number):
     if run.cancel_requested_by is not None:
         summary += " " + _("Cancelled by %(name)s.") % {"name": _name(run.cancel_requested_by)}
 
-    # What the file's record of the run holds (`snapshot._run_record`), in
-    # its order: what the summary says in a sentence, laid out.
+    # Fields of `snapshot._run_record`, in its order.
     details = [
         (_("Status"), str(_STATUSES.get(run.status, run.status))),
         (_("Queued"), _time(exp, run.created_at)),
@@ -407,7 +383,7 @@ def _run_entry(exp, run, number):
         (_("Time in trials"), _duration(run.trial_seconds) if run.trial_seconds else None),
         (_("Error"), run.error or None),
         (_("Priors"), [(hp, describe_prior(prior)) for hp, prior in (run.priors or {}).items()]),
-        # A configuration picked off the page rather than found by the search.
+        # A configuration picked on the page by hand.
         (_("Proposal"), [(name, _value(value)) for requested in run.configurations or []
                          for name, value in sorted((requested.get("config") or {}).items())]),
         (_("Trial timeout"), timeout_rows(run.trial_timeout)),
@@ -419,24 +395,14 @@ def _run_entry(exp, run, number):
                   actor=_name(run.started_by))
 
 
-# ── all of it ────────────────────────────────────────────────────────────────
-
 _PRIOR_KINDS = ("prior_stated", "prior_edited", "prior_withdrawn", "prior_reset")
 
 
 def _effective(events, runs):
-    """The prior entries that influenced the search, rewritten to say how.
-
-    A prior is a statement about where the next trials should go, and only a
-    run acting on it makes it part of the experiment. So, per hyperparameter,
-    a statement counts once a run applied it (its `prior_applied` event names
-    the hyperparameter), or while it is the one standing — including one
-    waiting for the initial design to end, which is shown as scheduled. One
-    replaced or withdrawn before any run applied it is not shown, and nor is
-    a withdrawal that only cancels such a one: it never touched the search.
-
-    What is shown is each change between statements that counted: stated,
-    changed or withdrawn, from the last one that counted.
+    """`_effective` keeps prior statements that a run applied or that still
+    stand, per hyperparameter. It hides a statement that was replaced or
+    withdrawn before any run applied it, and a withdrawal that cancels only such
+    a statement.
     """
     import copy
 
@@ -467,8 +433,7 @@ def _effective(events, runs):
             new = event.payload.get("new")
             end = chain[i + 1].at if i + 1 < len(chain) else None
             last = i + 1 == len(chain)
-            # Without times nothing says which runs came after it, so it is
-            # shown rather than hidden on a guess.
+            # Without times, the event is shown instead of hidden on a guess.
             counted = (event.at is None
                        or (applied(hp, event.at, end) if new is not None
                            else ran_between(event.at, end) or last))
@@ -488,8 +453,6 @@ def _effective(events, runs):
 
 
 def build(exp) -> list[dict]:
-    """Every entry for *exp*, newest first: what is scheduled, then what
-    happened."""
     from experiments.services import snapshot as adapter
     from experiments.services.history import configuration
 
@@ -498,8 +461,7 @@ def build(exp) -> list[dict]:
     others = [e for e in history if e.kind not in _PRIOR_KINDS]
     priors = _effective([e for e in history if e.kind in _PRIOR_KINDS], runs)
     entries = [_event_entry(exp, e) for e in others + priors]
-    # Each set-up's Data Handling, just after it: recorded within it, but a
-    # decision about the data rather than about the search's machinery.
+    # Each set-up's Data Handling entry follows it.
     for event in others:
         if event.kind == "created":
             entry = _data_handling_entry(exp, (event.payload or {}).get("configuration") or {},
@@ -519,12 +481,8 @@ def build(exp) -> list[dict]:
         if entry:
             entries.append(entry)
 
-    # By time where there is one, entries made in the same moment in the order
-    # they were made (setting an experiment up records several at once). An
-    # experiment whose file carried no times is ordered by how many trials
-    # there were, which is the same order. One whose file had relative times
-    # has none for what came before its first run, so that comes first, in
-    # the order it was made.
+    # The list follows time, and entries from one moment keep their creation
+    # order. A file without times is ordered by trial count.
     scheduled = [e for e in entries if e["scheduled"]]
     entries = [e for e in entries if not e["scheduled"]]
     timed = [e for e in entries if e["at"] is not None]
@@ -535,9 +493,8 @@ def build(exp) -> list[dict]:
     else:
         entries.sort(key=lambda e: ((1, e["at"].timestamp()) if e["at"] else (0, 0.0), e["seq"]),
                      reverse=True)
-    # The set-up last, its Data Handling just above it, whatever their times
-    # say: one made up for an experiment from before the history has none
-    # earlier than what came after.
+    # `build` places the set-up last and its Data Handling above, since a
+    # made-up set-up has no earlier time.
     first = ("data_handling", "created")
     return (scheduled + [e for e in entries if e["kind"] not in first]
             + [e for kind in first for e in entries if e["kind"] == kind])

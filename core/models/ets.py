@@ -1,4 +1,4 @@
-"""Exponential smoothing: statsmodels' Holt–Winters, one smoother per series."""
+"""`ETS` offers Holt-Winters exponential smoothing."""
 
 from ConfigSpace import Categorical, ConfigurationSpace
 from codesigner_model import OutputBaseModel
@@ -8,8 +8,7 @@ from .base import Tunable
 
 
 class ETS(OutputBaseModel):
-    """Exponential smoothing (statsmodels' Holt–Winters): a level, optionally a
-    trend and a season, each updated as the series goes. One fit per series."""
+    """`ETS` fits statsmodels once per series."""
 
     name = "ETS"
     tasks = ("regression",)
@@ -18,8 +17,7 @@ class ETS(OutputBaseModel):
     dependencies = ("numpy", "statsmodels")
 
     def save_parameters(self, fitted, directory):
-        """Each series' smoothing parameters and starting state, as JSON —
-        statsmodels' own result, read out of it."""
+        """`save_parameters` writes each series' statsmodels parameters as JSON."""
         import json
         from pathlib import Path
 
@@ -48,9 +46,8 @@ class ETS(OutputBaseModel):
 
 
 class ETSModel(Tunable, ETS):
-    """ETS, tuned over whether it has a trend, damped or not, and a season."""
 
-    #: Its columns are a series' times, which processing must leave alone.
+    #: Processing must leave a series' times alone.
     takes_processing = False
 
     def get_config_space(self, seed: int = 0) -> ConfigurationSpace:

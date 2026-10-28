@@ -1,9 +1,6 @@
-"""Trial models kept for export, and the Export trial parameters download.
-
-A run keeps the fitted model of the best trials — the one its last fold
-fitted, nothing trained again — and, if asked, every trial of the run until the
-next. Each is in its library's own format beside a note saying it is partially
-trained. Runs execute inline in tests (see `runs_execute_synchronously`).
+"""A run keeps the fitted models of its best trials. On request, the latest run
+also keeps every trial's model. Each model sits in its library's format beside a
+note marking it partially trained.
 """
 
 import io
@@ -54,9 +51,6 @@ def _download(client, exp, idx):
 
 
 def test_a_run_keeps_the_best_trials_models_and_no_others(client):
-    """What: with three to keep, exactly the three best trials by the run's
-    metric have a model on disk, each with its note. How: runs six trials and
-    compares what was kept with the scores."""
     from experiments.services.snapshot import rebuild_result
 
     exp = _create(client, keep_best_trial_models=3)
@@ -75,9 +69,7 @@ def test_a_run_keeps_the_best_trials_models_and_no_others(client):
 
 
 def test_keeping_the_last_run_keeps_it_until_the_next(client):
-    """What: with "every trial of the last run" on, a run keeps all its
-    trials; the next run then lets the first run's go, but for the best.
-    How: two runs of three trials, keeping the best one."""
+    """The next run releases the first run's models except the best."""
     exp = _create(client, keep_best_trial_models=1, keep_last_run_trial_models=True)
     _run(client, exp, 3)
     assert TrialModel.objects.filter(experiment=exp).count() == 3
@@ -88,10 +80,8 @@ def test_keeping_the_last_run_keeps_it_until_the_next(client):
 
 
 def test_the_download_is_the_trials_model_marked_partially_trained(client, tmp_path):
-    """What: the zip holds the trial's model in its library's format and a
-    note that says it is partially trained, which trial and configuration it
-    is, and how to load it — and the model loads and predicts.
-    How: downloads the best trial's parameters and loads model.skops."""
+    """The zip's note names the trial, its configuration and how to load the
+    model."""
     from skops.io import get_untrusted_types, load
 
     from experiments.services.snapshot import rebuild_result
@@ -122,9 +112,7 @@ def test_the_download_is_the_trials_model_marked_partially_trained(client, tmp_p
 @pytest.mark.parametrize("model_name, filename", [
     ("LightGBM", "model.txt"), ("XGBoost", "model.json"), ("CatBoost", "model.cbm")])
 def test_a_booster_is_kept_in_its_own_format_and_loads_there(client, model_name, filename):
-    """What: a booster's parameters are its library's own file, which that
-    library loads — LightGBM's can even be trained on from.
-    How: keeps one trial of each booster on flats and loads the file."""
+    """Each booster keeps its library's own file, which that library loads."""
     exp = _create(client, name=model_name, model_name=model_name,
                   dataset=FIXTURES_DIR / "flats.csv", keep_best_trial_models=1)
     _run(client, exp, 1)
@@ -152,9 +140,6 @@ def test_a_booster_is_kept_in_its_own_format_and_loads_there(client, model_name,
 
 
 def test_a_trial_whose_model_was_not_kept_says_why(client):
-    """What: the page's button is disabled for a trial with no kept model and
-    says why, and asking anyway is a 404 with the same reason.
-    How: keeps one of three, then asks for a trial that is not it."""
     from experiments.services.snapshot import rebuild_result
 
     exp = _create(client, keep_best_trial_models=1)
@@ -171,9 +156,8 @@ def test_a_trial_whose_model_was_not_kept_says_why(client):
 
 def test_a_group_without_room_keeps_no_model_and_the_run_still_finishes(
         client, settings, django_user_model):
-    """What: kept models never take the place of data: a group already at its
-    limit keeps none, the run finishes all its trials, and its log says why.
-    How: a group whose limit is one byte, a three-trial run."""
+    """A group at its storage limit keeps no models, yet the run finishes and
+    logs the skip."""
     from access.models import Group, Membership
     from experiments.models import Run
     from experiments.services.snapshot import rebuild_result

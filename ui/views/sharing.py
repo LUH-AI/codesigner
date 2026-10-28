@@ -14,17 +14,15 @@ from ..permissions import experiment_view
 
 
 def _back_to_sharing(request, exp):
-    """Wherever the sharing controls were — the group page, as a rule — or the
-    experiment itself when the form did not say."""
+    """`_back_to_sharing` returns to the sharing controls' page, else the
+    experiment."""
     from ..navigation import safe_next
     return redirect(safe_next(request) or reverse("ui:experiment_detail", args=[exp.pk]))
 
 
 def _colleague(request, exp):
-    """The account a sharing form names, from the experiment's own group.
-
-    Looked up among the group's members and nowhere else, so an id from outside
-    the group is simply not found — the same answer as one that does not exist.
+    """`_colleague` searches only the experiment's group, so an outside id gets
+    the same 404 as a missing one.
     """
     from django.contrib.auth import get_user_model
     if not settings.REQUIRE_LOGIN or exp.group_id is None:
@@ -43,11 +41,8 @@ def _colleague(request, exp):
 @require_POST
 @experiment_view(SHARE)
 def experiment_share(request, exp):
-    """Set one colleague's access to this experiment: none, viewer or contributor.
-
-    One person at a time, and only somebody in the experiment's group. The
-    owner's alone to decide — a contributor can do everything to the work except
-    choose who else may.
+    """`experiment_share` sets one group member's access to none, viewer or
+    contributor.
     """
     colleague = _colleague(request, exp)
     level = request.POST.get("level", "")
@@ -60,17 +55,10 @@ def experiment_share(request, exp):
 @require_POST
 @experiment_view(SHARE)
 def experiment_transfer(request, exp):
-    """Hand this experiment to one of its contributors.
-
-    Only a contributor: somebody who can already run and delete it, so the one
-    new power ownership gives them is deciding who else may. The previous owner
-    is left a contributor, not shut out — handing over the work is not the same
-    decision as walking away from it — and both happen together or not at all,
-    so there is never a moment with no owner or with two.
+    """`experiment_transfer` hands the experiment to a contributor, who gains
+    only `SHARE` and `RENAME`. The previous owner stays a contributor.
     """
     colleague = _colleague(request, exp)
-    # The page offers this for contributors only, so anybody else is a request
-    # it never made — not found, the same answer as a stranger.
     if not sharing.transfer(exp, colleague):
         raise Http404
     messages.success(request, _("%(name)s now belongs to %(user)s. You are a "

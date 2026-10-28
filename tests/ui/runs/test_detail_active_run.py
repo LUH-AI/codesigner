@@ -1,10 +1,5 @@
-"""Step 6 regression: the detail page renders while a run is active.
-
-The live-status partial is *included* on the detail page (not only served by
-the status endpoint), and it reverses URLs from `experiment.pk` — so the detail
-context must expose the experiment. This GETs the detail page with an active
-run, the exact case a NoReverseMatch slipped through because no earlier test
-rendered detail while running.
+"""The included status partial reverses URLs from `experiment.pk`, so the detail
+context must expose the experiment.
 """
 
 import pytest
@@ -17,7 +12,7 @@ from tests.conftest import FIXTURES_DIR
 
 @pytest.mark.django_db
 def test_detail_renders_while_a_run_is_active(client):
-    """Detail renders (200) with the status partial and its cancel/poll URLs."""
+    """A running experiment shows cancel and poll URLs."""
     from experiments.models import Run
     from experiments.services import snapshot as adapter
 

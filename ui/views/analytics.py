@@ -32,17 +32,10 @@ from .priors import _acquisition_function, _slice_model
 
 @experiment_view(VIEW)
 def trial_traceback(request, exp):
-    """The stored traceback for one failed trial, as plain text.
-
-    A file to open rather than a panel to read: a traceback is a dozen lines of
-    paths and frames, which is the wrong shape for a sidebar and the right shape
-    for something you scroll, search and paste elsewhere. Served from the stored
-    result — the traceback was recorded when the trial failed, so this reads and
-    never computes.
-
-    404 for a trial that did not fail and for one that failed without a
-    traceback: a timeout has none worth keeping, an old result predates them
-    being recorded, and an export can have been asked to leave them out.
+    """`trial_traceback` serves a failed trial's stored traceback as plain text,
+    since a traceback suits a file better than a sidebar panel. A trial without
+    a stored traceback gets a 404, as timeouts, old results and some exports
+    carry none.
     """
     idx_raw = request.GET.get("idx", "")
     if not idx_raw.lstrip("-").isdigit():
@@ -59,8 +52,6 @@ def trial_traceback(request, exp):
 
     text = f"Trial {trial.trial} — {trial.failure}\n\n{trial.traceback}"
     response = HttpResponse(text, content_type="text/plain; charset=utf-8")
-    # Inline, so a click opens it rather than downloading it. A reader wanting
-    # the file can still save it from there.
     response["Content-Disposition"] = (
         f'inline; filename="{exp.identifier}-trial-{trial.trial}-traceback.txt"')
     return response
@@ -68,12 +59,9 @@ def trial_traceback(request, exp):
 
 @experiment_view(VIEW)
 def trial_ablation(request, exp):
-    """The local-explanation (HyperSHAP ablation) figure for one (metric,
-    trial index) — fetched lazily, only when the importance figure's game
-    selector is on "Local" and the selection changes, since (unlike the
-    other three games) this depends on which trial is selected rather than
-    just the experiment's stored result, so it cannot be precomputed for
-    every trial the way the rest of the page is.
+    """`trial_ablation` serves the local HyperSHAP ablation for one (metric,
+    trial index) on demand, since the figure depends on the selected trial and
+    cannot be precomputed.
     """
     metric = request.GET.get("metric", "")
     idx_raw = request.GET.get("idx", "")
@@ -94,24 +82,17 @@ def trial_ablation(request, exp):
         return HttpResponseBadRequest("invalid baseline")
 
     figure, warning, ablation = _local_ablation_data(built, metric, idx, baseline)
-    # What a trial has banked is a gain over the default, and so is what
-    # tunability says was there to gain, so the two only subtract from there.
     rows, settled = (analytics.tuning_progress(built["result"], metric, ablation)
                      if TUNING_PROGRESS_ENABLED and baseline is None else ([], False))
-    # The headroom renderings cannot be precomputed — they need this trial's
-    # ablation — so they come back with it, all three at once, and switching
-    # rendering afterwards costs no second request.
     remaining = {row["name"]: row["remaining"] for row in rows}
     return JsonResponse({
         "figure": figure,
         "warning": warning,
         "rows": rows,
         "settled": settled,
-        # Two ways of showing the same pair. `split` sizes each hyperparameter as
-        # the plain figure does and divides it into what has been banked and what
-        # has not — the honest version of the default view. `headroom` sizes them
-        # by what is left alone, which reorders the figure and is what the "still
-        # to gain" box asks for.
+        # `split` sizes each hyperparameter as the plain figure does and divides
+        # it into banked and unbanked gain. `headroom` sizes hyperparameters by
+        # the gain still left, for the "still to gain" box.
         "split": {
             rendering: _plot_json(hyperparameter_progress_plot(rows, rendering))
             for rendering in ("pie", "bar")
@@ -126,13 +107,9 @@ def trial_ablation(request, exp):
 
 @experiment_view(VIEW)
 def partial_dependence(request, exp):
-    """The partial-dependence (PDP/ICE) figure for one (metric,
-    hyperparameter) — fetched lazily on every load and every hyperparameter
-    switch, since which hyperparameter is being explained isn't one of a
-    small precomputable set the rest of the page ships upfront (unlike the
-    three global HyperSHAP games), and fitting a surrogate + predicting
-    across a grid for every hyperparameter on every page load, for a figure
-    that only ever shows one at a time, would be pure waste.
+    """`partial_dependence` fits per hyperparameter on demand, since
+    precomputing every hyperparameter on each load would waste work on a figure
+    that shows one.
     """
     metric = request.GET.get("metric", "")
     hp_name = request.GET.get("hp", "")
@@ -152,12 +129,8 @@ def partial_dependence(request, exp):
 
 @experiment_view(VIEW)
 def forecast_figure(request, exp):
-    """The Forecast figure for one trial: the series, and what the trial's
-    configuration forecast at every backtest.
-
-    Deferred like partial dependence, and for a stronger reason — it runs the
-    model, once per backtest, as the trial did. *idx* names the trial (the
-    selected one on the page), *series* which series to draw when there are
+    """`forecast_figure` reruns the model once per backtest for trial *idx*, so
+    the figure is deferred. *series* picks the series when the file holds
     several.
     """
     metric = request.GET.get("metric", "")
@@ -200,21 +173,11 @@ def forecast_figure(request, exp):
 
 @experiment_view(VIEW)
 def surrogate_uncertainty(request, exp):
-    """The uncertainty field under the configuration cube's axes view, for one
-    (metric, x, y) — how much the surrogate's own trees disagree across the
-    plane those two hyperparameters span.
-
-    **The axes view only, and only at two axes.** The two projections have no
-    way back: `core.projection.project` returns coordinates and discards the
-    fitted PCA/PLS, so there is no inverse to map a grid in component space
-    back to configurations — and even with one, the points it landed on need not
-    be valid configurations. Three axes would be a volume through a point cloud,
-    which is a worse picture than none. One is a strip, and a field under a strip
-    has no second dimension to vary in.
-
-    Fetched rather than shipped, like partial dependence and for the same
-    reason: it is per *pair*, and a model with six hyperparameters has fifteen
-    pairs of which the reader is looking at one.
+    """`surrogate_uncertainty` maps how much the surrogate's trees disagree over
+    the plane of two hyperparameters, in the axes view only. Projections have no
+    inverse, since `core.projection.project` discards the fitted PCA/PLS. The
+    field is fetched per pair, since six hyperparameters already make fifteen
+    pairs.
     """
     metric = request.GET.get("metric", "")
     x_hp = request.GET.get("x", "")
@@ -240,22 +203,17 @@ def surrogate_uncertainty(request, exp):
         config_space, result.trials, metric, x_hp, y_hp, seed=built["seed"])
     return JsonResponse({
         "x": x_grid, "y": y_grid, "z": z, "warning": warning,
-        # The ramp travels with the numbers, so what the colour *means* stays
-        # declared once in `plots.py` beside every other colour on the page —
-        # see UNCERTAINTY_SCALE for why it is neither green nor blue.
+        # The colour ramp travels with the numbers and stays declared in
+        # `plots.py` (see `UNCERTAINTY_SCALE`).
         "colorscale": UNCERTAINTY_SCALE,
     })
 
 
 @experiment_view(VIEW)
 def local_effects(request, exp):
-    """The beeswarm of every sampled trial's local effect, for one metric.
-
-    Fetched rather than shipped, and for a stronger reason than the other two
-    deferred computations: this one is a whole ablation game per trial. Capped
-    by the experiment's `local_effects_max_trials`, and (like every deferred
-    computation now) it waits to be asked unless its autocompute setting says
-    otherwise.
+    """`local_effects` runs an ablation game per trial, capped by
+    `local_effects_max_trials`, and waits to be asked unless its autocompute
+    setting is on.
     """
     metric = request.GET.get("metric", "")
     if metric not in exp.data.metric_names:
@@ -276,18 +234,9 @@ def local_effects(request, exp):
 
 @experiment_view(VIEW)
 def metric_figures(request, exp):
-    """Every per-metric figure's plot payload for one metric.
-
-    The page ships only the metric it opens on (see `_detail_context`), so this
-    answers for the rest — once each, the first time one is selected. Unlike
-    `trial_ablation` and `partial_dependence` this computes nothing new: the
-    numbers behind these figures were all worked out at run completion and
-    stored, so the cost here is building the Plotly objects and serializing
-    them, which is exactly the cost the page used to pay for every metric on
-    every load whether or not anyone looked.
-
-    Honours the visibility settings through `_shown_figures`, so a figure
-    switched off is absent here too rather than reachable by asking directly.
+    """`metric_figures` builds plots for metrics beyond the one the page opened
+    on, from numbers stored at run completion. `_shown_figures` keeps
+    switched-off figures unreachable here too.
     """
     metric = request.GET.get("metric", "")
     if metric not in exp.data.metric_names:
@@ -305,14 +254,9 @@ def metric_figures(request, exp):
 
 @experiment_view(VIEW)
 def surrogate_prediction(request, exp):
-    """What the surrogate predicts across the search space, for one metric: the
-    configuration cube's prediction layer.
-
-    One answer per metric, whichever view the cube is in. The sample, the
-    predictions and every view's coordinates for it come back together, so
-    switching view, dimensionality or axes redraws without asking again; only a
-    different metric means a different model. See
-    `core.analytics.sample_prediction_space`.
+    """`surrogate_prediction` sends the sample, the predictions and every view's
+    coordinates in one response, and a new request follows only a metric change.
+    `core.analytics.sample_prediction_space` does the sampling.
     """
     metric = request.GET.get("metric", "")
     if metric not in exp.data.metric_names:
@@ -332,23 +276,16 @@ def surrogate_prediction(request, exp):
         })
 
     optimizer = built["optimizer"]
-    # The same sample the acquisition figure's cloud is drawn from, out of the
-    # same cache, so whichever figure asks second costs nothing.
+    # `_slice_model` shares the acquisition figure's cached sample, so the
+    # second asker pays nothing.
     _surrogate, shared = _slice_model(exp, built, config_space, metric)
     answer = dict(shared) if shared else analytics.sample_prediction_space(
         optimizer, config_space, result.trials, metric, seed=built["seed"])
-    # The page draws the rounded `values`; the exact ones stay here, for
-    # `run_proposal`.
     answer.pop("configurations", None)
-    # Only an optimizer that fits a model of the objective has an acquisition
-    # function to speak of; the stand-in forest for the others predicts, and
-    # that is all.
     answer["acquisition"] = bool(getattr(optimizer, "fits_surrogate", False))
     answer["acquisition_function"] = _acquisition_function(optimizer)
-    # Every stated prior, as the weight the acquisition is multiplied by: its
-    # density over the same grid the acquisition figure draws it on, and the
-    # exponent its decay has reached. The page interpolates each sample's own
-    # position from these, and swaps one in as the acquisition figure edits it.
+    # `priors` maps each prior to a density over the acquisition grid plus a
+    # decay exponent, and the page interpolates each sample's weight from these.
     priors = {}
     inside = prior_math.inside_initial_design(result)
     for name in config_space.keys():
@@ -367,16 +304,9 @@ def surrogate_prediction(request, exp):
 
 @experiment_view(VIEW)
 def hypershap_figures(request, exp):
-    """Every HyperSHAP game figure for one metric, measured from one trial.
-
-    The stored games are gains over the config space's default, worked out at
-    run completion. This answers for the sidebar's other baselines, the
-    incumbent and the selected trial, which depend on the metric and on the
-    click and so cannot be stored ahead of time. All three games at once, so
-    the game selector switches between them without asking again; and as the
-    same plots and warnings the page draws the stored games from, so it draws
-    these the same way. `importance` carries the shares themselves, for the
-    importance table's columns, which set every baseline side by side.
+    """`hypershap_figures` computes all three games against trial *idx*, a
+    baseline that depends on the click and cannot be stored. `importance`
+    carries the raw shares for the importance table.
     """
     metric = request.GET.get("metric", "")
     idx_raw = request.GET.get("idx", "")
@@ -417,18 +347,9 @@ def hypershap_figures(request, exp):
 
 
 def _analytics_absent(result) -> bool:
-    """True when a stored result has trials but no explanation games in it.
-
-    Two ways to arrive here, both deliberate. A **cancelled** run skips them:
-    pressing Cancel used to still buy the full analytics bill, so on a wide
-    model you waited minutes for a run you had just stopped. A **partial** write
-    (`experiments/services/run.py`) leaves them out for the same reason at finer grain —
-    2^n_hp coalitions per game per metric is not something to pay per trial.
-
-    Both used to be permanent: the numbers were computed once, at run
-    completion, or never. `experiment_compute_analytics` is the way to ask for
-    them afterwards, so declining to compute them eagerly no longer means
-    declining to compute them at all.
+    """A cancelled run and a partial write both skip the explanation games on
+    purpose, since 2^n_hp coalitions per game per metric are too costly per
+    trial. `experiment_compute_analytics` computes the games later.
     """
     return bool(result.trials) and not any(result.hyperparameter_importance.values())
 
@@ -436,25 +357,11 @@ def _analytics_absent(result) -> bool:
 @require_POST
 @experiment_view(RUN)
 def experiment_compute_analytics(request, exp):
-    """Compute the explanation games for an experiment that has none.
-
-    Synchronous, and bounded by the same budget the eager computation is held
-    to: `eager_analytics_budget_exceeded` turns away anything wide enough to be
-    a problem, which leaves this in the same range as the local-effects fetch
-    the page already makes. Anything it declines is declined with a reason, on
-    the page, rather than started and waited on.
-
-    Written back onto the result rather than returned as a payload — which is
-    where the three fetched figures differ, and why. Those answer a question
-    that has no small precomputable set of answers (which trial, which
-    hyperparameter), so each one is a fresh request. These are exactly the
-    fields the result already has, computed from the same trials that are
-    already stored, so filling them in makes the result what a completed run
-    would have written — the page renders it with no live-update path of its
-    own, the export carries it, and nobody pays for it twice.
-
-    Refused while a run is in flight: it would race that run's own partial
-    writes, and the run will compute them itself when it finishes.
+    """`experiment_compute_analytics` runs synchronously under the eager budget
+    (`eager_analytics_budget_exceeded`). It writes the games back onto the
+    result, so the page and export see what a completed run would have written.
+    During a run the view returns a redirect without computing, since the run
+    computes the games itself and a second write would race it.
     """
     if exp.is_running:
         return redirect("ui:experiment_detail", pk=exp.pk)
@@ -464,23 +371,11 @@ def experiment_compute_analytics(request, exp):
 
 
 def _local_ablation_data(built, metric, idx, baseline=None):
-    """The local-ablation figure + warning for one (metric, trial index) —
-    HyperSHAP's `ablation` game, explaining that one trial's configuration
-    against the trial at index *baseline*, or against the config space's
-    default when that is None, rather than a global share like the other three
-    games. `built` is `rebuild_experiment`'s full dict, since this needs the
-    search space and the optimizer instance, neither of which the stored result
-    carries.
-
-    A trial explained against itself is not computed: every effect would be
-    zero by construction, and a waterfall of zeros reads as a finding.
-
-    Returns (figure_json_or_None, warning_or_None, raw_effects). The effects
-    are the signed per-hyperparameter values the figure is drawn from, in the
-    metric's own units, which `tuning_progress` needs and which cannot be read
-    back out of the figure. The figure is None (with a warning) when there is no
-    search space to be had — see `config_space_for` for the two places one can
-    come from.
+    """`_local_ablation_data` explains trial *idx* against trial *baseline*, or
+    the default when *baseline* is None, and needs `built` for the search space.
+    A trial against itself gets a warning, since an all-zero waterfall reads as
+    a finding. The raw effects are returned for `tuning_progress`, which cannot
+    read them from the figure.
     """
     config_space = config_space_for(built)
     if config_space is None:
@@ -492,44 +387,26 @@ def _local_ablation_data(built, metric, idx, baseline=None):
     ablation, warning = analytics.compute_hp_ablation(
         config_space, result.trials, metric, result.trials[idx].config,
         seed=built["seed"],
-        # From the result, not the registry: an imported run's objective is
-        # declared inside its own file, and the explainer needs its direction
-        # (see `_pair_trials_with_oriented_scores`).
+        # Direction comes from the result, since an imported run declares its
+        # own objective.
         metric=result.metric(metric),
         baseline=None if baseline is None else result.trials[baseline].config)
     fig = hyperparameter_ablation_plot(ablation)
     return (json.loads(cast(str, fig.to_json())) if fig is not None else None), warning, ablation
 
 
-#: Whether the page offers "still to gain" at all.
-#:
-#: Off: the measure is not ready to be read. The presentation problems were the
-#: visible half, but the numbers are not established either — the same run,
-#: same seed, gives tunability +0.096 in one process and +0.070 in another,
-#: while being bit-identical within a process. `tuning_progress` subtracts one
-#: of those quantities from another, so whatever moves between processes lands
-#: in its result, and a reader would be comparing a difference against a
-#: baseline that does not hold still. The tests below it check the arithmetic is
-#: self-consistent, which is a weaker claim than the measure being sound.
-#:
-#: Everything stays in place and stops being reachable from the page, so the
-#: switch back is this line — once the cross-process drift is understood.
+#: `TUNING_PROGRESS_ENABLED` is off because tunability drifts between processes
+#: (+0.096 versus +0.070 for one seed) while staying identical within one, and
+#: `tuning_progress` subtracts such values. The code stays in place, so flipping
+#: `TUNING_PROGRESS_ENABLED` re-enables the feature once the drift is
+#: understood.
 TUNING_PROGRESS_ENABLED = False
 
 
 def _partial_dependence_data(built, metric, hp_name, max_ice_curves=0):
-    """The partial-dependence figure + warning for one (metric,
-    hyperparameter) — same shape as `_local_ablation_data`, and for the same
-    reason: fitting a surrogate and predicting across a grid needs the search
-    space, not just the stored result, and depends on which hyperparameter is
-    picked rather than being one of a small precomputable set.
-
-    *max_ice_curves* is the experiment's `ice_max_curves` setting: how many
-    trials get predicted and drawn, 0 for all of them. It caps the work, not
-    just the picture — see `compute_partial_dependence`.
-
-    Returns (figure_json_or_None, warning_or_None). The figure is None (with
-    a warning) when there is no search space to be had.
+    """*max_ice_curves* caps how many trials are predicted and drawn, 0 for all,
+    and limits the work too. The figure is None, with a warning, when no search
+    space is available.
     """
     config_space = config_space_for(built)
     if config_space is None:
@@ -544,13 +421,8 @@ def _partial_dependence_data(built, metric, hp_name, max_ice_curves=0):
 
 
 def _local_effects_data(built, metric, max_trials=0, baseline=None):
-    """The beeswarm figure + warning for one metric — every sampled trial's
-    local ablation, from `compute_local_effects`, against the trial at index
-    *baseline* or against the config space's default when that is None.
-
-    Same shape and same reasoning as `_partial_dependence_data`: it needs the
-    search space, not just the stored result, and it is the one figure whose
-    cost is per *trial*, which is what `max_trials` bounds.
+    """`_local_effects_data` explains every sampled trial against *baseline* or
+    the default, and `max_trials` bounds its per-trial cost.
     """
     config_space = config_space_for(built)
     if config_space is None:

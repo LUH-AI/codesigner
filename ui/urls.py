@@ -13,44 +13,25 @@ urlpatterns = [
     path("experiments/", pages.experiment_list, name="experiment_list"),
     path("healthz/", pages.healthz, name="healthz"),
     path("settings/account/", preferences.account, name="account"),
-    # Signing in and out.
-    #
-    # Mounted unconditionally, like the middleware, so the two modes differ by one
-    # boolean and not by which routes exist. With `REQUIRE_LOGIN` off these pages are
-    # reachable but pointless — nothing sends you to them.
-    #
-    # Signing in, signing out, and changing the password you are signed in with.
-    #
-    # Not password *reset*, which is the other thing: it mails a link to somebody who
-    # cannot sign in, so it needs a configured mail server — an operator decision and a
-    # whole surface of its own. Changing a password you already know needs none, which
-    # is why one is here and the other is not. Until reset is asked for, a forgotten
-    # password is reset by an administrator in the Django admin.
-    #
-    # There is no registration either, by design. Nothing here accepts an
-    # unauthenticated POST that creates an account: on an instance where uploading a
-    # model is arbitrary code execution, an open door is the thing most worth not
-    # having. Accounts are created by an administrator.
+    # Auth routes are mounted unconditionally, so `REQUIRE_LOGIN` adds or
+    # removes no route. Password reset is absent because it needs a mail server,
+    # and an administrator resets passwords in the Django admin. Registration is
+    # absent too, since uploading a model runs arbitrary code, and
+    # administrators create accounts.
     path("accounts/login/", auth_views.LoginView.as_view(template_name="ui/account/login.html"),
          name="login"),
-    # Django's LogoutView is POST-only, which is right: a GET logout can be
-    # triggered by any page that can make the browser fetch a URL.
+    # POST-only, since any page can trigger a GET logout.
     path("accounts/logout/", auth_views.LogoutView.as_view(), name="logout"),
-    # Django's own views and its own form, which already enforces the password
-    # validators in settings and asks for the current password before changing
-    # it — so a borrowed, still-signed-in browser cannot lock its owner out.
+    # Django's form asks for the current password, so a borrowed signed-in
+    # browser cannot lock its owner out.
     path("accounts/password/", auth_views.PasswordChangeView.as_view(
         template_name="ui/account/password_change.html",
         success_url=reverse_lazy("ui:password_changed")), name="password_change"),
     path("accounts/password/done/", auth_views.PasswordChangeDoneView.as_view(
         template_name="ui/account/password_changed.html"), name="password_changed"),
-    # The two management surfaces. Neither goes through `@experiment_view`: a
-    # group lead reaches their colleagues' work through the policy's queryset,
-    # and a site admin reaches no experiment at all. See ui/views/groups.py.
-    # A group is named in the URL, because a person may be in several. The
-    # membership routes carry their group as well as their own pk: the view
-    # then looks the membership up *within* that group, which makes the
-    # boundary a lookup rather than a check somebody has to remember.
+    # Group and site routes bypass `@experiment_view` (see ui/views/groups.py).
+    # Membership routes carry their group's pk, and the view looks the
+    # membership up within that group.
     path("group/", groups.group_index, name="group_index"),
     path("group/<int:group_pk>/", groups.group_detail, name="group_detail"),
     path("group/<int:group_pk>/add/", groups.group_add_person, name="group_add_person"),
@@ -75,8 +56,7 @@ urlpatterns = [
     path("experiments/new/", pages.new_experiment, name="new_experiment"),
     path("experiments/<int:pk>/data/", data_handling.data_overview, name="data_overview"),
     path("experiments/<int:pk>/data/<slug:section>/", data_handling.data_section, name="data_section"),
-    # A draft's setup (ui/setup_steps.py): its three steps, creating it, and
-    # throwing it away. Drafts only — see `experiment_view`'s `drafts`.
+    # Draft setup routes (ui/setup_steps.py): four steps, create, discard.
     path("experiments/<int:pk>/setup/", setup.setup, name="setup"),
     path("experiments/<int:pk>/setup/optimizer/", setup.setup_optimizer,
          name="setup_optimizer"),

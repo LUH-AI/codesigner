@@ -1,58 +1,34 @@
-"""How an experiment's columns are processed before its model sees them.
-
-Three choices, each made once for the experiment and recorded in its `.ihpo`:
-
-* **missing** — fill a missing value in (``"impute"``: a number with its
-  column's median, a label with its commonest label) or leave it as NaN
-  (``"keep"``);
-* **scale** — standardize the numbers (``"standardize"``: zero mean, unit
-  variance) or leave them (``"none"``);
-* **labels** — a label column as one column per label (``"one_hot"``), or as
-  categories of its own (``"categories"``) in the form the model takes them:
-  codes for a booster, words for CatBoost, plain numbers for a model with no
-  notion of a category.
-
-Each defaults to ``"auto"``: what the model needs (see
-`codesigner_model.OutputBaseModel`'s `accepts_missing`, `scale_sensitive` and
-`native_categories`). Left to the defaults an SVM gets its gaps filled, its
-numbers scaled and its labels one-hot; a forest one-hot labels and nothing
-else; a booster its columns as they are. A choice the model cannot take — gaps
-left for a model that refuses NaN — is overruled, and `resolve` says so.
-
-Processing is *fitted*: the medians, the scale and the labels it has seen come
-from the rows it is fitted on, and in a trial those are the fold's training
-rows only — the validation rows never inform how they themselves are scaled.
-
-Imports nothing from this package, so an exported model carries this module as
-its processing step.
+"""`CHOICES` holds the processing an experiment records in its `.ihpo`, each
+step starting as "auto" for what the model needs. `resolve` overrules a choice
+the model cannot take. `Processing` fits on a fold's training rows only, so
+validation rows never shape their own scaling. An exported model carries
+`core.processing` as its processing step, since the module imports nothing from
+codesigner.
 """
 
 from sklearn.base import BaseEstimator
 
 AUTO = "auto"
 
-#: Every choice, in the order the Data Handling page offers them.
+#: Data Handling page order.
 CHOICES = {
     "missing": (AUTO, "impute", "keep"),
     "scale": (AUTO, "standardize", "none"),
     "labels": (AUTO, "one_hot", "categories"),
 }
 
-#: An experiment that has said nothing: every step as its model needs it.
 DEFAULTS = {step: AUTO for step in CHOICES}
 
 
 def choices_of(processing):
-    """*processing* (as stored: possibly empty or partial) with every step
-    present and every value one the step knows."""
+    """`choices_of` fills missing or unknown steps with "auto"."""
     processing = processing or {}
     return {step: (processing.get(step) if processing.get(step) in options else AUTO)
             for step, options in CHOICES.items()}
 
 
 def model_defaults(model) -> dict:
-    """What *model* is given at each step when nothing is chosen: the choice
-    "auto" stands for, as one of the others."""
+    """The concrete choice "auto" stands for."""
     return {
         "missing": "keep" if getattr(model, "accepts_missing", True) else "impute",
         "scale": "standardize" if getattr(model, "scale_sensitive", False) else "none",
@@ -61,18 +37,14 @@ def model_defaults(model) -> dict:
 
 
 def unavailable(model, step, choice) -> bool:
-    """Whether *model* cannot take *choice* at *step* — one that cannot take
-    a missing value has its gaps filled whatever is asked."""
+    """`unavailable` flags `keep` for a model refusing NaN values."""
     return step == "missing" and choice == "keep" and not getattr(model, "accepts_missing", True)
 
 
 def resolve(processing, model):
-    """The plan *model* is given under *processing*: (plan, overruled).
-
-    *plan* has a concrete value for every step — ``"auto"`` replaced by what
-    the model needs, and ``labels`` as ``"one_hot"``, ``"codes"``, ``"text"``
-    or ``"numbers"`` (categories for a model with no notion of them). *overruled*
-    names the steps whose choice the model cannot take.
+    """`resolve` returns ``(plan, overruled)``, where *plan* replaces "auto" and
+    gives ``labels`` as "one_hot", "codes", "text" or "numbers". `resolve` puts
+    the steps whose choice the model cannot take in *overruled*.
     """
     choices = choices_of(processing)
     accepts_missing = bool(getattr(model, "accepts_missing", True))
@@ -100,25 +72,18 @@ def resolve(processing, model):
 
 
 class Processing(BaseEstimator):
-    """The processing a plan (see `resolve`) describes, for columns of *kinds*.
-
-    A scikit-learn transformer: `fit` learns the medians, the scale and the
-    labels from the rows it is given, `transform` applies them. `kinds_out`
-    is the kind of each column it returns — label columns one-hot are numbers,
-    label columns kept are still labels — or None when it cannot say how many
-    there will be before it is fitted (one-hot), in which case every column it
-    returns is a number.
+    """`Processing` is a scikit-learn transformer that learns medians, scale and
+    labels in `fit`. `kinds_out` returns None when one-hot makes the column
+    count unknown before fitting.
     """
 
     def __init__(self, plan=None, kinds=()):
         self.plan = dict(plan or {})
         self.kinds = tuple(kinds)
 
-    # ── what it does ────────────────────────────────────────────────────
 
     def _parts(self):
-        """The fitted-to-be transformer, or None when the columns pass as they
-        are."""
+        """`_parts` returns None when the columns pass unchanged."""
         from sklearn.compose import ColumnTransformer
         from sklearn.impute import SimpleImputer
         from sklearn.pipeline import make_pipeline
@@ -135,8 +100,7 @@ class Processing(BaseEstimator):
             return OneHotEncoder(handle_unknown="ignore", sparse_output=False)
 
         if not impute and not scale:
-            # The columns as they are, but for the labels: one-hot in front of
-            # everything else, or as words.
+            # Only the labels change here, into leading one-hot columns or text.
             if labels == "one_hot" and categorical:
                 return ColumnTransformer([("labels", one_hot(), categorical)],
                                          remainder="passthrough", sparse_threshold=0)
@@ -157,8 +121,6 @@ class Processing(BaseEstimator):
         return ColumnTransformer(parts, sparse_threshold=0)
 
     def kinds_out(self):
-        """The kind of each column `transform` returns, or None — every column
-        a number, how many not known until fitted."""
         kinds, plan = self.kinds, self.plan
         categorical = [kind for kind in kinds if kind == "categorical"]
         if plan.get("labels", "one_hot") == "one_hot" and categorical:
@@ -183,18 +145,14 @@ class Processing(BaseEstimator):
         return self.fit(X, y).transform(X)
 
     def is_identity(self):
-        """Whether it leaves every column as it is."""
+        """`is_identity` is true when nothing changes."""
         return self._parts() is None
 
 
 class TextCategories(BaseEstimator):
-    """Label codes as text, for a learner that takes a category as a word.
-
-    CatBoost takes a category as text or a whole number and refuses NaN in
-    one, so a label's code becomes its digits and a missing label the word
-    "missing" — a category of its own, which is how CatBoost treats it anyway.
-    Numbers stay numbers, NaN and all. *columns* are the label columns; empty,
-    every column given is one (as inside a column transformer's label part).
+    """CatBoost refuses NaN in a category, so `TextCategories` writes each label
+    code as digits and a missing label as "missing". An empty *columns* makes
+    every given column a label.
     """
 
     def __init__(self, columns=()):

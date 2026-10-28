@@ -15,11 +15,8 @@ from .common import _chosen_group, _settle_storage
 
 
 def import_experiment(request):
-    """Upload an .ihpo file to create a saved experiment.
-
-    A dataset and — when custom models are enabled — a model .py may be
-    attached to make the imported experiment runnable; without them it loads
-    read-only.
+    """`import_experiment` creates an experiment from an .ihpo upload; an
+    attached dataset and model make it runnable.
     """
     may_upload = policy().may_upload_models(request)
     context = {"allow_custom_models": may_upload,
@@ -55,14 +52,8 @@ def import_experiment(request):
 
 
 def _import_smac_directory(request, context):
-    """Create a read-only experiment from an uploaded SMAC output directory.
-
-    Its own branch rather than a third optional file on the `.ihpo` form: this
-    reads a *set* of files with no `.ihpo` among them, and neither a dataset nor
-    a model may be attached to it. A SMAC scenario records nothing about what
-    was being optimized, so there is nothing here to check an attached dataset
-    against — see `core/smac_import.py`, and `import_experiment` on why a
-    dataset that cannot be checked is not accepted.
+    """`_import_smac_directory` creates a read-only experiment from a SMAC run
+    directory, since a SMAC scenario records nothing to check a dataset against.
     """
     files = {}
     for upload in request.FILES.getlist("smac_dir"):
@@ -71,12 +62,8 @@ def _import_smac_directory(request, context):
         except ValidationError as error:
             context["error"] = error.messages[0]
             return render(request, "ui/import.html", context)
-        # Django's uploader keeps only the basename, so a directory picker's
-        # relative paths do not survive the post — which is why the importer
-        # matches on basenames, and why two run directories at once cannot be
-        # told apart. Refused rather than blended: SMAC writes one run per
-        # `<name>/<seed>` directory, and a runhistory read against another
-        # run's config space is not a run that happened.
+        # Django keeps only basenames, so two run directories collide and the
+        # importer refuses them.
         name = upload.name
         if not name.endswith(".json"):
             continue

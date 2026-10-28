@@ -1,5 +1,4 @@
-"""An experiment's processing choices (`core.processing`): whether they may
-still change, and changing them."""
+"""`processing` saves the `core.processing` choices and guards their changes."""
 
 from django.utils.translation import gettext as _
 
@@ -15,7 +14,6 @@ def _has_trials(exp):
 
 
 def why_fixed(exp):
-    """Why *exp*'s processing can no longer change, or None if it can."""
     if _has_trials(exp):
         return _("This experiment has trials, and they were scored on its columns "
                  "processed as they are now; changing that would make the next ones "
@@ -27,11 +25,7 @@ def why_fixed(exp):
 
 
 def save(exp, posted, user):
-    """Store the processing choices in *posted* on *exp*. Returns why it could
-    not, or None.
-
-    Each choice that changed is an entry in the experiment's history (a draft
-    has none; its choices are part of how it was set up)."""
+    """`save` returns the refusal or None, and history records each change."""
     refusal = why_fixed(exp)
     if refusal:
         return refusal
@@ -51,8 +45,8 @@ def save(exp, posted, user):
 
 
 def model_of(exp):
-    """The registry model *exp* names, told its task, or None for an uploaded
-    one (which is given the columns as they are) or none at all."""
+    """`model_of` returns None for an uploaded model, which receives raw
+    columns."""
     model = MODELS.get(exp.data.model_name)
     if model is None or exp.data.model_file:
         return None

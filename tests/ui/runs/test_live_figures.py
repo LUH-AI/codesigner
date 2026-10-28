@@ -1,19 +1,6 @@
-"""Figures that move while the run is still going.
-
-`docs/plan_today.md` Step 3, first two parts.
-
-**The constraint was never rendering — it was persistence.** Every trial-based
-figure reads nothing but `result.trials`, and the page has always been able to
-draw them; there was simply nothing to draw, because `execute_run` wrote
-`experiment.data.result` exactly once, after `_optimize` returned. So the run writes
-what it has periodically, and the run-status poll — already fetched every two
-seconds, already replaced wholesale — carries whatever has arrived since the
-page last said what it had.
-
-What is deliberately absent is the analytics. Importance, interactions, partial
-dependence and local effects each cost a surrogate fit or 2^n_hp coalition
-evaluations, and none of them may run per trial. A partial result leaves those
-fields empty, which is the state a cancelled run already produces.
+"""`execute_run` writes partial results mid-run, and the status poll sends the
+cheap trial figures. Partial results leave analytics empty, like a cancelled
+run.
 """
 
 import json
@@ -24,12 +11,11 @@ from django.urls import reverse
 from tests.ui.runs.test_run_views import _experiment, no_thread  # noqa: F401
 
 
-# ── the run writes what it has, before it is done ────────────────────────────
+# partial writes during a run
 
 def test_a_partial_write_is_throttled_by_the_clock_not_the_trial_count(monkeypatch):
-    """Trial durations here span three orders of magnitude. At one write per
-    trial a run of 0.07s trials would rewrite the whole result a dozen times a
-    second; a count that fixed that would starve a run of ten-minute trials."""
+    """The clock throttles writes instead of a trial count, because trial
+    durations span three orders of magnitude."""
     from experiments.services import run as run_service
 
     clock = {"now": 1000.0}
@@ -55,8 +41,7 @@ def test_a_partial_write_is_throttled_by_the_clock_not_the_trial_count(monkeypat
 
 
 def test_a_partial_write_carries_no_analytics(monkeypatch):
-    """The expensive fields stay empty by construction — that is what makes a
-    per-trial write affordable at all."""
+    """Empty analytics keep each partial write cheap."""
     from experiments.services import run as run_service
 
     clock = {"now": 0.0}
@@ -75,9 +60,8 @@ def test_a_partial_write_carries_no_analytics(monkeypatch):
 
 
 def test_the_writer_is_reached_through_the_collector_not_the_optimizers():
-    """`BaseOptimizer.new_collector` is what wires it, so none of the three
-    optimizers has a line about progress in it — the same reason cancellation is
-    handled in `record`."""
+    """`BaseOptimizer.new_collector` wires the writer, keeping progress code out
+    of every optimizer."""
     import inspect
 
     from core.optimizers import GridOptimizer, RandomOptimizer, SMACOptimizer
@@ -105,8 +89,6 @@ def test_a_recorded_trial_calls_the_progress_callback():
 
 
 def test_a_failing_write_does_not_take_the_run_down():
-    """A snapshot is a convenience. A run that died because one could not be
-    saved would be a bad trade."""
     from core.optimizers.base import TrialCollector
     from core.optimizers.timing import STATUS_SUCCESS
 
@@ -121,12 +103,8 @@ def test_a_failing_write_does_not_take_the_run_down():
 
 @pytest.mark.django_db
 def test_a_real_run_writes_its_trials_before_it_finishes(monkeypatch):
-    """The whole point, against a real optimizer rather than a stand-in: what
-    the page can read while the run is still going.
-
-    Observed from inside the model, which is the only vantage point where "the
-    run has not finished" is certainly true — checking after `execute_run`
-    returns would be satisfied by the final write, which was always there.
+    """The model checks the stored result mid-run, since a check after
+    `execute_run` would see only the final write.
     """
     from experiments.models import Experiment
     from experiments.services import run as run_service
@@ -139,8 +117,7 @@ def test_a_real_run_writes_its_trials_before_it_finishes(monkeypatch):
 
     seen = []
     model = run_service.registry.MODELS["Random Forest"]
-    # `fit`, which every trial goes through: through `fit_predict`, or
-    # directly when the trial's fitted model may be kept.
+    # `fit` covers every trial, via `fit_predict` or directly.
     original = type(model).fit
 
     def watched(self, *args, **kwargs):
@@ -161,8 +138,6 @@ def test_a_real_run_writes_its_trials_before_it_finishes(monkeypatch):
 
 @pytest.mark.django_db
 def test_what_a_run_writes_mid_flight_carries_no_analytics(monkeypatch):
-    """A partial result leaves those fields empty — the state the page already
-    handles, because it is what a cancelled run produces."""
     from experiments.models import Experiment
     from experiments.services import run as run_service
     from experiments.services.run import create_run, execute_run
@@ -187,8 +162,7 @@ def test_what_a_run_writes_mid_flight_carries_no_analytics(monkeypatch):
     assert partial, "nothing was written mid-run"
     for stored in partial:
         assert not any(stored.get("hyperparameter_importance", {}).values())
-    # And the finished run does have them, so the emptiness above is the
-    # partial write's doing and not the analytics being off.
+    # Final analytics prove the analytics setting is on.
     final = Experiment.objects.get(pk=exp.pk).data.result
     assert final is not None
     assert any(final["hyperparameter_importance"].values())
@@ -207,7 +181,7 @@ def _make_experiment():
     }, adopt_paths=True)
 
 
-# ── and the poll carries it to the page ─────────────────────────────────────
+# the poll
 
 @pytest.mark.django_db
 def test_the_poll_sends_fresh_plots_when_the_page_is_behind(client, ran_experiment):
@@ -224,8 +198,6 @@ def test_the_poll_sends_fresh_plots_when_the_page_is_behind(client, ran_experime
 
 @pytest.mark.django_db
 def test_the_poll_sends_nothing_when_the_page_is_up_to_date(client, ran_experiment):
-    """The cost control. Building plots on every two-second poll would be work
-    thrown away twice over — the result only moves every few seconds."""
     exp = ran_experiment
     body = _poll(client, exp, trials=len(exp.data.result["data"]))
 
@@ -234,8 +206,8 @@ def test_the_poll_sends_nothing_when_the_page_is_up_to_date(client, ran_experime
 
 @pytest.mark.django_db
 def test_the_poll_carries_no_analytics_figure(client, ran_experiment):
-    """Whatever is in the payload is redrawn per poll, so an expensive figure
-    getting in here would be an expensive figure computed every few seconds."""
+    """Expensive figures stay out, because the poll payload is redrawn every few
+    seconds."""
     exp = ran_experiment
     live = _live_payload(_poll(client, exp, trials=0 or len(exp.data.result["data"]) - 1))
 
@@ -247,8 +219,7 @@ def test_the_poll_carries_no_analytics_figure(client, ran_experiment):
 
 @pytest.mark.django_db
 def test_a_page_with_no_figures_is_sent_the_count_alone(client, ran_experiment):
-    """It has no grid to merge into — it reloads into a page that has one, so
-    building payloads for it would be work thrown away."""
+    """Payloads would be wasted, because a page without a grid reloads into one."""
     exp = ran_experiment
     live = _live_payload(_poll(client, exp, trials=0))
 
@@ -260,9 +231,8 @@ def test_a_page_with_no_figures_is_sent_the_count_alone(client, ran_experiment):
 @pytest.mark.django_db
 def test_the_fragment_asks_its_next_question_with_the_count_it_just_sent(
         client, ran_experiment):
-    """poll.js re-reads `hx-get` off the replacement, so the swap carries the
-    next question with it — that is what keeps the page and the server agreeing
-    about what has already been drawn, with no state on either side."""
+    """`poll.js` re-reads `hx-get` from the swap, which keeps page and server in
+    agreement without stored state."""
     exp = ran_experiment
     body = _poll(client, exp, trials=1)
 
@@ -271,8 +241,8 @@ def test_the_fragment_asks_its_next_question_with_the_count_it_just_sent(
 
 @pytest.mark.django_db
 def test_a_finished_run_still_refreshes_the_whole_page(client, ran_experiment):
-    """Unchanged: the analytics only exist once the run has ended, so the end of
-    a run is still a full reload rather than one more partial update."""
+    """Analytics exist only after the run, so the end still triggers a full
+    reload."""
     exp = ran_experiment
     exp.runs.all().update(status="done")
 
@@ -284,8 +254,6 @@ def test_a_finished_run_still_refreshes_the_whole_page(client, ran_experiment):
 
 @pytest.mark.django_db
 def test_the_page_declares_which_figures_move(client, ran_experiment):
-    """One declaration (`Figure.live`) drives both the payload and the redraw,
-    so the two cannot disagree about which figures are cheap enough."""
     body = client.get(
         reverse("ui:experiment_detail", args=[ran_experiment.pk])).content.decode()
     declared = json.loads(_json_script(body, "live-figures-data"))
@@ -294,13 +262,12 @@ def test_the_page_declares_which_figures_move(client, ran_experiment):
                              "parallel_coordinates", "trial_duration"}
 
 
-# ── helpers ─────────────────────────────────────────────────────────────────
+# helpers
 
 @pytest.mark.django_db
 def test_the_poll_carries_the_best_configuration(client, ran_experiment):
-    """It moves whenever a trial beats it, so it is sent with the plots: every
-    metric's card, from the partial the page drew them from, naming the best
-    trial so far."""
+    """Every metric's best-configuration card is sent with the plots, because
+    any new best changes the card."""
     exp = ran_experiment
     body = _poll(client, exp, trials=1)
     live = _live_payload(body)
@@ -325,8 +292,7 @@ def test_the_poll_leaves_the_best_configuration_out_when_it_is_off(client, ran_e
 
 @pytest.mark.django_db
 def test_the_hypershap_figures_say_they_predate_the_run(client, ran_experiment):
-    """Computed when a run finishes, so while one is going they show the trials
-    before it — and say so, on each of them."""
+    """During a run, the six HyperSHAP figures say they show earlier trials."""
     body = client.get(reverse("ui:experiment_detail", args=[ran_experiment.pk])).content.decode()
 
     assert body.count("before-this-run") == 6
@@ -393,11 +359,8 @@ class _CaptureOptimizer:
 
 @pytest.fixture
 def ran_experiment(client):
-    """An experiment with a finished run, then put back into "running".
-
-    The poll only answers for an active run, and what it answers with comes from
-    the stored result — which is exactly the shape a partial write leaves behind,
-    with more trials in it than the page has seen.
+    """`ran_experiment` puts a finished run back into running, with more stored
+    trials than the page has seen.
     """
     from tests.ui.storage.test_page_survives_a_round_trip import _ran_experiment
 

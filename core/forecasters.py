@@ -1,21 +1,7 @@
-"""The forecasting estimators: fitted on a series' past, asked about its future.
-
-Each is a scikit-learn-style estimator, like every other model's: `fit(X, y)`
-learns from the training rows — in time order, a series' history — and
-`predict(X)` forecasts the rows asked about, from what each row says of itself
-(its time and its series) and what `fit` kept of its series' past. What a
-forecaster is told about the data is `forecast` (see `core.forecasting.context`):
-
-    {"horizon", "season", "gap", "time": column of X with each row's time,
-     "series": column naming its series (None for one series),
-     "known": the columns of X known ahead of time}
-
-A row's step ahead is its time's place among its series' rows being forecast,
-counted from one past the gap — so the rows asked about are the next steps
-after the history, as in a backtest and as in use.
-
-Imports nothing but the delivered-model contract and the processing, so an
-exported forecaster carries this module as it is.
+"""Each forecaster is a scikit-learn estimator that learns a series' past in
+`fit` and forecasts the asked rows in `predict`, per `forecast`
+(`core.forecasting.context`). An exported model can include `core.forecasters`
+because `core.forecasters` imports only `codesigner_model` and `.processing`.
 """
 
 import warnings
@@ -31,15 +17,14 @@ CATEGORICAL = "categorical"
 
 
 def series_keys(X, series):
-    """Each row's series, as text, so a missing one is a series of its own."""
+    """A missing series becomes a series of its own."""
     if series is None:
         return np.zeros(len(X), dtype=object).astype(str)
     return np.array([str(v) for v in np.asarray(X)[:, series]])
 
 
 def steps_ahead(X, forecast):
-    """Each row's series and its step ahead of its series' history — 1 for the
-    first time after the end of it, plus the gap."""
+    """The first forecast time is step 1 + gap."""
     X = np.asarray(X, dtype=float)
     keys = series_keys(X, forecast.get("series"))
     ahead = np.zeros(len(X), dtype=int)
@@ -52,22 +37,18 @@ def steps_ahead(X, forecast):
 
 
 class _Estimator(BaseEstimator):
-    """What every forecaster here shares: its parameters are its constructor's
-    arguments, as scikit-learn expects."""
 
     forecast: dict
 
     def _history(self, X, y):
-        """Each series' values, oldest first, as the training rows give them."""
         keys = series_keys(X, self.forecast.get("series"))
         y = np.asarray(y, dtype=float)
         return {key: y[keys == key] for key in np.unique(keys)}
 
 
 class SeasonalNaiveForecaster(_Estimator):
-    """The forecasts to beat: last season again (``"seasonal"``), the last value
-    again (``"last"``), or the straight line from the first value to the last
-    (``"drift"``). Its only state is the history itself."""
+    """``"seasonal"`` repeats the last season, ``"last"`` repeats the last
+    value, and ``"drift"`` extends the first-to-last line."""
 
 
     def __init__(self, strategy="seasonal", forecast=None):
@@ -96,13 +77,9 @@ class SeasonalNaiveForecaster(_Estimator):
 
 
 class ETSForecaster(_Estimator):
-    """Exponential smoothing (statsmodels' Holt–Winters): a level, optionally a
-    trend (``"add"``, possibly damped) and a season (``"add"`` or ``"mul"``),
-    each updated as the series goes. One smoother per series, fitted on its
-    own history.
-
-    A season needs two of them to be estimated, and a multiplicative one needs
-    every value positive; a series without either gets the next simpler model.
+    """`ETSForecaster` fits one statsmodels Holt-Winters smoother per series.
+    `ETSForecaster` drops the season for a series shorter than two seasons and
+    swaps ``"mul"`` to ``"add"`` for a series with a non-positive value.
     """
 
 
@@ -125,7 +102,7 @@ class ETSForecaster(_Estimator):
             if seasonal == "mul" and np.any(values <= 0):
                 seasonal = "add"
             with warnings.catch_warnings():
-                # Convergence and frequency notices, which nobody can act on here.
+                # Convergence and frequency notices are unactionable here.
                 warnings.simplefilter("ignore")
                 self.fits_[key] = ExponentialSmoothing(
                     values, trend=trend, damped_trend=bool(trend) and bool(self.damped),
@@ -148,20 +125,10 @@ class ETSForecaster(_Estimator):
 
 
 class ReducedForecaster(_Estimator):
-    """Any model, forecasting by reduction.
-
-    Each training row becomes one example per step ahead: the step, the series'
-    last *lags* values before the forecast's origin (latest first), a summary
-    of the last season (its mean; for labels, its commonest), and the row's
-    columns known ahead of time — never its others, whose future values nobody
-    has yet. One model learns every step. For numbers it predicts the change
-    from the origin's value, so a tree can follow a trend it was never shown
-    the far end of; for labels, the label, from the lagged labels' codes.
-
-    *model* is the model doing the learning (a `codesigner_model.OutputBaseModel`),
-    fitted with *hyperparameters*; *plan* is the experiment's processing of the
-    examples it learns from (`core.processing`), applied here because the
-    examples are made here.
+    """Each training row becomes one example per step ahead: the step, the last
+    *lags* values before the origin, the last season's mean or commonest label,
+    and the row's known columns. One model learns every step and, for numbers,
+    predicts the change from the origin's value, so a tree can follow a trend.
     """
 
 
@@ -184,8 +151,6 @@ class ReducedForecaster(_Estimator):
         return list(known) if known is not None else [self.forecast.get("time", 0)]
 
     def _features(self, before, step, row):
-        """One example: the step, the lags, the season's summary, the row's
-        known columns."""
         recent = before[::-1][:self.lags]
         padded = np.full(self.lags, np.nan)
         padded[:len(recent)] = recent
@@ -206,7 +171,7 @@ class ReducedForecaster(_Estimator):
         y = np.asarray(y)
         keys = series_keys(X, self.forecast.get("series"))
         if self.classifies:
-            # Lagged labels as codes: a label's place among the training labels.
+            # Lagged labels become codes by training-label order.
             self.labels_ = {label: float(i) for i, label in enumerate(np.unique(y.astype(str)))}
             values = np.array([self.labels_[str(v)] for v in y], dtype=float)
         else:
@@ -237,8 +202,8 @@ class ReducedForecaster(_Estimator):
         examples = self.processing_.fit_transform(np.array(rows))
         out = self.processing_.kinds_out()
         assert self.model is not None
-        # The delivered model's own fit: the examples are processed already,
-        # and a tuned model's fit would process them again.
+        # The examples are processed already; a tuned model's fit would repeat
+        # processing.
         self.fitted_ = OutputBaseModel.fit(
             self.model, self.hyperparameters, examples, np.array(targets), self.seed,
             kinds=out if out is not None else (NUMERIC,) * examples.shape[1])  # pyright: ignore[reportOptionalSubscript]
@@ -246,8 +211,6 @@ class ReducedForecaster(_Estimator):
         return self
 
     def _asked(self, X):
-        """The examples for the rows asked about, and each row's series' value
-        at the origin."""
         X = np.asarray(X, dtype=float)
         keys, ahead = steps_ahead(X, self.forecast)
         rows, last = [], []

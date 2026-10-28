@@ -1,14 +1,6 @@
-"""Handing a run to a cluster, and watching it from here.
-
-*What:* `RUN_BACKEND=slurm` stages an experiment onto a cluster's filesystem,
-submits a Slurm job, follows it, and writes back the same rows a local run
-writes. The page, the run history and the export cannot tell the difference, and
-that is the property worth pinning.
-
-*How:* against a transport double returning canned `sbatch`/`squeue`/`sacct`
-output. The suite must not need a cluster — or a network — so nothing here
-shells out; what is tested is the conversation, which is the part that can be
-wrong in ways a cluster would not reveal until a job had already run.
+"""`RUN_BACKEND=slurm` stages a run on a cluster, follows its Slurm job and
+writes back the rows a local run writes. A transport double with canned
+scheduler output replaces the cluster.
 """
 
 import json
@@ -24,12 +16,8 @@ pytestmark = pytest.mark.django_db
 
 
 class FakeTransport:
-    """A cluster that answers from a script instead of a scheduler.
-
-    `states` is what successive polls see, so a test can walk a job through
-    queued → running → done without waiting for one. Everything written is kept
-    in `files`, which is also what `get` reads back — so the job's outputs are
-    whatever a test puts there.
+    """`FakeTransport` answers from a script instead of a scheduler. Successive
+    polls pop `states`, and `get` reads back whatever `files` holds.
     """
 
     def __init__(self, states=("done",), files=None, submit="81234"):
@@ -39,7 +27,6 @@ class FakeTransport:
         self._states = list(states)
         self._submit = submit
 
-    # ── the two the code uses to send work ──────────────────────────────────
     def put(self, data: bytes, remote: str) -> None:
         self.files[remote] = data
 
@@ -49,7 +36,6 @@ class FakeTransport:
     def get(self, remote: str):
         return self.files.get(remote)
 
-    # ── and the one it uses to ask questions ────────────────────────────────
     def run(self, command: str):
         self.commands.append(command)
         if command.startswith("sbatch") or " sbatch " in command:
@@ -90,7 +76,7 @@ def experiment():
 
 
 def _finished_result(trials=3):
-    """What a job leaves in result.json — `Experiment.result`'s own shape."""
+    """`_finished_result` mimics a job's result.json."""
     return {
         "stats": {"submitted": trials, "finished": trials, "running": 0},
         "data": [{"config_id": i + 1, "cost": 0.2, "time": 1.5,
@@ -125,14 +111,9 @@ def _run(experiment, transport, monkeypatch, states=("done",), status=None,
     return run, workdir
 
 
-# ── what gets sent ───────────────────────────────────────────────────────────
-
 def test_everything_the_job_needs_is_staged(cluster_settings, experiment, monkeypatch):
-    """A snapshot, what bounds the run, and the data it was measured on.
-
-    The dataset especially: the snapshot names it by a path that exists on this
-    machine and nowhere else, so without the file beside it the job would fail
-    on every trial for a reason that reads like a broken experiment.
+    """The snapshot's dataset path exists only here, so the job needs the staged
+    file.
     """
     transport = FakeTransport()
     run, workdir = _run(experiment, transport, monkeypatch,
@@ -152,8 +133,7 @@ def test_everything_the_job_needs_is_staged(cluster_settings, experiment, monkey
 
 def test_the_job_id_is_recorded_before_the_run_is_watched(cluster_settings,
                                                           experiment, monkeypatch):
-    """So a consumer that restarts mid-run can find the job again rather than
-    leaving it running with nobody listening."""
+    """A restarted consumer can then find the job again."""
     run, _ = _run(experiment, FakeTransport(), monkeypatch,
                   status={"state": "done", "offset": 0, "stopped_by": "",
                           "config_space": None, "error": ""},
@@ -163,11 +143,9 @@ def test_the_job_id_is_recorded_before_the_run_is_watched(cluster_settings,
     assert run.backend == "slurm"
 
 
-# ── what comes back ──────────────────────────────────────────────────────────
-
 def test_a_finished_job_writes_the_rows_a_local_run_writes(cluster_settings,
                                                            experiment, monkeypatch):
-    """Same fields, same shape — the history cannot tell where a run happened."""
+    """The history cannot tell where a run happened."""
     run, _ = _run(experiment, FakeTransport(), monkeypatch,
                   status={"state": "done", "offset": 0, "stopped_by": "max_trials",
                           "config_space": None, "error": ""},
@@ -182,8 +160,7 @@ def test_a_finished_job_writes_the_rows_a_local_run_writes(cluster_settings,
 
 
 def test_the_search_space_the_job_saw_is_kept(cluster_settings, experiment, monkeypatch):
-    """The job is the only thing that had a model to ask, exactly as a local run
-    is — and every surrogate-backed figure needs the answer afterwards."""
+    """Surrogate-backed figures need the space only the job could read."""
     space = {"name": None, "hyperparameters": [], "conditions": [],
              "forbiddens": [], "python_module_version": "1.2.0",
              "format_version": 0.4}
@@ -198,7 +175,7 @@ def test_the_search_space_the_job_saw_is_kept(cluster_settings, experiment, monk
 
 def test_a_resumed_run_counts_only_its_own_trials(cluster_settings, experiment,
                                                    monkeypatch):
-    """`offset` is the job saying how many it started with."""
+    """`offset` is the job's starting trial count."""
     run, _ = _run(experiment, FakeTransport(), monkeypatch,
                   status={"state": "done", "offset": 2, "stopped_by": "",
                           "config_space": None, "error": ""},
@@ -208,13 +185,10 @@ def test_a_resumed_run_counts_only_its_own_trials(cluster_settings, experiment,
     assert run.trial_count == 3
 
 
-# ── while it is going ────────────────────────────────────────────────────────
-
 def test_partial_results_reach_the_experiment_while_it_runs(cluster_settings,
                                                             experiment, monkeypatch):
-    """Which is the whole of what the page needs: `run_status` already polls and
-    the figures already redraw from `Experiment.result`, so a run on another
-    machine is live without the page knowing anything about clusters."""
+    """The page polls `run_status` and redraws from `Experiment.result`, needing
+    no cluster logic."""
     transport = FakeTransport()
     partial = _finished_result(trials=1)
 
@@ -246,7 +220,7 @@ def test_partial_results_reach_the_experiment_while_it_runs(cluster_settings,
 
 def test_a_queued_job_is_not_asked_for_results_it_cannot_have(cluster_settings,
                                                               experiment, monkeypatch):
-    """One ssh round trip per poll, for a file that cannot exist yet."""
+    """`partial.json` stays unread while queued, saving ssh round trips."""
     transport = FakeTransport()
     _run(experiment, transport, monkeypatch, states=["queued", "done"],
          status={"state": "done", "offset": 0, "stopped_by": "",
@@ -256,11 +230,9 @@ def test_a_queued_job_is_not_asked_for_results_it_cannot_have(cluster_settings,
     assert not any("partial.json" in c for c in transport.commands)
 
 
-# ── stopping and failing ─────────────────────────────────────────────────────
-
 def test_cancelling_asks_rather_than_kills(cluster_settings, experiment, monkeypatch):
-    """A file the run checks between trials, so the trials already paid for
-    survive. `scancel` throws them away and is the escalation, not this."""
+    """A CANCEL file checked between trials keeps paid-for trials; `scancel`
+    would discard them."""
     from experiments.models import Run
     from experiments.services import run as run_service
 
@@ -284,9 +256,8 @@ def test_cancelling_asks_rather_than_kills(cluster_settings, experiment, monkeyp
 
 def test_a_job_that_vanished_is_an_error_with_the_reason_it_left(cluster_settings,
                                                                  experiment, monkeypatch):
-    """Killed for time or memory, the job never reaches its own error handling,
-    so there is no status.json — and a run nobody is watching any more looks
-    exactly like one still going. Its stderr is the only thing that can say."""
+    """A job killed for time or memory leaves no status.json; stderr gives the
+    reason."""
     run, _ = _run(experiment, FakeTransport(), monkeypatch, states=["running", "failed"])
 
     assert run.status == "error"
@@ -295,8 +266,8 @@ def test_a_job_that_vanished_is_an_error_with_the_reason_it_left(cluster_setting
 
 def test_an_experiment_with_no_dataset_is_refused_before_anything_is_sent(
         cluster_settings, monkeypatch):
-    """There would be nothing for the job to measure, and it would fail every
-    trial for a reason that reads like a broken experiment."""
+    """Without data the job would fail every trial, looking like a broken
+    experiment."""
     from experiments.models import Experiment
     from experiments.services import run as run_service
 
@@ -314,10 +285,8 @@ def test_an_experiment_with_no_dataset_is_refused_before_anything_is_sent(
     assert not transport.files, "nothing should have been sent"
 
 
-# ── the local path is untouched ──────────────────────────────────────────────
-
 def test_the_default_backend_still_runs_here(settings, experiment):
-    """Everything that existed before this went in runs exactly as it did."""
+    """Local runs behave as before the cluster backend."""
     from experiments.services import run as run_service
 
     assert settings.RUN_BACKEND == "local"
@@ -331,11 +300,8 @@ def test_the_default_backend_still_runs_here(settings, experiment):
 
 
 def test_a_cluster_run_refuses_a_metric_its_model_cannot_score(tmp_path, monkeypatch):
-    """What: on the cluster, as in the app, a run optimizing a metric scored on
-    probabilities with a model that gives none ends with the reason, before a
-    trial is spent.
-    How: stages a work directory, stands in for `build_experiment` with a
-    labels-only model, and reads status.json back."""
+    """`run_experiment.main` refuses a probability metric for a labels-only
+    model before any trial."""
     from ConfigSpace import ConfigurationSpace
     from codesigner_model import BaseModel
 

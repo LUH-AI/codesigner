@@ -1,12 +1,5 @@
-"""Building a model environment with the real uv.
-
-Everything else about environments is tested against a shim, which pins our own
-argv and error handling but cannot tell us whether uv accepts any of it. These
-do — so they are the tests that would catch a uv release changing the flags out
-from under us.
-
-Skipped when uv is absent, and the model declares only ConfigSpace so the work
-is small and cached after the first run.
+"""`test_real_uv` runs the real uv, catching flag changes that the shim-based
+tests miss. The model needs only ConfigSpace.
 """
 
 import shutil
@@ -55,7 +48,7 @@ MODEL = textwrap.dedent('''
 
 @pytest.fixture
 def sdk_wheel(tmp_path_factory, settings):
-    """A built wheel of the contract, as the image makes at build time."""
+    """`sdk_wheel` builds the contract wheel like the image."""
     import subprocess
     import sys
 
@@ -79,21 +72,18 @@ def experiment():
 
 
 def test_uv_builds_and_pins_a_real_environment(experiment, sdk_wheel):
-    """The commands we construct are ones uv accepts, and the lock lands where
-    we look for it."""
     modelenv.prepare_environment(experiment.pk)
     experiment.refresh_from_db()
 
     assert experiment.env_status == Experiment.ENV_READY, experiment.env_error
     assert modelenv.lock_path(experiment).is_file()
-    # answered by a model that was imported and instantiated over there
+    # imported and instantiated inside the env
     assert experiment.env_meta["model_class"] == "Counter"
     assert experiment.env_meta["python"]
 
 
 def test_the_environment_is_not_this_one(experiment, sdk_wheel):
-    """The point of all of it: the model runs under an interpreter that is not
-    the application's."""
+    """The model runs under an interpreter other than the app's."""
     import sys
 
     modelenv.prepare_environment(experiment.pk)
@@ -104,16 +94,14 @@ def test_the_environment_is_not_this_one(experiment, sdk_wheel):
     assert launch is not None
     assert launch[0].endswith("uv")
     assert sys.executable not in launch
-    # The runner is what uv is pointed at, and the lock belongs to the runner —
-    # naming the model file here resolves no lock and fails only at run time.
+    # uv must target the runner, which owns the lock; targeting the model file
+    # fails at run time.
     assert launch[launch.index("--script") + 1] == str(modelenv.runner_path(experiment))
     assert modelenv.lock_path(experiment).name.startswith(
         modelenv.runner_path(experiment).name)
 
 
 def test_a_real_run_goes_through_the_built_environment(experiment, sdk_wheel):
-    """End to end: prepare, then optimize, with the model in its own
-    environment for every trial."""
     modelenv.prepare_environment(experiment.pk)
     experiment.refresh_from_db()
     assert experiment.env_status == Experiment.ENV_READY, experiment.env_error
@@ -126,5 +114,5 @@ def test_a_real_run_goes_through_the_built_environment(experiment, sdk_wheel):
     assert run.status == "done", run.error
     assert run.trial_count == 3
     assert len(experiment.data.result["data"]) == 3
-    # scored here, from predictions made over there
+    # scored here, predicted there
     assert all(0.0 <= t["scores"]["accuracy"] <= 1.0 for t in experiment.data.result["data"])

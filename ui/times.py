@@ -1,6 +1,4 @@
-"""Times as a reader sees them: the export forms by name, a reader's preferred
-form, and a time on the page in its experiment's basis
-(`experiments/services/timestamps.py`).
+"""`ui.times` formats times for export forms and pages.
 """
 
 from __future__ import annotations
@@ -20,7 +18,6 @@ from experiments.services.timestamps import (
 
 from .models import ReaderPreferences
 
-#: Each form's name and what it keeps, wherever one is offered.
 LABELS = {
     ABSOLUTE: (gettext_lazy("Real Times"), gettext_lazy("UTC times")),
     RELATIVE: (gettext_lazy("Relative Times"),
@@ -30,7 +27,7 @@ LABELS = {
 
 
 def reader_preference(user) -> str:
-    """The form *user* exports times in unless an experiment says otherwise."""
+    """`reader_preference` returns *user*'s default export time form."""
     row = ReaderPreferences.objects.filter(user=account(user)).first()
     return row.export_timestamps if row and row.export_timestamps in MODES else DEFAULT
 
@@ -43,15 +40,14 @@ def set_reader_preference(user, mode) -> None:
 
 
 def for_export(exp, user) -> str:
-    """The form to preselect when *user* exports *exp*: the experiment's
-    setting, else their preference — no more precise than the experiment's
-    times are."""
+    """`for_export` takes the experiment setting, else the reader preference,
+    clamped to *exp*'s precision."""
     chosen = resolve_settings(exp).get("export_timestamps") or reader_preference(user)
     return clamp(exp, chosen)
 
 
 def offset_text(seconds: float) -> str:
-    """A duration as a reader says it: "+42 s", "+3 h 12 min", "+2 d 4 h"."""
+    """`offset_text` formats a duration as "+3 h 12 min"."""
     seconds = max(0.0, seconds)
     if seconds < 60:
         return _("+%(n)d s") % {"n": round(seconds)}
@@ -66,9 +62,7 @@ def offset_text(seconds: float) -> str:
 
 
 def shown(exp, when) -> dict | None:
-    """*when* as *exp*'s basis allows it to be shown: {"absolute": datetime}
-    or {"relative": "+3 h 12 min"}, or None when it is not to be shown or
-    there is no time."""
+    """`shown` formats *when* per *exp*'s time basis, or returns None."""
     if when is None:
         return None
     if isinstance(when, str):

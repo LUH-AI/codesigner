@@ -1,11 +1,5 @@
-"""Timing foundation: every optimizer records SMAC-native per-trial run info.
-
-A shared `timed_evaluation` helper measures each trial's model evaluation and
-fills the nine SMAC runhistory fields (time/cpu_time/starttime/endtime/status/
-seed/budget/instance/additional_info). Optimizers pass it into
-`TrialCollector.record(run_info=...)`, so `TrialResult.run_info` carries it and
-`TrialResult.duration` exposes the wall-clock time. Grid/Random store it
-directly; SMAC additionally feeds it to `TrialValue` (tested in test_run_smac).
+"""`timed_evaluation` fills the SMAC runhistory fields of `RUN_INFO_KEYS`, and
+`TrialResult.duration` reads their wall time.
 """
 
 import time as _time
@@ -51,9 +45,7 @@ def test_collector_record_stores_run_info():
 
 @pytest.mark.parametrize("optimizer_key", ["Random Search", "Grid Search"])
 def test_optimizer_records_timing_for_every_trial(optimizer_key, optimizers, models, metrics, iris_splits):
-    """A real (fast) optimize run tags every trial with the full run_info: a
-    non-negative duration, consistent start/end timestamps, SUCCESS, the seed,
-    and null budget/instance."""
+    """Each trial of a real run carries the full `run_info`."""
     X_train, X_val, y_train, y_val = iris_splits
     result = optimizers[optimizer_key]().optimize(
         models["Random Forest"], X_train, y_train, X_val, y_val,

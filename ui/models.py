@@ -7,16 +7,11 @@ from experiments.fields import SafeJSONField
 
 
 class FigureLayout(models.Model):
-    """How one reader has arranged one experiment's page — see `ui/layout.py`.
-
-    Per reader because it is a reading of the work, not the work: two people
-    looking at the same experiment want different figures to hand. Not in the
-    `.ihpo` for the same reason. A reader who has never rearranged a page has
-    no row and sees the site default.
-
-    `user` is null on an install without accounts, where there is one reader;
-    the partial constraint keeps that to one row per experiment, which the
-    plain unique one cannot, since NULLs never collide.
+    """`FigureLayout` stores one reader's arrangement of one experiment's page
+    and stays out of the `.ihpo`. A reader with no row sees the site default.
+    With `user` null on an install without accounts, the partial constraint
+    keeps one row per experiment, since NULLs never collide in the plain unique
+    one.
     """
 
     id: int
@@ -41,13 +36,8 @@ class FigureLayout(models.Model):
 
 
 class DefaultFigureLayout(models.Model):
-    """How one reader wants an experiment page arranged until they arrange it.
-
-    Between their own arrangement of an experiment (`FigureLayout`) and the
-    site's default (`ui/figure_layout.toml`): what an experiment they have
-    not touched opens on. `user` is null on an install without accounts, where
-    there is one reader and so one row, which `layout.save_user_default` keeps
-    to one by updating it rather than adding another.
+    """`DefaultFigureLayout` arranges experiments the reader has no
+    `FigureLayout` for, ahead of `ui/figure_layout.toml`.
     """
 
     id: int
@@ -60,10 +50,7 @@ class DefaultFigureLayout(models.Model):
 
 
 class ReaderPreferences(models.Model):
-    """One reader's own choices that are not about any one experiment.
-
-    `user` is null on an install without accounts, where there is one reader
-    and one row, as for `DefaultFigureLayout`.
+    """`ReaderPreferences` holds per-reader choices beyond any one experiment.
     """
 
     id: int
@@ -71,6 +58,4 @@ class ReaderPreferences(models.Model):
 
     user = models.OneToOneField(django_settings.AUTH_USER_MODEL, null=True, blank=True,
                                 on_delete=models.CASCADE, related_name="reader_preferences")
-    # How an exported file carries times, unless an experiment says otherwise:
-    # "absolute", "relative" or "none" (see experiments/services/timestamps.py).
     export_timestamps = models.CharField(max_length=10, default="relative")

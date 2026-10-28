@@ -1,4 +1,4 @@
-"""Who else may reach an experiment, and handing it to somebody."""
+"""`sharing` grants access and transfers ownership."""
 
 from django.db import transaction
 
@@ -6,7 +6,7 @@ from experiments.models import ExperimentShare
 
 
 def set_access(exp, colleague, level, granted_by) -> None:
-    """Give *colleague* *level* access to *exp*, or none at all ("none")."""
+    """Level "none" removes the share."""
     if level == "none":
         exp.shares.filter(user=colleague).delete()
     else:
@@ -16,10 +16,8 @@ def set_access(exp, colleague, level, granted_by) -> None:
 
 
 def transfer(exp, colleague) -> bool:
-    """Make contributor *colleague* *exp*'s owner, leaving the previous owner a
-    contributor. Both happen together or not at all, so there is never a
-    moment with no owner or with two. False if *colleague* is not a
-    contributor."""
+    """`transfer` atomically exchanges owner and contributor, giving False for a
+    non-contributor."""
     grant = exp.shares.filter(user=colleague, level=ExperimentShare.CONTRIBUTOR).first()
     if grant is None:
         return False

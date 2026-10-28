@@ -1,10 +1,5 @@
-"""Each experiment carries a short, stable identifier.
-
-Experiment names are already unique, but a compact machine/human handle lets
-two similarly-named experiments be told apart at a glance and gives a stable
-reference independent of the (mutable) name. It is a Codesigner-local concept:
-it is NOT written into the .ihpo snapshot, so cross-app interop with the
-Streamlit format is unchanged.
+"""`Experiment.identifier` is a short handle that stays fixed while the name
+changes; the `.ihpo` snapshot omits it.
 """
 
 from django.urls import reverse
@@ -36,8 +31,7 @@ def test_generate_identifier_helper_varies():
 
 
 def test_identifier_is_stable_across_updates():
-    """Editing/re-saving an experiment (e.g. after a run writes its result)
-    must not change the identifier — it is a fixed handle."""
+    """Saving a result keeps the identifier."""
     exp = _make("a")
     original = exp.identifier
     exp.data.result = {"data": []}
@@ -47,7 +41,6 @@ def test_identifier_is_stable_across_updates():
 
 
 def test_identifier_not_in_snapshot():
-    """The snapshot/.ihpo format is unchanged — no identifier leaks into it."""
     exp = _make("a")
     assert "identifier" not in snapshot_adapter.snapshot_from_experiment(exp)
 
@@ -55,7 +48,7 @@ def test_identifier_not_in_snapshot():
 def test_identifier_shown_in_sidebar(client):
     exp = _make("sidebar-exp")
     body = client.get(reverse("ui:home")).content.decode()
-    assert "({})".format(exp.identifier) in body  # shown in parentheses
+    assert "({})".format(exp.identifier) in body  # in parentheses
 
 
 def test_identifier_shown_on_detail_page(client):
@@ -65,8 +58,7 @@ def test_identifier_shown_on_detail_page(client):
 
 
 def test_identifier_shown_on_delete_confirm(client):
-    """The delete confirmation names the experiment AND its ID, so the right
-    one is being deleted even when names are similar."""
+    """The ID tells similar names apart before deleting."""
     exp = _make("delete-exp")
     body = client.get(reverse("ui:experiment_delete", args=[exp.pk])).content.decode()
     assert exp.identifier in body

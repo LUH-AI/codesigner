@@ -1,14 +1,5 @@
-"""Scoring a trial over k folds instead of one holdout.
-
-A single 80/20 split is a noisy estimate on a small table, and a search that
-optimizes a noisy estimate spends its budget chasing the split. k-fold costs k
-times the compute for an average that means something.
-
-Both are expressed as a list of (train, val) folds, so there is one mechanism
-rather than two: the trial loop iterates folds, the wire protocol sends folds,
-and a holdout is the case where there is one. The first test here is therefore
-the important one — holdout has to come out of the shared path behaving exactly
-as it did when it had a path of its own.
+"""A k-fold trial needs k fits, and the average steadies the noisy estimate of
+one 80/20 split. Holdout is the one-fold case of the same fold list.
 """
 
 import numpy as np
@@ -18,8 +9,7 @@ from core.metrics import metrics_for, resolve
 from core.optimizers.trial import evaluate_trial
 from core.splits import cross_validation, holdout
 
-#: The classification metrics: every split here has class labels, and a
-#: regression metric scored on them would fail every trial.
+#: Regression metrics would fail every trial on these class labels.
 METRICS = resolve(metrics_for("classification"))
 
 X_TRAIN = np.array([[0.0], [1.0], [2.0], [3.0]])
@@ -29,7 +19,7 @@ Y_VAL = np.array(["a", "b"], dtype=object)
 
 
 class Echo:
-    """Predicts a fixed label for every row, so scores are hand-computable."""
+    """A fixed label keeps scores hand-computable."""
 
     name = "Echo"
 
@@ -45,8 +35,6 @@ class Echo:
         return [self.label] * len(X_val)
 
 
-# ── holdout: unchanged ───────────────────────────────────────────────────────
-
 def test_a_holdout_is_one_fold():
     splits = holdout(X_TRAIN, Y_TRAIN, X_VAL, Y_VAL)
 
@@ -54,8 +42,7 @@ def test_a_holdout_is_one_fold():
 
 
 def test_a_holdout_keeps_exactly_the_split_it_was_given():
-    """Reassembled and re-indexed, not re-split — so the stratification
-    `load_splits` produced survives rather than being approximated."""
+    """Re-indexing keeps the stratification from `load_splits`."""
     splits = holdout(X_TRAIN, Y_TRAIN, X_VAL, Y_VAL)
     train_idx, val_idx = splits.folds[0]
 
@@ -66,7 +53,7 @@ def test_a_holdout_keeps_exactly_the_split_it_was_given():
 
 
 def test_a_holdout_trial_fits_once():
-    """The regression that matters: nothing pays k times for k = 1."""
+    """A one-fold trial pays for one fit."""
     model = Echo()
 
     evaluate_trial(model, {}, holdout(X_TRAIN, Y_TRAIN, X_VAL, Y_VAL), METRICS)
@@ -75,15 +62,13 @@ def test_a_holdout_trial_fits_once():
 
 
 def test_a_holdout_trial_scores_what_it_always_did():
-    """Predicting "a" for both validation rows, one of which is "a"."""
+    """One of the two "a" predictions is right."""
     scores, run_info = evaluate_trial(
         Echo(), {}, holdout(X_TRAIN, Y_TRAIN, X_VAL, Y_VAL), METRICS)
 
     assert scores["accuracy"] == 0.5
     assert run_info["status"] == 1
 
-
-# ── k folds ──────────────────────────────────────────────────────────────────
 
 def _dataset(n=12):
     X = np.arange(n, dtype=float).reshape(-1, 1)
@@ -129,9 +114,8 @@ def test_a_trial_fits_once_per_fold():
 
 
 def test_the_trial_score_is_the_mean_across_folds():
-    """Hand-computable: the labels alternate, "a" is right half the time in
-    every fold, so the average is 0.5 — and it is one number per metric, which
-    is what keeps every figure working."""
+    """Alternating labels make "a" right half the time, and each metric stays
+    one number."""
     X, y = _dataset()
 
     scores, _ = evaluate_trial(Echo(), {}, cross_validation(X, y, folds=4, seed=0), METRICS)
@@ -141,8 +125,7 @@ def test_the_trial_score_is_the_mean_across_folds():
 
 
 def test_a_fold_that_fails_fails_the_trial():
-    """A configuration that works on four fifths of the data and dies on the
-    rest is not a partial success to hand the search."""
+    """A configuration dying on one fold gives the search no partial success."""
     X, y = _dataset()
 
     class DiesOnTheThirdFold(Echo):
@@ -160,8 +143,8 @@ def test_a_fold_that_fails_fails_the_trial():
 
 
 def test_a_continuous_target_falls_back_to_a_plain_shuffle():
-    """Stratifying is meaningless for a regression target, and sklearn refuses
-    it outright. That must divide the data anyway rather than fail the run."""
+    """sklearn refuses to stratify a regression target, and the split must
+    proceed anyway."""
     X = np.arange(20, dtype=float).reshape(-1, 1)
     y = np.linspace(0.0, 1.0, 20)
 
@@ -172,9 +155,8 @@ def test_a_continuous_target_falls_back_to_a_plain_shuffle():
 
 
 def test_a_rare_class_is_stratified_anyway_rather_than_refused():
-    """sklearn warns when a class has fewer members than there are folds, but
-    still divides. Pinned because it is the case people hit, and it must not be
-    mistaken for the fallback above."""
+    """sklearn warns about a class smaller than the fold count yet still
+    stratifies."""
     X = np.arange(10, dtype=float).reshape(-1, 1)
     y = np.array(["a"] * 9 + ["rare"], dtype=object)
 
@@ -182,8 +164,6 @@ def test_a_rare_class_is_stratified_anyway_rather_than_refused():
 
     assert len(splits.folds) == 5
 
-
-# ── through the whole stack ──────────────────────────────────────────────────
 
 def test_an_experiment_carries_its_folds_from_the_snapshot(tmp_path):
     from core.io import build_experiment
@@ -207,7 +187,7 @@ def test_an_experiment_carries_its_folds_from_the_snapshot(tmp_path):
 
 
 def test_an_experiment_without_the_field_is_a_holdout(tmp_path):
-    """Every .ihpo written before this existed. Absent means one split."""
+    """Absent `cv_folds` means one split."""
     from core.io import build_experiment
     from core.optimizers import RandomOptimizer
     from core.models.random_forest import RandomForestModel
@@ -241,27 +221,18 @@ def test_an_optimizer_runs_a_cross_validated_search(optimizers, models):
         splits=splits)
 
     assert len(result.trials) == 3
-    # Still one score per metric per trial — the averaging happens inside the
-    # trial, so nothing downstream sees folds at all.
+    # Folds average inside the trial.
     assert all(set(t.scores) == set(METRICS) for t in result.trials)
-    # Succeeded, not merely "produced a number in range". `0.0 <= x <= 1.0` is
-    # true of a trial that crashed, which is how a bug that failed every trial
-    # on a numeric-target dataset got past this file once already.
+    # The status check matters because a crashed trial also scores within [0,
+    # 1].
     assert all(t.run_info["status"] == 1 for t in result.trials)
     assert all(t.scores["accuracy"] > 0.5 for t in result.trials)
 
 
-# ── label types ──────────────────────────────────────────────────────────────
-
 @pytest.mark.parametrize("dataset,kind", [("iris.csv", "string"), ("wine.csv", "integer")])
 def test_the_target_keeps_the_type_the_file_gave_it(dataset, kind):
-    """Both splitters used to coerce labels to object dtype, which is invisible
-    for string labels and fatal for integer ones: scikit-learn's
-    `type_of_target` calls an object array of ints "unknown", every classifier
-    refuses to fit, and *every trial* of the run crashes and scores zero.
-
-    Both shipped demo datasets are covered because that is exactly the gap —
-    every test here used iris, whose labels are strings, so nothing noticed."""
+    """Object-dtype integer labels make `type_of_target` answer "unknown", and
+    every classifier refuses to fit."""
     from core.datasets import load_frame, load_splits
     from tests.conftest import DATASETS_DIR
 
@@ -276,7 +247,7 @@ def test_the_target_keeps_the_type_the_file_gave_it(dataset, kind):
 @pytest.mark.parametrize("dataset", ["iris.csv", "wine.csv"])
 @pytest.mark.parametrize("folds", [0, 5])
 def test_a_real_model_fits_both_demo_datasets_either_way(dataset, folds):
-    """The end the user sees: a trial that succeeds and scores something."""
+    """A real trial succeeds and scores above zero."""
     from core.datasets import load_frame, load_splits
     from core.models.random_forest import RandomForestModel
     from tests.conftest import DATASETS_DIR

@@ -1,14 +1,5 @@
-"""Handing a stated prior to the search.
-
-The figure lets a reader say where they think the optimum is. That statement is
-only worth anything if it reaches the optimizer, which is what
-`SMACOptimizer._apply_priors` is for.
-
-**A prior crosses as what it is, not as a curve.** `kind` and `params`, from
-which `core.priors` evaluates the density — the same function the figure asks
-for its own drawing, so there is one implementation of "a Normal with this
-sigma" rather than two that would have to agree forever. The browser used to
-evaluate it and send the curve along; that was the second implementation.
+"""`core.priors` turns a prior's `kind` and `params` into the density the figure
+also draws.
 """
 
 from typing import TYPE_CHECKING, cast
@@ -19,10 +10,8 @@ from ConfigSpace import ConfigurationSpace, Integer
 
 from core.optimizers import GridOptimizer, RandomOptimizer, SMACOptimizer
 
-#: The weight layer lives on SMAC's `angrimson-output-constraints` branch, which
-#: `requirements.txt` pins. A released SMAC leaves the figure drawing and the
-#: search unweighted, which is exactly what `_apply_priors` reports and skips —
-#: so these are skipped rather than failed, and say why.
+#: The weight layer exists only on the SMAC branch that `requirements.txt` pins,
+#: and a released SMAC skips the module.
 weights = pytest.importorskip(
     "smac.acquisition.weight",
     reason="needs the SMAC branch carrying the acquisition weight layer")
@@ -39,12 +28,11 @@ def space():
 
 
 def _peaked(at=0.9):
-    """A prior as a reader states it: a shape and its parameters."""
+    """`_peaked` states a prior as shape and parameters."""
     return {"kind": "normal", "params": {"mu": at, "sigma": 0.05}}
 
 
-#: How many points `_apply_priors` evaluates a rebuilt density at. Named here
-#: rather than hard-coded, so this pins the contract and not the constant.
+#: `_apply_priors` grid size, imported instead of hard-coded.
 from core.optimizers.smac_optimizer import _PRIOR_GRID  # noqa: E402
 
 
@@ -78,9 +66,8 @@ def test_a_stated_prior_reaches_the_search(space):
 
 
 def test_every_hyperparameter_goes_in_as_one_prior(space):
-    """`validate_against` requires a prior to name the whole space in column
-    order, and separate priors would compose as an ensemble — which says
-    something different from one joint statement."""
+    """Separate priors would compose as an ensemble, a different statement from
+    one joint prior."""
     smac, scenario, _tmp = _facade(space)
 
     SMACOptimizer(search_strategy="rf")._apply_priors(
@@ -102,8 +89,7 @@ def test_nothing_stated_touches_nothing(space):
 
 
 def test_a_prior_naming_an_unknown_hyperparameter_is_dropped(space):
-    """An experiment's search space can change under a stored prior — a custom
-    model is re-uploaded, a hyperparameter is renamed."""
+    """Re-uploads and renames can orphan a stored prior."""
     smac, scenario, _tmp = _facade(space)
 
     SMACOptimizer(search_strategy="rf")._apply_priors(
@@ -113,22 +99,19 @@ def test_a_prior_naming_an_unknown_hyperparameter_is_dropped(space):
 
 
 def test_a_prior_that_cannot_be_applied_does_not_cost_the_run(space, caplog):
-    """It should cost the reader their prior, not their run."""
     smac, scenario, _tmp = _facade(space)
 
-    # A sigma of zero: no curve comes out of it, and whatever `TabulatedPrior`
-    # makes of the result, the run continues.
+    # A zero sigma becomes a spike, and the run must survive it.
     SMACOptimizer(search_strategy="rf")._apply_priors(
         smac, scenario, space,
         {"a": {"kind": "normal", "params": {"mu": 0.5, "sigma": 0.0}}})
 
-    assert True  # no exception is the assertion
+    assert True
 
 
 def test_a_shape_that_states_nothing_applies_nothing(space):
-    """Uniform multiplies the acquisition by a constant, which cannot reorder
-    it. Applying it anyway would have the run carry a weight that does nothing
-    and report that a prior was applied."""
+    """A uniform weight cannot reorder the acquisition, so `_apply_priors`
+    registers nothing for it."""
     smac, scenario, _tmp = _facade(space)
 
     SMACOptimizer(search_strategy="rf")._apply_priors(
@@ -138,13 +121,8 @@ def test_a_shape_that_states_nothing_applies_nothing(space):
 
 
 def test_a_log_hyperparameter_needs_no_special_case(caplog):
-    """The density is stated on the vectorized axis, which for a log-scaled
-    hyperparameter *is* log space — so the same Normal becomes the log-normal
-    such a hyperparameter deserves, and nothing in the path has to know.
-
-    This is the case `ConfigSpacePrior` cannot currently take, because
-    ConfigSpace scales sigma through its own log transform (see
-    `tests/core/test_prior_density.py::test_configspace_still_mangles_sigma_on_a_log_axis`).
+    """The vectorized axis of a log hyperparameter is log space, and the Normal
+    there becomes a log-normal.
     """
     from ConfigSpace import Float
 
@@ -157,8 +135,7 @@ def test_a_log_hyperparameter_needs_no_special_case(caplog):
 
     assert "codesigner" in smac.priors
     positions, densities = _tabulated(smac).tables["lr"]
-    # The peak sits mid-axis in vector space, which is the geometric middle of
-    # the native range — 0.01 for [1e-4, 1].
+    # Mid-axis is the geometric middle, 0.01 for [1e-4, 1].
     peak = positions[int(np.argmax(densities))]
     assert abs(float(peak) - 0.5) < 2.0 / _PRIOR_GRID
     assert abs(float(cs["lr"].to_value(peak)) - 0.01) < 1e-3
@@ -166,8 +143,8 @@ def test_a_log_hyperparameter_needs_no_special_case(caplog):
 
 @pytest.mark.parametrize("optimizer", [RandomOptimizer, GridOptimizer])
 def test_a_search_with_no_model_accepts_and_ignores_a_prior(optimizer):
-    """The caller passes what was stated without knowing which optimizer gets
-    it, and a search that fits no model has no acquisition function to weight."""
+    """Callers pass priors to any optimizer, and a model-free search has no
+    acquisition to weight."""
     import inspect
 
     signature = inspect.signature(optimizer.optimize)

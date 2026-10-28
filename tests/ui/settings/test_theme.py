@@ -1,11 +1,5 @@
-"""Light, dark, or as the system is — chosen under Settings → Appearance.
-
-*What:* the choice is kept in a cookie for this browser and carried on every
-page as `data-theme` on <html>, which the stylesheet and theme.js read. A
-browser that has chosen nothing follows its system, and anything that is not
-one of the three choices is ignored rather than trusted.
-
-*How:* through the appearance page and the attribute on the next page drawn.
+"""A cookie keeps the browser's theme, and every page carries it as `data-theme`
+on `<html>`. Unknown values are ignored.
 """
 
 import pytest

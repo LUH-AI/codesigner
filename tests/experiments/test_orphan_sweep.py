@@ -1,10 +1,5 @@
-"""Step 6 (updated in Step 10): sweeping runs orphaned by a restart.
-
-Runs now execute through a durable huey queue: a *pending* run is still queued
-and will be picked up by the consumer, so it is NOT stale. Only a *running* run
-is orphaned — the consumer died mid-execution — so sweep_stale_runs (run once at
-consumer/system startup) marks only running runs errored; pending and finished
-runs are left untouched.
+"""`sweep_stale_runs` fails runs with status "running" and leaves pending runs
+queued in huey.
 """
 
 from contextlib import contextmanager
@@ -17,10 +12,7 @@ from experiments.services.run import sweep_stale_runs
 
 @contextmanager
 def _immediate(value):
-    """Whether huey runs a task here or hands it to a consumer.
-
-    Set by hand: `immediate` is a property with no deleter, so `patch.object`
-    cannot put it back.
+    """`patch.object` cannot restore `immediate`, a property without a deleter.
     """
     from huey.contrib.djhuey import HUEY
 
@@ -42,7 +34,6 @@ def _experiment():
 
 @pytest.mark.django_db
 def test_sweep_marks_running_errored_and_leaves_pending_and_finished():
-    """Only running runs are stale; pending (still queued) and done are untouched."""
     from experiments.models import Run
 
     exp = _experiment()
@@ -57,28 +48,18 @@ def test_sweep_marks_running_errored_and_leaves_pending_and_finished():
     done.refresh_from_db()
     assert swept == 1
     assert running.status == "error" and "restart" in running.error.lower()
-    assert pending.status == "pending"  # durably queued — will still be processed
+    assert pending.status == "pending"  # still queued
     assert done.status == "done"
 
 
-# ── the run nobody is executing ──────────────────────────────────────────────
-#
-# `sweep_stale_runs` above is the startup sweep, which the container entrypoint
-# calls and a bare `runserver` never does. That leaves a real hole in
-# development, and it was reported as one: two runs stuck at "running" for four
-# days, with Cancel doing nothing to them.
-#
-# Cancelling is a flag the *executing* thread polls. In immediate mode that
-# thread lives in the web process (see services/dispatch.py), and the web
-# process in development is `runserver`, which restarts on every file save. So
-# the thread dies, nobody is left to read the flag, and the run sits at
-# "running" for ever with a Cancel button that cannot work.
+# `runserver` never calls the startup sweep, and each file save restarts it and
+# kills the immediate-mode thread polling the Cancel flag. The run then sits at
+# "running" for ever.
 
 @pytest.mark.django_db
 def test_a_run_older_than_this_process_had_nobody_executing_it(settings):
-    """An exact test, not a timeout: in immediate mode the executor *is* this
-    process, so a run that started before this process booted has no one running
-    it and never will. No guessing about how long a run ought to take."""
+    """In immediate mode the web process executes runs, so a run started before
+    its boot has no executor; `sweep_orphaned_runs` needs no timeout."""
     from experiments.models import Run
     from experiments.services import run as run_service
 
@@ -99,7 +80,6 @@ def test_a_run_older_than_this_process_had_nobody_executing_it(settings):
 
 @pytest.mark.django_db
 def test_a_run_started_since_this_process_booted_is_left_alone(settings):
-    """It is the one case where something really could be executing it."""
     from experiments.models import Run
     from experiments.services import run as run_service
 
@@ -118,10 +98,8 @@ def test_a_run_started_since_this_process_booted_is_left_alone(settings):
 
 @pytest.mark.django_db
 def test_with_a_consumer_it_sweeps_nothing(settings):
-    """The reasoning does not hold there: the consumer is a different process
-    that outlives any number of web restarts, so "older than this process" says
-    nothing about whether a run is alive. Consumer restarts are the startup
-    sweep's job."""
+    """A huey consumer outlives web restarts, so process age says nothing about
+    a run; the startup sweep covers consumer restarts."""
     from experiments.models import Run
     from experiments.services import run as run_service
 
@@ -137,9 +115,8 @@ def test_with_a_consumer_it_sweeps_nothing(settings):
 
 @pytest.mark.django_db
 def test_it_runs_once_per_process():
-    """It answers a question whose answer cannot change while the process
-    lives — nothing started before this process booted is going to start being
-    executed later — so asking again is a query for nothing."""
+    """Runs started before boot stay orphaned for the process's lifetime, so a
+    second sweep finds nothing."""
     from experiments.services import run as run_service
 
     with _immediate(True):

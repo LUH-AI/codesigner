@@ -1,14 +1,5 @@
-"""What the run-status poll costs, and what it carries.
-
-Three things that were wrong once the figures started updating live:
-
-- it asked every two seconds however long a trial took, so a run of ten-minute
-  trials paid three hundred requests per new row;
-- it kept asking with the tab in the background, where nobody could see the
-  answer;
-- and the trials table, alone among the trial-based figures, did not move —
-  the figures beside it filled in while the table stayed at whatever it held
-  when the page loaded.
+"""The status poll sets its interval from trial durations and holds while the
+tab is hidden, and it appends new table rows.
 """
 
 import json
@@ -19,11 +10,8 @@ from django.urls import reverse
 from tests.ui.runs.test_live_figures import _live_payload, _poll, ran_experiment  # noqa: F401
 
 
-# ── how often it asks ───────────────────────────────────────────────────────
-
 def test_the_interval_never_drops_below_the_write_interval():
-    """The run writes at most every `PARTIAL_RESULT_SECONDS`, so a faster poll
-    is a request that can only ever answer "nothing yet"."""
+    """Any poll within `PARTIAL_RESULT_SECONDS` would find nothing new."""
     from ui.views import common
     from experiments.services.run import PARTIAL_RESULT_SECONDS
 
@@ -31,13 +19,12 @@ def test_the_interval_never_drops_below_the_write_interval():
 
 
 @pytest.mark.parametrize("durations,expected", [
-    ([], 5),                       # nothing measured yet
-    ([0.05] * 5, 5),               # demo-dataset trials: the floor holds
-    ([12.0] * 5, 12),              # a real dataset: one ask per trial
-    ([600.0] * 5, 30),             # and a ceiling, so a long run still feels live
+    ([], 5),                       # nothing measured
+    ([0.05] * 5, 5),               # floor holds
+    ([12.0] * 5, 12),              # one ask per trial
+    ([600.0] * 5, 30),             # ceiling keeps long runs live
 ])
 def test_the_interval_follows_the_trials(durations, expected):
-    """Polling ten times per trial is ten times the traffic for one new row."""
     from ui.views import common
 
     class _Exp:
@@ -48,7 +35,7 @@ def test_the_interval_follows_the_trials(durations, expected):
 
 
 def test_one_pathological_trial_does_not_slow_the_whole_run():
-    """The median of the recent few, not the mean of all of them."""
+    """The median of recent trials ignores outliers."""
     from ui.views import common
 
     class _Exp:
@@ -60,8 +47,7 @@ def test_one_pathological_trial_does_not_slow_the_whole_run():
 
 @pytest.mark.django_db
 def test_the_fragment_carries_its_own_interval(client, ran_experiment):
-    """poll.js re-reads `hx-trigger` off each replacement, so the interval
-    adapts per swap with no state on either side."""
+    """`poll.js` re-reads `hx-trigger` per swap, keeping no state."""
     body = _poll(client, ran_experiment, trials=1)
 
     assert "hx-trigger=\"every " in body
@@ -69,27 +55,24 @@ def test_the_fragment_carries_its_own_interval(client, ran_experiment):
 
 
 def test_polling_stops_while_the_tab_is_hidden():
-    """Browsers throttle background timers but do not stop the requests, so a
-    forgotten tab kept asking for figures nobody could see. Held rather than
-    skipped, so the poll fires the moment the tab comes back."""
+    """The poll holds in a hidden tab, since background tabs still send
+    requests."""
     from pathlib import Path
 
     source = Path("ui/static/ui/poll.js").read_text(encoding="utf-8")
 
     assert "document.hidden" in source
     assert "visibilitychange" in source
-    # Navigating away needs nothing — the timer lives on the page it started
-    # from — and the comment says so, so nobody adds a second mechanism for it.
+    # Navigating away needs nothing, and poll.js documents that.
     assert "Navigating away" in source
 
 
-# ── and what it carries for the table ───────────────────────────────────────
+# rows for the table
 
 @pytest.mark.django_db
 def test_the_poll_carries_only_the_rows_the_page_is_missing(client, ran_experiment):
-    """Appended, not swapped: the table is the one thing you are *using* while
-    reading a chart, and replacing it under someone mid-sort would lose the
-    sort, the page, the scroll position and the row they had picked."""
+    """Rows are appended so a reader keeps their sort, page, scroll and
+    selection."""
     exp = ran_experiment
     stored = len(exp.data.result["data"])
 
@@ -103,23 +86,20 @@ def test_the_poll_carries_only_the_rows_the_page_is_missing(client, ran_experime
 @pytest.mark.django_db
 def test_the_rows_come_from_the_same_partial_the_table_was_built_from(
         client, ran_experiment):
-    """One template, so the two cannot drift into formatting a duration or a
-    failure differently."""
+    """One template formats live rows and table rows alike."""
     exp = ran_experiment
     live = _live_payload(_poll(client, exp, trials=len(exp.data.result["data"]) - 1))
     page = client.get(reverse("ui:experiment_detail", args=[exp.pk])).content.decode()
 
     last = live["rows_html"].strip()
     assert last.startswith("<tr ")
-    # The very same row is in the page's own table.
     idx = last[last.index('data-trial-idx="'):].split('"')[1]
     assert f'data-trial-idx="{idx}"' in page
 
 
 @pytest.mark.django_db
 def test_no_rows_are_sent_when_the_table_is_switched_off(client, ran_experiment):
-    """The endpoint must not become a way to fetch what the page deliberately
-    did not build."""
+    """A hidden table gets no rows through the poll."""
     exp = ran_experiment
     exp.use_default_settings = False
     exp.settings = {"show_trials": False}
@@ -139,14 +119,11 @@ def test_the_page_appends_them_rather_than_replacing_the_table(client, ran_exper
     assert "trials:appended" in body, "the sort is re-applied after an append"
 
 
-# ── the shade that means "selected" ─────────────────────────────────────────
+# the selection shade
 
 def test_the_selection_shade_is_the_one_that_was_actually_on_screen():
-    """Trial performance faded its points to 0.7 so a failure's cross could sit
-    among them at full strength, and the selected point faded with them — over
-    Plotly's own plot background that composited down to a soft coral, while
-    every other figure painted the same constant at full opacity and came out
-    visibly redder. Resolved towards the one that had been on screen."""
+    """`SELECTION_COLOR` is the faded coral that trial performance showed, now
+    used at full opacity everywhere."""
     from ui.figures.plots import SELECTION_COLOR
 
     def over(fg, bg, alpha):
@@ -155,14 +132,13 @@ def test_the_selection_shade_is_the_one_that_was_actually_on_screen():
         return "#" + "".join(f"{round(alpha * x + (1 - alpha) * y):02X}"
                              for x, y in zip(f, b))
 
-    # What it used to render as: the old constant, faded, over Plotly's default
-    # `plot_bgcolor`.
+    # old constant at 0.7 over Plotly's `plot_bgcolor`
     assert over("#EF553B", "#E5ECF6", 0.7) == SELECTION_COLOR
 
 
 def test_the_page_and_the_figures_agree_on_it():
-    """`--selected` in app.css and SELECTION_COLOR in plots.py are one shade
-    with two homes — the page draws the selection highlight itself."""
+    """The page draws the highlight itself, so `--selected` must equal
+    `SELECTION_COLOR`."""
     from pathlib import Path
 
     from ui.figures.plots import SELECTION_COLOR
@@ -173,8 +149,7 @@ def test_the_page_and_the_figures_agree_on_it():
 
 
 def test_the_sidebar_no_longer_marks_the_current_experiment_in_the_brand_red():
-    """Two different jobs that looked alike: --primary means "this is an
-    action", and this means "this is the one you picked"."""
+    """`--primary` marks actions, and `--selected` marks the picked item."""
     from pathlib import Path
 
     css = Path("ui/static/ui/app.css").read_text(encoding="utf-8")
@@ -186,9 +161,7 @@ def test_the_sidebar_no_longer_marks_the_current_experiment_in_the_brand_red():
 
 
 def test_selected_is_one_colour_in_both_themes():
-    """The dark theme replaces the page's colours but not this one: a selection
-    looks the same whichever theme it is made in, and the figures draw theirs
-    in the same shade either way."""
+    """The dark theme leaves `--selected` alone, matching the figures."""
     import re
     from pathlib import Path
 
@@ -206,7 +179,6 @@ def test_selected_is_one_colour_in_both_themes():
     "table.trials tbody tr.selected",
 ])
 def test_every_selected_state_uses_it(rule):
-    """Not the brand red, which means "this is an action"."""
     from pathlib import Path
 
     css = Path("ui/static/ui/app.css").read_text(encoding="utf-8")
@@ -217,12 +189,9 @@ def test_every_selected_state_uses_it(rule):
     assert "var(--primary)" not in body
 
 
-# ── the fold ────────────────────────────────────────────────────────────────
-
 @pytest.mark.django_db
 def test_a_fresh_experiment_opens_with_the_run_settings_showing(client):
-    """There is nothing else to do with the page yet, and a closed fold makes
-    starting a run look like it needs finding."""
+    """A fresh experiment has nothing else to do but run."""
     from tests.ui.runs.test_run_views import _experiment
 
     exp = _experiment()
@@ -233,8 +202,7 @@ def test_a_fresh_experiment_opens_with_the_run_settings_showing(client):
 
 @pytest.mark.django_db
 def test_an_experiment_with_results_keeps_it_folded_away(client, ran_experiment):
-    """Once there are results the metric selector above is the control you keep
-    coming back to, and the run settings are a decision taken once."""
+    """With results, the metric selector is the recurring control."""
     ran_experiment.runs.all().update(status="done")
     body = client.get(
         reverse("ui:experiment_detail", args=[ran_experiment.pk])).content.decode()

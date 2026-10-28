@@ -17,61 +17,43 @@ if TYPE_CHECKING:
     from ui.models import FigureLayout
 
 
-#: What an experiment with no name is called wherever it is shown.
+#: Display name for an unnamed experiment.
 UNTITLED = _("Untitled Experiment")
 
 
 def account(user):
-    """*user* as a column stores them: their account, or None for a visitor
-    who is not signed in (and on an install without accounts)."""
+    """`account` returns the signed-in user, else None."""
     return user if getattr(user, "is_authenticated", False) else None
 
 
 def generate_identifier() -> str:
-    """A short, stable handle shown beside an experiment's name.
-
-    Eight hex characters — enough to tell similarly-named experiments apart at
-    a glance and to reference one independently of its (mutable) name.
+    """`generate_identifier` makes eight hex characters, independent of the
+    mutable name.
     """
     return secrets.token_hex(4)
 
 
 class ExperimentData(models.Model):
-    """The experiment itself — everything an `.ihpo` file carries, and nothing else.
+    """`ExperimentData` holds the portable half: every field appears in the
+    snapshot, and an `.ihpo` opened elsewhere rebuilds the row.
 
-    One half of a deliberate split. This table holds what describes the *work*:
-    what was searched, how it was evaluated, what was found. It is portable —
-    every field here has a place in the snapshot `experiments/services/snapshot.py`
-    writes, and an `.ihpo` opened on another instance rebuilds exactly this row.
-
-    `Experiment` holds the other half: who owns it, which group it is in, who it
-    is shared with, what this instance was asked to draw. None of that travels.
-
-    The split is a forcing function rather than a performance one. The boundary
-    used to live only as prose in `snapshot_from_experiment`, so a field added
-    to one long model joined the file or missed it depending on whether somebody
-    remembered to add a line there. Now the table a field is declared in *is*
-    the answer, and `tests/ui/experiments/test_the_two_halves.py` fails on a
-    field that belongs to neither.
+    `Experiment` holds the instance half, and
+    `tests/ui/experiments/test_the_two_halves.py` fails on a field that belongs
+    to neither.
     """
 
     id: int
     experiment: Experiment
     history: RelatedManager[ExperimentEvent]
 
-    # Optional: the identifier is what tells experiments apart. Shown through
-    # `Experiment.title`, which names an unnamed one.
+    # Optional; `Experiment.title` names an unnamed one.
     name = models.CharField(max_length=200, blank=True, default="")
-    # When the experiment was first set up, wherever that was. Travels in the
-    # file, so an imported experiment keeps its own beginning;
-    # `Experiment.created_at` is when this instance first saw it.
+    # The setup time travels in the file, while `Experiment.created_at` records
+    # local arrival.
     created_at = models.DateTimeField(null=True, blank=True)
-    # What the experiment's times are, which an imported file decides: wall
-    # clock ("absolute"), only how long after the experiment began
-    # ("relative"), or not known at all ("none"). Times are stored as datetimes
-    # whatever this says — a relative file's are placed so that its history
-    # ends when it was imported — and every page shows them in this form, so
-    # an experiment never mixes the two. See experiments/services/timestamps.py.
+    # `time_basis` is "absolute", "relative" or "none", set by an imported file,
+    # and pages show every time in the same form
+    # (experiments/services/timestamps.py).
     time_basis = models.CharField(
         max_length=10, default="absolute",
         choices=[("absolute", "absolute"), ("relative", "relative"), ("none", "none")])
@@ -80,89 +62,56 @@ class ExperimentData(models.Model):
     optimizer_name = models.CharField(max_length=200)
     optimizer_params = models.JSONField(default=dict, blank=True)
     metric_names = models.JSONField(default=list)
-    # Which metric the optimizer is optimizing right now, vs. the one the
-    # experiment's first run optimized (`original_metric`, pinned once and
-    # never touched again). Named "current" rather than "primary" so the pair
-    # reads as what it is — the two ends of a timeline — rather than "primary"
-    # sounding like "the main one, as opposed to secondary metrics", which is
-    # a different axis (see `metric_names`). The full history of every change
-    # between them lives per-run, in `Run.primary_metric`/`Run.events`.
+    # `current_metric` is what the optimizer targets now, and `original_metric`
+    # is the first run's, pinned once. Per-run changes live in
+    # `Run.primary_metric` and `Run.events`.
     current_metric = models.CharField(max_length=100, blank=True, null=True)
     original_metric = models.CharField(max_length=100, blank=True, null=True)
     seed = models.IntegerField(default=0)
-    # How a trial is evaluated: 0 is a single holdout, k >= 2 is k-fold
-    # cross-validation. Chosen when the experiment is created and fixed
-    # thereafter — changing it mid-experiment would make the accumulated
-    # trials incomparable with the new ones, the same fault a changed
-    # metric used to have. See core.splits.
+    # A value of 0 is a single holdout and k >= 2 is k-fold CV, fixed at
+    # creation so trials stay comparable (core.splits).
     cv_folds = models.IntegerField(default=0)
-    # What share of the dataset is held out for validation, when the scheme is a
-    # single split. Meaningless under cross-validation and simply carried, so
-    # that switching an experiment's scheme would have somewhere to start from.
+    # Holdout share, carried unused under cross-validation.
     test_size = models.FloatField(default=0.2)
-    # The column the rows are divided in time order by, or "" for a division
-    # that ignores time; and how many rows such a division leaves between
-    # training and validation. Fixed with the rest of the evaluation — see
-    # core.splits.time_holdout.
+    # `time_column` orders a time split ("" ignores time), and `time_gap` counts
+    # the rows left between training and validation.
     time_column = models.CharField(max_length=255, blank=True, default="")
     time_gap = models.PositiveIntegerField(default=0)
-    # A forecast's shape: how many time steps ahead it predicts, the column
-    # naming each row's series ("" for one series), and how many steps make a
-    # season (0 until inferred from the time column). A horizon is what makes
-    # an experiment a forecast, evaluated by backtests — see core.forecasting.
+    # A nonzero `horizon` makes a forecast evaluated by backtests, and `season`
+    # stays 0 until inferred (core.forecasting).
     horizon = models.PositiveIntegerField(default=0)
     series_column = models.CharField(max_length=255, blank=True, default="")
     season = models.PositiveIntegerField(default=0)
-    # What the experiment predicts — a class or a number (see core.tasks).
-    # Fixed for the experiment's life, like how it is evaluated: the metrics it
-    # is scored with and the models it can use both follow from it.
+    # Class or number (core.tasks), fixed for the experiment's life.
     task = models.CharField(max_length=20, default=tasks.DEFAULT,
                             choices=[(t, t) for t in tasks.TASKS])
     dataset = models.FileField(upload_to="datasets/", blank=True, null=True)
-    # A bundled demo dataset, by name, used in place of a stored file. A demo
-    # is shared by every experiment on the instance, so it is never copied —
-    # and another instance with the same demo resolves the name to its own.
+    # A bundled demo is shared by name, and another instance resolves the name
+    # to its own copy.
     demo_dataset = models.CharField(max_length=200, blank=True, default="")
-    # How the dataset's columns are processed before the model sees them —
-    # gaps, scale, label columns (see core.processing). Part of the work, so
-    # part of the file: the same model on differently processed columns is a
-    # different experiment. Empty is every step as the model needs it.
+    # The processing steps (core.processing) are part of the file, and empty
+    # means each step as the model needs.
     processing = models.JSONField(default=dict, blank=True)
-    # The search space the trials were drawn from, as ConfigSpace's own
-    # serialized dict. Null until something supplies one.
+    # `config_space` holds ConfigSpace's serialized dict, null until supplied.
     #
-    # It is the one thing every surrogate-backed figure needs that `result` does
-    # not carry, and it cannot always be asked for after the fact: a custom
-    # model runs in its own process and a read-only rebuild never imports it, so
-    # a page rendered later has nobody to ask. Filled from the model at the
-    # moment a run has one (see services/run.py), or straight from the file for
-    # an experiment read out of somebody else's run, which has no model at all.
+    # A run saves the space (services/run.py) because a read-only page cannot
+    # ask a custom model, and an external import takes the space from its file.
     config_space: models.JSONField[dict | None] = models.JSONField(blank=True, null=True, default=None)
     result = SafeJSONField(blank=True, null=True, default=None)
-    # What the reader believes about where the optimum lies, by hyperparameter:
-    # `{hp_name: {kind, params, exponent, decay, knots}}`. Stated on the
-    # acquisition figure and applied to the next run (see
-    # `SMACOptimizer._apply_priors`).
+    # `priors` maps each hyperparameter to `{kind, params, exponent, decay,
+    # knots}`, stated on the acquisition figure for the next run.
     #
-    # `knots` is the density already evaluated on the grid, in ConfigSpace's
-    # vectorized representation, and it is what actually reaches SMAC. The kind
-    # and its parameters ride along only so the figure can put the controls back
-    # where the reader left them. That split is the point: the density is
-    # computed once, in the browser, and the server never re-implements it —
-    # otherwise a Normal would mean one thing on the page and another in the
-    # search, and the two would drift apart silently.
-    #
-    # SafeJSONField rather than JSONField for the reason that field exists: a
-    # ruled-out region is a zero, and nothing stops a reader producing an
-    # infinity by asking for a spike.
+    # `knots` is the grid density computed once in the browser and sent to SMAC,
+    # so page and search never drift, and kind and params only restore the
+    # controls. SafeJSONField stores the infinity a spike can produce.
     priors = SafeJSONField(default=dict, blank=True)
 
     def __str__(self) -> str:
         return self.name or str(UNTITLED)
 
     def dataset_path(self):
-        """The dataset's file, as a `Path`: the bundled demo it names, else the
-        stored copy — or None when there is neither on this instance."""
+        """`dataset_path` prefers the demo path, then the stored copy, else
+        None."""
         from pathlib import Path
 
         from core.datasets import demo_datasets
@@ -176,27 +125,17 @@ class ExperimentData(models.Model):
 
     @property
     def has_dataset(self) -> bool:
-        """Whether this experiment names a dataset, demo or stored."""
         return bool(self.demo_dataset or self.dataset)
 
     @property
     def forecasts(self) -> bool:
-        """Whether this experiment is a forecast, evaluated by backtests."""
         return self.horizon > 0
 
 
 class ExperimentManager(models.Manager):
-    """Creates both halves of an experiment, or neither.
-
-    `Experiment.data` is `NOT NULL`, so the two rows have to be written
-    together — and there is exactly one sensible order to write them in. Rather
-    than leave every caller to remember it, `create()` takes the fields flat,
-    sends each to the side that declares it, and does both in one transaction.
-
-    This is a constructor, not a façade: reading still says `exp.data.result`,
-    and a field is still declared on exactly one model. What it removes is the
-    chance of a half-built experiment, which is the one failure the split could
-    otherwise introduce.
+    """`ExperimentManager.create` routes flat fields to the half that declares
+    them and writes both in one transaction, since `Experiment.data` requires a
+    row.
     """
 
     def create(self, **fields):
@@ -209,16 +148,9 @@ class ExperimentManager(models.Manager):
 
 
 class Experiment(models.Model):
-    """This instance's record of an experiment — everything the file does not carry.
-
-    Who owns it, which group it is in, what this installation was asked to
-    compute and draw for it, and the state of the environment its model runs in.
-    None of that means anything on another instance, which is exactly why it is
-    not in the `.ihpo` — and now why it is not in `ExperimentData` either.
-
-    The work itself is one hop away, through `data`. That hop is the point: a
-    field added here is a claim that it is about *this instance*, and a field
-    added there is a claim that it belongs in the file.
+    """`Experiment` holds instance-only state: owner, group, settings and the
+    model environment. The work lives in `data`, and fields on `Experiment`
+    concern the local instance only.
     """
 
     id: int
@@ -232,75 +164,54 @@ class Experiment(models.Model):
     trial_models: RelatedManager[TrialModel]
     figure_layouts: RelatedManager[FigureLayout]
 
-    # The work this row is about. CASCADE because the two are one experiment
-    # said twice: there is no meaning to an instance-side record of nothing.
+    # `Experiment` and its `data` describe one experiment, so deleting the data
+    # deletes the row.
     data = models.OneToOneField(ExperimentData, on_delete=models.CASCADE,
                                 related_name="experiment")
     identifier = models.CharField(max_length=12, unique=True, editable=False, default=generate_identifier)
     created_at = models.DateTimeField(auto_now_add=True)
-    # Per-experiment settings overrides; when use_default_settings is True the
-    # global default experiment settings apply instead (see services/settings.py).
-    #
-    # Instance-side deliberately: a figure cap and an autocompute flag are what
-    # *this* installation was asked to draw, and an `.ihpo` carried to another
-    # one should arrive under that instance's own defaults.
+    # The overrides take effect unless `use_default_settings` is set. The
+    # settings stay local, so an imported `.ihpo` gets the receiving instance's
+    # defaults.
     settings = models.JSONField(default=dict, blank=True)
     use_default_settings = models.BooleanField(default=True)
 
-    # ── Who it belongs to (see access/policy.py) ─────────────────────────────
-    # Null means nobody's, which is every experiment on an install with no
-    # accounts and every experiment that predates them. SET_NULL because
-    # removing a person from an instance must not destroy their results — an
-    # operator can reassign an ownerless experiment in the admin.
+    # Null `owner` means unowned, and SET_NULL keeps results when a person is
+    # removed (access/policy.py).
     owner = models.ForeignKey(
         django_settings.AUTH_USER_MODEL, null=True, blank=True,
         on_delete=models.SET_NULL, related_name="experiments")
-    # Which group it is in, recorded here rather than read off the owner's
-    # membership. The two answered the same question while every experiment had
-    # an owner who was in a group, and they stop agreeing at exactly the moments
-    # that matter: an account is deleted and `owner` goes null, or somebody
-    # moves group and takes a colleague's work out of sight with them. The group
-    # is the boundary, so the boundary is the thing stored.
+    # `group` is stored because the owner's membership stops answering when an
+    # account is deleted or someone changes group. PROTECT blocks a group
+    # deletion, and `Group.delete()` bins the work first.
     #
-    # PROTECT, so a group cannot be deleted out from under work that is in it.
-    # `Group.delete()` empties it into the bin first — see `access.models`.
-    #
-    # Null means one of two things, and `trashed_at` is what separates them:
-    # set, the group was deleted under it and it is in the bin; unset, this is
-    # an install with no accounts, where there are no groups to be in. Every
-    # rule about the bin asks about `trashed_at`, never about this being empty.
+    # A null group with `trashed_at` set means a deleted group, and without it
+    # an install with no accounts.
     group = models.ForeignKey(
         "access.Group", null=True, blank=True,
         on_delete=models.PROTECT, related_name="experiments")
-    # When its group was deleted under it. Set together with `group = None`, and
-    # cleared by rehoming. A site admin decides what happens next; until they
-    # do, the policy shows it to nobody, which is the same thing deletion would
-    # have done except that it is reversible.
+    # Group deletion sets `trashed_at`, and rehoming clears it; the policy hides
+    # the experiment until a site admin decides.
     trashed_at = models.DateTimeField(null=True, blank=True)
-    # When somebody deleted it, and who. A different bin from `trashed_at`:
-    # that one is a group's deletion, settled by a site admin; this is a
-    # person's, settled by its people from their own bins (`BinEntry`). Nothing
-    # is removed until one of them says so — the row, its runs, its grants and
-    # its files all stay exactly as they were, so restoring is clearing this.
+    # A person's deletion, distinct from `trashed_at`, is settled from the
+    # people's own bins (`BinEntry`). Rows, runs, grants and files stay, so
+    # restoring clears `deleted_at` and `deleted_by`.
     deleted_at = models.DateTimeField(null=True, blank=True)
     deleted_by = models.ForeignKey(
         django_settings.AUTH_USER_MODEL, null=True, blank=True,
         on_delete=models.SET_NULL, related_name="+")
-    # Still being set up (ui/setup_steps.py): made by New, its owner's alone,
-    # and reachable only through its setup until it is created. Which of the
-    # setup's steps have been saved, and when: {"setup": iso, "data": iso, ...}.
+    # A draft is reachable only through its setup (ui/setup_steps.py), and
+    # `setup_saved` records each saved step's time.
     draft = models.BooleanField(default=False)
     setup_saved = models.JSONField(default=dict, blank=True)
-    # ── The custom model's environment (see services/modelenv.py) ────────────
-    # Pinned per experiment: resolved and locked once, so every run uses the
-    # same dependencies and only the first pays for resolving them.
-    ENV_NONE = "none"            # a registry model — nothing to prepare
-    ENV_PENDING = "pending"      # queued
-    ENV_PREPARING = "preparing"  # resolving and downloading
-    ENV_READY = "ready"          # locked and built
-    ENV_FAILED = "failed"        # see env_error
-    ENV_SKIPPED = "skipped"      # no uv here, so it runs in this process
-    ENV_LEGACY = "legacy"        # predates environments; runs in this process
+    # Environment status (services/modelenv.py), locked once per experiment.
+    ENV_NONE = "none"            # registry model
+    ENV_PENDING = "pending"
+    ENV_PREPARING = "preparing"
+    ENV_READY = "ready"
+    ENV_FAILED = "failed"
+    ENV_SKIPPED = "skipped"      # no uv; runs in-process
+    ENV_LEGACY = "legacy"        # predates environments
     ENV_STATUS_CHOICES = [
         (ENV_NONE, "Not required"), (ENV_PENDING, "Queued"),
         (ENV_PREPARING, "Preparing"), (ENV_READY, "Ready"),
@@ -309,9 +220,7 @@ class Experiment(models.Model):
     ]
     env_status = models.CharField(max_length=20, choices=ENV_STATUS_CHOICES, default=ENV_NONE)
     env_error = models.TextField(blank=True, default="")
-    # Whatever is worth knowing about the environment without adding a column
-    # for each: declared dependencies, requires-python, the resolved interpreter,
-    # the model class, the lock's digest.
+    # Dependencies, interpreter, model class and lock digest.
     env_meta = models.JSONField(default=dict, blank=True)
     env_prepared_at = models.DateTimeField(null=True, blank=True)
 
@@ -324,61 +233,29 @@ class Experiment(models.Model):
         return self.title
 
     def refresh_from_db(self, *args, **kwargs):
-        """Reload this row, and the half of the experiment that is not on it.
-
-        Django reloads an instance's own columns and leaves cached relations
-        alone, which is right in general and wrong here: `result` moved to
-        `data`, and every caller that re-read an experiment to see what a run
-        had written would have gone on holding the copy it fetched first.
-
-        That is not a new hazard, it is the old one moved — before the split
-        those columns were on this row and came back with it. Dropping the
-        cache restores exactly that, so "refresh and read the result" keeps
-        meaning what it has always meant.
+        """`refresh_from_db` drops the cached `data` relation, so a re-read sees
+        what a run wrote to `result`.
         """
         vars(self).pop("data", None)
         return super().refresh_from_db(*args, **kwargs)
 
     @property
     def name(self) -> str:
-        """The experiment's name, which lives with the search it names: what
-        was given, possibly nothing. Pages show `title`.
-
-        A property and not a second column, deliberately. A copy here would be
-        a second representation of one fact, able to disagree with the file —
-        which is the fault `_prior_record` in `services/snapshot.py` exists to
-        avoid, and the reason `exponent` is not stored beside its schedule.
-        Reading is free where the queryset said `select_related("data")`;
-        *filtering* and *ordering* still say `data__name`, because those reach
-        the database and the database knows only the column.
+        """`name` reads `data.name` instead of copying it, so no second copy can
+        disagree. Filters and ordering still use `data__name`.
         """
         return self.data.name
 
     @property
     def title(self) -> str:
-        """What the experiment is called wherever it is shown: its name, or
-        "Untitled Experiment" when it has none. `name` is what was given, to
-        edit and to export."""
+        """`title` falls back to "Untitled Experiment" for an empty name."""
         return self.data.name or str(UNTITLED)
 
     def save(self, *args, **kwargs):
-        """Put a new experiment in its owner's group, when there is only one.
-
-        The derivation survives exactly as far as it is unambiguous. Somebody in
-        two groups has no "their group", and guessing would file their work
-        under a boundary they did not choose — so there the caller says which,
-        and the create form asks.
-
-        Here rather than in the views that create one, because there are several
-        — the create page, an imported `.ihpo`, the demo seed — and "every
-        experiment is in a group" is a property of the model, not a step each of
-        them has to remember. Only on the way in: afterwards the field is the
-        record, and an owner who later changes group does not drag their old
-        work across the boundary with them.
-
-        Silent with no membership at all, which is an install with no accounts:
-        there are no groups for it to be in, and inventing one here would be
-        inventing the boundary as well.
+        """`save` puts a new experiment into its owner's group only when the
+        owner belongs to one group, and the caller chooses otherwise. The rule
+        lives on the model because several paths create experiments, and it
+        applies only on creation.
         """
         if self._state.adding and self.group_id is None and self.owner_id:
             assert self.owner is not None
@@ -389,38 +266,24 @@ class Experiment(models.Model):
 
     @property
     def is_running(self) -> bool:
-        """True while a run is pending or executing (drives the sidebar spinner)."""
         return self.runs.filter(status__in=["pending", "running"]).exists()
 
     @property
     def env_pending(self) -> bool:
-        """True while an environment is queued or being built."""
         return self.env_status in (self.ENV_PENDING, self.ENV_PREPARING)
 
     @property
     def env_in_process(self) -> bool:
-        """True when this model runs in the application's own interpreter.
-
-        Either uv was missing when it was prepared, or the experiment predates
-        environments entirely. Kept as two states because the page says
-        different things about them, but they run identically.
+        """`env_in_process` covers missing uv and pre-environment experiments
+        alike.
         """
         return self.env_status in (self.ENV_SKIPPED, self.ENV_LEGACY)
 
 
 class ExperimentShare(models.Model):
-    """One person's access to somebody else's experiment.
-
-    Per person and never per group: "my group" is not a fixed set of people,
-    and an experiment shared with a group would be shared with whoever joins it
-    next without anybody having decided that. Here every grant names somebody.
-
-    Only a member of the experiment's own group can hold one. Sharing is how
-    work moves *within* a group's boundary, not across it, and a grant that
-    outlived its holder's membership would be exactly that crossing — so
-    leaving the group takes the grants in it with them (see `access/signals.py`),
-    and the policy asks about membership as well, in case something removed one
-    without going through that.
+    """Grants are per person, since a group's membership changes. Only members
+    of the experiment's group hold one, and leaving the group drops its grants
+    (`access/signals.py`).
     """
 
     id: int
@@ -431,11 +294,10 @@ class ExperimentShare(models.Model):
     VIEWER = "viewer"
     CONTRIBUTOR = "contributor"
     LEVELS = [
-        # Look at it and take a copy away: everything the page shows, and the
-        # .ihpo that carries the same.
+        # Viewers see the page and export.
         (VIEWER, _("Viewer")),
-        # And run it, change its settings and delete it — everything but decide
-        # who else may, which stays with the owner.
+        # Contributors also run, configure and delete; sharing stays with the
+        # owner.
         (CONTRIBUTOR, _("Contributor")),
     ]
 
@@ -446,8 +308,7 @@ class ExperimentShare(models.Model):
                              related_name="experiment_shares")
     level = models.CharField(max_length=16, choices=LEVELS, default=VIEWER)
     granted_at = models.DateTimeField(auto_now_add=True)
-    # Who last set it, which is the owner at the time: ownership moves, and a
-    # grant made by a previous owner is still a grant.
+    # The owner at the time; grants survive ownership changes.
     granted_by = models.ForeignKey(django_settings.AUTH_USER_MODEL, null=True,
                                    blank=True, on_delete=models.SET_NULL,
                                    related_name="+")
@@ -469,7 +330,7 @@ class ExperimentShare(models.Model):
         from django.core.exceptions import ValidationError
 
         if self.experiment_id is None or self.user_id is None:
-            return  # the required-field errors say this better
+            return  # field errors cover it
         experiment = self.experiment
         if self.user_id == experiment.owner_id:
             raise ValidationError(_("The owner already has every kind of access."))
@@ -481,13 +342,9 @@ class ExperimentShare(models.Model):
 
 
 class ExperimentEvent(models.Model):
-    """One thing somebody did that changed how an experiment searches.
-
-    The experiment's history, kept with its portable half and carried in the
-    `.ihpo`: set up, imported, a prior stated or withdrawn, a data handling
-    choice changed. Runs are their own record (`Run`), and the timeline merges
-    the two. `payload` holds the whole value before and after, never a diff,
-    so the experiment as it stood at any entry can be worked out again.
+    """`ExperimentEvent` records one search-changing action, carried in the
+    `.ihpo`. Each payload keeps whole before and after values, which lets any
+    past state be rebuilt.
     """
 
     id: int
@@ -498,15 +355,12 @@ class ExperimentEvent(models.Model):
     data = models.ForeignKey(ExperimentData, on_delete=models.CASCADE,
                              related_name="history")
     at = models.DateTimeField(null=True, blank=True)
-    # How many trials the experiment had when this happened.
     at_trial = models.IntegerField(default=0)
     kind = models.CharField(max_length=40)
     payload = models.JSONField(default=dict, blank=True)
-    # The run this belongs to, where it belongs to one.
     run = models.ForeignKey("Run", null=True, blank=True, on_delete=models.SET_NULL,
                             related_name="history")
-    # Who did it. Instance-only, like `Run.started_by`: an account here is not
-    # an account wherever the file is opened.
+    # Instance-only, like `Run.started_by`.
     actor = models.ForeignKey(django_settings.AUTH_USER_MODEL, null=True, blank=True,
                               on_delete=models.SET_NULL, related_name="experiment_events")
 
@@ -515,16 +369,9 @@ class ExperimentEvent(models.Model):
 
 
 class BinEntry(models.Model):
-    """A deleted experiment, in one person's bin.
-
-    Written at the moment of deletion, one per person the work belonged to: the
-    owner and every contributor. Recorded rather than worked out from the grants
-    each time the bin is opened, because the grants can change afterwards and
-    whose bin something landed in should not.
-
-    Not a viewer's, who could never have deleted it, and not a lead's who
-    deleted it without being one of those — seeing a colleague's work was never
-    the same as it being theirs.
+    """`BinEntry` gives one entry per owner or contributor at deletion, because
+    later grant changes must leave the bins alone. Viewers and uninvolved leads
+    get none.
     """
 
     id: int
@@ -545,12 +392,8 @@ class BinEntry(models.Model):
 
 
 class Run(models.Model):
-    """One optimization run of an Experiment.
-
-    Records the run's lifecycle so it can be driven and observed out of band.
-    The status transitions and the cancel flag are exercised once runs execute
-    in the background (a later step); for now a run is created and completed
-    synchronously.
+    """`Run` records a run's lifecycle so a background worker can drive it and
+    pages can observe and cancel it.
     """
 
     id: int
@@ -569,84 +412,50 @@ class Run(models.Model):
     ]
 
     experiment = models.ForeignKey(Experiment, on_delete=models.CASCADE, related_name="runs")
-    # Who pressed Run. Null with no accounts, and after that account is
-    # deleted. The worker needs it to know whose custom-model code it is
-    # about to execute, which the experiment's owner does not always answer
-    # — an unowned experiment is run by whoever is looking at it.
+    # Who pressed Run; the worker checks the account's custom-model permission,
+    # since an unowned experiment has no owner to ask.
     started_by = models.ForeignKey(
         django_settings.AUTH_USER_MODEL, null=True, blank=True,
         on_delete=models.SET_NULL, related_name="runs_started")
-    # Every stopping criterion, on equal footing — see
-    # core.optimizers.base.STOPPING_CRITERIA. A run needs at least one and may
-    # have any combination; a trial cap is one of them, not the frame the others
-    # hang off.
+    # Every stopping criterion counts equally (STOPPING_CRITERIA).
     stopping = models.JSONField(default=dict)
-    # How long any one call to the model may take, and how that number is
-    # arrived at: {"mode": "fixed"|"predicted", "seconds": float, "factor":
-    # float}. Not a stopping criterion and deliberately not stored among them —
-    # nothing here ends the run, it ends a trial, and the collector would filter
-    # it out anyway. Empty for runs that predate the field, which
-    # `core.modelhost.deadline.as_deadline` reads as the fixed default.
+    # `trial_timeout` limits each model call with `{"mode", "seconds",
+    # "factor"}` and stays apart from stopping because it ends a trial. An empty
+    # value means the fixed default (`deadline.as_deadline`).
     trial_timeout = models.JSONField(default=dict, blank=True)
-    # The beliefs this run searched under, copied from the experiment when the
-    # run was created.
-    #
-    # `Experiment.priors` is the live, editable statement — it moves as soon as
-    # somebody drags the curve. This is what was actually true when the trials
-    # were spent, which is a different fact and the only one a reader can go
-    # back to. The per-run `events` already record what the prior *did*
-    # (applied, skipped, with which decay); this records what it *was*, which
-    # none of them carry and nothing else can reconstruct.
-    #
-    # Empty for runs that predate the field, and for runs that stated nothing.
-    # The two are the same thing to every reader of it: nothing to go back to.
+    # The `priors` field copies the experiment's priors at creation, since
+    # `Experiment.priors` changes with every drag. `events` record what the
+    # prior did, and the `priors` field records what it was.
     priors = models.JSONField(default=dict, blank=True)
-    # What it was told to evaluate rather than search for: configurations
-    # picked off the page, each `{"config", "origin", "proposal"}`, run before
-    # the search is asked for anything. Empty for a run that only searched.
+    # Page-picked configurations, each `{"config", "origin", "proposal"}`, run
+    # first.
     configurations = models.JSONField(default=list, blank=True)
-    # Which criterion ended it. Empty while running, and for a run that was
-    # cancelled or errored rather than stopping on its own terms.
+    # Ending criterion; empty while running, cancelled or errored.
     stopped_by = models.CharField(max_length=40, blank=True, default="")
     primary_metric = models.CharField(max_length=100)
-    # How many trials the experiment already had. With `trial_count` this gives
-    # the range this run produced, which is what turns a flat list of trials
-    # back into a history of runs.
+    # With `trial_count`, the offset gives the range this run produced.
     trial_offset = models.IntegerField(null=True, blank=True)
-    # Things that happened to the search rather than to a trial — so far, the
-    # optimized metric changing, which rescores the whole history and throws
-    # away any fitted surrogate. Appended to, never rewritten.
+    # Search-level events such as a metric change; append-only.
     events = models.JSONField(default=list, blank=True)
     status = models.CharField(max_length=20, choices=STATUS_CHOICES, default="pending")
-    # Where this run executed, and what the scheduler called it while it did.
-    #
-    # Recorded per run rather than read from the setting, for two reasons. An
-    # experiment can be resumed months later under a different arrangement, and
-    # the history should say what actually happened rather than what is
-    # configured now. And a consumer that restarts while a job is still on the
-    # cluster needs the id to re-attach to it — without that the job runs on
-    # with nobody listening, and the row is swept to "error" beside it.
+    # Each run stores its backend so the history survives a later configuration
+    # change and a restarted consumer can re-attach to the run's cluster job.
     backend = models.CharField(max_length=20, default="local")
     job_id = models.CharField(max_length=64, blank=True, default="")
     cancel_requested = models.BooleanField(default=False)
-    # When Cancel was pressed, and by whom. The run itself ends a little later,
-    # once the trial in flight returns; `finished_at` is that moment. Who is
-    # instance-only, like `started_by`.
+    # `finished_at` follows once the trial in flight returns.
     cancel_requested_at = models.DateTimeField(null=True, blank=True)
     cancel_requested_by = models.ForeignKey(
         django_settings.AUTH_USER_MODEL, null=True, blank=True,
         on_delete=models.SET_NULL, related_name="runs_cancelled")
     error = models.TextField(blank=True, default="")
-    # When Run was pressed. `started_at` is when a worker picked it up, which
-    # on a busy queue or a cluster can be much later.
+    # Run press time; `started_at` may lag on a busy queue.
     created_at = models.DateTimeField(null=True, blank=True)
     started_at = models.DateTimeField(null=True, blank=True)
     finished_at = models.DateTimeField(null=True, blank=True)
-    # Sum of this run's trial evaluation durations (seconds); total − this is
-    # the search/bookkeeping overhead. Null until the run finishes.
+    # Trial time in seconds; total minus this is overhead.
     trial_seconds = models.FloatField(null=True, blank=True)
-    # Number of trials this run actually performed (may be < n_trials if
-    # cancelled or the space was exhausted). Null until the run finishes.
+    # Trials performed; null until the run finishes.
     trial_count = models.IntegerField(null=True, blank=True)
 
     def __str__(self) -> str:
@@ -654,25 +463,20 @@ class Run(models.Model):
 
     @property
     def max_trials(self):
-        """The trial cap, if this run has one. Read by the pages that report
-        progress as "n of m"; None when the run is bounded some other way."""
+        """`max_trials` gives the trial cap, or None for other bounds."""
         return self.stopping.get("max_trials")
 
     @property
     def duration(self):
-        """Total wall-clock seconds, or None until both timestamps are set."""
         if self.started_at and self.finished_at:
             return (self.finished_at - self.started_at).total_seconds()
         return None
 
 
 class TrialModel(models.Model):
-    """One trial's fitted model, kept for export as its parameters.
-
-    A ledger row per kept model, so what a group stores is a sum rather than a
-    walk of the disk, and so the stalest can be found when room is needed for
-    a dataset: `last_used_at` is when it was kept or last exported. The files
-    themselves live under `directory` (see experiments/services/trial_models.py).
+    """`TrialModel` keeps one ledger row per kept model, so storage sums rows
+    instead of walking the disk. Each export refreshes `last_used_at`, which
+    starts at the keeping time.
     """
 
     id: int
@@ -698,14 +502,11 @@ class TrialModel(models.Model):
 
 
 class GlobalSettings(models.Model):
-    """Single-row app settings, including the default experiment settings that
-    new/inheriting experiments fall back to. Use `GlobalSettings.get_solo()`."""
+    """`GlobalSettings` keeps a single row, read through `get_solo()`."""
 
     id: int
 
     default_experiment_settings = models.JSONField(default=dict, blank=True)
-    # How an experiment page is arranged for a reader who has not arranged it
-    # themselves. Empty means the catalog's own order — see `ui/layout.py`.
 
     class Meta:
         verbose_name_plural = "Global settings"

@@ -18,18 +18,13 @@ def home(request):
     return render(request, "ui/home.html")
 
 
-#: Items per page on the full experiment list — the sidebar only ever shows
-#: the most recent `context_processors.SIDEBAR_LIMIT`; this is where the rest
-#: of an instance's experiments are reachable.
+#: Experiments per page; the sidebar shows only `SIDEBAR_LIMIT`.
 EXPERIMENT_LIST_PAGE_SIZE = 50
 
 
 def experiment_list(request):
-    """Every experiment this request may see, paginated.
-
-    Through the same policy-scoped queryset the sidebar uses
-    (`visible_experiments`), so this never shows an experiment the
-    sidebar wouldn't and a page would then refuse to open.
+    """`experiment_list` paginates `visible_experiments`, the sidebar's own
+    queryset.
     """
     paginator = Paginator(visible_experiments(request), EXPERIMENT_LIST_PAGE_SIZE)
     page = paginator.get_page(request.GET.get("page"))
@@ -38,23 +33,19 @@ def experiment_list(request):
 
 @login_not_required
 def healthz(request):
-    """Liveness probe for the container healthcheck — no DB, no template.
-
-    Exempt from the login wall: the container runtime has no session, and a
-    healthcheck that 302s to a login page reports a healthy instance as down.
+    """`healthz` skips the login wall because the container runtime has no
+    session and a 302 would report the instance down.
     """
     return HttpResponse("ok", content_type="text/plain")
 
 
 def _dataset_path_from(form, tmp_paths):
-    """Resolve the chosen dataset to a filesystem path (temp file for uploads)."""
+    """`_dataset_path_from` returns the demo or a temp upload copy."""
     demo = form.cleaned_data.get("demo_dataset")
     if demo:
         return demo
     upload = form.cleaned_data["dataset_file"]
-    # Under its own name, in a directory of its own: the stored copy, the
-    # file and everything exported from it are called what the person
-    # uploaded, not what a temporary file happened to be called.
+    # The original filename carries into the stored copy and exports.
     folder = Path(tempfile.mkdtemp(prefix="codesigner-upload-"))
     path = folder / (Path(upload.name).name or "dataset.csv")
     with open(path, "wb") as out:
@@ -65,24 +56,16 @@ def _dataset_path_from(form, tmp_paths):
 
 
 def _evaluation_schemes():
-    """`EVALUATION_SCHEMES` as the create form's script needs it.
-
-    Shipped rather than duplicated in the template: the label, bounds and
-    default the number takes are the form's to decide, and a copy in JavaScript
-    is a second source of truth that drifts silently. Lazy translation strings
-    are resolved here, since `json_script` cannot serialize them.
+    """`_evaluation_schemes` sends `EVALUATION_SCHEMES` to the form's script,
+    resolving lazy strings that `json_script` cannot serialize.
     """
     return {name: {**spec, "label": str(spec["label"]), "help": str(spec["help"])}
             for name, spec in EVALUATION_SCHEMES.items()}
 
 
 def new_experiment(request):
-    """New: make a draft, and set it up (ui/setup_steps.py).
-
-    A draft at once rather than a form first, so the experiment is in
-    Experiment Selection from the moment New is pressed and can be left and
-    picked up again. POST, because it creates something; a GET — a link, a
-    bookmark — gets a page with the one button.
+    """`new_experiment` creates the draft at once so the draft can be left and
+    resumed. A GET renders only the button.
     """
     if request.method != "POST":
         return render(request, "ui/new_experiment.html")
@@ -93,8 +76,6 @@ def new_experiment(request):
 
 
 def _demo_time_columns():
-    """{demo dataset path: the columns it could be ordered by in time}, for the
-    create form to suggest. An uploaded file's columns are read in the page."""
     out = {}
     for path in datasets.demo_datasets().values():
         try:
@@ -105,7 +86,6 @@ def _demo_time_columns():
 
 
 def _model_tasks():
-    """What the form's script needs to offer only the models that fit: each
-    built-in's tasks, and whether it only forecasts."""
+    """`_model_tasks` maps each built-in model to its tasks and forecaster flag."""
     return {name: {"tasks": list(tasks.supported(model)), "forecaster": tasks.forecaster(model)}
             for name, model in MODELS.items()}

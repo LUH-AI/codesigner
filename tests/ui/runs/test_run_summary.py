@@ -1,8 +1,4 @@
-"""After a run, the run box notes total wall-clock duration and overhead.
-
-Overhead = total wall time − Σ this run's trial durations (the search/bookkeeping
-time SMAC and Codesigner spent between evaluations). The per-run trial-second
-sum is stored on the Run; the total comes from its timestamps.
+"""The run box shows duration and overhead (wall time outside trials).
 """
 
 import datetime
@@ -44,7 +40,7 @@ def test_execute_run_stores_trial_seconds():
 
 
 def test_detail_page_shows_run_summary(client):
-    """A finished run surfaces total duration and overhead on the detail page."""
+    """The detail page shows duration and overhead."""
     from experiments.models import Experiment, Run
     result = {
         "stats": {"submitted": 1, "finished": 1, "running": 0},
@@ -66,6 +62,6 @@ def test_detail_page_shows_run_summary(client):
                        trial_seconds=2.0, trial_count=1)
     body = client.get(reverse("ui:experiment_detail", args=[exp.pk])).content.decode()
     assert "overhead" in body.lower()
-    assert ">3 s" in body or " 3 s" in body  # total 3s
-    assert " 2 s" in body                    # 2s of it in trials
-    assert "1 trials" in body                # count of trials performed
+    assert ">3 s" in body or " 3 s" in body
+    assert " 2 s" in body                    # in trials
+    assert "1 trials" in body                # trial count

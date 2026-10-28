@@ -1,13 +1,5 @@
-"""Shared setup for the Django-layer suite.
-
-Everything under tests/ui/ (and tests/experiments/) exercises the web layer, so it all wants the same
-three things: the database, a throwaway MEDIA_ROOT (creating or importing an
-experiment stores a dataset copy, and the real media/ directory must stay
-clean), and deterministic run execution. Each was previously repeated in a
-per-directory conftest; it lives here once.
-
-tests/core/ deliberately gets none of it — the domain layer runs without
-Django, and its suite proves that by never touching these fixtures.
+"""The autouse fixtures here give web-layer tests a database, a throwaway
+MEDIA_ROOT and inline runs; `tests/experiments/conftest.py` imports them.
 """
 
 import pytest
@@ -15,24 +7,18 @@ import pytest
 
 @pytest.fixture(autouse=True)
 def db_and_isolated_media(db, settings, tmp_path):
-    """Database access plus a per-test MEDIA_ROOT, for every web-layer test."""
+    """`db_and_isolated_media` opens the database and isolates MEDIA_ROOT."""
     settings.MEDIA_ROOT = str(tmp_path / "media")
-    # Off by default in the app now — a container is where model code is
-    # isolated — so this is pinned on rather than merely agreeing with the
-    # ambient value, and the tests that need it off turn it off explicitly.
+    # The app default is off, so pin it on.
     settings.ALLOW_CUSTOM_MODELS = True
 
 
 @pytest.fixture(autouse=True)
 def huey_runs_inline():
-    """Execute enqueued tasks in-process instead of handing them to a consumer.
-
-    There is no consumer under test, so an enqueued run would never execute.
-    Immediate mode runs it synchronously in the caller — combined with the
-    root conftest's RUN_IMMEDIATE_IN_THREAD=False, a launched run has finished
-    by the time the request returns and assertions are race-free. `db_task`
-    skips its connection handling in immediate mode, so it leaves the test
-    transaction alone.
+    """`HUEY.immediate` runs enqueued tasks in the caller, since no consumer
+    runs under test. The root conftest's `RUN_IMMEDIATE_IN_THREAD=False` then
+    makes a launched run finish before the request returns. `db_task` leaves the
+    test transaction alone in immediate mode.
     """
     from huey.contrib.djhuey import HUEY
 

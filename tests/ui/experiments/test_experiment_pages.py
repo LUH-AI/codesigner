@@ -1,10 +1,5 @@
-"""Step 2.5 TDD: sidebar experiment list and the experiment detail page.
-
-Makes Step 3's database rows browsable. Display rules come from the
-Streamlit experiment view: the caption shows Model/Optimizer/Metric/Seed,
-where the metric label is "~" when no original metric is recorded,
-"Inconsistent" when the primary metric no longer matches the original, and
-the metric name otherwise.
+"""The sidebar has a link to `ui:experiment_detail` for each experiment, and the
+detail caption carries a three-state metric label.
 """
 
 import json
@@ -16,8 +11,7 @@ from tests.conftest import FIXTURES_DIR
 
 
 def _experiment(**overrides):
-    """Create an Experiment row with valid defaults (import deferred so the
-    suite collects while ui.models doesn't exist yet)."""
+    """`_experiment` creates an `Experiment` row with valid defaults."""
     from experiments.models import Experiment
 
     fields = dict(
@@ -36,12 +30,6 @@ def _experiment(**overrides):
 
 @pytest.mark.django_db
 def test_sidebar_lists_experiments_with_detail_links(client):
-    """Every stored experiment appears in the sidebar as a link to its detail page.
-
-    Setup: two experiments in the database.
-    Expect: the home page contains both names and both detail URLs — the
-    sidebar is rendered on every page, home included.
-    """
     a = _experiment(name="alpha")
     b = _experiment(name="beta")
 
@@ -55,11 +43,8 @@ def test_sidebar_lists_experiments_with_detail_links(client):
 
 @pytest.mark.django_db
 def test_detail_shows_identity_and_result_summary(client):
-    """The detail page shows the experiment's identity fields and result summary.
-
-    Setup: a row carrying the 30-trial fixture result.
-    Expect: name, model, optimizer, seed, the trial count, and the stored
-    best score all rendered.
+    """The page renders name, model, optimizer, seed and the trial count from
+    `test2.ihpo`.
     """
     snapshot = json.loads((FIXTURES_DIR / "test2.ihpo").read_text(encoding="utf-8"))
     exp = _experiment(
@@ -86,17 +71,11 @@ def test_detail_shows_identity_and_result_summary(client):
 
 @pytest.mark.django_db
 @pytest.mark.parametrize("primary,original,expected_label", [
-    ("accuracy", None,       "~"),              # never run: no metric committed yet
-    ("f1",       "accuracy", "Inconsistent"),   # metric changed since first run
-    ("accuracy", "accuracy", "accuracy"),       # consistent: show the metric itself
+    ("accuracy", None,       "~"),              # no metric committed yet
+    ("f1",       "accuracy", "Inconsistent"),   # metric changed
+    ("accuracy", "accuracy", "accuracy"),       # consistent
 ])
 def test_detail_metric_label_rules(client, primary, original, expected_label):
-    """The caption's metric label follows the three-state rule.
-
-    "~" when original_metric is unset, "Inconsistent" when primary and
-    original disagree, else the metric name — matching the experiment
-    header the user sees when switching evaluation metrics.
-    """
     exp = _experiment(current_metric=primary, original_metric=original)
 
     response = client.get(reverse("ui:experiment_detail", args=[exp.pk]))
@@ -105,6 +84,6 @@ def test_detail_metric_label_rules(client, primary, original, expected_label):
 
 @pytest.mark.django_db
 def test_unknown_experiment_returns_404(client):
-    """A detail URL for a nonexistent experiment id returns 404, not an error page."""
+    """A missing id gets 404."""
     response = client.get(reverse("ui:experiment_detail", args=[99999]))
     assert response.status_code == 404

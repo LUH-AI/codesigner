@@ -1,9 +1,5 @@
-"""The optimizer and its settings, as a form: one select, and one settings
-panel per optimizer that has settings.
-
-Two pages offer it: step 2 of a draft's setup, and an experiment's page before
-it has any trials. Once there are trials the search that found them is fixed —
-the next run continues it — and while a run is under way it is the one in use.
+"""`optimizer_form` renders the optimizer select and per-optimizer settings
+panels for setup step 2 and for an experiment page before its first trial.
 """
 
 from __future__ import annotations
@@ -17,7 +13,6 @@ from .optimizer_labels import describe_all, grouped
 
 
 def why_fixed(exp) -> str | None:
-    """Why *exp*'s optimizer can no longer change, or None if it can."""
     result = exp.data.result or {}
     if result.get("data") or result.get("trials"):
         return _("This experiment has trials, and the next run continues their search.")
@@ -27,10 +22,8 @@ def why_fixed(exp) -> str | None:
 
 
 def context(exp, locked=False) -> dict:
-    """What `ui/_optimizer_form.html` needs: the optimizers to choose from,
-    the chosen one, and a settings panel for each — the chosen one filled
-    from *exp*, the others on their defaults. With *locked* every control is
-    shown and none can be changed."""
+    """`context` fills the chosen panel from *exp*, and every control is
+    disabled under *locked*."""
     data = exp.data
     selected = data.optimizer_name if data.optimizer_name in OPTIMIZERS else next(iter(OPTIMIZERS))
     panels = []
@@ -46,9 +39,8 @@ def context(exp, locked=False) -> dict:
 
 
 def save(request, exp) -> str | None:
-    """Store the optimizer and settings *request* posted on *exp*. Returns why
-    it could not, or None. A change is an entry in the experiment's history
-    (a draft has none)."""
+    """`save` stores the posted optimizer on *exp* and returns a refusal reason
+    or None. A change goes into the history."""
     refusal = why_fixed(exp)
     if refusal:
         return refusal
@@ -66,23 +58,15 @@ def save(request, exp) -> str | None:
     return None
 
 
-#: Optimizer settings are posted with this prefix, so a parameter can be named
-#: whatever the optimizer calls it without colliding with `n_trials` or a
-#: stopping criterion on the same form.
+#: The prefix keeps optimizer setting names clear of `n_trials` and stopping
+#: criteria on the same form.
 _OPTIMIZER_PREFIX = "opt_"
 
 
 def _posted_params(request, optimizer) -> dict:
-    """The optimizer's settings as submitted, read through its own schema.
-
-    Types and bounds come from the declaration rather than a table here, which
-    is the difference between this and `views.runs._posted_stopping`: an optimizer that
-    declares a new setting gets it parsed without this function changing.
-
-    A blank numeric field means "leave it to the strategy" and is stored as
-    None, not dropped — the difference matters, because a stored value that is
-    simply absent would be filled by the constructor default on the next read
-    and the two would disagree.
+    """`_posted_params` reads types and bounds from the optimizer's own schema,
+    so a newly declared setting needs no change here. A blank field takes the
+    declared default.
     """
     params = {}
     for param in optimizer.params_schema:
@@ -111,12 +95,6 @@ def _posted_params(request, optimizer) -> dict:
 
 
 def _param_context(optimizer, stored=None) -> dict:
-    """What the settings partial needs, for whichever optimizer this is.
-
-    Settings that belong to a group are handed over separately, keyed by name,
-    so the group's own template can place each one rather than take them in
-    declaration order.
-    """
     layout, advanced = grouped(describe_all(optimizer, stored))
     return {
         "optimizer_layout": layout,

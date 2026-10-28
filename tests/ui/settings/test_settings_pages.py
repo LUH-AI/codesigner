@@ -1,9 +1,5 @@
-"""The settings pages are reachable and save.
-
-A ⚙ link on the experiment page reaches its settings; a Settings tab in the
-outer rail lands on the appearance subpage, which links on to the defaults.
-What the two experiment-settings pages contain, and how saving them behaves, is
-covered in test_settings_page_parity.py.
+"""A ⚙ link reaches an experiment's settings, and the Settings tab lands on the
+appearance subpage.
 """
 
 from django.urls import reverse
@@ -31,9 +27,7 @@ def test_experiment_settings_use_default_checkbox_clears_override(client):
 
 
 def test_default_experiment_settings_saves_global(client):
-    """Posting the form stores a value for every key in the schema; an omitted
-    checkbox means off, so this posts nothing and everything lands False.
-    (The figure checkboxes are covered in test_figure_settings.py.)"""
+    """An empty form writes every key, with omitted checkboxes off."""
     client.post(reverse("ui:default_experiment_settings"), {})
     stored = GlobalSettings.get_solo().default_experiment_settings
     assert stored["show_trials"] is False
@@ -46,7 +40,6 @@ def test_appearance_page_renders(client):
 
 
 def test_appearance_page_links_to_defaults(client):
-    """The settings sidebar (shared across settings subpages) links to defaults."""
     body = client.get(reverse("ui:appearance")).content.decode()
     assert reverse("ui:default_experiment_settings") in body
 

@@ -30,10 +30,7 @@ class Command(BaseCommand):
         except (OSError, ValueError) as exc:
             raise CommandError(str(exc))
 
-        # The paths inside the file are adopted, so the dataset they name has to
-        # be the one the trials were measured on — otherwise the experiment
-        # resumes against different data and every later trial is compared with
-        # a history it does not belong to.
+        # Adopted paths must name the dataset the trials ran on.
         stored = (snapshot.get("dataset") or {}).get("path", "")
         if stored and Path(stored).is_file():
             mismatch = provenance.dataset_mismatch(
@@ -41,20 +38,15 @@ class Command(BaseCommand):
             if mismatch:
                 raise CommandError(mismatch)
 
-        # A command run by whoever operates the server, naming a file they chose,
-        # so the dataset and model paths inside it are theirs to adopt. The web
-        # importer deliberately does not do this — see experiment_from_snapshot.
+        # The operator chose the file, so the command adopts its paths, unlike
+        # the web importer.
         exp = adapter.experiment_from_snapshot(snapshot, adopt_paths=True)
         adapter.finish_import(exp, source="ihpo", filename=path.name)
         self._report(exp)
 
     def _import_smac(self, directory: Path) -> None:
-        """Read a SMAC run directory. No paths to adopt — there are none in it.
-
-        Recursive, so either the run directory or the `smac3_output` above it
-        works, which is the same latitude the web importer allows. The importer
-        matches on basenames, so two runs at once cannot be told apart — refused
-        here for the same reason it is refused there.
+        """`_import_smac` accepts a run directory or its `smac3_output` parent
+        and refuses duplicate basenames, the mark of two runs.
         """
         if not directory.is_dir():
             raise CommandError(f"not a directory: {directory}")

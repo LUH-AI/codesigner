@@ -1,4 +1,4 @@
-"""XGBoost's gradient boosted trees, classifying or regressing."""
+"""XGBoost gradient boosted trees."""
 
 from ConfigSpace import Categorical, ConfigurationSpace, Float, Integer
 from codesigner_model import OutputBaseModel
@@ -8,13 +8,8 @@ from .parts import LabelCoded
 
 
 class XGBoost(OutputBaseModel):
-    """XGBoost's gradient boosted trees, histogram method, CPU only. Labels are
-    split as categories and missing values routed natively.
-
-    It classifies the integers 0..k-1 and nothing else, so a classifier is
-    wrapped to answer in the dataset's own labels (`LabelCoded`). Balanced
-    class weights are sample weights (`fit_args`): XGBoost has no class weight
-    of its own.
+    """`LabelCoded` wraps the classifier because XGBoost knows only labels
+    0..k-1, and `fit_args` turns balanced class weights into sample weights.
     """
 
     name = "XGBoost"
@@ -44,9 +39,8 @@ class XGBoost(OutputBaseModel):
         return LabelCoded(XGBClassifier(**shared))
 
     def save_parameters(self, fitted, directory):
-        """XGBoost's own JSON format: the booster, which it can train on from.
-        A classifier's booster knows its labels only as 0..k-1; which label
-        each is, is the `classes` beside it (see trial.json)."""
+        """`classes` in trial.json maps the saved booster's 0..k-1 back to
+        labels."""
         from pathlib import Path
 
         booster = getattr(fitted, "classifier", fitted)
@@ -68,8 +62,6 @@ class XGBoost(OutputBaseModel):
 
 
 class XGBoostModel(Tunable, XGBoost):
-    """XGBoost, tuned over its size, learning rate, depth and leaf weight, and
-    for a classification its class weighting."""
 
     def get_config_space(self, seed: int = 0) -> ConfigurationSpace:
         cs = ConfigurationSpace(seed=seed)

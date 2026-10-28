@@ -1,8 +1,5 @@
-"""A draft's setup: its four steps, creating it, and throwing it away.
-
-See ui/setup_steps.py for what the steps are and what saving each means.
-Every view here reaches only drafts (`experiment_view(..., drafts=ONLY)`); an
-experiment that has been created is sent to its dashboard instead.
+"""Every view here reaches only drafts (`drafts=ONLY`); `ui/setup_steps.py`
+defines the four steps.
 """
 
 from importlib.metadata import version as dist_version
@@ -48,14 +45,13 @@ def _page(request, exp, step, template, **context):
 
 @experiment_view(EDIT, drafts=ONLY)
 def setup_resume(request, exp):
-    """A draft opened from the sidebar: the first step not yet saved."""
+    """`setup_resume` opens the first unsaved step."""
     return redirect(steps.resume(exp))
 
 
 @experiment_view(EDIT, drafts=ONLY)
 def setup(request, exp):
-    """Step 1: what the experiment is, filled from the draft; Save keeps it
-    and moves on."""
+    """`setup` shows step 1, what the experiment is."""
     if request.method == "POST":
         form, saved = save_setup(request, exp)
         if saved is None:
@@ -70,7 +66,7 @@ def setup(request, exp):
 
 @experiment_view(EDIT, drafts=ONLY)
 def setup_optimizer(request, exp):
-    """Step 2: the optimizer and its settings; Save keeps them and moves on."""
+    """`setup_optimizer` shows step 2, the optimizer and its settings."""
     if not steps.reachable(exp, steps.OPTIMIZER):
         return redirect(steps.url(exp, steps.SETUP))
     if request.method == "POST":
@@ -86,8 +82,7 @@ def setup_optimizer(request, exp):
 
 @experiment_view(EDIT, drafts=ONLY)
 def setup_data(request, exp):
-    """Step 3: the Data Handling page, its settable panels on Overview; Save
-    keeps their choices and moves on."""
+    """`setup_data` shows step 3, the Data Handling panels settable on Overview."""
     if not steps.reachable(exp, steps.DATA):
         return redirect(steps.url(exp, steps.SETUP))
     if request.method == "POST":
@@ -108,8 +103,7 @@ def setup_data(request, exp):
 
 @experiment_view(EDIT, drafts=ONLY)
 def setup_priors(request, exp):
-    """Step 4: what is believed about where the optimum is — the prior figure,
-    as an experiment with no trials shows it — and Create."""
+    """`setup_priors` shows step 4, the prior figure and the Create button."""
     if not steps.reachable(exp, steps.PRIORS):
         return redirect(steps.url(exp, steps.SETUP))
     built = snapshot_adapter.rebuild_experiment(exp)
@@ -122,10 +116,8 @@ def setup_priors(request, exp):
 @require_POST
 @experiment_view(EDIT, drafts=ONLY)
 def setup_create(request, exp):
-    """Make the draft an experiment: refused until steps 1 to 3 are saved.
-    Its history begins here, with how it was set up — Data Handling's choices
-    among it, which the timeline lists as an entry of their own — and each
-    prior its steps stated."""
+    """`setup_create` turns the draft into an experiment once steps 1 to 3 are
+    saved."""
     refusal = steps.not_ready(exp)
     if refusal:
         messages.error(request, refusal)
@@ -134,10 +126,6 @@ def setup_create(request, exp):
     exp.save(update_fields=["draft"])
     exp.data.created_at = timezone.now()
     exp.data.save(update_fields=["created_at"])
-    # Its history begins with how it was set up — the whole configuration, so
-    # it can be rebuilt, the processing chosen included — then each prior
-    # stated, as an entry of its own. The processing is not recorded as a
-    # change: nothing ran under anything else.
     history.record(exp, "created", user=request.user, configuration=history.configuration(
         snapshot_adapter.snapshot_from_experiment(exp)))
     for hp, prior in (exp.data.priors or {}).items():
@@ -149,15 +137,14 @@ def setup_create(request, exp):
 @require_POST
 @experiment_view(EDIT, drafts=ONLY)
 def setup_discard(request, exp):
-    """Throw the draft away, files and all. Nothing was run, so there is
-    nothing for a bin to keep."""
+    """`setup_discard` deletes the draft and its files, skipping the bin."""
     name = exp.title
     storage.delete_experiment_files(exp)
     messages.success(request, _("Discarded the draft “%(name)s”.") % {"name": name})
     return redirect("ui:home")
 
 
-# ── step 1 ───────────────────────────────────────────────────────────────────
+# Step 1
 
 def _form(request, exp, *args):
 
@@ -177,8 +164,7 @@ def _form(request, exp, *args):
 
 
 def _initial(exp) -> dict:
-    """The form's values for a draft that has been saved before, read back
-    from what it is; just its name for one that has not."""
+    """Form values read back from a saved draft, else its name."""
     data = exp.data
     if not steps.saved(exp, steps.SETUP):
         return {"name": data.name}
@@ -203,9 +189,8 @@ def _initial(exp) -> dict:
 
 
 def setup_form_context(request, exp, form=None) -> dict:
-    """What step 1's template needs: the form (bound after a failed Save, else
-    filled from the draft), and what the draft already has, so keeping it is
-    visible."""
+    """`setup_form_context` builds step 1's template context with the draft's
+    current files."""
     data = exp.data
     if form is None:
         form = _form(request, exp)
@@ -221,14 +206,9 @@ def setup_form_context(request, exp, form=None) -> dict:
 
 
 def save_setup(request, exp):
-    """Step 1's Save: build what the form describes and put it in place of the
-    draft's portable half. Returns (form, saved) — saved None when the group
-    had no room for it, and the draft is gone.
-
-    Built the way creating an experiment always built one — a snapshot from the
-    form, adopted by `data_from_snapshot` — and kept what the later steps set:
-    the processing, and the priors unless the model changed. A different
-    dataset, task or model asks for step 2 again (ui/setup_steps.py)."""
+    """`save_setup` rebuilds the draft's data from the form and returns (form,
+    saved), with saved None when the group lacked room and deleted the draft. A
+    changed dataset, task or model unmarks step 3."""
 
     form = _form(request, exp, request.POST, request.FILES)
     if not form.is_valid():
@@ -241,12 +221,10 @@ def save_setup(request, exp):
     try:
         dataset_path = (str(cleaned["keep_dataset"]) if cleaned.get("keep_dataset")
                         else _dataset_path_from(form, tmp_paths))
-        # Step 2's to choose; until it has been, the first offered on its
-        # defaults, so the draft is whole.
+        # The first optimizer stands in until step 2 picks one.
         chosen = OPTIMIZERS.get(old.optimizer_name) or next(iter(OPTIMIZERS.values()))
         optimizer = chosen(**chosen.known_params(old.optimizer_params or {}))
-        # A mounted model is adopted from its server-side path (unless an upload
-        # was given, which takes precedence); a kept one from where it is.
+        # An upload overrides a mounted model's server path.
         mounted = cleaned.get("mounted_model") or ""
         model_path = (mounted if (mounted and not cleaned.get("model_file"))
                       else old.model_file.path if cleaned.get("keep_model") else "")
@@ -267,9 +245,8 @@ def save_setup(request, exp):
                                                 horizon=cleaned.get("horizon", 0),
                                                 series_column=cleaned.get("series_column", ""),
                                                 season=cleaned.get("season", 0)),
-            # Every metric for the task is computed on every trial; which one is
-            # optimized is chosen per run. The probability ones only when asked
-            # for, which the form has checked the model can answer.
+            # Each trial computes every task metric, plus probability metrics
+            # when `_free_probabilities` allows.
             "metrics": {"names": metrics_for(cleaned["task"],
                                              probabilities=_free_probabilities(cleaned),
                                              forecast=bool(cleaned.get("horizon"))),
@@ -277,24 +254,20 @@ def save_setup(request, exp):
             "optimizer": {"name": optimizer.name, "params": optimizer.get_params()},
             "result": None,
         })
-        # This snapshot's paths were built right here: a validated demo or
-        # mounted choice, a temp file written above, or the draft's own file —
-        # so they are ours to adopt.
+        # Every path here comes from a validated choice or a local temp file, so
+        # `adopt_paths` is safe.
         new = snapshot_adapter.data_from_snapshot(
             snapshot, model_file=cleaned.get("model_file"), adopt_paths=True)
         if "group" in form.fields:
             exp.group = _group_by_pk(groups_to_choose_from(request.user), cleaned.get("group"))
         changed = snapshot_adapter.replace_data(exp, new)
         if not _settle_storage(request, exp):
-            # Refused for want of room: the draft has been deleted, files and
-            # all, and the reason is in the messages.
             return form, None
         if changed & {"dataset", "task", "model"}:
             steps.unmark(exp, steps.DATA)
         steps.mark(exp, steps.SETUP)
         if "model" in changed:
-            # A custom model needs an environment before it can run; resolving
-            # it takes minutes, so it starts now, in the background.
+            # The environment build takes minutes, so it starts now.
             modelenv.start_preparation(exp, cleaned.get("model_source"))
     finally:
         for path in tmp_paths:
@@ -305,13 +278,9 @@ def save_setup(request, exp):
 
 
 def _free_probabilities(cleaned) -> bool:
-    """Whether the model step 1 chose gives class probabilities from its own
-    fit, so ROC AUC and log loss are tracked with every other metric.
-
-    Not for regression, which has no classes; not for a model with no
-    probabilities; and not for one whose cost more than its fit (the SVM's
-    calibration), which every trial would pay. An uploaded model that offers
-    them is taken at its word.
+    """`_free_probabilities` tracks ROC AUC and log loss when the classifier's
+    own fit yields probabilities at no extra cost. An uploaded model's claim is
+    trusted.
     """
 
     if cleaned["task"] != tasks.CLASSIFICATION:

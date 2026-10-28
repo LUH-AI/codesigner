@@ -1,6 +1,5 @@
-"""An experiment's dashboard before it has any trials: a page of its own
-(experiment_prerun.html), with the optimizer and its settings still to be
-changed and the prior, in place of the figures."""
+"""Before any trial, `experiment_prerun.html` stands in for the figures and
+keeps the optimizer editable."""
 
 import pytest
 from django.urls import reverse
@@ -31,9 +30,6 @@ def _trials(exp):
 
 
 def test_a_new_experiment_opens_on_its_own_page(client):
-    """What: a created experiment with no trials gets the page before the
-    first run — the optimizer form and the Run form, no figure grid — under
-    the sidebar's Dashboard. How: creates one and reads its dashboard."""
     exp = _created(client)
     response = client.get(reverse("ui:experiment_detail", args=[exp.pk]))
     html = response.content.decode()
@@ -46,9 +42,7 @@ def test_a_new_experiment_opens_on_its_own_page(client):
 
 
 def test_the_optimizer_can_change_before_the_first_trial(client):
-    """What: before any trial the optimizer and its settings can be changed
-    from that page, and the change is on the timeline. How: switches Random
-    Search to SMAC and reads the experiment and its history."""
+    """The change lands on the timeline as `optimizer_changed`."""
     exp = _created(client)
     client.post(reverse("ui:experiment_optimizer", args=[exp.pk]), {"optimizer_name": "SMAC"})
     exp.refresh_from_db()
@@ -60,9 +54,8 @@ def test_the_optimizer_can_change_before_the_first_trial(client):
 
 
 def test_once_there_are_trials_the_dashboard_takes_over(client):
-    """What: with a trial the dashboard is the figures again, and the
-    optimizer can no longer change — the next run continues that search.
-    How: gives the experiment a trial, reads the page, and posts a change."""
+    """Once a trial exists, the next run continues that search, so the optimizer
+    stays fixed."""
     exp = _created(client)
     _trials(exp)
     response = client.get(reverse("ui:experiment_detail", args=[exp.pk]))
@@ -74,9 +67,7 @@ def test_once_there_are_trials_the_dashboard_takes_over(client):
 
 
 def test_a_run_under_way_locks_the_optimizer(client):
-    """What: while the first run waits for its first trial the page stays,
-    with the optimizer shown and locked, saying why. How: queues a run and
-    reads the page."""
+    """The page stays up with the optimizer disabled and a reason given."""
     exp = _created(client)
     Run.objects.create(experiment=exp, primary_metric="accuracy", status="running",
                        stopping={"max_trials": 3}, trial_offset=0, trial_count=0)

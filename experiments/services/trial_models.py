@@ -1,11 +1,5 @@
-"""Trial models kept for export as their parameters.
-
-A run keeps a trial's fitted model — the one its last fold fitted, no extra
-training — for the best trials and, if asked, every trial of the last run.
-Each is stored in its library's own format beside a note of what it is (see
-`ParameterFormat`), under ``MEDIA/trial_models/<experiment>/trial-<n>/``, and
-recorded as a `TrialModel` so what a group stores is a sum (see
-experiments/services/storage.py).
+"""A run keeps the last fold's fitted model for its best trials, each recorded
+as a `TrialModel` that storage sums.
 """
 
 from __future__ import annotations
@@ -15,25 +9,24 @@ from pathlib import Path
 
 
 def discard(kept) -> None:
-    """Delete a kept model: its files, then its record."""
+    """`discard` deletes files before the record."""
     shutil.rmtree(kept.directory, ignore_errors=True)
     kept.delete()
 
 
-#: What every kept model's note says it is.
+#: Every kept model's note.
 STATUS = ("partially trained: fitted during the search on one fold's training rows only "
           "— a starting point to warm-start from, not a final model")
 
 
 def root(exp) -> Path:
-    """Where *exp*'s kept models live."""
     from django.conf import settings
 
     return Path(settings.MEDIA_ROOT) / "trial_models" / f"{exp.pk}-{exp.identifier}"
 
 
 def _versions(model) -> dict:
-    """The versions of what its parameters need, as installed here."""
+    """`_versions` lists installed versions *model*'s parameters need."""
     from importlib.metadata import PackageNotFoundError, version
 
     out = {}
@@ -46,16 +39,8 @@ def _versions(model) -> dict:
 
 
 class Keeper:
-    """Keeps the fitted models a run's trials hand over — the best *best*
-    trials of the experiment by the run's metric and, with *whole_run*, every
-    trial of this run — and lets go of the rest.
-
-    Called with each recorded trial and what its last fold fitted (see
-    `core.optimizers.base.TrialCollector`). A model is written only while its
-    trial is one to keep and the group has room (experiments/services/storage.py):
-    kept models never take the place of data. Whatever stops being one to keep
-    — pushed out of the best by a better trial, or left from an earlier run —
-    is deleted.
+    """`Keeper` keeps the best trials by the run's metric, plus this run's
+    trials with *whole_run*, while the group has room.
     """
 
     def __init__(self, run, model, metric, previous_trials, *, best, whole_run, folds,
@@ -66,10 +51,9 @@ class Keeper:
         self.columns = columns
         self.scores = {t.trial: t.score for t in previous_trials if not t.failed}
         self.this_run = set()
-        #: Trials that were worth keeping but did not fit in the group's limit.
+        #: Kept-worthy trials refused for lack of room.
         self.no_room = 0
-        # The previous run's models that are not among the best, gone before
-        # this run keeps anything.
+        # Evicts non-best models of earlier runs first.
         self._evict()
 
     def keep_set(self) -> set:
@@ -153,9 +137,8 @@ class Keeper:
 
 
 def keeper_for(run, built, metric):
-    """The `Keeper` for *run*, or None when it keeps nothing: the experiment
-    asked to keep no models, or its model is one whose fitted state never
-    reaches this process (uploads, in their own environment)."""
+    """`keeper_for` returns None when the settings keep nothing or an upload's
+    fit stays in its own environment."""
     from core import encoding
     from core.optimizers.trial import keeps_its_fit
 

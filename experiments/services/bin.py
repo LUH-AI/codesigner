@@ -1,25 +1,10 @@
-"""Deleting an experiment, and undoing it.
+"""`delete` sets an experiment aside in the bins of its owner and contributors,
+who can restore it or export an `.ihpo`. A person who dismisses it also gives up
+access.
 
-Two bins, one after the other.
-
-**Its people's.** Deleting sets an experiment aside rather than destroying it.
-It drops out of every list and every URL — `experiments()` does not return it —
-and lands in the bins of the people it belonged to: its owner and its
-contributors. Any of them can put it back exactly as it was, or take a copy away
-as an `.ihpo`. Taking it out of *your* bin is a decision about you, not about
-the work: it leaves everyone else's bin alone and gives up your access, so a
-colleague restoring it later does not hand it back to you.
-
-**The site's.** Once nobody's bin holds it — every one of its people took it
-out, or `BIN_RETENTION_DAYS` passed — it is nobody's, and waits for a site admin
-with the work a deleted group leaves behind. Nothing expires there. A site admin
-puts it back into a group or destroys it, which is the only way anything
-deleted is ever destroyed.
-
-Restoring is exact because nothing was changed on the way in. The row, both
-halves of it, its runs, its grants and its files all stay where they were;
-deleting is a timestamp and a list of whose bin it is in, and restoring is
-clearing both.
+Once no bin holds it, or `BIN_RETENTION_DAYS` pass, a site admin restores or
+destroys it. Restoring is exact because the rows, runs, grants and files stay in
+place.
 """
 
 from datetime import timedelta
@@ -31,26 +16,22 @@ from django.utils import timezone
 
 from experiments.models import account, BinEntry, Experiment, ExperimentShare
 
-#: A run in one of these is stopped when its experiment is deleted.
+#: Run statuses stopped on deletion.
 _ACTIVE = ("pending", "running")
 
 
 def cutoff():
-    """Anything deleted before this has left its people's bins."""
+    """Older deletions have left personal bins."""
     return timezone.now() - timedelta(days=settings.BIN_RETENTION_DAYS)
 
 
 def expires_at(exp):
-    """When *exp* leaves its people's bins on its own."""
     return exp.deleted_at + timedelta(days=settings.BIN_RETENTION_DAYS)
 
 
 def orphaned():
-    """Deleted, and in nobody's bin any more: the site admins' to settle.
-
-    Worked out when asked rather than moved by a scheduled job, so an instance
-    whose worker is down still answers correctly — and so do the bins, which
-    ask the same `cutoff()` from the other side.
+    """`orphaned` queries the site bin on each call and needs no scheduled job,
+    which keeps the answer correct while the worker is down.
     """
     held = BinEntry.objects.filter(experiment=OuterRef("pk"))
     return Experiment.objects.filter(
@@ -58,10 +39,8 @@ def orphaned():
 
 
 def its_people(exp):
-    """Whose bin a deleted *exp* goes to: its owner and its contributors.
-
-    Contributors still in its group, for the same reason a grant stops counting
-    once its holder leaves — see `access.policy.share_of`.
+    """Contributors count only while in the group, as in
+    `access.policy.share_of`.
     """
     people = set(exp.shares.filter(level=ExperimentShare.CONTRIBUTOR,
                                    user__memberships__group_id=exp.group_id)
@@ -72,10 +51,8 @@ def its_people(exp):
 
 
 def delete(exp, by=None):
-    """Set *exp* aside, into its people's bins.
-
-    A run still going is asked to stop, as before — the trials it finished are
-    kept, and restoring does not start it again.
+    """A running run gets a cancel request; its finished trials stay, and a
+    restore leaves it stopped.
     """
     with transaction.atomic():
         exp.runs.filter(status__in=_ACTIVE).update(cancel_requested=True)
@@ -88,13 +65,8 @@ def delete(exp, by=None):
 
 
 def dismiss(exp, user):
-    """Take *exp* out of *user*'s bin, and *user* out of the experiment.
-
-    Everyone else's bin is left as it was. Their grant goes with their entry —
-    or a colleague restoring it would put it back in front of somebody who had
-    decided to be done with it. An owner keeps the field, so the site's bin can
-    still say whose it was; that their entry is gone is what tells `restore`
-    they gave it up.
+    """`dismiss` drops the user's share along with the bin entry. An owner keeps
+    the `owner` field; the missing entry tells `restore` the owner gave it up.
     """
     with transaction.atomic():
         exp.bin_entries.filter(user=user).delete()
@@ -102,14 +74,9 @@ def dismiss(exp, user):
 
 
 def restore(exp, by=None):
-    """Put *exp* back exactly as it was deleted. Out of every bin at once:
-    it is one experiment, and it is either deleted or it is not.
-
-    Exactly, except for whoever gave it up. Their grants were dropped when they
-    took it out of their bins, so they stay out. If the owner was one of them,
-    whoever restores it becomes its owner — they are a contributor, which is
-    who ownership can be handed to anyway, and the work needs somebody who
-    decides who else may reach it.
+    """`restore` clears every bin at once and leaves out anyone who dismissed
+    the experiment. If the owner dismissed it, the restoring contributor becomes
+    owner.
     """
     with transaction.atomic():
         if (by is not None and getattr(by, "is_authenticated", False) and exp.owner_id != by.pk
@@ -120,12 +87,8 @@ def restore(exp, by=None):
 
 
 def put_back(exp, group):
-    """A site admin's restore, from the site's bin, into *group*.
-
-    For an experiment whose group was deleted, and for one nobody kept. The
-    owner of record is left as it was — including somebody who took it out of
-    their bin, since putting it back is the site admin's decision, not theirs.
-    Whoever's bin it expired from keeps their grant: they never gave it up.
+    """`put_back` keeps the owner of record, even one who dismissed the
+    experiment, and users whose entries expired keep their grants.
     """
     with transaction.atomic():
         exp.group = group
@@ -142,7 +105,7 @@ def _put_back(exp):
 
 
 def purge(exp):
-    """Destroy *exp* for good — the real cascade, runs and files with it."""
+    """`purge` deletes for real, cascading to runs and files."""
     from .storage import delete_experiment_files
 
     delete_experiment_files(exp)

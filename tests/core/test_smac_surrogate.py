@@ -1,19 +1,6 @@
-"""The model the search fits, and the settings that shape it.
-
-Everything above this level configures *how the search is run*. These configure
-the surrogate itself — the model of your model's performance that the search
-consults instead of sampling blind. Each strategy has its own set, because a
-random forest and a Gaussian process have nothing in common to configure.
-
-Two things are pinned here that are easy to get wrong and silent when wrong.
-A feature ratio above one makes SMAC compute `max_features = 0`, which is a
-forest whose every split considers no features at all — still fitted, still
-consulted, useless. And an MCMC process is an *ensemble*; an acquisition
-function handed one without being told scores against a single arbitrary member
-of it, and raises only in the case where there are none at all.
-
-These build the facade rather than running a search, so they are fast. The
-end-to-end runs are in `test_smac_configuration.py`.
+"""`SMACOptimizer` builds a surrogate per strategy. A feature ratio above one
+makes SMAC set `max_features = 0`, and an MCMC ensemble needs an integrated
+acquisition function.
 """
 
 import tempfile
@@ -25,7 +12,7 @@ from smac import Scenario
 
 from core.optimizers.smac_optimizer import SMACOptimizer
 
-#: `_rf_opts` names, which are scikit-learn's rather than SMAC's argument names.
+#: scikit-learn names, as `_rf_opts` keys them.
 FOREST = ("n_estimators", "max_depth", "min_samples_split", "min_samples_leaf",
           "max_features", "bootstrap")
 
@@ -36,7 +23,7 @@ def space(models):
 
 
 def _built(space, **settings):
-    """The surrogate and acquisition function SMAC ends up holding."""
+    """`_built` returns SMAC's model and acquisition function."""
     optimizer = SMACOptimizer(**settings)
     scenario = Scenario(space, name="ihpo", n_trials=40, deterministic=True, seed=0,
                         output_directory=Path(tempfile.mkdtemp()),
@@ -45,11 +32,9 @@ def _built(space, **settings):
     return smac._model, smac._config_selector._acquisition_function
 
 
-# ── the random forest ────────────────────────────────────────────────────────
+# random forest
 
 def test_an_unset_forest_is_the_strategys_own(space):
-    """The convention the rest of the settings follow: blank is not a number of
-    ours, it is whatever SMAC would have done."""
     model, _ = _built(space, search_strategy="rf")
 
     assert model._rf_opts["n_estimators"] == 10
@@ -66,29 +51,26 @@ def test_the_forest_is_built_from_what_was_set(space):
 
 
 def test_a_feature_ratio_above_one_would_split_on_nothing(space):
-    """`max_features = 0 if ratio_features > 1.0` — no error, no warning, and a
-    forest of stumps reported as a fitted surrogate. The schema caps the field
-    and the optimizer caps the value, because a stored experiment or an imported
-    `.ihpo` never went through the field."""
+    """SMAC sets `max_features = 0` for a ratio above 1.0, and the optimizer
+    caps values from stored or imported files."""
     model, _ = _built(space, search_strategy="rf", rf_feature_ratio=5.0)
 
     assert model._rf_opts["max_features"] == 4, "all four hyperparameters, not none"
 
 
 def test_the_forest_settings_are_ignored_under_the_other_strategy(space):
-    """They are stored either way — the form hides them rather than dropping
-    them, so switching strategy and back does not lose them."""
+    """The form hides forest settings under the GP strategy and keeps them
+    stored."""
     model, _ = _built(space, search_strategy="gp", rf_trees=64)
 
     assert type(model).__name__ == "GaussianProcess"
 
 
-# ── the Gaussian process ─────────────────────────────────────────────────────
+# Gaussian process
 
 def test_an_unset_process_is_the_one_the_facade_would_have_built(space):
-    """It is constructed here rather than asked for, because the facade's
-    `get_model` exposes only the model type and the kernel. With nothing set the
-    result has to be indistinguishable from what it would have returned."""
+    """`SMACOptimizer` constructs the process itself because the facade's
+    `get_model` exposes only the model type and kernel."""
     from smac import BlackBoxFacade
     from smac.model.gaussian_process import GaussianProcess
 
@@ -117,9 +99,8 @@ def test_mcmc_gives_an_ensemble_instead_of_one_process(space):
 
 
 def test_mcmc_is_paired_with_an_integrated_acquisition_function(space):
-    """Marginalizing over the sampled processes is the point of sampling them.
-    Nothing in SMAC pairs these up, and an unwrapped acquisition function does
-    not complain — it scores against whichever member it was handed."""
+    """SMAC leaves an MCMC model unpaired, and a plain acquisition function
+    scores against one arbitrary member."""
     _, acquisition = _built(space, search_strategy="gp", gp_model_type="mcmc")
 
     assert type(acquisition).__name__ == "IntegratedAcquisitionFunction"
@@ -133,27 +114,23 @@ def test_the_wrapping_keeps_the_acquisition_function_that_was_chosen(space):
 
 
 def test_a_single_process_is_not_wrapped(space):
-    """`IntegratedAcquisitionFunction` raises on a model with no members, so
-    wrapping unconditionally would break the ordinary case."""
+    """`IntegratedAcquisitionFunction` raises on a model with no members."""
     _, acquisition = _built(space, search_strategy="gp")
 
     assert type(acquisition).__name__ == "EI"
 
 
 def test_an_unknown_fitting_method_falls_back_rather_than_failing(space):
-    """SMAC raises on an unrecognised model type. A stored experiment or an
-    imported file can hold anything."""
     model, _ = _built(space, search_strategy="gp", gp_model_type="nonsense")
 
     assert type(model).__name__ == "GaussianProcess"
 
 
-# ── the settings survive the round trip ──────────────────────────────────────
+# round trip
 
 def test_every_surrogate_setting_is_read_back_by_get_params():
-    """`get_params` is what `.ihpo` stores and what the settings page reloads,
-    and it works off `self._<name>` — so a setting stored under a different
-    attribute name would silently reset on every save."""
+    """A setting under another attribute name would reset on every save, because
+    `get_params` reads `self._<name>`."""
     settings = {"rf_trees": 64, "rf_max_depth": 7, "rf_min_samples_split": 5,
                 "rf_min_samples_leaf": 4, "rf_feature_ratio": 0.5,
                 "rf_bootstrapping": False, "gp_model_type": "mcmc",
@@ -165,7 +142,7 @@ def test_every_surrogate_setting_is_read_back_by_get_params():
 
 
 def test_each_surrogate_setting_declares_the_strategy_it_belongs_to():
-    """What lets the form hide them without knowing what any of them are."""
+    """The form needs only `depends_on` to hide settings."""
     scoped = {p.name: p.depends_on for p in SMACOptimizer.params_schema if p.depends_on}
 
     assert scoped == {
