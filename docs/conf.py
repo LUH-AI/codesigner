@@ -95,5 +95,47 @@ def _fold_in_source(app, doctree):
             child.parent = content
 
 
+# ── each module's whole source, a page of its own ──────────────────────────
+
+@cache
+def _modules() -> dict:
+    """Every documented module's name, by its source page's name."""
+    found = {}
+    for directory in autoapi_dirs:
+        top = (Path(__file__).parent / directory).resolve()
+        for path in sorted(top.rglob("*.py")):
+            if "migrations" in path.parts:
+                continue
+            parts = path.relative_to(top.parent).with_suffix("").parts
+            module = ".".join(parts[:-1] if parts[-1] == "__init__" else parts)
+            found["_source/" + module.replace(".", "/")] = (module, path)
+    return found
+
+
+def _link_full_source(app, doctree):
+    """Put a link to the module's whole source under a module page's title."""
+    docname = app.env.docname
+    if not docname.startswith("autoapi/") or not docname.endswith("/index"):
+        return
+    page = "_source/" + docname[len("autoapi/"):-len("/index")]
+    section = next(iter(doctree.findall(nodes.section)), None)
+    if section is None or page not in _modules():
+        return
+    link = nodes.reference("", "Full source", refuri=app.builder.get_relative_uri(docname, page))
+    section.insert(1, nodes.paragraph("", "", link, classes=["module-source"]))
+
+
+def _source_pages(app):
+    """One highlighted page per module, holding its whole source."""
+    for page, (module, path) in _modules().items():
+        code = path.read_text(encoding="utf-8")
+        # Numbered inline, as Sphinx numbers its own code blocks.
+        body = app.builder.highlighter.highlight_block(code, "python", linenos="inline")
+        yield page, {"title": module, "body": f'<h1>{module}</h1>'
+                     f'<div class="highlight-python notranslate">{body}</div>'}, "page.html"
+
+
 def setup(app):
     app.connect("doctree-read", _fold_in_source)
+    app.connect("doctree-read", _link_full_source)
+    app.connect("html-collect-pages", _source_pages)
