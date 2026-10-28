@@ -1,5 +1,6 @@
 .env
 .venv
+.venv-docs/
 db.sqlite3
 media/
 __pycache__/
