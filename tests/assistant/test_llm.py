@@ -1,8 +1,8 @@
-"""The model client: what it makes of a server's replies.
+"""The tests check how `ChatClient` parses a server's replies.
 
-Against a stand-in for the OpenAI SDK's client, so the parsing — whole and
-streamed replies, tool calls in pieces, reasoning to hide, tool calls written as
-text — is checked without a server.
+A stand-in for the OpenAI SDK's client replaces the server. The tests cover
+whole and streamed replies, tool calls in pieces, reasoning to hide and tool
+calls written as text.
 """
 
 from types import SimpleNamespace as NS
@@ -28,8 +28,8 @@ def _chunk(content=None, tool_calls=None, usage=None):
 
 
 def test_a_whole_reply_is_read_with_its_tool_calls_and_tokens():
-    """What: a non-streamed reply's text, tool calls and token count.
-    How: a stand-in response with one call."""
+    """`chat` reads a non-streamed reply's text, tool calls and token count. The
+    test feeds it a stand-in response with one call."""
     response = NS(
         choices=[NS(message=NS(content="<think>hmm</think>Looking.", tool_calls=[
             NS(id="c1", function=NS(name="profile_dataset", arguments='{"demo": "iris"}'))]))],
@@ -43,10 +43,10 @@ def test_a_whole_reply_is_read_with_its_tool_calls_and_tokens():
 
 
 def test_a_streamed_reply_is_passed_on_without_its_reasoning():
-    """What: streamed text reaches the listener as it arrives, without the
-    model's reasoning, even when a tag is split across pieces; tool-call pieces
-    are put back together.
-    How: a stand-in stream of chunks."""
+    """The test checks that streamed text reaches the listener as it arrives
+    without the model's reasoning, even when a tag is split across pieces, and
+    that tool-call pieces are joined. A stand-in stream of chunks feeds the
+    client."""
     stream = [
         _chunk("<thi"), _chunk("nk>weighing it</think>"), _chunk("Hello "), _chunk("there."),
         _chunk(tool_calls=[NS(index=0, id="c1", function=NS(name="explain_how", arguments='{"act'))]),
@@ -65,8 +65,8 @@ def test_a_streamed_reply_is_passed_on_without_its_reasoning():
 
 
 def test_an_unreachable_server_is_unavailable():
-    """What: a connection that fails is `Unavailable`, which ends a turn quietly.
-    How: a stand-in client raising the SDK's connection error."""
+    """`chat` raises `Unavailable` for a failed connection, which ends a turn
+    silently. A stand-in client raises the SDK's connection error."""
     def refuse(**kwargs):
         raise openai.APIConnectionError(request=httpx2.Request("POST", "http://model.invalid"))
 
@@ -75,9 +75,8 @@ def test_an_unreachable_server_is_unavailable():
 
 
 def test_tool_calls_written_as_text_are_read_as_calls():
-    """What: a model that writes its call into its text in the gemma style is
-    understood as having called it.
-    How: `_reply` on such text."""
+    """`_reply` reads a call written into the text in the gemma style as a tool
+    call. The test runs `_reply` on such text."""
     reply = _reply('<|tool_call>call:explain_how{action:<|"|>run<|"|>}', [], 0)
 
     assert [(c.name, c.arguments) for c in reply.tool_calls] == [("explain_how", {"action": "run"})]
@@ -85,9 +84,9 @@ def test_tool_calls_written_as_text_are_read_as_calls():
 
 
 def test_arguments_that_are_not_json_are_kept_to_be_refused():
-    """What: arguments the model garbled are not silently emptied — a tool would
-    then run with none — but kept under a name no schema allows.
-    How: `_reply` on a call with broken JSON."""
+    """The test checks that garbled arguments stay under a name no schema allows,
+    since emptied arguments would run the tool with none. The test runs `_reply`
+    on a call with broken JSON."""
     raw = [{"id": "c", "type": "function", "function": {"name": "explain_how", "arguments": "{oops"}}]
     reply = _reply(None, raw, 0)
 
@@ -95,9 +94,9 @@ def test_arguments_that_are_not_json_are_kept_to_be_refused():
 
 
 def test_server_specific_switches_are_sent_only_when_set():
-    """What: repetition penalty and thinking, which some servers refuse, are only
-    sent when configured.
-    How: what the stand-in client is called with, with and without them."""
+    """The test checks that repetition penalty and thinking, which some servers
+    refuse, are sent only when configured. The test records the stand-in
+    client's arguments with and without them."""
     seen = []
     response = NS(choices=[NS(message=NS(content="ok", tool_calls=None))], usage=None)
 
@@ -117,10 +116,10 @@ def test_server_specific_switches_are_sent_only_when_set():
 
 
 def test_texts_become_unit_vectors_in_their_order_and_in_batches(settings):
-    """What: the embedding client sends texts in batches and hands back one
-    unit-length vector per text, in the order given, whatever order the server
-    answers in.
-    How: a stand-in embeddings API answering in reverse order, a batch of two."""
+    """`EmbeddingClient` sends texts in batches and returns one unit-length
+    vector per text in the given order, whatever order the server uses. The
+    test sets the batch size to two, and a stand-in embeddings API replies in
+    reverse order."""
     from assistant.llm import EmbeddingClient
 
     sent = []

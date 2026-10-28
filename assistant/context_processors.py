@@ -1,13 +1,13 @@
-"""Which conversation a page's chat shows, when the assistant is on."""
+"""`assistant` picks the conversation a page's chat shows, when the assistant is on."""
 
 from django.conf import settings
 
 
 def assistant(request):
-    """`assistant` for the chat (assistant/_chat.html): the conversation this
-    page continues — its experiment's on an experiment's pages, else the
-    person's latest — and where its replay starts. Nothing when the assistant
-    is off, or for somebody not signed in where accounts are on."""
+    """`assistant` gives the chat (assistant/_chat.html) the conversation the
+    page continues (its experiment's on an experiment's pages, else the
+    person's latest) and where its replay starts. The context is empty when the
+    assistant is off, or for a signed-out person where accounts are on."""
     if not settings.ASSISTANT_ENABLED:
         return {}
     user = getattr(request, "user", None)

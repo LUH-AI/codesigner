@@ -34,7 +34,7 @@ POLL_SECONDS = 0.2
 
 
 def page_of(browser: str):
-    """The page *browser* has open, or None when none has been seen lately."""
+    """`page_of` returns the page *browser* has open, or None when none has been seen lately."""
     if not browser:
         return None
     since = timezone.now() - timedelta(seconds=settings.ASSISTANT_PAGE_SECONDS)
@@ -42,22 +42,22 @@ def page_of(browser: str):
 
 
 def pending(browser: str):
-    """*browser*'s actions still to be carried out, oldest first."""
+    """`pending` returns *browser*'s actions still to be carried out, oldest first."""
     return ClientAct.objects.filter(browser=browser, status=ClientAct.PENDING,
                                     created_at__gte=timezone.now() - EXPIRES)
 
 
 def send(conversation, kind: str, args: dict, path: str = "") -> ClientAct:
-    """Ask the person's page to do *kind* with *args* — only on the page at
-    *path*, when given — and wait for it to say how it went, up to
-    `ASSISTANT_ACT_SECONDS`. The action as it then stands."""
+    """`send` asks the person's page to do *kind* with *args* (only on the page
+    at *path*, when given) and waits for it to say how it went, up to
+    `ASSISTANT_ACT_SECONDS`. `send` returns the action as it then stands."""
     act = ClientAct.objects.create(browser=conversation.browser, conversation=conversation,
                                    kind=kind, args=args, path=path)
     return wait(act, settings.ASSISTANT_ACT_SECONDS)
 
 
 def wait(act: ClientAct, seconds: float) -> ClientAct:
-    """*act* once its page has reported, or as it is after *seconds*."""
+    """`wait` returns *act* once its page has reported, or as it is after *seconds*."""
     until = time.monotonic() + seconds
     while True:
         act.refresh_from_db()
@@ -67,7 +67,7 @@ def wait(act: ClientAct, seconds: float) -> ClientAct:
 
 
 def outcome(act: ClientAct) -> str:
-    """What the model is told of *act*."""
+    """`outcome` returns what the model is told of *act*."""
     if act.status == ClientAct.DONE:
         return "Done on the person's page." + (f" {act.detail}" if act.detail else "")
     if act.status == ClientAct.FAILED:

@@ -19,7 +19,7 @@ pytestmark = pytest.mark.django_db
 
 
 def _request():
-    """Somebody acting on an instance without accounts."""
+    """`_request` is a request from somebody on an instance without accounts."""
     request = RequestFactory().post("/")
     request.user = AnonymousUser()
     return request
@@ -42,8 +42,8 @@ def _saved_through_step_one():
 
 
 def test_a_draft_is_made_and_its_first_step_saved_from_a_dict():
-    """What: a new draft, then step 1 from a plain dict, as the page would post it.
-    How: `drafts.new`, `drafts.save_step` and the stored row."""
+    """A new draft takes step 1 from a plain dict, as the page would post it.
+    The test reads the row that `drafts.new` and `drafts.save_step` store."""
     request = _request()
     exp = drafts.new(request)
     outcome = drafts.save_step(request, exp, steps.SETUP, _setup())
@@ -56,8 +56,8 @@ def test_a_draft_is_made_and_its_first_step_saved_from_a_dict():
 
 
 def test_an_invalid_first_step_says_why_on_its_form():
-    """What: step 1 without a dataset is not saved, and its form carries the error.
-    How: saves a dict with no dataset and reads the outcome."""
+    """A step 1 without a dataset stays unsaved, and its form carries the error.
+    The test saves a dict with no dataset and reads the outcome."""
     request = _request()
     exp = drafts.new(request)
     outcome = drafts.save_step(request, exp, steps.SETUP, _setup(demo_dataset=""))
@@ -67,8 +67,8 @@ def test_an_invalid_first_step_says_why_on_its_form():
 
 
 def test_a_later_step_waits_for_the_first():
-    """What: the Optimizer step is refused while step 1 is unsaved.
-    How: saves step 2 on a fresh draft."""
+    """The Optimizer step is refused while step 1 is unsaved.
+    The test saves step 2 on a fresh draft."""
     request = _request()
     outcome = drafts.save_step(request, drafts.new(request), steps.OPTIMIZER,
                                {"optimizer_name": "Random Search"})
@@ -77,9 +77,10 @@ def test_a_later_step_waits_for_the_first():
 
 
 def test_a_partial_optimizer_save_keeps_what_it_does_not_mention():
-    """What: changing one SMAC setting leaves the others as they were, ticked
-    boxes included — where a whole form leaves an unticked box absent, so False.
-    How: saves SMAC on its defaults, then only a trial cap, partially, as a number."""
+    """A change to one SMAC setting leaves the others as they were, ticked boxes
+    included, whereas a whole form leaves an unticked box absent and so False.
+    The test saves SMAC on its defaults, then only a trial cap as a number, both
+    partially."""
     request, exp = _saved_through_step_one()
     drafts.save_step(request, exp, steps.OPTIMIZER, {"optimizer_name": "SMAC"}, partial=True)
     exp.refresh_from_db()
@@ -95,8 +96,8 @@ def test_a_partial_optimizer_save_keeps_what_it_does_not_mention():
 
 
 def test_the_data_step_saves_only_what_it_is_given():
-    """What: the Data step stores the choices it names and keeps the rest.
-    How: saves one processing choice and reads all three back."""
+    """The Data step saves the choices it names and keeps the rest.
+    The test saves one processing choice and reads all three back."""
     request, exp = _saved_through_step_one()
     before = dict(exp.data.processing or {})
     outcome = drafts.save_step(request, exp, steps.DATA, {"scale": "standardize"})
@@ -109,9 +110,9 @@ def test_the_data_step_saves_only_what_it_is_given():
 
 
 def test_create_waits_for_the_first_three_steps_then_begins_the_history():
-    """What: Create is refused until steps 1 to 3 are saved; then the draft is an
-    experiment whose history begins with how it was set up.
-    How: `drafts.create` before and after saving steps 2 and 3."""
+    """Create is refused until steps 1 to 3 are saved, and then the draft becomes
+    an experiment whose history begins with its setup. The test calls
+    `drafts.create` before and after saving steps 2 and 3."""
     request, exp = _saved_through_step_one()
     assert drafts.create(request, exp)
 
@@ -125,9 +126,9 @@ def test_create_waits_for_the_first_three_steps_then_begins_the_history():
 
 
 def test_a_prior_is_stated_and_taken_back_without_a_page():
-    """What: a belief about one hyperparameter is stored, then reset to nothing,
-    since no run searched under one.
-    How: `priors.state` and `priors.reset` on a draft."""
+    """A belief about one hyperparameter is stored, then reset to nothing, since
+    no run searched under one. The test calls `priors.state` and `priors.reset`
+    on a draft."""
     request, exp = _saved_through_step_one()
     stated = priors.state(exp, "max_depth",
                           {"kind": "normal", "params": {"mu": 0.3, "sigma": 0.1},
@@ -140,9 +141,9 @@ def test_a_prior_is_stated_and_taken_back_without_a_page():
 
 
 def test_the_run_form_reads_numbers_as_well_as_text():
-    """What: stopping criteria given as numbers read as a browser's text would,
-    and a 0 is a value, not a blank.
-    How: `run_form.stopping_from` and `trial_timeout_from` over typed values."""
+    """`run_form` reads stopping criteria given as numbers as it reads a
+    browser's text, and it counts a 0 as a value. The test passes typed values to `run_form.stopping_from`
+    and `trial_timeout_from`."""
     stopping = run_form.stopping_from({"max_trials": 25, "max_failures": "3",
                                        "target_score": 0}, "accuracy")
     timeout = run_form.trial_timeout_from({"trial_timeout_mode": "fixed",
@@ -153,9 +154,9 @@ def test_the_run_form_reads_numbers_as_well_as_text():
 
 
 def test_settling_storage_answers_with_notices():
-    """What: an experiment with no group has no limit, so settling keeps it and
-    has nothing to say.
-    How: `drafts.settle_storage` on a draft saved without accounts."""
+    """An experiment with no group has no limit, and settling keeps it with no
+    notices. The test calls `drafts.settle_storage` on a draft saved without
+    accounts."""
     _request_, exp = _saved_through_step_one()
 
     assert drafts.settle_storage(exp) == (True, [])
@@ -170,9 +171,9 @@ def _csv(name="rows.csv", text="a,b,y\n1,2,0\n3,4,1\n5,6,0\n"):
 
 
 def test_a_demo_dataset_is_staged_and_step_one_keeps_it():
-    """What: a demo put on a fresh draft is its dataset, and step 1 saved without
-    naming one keeps it.
-    How: `stage_dataset` by the demo's name, then step 1 with no dataset field."""
+    """A demo put on a fresh draft becomes its dataset, and step 1 saved without
+    naming one keeps it. The test stages the demo by name, then saves step 1
+    with no dataset field."""
     request = _request()
     exp = drafts.new(request)
     staged = drafts.stage_dataset(request, exp, demo="iris")
@@ -187,9 +188,9 @@ def test_a_demo_dataset_is_staged_and_step_one_keeps_it():
 
 
 def test_an_uploaded_dataset_is_staged_and_replaces_the_last():
-    """What: an uploaded CSV is stored on the draft; a demo staged after it takes
-    its place and the file goes; a chosen target goes with the old data.
-    How: stages an upload, sets a target, then stages a demo."""
+    """An uploaded CSV is stored on the draft, and a demo staged after it takes
+    its place and deletes the file. A chosen target goes with the old data. The
+    test stages an upload, sets a target, then stages a demo."""
     request = _request()
     exp = drafts.new(request)
     assert drafts.stage_dataset(request, exp, upload=_csv()).saved
@@ -209,9 +210,9 @@ def test_an_uploaded_dataset_is_staged_and_replaces_the_last():
 
 
 def test_staging_refuses_what_step_one_would():
-    """What: a file that is not a CSV, a demo that does not exist, nothing at
-    all, and a draft whose step 1 is saved are each refused with a reason.
-    How: `stage_dataset` in each of those cases."""
+    """`stage_dataset` refuses with a reason each of four cases: a file other
+    than a CSV, an unknown demo, no dataset at all, and a draft whose step 1 is
+    saved. The test stages each case."""
     request = _request()
     exp = drafts.new(request)
 

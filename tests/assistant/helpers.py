@@ -12,8 +12,9 @@ from assistant.llm import Reply, ToolCall
 
 
 class MockLLM:
-    """Answers each `chat` with the next queued reply, and remembers what it
-    was asked. With the queue empty it says so in text, which ends the turn."""
+    """`MockLLM` answers each `chat` with the next queued reply and records
+    every call. An empty queue makes `chat` say so in a text reply, which ends
+    the turn."""
 
     model = "mock"
 
@@ -32,18 +33,19 @@ class MockLLM:
 
 
 def text(content: str, tokens: int = 10) -> Reply:
-    """A reply in words."""
+    """`text` builds a reply in words."""
     return Reply(content=content, tool_calls=[],
                  message={"role": "assistant", "content": content}, tokens=tokens)
 
 
 def call(name: str, tokens: int = 10, **arguments) -> Reply:
-    """A reply that calls one tool."""
+    """`call` builds a reply that calls one tool."""
     return calls((name, arguments), tokens=tokens)
 
 
 def calls(*named, tokens: int = 10) -> Reply:
-    """A reply that calls several tools, each `(name, arguments)`."""
+    """`calls` builds a reply that calls several tools, each given as
+    `(name, arguments)`."""
     made, wire = [], []
     for index, (name, arguments) in enumerate(named):
         call_id = f"call_{index}_{name}"

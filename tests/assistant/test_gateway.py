@@ -1,11 +1,10 @@
 """The assistant acts as the person, and never as more than them.
 
-Three things are checked here: the policy refuses an assistant's request what
-only a person may do, whatever the person may (`AgentLimits`); a tool's request
-is the person as they are now — active, signed in, without the permissions that
-reach beyond their own work (`Context.request`); and across every person and
-experiment of a hosted instance, nothing the assistant may do is something the
-person may not.
+The tests check that `AgentLimits` refuses an assistant's request what only a
+person may do, whatever the person may. `Context.request` gives a
+tool the person as they are now: active, signed in, and without the permissions
+that reach beyond their own work. Across every person and experiment of a
+hosted instance, the assistant may do only what the person may.
 """
 
 import pytest
@@ -29,7 +28,7 @@ def _experiment(**fields):
 
 
 class _Person:
-    """A person's own request: no assistant."""
+    """`_Person` is a person's own request, with no assistant."""
 
     def __init__(self, user):
         self.user = user
@@ -55,9 +54,9 @@ def test_an_assistant_may_not_run_delete_or_share_even_where_anyone_may(settings
 
 
 def test_the_limits_keep_the_policy_what_it_was(settings):
-    """What: the policy with the assistant's limits in front is still an
-    instance of the configured class, so nothing that asks what it is changes.
-    How: the configured policy's type."""
+    """The test checks that the policy with the assistant's limits in front is
+    still an instance of the configured class, so code that checks its type
+    sees no change. The test asserts the configured policy's type."""
     from access.policy import GroupPolicy
 
     settings.EXPERIMENT_POLICY = "access.policy.GroupPolicy"
@@ -88,9 +87,10 @@ def test_nothing_the_assistant_may_do_is_beyond_the_person(hosted, world):  # no
 
 
 def test_a_site_admins_reach_is_not_the_assistants(hosted, world, django_user_model):  # noqa: F811
-    """What: a superuser sees every experiment themselves; acting for them, the
-    assistant sees only what is theirs.
-    How: the experiments visible to a superuser, and to an assistant for them."""
+    """The test checks that a superuser sees every experiment, while the
+    assistant acting for the superuser sees only the superuser's own. The test
+    counts the experiments visible to a superuser and to an assistant for the
+    superuser."""
     root = django_user_model.objects.create_superuser("root", password="pw")
     policy = permissions.policy()
     agent = Context(Conversation.objects.create(owner=root)).request()
@@ -113,10 +113,10 @@ def test_an_assistant_stops_when_its_person_is_deactivated(hosted, world):  # no
 
 
 def test_an_assistant_acts_only_while_its_browser_is_signed_in(client, hosted, world):  # noqa: F811
-    """What: a conversation started from a browser acts only while that session
-    is signed in as its owner — not after signing out, nor after the password
-    changes.
-    How: a real session, used, then the password changed, then signed out."""
+    """The test checks that a conversation started from a browser acts only
+    while the browser's session is signed in as the conversation's owner, and
+    stops after the password changes or after signing out. The test uses a real
+    session, then changes the password, then signs out."""
     ana = world["ana"]
     client.force_login(ana)
     conversation = Conversation.objects.create(owner=ana, session_key=client.session.session_key)
@@ -137,9 +137,10 @@ def test_an_assistant_acts_only_while_its_browser_is_signed_in(client, hosted, w
 
 
 def test_an_experiment_is_reached_only_as_the_views_reach_it(hosted, world):  # noqa: F811
-    """What: through the gateway, ben reaches what is shared with him, not what
-    is not, and nothing for a human-only action.
-    How: `Context.experiment` for ben on a shared and a private experiment."""
+    """The test checks that through the gateway, ben reaches an experiment
+    shared with him, fails to reach a private one, and reaches nothing for a
+    human-only action. The test calls `Context.experiment` for ben on a shared
+    and a private experiment."""
     context = Context(Conversation.objects.create(owner=world["ben"]))
 
     assert context.experiment(world["ana_contrib"].pk, permissions.EDIT).pk == world["ana_contrib"].pk
