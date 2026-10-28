@@ -6,7 +6,8 @@ the application's dependencies, its Django settings or the SMAC branch.
 
 project = "Codesigner"
 
-extensions = ["autoapi.extension", "myst_parser"]
+# viewcode first: AutoAPI only serves it source if it is already loaded.
+extensions = ["sphinx.ext.viewcode", "autoapi.extension", "myst_parser"]
 
 autoapi_type = "python"
 autoapi_dirs = ["../access", "../config", "../core", "../experiments", "../remote", "../ui",
