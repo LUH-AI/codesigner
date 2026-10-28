@@ -3,7 +3,7 @@
 Every dataset used to be read with its last column as the target. The target is
 now a choice made in setup step 1, stored as `ExperimentData.target_column` and
 in the file as `dataset.target_column`, and applied in one place: each reader
-moves the chosen column last (`core.io.target_last`), so everything downstream
+moves the chosen column last (`core.datasets.target_last`), so everything downstream
 still reads the last column. An experiment that never chose one predicts the
 last column, as every experiment made before the choice existed does.
 """
@@ -52,11 +52,11 @@ def test_the_chosen_column_is_moved_last_and_nothing_else_moves():
     How: a three-column frame through each case."""
     frame = pd.DataFrame({"a": [1], "b": [2], "c": [3]})
 
-    assert list(io.target_last(frame, "a").columns) == ["b", "c", "a"]
-    assert list(io.target_last(frame, None).columns) == ["a", "b", "c"]
-    assert list(io.target_last(frame, "c").columns) == ["a", "b", "c"]
+    assert list(datasets.target_last(frame, "a").columns) == ["b", "c", "a"]
+    assert list(datasets.target_last(frame, None).columns) == ["a", "b", "c"]
+    assert list(datasets.target_last(frame, "c").columns) == ["a", "b", "c"]
     with pytest.raises(ValueError, match="no column named"):
-        io.target_last(frame, "z")
+        datasets.target_last(frame, "z")
 
 
 def test_an_experiment_trains_on_the_column_it_chose():
