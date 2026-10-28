@@ -1,4 +1,6 @@
-from .base import BaseModel
+# Pre-SDK `BaseModel` import path.
+from codesigner_model import BaseModel
+
 from .catboost_model import CatBoostModel
 from .elastic_net import ElasticNetModel
 from .ets import ETSModel

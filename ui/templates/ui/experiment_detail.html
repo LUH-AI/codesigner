@@ -181,9 +181,8 @@ being read.{% endcomment %}
                     document.querySelectorAll("select[id], input[type=checkbox][id], input[type=radio]"),
                     function (el) {
                         if (el.id === "metric-select") return true;
-                        return !el.closest("form[method=post], [data-figure='prior'], [data-figure='projected_prior']")
-                            && !/^acq-prior/.test(el.id) && !el.matches("[data-next-trials]")
-                            && el.id !== "cube-draw-prior";
+                        return !el.closest("form[method=post], [data-figure='prior']")
+                            && !/^acq-prior/.test(el.id) && !el.matches("[data-next-trials]");
                     });
             }
             function controlKey(el) {
@@ -941,11 +940,6 @@ being read.{% endcomment %}
                             }
                             const sel = selectionMeta(key);
                             const point = hovered || pressed;
-                            // Drawing a prior: the click puts a point down.
-                            if (key === "configuration_cube" && drawingPrior()) {
-                                pickPriorPoint(el, point, event);
-                                return;
-                            }
                             // A sample in the cube's point cloud: a proposal.
                             const sample = point && point.data && point.data.meta
                                 && point.data.meta.samples;
@@ -2488,17 +2482,6 @@ being read.{% endcomment %}
                         });
                     });
                 }
-                // Every prior drawn in the cube and stated, and the one being
-                // drawn now: one weight per sample each, worked out by the
-                // server (ui/services/projected.py), multiplied in as the search
-                // multiplies every belief together.
-                const drafted = priorDraft && draftPreview && draftPreview.metric === data.metric
-                    ? draftPreview.weights : null;
-                [data.projected_weights, drafted].forEach(function (extra) {
-                    if (!extra || !data.vectors || extra.length !== data.vectors.length) return;
-                    weights = (weights || data.vectors.map(function () { return 1; }))
-                        .map(function (w, i) { return w * extra[i]; });
-                });
                 if (weights) {
                     // Peaking at one, as the acquisition figure's weight does:
                     // a constant cannot change what the optimizer would pick,
@@ -2509,224 +2492,6 @@ being read.{% endcomment %}
                 }
                 weightCache = {data: data, weights: weights};
                 return weights;
-            }
-
-            // ── priors drawn in the cube ──────────────────────────────────
-            //
-            // With Draw Prior ticked, a click puts down a point instead of
-            // selecting: anywhere in one or two dimensions, and onto whatever
-            // is under the pointer in three, where a click is a line of sight
-            // rather than a place. Up to as many points as the view has axes
-            // — a bump, a ridge, a slab — and a click past that starts again.
-            // The Projected prior card shapes and states what they span, and
-            // the server works out what it weighs and what to draw for it
-            // (ui/services/projected.py): this only places points and draws.
-            const drawPriorBox = document.getElementById("cube-draw-prior");
-            const clearPriorBtn = document.getElementById("cube-clear-prior");
-            // {view, dims, hyperparameters, points} being drawn, or null.
-            let priorDraft = null;
-            // What the card last previewed for it: {metric, weights, geometry}.
-            let draftPreview = null;
-            // What the cube last drew: whether a projection, and its axes.
-            let cubeShown = {projected: true, chosen: []};
-            function drawingPrior() {
-                return !!(drawPriorBox && drawPriorBox.checked && !drawPriorBox.disabled);
-            }
-            function syncDrawing() {
-                const card = drawPriorBox && drawPriorBox.closest("[data-figure]");
-                if (card) card.classList.toggle("drawing-prior", drawingPrior());
-                if (clearPriorBtn) clearPriorBtn.disabled = !priorDraft;
-            }
-            // The view a point goes down in: the method, how many axes it
-            // shows, and for HP Space which hyperparameters they are.
-            function cubeView() {
-                return {view: cubeMethodSelect ? cubeMethodSelect.value : "pls",
-                        dims: cubeShown.chosen.length,
-                        hyperparameters: cubeShown.projected ? [] : cubeShown.chosen.slice()};
-            }
-            function announceDraft() {
-                syncDrawing();
-                document.dispatchEvent(new CustomEvent("prior-draft:points", {detail: priorDraft
-                    ? Object.assign({metric: currentMetric()}, priorDraft) : {}}));
-            }
-            // The draft lifted: by Clear, by the card, or by the view moving
-            // out from under it — its points mean nothing in another view.
-            function dropDraft(tell) {
-                if (!priorDraft && !draftPreview) return;
-                priorDraft = null;
-                draftPreview = null;
-                weightCache = null;
-                syncDrawing();
-                if (tell) document.dispatchEvent(new CustomEvent("prior-draft:cleared"));
-                scheduleCube();
-            }
-            // An axis position under the pointer, on a log axis as well.
-            function axisValue(axis, px) {
-                const value = axis.p2l(px);
-                return axis.type === "log" ? Math.pow(10, value) : value;
-            }
-            // Whether *at* is a configuration at all: inside HP Space's box,
-            // or inside the outline a projection takes the box to — the same
-            // outline the field is clipped to. Without the layer's sample to
-            // read either from, the server decides when the card asks.
-            function legalPoint(at, view) {
-                if (!layerData || layerData.metric !== currentMetric()) return true;
-                if (view.view === "axes") {
-                    return view.hyperparameters.every(function (name, k) {
-                        const range = (layerData.bounds || {})[name];
-                        return !range || (at[k] >= range[0] && at[k] <= range[1]);
-                    });
-                }
-                const projection = (layerData.projections || {})[view.view];
-                const outline = projection && (projection.outlines || {})[String(view.dims)];
-                return !outline || legalDistance(outline, view.dims)(at) >= -1e-9;
-            }
-            function refusePoint(message) {
-                document.dispatchEvent(new CustomEvent("prior-draft:refused", {detail: {message: message}}));
-            }
-            function pickPriorPoint(el, point, event) {
-                const view = cubeView();
-                if (!view.dims) return;
-                let at = null;
-                if (point) {
-                    at = [point.x, point.y, point.z].slice(0, view.dims);
-                } else if (view.dims < 3 && el._fullLayout && el._fullLayout.xaxis) {
-                    const box = el.getBoundingClientRect();
-                    const xa = el._fullLayout.xaxis, ya = el._fullLayout.yaxis;
-                    at = [axisValue(xa, event.clientX - box.left - xa._offset)];
-                    if (view.dims === 2) at.push(axisValue(ya, event.clientY - box.top - ya._offset));
-                }
-                if (!at || at.some(function (v) { return typeof v !== "number" || !isFinite(v); })) return;
-                if (!legalPoint(at, view)) { refusePoint(null); return; }
-                const same = priorDraft && priorDraft.view === view.view && priorDraft.dims === view.dims
-                    && priorDraft.hyperparameters.join() === view.hyperparameters.join();
-                if (!same || priorDraft.points.length >= view.dims) {
-                    priorDraft = Object.assign({points: []}, view);
-                }
-                priorDraft.points.push(at);
-                draftPreview = null;
-                weightCache = null;
-                announceDraft();
-                scheduleCube();
-            }
-            document.addEventListener("prior-draft:preview", function (event) {
-                if (!priorDraft) return;
-                draftPreview = event.detail;
-                weightCache = null;
-                scheduleCube();
-            });
-            document.addEventListener("prior-draft:points-edited", function (event) {
-                if (!priorDraft) return;
-                priorDraft.points = event.detail.points.map(function (p) { return p.slice(); });
-                scheduleCube();
-            });
-            document.addEventListener("prior-draft:cleared", function () { dropDraft(false); });
-            // The server found one of the points outside the search space —
-            // typed in, or put down without the layer to check against: it
-            // comes off, and the rest are drawn again.
-            document.addEventListener("prior-draft:outside", function (event) {
-                if (!priorDraft) return;
-                priorDraft.points.splice(event.detail.point, 1);
-                if (!priorDraft.points.length) {
-                    dropDraft(false);
-                    document.dispatchEvent(new CustomEvent("prior-draft:cleared",
-                                                           {detail: {refused: true}}));
-                    return;
-                }
-                draftPreview = null;
-                weightCache = null;
-                syncDrawing();
-                document.dispatchEvent(new CustomEvent("prior-draft:points",
-                    {detail: Object.assign({metric: currentMetric(), refused: true}, priorDraft)}));
-                scheduleCube();
-            });
-            // Stated, changed or withdrawn: their weight over the sample the
-            // card asked about; any other metric's kept sample carries the old
-            // weight and is asked for again.
-            document.addEventListener("projected-priors:changed", function (event) {
-                const metric = event.detail.metric;
-                Object.keys(layerCache).forEach(function (m) {
-                    if (m === metric) layerCache[m].projected_weights = event.detail.weights;
-                    else delete layerCache[m];
-                });
-                if (layerData && layerData.metric === metric) {
-                    layerData.projected_weights = event.detail.weights;
-                }
-                weightCache = null;
-                scheduleCube();
-            });
-            if (drawPriorBox) drawPriorBox.addEventListener("change", syncDrawing);
-            if (clearPriorBtn) clearPriorBtn.addEventListener("click", function () { dropDraft(true); });
-
-            // The draft as the cube draws it, in the prior figure's colour: its
-            // points, numbered; and once the card has previewed it, the line
-            // or plane through them, the width either side, the spreads along
-            // it and the peak. Scenery, but for the points.
-            function priorDraftTraces(chosen) {
-                const view = cubeView();
-                const dims = chosen.length;
-                if (!priorDraft || priorDraft.view !== view.view || priorDraft.dims !== dims) return [];
-                const scene = dims > 2;
-                const type = scene ? "scatter3d" : "scatter";
-                const colour = selectionColors.prior;
-                const scenery = {hoverinfo: "skip", showlegend: false};
-                function place(rows) {
-                    const out = {x: rows.map(function (r) { return r ? r[0] : null; }),
-                                 y: rows.map(function (r) { return r ? (dims > 1 ? r[1] : 0) : null; })};
-                    if (scene) out.z = rows.map(function (r) { return r ? r[2] : null; });
-                    return out;
-                }
-                function joined(lines) {
-                    const rows = [];
-                    lines.forEach(function (line, i) {
-                        if (i) rows.push(null);
-                        line.forEach(function (p) { rows.push(p); });
-                    });
-                    return rows;
-                }
-                const traces = [];
-                const g = draftPreview && draftPreview.geometry;
-                if (g) {
-                    if (g.mesh) {
-                        traces.push(Object.assign({type: "mesh3d", x: g.mesh.x, y: g.mesh.y, z: g.mesh.z,
-                                                   i: g.mesh.i, j: g.mesh.j, k: g.mesh.k,
-                                                   color: colour, opacity: 0.15}, scenery));
-                    }
-                    if (g.lines.length) {
-                        traces.push(Object.assign({type: type, mode: "lines", connectgaps: false,
-                                                   line: {color: colour, width: scene ? 4 : 2}},
-                                                  place(joined(g.lines)), scenery));
-                    }
-                    if (g.band.length) {
-                        traces.push(Object.assign({type: type, mode: "lines", connectgaps: false,
-                                                   line: {color: colour, width: 1, dash: "dot"}},
-                                                  place(joined(g.band)), scenery));
-                    }
-                    if (g.marks && g.marks.length && dims === 1) {
-                        const xs = [], ys = [];
-                        g.marks.forEach(function (m) { xs.push(m, m, null); ys.push(-1, 1, null); });
-                        traces.push(Object.assign({type: "scatter", mode: "lines", x: xs, y: ys,
-                                                   line: {color: colour, width: 1, dash: "dot"}}, scenery));
-                    }
-                    if (g.ticks.length) {
-                        traces.push(Object.assign({type: type, mode: "markers",
-                                                   marker: {symbol: "circle-open", size: scene ? 4 : 8,
-                                                            color: colour}},
-                                                  place(g.ticks), scenery));
-                    }
-                    traces.push(Object.assign({type: type, mode: "markers",
-                                               marker: {symbol: "diamond", size: scene ? 6 : 12,
-                                                        color: colour}},
-                                              place([g.mode]), scenery));
-                }
-                const numbered = Object.assign({type: type, mode: "markers+text",
-                    text: priorDraft.points.map(function (_p, i) { return String(i + 1); }),
-                    textposition: "top center", textfont: {color: colour},
-                    marker: {size: scene ? 6 : 10, color: colour},
-                    hoverinfo: "skip", showlegend: false}, place(priorDraft.points));
-                if (!scene) numbered.marker.line = {color: "#FFFFFF", width: 1.5};
-                traces.push(numbered);
-                return traces;
             }
 
             // ── what the optimizer would run next ─────────────────────────
@@ -2940,7 +2705,6 @@ being read.{% endcomment %}
                     : ["x", "y", "z"]
                         .map(function (axis) { return cubeAxisSelect[axis].value; })
                         .filter(function (name) { return names.indexOf(name) >= 0; });
-                cubeShown = {projected: projected, chosen: chosen};
                 const customdata = trace.customdata || [];
                 // What the server drew, fresh each time. Rebuilding from
                 // `trace.marker` instead meant every adjustment made for one
@@ -3128,7 +2892,6 @@ being read.{% endcomment %}
                 }
                 candidateTraces(chosen, projected, meta).forEach(function (t) { traces.push(t); });
                 proposalTraces(chosen, projected).forEach(function (t) { traces.push(t); });
-                priorDraftTraces(chosen).forEach(function (t) { traces.push(t); });
                 // With no outline to carry it, a failure in a scene is
                 // filled with its own score — and a failure scores at the
                 // pale end of the ramp, so the crosses come out very nearly
@@ -3210,14 +2973,12 @@ being read.{% endcomment %}
                     // A different pair is a different field, and the old one
                     // must not be left drawn under the new axes.
                     uncertaintyField = null;
-                    dropDraft(true);
                     applyCubeAxes();
                     refreshUncertainty();
                     refreshLayer();
                 });
             });
             if (cubeDimensions) cubeDimensions.addEventListener("change", function () {
-                dropDraft(true);
                 applyCubeAxes();
                 refreshLayer();
             });
@@ -3267,7 +3028,6 @@ being read.{% endcomment %}
             }
             if (cubeMethodSelect && cubeDimensions) {
                 cubeMethodSelect.addEventListener("change", function () {
-                    dropDraft(true);
                     syncCubePickers();
                     switchView("configuration_cube", cubeMethodSelect.value);
                     // The payload that just arrived carries its numbers and
@@ -3353,9 +3113,6 @@ being read.{% endcomment %}
                 uncertaintyField = null;
                 applyCubeAxes();  // the fresh trace has no axes on it until this runs
                 refreshUncertainty();
-                // A PLS view is the metric's own projection, so a draft drawn in
-                // the last one is drawn in a view that is gone.
-                dropDraft(true);
                 refreshLayer();  // a metric is a model of its own
                 // A metric switch resets the picker to the new metric's own
                 // top hyperparameter, same as the selection being forgotten
@@ -3410,7 +3167,7 @@ being read.{% endcomment %}
             // There was never a rendering constraint on this, only a
             // persistence one: the figures below read nothing but the
             // trials, and the run now writes what it has every few seconds
-            // (`ui/services/run.py`). What arrives rides inside the
+            // (`experiments/services/run.py`). What arrives rides inside the
             // run-status poll — already fetched every two seconds, already
             // replaced wholesale — so there is no second loop and no new
             // endpoint; poll.js just says when a swap happened.

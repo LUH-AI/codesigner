@@ -1,13 +1,6 @@
-"""Driving a model that lives in another process.
-
-`RemoteModel` wears the local model's interface — same `name`, same
-`get_config_space`, same `fit_predict` — so an optimizer cannot tell the two
-apart. That is the point: the trial loops are about search, not about where the
-training happened.
-
-One child serves a whole run. Spawning per trial would pay a fresh interpreter
-and a numpy import, one to two seconds, against a trial that typically takes
-under one.
+"""`RemoteModel` matches the local model's interface, so an optimizer cannot
+tell the two apart. One child serves a whole run, since a fresh interpreter and
+numpy import cost 1-2s against a trial that usually takes under one.
 """
 
 from __future__ import annotations
@@ -27,21 +20,22 @@ import weakref
 from copy import deepcopy
 from pathlib import Path
 
+import numpy as np
+
 from . import protocol
-from .arrays import fold_labels_for_json, write_dataset
-from .deadline import DEFAULT_TRIAL_TIMEOUT, as_deadline
+from ..jsonable import plain
+from .deadline import DEFAULT_TRIAL_TIMEOUT, as_deadline, DeadlineSpec
 from .errors import ModelProcessError, ModelTrialError, TrialCancelled, TrialTimeout
 
 HARNESS = Path(__file__).with_name("harness.py")
 
-#: Interpreter start plus the model file's own imports. Torch is slow to import.
+#: Torch alone is slow to import.
 DEFAULT_START_TIMEOUT = 120.0
 
-_POLL = 0.25          # how often a wait looks up from the pipe to check for cancellation
+_POLL = 0.25          # cancellation check interval
 _STOP_GRACE = 5.0
 _STDERR_LINES = 200
 
-#: Longer than this, a launch argument travels in a file (see `_argument`).
 _INLINE_ARGUMENT = 32_000
 
 _LIVE: weakref.WeakSet = weakref.WeakSet()
@@ -49,7 +43,6 @@ _LIVE: weakref.WeakSet = weakref.WeakSet()
 
 @atexit.register
 def _kill_stragglers() -> None:
-    """No child outlives the process that started it, however that process ends."""
     for host in list(_LIVE):
         try:
             host.close()
@@ -57,22 +50,10 @@ def _kill_stragglers() -> None:
             pass
 
 
-def launch_local(python, model_file) -> list[str]:
-    """Argv that runs the harness under *python*, importing *model_file*.
-
-    The plain case: no environment of its own, so the interpreter is named
-    directly. A model with a prepared environment is launched by uv instead, and
-    that argv is built by the application — `core` knows nothing about uv.
-    """
-    return [str(python), "-B", str(HARNESS), "--model-file", str(model_file)]
-
-
 class ModelProcess:
-    """One live child: start it, ask it one thing at a time, make sure it dies.
-
-    Takes the whole argv that starts the harness, because how it gets started
-    differs: a bare interpreter here, `uv run` for a model with its own
-    environment. Anything after this argv is the harness's own flags.
+    """`ModelProcess` takes the whole launch argv, since a bare interpreter and
+    `uv run` start the harness differently, and the harness flags come after the
+    argv.
     """
 
     def __init__(self, launch, *, start_timeout: float = DEFAULT_START_TIMEOUT,
@@ -87,13 +68,10 @@ class ModelProcess:
         self._stderr: collections.deque = collections.deque(maxlen=_STDERR_LINES)
         self._argument_files: list[str] = []
 
-    # ── lifetime ─────────────────────────────────────────────────────────────
 
     def _argument(self, value) -> str:
-        """*value* as JSON for the command line — or, when that would be long,
-        ``@`` and a file holding it, which the harness reads instead. One
-        argument may not exceed 128 KiB on Linux, and a feature kind is about
-        eleven bytes, so a wide dataset's list would stop the child starting."""
+        """Linux caps one argument at 128 KiB, so a wide dataset's kinds list
+        goes to an ``@`` file instead."""
         text = json.dumps(value)
         if len(text) < _INLINE_ARGUMENT:
             return text
@@ -109,17 +87,14 @@ class ModelProcess:
 
     def start(self, *, seed: int = 0, describe: bool = False, task: str | None = None,
               feature_kinds=None, forecast=None) -> dict:
-        """Spawn the child and return its greeting.
-
-        *task* is told to the model before it is asked for its search space,
-        which may depend on it, and so are *feature_kinds* — what kind each
-        column of X is — and, for a forecasting run, *forecast*.
+        """The model learns *task*, *feature_kinds* and *forecast* before
+        reporting its search space, which may depend on them.
         """
         argv = [*self._launch, "--seed", str(seed)]
         if task:
             argv += ["--task", task]
-        # Left out when every column is a number, which is what the model reads
-        # an empty list as anyway — and what a very wide dataset usually is.
+        # The model reads a missing list as all numeric, the usual case for a
+        # very wide dataset.
         if feature_kinds and any(kind != "numeric" for kind in feature_kinds):
             argv += ["--feature-kinds", self._argument(list(feature_kinds))]
         if forecast:
@@ -131,9 +106,8 @@ class ModelProcess:
             argv,
             stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.PIPE,
             env=self._env, cwd=self._cwd,
-            # Its own session, so killing it takes the workers it spawned for
-            # itself too — a model with n_jobs=-1 leaves a joblib pool behind
-            # otherwise, and those are how a machine fills up quietly.
+            # A new session lets the kill reach a model's own workers, such as a
+            # joblib pool from n_jobs=-1.
             start_new_session=(os.name == "posix"),
         )
         _LIVE.add(self)
@@ -157,10 +131,10 @@ class ModelProcess:
         return hello
 
     def close(self) -> None:
-        """Ask the child to leave; kill it if it will not."""
         if self.alive:
             try:
                 self._write({"t": protocol.SHUTDOWN, "id": self._seq + 1})
+                assert self._proc is not None
                 self._proc.wait(timeout=_STOP_GRACE)
             except Exception:  # noqa: BLE001 — it is going to be killed anyway
                 pass
@@ -196,7 +170,6 @@ class ModelProcess:
             except Exception:  # noqa: BLE001
                 pass
 
-    # ── one request, one reply ───────────────────────────────────────────────
 
     def request(self, message: dict, *, timeout: float, cancel=None) -> dict:
         self._seq += 1
@@ -214,35 +187,37 @@ class ModelProcess:
             return ""
         return "\n" + "".join(self._stderr).rstrip()
 
-    # ── plumbing ─────────────────────────────────────────────────────────────
 
     def _write(self, message: dict) -> None:
         try:
             payload = json.dumps(message, ensure_ascii=True, allow_nan=False)
-            self._proc.stdin.write(payload.encode("ascii") + b"\n")
-            self._proc.stdin.flush()
+            stdin = self._proc.stdin if self._proc is not None else None
+            if stdin is None:
+                raise AttributeError("the model process has no stdin")
+            stdin.write(payload.encode("ascii") + b"\n")
+            stdin.flush()
         except (BrokenPipeError, OSError, ValueError, AttributeError) as exc:
             raise ModelProcessError(
                 f"the model process is gone{self.stderr_tail()}") from exc
 
     def _pump_stdout(self) -> None:
-        """A thread does nothing but read, so a wait can have a deadline.
-
-        `readline()` cannot be polled for a timeout or a cancel flag, so the
-        reading lives here and the waiting happens on a queue.
+        """`_pump_stdout` reads in its own thread because `readline()` cannot
+        time out, and `_await` waits on the queue instead.
         """
         proc = self._proc
         try:
+            assert proc is not None and proc.stdout is not None
             for raw in iter(proc.stdout.readline, b""):
                 self._lines.put(raw)
         except (ValueError, OSError):
             pass
         finally:
-            self._lines.put(None)      # end of stream
+            self._lines.put(None)
 
     def _pump_stderr(self) -> None:
         proc = self._proc
         try:
+            assert proc is not None and proc.stderr is not None
             for raw in iter(proc.stderr.readline, b""):
                 self._stderr.append(raw.decode("utf-8", "replace"))
         except (ValueError, OSError):
@@ -285,36 +260,27 @@ class ModelProcess:
 
 
 class RemoteModel:
-    """A model in another process, wearing the interface of one in this process.
-
-    Built by `model_session`, which owns its lifetime — the child must be shut
-    down, and only a context manager can promise that on every path out.
+    """`model_session` owns the lifetime, since only a context manager can
+    promise shutdown on every exit path.
     """
 
     def __init__(self, process: ModelProcess, hello: dict, *, seed: int = 0,
-                 trial_timeout: float = DEFAULT_TRIAL_TIMEOUT, cancel=None,
+                 trial_timeout: DeadlineSpec = DEFAULT_TRIAL_TIMEOUT, cancel=None,
                  restart=None):
         self._process = process
         self._hello = hello
         self._seed = seed
-        #: A number, or a policy that answers per configuration. See
-        #: `core.modelhost.deadline`; a bare float is still what most callers
-        #: pass and still means what it always did.
         self._deadline = as_deadline(trial_timeout)
         self._cancel = cancel
-        #: How to get another child, once this one has been killed. Supplied by
-        #: `model_session`, which owns the dataset the replacement has to be
-        #: handed. `None` — a `RemoteModel` built directly, as the tests do —
-        #: means a dead child stays dead.
+        #: `model_session` supplies `_restart`, and a None restart, as in tests,
+        #: leaves a dead child dead.
         self._restart = restart
         self._restart_failed = False
         self._deadline_bound = False
         self._fold = 0
-        #: Whether the child offers `fit_predict_proba`. Read off its greeting
-        #: rather than inferred: only the child can see the model.
         self.supports_proba = protocol.CAP_PROBA in (hello.get("capabilities") or [])
-        #: Read by `evaluate_trial`: this thread's CPU clock saw none of the work,
-        #: so the child's own measurement is the only true one.
+        #: `evaluate_trial` reads `last_cpu_time`, because the parent's CPU
+        #: clock saw none of the work.
         self.last_cpu_time: float | None = None
 
     @property
@@ -322,16 +288,9 @@ class RemoteModel:
         return self._hello["name"]
 
     def get_config_space(self, seed: int = 0):
-        """The child's search space, rebuilt here as a live object.
-
-        Copied before decoding because `from_serialized_dict` *consumes* what it
-        is given — it pops each hyperparameter's `type` — so a second call on the
-        same dict raises. This is called more than once per run (SMAC wants it
-        for the scenario and again for importance), so the copy is load-bearing,
-        not defensive.
-
-        Serializing also loses the seed, and `RandomOptimizer` samples from this,
-        so it is re-applied rather than inherited.
+        """`from_serialized_dict` pops each hyperparameter's `type`, and SMAC
+        asks for the space twice, so the deepcopy is needed. `get_config_space`
+        reapplies the seed that serializing loses.
         """
         from ConfigSpace import ConfigurationSpace
 
@@ -340,40 +299,22 @@ class RemoteModel:
         return space
 
     def use_fold(self, index: int) -> None:
-        """Which fold the next `fit_predict` runs on.
-
-        A local model is handed the fold as arrays. This one cannot be: the
-        dataset was sent once at startup and lives in the other process, so the
-        fold travels as an index and the child does the slicing. Set before the
-        call rather than passed to it, because `fit_predict` is the contract
-        user models implement and it must not grow an argument for something no
-        user model will ever use.
+        """The dataset lives in the child, so the fold travels as an index.
+        `use_fold` sets the fold before the call and keeps the user-facing
+        `fit_predict` signature unchanged.
         """
         self._fold = index
 
     def _live_process(self) -> ModelProcess:
-        """The child, replaced first if the last call killed it.
-
-        Enforcing a deadline means killing the child that missed it — `_await`
-        does, and has to: the point of a timeout is that the model is not going
-        to answer. Without this, that kill ended the *run* as well as the trial:
-        every later `fit_predict` found a dead pipe and was recorded as a
-        crashed trial, so one slow configuration turned the rest of the run into
-        fabricated failures.
-
-        Lazily, so a timeout on the last trial of a run — the common case, since
-        `max_failures` defaults to 1 — does not pay for a child nobody will ask
-        anything. Once a restart has itself failed the session is over and every
-        later call says so immediately, rather than spending an interpreter
-        start per trial to rediscover it.
+        """`_await` kills a child that misses its deadline, and a replacement
+        keeps later trials from recording fabricated crashes. The restart is
+        lazy, and after one failed restart every call fails immediately.
         """
         if self._process.alive:
             return self._process
         if self._cancel is not None and self._cancel.is_set():
-            # A cancelled run is not owed a replacement. Worth checking before
-            # spawning rather than after: `start()` has no cancel flag to read,
-            # so a child started here would be waited on for the full
-            # `start_timeout` before anyone noticed nobody wants it.
+            # A child spawned now would hold a cancelled run for the full
+            # `start_timeout`, because `start()` cannot read the cancel flag.
             raise TrialCancelled("the run was cancelled")
         if self._restart is None or self._restart_failed:
             raise ModelProcessError(
@@ -386,12 +327,8 @@ class RemoteModel:
         return self._process
 
     def fit_predict_proba(self, config, X_train, y_train, X_val, seed: int = 0):
-        """`(y_pred, y_proba, classes)` — one round trip, one fit over there.
-
-        Raises `ModelTrialError` when the child answered without them despite
-        having said it could. Belt and braces: a reply that quietly lacked
-        probabilities would otherwise reach a metric as `None` and fail several
-        frames later, with nothing pointing back at the model that shorted it.
+        """`fit_predict_proba` raises `ModelTrialError` when the child promised
+        probabilities and sent none, before a `None` fails far from its source.
         """
         y_pred, y_proba, classes = self._request(config, seed, want_proba=True)
         if y_proba is None:
@@ -400,38 +337,27 @@ class RemoteModel:
         return y_pred, y_proba, classes
 
     def fit_predict(self, config, X_train, y_train, X_val, seed: int = 0):
-        """One round trip. The arrays are already over there.
-
-        They are accepted and ignored so this matches the local signature
-        exactly; an optimizer passes them without knowing which kind of model it
-        has. Which rows to use comes from `use_fold`.
-
-        How long it may take is asked per call rather than fixed for the run —
-        see `core.modelhost.deadline` — and what it actually took is reported
-        back, which is what lets a policy predict the next one.
+        """`fit_predict` ignores the arrays, since the child holds them and
+        `use_fold` picks the rows.
         """
         return self._request(config, seed)[0]
 
     def _request(self, config, seed: int, *, want_proba: bool = False):
-        """The round trip both prediction methods make. Returns
-        `(y_pred, y_proba, classes)`; the last two are None unless asked for."""
         process = self._live_process()
         allowed = self._deadline_seconds(config)
         started = time.monotonic()
-        message = {"t": protocol.TRIAL, "config": _jsonable(config), "seed": seed,
-                   "fold": self._fold}
+        message = {"t": protocol.TRIAL, "seed": seed, "fold": self._fold,
+                   "config": {key: plain(value) for key, value in config.items()}}
         if want_proba:
-            # Omitted rather than sent as false, so a child that predates the
-            # key never sees one it does not understand.
+            # An older child never sees the key, which is omitted when false.
             message["want_proba"] = True
         try:
             reply = process.request(
                 message, timeout=allowed, cancel=self._cancel,
             )
         except Exception:
-            # Timed out, cancelled, or the conversation broke. None of those is
-            # a measurement of how long this configuration takes to fit, and the
-            # policy is told so rather than left to infer it from silence.
+            # A timeout, cancel or broken pipe is no duration measurement, and
+            # the policy hears so.
             self._deadline.observe(config, time.monotonic() - started, completed=False)
             raise
         elapsed = time.monotonic() - started
@@ -452,12 +378,7 @@ class RemoteModel:
         return reply["y_pred"], reply.get("y_proba"), reply.get("classes")
 
     def _deadline_seconds(self, config) -> float:
-        """How long this configuration may have.
-
-        The search space is built on first use and only for a policy that reads
-        it: `get_config_space` rebuilds a live object out of the child's
-        greeting, which is not worth doing once a run for a fixed number that
-        would ignore it.
+        """The space is built lazily, and only for a policy that reads it.
         """
         if self._deadline.needs_config_space and not self._deadline_bound:
             self._deadline_bound = True
@@ -468,19 +389,10 @@ class RemoteModel:
         return self._deadline.seconds_for(config)
 
 
-def _jsonable(config: dict) -> dict:
-    """A configuration as JSON. ConfigSpace hands back numpy scalars."""
-    return {key: (value.item() if hasattr(value, "item") else value)
-            for key, value in config.items()}
-
-
 def describe(launch, *, seed: int = 0, env=None, task: str | None = None,
              start_timeout: float = DEFAULT_START_TIMEOUT) -> dict:
-    """Start a model, read its greeting, stop. Its name and search space.
-
-    How an experiment learns what it has without a web request importing user
-    code, and — because the model is imported and instantiated to answer — the
-    check that it works at all.
+    """`describe` returns the greeting and checks that the model imports and
+    instantiates, without a web request importing user code.
     """
     process = ModelProcess(launch, start_timeout=start_timeout, env=env)
     try:
@@ -489,18 +401,47 @@ def describe(launch, *, seed: int = 0, env=None, task: str | None = None,
         process.close()
 
 
-class model_session:
-    """A running model, for the length of one optimization.
+def write_dataset(splits, directory: Path | None = None) -> Path:
+    """The directory is private (0o700), since it holds the dataset. Pickling
+    stays off, so an unencoded text column fails here before a subprocess
+    starts.
+    """
+    directory = Path(directory or tempfile.mkdtemp(prefix="codesigner-split-"))
+    directory.mkdir(parents=True, exist_ok=True)
+    directory.chmod(0o700)
 
-    Starts the child, hands it the split, yields a `RemoteModel`, and kills the
-    child on the way out however that happens — a raised exception, a cancelled
-    run, or a plain return.
+    try:
+        np.save(directory / protocol.X_FILE, np.asarray(splits.X), allow_pickle=False)
+    except ValueError as exc:
+        raise ValueError(
+            "this dataset's features are not numeric, so they cannot be sent "
+            f"to a model running in its own environment: {exc}") from exc
+
+    for index, (train_idx, val_idx) in enumerate(splits.folds):
+        for part, indices in (("train", train_idx), ("val", val_idx)):
+            np.save(directory / protocol.fold_file(index, part),
+                    np.asarray(indices, dtype=np.int64), allow_pickle=False)
+    return directory
+
+
+def fold_labels_for_json(splits) -> list:
+    """Labels are often strings and would need pickling as arrays, so they
+    travel in the `init` message.
+    """
+    y = np.asarray(splits.y)
+    return [[plain(value) for value in y[train_idx]]
+            for train_idx, _ in splits.folds]
+
+
+class model_session:
+    """`model_session` kills the child on every way out: an exception, a cancel,
+    or a return.
     """
 
     def __init__(self, launch, splits, *,
                  seed: int = 0, task: str = "classification", feature_kinds=None,
                  forecast=None, cancel=None, env=None, cwd=None,
-                 trial_timeout: float = DEFAULT_TRIAL_TIMEOUT,
+                 trial_timeout: DeadlineSpec = DEFAULT_TRIAL_TIMEOUT,
                  start_timeout: float = DEFAULT_START_TIMEOUT):
         self._launch = launch
         self._splits = splits
@@ -517,13 +458,8 @@ class model_session:
         self._arrays_dir: Path | None = None
 
     def _spawn(self) -> tuple[ModelProcess, dict]:
-        """One started child, holding the dataset, ready for trials.
-
-        Separate from `__enter__` because it happens more than once: a child
-        killed for missing its deadline is replaced by another one, and the
-        replacement needs the same greeting-and-INIT it did. The dataset is not
-        rewritten — `_arrays_dir` lives until `__exit__`, so a restart costs an
-        interpreter start and a read, not another copy of the data.
+        """A replacement child needs the same greeting and INIT, and
+        `_arrays_dir` lives until `__exit__`, so a restart rereads the data.
         """
         process = ModelProcess(
             self._launch, start_timeout=self._start_timeout,
@@ -544,7 +480,6 @@ class model_session:
         return process, hello
 
     def _restart(self) -> ModelProcess:
-        """A replacement child, and the one `__exit__` will now close."""
         self._process, _hello = self._spawn()
         return self._process
 

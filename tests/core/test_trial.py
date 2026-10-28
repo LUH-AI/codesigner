@@ -1,9 +1,5 @@
-"""One trial: predict, score, and record what happened.
-
-All three optimizers share this, so a run's history cannot depend on which one
-produced it. Its job beyond scoring is to decide what a *failed* trial is: a
-model that raises on one configuration is a fact about that configuration, not
-the end of the run.
+"""`evaluate_trial` serves every optimizer and turns a raising model into a
+failed trial.
 """
 
 import numpy as np
@@ -14,8 +10,7 @@ from core.optimizers.timing import STATUS_CRASHED, STATUS_SUCCESS
 from core.optimizers.trial import evaluate_trial
 from core.splits import cross_validation, holdout
 
-#: The classification metrics: every split here has class labels, and a
-#: regression metric scored on them would fail every trial.
+#: Classification metrics, since every split here has class labels.
 METRICS = resolve(metrics_for("classification"))
 
 X_TRAIN = np.array([[0.0], [1.0]])
@@ -26,9 +21,9 @@ SPLITS = holdout(X_TRAIN, Y_TRAIN, X_VAL, Y_VAL)
 
 
 class Perfect:
-    """Predicts the validation labels it was never shown, by luck."""
 
     name = "Perfect"
+    last_cpu_time: float
 
     def get_config_space(self, seed=0):
         return None
@@ -54,7 +49,7 @@ class WrongLength:
         return None
 
     def fit_predict(self, config, X_train, y_train, X_val, seed=0):
-        return ["a"]          # one prediction for two rows
+        return ["a"]          # too short
 
 
 def _run(model):
@@ -71,8 +66,7 @@ def test_a_good_trial_is_scored_and_marked_successful():
 
 
 def test_a_model_that_raises_becomes_a_recorded_failure():
-    """Not an exception: 'this configuration is unusable' is a real data point,
-    and the optimizer should keep searching."""
+    """The optimizer keeps searching past an unusable configuration."""
     scores, run_info = _run(Broken())
 
     assert scores == {name: 0.0 for name in METRICS}
@@ -81,7 +75,6 @@ def test_a_model_that_raises_becomes_a_recorded_failure():
 
 
 def test_unscoreable_predictions_are_a_failure_not_a_crash():
-    """A model can also fail by returning something wrong rather than raising."""
     scores, run_info = _run(WrongLength())
 
     assert scores == {name: 0.0 for name in METRICS}
@@ -90,14 +83,14 @@ def test_unscoreable_predictions_are_a_failure_not_a_crash():
 
 
 def test_every_requested_metric_is_present_even_on_failure():
-    """The optimizers index scores by the primary metric straight afterwards."""
+    """Optimizers then read scores by primary metric."""
     scores, _ = _run(Broken())
     assert set(scores) == set(METRICS)
 
 
 def test_a_model_that_timed_itself_overrides_the_cpu_reading():
-    """This thread's CPU clock measures nothing when the work happened in
-    another process, so a model that reports its own is believed."""
+    """`evaluate_trial` trusts `last_cpu_time`, since another process may have
+    done the work."""
     model = Perfect()
     model.last_cpu_time = 42.0
 

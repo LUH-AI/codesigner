@@ -1,16 +1,8 @@
-"""The models, optimizers and metrics the application offers.
+"""`registry` maps the names stored in `.ihpo` files to the models, optimizers
+and metrics they denote.
 
-Keys are the human-readable names stored in `.ihpo` files, which is what makes
-this the thing `io.build_experiment` resolves a snapshot against.
-
-Lives in `core` rather than `ui` because everything in it is a core object and
-none of it needs the web layer — and because a run executed somewhere else
-entirely has to resolve the same names with no Django installation to do it in
-(see `cluster/run_experiment.py`). Duplicating the three dicts there instead
-would work until somebody added a model, at which point the cluster would refuse
-that model alone, and say only that it "is not available".
-
-`ui.registry` re-exports this, so the application's own vocabulary is unchanged.
+The module lives in `core` because `remote/run_experiment.py` resolves the same
+names on a machine without Django.
 """
 
 from .metrics import METRICS
@@ -21,10 +13,7 @@ from .models import (
 )
 from .optimizers import GridOptimizer, RandomOptimizer, SMACOptimizer
 
-#: In the order the form offers them: the two that have always been here, the
-#: other tree ensembles, the boosters, the models that need their columns
-#: scaled, then the two that only forecast. Every one runs on a CPU, in this
-#: process — and every one that regresses can forecast too (`core.forecasting`).
+#: Form order; the last two models only forecast.
 MODELS = {
     "Random Forest": RandomForestModel(),
     "SVM": SVMModel(),
@@ -42,18 +31,21 @@ MODELS = {
 
 
 def canonical_model_name(name: str) -> str:
-    """*name* as the registry calls it now: a renamed model answers to what it
-    was called before, through its `aliases`. A name the registry does not
-    know is returned as it is."""
+    """`canonical_model_name` maps a former name in a model's `aliases` to its
+    current key and returns an unknown name unchanged."""
     if name in MODELS:
         return name
     return next((key for key, model in MODELS.items()
                  if name in getattr(model, "aliases", ())), name)
 
 OPTIMIZERS = {
-    "SMAC": SMACOptimizer(),
-    "Random Search": RandomOptimizer(),
-    "Grid Search": GridOptimizer(),
+    "SMAC": SMACOptimizer,
+    "Random Search": RandomOptimizer,
+    "Grid Search": GridOptimizer,
 }
 
-__all__ = ["MODELS", "OPTIMIZERS", "METRICS", "canonical_model_name"]
+
+def optimizer_class(name: str, optimizers=OPTIMIZERS):
+    """`optimizer_class` matches *name* or an alias, giving None for no match."""
+    return next((kind for kind in optimizers.values()
+                 if name == kind.name or name in kind.aliases), None)

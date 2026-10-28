@@ -4,9 +4,9 @@ from pathlib import Path
 import pytest
 from ConfigSpace import ConfigurationSpace, Integer
 
-from core.io import _load_splits
+from core.datasets import load_splits
 from core.metrics import METRICS, metrics_for
-from core.models import BaseModel
+from codesigner_model import BaseModel
 from core.registry import MODELS
 from core.optimizers.trial import evaluate_trial
 from core.optimizers import (
@@ -24,12 +24,8 @@ DATASETS_DIR = Path(__file__).parent.parent / "datasets"
 
 
 class FakeModel(BaseModel):
-    """Instant, deterministic model for exercising optimizer loops in tests.
-
-    No training happens: it predicts a pattern chosen by the config, so what it
-    scores is a pure function of that config and stable across runs. It cannot
-    simply return a score — a model never sees the validation labels — so the
-    config decides how often the pattern lines up with them instead.
+    """`FakeModel` trains nothing and predicts a label pattern chosen by the
+    config, which makes the score a pure function of the config.
     """
 
     name = "Fake Model"
@@ -46,8 +42,8 @@ class FakeModel(BaseModel):
 
 
 class FakeOptimizer(BaseOptimizer):
-    """Instant optimizer for run-lifecycle tests: real TrialCollector bookkeeping
-    (resume, incumbent, cancellation) with no actual search or importance math."""
+    """`FakeOptimizer` keeps real `TrialCollector` bookkeeping and skips search
+    and importance."""
 
     name = "Fake"
     params_schema = []
@@ -55,7 +51,8 @@ class FakeOptimizer(BaseOptimizer):
     def optimize(self, model, X_train, y_train, X_val, y_val,
                  metrics: dict, primary_metric: str,
                  n_trials=None, previous_result=None, seed: int = 0, cancel_event=None,
-                 stopping: dict | None = None, splits=None):
+                 stopping: dict | None = None, splits=None,
+                 priors=None, configurations=None):
         from core.splits import holdout
         splits = splits if splits is not None else holdout(X_train, y_train, X_val, y_val)
         config_space = model.get_config_space(seed=seed)
@@ -88,10 +85,7 @@ class FakeOptimizer(BaseOptimizer):
 
 
 class PreCancelled:
-    """Minimal cancel flag honouring the .is_set() contract, always cancelled.
-
-    Deliberately not a threading.Event: it proves optimizers depend only on
-    the .is_set() method, which any cancellation backend can provide.
+    """`PreCancelled` proves optimizers rely only on `.is_set()`.
     """
 
     def is_set(self) -> bool:
@@ -100,44 +94,25 @@ class PreCancelled:
 
 @pytest.fixture(autouse=True)
 def media_stays_out_of_the_repo(settings, tmp_path):
-    """A throwaway MEDIA_ROOT for every test, not only the web layer's.
-
-    Any test that creates an experiment stores what it uploads; left to the
-    default, that is the developer's own media/ directory, where it outlives
-    the test and counts against nobody's idea of what is stored there.
+    """Uploads would otherwise land in the developer's own media/ directory.
     """
     settings.MEDIA_ROOT = str(tmp_path / "media")
 
 
 @pytest.fixture(autouse=True)
 def runs_execute_synchronously(settings):
-    """Keep inline runs synchronous for the whole suite.
-
-    The dev server hands an immediate-mode run to a background thread so the
-    request returns at once; under test that would race every assertion about a
-    launched run, so launching executes in the caller instead. The tests that
-    cover the threaded dispatch itself opt back in.
+    """A background run thread would race every assertion; tests of threaded
+    dispatch opt back in.
     """
     settings.RUN_IMMEDIATE_IN_THREAD = False
 
 
 @pytest.fixture(autouse=True)
 def suite_runs_in_its_own_configuration(settings):
-    """Pin the settings that decide *what kind of instance this is*.
-
-    `config/settings.py` reads `.env`, which is a developer's own file — so
-    without this the suite inherits whatever they last left in it. Two of those
-    settings change what the tests are even testing:
-
-    * `REQUIRE_LOGIN` decides whether accounts exist at all. Left on, every test
-      that does not ask for accounts silently becomes a test of the login wall.
-    * `RUN_BACKEND` decides where a run executes. Left at `slurm`, the run
-      tests would submit real jobs to a real cluster — slowly, and only on a
-      machine that can reach it.
-
-    Pinned to the defaults rather than to anything clever: these are what a
-    fresh checkout has, and a test that wants the other mode says so (the
-    `hosted` fixtures, and `tests/ui/runs/test_cluster_backend.py`).
+    """A developer's `.env` may set `REQUIRE_LOGIN`, which turns tests into
+    login-wall tests, or `RUN_BACKEND=slurm`, which submits real cluster jobs.
+    `suite_runs_in_its_own_configuration` restores the fresh-checkout defaults,
+    and the `hosted` fixtures opt out.
     """
     settings.REQUIRE_LOGIN = False
     settings.RUN_BACKEND = "local"
@@ -145,64 +120,50 @@ def suite_runs_in_its_own_configuration(settings):
 
 @pytest.fixture
 def metrics() -> dict:
-    """The classification metrics the application scores with — the real ones,
-    not a copy.
-
-    They used to be redefined here. Now that scoring is the application's job
-    rather than each model's, a copy could drift from what production computes
-    and no test would notice. Only the classification ones: the fixtures'
-    datasets have class labels, and a regression metric scored on them fails
-    every trial. A regression test asks for `metrics_for("regression")` itself.
+    """`metrics` returns the real classification metrics, since a copy could
+    drift from production scoring. Regression metrics would fail every trial on
+    the class-labelled fixture datasets.
     """
     return {name: METRICS[name] for name in metrics_for("classification")}
 
 
 @pytest.fixture
 def models() -> dict:
-    """The registry models, keyed as the app registers them — read from the
-    registry, so a model added to it is tested without anyone listing it here.
-    Copies, so a test that tells one its task does not tell every later test."""
+    """`models` copies each registry model because a test may set a model's
+    task."""
     return {name: copy.copy(model) for name, model in MODELS.items()}
 
 
 @pytest.fixture
 def optimizers() -> dict:
-    """The registry optimizers, keyed as the app registers them."""
+    """`optimizers` maps display names to classes."""
     return {
-        "SMAC": SMACOptimizer(),
-        "Random Search": RandomOptimizer(),
-        "Grid Search": GridOptimizer(),
+        "SMAC": SMACOptimizer,
+        "Random Search": RandomOptimizer,
+        "Grid Search": GridOptimizer,
     }
 
 
 @pytest.fixture
 def iris_splits():
-    """(X_train, X_val, y_train, y_val) for datasets/iris.csv with seed 0."""
-    return _load_splits(DATASETS_DIR / "iris.csv", seed=0)
+    """Seed-0 iris splits, in `load_splits` order."""
+    return load_splits(DATASETS_DIR / "iris.csv", seed=0)
 
 
 @pytest.fixture
 def tiny_splits():
-    """A four-row split: enough for a model to predict against and be scored.
-
-    Optimizer-contract tests used to pass None for the arrays, because the fake
-    model invented its own score and never touched them. Scoring is real now, so
-    there has to be something to score.
+    """`tiny_splits` gives four rows, enough to fit and score a model.
     """
     import numpy as np
 
     X = np.array([[0.0], [1.0], [2.0], [3.0]])
     y = np.array(["a", "b", "a", "b"], dtype=object)
-    return X[:2], X[2:], y[:2], y[2:]     # X_train, X_val, y_train, y_val
+    return X[:2], X[2:], y[:2], y[2:]
 
 
 def export_ihpo(client, pk, timestamps="keep", tracebacks="keep"):
-    """Download one experiment's .ihpo, answering the questions export asks.
-
-    Exporting is a POST rather than a GET because the page asks first what goes
-    in the file: the per-trial timestamps, and a failed trial's stored traceback
-    — see `ui.views.experiment_export`. Both default here to the answer that
-    changes nothing about the file, for tests that only want the file.
+    """Export is a POST that asks about timestamps and tracebacks, and
+    `export_ihpo` keeps both by default.
     """
     from django.urls import reverse
 
@@ -211,25 +172,24 @@ def export_ihpo(client, pk, timestamps="keep", tracebacks="keep"):
 
 
 def start_draft(client):
-    """Press New: a draft, as the sidebar's button makes one."""
+    """`start_draft` presses New and returns the draft."""
     from django.urls import reverse
 
-    from ui.models import Experiment
+    from experiments.models import Experiment
 
     response = client.post(reverse("ui:new_experiment"))
     return Experiment.objects.get(pk=int(response["Location"].strip("/").split("/")[1]))
 
 
 def get_new_experiment(client):
-    """The page a new experiment is set up on: a fresh draft's step 1."""
+    """`get_new_experiment` opens step 1 of a fresh draft."""
     from django.urls import reverse
 
     return client.get(reverse("ui:setup", args=[start_draft(client).pk]))
 
 
 def get_optimizer_step(client):
-    """The page an experiment's optimizer is chosen on: step 2 of a draft
-    whose step 1 is saved as iris tuned with a Random Forest."""
+    """Step 2, after step 1 saves iris and Random Forest."""
     from django.urls import reverse
 
     draft = start_draft(client)
@@ -241,17 +201,12 @@ def get_optimizer_step(client):
 
 
 def post_new_experiment(client, data, **kwargs):
-    """Set up an experiment from *data* and create it, the way the pages do:
-    New, step 1 saved with *data*, step 2 with *data*'s optimizer and its
-    settings (the first offered when it names none), step 3 saved as it
-    stands, Create.
-
-    The response is what a test of creating an experiment wants to read: step
-    1's own when it was refused (the form, with its errors), else Create's —
-    a redirect to the new experiment's dashboard."""
+    """`post_new_experiment` walks New and the three setup steps to Create,
+    using the first optimizer when *data* names none. A refused step 1 returns
+    its form response, and success returns the redirect to the dashboard."""
     from django.urls import reverse
 
-    from ui.registry import OPTIMIZERS
+    from core.registry import OPTIMIZERS
 
     draft = start_draft(client)
     response = client.post(reverse("ui:setup", args=[draft.pk]), data, **kwargs)
@@ -262,3 +217,11 @@ def post_new_experiment(client, data, **kwargs):
     client.post(reverse("ui:setup_optimizer", args=[draft.pk]), optimizer)
     client.post(reverse("ui:setup_data", args=[draft.pk]), {})
     return client.post(reverse("ui:setup_create", args=[draft.pk]))
+
+
+def launch_local(python, model_file) -> list[str]:
+    """`launch_local` builds argv running the model harness under *python*
+    without an environment."""
+    from core.modelhost import HARNESS
+
+    return [str(python), "-B", str(HARNESS), "--model-file", str(model_file)]

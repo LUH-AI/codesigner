@@ -1,31 +1,7 @@
-"""A tuned model as a file someone can take away and use.
-
-What Codesigner delivers at the end of a search is a model and the
-hyperparameters that suited this dataset. The exported file is exactly that,
-in three parts, and nothing of the search:
-
-    # /// script                  what it needs installed
-    a docstring                   what it predicts; where the hyperparameters
-                                  came from
-    # ── The model ──             the model as Codesigner runs it: its
-                                  delivered class (codesigner_model's
-                                  OutputBaseModel and the model's own class)
-    # ── The hyperparameters ──   HYPERPARAMETERS = {...}, the selected trial's
-    # ── The data processing ──   Process: the dataset's columns read as
-                                  Codesigner read them, then processed as the
-                                  experiment says, fitted on the training rows
-    # ── Running it ──            train on a CSV, predict another
-
-`uv run model.py train.csv --predict new.csv` builds an environment with what
-the header lists and runs it; Codesigner is not involved. No search space, no
-SDK, no trial machinery: those are how the hyperparameters were found, not
-part of what they are for.
-
-The model's code is copied from where it runs here — the SDK's two classes and
-the model's own module — so the delivered model is the same code that was
-tuned, not a second rendering of it. A model uploaded by a person is their
-own code: it is delivered as they wrote it, its search space taken out
-(`export_upload`).
+"""`core.model_export` turns a tuned model into a standalone runnable file. The
+file holds a PEP 723 header, the model's delivered code, the hyperparameters,
+the data processing and a runner, and `uv run` needs no Codesigner.
+`export_upload` delivers an uploaded model as written, minus its search space.
 """
 
 from __future__ import annotations
@@ -37,37 +13,29 @@ import pprint
 import re
 import sys
 import textwrap
+from types import ModuleType
 
 from codesigner_model import ModelBase, OptimizableBaseModel, OutputBaseModel
 
 from . import encoding, forecasters, processing
-from .model_source import _PEP723_BLOCK
+from .jsonable import plain
+from .model_source import PEP723_BLOCK
 from .models import parts
 
-#: The imports the delivered model's own code needs, before any module's.
+#: Imports the delivered code needs first.
 _PREAMBLE_IMPORTS = ("from __future__ import annotations", "",
-                     "from abc import ABC, abstractmethod", "from typing import Any", "",
+                     "from abc import ABC, abstractmethod",
+                     "from typing import TYPE_CHECKING, Any", "",
                      "import numpy as np")
 
-#: Top-level packages whose imports an exported file drops: it defines what it
-#: needs of them itself, or (the search space) does not need it at all.
+#: An exported file defines its own copies, and drops the ConfigSpace search
+#: space.
 _DEFINED_HERE = ("core", "codesigner_model", "ConfigSpace")
 
 
-def plain(value):
-    """*value* as a Python literal `pprint` writes back readably: numpy scalars
-    as the Python number or string they hold."""
-    if hasattr(value, "item") and not isinstance(value, (str, bytes)):
-        value = value.item()
-    return value
-
-
 def configuration(config: dict) -> dict:
-    """*config* as plain values, without inactive hyperparameters.
-
-    A conditional hyperparameter that does not apply is absent from a
-    configuration or stored as NaN, depending on where the configuration came
-    from. Absent is what a model reading it with `.get` expects.
+    """An inactive conditional hyperparameter arrives absent or as NaN, and a
+    model reading `.get` expects absent.
     """
     out = {}
     for key, value in dict(config).items():
@@ -78,11 +46,9 @@ def configuration(config: dict) -> dict:
     return out
 
 
-# ── Collecting the delivered model's code ──────────────────────────────────
-
 def output_class(model) -> type:
-    """The class *model* is delivered as: the one its tuned class adds a search
-    space to (`core.models.base.Tunable`)."""
+    """`output_class` returns the first untuned `OutputBaseModel` subclass in
+    *model*'s MRO."""
     for cls in type(model).__mro__:
         if (issubclass(cls, OutputBaseModel) and not issubclass(cls, OptimizableBaseModel)
                 and cls is not OutputBaseModel):
@@ -96,9 +62,8 @@ def _is_local_import(node) -> bool:
 
 
 def _module_body(module, only=None) -> tuple[list[str], str]:
-    """*module*'s source as (its imports, the rest), without its docstring or
-    any import of what the exported file defines itself — and, given *only*,
-    without any definition not named in it."""
+    """`_module_body` drops the docstring and local imports, and keeps only the
+    definitions named in *only*."""
     text = inspect.getsource(module)
     tree, lines = ast.parse(text), text.splitlines()
     imports, keep = [], []
@@ -121,14 +86,12 @@ def _module_body(module, only=None) -> tuple[list[str], str]:
 
 
 def _names_in(source: str) -> set[str]:
-    """Every name *source* refers to."""
     return {node.id for node in ast.walk(ast.parse(textwrap.dedent(source)))
             if isinstance(node, ast.Name)}
 
 
 def _class_and_constants(cls) -> tuple[list[str], str]:
-    """*cls*'s source with the module-level constants it names, and its
-    module's imports."""
+    """`_class_and_constants` also returns the module's imports."""
     module_text = inspect.getsource(sys.modules[cls.__module__])
     tree, lines = ast.parse(module_text), module_text.splitlines()
     source = textwrap.dedent(inspect.getsource(cls))
@@ -148,7 +111,7 @@ def _class_and_constants(cls) -> tuple[list[str], str]:
 
 
 def _sdk_classes() -> str:
-    """The SDK's root and delivered-model classes, as the exported file's own."""
+    """`_sdk_classes` returns the SDK base classes' source."""
     return "\n\n\n".join(textwrap.dedent(inspect.getsource(cls))
                          for cls in (ModelBase, OutputBaseModel))
 
@@ -173,20 +136,12 @@ def _docstring(about: str) -> str:
     return f'"""{about.strip()}\n"""\n\n' if about else ""
 
 
-# ── Exporting a built-in ────────────────────────────────────────────────────
-
 def export_model(model, *, config: dict, task: str, seed: int = 0, columns: dict | None = None,
                  plan: dict | None = None, about: str = "", forecast: dict | None = None,
                  time_column: str = "", series_column: str = "") -> str:
-    """The runnable file for built-in *model* tuned to *config*.
-
-    *model* is the model as the registry has it — a tuned built-in, or one
-    forecasting by reduction (`core.forecasting.Reduced`). *columns* is how the
-    dataset's columns are read (`core.encoding.fit`; None for a dataset of
-    numbers), *plan* the experiment's processing as resolved for this model
-    (`core.processing.resolve`). *about* is the docstring: what it predicts and
-    where the hyperparameters came from. A forecast (*forecast* given, see
-    `core.forecasting.context`) gets the forecasting runner.
+    """*model* is a tuned built-in or a `Reduced`; *columns* comes from
+    `core.encoding.fit` and *plan* from `core.processing.resolve`. The *about*
+    argument becomes the docstring.
     """
     from .forecasting import PREFIX, Reduced
 
@@ -196,9 +151,9 @@ def export_model(model, *, config: dict, task: str, seed: int = 0, columns: dict
     hyperparameters = configuration(config)
     lags = int(hyperparameters.pop(f"{PREFIX}lags", 3)) if reduced else None
 
-    # The processing's two classes only: choosing a plan is the experiment's
-    # business, and the plan is written out below.
-    modules = [(processing, ("Processing", "TextCategories"))]
+    # Choosing a plan is the experiment's job; the plan is written out below.
+    modules: list[tuple[ModuleType, tuple[str, ...] | None]] = [
+        (processing, ("Processing", "TextCategories"))]
     used = _names_in(inspect.getsource(cls))
     shared = [name for name, _ in inspect.getmembers(parts) if name in used
               and getattr(getattr(parts, name), "__module__", "") == parts.__name__]
@@ -253,7 +208,7 @@ def export_model(model, *, config: dict, task: str, seed: int = 0, columns: dict
     return "".join(out)
 
 
-#: The third part: the dataset's columns as the model was tuned on them.
+#: The columns as the model was tuned on them.
 PROCESS = '''
 
 def _kinds(columns, n):
@@ -308,7 +263,6 @@ def _read_csv(path):
     return pd.read_csv(path, sep=sep)
 '''
 
-#: Train on a CSV, predict another.
 RUNNER = _READ_CSV + '''
 
 def main(argv=None):
@@ -347,7 +301,7 @@ if __name__ == "__main__":
     main()
 '''
 
-#: The forecaster for a model that forecasts by itself (ETS, Seasonal Naive).
+#: For self-forecasting models (ETS, Seasonal Naive).
 SERIES_FORECASTER = '''
 
 def forecaster(forecast, kinds):
@@ -357,7 +311,6 @@ def forecaster(forecast, kinds):
     return model.build(HYPERPARAMETERS, {"kinds": kinds}, seed={seed})
 '''
 
-#: The forecaster for a model that forecasts by reduction.
 REDUCED_FORECASTER = '''
 
 def forecaster(forecast, kinds):
@@ -368,7 +321,6 @@ def forecaster(forecast, kinds):
                              forecast=forecast, plan=PROCESSING, task={task}, seed={seed})
 '''
 
-#: Read a history, forecast what comes after it.
 FORECAST_RUNNER = _READ_CSV + '''
 
 def _times(values):
@@ -448,11 +400,7 @@ if __name__ == "__main__":
 '''
 
 
-# ── Exporting an uploaded model ─────────────────────────────────────────────
-
-#: Where `BaseModel` comes from in an exported upload: the SDK when it is
-#: installed, and nothing when it is not, since nothing outside Codesigner
-#: looks at the base class.
+#: Outside Codesigner, nothing reads the base class, so `object` stands in.
 SHIM = '''\
 try:
     from codesigner_model import BaseModel
@@ -460,10 +408,10 @@ except ImportError:  # Outside Codesigner the model needs no base class.
     BaseModel = object
 '''
 
-#: The import line the shim replaces, the one every uploaded model is told to write.
+#: The SDK import every upload is told to write.
 _BASE_IMPORT = re.compile(r"(?m)^from codesigner_model import BaseModel[ \t]*$\n?")
 
-#: `from __future__` imports, which have to stay the first statement of the file.
+#: These must stay the file's first statement.
 _FUTURE = re.compile(r"(?m)^from __future__ import [^\n]*\n")
 
 UPLOAD_RUNNER = _READ_CSV + '''
@@ -511,7 +459,6 @@ if __name__ == "__main__":
 
 
 def _without_search_space(body: str, class_name: str) -> str:
-    """*body* with *class_name*'s `get_config_space` taken out."""
     tree = ast.parse(body)
     lines = body.splitlines(keepends=True)
     for node in ast.walk(tree):
@@ -527,10 +474,9 @@ def _without_search_space(body: str, class_name: str) -> str:
 
 def export_upload(source: str, *, class_name: str, task: str, config: dict, seed: int = 0,
                   columns: dict | None = None, about: str = "") -> str:
-    """The runnable file for a person's own model, tuned to *config*: their
-    code as they wrote it, its search space taken out, the hyperparameters and
-    how the columns are read beside it."""
-    match = _PEP723_BLOCK.search(source)
+    """`export_upload` keeps the person's code as written, minus its search
+    space, and adds the hyperparameters and column reading."""
+    match = PEP723_BLOCK.search(source)
     if match:
         header, body = source[:match.end()] + "\n", source[match.end():]
         if not re.search(r"""["']pandas["'\s<>=!~\[;]""", header):
@@ -544,8 +490,8 @@ def export_upload(source: str, *, class_name: str, task: str, config: dict, seed
     body = _BASE_IMPORT.sub("", body)
     futures = "".join(_FUTURE.findall(body))
     body = _without_search_space(_FUTURE.sub("", body), class_name)
-    # The docstring first: it may come before `from __future__`, and is only
-    # the module's docstring if it does.
+    # `_docstring(about)` goes first, because only a file's first statement is a
+    # docstring.
     return (header + _docstring(about) + futures + "\n"
             + SHIM + "\n" + body.strip("\n") + "\n\n\n"
             + _section("The hyperparameters")

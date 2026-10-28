@@ -1,13 +1,5 @@
-"""SECURE_BEHIND_TLS derives a cluster of cookie/redirect/HSTS settings from
-one switch, the same REQUIRE_LOGIN/ALLOW_CUSTOM_MODELS-shaped contract used
-everywhere else in this settings module.
-
-The derivation runs once, at import time (`if SECURE_BEHIND_TLS: ...` in
-config/settings.py), so overriding it through pytest-django's `settings`
-fixture after the fact proves nothing — that machinery only patches already-
-loaded attributes, it does not re-run the block that would have set them
-differently. A fresh subprocess is what actually proves settings.py wires the
-switch to what it claims to.
+"""Only a fresh subprocess proves the wiring because `SECURE_BEHIND_TLS` derives
+cookie, redirect and HSTS settings at import time.
 """
 
 import json
@@ -37,8 +29,7 @@ def _settings_with(**env_overrides) -> dict:
 
 
 def test_off_by_default_matches_todays_behaviour():
-    """Explicitly off (not just unset, so a local .env can't accidentally flip
-    this test): exactly like before this setting existed."""
+    """An explicit `False` keeps a local `.env` from flipping the test."""
     values = _settings_with(SECURE_BEHIND_TLS="False")
     assert values == {
         "SECURE_SSL_REDIRECT": False, "SESSION_COOKIE_SECURE": False,
@@ -48,8 +39,7 @@ def test_off_by_default_matches_todays_behaviour():
 
 
 def test_on_derives_the_whole_cluster():
-    """One switch turns on redirect, both secure cookies, HSTS, and the proxy
-    header needed because TLS terminates in front of gunicorn, not in it."""
+    """TLS terminates in front of gunicorn, hence the proxy header."""
     values = _settings_with(SECURE_BEHIND_TLS="True")
     assert values["SECURE_SSL_REDIRECT"] is True
     assert values["SESSION_COOKIE_SECURE"] is True

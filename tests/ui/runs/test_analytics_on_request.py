@@ -1,21 +1,6 @@
-"""Explanations for a run that never computed any.
-
-`docs/plan_today.md` Step 3, third part.
-
-`compute_hp_games` declines outright for a cancelled run — pressing Cancel used
-to still buy the full analytics bill, so on a wide model you waited minutes for
-a run you had just stopped. A partial write during a run leaves them out for the
-same reason at finer grain. Both were permanent: the numbers were computed once,
-at run completion, or never, and the only way to get them was to resume the run.
-
-So they become askable afterwards. What that costs is the same bill, paid when
-somebody wants it — which is the whole difference, and it is why the eager skip
-is now a deferral rather than a refusal.
-
-Written back onto the stored result rather than returned as a payload, unlike
-the three fetched figures: those answer "which trial, which hyperparameter",
-which has no small precomputable set of answers, while these are exactly the
-fields the result already carries.
+"""A cancelled or partial run skips the HyperSHAP games, and the page offers to
+compute them later. The games are written back onto the stored result, because
+they fill fields the result already carries.
 """
 
 import pytest
@@ -25,8 +10,7 @@ from tests.ui.runs.test_run_views import no_thread  # noqa: F401
 
 
 def _blank_the_games(exp):
-    """Leave the result exactly as a cancelled run leaves it: the trials, and
-    every game field empty with a reason in the warning."""
+    """`_blank_the_games` leaves the result as a cancelled run would."""
     stored = exp.data.result
     for field in ("hyperparameter_importance", "hyperparameter_sensitivity",
                   "hyperparameter_mistunability", "hyperparameter_interactions",
@@ -51,7 +35,7 @@ def cancelled_experiment(client):
     return _blank_the_games(_ran_experiment(client))
 
 
-# ── the page offers it, and only when it applies ────────────────────────────
+# the offer, only where it applies
 
 @pytest.mark.django_db
 def test_the_page_offers_to_compute_what_is_missing(client, cancelled_experiment):
@@ -66,12 +50,8 @@ def test_the_page_offers_to_compute_what_is_missing(client, cancelled_experiment
 @pytest.mark.django_db
 def test_the_button_sits_with_the_game_selector_not_inside_a_figure(client,
                                                                    cancelled_experiment):
-    """One computation fills six figures, so it belongs to the choice that drives
-    them rather than to whichever one it was first put in.
-
-    It used to live in the hyperparameter importance card, which made it look
-    like that figure's own control while it was also filling the five
-    interaction figures beside it.
+    """One computation fills six figures, so the button belongs to the game
+    selector.
     """
     body = client.get(reverse("ui:experiment_detail",
                               args=[cancelled_experiment.pk])).content.decode()
@@ -88,11 +68,8 @@ def test_the_button_sits_with_the_game_selector_not_inside_a_figure(client,
 @pytest.mark.django_db
 def test_the_waiting_figures_point_at_the_button_and_say_nothing_else(client,
                                                                      cancelled_experiment):
-    """A short line, on every figure the button fills — not one long explanation
-    on the figure that used to own it.
-
-    The button is self-evident; what a figure needs to say is only that it is
-    waiting on one.
+    """Each of the six waiting figures shows one short line pointing at the
+    button.
     """
     body = client.get(reverse("ui:experiment_detail",
                               args=[cancelled_experiment.pk])).content.decode()
@@ -103,9 +80,7 @@ def test_the_waiting_figures_point_at_the_button_and_say_nothing_else(client,
 
 @pytest.mark.django_db
 def test_a_figure_with_nothing_to_wait_for_says_so_in_its_own_words(client):
-    """The empty caption is not replaced, only redirected. A run that computed
-    its games and still has an empty figure has a different problem, and the
-    button would not be there to press.
+    """A run that computed its games keeps the usual empty caption.
     """
     from tests.ui.storage.test_page_survives_a_round_trip import _ran_experiment
 
@@ -118,7 +93,6 @@ def test_a_figure_with_nothing_to_wait_for_says_so_in_its_own_words(client):
 
 @pytest.mark.django_db
 def test_a_run_that_computed_them_is_not_offered_it(client):
-    """Nothing is missing, so there is nothing to ask for."""
     from tests.ui.storage.test_page_survives_a_round_trip import _ran_experiment
 
     exp = _ran_experiment(client)
@@ -129,8 +103,7 @@ def test_a_run_that_computed_them_is_not_offered_it(client):
 
 @pytest.mark.django_db
 def test_it_is_not_offered_while_a_run_is_in_flight(client, cancelled_experiment):
-    """The run will compute them itself when it ends, and asking now would race
-    its own partial writes."""
+    """Asking during a run would race its partial writes."""
     cancelled_experiment.runs.all().update(status="running")
 
     body = client.get(reverse("ui:experiment_detail",
@@ -139,13 +112,13 @@ def test_it_is_not_offered_while_a_run_is_in_flight(client, cancelled_experiment
     assert "compute-analytics" not in body
 
 
-# ── and asking works ────────────────────────────────────────────────────────
+# asking
 
 @pytest.mark.django_db
 def test_asking_fills_the_games_in_on_the_stored_result(client, cancelled_experiment):
-    """The result becomes what a completed run would have written, so the page
-    renders it with no live-update path of its own and the export carries it."""
-    from ui.models import Experiment
+    """The result matches what a completed run writes, so the page and export
+    need no new path."""
+    from experiments.models import Experiment
 
     before = cancelled_experiment.data.result["hyperparameter_importance"]
     assert not any(before.values()), "nothing to begin with"
@@ -155,6 +128,7 @@ def test_asking_fills_the_games_in_on_the_stored_result(client, cancelled_experi
 
     assert resp.status_code == 302
     after = Experiment.objects.get(pk=cancelled_experiment.pk).data.result
+    assert after is not None
     assert any(after["hyperparameter_importance"].values())
     for game_field in ("hyperparameter_sensitivity", "hyperparameter_mistunability"):
         assert any(after[game_field].values()), game_field
@@ -162,13 +136,13 @@ def test_asking_fills_the_games_in_on_the_stored_result(client, cancelled_experi
 
 @pytest.mark.django_db
 def test_asking_keeps_every_trial(client, cancelled_experiment):
-    """It is computed *from* the trials, and must not disturb them — the run's
-    own record is the thing being filled in, not replaced."""
-    from ui.models import Experiment
+    from experiments.models import Experiment
 
     before = cancelled_experiment.data.result["data"]
     client.post(reverse("ui:experiment_compute_analytics", args=[cancelled_experiment.pk]))
-    after = Experiment.objects.get(pk=cancelled_experiment.pk).data.result["data"]
+    stored = Experiment.objects.get(pk=cancelled_experiment.pk).data.result
+    assert stored is not None
+    after = stored["data"]
 
     assert len(after) == len(before)
     assert [e["scores"] for e in after] == [e["scores"] for e in before]
@@ -186,7 +160,7 @@ def test_the_offer_goes_away_once_it_has_been_taken(client, cancelled_experiment
 
 @pytest.mark.django_db
 def test_asking_during_a_run_changes_nothing(client, cancelled_experiment):
-    from ui.models import Experiment
+    from experiments.models import Experiment
 
     cancelled_experiment.runs.all().update(status="running")
     before = cancelled_experiment.data.result

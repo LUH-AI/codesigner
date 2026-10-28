@@ -1,17 +1,6 @@
-"""What an exported `.ihpo` says about how its experiment was made.
-
-The standing goal for this format is that a file should carry everything needed
-to recreate an experiment — the seed, how the initial points were collected and
-how many, every optimizer setting, the validation scheme, and the history of
-what changed mid-experiment. For SMAC's own state it already did: `result`
-mirrors the runhistory and `result.optimizer_state` embeds the other four files
-verbatim. These pin the sections that describe everything *around* the
-optimizer.
-
-Format 2 gives each subject one object and states it once. Reading stays
-backward-compatible — a format 1 file is lifted by `io.normalize` rather than
-refused, which the last test in this module pins directly, because those files
-are on other people's disks and there is nothing wrong with them.
+"""An exported `.ihpo` should carry everything needed to recreate its
+experiment, and `result` already mirrors SMAC's state. Format 2 states each
+subject once, and `io.normalize` lifts format 1 files instead of refusing them.
 """
 
 import hashlib
@@ -22,7 +11,7 @@ from django.core.files.uploadedfile import SimpleUploadedFile
 from django.urls import reverse
 
 from tests.conftest import DATASETS_DIR, export_ihpo, post_new_experiment
-from ui.models import Experiment, Run
+from experiments.models import Experiment, Run
 
 pytestmark = pytest.mark.django_db
 
@@ -32,8 +21,8 @@ WINE = DATASETS_DIR / "wine.csv"
 
 @pytest.fixture
 def no_thread(monkeypatch):
-    """Launch a run without executing it: the row is what these read."""
-    from ui.services import run as run_service
+    """`no_thread` launches a run row without executing it."""
+    from experiments.services import run as run_service
     monkeypatch.setattr(run_service, "start_background_run", lambda run_id: None)
 
 
@@ -55,7 +44,7 @@ def _exported(client, exp) -> dict:
 
 
 def _reimport(client, body):
-    """*body* imported as a fresh experiment, and that experiment."""
+    """`_reimport` turns *body* into a fresh experiment."""
     body = {**body, "name": f"{body['name']}-again"}
     client.post(reverse("ui:import_experiment"), {
         "file": SimpleUploadedFile("e.ihpo", json.dumps(body).encode()),
@@ -65,7 +54,7 @@ def _reimport(client, body):
 
 
 def _run(exp, **overrides):
-    """A finished run row, without executing anything."""
+    """`_run` creates a finished run."""
     fields = {"primary_metric": "accuracy", "status": "done",
               "stopping": {"max_trials": 6}, "stopped_by": "max_trials",
               "trial_offset": 0, "trial_count": 6}
@@ -73,11 +62,11 @@ def _run(exp, **overrides):
     return Run.objects.create(experiment=exp, **fields)
 
 
-# ── the data ─────────────────────────────────────────────────────────────────
+# Data
 
 def test_the_dataset_is_recorded_by_digest_not_embedded(client):
-    """A record, not an archive. The digest is what makes it enforceable; the
-    shape is what makes it readable without the file to hand."""
+    """The digest makes the record enforceable, and the shape keeps it readable
+    without the file."""
     record = _exported(client, _create(client))["dataset"]
 
     assert record["sha256"] == hashlib.sha256(IRIS.read_bytes()).hexdigest()
@@ -88,11 +77,10 @@ def test_the_dataset_is_recorded_by_digest_not_embedded(client):
 
 
 def test_an_experiment_with_no_dataset_records_nothing_to_check(client):
-    """Importing without one is supported — the experiment is browsable and not
-    runnable — so the section has to be able to say there is nothing to
-    recognise, without a digest that would refuse every dataset offered."""
+    """The section records no digest for a browsable import without a dataset,
+    since a digest would refuse every dataset."""
     exp = _create(client)
-    # A demo is named, not stored, so having no dataset means naming none.
+    # A demo is named, never stored.
     exp.data.demo_dataset = ""
     exp.data.save(update_fields=["demo_dataset"])
 
@@ -102,11 +90,11 @@ def test_an_experiment_with_no_dataset_records_nothing_to_check(client):
     assert record.get("sha256") is None
 
 
-# ── the model ────────────────────────────────────────────────────────────────
+# Model
 
 def test_a_registry_model_is_named_and_nothing_else(client):
-    """It ships with the application, so its version is the application's —
-    already in `environment`."""
+    """A registry model's version is the application's, already in
+    `environment`."""
     record = _exported(client, _create(client))["model"]
 
     assert record == {"kind": "registry", "name": "Random Forest", "path": "",
@@ -115,7 +103,7 @@ def test_a_registry_model_is_named_and_nothing_else(client):
                       "lock_sha256": None}
 
 
-# ── how a trial was evaluated ────────────────────────────────────────────────
+# Evaluation
 
 def test_the_evaluation_scheme_is_recorded(client):
     record = _exported(client, _create(client, evaluation_value="3"))["evaluation"]
@@ -137,9 +125,8 @@ def test_a_holdout_records_its_split_size(client):
 
 
 def test_stratification_is_what_happened_not_what_was_asked_for(client):
-    """Both schemes ask for it and fall back when scikit-learn refuses the
-    target, which in practice means a continuous one. Recording the request
-    would put a claim in the file that the run did not honour."""
+    """Both schemes fall back when scikit-learn refuses a continuous target, so
+    the file records what happened."""
     rows = "\n".join(f"{i},{i * 0.37:.4f}" for i in range(40))
     continuous = SimpleUploadedFile(
         "continuous.csv", f"x,y\n{rows}\n".encode(), content_type="text/csv")
@@ -155,13 +142,11 @@ def test_stratification_is_what_happened_not_what_was_asked_for(client):
     assert smooth["stratified"] is False
 
 
-# ── the optimizer ────────────────────────────────────────────────────────────
+# Optimizer
 
 def test_the_blanks_are_answered_for_the_reader(client):
-    """A blank setting means "whatever that component already does", which is
-    the right thing to store and useless to read six months later.
-    `defaults_used` answers them from the installed SMAC's own signatures — and
-    the version that answered is in `environment.packages`."""
+    """`defaults_used` answers blank settings from the installed SMAC's
+    signatures."""
     exp = _create(client, opt_search_strategy="rf")
 
     record = _exported(client, exp)["optimizer"]
@@ -172,8 +157,7 @@ def test_the_blanks_are_answered_for_the_reader(client):
 
 
 def test_the_other_strategys_blanks_stay_blank(client):
-    """`BlackBoxFacade` has no forest to have a tree count of. A number here
-    would be invented, so the key is simply absent."""
+    """The record lacks `rf_trees` because `BlackBoxFacade` has no forest."""
     record = _exported(client, _create(client, opt_search_strategy="gp"))["optimizer"]
 
     assert "rf_trees" not in record["defaults_used"]
@@ -181,11 +165,8 @@ def test_the_other_strategys_blanks_stay_blank(client):
 
 
 def test_only_the_blanks_are_answered(client):
-    """`defaults_used` is the reader's copy of what the blanks became, and only
-    of those. Reconstruction goes through `params`, so a SMAC that changes a
-    default later reproduces the same *request* rather than freezing today's
-    answer to it — and repeating the settings that were chosen would say the
-    same thing twice."""
+    """Reconstruction goes through `params`, so a later SMAC reproduces the same
+    request."""
     record = _exported(client, _create(
         client, opt_search_strategy="rf", opt_rf_trees="24"))["optimizer"]
 
@@ -196,11 +177,8 @@ def test_only_the_blanks_are_answered(client):
 
 
 def test_how_the_initial_design_was_bounded_is_in_the_settings(client):
-    """It has no section of its own. Every field one would hold is a setting
-    already recorded under `params`, and the number they produce depends on the
-    budget each run was given — so it belongs to the run, not here. SMAC records
-    the number it settled on in the scenario it saves, which
-    `result.optimizer_state` already embeds verbatim."""
+    """The initial design's fields already live in `params`, and SMAC's scenario
+    in `result.optimizer_state` holds the settled number."""
     record = _exported(client, _create(
         client, opt_use_trial_cap="on", opt_trial_cap="4"))["optimizer"]
 
@@ -211,11 +189,9 @@ def test_how_the_initial_design_was_bounded_is_in_the_settings(client):
     assert "initial_design" not in record, "not a second copy of the same five"
 
 
-# ── the runs ─────────────────────────────────────────────────────────────────
+# Runs
 
 def test_a_run_records_the_trials_it_produced(client):
-    """What turns a flat list of trials back into a history: which run produced
-    which of them."""
     exp = _create(client)
     _run(exp, trial_offset=0, trial_count=6)
     _run(exp, trial_offset=6, trial_count=4)
@@ -226,10 +202,8 @@ def test_a_run_records_the_trials_it_produced(client):
 
 
 def test_the_settings_are_recorded_once_for_the_whole_experiment(client):
-    """The search settings are chosen at creation and fixed for the
-    experiment's life, so they describe every trial in it. Repeating them per
-    run would be the same values written once per run, and a reader finding two
-    copies would reasonably assume they could differ."""
+    """Per-run copies would imply the settings could differ, since they are
+    fixed at creation."""
     exp = _create(client, opt_search_strategy="rf", opt_rf_trees="24")
     _run(exp)
     _run(exp)
@@ -253,9 +227,8 @@ def test_a_run_records_what_bounded_it_and_what_ended_it(client):
 
 
 def test_the_budget_smac_was_told_is_derivable_not_repeated(client):
-    """It is what sized the initial design and it is not the trial cap once a
-    run resumes — but it is the run's first trial plus its cap, both already
-    recorded, so writing it as well would be a third copy of the same fact."""
+    """The budget equals the run's first trial plus its cap, and the file
+    already records both."""
     exp = _create(client)
     _run(exp, trial_offset=6, trial_count=4, stopping={"max_trials": 4})
 
@@ -265,13 +238,11 @@ def test_the_budget_smac_was_told_is_derivable_not_repeated(client):
     assert record["trial_range"][0] - 1 + record["stopping"]["max_trials"] == 10
 
 
-# ── the metric change ────────────────────────────────────────────────────────
+# Metric change
 
 def test_changing_the_metric_is_recorded_as_an_event(client, no_thread):
-    """The case the format could not previously describe. It is worth recording
-    for what it costs: the whole history is re-read under the new metric, and an
-    optimizer carrying a fitted model of the objective throws it away, because
-    it was fitted to costs from a different question."""
+    """A metric change re-reads the whole history and makes a fitted surrogate
+    start over."""
     exp = _create(client)
     exp.data.result = {"data": [{"config_id": i} for i in range(6)],
                   "primary_metric": "accuracy"}
@@ -287,9 +258,8 @@ def test_changing_the_metric_is_recorded_as_an_event(client, no_thread):
 
 
 def test_an_optimizer_that_fits_nothing_says_so(client, no_thread):
-    """Random Search has no surrogate to invalidate, so the same change costs it
-    a rescoring and nothing else. Recording "rebuilt" would be a claim about
-    work that never happened."""
+    """The change costs Random Search only a rescoring, since Random Search has
+    no surrogate."""
     exp = _create(client, optimizer_name="Random Search")
     exp.data.result = {"data": [{"config_id": 0}], "primary_metric": "accuracy"}
     exp.data.current_metric = exp.data.original_metric = "accuracy"
@@ -314,18 +284,9 @@ def test_a_run_that_changes_nothing_records_no_event(client, no_thread):
 
 
 def test_a_metric_change_that_never_ran_is_not_lost_on_retry(client, no_thread):
-    """`create_run` commits `current_metric` onto the experiment before the run
-    it is starting has produced anything. A run that changes the metric and
-    then errors out — as this one does — leaves that field pointing at a
-    metric no trial was ever scored under.
-
-    Comparing a retry's target against that already-moved field would see no
-    difference and record no event on the retry — silently losing the one
-    change that actually happened, while the run that failed keeps a
-    misleading event attached to zero trials. Comparing against the stored
-    result instead — which only moves when a trial actually lands — catches
-    this: the failed run never touched it, so the retry still sees the real
-    change pending and records it correctly.
+    """`create_run` moves `current_metric` before any trial lands, so a failed
+    run leaves it pointing at an unscored metric. Comparing against the stored
+    result lets the retry still record the change.
     """
     exp = _create(client)
     exp.data.result = {"data": [{"config_id": 0}], "primary_metric": "accuracy"}
@@ -334,9 +295,7 @@ def test_a_metric_change_that_never_ran_is_not_lost_on_retry(client, no_thread):
 
     client.post(reverse("ui:experiment_run", args=[exp.pk]),
                 {"optimize_metric": "f1", "max_trials": "2", "decision": "new"})
-    # Simulate the run erroring out before a trial landed — exactly what
-    # `execute_run`'s except-block does: status/error/finished_at are set,
-    # trial_offset/trial_count/events (already computed at creation) are not.
+    # This mirrors `execute_run`'s except-block before any trial lands.
     exp.runs.update(status="error", error="the model would not fit")
 
     client.post(reverse("ui:experiment_run", args=[exp.pk]),
@@ -347,14 +306,14 @@ def test_a_metric_change_that_never_ran_is_not_lost_on_retry(client, no_thread):
     runs = _exported(client, exp)["runs"]
     assert len(runs) == 2
     assert _untimed(runs[0]["events"]) == expected
-    assert _untimed(runs[1]["events"]) == expected  # not silently dropped on the retry
+    assert _untimed(runs[1]["events"]) == expected  # kept on the retry
 
 
-# ── the environment ──────────────────────────────────────────────────────────
+# Environment
 
 def test_the_versions_behind_the_numbers_are_recorded(client):
-    """An unset setting means whichever default the installed SMAC had, so which
-    SMAC that was is part of the record rather than trivia."""
+    """Unset settings mean the installed SMAC's defaults, so its version belongs
+    in the record."""
     record = _exported(client, _create(client))["environment"]
 
     assert record["codesigner"] and record["python"]
@@ -362,12 +321,11 @@ def test_the_versions_behind_the_numbers_are_recorded(client):
     assert record["packages"]["scikit-learn"]
 
 
-# ── the digest is enforced, not decorative ───────────────────────────────────
+# Digest enforcement
 
 def test_importing_against_a_different_dataset_is_refused(client):
-    """The one way an experiment could go on adding trials to a history they do
-    not belong to. Nothing downstream could tell: every new trial would look
-    exactly as valid as the ones before it."""
+    """A different dataset would let new trials join a history they never
+    belonged to."""
     body = _exported(client, _create(client))
 
     resp = client.post(reverse("ui:import_experiment"), {
@@ -393,8 +351,7 @@ def test_importing_against_the_recorded_dataset_is_allowed(client):
 
 
 def test_the_upload_survives_being_hashed(client):
-    """Digesting reads the stream to the end. Whoever saves it next needs it
-    back at the start, or the experiment gets an empty dataset."""
+    """Hashing reads the stream to the end, so saving needs it rewound."""
     body = _exported(client, _create(client))
 
     client.post(reverse("ui:import_experiment"), {
@@ -403,12 +360,12 @@ def test_the_upload_survives_being_hashed(client):
     })
 
     imported = Experiment.objects.filter(data__name="recorded").order_by("-id").first()
+    assert imported is not None
     assert imported.data.dataset.size == IRIS.stat().st_size
 
 
 def test_a_file_with_no_fingerprint_is_still_accepted(client):
-    """Every `.ihpo` exported before this existed. There is nothing to disagree
-    with, and refusing them would make the section a breaking change."""
+    """Older `.ihpo` files have no digest to disagree with."""
     body = _exported(client, _create(client))
     body["dataset"].pop("sha256")
 
@@ -421,8 +378,7 @@ def test_a_file_with_no_fingerprint_is_still_accepted(client):
 
 
 def test_importing_without_a_dataset_is_not_a_refusal(client):
-    """Browsable and not runnable is what an import has always been able to be;
-    the check belongs at the moment a dataset is attached."""
+    """The check belongs at the moment a dataset is attached."""
     body = _exported(client, _create(client))
 
     resp = client.post(reverse("ui:import_experiment"), {
@@ -432,12 +388,11 @@ def test_importing_without_a_dataset_is_not_a_refusal(client):
     assert resp.status_code == 302
 
 
-# ── the sections are additive ────────────────────────────────────────────────
+# Additive sections
 
 def test_a_file_from_before_any_of_this_still_opens(client):
-    """A format 1 file — the flat namespace, with or without the provenance
-    sections that were added beside it. `io.normalize` lifts it on the way in,
-    so nothing downstream knows there were ever two shapes."""
+    """`io.normalize` lifts a format 1 file, so nothing downstream sees two
+    shapes."""
     from core import io
 
     flat = {
@@ -447,7 +402,7 @@ def test_a_file_from_before_any_of_this_still_opens(client):
         "primary_metric": "accuracy", "original_metric": "accuracy",
         "metric_names": ["accuracy"], "seed": 7, "cv_folds": 3,
         "dataset_path": str(IRIS), "result": None,
-        # The sections format 1 grew late, in the places it put them.
+        # late format 1 sections, where it put them
         "data": {"filename": "iris.csv", "sha256": "abc"},
         "evaluation": {"scheme": "kfold", "folds": 3, "stratified": True},
         "optimizer": {"name": "SMAC", "resolved": {"rf_trees": 10}},
@@ -470,9 +425,8 @@ def test_a_file_from_before_any_of_this_still_opens(client):
 
 
 def test_the_run_engine_does_not_pay_for_the_record(client):
-    """It rebuilds through the same function on every run, and the fingerprint
-    reads and hashes the dataset. Export is the only caller that asks."""
-    from ui.services import snapshot as adapter
+    """Export alone asks for the fingerprint, which hashes the dataset."""
+    from experiments.services import snapshot as adapter
 
     exp = _create(client)
 
@@ -485,12 +439,9 @@ def test_the_run_engine_does_not_pay_for_the_record(client):
     assert recorded["environment"]
 
 
-# ── the record survives coming back in ──────────────────────────────────────
+# Round trip
 
 def test_a_run_history_survives_a_round_trip(client):
-    """`runs[]` was written and never read: an imported experiment kept its
-    trials and lost which run produced which of them, what bounded each one and
-    what settings it ran under — all of it in the file, all of it dropped."""
     exp = _create(client)
     _run(exp, trial_offset=0, trial_count=6, stopping={"max_trials": 6},
          stopped_by="max_trials", trial_seconds=1.5)
@@ -507,9 +458,8 @@ def test_a_run_history_survives_a_round_trip(client):
 
 
 def test_a_run_that_had_not_finished_comes_back_interrupted(client):
-    """A file exported mid-run records `status="running"`. Imported as-is it
-    would leave the experiment permanently busy — `Experiment.is_running` reads
-    exactly this — and the page would poll a run that cannot report."""
+    """A `running` status would keep the experiment busy forever, polling a run
+    that cannot report."""
     exp = _create(client)
     _run(exp, status="running", stopped_by="", trial_offset=None, trial_count=None)
 
@@ -520,8 +470,7 @@ def test_a_run_that_had_not_finished_comes_back_interrupted(client):
 
 
 def test_who_pressed_run_is_not_carried_across(client):
-    """An account on the instance that exported this is not an account here, and
-    inventing a local one would put a name against work they did not do."""
+    """An exporting instance's account is no account here."""
     exp = _create(client)
     _run(exp)
 
@@ -532,9 +481,7 @@ def test_who_pressed_run_is_not_carried_across(client):
 
 
 def test_exporting_what_was_imported_gives_the_same_record(client):
-    """The property the whole section exists for. Anything the importer drops
-    shows up here as a difference, which is how `runs[]` being write-only would
-    have been caught."""
+    """Anything the importer drops shows up as a difference."""
     exp = _create(client)
     _run(exp, trial_offset=0, trial_count=6, trial_seconds=2.25,
          events=[{"kind": "metric_changed", "from": "accuracy", "to": "f1",
@@ -548,7 +495,7 @@ def test_exporting_what_was_imported_gives_the_same_record(client):
     assert twice["runs"] == once["runs"]
 
 
-# ── the whole point ──────────────────────────────────────────────────────────
+# Reproduction
 
 @pytest.mark.slow
 @pytest.mark.parametrize("label,setup", [
@@ -562,21 +509,9 @@ def test_exporting_what_was_imported_gives_the_same_record(client):
 ])
 def test_an_experiment_recreated_from_its_file_produces_the_same_trials(
         client, label, setup):
-    """The test the format exists for.
-
-    Run an experiment, export it, import the file with the same dataset into a
-    fresh experiment, run that — and get the same trials in the same order. If
-    any of what the file records is wrong or missing, this is where it shows:
-    the seed, the evaluation scheme, every optimizer setting, and the budget the
-    search was given all have to come back exactly.
-
-    Over both search strategies and both evaluation schemes, because they are
-    four different paths through the same file: the strategies build different
-    surrogates from different settings, and the schemes divide the data
-    differently. One of them passing says little about the others.
-
-    The second experiment is run from zero rather than resumed, so nothing is
-    carried across in the result — only what the file said.
+    """The recreated experiment runs from zero and must reproduce the same
+    trials in order. Both strategies and both schemes take different paths
+    through the file.
     """
     original = _create(client, opt_use_trial_cap="on", opt_trial_cap="3",
                        opt_use_share_cap="", **setup)
@@ -587,7 +522,7 @@ def test_an_experiment_recreated_from_its_file_produces_the_same_trials(
     assert original.data.result, f"{label}: the original never ran"
 
     body = _exported(client, original)
-    body["result"] = None          # a fresh experiment, not a resumed one
+    body["result"] = None          # fresh, never resumed
     body["name"] = "recreated"
     client.post(reverse("ui:import_experiment"), {
         "file": SimpleUploadedFile("e.ihpo", json.dumps(body).encode()),
@@ -610,13 +545,13 @@ def test_an_experiment_recreated_from_its_file_produces_the_same_trials(
     assert trials(copy) == trials(original), label
 
 
-# ── whether a stated prior actually took ─────────────────────────────────────
+# Prior events
 
 def _prior_event(result_metadata, offset=3):
-    """Run `_record_prior_event` against a stand-in result and read back what
-    it wrote. The event is the unit under test, not the run machinery."""
-    from ui.models import Experiment, Run
-    from ui.services.run import _record_prior_event
+    """`_prior_event` runs `_record_prior_event` on a stand-in result and
+    returns the events."""
+    from experiments.models import Experiment, Run
+    from experiments.services.run import _record_prior_event
 
     exp = Experiment.objects.create(
         name="p", model_name="rf", optimizer_name="SMAC",
@@ -630,15 +565,13 @@ def _prior_event(result_metadata, offset=3):
 
 
 def _untimed(events):
-    """*events* without the time each was recorded at — the one field a test
-    cannot know in advance."""
+    """`_untimed` drops the unpredictable `at` field from *events*."""
     return [{k: v for k, v in e.items() if k != "at"} for e in events]
 
 
 def test_a_prior_that_reached_the_search_is_recorded(db):
-    """`runs[].events` already logs what a run did that the trials cannot show.
-    Which hyperparameters were weighted, and how the weight fades, are the two
-    things a reader would need to reproduce the run."""
+    """The reader needs the weighted hyperparameters and the decay to reproduce
+    the run."""
     events = _prior_event({"prior": {
         "applied": True, "key": "codesigner",
         "hyperparameters": ["lr", "max_depth"], "decay": "quadratic", "beta": 3.0}})
@@ -649,13 +582,8 @@ def test_a_prior_that_reached_the_search_is_recorded(db):
 
 
 def test_a_prior_that_was_ignored_says_so(db):
-    """This matters as much as the applied case, and is the reason both exist.
-
-    `_apply_priors` reports and continues on every failure — a released SMAC has
-    no weight layer, a stored prior can name a hyperparameter the space no
-    longer has — so all of them end in a normal-looking run. Without this the
-    file would record a stated prior and leave a reader to assume the search
-    was weighted by it.
+    """`_apply_priors` reports and continues on every failure, so a skipped
+    prior would look like a weighted run.
     """
     events = _prior_event({"prior": {
         "applied": False, "reason": "this SMAC has no acquisition weight layer"}})
@@ -666,17 +594,16 @@ def test_a_prior_that_was_ignored_says_so(db):
 
 
 def test_no_prior_stated_writes_no_event(db):
-    """An event per run announcing that nobody stated a belief would bury the
-    ones that are about something."""
+    """One event per run without a prior would bury the real ones."""
     assert _prior_event({}) == []
     assert _prior_event({"prior": None}) == []
 
 
 def test_the_prior_event_joins_the_events_already_there(db):
-    """Append-only, and keyed by `at_trial` like everything else in the log —
-    so a run that both changed metric and stated a prior says both."""
-    from ui.models import Experiment, Run
-    from ui.services.run import _record_prior_event
+    """The log is append-only, so a run records both a metric change and a
+    prior."""
+    from experiments.models import Experiment, Run
+    from experiments.services.run import _record_prior_event
 
     exp = Experiment.objects.create(
         name="p", model_name="rf", optimizer_name="SMAC",

@@ -1,14 +1,5 @@
-"""What a signed-in person can do about their own account.
-
-*What:* change the password they are signed in with, and read what they are
-allowed to do here. Neither existed: a password could only be changed by an
-administrator in the Django admin, and nothing anywhere answered "what am I
-allowed to do", which now takes assembling four separate grants.
-
-*How:* through the pages, as a signed-in user. Password *reset* is deliberately
-not covered because it is deliberately not built — it mails a link to somebody
-who cannot sign in, so it needs a mail server; changing a password you already
-know does not, which is why one is here and the other is not.
+"""`ui:password_change` and `ui:account` serve a signed-in user. The app omits
+password reset because a reset link needs a mail server.
 """
 
 import pytest
@@ -19,7 +10,6 @@ pytestmark = pytest.mark.django_db
 
 @pytest.fixture
 def hosted(settings):
-    """An instance with accounts."""
     settings.REQUIRE_LOGIN = True
     return settings
 
@@ -37,13 +27,11 @@ def _granted(django_user_model, user, *codenames):
     return django_user_model.objects.get(pk=user.pk)
 
 
-# ── changing your own password ───────────────────────────────────────────────
-
 def test_a_signed_in_user_can_change_their_own_password(client, hosted, ana,
                                                         django_user_model):
     client.force_login(ana)
 
-    resp = client.post(reverse("access:password_change"), {
+    resp = client.post(reverse("ui:password_change"), {
         "old_password": "old-pw-12345",
         "new_password1": "a-new-one-98765",
         "new_password2": "a-new-one-98765",
@@ -54,10 +42,10 @@ def test_a_signed_in_user_can_change_their_own_password(client, hosted, ana,
 
 
 def test_the_current_password_is_required(client, hosted, ana, django_user_model):
-    """So a borrowed, still-signed-in browser cannot lock its owner out."""
+    """Borrowed sessions cannot lock owners out."""
     client.force_login(ana)
 
-    resp = client.post(reverse("access:password_change"), {
+    resp = client.post(reverse("ui:password_change"), {
         "old_password": "not-the-right-one",
         "new_password1": "a-new-one-98765",
         "new_password2": "a-new-one-98765",
@@ -68,11 +56,10 @@ def test_the_current_password_is_required(client, hosted, ana, django_user_model
 
 
 def test_the_configured_validators_still_apply(client, hosted, ana, django_user_model):
-    """Django's own form enforces AUTH_PASSWORD_VALIDATORS, and the page shows
-    what it said rather than a message of ours guessing which one failed."""
+    """The page shows Django's own validator message."""
     client.force_login(ana)
 
-    resp = client.post(reverse("access:password_change"), {
+    resp = client.post(reverse("ui:password_change"), {
         "old_password": "old-pw-12345",
         "new_password1": "pw", "new_password2": "pw",
     })
@@ -82,24 +69,20 @@ def test_the_configured_validators_still_apply(client, hosted, ana, django_user_
 
 
 def test_a_stranger_cannot_reach_the_page(client, hosted):
-    """It is behind the wall like everything else."""
-    resp = client.get(reverse("access:password_change"))
+    """The login wall covers the page."""
+    resp = client.get(reverse("ui:password_change"))
 
     assert resp.status_code == 302
-    assert reverse("access:login") in resp["Location"]
+    assert reverse("ui:login") in resp["Location"]
 
-
-# ── what you are allowed to do ───────────────────────────────────────────────
 
 def test_the_account_page_lists_what_this_user_may_do(client, hosted, ana,
                                                       django_user_model):
-    """Assembled from the grants, because there are four of them now and no
-    other page can say what they add up to."""
+    """`powers` combines four separate grants."""
     ana = _granted(django_user_model, ana, "view_all_experiments")
     client.force_login(ana)
 
-    # str() because the labels are lazy translations, which are not dict keys
-    # you can look up with a plain string.
+    # Lazy translation labels need `str()` to work as dict keys.
     granted = {str(what): allowed
                for what, allowed in client.get(reverse("ui:account")).context["powers"]}
 
@@ -110,12 +93,9 @@ def test_the_account_page_lists_what_this_user_may_do(client, hosted, ana,
 
 def test_a_superuser_is_told_why_everything_is_ticked(client, hosted,
                                                       django_user_model):
-    """Django grants them every permission without any of them being a grant, so
-    four ticks with no explanation would read as though somebody had ticked
-    them."""
-    # One of the four is gated by the instance-wide flag, which is off by
-    # default, so "everything is ticked" needs the floor raised first. The test
-    # below is the one about that floor being legible when it is not.
+    """Superusers hold every permission without a grant, so the page explains
+    the ticks."""
+    # `ALLOW_CUSTOM_MODELS` gates one power and defaults to off.
     hosted.ALLOW_CUSTOM_MODELS = True
     root = django_user_model.objects.create_superuser(username="su", password="pw")
     client.force_login(root)
@@ -129,8 +109,8 @@ def test_a_superuser_is_told_why_everything_is_ticked(client, hosted,
 
 def test_the_instance_wide_switch_is_shown_as_such(client, hosted,
                                                    django_user_model):
-    """`ALLOW_CUSTOM_MODELS=False` is a floor under every account, so an
-    administrator seeing a dash there should not go looking for the grant."""
+    """The page marks `ALLOW_CUSTOM_MODELS=False` as an instance-wide floor, so
+    admins skip hunting for a grant."""
     hosted.ALLOW_CUSTOM_MODELS = False
     root = django_user_model.objects.create_superuser(username="su", password="pw")
     client.force_login(root)
@@ -138,12 +118,11 @@ def test_the_instance_wide_switch_is_shown_as_such(client, hosted,
     resp = client.get(reverse("ui:account"))
 
     assert resp.context["custom_models_off"]
-    assert dict(resp.context["powers"])  # rendered without raising
+    assert dict(resp.context["powers"])
 
 
 def test_there_is_no_account_page_without_accounts(client, settings):
-    """Every answer on it would be an unconditional yes, which describes the
-    instance rather than anybody's account."""
+    """Without accounts, every answer would be an unconditional yes."""
     settings.REQUIRE_LOGIN = False
 
     assert client.get(reverse("ui:account")).status_code == 404

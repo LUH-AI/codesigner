@@ -1,22 +1,12 @@
-"""A trial that produced no measurement, on the figures that show it.
-
-`evaluate_trial` records a failure rather than raising: the trial scores 0.0 on
-every metric, its status says it crashed or timed out, and the reason (with a
-traceback where there is one) goes in `additional_info`. Every figure therefore
-reads a failure as a trial that scored zero, and without a mark a reader cannot
-tell the two apart — which matters most exactly where it is least visible, since
-a cluster of crashes in one region of the space looks like a cluster of real
-minima that the importance games and the projections will explain as if measured.
-
-These cover which figures mark them and how. Two shapes of mark, for two shapes
-of figure: a cross where a trial is a point, a tint where it is a fill. And one
-figure leaves them out — parallel coordinates, where a line to a fabricated score
-would cross every other line on the way to the floor of the axis.
-
-The marks are per-point styling on the existing trace rather than a second
-trace, so a failure stays selectable: its traceback is reached by clicking it.
+"""`evaluate_trial` records a failed trial as 0.0 on every metric, and every
+figure would read that as a real zero. Point figures mark failures with a cross,
+fill figures use a tint, and parallel coordinates drops them. A failure stays
+clickable because each mark restyles one point of the existing trace.
 """
 
+from typing import Any
+
+import plotly.graph_objects as go
 import pytest
 
 from core.optimizers import OptimizationResult, TrialResult
@@ -27,6 +17,11 @@ from ui.figures.plots import (
     configuration_cube_plot, configuration_projection_plot,
     parallel_coordinates_plot, performance_over_time_plot, trial_duration_plot,
 )
+
+
+def _drawn(fig: go.Figure | None) -> Any:
+    assert fig is not None
+    return fig
 
 
 def _trial(n, score, *, status=None, error="", traceback=""):
@@ -42,10 +37,7 @@ def _trial(n, score, *, status=None, error="", traceback=""):
 
 
 def _result(failed_at=(2,)):
-    """Five trials, whichever of them *failed_at* names recorded as crashed.
-
-    Enough trials for a projection (which needs three) and enough
-    hyperparameters for one to have somewhere to project from.
+    """`_result` builds five trials and crashes each one in *failed_at*.
     """
     trials = []
     for n in range(1, 6):
@@ -62,11 +54,11 @@ def _result(failed_at=(2,)):
         trials_limit=None)
 
 
-# ── the trial itself ─────────────────────────────────────────────────────────
+# the trial itself
 
 def test_a_trial_knows_whether_it_failed():
-    """One property every figure and template asks, rather than each of them
-    knowing which status ints mean what."""
+    """`TrialResult.failed` spares figures and templates from decoding status
+    ints."""
     good, bad = _trial(1, 0.8), _trial(2, 0.0, status=STATUS_CRASHED, error="no")
 
     assert good.failed is False
@@ -75,21 +67,20 @@ def test_a_trial_knows_whether_it_failed():
 
 
 def test_a_trial_with_no_status_counts_as_successful():
-    """Every trial recorded before failures were tracked has none, and a run
-    from an older .ihpo must not read as a run of failures."""
+    """Trials from older .ihpo files carry no status and must read as
+    successful."""
     assert _trial(1, 0.8).failed is False
 
 
 def test_a_timeout_is_a_failure_like_any_other():
-    """The figures do not distinguish them: both mean no measurement. Which it
-    was is in the reason, for a reader who opens it."""
+    """The figures treat a timeout like a crash; the reason text says which."""
     timed_out = _trial(1, 0.0, status=STATUS_TIMEOUT, error="past its deadline")
 
     assert timed_out.failed is True
     assert timed_out.traceback == "", "nothing on this side is what went wrong"
 
 
-# ── a cross, where a trial is a point ────────────────────────────────────────
+# crosses on point figures
 
 @pytest.mark.parametrize("build", [
     pytest.param(lambda r: performance_over_time_plot(r, "accuracy"), id="performance"),
@@ -97,13 +88,8 @@ def test_a_timeout_is_a_failure_like_any_other():
     pytest.param(lambda r: configuration_projection_plot(r, "accuracy", "pca"), id="projection"),
 ])
 def test_a_failure_is_a_red_cross_heavier_than_the_points_around_it(build):
-    """`x-thin` has no fill by design — the glyph *is* the outline — so
-    `marker.line` is what makes it visible and what makes it read as a mark
-    rather than as a ring.
-
-    Measured against the figure's own ordinary points rather than against a
-    fixed weight: how heavy the cross has to be to stand out depends on what it
-    is standing out from, and the two projections already ring every point.
+    """`x-thin` has no fill, so `marker.line` draws the cross, and the test
+    compares its width with the figure's ordinary points.
     """
     marker = build(_result(failed_at=(2,))).data[0].marker
 
@@ -115,16 +101,14 @@ def test_a_failure_is_a_red_cross_heavier_than_the_points_around_it(build):
 
 
 def test_the_ringed_figures_draw_a_lighter_cross():
-    """The cube and the projection outline every point in the card's colour, to
-    keep two that nearly overlap from compositing into one. A cross at trial
-    performance's weight is then the boldest thing on a dense plot — louder than
-    the scores it sits among, which are what the figure is for.
+    """`FAILURE_LINE_WIDTH_RINGED` lightens the cross on the cube and the
+    projection, which already ring every point.
     """
     failed = _result(failed_at=(2,))
 
-    performance = performance_over_time_plot(failed, "accuracy").data[0].marker
-    cube = configuration_cube_plot(failed, "accuracy").data[0].marker
-    projection = configuration_projection_plot(failed, "accuracy", "pca").data[0].marker
+    performance = _drawn(performance_over_time_plot(failed, "accuracy")).data[0].marker
+    cube = _drawn(configuration_cube_plot(failed, "accuracy")).data[0].marker
+    projection = _drawn(configuration_projection_plot(failed, "accuracy", "pca")).data[0].marker
 
     assert performance.line.width[1] == FAILURE_LINE_WIDTH
     assert cube.line.width[1] == FAILURE_LINE_WIDTH_RINGED
@@ -133,64 +117,56 @@ def test_the_ringed_figures_draw_a_lighter_cross():
 
 
 def test_a_run_with_no_failures_gains_no_per_point_arrays():
-    """The overwhelmingly common case pays nothing: no symbol array, no line
-    array, no extra bytes in the payload."""
-    marker = performance_over_time_plot(_result(failed_at=()), "accuracy").data[0].marker
+    marker = _drawn(performance_over_time_plot(_result(failed_at=()), "accuracy")).data[0].marker
 
     assert marker.symbol is None
 
 
 def test_the_cross_survives_being_selected_and_changes_colour():
-    """Shape carries the failure, colour carries the selection. A reader who has
-    clicked a failure still needs to see that it is the failure they clicked, so
-    it keeps the cross and turns the selection colour."""
-    marker = performance_over_time_plot(
-        _result(failed_at=(2,)), "accuracy", selected_idx=1).data[0].marker
+    """A selected failure keeps the cross shape and takes the selection colour."""
+    marker = _drawn(performance_over_time_plot(
+        _result(failed_at=(2,)), "accuracy", selected_idx=1)).data[0].marker
 
     assert marker.symbol[1] == FAILURE_SYMBOL, "still marked as a failure"
     assert marker.line.color[1] == SELECTION_COLOR, "and shown as selected"
 
 
 def test_the_projection_keeps_its_score_scale_under_the_cross():
-    """The fill stays on the metric scale — at 0.0, the worst end, which is what
-    the trial scored. Recolouring it would cost the figure the value every other
-    point is carrying."""
-    marker = configuration_projection_plot(_result(), "accuracy", "pca").data[0].marker
+    """The projection fill stays on the metric scale at 0.0, the score the trial
+    got."""
+    marker = _drawn(configuration_projection_plot(_result(), "accuracy", "pca")).data[0].marker
 
     assert marker.colorscale is not None
     assert list(marker.color) == [0.55, 0.0, 0.65, 0.7, 0.75]
 
 
 def test_a_failure_stays_selectable():
-    """Which is why the mark is per-point styling and not a second trace. The
-    traceback is reached by clicking the point, so the selection contract has to
-    keep mapping every position to a trial."""
-    figure = performance_over_time_plot(_result(failed_at=(2,)), "accuracy")
+    """The selection map must cover a failed point too, because a click on it
+    shows the traceback."""
+    figure = _drawn(performance_over_time_plot(_result(failed_at=(2,)), "accuracy"))
     positions = figure.layout.meta["selection"]["trials"]["0"]
 
     assert 1 in positions, "the failed trial is still one of the selectable points"
     assert len(positions) == 5
 
 
-# ── a tint, where a trial is a fill ──────────────────────────────────────────
+# tints on fill figures
 
 def test_a_failed_trial_keeps_its_duration_bar_and_is_tinted():
-    """A crash is fast and a timeout is by definition the longest bar on the
-    figure; either way the length is a real measurement, so the bar is tinted
-    rather than crossed."""
-    colors = list(trial_duration_plot(_result(failed_at=(2,))).data[0].marker.color)
+    """The bar is tinted instead of crossed because its length is a real
+    duration."""
+    colors = list(_drawn(trial_duration_plot(_result(failed_at=(2,)))).data[0].marker.color)
 
     assert colors[1] == FAILURE_FILL
     assert colors[0] != FAILURE_FILL
 
 
-# ── and one figure that leaves them out ──────────────────────────────────────
+# figures that leave failures out
 
 def test_parallel_coordinates_leaves_failures_out():
-    """A line here claims the configuration scored what the last axis says. At a
-    fabricated 0.0 it would run to the floor of that axis across every other
-    line on the way."""
-    figure = parallel_coordinates_plot(_result(failed_at=(2,)), "accuracy")
+    """A line at a fabricated 0.0 would cross every other line on its way to the
+    axis floor."""
+    figure = _drawn(parallel_coordinates_plot(_result(failed_at=(2,)), "accuracy"))
     drawn = figure.layout.meta["selection"]["trials"]
 
     assert len(drawn) == 4, "four of five trials"
@@ -198,23 +174,21 @@ def test_parallel_coordinates_leaves_failures_out():
 
 
 def test_the_parallel_coordinates_highlight_still_points_at_a_real_trace():
-    """It is indexed from what was drawn, not from what was run — so a run with
-    failures must not leave the highlight writing into nothing."""
-    figure = parallel_coordinates_plot(_result(failed_at=(2, 4)), "accuracy")
+    """The highlight indexes the drawn traces and must still point at a real
+    one."""
+    figure = _drawn(parallel_coordinates_plot(_result(failed_at=(2, 4)), "accuracy"))
 
     assert figure.layout.meta["selection"]["highlight"] < len(figure.data)
 
 
 def test_parallel_coordinates_scales_colour_to_the_trials_that_ran():
-    """Anchored to a fabricated 0.0, every trial that did run would be squeezed
-    into the top of the scale."""
-    with_failure = parallel_coordinates_plot(_result(failed_at=(2,)), "accuracy")
+    """A 0.0 anchor would squeeze real trials into the scale's top."""
+    with_failure = _drawn(parallel_coordinates_plot(_result(failed_at=(2,)), "accuracy"))
     lines = [t.line.color for t in with_failure.data[:4]]
 
     assert len(set(lines)) == 4, "four distinct colours across the real range"
 
 
 def test_parallel_coordinates_is_empty_when_every_trial_failed():
-    """Nothing to draw and nothing to scale against."""
     assert parallel_coordinates_plot(
         _result(failed_at=(1, 2, 3, 4, 5)), "accuracy") is None

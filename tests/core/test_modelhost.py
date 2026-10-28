@@ -1,42 +1,34 @@
-"""A model running in another process, driven over a pipe.
-
-No uv and no network here: this interpreter stands in for a model environment,
-since it already has numpy, ConfigSpace and the SDK. What is under test is the
-conversation — that a model can be described without running a trial, that
-predictions come back and get scored, and that every way the child can fail or
-hang is contained rather than taken out on the run.
+"""The test interpreter stands in for a model environment. The tests cover
+describing a model, scoring predictions and containing child failures.
 """
 
 import json
 import sys
 import textwrap
 from pathlib import Path
+from typing import cast
 
 import numpy as np
 import pytest
+from ConfigSpace.hyperparameters import NumericalHyperparameter
 
 from core.metrics import metrics_for, resolve
-from core.modelhost import (
-    ModelProcessError,
-    TrialTimeout,
-    describe,
-    launch_local,
-    model_session,
-)
-from core.modelhost.errors import ModelTrialError, TrialCancelled
+from core.modelhost import describe, model_session
+from core.modelhost.errors import ModelProcessError, ModelTrialError, TrialCancelled, TrialTimeout
 from core.optimizers.timing import STATUS_CRASHED, STATUS_TIMEOUT, STATUS_SUCCESS
 from core.optimizers.trial import evaluate_trial
 from core.splits import holdout
 
-#: The classification metrics: every split here has class labels, and a
-#: regression metric scored on them would fail every trial.
+from tests.conftest import launch_local
+
+#: Regression metrics would fail on these class labels.
 METRICS = resolve(metrics_for("classification"))
 
 X_TRAIN = np.array([[0.0], [1.0], [2.0], [3.0]])
 Y_TRAIN = np.array(["a", "b", "a", "b"], dtype=object)
 X_VAL = np.array([[4.0], [5.0]])
 Y_VAL = np.array(["a", "b"], dtype=object)
-#: One fold, which is what a holdout is. See core.splits.
+#: A holdout is one fold.
 SPLITS = holdout(X_TRAIN, Y_TRAIN, X_VAL, Y_VAL)
 
 HEADER = '''
@@ -49,7 +41,7 @@ from codesigner_model import BaseModel
 
 
 def _model(tmp_path: Path, body: str, name: str = "model.py") -> Path:
-    """Write a model file whose fit_predict body is *body*."""
+    """`_model` writes a model running *body*."""
     method = textwrap.indent(textwrap.dedent(body).strip("\n"), " " * 8)
     source = HEADER + (
         "\n\nclass TestModel(BaseModel):\n"
@@ -72,7 +64,7 @@ def _session(model_file, **kwargs):
 
 
 class _Flag:
-    """A cancel flag the test can flip once the child is up."""
+    """`_Flag` turns true once the child starts."""
 
     def __init__(self, value=False):
         self.value = value
@@ -81,12 +73,9 @@ class _Flag:
         return self.value
 
 
-# ── describing a model without running it ────────────────────────────────────
-
 def test_describe_reports_the_name_and_search_space(tmp_path):
-    """How an experiment learns what it has, without a web request importing
-    user code — and, since the class is instantiated to answer, whether it
-    works at all."""
+    """Describing instantiates the class without a web request importing user
+    code."""
     hello = describe(launch_local(
         sys.executable, _model(tmp_path, "return ['a'] * len(X_val)")))
 
@@ -96,7 +85,6 @@ def test_describe_reports_the_name_and_search_space(tmp_path):
 
 
 def test_describe_reports_a_file_that_will_not_import(tmp_path):
-    """The failure the create form deliberately no longer looks for."""
     bad = tmp_path / "bad.py"
     bad.write_text("import a_package_that_does_not_exist\n", encoding="utf-8")
 
@@ -113,7 +101,7 @@ def test_describe_refuses_a_file_with_no_model(tmp_path):
 
 
 def test_describe_refuses_a_file_with_two_models(tmp_path):
-    """Guessing which one was meant is worse than saying so."""
+    """Guessing between two models is worse."""
     two = tmp_path / "two.py"
     two.write_text(HEADER + textwrap.dedent('''
         class First(BaseModel):
@@ -131,11 +119,8 @@ def test_describe_refuses_a_file_with_two_models(tmp_path):
         describe(launch_local(sys.executable, two))
 
 
-# ── a model file may import its neighbours ───────────────────────────────────
-
 def test_a_model_can_import_a_module_beside_it(tmp_path):
-    """A generated pipeline is more than one file more often than not, so the
-    model file's own directory is on the path."""
+    """The model's own directory is on the path for multi-file pipelines."""
     (tmp_path / "helper.py").write_text("LABEL = 'b'\n", encoding="utf-8")
     model = _model(tmp_path, "from helper import LABEL\nreturn [LABEL] * len(X_val)")
 
@@ -143,25 +128,21 @@ def test_a_model_can_import_a_module_beside_it(tmp_path):
         assert list(remote.fit_predict({"k": 1}, None, None, None)) == ["b", "b"]
 
 
-# ── the search space survives the crossing ───────────────────────────────────
-
 def test_the_config_space_is_rebuilt_as_a_live_object(tmp_path):
     with _session(_model(tmp_path, "return ['a'] * len(X_val)")) as remote:
         space = remote.get_config_space(seed=0)
         assert list(space.keys()) == ["k"]
-        assert (space["k"].lower, space["k"].upper) == (1, 5)
+        k = cast(NumericalHyperparameter, space["k"])
+        assert (k.lower, k.upper) == (1, 5)
 
 
 def test_the_rebuilt_space_samples_reproducibly(tmp_path):
-    """Serializing loses the seed and RandomOptimizer samples from this, so it
-    is re-applied on the way out rather than inherited."""
+    """Serialization drops the seed, which the rebuild re-applies."""
     with _session(_model(tmp_path, "return ['a'] * len(X_val)")) as remote:
         first = [dict(remote.get_config_space(seed=7).sample_configuration()) for _ in range(3)]
         second = [dict(remote.get_config_space(seed=7).sample_configuration()) for _ in range(3)]
     assert first == second
 
-
-# ── trials ───────────────────────────────────────────────────────────────────
 
 def test_predictions_come_back_and_score(tmp_path):
     with _session(_model(tmp_path, "return ['a', 'b']")) as remote:
@@ -172,8 +153,7 @@ def test_predictions_come_back_and_score(tmp_path):
 
 
 def test_the_child_reports_its_own_cpu_time(tmp_path):
-    """This thread's CPU clock saw none of the work, so the child's measurement
-    is the only true one."""
+    """Only the child's CPU clock saw the work."""
     with _session(_model(tmp_path, "return ['a', 'b']")) as remote:
         _, run_info = evaluate_trial(remote, {"k": 1}, SPLITS, METRICS, seed=0)
 
@@ -182,8 +162,7 @@ def test_the_child_reports_its_own_cpu_time(tmp_path):
 
 
 def test_the_model_never_receives_the_validation_labels(tmp_path):
-    """It gets X_train, y_train and X_val. Writing y_val down is impossible
-    because it was never sent."""
+    """The child never receives y_val."""
     model = _model(tmp_path, """
         import json, pathlib
         pathlib.Path(%r).write_text(json.dumps({
@@ -200,7 +179,7 @@ def test_the_model_never_receives_the_validation_labels(tmp_path):
 
 
 def test_a_model_that_prints_does_not_corrupt_the_protocol(tmp_path):
-    """stdout is the wire, so the child diverts the model's output to stderr."""
+    """Model output goes to stderr; stdout is the wire."""
     with _session(_model(tmp_path, "print('hello from the model')\nreturn ['a', 'b']")) as remote:
         assert list(remote.fit_predict({"k": 1}, None, None, None)) == ["a", "b"]
 
@@ -218,7 +197,7 @@ def test_a_model_that_raises_fails_one_trial_and_the_run_continues(tmp_path):
     assert bad == {name: 0.0 for name in METRICS}
     assert bad_info["status"] == STATUS_CRASHED
     assert "k=1 is no good" in bad_info["additional_info"]["error"]
-    # the child is still alive and answering
+    # the child still answers
     assert good["accuracy"] == 1.0
     assert good_info["status"] == STATUS_SUCCESS
 
@@ -228,8 +207,6 @@ def test_unsendable_predictions_are_a_trial_failure(tmp_path):
         with pytest.raises(ModelTrialError, match="cannot be sent"):
             remote.fit_predict({"k": 1}, None, None, None)
 
-
-# ── failure containment ──────────────────────────────────────────────────────
 
 def test_a_wedged_model_is_killed_and_the_trial_times_out(tmp_path):
     model = _model(tmp_path, "import time\ntime.sleep(30)\nreturn ['a', 'b']")
@@ -251,10 +228,7 @@ def test_a_timeout_is_recorded_as_a_timed_out_trial(tmp_path):
 
 
 def test_cancelling_mid_trial_stops_rather_than_failing_the_trial(tmp_path):
-    """Cancellation could not reach a running trial before: the flag was only
-    read between them, so a hanging model was unstoppable. It is distinct from a
-    timeout because the loop should hand back the trials it has, not record this
-    one as a failure."""
+    """Cancellation keeps finished trials and records no failure."""
     model = _model(tmp_path, "import time\ntime.sleep(30)\nreturn ['a', 'b']")
     flag = _Flag()
 
@@ -266,8 +240,7 @@ def test_cancelling_mid_trial_stops_rather_than_failing_the_trial(tmp_path):
 
 
 def test_a_run_cancelled_before_it_starts_never_gets_a_child(tmp_path):
-    """The flag is checked on the way in too, so an already-cancelled run does
-    not pay for an interpreter."""
+    """An already-cancelled run never starts an interpreter."""
     with pytest.raises(TrialCancelled):
         with _session(_model(tmp_path, "return ['a', 'b']"), cancel=_Flag(True)):
             pass
@@ -287,22 +260,19 @@ def test_the_child_is_gone_after_the_session(tmp_path):
 
 
 def test_the_split_directory_is_removed_after_the_session(tmp_path):
-    """The split is written to a private temp directory; it holds the dataset,
-    so it goes away with the session."""
+    """The temp directory holds the dataset and leaves with the session."""
     session = _session(_model(tmp_path, "return ['a', 'b']"))
     with session as remote:
         arrays_dir = session._arrays_dir
+        assert arrays_dir is not None
         assert (arrays_dir / "X.npy").is_file()
         assert (arrays_dir / "fold_0_train.npy").is_file()
         assert arrays_dir.stat().st_mode & 0o777 == 0o700
     assert not arrays_dir.exists()
 
 
-# ── refusing what cannot be sent ─────────────────────────────────────────────
-
 def test_a_non_numeric_feature_column_is_refused_with_a_reason(tmp_path):
-    """Pickling is off, so an object feature array cannot cross. That dataset
-    already fails at fit; this says so before a subprocess is spent on it."""
+    """Object features cannot cross the pipe without pickling."""
     X_text = np.array([["red"], ["blue"]], dtype=object)
     text_splits = holdout(X_text, np.array(["a", "b"], dtype=object),
                           X_text, np.array(["a", "b"], dtype=object))
@@ -313,11 +283,8 @@ def test_a_non_numeric_feature_column_is_refused_with_a_reason(tmp_path):
             pass
 
 
-# ── cross-validation across the pipe ─────────────────────────────────────────
-
 def test_a_cross_validated_trial_sends_one_request_per_fold(tmp_path):
-    """The dataset went once at startup, so each fold is a round trip naming an
-    index rather than another copy of the arrays."""
+    """The dataset crosses once, and each fold sends only an index."""
     from core.splits import cross_validation
 
     X = np.arange(12, dtype=float).reshape(-1, 1)
@@ -333,16 +300,14 @@ def test_a_cross_validated_trial_sends_one_request_per_fold(tmp_path):
 
 
 def test_each_fold_gets_its_own_rows(tmp_path):
-    """The child slices by index on its side. If the folds were mixed up it
-    would train on rows it is about to predict, and score suspiciously well."""
+    """Mixed-up folds would train on rows they predict."""
     from core.splits import cross_validation
 
     X = np.arange(12, dtype=float).reshape(-1, 1)
     y = np.array([str(i) for i in range(12)], dtype=object)
     splits = cross_validation(X, y, folds=3, seed=0)
 
-    # Echoes the first feature value of each validation row, so the parent can
-    # check exactly which rows the child was given.
+    # The echo reveals which rows the child received.
     model = _model(tmp_path, "return [str(int(row[0])) for row in X_val]")
     seen = []
     with model_session(launch_local(sys.executable, model), splits) as remote:
@@ -354,9 +319,8 @@ def test_each_fold_gets_its_own_rows(tmp_path):
 
 
 def test_the_child_is_never_sent_the_labels_of_the_fold_it_is_scored_on(tmp_path):
-    """The property `core.splits` claims. Per fold the child holds the training
-    labels only; what it is about to be judged on is not in the message."""
-    from core.modelhost.arrays import fold_labels_for_json
+    """Per fold, the child holds only the training labels."""
+    from core.modelhost.client import fold_labels_for_json
     from core.splits import cross_validation
 
     X = np.arange(12, dtype=float).reshape(-1, 1)
@@ -369,17 +333,14 @@ def test_the_child_is_never_sent_the_labels_of_the_fold_it_is_scored_on(tmp_path
 
 
 def test_a_holdout_sends_only_the_training_labels(tmp_path):
-    """One fold, and the stronger statement still holds outright: the child
-    never sees a validation label at all."""
-    from core.modelhost.arrays import fold_labels_for_json
+    """A holdout never sends a validation label."""
+    from core.modelhost.client import fold_labels_for_json
 
     labels = fold_labels_for_json(SPLITS)
 
     assert len(labels) == 1
     assert labels[0] == list(Y_TRAIN)
 
-
-# ── class probabilities ──────────────────────────────────────────────────────
 
 PROBA_BODY = '''
         import numpy as np
@@ -392,8 +353,8 @@ PROBA_BODY = '''
 
 
 def _proba_model(tmp_path, name="proba_model.py"):
-    """A model offering `fit_predict_proba`, written the way the SDK advises —
-    `fit_predict` delegating to it, so the two cannot disagree."""
+    """In `_proba_model`, `fit_predict` calls `fit_predict_proba` as the SDK
+    advises."""
     source = HEADER + (
         "\n\nclass ProbaModel(BaseModel):\n"
         '    name = "Proba Model"\n\n'
@@ -412,9 +373,7 @@ def _proba_model(tmp_path, name="proba_model.py"):
 
 
 def test_a_model_says_in_its_greeting_whether_it_has_probabilities(tmp_path):
-    """Duck-typed over there, because each experiment's environment is cached:
-    a model prepared before the SDK grew the method has a `BaseModel` with
-    nothing to compare against."""
+    """Cached environments may hold an older SDK."""
     with _session(_proba_model(tmp_path)) as remote:
         assert remote.supports_proba is True
 
@@ -423,9 +382,8 @@ def test_a_model_says_in_its_greeting_whether_it_has_probabilities(tmp_path):
 
 
 def test_probabilities_cross_the_process_boundary_with_their_class_order(tmp_path):
-    """The column order travels with the matrix. Inferring it from the training
-    labels would be right for scikit-learn and silently wrong for anything that
-    orders them differently — which does not fail, it scores the wrong class."""
+    """Inferred column order would score the wrong class for models ordering
+    classes differently."""
     with _session(_proba_model(tmp_path)) as remote:
         y_pred, y_proba, classes = remote.fit_predict_proba({"k": 1}, None, None, None)
 
@@ -437,9 +395,8 @@ def test_probabilities_cross_the_process_boundary_with_their_class_order(tmp_pat
 
 
 def test_probabilities_are_not_computed_unless_they_are_asked_for(tmp_path):
-    """The reason `want_proba` is a request rather than always-on: an SVM fits
-    an internal calibration to answer it, several times the cost of the plain
-    fit, and a run that scores nothing needing it must never pay."""
+    """An SVM calibrates internally for probabilities, at several times the fit
+    cost."""
     model = _model(tmp_path, """
         import pathlib
         pathlib.Path(config["marker"]).write_text("asked")
@@ -454,8 +411,7 @@ def test_probabilities_are_not_computed_unless_they_are_asked_for(tmp_path):
 
 
 def test_a_model_that_promises_probabilities_and_sends_none_is_a_trial_failure(tmp_path):
-    """Belt and braces. A reply quietly lacking them would reach a metric as
-    None and fail several frames later, with nothing pointing at the model."""
+    """A missing matrix would fail far from the model."""
     source = HEADER + (
         "\n\nclass Liar(BaseModel):\n"
         '    name = "Liar"\n\n'
@@ -478,8 +434,7 @@ def test_a_model_that_promises_probabilities_and_sends_none_is_a_trial_failure(t
 
 
 def test_a_probability_metric_is_scored_from_a_remote_model(tmp_path):
-    """End to end: the metric declares it needs probabilities, `evaluate_trial`
-    takes the other route, and the score comes back."""
+    """`evaluate_trial` routes a probability metric through the remote model."""
     from core.metrics import PROBABILITIES, Metric
 
     seen = {}

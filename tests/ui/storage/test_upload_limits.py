@@ -1,6 +1,4 @@
-"""Size/extension limits on uploads — the create form's file fields and the
-import view's request.FILES handling, which has no Form to hang a validator
-off (see ui/validators.py, shared by both paths)."""
+"""`test_upload_limits` covers the upload limits from `ui/validators.py`."""
 
 import pytest
 from django.core.files.uploadedfile import SimpleUploadedFile
@@ -23,7 +21,7 @@ def _valid_post(**overrides):
     return data
 
 
-# ── NewExperimentForm ────────────────────────────────────────────────────────
+# NewExperimentForm
 
 def test_dataset_upload_wrong_extension_is_rejected():
     upload = SimpleUploadedFile("dataset.txt", b"a,b\n1,2\n")
@@ -64,7 +62,7 @@ def test_model_upload_too_large_is_rejected(settings):
 
 
 def test_a_dataset_upload_within_the_limit_still_works(settings):
-    """The limit rejects what's over it and nothing else."""
+    """`NewExperimentForm` accepts files under the limit."""
     settings.MAX_UPLOAD_BYTES = 1024 * 1024
     with open(DATASETS_DIR / "iris.csv", "rb") as f:
         upload = SimpleUploadedFile("iris.csv", f.read())
@@ -73,10 +71,10 @@ def test_a_dataset_upload_within_the_limit_still_works(settings):
     assert form.is_valid(), form.errors
 
 
-# ── import_experiment ────────────────────────────────────────────────────────
+# import_experiment
 
 def test_import_rejects_an_oversized_ihpo_file(client, settings):
-    from ui.models import Experiment
+    from experiments.models import Experiment
 
     settings.MAX_UPLOAD_BYTES = 10
     with open(FIXTURES_DIR / "test2.ihpo", "rb") as f:
@@ -88,7 +86,7 @@ def test_import_rejects_an_oversized_ihpo_file(client, settings):
 
 
 def test_import_rejects_a_wrong_extension_dataset_reupload(client):
-    from ui.models import Experiment
+    from experiments.models import Experiment
 
     with open(FIXTURES_DIR / "test2.ihpo", "rb") as f:
         resp = client.post(reverse("ui:import_experiment"), {
@@ -100,7 +98,7 @@ def test_import_rejects_a_wrong_extension_dataset_reupload(client):
 
 
 def test_import_rejects_an_oversized_dataset_reupload(client, settings):
-    from ui.models import Experiment
+    from experiments.models import Experiment
 
     settings.MAX_UPLOAD_BYTES = 10
     with open(FIXTURES_DIR / "test2.ihpo", "rb") as f:
@@ -114,9 +112,8 @@ def test_import_rejects_an_oversized_dataset_reupload(client, settings):
 
 
 def test_import_rejects_a_wrong_extension_model_reupload(client, settings):
-    """Only reached when ALLOW_CUSTOM_MODELS is on — the same gate the create
-    form's model_file field is hidden behind."""
-    from ui.models import Experiment
+    """Model reuploads need `ALLOW_CUSTOM_MODELS`, like the create form."""
+    from experiments.models import Experiment
 
     settings.ALLOW_CUSTOM_MODELS = True
     with open(FIXTURES_DIR / "test2.ihpo", "rb") as f:

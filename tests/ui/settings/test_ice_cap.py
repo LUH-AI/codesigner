@@ -1,27 +1,16 @@
-"""How many trials the partial-dependence figure predicts and draws.
-
-One ICE curve per trial is fine at twenty trials and untenable at ten thousand:
-measured, that request takes 6.9 s and returns a 4.5 MB payload, and it is the
-figure that fetches itself when a page opens. DeepCAVE caps the same thing at
-100 curves; this is that cap, made a per-experiment setting.
-
-It caps the *work*, not the picture — the trials outside the sample are never
-predicted — so the partial-dependence curve is the mean over what was sampled.
-That is the only version worth having: trimming afterwards would save the
-payload and none of the seconds.
-
-This is also the first setting that is a number rather than a checkbox, so the
-coercion in `_posted_settings` is pinned here too.
+"""`ice_max_curves` caps the trials that partial dependence predicts. The cap
+limits the work, so the drawn mean covers only the sample.
 """
 
 from django.urls import reverse
 
-from core.optimizers.base import _sample_evenly
-from ui.models import GlobalSettings
-from ui.services.settings import SETTING_BOUNDS, SETTING_DEFAULTS, resolve_settings
+from core.analytics import _sample_evenly
+from experiments.models import GlobalSettings
+from experiments.services.settings import SETTING_BOUNDS
+from ui.experiment_settings import SETTING_DEFAULTS, resolve_settings
 
 
-# ── the sampler ─────────────────────────────────────────────────────────────
+# Sampler
 
 def test_zero_means_every_trial():
     assert _sample_evenly(list(range(50)), 0) == list(range(50))
@@ -32,9 +21,8 @@ def test_a_limit_above_the_trial_count_changes_nothing():
 
 
 def test_the_sample_spans_the_run_rather_than_its_first_k():
-    """A trial history is ordered and its ends do not look alike — the front is
-    exploration, the back is exploitation. A prefix would draw half the story
-    and call it the average."""
+    """A trial history explores first and exploits later, so a prefix would
+    misstate the average."""
     assert _sample_evenly(list(range(100)), 5) == [0, 25, 50, 74, 99]
 
 
@@ -46,24 +34,23 @@ def test_the_first_and_last_trials_are_always_drawn():
 
 
 def test_a_limit_of_one_keeps_the_last_trial():
-    """With room for one curve, the most recent is the informative one."""
+    """The most recent curve informs most."""
     assert _sample_evenly(list(range(10)), 1) == [9]
 
 
 def test_the_sample_is_deterministic():
-    """A random sample would make the figure flicker between reloads."""
+    """A random sample would flicker between reloads."""
     items = list(range(1000))
     assert _sample_evenly(items, 40) == _sample_evenly(items, 40)
 
 
-# ── the setting ─────────────────────────────────────────────────────────────
+# Setting
 
 def test_it_defaults_to_deepcaves_own_cap():
     assert SETTING_DEFAULTS["ice_max_curves"] == 100
 
 
 def test_it_is_a_number_not_a_checkbox():
-    """The reason `_posted_settings` grew a type branch at all."""
     assert not isinstance(SETTING_DEFAULTS["ice_max_curves"], bool)
     assert isinstance(SETTING_DEFAULTS["ice_max_curves"], int)
 
@@ -86,7 +73,7 @@ def test_saving_a_number_stores_it(client):
 
 
 def test_an_out_of_range_number_is_clamped_not_refused(client):
-    """A display preference typed into a box is not worth failing a form over."""
+    """A display preference never fails a form."""
     from ui.figures import FIGURES
 
     client.post(reverse("ui:default_experiment_settings"), { "ice_max_curves": "99999",
@@ -98,8 +85,7 @@ def test_an_out_of_range_number_is_clamped_not_refused(client):
 
 
 def test_unreadable_input_falls_back_to_the_default_not_to_zero(client):
-    """Zero means something specific here — "no limit" — so it is the wrong
-    thing to land on when the box held nonsense."""
+    """Zero means no limit, so nonsense falls back to the default."""
     from ui.figures import FIGURES
 
     client.post(reverse("ui:default_experiment_settings"), { "ice_max_curves": "not a number",
@@ -111,9 +97,8 @@ def test_unreadable_input_falls_back_to_the_default_not_to_zero(client):
 
 
 def test_the_beeswarm_has_its_own_cap():
-    """Separate from `ice_max_curves` because they bound different things: one
-    caps predictions against a surrogate, the other caps whole ablation games,
-    which are three orders of magnitude apart."""
+    """`ice_max_curves` caps surrogate predictions, and
+    `local_effects_max_trials` caps whole ablation games."""
     assert SETTING_DEFAULTS["local_effects_max_trials"] == 100
     assert "local_effects_max_trials" in SETTING_BOUNDS
 
@@ -129,5 +114,5 @@ def test_a_settings_row_from_before_this_existed_backfills():
     gs.default_experiment_settings = {"show_trials": False}
     gs.save(update_fields=["default_experiment_settings"])
 
-    from ui.services.settings import global_defaults
+    from ui.experiment_settings import global_defaults
     assert global_defaults()["ice_max_curves"] == 100

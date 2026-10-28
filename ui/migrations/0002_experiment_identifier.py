@@ -2,7 +2,7 @@ import secrets
 
 from django.db import migrations, models
 
-import ui.models
+import experiments.models
 
 
 def backfill_identifiers(apps, schema_editor):
@@ -37,7 +37,7 @@ class Migration(migrations.Migration):
             model_name="experiment",
             name="identifier",
             field=models.CharField(
-                default=ui.models.generate_identifier,
+                default=experiments.models.generate_identifier,
                 editable=False,
                 max_length=12,
                 unique=True,

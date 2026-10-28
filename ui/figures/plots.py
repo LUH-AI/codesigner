@@ -1,22 +1,12 @@
-"""Plotly chart builders, one per figure that draws a figure.
-
-Each is named for the figure it backs (see `catalog.py`), so
-`performance_over_time_plot` fills the "Performance over time" figure. The
-other figures — best/selected configuration and trials — are tables, and are
-built by their templates from the view's context rather than from here; so is
-hyperparameter importance's "table" view, alongside this module's pie/bar.
-
-Pure functions: given an OptimizationResult and a metric, return a
-plotly.graph_objects.Figure (or None). No Django, no request state — the view
-serializes these with fig.to_json() and the browser renders them.
-
-Every per-metric builder returns None rather than drawing a partial picture
-when the result has no score for that metric on some trial — see
-`OptimizationResult.has_every_score` for why that is a whole-figure decision
-rather than a per-point one.
+"""`plots` holds one Plotly builder per drawn figure, named for its `catalog.py`
+figure, such as `performance_over_time_plot`. The builders are pure functions of
+an OptimizationResult and a metric that return a Figure or None, with no request
+state. A per-metric builder returns None when any trial lacks a score for the
+metric (see `OptimizationResult.has_every_score`).
 """
 
 import math
+from typing import Any, cast
 
 import plotly.graph_objects as go
 
@@ -25,112 +15,54 @@ from core.projection import fit, log_hyperparameters
 
 from ..formatting import sigfigs
 
-# Immediate rather than lazy: a figure is built inside a request and then
-# handed to `to_json`, which has no idea what a lazy translation proxy is.
-# The same reason `views.py` uses the immediate one.
+# Immediate `gettext`, since `to_json` cannot serialize a lazy proxy.
 from django.utils.translation import gettext as _
 
-# ── The palette ──────────────────────────────────────────────────────────────
-#
-# Four colours across every figure, each meaning one thing. Held by convention
-# rather than by machinery — nothing checks it — but a reader who learns a
-# colour on one figure should not have to unlearn it on the next.
-#
-#   MARKER_COLOR      a trial, an observation, an unemphasised line; and the
-#                     positive side of a signed quantity (synergy, "helped")
-#   SELECTION_COLOR   the selected trial, and nothing else
-#   ACCENT_COLOR      the best-so-far: the incumbent line, the trials that
-#                     improved it, and the partial-dependence mean, which is
-#                     the same idea one level up — what the surrogate makes of
-#                     the run rather than one point in it
-#   NEGATIVE_COLOR    the negative side of a signed quantity: redundancy
-#                     between hyperparameters, a value that hurt
-#   _INTENSITY_SCALE  anything scaled to the metric, on every figure that
-#                     scales anything to the metric (see below)
-#   UNCERTAINTY_SCALE a field drawn *under* the marks, saying how much the
-#                     surrogate's trees disagree (see below)
-#
-# The first two are public because the page draws the selection highlight
-# itself — a restyle, not a rebuilt figure — see views.py's `selection_colors`.
+# Each palette colour means one thing on every figure, by convention only.
+# `MARKER_COLOR` marks trials and positive signed values, `ACCENT_COLOR` marks
+# the best so far, `NEGATIVE_COLOR` marks negative signed values, and
+# `SELECTION_COLOR` marks the selected trial alone. `MARKER_COLOR` and
+# `SELECTION_COLOR` are public because the page restyles the selection itself
+# (see `selection_colors` in ui/views/dashboard.py).
 MARKER_COLOR = "#636EFA"
-#: The shade as it *appears*, not the one that was being asked for. Trial
-#: performance fades its points to 0.7 so a failure's cross can sit among them
-#: at full strength, and the selected point was fading with them — over
-#: Plotly's own `#E5ECF6` plot background that composited `#EF553B` down to
-#: this, a soft coral. Every other figure painted the same constant at full
-#: opacity and came out visibly redder, so "selected" meant two different
-#: colours depending on which figure you were looking at.
-#:
-#: Resolved towards the softer one, which is the one that had been on screen
-#: in the figure most people click in. Painted at full opacity everywhere now,
-#: including there — see `performance_over_time_plot`, which exempts the
-#: selected point from the fade rather than fading an already-faded colour.
-#: `--selected` in app.css is the same value, for the parts of the page that
-#: are not plots.
+#: `SELECTION_COLOR` is the soft coral that `#EF553B` became when faded over
+#: Plotly's background, painted at full opacity on every figure so the selection
+#: looks the same everywhere. `--selected` in app.css holds the same value.
 SELECTION_COLOR = "#EC8273"
 ACCENT_COLOR = "#10B981"
 NEGATIVE_COLOR = "#FF2B2B"
-#: A proposal: a sampled configuration picked off the configuration cube's
-#: point cloud, which nobody has run. Its own colour, not the selection's,
-#: because it is not a trial and must not pass for one. `--proposal` in app.css
-#: is the same value.
+#: A proposed configuration from the cube, which nobody has run, gets its own
+#: colour so it cannot pass for a trial. `--proposal` in app.css has the same
+#: value.
 PROPOSAL_COLOR = "#8B5CF6"
 
-#: The configuration cube's surrogate-uncertainty field: how much the forest's
-#: own trees disagree across the plane two hyperparameters span. A background,
-#: so it gets a ramp rather than a colour, and a ramp that belongs to nothing
-#: else on the page.
-#:
-#: **Not green.** `ACCENT_COLOR` means "the best so far" on every figure that
-#: uses it, and a field underneath the points is not that. **Not blue either**,
-#: which is what `_INTENSITY_SCALE` ramps for the metric — on this very figure,
-#: on the points sitting on top of this field. A reader who has learned that
-#: more blue is a better score must not meet a second blue ramp meaning
-#: something else two millimetres below it.
-#:
-#: So violet, which the palette does not otherwise use, and translucent at both
-#: ends: this is scenery behind the trials, and it must never compete with them
-#: for the eye. It ramps *up* with uncertainty — the un-inverted quantity, so
-#: pale is where the trees agree.
+#: The uncertainty field uses a violet ramp, a hue the palette leaves unused,
+#: since green means the best so far and blue already encodes the metric on the
+#: same figure. Both ends are translucent so the field stays scenery, and the
+#: ramp rises with uncertainty.
 UNCERTAINTY_SCALE = [
     [0.0, "rgba(124, 58, 237, 0.02)"],
     [1.0, "rgba(124, 58, 237, 0.42)"],
 ]
 
 
-# ── A trial that did not produce a measurement ───────────────────────────────
-#
-# It is still a trial: it ran, it took time, and it says something about the
-# configuration it ran. So it is drawn, and drawn differently — a cross rather
-# than a point, in the colour a figure already uses for "this hurt". `x-thin`
-# has no fill by design: the glyph *is* the outline, so `marker.line` is what
-# makes it visible and what makes it thick.
-#
-# The shape carries the failure and the colour carries the selection, which is
-# why a selected failure keeps its cross and changes colour rather than the
-# other way round: a reader who has clicked one still needs to see that it is
-# the failure they clicked.
+# A failed trial is drawn as an `x-thin` cross in `NEGATIVE_COLOR`, and
+# `marker.line` gives the unfilled glyph its visibility and weight. A selected
+# failure keeps its cross and takes the selection colour.
 FAILURE_SYMBOL = "x-thin"
 FAILURE_LINE_WIDTH = 3
-#: Thinner, for the figures whose points already wear a ring. On the cube and
-#: the projection every marker is outlined in the card's colour to keep two
-#: overlapping points from compositing into one, so a cross at the full weight
-#: is the boldest thing on a dense plot — louder than the scores it sits among,
-#: which are what the figure is for.
+#: Thinner on the cube and the projection, whose ringed markers would make a
+#: full-weight cross the loudest mark.
 FAILURE_LINE_WIDTH_RINGED = 2
-#: Big enough that a cross reads as a cross rather than as a smudge.
+#: Large enough to read as a cross.
 FAILURE_SIZE = 11
-#: The tint a failed trial gets where the mark is a fill rather than a glyph — a
-#: table row, a duration bar. Transparent, because there the mark is saying
-#: "this one is different", not "this is not a measurement".
+#: Tint for failures drawn as fills, such as duration bars.
 FAILURE_FILL = "rgba(255, 43, 43, 0.45)"
 
 
 def _translucent(color: str, alpha: float = 0.7) -> str:
-    """A #rrggbb colour as rgba at *alpha*.
-
-    So a trace can fade its ordinary points per point instead of trace-wide,
-    which is what lets a failure's cross sit at full strength among them.
+    """`_translucent` lets a trace fade individual points and keep a failure's
+    cross at full strength.
     """
     r, g, b = (int(color[i:i + 2], 16) for i in (1, 3, 5))
     return f"rgba({r}, {g}, {b}, {alpha})"
@@ -139,17 +71,10 @@ def _translucent(color: str, alpha: float = 0.7) -> str:
 def _failure_marks(trials, *, size, symbol="circle", line_width=1,
                    line_color="#FFFFFF", selected_idx=None,
                    failure_width=FAILURE_LINE_WIDTH):
-    """Per-point marker styling that marks whichever of *trials* failed.
-
-    Returns keys to merge over a trace's `marker`, or `{}` when nothing failed —
-    so a run without failures keeps its scalar styling and gains no per-point
-    arrays it has no use for.
-
-    Styling the existing trace rather than adding a second one, because a failed
-    trial has to stay selectable: its traceback is reached by clicking it, and
-    every figure's selection contract maps trace positions to trial indices one
-    for one (see `_selection_meta`). A separate trace would need its own entry
-    in that map, and both would then be answering for the same figure.
+    """`_failure_marks` returns marker keys that mark failed trials, or `{}`
+    when none failed. It styles the existing trace instead of adding one, since
+    a failed trial must stay selectable and `_selection_meta` maps trace
+    positions to trials one for one.
     """
     failed = [t.failed for t in trials]
     if not any(failed):
@@ -173,82 +98,46 @@ def _failure_marks(trials, *, size, symbol="circle", line_width=1,
     }
 
 
-#: How a figure is able to show which trial is selected. Not a style choice —
-#: it is decided by what the figure's colour already means.
-RECOLOR = "recolor"   # marker colour is free: paint the selected point with it
-OUTLINE = "outline"   # colour already carries the score or the sign: ring it
-LINE = "line"         # a trial is a polyline, not a point (parallel coordinates)
-OVERLAY = "overlay"   # the selected point again, on top, in the selection colour
+#: Selection styles; the figure's colour meaning decides which applies.
+RECOLOR = "recolor"   # free colour: paint the selected point
+OUTLINE = "outline"   # colour carries meaning: ring it
+LINE = "line"         # polyline per trial (parallel coordinates)
+OVERLAY = "overlay"   # selected point redrawn on top
 
 
 def _signed(value) -> str:
-    """A signed quantity as a reader sees it: the sign, then four figures.
-
-    The sign is the reading on these figures — helped or hurt, synergy or
-    redundancy — so it is written even when it is positive, which `sigfigs`
-    alone does not do.
+    """`_signed` always writes the sign, since helped or hurt is the reading
+    here.
     """
     return f"{'+' if value >= 0 else '-'}{sigfigs(abs(value))}"
 
 
 def _selection_meta(by_trace: dict, *, style, segment=1, **extra) -> dict:
-    """Where a plot's per-trial points are, for the page's selection bus.
-
-    One trial is selected at a time across the whole page, so every figure that
-    draws all the trials has to be able to say two things: which trial a clicked
-    point belongs to, and which points to light up when the selection changes
-    elsewhere. Both come from here, in `layout.meta["selection"]`, so the script
-    needs no per-figure knowledge — see experiment_detail.html.
-
-    *by_trace* maps a trace index to the positions in `result.trials` its points
-    stand for, in point order. Keyed by trace because a trace not named here is
-    not trials at all — an incumbent line, a colour-bar carrier — and a click on
-    one means nothing. Positions rather than `TrialResult.trial` numbers because
-    that is what the trial-panel endpoint and the local-ablation cache already
-    key on, and named rather than implied by position because local effects
-    draws a *sample*: its nth point is not its nth trial.
-
-    *segment* is how many points make up one trial, which is 1 everywhere except
-    parallel coordinates, where a trial is a whole polyline. So one rule reads
-    every figure: the trial at point *p* of trace *t* is
-    `by_trace[t][p // segment]`.
-
-    *style* is RECOLOR / OUTLINE / LINE, above.
+    """`_selection_meta` tells the page's selection script which trial each
+    clicked point is, via `layout.meta["selection"]`. *by_trace* maps a trace
+    index to positions in `result.trials`, because traces outside the map (an
+    incumbent line, a colour-bar carrier) carry no trials and local effects
+    draws a sample. *segment* counts points per trial, 1 except in parallel
+    coordinates, so the trial at point *p* of trace *t* is `by_trace[t][p //
+    segment]`.
     """
     return dict(trials={str(k): list(v) for k, v in by_trace.items()},
                 style=style, segment=segment, **extra)
 
 
 def incumbent_scores(result, display_metric):
-    """The running best (non-decreasing) score by *display_metric*, per trial.
-
-    Now a thin delegate: the computation lives on `OptimizationResult`, which
-    memoizes it per metric so the four `performance_over_time` views stop
-    recomputing the identical list. Kept as a function because it is part of
-    `ui.figures`' exported surface.
+    """`incumbent_scores` is a thin wrapper over the memoized
+    `OptimizationResult.incumbent_scores`, kept for the `ui.figures` exports.
     """
     return result.incumbent_scores(display_metric)
 
 
 def performance_over_time_plot(result, display_metric, *, x_axis="trial",
                                 y_axis="score", selected_idx=None):
-    """Every trial's outcome plus the running-best line, on whichever axes
-    *x_axis* ("trial" | "time") and *y_axis* ("score" | "error") pick — the
-    four views of one underlying curve, replacing what used to be two
-    separately-drawn figures (performance-over-trials, error-over-time).
-
-    The x-axis is trial index or cumulative trial duration — compute *spent*,
-    not wall-clock elapsed since the experiment was created, so a gap between
-    resumed runs (which can be arbitrarily long once experiments persist)
-    never shows up as a dead stretch on the time axis. y is the raw score or
-    1-minus-it floored at 1e-3 (so log scale never hits zero); either way the
-    incumbent line is the running best in that same unit, drawn as a step
-    (`shape="hv"`) since it only actually changes at an improvement, plus
-    markers flagging exactly which trials those were.
-
-    The point at *selected_idx* (default: none) is enlarged and recolored on
-    the raw-outcome trace only — the same highlight click-to-select drives.
-    Returns None with no trials.
+    """*x_axis* ("trial" | "time") and *y_axis* ("score" | "error") pick one of
+    four views of one curve. Time is cumulative trial duration, so gaps between
+    resumed runs never appear. The error view is floored at 1e-3 on a log axis,
+    and the incumbent is drawn as a step line with diamonds at each improvement.
     """
     trials = result.trials
     if not trials or not result.has_every_score(display_metric):
@@ -268,16 +157,14 @@ def performance_over_time_plot(result, display_metric, *, x_axis="trial",
     incumbents = incumbent_scores(result, display_metric)
     if y_axis == "error":
         errors = [to_error(metric, t.scores[display_metric]) for t in trials]
-        # An unbounded higher-is-better metric has no distance-from-perfect to
-        # plot (see `core.metrics.to_error`), and this view is the whole figure
-        # — so it declines rather than drawing an axis measured from nowhere.
+        # An unbounded higher-is-better metric has no error to plot (see
+        # `core.metrics.to_error`), so the figure declines.
         if any(e is None for e in errors):
             return None
         incumbent_errors = [to_error(metric, v) for v in incumbents]
-        # The floor keeps a log axis off zero. Applied only when the axis is
-        # actually logarithmic: a metric that is already an error can be
-        # negative or span zero, and clamping those to 1e-3 would move points.
-        y_type = "log" if all(e > 0 for e in errors) else "linear"
+        # The 1e-3 floor applies only on a log axis, since an error metric can
+        # be negative.
+        y_type = "log" if all(e > 0 for e in cast(list[float], errors)) else "linear"
         floor = (lambda e: max(1e-3, e)) if y_type == "log" else (lambda e: e)
         ys = [floor(e) for e in errors]
         incumbent_ys = [floor(e) for e in incumbent_errors]
@@ -293,17 +180,12 @@ def performance_over_time_plot(result, display_metric, *, x_axis="trial",
         colors[selected_idx] = SELECTION_COLOR
         sizes[selected_idx] = 13
 
-    # In the metric's own direction: an improvement on an RMSE is a drop.
+    # In the metric's direction: lower RMSE improves.
     improved = [i == 0 or metric.better(incumbents[i], incumbents[i - 1])
                 for i in range(len(trials))]
 
-    # Opacity per point rather than per trace: a failure's cross is meant to be
-    # read at full strength, and a trace-wide `opacity` would fade it with
-    # everything else.
-    # The selected point keeps its colour at full strength. Everything else
-    # fades, which is what the per-point opacity is for; fading the selection
-    # too is what made `SELECTION_COLOR` mean one shade here and a redder one
-    # on every other figure.
+    # Opacity is set per point so a failure's cross and the selected point stay
+    # at full strength while the rest fade.
     fills = [c if i == selected_idx else _translucent(c)
              for i, c in enumerate(colors)]
     marker = dict(size=sizes, color=fills)
@@ -316,9 +198,8 @@ def performance_over_time_plot(result, display_metric, *, x_axis="trial",
     fig.add_trace(go.Scatter(
         x=xs, y=incumbent_ys, mode="lines", name=_("Incumbent"),
         line=dict(width=2, shape="hv", color=ACCENT_COLOR),
-        # Out of the pointer's way for the same reason as the diamonds below:
-        # the line runs through every trial near the best score, and under
-        # closest hover it answered for them, so a click on one named nothing.
+        # The incumbent line skips hover, since under closest hover it answered
+        # for nearby trials and a click named nothing.
         hoverinfo="skip",
     ))
     fig.add_trace(go.Scatter(
@@ -326,21 +207,15 @@ def performance_over_time_plot(result, display_metric, *, x_axis="trial",
         y=[incumbent_ys[i] for i in range(len(trials)) if improved[i]],
         mode="markers", name=_("New incumbent"),
         marker=dict(size=9, color=ACCENT_COLOR, symbol="diamond"),
-        # Out of the way of the pointer. These are drawn over the trials they
-        # mark and are bigger than them, so with hover on they sat between the
-        # reader and exactly the trials most worth selecting — and they are not
-        # trials, so a click on one names nothing. Skipping hover takes them out
-        # of Plotly's hit-testing entirely and the point beneath answers instead;
-        # nothing is lost, since it is the same trial and it says so.
+        # The diamonds sit over the trials they mark, so skipping hover lets the
+        # trial beneath answer clicks.
         hoverinfo="skip",
     ))
     fig.update_layout(
         xaxis_title=x_title, yaxis_title=y_title, yaxis_type=y_type,
         legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1),
         margin=dict(t=40, b=40, l=40, r=20),
-        # Trace 0 only: the incumbent line and the new-incumbent diamonds are
-        # drawn from the same trials but are not a trial each, and a click on
-        # one names nothing.
+        # Trace 0 only, since incumbent traces hold no trials.
         meta={"selection": _selection_meta({0: range(len(trials))},
                                            style=RECOLOR)},
     )
@@ -349,25 +224,14 @@ def performance_over_time_plot(result, display_metric, *, x_axis="trial",
 
 def hyperparameter_importance_plot(importance: dict, rendering: str = "pie",
                                    title: str = "Importance"):
-    """Pie or (vertical) bar of a per-hyperparameter importance dict — shared
-    by every HyperSHAP game this app surfaces (tunability, sensitivity,
-    mistunability all produce the same shape: {hp: normalized weight}), the
-    caller picks which dict to hand in. A third rendering, "table", is
-    rendered directly by the template from `panels`, not from here.
-
-    How much of each hyperparameter's value has already been captured is
-    `hyperparameter_progress_plot`, which draws the same two renderings split.
-
-    Returns None when *importance* is empty, or when *rendering* is "table"
-    (nothing to draw), so the caller shows the explanatory message / the
-    table instead.
+    """`hyperparameter_importance_plot` draws any HyperSHAP game's `{hp:
+    weight}` dict as a pie or vertical bar. It returns None for an empty dict or
+    the "table" rendering, which the template draws.
     """
     if not importance or rendering == "table":
         return None
     if rendering == "bar":
-        # Descending, left to right — DeepCAVE's own reading order for this,
-        # and it suits a vertical bar better than the ascending order a
-        # horizontal one wants (largest nearest the axis label).
+        # Bars sort by weight, largest on the left.
         names, values = zip(*sorted(importance.items(), key=lambda kv: kv[1], reverse=True))
         fig = go.Figure(go.Bar(x=names, y=values, marker_color=MARKER_COLOR))
         fig.update_layout(yaxis_title=title,
@@ -377,9 +241,8 @@ def hyperparameter_importance_plot(importance: dict, rendering: str = "pie",
         labels=list(importance.keys()), values=list(importance.values()),
         textinfo="label+percent", textposition="inside",
         insidetextorientation="horizontal", textfont=_TEXT_FONT,
-        # Stated rather than left out. `Plotly.react` diffs against what is
-        # already drawn, and an attribute that is simply absent is a weaker
-        # instruction than one set to its default.
+        # `hole=0` is explicit, since `Plotly.react` treats an absent attribute
+        # more weakly than a default.
         hole=0,
     ))
     fig.update_layout(margin=dict(t=20, b=20, l=20, r=20), showlegend=False,
@@ -387,56 +250,26 @@ def hyperparameter_importance_plot(importance: dict, rendering: str = "pie",
     return fig
 
 
-#: One text size for every wedge, and no text at all where it will not fit.
-#:
-#: Two settings, because it takes both. `textfont` fixes the size — Plotly
-#: otherwise scales a label to its own slice, so a thin wedge gets tiny text and
-#: a fat one gets large text, which reads as emphasis that is not there and is
-#: unreadable at the small end. `uniformtext` then decides what happens to a
-#: label that no longer fits at that size: `mode: "hide"` drops it rather than
-#: shrinking it back, and the hover still carries it.
-#:
-#: `minsize` matches the font size on purpose. Below it, Plotly would be
-#: scaling again, which is the thing being prevented.
+#: `textfont` fixes one label size for every wedge, and `uniformtext` hides
+#: labels that no longer fit, leaving them in the hover. `minsize` equals the
+#: font size, which keeps Plotly from scaling labels again.
 _TEXT_SIZE = 12
 _TEXT_FONT = {"size": _TEXT_SIZE}
-_UNIFORM_TEXT = {"uniformtext": {"minsize": _TEXT_SIZE, "mode": "hide"}}
+_UNIFORM_TEXT: dict[str, Any] = {"uniformtext": {"minsize": _TEXT_SIZE, "mode": "hide"}}
 
-#: The two parts of a hyperparameter's achievable gain, darkest first. One hue
-#: at two intensities, like `hyperparameter_orders_plot`'s three: these are parts
-#: of one quantity rather than two quantities, and a second hue would say they
-#: were different things. Darker is what is still to gain, because that is the
-#: part worth acting on.
+#: One hue at two intensities, since banked and remaining are parts of one
+#: quantity. The darker shade is the gain still to take.
 _PROGRESS_SHADES = (MARKER_COLOR, "#9DA5F5")
 
 
 def hyperparameter_progress_plot(rows: list, rendering: str = "pie"):
-    """Each hyperparameter's achievable gain, split into banked and still to gain.
-
-    The same two renderings the importance figure offers, of the same
-    quantity — but each slice or bar divided, so "this one is worth a lot and we
-    have already taken almost all of it" is one shape rather than two figures
-    compared by eye. `rows` is `_tuning_progress`'s output: name, achievable,
-    banked, remaining.
-
-    **bar** stacks banked under still-to-gain, so a bar that is nearly all light
-    is a settled question and one that is nearly all dark is where the budget
-    should go. **pie** is a sunburst: the inner ring is the hyperparameters,
-    sized as the plain pie sizes them, and the outer ring divides each wedge into
-    the same two parts.
-
-    A sunburst rather than a second ring whose *radius* encodes the fraction —
-    that would ask the reader to compare arcs at different radii, which reads
-    badly and reads worse the more hyperparameters there are. Here the split is
-    an angle inside its own wedge, which is the same comparison the pie already
-    asks for.
-
-    Banked is clamped into 0..achievable for drawing: the ablation can exceed
-    the max game's estimate or go negative, since they are two estimates of the
-    same surface, and neither is a length. The table keeps the true signed value.
-
-    Returns None with no rows, or when *rendering* is "table" (the table shows
-    the numbers themselves).
+    """`hyperparameter_progress_plot` splits each hyperparameter's achievable
+    gain into banked and still to gain, from `core.analytics.tuning_progress`
+    rows. The bar rendering stacks banked under the remainder, and the pie gives
+    each hyperparameter two adjacent slices. Banked is clamped into
+    0..achievable for drawing, since the two estimates can disagree, and the
+    table keeps the signed value. The function returns None with no rows or for
+    the "table" rendering.
     """
     if not rows or rendering == "table":
         return None
@@ -450,8 +283,7 @@ def hyperparameter_progress_plot(rows: list, rendering: str = "pie"):
 
     if rendering == "bar":
         fig = go.Figure()
-        # Banked first, so it is the base of the bar and the remainder sits on
-        # top of it — a bar filling up rather than emptying out.
+        # Banked first, so the bar fills up from the base.
         for values, label, shade in ((banked, _("Already banked"), _PROGRESS_SHADES[1]),
                                      (left, _("Still to gain"), _PROGRESS_SHADES[0])):
             fig.add_trace(go.Bar(x=names, y=values, name=label, marker_color=shade,
@@ -464,14 +296,8 @@ def hyperparameter_progress_plot(rows: list, rendering: str = "pie"):
                         xanchor="right", x=1))
         return fig
 
-    # One flat pie with two slices per hyperparameter, adjacent — so a wedge
-    # is literally part light and part dark, which is the thing being shown.
-    #
-    # This was a sunburst first. A sunburst puts the split on an outer ring,
-    # which is legible enough, but with several hyperparameters there is no
-    # single root node to fill the centre and it leaves a hole there; the labels
-    # then sit on the innermost ring, where there is least room for them. A flat
-    # pie has neither problem and asks for one less idea from the reader.
+    # A flat pie gives each hyperparameter two adjacent slices and avoids a
+    # sunburst's empty centre.
     labels, values, colours, hovers, captions = [], [], [], [], []
     for name, taken, remaining in zip(names, banked, left):
         for part, value, shade in (("banked", taken, _PROGRESS_SHADES[1]),
@@ -480,9 +306,7 @@ def hyperparameter_progress_plot(rows: list, rendering: str = "pie"):
             values.append(value)
             colours.append(shade)
             hovers.append(f"{name}<br>{part} {sigfigs(value)}")
-        # Named once per hyperparameter, on whichever of its two parts has the
-        # room. Both labelled would say it twice; the smaller one labelled would
-        # often be a label with nowhere to go.
+        # Only the roomier part of each pair carries the name.
         captions.extend([name, ""] if taken >= remaining else ["", name])
 
     fig = go.Figure(go.Pie(
@@ -498,30 +322,11 @@ def hyperparameter_progress_plot(rows: list, rendering: str = "pie"):
 
 
 def hyperparameter_ablation_plot(ablation: dict):
-    """Waterfall of one trial's HyperSHAP ablation values against the config
-    space's default — the "Local (selected trial)" view.
-
-    Reads as a walk: start at the default configuration, change one
-    hyperparameter to what this trial used, see where the score goes, repeat.
-    The running total is the point — a diverging bar (which this replaces)
-    shows the same numbers but leaves the reader to add them up, and the sum is
-    the thing they actually want, namely how far this trial got from the
-    default and which changes carried it.
-
-    Signed, deliberately: a step up means that hyperparameter's value in this
-    trial beat the default, down means it lost to it. Ordered by magnitude, so
-    the steps that decided the outcome come first rather than being buried in
-    the middle of the walk.
-
-    The axis is *relative to the default*, not an absolute score: the ablation
-    game answers "how much did each choice help", and the default's own score
-    is not among the numbers it returns. Both ends are labelled so that reads
-    plainly rather than looking like a score that starts at zero.
-
-    Returns None when *ablation* is empty (not enough trials, or the game
-    failed — see BaseOptimizer.compute_hp_ablation). No "table"/"pie" — a
-    share-of-a-whole framing does not apply to signed values, so this is the
-    one view this game gets.
+    """`hyperparameter_ablation_plot` draws one trial's HyperSHAP ablation as a
+    waterfall from the default, ordered by magnitude, so the running total shows
+    how far the trial got. Steps are signed, and the axis is relative to the
+    default, whose own score the game omits. The function returns None for an
+    empty *ablation* (see core.analytics.compute_hp_ablation).
     """
     if not ablation:
         return None
@@ -544,19 +349,11 @@ def hyperparameter_ablation_plot(ablation: dict):
 
 
 def hyperparameter_interactions_heatmap_plot(interactions: dict):
-    """Hyperparameter x hyperparameter heatmap of pairwise (order-2) HyperSHAP
-    tunability interactions — the "Hyperparameter interactions" figure's
-    default view. The diagonal is that hyperparameter's own signed order-1
-    value; off-diagonal cells are the signed pairwise interaction between the
-    two — positive reads as synergy (the pair matters more tuned together
-    than the sum of tuning each alone), negative as redundancy.
-
-    Hyperparameters are ordered by |diagonal value| descending, the same
-    "most important first" convention the bar views use elsewhere, so the
-    strongest single effects sit nearest the top-left corner.
-
-    Returns None when *interactions* is empty (not enough trials, or the
-    game failed — see BaseOptimizer.compute_hp_interactions).
+    """The diagonal holds each hyperparameter's signed order-1 value, and
+    off-diagonal cells hold pairwise interactions, positive for synergy and
+    negative for redundancy. Rows are ordered by absolute diagonal value,
+    largest first. `hyperparameter_interactions_heatmap_plot` returns None for
+    empty *interactions*.
     """
     if not interactions:
         return None
@@ -571,16 +368,9 @@ def hyperparameter_interactions_heatmap_plot(interactions: dict):
 
 
 def hyperparameter_interactions_bar_plot(interactions: dict, top_k: int = 10):
-    """Bar of the *top_k* strongest off-diagonal pairwise interactions, ranked
-    by magnitude — an alternate view of the heatmap's same data, for reading
-    off the handful of pairs that matter without scanning a grid.
-
-    Signed and colored by sign, like `hyperparameter_ablation_plot` — positive
-    is synergy, negative is redundancy, and which one loses meaning if
-    flattened to a magnitude.
-
-    Returns None when *interactions* is empty, or there are fewer than two
-    hyperparameters (no pairs to show).
+    """`hyperparameter_interactions_bar_plot` ranks the *top_k* strongest pairs
+    by magnitude, keeping the sign as colour. The function returns None with
+    fewer than two hyperparameters.
     """
     if not interactions:
         return None
@@ -598,12 +388,8 @@ def hyperparameter_interactions_bar_plot(interactions: dict, top_k: int = 10):
     return fig
 
 
-#: Score-carrying figures (the cube, parallel coordinates) ramp one hue by
-#: intensity rather than travelling between two. A two-ended scale invites the
-#: reader to find a meaningful middle, and there isn't one — a score has a good
-#: end and a bad end and nothing special in between, so "more colour is better"
-#: is the whole legend. Light-to-dark in the same blue the rest of the app
-#: already uses for a plain data mark, so the figures read as one family.
+#: Score figures use one blue ramp by intensity, since a score has a good end
+#: and a bad end with no meaningful middle.
 _INTENSITY_SCALE = [
     [0.00, "#EEF1FE"],
     [0.25, "#C3CBFA"],
@@ -612,20 +398,12 @@ _INTENSITY_SCALE = [
     [1.00, "#2B3AA8"],
 ]
 
-#: Positive interactions read as synergy, negative as redundancy — the same
-#: two colours the ablation and top-pairs views already use for sign.
+#: Synergy and redundancy reuse the sign colours.
 _SYNERGY_COLOR = MARKER_COLOR
 _REDUNDANCY_COLOR = NEGATIVE_COLOR
 
-#: The same two, as a diverging scale through white, for the figure that shows
-#: sign as a fill rather than as a line.
-#:
-#: Built here rather than asking for Plotly's named "RdBu", which is two
-#: different scales depending on who resolves it: the bundled plotly.min.js runs
-#: it blue at 0 to red at 1, so with zmid=0 it put *positive* on red — the
-#: reverse of every other signed figure in this app — with an orange band around
-#: 0.6-0.7 belonging to no meaning at all. (Python's own scale of that name runs
-#: the other way, which is why reading the two sides disagrees.)
+#: `_SIGN_SCALE` is built here because Plotly's "RdBu" resolves differently in
+#: plotly.min.js, where it put positive values on red.
 _SIGN_SCALE = [
     [0.0, NEGATIVE_COLOR],
     [0.5, "#F7F7F7"],
@@ -634,15 +412,8 @@ _SIGN_SCALE = [
 
 
 def _circle_positions(names: list) -> dict:
-    """Each name at an even angle on the unit circle, first at twelve o'clock.
-
-    The whole layout. HyperSHAP draws its own SI graph this way — it passes
-    `nx.circular_layout` with `compactness=1e50`, which pins the nodes to the
-    circle and leaves the force-directed step nothing to do — so reproducing it
-    needs no graph library and no layout algorithm, just cos and sin. That is
-    what makes this figure Plotly-native rather than a static image, and so the
-    only one in the app that would have broken the "every figure is live"
-    property is not.
+    """`nx.circular_layout` places HyperSHAP's SI graph on a circle, and cos and
+    sin reproduce that layout natively in Plotly.
     """
     import math
 
@@ -652,30 +423,11 @@ def _circle_positions(names: list) -> dict:
 
 
 def hyperparameter_graph_plot(moebius: list, top_k: int = 15):
-    """The Möbius interaction graph: hyperparameters on a circle, interactions
-    between them as edges.
-
-    Each Möbius term of size 2 is an edge between its two hyperparameters. Each
-    term of size 3 or more is a *hyper*-edge — a small hub at the members'
-    centroid with a spoke to each of them, which is how shapiq draws the same
-    thing and the only honest way to show that four hyperparameters interact
-    *as a set* rather than as six pairs. Order-1 terms size the nodes.
-
-    Width is the term's magnitude; colour is its sign — synergy where a
-    coalition is worth more than its parts, redundancy where it is worth less.
-
-    This is the only view in the app that shows anything above order 2, and the
-    reason the Möbius decomposition is stored at all: FSII's terms shift when
-    the truncation order changes, so they cannot be read at several orders at
-    once (see `BaseOptimizer._compute_hp_game`).
-
-    Only the *top_k* strongest interactions are drawn. A 6-hyperparameter run
-    has 57 of them and a 10-hyperparameter one has 1,013; past a dozen or so the
-    picture stops being a graph and becomes a ball of wool. shapiq caps its own
-    for the same reason.
-
-    Returns None when *moebius* is empty, or names fewer than two
-    hyperparameters (nothing can interact with itself).
+    """`hyperparameter_graph_plot` draws size-2 Möbius terms as edges and larger
+    terms as hubs with spokes, as shapiq does, with order-1 terms sizing the
+    nodes. Width shows magnitude and colour shows sign. The graph is the only
+    view above order 2, which is why the Möbius decomposition is stored. Only
+    *top_k* terms are drawn, since a 10-hyperparameter run has 1,013.
     """
     if not moebius:
         return None
@@ -688,10 +440,7 @@ def hyperparameter_graph_plot(moebius: list, top_k: int = 15):
            for row in moebius if len(row["members"]) == 1}
     biggest_own = max(own.values(), default=0.0) or 1.0
 
-    # Sorted here rather than trusted from the caller: the stored list is
-    # already ranked (see `_moebius_terms`), but a top-k slice that silently
-    # depends on someone else's ordering is the kind of coupling that breaks
-    # quietly when a second caller appears.
+    # Sorted here instead of trusting the caller's ranking.
     edges = sorted((row for row in moebius if len(row["members"]) > 1),
                    key=lambda row: abs(row["value"]), reverse=True)[:top_k]
     widest = max((abs(row["value"]) for row in edges), default=0.0) or 1.0
@@ -719,9 +468,7 @@ def hyperparameter_graph_plot(moebius: list, top_k: int = 15):
         hub_text.append(label)
 
     fig = go.Figure()
-    # The hubs carry the hover text for every interaction, because a `shape` has
-    # no hover of its own — without this the picture would be unreadable in
-    # exactly the cases it exists for, where several edges cross.
+    # The hubs carry hover text, since a `shape` has none.
     fig.add_trace(go.Scatter(
         x=hub_x, y=hub_y, mode="markers", name=_("Interaction"),
         marker=dict(size=9, color="rgba(0,0,0,0)",
@@ -737,14 +484,9 @@ def hyperparameter_graph_plot(moebius: list, top_k: int = 15):
         hovertext=[f"{n}<br>on its own {sigfigs(own.get(n, 0.0))}" for n in names],
         hoverinfo="text", showlegend=False,
     ))
-    # No `scaleanchor`: locking the axes to a 1:1 ratio makes Plotly letterbox
-    # the circle inside whichever dimension is scarcer, which on a card that is
-    # wider than it is tall leaves the graph a small disc floating in white
-    # space. The circle is a layout convention, not a measurement — nothing is
-    # read off the distance between two nodes — so letting it stretch to an
-    # ellipse that fills the card loses nothing and gains all the room the
-    # labels need. The x range is wider than the y to leave that room, since
-    # names sit beside the leftmost and rightmost nodes rather than above them.
+    # The axes skip `scaleanchor`, since a 1:1 ratio would shrink the circle on
+    # a wide card and node distances mean nothing. The x range is wider to leave
+    # room for side labels.
     fig.update_layout(
         shapes=shapes,
         xaxis=dict(visible=False, showgrid=False, zeroline=False, range=[-1.6, 1.6]),
@@ -755,21 +497,10 @@ def hyperparameter_graph_plot(moebius: list, top_k: int = 15):
 
 
 def hyperparameter_upset_plot(moebius: list, top_k: int = 12):
-    """UpSet plot of the strongest Möbius coalitions: a ranked bar per
-    coalition over a matrix saying which hyperparameters are in it.
-
-    The same data as the graph, read the other way round. The graph is spatial
-    and shows structure at a glance; it also stops being legible somewhere
-    around six hyperparameters, which is exactly where a ranked list starts
-    earning its place. So they are two views of one thing rather than a choice
-    of one — a wide search wants this, a narrow one wants the graph.
-
-    Filled dots are the members of a coalition, joined by a rule; hollow dots
-    are the hyperparameters left out. Bars are signed, so a redundant coalition
-    hangs below the axis rather than being flattened into a magnitude.
-
-    Returns None when *moebius* holds no coalition of two or more (a run with a
-    single hyperparameter, or one that fell back to the surrogate).
+    """`hyperparameter_upset_plot` ranks the strongest Möbius coalitions as
+    signed bars over a membership matrix, and stays legible past the six
+    hyperparameters where the graph stops. The function returns None without a
+    coalition of two or more.
     """
     from plotly.subplots import make_subplots
 
@@ -790,9 +521,7 @@ def hyperparameter_upset_plot(moebius: list, top_k: int = 12):
         hovertemplate="%{x}<br>%{y:+.4g}<extra></extra>", showlegend=False,
     ), row=1, col=1)
 
-    # Absent members first so the filled ones draw over them, and one rule per
-    # column joining its extremes — without it a coalition spread across
-    # non-adjacent rows reads as unrelated dots.
+    # Absent dots draw first, and one rule per column links its members.
     out_x, out_y, in_x, in_y = [], [], [], []
     for column, row in zip(columns, coalitions):
         for name in names:
@@ -821,10 +550,8 @@ def hyperparameter_upset_plot(moebius: list, top_k: int = 12):
     return fig
 
 
-#: How Möbius terms are bucketed for the by-order view. Order 3 and above share
-#: a band: past pairs the distinction stops being actionable ("this only matters
-#: in a group" reads the same at 3 as at 5) and a band per order would give a
-#: 10-hyperparameter run ten of them.
+#: Every order from 3 up shares one band, since past pairs the distinction stops
+#: being actionable.
 _ORDER_BANDS = (
     (1, 1, "On its own"),
     (2, 2, "In pairs"),
@@ -833,30 +560,10 @@ _ORDER_BANDS = (
 
 
 def hyperparameter_orders_plot(moebius: list):
-    """Stacked bar of where each hyperparameter's influence comes from: itself,
-    its pairings, or larger groups — the "By order" view of the interactions
-    figure.
-
-    Answers a question none of the other views can: *does this hyperparameter
-    matter on its own, or only in combination?* A hyperparameter with a tall
-    solid first band is worth tuning by itself; one that is nearly all upper
-    bands only pays off alongside something else, which is a different piece of
-    advice.
-
-    Reads the Möbius decomposition rather than the order-2 FSII grid, because
-    that is the one that assigns a single value per coalition of any size — see
-    `BaseOptimizer._compute_hp_game` for why the two are not
-    interchangeable.
-
-    Each term is split equally among its members, which is the standard reading
-    of a Harsanyi dividend: a value that belongs to the coalition as a whole and
-    to no member in particular. Magnitudes, not signed values — a stack of
-    signed contributions would cancel and show a hyperparameter that matters a
-    great deal in both directions as one that matters not at all.
-
-    Bars are ordered by total height, so the same "most important first"
-    convention the other views use. Returns None when *moebius* is empty (a run
-    from before this was stored, or a game that fell back).
+    """`hyperparameter_orders_plot` stacks each hyperparameter's influence by
+    source: itself, pairs, or larger groups. It reads the Möbius decomposition
+    and splits each term's magnitude equally among its members, since signed
+    shares would cancel. Bars are ordered by total height.
     """
     if not moebius:
         return None
@@ -890,9 +597,8 @@ def hyperparameter_orders_plot(moebius: list):
 
 
 def _trial_hovers(result, display_metric):
-    """Each trial as the configuration cube's hover reads it: its number, its
-    score, and its whole configuration — a point there is one configuration,
-    and in a projection its coordinates name none of its values."""
+    """The hover lists number, score and full configuration, since projected
+    coordinates name no values."""
     title = result.metric(display_metric).title
     return [f"Trial {t.trial}<br>{title} = {sigfigs(t.scores.get(display_metric))}<br>"
             + "<br>".join(f"{k} = {sigfigs(v)}" for k, v in sorted(t.config.items()))
@@ -900,44 +606,13 @@ def _trial_hovers(result, display_metric):
 
 
 def configuration_cube_plot(result, display_metric, config_space=None):
-    """Every trial as one point in hyperparameter space, colored by its
-    *display_metric* score — DeepCave's "Configuration Cube." Like DeepCave's,
-    the axes are two (or, client-side, three) actual hyperparameters rather
-    than a projection, so a position on an axis is a literal hyperparameter
-    value. (The MDS-projected view is DeepCave's separate *Footprint* plugin,
-    `deepcave/evaluators/footprint.py`; this is not a version of that.) What
-    does differ is the picker: dropdowns here, a checklist plus a
-    "how many configurations" slider there.
-
-    Nothing is on an axis until someone puts it there: all three pickers start
-    at None, and how many of them are filled is what decides whether this draws
-    nothing, a strip, a plane or a cube. Which hyperparameter belongs on which
-    axis is the question the figure exists to ask, and a server-chosen pair
-    answers it before it is asked — the first two in config-space order are
-    only "first" in the sense that something had to be.
-
-    So this ships the data without an axis assignment: every hyperparameter's
-    full per-trial values ride along on the trace's `customdata` (one row per
-    trial, columns in `layout.meta["hp_names"]` order) with `x`/`y` left empty,
-    and the client fills them from whichever columns are picked — no server
-    round trip per axis change (see experiment_detail.html's applyCubeAxes).
-    Self-contained in this one trace's own payload on purpose, so it works
-    regardless of whether the Trials figure (which also lists every
-    hyperparameter) is toggled on.
-
-    A hyperparameter the search treats logarithmically gets a logarithmic
-    axis, and since the axes are assigned in the browser the names go in
-    `layout.meta["log_hps"]` for `applyCubeAxes` to read. Without it, `C` on
-    the SVM model — sampled log-uniformly over 0.01 to 100 — puts three
-    quarters of its points in the bottom tenth of a linear axis, which hides
-    exactly the region the search spent its time in. DeepCAVE solves the same
-    problem by plotting the normalized value and relabelling the ticks; a log
-    axis keeps the tick values real numbers, which reads better and costs
-    nothing here.
-
-    Returns None with no trials or no hyperparameters. One is enough to draw:
-    a single axis is a real answer to "where did the search go", and refusing
-    it would leave a model with one hyperparameter with no cube at all.
+    """`configuration_cube_plot` draws each trial at its actual hyperparameter
+    values, coloured by score. The axis pickers start empty, and the trace
+    therefore ships every hyperparameter in `customdata` (columns in
+    `layout.meta["hp_names"]`) for the browser to assign axes (see
+    applyCubeAxes). Log-searched hyperparameters are listed in
+    `layout.meta["log_hps"]` for log axes. The function returns None with no
+    trials or hyperparameters, and one hyperparameter is enough.
     """
     trials = result.trials
     if not trials or not result.has_every_score(display_metric):
@@ -948,23 +623,15 @@ def configuration_cube_plot(result, display_metric, config_space=None):
     customdata = [[t.config.get(h) for h in hp_names] for t in trials]
     scores = [t.scores[display_metric] for t in trials]
     cube_marker = dict(size=8, color=scores, colorscale=_INTENSITY_SCALE,
-                       # Darker is better, whichever end of the metric that is.
-                       # The colour bar keeps the metric's own numbers; only
-                       # which end of the ramp they land on is reversed.
+                       # Darker is better; only the ramp direction flips.
                        reversescale=not result.metric(display_metric).higher_is_better,
                        showscale=True,
                        colorbar=dict(title=result.metric(display_metric).title),
-                       # Opaque, and each point ringed in the card's own colour.
-                       # Left to blend, two points that nearly overlap composite
-                       # into something darker than either — which on a scale
-                       # where darker means better is a trial that did not
-                       # happen. The ring makes an overlap read as two points
-                       # rather than as one good one. (`opacity` defaults to 1;
-                       # said out loud because it is load-bearing here rather
-                       # than incidental.)
+                       # Points are opaque and ringed in the card's colour,
+                       # since a blended overlap would look darker and read as a
+                       # better trial.
                        opacity=1, line=dict(width=1, color="#FFFFFF"))
-    # A failure's fill stays on the score scale — 0.0, the worst end, which is
-    # what it scored — and the cross over it says the number was never measured.
+    # A failure's fill sits at 0.0, the worst end, under its cross.
     cube_marker.update(_failure_marks(trials, size=8,
                                       failure_width=FAILURE_LINE_WIDTH_RINGED))
     fig = go.Figure(go.Scatter(
@@ -975,13 +642,9 @@ def configuration_cube_plot(result, display_metric, config_space=None):
     fig.update_layout(
         meta={"hp_names": hp_names,
               "log_hps": log_hyperparameters(config_space, hp_names),
-              # The selected trial drawn again on top, in the selection
-              # colour, rather than recoloured in place: the fill is the score
-              # here, so painting one point orange would lose the value it was
-              # carrying. A ring was the earlier answer and 3D has none — Plotly
-              # draws no marker outline in a scene — so it left the one view
-              # that most needs a landmark without one. The client adds the
-              # second trace, since it is the one assembling the coordinates.
+              # The client redraws the selected trial on top in the selection
+              # colour, since recolouring would hide the score and 3D scenes
+              # draw no rings.
               "selection": _selection_meta({0: range(len(trials))},
                                            style=OVERLAY, highlight=1)},
         margin=dict(t=20, b=40, l=40, r=20),
@@ -991,27 +654,11 @@ def configuration_cube_plot(result, display_metric, config_space=None):
 
 def configuration_projection_plot(result, display_metric, method,
                                   config_space=None):
-    """Every trial as one point in a projected configuration space.
-
-    The same operation the cube performs, over a larger set of candidates: both
-    keep two or three linear coordinates and drop the rest, but the cube is
-    restricted to the coordinate axes and this is not. What that buys is a
-    subspace chosen to lose as little as possible, on data standardised first —
-    so a distance between two points here approximates a real distance between
-    two configurations, which is what makes a cluster a cluster, while the
-    cube's mixes units and is not a distance at all. See `core.projection`,
-    which sets out where the two differ and where they do not.
-
-    Shaped exactly like the cube's payload, and for the same reason: the
-    coordinates ride in `customdata`, one column per component, with `x`/`y`
-    left empty and the client assembling two or three of them. One payload
-    therefore covers both dimensionalities with no round trip, and one piece of
-    client code draws all three of this figure's views (see
-    experiment_detail.html's applyCubeAxes).
-
-    Returns None when the projection has nothing to say — too few trials, or a
-    single hyperparameter — with the reason in `layout.meta["warning"]` of
-    nothing at all, since None is the figure's own empty state.
+    """`configuration_projection_plot` projects trials onto a standardised
+    subspace chosen to lose least, so distances approximate real ones (see
+    `core.projection`). Coordinates ride in `customdata` like the cube's, and
+    the client builds two or three of them. The function returns None when the
+    projection fails, with too few trials or a single hyperparameter.
     """
     trials = result.trials
     if not trials or not result.has_every_score(display_metric):
@@ -1023,17 +670,11 @@ def configuration_projection_plot(result, display_metric, method,
     coordinates, labels = fitted.coordinates, fitted.labels
 
     marker = dict(size=8, color=scores, colorscale=_INTENSITY_SCALE,
-                  # See the cube: darker is better in either direction.
+                  # Same ramp as the cube.
                   reversescale=not result.metric(display_metric).higher_is_better,
                   showscale=True,
                   colorbar=dict(title=result.metric(display_metric).title),
-                  # Opaque, and each point ringed in the card's own colour.
-                  # Left to blend, two points that nearly overlap composite
-                  # into something darker than either — which on a scale where
-                  # darker means better is a trial that did not happen. The
-                  # ring makes an overlap read as two points rather than as
-                  # one good one. (`opacity` defaults to 1; said out loud
-                  # because it is load-bearing here rather than incidental.)
+                  # Opaque and ringed for the same reason as the cube.
                   opacity=1, line=dict(width=1, color="#FFFFFF"))
     marker.update(_failure_marks(trials, size=8,
                                  failure_width=FAILURE_LINE_WIDTH_RINGED))
@@ -1044,14 +685,10 @@ def configuration_projection_plot(result, display_metric, method,
     ))
     fig.update_layout(
         meta={"components": labels,
-              # No log axes: a principal component is a combination of
-              # hyperparameters and has no units to be logarithmic in. The
-              # scaling that mattered happened before the projection, in
-              # `encode_configurations`.
+              # No log axes, since components have no units.
               "log_hps": [],
-              # The projection itself, so the page can place a configuration
-              # that is not a trial — a proposed next one — where a trial
-              # running it would land. See `core.projection.Fitted.linear_map`.
+              # The linear map lets the page place a proposed configuration (see
+              # `core.projection.Fitted.linear_map`).
               "map": fitted.linear_map(),
               "selection": _selection_meta({0: range(len(trials))},
                                            style=OVERLAY, highlight=1)},
@@ -1060,18 +697,13 @@ def configuration_projection_plot(result, display_metric, method,
     return fig
 
 
-#: How many value labels one parallel-coordinates axis carries. Enough to read
-#: a position off, few enough that they don't collide on a crowded figure.
+#: Value labels per axis.
 _PARCOORDS_TICKS = 5
 
 
 def _scale_color(scale, position: float) -> str:
-    """The colour at *position* (0-1) along a Plotly colourscale.
-
-    Plotly interpolates a colourscale itself when it is handed an array of
-    values, but a `go.Scatter` line takes one concrete colour — so with a trace
-    per trial (see parallel_coordinates_plot) the interpolation has to happen
-    here instead.
+    """A `go.Scatter` line takes one concrete colour, so per-trial traces
+    interpolate the scale here.
     """
     position = min(1.0, max(0.0, position))
     for (lo, low), (hi, high) in zip(scale, scale[1:]):
@@ -1082,37 +714,25 @@ def _scale_color(scale, position: float) -> str:
 
 
 def _mix(low: str, high: str, t: float) -> str:
-    """*low* and *high* as #rrggbb, mixed *t* of the way from one to the other."""
     a = [int(low[i:i + 2], 16) for i in (1, 3, 5)]
     b = [int(high[i:i + 2], 16) for i in (1, 3, 5)]
     return "#" + "".join(f"{round(x + (y - x) * t):02x}" for x, y in zip(a, b))
 
 
 def _axis_positions(values):
-    """*values* mapped onto 0-1, and the function that did it.
-
-    Every parallel-coordinates axis has its own units, so they are all drawn on
-    one 0-1 axis with their real numbers written beside them as ticks. A
-    hyperparameter the search never varied has no range to normalize against and
-    sits down the middle.
+    """Each axis maps onto 0-1 with its real values as ticks, and an unvaried
+    hyperparameter sits at 0.5.
     """
     lo, hi = min(values), max(values)
-    if hi == lo:
-        def place(_value):
-            return 0.5
-    else:
-        def place(value):
-            return (value - lo) / (hi - lo)
+    def place(value):
+        return 0.5 if hi == lo else (value - lo) / (hi - lo)
+
     return [place(v) for v in values], place
 
 
 def _dimension_ticks(dimension, place):
-    """`(position, label)` for one axis's value labels.
-
-    A recoded axis — log or categorical — already carries the tick positions and
-    the text to put on them, because the numbers plotted are not the numbers
-    meant; those are used as they are. A plain numeric axis gets evenly spaced
-    ticks over its own range.
+    """`_dimension_ticks` uses the ticks that log and categorical axes bring,
+    and gives plain numeric axes evenly spaced ones.
     """
     if "tickvals" in dimension:
         return [(place(v), t)
@@ -1125,24 +745,18 @@ def _dimension_ticks(dimension, place):
             for i in range(_PARCOORDS_TICKS)]
 
 
-#: Points drawn along each span between two neighbouring axes. A polyline with
-#: one point per axis can only be clicked within a few pixels of an axis, and the
-#: whole middle of every span — most of the line — hits nothing.
+#: `_PARCOORDS_STEPS` adds points along each span, so a click anywhere on a line
+#: lands.
 _PARCOORDS_STEPS = 4
 
 
 def _densified_length(n_dimensions: int) -> int:
-    """How many points one trial's polyline carries. See `_densified`."""
     return _PARCOORDS_STEPS * (n_dimensions - 1) + 1 if n_dimensions > 1 else 1
 
 
 def _densified(values):
-    """One trial's polyline as `(x, y)`, with points along each span.
-
-    The line itself is unchanged — the extra points sit on the straight segment
-    between two axes — but they are what a click can land on. Every polyline is
-    the same length, which is what lets the selection contract turn a flat point
-    index back into a trial by dividing (see `_selection_meta`'s `segment`).
+    """The extra points sit on the straight segments, and equal lengths let
+    `_selection_meta`'s `segment` map a point index to a trial.
     """
     if len(values) < 2:
         return [0], list(values)
@@ -1158,50 +772,12 @@ def _densified(values):
 
 
 def parallel_coordinates_plot(result, display_metric, config_space=None):
-    """Every trial as one line across its hyperparameters, ending at its
-    *display_metric* score — DeepCave's best tool for spotting hyperparameter
-    interactions at a glance: a cluster of high-scoring lines that all bend
-    through the same region of one axis says that axis matters.
-
-    Axes are ordered by HyperSHAP tunability (most important first, the same
-    "most important first" convention the importance bar/interactions heatmap
-    already use) rather than DeepCave's own fANOVA ordering — this app's
-    explanations are HyperSHAP's throughout, so the ordering should be too.
-    Falls back to config order (unordered) when importance isn't available
-    for this metric (e.g. HyperSHAP failed, or a result predating Phase 1a).
-
-    **Drawn from scatter traces rather than `go.Parcoords`.** A trial is
-    selectable here, like it is on every other figure that draws all of them,
-    and the selected trial's line is thicker and drawn over the rest. Parcoords
-    emits no click, has no per-line width and no way to reorder what sits on
-    top, so none of that is reachable through it. What it costs is Parcoords'
-    own two gifts: dragging an axis to reorder it, and dragging along one to
-    filter the lines through it. One trace per trial, since a Scatter line takes
-    a single colour and colouring by score is the point of the figure.
-
-    A non-numeric hyperparameter (categorical, or boolean — bool is a numeric
-    subtype in Python, but "True"/"False" reads better as a category than as
-    0/1 here) is recoded to its sorted-unique values' integer position, with
-    the original values written on the ticks.
-
-    A hyperparameter searched logarithmically is recoded too, for a different
-    reason: every axis here shares one 0-1 scale, so `C` on the SVM model —
-    sampled log-uniformly over 0.01 to 100 — would pack three quarters of its
-    lines into the bottom tenth of its axis, which is the opposite of what this
-    figure is for. Its values go on as `log10` and the ticks are relabelled with
-    the native numbers. This is what DeepCAVE does throughout
-    (`run.get_encoded_data` plus `get_hyperparameter_ticks`); here it is
-    confined to the axes that need it, so every linear axis keeps showing its
-    own values directly.
-
-    **A trial that failed is not drawn.** It has no measured score to end its
-    line at, and drawing it at the placeholder would run a line to the floor of
-    the score axis across every other line on the way. So the line count here is
-    the number of trials that produced a measurement, not the number that ran —
-    which is why the figures that *can* mark a point without being redrawn
-    around it are the ones that show them.
-
-    Returns None with no trials, and with no trial that succeeded.
+    """`parallel_coordinates_plot` draws each trial as a line across its
+    hyperparameters ending at its score. Axes follow HyperSHAP tunability, else
+    config order. Scatter traces replace `go.Parcoords`, which offers no click,
+    line width or z-order, and categorical and log-searched axes are recoded
+    with native tick labels. Failed trials are left out, and the function
+    returns None when no trial succeeded.
     """
     trials = result.trials
     if not trials or not result.has_every_score(display_metric):
@@ -1242,22 +818,14 @@ def parallel_coordinates_plot(result, display_metric, config_space=None):
         columns.append(placed)
         shapes.append(dict(type="line", x0=x, x1=x, y0=0, y1=1,
                            line=dict(color="rgba(140,140,140,0.55)", width=1)))
-        # Offset in pixels, not in axis units: the tick sits beside its axis at
-        # any width, and the annotation's own x stays the axis it belongs to.
+        # A pixel offset keeps the tick beside its axis at any width.
         ticks.extend(dict(x=x, y=y, text=text, showarrow=False, xshift=-5,
                           xanchor="right", font=dict(size=9, color="#6b6b6b"))
                      for y, text in _dimension_ticks(dimension, place))
 
-    # Failures are left out. A line here is a claim that this configuration
-    # scored what the last axis says it scored, and a failed trial's score is a
-    # placeholder — so its line would run to the bottom of the score axis and
-    # cross every other line on the way, which is a lot of ink spent drawing
-    # something that was never measured. They are on Trial performance, the
-    # projection, the durations and the table, every one of which can mark a
-    # point without redrawing the figure around it.
-    #
-    # The colour scale is theirs too: anchored to a fabricated 0.0, every trial
-    # that did run would be squeezed into the top of it.
+    # Failures are left out, since a placeholder score would run a line across
+    # every other one and stretch the colour scale. Other figures mark failures
+    # without redrawing.
     live = [i for i in range(len(trials)) if not trials[i].failed]
     if not live:
         return None
@@ -1266,21 +834,15 @@ def parallel_coordinates_plot(result, display_metric, config_space=None):
     metric = result.metric(display_metric)
 
     def shade(score):
-        """How far along the ramp a score sits — 0 worst, 1 best.
-
-        Both the colour and the z-order below read this rather than the raw
-        score, so the two cannot disagree about which end is good. On a metric
-        where lower wins, the position is simply the other way round.
+        """`shade` gives the ramp position, 0 worst to 1 best, for both colour
+        and z-order.
         """
         along = (score - lo) / span
         return along if metric.higher_is_better else 1.0 - along
 
     fig = go.Figure()
-    # Worst first, so the best trials are added last and draw over the rest.
-    # Trace order is z-order and nothing can change it afterwards, so the
-    # ordering is a decision made here: with hundreds of lines crossing, the
-    # ones worth following are the ones that should be on top, and in trial
-    # order they were simply whichever ran latest.
+    # The worst trials are added first, so the best lines draw on top, since
+    # trace order is z-order.
     by_score = sorted(live, key=lambda i: shade(scores[i]))
     for i in by_score:
         trial = trials[i]
@@ -1289,16 +851,14 @@ def parallel_coordinates_plot(result, display_metric, config_space=None):
             x=x, y=y, mode="lines+markers",
             line=dict(color=_scale_color(_INTENSITY_SCALE, shade(scores[i])),
                       width=1.5),
-            # Invisible but present: a lines-only trace takes no clicks at all,
-            # and this is a figure you click.
+            # Near-invisible markers make the line clickable.
             marker=dict(size=5, opacity=0.01),
             name=_("Trial %(n)s") % {"n": trial.trial}, showlegend=False,
             hovertemplate=(_("Trial %(n)s") % {"n": trial.trial})
                           + f"<br>{display_metric} "
                           + f"{sigfigs(scores[i])}<extra></extra>",
         ))
-    # Nothing drawn, only a colour bar: with a colour per trace there is no
-    # array for Plotly to build one from, so one trace carries the scale.
+    # A markerless trace carries the colour bar.
     fig.add_trace(go.Scatter(
         x=[None, None], y=[None, None], mode="markers", showlegend=False,
         hoverinfo="skip",
@@ -1307,9 +867,7 @@ def parallel_coordinates_plot(result, display_metric, config_space=None):
                     showscale=True, opacity=0,
                     colorbar=dict(title=result.metric(display_metric).title)),
     ))
-    # Last, so it draws over every trial line. Empty until something is
-    # selected; the page fills it from whichever trial's trace (see
-    # experiment_detail.html's applySelection).
+    # The highlight trace comes last and the page fills it.
     fig.add_trace(go.Scatter(
         x=[], y=[], mode="lines", showlegend=False, hoverinfo="skip",
         line=dict(color=SELECTION_COLOR, width=4),
@@ -1321,40 +879,24 @@ def parallel_coordinates_plot(result, display_metric, config_space=None):
                    range=[-0.35, len(dimensions) - 0.65],
                    showgrid=False, zeroline=False, side="top"),
         yaxis=dict(visible=False, range=[-0.06, 1.06], fixedrange=True),
-        # Generous, because what is being aimed at is a line and the points that
-        # carry the click are invisible.
+        # Generous hover distance for invisible click points.
         hoverdistance=25,
-        # Trace order is score order, not trial order, so which trial a trace
-        # stands for has to be said rather than assumed.
+        # Trace order is score order, so each trace names its trial.
         meta={"selection": _selection_meta(
             {trace: [trial] for trace, trial in enumerate(by_score)},
             style=LINE, segment=_densified_length(len(dimensions)),
-            # Which trace the highlight is drawn into — the one added last.
-            # Counted from what was drawn rather than from what was run: a
-            # failure contributes no trace, so `len(trials)` would point past
-            # the end and the highlight would be written into nothing.
+            # The highlight index counts drawn traces, since failures add none.
             highlight=len(by_score) + 1)},
     )
     return fig
 
 
 def partial_dependence_plot(hp_name, grid, ice_lines, pdp):
-    """DeepCave's PDP/ICE plot for one hyperparameter: every trial's
-    Individual Conditional Expectation curve (thin, translucent, batched
-    into one trace with `None`-separated segments so trial count doesn't
-    multiply the trace count) plus the bold Partial Dependence mean curve on
-    top — ICE lines that all move together say this hyperparameter doesn't
-    interact with anything else; ICE lines that fan out somewhere on the
-    grid say it does, right where they fan out.
-
-    x is *grid* on a categorical axis (`xaxis_type="category"`) even for a
-    numeric hyperparameter's evenly-spaced grid — visually identical for an
-    even grid, and it means a categorical hyperparameter's grid (strings)
-    never has to be handled as a special case here.
-
-    Returns None when *grid* is empty (too few trials to fit a surrogate, or
-    no valid configuration anywhere on the grid — see
-    BaseOptimizer.compute_partial_dependence).
+    """`partial_dependence_plot` draws every trial's ICE curve in one
+    `None`-separated trace, with the bold PD mean on top. The x axis is
+    categorical, which handles categorical grids with no special case. The
+    function returns None for an empty *grid* (see
+    core.analytics.compute_partial_dependence).
     """
     if not grid:
         return None
@@ -1381,73 +923,51 @@ def partial_dependence_plot(hp_name, grid, ice_lines, pdp):
     return fig
 
 
-#: Where a user prior is drawn, and the one colour on the page that means
-#: "something a person asserted" rather than "something the run measured".
-#:
-#: Amber because every other slot is taken by a claim about the data:
-#: ACCENT_COLOR is the best so far, MARKER_COLOR is a trial, NEGATIVE_COLOR is
-#: harm, UNCERTAINTY_SCALE is the surrogate's own doubt. A prior is none of
-#: those — it is an input, not a finding — so it gets a hue the palette does
-#: not otherwise use, and keeps it wherever priors appear.
+#: Amber marks what a person asserted, a hue no measured quantity uses, wherever
+#: priors appear.
 PRIOR_COLOR = "#B26315"
 
-#: The σ multiples the surrogate's band steps through, widest first so the
-#: narrower and darker ones draw over them.
+#: Band σ multiples, widest first so narrower bands draw over.
 SIGMA_STEPS = (3, 2, 1)
 _BAND_ALPHA = {3: 0.14, 2: 0.22, 1: 0.32}
 
-#: The implied curve gets one band rather than three, and a far fainter one.
-#: It is an inference about a surrogate nobody fitted — read off an acquisition
-#: function by inverting it — so giving it the stepped treatment the measured
-#: model's spread gets would lend it the same standing. It should read as a
-#: ghost of the curve above it.
+#: The implied curve gets one faint band, since it infers a surrogate nobody
+#: fitted.
 FICTION_SIGMA = 1
 _GHOST_ALPHA = 0.05
 
 
 def _rgba(hex_colour: str, alpha: float) -> str:
-    """`#RRGGBB` at *alpha*, because Plotly fills take a colour and an opacity
-    together and the palette is stored as hex."""
+    """`_rgba` converts hex palette colours to the rgba Plotly fills need."""
     h = hex_colour.lstrip("#")
     return "rgba({}, {}, {}, {})".format(*(int(h[i:i + 2], 16) for i in (0, 2, 4)), alpha)
 
 
-#: The top of the prior panel's y axis, above the 1 a belief peaks at. The
-#: browser holds the same number (`PRIOR_AXIS_TOP` in acquisition.js) because it
-#: converts pointer positions against it; the two must not drift.
+#: `PRIOR_AXIS_TOP` must match acquisition.js, which converts pointer positions
+#: against it.
 PRIOR_AXIS_TOP = 1.25
 
 
 def slice_span(positions, kind):
-    """The axis one hyperparameter's slice is drawn on, in vectorized space: the
-    unit interval for a number, and a half step either side of the choices for
-    a categorical. A prior's density is stated on this axis normalized to the
-    unit interval, so whatever evaluates one has to use the same span."""
+    """`slice_span` returns the unit interval for a number and half a step past
+    the choices for a categorical. Prior densities are normalized on the same
+    span."""
     if kind == "categorical":
         return [min(positions) - 0.5, max(positions) + 0.5]
     return [0.0, 1.0]
 
 
+def _trace_count(fig: go.Figure) -> int:
+    return len(cast(tuple, fig.data))
+
+
 def acquisition_slice_plots(hp_name, positions, labels, mu, sigma, metric_label,
                             eta=None, higher_is_better=True, kind="continuous",
                             incumbent=None, cloud=None):
-    """Three figures over one hyperparameter — not three panels of one figure.
-
-    Separate figures so each can carry its own controls directly beneath it: the
-    distribution and decay pickers belong under the prior, not in a bar at the
-    top of a card that also holds two other pictures. That is the whole reason
-    for the split, and it costs the shared x axis — which is recovered by
-    construction here, since all three are given the same `span`, the same
-    ticks, and the same `positions`.
-
-    Returns `(figures, meta)`. `figures` is keyed `acquisition`, `prior`,
-    `surrogate`, in the order they are read. `meta` is shared and carries the
-    data every figure is drawn from plus, per figure, which trace index holds
-    what — the browser fills the traces that depend on a stated prior, and
-    addresses them through that map rather than by counting.
-
-    Returns `(None, None)` when *positions* is empty: too few trials to fit a
-    surrogate, or no valid configuration along the slice.
+    """`acquisition_slice_plots` returns three separate figures so each carries
+    its own controls, and they share span, ticks and positions to keep one x
+    axis. `meta` holds the data and each figure's trace indices, which the
+    browser fills. The function returns `(None, None)` for empty *positions*.
     """
     if not positions:
         return None, None
@@ -1455,8 +975,7 @@ def acquisition_slice_plots(hp_name, positions, labels, mu, sigma, metric_label,
     blank = [None] * len(positions)
     traces = {"acquisition": {}, "prior": {}, "surrogate": {}}
 
-    # Tick *indices*, so a label is looked up by position rather than by
-    # searching `positions` for a float that came out of it.
+    # Tick indices, so labels come by position.
     span = slice_span(positions, kind)
     if kind == "categorical":
         shown = range(len(positions))
@@ -1466,14 +985,8 @@ def acquisition_slice_plots(hp_name, positions, labels, mu, sigma, metric_label,
     text = [sigfigs(labels[i]) for i in shown]
 
     def _dress(fig, *, title, height, show_x_title=False):
-        """What every one of the three shares: a pinned axis and no modebar.
-
-        *height* None for the two that are figures of their own on the page:
-        they fill whatever their slot leaves under their controls.
-
-        Pinned because the only interaction this figure offers is the prior
-        drag, hand-rolled on the prior figure's drag layer. Plotly's own zoom
-        and pan would be a second, accidental one.
+        """Axes are pinned because the prior drag is the only interaction, and a
+        *height* of None lets a figure fill its slot.
         """
         fig.update_xaxes(range=span, fixedrange=True, tickvals=ticks,
                          ticktext=text, showticklabels=True)
@@ -1482,10 +995,8 @@ def acquisition_slice_plots(hp_name, positions, labels, mu, sigma, metric_label,
         fig.update_yaxes(fixedrange=True, title_text=title)
         fig.update_layout(
             dragmode=False, hovermode="x unified", height=height,
-            # Room at the top for the legend, which sits above the plot rather
-            # than inside it. Floated over the top-right corner it covered the
-            # curves at their most interesting — a sharp prior peaks near the
-            # top, which is exactly where the legend was.
+            # A top margin keeps the legend above the plot, clear of a sharp
+            # prior's peak.
             margin=dict(t=44, b=42 if show_x_title else 24, l=64, r=24),
             legend=dict(orientation="h", yanchor="bottom", y=1.02,
                         xanchor="right", x=1, borderwidth=0,
@@ -1493,83 +1004,57 @@ def acquisition_slice_plots(hp_name, positions, labels, mu, sigma, metric_label,
         )
         return fig
 
-    # ── what would be tried next ─────────────────────────────────────────────
+    # ── acquisition ──
     acquisition = go.Figure()
-    # What the slice cannot see. The curve below holds every hyperparameter but
-    # one at the incumbent's value; SMAC's maximizer moves all of them, and the
-    # first thing it does is score a large random sample of the whole space.
-    #
-    # Named for what it is, not what it approximates: a maximum over a sample is
-    # a slack lower bound on the true profile maximum. Measured on a
-    # four-hyperparameter Gaussian-process run, going from 2,000 samples to
-    # 50,000 moved it from 0.17 to 0.34 and it never approached the slice's own
-    # peak of 1.0.
+    # The sampled envelope shows what the slice misses, since SMAC's maximizer
+    # scores a random sample of the whole space. A maximum over a sample is a
+    # slack lower bound, and 50,000 samples instead of 2,000 moved it only from
+    # 0.17 to 0.34.
     if cloud is not None:
-        # The unweighted twin first, so the weighted curve draws over it rather
-        # than under. Dashed and unfilled: it is what the sampled envelope
-        # looked like before the prior, and the gap between the two is what the
-        # reader's statement actually did to the space the search looks at.
-        # Empty until a prior is stated, where it would lie exactly under the
-        # curve below and say nothing.
-        traces["acquisition"]["cloudBare"] = len(acquisition.data)
+        # The unweighted twin draws first, dotted, so the gap to the weighted
+        # curve shows what the prior did. The browser leaves the twin empty
+        # until a prior is stated.
+        traces["acquisition"]["cloudBare"] = _trace_count(acquisition)
         acquisition.add_trace(go.Scatter(
             x=positions, y=list(blank), mode="lines", connectgaps=False,
             name=_("Best sampled, unweighted"), hoverinfo="skip",
             line=dict(width=1.2, color=MARKER_COLOR, dash="dot")))
-        traces["acquisition"]["cloud"] = len(acquisition.data)
+        traces["acquisition"]["cloud"] = _trace_count(acquisition)
         acquisition.add_trace(go.Scatter(
             x=positions, y=list(blank), mode="lines", connectgaps=False,
             name=_("Best sampled, weighted"), hoverinfo="skip",
             line=dict(width=1.2, color=MARKER_COLOR), fill="tozeroy",
             fillcolor=_rgba(MARKER_COLOR, 0.10)))
 
-    # Both through one divisor in the browser, with the weight normalized to its
-    # own peak first. Only the ranking of an acquisition function means
-    # anything, so that constant is free — and it is what lets the curves be
-    # read against each other instead of each filling the panel on its own.
-    traces["acquisition"]["acquisition"] = len(acquisition.data)
+    # The browser scales both curves by one divisor, since only an acquisition
+    # function's ranking matters.
+    traces["acquisition"]["acquisition"] = _trace_count(acquisition)
     acquisition.add_trace(go.Scatter(
         x=positions, y=list(blank), mode="lines", name=_("Acquisition"),
         hoverinfo="skip", line=dict(width=1.4, color=MARKER_COLOR, dash="dash")))
-    traces["acquisition"]["weighted"] = len(acquisition.data)
+    traces["acquisition"]["weighted"] = _trace_count(acquisition)
     acquisition.add_trace(go.Scatter(
         x=positions, y=list(blank), mode="lines", name=_("Weighted by the prior"),
         hoverinfo="skip", line=dict(width=2.5, color=PRIOR_COLOR)))
-    # The one configuration on this line that was measured. The slice holds
-    # every other hyperparameter at the incumbent's value, so the curve passes
-    # through exactly this point and nothing else on the grid is an observation
-    # — which is why the other trials are not marked: they are not on this line.
-    #
-    # Filled by the browser, and only while the slice curves are shown: it is a
-    # point *on* them, and left drawn beside a hidden curve it would mark a line
-    # that is not there. Its height is an acquisition value, computed where the
-    # curves are, rather than the incumbent's score — that belongs to a
-    # different axis.
-    traces["acquisition"]["incumbent"] = len(acquisition.data)
+    # Other trials go unmarked because the incumbent is the one measured
+    # configuration on the slice curve. The browser fills the marker only while
+    # the slice curves show, at an acquisition height.
+    traces["acquisition"]["incumbent"] = _trace_count(acquisition)
     acquisition.add_trace(go.Scatter(
         x=[], y=[], mode="markers", name=_("Incumbent"),
         marker=dict(size=9, color=MARKER_COLOR,
                     line=dict(width=1.5, color="#FFFFFF")),
         hovertemplate=_("Incumbent") + "<extra></extra>"))
-    # What the optimizer would ask for next, as a rug along the top rather than
-    # at a height.
-    #
-    # A height would have to be an acquisition value, and the figure computes
-    # those in the browser while the *rank* comes from the search itself. The
-    # two disagree in the last few percent, which is enough to reorder
-    # candidates sitting within a fraction of a percent of each other — and then
-    # the marker for "this one runs next" sits on visibly not-the-tallest point
-    # and reads as a bug. Position and rank are both honest; a height is not.
+    # Candidates sit as a rug along the top, since browser-computed heights can
+    # disagree with the search's ranking and misplace the "next" marker.
     _RUG_Y = 1.03
-    #: A marker's width on the axis, which is what decides whether two
-    #: candidates can be told apart at all. The browser converts it to axis
-    #: units against the panel it actually got, and merges anything closer.
+    #: The browser converts `_MARKER_PX` to axis units and merges candidates
+    #: within one marker width.
     _MARKER_PX = 13
-    traces["acquisition"]["candidates"] = len(acquisition.data)
+    traces["acquisition"]["candidates"] = _trace_count(acquisition)
     acquisition.add_trace(go.Scatter(
-        # One trace, one appearance. Ranking them by eye was the job the height
-        # was doing, and the height had to go; a second marker style would only
-        # bring the same claim back in another form.
+        # Candidates share one trace and one style, since a second style would
+        # reintroduce ranking by eye.
         x=[], y=[], mode="markers+text", name=_("Optimizer's Candidate"),
         customdata=[], text=[], textposition="top center",
         textfont=dict(size=10, color=ACCENT_COLOR),
@@ -1579,55 +1064,37 @@ def acquisition_slice_plots(hp_name, positions, labels, mu, sigma, metric_label,
 
     _dress(acquisition, title=_("Acquisition"), height=None)
     acquisition.update_yaxes(range=[0, 1.12])
-    # Every curve on this panel skips the hover, so "x unified" was only ever
-    # rendering the candidate markers — and rendering them as a combined box
-    # pinned to the cursor's x, which a tall entry pushes off the edge of the
-    # figure. Anchored to the marker instead, Plotly flips the label to keep it
-    # in view, which is the whole complaint.
+    # The hover label sits on the marker, since "x unified" pushed tall labels
+    # off the figure.
     acquisition.update_layout(
         hovermode="closest",
         hoverlabel=dict(align="left", font=dict(size=11),
                         bgcolor="rgba(255, 255, 255, 0.96)",
                         bordercolor=_rgba(ACCENT_COLOR, 0.5)))
 
-    # ── what you believe ─────────────────────────────────────────────────────
+    # ── prior ──
     prior = go.Figure()
-    # Log axis, because a sharp density spans orders of magnitude and a linear
-    # panel would show a spike on a flat floor; on a log axis the decay exponent
-    # is a plain vertical squash toward the neutral line. A tabulated prior
-    # switches this to linear in the browser — see `applyPriorAxis`.
-    traces["prior"]["prior"] = len(prior.data)
+    traces["prior"]["prior"] = _trace_count(prior)
     prior.add_trace(go.Scatter(
         x=positions, y=list(blank), mode="lines", name=_("Prior"), fill="tozeroy",
         fillcolor=_rgba(PRIOR_COLOR, 0.13), line=dict(width=2, color=PRIOR_COLOR),
         hovertemplate="%{y:.3g}<extra></extra>"))
-    # The control points of a tabulated prior — a density given by its values
-    # rather than by parameters. The one trace whose x moves, because a point is
-    # dragged along the axis as well as up it. A categorical uses the same
-    # editor with its points pinned to the choice indices.
-    traces["prior"]["priorPoints"] = len(prior.data)
+    # The tabulated prior's control points form the one trace whose x moves when
+    # dragged. For a categorical prior the points stay on choice indices.
+    traces["prior"]["priorPoints"] = _trace_count(prior)
     prior.add_trace(go.Scatter(
         x=[], y=[], mode="markers", name=_("Control points"), showlegend=False,
         marker=dict(size=9, color=PRIOR_COLOR, line=dict(width=1.5, color="#FFFFFF")),
         hovertemplate="%{y:.3g}<extra></extra>"))
     _dress(prior, title=_("Prior"), height=None)
-    # Linear and pinned. The curve is peak-normalized in the browser, so every
-    # shape shares one axis and the scale never moves under the reader — see
-    # `applyPriorAxis`.
-    # Headroom above the strongest a belief can be stated. 1.06 was enough to
-    # keep a knot at full height from being clipped and no more, which put a
-    # uniform prior — a flat line at 1 — within a few pixels of the top edge,
-    # where it reads as the frame rather than as a curve. The panel then looked
-    # empty until a shape was chosen, which is the opposite of what a resting
-    # state should say. `PRIOR_AXIS_TOP` in acquisition.js is the same number.
+    # The prior axis is linear and pinned at `PRIOR_AXIS_TOP`, since the curve
+    # is peak-normalized. The headroom keeps a uniform prior's flat line at 1
+    # clear of the top edge.
     prior.update_yaxes(type="linear", range=[0, PRIOR_AXIS_TOP], autorange=False)
 
-    # ── what the run measured ────────────────────────────────────────────────
+    # ── surrogate ──
     surrogate = go.Figure()
-    # Nested bands rather than a single ±2σ ribbon. One ribbon says "somewhere
-    # in here" and nothing about where the mass sits; three say it at a glance,
-    # on the σ multiples a reader already thinks in. Widest first, so the
-    # narrower and darker ones draw over them.
+    # Three nested σ bands show where the mass sits, drawn widest first.
     for k in SIGMA_STEPS:
         surrogate.add_trace(go.Scatter(
             x=positions, y=[m - k * sd for m, sd in zip(mu, sigma)], mode="lines",
@@ -1641,10 +1108,7 @@ def acquisition_slice_plots(hp_name, positions, labels, mu, sigma, metric_label,
         line=dict(width=2.5, color=ACCENT_COLOR),
         hovertemplate="%{y:.4g}<extra></extra>"))
 
-    # The one configuration on this line that was measured. The slice holds
-    # every other hyperparameter at the incumbent's value, so it passes through
-    # exactly this point and nothing else on the grid is an observation — which
-    # is why the other trials are not marked: they are not on this line.
+    # The incumbent is the one measured point on this slice.
     if incumbent is not None:
         surrogate.add_trace(go.Scatter(
             x=[incumbent[0]], y=[incumbent[1]], mode="markers", name=_("Incumbent"),
@@ -1652,16 +1116,9 @@ def acquisition_slice_plots(hp_name, positions, labels, mu, sigma, metric_label,
                         line=dict(width=1.5, color="#FFFFFF")),
             hovertemplate=_("Incumbent") + ": %{y:.4g}<extra></extra>"))
 
-    # The fiction — the surrogate that would have produced the weighted
-    # acquisition on its own — with one faint band rather than the measured
-    # model's three. It is an inference about a surrogate nobody fitted, so
-    # stepping it the same way would lend it the same standing.
-    #
-    # `connectgaps=False` matters here and nowhere else: the inversion returns
-    # nothing where a prior claims more improvement than any finite mean could
-    # justify, and bridging that gap would draw a plateau the function
-    # deliberately refuses to invent.
-    lo = len(surrogate.data)
+    # The implied surrogate gets one faint band. `connectgaps=False` keeps gaps
+    # where the prior claims more improvement than any finite mean allows.
+    lo = _trace_count(surrogate)
     surrogate.add_trace(go.Scatter(
         x=positions, y=list(blank), mode="lines", hoverinfo="skip",
         line=dict(width=0), connectgaps=False, showlegend=False))
@@ -1670,7 +1127,7 @@ def acquisition_slice_plots(hp_name, positions, labels, mu, sigma, metric_label,
         line=dict(width=0), fill="tonexty", fillcolor=_rgba(PRIOR_COLOR, _GHOST_ALPHA),
         connectgaps=False, showlegend=False))
     traces["surrogate"]["fictionBand"] = [lo, lo + 1]
-    traces["surrogate"]["fiction"] = len(surrogate.data)
+    traces["surrogate"]["fiction"] = _trace_count(surrogate)
     surrogate.add_trace(go.Scatter(
         x=positions, y=list(blank), mode="lines", name=_("Implied by the prior"),
         hoverinfo="skip", connectgaps=False,
@@ -1680,16 +1137,13 @@ def acquisition_slice_plots(hp_name, positions, labels, mu, sigma, metric_label,
     meta = {
         "traces": traces, "sigmas": list(SIGMA_STEPS), "fictionSigma": FICTION_SIGMA,
         "rugY": _RUG_Y, "markerPx": _MARKER_PX,
-        # The sample itself, not an acquisition value: the browser owns that
-        # arithmetic, so it computes expected improvement with the same function
-        # it uses for the curve rather than a second one that would have to
-        # agree with it forever.
+        # The browser receives the raw sample and computes expected improvement
+        # with its curve function.
         "cloud": ({"positions": cloud[0], "mu": cloud[1], "sigma": cloud[2]}
                   if cloud is not None else None),
         "positions": list(positions), "mu": list(mu), "sigma": list(sigma),
-        # Where the measured configuration sits on this axis. The score beside
-        # it is what the surrogate panel used; the acquisition panel takes only
-        # the position and finds its own height.
+        # The acquisition panel uses only the position, and the surrogate panel
+        # uses the score.
         "incumbent": list(incumbent) if incumbent is not None else None,
         "eta": eta, "higherIsBetter": bool(higher_is_better),
         "span": span, "kind": kind, "hp": hp_name,
@@ -1698,25 +1152,11 @@ def acquisition_slice_plots(hp_name, positions, labels, mu, sigma, metric_label,
 
 
 def local_effects_plot(hp_names: list, rows: list):
-    """Beeswarm of every sampled trial's local ablation: one row per
-    hyperparameter, one point per trial, placed by what that hyperparameter's
-    value did for that trial against the config-space default.
-
-    The one view that shows *spread*. Every other explanation on this page is a
-    single number per hyperparameter — an average over the run, or one trial's.
-    Neither can distinguish a hyperparameter that reliably helps by a little
-    from one that helps enormously in half the space and hurts in the other,
-    and those call for opposite decisions.
-
-    Rows are ordered by spread, widest first, because a wide row is the
-    interesting finding here — the opposite of the "biggest average first"
-    ordering the other views use, and deliberately so.
-
-    Points are jittered vertically, deterministically by position within the
-    row, so overlapping values stay countable. Colour follows sign, matching
-    the waterfall.
-
-    Returns None when there is nothing to plot.
+    """`local_effects_plot` draws every sampled trial's local ablation as a
+    beeswarm, one row per hyperparameter, to show spread that averages hide.
+    Rows are ordered by spread with the widest on top, points get deterministic
+    jitter, and colour follows sign. The function returns None with nothing to
+    plot.
     """
     if not hp_names or not rows:
         return None
@@ -1730,9 +1170,7 @@ def local_effects_plot(hp_names: list, rows: list):
     fig = go.Figure()
     for index, name in enumerate(ordered):
         values = [row["effects"].get(name, 0.0) for row in rows]
-        # Deterministic jitter: a random one would make the figure move between
-        # reloads for no information, and these are already sampled evenly
-        # through the run so position carries nothing.
+        # Deterministic jitter keeps the figure stable across reloads.
         offsets = [((i % 7) - 3) / 18.0 for i in range(len(values))]
         fig.add_trace(go.Scatter(
             x=values, y=[index + o for o in offsets], mode="markers",
@@ -1743,10 +1181,7 @@ def local_effects_plot(hp_names: list, rows: list):
             hoverinfo="text", showlegend=False,
         ))
     fig.add_vline(x=0, line=dict(color="rgba(140,140,140,0.6)", width=1))
-    # A rule between rows. The points are jittered vertically so that
-    # overlapping values stay countable, which without a divider leaves a
-    # scatter whose rows have to be told apart by the tick labels alone —
-    # exactly where a wide row (the interesting finding here) is widest.
+    # Rules between rows separate the jittered points.
     for index in range(1, len(ordered)):
         fig.add_hline(y=index - 0.5,
                       line=dict(color="rgba(140,140,140,0.25)", width=1))
@@ -1754,11 +1189,8 @@ def local_effects_plot(hp_names: list, rows: list):
         xaxis_title=_("Effect vs. default  (left: hurt, right: helped)"),
         yaxis=dict(tickmode="array", tickvals=list(range(len(ordered))), ticktext=ordered),
         margin=dict(t=20, b=40, l=110, r=20), showlegend=False,
-        # One trace per row, and the selected trial has a point in every one of
-        # them — reading a hyperparameter's effect for a trial means finding
-        # that trial on each row, which is exactly what the highlight saves you
-        # doing by eye. The rows are a sample, so which trial each point belongs
-        # to has to be carried rather than inferred from its position.
+        # Each row is a trace holding the selected trial too, and the sampled
+        # points carry their trial indices.
         meta={"selection": _selection_meta(
             {i: [row["index"] for row in rows] for i in range(len(ordered))},
             style=OUTLINE)},
@@ -1767,20 +1199,13 @@ def local_effects_plot(hp_names: list, rows: list):
 
 
 def trial_duration_plot(result):
-    """Bar of each trial's evaluation duration (seconds). Metric-independent.
-
-    A trial that failed is tinted rather than crossed. Its duration is a real
-    measurement whatever happened to its score — and often the interesting one,
-    since a crash is usually fast and a timeout is by definition the longest bar
-    on the figure.
-
-    Returns None when there are no trials.
+    """`trial_duration_plot` tints failed trials, since a duration stays real
+    when the score is missing, and returns None with no trials.
     """
     trials = result.trials
     if not trials:
         return None
-    # Tinted rather than crossed: a bar is a fill, and a length is still a
-    # length — a failed trial really did take that long to fail.
+    # Bars are fills, and failures therefore get a tint.
     fig = go.Figure(go.Bar(
         x=[t.trial for t in trials], y=[t.duration for t in trials],
         marker_color=[FAILURE_FILL if t.failed else MARKER_COLOR for t in trials],
@@ -1795,20 +1220,10 @@ def trial_duration_plot(result):
 
 
 def forecast_plot(times, actual, backtests, target="", series="", labels=False):
-    """The series, and what one configuration forecast at every backtest.
-
-    *times* and *actual* are the series in time order; *backtests* is one
-    ``(times, forecast)`` pair per backtest, each a horizon's worth of steps
-    after its origin. The actual series is the line every forecast is read
-    against, so it is drawn plain and first, each forecast over it in the
-    accent colour with its own points — a forecast is a handful of steps, and
-    its points are what was scored.
-
-    With *labels* — a classification forecast — the axis is the labels, the
-    actual series steps between them, and a forecast is its points alone: a
-    line between two labels would claim something in between.
-
-    Returns None when there is nothing to draw.
+    """`forecast_plot` draws the actual series plain and first, then each
+    backtest's forecast in the accent colour with its scored points. With
+    *labels*, the axis is categorical and forecasts are points only, since a
+    line between labels would claim values between them.
     """
     if len(actual) == 0:
         return None

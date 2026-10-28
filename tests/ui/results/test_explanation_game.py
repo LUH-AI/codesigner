@@ -1,13 +1,6 @@
-"""One explanation game, chosen once, answered by every HyperSHAP figure.
-
-The game selector used to live inside the importance figure and move only that
-figure. Every interaction figure read tunability whatever it said — so reading
-the importance figure under sensitivity beside the heatmap under tunability was
-comparing two different questions and looking like one answer.
-
-It is now a sidebar section, and all three games' interactions and Möbius terms
-are stored. That costs storage and no time at all: `compute_hp_games` always
-computed the three, and for a long time two were discarded for want of a field.
+"""One sidebar selector picks the explanation game for every HyperSHAP figure.
+The result stores all three games' interactions and Möbius terms, which
+`compute_hp_games` computes anyway.
 """
 
 import json
@@ -16,12 +9,11 @@ from django.urls import reverse
 
 from core import io
 from ui.figures import FIGURES, HP_GAME_FIELDS, HP_GAME_LABELS
-from ui.services import snapshot as adapter
+from experiments.services import snapshot as adapter
 
 from tests.conftest import FIXTURES_DIR, export_ihpo
 
-#: In the selector's own order — mistunability is tunability's mirror, what
-#: there is to lose against what there is to gain, and the two read as a pair.
+#: Selector order, with tunability and its mirror mistunability paired.
 GAMES = ["tunability", "mistunability", "sensitivity"]
 
 
@@ -35,10 +27,8 @@ def _page(client, exp):
 
 
 def test_every_game_names_all_four_of_its_fields():
-    """A game is not only an importance. The same HyperSHAP call produces the
-    order-2 grid and the Möbius decomposition, and a figure reading any of them
-    reads the game the sidebar names — so the mapping has to be complete or a
-    figure silently falls back to tunability."""
+    """`HP_GAME_FIELDS` must name all four fields per game, since every figure
+    reads the game the sidebar names."""
     assert list(HP_GAME_FIELDS) == GAMES
     for game, fields in HP_GAME_FIELDS.items():
         assert set(fields) == {"importance", "warning", "interactions", "moebius"}
@@ -46,7 +36,6 @@ def test_every_game_names_all_four_of_its_fields():
 
 
 def test_the_selector_is_in_the_sidebar_and_not_in_any_figure(client):
-    """One choice about the experiment, not one per figure."""
     html = _page(client, _experiment())
     sidebar = html.split('<nav class="sidebar"', 1)[1].split("</nav>", 1)[0]
     content = html.split("<main", 1)[-1]
@@ -60,9 +49,8 @@ def test_the_selector_is_in_the_sidebar_and_not_in_any_figure(client):
 
 
 def test_the_interaction_figures_ship_a_payload_per_game(client):
-    """Switching game must not cost a round trip, so every game's numbers ride
-    along — the same "one payload per option" the view machinery already does
-    for the importance figure's renderings."""
+    """Switching game costs no round trip, because the page carries every game's
+    payload."""
     exp = _experiment()
     html = _page(client, exp)
     plots = json.loads(html.split('id="metric-plots-data"', 1)[1]
@@ -76,8 +64,6 @@ def test_the_interaction_figures_ship_a_payload_per_game(client):
 
 
 def test_the_other_two_games_carry_their_own_interactions(client):
-    """The point of the whole change: sensitivity's heatmap is sensitivity's,
-    not tunability's shown under another name."""
     exp = _experiment()
     html = _page(client, exp)
     plots = json.loads(html.split('id="metric-plots-data"', 1)[1]
@@ -93,8 +79,6 @@ def test_the_other_two_games_carry_their_own_interactions(client):
 
 
 def test_an_exported_file_carries_every_game(client):
-    """They are stored, so they survive a round trip — an experiment reopened
-    from its file answers the same three questions it did before."""
     exp = _experiment()
     body = json.loads(
         export_ihpo(client, exp.pk).content)
@@ -105,8 +89,8 @@ def test_an_exported_file_carries_every_game(client):
 
 
 def test_a_file_written_before_this_still_opens(client):
-    """Two of the six fields are absent from every .ihpo written earlier, which
-    has to read as "that game has no interactions" rather than as an error."""
+    """Older .ihpo files lack the sensitivity and mistunability fields, and the
+    page reads that as no interactions."""
     snapshot = io.parse((FIXTURES_DIR / "analytics.ihpo").read_bytes())
     for field in ("hyperparameter_sensitivity_interactions",
                   "hyperparameter_sensitivity_moebius",
@@ -125,8 +109,8 @@ def test_a_file_written_before_this_still_opens(client):
 
 
 def test_the_local_explanation_is_its_own_figure(client):
-    """It explains one trial rather than the search, and has no interactions to
-    give the five figures that read them — so it is not a fourth game."""
+    """`local_explanation` covers one trial and has no interactions, so it stays
+    a separate figure outside the game selector."""
     local = next(f for f in FIGURES if f.key == "local_explanation")
     html = _page(client, _experiment())
 
@@ -137,14 +121,8 @@ def test_the_local_explanation_is_its_own_figure(client):
 
 
 def test_the_projection_opens_on_pls(client):
-    """It answers the question the page is actually about — which directions
-    through this space moved the metric — where axes needs three decisions
-    before it says anything at all.
-
-    Declared twice, in the catalog and in the markup, because the page has to
-    open on the view its selector claims to be on: a selector saying one thing
-    beside a figure drawing another is the desync `readViewSelectors` exists to
-    prevent, and this is where it would come from.
+    """`configuration_cube` declares PLS in the catalog and in the markup, so
+    the selector names the view the figure draws.
     """
     from ui.figures import FIGURES_BY_KEY
 

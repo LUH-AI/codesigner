@@ -1,15 +1,14 @@
-"""Random forest: scikit-learn's, classifying or regressing."""
+"""`random_forest` wraps scikit-learn's RandomForest."""
 
 from ConfigSpace import ConfigurationSpace, Float, Integer
+from codesigner_model import OutputBaseModel
 
-from .base import OutputBaseModel, Tunable
+from .base import Tunable
 
 
 class RandomForest(OutputBaseModel):
-    """scikit-learn's random forest. Trees take a missing value as it is and
-    compare numbers only with themselves, so nothing is filled in or scaled; a
-    label column is one-hot, since a split on its code would group labels by
-    their alphabetical order."""
+    """Label columns arrive one-hot, since a split on codes would group labels
+    alphabetically."""
 
     name = "Random Forest"
     tasks = ("classification", "regression")
@@ -22,8 +21,8 @@ class RandomForest(OutputBaseModel):
         model = forest(
             n_estimators=int(hyperparameters["n_estimators"]),
             max_depth=int(hyperparameters["max_depth"]),
-            min_samples_split=float(hyperparameters["min_samples_split"]),
-            max_features=float(hyperparameters["max_features"]),
+            min_samples_split=float(hyperparameters["min_samples_split"]),  # pyright: ignore[reportArgumentType]
+            max_features=float(hyperparameters["max_features"]),  # pyright: ignore[reportArgumentType]
             random_state=seed,
             n_jobs=-1,
         )
@@ -31,7 +30,6 @@ class RandomForest(OutputBaseModel):
 
 
 class RandomForestModel(Tunable, RandomForest):
-    """The random forest, tuned over a 4-parameter space."""
 
     def get_config_space(self, seed: int = 0) -> ConfigurationSpace:
         cs = ConfigurationSpace(seed=seed)

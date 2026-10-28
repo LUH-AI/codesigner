@@ -10,10 +10,10 @@ requires-python = ">=3.12"
 dynamic = ["dependencies"]
 
 # Flat layout: the importable packages are top-level directories, not a single
-# src package. Discover config/core/ui and their subpackages while excluding
+# src package. Discover the apps and their subpackages while excluding
 # datasets/, docs/, tests/ (which are not part of the distribution).
 [tool.setuptools.packages.find]
-include = ["config*", "core*", "ui*"]
+include = ["access*", "config*", "core*", "experiments*", "remote*", "ui*"]
 
 [tool.setuptools.dynamic]
 dependencies = { file = ["requirements.txt"] }
@@ -26,3 +26,12 @@ markers = [
     "slow: long-running tests (SMAC end-to-end); deselect with -m 'not slow'",
     "uv: needs uv installed; exercises real environment building. Skipped without it.",
 ]
+
+[tool.pyright]
+typeCheckingMode = "standard"
+pythonVersion = "3.12"
+venvPath = "."
+venv = ".venv"
+# codesigner_model is installed editable through an import hook, which a static
+# checker cannot follow.
+extraPaths = ["model_sdk"]

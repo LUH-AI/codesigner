@@ -1,9 +1,5 @@
-"""Judging a stated prior against the model, as "Evaluate Prior" does.
-
-`SMACOptimizer.evaluate_prior` rebuilds the facade, replays the trials and
-offers the prior to `add_prior` behind SMAC's `ClimbingComparisonPolicy`. These
-run it on a made-up objective whose optimum is known, so a good and a bad
-belief can be told apart without a stored run.
+"""`SMACOptimizer.evaluate_prior` judges priors here on a made-up objective
+whose optimum is known.
 """
 
 import random
@@ -18,14 +14,12 @@ pytest.importorskip(
     "smac.acquisition.weight", reason="needs the SMAC branch carrying the climbing comparison policy")
 from smac.acquisition.weight import ClimbingComparisonPolicy  # noqa: E402
 
-#: Where the made-up objective peaks along `x0`, the hyperparameter the priors
-#: here are about. The others peak at 0.4 and matter less.
+#: Peak of the made-up objective along `x0`.
 OPTIMUM = 0.7
 
 
 def _trials(dims, n=30):
-    """*n* trials of an accuracy that peaks at `x0` = OPTIMUM, over *dims*
-    hyperparameters, so a belief about `x0` alone leaves the rest open."""
+    """`_trials` builds *n* trials whose accuracy peaks at `x0` = OPTIMUM."""
     space = ConfigurationSpace(seed=0)
     space.add([Float(f"x{i}", (0.0, 1.0)) for i in range(dims)])
     noise = random.Random(3)
@@ -52,11 +46,8 @@ def _judge(space, trials, mu, **kwargs):
 
 @pytest.mark.parametrize("dims", [2, 4])
 def test_a_belief_at_the_optimum_is_accepted(dims):
-    """*What:* a correct belief about one hyperparameter passes, however many
-    others it leaves open — the case the old mean comparison refused.
-
-    *How:* a Normal at the made-up objective's optimum, over two and four
-    hyperparameters."""
+    """A correct belief about `x0` passes however many other hyperparameters it
+    leaves open."""
     space, trials = _trials(dims)
 
     assert _judge(space, trials, OPTIMUM)["verdict"] == "accepted"
@@ -64,21 +55,14 @@ def test_a_belief_at_the_optimum_is_accepted(dims):
 
 @pytest.mark.parametrize("dims", [2, 4])
 def test_a_belief_far_from_the_optimum_is_refused(dims):
-    """*What:* a belief pointing where the objective is far worse is refused.
-
-    *How:* a Normal at 0.05, where the made-up accuracy is about 0.85 below
-    its peak — far past the default tolerance."""
     space, trials = _trials(dims)
 
     assert _judge(space, trials, 0.05)["verdict"] == "rejected"
 
 
 def test_top_k_reaches_the_policy(monkeypatch):
-    """*What:* the top k asked for is the one SMAC climbs from, the policy
-    draws per hyperparameter rather than a fixed count, and the incumbent's
-    neighbourhood is as wide as the belief, as DynaBO draws it.
-
-    *How:* the policy's constructor wrapped to record what it was given."""
+    """`evaluate_prior` passes top k, per-hyperparameter sampling and a
+    prior-wide neighbourhood to `ClimbingComparisonPolicy`."""
     seen = {}
     original = ClimbingComparisonPolicy.__init__
 
@@ -97,11 +81,8 @@ def test_top_k_reaches_the_policy(monkeypatch):
 
 
 def test_a_check_that_compared_nothing_is_not_an_approval(monkeypatch):
-    """*What:* when the policy has nothing to compare it accepts, as SMAC
-    requires, and that must reach the page as "unjudged", not "accepted".
-
-    *How:* the policy's comparison made to find nothing, as it does with no
-    model or no incumbent."""
+    """`evaluate_prior` reports "unjudged" when the policy comparison finds
+    nothing."""
     monkeypatch.setattr(ClimbingComparisonPolicy, "compare", lambda self, *a, **k: None)
     space, trials = _trials(2)
 
@@ -109,9 +90,6 @@ def test_a_check_that_compared_nothing_is_not_an_approval(monkeypatch):
 
 
 def test_no_trials_is_not_judged():
-    """*What:* before any trial there is no model, so nothing is judged.
-
-    *How:* the same belief offered with an empty history."""
     space, _trials_unused = _trials(2)
 
     assert _judge(space, [], OPTIMUM)["verdict"] == "unjudged"

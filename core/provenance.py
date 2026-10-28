@@ -1,31 +1,11 @@
-"""What an `.ihpo` records about how its experiment was made.
+"""`provenance` computes the `.ihpo` sections around the optimizer: data, model,
+evaluation, search setup and run history. The sections are additive, so older
+and newer builds open each other's files.
 
-An `.ihpo` is meant to be a superset of SMAC's own output — and for SMAC's own
-files it already was: `result` mirrors the runhistory and `result.optimizer_state`
-embeds `intensifier.json`, `optimization.json`, `scenario.json` and
-`configspace.json` verbatim. What was missing is everything *around* the
-optimizer: which data, which model, how a trial was evaluated, what the search
-was actually configured to do, and what happened over the runs that got the
-experiment to where it is.
-
-This module computes those sections. They are additive — every key that existed
-before is untouched and in the same place, so a file written today opens in an
-older build and a file written by an older build opens here.
-
-**Fingerprints, not contents.** The dataset and the model are recorded by
-SHA-256, not embedded. The file stays a record rather than an archive, and the
-digest does work: attaching a dataset that disagrees with it is refused, so an
-experiment cannot quietly be resumed against different data and have the new
-trials compared with the old. The cost is that a custom-model `.ihpo` needs its
-`.py` supplied alongside.
-
-**One seed.** `seed` stays a single top-level field because that is what it is:
-`Experiment.seed` drives the split, the config-space sampler, SMAC's scenario
-(which fans it out to the surrogate, maximizer, initial design, random design
-and intensifier), `fit_predict` and the importance computation. One source of
-randomness for the whole experiment is what makes it reproducible from
-(dataset, seed, setup), and splitting it across sections would suggest
-otherwise.
+The dataset and model are recorded by SHA-256 fingerprint, and a custom-model
+`.ihpo` therefore needs its `.py` supplied alongside. `seed` stays one top-level
+field because one seed drives the split, the sampler, the SMAC scenario,
+`fit_predict` and the importance computation.
 """
 
 from __future__ import annotations
@@ -39,14 +19,11 @@ from typing import Any, Dict, Optional
 from .splits import MIN_FOLDS
 from .tasks import CLASSIFICATION
 
-#: Read in blocks rather than whole: a dataset is not always small, and the
-#: digest is computed on every export.
+#: Blocks, since exports digest datasets of any size.
 _DIGEST_BLOCK = 1 << 20
 
-#: The libraries a result depends on for its numbers. Recorded so a file that
-#: reproduces differently later can be told apart from one that reproduces
-#: differently *here* — a surrogate's defaults are its version's defaults, and
-#: an unset setting means whichever ones these had.
+#: Library versions explain a result that later reproduces differently, since
+#: surrogate defaults follow the version.
 _TRACKED_PACKAGES = ("smac", "scikit-learn", "ConfigSpace", "numpy", "pandas",
                      "scipy")
 
@@ -59,7 +36,7 @@ def _version(package: str) -> Optional[str]:
 
 
 def sha256(path) -> str:
-    """The digest of a file, or "" when there is no file to digest."""
+    """`sha256` returns an empty string for a missing file."""
     path = Path(path)
     if not path.is_file():
         return ""
@@ -68,11 +45,8 @@ def sha256(path) -> str:
 
 
 def sha256_stream(fh) -> str:
-    """The digest of an open file, read from the start and rewound after.
-
-    An upload arrives as a stream rather than a path, and whoever handed it over
-    still has to be able to save it — so this leaves the position where it found
-    it rather than at the end.
+    """`sha256_stream` restores the stream position so the uploader can still
+    save the upload.
     """
     where = fh.tell() if hasattr(fh, "tell") else None
     if hasattr(fh, "seek"):
@@ -86,12 +60,9 @@ def sha256_stream(fh) -> str:
 
 
 def dataset_fingerprint(path, frame=None) -> Dict[str, Any]:
-    """What the dataset was, without the dataset.
-
-    Enough to recognise it — the digest — and enough to read the record without
-    it: how many rows and columns, what they were called, and which one was the
-    target. *frame* is the already-loaded (X, y) if the caller has it, so an
-    export does not read the file twice.
+    """`dataset_fingerprint` records the digest, shape, column names and target,
+    so the record reads without the file. *frame* spares an export a second
+    read.
     """
     path = Path(path)
     record: Dict[str, Any] = {
@@ -107,10 +78,10 @@ def dataset_fingerprint(path, frame=None) -> Dict[str, Any]:
     import pandas as pd
 
     from .columns import infer_kinds
-    from .io import _read_csv
+    from .datasets import read_dataset
 
     try:
-        df = _read_csv(path) if frame is None else frame
+        df = read_dataset(path) if frame is None else frame
     except Exception:  # noqa: BLE001 — an unreadable file still gets its digest
         return record
     if not isinstance(df, pd.DataFrame) or df.empty:
@@ -121,10 +92,9 @@ def dataset_fingerprint(path, frame=None) -> Dict[str, Any]:
         "rows": int(len(df)),
         "columns": int(len(names)),
         "column_names": names,
-        # The last column is the target, everywhere in this application.
+        # The last column is the target app-wide.
         "target_column": names[-1] if names else None,
-        # How each feature was read — a number, a label, a date — which decides
-        # what the model was given for it (`core.encoding`).
+        # Each feature's kind decides what the model received (`core.encoding`).
         "column_kinds": infer_kinds(df.iloc[:, :-1]),
     })
     return record
@@ -132,15 +102,9 @@ def dataset_fingerprint(path, frame=None) -> Dict[str, Any]:
 
 def model_fingerprint(model_name: str, model_path: str, env_meta=None,
                       kind: str = "") -> Dict[str, Any]:
-    """Which model, and what it needed to run.
-
-    A registry model is named and nothing else — it ships with the application,
-    so its version is the application's. An uploaded one is a file, and what
-    matters about it is its digest and the environment that was locked for it.
-    A run imported from somebody else's output has neither, and *kind* is how
-    the caller says so: deriving it from `model_path` alone can only tell those
-    first two apart, and would relabel an imported run as a registry model it
-    would then fail to resolve.
+    """A registry model records only its name, and an uploaded one its digest
+    and locked environment. The caller passes *kind* for an imported run, which
+    `model_path` alone would mislabel as a registry model.
     """
     env_meta = env_meta or {}
     if not model_path:
@@ -158,37 +122,28 @@ def model_fingerprint(model_name: str, model_path: str, env_meta=None,
     }
 
 
-def evaluation(cv_folds: int, y=None, test_size: float = None,
+def evaluation(cv_folds: int, y=None, test_size: Optional[float] = None,
                task: str = CLASSIFICATION, time_column: str = "",
                gap: int = 0, horizon: int = 0, series_column: str = "",
                season: int = 0) -> Dict[str, Any]:
-    """How a trial was evaluated — fixed for the experiment's life.
+    """`evaluation` records how trials were scored, fixed for the experiment's
+    life. *time_column* and *gap* describe a time-ordered split, and a forecast
+    adds *horizon*, *series_column* and *season* with one backtest per fold.
 
-    *time_column* names the column the rows were divided in time order by
-    (`core.splits.time_holdout`), and *gap* how many rows were left between
-    training and validation; such a division is never stratified.
-    A forecast also records its *horizon*, the *series_column* naming each
-    row's series, and the *season* length; its folds are backtests
-    (`core.splits.backtest`), one per fold, and its gap counts time steps.
-
-    `stratified` is *resolved*, not intended. Both schemes ask for stratification
-    and fall back to a plain division when scikit-learn refuses the target,
-    which in practice means a continuous one; recording the request rather than
-    the outcome would put a claim in the file that the run did not honour. It is
-    left null when the target was not to hand. A regression split is never
-    stratified, so it is false whether or not the target is.
+    `stratified` records the outcome, because both schemes fall back to a plain
+    split when scikit-learn refuses the target. The field is null when the
+    target was unavailable and always False for time-ordered or regression
+    splits.
     """
     folds = int(cv_folds or 0)
     forecast = bool(horizon) and bool(time_column)
     if forecast:
-        # Backtests, however many: one is as much a backtest as five.
+        # One backtest still counts as a backtest.
         folds = max(folds, 1)
     return {
         "scheme": "backtest" if forecast else "kfold" if folds >= MIN_FOLDS else "holdout",
         "folds": folds if forecast or folds >= MIN_FOLDS else None,
-        # Null under cross-validation and backtests, where nothing is held out
-        # by share — recording one there would describe a split the run never
-        # made.
+        # Null where nothing is held out by share.
         "test_size": (None if forecast or folds >= MIN_FOLDS
                       else float(test_size or 0.2)),
         "stratified": (False if task != CLASSIFICATION or time_column
@@ -196,8 +151,7 @@ def evaluation(cv_folds: int, y=None, test_size: float = None,
         "task": task,
         "time_column": time_column or None,
         "gap": int(gap or 0) if time_column else None,
-        # Null for anything but a forecast, like the two above for a division
-        # that ignores time.
+        # Null except for a forecast.
         "horizon": int(horizon) if forecast else None,
         "series_column": (series_column or None) if forecast else None,
         "season": (int(season or 0) or None) if forecast else None,
@@ -205,7 +159,6 @@ def evaluation(cv_folds: int, y=None, test_size: float = None,
 
 
 def _stratifiable(y) -> bool:
-    """Whether scikit-learn will stratify on this target."""
     try:
         from sklearn.model_selection import train_test_split
 
@@ -216,7 +169,6 @@ def _stratifiable(y) -> bool:
 
 
 def environment() -> Dict[str, Any]:
-    """What produced the numbers in this file."""
     return {
         "codesigner": _version("codesigner"),
         "python": sys.version.split()[0],
@@ -225,19 +177,10 @@ def environment() -> Dict[str, Any]:
 
 
 def dataset_mismatch(recorded, actual: str) -> str:
-    """Why *actual* is not the digest this file records, or "" if it is.
-
-    Refusing is the point of recording the digest. An experiment resumed against
-    different data would go on adding trials to a history they cannot be
-    compared with, and nothing downstream — not the incumbent, not the
-    surrogate, not the importance — has any way to notice: every trial would
-    look exactly as valid as the ones before it.
-
-    Two things are deliberately *not* refusals. A file with no fingerprint —
-    anything exported before this existed — has nothing to disagree with. And a
-    file imported without a dataset at all is browsable and not runnable, which
-    is the case this has always supported; the check happens when one is
-    attached, which is the moment it could start to matter.
+    """`dataset_mismatch` refuses because trials on different data would join an
+    incomparable history and nothing downstream would notice. A file without a
+    fingerprint, or imported without a dataset, passes; the check runs when a
+    dataset is attached.
     """
     expected = (recorded or {}).get("sha256")
     if not expected or not actual or actual == expected:

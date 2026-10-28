@@ -1,56 +1,36 @@
-"""Shared per-trial timing for optimizers.
-
-`timed_evaluation` wraps a single trial's model evaluation and produces the
-nine SMAC-native runhistory fields, so every optimizer records the same shape
-whether or not it has its own timing. An optimizer opts in by wrapping its
-`model.train_evaluate(...)` call and passing the resulting dict to
-`TrialCollector.record(run_info=...)`; it is not required to.
+"""`evaluate_trial` wraps every trial in `timed_evaluation`, so all optimizers
+record SMAC's nine runhistory fields.
 """
 
 import time
 from contextlib import contextmanager
 
-# The per-trial fields, matching SMAC's runhistory data entries. Single source
-# of truth for both the builder here and the (de)serializer in base.py.
 RUN_INFO_KEYS = (
     "instance", "seed", "budget", "time", "cpu_time",
     "status", "starttime", "endtime", "additional_info",
 )
 
-# SMAC's StatusType values as stored ints (base stays SMAC-import-free). A
-# trial that failed is still recorded — with the reason in additional_info —
-# because "this configuration does not work" is a real result for a search.
+# The ints copy SMAC's `StatusType`, keeping base.py free of SMAC imports.
 STATUS_SUCCESS = 1
 STATUS_CRASHED = 2
 STATUS_TIMEOUT = 3
 
-#: Not a status: a marker in `run_info` saying this attempt was abandoned rather
-#: than measured, read by `TrialCollector.record`, which then records nothing.
-#:
-#: Deliberately not a fourth `STATUS_` int. Those are SMAC's `StatusType` values
-#: and `smac_optimizer` passes them straight to `StatusType(...)`, whose members
-#: are only RUNNING/SUCCESS/CRASHED/TIMEOUT/MEMORYOUT — a number of our own
-#: would raise there. Deliberately outside `RUN_INFO_KEYS` too, so it cannot
-#: reach a file even if some future caller does record the trial.
+#: `CANCELLED` marks an abandoned attempt in `run_info`, and
+#: `TrialCollector.record` drops the attempt. `CANCELLED` stays outside the
+#: `STATUS_` ints because `smac_optimizer` passes those to `StatusType`, which
+#: would raise on a new value.
 CANCELLED = "cancelled"
 
-#: Where `evaluate_trial` hands back the model its last fold fitted, when asked
-#: to keep it. Never stored: `TrialCollector.record` takes it out of the trial's
-#: run info before the trial is recorded (see ui/services/trial_models.py).
+#: `evaluate_trial` returns the last fold's model under `FITTED` when asked to
+#: keep it, and `TrialCollector.record` removes it before recording.
 FITTED = "_fitted"
 
-_STATUS_SUCCESS = STATUS_SUCCESS  # retained: base.py's serializer imports it
 
 
 @contextmanager
 def timed_evaluation(seed, budget=None, instance=None):
-    """Measure one trial evaluation; yield a dict filled on exit.
-
-    `time` is the monotonic wall-clock duration (perf_counter); `cpu_time` is
-    this thread's CPU time (isolating it from other concurrent runs, though it
-    undercounts BLAS worker threads); `starttime`/`endtime` are POSIX
-    timestamps. `instance`/`budget` are None for our single-instance,
-    non-multi-fidelity runs.
+    """`time` is perf_counter wall time, and `cpu_time` is the calling thread's
+    CPU time, which undercounts BLAS workers.
     """
     run_info = {}
     starttime = time.time()
@@ -65,7 +45,7 @@ def timed_evaluation(seed, budget=None, instance=None):
             "budget": budget,
             "time": time.perf_counter() - perf0,
             "cpu_time": time.thread_time() - cpu0,
-            "status": _STATUS_SUCCESS,
+            "status": STATUS_SUCCESS,
             "starttime": starttime,
             "endtime": time.time(),
             "additional_info": {},

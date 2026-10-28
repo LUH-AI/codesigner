@@ -1,13 +1,9 @@
-"""Contract for custom-model loading and dataset/model discovery (core/io.py).
-
-load_model_from_path executes a user .py file and returns a BaseModel instance
-(or a plain-English error); demo_datasets / mounted_models surface the files
-available as sources.
+"""`io.load_model_from_path` loads a user's model file.
 """
 
 import textwrap
 
-from core import io
+from core import datasets, io
 
 from tests.conftest import DATASETS_DIR
 
@@ -27,7 +23,6 @@ _VALID_MODEL = textwrap.dedent("""
 
 
 def test_load_model_from_path_valid(tmp_path):
-    """A valid BaseModel subclass file loads to an instance carrying its name."""
     f = tmp_path / "mymodel.py"
     f.write_text(_VALID_MODEL, encoding="utf-8")
     model, err = io.load_model_from_path(str(f))
@@ -48,7 +43,7 @@ def test_load_model_from_path_no_subclass(tmp_path):
 
 
 def test_load_model_from_path_missing_abstract_methods(tmp_path):
-    """A subclass missing an abstract method reports which methods are missing."""
+    """`load_model_from_path` reports each missing method."""
     f = tmp_path / "incomplete.py"
     f.write_text(textwrap.dedent("""
         from core.models import BaseModel
@@ -63,15 +58,15 @@ def test_load_model_from_path_missing_abstract_methods(tmp_path):
 
 
 def test_demo_datasets_includes_bundled_csvs():
-    """demo_datasets() surfaces the bundled iris/wine CSVs as {stem: path}."""
+    """Bundled CSVs appear as {stem: path}."""
     from pathlib import Path
-    demos = io.demo_datasets()
+    demos = datasets.demo_datasets()
     assert {"iris", "wine"} <= set(demos)
     assert all(Path(p).is_file() for p in demos.values())
 
 
 def test_mounted_models_returns_stem_path_dict():
-    """mounted_models() returns a {stem: path} dict of .py files it scans."""
-    mounts = io.mounted_models()
+    """Mounted `.py` files appear as {stem: path}."""
+    mounts = datasets.mounted_models()
     assert isinstance(mounts, dict)
     assert all(p.endswith(".py") for p in mounts.values())

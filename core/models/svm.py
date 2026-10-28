@@ -1,21 +1,16 @@
-"""Support vector machine: scikit-learn's, classifying or regressing."""
+"""`SVM` wraps scikit-learn's SVMs."""
+
+from typing import Any
 
 from ConfigSpace import Categorical, ConfigurationSpace, Float, Integer
+from codesigner_model import OutputBaseModel
 
-from .base import OutputBaseModel, Tunable
+from .base import Tunable
 
 
 class SVM(OutputBaseModel):
-    """scikit-learn's support vector machine: `SVC` for classification, `SVR`
-    for regression. It refuses gaps and measures distances, so its columns are
-    filled in and scaled first.
-
-    An SVM has no probabilities of its own: asked for them, it fits an internal
-    five-fold Platt calibration on top, which costs several times what the
-    plain fit costs, so `build` adds it only when ``data["probabilities"]``
-    says they will be asked for. A calibrated SVC's labels can disagree with
-    the argmax of its own probabilities; they are the labels that go with
-    those probabilities, which is what a trial scoring both needs.
+    """`build` wraps `SVC` in five-fold sigmoid calibration only when
+    ``data["probabilities"]`` is set, since calibrating costs several fits.
     """
 
     name = "SVM"
@@ -26,9 +21,10 @@ class SVM(OutputBaseModel):
     costly_probabilities = True
 
     def build(self, hyperparameters, data, seed=0):
+        from sklearn.calibration import CalibratedClassifierCV
         from sklearn.svm import SVC, SVR
 
-        shared = dict(
+        shared: dict[str, Any] = dict(
             C=float(hyperparameters["C"]),
             kernel=hyperparameters["kernel"],
             gamma=hyperparameters["gamma"],
@@ -39,16 +35,15 @@ class SVM(OutputBaseModel):
         if self.task == "regression":
             svm = SVR(epsilon=float(hyperparameters.get("epsilon", 0.1)), **shared)
         else:
-            svm = SVC(random_state=seed, probability=bool(data.get("probabilities")), **shared)
+            svm = SVC(random_state=seed, **shared)
+            if data.get("probabilities"):
+                svm = CalibratedClassifierCV(svm, ensemble=False)  # pyright: ignore[reportArgumentType]
         return svm
 
 
 class SVMModel(Tunable, SVM):
-    """The SVM, tuned over its kernel and penalties; for a regression also the
-    width of its insensitive tube."""
 
-    #: What it was called while it could only classify, which every `.ihpo`
-    #: written then still says.
+    #: The name in `.ihpo` files from before SVM regression.
     aliases = ("SVM Classifier",)
 
     def get_config_space(self, seed: int = 0) -> ConfigurationSpace:

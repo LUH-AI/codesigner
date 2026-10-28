@@ -1,10 +1,5 @@
-"""The configuration cube's prediction layer: what the surrogate makes of the
-whole search space, drawn under the trials.
-
-One request per metric (`surrogate_prediction`) returns an even sample of the
-space with its predictions and its place in every view, so the page switches
-view, dimensions and axes without asking again. Uses the test2.ihpo fixture
-(Random Forest, Random Search, 30 trials).
+"""One `surrogate_prediction` request per metric gives the page a sample with
+predictions and positions for every view.
 """
 
 import json
@@ -12,13 +7,13 @@ import json
 from django.urls import reverse
 
 from core import io
-from ui.services import snapshot as adapter
+from experiments.services import snapshot as adapter
 
 from tests.conftest import FIXTURES_DIR
 
 
 def _experiment(fixture="test2.ihpo"):
-    """An experiment read from a stored .ihpo, as the import page would create it."""
+    """`_experiment` imports an experiment from a stored .ihpo."""
     return adapter.experiment_from_snapshot(io.parse((FIXTURES_DIR / fixture).read_bytes()))
 
 
@@ -27,12 +22,9 @@ def _layer(client, exp, metric="accuracy"):
 
 
 def test_one_answer_carries_every_view(client):
-    """The sample comes back with its hyperparameter values and its place in
-    both projections, at every dimensionality, outlines included.
-
-    Expect: one row of values, one mean and one spread per sample; PCA and PLS
-    coordinates for every sample; an outline for one, two and three
-    components; and the best observed score for expected improvement.
+    """The prediction layer gives every sample its values, mean and spread, plus
+    PCA and PLS coordinates. Each projection carries outlines for one to three
+    components, and `eta` holds the best score.
     """
     data = _layer(client, _experiment()).json()
 
@@ -47,8 +39,8 @@ def test_one_answer_carries_every_view(client):
 
 
 def test_a_search_with_no_model_offers_no_acquisition(client):
-    """Random search fits no model of the objective, so it has no acquisition
-    function: the answer says so, and the page takes the option away."""
+    """The page drops the acquisition option because random search fits no
+    model."""
     assert _layer(client, _experiment()).json()["acquisition"] is False
 
 
@@ -57,9 +49,8 @@ def test_rejects_an_unknown_metric(client):
 
 
 def test_the_cube_offers_the_layer_and_every_dimensionality(client):
-    """A function selector on the cube, at the acquisition as the page is
-    served with None beside it, and a 1D option for the projections beside 2D
-    and 3D."""
+    """The layer selector opens on the acquisition, and the projections offer
+    one, two or three dimensions."""
     html = client.get(reverse("ui:experiment_detail", args=[_experiment().pk])).content.decode()
     layer = html.split('id="cube-layer"', 1)[1].split("</select>", 1)[0]
     dimensions = html.split('id="cube-dimensions"', 1)[1].split("</select>", 1)[0]
@@ -71,10 +62,8 @@ def test_the_cube_offers_the_layer_and_every_dimensionality(client):
 
 
 def test_the_layer_opens_on_its_default_whatever_a_reload_restored(client):
-    """A browser restores a select across a reload. The page puts the layer
-    back on the acquisition as a field — or on None where the acquisition
-    figure's settings say to wait to be asked — rather than open on whatever
-    was last looked at. Asserted on the page script."""
+    """The page script resets the layer on load, overriding the browser's
+    restored select value."""
     html = client.get(reverse("ui:experiment_detail", args=[_experiment().pk])).content.decode()
     assert ('layerSelect.value = autocompute.acquisition_slice === false ? "" : "acquisition";'
             in html)
@@ -82,14 +71,10 @@ def test_the_layer_opens_on_its_default_whatever_a_reload_restored(client):
 
 
 def test_the_layer_waits_for_a_run_to_end(client):
-    """While a run adds trials every poll would mean a new sample, so the
-    layer's selectors are served disabled and the page is told a run is going,
-    which keeps every computed figure from fetching on its own.
-
-    Setup: test2.ihpo with a run marked as running.
-    Expect: both selectors disabled and the page's running flag set.
+    """A running run would resample every poll, so the layer selectors render
+    disabled and the page's running flag is set.
     """
-    from ui.models import Run
+    from experiments.models import Run
 
     exp = _experiment()
     Run.objects.create(experiment=exp, stopping={"max_trials": 3}, primary_metric="accuracy",
@@ -110,14 +95,8 @@ def test_a_finished_run_leaves_the_layer_enabled(client):
 
 
 def test_a_stated_prior_comes_with_the_layer_as_a_weight(client):
-    """Each stated prior arrives as its density over the acquisition figure's
-    grid and the exponent its decay has reached, with every sample's vectorized
-    position beside it — everything the page needs to weight the acquisition,
-    and to keep weighting it as the prior is edited, without a second request.
-
-    Setup: test2.ihpo with a Normal prior on max_features at 0.3.
-    Expect: the prior keyed by its hyperparameter, its density peaking at the
-    grid point nearest 0.3, a positive exponent, and one vector per sample.
+    """The payload gives each prior's density over the acquisition grid and
+    decay exponent, plus every sample's vector, for reweighting during edits.
     """
     exp = _experiment()
     exp.data.priors = {"max_features": {"kind": "normal",
@@ -138,8 +117,6 @@ def test_no_prior_means_no_weight(client):
 
 
 def test_a_search_with_no_model_proposes_nothing(client):
-    """Random search cannot be asked what it would run next: the endpoint says
-    so rather than failing, and the cube offers no Next Trials for it."""
     exp = _experiment()
     data = client.get(reverse("ui:next_trials", args=[exp.pk])).json()
     html = client.get(reverse("ui:experiment_detail", args=[exp.pk])).content.decode()
@@ -149,9 +126,8 @@ def test_a_search_with_no_model_proposes_nothing(client):
 
 
 def test_a_model_based_search_offers_next_trials_on_the_cube(client):
-    """An optimizer that can be asked gets the cube's Next Trials checkbox with
-    a Requery button, served unticked and disabled: nothing is asked for until
-    the box is ticked."""
+    """Nothing is asked until the Next Trials box is ticked, because the box
+    renders unticked and Requery disabled."""
     exp = _experiment()
     exp.data.optimizer_name = "SMAC"
     exp.data.save(update_fields=["optimizer_name"])
@@ -164,13 +140,8 @@ def test_a_model_based_search_offers_next_trials_on_the_cube(client):
 
 
 def test_both_figures_carry_one_pair_of_next_trials_controls(client):
-    """The acquisition figure and the cube ask the same question, so their
-    controls are the same controls: both marked for the one script that keeps
-    them in step, both asking the same endpoint.
-
-    Setup: test2.ihpo as a SMAC experiment.
-    Expect: two checkboxes and two Requery buttons, both checkboxes pointing at
-    next_trials, and that script loaded once.
+    """The acquisition figure and the cube use one pair of controls, which one
+    script loaded once keeps in step.
     """
     exp = _experiment()
     exp.data.optimizer_name = "SMAC"
@@ -185,12 +156,12 @@ def test_both_figures_carry_one_pair_of_next_trials_controls(client):
 
 
 def test_proposals_can_be_anchored_at_a_hyperparameter(client, monkeypatch):
-    """The acquisition figure asks with its hyperparameter, whose prior the
-    trial budget is anchored at; the cube asks without one."""
-    from ui import views
+    """The acquisition figure sends its hyperparameter as the anchor, and the
+    cube sends none."""
+    from ui.views import priors
 
     anchors = []
-    monkeypatch.setattr(views, "_next_trials",
+    monkeypatch.setattr(priors, "_next_trials",
                         lambda exp, anchor_hp=None: anchors.append(anchor_hp))
     exp = _experiment()
     url = reverse("ui:next_trials", args=[exp.pk])
@@ -201,8 +172,8 @@ def test_proposals_can_be_anchored_at_a_hyperparameter(client, monkeypatch):
 
 
 def test_the_projection_payload_carries_its_linear_map(client):
-    """The cube's own projection views carry the map that places a proposed
-    configuration, so candidates can be drawn whether or not a layer is on."""
+    """The projection views carry the linear map that places candidates without
+    a layer."""
     exp = _experiment()
     plots = client.get(reverse("ui:metric_figures", args=[exp.pk]) + "?metric=accuracy").json()
     for view in ("pca", "pls"):
@@ -211,32 +182,27 @@ def test_the_projection_payload_carries_its_linear_map(client):
 
 
 def test_the_two_figures_share_one_fit_and_one_sample(client, monkeypatch):
-    """The acquisition figure and the configuration cube read the same sample of
-    the space through the same fitted model, so whichever asks second costs no
-    fit and no prediction.
-
-    Setup: count surrogate fits and samplings.
-    Action: ask for the acquisition slice, then the cube's prediction layer, for
-    the same metric.
-    Expect: one fit and one sample between them.
+    """Both figures read one sample through one fitted surrogate, so the second
+    request costs no fit.
     """
+    from core import analytics
     from core.optimizers.base import BaseOptimizer
-    from ui import views
+    from ui.views import priors
 
-    views._SLICE_SURROGATES.clear()
+    priors._SLICE_SURROGATES.clear()
     fits, samples = [], []
-    fit, sample = BaseOptimizer.slice_surrogate, BaseOptimizer.sample_prediction_space
+    fit, sample = BaseOptimizer.slice_surrogate, analytics.sample_prediction_space
 
     def counted_fit(self, *args, **kwargs):
         fits.append(1)
         return fit(self, *args, **kwargs)
 
-    def counted_sample(self, *args, **kwargs):
+    def counted_sample(*args, **kwargs):
         samples.append(1)
-        return sample(self, *args, **kwargs)
+        return sample(*args, **kwargs)
 
     monkeypatch.setattr(BaseOptimizer, "slice_surrogate", counted_fit)
-    monkeypatch.setattr(BaseOptimizer, "sample_prediction_space", counted_sample)
+    monkeypatch.setattr(analytics, "sample_prediction_space", counted_sample)
 
     exp = _experiment()
     slice_url = reverse("ui:acquisition_slice", args=[exp.pk]) + "?metric=accuracy&hp=max_features"
@@ -248,11 +214,9 @@ def test_the_two_figures_share_one_fit_and_one_sample(client, monkeypatch):
 
 
 def test_the_acquisition_cloud_is_the_shared_sample(client):
-    """The acquisition figure's cloud is the cube's sample, read along one
-    hyperparameter: one point per sample where that hyperparameter is active."""
-    from ui import views
+    from ui.views import priors
 
-    views._SLICE_SURROGATES.clear()
+    priors._SLICE_SURROGATES.clear()
     exp = _experiment()
     sample = _layer(client, exp).json()
     column = sample["hp_names"].index("max_features")
@@ -265,13 +229,12 @@ def test_the_acquisition_cloud_is_the_shared_sample(client):
 
 
 def test_a_proposal_carries_its_place_on_every_axis():
-    """Each proposed configuration says where it sits on every hyperparameter's
-    vectorized axis, so either figure can place it on the axis it is drawing
-    without asking the optimizer again."""
+    """Each proposal carries its vectorized position on every axis, so either
+    figure can place it."""
     from ConfigSpace import Configuration
 
     from core.models import RandomForestModel
-    from ui.views import _candidate
+    from ui.views.priors import _candidate
 
     cs = RandomForestModel().get_config_space(seed=0)
     config = dict(cs.get_default_configuration())
@@ -284,8 +247,8 @@ def test_a_proposal_carries_its_place_on_every_axis():
 
 
 def test_a_trial_in_the_cube_says_its_configuration_on_hover(client):
-    """In a projection a point's coordinates name none of its values, so each
-    trial's hover carries its whole configuration and its score."""
+    """Each trial's hover carries its configuration and score, because
+    projection coordinates name no values."""
     exp = _experiment()
     plots = client.get(reverse("ui:metric_figures", args=[exp.pk]) + "?metric=accuracy").json()
     for view in ("axes", "pca", "pls"):
@@ -295,9 +258,8 @@ def test_a_trial_in_the_cube_says_its_configuration_on_hover(client):
 
 
 def test_the_layer_is_a_field_or_a_point_cloud(client):
-    """A selector under the function's, read "as", opening on the field. It
-    has no None of its own: with no function it has nothing to say, and the
-    page disables it — asserted on the page script."""
+    """The style selector opens on field, has no None, and is disabled without a
+    function."""
     html = client.get(reverse("ui:experiment_detail", args=[_experiment().pk])).content.decode()
     style = html.split('id="cube-layer-style"', 1)[1].split("</select>", 1)[0]
 
@@ -307,13 +269,8 @@ def test_the_layer_is_a_field_or_a_point_cloud(client):
 
 
 def test_the_cube_controls_read_as_columns(client):
-    """Method above "in" and its dimensions, function above "as" and its style,
-    Next Trials above Requery — in that order in a grid filled column by
-    column, so each pair shares a column.
-
-    Setup: test2.ihpo as a SMAC experiment, so Next Trials is offered.
-    Expect: the pairs in order in the cube's head, with "in" and "as" between
-    each pair's halves, and the method relabelled HP Space.
+    """The cube's head grid fills column by column, so method sits above
+    dimensions, function above style, and Next Trials above Requery.
     """
     exp = _experiment()
     exp.data.optimizer_name = "SMAC"
@@ -334,15 +291,10 @@ def test_the_cube_controls_read_as_columns(client):
 
 
 def test_the_layer_says_which_acquisition_function_the_run_used(client):
-    """The page computes the acquisition from the sample's mean and spread, so
-    it is told which function and margin the run maximized: SMAC's own setting,
-    and expected improvement for an optimizer that names none.
-
-    Setup: test.ihpo (SMAC) as stored, then with probability of improvement
-    and a margin.
-    Expect: each answer names the run's function and margin.
+    """The page computes the acquisition itself, so the endpoint names the run's
+    function and margin.
     """
-    from ui.services import snapshot as adapter
+    from experiments.services import snapshot as adapter
 
     exp = adapter.experiment_from_snapshot(io.parse((FIXTURES_DIR / "test.ihpo").read_bytes()))
     assert _layer(client, exp).json()["acquisition_function"] == {"kind": "ei", "xi": 0.0}
@@ -358,10 +310,7 @@ def test_random_search_falls_back_to_expected_improvement(client):
 
 
 def test_the_cube_opens_the_same_way_every_time(client):
-    """PLS in two dimensions with no axes picked, whatever a reload restored —
-    and, with the layer opening on the acquisition as a field and Next Trials
-    served unticked, that is the whole of its opening state. Asserted on the
-    page script."""
+    """The cube opens on PLS in 2D with no axes, whatever a reload restored."""
     html = client.get(reverse("ui:experiment_detail", args=[_experiment().pk])).content.decode()
 
     assert 'cubeMethodSelect.value = "pls";' in html
@@ -370,11 +319,8 @@ def test_the_cube_opens_the_same_way_every_time(client):
 
 
 def test_a_level_the_3d_field_never_reaches_is_neither_drawn_nor_marked(client):
-    """Near the legal region's edge the 3D field eases away to close its shells,
-    which can take it under a level the clipped field reached. Such a level
-    would be a shell with nothing in it and a mark on the bar for a surface
-    nobody can see, so the levels are checked against the eased field, and the
-    bar is marked after. Asserted on the page script."""
+    """The levels are checked against the eased 3D field, so no empty shell or
+    bar mark appears."""
     html = client.get(reverse("ui:experiment_detail", args=[_experiment().pk])).content.decode()
     traces = html.split("function layerTraces(", 1)[1].split("\n            }\n", 1)[0]
 

@@ -1,7 +1,5 @@
-"""The Export model button: one trial's configuration, in a runnable script.
-
-Uses the bundled test2.ihpo fixture (Random Forest, Random Search, 30 trials):
-index 8 is the best trial by accuracy.
+"""The Export model button writes one trial's configuration as a runnable
+script.
 """
 
 import ast
@@ -16,7 +14,7 @@ from tests.conftest import FIXTURES_DIR
 
 
 def _experiment():
-    from ui.services import snapshot as adapter
+    from experiments.services import snapshot as adapter
     return adapter.experiment_from_snapshot(io.parse((FIXTURES_DIR / "test2.ihpo").read_bytes()))
 
 
@@ -33,45 +31,45 @@ def _config(body):
 
 
 def test_the_selected_trial_is_exported(client):
-    """What: the file is an attachment named for the model and trial, holding
-    that trial's configuration. How: exports index 3 and compares
-    HYPERPARAMETERS with the stored trial."""
-    from ui.views import _rebuild_result
+    """The export is an attachment named for model and trial, holding the
+    trial's configuration."""
+    from experiments.services.snapshot import rebuild_result
 
     exp = _experiment()
     resp = client.get(_url(exp, metric="accuracy", idx=3))
 
     assert resp.status_code == 200
-    trial = _rebuild_result(exp).trials[3]
+    result = rebuild_result(exp)
+    assert result is not None
+    trial = result.trials[3]
     assert f'filename="random-forest-trial-{trial.trial}.py"' in resp["Content-Disposition"]
     assert _config(resp.content.decode()) == dict(trial.config)
 
 
 def test_without_a_selection_the_best_trial_is_exported(client):
-    """What: with no parameters the file holds the best trial on the current
-    metric. How: compares with index 8, the fixture's best by accuracy."""
-    from ui.views import _rebuild_result
+    from experiments.services.snapshot import rebuild_result
 
     exp = _experiment()
     resp = client.get(_url(exp))
 
     assert resp.status_code == 200
-    assert _config(resp.content.decode()) == dict(_rebuild_result(exp).trials[8].config)
+    result = rebuild_result(exp)
+    assert result is not None
+    assert _config(resp.content.decode()) == dict(result.trials[8].config)
 
 
 @pytest.mark.parametrize("params", [{"metric": "nope", "idx": 0},
                                     {"metric": "accuracy", "idx": 999},
                                     {"metric": "accuracy", "idx": "x"}])
 def test_a_bad_selection_is_refused(client, params):
-    """What: an unknown metric or an index outside the trials is a 400.
-    How: asks for each."""
+    """The export route answers an unknown metric or out-of-range index with
+    400."""
     assert client.get(_url(_experiment(), **params)).status_code == 400
 
 
 def test_an_imported_run_without_a_model_has_nothing_to_export(client):
-    """What: a model the registry does not know and no file behind it cannot be
-    exported, and the page says why rather than offering a broken link.
-    How: renames the model, then fetches the export and the page."""
+    """An unknown model without a file returns 404, and the page explains why
+    instead of offering the button."""
     exp = _experiment()
     exp.data.model_name = "Somebody Else's Model"
     exp.data.save()
@@ -83,8 +81,6 @@ def test_an_imported_run_without_a_model_has_nothing_to_export(client):
 
 
 def test_a_custom_model_exports_from_its_file(client):
-    """What: an uploaded model is exported from its own source.
-    How: attaches a model file and looks for its class in the download."""
     exp = _experiment()
     exp.data.model_name = "Mine"
     exp.data.model_file.save("mine.py", ContentFile(
@@ -101,8 +97,7 @@ def test_a_custom_model_exports_from_its_file(client):
 
 
 def test_the_page_offers_the_export(client):
-    """What: the experiment page has the button beside the .ihpo export.
-    How: looks for its link in the page."""
+    """The button sits beside the .ihpo export."""
     exp = _experiment()
     page = client.get(reverse("ui:experiment_detail", args=[exp.pk])).content.decode()
     assert 'id="export-model"' in page

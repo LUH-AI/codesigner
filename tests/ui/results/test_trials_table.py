@@ -1,15 +1,11 @@
-"""The trials table leads with each trial's outcome, then its configuration.
-
-A trial's scores and duration are what you scan for; the hyperparameters that
-produced them are the detail you look at once something stands out. So the
-metric and Duration columns come first, a rule separates them from the config
-columns, and the outcome columns sort on click (all numeric).
+"""The trials table leads with outcome columns, which sort on click, and a rule
+separates them from the configuration.
 """
 
 import pytest
 from django.urls import reverse
 
-from ui.models import Experiment
+from experiments.models import Experiment
 
 METRICS = ["accuracy", "f1", "precision", "recall(macro)"]
 
@@ -45,9 +41,7 @@ def experiment():
 
 
 def _parts(client, exp):
-    """The whole page, plus the trials table's header and body — the
-    best-config tables render first, so the trials table is isolated before
-    splitting out thead/tbody."""
+    """`_parts` returns the page plus the trials table's thead and tbody."""
     page = client.get(reverse("ui:experiment_detail", args=[exp.pk])).content.decode()
     table = page.split('<table class="trials">', 1)[-1].split("</table>", 1)[0]
     return (page,
@@ -56,7 +50,6 @@ def _parts(client, exp):
 
 
 def test_metrics_and_duration_come_before_the_configuration(client, experiment):
-    """Every outcome column precedes every hyperparameter column."""
     _, head, _ = _parts(client, experiment)
 
     last_outcome = max(head.index(m) for m in METRICS + ["Duration"])
@@ -64,55 +57,44 @@ def test_metrics_and_duration_come_before_the_configuration(client, experiment):
 
 
 def test_a_rule_separates_outcome_from_configuration(client, experiment):
-    """The first configuration column is marked so it can carry the divider —
-    in the header and in every body row, or the rule would not run down the
-    table."""
+    """The divider class must mark the header and every row."""
     _, head, rows = _parts(client, experiment)
 
     assert "group-start" in head
-    assert rows.count("group-start") == 3          # one per trial row
+    assert rows.count("group-start") == 3          # per row
 
 
 def test_outcome_columns_are_sortable(client, experiment):
-    """Trial number, each metric and Duration are click-sortable; the
-    hyperparameter columns are not."""
+    """Hyperparameter columns stay unsortable."""
     page, head, _ = _parts(client, experiment)
 
-    assert head.count('class="sortable"') == len(METRICS) + 2   # metrics + # + Duration
-    # the config header is present but not sortable
+    assert head.count('class="sortable"') == len(METRICS) + 2
+    # config header present, unsortable
     assert '<th class="group-start">n_estimators</th>' in head
-    assert "aria-sort" in page                                   # sort state is exposed
+    assert "aria-sort" in page                                   # sort state
 
 
 def test_rows_carry_raw_values_to_sort_on(client, experiment):
-    """Cells sort on an unformatted value, not their display text — otherwise
-    '9.000 s' would order above '10.000 s' as a string."""
+    """Raw values keep '9.000 s' from sorting above '10.000 s' as text."""
     _, _, rows = _parts(client, experiment)
 
-    assert 'data-sort="0.91"' in rows       # a score, unrounded
-    assert 'data-sort="9.0"' in rows        # a duration, without the unit
-    assert "9 s" in rows                    # still displayed to four figures
+    assert 'data-sort="0.91"' in rows       # unrounded score
+    assert 'data-sort="9.0"' in rows        # duration without unit
+    assert "9 s" in rows                    # four-figure display
 
 
 def test_the_table_is_paged_with_its_page_size_on_the_page(client, experiment):
-    """A five-hundred-row table is one you scroll past rather than read, so it
-    is paged — and the page size is a field beside the page selector, because it
-    is the same decision at a different scale.
-
-    The pager is markup only here; which rows are hidden is JavaScript, which
-    this suite does not run. What is asserted is that the controls exist, that
-    they start from the figure's own number rather than a restated one, and that
-    every row is still in the document — paging hides rows, it does not drop
-    them, so a sort still sees the whole table.
+    """A long table is paged, with the page size beside the selector. Paging
+    hides rows without dropping them, so a sort still sees the whole table.
     """
-    from ui.figures import FIGURES_BY_KEY
+    from ui.figures.catalog import Trials
 
     page, _head, body = _parts(client, experiment)
     pager = page.split("data-trials-pager", 1)[1].split("</div>\n</section>", 1)[0]
 
     assert "data-page-select" in pager
     assert "data-page-prev" in pager and "data-page-next" in pager
-    assert f'value="{FIGURES_BY_KEY["trials"].page_size}"' in pager
+    assert f'value="{Trials.page_size}"' in pager
     assert pager.lstrip().startswith("hidden"), \
         "no pager until the script finds more rows than fit a page"
     assert body.count("<tr") == len(experiment.data.result["data"]), \

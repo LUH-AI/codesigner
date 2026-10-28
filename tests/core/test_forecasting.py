@@ -1,35 +1,34 @@
-"""Forecasting in `core`: the backtests, the metrics, and the forecasters.
-
-Most of it runs on airline passengers (`datasets/airline.csv`), the classic
-monthly series with a trend and a 12-month season, which every forecaster here
-should beat repeating the last value on. Forecasting is a way of evaluating,
-not a task: the same series is also forecast as labels.
+"""The tests run mostly on airline passengers, a monthly series with a trend and
+a 12-month season. Forecasting is a way of evaluating, and the same series is
+also forecast as labels.
 """
 
 import json
 import sys
+from typing import cast
 
 import numpy as np
 import pandas as pd
 import pytest
 
 from core import encoding, forecasting
+from core.forecasters import ReducedForecaster
 from core.metrics import METRICS, metrics_for, score_all
-from core.modelhost import launch_local, model_session
+from core.modelhost import model_session
 from core.models import ETSModel, SeasonalNaiveModel
 from core.optimizers.trial import evaluate_trial
 from core.registry import MODELS
 from core.splits import backtest
 
-from tests.conftest import DATASETS_DIR
+from tests.conftest import DATASETS_DIR, launch_local
 
 from .test_modelhost import HEADER
 
 
 def _airline(series=False, labels=False):
-    """Airline as the run would see it: (splits, context, kinds). With
-    *series*, two copies of it — the second doubled — as two series. With
-    *labels*, the target is whether each month is busier than the one before."""
+    """`_airline` builds the run's (splits, context, kinds). The *series* flag
+    adds a doubled second series, and the *labels* flag marks each month busier
+    or quieter."""
     frame = pd.read_csv(DATASETS_DIR / "airline.csv")
     if labels:
         frame["passengers"] = np.where(frame.passengers.diff() > 0, "busier", "quieter")
@@ -66,15 +65,12 @@ def _scores(model, splits, context, kinds, config=None, task="regression"):
     (pd.date_range("2020-01-01", periods=30, freq="YS"), 1),
 ])
 def test_the_season_is_read_from_how_far_apart_the_times_are(dates, season):
-    """What: monthly is 12, daily 7, hourly 24, quarterly 4, yearly none.
-    How: infers each from 30 regular timestamps."""
     assert forecasting.infer_season(dates.strftime("%Y-%m-%d %H:%M")) == season
 
 
 def test_backtests_cut_every_series_at_the_same_origin():
-    """What: each backtest validates the same next steps of every series and
-    trains on all of their earlier rows, origins one horizon apart.
-    How: two series of ten steps, horizon 2, three backtests, gap 1."""
+    """Backtest origins sit one horizon apart, and each backtest validates the
+    same steps of every series."""
     times = np.repeat(np.arange(10), 2)
     splits = backtest(np.c_[times], times.astype(float), times, horizon=2, folds=3, gap=1,
                       series=np.tile(["a", "b"], 10))
@@ -85,9 +81,8 @@ def test_backtests_cut_every_series_at_the_same_origin():
 
 
 def test_mase_scales_by_each_series_own_seasonal_naive_error():
-    """What: MASE is the error over the seasonal naive error of the history, so
-    the same forecast of a series twice the size scores the same.
-    How: scores one forecast against a 4-step season, then doubled."""
+    """MASE divides by the history's seasonal naive error, making the score
+    scale-free."""
     history = {"y": np.array([10, 20, 30, 40, 12, 22, 32, 42.]), "series": None, "season": 4}
     one = METRICS["mase"].fn(np.array([14, 24.]), np.array([13, 25.]), history)
     doubled = METRICS["mase"].fn(np.array([28, 48.]), np.array([26, 50.]),
@@ -97,8 +92,7 @@ def test_mase_scales_by_each_series_own_seasonal_naive_error():
 
 
 def test_smape_is_a_symmetric_percentage():
-    """What: sMAPE is 0 for a perfect forecast and treats over- and
-    under-forecasting alike. How: three hand-checked cases."""
+    """`smape` is symmetric in forecast and truth."""
     smape = METRICS["smape"].fn
     assert smape([100.], [100.]) == 0
     assert smape([100.], [110.]) == pytest.approx(smape([110.], [100.]))
@@ -106,8 +100,6 @@ def test_smape_is_a_symmetric_percentage():
 
 
 def test_a_metric_needing_history_without_it_says_so():
-    """What: asking MASE to score without the history is a clear error.
-    How: calls `score_all` without one."""
     with pytest.raises(ValueError, match="history"):
         score_all(np.array([1.]), np.array([1.]), {"mase": METRICS["mase"]})
 
@@ -116,8 +108,6 @@ def test_a_metric_needing_history_without_it_says_so():
                                   lambda: forecasting.Reduced(MODELS["LightGBM"], "regression")],
                          ids=["ETS", "Seasonal Naive", "LightGBM reduced"])
 def test_every_forecaster_beats_repeating_the_last_value(make):
-    """What: on airline, each forecaster's error is below that of repeating
-    the last value. How: backtests it and Seasonal Naive's "last" strategy."""
     splits, context, kinds = _airline()
     last = _scores(SeasonalNaiveModel(), splits, context, kinds, {"strategy": "last"})
 
@@ -125,20 +115,16 @@ def test_every_forecaster_beats_repeating_the_last_value(make):
 
 
 def test_each_series_is_forecast_from_its_own_history():
-    """What: with two series, a scale-free score is what each would get alone —
-    the second series' history never leaks into the first's forecast.
-    How: backtests ETS on airline and on airline plus a doubled copy."""
+    """The second series' history must stay out of the first series' forecast."""
     alone = _scores(ETSModel(), *_airline())
     together = _scores(ETSModel(), *_airline(series=True))
 
-    # Not exact: the smoother's optimiser lands a hair differently on the
-    # doubled copy. A leak between the series would move it by far more.
+    # A leak would move the score far more than the optimiser's jitter.
     assert together["mase"] == pytest.approx(alone["mase"], rel=1e-4)
 
 
 def test_the_reduction_adds_the_lags_to_the_models_space():
-    """What: a reduced model tunes its own hyperparameters and `forecast:lags`,
-    which defaults to a season, and keeps its task. How: reads the space."""
+    """`forecast:lags` defaults to one season."""
     model = forecasting.Reduced(MODELS["Random Forest"], "regression")
     model.forecast = {"season": 12}
     space = model.get_config_space()
@@ -148,9 +134,8 @@ def test_the_reduction_adds_the_lags_to_the_models_space():
 
 
 def test_forecast_metrics_are_offered_only_for_a_forecast():
-    """What: MASE and sMAPE lead a regression forecast's metrics and are absent
-    from any other regression; a classification forecast is scored like any
-    classification. How: compares `metrics_for` with and without a forecast."""
+    """`metrics_for` offers a classification forecast the usual classification
+    metrics."""
     assert metrics_for("regression", forecast=True) == ["mase", "smape", "rmse", "mae", "r2"]
     assert metrics_for("regression") == ["rmse", "mae", "r2"]
     assert metrics_for("classification", forecast=True) == metrics_for("classification")
@@ -158,10 +143,8 @@ def test_forecast_metrics_are_offered_only_for_a_forecast():
 
 @pytest.mark.parametrize("name", ["Random Forest", "Logistic Regression"])
 def test_a_classifier_forecasts_the_next_labels(name):
-    """What: reduced for classification, a model forecasts each month's label
-    from the labels before it and the calendar — well above always guessing
-    the commoner label — and gives probabilities when the model does.
-    How: backtests whether airline's months are busier than the one before."""
+    """`forecasting.Reduced` predicts better than always guessing the commoner
+    label."""
     model = forecasting.Reduced(MODELS[name], "classification")
     splits, context, kinds = _airline(labels=True)
     scores = _scores(model, splits, context, kinds, task="classification")
@@ -173,24 +156,22 @@ def test_a_classifier_forecasts_the_next_labels(name):
 
 
 def test_a_reduced_classifier_is_told_its_lags_are_labels():
-    """What: the lagged labels and the season's commonest one are processed —
-    and reach the model — as label columns, the step as a number, so a forest
-    one-hots them. How: fits once and reads the kinds the examples' processing
-    was given, and what it made of them."""
+    """The lagged labels arrive as label columns, and a forest one-hot encodes
+    them."""
     model = forecasting.Reduced(MODELS["Random Forest"], "classification")
     splits, context, kinds = _airline(labels=True)
     model.feature_kinds, model.forecast = kinds, context
     train, _ = splits.folds[0]
-    fitted = model.fit({**dict(model.get_config_space().get_default_configuration()),
-                        "forecast:lags": 3}, splits.X[train], splits.y[train])
+    fitted = cast(ReducedForecaster, model.fit(
+        {**dict(model.get_config_space().get_default_configuration()), "forecast:lags": 3},
+        splits.X[train], splits.y[train]))
 
     assert fitted.processing_.kinds[:5] == ("numeric",) + ("categorical",) * 4
     assert fitted.processing_.plan["labels"] == "one_hot"
 
 
 def test_a_forecaster_in_its_own_process_is_told_the_forecast(tmp_path):
-    """What: `forecast` reaches a model in another process before its first
-    trial. How: a model that writes what it was told to a file."""
+    """The model in another process receives `forecast` before its first trial."""
     seen = tmp_path / "forecast.json"
     model_file = tmp_path / "model.py"
     model_file.write_text(HEADER + f'''
@@ -220,9 +201,8 @@ class Recorder(BaseModel):
 
 
 def test_a_search_that_has_tried_everything_ends_instead_of_failing():
-    """What: SMAC on Seasonal Naive's three strategies runs out of new
-    configurations before its trial budget, and the run ends there, saying
-    why, rather than raising. How: asks for ten trials of a three-point space."""
+    """SMAC exhausts a three-point space and ends the run with a reason instead
+    of raising."""
     from core.optimizers import SMACOptimizer
     from core.optimizers.base import STOPPED_BY_EXHAUSTED
 
@@ -239,11 +219,8 @@ def test_a_search_that_has_tried_everything_ends_instead_of_failing():
 
 @pytest.mark.parametrize("name", ["ETS", "Seasonal Naive", "LightGBM"])
 def test_an_exported_forecaster_forecasts_what_comes_after_the_history(name, tmp_path):
-    """What: exported with its forecast, a model is a script that reads the
-    whole history and forecasts the next horizon of months — a regressor
-    bringing the reduction with it — the same forecast it makes here.
-    How: exports for airline, runs it on all 144 months in a fresh interpreter,
-    and compares its 1961 forecast with fitting the model here."""
+    """The exported script predicts 1961 from all 144 months and matches a fit
+    here."""
     import subprocess
 
     from core.model_export import export_model
@@ -277,12 +254,7 @@ def test_an_exported_forecaster_forecasts_what_comes_after_the_history(name, tmp
 
 
 def test_a_reduced_forecast_never_reads_a_column_only_known_once_it_happens():
-    """What: a column that is the target itself, sitting in the future rows,
-    does not reach the regressor — only the time's parts and the series do —
-    so a backtest scores what the forecast will know when it is used.
-    How: adds a copy of the target as a column, then forecasts the last year
-    once with that column's true future values and once with nonsense, and
-    compares."""
+    """Future values of an unknown column must leave the forecast unchanged."""
     frame = pd.read_csv(DATASETS_DIR / "airline.csv")
     frame.insert(1, "copy", frame["passengers"])
     features = frame.iloc[:, :-1]
@@ -303,10 +275,7 @@ def test_a_reduced_forecast_never_reads_a_column_only_known_once_it_happens():
 
 
 def test_a_series_that_starts_inside_a_backtest_is_not_validated_in_it():
-    """What: a series with no history before a backtest's origin has nothing to
-    forecast from, so that backtest validates only the series that do — and
-    every trial is still measured. How: airline plus a second route that
-    exists only for the last six months, backtested with Seasonal Naive."""
+    """A backtest validates only series with history before its origin."""
     air = pd.read_csv(DATASETS_DIR / "airline.csv")
     frame = pd.concat([air.assign(route="A"), air.tail(6).assign(route="B")])
     frame = frame[["month", "route", "passengers"]].sort_values("month", kind="stable")
@@ -323,10 +292,7 @@ def test_a_series_that_starts_inside_a_backtest_is_not_validated_in_it():
 
 
 def test_an_exported_classification_forecast_forecasts_labels(tmp_path):
-    """What: a classifier exported with its forecast reads a history of labels
-    and forecasts the next horizon of them — the same labels it forecasts here.
-    How: exports a reduced Random Forest for airline's busier/quieter months,
-    runs it in a fresh interpreter, and compares with fitting it here."""
+    """The exported classifier forecasts the same labels as fitting here."""
     import subprocess
 
     from core.model_export import export_model

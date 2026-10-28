@@ -1,16 +1,6 @@
-"""The primary lead, and what a deleted group leaves behind.
-
-*What:* two rules laid on top of groups. Exactly one lead per group is its
-primary one, and only they may make or unmake the others; the role moves by
-transfer and is never simply dropped, so a group can end up with neither two of
-them nor none. And deleting a group does not destroy what it held — the work
-goes to a bin a site admin settles one experiment at a time, which is what
-makes deleting a group a decision that can be taken quickly.
-
-*How:* through the panels as each role, including the cases that must 404, and
-at the model for the invariants a form is not the only route to. The database
-constraint and `Group.delete()` both have to hold when nobody has been near a
-view, because the admin and a data migration are routes too.
+"""Each group has a single primary lead, and the role moves only by transfer.
+Deleting a group bins its work for a site admin to settle. A database constraint
+and `Group.delete()` enforce both rules outside the views.
 """
 
 import pytest
@@ -18,7 +8,7 @@ from django.db import IntegrityError, transaction
 from django.urls import reverse
 
 from access.models import Group, Membership
-from ui.models import Experiment, Run
+from experiments.models import Experiment, Run
 
 pytestmark = pytest.mark.django_db
 
@@ -44,7 +34,6 @@ def _experiment(owner, name, **kw):
 
 @pytest.fixture
 def lab(django_user_model):
-    """One group with a primary lead, an ordinary lead and a member."""
     from django.contrib.auth.models import Permission
 
     group = Group.objects.create(name="lab", user_limit=5)
@@ -68,15 +57,12 @@ def _membership(user):
 
 
 def _in_lab(route, lab, who):
-    """A membership route: addressed by the group and the row within it."""
+    """`_in_lab` addresses a route by group and membership row."""
     return reverse(route, args=[lab["group"].pk, _membership(lab[who]).pk])
 
 
-# ── who may appoint a lead ───────────────────────────────────────────────────
-
 def test_an_ordinary_lead_has_no_role_controls(client, hosted, lab):
-    """The one thing the primary role carries. A lead asking for it gets a 404
-    rather than a refusal, like every other panel that is not theirs."""
+    """A lead asking for role controls gets a 404."""
     client.force_login(lab["lead"])
 
     response = client.post(
@@ -97,8 +83,7 @@ def test_the_primary_lead_makes_somebody_a_lead(client, hosted, lab):
 
 
 def test_the_primary_lead_cannot_change_their_own_role(client, hosted, lab):
-    """Standing down is a transfer, which names a successor. Doing it here
-    would leave the group with nobody able to appoint one."""
+    """Standing down needs a transfer, which names a successor."""
     client.force_login(lab["primary"])
 
     client.post(_in_lab("ui:group_set_role", lab, "primary"),
@@ -108,7 +93,7 @@ def test_the_primary_lead_cannot_change_their_own_role(client, hosted, lab):
 
 
 def test_the_role_is_not_settable_to_primary(client, hosted, lab):
-    """It moves by transfer and only by transfer, or two rows could claim it."""
+    """Only a transfer can make a primary lead."""
     client.force_login(lab["primary"])
 
     client.post(_in_lab("ui:group_set_role", lab, "lead"),
@@ -119,8 +104,7 @@ def test_the_role_is_not_settable_to_primary(client, hosted, lab):
 
 def test_an_ordinary_lead_may_only_add_members(client, hosted, lab,
                                                django_user_model):
-    """Otherwise the one restriction the primary role carries is one form post
-    away from meaningless."""
+    """Otherwise one form post would undo the primary role's restriction."""
     client.force_login(lab["lead"])
 
     client.post(reverse("ui:group_add_person", args=[lab["group"].pk]),
@@ -129,11 +113,8 @@ def test_an_ordinary_lead_may_only_add_members(client, hosted, lab,
     assert not django_user_model.objects.filter(email="newbie@example.org").exists()
 
 
-# ── transferring it ──────────────────────────────────────────────────────────
-
 def test_the_role_transfers_only_to_a_lead(client, hosted, lab):
-    """Handing it to a member would promote and appoint in a single step, which
-    is two decisions wearing one button."""
+    """Promoting and appointing are two decisions."""
     client.force_login(lab["primary"])
 
     client.post(_in_lab("ui:group_transfer_primary", lab, "member"))
@@ -143,8 +124,7 @@ def test_the_role_transfers_only_to_a_lead(client, hosted, lab):
 
 
 def test_transferring_leaves_exactly_one_primary_lead(client, hosted, lab):
-    """Both rows move together: the group has one before and one after, and
-    never two in between."""
+    """Both rows change together, so the group never holds two."""
     client.force_login(lab["primary"])
 
     client.post(_in_lab("ui:group_transfer_primary", lab, "lead"))
@@ -156,8 +136,7 @@ def test_transferring_leaves_exactly_one_primary_lead(client, hosted, lab):
 
 
 def test_a_group_cannot_hold_two_primary_leads(hosted, lab):
-    """Held in the database, not only in the view that transfers it: the admin
-    and a data migration are routes to this table too."""
+    """The admin and data migrations bypass the view."""
     membership = _membership(lab["lead"])
     membership.role = Membership.PRIMARY_LEAD
 
@@ -167,29 +146,22 @@ def test_a_group_cannot_hold_two_primary_leads(hosted, lab):
 
 
 def test_the_primary_lead_cannot_be_removed_from_the_group(client, hosted, lab):
-    """Their group would be left unable to appoint a lead. The role has to be
-    transferred first, which is a decision rather than a side effect."""
+    """The group must keep someone able to appoint a lead."""
     client.force_login(lab["primary"])
-    # Another lead trying it, since the primary lead is already barred from
-    # removing themselves.
     client.post(_in_lab("ui:group_remove_person", lab, "primary"))
 
     assert Membership.objects.filter(user=lab["primary"]).exists()
 
 
-# ── a new experiment knows its group ─────────────────────────────────────────
-
 def test_a_new_experiment_lands_in_its_owners_group(hosted, lab):
-    """Recorded on the experiment rather than derived from the owner, so that
-    deleting the account or moving them does not move the work."""
+    """The work keeps its group when the owner leaves."""
     exp = _experiment(lab["member"], "theirs")
 
     assert exp.group_id == lab["group"].pk
 
 
 def test_an_owner_deleted_leaves_the_work_in_its_group(hosted, lab):
-    """The case the stored group exists for: `owner` goes null and there is
-    nothing left to derive a group from."""
+    """A deleted owner leaves nothing to derive a group from."""
     exp = _experiment(lab["member"], "theirs")
     lab["member"].delete()
     exp.refresh_from_db()
@@ -198,14 +170,8 @@ def test_an_owner_deleted_leaves_the_work_in_its_group(hosted, lab):
     assert exp.group_id == lab["group"].pk
 
 
-# ── the bin ──────────────────────────────────────────────────────────────────
-
 def _emptied_group_holding_work(django_user_model):
-    """A group with no people left but an experiment still in it.
-
-    Which is the only state a group can be deleted from — `Membership.group` is
-    PROTECT — and exactly the state the bin exists for: the account went, the
-    results did not.
+    """`Membership.group` is PROTECT, so only an emptied group can be deleted.
     """
     group = Group.objects.create(name="wound-down", user_limit=2)
     owner = _person(django_user_model, "gone", group)
@@ -225,8 +191,6 @@ def test_deleting_a_group_puts_its_work_in_the_bin(hosted, django_user_model):
 
 
 def test_a_group_with_people_in_it_is_not_deleted(client, hosted, lab):
-    """Emptying a group of its accounts is a separate decision, made person by
-    person. One button should not take it as a side effect."""
     client.force_login(lab["site"])
 
     client.post(reverse("ui:site_group_delete"), {"pk": lab["group"].pk})
@@ -235,8 +199,7 @@ def test_a_group_with_people_in_it_is_not_deleted(client, hosted, lab):
 
 
 def test_binned_work_is_visible_to_nobody(hosted, lab, django_user_model):
-    """Out of every group, so every rule about who may see it would otherwise
-    have to special-case it. The bin is its own question."""
+    """Binned work belongs to no group."""
     from access.policy import GroupPolicy
 
     group, exp = _emptied_group_holding_work(django_user_model)
@@ -249,9 +212,7 @@ def test_binned_work_is_visible_to_nobody(hosted, lab, django_user_model):
 
 
 def test_a_site_admin_opens_the_bin(client, hosted, lab, django_user_model):
-    """With something in it, and saying how much work each one holds. It used
-    to fail outright: the run count was named after the `runs` relation it
-    counts, and Django refuses an annotation that shadows a field."""
+    """The bin page lists each experiment's run count."""
     group, exp = _emptied_group_holding_work(django_user_model)
     Run.objects.create(experiment=exp, primary_metric="accuracy", status="done",
                        stopping={"max_trials": 1}, trial_offset=0)
@@ -272,8 +233,7 @@ def test_only_a_site_admin_sees_the_bin(client, hosted, lab):
 
 def test_rehoming_puts_it_back_in_a_group(client, hosted, lab,
                                           django_user_model):
-    """And it stops being binned in the same move — the two are one fact said
-    twice, so nothing should be able to set one without the other."""
+    """Rehoming sets the group and clears `trashed_at` together."""
     group, exp = _emptied_group_holding_work(django_user_model)
     group.delete()
     client.force_login(lab["site"])
@@ -288,7 +248,7 @@ def test_rehoming_puts_it_back_in_a_group(client, hosted, lab,
 
 def test_a_rehomed_experiment_is_its_new_groups(client, hosted, lab,
                                                 django_user_model):
-    """What rehoming is *for*: somebody can reach it again."""
+    """Rehoming makes the work reachable again."""
     from access.policy import GroupPolicy
 
     group, exp = _emptied_group_holding_work(django_user_model)
@@ -305,7 +265,7 @@ def test_a_rehomed_experiment_is_its_new_groups(client, hosted, lab,
 
 def test_discarding_from_the_bin_is_a_second_decision(client, hosted, lab,
                                                       django_user_model):
-    """The only route by which deleting a group eventually destroys anything."""
+    """Only `site_trash_delete` can destroy binned work."""
     group, exp = _emptied_group_holding_work(django_user_model)
     group.delete()
     client.force_login(lab["site"])

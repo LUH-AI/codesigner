@@ -1,10 +1,5 @@
-"""The record helpers on their own, at the edges the integration tests skip.
-
-`tests/ui/storage/test_provenance.py` covers what an exported file says. These
-cover what these functions do when there is nothing to say — a dataset that is
-gone, a file written before fingerprints existed, a setting the optimizer has
-since dropped. Every one of them is a case where being wrong would either refuse
-a legitimate import or fail an export, and neither is worth a record.
+"""Edge cases in `core.provenance` must never refuse an import or fail an
+export.
 """
 
 import hashlib
@@ -15,17 +10,13 @@ from core import provenance
 from core.optimizers import RandomOptimizer, SMACOptimizer
 
 
-# ── digests ──────────────────────────────────────────────────────────────────
-
 def test_a_file_that_is_not_there_has_no_digest(tmp_path):
-    """Empty rather than raising: an export of an experiment whose dataset was
-    deleted should still produce a file."""
+    """An export must still succeed after its dataset was deleted."""
     assert provenance.sha256(tmp_path / "gone.csv") == ""
 
 
 def test_hashing_a_stream_leaves_it_where_it_was_found(tmp_path):
-    """The upload is hashed and then saved by the caller. Reading it to the end
-    and leaving it there would store an empty dataset."""
+    """The caller saves the upload after hashing."""
     import io as _io
 
     stream = _io.BytesIO(b"a,b\n1,2\n")
@@ -37,11 +28,8 @@ def test_hashing_a_stream_leaves_it_where_it_was_found(tmp_path):
     assert stream.tell() == 3
 
 
-# ── what counts as a mismatch ────────────────────────────────────────────────
-
 def test_a_record_with_no_fingerprint_never_disagrees():
-    """Every `.ihpo` exported before this existed. Refusing them would have made
-    the section a breaking change."""
+    """Older `.ihpo` exports lack fingerprints and must still import."""
     assert provenance.dataset_mismatch(None, "abc") == ""
     assert provenance.dataset_mismatch({}, "abc") == ""
 
@@ -51,8 +39,7 @@ def test_the_same_digest_is_not_a_mismatch():
 
 
 def test_a_different_digest_says_which_file_and_both_digests():
-    """The message has to be actionable — "wrong dataset" with no names is a
-    dead end when someone has several."""
+    """File and both digests make the message actionable."""
     message = provenance.dataset_mismatch(
         {"sha256": "abc123def456", "filename": "iris.csv"}, "999888777666")
 
@@ -61,11 +48,8 @@ def test_a_different_digest_says_which_file_and_both_digests():
     assert "999888777666"[:12] in message
 
 
-# ── the shape of a dataset ───────────────────────────────────────────────────
-
 def test_a_dataset_is_described_by_shape_as_well_as_digest(tmp_path):
-    """The digest recognises it; the shape is what makes the record readable
-    without it."""
+    """The shape describes the dataset without the file."""
     csv = tmp_path / "small.csv"
     csv.write_text("a,b,target\n1,2,x\n3,4,y\n")
 
@@ -78,9 +62,7 @@ def test_a_dataset_is_described_by_shape_as_well_as_digest(tmp_path):
 
 
 def test_a_dataset_says_how_each_feature_was_read(tmp_path):
-    """What: the record names each feature column's kind, so a reader without
-    the file knows a label from a number from a date. How: a three-column CSV
-    with one of each, and a target."""
+    """Readers without the file can tell labels, numbers and dates apart."""
     csv = tmp_path / "d.csv"
     csv.write_text("city,rooms,listed,y\nBerlin,2,2024-01-05,a\nHamburg,3,2024-02-11,b\n")
 
@@ -89,8 +71,7 @@ def test_a_dataset_says_how_each_feature_was_read(tmp_path):
 
 
 def test_a_semicolon_separated_dataset_is_read_the_same_way_the_app_reads_it(tmp_path):
-    """`wine.csv` ships with semicolons. A record that described it as one
-    column would be describing a file the application never saw."""
+    """`wine.csv` uses semicolons, as the app reads it."""
     csv = tmp_path / "euro.csv"
     csv.write_text('a;b;"quality"\n1;2;3\n')
 
@@ -98,7 +79,6 @@ def test_a_semicolon_separated_dataset_is_read_the_same_way_the_app_reads_it(tmp
 
 
 def test_an_unreadable_dataset_still_gets_its_digest(tmp_path):
-    """Whatever it is, it is still the file the trials came from."""
     blob = tmp_path / "notes.csv"
     blob.write_bytes(b"\x00\x01\x02")
 
@@ -108,15 +88,12 @@ def test_an_unreadable_dataset_still_gets_its_digest(tmp_path):
     assert record["rows"] is None
 
 
-# ── resolving the blanks ─────────────────────────────────────────────────────
-
 def test_an_optimizer_with_nothing_to_configure_resolves_to_nothing():
     assert RandomOptimizer().resolved_params() == {}
 
 
 def test_a_setting_the_optimizer_no_longer_has_is_not_resolved():
-    """A stored file can name anything. `known_params` drops it on the way in,
-    and the record must not reintroduce it."""
+    """`known_params` drops stale settings; the record must keep them out."""
     stored = {"rf_trees": 5, "withdrawn_setting": 9}
 
     resolved = SMACOptimizer(**SMACOptimizer.known_params(stored)).resolved_params()
@@ -130,8 +107,7 @@ def test_a_setting_the_optimizer_no_longer_has_is_not_resolved():
     ("gp", "gp_restarts", "rf_trees"),
 ])
 def test_only_the_chosen_strategys_blanks_get_answered(strategy, resolved, blank):
-    """The other strategy has no such component, so it has no default for it.
-    A number there would be invented rather than recorded."""
+    """The other strategy has no such default to record."""
     record = SMACOptimizer(search_strategy=strategy).resolved_params()
 
     assert record[resolved] is not None
@@ -139,8 +115,8 @@ def test_only_the_chosen_strategys_blanks_get_answered(strategy, resolved, blank
 
 
 def test_the_defaults_come_from_smac_rather_than_a_copy_of_them():
-    """Read out of the installed SMAC's signatures, so this cannot drift from
-    the SMAC that will actually run."""
+    """`resolved_params` reads defaults from installed SMAC signatures and
+    cannot drift."""
     from smac import HyperparameterOptimizationFacade
 
     import inspect
@@ -150,11 +126,8 @@ def test_the_defaults_come_from_smac_rather_than_a_copy_of_them():
     assert SMACOptimizer(search_strategy="rf").resolved_params()["rf_trees"] == expected
 
 
-# ── the evaluation scheme ────────────────────────────────────────────────────
-
 def test_stratification_is_left_unanswered_without_the_target():
-    """Null, not False. "We did not look" and "it could not be stratified" are
-    different facts about the run."""
+    """Null means unchecked; False would mean unstratifiable."""
     assert provenance.evaluation(0)["stratified"] is None
 
 

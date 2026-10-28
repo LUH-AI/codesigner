@@ -1,17 +1,12 @@
-"""The two settings pages are the same page, differing only in scope.
-
-The defaults page edits the template experiments follow; an experiment's own
-page edits its copy of exactly the same settings, so both render one shared
-partial. What only the per-experiment page has is its relationship to the
-defaults: the inherit checkbox, the three buttons, and a way back to the
-experiment it belongs to.
+"""Both settings pages render one shared partial, and only the per-experiment
+page adds the inherit checkbox and its buttons.
 """
 
 from django.urls import reverse
 
 from ui.figures import FIGURES
-from ui.models import Experiment, GlobalSettings
-from ui.services.settings import SETTING_DEFAULTS
+from experiments.models import Experiment, GlobalSettings
+from ui.experiment_settings import SETTING_DEFAULTS
 
 
 def _exp():
@@ -28,7 +23,6 @@ def _both_pages(client):
 
 
 def test_both_pages_offer_the_same_settings(client):
-    """Every setting in the schema has a control on both pages."""
     defaults, per_experiment, _ = _both_pages(client)
     for key in SETTING_DEFAULTS:
         assert f'name="{key}"' in defaults, key
@@ -61,8 +55,7 @@ def test_experiment_page_links_back_to_the_experiment(client):
 
 
 def test_inherited_settings_are_shown_but_marked_unusable(client):
-    """Inheriting shows the settings (so you can see them) in a pane the page
-    greys out and disables, rather than hiding them."""
+    """Inherited settings stay visible in a greyed, disabled pane."""
     _, per_experiment, _ = _both_pages(client)
     assert 'data-pane="overrides"' in per_experiment
     assert "pane-disabled" in per_experiment
@@ -70,7 +63,7 @@ def test_inherited_settings_are_shown_but_marked_unusable(client):
 
 
 def test_saving_an_override_records_every_setting(client):
-    """An experiment's own settings are a full copy, not a partial patch."""
+    """An override is a full copy."""
     exp = _exp()
     client.post(reverse("ui:experiment_settings", args=[exp.pk]),
                 { "show_trials": "on"})
@@ -79,7 +72,7 @@ def test_saving_an_override_records_every_setting(client):
     assert exp.use_default_settings is False
     assert set(exp.settings) == set(SETTING_DEFAULTS)
     assert exp.settings["show_trials"] is True
-    assert exp.settings["show_trial_duration"] is False   # box wasn't ticked
+    assert exp.settings["show_trial_duration"] is False   # unticked
 
 
 def test_reset_restores_inheritance(client):
@@ -95,8 +88,8 @@ def test_reset_restores_inheritance(client):
 
 
 def test_save_as_default_asks_before_changing_anything(client):
-    """Promoting one experiment's settings changes what every inheriting
-    experiment shows, so it confirms first and writes nothing yet."""
+    """`save_as_default` changes every inheriting experiment, so the page
+    confirms first."""
     exp = _exp()
     resp = client.post(reverse("ui:experiment_settings", args=[exp.pk]),
                        {"save_as_default": "1", "show_trials": "on"})
@@ -110,7 +103,7 @@ def test_confirming_save_as_default_writes_the_defaults(client):
     exp = _exp()
     resp = client.post(reverse("ui:experiment_settings", args=[exp.pk]),
                        {"save_as_default": "1", "show_trials": "on"})
-    # the confirmation carries the submitted settings forward
+    # carries the settings forward
     assert 'name="show_trials"' in resp.content.decode()
 
     client.post(reverse("ui:experiment_settings", args=[exp.pk]),
@@ -123,7 +116,6 @@ def test_confirming_save_as_default_writes_the_defaults(client):
 
 
 def test_save_as_default_leaves_the_experiment_alone(client):
-    """It changes the defaults, not this experiment's own relationship to them."""
     exp = _exp()
     client.post(reverse("ui:experiment_settings", args=[exp.pk]),
                 {"confirm_save_as_default": "1", "show_trials": "on"})

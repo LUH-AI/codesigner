@@ -1,25 +1,13 @@
-"""Deleting an experiment puts it in its people's bins, and it can come back.
-
-*What:* deleting sets an experiment aside rather than destroying it. It leaves
-every list and every URL, and lands in the bins of the people it belonged to —
-its owner and its contributors, and nobody else. Any of them can restore it
-exactly as it was or download it as an `.ihpo`. Taking it out of your own bin
-touches nobody else's, and gives up your access with it, so a colleague's
-restore does not hand it back. Once nobody's bin holds it — all of them took it
-out, or `BIN_RETENTION_DAYS` passed — it is in the site admins' bin, which never
-expires and is the only place anything is destroyed. Without accounts there is
-one bin, and it holds everything.
-
-*How:* through the pages as each role, and at the row for what restoring has to
-bring back: both halves of the experiment, its runs, its grants and its model
-environment.
+"""Deleting puts an experiment in its owner's and contributors' bins, where any
+of them can restore it. Once no person's bin holds it, the site admins' bin
+keeps it until a site admin destroys it.
 """
 
 import pytest
 from django.urls import reverse
 
 from access.models import Group, Membership
-from ui.models import BinEntry, Experiment, ExperimentShare, Run
+from experiments.models import BinEntry, Experiment, ExperimentShare, Run
 
 pytestmark = pytest.mark.django_db
 
@@ -40,7 +28,7 @@ def _person(django_user_model, name, group, role=Membership.MEMBER):
 
 @pytest.fixture
 def lab(django_user_model):
-    """Ana's experiment, with Ben contributing, Cleo viewing and Vera leading."""
+    """Ana owns, Ben contributes and Cleo reads."""
     group = Group.objects.create(name="lab", user_limit=9)
     people = {name: _person(django_user_model, name, group)
               for name in ("ana", "ben", "cleo", "dan")}
@@ -73,7 +61,7 @@ def _in_bin(client, user):
             for row in client.get(reverse("ui:experiment_bin")).context["binned"]]
 
 
-# ── whose bin ────────────────────────────────────────────────────────────────
+# Whose bin
 
 def test_deleting_puts_it_in_the_owners_and_contributors_bins(client, hosted, lab):
     _delete(client, lab)
@@ -84,8 +72,8 @@ def test_deleting_puts_it_in_the_owners_and_contributors_bins(client, hosted, la
 
 
 def test_and_nobody_elses(client, hosted, lab):
-    """Not a viewer's, who could never have deleted it, and not the lead's —
-    seeing a colleague's work was never the same as it being theirs."""
+    """The deletion stays out of the bins of Cleo the viewer, Vera the lead and
+    Dan."""
     _delete(client, lab)
 
     for who in ("cleo", "vera", "dan"):
@@ -107,7 +95,7 @@ def test_the_confirmation_names_whose_bin_it_goes_to(client, hosted, lab):
     assert "ben" in body and "cleo" not in body
 
 
-# ── out of sight ─────────────────────────────────────────────────────────────
+# Out of sight
 
 def test_a_deleted_experiment_is_at_no_url(client, hosted, lab):
     _delete(client, lab)
@@ -131,8 +119,8 @@ def test_and_in_no_list(client, hosted, lab):
 
 
 def test_a_deleted_groups_bin_leaves_it_to_its_people(client, hosted, lab):
-    """Two bins, two audiences. What a person deleted is theirs to settle even
-    when the group goes too."""
+    """`GroupPolicy.trash` omits a group-less experiment while a person's bin
+    still holds it."""
     from access.policy import GroupPolicy
 
     _delete(client, lab)
@@ -143,11 +131,11 @@ def test_a_deleted_groups_bin_leaves_it_to_its_people(client, hosted, lab):
     assert not GroupPolicy().trash(site).exists()
 
 
-# ── restoring ────────────────────────────────────────────────────────────────
+# Restoring
 
 def test_restoring_puts_it_back_exactly(client, hosted, lab):
-    """Every part of it: both halves, its runs and their priors, its grants,
-    its settings and its model environment."""
+    """Restoring brings back the data, runs, priors, shares, settings and model
+    environment."""
     _delete(client, lab)
 
     client.post(reverse("ui:bin_restore", args=[lab["exp"].pk]))
@@ -185,10 +173,10 @@ def test_somebody_whose_bin_it_is_not_in_cannot_restore_it(client, hosted, lab):
     assert lab["exp"].deleted_at is not None
 
 
-# ── taking a copy ────────────────────────────────────────────────────────────
+# Taking a copy
 
 def test_it_can_be_downloaded_from_the_bin(client, hosted, lab):
-    """The same file an export makes, asked about the same way."""
+    """`bin_download` serves the same file an export makes."""
     from core import io
 
     _delete(client, lab, who="ben")
@@ -207,7 +195,7 @@ def test_but_not_by_somebody_whose_bin_it_is_not_in(client, hosted, lab):
     assert client.get(reverse("ui:bin_download", args=[lab["exp"].pk])).status_code == 404
 
 
-# ── taking it out of your own bin ────────────────────────────────────────────
+# Dismissing
 
 def _dismiss(client, user, exp):
     client.force_login(user)
@@ -239,7 +227,6 @@ def test_taking_it_out_of_your_bin_leaves_everyone_elses(client, hosted, lab):
 
 
 def test_the_owner_taking_it_out_destroys_nothing_either(client, hosted, lab):
-    """It used to: the owner's button was "delete for good", for everybody."""
     _delete(client, lab)
 
     _dismiss(client, lab["ana"], lab["exp"])
@@ -249,8 +236,8 @@ def test_the_owner_taking_it_out_destroys_nothing_either(client, hosted, lab):
 
 
 def test_and_a_colleague_restoring_it_does_not_reshare_it(client, hosted, lab):
-    """Taking it out of your bin is deciding to be done with it. A restore by
-    somebody else puts everything else back, but not you."""
+    """A dismissal ends the dismisser's access, even after a colleague restores
+    the experiment."""
     _delete(client, lab)
     _dismiss(client, lab["ben"], lab["exp"])
 
@@ -265,8 +252,7 @@ def test_and_a_colleague_restoring_it_does_not_reshare_it(client, hosted, lab):
 
 
 def test_if_the_owner_gave_it_up_whoever_restores_it_owns_it(client, hosted, lab):
-    """Somebody has to decide who else may reach it, and the person bringing it
-    back is a contributor — who ownership can be handed to anyway."""
+    """Ownership goes to the restoring contributor, who could receive it anyway."""
     _delete(client, lab)
     _dismiss(client, lab["ana"], lab["exp"])
 
@@ -291,7 +277,7 @@ def test_the_confirmation_says_who_still_has_it(client, hosted, lab):
         "asking is not doing it"
 
 
-# ── the site's bin ───────────────────────────────────────────────────────────
+# Site bin
 
 def test_once_nobody_keeps_it_it_is_the_site_admins(client, hosted, lab):
     _delete(client, lab)
@@ -343,8 +329,7 @@ def test_the_bin_says_when_it_leaves(client, hosted, lab, settings):
 
 
 def test_a_site_admin_puts_it_back(client, hosted, lab):
-    """For whoever had not given it up: Ben's bin expired rather than him
-    taking it out, so he keeps his grant."""
+    """Ben's bin expired, so Ben keeps his grant."""
     from datetime import timedelta
 
     from django.utils import timezone
@@ -412,7 +397,7 @@ def test_the_site_bin_page_lists_both_kinds(client, hosted, lab, django_user_mod
     assert "Nobody kept it" in body and "Its group was deleted" in body
 
 
-# ── without accounts ─────────────────────────────────────────────────────────
+# Without accounts
 
 def test_without_accounts_there_is_one_bin(client):
     exp = Experiment.objects.create(
@@ -428,7 +413,7 @@ def test_without_accounts_there_is_one_bin(client):
 
 
 def test_without_accounts_removing_it_destroys_it(client):
-    """One bin, nobody else to keep it for, and no site admin to hand it to."""
+    """With no accounts, `ui:bin_dismiss` destroys the experiment."""
     exp = Experiment.objects.create(
         name="solo", model_name="Random Forest", optimizer_name="Random Search",
         metric_names=["accuracy"], seed=0)

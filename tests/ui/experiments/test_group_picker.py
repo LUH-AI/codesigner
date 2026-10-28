@@ -1,19 +1,12 @@
-"""Which group a new experiment goes in, for somebody in more than one.
-
-*What:* somebody in one group is never asked — the experiment is filed there.
-Somebody in two or more is asked on every page that creates one: the create
-form and both imports. The answer is required, and only one of their own groups
-is accepted, because a guess or a stranger's group would file work under a
-boundary nobody chose.
-
-*How:* through the pages, as a person in one group and as a person in two.
+"""One-group members get new experiments filed there unasked. Members of two or
+more must pick one of their own groups on the create form and both imports.
 """
 
 import pytest
 from django.urls import reverse
 
 from access.models import Group, Membership
-from ui.models import Experiment
+from experiments.models import Experiment
 
 from tests.conftest import DATASETS_DIR, FIXTURES_DIR, get_new_experiment, post_new_experiment
 

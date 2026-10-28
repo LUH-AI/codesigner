@@ -49,7 +49,7 @@ figure, and the script asks for the density alone.{% endcomment %}
     {% comment %}Shown while the run is still drawing its initial design, which
     happens before any surrogate exists — so nothing stated on this figure can
     reach those trials. Filled by the script from the recorded design size,
-    never from counting origins (see `_initial_design_notice`).{% endcomment %}
+    never from counting origins (see `core.priors.initial_design_notice`).{% endcomment %}
     <p id="acq-initial" class="caption" hidden></p>
     <div id="{{ figure.dom_id }}" class="acq-stack">
         {% comment %}Everything that states the prior, on one row above the panel

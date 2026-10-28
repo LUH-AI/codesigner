@@ -23,7 +23,7 @@ it copy a narrow table instead of that column twice over per column.
 import django.db.models.deletion
 from django.db import migrations, models
 
-import ui.fields
+import experiments.fields
 
 #: What moves. Named once so the backfill and the drop cannot disagree about it.
 MOVED = ("name", "model_name", "optimizer_name", "optimizer_params",
@@ -94,8 +94,8 @@ class Migration(migrations.Migration):
                 ("test_size", models.FloatField(default=0.2)),
                 ("dataset", models.FileField(blank=True, null=True, upload_to="datasets/")),
                 ("config_space", models.JSONField(blank=True, default=None, null=True)),
-                ("result", ui.fields.SafeJSONField(blank=True, default=None, null=True)),
-                ("priors", ui.fields.SafeJSONField(blank=True, default=dict)),
+                ("result", experiments.fields.SafeJSONField(blank=True, default=None, null=True)),
+                ("priors", experiments.fields.SafeJSONField(blank=True, default=dict)),
             ],
         ),
         # Nullable for exactly as long as the backfill takes.

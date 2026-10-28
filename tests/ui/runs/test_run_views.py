@@ -1,9 +1,4 @@
-"""Step 6: the create/run split and the run lifecycle in the browser.
-
-Creating an experiment no longer runs it; the detail page launches a background
-run, polls its status, and can cancel it. The metric-change confirmation gates
-a run that would change the optimized metric. Background execution is patched
-out here (tested directly in test_run_execution) so these stay deterministic.
+"""The detail page launches a background run, polls its status and cancels it.
 """
 
 import pytest
@@ -14,9 +9,8 @@ from tests.conftest import DATASETS_DIR, post_new_experiment
 
 @pytest.fixture
 def no_thread(monkeypatch):
-    """Stop launched runs from actually executing, so a launched run stays
-    'pending' and assertions are race-free."""
-    from ui.services import run as run_service
+    """`no_thread` keeps a launched run 'pending'."""
+    from experiments.services import run as run_service
     monkeypatch.setattr(run_service, "start_background_run", lambda run_id: None)
 
 
@@ -33,7 +27,7 @@ def _create(client, **overrides):
 
 
 def _experiment(**overrides):
-    from ui.services import snapshot as adapter
+    from experiments.services import snapshot as adapter
     snapshot = {
         "version": "0.1.0", "name": "exp", "model_name": "Random Forest",
         "model_path": "", "optimizer_params": {},
@@ -46,16 +40,9 @@ def _experiment(**overrides):
     return adapter.experiment_from_snapshot(snapshot, adopt_paths=True)
 
 
-# ── Create no longer runs ─────────────────────────────────────────────────────
-
 @pytest.mark.django_db
 def test_create_persists_without_running(client):
-    """Creating an experiment saves it with no result and launches no run.
-
-    Expect: a redirect to the detail page, an Experiment with result None and no
-    committed metric, and zero Run rows.
-    """
-    from ui.models import Experiment, Run
+    from experiments.models import Experiment, Run
 
     resp = _create(client, name="fresh")
     exp = Experiment.objects.get(data__name="fresh")
@@ -69,19 +56,18 @@ def test_create_persists_without_running(client):
 
 @pytest.mark.django_db
 def test_detail_offers_a_run_form_when_idle(client):
-    """An idle experiment with a dataset shows a Run form (trials + metric)."""
+    """The Run form asks for trials and a metric."""
     exp = _experiment()
     html = client.get(reverse("ui:experiment_detail", args=[exp.pk])).content.decode()
     assert 'name="max_trials"' in html
     assert 'name="optimize_metric"' in html
 
 
-# ── Launching a run ────────────────────────────────────────────────────────────
+# Launching a run
 
 @pytest.mark.django_db
 def test_run_launches_a_pending_run(client, no_thread):
-    """Submitting the Run form records a pending run and redirects to detail."""
-    from ui.models import Run
+    from experiments.models import Run
 
     exp = _experiment()
     resp = client.post(reverse("ui:experiment_run", args=[exp.pk]),
@@ -97,11 +83,10 @@ def test_run_launches_a_pending_run(client, no_thread):
 
 @pytest.mark.django_db
 def test_run_metric_change_asks_for_confirmation(client, no_thread):
-    """Changing the optimized metric first shows a confirmation, launching nothing.
-
-    Expect: 200 (a confirmation naming both metrics), and no run created yet.
+    """`experiment_run` asks for confirmation naming both metrics and creates no
+    run.
     """
-    from ui.models import Run
+    from experiments.models import Run
 
     exp = _experiment(primary_metric="accuracy", original_metric="accuracy")
     resp = client.post(reverse("ui:experiment_run", args=[exp.pk]),
@@ -115,13 +100,7 @@ def test_run_metric_change_asks_for_confirmation(client, no_thread):
 
 @pytest.mark.django_db
 def test_metric_change_warning_states_the_real_cost(client, no_thread):
-    """The confirmation states the consequence that actually survives the fix.
-
-    The optimizer now re-reads the accumulated trials under the new metric, so
-    the search does not restart and the old claim — that the experiment is no
-    longer reproducible from its seed and setup — is not what is wrong any
-    more. What remains is selection bias: those trials were *chosen* by the old
-    objective. Each metric is named once."""
+    """`experiment_run` warns of selection bias, naming each metric once."""
     exp = _experiment(primary_metric="accuracy", original_metric="accuracy")
     body = client.post(reverse("ui:experiment_run", args=[exp.pk]),
                        {"max_trials": 3, "optimize_metric": "f1"}).content.decode()
@@ -135,8 +114,7 @@ def test_metric_change_warning_states_the_real_cost(client, no_thread):
 
 @pytest.mark.django_db
 def test_run_metric_change_confirm_new_launches_with_chosen(client, no_thread):
-    """Confirming 'new' launches a run optimizing the chosen metric."""
-    from ui.models import Run
+    from experiments.models import Run
 
     exp = _experiment(primary_metric="accuracy", original_metric="accuracy")
     resp = client.post(reverse("ui:experiment_run", args=[exp.pk]),
@@ -152,8 +130,7 @@ def test_run_metric_change_confirm_new_launches_with_chosen(client, no_thread):
 
 @pytest.mark.django_db
 def test_run_metric_change_confirm_old_keeps_original(client, no_thread):
-    """Confirming 'old' launches a run optimizing the original metric."""
-    from ui.models import Run
+    from experiments.models import Run
 
     exp = _experiment(primary_metric="accuracy", original_metric="accuracy")
     client.post(reverse("ui:experiment_run", args=[exp.pk]),
@@ -163,12 +140,12 @@ def test_run_metric_change_confirm_old_keeps_original(client, no_thread):
     assert run.primary_metric == "accuracy"
 
 
-# ── Status polling ──────────────────────────────────────────────────────────
+# Status polling
 
 @pytest.mark.django_db
 def test_status_partial_reports_running(client):
-    """While a run is active, the status endpoint shows it running and keeps polling."""
-    from ui.models import Run
+    """The status endpoint keeps polling and offers Cancel."""
+    from experiments.models import Run
 
     exp = _experiment()
     Run.objects.create(experiment=exp, stopping={"max_trials": 3}, primary_metric="accuracy", status="running")
@@ -176,15 +153,15 @@ def test_status_partial_reports_running(client):
 
     assert resp.status_code == 200
     body = resp.content.decode()
-    assert "unning" in body            # "Running" / "running"
-    assert "hx-trigger" in body        # keeps polling
-    assert reverse("ui:run_cancel", args=[exp.pk]) in body  # cancel available
+    assert "unning" in body
+    assert "hx-trigger" in body
+    assert reverse("ui:run_cancel", args=[exp.pk]) in body
 
 
 @pytest.mark.django_db
 def test_status_partial_refreshes_when_finished(client):
-    """When no run is active, the status endpoint asks the page to refresh."""
-    from ui.models import Run
+    """An idle status endpoint sends `HX-Refresh`."""
+    from experiments.models import Run
 
     exp = _experiment()
     Run.objects.create(experiment=exp, stopping={"max_trials": 3}, primary_metric="accuracy", status="done")
@@ -194,12 +171,12 @@ def test_status_partial_refreshes_when_finished(client):
     assert resp.get("HX-Refresh") == "true"
 
 
-# ── Cancel ─────────────────────────────────────────────────────────────────
+# Cancel
 
 @pytest.mark.django_db
 def test_cancel_requests_cancellation(client):
-    """Cancelling sets the active run's cancel flag (the worker stops soon after)."""
-    from ui.models import Run
+    """The worker stops soon after the flag."""
+    from experiments.models import Run
 
     exp = _experiment()
     run = Run.objects.create(experiment=exp, stopping={"max_trials": 3}, primary_metric="accuracy", status="running")
@@ -212,9 +189,9 @@ def test_cancel_requests_cancellation(client):
 
 @pytest.mark.django_db
 def test_delete_works_with_an_active_run(client):
-    """Deleting an experiment mid-run asks the run to stop and bins the
-    experiment with its runs intact, so restoring brings them back."""
-    from ui.models import Run
+    """Deleting mid-run asks the run to stop and bins the experiment with its
+    runs."""
+    from experiments.models import Run
 
     exp = _experiment()
     run = Run.objects.create(experiment=exp, stopping={"max_trials": 3},
@@ -228,12 +205,11 @@ def test_delete_works_with_an_active_run(client):
     assert run.cancel_requested
 
 
-# ── Sidebar spinner ──────────────────────────────────────────────────────────
+# Sidebar spinner
 
 @pytest.mark.django_db
 def test_sidebar_marks_running_experiments(client):
-    """An experiment with an active run is flagged in the sidebar (spinner)."""
-    from ui.models import Run
+    from experiments.models import Run
 
     exp = _experiment(primary_metric="accuracy", original_metric="accuracy")
     Run.objects.create(experiment=exp, stopping={"max_trials": 3}, primary_metric="accuracy", status="running")
@@ -244,9 +220,8 @@ def test_sidebar_marks_running_experiments(client):
 
 @pytest.mark.django_db
 def test_stopping_criteria_reach_the_run(client, no_thread):
-    """Filled-in criteria are stored on the Run, which is what the optimizer
-    reads them from."""
-    from ui.models import Run
+    """The optimizer reads the criteria from the Run."""
+    from experiments.models import Run
 
     exp = _experiment()
     client.post(reverse("ui:experiment_run", args=[exp.pk]),
@@ -260,9 +235,8 @@ def test_stopping_criteria_reach_the_run(client, no_thread):
 
 @pytest.mark.django_db
 def test_blank_criteria_are_absent_rather_than_zero(client, no_thread):
-    """An empty box means "this does not apply". Stored as 0 it would mean
-    "stop immediately", and the run would do nothing."""
-    from ui.models import Run
+    """A criterion stored as 0 would stop the run at once."""
+    from experiments.models import Run
 
     exp = _experiment()
     client.post(reverse("ui:experiment_run", args=[exp.pk]),
@@ -274,9 +248,8 @@ def test_blank_criteria_are_absent_rather_than_zero(client, no_thread):
 
 @pytest.mark.django_db
 def test_an_unparseable_criterion_costs_the_criterion_not_the_run(client, no_thread):
-    """The trial cap still bounds the run, so a typo should not be an error
-    page in the middle of starting one."""
-    from ui.models import Run
+    """A typo costs only its criterion, and the trial cap still bounds the run."""
+    from experiments.models import Run
 
     exp = _experiment()
     resp = client.post(reverse("ui:experiment_run", args=[exp.pk]),
@@ -289,9 +262,8 @@ def test_an_unparseable_criterion_costs_the_criterion_not_the_run(client, no_thr
 
 @pytest.mark.django_db
 def test_criteria_survive_the_metric_change_confirmation(client, no_thread):
-    """The confirmation reposts the form, so anything it does not carry is
-    silently dropped on the way through."""
-    from ui.models import Run
+    """The confirmation reposts the form, dropping anything it omits."""
+    from experiments.models import Run
 
     exp = _experiment(primary_metric="accuracy", original_metric="accuracy")
     body = client.post(reverse("ui:experiment_run", args=[exp.pk]),
@@ -309,10 +281,8 @@ def test_criteria_survive_the_metric_change_confirmation(client, no_thread):
 
 @pytest.mark.django_db
 def test_a_run_with_no_criteria_is_refused_with_a_reason(client, no_thread):
-    """No field on the form is required, so all of them can be empty — and a run
-    that cannot end must not start. The page says why rather than redirecting to
-    a detail page that looks like nothing happened."""
-    from ui.models import Run
+    """A run with no way to end never starts, and the page says why."""
+    from experiments.models import Run
 
     exp = _experiment()
     resp = client.post(reverse("ui:experiment_run", args=[exp.pk]),
@@ -326,8 +296,8 @@ def test_a_run_with_no_criteria_is_refused_with_a_reason(client, no_thread):
 
 @pytest.mark.django_db
 def test_any_single_criterion_is_enough_to_start_a_run(client, no_thread):
-    """Including one that is not a trial count. The cap has no special status."""
-    from ui.models import Run
+    """The trial cap has no special status."""
+    from experiments.models import Run
 
     exp = _experiment()
     client.post(reverse("ui:experiment_run", args=[exp.pk]),
@@ -338,8 +308,7 @@ def test_any_single_criterion_is_enough_to_start_a_run(client, no_thread):
 
 @pytest.mark.django_db
 def test_the_confidence_criterion_is_offered_only_where_it_can_be_answered(client):
-    """It reads an optimizer's surrogate. Grid search has none, so offering the
-    field would be offering a limit that can never fire."""
+    """Grid search has no surrogate for the confidence criterion to read."""
     smac = _experiment(optimizer_name="SMAC")
     grid = _experiment(optimizer_name="Grid Search")
 
@@ -349,19 +318,16 @@ def test_the_confidence_criterion_is_offered_only_where_it_can_be_answered(clien
     assert 'name="incumbent_confidence"' in page(smac)
     assert 'name="incumbent_confidence"' not in page(grid)
 
-    # And under the name it had before the strategy became a setting, because
-    # every experiment created before that still carries it.
+    # Experiments created before the strategy setting still carry the old name.
     assert 'name="incumbent_confidence"' in page(_experiment(optimizer_name="SMAC (BlackBox)"))
 
 
 @pytest.mark.django_db
 def test_an_interrupted_run_says_it_was_interrupted(client):
-    """Being stopped by hand is a reason a run ended, and the page has to be
-    able to say so. Reported through the same field as the criteria, so there
-    is one answer to "why did this stop?" rather than two places to look."""
+    """A manual stop is reported through `stopped_by`, like the criteria."""
     from django.utils import timezone
 
-    from ui.models import Run
+    from experiments.models import Run
 
     exp = _experiment()
     Run.objects.create(experiment=exp, stopping={"max_trials": 30},
@@ -375,10 +341,10 @@ def test_an_interrupted_run_says_it_was_interrupted(client):
     assert "requested trials ran" not in html
 
 
-# ── giving up on a run that is not answering ─────────────────────────────────
+# Giving up on a run
 
 def _running(exp, **kw):
-    from ui.models import Run
+    from experiments.models import Run
     fields = dict(experiment=exp, stopping={"max_trials": 3},
                   primary_metric="accuracy", status="running")
     fields.update(kw)
@@ -387,10 +353,8 @@ def _running(exp, **kw):
 
 @pytest.mark.django_db
 def test_cancelling_comes_first_and_giving_up_only_after(client):
-    """Cancelling is a request to whatever is executing the run, and it keeps
-    the trials that already finished. Giving up cannot, so it is the escalation
-    rather than the thing nearest to hand — it appears only once cancelling has
-    been asked for and has not worked."""
+    """Giving up appears only after a cancel fails, since cancelling keeps
+    finished trials."""
     exp = _experiment()
     run = _running(exp)
 
@@ -407,9 +371,7 @@ def test_cancelling_comes_first_and_giving_up_only_after(client):
 
 @pytest.mark.django_db
 def test_giving_up_finishes_the_row_and_says_why(client):
-    """The experiment stops waiting on it. Nothing is killed and nothing claims
-    to be — the web process has no handle on the worker — so what the row says
-    is what actually happened: it was given up on."""
+    """The row records a give-up, since the web process cannot kill the worker."""
     exp = _experiment()
     run = _running(exp, cancel_requested=True)
 
@@ -423,7 +385,7 @@ def test_giving_up_finishes_the_row_and_says_why(client):
 
 @pytest.mark.django_db
 def test_a_run_that_was_never_asked_to_stop_is_not_given_up_on(client):
-    """Reaching the URL directly must not skip the step that keeps the work."""
+    """A direct POST still requires a cancel request first."""
     exp = _experiment()
     run = _running(exp)
 
@@ -435,8 +397,7 @@ def test_a_run_that_was_never_asked_to_stop_is_not_given_up_on(client):
 
 @pytest.mark.django_db
 def test_giving_up_is_post_only(client):
-    """Same reasoning as cancelling: on GET a prefetcher or an <img> pointing
-    here would end someone's run with CSRF never consulted."""
+    """A GET from a prefetcher or an `<img>` would end a run without CSRF."""
     exp = _experiment()
     _running(exp, cancel_requested=True)
 

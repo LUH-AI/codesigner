@@ -1,13 +1,10 @@
-"""The trials table shows a per-trial Duration column.
-
-Duration comes from each trial's run_info["time"] (seconds), rendered to 3
-decimals. Trials from files without timing render 0.000 s.
+"""The trials table shows `run_info["time"]` as Duration.
 """
 
 import pytest
 from django.urls import reverse
 
-from ui.models import Experiment
+from experiments.models import Experiment
 
 
 def _experiment_with_timed_result():
@@ -35,5 +32,5 @@ def _experiment_with_timed_result():
 def test_trials_table_has_duration_column_and_value(client):
     exp = _experiment_with_timed_result()
     body = client.get(reverse("ui:experiment_detail", args=[exp.pk])).content.decode()
-    assert "Duration" in body          # column header
-    assert "2.5" in body               # the trial's duration, four figures
+    assert "Duration" in body          # header
+    assert "2.5" in body               # the trial's duration

@@ -1,8 +1,5 @@
-"""What a run leaves behind: enough to say what happened, however it ended.
-
-A run is the unit the experiment's timeline is told in — when it was asked
-for, when it started and stopped, which trials it produced, what happened to
-it along the way — and the `.ihpo` has to carry all of it back.
+"""A run keeps its times, trials and events, and the `.ihpo` carries them all
+back.
 """
 
 import json
@@ -29,7 +26,7 @@ def _trials(n):
 
 
 def _experiment(trials=0):
-    from ui.services import snapshot as adapter
+    from experiments.services import snapshot as adapter
 
     exp = adapter.experiment_from_snapshot({
         "version": "0.1.0", "name": "history", "model_name": "Random Forest",
@@ -44,15 +41,13 @@ def _experiment(trials=0):
 
 
 def _store(exp, n):
-    from ui.models import ExperimentData
+    from experiments.models import ExperimentData
 
     ExperimentData.objects.filter(pk=exp.data_id).update(result=_trials(n))
 
 
 def test_a_run_records_when_it_was_asked_for():
-    """What: a run knows when Run was pressed, before any worker starts it.
-    How: creates a run and reads its queue time."""
-    from ui.services.run import create_run
+    from experiments.services.run import create_run
 
     before = timezone.now()
     run = create_run(_experiment(), {"max_trials": 3}, "accuracy")
@@ -62,12 +57,9 @@ def test_a_run_records_when_it_was_asked_for():
 
 
 def test_a_failed_run_still_owns_the_trials_it_saved():
-    """What: a run that errors after its partial writes saved trials keeps
-    their range, so they are not trials of no run.
-    How: starts a run on an experiment with three trials, stores two more as a
-    partial write would, then fails it."""
-    from ui.models import Run
-    from ui.services.run import _start, create_run, fail_runs
+    """`fail_runs` keeps the range of trials saved by partial writes."""
+    from experiments.models import Run
+    from experiments.services.run import _start, create_run, fail_runs
 
     exp = _experiment(trials=3)
     run = create_run(exp, {"max_trials": 9}, "accuracy")
@@ -82,10 +74,8 @@ def test_a_failed_run_still_owns_the_trials_it_saved():
 
 
 def test_a_run_swept_after_a_restart_is_finished_with_its_trials():
-    """What: a run left "running" by a restart is closed with a finish time
-    and its range, not only an error.
-    How: starts a run, stores a trial, and sweeps."""
-    from ui.services.run import _start, create_run, sweep_stale_runs
+    """`sweep_stale_runs` gives a closed run its finish time and trial range."""
+    from experiments.services.run import _start, create_run, sweep_stale_runs
 
     exp = _experiment()
     run = create_run(exp, {"max_trials": 9}, "accuracy")
@@ -99,9 +89,7 @@ def test_a_run_swept_after_a_restart_is_finished_with_its_trials():
 
 
 def test_cancelling_records_when_and_only_the_first_time(client):
-    """What: Cancel records when it was pressed; pressing it again does not
-    move that. How: cancels a pending run twice through the view."""
-    from ui.services.run import create_run
+    from experiments.services.run import create_run
 
     exp = _experiment()
     run = create_run(exp, {"max_trials": 3}, "accuracy")
@@ -118,9 +106,8 @@ def test_cancelling_records_when_and_only_the_first_time(client):
 
 
 def test_a_metric_change_says_when_it_happened():
-    """What: a run's events carry the time as well as the trial count.
-    How: changes the optimized metric on an experiment with trials."""
-    from ui.services.run import create_run
+    """A run's events carry the time as well as the trial count."""
+    from experiments.services.run import create_run
 
     exp = _experiment(trials=2)
     exp.data.metric_names = ["accuracy", "f1"]
@@ -133,11 +120,10 @@ def test_a_metric_change_says_when_it_happened():
 
 
 def test_a_prior_event_keeps_when_it_took_effect_and_why_it_was_skipped():
-    """What: a prior applied mid-run records the trial it took effect at, not
-    the run's start; a refused one says it was refused.
-    How: records two reports the optimizer could give."""
-    from ui.models import Run
-    from ui.services.run import _record_prior_event, create_run
+    """`_record_prior_event` keeps the trial a prior took effect at and marks a
+    refused one."""
+    from experiments.models import Run
+    from experiments.services.run import _record_prior_event, create_run
 
     run = create_run(_experiment(), {"max_trials": 3}, "accuracy")
     _record_prior_event(run.pk, {"applied": True, "key": "codesigner",
@@ -153,10 +139,8 @@ def test_a_prior_event_keeps_when_it_took_effect_and_why_it_was_skipped():
 
 
 def test_the_cluster_records_the_prior_too(monkeypatch, settings):
-    """What: a run finished on the cluster records what its prior did, as a
-    local run does. How: finishes a cluster run whose status reports a prior."""
-    from ui.models import Run
-    from ui.services.run import _finish_cluster_run, _start, create_run
+    from experiments.models import Run
+    from experiments.services.run import _finish_cluster_run, _start, create_run
 
     exp = _experiment()
     run = create_run(exp, {"max_trials": 3}, "accuracy")
@@ -171,10 +155,9 @@ def test_the_cluster_records_the_prior_too(monkeypatch, settings):
 
 
 def test_runs_come_back_from_a_file_as_they_were(client):
-    """What: a run's queue, start, finish and cancel times, its priors and
-    trial timeout, and a run that produced no trials all survive a round trip.
-    How: records two runs, exports, imports the file and compares."""
-    from ui.models import Experiment, Run
+    """A run's times, priors and trial timeout survive a round trip, as does an
+    empty run."""
+    from experiments.models import Experiment, Run
 
     exp = _experiment(trials=3)
     now = timezone.now()
@@ -207,15 +190,14 @@ def test_runs_come_back_from_a_file_as_they_were(client):
 
 
 def test_an_experiment_keeps_its_own_beginning_across_a_file():
-    """What: the experiment's creation time travels in the file; the instance
-    that imports it records when it first saw it separately.
-    How: snapshots an experiment and builds another from the snapshot."""
-    from ui.services import snapshot as adapter
+    """The creation time travels in the file as `began_at`."""
+    from experiments.services import snapshot as adapter
 
     exp = _experiment()
     snapshot = adapter.snapshot_from_experiment(exp)
     snapshot["name"] = "copy"
     copy = adapter.experiment_from_snapshot(snapshot)
 
+    assert exp.data.created_at is not None
     assert snapshot["began_at"] == exp.data.created_at.isoformat()
     assert copy.data.created_at == exp.data.created_at

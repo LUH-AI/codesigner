@@ -1,18 +1,17 @@
-"""LightGBM's gradient boosted trees, classifying or regressing."""
+"""LightGBM gradient boosted trees."""
+
+from typing import Any
 
 from ConfigSpace import Categorical, ConfigurationSpace, Float, Integer
+from codesigner_model import OutputBaseModel
 
-from .base import OutputBaseModel, Tunable
+from .base import Tunable
 from .parts import categorical_columns
 
 
 class LightGBM(OutputBaseModel):
-    """LightGBM's gradient boosted trees: leaf-wise growth on binned features,
-    with labels and missing values split as they are.
-
-    A label column is handed over as its codes and named categorical when the
-    booster is fitted (`fit_args`), so it groups labels itself instead of
-    ordering them by code.
+    """`fit_args` marks label columns categorical, so LightGBM groups labels
+    itself.
     """
 
     name = "LightGBM"
@@ -23,7 +22,7 @@ class LightGBM(OutputBaseModel):
     def build(self, hyperparameters, data, seed=0):
         from lightgbm import LGBMClassifier, LGBMRegressor
 
-        shared = dict(
+        shared: dict[str, Any] = dict(
             n_estimators=int(hyperparameters["n_estimators"]),
             learning_rate=float(hyperparameters["learning_rate"]),
             num_leaves=int(hyperparameters["num_leaves"]),
@@ -40,8 +39,7 @@ class LightGBM(OutputBaseModel):
         return {"categorical_feature": categorical_columns(data) or "auto"}
 
     def save_parameters(self, fitted, directory):
-        """LightGBM's own text format: the trees, readable, and a model it can
-        train on from."""
+        """`save_parameters` writes LightGBM's readable, resumable text format."""
         from pathlib import Path
 
         fitted.booster_.save_model(str(Path(directory) / "model.txt"))
@@ -55,8 +53,6 @@ class LightGBM(OutputBaseModel):
 
 
 class LightGBMModel(Tunable, LightGBM):
-    """LightGBM, tuned over its size, learning rate and leaves, and for a
-    classification its class weighting."""
 
     def get_config_space(self, seed: int = 0) -> ConfigurationSpace:
         cs = ConfigurationSpace(seed=seed)

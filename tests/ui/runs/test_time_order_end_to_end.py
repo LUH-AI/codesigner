@@ -1,7 +1,5 @@
-"""A time-ordered experiment, from the create form to a re-imported file.
-
-`tests/fixtures/flats.csv` is uploaded and ordered by its listing date. Runs
-execute inline in tests (see `runs_execute_synchronously`).
+"""The create form builds a time-ordered experiment, and a re-imported file
+keeps its order.
 """
 
 from pathlib import Path
@@ -16,9 +14,9 @@ FLATS = Path(__file__).parent.parent.parent / "fixtures" / "flats.csv"
 
 
 def _built(exp):
-    """*exp* built the way a run builds it — with its data and its folds."""
+    """`_built` builds *exp* with its data and folds."""
     from core import io, registry
-    from ui.services import snapshot as snapshot_adapter
+    from experiments.services import snapshot as snapshot_adapter
 
     _, built = io.build_experiment(snapshot_adapter.snapshot_from_experiment(exp),
                                    registry.METRICS, registry.MODELS, registry.OPTIMIZERS,
@@ -40,14 +38,11 @@ def _create(client, name="flats in time", **overrides):
 
 @pytest.mark.django_db
 def test_every_trial_validates_on_listings_after_its_training_ones(client):
-    """What: ordered by `listed`, each fold of the rebuilt experiment trains on
-    earlier listings than it validates, five rows apart, and a run on it
-    measures every trial. How: creates the experiment, rebuilds it the way a
-    run does, compares the dates on each side of every fold, then runs three
-    trials."""
+    """Every fold validates on later listings than its training rows, with a gap
+    of five rows."""
     from core import encoding
-    from ui.models import Experiment
-    from ui.views import _rebuild_result
+    from experiments.models import Experiment
+    from experiments.services.snapshot import rebuild_result
 
     assert _create(client).status_code == 302
     exp = Experiment.objects.get(data__name="flats in time")
@@ -62,18 +57,18 @@ def test_every_trial_validates_on_listings_after_its_training_ones(client):
     client.post(reverse("ui:experiment_run", args=[exp.pk]),
                 {"max_trials": 3, "optimize_metric": "accuracy"})
     exp.refresh_from_db()
-    assert not any(t.failed for t in _rebuild_result(exp).trials)
+    result = rebuild_result(exp)
+    assert result is not None
+    assert not any(t.failed for t in result.trials)
     page = client.get(reverse("ui:experiment_detail", args=[exp.pk])).content.decode()
     assert "3 time-ordered folds by listed" in page
 
 
 @pytest.mark.django_db
 def test_the_order_survives_a_round_trip_through_a_file(client):
-    """What: an exported `.ihpo` records the column and the gap, and opening it
-    again orders the same way. How: exports the experiment's snapshot and
-    builds a second experiment from it."""
-    from ui.models import Experiment
-    from ui.services import snapshot as snapshot_adapter
+    """The `.ihpo` records the column and the gap."""
+    from experiments.models import Experiment
+    from experiments.services import snapshot as snapshot_adapter
 
     _create(client)
     exp = Experiment.objects.get(data__name="flats in time")
@@ -90,9 +85,9 @@ def test_the_order_survives_a_round_trip_through_a_file(client):
 @pytest.mark.parametrize("column, says", [("city", "holds labels"),
                                           ("nowhere", "no feature column named")])
 def test_a_column_that_cannot_order_the_rows_is_refused(client, column, says):
-    """What: a label column, or one the file does not have, is refused with the
-    reason and the columns that would do. How: posts the form with each."""
-    from ui.models import Experiment
+    """The form refuses a label column or a missing one, naming the reason and
+    the usable columns."""
+    from experiments.models import Experiment
 
     resp = _create(client, name=f"bad {column}", time_column=column)
     body = resp.content.decode()
@@ -104,10 +99,8 @@ def test_a_column_that_cannot_order_the_rows_is_refused(client, column, says):
 
 @pytest.mark.django_db
 def test_left_empty_the_rows_are_divided_at_random_as_before(client):
-    """What: without an order the experiment stores none, and its folds mix
-    early and late listings. How: creates the experiment without a column."""
     from core import encoding
-    from ui.models import Experiment
+    from experiments.models import Experiment
 
     _create(client, name="random", time_column="", time_gap="")
     exp = Experiment.objects.get(data__name="random")

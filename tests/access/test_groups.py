@@ -1,21 +1,13 @@
-"""Groups do not see each other.
-
-*What:* an instance hosted for several research groups exists so that the groups
-are separate. Everything in `access/policy.py` narrows towards that, and this is
-where the narrowing is checked — at the queryset, where a miss is a 404 and an
-experiment you may not see is indistinguishable from one that is not there.
-
-*How:* two groups with a lead and members each, plus a site admin in neither,
-and one experiment at each sharing level: not shared, a viewer, a contributor. Cross-group access is asserted to
-404 rather than 403, because a 403 would confirm the experiment exists.
+"""`access/policy.py` keeps each group's experiments invisible to other groups.
+Cross-group access returns 404, since a 403 would confirm the experiment exists.
 """
 
 import pytest
 from django.urls import reverse
 
 from access.models import Group, Membership
-from ui.models import Experiment, ExperimentShare
-from ui.permissions import DELETE, EDIT, EXPORT, RUN, SHARE, VIEW
+from experiments.models import Experiment, ExperimentShare
+from access.policy import DELETE, EDIT, EXPORT, RUN, SHARE, VIEW
 
 VIEWER, CONTRIBUTOR = ExperimentShare.VIEWER, ExperimentShare.CONTRIBUTOR
 
@@ -46,7 +38,7 @@ def _experiment(owner, name, *, shares=None):
 
 @pytest.fixture
 def world(django_user_model):
-    """Two groups, and a site admin belonging to neither."""
+    """`world` seeds two groups and one admin."""
     from django.contrib.auth.models import Permission
 
     vision = Group.objects.create(name="vision-lab", user_limit=5)
@@ -74,7 +66,7 @@ def world(django_user_model):
 
 
 def _visible(client, user):
-    """The names this user's sidebar would list."""
+    """`_visible` reads the user's sidebar."""
     from access.policy import GroupPolicy
 
     request = type("R", (), {"user": user})()
@@ -85,23 +77,19 @@ def _detail(client, exp):
     return client.get(reverse("ui:experiment_detail", args=[exp.pk]))
 
 
-# ── the boundary ─────────────────────────────────────────────────────────────
-
 def test_a_member_sees_their_own_and_what_was_shared_with_them(hosted, world):
     assert _visible(None, world["ben"]) == {"ana viewer", "ana contrib"}
     assert _visible(None, world["ana"]) == {"ana private", "ana viewer", "ana contrib"}
 
 
 def test_another_group_sees_none_of_it(hosted, world):
-    """The property the whole feature exists for."""
     assert _visible(None, world["cleo"]) == {"cleo private"}
     assert _visible(None, world["lead_n"]) == {"cleo private"}
 
 
 def test_reaching_across_groups_is_a_404_not_a_403(client, hosted, world):
-    """A 403 would confirm it exists. An experiment you may not see has to be
-    indistinguishable from one that is not there, or the URL space reports who
-    has what."""
+    """A 403 would reveal which experiments exist, so hidden ones must look
+    absent."""
     client.force_login(world["cleo"])
 
     assert _detail(client, world["ana_viewer"]).status_code == 404
@@ -109,20 +97,18 @@ def test_reaching_across_groups_is_a_404_not_a_403(client, hosted, world):
 
 
 def test_a_group_lead_reaches_nothing_in_another_group(client, hosted, world):
-    """Being a lead is a fact inside one group, not a rank across the site."""
+    """Lead is a role inside one group."""
     client.force_login(world["lead_n"])
 
     assert _detail(client, world["ana_viewer"]).status_code == 404
 
-
-# ── the three sharing levels ─────────────────────────────────────────────────
 
 def test_unshared_is_the_owners_alone(hosted, world):
     assert "ana private" not in _visible(None, world["ben"])
 
 
 def test_a_grant_cannot_cross_the_group_boundary(hosted, world):
-    """Sharing is how work moves within a group, not out of one."""
+    """Sharing moves work within a group only."""
     from django.core.exceptions import ValidationError
 
     grant = ExperimentShare(experiment=world["ana_private"], user=world["cleo"])
@@ -132,8 +118,7 @@ def test_a_grant_cannot_cross_the_group_boundary(hosted, world):
 
 
 def test_the_view_refuses_it_too(client, hosted, world):
-    """Not found, rather than refused: the form names a colleague, and somebody
-    outside the group is not one."""
+    """An outsider gets a 404 because the share form offers colleagues only."""
     client.force_login(world["ana"])
 
     resp = client.post(reverse("ui:experiment_share", args=[world["ana_private"].pk]),
@@ -144,8 +129,8 @@ def test_the_view_refuses_it_too(client, hosted, world):
 
 
 def test_a_grant_that_got_across_anyway_reaches_nothing(hosted, world):
-    """The admin and a data migration are routes that skip `clean()`. The
-    policy asks about membership itself, so a stray row grants nothing."""
+    """`GroupPolicy` checks membership itself because the admin and data
+    migrations bypass `clean()`."""
     ExperimentShare.objects.create(experiment=world["ana_private"],
                                    user=world["cleo"], level=CONTRIBUTOR)
 
@@ -177,21 +162,18 @@ def test_a_contributor_may_do_everything_but_share_it(client, hosted, world):
 
 
 def test_leaving_the_group_takes_the_grants_in_it(hosted, world):
-    """Out of the group, a grant would be access across the boundary."""
+    """A grant outside the group would cross the boundary."""
     Membership.objects.filter(user=world["ben"]).delete()
 
     assert not ExperimentShare.objects.filter(user=world["ben"]).exists()
 
 
 def test_a_grant_does_not_follow_the_work_to_another_group(hosted, world):
-    """Rehoming moves the experiment and not its colleagues: Ben is not in the
-    group it went to, so what he was given is no longer his to reach."""
+    """Rehoming moves the experiment without its grantees."""
     Experiment.objects.filter(pk=world["ana_viewer"].pk).update(group=world["nlp"])
 
     assert "ana viewer" not in _visible(None, world["ben"])
 
-
-# ── the lead's two views ─────────────────────────────────────────────────────
 
 def test_a_lead_reaches_everything_in_their_group(hosted, world):
     assert _visible(None, world["lead_v"]) == {"ana private", "ana viewer",
@@ -199,7 +181,6 @@ def test_a_lead_reaches_everything_in_their_group(hosted, world):
 
 
 def test_but_their_everyday_list_stays_their_own(hosted, world):
-    """Being a lead should not quietly turn the main list into everyone's."""
     from access.policy import GroupPolicy
 
     request = type("R", (), {"user": world["lead_v"]})()
@@ -209,9 +190,8 @@ def test_but_their_everyday_list_stays_their_own(hosted, world):
 
 
 def test_a_shared_experiment_is_listed_once(client, hosted, world):
-    """Not once per person it is shared with. It was, for a superuser who
-    leads a group: their reach has no `distinct()`, and the listing joined the
-    grants to find what was shared with them."""
+    """The listing joins grants onto a superuser lead's reach, which lacks
+    `distinct()`."""
     ExperimentShare.objects.create(experiment=world["ana_viewer"],
                                    user=world["lead_v"], level=VIEWER)
     world["ana"].is_superuser = True
@@ -236,8 +216,7 @@ def test_the_group_panel_is_the_other_half(hosted, world):
 
 
 def test_a_lead_may_run_their_groups_work(hosted, world):
-    """Which is the point of the role: stopping a run that is going wrong
-    should not need its owner to be awake."""
+    """Leads can stop a failing run without waking the owner."""
     from access.policy import GroupPolicy
 
     request = type("R", (), {"user": world["lead_v"]})()
@@ -247,8 +226,7 @@ def test_a_lead_may_run_their_groups_work(hosted, world):
 
 
 def test_but_not_delete_it(hosted, world):
-    """Deleting is a decision about the work, and the work is its people's —
-    the owner and whoever they made a contributor."""
+    """Deletion belongs to the owner and the contributors."""
     from access.policy import GroupPolicy
 
     request = type("R", (), {"user": world["lead_v"]})()
@@ -275,14 +253,9 @@ def test_a_member_may_not(hosted, world):
     assert not GroupPolicy().may(request, world["ana_viewer"], RUN)
 
 
-# ── the site admin ───────────────────────────────────────────────────────────
-
 def test_a_site_admin_in_no_group_sees_no_experiments(hosted, world):
-    """Not because of the role — because there is nothing of theirs to see.
-
-    `manage_site` says what they may administer, and their membership says what
-    they may read. The site admin in `world` has none, so the second answer is
-    empty and the first never enters into it.
+    """`manage_site` governs administration and membership governs reading, and
+    the site admin in `world` has no membership.
     """
     assert _visible(None, world["site"]) == set()
 
@@ -294,12 +267,8 @@ def test_a_site_admin_cannot_reach_another_groups_by_url(client, hosted, world):
 
 
 def test_a_site_admin_with_a_group_sees_that_group(hosted, world, django_user_model):
-    """`create_site_admin` gives them a group of one by default, and that group
-    is theirs to work in.
-
-    Administering the instance and belonging to a group are separate facts, so
-    holding `manage_site` neither grants reach nor withdraws it: this reads
-    exactly like any other lead of vision-lab, and nlp-group stays invisible.
+    """`create_site_admin` gives a site admin a group of one by default, and the
+    permission `manage_site` neither grants nor withdraws reach.
     """
     Membership.objects.create(user=world["site"], group=world["vision"],
                               role=Membership.PRIMARY_LEAD)
@@ -309,19 +278,14 @@ def test_a_site_admin_with_a_group_sees_that_group(hosted, world, django_user_mo
     assert "cleo private" not in _visible(None, site)
 
 
-# ── what ownerless means now ─────────────────────────────────────────────────
-
 def test_an_ownerless_experiment_is_nobodys(hosted, world):
-    """It used to be everyone's, which was right while there was one flat pool
-    of accounts and wrong the moment there are groups — every member of every
-    group would see it. The migration gave the existing ones an owner."""
+    """Ownerless experiments belong to nobody, since otherwise every member of
+    every group would see them."""
     _experiment(None, "orphan")
 
     assert "orphan" not in _visible(None, world["ana"])
     assert "orphan" not in _visible(None, world["lead_v"])
 
-
-# ── and none of this applies without accounts ────────────────────────────────
 
 def test_without_accounts_everything_is_everyones(settings, world):
     settings.REQUIRE_LOGIN = False

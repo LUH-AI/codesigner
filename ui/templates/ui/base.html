@@ -1,0 +1,212 @@
+{% load assets i18n %}
+<!doctype html>
+<html lang="{{ LANGUAGE_CODE }}" data-theme="{{ theme }}">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>{% block title %}Codesigner{% endblock %}</title>
+    <link rel="stylesheet" href="{% asset 'ui/app.css' %}">
+    <script src="{% asset 'ui/poll.js' %}" defer></script>
+</head>
+<body>
+    <nav class="rail">
+        <div class="rail-tabs">
+            <a class="rail-icon{% if active_tab == 'experiments' %} active{% endif %}"
+               href="{% url 'ui:home' %}" title="{% translate 'Experiments' %}">
+                <span aria-hidden="true">🧪</span>
+                <span class="visually-hidden">{% translate "Experiments" %}</span>
+            </a>
+            {% comment %}The Group tab is everybody's who has an account — their
+            groups, who is in them, and sharing. The Site tab only a site
+            admin's: the instance and, deliberately, no experiments anywhere.
+            {% endcomment %}
+            {% if user.is_authenticated %}
+                <a class="rail-icon{% if active_tab == 'group' %} active{% endif %}"
+                   href="{% url 'ui:group_index' %}" title="{% translate 'Group' %}">
+                    <span aria-hidden="true">👥</span>
+                    <span class="visually-hidden">{% translate "Group" %}</span>
+                </a>
+            {% endif %}
+            {% if is_site_admin %}
+                <a class="rail-icon{% if active_tab == 'site' %} active{% endif %}"
+                   href="{% url 'ui:site_groups' %}" title="{% translate 'Site' %}">
+                    <span aria-hidden="true">🏛</span>
+                    <span class="visually-hidden">{% translate "Site" %}</span>
+                </a>
+            {% endif %}
+            <a class="rail-icon{% if active_tab == 'settings' %} active{% endif %}"
+               href="{% url 'ui:appearance' %}" title="{% translate 'Settings' %}">
+                <span aria-hidden="true">⚙</span>
+                <span class="visually-hidden">{% translate "Settings" %}</span>
+            </a>
+        </div>
+        {% comment %}
+        Only when there is a session, so an install with no accounts sees no
+        trace of any of this.
+        {% endcomment %}
+        {% if user.is_authenticated %}
+            <form class="account" action="{% url 'ui:logout' %}" method="post"
+                  title="{% blocktranslate with name=user.get_username %}Signed in as {{ name }} — sign out{% endblocktranslate %}">
+                {% csrf_token %}
+                <button type="submit" class="rail-icon">
+                    <span aria-hidden="true">⏻</span>
+                    <span class="visually-hidden">{% translate "Sign out" %}</span>
+                </button>
+            </form>
+        {% endif %}
+        {% get_current_language as CURRENT_LANGUAGE %}
+        {% comment %}Live now that every offered catalog is translated and
+        compiled. Django's own `set_language` writes the cookie and redirects
+        back to where you were, so the switch keeps your place. Submitted on
+        change rather than behind a button: a select with one job does not need
+        a second control to confirm it, and the form still posts without script
+        for anyone who has none.{% endcomment %}
+        <form class="locale" method="post" action="{% url 'set_language' %}">
+            {% csrf_token %}
+            <input type="hidden" name="next" value="{{ request.path }}">
+            <label for="language-select" aria-hidden="true">
+                <span class="locale-icon">🌐</span>
+                <span class="locale-code">{{ CURRENT_LANGUAGE|upper }}</span>
+            </label>
+            <select id="language-select" name="language"
+                    aria-label="{% translate 'Language' %}"
+                    onchange="this.form.submit()">
+                {% for code, label in offered_languages %}
+                    <option value="{{ code }}"{% if code == CURRENT_LANGUAGE %} selected{% endif %}>{{ label }}</option>
+                {% endfor %}
+            </select>
+            <noscript><button type="submit">{% translate "Go" %}</button></noscript>
+        </form>
+    </nav>
+    {% if active_tab == 'settings' %}
+        <nav class="sidebar">
+            <h1>{% translate "Settings" %}</h1>
+            <div class="tab-list">
+                <a class="tab{% if request.resolver_match.url_name == 'appearance' %} active{% endif %}"
+                   href="{% url 'ui:appearance' %}">{% translate "Appearance" %}</a>
+                <a class="tab{% if request.resolver_match.url_name == 'export_preferences' %} active{% endif %}"
+                   href="{% url 'ui:export_preferences' %}">{% translate "Export" %}</a>
+                {% comment %}Only with accounts: without them there is nothing to
+                describe and every permission on that page is an unconditional
+                yes.{% endcomment %}
+                {% if user.is_authenticated %}
+                    <a class="tab{% if request.resolver_match.url_name == 'account' %} active{% endif %}"
+                       href="{% url 'ui:account' %}">{% translate "Account" %}</a>
+                {% endif %}
+                {% if may_change_defaults %}
+                    <a class="tab{% if request.resolver_match.url_name == 'default_experiment_settings' %} active{% endif %}"
+                       href="{% url 'ui:default_experiment_settings' %}">{% translate "Default experiment settings" %}</a>
+                {% endif %}
+            </div>
+        </nav>
+    {% elif active_tab == 'group' %}
+        <nav class="sidebar">
+            <h1>{% translate "Group" %}</h1>
+            <div class="tab-list">
+                {% for g in my_groups %}
+                    <a class="tab{% if request.resolver_match.kwargs.group_pk == g.pk %} active{% endif %}"
+                       href="{% url 'ui:group_detail' g.pk %}">{{ g.name }}</a>
+                {% empty %}
+                    <span class="placeholder">{% translate "No groups yet." %}</span>
+                {% endfor %}
+            </div>
+        </nav>
+    {% elif active_tab == 'site' %}
+        <nav class="sidebar">
+            <h1>{% translate "Site" %}</h1>
+            <div class="tab-list">
+                <a class="tab{% if request.resolver_match.url_name == 'site_groups' %} active{% endif %}"
+                   href="{% url 'ui:site_groups' %}">{% translate "Groups" %}</a>
+                <a class="tab{% if request.resolver_match.url_name == 'site_usage' %} active{% endif %}"
+                   href="{% url 'ui:site_usage' %}">{% translate "Usage" %}</a>
+                <a class="tab{% if request.resolver_match.url_name == 'site_jobs' %} active{% endif %}"
+                   href="{% url 'ui:site_jobs' %}">{% translate "Jobs" %}</a>
+                <a class="tab{% if request.resolver_match.url_name == 'site_trash' %} active{% endif %}"
+                   href="{% url 'ui:site_trash' %}">{% translate "Bin" %}</a>
+            </div>
+        </nav>
+    {% else %}
+        {% comment %}The sidebar is a stack of sections, each one a decision the
+        page is waiting on. Which experiment is always the first of them; a page
+        with more to ask adds its own through `sidebar_sections` (see the
+        dashboard and the page before an experiment's first trial). A page
+        could replace the whole of it through `sidebar`; none does.{% endcomment %}
+        {% block sidebar %}
+        <nav class="sidebar">
+            <section class="side-section">
+                <h2>{% translate "Experiment Selection" %}</h2>
+                <div class="actions">
+                    {% comment %}A form, not a link: New makes a draft at once
+                    (ui/setup_steps.py), and only a POST may create
+                    anything.{% endcomment %}
+                    <form method="post" action="{% url 'ui:new_experiment' %}" class="new-experiment">
+                        {% csrf_token %}
+                        <button type="submit" class="btn btn-block">{% translate "＋ New" %}</button>
+                    </form>
+                    <a class="btn btn-block" href="{% url 'ui:import_experiment' %}">{% translate "📂 Load" %}</a>
+                    {% comment %}An icon rather than a third labelled button: three
+                    equal ones do not fit the sidebar's width without wrapping,
+                    and "Papierkorb" would not fit at all. The word is still its
+                    tooltip and what a screen reader says.{% endcomment %}
+                    <a class="btn btn-icon{% if request.resolver_match.url_name == 'experiment_bin' %} active{% endif %}"
+                       href="{% url 'ui:experiment_bin' %}" title="{% translate 'Bin' %}">
+                        <span aria-hidden="true">🗑</span>
+                        <span class="visually-hidden">{% translate "Bin" %}</span>
+                    </a>
+                </div>
+                <div class="tab-list experiment-list">
+                    {% for e in sidebar_experiments %}
+                        <a class="tab{% if sidebar_open == e.pk %} active{% endif %}"
+                           href="{% if e.draft %}{% url 'ui:setup_resume' e.pk %}{% else %}{% url 'ui:experiment_detail' e.pk %}{% endif %}">
+                            {{ e.title }} {% if e.draft %}<span class="draft-badge">{% translate "Draft" %}</span>{% else %}<span class="exp-id">({{ e.identifier }})</span>{% endif %}{% if e.is_running %} <span class="spinner" title="{% translate 'Running' %}"></span>{% elif e.env_pending %} <span title="{% translate 'Preparing its environment' %}">⏳</span>{% endif %}
+                        </a>
+                        {% comment %}The open experiment's three views. Only its
+                        own: every other row stays one line, and choosing it
+                        opens its dashboard.{% endcomment %}
+                        {% if sidebar_open == e.pk and not e.draft %}
+                            <div class="tab-list experiment-views">
+                                <a class="tab{% if sidebar_view == 'dashboard' %} active{% endif %}"
+                                   href="{% url 'ui:experiment_detail' e.pk %}"{% if sidebar_view == 'dashboard' %} aria-current="page"{% endif %}>{% translate "Dashboard" %}</a>
+                                <a class="tab{% if sidebar_view == 'data' %} active{% endif %}"
+                                   href="{% url 'ui:data_overview' e.pk %}"{% if sidebar_view == 'data' %} aria-current="page"{% endif %}>{% translate "Data Handling" %}</a>
+                                <a class="tab{% if sidebar_view == 'timeline' %} active{% endif %}"
+                                   href="{% url 'ui:experiment_timeline' e.pk %}"{% if sidebar_view == 'timeline' %} aria-current="page"{% endif %}>{% translate "Timeline" %}</a>
+                            </div>
+                        {% endif %}
+                    {% empty %}
+                        <span class="placeholder">{% translate "No experiments yet." %}</span>
+                    {% endfor %}
+                </div>
+                <a class="tab" href="{% url 'ui:experiment_list' %}">{% translate "See all…" %}</a>
+            </section>
+            {% block sidebar_sections %}{% endblock %}
+        </nav>
+        {% endblock %}
+    {% endif %}
+    <main class="content">
+        {% include "ui/_breadcrumbs.html" %}
+        {% comment %}Anything a view said in passing — "added Ana", "that group
+        is full". Rendered here rather than per page so a view can report
+        without its template having to know it might.{% endcomment %}
+        {% if messages %}
+            {% for message in messages %}
+                <div class="alert {% if message.tags == 'error' %}error{% elif message.tags == 'warning' %}warning{% else %}info{% endif %}"
+                     style="max-width: 46rem;">{{ message }}</div>
+            {% endfor %}
+        {% endif %}
+        {% comment %}On every page, to every member, while their group is nearly
+        out of room: kept trial models are what gives way first, and nobody
+        should find that out by losing one.{% endcomment %}
+        {% for warning in storage_warnings %}
+            <div class="alert warning storage-warning" style="max-width: 46rem;">
+                {% if warning.full %}
+                    {% blocktranslate with group=warning.group.name used=warning.used limit=warning.limit %}{{ group }} is out of room: it uses {{ used }} of {{ limit }}. New trial models are not kept, and a new dataset replaces the stalest kept ones.{% endblocktranslate %}
+                {% else %}
+                    {% blocktranslate with group=warning.group.name used=warning.used limit=warning.limit percent=warning.percent %}{{ group }} has used {{ percent }}% of its storage ({{ used }} of {{ limit }}). When it is full, a new dataset replaces the stalest kept trial models.{% endblocktranslate %}
+                {% endif %}
+            </div>
+        {% endfor %}
+        {% block content %}{% endblock %}
+    </main>
+</body>
+</html>

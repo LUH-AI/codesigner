@@ -1,27 +1,11 @@
-"""How a trial's data is divided, whether that is one holdout or k folds.
+"""`Splits` holds every evaluation scheme as a list of (train, val) index pairs,
+so the trial loop and the wire protocol handle one shape and a holdout is the
+one-fold case. Cross-validation spends k times the compute to average away the
+split noise of a small table.
 
-A single holdout is fast and is all a large dataset needs. On the small tables
-people actually upload it is a noisy estimate, and a search that optimizes a
-noisy estimate spends its budget chasing the split rather than the model.
-Cross-validation trades k times the compute for an average that means something.
-
-Both are expressed the same way — **a list of (train, val) index pairs** —
-because everything downstream then has one shape to handle: the trial loop
-iterates folds, the wire protocol sends folds, and holdout is simply the case
-where there is one. The alternative, a boolean and two code paths, would have
-had to be threaded through the optimizers, the subprocess protocol and the
-harness twice over.
-
-It also keeps a property worth keeping. A model in its own process is sent the
-training labels for each fold and never the labels it is about to be scored on.
-With one fold that is the whole guarantee: the model cannot see the answers.
-With k folds every row is a validation row exactly once, so across the folds of
-a single trial their union is all of them, and a model that deliberately cached
-what it was sent could reconstruct the labels. It cannot do so *for the fold
-being scored*, which is what stops an accidental leak, but this is a weaker
-statement and should not be read as the stronger one. Closing it would mean one
-process per fold — k times the memory for the whole run — and that is not a
-trade worth making by default.
+A model in its own process never receives the labels of the fold being scored,
+yet across k folds it receives every label and could reconstruct them. One
+process per fold would close the leak at k times the memory.
 """
 
 from __future__ import annotations
@@ -33,18 +17,14 @@ import numpy as np
 
 from .tasks import CLASSIFICATION
 
-#: Below this many folds it is not cross-validation. Stored as 0 on an
-#: experiment that uses a single holdout.
+#: Fewer folds means a holdout, stored as 0.
 MIN_FOLDS = 2
 
 
 @dataclass(frozen=True)
 class Splits:
-    """The whole dataset, and the folds a trial is evaluated over.
-
-    A forecast's backtests (`backtest`) also say which series each row is of,
-    the season length and the horizon: MASE scales its error by a seasonal
-    naive forecast of each series' own history.
+    """A forecast also carries series, season and horizon, since MASE scales
+    error by each series' seasonal naive forecast.
     """
 
     X: Any
@@ -54,24 +34,15 @@ class Splits:
     season: int = 1
     horizon: int = 0
 
-    @property
-    def is_cv(self) -> bool:
-        return len(self.folds) > 1
-
 
 def holdout(X_train, y_train, X_val, y_val) -> Splits:
-    """Today's single 80/20 split, expressed as one fold.
-
-    The arrays are already divided, so they are concatenated back and indexed —
-    train first, validation second — rather than re-splitting the frame. That
-    keeps this exactly the split `_load_splits` produced, including its
-    stratification, instead of a second attempt at reproducing it.
+    """`holdout` concatenates the already divided arrays, train first, to keep
+    the exact stratified split `load_splits` produced.
     """
     n_train, n_val = len(X_train), len(X_val)
     X = np.concatenate([np.asarray(X_train), np.asarray(X_val)])
-    # No dtype forced. An integer target coerced to object stops looking like
-    # discrete classes to scikit-learn — `type_of_target` calls it "unknown" and
-    # every classifier refuses to fit, so every trial fails at once.
+    # Forcing a dtype would turn an integer target into object, which
+    # scikit-learn rejects as an "unknown" target.
     y = np.concatenate([np.asarray(y_train), np.asarray(y_val)])
     train_idx = np.arange(n_train)
     val_idx = np.arange(n_train, n_train + n_val)
@@ -79,18 +50,14 @@ def holdout(X_train, y_train, X_val, y_val) -> Splits:
 
 
 def cross_validation(X, y, folds: int, seed: int, task: str = CLASSIFICATION) -> Splits:
-    """*folds*-fold cross-validation over the whole dataset.
-
-    For classification, stratified when the labels allow it and a plain
-    shuffle when they do not. A class with fewer members than there are folds
-    only earns a warning and is still stratified. For regression, always a
-    plain shuffle. Seeded, so the same experiment divides the same way every
-    run.
+    """Classification stratifies when the labels allow and shuffles plainly
+    otherwise, and regression always shuffles plainly. A fixed seed keeps the
+    folds stable.
     """
     from sklearn.model_selection import KFold, StratifiedKFold
 
     X = np.asarray(X)
-    y = np.asarray(y)          # dtype preserved — see `holdout` for why
+    y = np.asarray(y)          # dtype kept; see `holdout`
 
     divided = None
     if task == CLASSIFICATION:
@@ -106,23 +73,12 @@ def cross_validation(X, y, folds: int, seed: int, task: str = CLASSIFICATION) ->
     return Splits(X=X, y=y, folds=divided)
 
 
-# ── ordered by time ───────────────────────────────────────────────────────────
-#
-# When the rows are moments in time, a random division lets a model train on
-# next year to predict last year, and scores it on an easier problem than the
-# one it will be used for. Divided in time order instead, every validation row
-# comes after every row the model learnt from. Never shuffled and never
-# stratified: either would put the future back into the training rows.
-#
-# Both take rows already sorted by time (`core.io` sorts them), so a fold is a
-# range of positions.
+# Time-ordered splits validate only rows after every training row, so they never
+# shuffle or stratify. Both expect rows sorted by time (`core.io` sorts them).
 
 
 def time_holdout(X, y, test_size: float, gap: int = 0) -> Splits:
-    """The latest *test_size* of the rows validated, the rest trained on.
-
-    *gap* rows between the two are used for neither — what a deployed model
-    would not yet have, when its labels arrive late.
+    """*gap* rows go unused, as labels a deployed model would still lack.
     """
     X, y = np.asarray(X), np.asarray(y)
     n = len(X)
@@ -135,12 +91,8 @@ def time_holdout(X, y, test_size: float, gap: int = 0) -> Splits:
 
 
 def time_cross_validation(X, y, folds: int, gap: int = 0) -> Splits:
-    """Rolling-origin cross-validation: *folds* successive blocks of the latest
-    rows, each validated after training on everything before it (less *gap*).
-
-    The first block of rows is only ever trained on, so unlike shuffled
-    cross-validation not every row is validated once — there is nothing before
-    the earliest rows to have learnt them from.
+    """`time_cross_validation` validates *folds* successive blocks of the latest
+    rows, and the first block is only trained on.
     """
     from sklearn.model_selection import TimeSeriesSplit
 
@@ -153,23 +105,12 @@ def time_cross_validation(X, y, folds: int, gap: int = 0) -> Splits:
     return Splits(X=X, y=y, folds=divided)
 
 
-# ── forecasting: backtests from rolling origins ──────────────────────────────
-
-
 def backtest(X, y, times, horizon: int, folds: int, gap: int = 0,
              series=None, season: int = 1) -> Splits:
-    """*folds* forecasts of the next *horizon* time steps, each from an origin
-    one horizon later than the last, ending at the latest time in the data.
-
-    Over the distinct *times* rather than the rows, so several series sharing
-    their timestamps are cut at the same moment and each forecasts *horizon*
-    steps of its own. A fold trains on every row before its origin, less *gap*
-    time steps, and validates the next *horizon* steps. *X*, *y*, *times* and
-    *series* are row-aligned and in time order.
-
-    Only a series with history before the origin is validated: one that first
-    appears inside the window has nothing to forecast from, and its rows would
-    otherwise fail every trial they are in.
+    """`backtest` cuts at distinct *times*, so series sharing timestamps split
+    at the same moment. Every fold uses the rows before its origin minus *gap*
+    for training and validates the next *horizon* steps, only for series with
+    earlier history.
     """
     X, y, times = np.asarray(X), np.asarray(y), np.asarray(times)
     steps = np.unique(times)

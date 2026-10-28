@@ -1,5 +1,6 @@
 .env
 .venv
+.venv-docs/
 db.sqlite3
 media/
 __pycache__/
@@ -16,3 +17,12 @@ wheels/
 
 # One-off scripts for looking at something locally.
 scratch/
+
+.vscode/
+
+# The built documentation site (sphinx-build).
+docs/_build/
+docs/autoapi/
+
+# The comment check's baseline and scores; the tooling lives outside this repository.
+.commentcheck/
