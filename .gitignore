@@ -19,8 +19,9 @@ scratch/
 
 .vscode/
 
-# The built documentation site (mkdocs build).
-site/
+# The built documentation site (sphinx-build).
+docs/_build/
+docs/autoapi/
 
 # The comment check's baseline and scores; the tooling lives outside this repository.
 .commentcheck/
