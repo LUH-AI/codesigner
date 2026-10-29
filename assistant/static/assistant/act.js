@@ -1,13 +1,18 @@
 // What lets the assistant act on this page (assistant/acts.py).
 //
-// The page says what it is: its path, its form's fields and values, and the
-// elements it names for the assistant with data-assist. It follows the
+// The page says what it is: its path, its form's fields and values, the
+// elements it names for the assistant with data-assist, and on a page with
+// tabs of figures, which tab is showing, what each tab holds and the trials
+// listed in the trials table. It follows the
 // actions for this browser and carries out the ones meant for it — going to a
 // page, filling fields, pointing something out — then says how each went.
 // When several pages of the browser are open, the one used last acts.
 //
 // Nothing here clicks or submits anything: saving, creating, running and
-// deleting stay the person's.
+// deleting stay the person's. Pointing at a figure or a trial may ask the
+// page to show another tab (`assistant:show-tab`, ui/static/ui/layout.js) or
+// to select the trial (`assistant:select-trial`, experiment_detail.html);
+// both only change what the page shows.
 (function () {
     "use strict";
     var script = document.currentScript;
@@ -89,14 +94,66 @@
         });
     }
 
+    function textOf(el) {
+        return el ? el.textContent.replace(/\s+/g, " ").trim().slice(0, 80) : "";
+    }
+
+    function figureLabel(key) {
+        var card = document.querySelector('[data-figure="' + CSS.escape(key) + '"]');
+        return textOf(card && card.querySelector(".subheader")) || key;
+    }
+
+    function activeTab() {
+        var tab = document.querySelector('.fig-tab[aria-selected="true"]');
+        return tab ? tab.dataset.tab : null;
+    }
+
+    function trialRows() {
+        return Array.prototype.slice.call(document.querySelectorAll("table.trials tbody tr[data-trial-idx]"));
+    }
+
+    function trialNumber(row) {
+        var cell = row.cells[0];
+        return cell ? Number(cell.dataset.sort) : NaN;
+    }
+
+    // The tabs of figures, the figures each holds, those outside any tab,
+    // and the trials the trials table lists.
+    function view() {
+        var tabs = Array.prototype.map.call(document.querySelectorAll(".fig-tab"), function (tab) {
+            var panel = document.getElementById(tab.getAttribute("aria-controls"));
+            var slots = panel ? panel.querySelectorAll(".fig-slot[data-key]") : [];
+            return {name: tab.dataset.tab, label: textOf(tab),
+                    figures: Array.prototype.map.call(slots, function (slot) {
+                        return {key: slot.dataset.key, label: figureLabel(slot.dataset.key),
+                                home: slot.dataset.home === tab.dataset.tab};
+                    })};
+        });
+        var outside = Array.prototype.filter.call(document.querySelectorAll("[data-figure]"), function (card) {
+            return !card.closest(".fig-panel") && !card.closest("[data-assistant]");
+        }).map(function (card) { return {key: card.dataset.figure, label: figureLabel(card.dataset.figure)}; });
+        var numbers = trialRows().map(trialNumber).filter(function (n) { return !isNaN(n); });
+        var out = {tab: activeTab(), tabs: tabs, outside_tabs: outside};
+        var selected = document.querySelector("table.trials tbody tr.selected");
+        if (selected && !isNaN(trialNumber(selected))) out.selected_trial = trialNumber(selected);
+        if (numbers.length) {
+            out.trials = {count: numbers.length, first: Math.min.apply(null, numbers),
+                          last: Math.max.apply(null, numbers)};
+        }
+        return out;
+    }
+
+    function send() {
+        return post(cfg.pageUrl, JSON.stringify({
+            path: location.pathname, title: document.title, fields: fields(), targets: targets(),
+            view: view()
+        })).catch(function () {});
+    }
+
     var reportTimer = null;
     function report() {
         clearTimeout(reportTimer);
-        reportTimer = setTimeout(function () {
-            post(cfg.pageUrl, JSON.stringify({
-                path: location.pathname, title: document.title, fields: fields(), targets: targets()
-            })).catch(function () {});
-        }, 150);
+        reportTimer = setTimeout(send, 150);
     }
 
     // ── Doing things ───────────────────────────────────────────────────────
@@ -153,18 +210,72 @@
         next(0);
     }
 
-    function highlight(name) {
+    function showTab(name) {
+        var tab = document.querySelector('.fig-tab[data-tab="' + CSS.escape(name) + '"]');
+        if (!tab) return false;
+        if (tab.getAttribute("aria-selected") !== "true") {
+            document.dispatchEvent(new CustomEvent("assistant:show-tab", {detail: {tab: name}}));
+        }
+        return tab.getAttribute("aria-selected") === "true";
+    }
+
+    // The figure *key*'s card, on the tab showing when it has a place there,
+    // else on its home tab, which is then shown.
+    function figureCard(key) {
+        var here = document.querySelector('.fig-panel:not(.is-inactive) .fig-slot[data-key="' + CSS.escape(key) + '"]');
+        if (!here) {
+            var home = document.querySelector('.fig-slot[data-key="' + CSS.escape(key) + '"]');
+            if (home && home.dataset.home) showTab(home.dataset.home);
+            here = document.querySelector('.fig-panel:not(.is-inactive) .fig-slot[data-key="' + CSS.escape(key) + '"]');
+        }
+        return here || document.querySelector('[data-figure="' + CSS.escape(key) + '"]');
+    }
+
+    function element(name) {
+        var kind = name.split(":")[0], rest = name.slice(kind.length + 1);
+        if (kind === "tab") {
+            if (!showTab(rest)) return null;
+            return document.getElementById("fig-tab-" + rest);
+        }
+        if (kind === "figure") return figureCard(rest);
+        if (kind === "trial") {
+            var row = trialRows().filter(function (r) { return trialNumber(r) === Number(rest); })[0];
+            if (!row) return null;
+            figureCard("trials");
+            document.dispatchEvent(new CustomEvent("assistant:select-trial",
+                                                   {detail: {idx: Number(row.dataset.trialIdx)}}));
+            return row;
+        }
         var el = document.querySelector('[data-assist="' + CSS.escape(name) + '"]');
         if (!el) {
             var field = main.querySelector('[name="' + CSS.escape(name) + '"]');
             el = field && wrapperOf(field);
         }
+        return el;
+    }
+
+    // What is outlined stays outlined until the person clicks somewhere else
+    // on the page, or the assistant points at something else. Clicking in the
+    // chat leaves it, so they can answer while looking at it.
+    var outlined = null;
+    function unoutline() {
+        if (outlined) outlined.classList.remove("assistant-highlight");
+        outlined = null;
+    }
+    document.addEventListener("pointerdown", function (e) {
+        if (!outlined || outlined.contains(e.target)) return;
+        if (e.target.closest && e.target.closest("[data-assistant]")) return;
+        unoutline();
+    }, true);
+
+    function highlight(name) {
+        var el = element(name);
         if (!el) return false;
+        unoutline();
         el.scrollIntoView({behavior: "smooth", block: "center"});
-        el.classList.remove("assistant-highlight");
         void el.offsetWidth;
         el.classList.add("assistant-highlight");
-        setTimeout(function () { el.classList.remove("assistant-highlight"); }, 4000);
+        outlined = el;
         return true;
     }
 
@@ -199,9 +310,16 @@
                 if (missed.length) acted(act.id, false, "Not on the page: " + missed.join(", ") + ".");
                 else acted(act.id, true, "Filled " + Object.keys(values).join(", ") + ".");
             });
+        } else if (act.kind === "report") {
+            clearTimeout(reportTimer);
+            send().then(function () { acted(act.id, true, ""); });
         } else if (act.kind === "highlight") {
-            if (highlight(args.target)) acted(act.id, true, "");
-            else acted(act.id, false, "Nothing called " + args.target + " is on the page.");
+            // Reported before it is confirmed, so the record already holds
+            // the tab it opened and the trial it selected.
+            if (highlight(args.target)) {
+                clearTimeout(reportTimer);
+                send().then(function () { acted(act.id, true, ""); });
+            } else acted(act.id, false, "Nothing called " + args.target + " is on the page.");
         } else {
             acted(act.id, false, "Not something this page does.");
         }
@@ -217,6 +335,11 @@
     main.addEventListener("change", function (e) {
         if (e.isTrusted) report();
     });
+    // A tab changes the address only by replaceState, which no event follows.
+    document.addEventListener("click", function (e) {
+        if (e.target.closest && e.target.closest(".fig-tab")) report();
+    });
+    window.addEventListener("hashchange", report);
 
     var planned = document.getElementById("assistant-fill");
     var items = planned ? JSON.parse(planned.textContent || "[]") : [];

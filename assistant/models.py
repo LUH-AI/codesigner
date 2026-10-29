@@ -176,9 +176,10 @@ class AgentAction(models.Model):
 
 class BrowserPage(models.Model):
     """`BrowserPage` is the Codesigner page a browser session last had open, as
-    the page reported it: which page, its form's fields and values, and the
-    elements it names for the assistant (`data-assist`). The assistant reads
-    the record and never trusts it as permission for anything."""
+    the page reported it: which page, its form's fields and values, the
+    elements it names for the assistant (`data-assist`), and its tabs of
+    figures. The assistant reads the record and never trusts it as permission
+    for anything."""
 
     browser = models.CharField(max_length=40, unique=True)
     path = models.CharField(max_length=500)
@@ -189,6 +190,15 @@ class BrowserPage(models.Model):
     title = models.CharField(max_length=300, blank=True, default="")
     fields = models.JSONField(default=list, blank=True)
     targets = models.JSONField(default=list, blank=True)
+    #: `view` is what a page with tabs of figures shows: `tab`, the one
+    #: showing; `tabs`, each `{name, label, figures: [{key, label, home}]}`;
+    #: `outside_tabs`, the figures in no tab; `trials`, `{count, first, last}`
+    #: of the trials table; and `selected_trial`, the trial its figures show.
+    #: Empty for a page without them.
+    view = models.JSONField(default=dict, blank=True)
+    #: When the page last said what it shows. It says so whenever that
+    #: changes, so the record stands until the next report.
+    reported_at = models.DateTimeField(null=True, blank=True)
     #: When a page of the session last showed it was open.
     seen_at = models.DateTimeField()
 
@@ -202,7 +212,9 @@ class ClientAct(models.Model):
     NAVIGATE = "navigate"
     FILL = "fill"
     HIGHLIGHT = "highlight"
-    KINDS = [(NAVIGATE, "navigate"), (FILL, "fill"), (HIGHLIGHT, "highlight")]
+    #: `REPORT` asks the page to say what it shows now.
+    REPORT = "report"
+    KINDS = [(NAVIGATE, "navigate"), (FILL, "fill"), (HIGHLIGHT, "highlight"), (REPORT, "report")]
 
     PENDING = "pending"
     DONE = "done"

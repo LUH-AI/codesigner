@@ -9,8 +9,12 @@ tool waits a little for that. An action not carried out yet goes to whichever
 page of the session opens next, so the person navigating stops nothing.
 
 The page also says what it is (`assistant:page`): which page, its fields and
-their values, and what it names for the assistant. That is what the assistant
-sees of it. Nothing a page reports is taken as permission: what may be done is
+their values, what it names for the assistant, and which tab of figures it
+shows. It says so whenever any of that changes — opening, coming back into
+use, a field changed, a tab switched — so the record (`BrowserPage`) stands
+for the page until the next report and is read without asking again. Only
+without a record does `current` ask the page (`ClientAct.REPORT`). That is what
+the assistant sees of it. Nothing a page reports is taken as permission: what may be done is
 checked on the server, as the person, before an action is sent.
 
 There is no action that clicks or submits. Saving, creating, running and
@@ -39,6 +43,27 @@ def page_of(browser: str):
         return None
     since = timezone.now() - timedelta(seconds=settings.ASSISTANT_PAGE_SECONDS)
     return BrowserPage.objects.filter(browser=browser, seen_at__gte=since).first()
+
+
+#: How long `current` waits at most for a page asked to say what it shows, in
+#: seconds; never longer than an action waits.
+REPORT_SECONDS = 3.0
+
+
+def current(conversation):
+    """`current` returns the page *conversation*'s person has open: the record
+    of what it last reported, or, without one, what it reports when asked now.
+    None when no page answers."""
+    page = page_of(conversation.browser)
+    if page is not None or not conversation.browser:
+        return page
+    act = ClientAct.objects.create(browser=conversation.browser, conversation=conversation,
+                                   kind=ClientAct.REPORT, args={})
+    wait(act, min(REPORT_SECONDS, settings.ASSISTANT_ACT_SECONDS))
+    if act.status == ClientAct.PENDING:
+        ClientAct.objects.filter(pk=act.pk).update(status=ClientAct.FAILED,
+                                                   detail="No page answered.")
+    return page_of(conversation.browser)
 
 
 def pending(browser: str):

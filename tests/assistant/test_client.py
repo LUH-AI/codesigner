@@ -165,13 +165,16 @@ def test_the_model_hears_how_an_action_went():
 # ── the tools ────────────────────────────────────────────────────────────────
 
 def test_without_an_open_page_nothing_is_acted_on(client, on):
-    """What: with no page open in the person's browser, the page tools refuse.
-    How: look_at_page and highlight before any page has reported."""
+    """What: with no page open in the person's browser, the page tools ask the
+    browser to report its page, and refuse when none answers; nothing else is
+    sent. How: look_at_page and highlight before any page has reported."""
     conversation, _ = _setting_up(client)
 
     for tool, args in (("look_at_page", {}), ("highlight", {"target": "save"})):
         assert "no Codesigner page open" in _run(conversation, tool, **args).output
-    assert not ClientAct.objects.exists()
+    sent = ClientAct.objects.all()
+    assert {a.kind for a in sent} == {ClientAct.REPORT}
+    assert {a.status for a in sent} == {ClientAct.FAILED}
 
 
 def test_the_assistant_sees_the_page(client, on):
@@ -182,7 +185,7 @@ def test_the_assistant_sees_the_page(client, on):
     seen = json.loads(_run(conversation, "look_at_page").output)
 
     assert seen["page"] == "ui:setup" and seen["experiment"] == exp.pk
-    assert seen["targets"][0]["name"] == "save"
+    assert seen["elements"][0] == {"name": "save", "label": "Save", "target": "save"}
 
 
 def test_the_assistant_takes_the_person_to_a_step(client, on):
@@ -298,15 +301,20 @@ def test_planning_only_looks_and_points_and_the_plan_tools_go_after_approval(cli
 # ── nothing the page does is a click ─────────────────────────────────────────
 
 def test_the_actions_are_only_going_filling_and_pointing():
-    """What: the actions a page can be asked for are a fixed three, none of them
-    a click or a submit, and the page's script presses nothing.
+    """What: the actions a page can be asked for are a fixed four, none of them
+    a click or a submit; the page's script presses nothing, and the only page
+    behaviour it asks for is showing a tab and selecting a trial.
     How: the action kinds, and act.js's source."""
     source = ACT_JS.read_text()
 
-    assert {kind for kind, _ in ClientAct.KINDS} == {"navigate", "fill", "highlight"}
+    assert {kind for kind, _ in ClientAct.KINDS} == {"navigate", "fill", "highlight", "report"}
     for pressing in (".click(", ".submit(", "requestSubmit", "dispatchEvent(new MouseEvent",
                      "dispatchEvent(new SubmitEvent"):
         assert pressing not in source, pressing
+    import re
+
+    assert set(re.findall(r'new CustomEvent\("([^"]+)"', source)) == {
+        "assistant:show-tab", "assistant:select-trial"}
 
 
 def test_names_from_data_stay_data_in_the_system_prompt(client, on):

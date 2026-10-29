@@ -456,7 +456,8 @@ def page(request):
                   "title": str(report.get("title") or "")[:300],
                   "fields": _clipped(report.get("fields")),
                   "targets": _clipped(report.get("targets")),
-                  "seen_at": timezone.now()})
+                  "view": _view(report.get("view")),
+                  "reported_at": timezone.now(), "seen_at": timezone.now()})
     return JsonResponse({"ok": True})
 
 
@@ -476,6 +477,38 @@ def _clipped(items) -> list:
             else:
                 kept[str(key)[:50]] = str(value)[:PAGE_VALUE]
         out.append(kept)
+    return out
+
+
+def _view(view) -> dict:
+    """A page's tabs of figures and its trials table, kept to the fields
+    `BrowserPage.view` names, each plain and bounded."""
+    if not isinstance(view, dict):
+        return {}
+
+    def text(value):
+        return None if value is None else str(value)[:PAGE_VALUE]
+
+    def figures(items):
+        return [{"key": text(f.get("key")), "label": text(f.get("label")),
+                 **({"home": bool(f["home"])} if "home" in f else {})}
+                for f in (items if isinstance(items, list) else [])[:PAGE_ITEMS]
+                if isinstance(f, dict) and f.get("key")]
+
+    out = {"tab": text(view.get("tab")),
+           "tabs": [{"name": text(t.get("name")), "label": text(t.get("label")),
+                     "figures": figures(t.get("figures"))}
+                    for t in (view.get("tabs") if isinstance(view.get("tabs"), list) else [])[:20]
+                    if isinstance(t, dict) and t.get("name")],
+           "outside_tabs": figures(view.get("outside_tabs"))}
+    selected = view.get("selected_trial")
+    if isinstance(selected, int) and not isinstance(selected, bool):
+        out["selected_trial"] = selected
+    trials = view.get("trials")
+    if isinstance(trials, dict):
+        kept = {k: trials.get(k) for k in ("count", "first", "last")}
+        if all(isinstance(v, int) and not isinstance(v, bool) for v in kept.values()):
+            out["trials"] = kept
     return out
 
 

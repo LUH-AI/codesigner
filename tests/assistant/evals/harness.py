@@ -13,6 +13,8 @@ file's name is the case's group:
     dataset_file = "hostile.csv"  # a file of tests/assistant/evals/data, uploaded
     plan = "iris"                 # a stock plan from PLANS, or a table
     page = "ui:home"              # the page open, by URL name
+    fixture = "analytics"         # results only: a .ihpo of tests/fixtures
+    tab = "hypershap"             # results only: the dashboard's tab showing
     [case.expect]
     calls = [{tool = "profile_dataset"}, {tool = "present_choices"}]
     never = ["update_plan"]
@@ -143,7 +145,9 @@ def build(situation: dict, client):
             io.parse((FIXTURES_DIR / f"{situation.get('fixture', 'analytics')}.ihpo").read_bytes()))
         conversation = Conversation.objects.create(browser=browser, experiment=exp,
                                                    phase=Conversation.DASHBOARD)
-        page.open(reverse(situation.get("page", "ui:experiment_detail"), args=[exp.pk]))
+        tab = situation.get("tab")
+        page.open(reverse(situation.get("page", "ui:experiment_detail"), args=[exp.pk])
+                  + (f"#{tab}" if tab else ""))
         return conversation, page
 
     conversation = Conversation.objects.create(browser=browser, plan=plan,

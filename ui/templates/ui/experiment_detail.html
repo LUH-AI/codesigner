@@ -981,6 +981,12 @@ being read.{% endcomment %}
                     selectTrial(currentMetric(), Number(row.dataset.trialIdx));
                 }
                 tbody.addEventListener("click", pick);
+                // The assistant selects a trial as clicking its row would
+                // (assistant/static/assistant/act.js).
+                document.addEventListener("assistant:select-trial", function (event) {
+                    const idx = Number(event.detail && event.detail.idx);
+                    if (!isNaN(idx)) selectTrial(currentMetric(), idx);
+                });
                 tbody.addEventListener("keydown", function (event) {
                     if (event.key !== "Enter" && event.key !== " ") return;
                     event.preventDefault();

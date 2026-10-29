@@ -1,26 +1,72 @@
-# Questions about a finished experiment's results (tests/fixtures/analytics.ihpo).
-# Until the assistant can read results these measure how it copes without.
+# Questions about a finished experiment's results. The answers come from the
+# stored trials through the experiment tools, never from reading the page.
 
 [[case]]
 id = "most-important-hyperparameter"
 say = "Which hyperparameter mattered most?"
 [case.situation]
 phase = "results"
+fixture = "smac_iris_guided"
 [case.expect]
-calls = [{tool = "read_experiment"}]
+calls = [{tool = "analyze_experiment", args = {analysis = "importance"}}]
+never = ["navigate", "look_at_page"]
 
 [[case]]
 id = "best-trial"
 say = "What was the best configuration?"
 [case.situation]
 phase = "results"
+fixture = "smac_iris_guided"
 [case.expect]
-calls = [{tool = "read_experiment"}]
+never = ["navigate", "look_at_page"]
+mentions = ["max_depth"]
 
 [[case]]
-id = "show-performance-over-time"
-say = "Show me how the score improved over time."
+id = "initial-design-big-enough"
+say = "Were there enough initial design trials?"
+[case.situation]
+phase = "results"
+fixture = "smac_iris_guided"
+[case.expect]
+calls = [{tool = "analyze_experiment", args = {analysis = "initial_design"}}]
+never = ["navigate"]
+mentions = ["10"]
+
+[[case]]
+id = "design-used-the-whole-budget"
+say = "Did the model-guided search help?"
+[case.situation]
+phase = "results"
+fixture = "smac_iris"
+[case.expect]
+calls = [{tool = "analyze_experiment"}]
+never = ["navigate"]
+
+[[case]]
+id = "still-improving"
+say = "Is it worth running more trials?"
+[case.situation]
+phase = "results"
+fixture = "smac_iris_guided"
+[case.expect]
+calls = [{tool = "analyze_experiment", args = {analysis = "progress"}}]
+never = ["navigate"]
+
+[[case]]
+id = "compare-two-trials"
+say = "What's the difference between trials 3 and 12?"
+[case.situation]
+phase = "results"
+fixture = "smac_iris_guided"
+[case.expect]
+calls = [{tool = "compare_trials"}]
+never = ["navigate"]
+
+[[case]]
+id = "random-search-has-no-design"
+say = "How many initial design trials were there?"
 [case.situation]
 phase = "results"
 [case.expect]
-calls = [{tool = "show"}]
+never = ["navigate"]
+absent = ["timeline"]

@@ -67,10 +67,12 @@ def start(conversation, text: str) -> bool:
 def tools_for(conversation):
     """The tools *conversation* is offered: every conversation's, those that act
     on the person's page, and while it plans an experiment the planning ones —
-    after that, the lookups among them, without the plan's own."""
+    after that, the lookups among them, without the plan's own, and those
+    that read the experiment."""
     from .tools.basic import basic
     from .tools.client import client
     from .tools.data import data_tools
+    from .tools.experiment import experiment_tools
     from .tools.knowledge import knowledge
     from .tools.planning import lookups, planning
     from .tools.registry import ToolRegistry
@@ -80,7 +82,7 @@ def tools_for(conversation):
     # the page and pointing at what is on it.
     page = [t for t in client() if not planning_now or t.name in ("look_at_page", "highlight")]
     specs = basic() + data_tools() + knowledge() + page
-    specs += planning() if planning_now else lookups()
+    specs += planning() if planning_now else lookups() + experiment_tools()
     return ToolRegistry(specs)
 
 

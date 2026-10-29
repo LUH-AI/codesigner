@@ -4,9 +4,11 @@ the assistant's actions on them.
 
 What a page reports follows act.js: named inputs, selects and textareas outside
 the chat, except hidden, file, password and button kinds; radio buttons as one
-field with options; each element marked `data-assist` as a target. No script
-runs here, so a field that a page's script would add or show is missing, and
-every field counts as visible.
+field with options; each element marked `data-assist` as a target; the tabs of
+figures with the figures each holds, and the trials table's trial numbers. No
+script runs here, so a field that a page's script would add or show is
+missing, every field counts as visible, the first tab shows unless the address
+names one, and no trial is selected until one is pointed at.
 """
 
 from __future__ import annotations
@@ -42,6 +44,14 @@ class _Reader(HTMLParser):
         self._textarea = None
         self._script = None
         self._in_title = False
+        #: `tabs` is the tabs of figures in order, as act.js reports them.
+        self.tabs = []
+        self.figure_labels = {}
+        self.trial_numbers = []
+        self._panel = None
+        self._figure = None
+        self._texts = []
+        self._trial_row = False
 
     def _inside_chat(self):
         return any("data-assistant" in attrs for _, attrs in self.stack)
@@ -56,6 +66,7 @@ class _Reader(HTMLParser):
             self._label_for, self._label_text = attrs.get("for"), ""
         if "data-assist" in attrs:
             self._open_text.append([len(self.stack), attrs, ""])
+        self._view_start(tag, attrs)
         if tag == "script" and attrs.get("id") == "assistant-fill":
             self._script = ""
         if self._inside_chat() and tag != "script":
@@ -72,6 +83,43 @@ class _Reader(HTMLParser):
         elif tag == "textarea" and name:
             self._textarea = {"name": name, "id": attrs.get("id"), "label": attrs.get("aria-label", ""),
                               "type": "textarea", "fillable": True, "visible": True, "value": ""}
+
+    def _view_start(self, tag, attrs):
+        classes = (attrs.get("class") or "").split()
+        if tag == "button" and "fig-tab" in classes:
+            self.tabs.append({"name": attrs.get("data-tab"), "label": "", "figures": []})
+            self._texts.append([len(self.stack), "tab", self.tabs[-1], ""])
+        elif tag == "div" and "fig-panel" in classes:
+            self._panel = next((t for t in self.tabs if t["name"] == attrs.get("data-tab")), None)
+        elif tag == "div" and "fig-slot" in classes and self._panel is not None:
+            self._panel["figures"].append({"key": attrs.get("data-key"),
+                                           "home": attrs.get("data-home") == self._panel["name"]})
+        elif "data-figure" in attrs:
+            self._figure = attrs["data-figure"]
+        elif tag == "div" and "subheader" in classes and self._figure:
+            self._texts.append([len(self.stack), "figure", self._figure, ""])
+            self._figure = None
+        elif tag == "tr" and "data-trial-idx" in attrs:
+            self._trial_row = True
+        elif tag == "td" and self._trial_row:
+            if attrs.get("data-sort", "").isdigit():
+                self.trial_numbers.append(int(attrs["data-sort"]))
+            self._trial_row = False
+
+    def view(self, tab=None):
+        """`view` returns the tabs of figures and the trials table as act.js
+        reports them, with *tab* showing, else the first."""
+        if not self.tabs:
+            return {}
+        names = [t["name"] for t in self.tabs]
+        tabs = [{"name": t["name"], "label": t["label"],
+                 "figures": [{"key": f["key"], "label": self.figure_labels.get(f["key"], f["key"]),
+                              "home": f["home"]} for f in t["figures"]]} for t in self.tabs]
+        out = {"tab": tab if tab in names else names[0], "tabs": tabs, "outside_tabs": []}
+        if self.trial_numbers:
+            out["trials"] = {"count": len(self.trial_numbers), "first": min(self.trial_numbers),
+                             "last": max(self.trial_numbers)}
+        return out
 
     def _input(self, attrs):
         kind = attrs.get("type", "text")
@@ -103,6 +151,8 @@ class _Reader(HTMLParser):
             self._label_text += data
         for item in self._open_text:
             item[2] += data
+        for item in self._texts:
+            item[3] += data
         if self._option is not None:
             self._option[1] += data
         if self._textarea is not None:
@@ -139,6 +189,12 @@ class _Reader(HTMLParser):
             return
         for depth in range(len(self.stack) - 1, -1, -1):
             if self.stack[depth][0] == tag:
+                while self._texts and self._texts[-1][0] > depth:
+                    _, kind, owner, text = self._texts.pop()
+                    if kind == "tab":
+                        owner["label"] = " ".join(text.split())
+                    else:
+                        self.figure_labels[owner] = " ".join(text.split())[:80]
                 while self._open_text and self._open_text[-1][0] > depth:
                     _, attrs, text = self._open_text.pop()
                     label = attrs.get("aria-label") or " ".join(text.split())
@@ -173,12 +229,15 @@ class SimulatedPage:
         self.title = ""
         self.fields = []
         self.targets = []
+        self.view = {}
+        self._reader = None
         #: Every action carried out, as `(kind, args, done, detail)`.
         self.log = []
 
     def open(self, url: str) -> int:
         """`open` renders *url*, applies the plan's fill as the page script
         would, reports the page, and returns the status code."""
+        url, _, tab = url.partition("#")
         response = self.client.get(url, follow=True)
         reader = _Reader()
         reader.feed(response.content.decode("utf-8", "replace"))
@@ -187,6 +246,8 @@ class SimulatedPage:
         self.title = " ".join(reader.title.split())
         self.fields = reader.report()
         self.targets = reader.targets
+        self._reader = reader
+        self.view = reader.view(tab or None)
         for item in reader.fill:
             self._set(item["name"], item["value"])
         self._report()
@@ -207,6 +268,7 @@ class SimulatedPage:
             browser=self.browser,
             defaults={"path": self.path, "url_name": url_name, "experiment_id": experiment_id,
                       "title": self.title[:300], "fields": self.fields, "targets": self.targets,
+                      "view": self.view, "reported_at": timezone.now(),
                       "seen_at": timezone.now()})
 
     def _set(self, name, value) -> bool:
@@ -228,6 +290,36 @@ class SimulatedPage:
         field = next((f for f in self.fields if f["name"] == name), None)
         return None if field is None else field["value"]
 
+    def show_tab(self, name) -> bool:
+        """`show_tab` switches to tab *name*, as clicking it would."""
+        if not self.view or name not in [t["name"] for t in self.view["tabs"]]:
+            return False
+        self.view = {**self.view, "tab": name}
+        self._report()
+        return True
+
+    def _point_at(self, target) -> bool:
+        kind, _, rest = str(target).partition(":")
+        if kind == "tab":
+            return self.show_tab(rest)
+        if kind == "figure":
+            tabs = (self.view or {}).get("tabs") or []
+            showing = next((t for t in tabs if t["name"] == self.view["tab"]), None)
+            if showing and any(f["key"] == rest for f in showing["figures"]):
+                return True
+            home = next((t["name"] for t in tabs for f in t["figures"]
+                         if f["key"] == rest and f["home"]), None)
+            return home is not None and self.show_tab(home)
+        if kind == "trial":
+            if not rest.isdigit() or int(rest) not in self._reader.trial_numbers:
+                return False
+            self._point_at("figure:trials")
+            self.view = {**self.view, "selected_trial": int(rest)}
+            self._report()
+            return True
+        return (any(t["name"] == target for t in self.targets)
+                or any(f["name"] == target for f in self.fields))
+
     def carry_out(self, act) -> None:
         """`carry_out` does *act* as act.js would, and records how it went."""
         args = act.args or {}
@@ -245,9 +337,11 @@ class SimulatedPage:
                       else f"Filled {', '.join(values)}.")
         elif act.kind == "highlight":
             target = args.get("target")
-            done = (any(t["name"] == target for t in self.targets)
-                    or any(f["name"] == target for f in self.fields))
+            done = self._point_at(target)
             detail = "" if done else f"Nothing called {target} is on the page."
+        elif act.kind == "report":
+            self._report()
+            done, detail = True, ""
         else:
             done, detail = False, "Not something this page does."
         act.status = act.DONE if done else act.FAILED
