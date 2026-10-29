@@ -1,0 +1,13 @@
+# Questions about methods, answered from the library with the papers cited.
+
+[[case]]
+id = "smac-random-forest"
+say = "How does SMAC's acquisition function work with a random forest surrogate?"
+[case.situation]
+phase = "planning"
+dataset = "iris"
+plan = "iris"
+[case.expect]
+calls = [{tool = "search_knowledge"}]
+never = ["update_plan"]
+mentions = ["["]
