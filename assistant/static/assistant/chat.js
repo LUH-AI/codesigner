@@ -31,6 +31,9 @@
 
     var conversation = root.dataset.conversation || "";
     var after = parseInt(root.dataset.after || "0", 10);
+    // Events up to this one had happened when the page was drawn: they are
+    // shown at once, and only what arrives later is written out as it comes.
+    var liveAfter = parseInt(root.dataset.liveAfter || "0", 10);
     var source = null;
     var reply = null;      // the assistant's message being written
     var card = null;       // the last tool's card, waiting for its result
@@ -42,7 +45,215 @@
         return root.dataset.eventsUrl.replace("/0/", "/" + id + "/") + "?after=" + after;
     }
 
-    function scroll() { log.scrollTop = log.scrollHeight; }
+    // The log follows what is written while it is scrolled to its end; scrolled
+    // up to read, it stays where it is until the person sends something.
+    var following = true;
+    log.addEventListener("scroll", function () {
+        following = log.scrollHeight - log.scrollTop - log.clientHeight < 48;
+    });
+    function scroll(force) {
+        if (force) following = true;
+        if (following) log.scrollTop = log.scrollHeight;
+    }
+
+    // ── The model's formatting ────────────────────────────────────────────
+    // A reply's Markdown, as far as a chat needs it: paragraphs, headings,
+    // lists, quotes, tables, code, bold, italics and links. Built from elements
+    // and text nodes, never from markup, so nothing the model writes can add
+    // to the page beyond these.
+    var INLINE = [
+        ["code", /`([^`\n]+)`/],
+        ["link", /\[([^\]\n]+)\]\((https?:\/\/[^\s)]+)\)/],
+        ["strong", /\*\*(?=\S)([\s\S]*?\S)\*\*|__(?=\S)([\s\S]*?\S)__(?!\w)/],
+        ["em", /\*(?=[^\s*])([^*\n]*?[^\s*])\*|(?<![\w])_(?=\S)([^_\n]*?\S)_(?![\w])/],
+        ["del", /~~(?=\S)([^~\n]*?\S)~~/]
+    ];
+
+    function inline(text, into) {
+        while (text) {
+            var best = null;
+            INLINE.forEach(function (rule) {
+                var m = rule[1].exec(text);
+                if (m && (!best || m.index < best.m.index)) best = {kind: rule[0], m: m};
+            });
+            if (!best) { into.appendChild(document.createTextNode(text)); return; }
+            if (best.m.index) into.appendChild(document.createTextNode(text.slice(0, best.m.index)));
+            var el;
+            if (best.kind === "code") {
+                el = document.createElement("code");
+                el.textContent = best.m[1];
+            } else if (best.kind === "link") {
+                el = document.createElement("a");
+                el.href = best.m[2];
+                el.target = "_blank";
+                el.rel = "noopener noreferrer";
+                inline(best.m[1], el);
+            } else {
+                el = document.createElement(best.kind);
+                inline(best.m[1] !== undefined ? best.m[1] : best.m[2], el);
+            }
+            into.appendChild(el);
+            text = text.slice(best.m.index + best.m[0].length);
+        }
+    }
+
+    function cells(line) {
+        return line.trim().replace(/^\|/, "").replace(/\|$/, "").split("|").map(function (c) { return c.trim(); });
+    }
+
+    function markdown(source) {
+        var out = document.createDocumentFragment();
+        var lines = source.replace(/\r/g, "").replace(/^\s*\n/, "").split("\n");
+        var i = 0, paragraph = [];
+        function flush() {
+            if (!paragraph.length) return;
+            var p = document.createElement("p");
+            paragraph.forEach(function (line, n) {
+                if (n) p.appendChild(document.createElement("br"));
+                inline(line, p);
+            });
+            out.appendChild(p);
+            paragraph = [];
+        }
+        while (i < lines.length) {
+            var line = lines[i];
+            var fence = /^\s*(```|~~~)/.exec(line);
+            if (fence) {
+                flush();
+                var code = [];
+                i += 1;
+                while (i < lines.length && lines[i].trim().indexOf(fence[1]) !== 0) code.push(lines[i++]);
+                i += 1;
+                var pre = document.createElement("pre"), c = document.createElement("code");
+                c.textContent = code.join("\n");
+                pre.appendChild(c);
+                out.appendChild(pre);
+                continue;
+            }
+            if (!line.trim()) { flush(); i += 1; continue; }
+            var heading = /^\s{0,3}(#{1,6})\s+(.*?)\s*#*\s*$/.exec(line);
+            if (heading) {
+                flush();
+                var h = document.createElement("p");
+                h.className = "assistant-heading";
+                inline(heading[2], h);
+                out.appendChild(h);
+                i += 1;
+                continue;
+            }
+            if (/^\s{0,3}([-*_])(\s*\1){2,}\s*$/.test(line)) {
+                flush();
+                out.appendChild(document.createElement("hr"));
+                i += 1;
+                continue;
+            }
+            if (/^\s*\|/.test(line) && i + 1 < lines.length && /^\s*\|?\s*:?-{2,}/.test(lines[i + 1])) {
+                flush();
+                var table = document.createElement("table");
+                var head = document.createElement("tr");
+                cells(line).forEach(function (cell) {
+                    var th = document.createElement("th");
+                    inline(cell, th);
+                    head.appendChild(th);
+                });
+                var thead = document.createElement("thead");
+                thead.appendChild(head);
+                table.appendChild(thead);
+                var tbody = document.createElement("tbody");
+                i += 2;
+                while (i < lines.length && /^\s*\|/.test(lines[i])) {
+                    var row = document.createElement("tr");
+                    cells(lines[i]).forEach(function (cell) {
+                        var td = document.createElement("td");
+                        inline(cell, td);
+                        row.appendChild(td);
+                    });
+                    tbody.appendChild(row);
+                    i += 1;
+                }
+                table.appendChild(tbody);
+                var wrap = document.createElement("div");
+                wrap.className = "assistant-table";
+                wrap.appendChild(table);
+                out.appendChild(wrap);
+                continue;
+            }
+            var item = /^\s*([-*+]|\d+[.)])\s+(.*)$/.exec(line);
+            if (item) {
+                flush();
+                var ordered = /\d/.test(item[1]);
+                var list = document.createElement(ordered ? "ol" : "ul");
+                if (ordered && parseInt(item[1], 10) !== 1) list.start = parseInt(item[1], 10);
+                while (i < lines.length) {
+                    var next = /^\s*([-*+]|\d+[.)])\s+(.*)$/.exec(lines[i]);
+                    if (!next || /\d/.test(next[1]) !== ordered) break;
+                    var li = document.createElement("li");
+                    inline(next[2], li);
+                    i += 1;
+                    // A line indented under an item continues it.
+                    while (i < lines.length && /^\s{2,}\S/.test(lines[i])
+                           && !/^\s*([-*+]|\d+[.)])\s+/.test(lines[i])) {
+                        li.appendChild(document.createElement("br"));
+                        inline(lines[i].trim(), li);
+                        i += 1;
+                    }
+                    list.appendChild(li);
+                }
+                out.appendChild(list);
+                continue;
+            }
+            if (/^\s*>/.test(line)) {
+                flush();
+                var quote = document.createElement("blockquote");
+                var quoted = [];
+                while (i < lines.length && /^\s*>/.test(lines[i])) quoted.push(lines[i++].replace(/^\s*>\s?/, ""));
+                quote.appendChild(markdown(quoted.join("\n")));
+                out.appendChild(quote);
+                continue;
+            }
+            paragraph.push(line);
+            i += 1;
+        }
+        flush();
+        return out;
+    }
+
+    // ── Writing a reply out ───────────────────────────────────────────────
+    // Text arrives in pieces of any size; a reply shows it a few characters a
+    // frame, faster the further behind it is, so it reads as written rather
+    // than dropped in blocks and never trails by more than a moment.
+    var writing = [];
+    var frame = null;
+    function writer(el) {
+        return {el: el, text: "", shown: 0};
+    }
+    function draw_(w) {
+        w.el.replaceChildren(markdown(w.text.slice(0, w.shown)));
+    }
+    function write(w, piece, live) {
+        w.text += piece;
+        if (!live) {
+            w.shown = w.text.length;
+            draw_(w);
+            scroll();
+            return;
+        }
+        if (writing.indexOf(w) < 0) writing.push(w);
+        if (frame === null) frame = requestAnimationFrame(tick);
+    }
+    function tick() {
+        frame = null;
+        writing = writing.filter(function (w) {
+            var behind = w.text.length - w.shown;
+            w.shown += Math.max(3, Math.ceil(behind / 8));
+            if (w.shown < w.text.length && /[\ud800-\udbff]/.test(w.text.charAt(w.shown - 1))) w.shown += 1;
+            w.shown = Math.min(w.shown, w.text.length);
+            draw_(w);
+            return w.shown < w.text.length;
+        });
+        scroll();
+        if (writing.length) frame = requestAnimationFrame(tick);
+    }
 
     function bubble(role, content) {
         var div = document.createElement("div");
@@ -277,21 +488,21 @@
         tool_calls: "stopped", repeating: "stopped", failed: "failed"
     };
 
-    function draw(kind, payload) {
+    function draw(kind, payload, live) {
         if (kind === "user") {
             if (resetButton) resetButton.hidden = false;
             reply = null;
             bubble("user", payload.text);
+            scroll(true);
             waiting(true);
         } else if (kind === "status") {
             answering();
             setStatus(text(payload.state === "thinking" ? "thinking" : "working"));
         } else if (kind === "text") {
             answering();
-            if (!reply) reply = bubble("assistant", "");
-            reply.textContent += payload.text;
+            if (!reply) reply = writer(bubble("assistant", ""));
+            write(reply, payload.text, live);
             setStatus("");
-            scroll();
         } else if (kind === "tool_call") {
             reply = null;
             card = document.createElement("details");
@@ -352,8 +563,9 @@
          "plan", "dataset", "approved", "chart", "sources"]
             .forEach(function (kind) {
                 source.addEventListener(kind, function (e) {
-                    after = Math.max(after, parseInt(e.lastEventId || "0", 10));
-                    draw(kind, JSON.parse(e.data));
+                    var id = parseInt(e.lastEventId || "0", 10);
+                    after = Math.max(after, id);
+                    draw(kind, JSON.parse(e.data), id > liveAfter);
                 });
             });
     }
@@ -490,6 +702,40 @@
         });
         window.addEventListener("storage", function (e) { if (e.key === KEY) show(where()); });
         show(where());
+
+        // Its size, set by dragging the corner grip and kept for every page of
+        // this browser; held inside the window when the window is smaller.
+        var SIZE = "assistant-dock-size";
+        var grip = root.querySelector("[data-assistant-grip]");
+        var size = null;
+        try { size = JSON.parse(localStorage.getItem(SIZE) || "null"); } catch (e) { size = null; }
+        var fit = function (w, h) {
+            w = Math.round(Math.min(Math.max(w, 288), window.innerWidth - 40));
+            h = Math.round(Math.min(Math.max(h, 240), window.innerHeight - 32));
+            dock.style.setProperty("--dock-width", w + "px");
+            dock.style.setProperty("--dock-height", h + "px");
+            return {w: w, h: h};
+        };
+        if (size && size.w && size.h) fit(size.w, size.h);
+        window.addEventListener("resize", function () { if (size) fit(size.w, size.h); });
+        var start = null;
+        grip.addEventListener("pointerdown", function (e) {
+            e.preventDefault();
+            grip.setPointerCapture(e.pointerId);
+            start = {x: e.clientX, y: e.clientY, w: dock.offsetWidth, h: root.offsetHeight};
+        });
+        grip.addEventListener("pointermove", function (e) {
+            if (start) fit(start.w + start.x - e.clientX, start.h + start.y - e.clientY);
+        });
+        var stop = function () {
+            if (!start) return;
+            start = null;
+            size = {w: dock.offsetWidth, h: root.offsetHeight};
+            try { localStorage.setItem(SIZE, JSON.stringify(size)); } catch (e) { /* this page alone */ }
+            scroll();
+        };
+        grip.addEventListener("pointerup", stop);
+        grip.addEventListener("pointercancel", stop);
     }
 
     // The window of its own: it says so while it is open, and goes when the

@@ -1104,7 +1104,25 @@ hr.divider { border: none; border-top: 1px solid var(--border); margin: 1.5rem 0
     font-size: 0.95rem;
 }
 .assistant-msg.user { align-self: flex-end; background: var(--selected-tint); }
-.assistant-msg.assistant { align-self: flex-start; background: var(--secondary-bg); }
+.assistant-msg.assistant { align-self: flex-start; background: var(--secondary-bg); white-space: normal; }
+/* A reply's Markdown (chat.js `markdown`), spaced for a chat bubble. */
+.assistant-msg.assistant > :first-child { margin-top: 0; }
+.assistant-msg.assistant > :last-child { margin-bottom: 0; }
+.assistant-msg.assistant p, .assistant-msg.assistant ul, .assistant-msg.assistant ol,
+.assistant-msg.assistant pre, .assistant-msg.assistant blockquote,
+.assistant-msg.assistant .assistant-table { margin: 0 0 0.55em; }
+.assistant-msg.assistant ul, .assistant-msg.assistant ol { padding-left: 1.3em; }
+.assistant-msg.assistant li + li { margin-top: 0.15em; }
+.assistant-msg.assistant .assistant-heading { font-weight: 600; }
+.assistant-msg.assistant code { font-size: 0.875em; background: var(--hover); padding: 0.05em 0.3em; border-radius: 4px; }
+.assistant-msg.assistant pre { white-space: pre; overflow-x: auto; background: var(--hover); padding: 0.5em 0.65em; border-radius: var(--radius); }
+.assistant-msg.assistant pre code { background: none; padding: 0; }
+.assistant-msg.assistant blockquote { border-left: 3px solid var(--border); padding-left: 0.65em; color: var(--muted); }
+.assistant-msg.assistant hr { border: none; border-top: 1px solid var(--border); margin: 0.6em 0; }
+.assistant-msg.assistant .assistant-table { overflow-x: auto; }
+.assistant-msg.assistant table { border-collapse: collapse; font-size: 0.875em; }
+.assistant-msg.assistant th, .assistant-msg.assistant td { border: 1px solid var(--border); padding: 0.2em 0.5em; text-align: left; vertical-align: top; }
+.assistant-msg.assistant th { background: var(--hover); font-weight: 600; }
 .assistant-msg.notice { align-self: stretch; background: var(--warning-bg); color: var(--warning-fg); font-size: 0.875rem; }
 .assistant-msg.notice.dataset { background: var(--info-bg); color: var(--info-fg); }
 .assistant-tool { font-size: 0.8rem; color: var(--muted); }
@@ -1181,10 +1199,11 @@ hr.divider { border: none; border-top: 1px solid var(--border); margin: 1.5rem 0
     right: 1.25rem;
     bottom: 0;
     z-index: 20;
-    width: min(24rem, calc(100vw - 2.5rem));
+    width: var(--dock-width, min(24rem, calc(100vw - 2.5rem)));
 }
 .assistant-floating {
-    height: min(38rem, calc(100vh - 2rem));
+    position: relative;
+    height: var(--dock-height, min(38rem, calc(100vh - 2rem)));
     gap: 0.6rem;
     padding: 0 0 0.75rem;
     background: var(--bg);
@@ -1195,6 +1214,20 @@ hr.divider { border: none; border-top: 1px solid var(--border); margin: 1.5rem 0
     overflow: hidden;
 }
 .assistant-floating > :not(.assistant-head) { margin-inline: 0.85rem; }
+.assistant-floating > .assistant-grip {
+    position: absolute;
+    top: 0;
+    left: 0;
+    z-index: 1;
+    width: 0.9rem;
+    height: 0.9rem;
+    margin: 0;
+    cursor: nwse-resize;
+    touch-action: none;
+    background: linear-gradient(135deg, var(--muted) 0 1.5px, transparent 1.5px 4px, var(--muted) 4px 5.5px, transparent 5.5px);
+    opacity: 0.5;
+}
+.assistant-floating > .assistant-grip:hover { opacity: 1; }
 .assistant-dock.collapsed .assistant-floating { height: auto; padding: 0; }
 .assistant-dock.collapsed .assistant-floating > :not(.assistant-head) { display: none; }
 .assistant-floating .assistant-head {

@@ -80,6 +80,8 @@ def chat_context(request, experiment_id=None, url_name="") -> dict:
         "conversation": conversation.pk if conversation else "",
         "experiment": experiment_id or "",
         "after": replay_from(conversation),
+        "live_after": (conversation.events.order_by("-id").values_list("id", flat=True).first()
+                       if conversation else None) or 0,
         "busy": bool(conversation and turns.busy(conversation)),
         "started": bool(conversation and conversation.events.filter(kind="user").exists()),
         "planning": planning,

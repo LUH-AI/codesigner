@@ -246,3 +246,18 @@ def test_a_page_continues_its_experiments_conversation(client, on, model):
     page = client.get(reverse("ui:experiment_detail", args=[exp.pk])).content.decode()
     assert f'data-conversation="{general.pk}"' in home
     assert f'data-conversation="{about.pk}"' in page
+
+
+def test_a_page_knows_which_events_it_shows_at_once(client, on):
+    """What: the chat on a page is told the last event that had happened when
+    it was drawn, so it shows those at once and writes out only later text.
+    How: a planning conversation with events, and the home page's chat
+    context read back."""
+    conversation = Conversation.objects.create(demo_dataset="iris")
+    AssistantEvent.objects.create(conversation=conversation, kind="user", payload={"text": "hi"})
+    last = AssistantEvent.objects.create(conversation=conversation, kind="text", payload={"text": "hello"})
+
+    page = client.get(reverse("ui:home"))
+
+    assert page.context["assistant"]["live_after"] == last.pk
+    assert f'data-live-after="{last.pk}"' in page.content.decode()

@@ -4,7 +4,8 @@ box to say something. Three places show it: the home page, as the page itself
 (`full`); every other page, as a window docked to the bottom right (`dock`); and
 a browser window of its own, popped out of one (`window`). Its script,
 assistant/chat.js, follows the conversation through its event stream and says
-nothing it was not sent: model text is shown as text, never as markup.
+nothing it was not sent: model text is drawn from its Markdown as elements and
+text, never as markup.
 
 On the home page the box to type in sits in the middle until the assistant
 starts answering, and the dataset to plan with is chosen beside it.
@@ -22,6 +23,7 @@ The words the script shows are here, translated, as data attributes.{% endcommen
          data-conversation="{{ assistant.conversation }}"
          data-experiment="{{ assistant.experiment }}"
          data-after="{{ assistant.after }}"
+         data-live-after="{{ assistant.live_after }}"
          data-busy="{% if assistant.busy %}1{% endif %}"
          data-csrf="{{ csrf_token }}"
          data-plotly-url="{% static 'ui/plotly.min.js' %}"
@@ -52,6 +54,11 @@ The words the script shows are here, translated, as data attributes.{% endcommen
          data-label-metric="{% translate 'Metric' %}"
          data-label-stopping="{% translate 'Stopping criteria' %}"
          data-label-seed="{% translate 'Seed' %}">
+    {% if dock %}
+        {% comment %}Dragged, the corner resizes the docked chat: it is pinned to
+        the bottom right, so the top left is the corner that moves.{% endcomment %}
+        <div class="assistant-grip" data-assistant-grip title="{% translate 'Drag to resize' %}" aria-hidden="true"></div>
+    {% endif %}
     {% comment %}Docked, the header is the chat's tab: the bar it collapses to,
     which opens it again — or, while the chat is in a window of its own, brings
     that window to the front.{% endcomment %}
