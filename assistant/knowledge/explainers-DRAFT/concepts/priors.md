@@ -2,11 +2,29 @@
 id: concept-priors
 title: Priors
 kind: concept
-about: [figure:prior, field:prior-hp-select, field:acq-prior-kind, field:acq-prior-decay, field:acq-prior-beta, field:acq-prior-delay, field:acq-top-k, assist:prior, assist:evaluate_prior, field:prior_acceptance_tolerance, field:prior_acceptance_top_k]
-related: [concept-initial-design, concept-surrogate-and-acquisition, concept-projection-and-projected-priors, concept-metrics, concept-optimizers, figure-prior, figure-acquisition-slice, page-setup-step-4, page-experiment-settings]
+about: [figure:prior, field:prior-hp-select, field:acq-prior-kind, field:acq-prior-decay, field:acq-prior-beta, field:acq-prior-delay, field:acq-top-k, data-assist:prior, data-assist:evaluate_prior, field:prior_acceptance_tolerance, field:prior_acceptance_top_k]
+related: [concept-initial-design, concept-surrogate-and-acquisition, concept-projection, concept-metrics, concept-optimizers, figure-prior, figure-acquisition-slice, page-setup-step-4, page-experiment-settings]
 keywords: [prior, belief, uniform, normal, beta, freeform, decay, logarithmic, linear, quadratic, cubic, beta over N, β, delay decay, reset, evaluate prior, accepted, rejected, unjudged, tolerance, top k, πBO, DynaBO]
 status: draft
-sources: [ui/templates/ui/figures/prior.html, ui/templates/ui/figures/_acquisition_shared.html, ui/views.py:942-1170, ui/views.py:1173-1260, ui/views.py:1571-1644, ui/services/priors.py:1-82, core/priors.py:1-234, core/optimizers/smac_optimizer.py:54-71, core/optimizers/smac_optimizer.py:339-345, core/optimizers/smac_optimizer.py:807-908, core/optimizers/smac_optimizer.py:934-1080, core/optimizers/smac_optimizer.py:1470-1535, ui/services/settings.py:32-46, ui/services/settings.py:71-78, ui/forms.py:404-410, ui/static/ui/acquisition.js:232-250, assistant/prompts.py:73-82, SMAC3/docs/advanced_usage/14_priors_and_constraints.md, SMAC3/smac/acquisition/weight/decay.py:65-157, SMAC3/smac/acquisition/weight/acceptance.py:270-328]
+sources:
+  - ui/templates/ui/figures/prior.html
+  - ui/templates/ui/figures/_acquisition_shared.html
+  - ui/views/priors.py:186-207
+  - core/priors.py:116-203
+  - experiments/services/priors.py:18-28
+  - core/optimizers/smac_optimizer.py:50-55
+  - core/optimizers/smac_optimizer.py:257-262
+  - core/optimizers/smac_optimizer.py:602-659
+  - core/optimizers/smac_optimizer.py:675-765
+  - core/optimizers/smac_optimizer.py:998-1063
+  - experiments/services/settings.py:14-28
+  - experiments/services/settings.py:35-42
+  - ui/forms.py:391-397
+  - ui/static/ui/acquisition.js:228-246
+  - assistant/instructions/dashboard.md:2-10
+  - SMAC3/docs/advanced_usage/14_priors_and_constraints.md
+  - SMAC3/smac/acquisition/weight/decay.py:65-157
+  - SMAC3/smac/acquisition/weight/acceptance.py:270-328
 ---
 
 ## In short
@@ -43,7 +61,7 @@ Example: β/N = 0.1 and N = 50 give β = 5. Under linear decay the exponent is 5
 
 ### How SMAC uses priors
 
-All stated beliefs become one prior over the whole space: per-hyperparameter tables multiplied with any projected priors. Before asking for the next configuration, SMAC registers it with `add_prior` and the chosen decay [FWS+25]. It weights the acquisition by the prior and also draws some candidates from it. Random Search and Grid Search ignore priors. Choosing a different model in step 1 withdraws them.
+All stated beliefs become one prior over the whole space: the per-hyperparameter tables multiplied together. Before asking for the next configuration, SMAC registers it with `add_prior` and the chosen decay [FWS+25]. It weights the acquisition by the prior and also draws some candidates from it. Random Search and Grid Search ignore priors. Choosing a different model in step 1 withdraws them.
 
 ### Evaluate Prior
 

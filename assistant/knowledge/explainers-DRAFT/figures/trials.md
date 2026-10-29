@@ -2,16 +2,17 @@
 id: figure-trials
 title: Trials
 kind: figure
-about: [figure:trials, trials-page, trials-page-size]
+about: [figure:trials, element:trials-page, element:trials-page-size]
 related: [figure-selected-configuration, figure-best-configuration, figure-performance-over-time, figure-trial-duration, page-dashboard-sidebar]
 keywords: [trials table, all trials, sort, page, rows per page, failed trials, scores, durations, configurations]
 status: draft
 sources:
-  - ui/figures/catalog.py:578-592 (Trials, page_size)
+  - ui/figures/catalog.py:372-395 (Trials, page_size)
   - ui/templates/ui/figures/trials.html, _trial_rows.html
-  - ui/views.py:3189-3219 (_trial_rows), 2010-2062 (_live_payloads rows_html)
-  - ui/templates/ui/experiment_detail.html:77-131 (sorting), 613-701 (pager, table selection), 981-995 (row clicks), 3509-3537 (appendTrialRows)
-  - config/figure_layout.toml (overview, misc)
+  - ui/views/dashboard.py:148-169 (_trial_rows)
+  - ui/views/runs.py:69-107 (_live_payloads rows_html)
+  - ui/templates/ui/experiment_detail.html:77-131 (sorting), 612-700 (pager, table selection), 501-515 (row clicks), 3266-3294 (appendTrialRows)
+  - ui/figure_layout.toml (overview, misc)
 ---
 
 ## What it shows

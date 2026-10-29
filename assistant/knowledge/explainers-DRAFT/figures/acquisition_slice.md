@@ -2,19 +2,20 @@
 id: figure-acquisition-slice
 title: Acquisition function
 kind: figure
-about: [figure:acquisition_slice, acq-hp-select, acq-show-slice, acq-next-trials, acq-requery, acq-compute-btn]
+about: [figure:acquisition_slice, element:acq-hp-select, element:acq-show-slice, element:acq-next-trials, element:acq-requery, element:acq-compute-btn]
 related: [figure-prior, figure-configuration-cube, concept-priors, figure-partial-dependence, concept-metrics]
 keywords: [acquisition function, expected improvement, EI, PI, what the optimizer tries next, next trials, requery, candidates, prior weighting, surrogate]
 status: draft
 sources:
-  - ui/figures/catalog.py:460-497 (AcquisitionSlice)
+  - ui/figures/catalog.py:313-325 (AcquisitionSlice)
   - ui/templates/ui/figures/acquisition_slice.html, _next_trials.html, _acquisition_shared.html
-  - ui/figures/plots.py:1431-1591 (acquisition_slice_plots)
-  - ui/static/ui/acquisition.js:203-440 (compute), 487-530 (priorTraces), 1193-1321 (candidates), 1765-1819 (refresh)
+  - ui/figures/plots.py:964-1151 (acquisition_slice_plots)
+  - ui/static/ui/acquisition.js:207-444 (compute), 475-518 (priorTraces), 1178-1306 (candidates), 1750-1804 (refresh)
   - ui/static/ui/next_trials.js
-  - ui/views.py:882-922 (_slice_model), 1263-1357 (_next_trials, next_trials), 1402-1549 (_slice_figures, acquisition_slice), 1647-1663 (_weighting_warning)
-  - core/optimizers/base.py:1096-1143 (slice_surrogate, acquisition_function), 1948-2081 (sample_prediction_space), 2111-2289 (compute_incumbent_slice)
-  - ui/services/settings.py (autocompute_acquisition_slice on by default)
+  - ui/views/priors.py:136-167 (_slice_model), 319-393 (_next_trials, next_trials), 401-509 (_slice_figures, acquisition_slice), 512-524 (_weighting_warning)
+  - core/optimizers/base.py:544-575 (slice_surrogate, acquisition_function)
+  - core/analytics.py:473-568 (sample_prediction_space), 590-697 (compute_incumbent_slice)
+  - experiments/services/settings.py (autocompute_acquisition_slice on by default)
 ---
 
 ## What it shows

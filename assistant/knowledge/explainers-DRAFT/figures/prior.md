@@ -2,18 +2,20 @@
 id: figure-prior
 title: Prior
 kind: figure
-about: [figure:prior, prior, evaluate_prior, prior-hp-select, acq-prior-kind, acq-prior-decay, acq-prior-beta, acq-prior-delay, acq-top-k, acq-evaluate, acq-reset]
-related: [concept-priors, figure-acquisition-slice, figure-projected-prior, figure-configuration-cube, page-dashboard-sidebar]
+about: [figure:prior, element:prior, element:evaluate_prior, element:prior-hp-select, element:acq-prior-kind, element:acq-prior-decay, element:acq-prior-beta, element:acq-prior-delay, element:acq-top-k, element:acq-evaluate, element:acq-reset]
+related: [concept-priors, figure-acquisition-slice, figure-configuration-cube, page-dashboard-sidebar]
 keywords: [prior, belief, where good values are, Normal, Beta, freeform, decay, beta over N, πBO, DynaBO, evaluate prior, reset prior, initial design]
 status: draft
 sources:
-  - ui/figures/catalog.py:500-517 (Prior)
+  - ui/figures/catalog.py:328-337 (Prior)
   - ui/templates/ui/figures/prior.html (assistant branch: data-assist="prior", "evaluate_prior"), _acquisition_shared.html
-  - ui/static/ui/acquisition.js:74-117 (KINDS), 726-1034 (editing), 1036-1184 (controls), 1411-1625 (judge, reset, strength, syncControls)
-  - ui/views.py:940-1121 (save_prior, reset_prior, evaluate_prior), 1156-1218 (β ratio), 1366-1399 (_initial_design_notice), 1592-1644 (_decayed), 3315-3340 (_prior_only_context)
-  - core/priors.py (densities on the vectorized axis)
+  - ui/static/ui/acquisition.js:89-132 (KINDS), 711-1019 (editing), 1021-1169 (controls), 1577-1791 (judge, reset, strength, syncControls)
+  - ui/views/priors.py:186-316 (save_prior, reset_prior, evaluate_prior)
+  - core/priors.py:99-161 (β ratio), 207-225 (_initial_design_notice)
+  - ui/views/analytics.py:292-344 (_decayed)
+  - ui/views/dashboard.py:210-227 (_prior_only_context)
   - ui/templates/ui/experiment_prerun.html, setup_step_priors.html
-  - ui/services/settings.py (prior_acceptance_tolerance 0.15, prior_acceptance_top_k 10)
+  - experiments/services/settings.py (prior_acceptance_tolerance 0.15, prior_acceptance_top_k 10)
 ---
 
 ## What it shows

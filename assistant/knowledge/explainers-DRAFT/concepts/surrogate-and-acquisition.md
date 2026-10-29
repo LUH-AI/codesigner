@@ -2,11 +2,33 @@
 id: concept-surrogate-and-acquisition
 title: Surrogate and acquisition function
 kind: concept
-about: [figure:acquisition_slice, figure:configuration_cube, field:acq-show-slice, field:acq-next-trials, field:cube-next-trials, field:cube-layer, field:cube-layer-style, assist:run_proposal]
-related: [concept-optimizers, concept-priors, concept-projection-and-projected-priors, concept-initial-design, concept-explanation-games, figure-acquisition-slice, figure-configuration-cube, figure-selected-configuration, figure-partial-dependence]
+about: [figure:acquisition_slice, figure:configuration_cube, field:acq-show-slice, element:acq-next-trials, field:cube-next-trials, field:cube-layer, field:cube-layer-style, page:ui:run_proposal]
+related: [concept-optimizers, concept-priors, concept-projection, concept-initial-design, concept-explanation-games, figure-acquisition-slice, figure-configuration-cube, figure-selected-configuration, figure-partial-dependence]
 keywords: [surrogate, model of the objective, Gaussian process, random forest, uncertainty, spread, confidence, acquisition function, expected improvement, probability of improvement, lower confidence bound, EI, PI, LCB, next trials, requery, proposal, run as trial, prediction layer, acquisition layer, sample]
 status: draft
-sources: [core/optimizers/base.py:806-844, core/optimizers/base.py:881-922, core/optimizers/base.py:1078-1127, core/optimizers/base.py:1851-1951, core/optimizers/base.py:1953-2081, core/optimizers/base.py:2111-2289, core/optimizers/smac_optimizer.py:278-305, core/optimizers/smac_optimizer.py:631-676, core/optimizers/smac_optimizer.py:740-805, ui/static/ui/improvement.js:1-70, ui/static/ui/acquisition.js:232-250, ui/views.py:450-475, ui/views.py:616-677, ui/views.py:876-923, ui/views.py:1263-1357, ui/views.py:1667-1712, ui/views.py:1786-1852, ui/templates/ui/figures/acquisition_slice.html, ui/templates/ui/figures/configuration_cube.html, ui/templates/ui/figures/_next_trials.html, ui/templates/ui/_selected_proposal_inner.html, SMAC3/smac/acquisition/function/confidence_bound.py:20-60]
+sources:
+  - core/analytics.py:73-94
+  - core/analytics.py:115-127
+  - core/optimizers/base.py:535-542
+  - core/analytics.py:409-470
+  - core/analytics.py:473-568
+  - core/analytics.py:590-697
+  - core/optimizers/smac_optimizer.py:211-233
+  - core/optimizers/smac_optimizer.py:475-501
+  - core/optimizers/smac_optimizer.py:573-600
+  - ui/static/ui/improvement.js
+  - ui/static/ui/acquisition.js:228-246
+  - ui/timeline.py:352-377
+  - ui/views/priors.py:61-93
+  - ui/views/priors.py:124-171
+  - ui/views/priors.py:319-352
+  - ui/views/analytics.py:175-209
+  - ui/views/analytics.py:256-302
+  - ui/templates/ui/figures/acquisition_slice.html
+  - ui/templates/ui/figures/configuration_cube.html
+  - ui/templates/ui/figures/_next_trials.html
+  - ui/templates/ui/_selected_proposal_inner.html
+  - SMAC3/smac/acquisition/function/confidence_bound.py:20-60
 ---
 
 ## In short

@@ -2,17 +2,17 @@
 id: figure-interactions-heatmap
 title: "Interactions: heatmap"
 kind: figure
-about: [figure:interactions_heatmap, explanation-game, hypershap-baseline]
+about: [figure:interactions_heatmap, element:explanation-game, element:hypershap-baseline]
 related: [concept-explanation-games, figure-interactions-top-pairs, figure-interactions-graph, figure-hyperparameter-importance, page-dashboard-sidebar]
 keywords: [interaction, pairwise, synergy, redundancy, FSII, order 2, heatmap, hyperparameter pairs]
 status: draft
 sources:
-  - ui/figures/catalog.py:161-211 (_Interactions, InteractionsHeatmap)
+  - ui/figures/catalog.py:113-144 (_Interactions, InteractionsHeatmap)
   - ui/templates/ui/figures/interactions_heatmap.html, _before_this_run.html
-  - ui/figures/plots.py:546-570 (hyperparameter_interactions_heatmap_plot), 615-633 (_SIGN_SCALE)
-  - core/optimizers/base.py:1561-1585 (compute_hp_interactions), 2441-2564 (_compute_hp_game), 2566-2578 (_extract_pairwise)
-  - ui/templates/ui/experiment_detail.html:1437-1447 (syncInteractionsWarning), 3695-3718 (game and baseline handlers)
-  - ui/views.py:2124-2138 (_analytics_absent)
+  - ui/figures/plots.py:351-367 (hyperparameter_interactions_heatmap_plot), 407-425 (_SIGN_SCALE)
+  - core/analytics.py:789-856 (_compute_hp_game), 859-867 (_extract_pairwise)
+  - ui/templates/ui/experiment_detail.html:1435-1445 (syncInteractionsWarning), 3452-3475 (game and baseline handlers)
+  - ui/views/analytics.py:349-354 (_analytics_absent)
 ---
 
 ## What it shows

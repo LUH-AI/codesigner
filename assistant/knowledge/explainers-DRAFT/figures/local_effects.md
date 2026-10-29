@@ -2,19 +2,19 @@
 id: figure-local-effects
 title: Local effects across trials
 kind: figure
-about: [figure:local_effects, local-effects-compute-btn, hypershap-baseline]
+about: [figure:local_effects, element:local-effects-compute-btn, element:hypershap-baseline]
 related: [figure-local-explanation, concept-explanation-games, figure-hyperparameter-importance, figure-selected-configuration, page-dashboard-sidebar]
 keywords: [beeswarm, local effects, spread of effects, helped or hurt, ablation across trials, consistent effect]
 status: draft
 sources:
-  - ui/figures/catalog.py:538-560 (LocalEffects)
+  - ui/figures/catalog.py:340-354 (LocalEffects)
   - ui/templates/ui/figures/local_effects.html
-  - ui/figures/plots.py:1700-1766 (local_effects_plot)
-  - core/optimizers/base.py:1044-1061 (_sample_evenly), 1666-1724 (compute_local_effects)
-  - ui/views.py:1714-1738 (local_effects), 3250-3269 (_local_effects_data)
-  - ui/templates/ui/experiment_detail.html:1501-1551 (refreshLocalEffects), 835-851, 3710-3718
-  - ui/forms.py:382,401-403 (local_effects_max_trials label)
-  - ui/services/settings.py (local_effects_max_trials 100, autocompute_local_effects off)
+  - ui/figures/plots.py:1154-1198 (local_effects_plot)
+  - core/analytics.py:218-227 (_sample_evenly), 310-347 (compute_local_effects)
+  - ui/views/analytics.py:213-232 (local_effects), 423-437 (_local_effects_data)
+  - ui/templates/ui/experiment_detail.html:1501-1551 (refreshLocalEffects), 834-850, 3467-3475
+  - ui/forms.py:374, 388-390 (local_effects_max_trials label)
+  - experiments/services/settings.py (local_effects_max_trials 100, autocompute_local_effects off)
 ---
 
 ## What it shows

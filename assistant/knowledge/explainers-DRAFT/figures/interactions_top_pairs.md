@@ -2,16 +2,16 @@
 id: figure-interactions-top-pairs
 title: "Interactions: top pairs"
 kind: figure
-about: [figure:interactions_top_pairs, explanation-game, hypershap-baseline]
+about: [figure:interactions_top_pairs, element:explanation-game, element:hypershap-baseline]
 related: [concept-explanation-games, figure-interactions-heatmap, figure-interactions-coalitions, figure-hyperparameter-importance, page-dashboard-sidebar]
 keywords: [strongest interactions, pairs, synergy, redundancy, ranked, FSII, order 2]
 status: draft
 sources:
-  - ui/figures/catalog.py:161-219 (_Interactions, InteractionsTopPairs)
+  - ui/figures/catalog.py:113-152 (_Interactions, InteractionsTopPairs)
   - ui/templates/ui/figures/interactions_top_pairs.html, _before_this_run.html
-  - ui/figures/plots.py:573-598 (hyperparameter_interactions_bar_plot)
-  - core/optimizers/base.py:1561-1585, 2566-2578 (_extract_pairwise)
-  - ui/templates/ui/experiment_detail.html:1437-1447, 3695-3718
+  - ui/figures/plots.py:370-388 (hyperparameter_interactions_bar_plot)
+  - core/analytics.py:859-867 (_extract_pairwise)
+  - ui/templates/ui/experiment_detail.html:1431-1441, 3452-3475
 ---
 
 ## What it shows

@@ -6,7 +6,25 @@ about: [page:ui:experiment_export, page:ui:experiment_export_model, page:ui:expe
 related: [page-dashboard, page-dashboard-sidebar, page-experiment-settings, page-account-and-groups, page-timeline, concept-permissions]
 keywords: [export, ihpo, download, timestamps, real times, relative times, no times, stacktrace, traceback, export model, python script, trial parameters, fitted model, zip, load, import, SMAC run, runhistory, read-only, bin, restore, delete, remove from my bin, delete for good]
 status: draft
-sources: [ui/templates/ui/_experiment_header.html:43-75, ui/templates/ui/export_confirm.html:1-52, ui/views.py:2364-2389, ui/views.py:2406-2482, ui/views.py:2495-2559, ui/services/timestamps.py:1-111, ui/services/model_export.py:1-58, ui/templates/ui/import.html:1-55, ui/templates/ui/_group_picker.html:1-12, ui/views.py:2827-2948, core/provenance.py:228-251, ui/templates/ui/bin.html:1-45, ui/templates/ui/bin_dismiss_confirm.html:1-24, ui/templates/ui/delete_confirm.html:1-19, ui/views.py:2735-2825, ui/services/bin.py:1-80, config/settings.py:47, ui/templates/ui/experiment_detail.html:720-757]
+sources:
+  - ui/templates/ui/_experiment_header.html:43-75
+  - ui/templates/ui/export_confirm.html
+  - ui/views/export.py:22-47
+  - ui/views/export.py:45-121
+  - ui/views/dashboard.py:112-132
+  - experiments/services/timestamps.py
+  - experiments/services/model_export.py
+  - ui/templates/ui/import.html
+  - ui/templates/ui/_group_picker.html
+  - ui/views/imports.py:17-51
+  - core/provenance.py:179-193
+  - ui/templates/ui/bin.html
+  - ui/templates/ui/bin_dismiss_confirm.html
+  - ui/templates/ui/delete_confirm.html
+  - ui/views/bin.py:15-85
+  - experiments/services/bin.py
+  - config/settings.py:36
+  - ui/templates/ui/experiment_detail.html:719-756
 ---
 
 ## What it is for

@@ -2,11 +2,22 @@
 id: page-data-handling
 title: Data Handling
 kind: page
-about: [page:datahandling:data_overview, page:datahandling:data_section, field:missing, field:scale, field:labels, data-assist:save]
+about: [page:ui:data_overview, page:ui:data_section, field:missing, field:scale, field:labels, data-assist:save]
 related: [page-setup-step-3, page-dashboard, page-timeline, concept-evaluation, concept-permissions]
 keywords: [data handling, processing, missing values, scaling, label columns, overview, columns, quality, cleaning, features, augmentation, splits, sources, versions, planned, not built yet]
 status: draft
-sources: [datahandling/urls.py:1-18, datahandling/views.py:16-120, datahandling/sections.py:1-185, datahandling/panels.py:1-150, datahandling/templates/datahandling/section.html:1-10, datahandling/templates/datahandling/_tabs.html:1-57, datahandling/templates/datahandling/panels/processing_step.html:1-16, datahandling/templates/datahandling/panels/planned.html:1-9, config/figure_layout.toml:57-140, core/processing.py:1-62, templates/base.html:163-175, ui/timeline.py:291-299]
+sources:
+  - ui/urls.py
+  - experiments/services/processing.py:11-13
+  - ui/figures/data_handling.py
+  - ui/templates/ui/data_handling/section.html
+  - ui/templates/ui/data_handling/_tabs.html
+  - ui/templates/ui/data_handling/panels/processing_step.html
+  - ui/templates/ui/data_handling/panels/planned.html
+  - ui/figure_layout.toml:56-139
+  - core/processing.py
+  - ui/templates/ui/base.html:163-175
+  - ui/timeline.py:246-254
 ---
 
 ## What it is for

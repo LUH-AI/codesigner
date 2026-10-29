@@ -2,15 +2,15 @@
 id: page-figure-index
 title: Dashboard figures
 kind: page
-about: [figure:selected_configuration, figure:best_configuration, figure:hyperparameter_importance, figure:performance_over_time, figure:interactions_heatmap, figure:interactions_top_pairs, figure:interactions_graph, figure:interactions_coalitions, figure:interactions_orders, figure:trial_duration, figure:forecast, figure:parallel_coordinates, figure:partial_dependence, figure:local_explanation, figure:local_effects, figure:acquisition_slice, figure:prior, figure:configuration_cube, figure:projected_prior, figure:trials]
-related: [page-dashboard-sidebar, concept-explanation-games, concept-priors, concept-projection-and-projected-priors, concept-metrics]
+about: [figure:selected_configuration, figure:best_configuration, figure:hyperparameter_importance, figure:performance_over_time, figure:interactions_heatmap, figure:interactions_top_pairs, figure:interactions_graph, figure:interactions_coalitions, figure:interactions_orders, figure:trial_duration, figure:forecast, figure:parallel_coordinates, figure:partial_dependence, figure:local_explanation, figure:local_effects, figure:acquisition_slice, figure:prior, figure:configuration_cube, figure:trials]
+related: [page-dashboard-sidebar, concept-explanation-games, concept-priors, concept-projection, concept-metrics]
 keywords: [which figure, dashboard, tabs, overview, HyperSHAP tab, acquisition tab, misc tab]
 status: draft
 sources:
   - ui/figures/catalog.py (FIGURES, home_tab)
-  - ui/figures/base.py:24-31 (tabs)
-  - ui/views.py:3401-3407 (TAB_LABELS)
-  - config/figure_layout.toml (default placement and Overview pins)
+  - ui/figures/base.py:13-20 (tabs)
+  - ui/views/dashboard.py:231-237 (TAB_LABELS)
+  - ui/figure_layout.toml (default placement and Overview pins)
 ---
 
 Each figure lives on one tab (its home tab). **Overview** holds copies pinned from the other tabs; by default these are Best configuration, Hyperparameter importance, Trials, Trial performance, Forecast and Hyperparameter space projection. Readers can pin, move and resize figures; this lists the defaults. Any figure can be switched off in the experiment's settings.
@@ -35,7 +35,6 @@ Each figure lives on one tab (its home tab). **Overview** holds copies pinned fr
 - [Acquisition function](acquisition_slice.md) (`figure-acquisition-slice`): which values of a hyperparameter does the optimizer find promising, and what would it run next?
 - [Prior](prior.md) (`figure-prior`): where do I believe a hyperparameter's good values are, and how should that belief fade?
 - [Hyperparameter space projection](configuration_cube.md) (`figure-configuration-cube`): where did the search go, where did it score well, and what does the model predict elsewhere?
-- [Projected prior](projected_prior.md) (`figure-projected-prior`): how do I state a belief about several hyperparameters together, drawn in the projection?
 
 ## Misc
 

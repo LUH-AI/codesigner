@@ -6,7 +6,26 @@ about: [page:ui:appearance, page:ui:export_preferences, page:ui:account, page:ui
 related: [concept-permissions, page-dashboard, page-export-import, page-experiment-settings]
 keywords: [settings, appearance, theme, dark mode, export preference, account, permissions, password, group, members, lead, primary lead, roles, seats, storage, share, sharing, viewer, contributor, make owner, transfer, add somebody, remove]
 status: draft
-sources: [templates/base.html:12-127, ui/templates/ui/appearance.html:1-26, ui/templates/ui/export_preferences.html:1-24, ui/templates/ui/account.html:1-58, ui/views.py:2650-2715, ui/context_processors.py:132-146, ui/services/timestamps.py:46-81, ui/templates/ui/panels/group.html:1-239, ui/templates/ui/panels/group_none.html:1-9, ui/panels.py:1-330, ui/models.py:404-420, access/models.py:120-133, access/policy.py:1-48, access/policy.py:299-326, access/signals.py:16-24, access/urls.py:1-40, ui/views.py:2233-2285, ui/templates/ui/_experiment_header.html:78-101, ui/permissions.py:110-150, assistant/tools/client.py:1-35]
+sources:
+  - ui/templates/ui/base.html:12-127
+  - ui/templates/ui/appearance.html
+  - ui/templates/ui/export_preferences.html
+  - ui/templates/ui/account.html
+  - ui/views/preferences.py:86-101
+  - ui/context_processors.py:106-120
+  - core/metrics.py:23-58
+  - ui/templates/ui/panels/group.html
+  - ui/templates/ui/panels/group_none.html
+  - ui/views/groups.py
+  - experiments/models.py:297-313
+  - access/models.py:91-104
+  - access/policy.py:55-57
+  - access/signals.py:12-18
+  - ui/urls.py
+  - ui/views/sharing.py:41-67
+  - ui/templates/ui/_experiment_header.html:78-101
+  - access/policy.py:79-119
+  - assistant/tools/client.py
 ---
 
 ## What it is for

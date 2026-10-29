@@ -7,12 +7,12 @@ related: [figure-performance-over-time, figure-trials, figure-selected-configura
 keywords: [how long each trial took, duration, seconds, timeout, slow trials, failed trials]
 status: draft
 sources:
-  - ui/figures/catalog.py:563-575 (TrialDuration)
-  - ui/figures/plots.py:769-794 (trial_duration_plot), 123-126 (FAILURE_FILL)
+  - ui/figures/catalog.py:357-369 (TrialDuration)
+  - ui/figures/plots.py:1201-1219 (trial_duration_plot), 60-63 (FAILURE_FILL)
   - ui/templates/ui/figures/trial_duration.html
-  - core/optimizers/base.py:75-78 (TrialResult.duration)
-  - ui/templates/ui/experiment_detail.html:493-611 (applySelection), 3443-3493 (live updates)
-  - config/figure_layout.toml (misc)
+  - core/optimizers/base.py:53-55 (TrialResult.duration)
+  - ui/templates/ui/experiment_detail.html:492-610 (applySelection), 3200-3250 (live updates)
+  - ui/figure_layout.toml (misc)
 ---
 
 ## What it shows

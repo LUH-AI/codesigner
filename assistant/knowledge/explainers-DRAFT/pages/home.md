@@ -2,11 +2,20 @@
 id: page-home
 title: Home
 kind: page
-about: [page:ui:home, sidebar:experiment-selection, field:text, field:assistant-demo, field:assistant-use-demo]
+about: [page:ui:home, field:text, field:assistant-demo, field:assistant-use-demo]
 related: [page-new-experiment, page-experiment-list, page-export-import, page-dashboard, concept-permissions]
 keywords: [start page, front page, sidebar, Experiment Selection, New, Load, Bin, recent experiments, See all, draft badge, assistant chat, plan, approve]
 status: draft
-sources: [ui/templates/ui/home.html:1-15, templates/base.html:12-80, templates/base.html:128-184, templates/base.html:211-221, ui/context_processors.py:1-60, ui/views.py:286-287, assistant/templates/assistant/_chat.html:1-124, assistant/context_processors.py:1-20, assistant/views.py:207-247]
+sources:
+  - ui/templates/ui/home.html
+  - ui/templates/ui/base.html:12-80
+  - ui/templates/ui/base.html:128-184
+  - ui/templates/ui/base.html:211-221
+  - ui/context_processors.py
+  - ui/views/pages.py:17-18
+  - assistant/templates/assistant/_chat.html
+  - assistant/context_processors.py
+  - assistant/views.py:209-257
 ---
 
 ## What it is for

@@ -6,7 +6,13 @@ about: [page:ui:experiment_list]
 related: [page-home, page-dashboard, page-new-experiment, concept-permissions]
 keywords: [all experiments, see all, experiment list, every experiment, older experiments, pages, previous, next]
 status: draft
-sources: [ui/templates/ui/experiment_list.html:1-44, ui/views.py:290-305, ui/context_processors.py:6-9, ui/permissions.py:176-184, access/policy.py:266-278, ui/permissions.py:250-260]
+sources:
+  - ui/templates/ui/experiment_list.html
+  - ui/views/pages.py:19-34
+  - ui/context_processors.py:5-8
+  - access/policy.py:130-134
+  - access/policy.py:49-53
+  - ui/permissions.py:64-80
 ---
 
 ## What it is for

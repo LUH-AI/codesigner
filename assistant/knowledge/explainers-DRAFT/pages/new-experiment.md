@@ -6,7 +6,20 @@ about: [page:ui:new_experiment, page:ui:setup_resume, data-assist:discard, data-
 related: [page-home, page-setup-step-1, page-setup-step-2, page-setup-step-3, page-setup-step-4, concept-permissions]
 keywords: [new experiment, draft, start, resume, continue setup, discard draft, throw away, setup steps, Draft badge]
 status: draft
-sources: [templates/base.html:139-145, templates/base.html:158-162, ui/templates/ui/new_experiment.html:1-15, ui/views.py:361-373, ui/services/drafts.py:43-50, ui/services/setup.py:1-24, ui/services/setup.py:68-73, ui/setup_views.py:32-35, ui/setup_views.py:125-135, ui/templates/ui/_setup_heading.html:1-14, ui/templates/ui/_setup_steps.html:1-25, access/policy.py:169-179, ui/services/storage.py:134-158, ui/permissions.py:110-112]
+sources:
+  - ui/templates/ui/base.html:139-145
+  - ui/templates/ui/base.html:158-162
+  - ui/templates/ui/new_experiment.html
+  - ui/views/pages.py:66-72
+  - ui/drafts.py:50-54
+  - ui/setup_steps.py:47-52
+  - ui/views/setup.py:35-38
+  - ui/views/setup.py:116-126
+  - ui/templates/ui/_setup_heading.html
+  - ui/templates/ui/_setup_steps.html
+  - access/policy.py:34-38
+  - ui/drafts.py:57-82 (settle_storage)
+  - access/policy.py:79-81
 ---
 
 ## What it is for

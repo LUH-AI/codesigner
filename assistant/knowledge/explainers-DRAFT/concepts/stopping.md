@@ -2,11 +2,24 @@
 id: concept-stopping
 title: When a run stops
 kind: concept
-about: [field:max_trials, field:target_score, field:max_seconds, field:max_trial_seconds, field:no_improvement_trials, field:incumbent_confidence, field:max_failures, field:max_consecutive_failures, field:trial_timeout_mode, field:trial_timeout_seconds, field:trial_timeout_factor, assist:run]
+about: [field:max_trials, field:target_score, field:max_seconds, field:max_trial_seconds, field:no_improvement_trials, field:incumbent_confidence, field:max_failures, field:max_consecutive_failures, field:trial_timeout_mode, field:trial_timeout_seconds, field:trial_timeout_factor, data-assist:run]
 related: [concept-metrics, concept-optimizers, concept-surrogate-and-acquisition, page-dashboard-sidebar, figure-performance-over-time, figure-trial-duration]
 keywords: [stopping criteria, run until, trials, budget, target score, time limit, compute time, no improvement, confidence, nothing better remains, give up, failures, consecutive failures, deadline, timeout, model fit, predicted duration, cancel, stopped because]
 status: draft
-sources: [ui/templates/ui/_side_evaluation.html:39-213, ui/services/run_form.py:14-106, core/optimizers/base.py:364-436, core/optimizers/base.py:457-735, core/optimizers/smac_optimizer.py:166-174, core/optimizers/smac_optimizer.py:1303-1362, core/optimizers/smac_optimizer.py:1569-1571, core/modelhost/deadline.py:1-200, ui/views.py:150-178, ui/views.py:2290-2338, ui/services/run.py:384-470, ui/services/run.py:688-700, config/settings.py:96]
+sources:
+  - ui/templates/ui/_side_evaluation.html:39-213
+  - ui/run_form.py:7-76
+  - core/optimizers/base.py:274-346
+  - core/optimizers/base.py:339-521
+  - core/optimizers/smac_optimizer.py:118-126
+  - core/optimizers/smac_optimizer.py:898-933
+  - core/optimizers/smac_optimizer.py:1085-1087
+  - core/modelhost/deadline.py
+  - ui/optimizer_labels.py:7-35
+  - ui/views/runs.py:168-173
+  - experiments/services/run.py:248-334
+  - experiments/services/run.py:502-514
+  - config/settings.py:71
 ---
 
 ## In short

@@ -9,6 +9,6 @@
 - `explanation-games.md` (concept-explanation-games): HyperSHAP tunability, mistunability and sensitivity, interactions, the "Compare against" baseline, local explanation and local effects.
 - `surrogate-and-acquisition.md` (concept-surrogate-and-acquisition): the surrogate and its uncertainty, EI/PI/LCB, the prediction sample, Next Trials and proposals.
 - `priors.md` (concept-priors): prior kinds, decay and β / N, how SMAC uses them, and Evaluate Prior.
-- `projection-and-projected-priors.md` (concept-projection-and-projected-priors): HP Space, PCA and PLS views, layers, and priors drawn in a view.
+- `projection.md` (concept-projection): HP Space, PCA and PLS views, and their layers.
 - `deferred-computation.md` (concept-deferred-computation): what is computed at the end of a run, on every page load, or on request, and what happens during a run.
 - `permissions.md` (concept-permissions): owners, groups, roles, sharing, and what the assistant may never do.

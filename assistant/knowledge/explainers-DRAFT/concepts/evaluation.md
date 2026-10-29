@@ -6,7 +6,21 @@ about: [field:evaluation_scheme, field:evaluation_value, field:time_column, fiel
 related: [concept-metrics, concept-tasks-and-models, page-setup-step-1, figure-forecast]
 keywords: [validation method, cross-validation, folds, dataset split, holdout, held out, backtest, rolling origin, time order, order by, gap, horizon, series column, season, forecast, reduction, lags, seasonal naive, ETS, stratified]
 status: draft
-sources: [ui/forms.py:25-52, ui/forms.py:118-170, ui/forms.py:201-231, ui/forms.py:307-320, ui/forms.py:322-365, core/splits.py:1-260, core/io.py:296-316, core/io.py:356-386, core/io.py:859-893, core/forecasting.py:1-71, core/forecasting.py:142-149, core/forecasters.py:73-157, core/forecasters.py:158-200, core/models/seasonal_naive.py, core/models/ets.py]
+sources:
+  - ui/forms.py:25-52
+  - ui/forms.py:133-185
+  - ui/forms.py:208-229
+  - ui/forms.py:300-313
+  - ui/forms.py:315-358
+  - core/splits.py
+  - core/datasets.py:122-138
+  - core/datasets.py:17-47
+  - core/io.py:397-431
+  - core/forecasting.py:82-89
+  - core/forecasters.py:49-76
+  - core/forecasters.py:127-234
+  - core/models/seasonal_naive.py
+  - core/models/ets.py
 ---
 
 ## In short

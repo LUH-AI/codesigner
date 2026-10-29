@@ -6,7 +6,21 @@ about: [field:task, field:target_column, field:model_name, field:model_file, fie
 related: [concept-evaluation, concept-metrics, concept-optimizers, concept-permissions, page-setup-step-1, page-data-handling]
 keywords: [task, classification, regression, forecasting, target, target column, last column, model, built-in models, random forest, SVM, extra trees, gradient boosting, LightGBM, XGBoost, CatBoost, k-nearest neighbors, logistic regression, elastic net, seasonal naive, ETS, custom model, upload, model file]
 status: draft
-sources: [core/tasks.py:1-65, ui/forms.py:86-101, ui/forms.py:187-199, ui/forms.py:265-320, core/io.py:188-204, core/registry.py:24-41, core/models/, core/forecasting.py:21-36, core/model_source.py:1-80, ui/services/setup.py:1-24, access/policy.py:330-354, ui/permissions.py:136-139, ui/templates/ui/setup_step_setup.html:33-110, ui/templates/ui/_experiment_header.html:33-39]
+sources:
+  - core/tasks.py
+  - ui/forms.py:109-124
+  - ui/forms.py:194-206
+  - ui/forms.py:259-313
+  - core/datasets.py:40-51
+  - core/registry.py:13-30
+  - core/models/
+  - core/forecasting.py
+  - core/model_source.py
+  - ui/setup_steps.py
+  - access/policy.py:61-65
+  - ui/forms.py:195-198
+  - ui/templates/ui/setup_step_setup.html:33-110
+  - ui/templates/ui/_experiment_header.html:33-39
 ---
 
 ## In short

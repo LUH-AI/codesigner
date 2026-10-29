@@ -6,7 +6,25 @@ about: [page:ui:experiment_detail, field:name, field:optimizer_name, element:exp
 related: [page-dashboard-sidebar, page-experiment-settings, page-export-import, page-data-handling, page-timeline, page-setup-step-2, figure-prior, figure-best-configuration, figure-hyperparameter-importance, figure-trials, figure-performance-over-time, figure-configuration-cube, figure-forecast, concept-permissions, concept-optimizers]
 keywords: [dashboard, experiment page, header, rename, export, settings, delete, ownership, tabs, Overview, HyperSHAP, Acquisition, Misc, pin, unpin, wider, narrower, drag, layout, pre-run, before first run, waiting for the first trial]
 status: draft
-sources: [ui/templates/ui/_experiment_page.html:1-14, ui/templates/ui/_experiment_header.html:1-133, ui/templates/ui/experiment_detail.html:1-75, ui/templates/ui/experiment_prerun.html:1-75, ui/views.py:376-391, ui/views.py:394-405, ui/views.py:272-283, ui/views.py:3374-3407, ui/views.py:3436-3479, ui/views.py:3482-3557, ui/figures/base.py:24-31, ui/figures/catalog.py:27-45, config/figure_layout.toml:20-55, ui/static/ui/layout.js:1-18, ui/static/ui/layout.js:560-680, ui/layout.py:325-385, ui/services/optimizer_form.py:14-21, access/policy.py:299-326, ui/context_processors.py:12-30]
+sources:
+  - ui/templates/ui/_experiment_page.html
+  - ui/templates/ui/_experiment_header.html
+  - ui/templates/ui/experiment_detail.html
+  - ui/templates/ui/experiment_prerun.html
+  - ui/views/dashboard.py:39-54
+  - ui/views/dashboard.py:56-67
+  - ui/views/dashboard.py:172-180
+  - experiments/services/model_export.py:88-108
+  - ui/views/dashboard.py:258-301
+  - ui/views/dashboard.py:304-367
+  - ui/figures/base.py:13-20
+  - ui/figures/catalog.py:35-40
+  - ui/figure_layout.toml:20-55
+  - ui/static/ui/layout.js:560-680
+  - ui/layout.py:187-247
+  - ui/optimizer_form.py:16-22
+  - access/policy.py:55-57
+  - ui/context_processors.py:10-28
 ---
 
 ## What it is for

@@ -6,7 +6,20 @@ about: [action:view, action:edit, action:run, action:compute, action:export, act
 related: [concept-deferred-computation, concept-tasks-and-models, page-dashboard, page-experiment-settings]
 keywords: [permission, owner, group, group lead, primary lead, site admin, member, share, viewer, contributor, transfer, hand over, draft, private, delete, bin, rename, export, run, cancel, assistant limits, human only, custom models, defaults]
 status: draft
-sources: [ui/permissions.py:1-150, ui/permissions.py:187-268, access/policy.py:1-67, access/policy.py:164-354, access/policy.py:370-391, access/models.py:1-200, ui/models.py:389-440, ui/views.py:2206-2338, ui/services/bin.py:1-40, ui/services/setup.py:21-24, assistant/gateway.py:1-100, assistant/prompts.py:6-33, ui/views.py:376-3440 (experiment_view actions per route), ui/templates/ui/panels/group.html, templates/base.html:134-156]
+sources:
+  - ui/permissions.py:14-82
+  - access/policy.py:212-370
+  - access/policy.py:378-386
+  - access/models.py
+  - experiments/models.py:286-344
+  - ui/views/sharing.py:16-20
+  - experiments/services/bin.py
+  - ui/setup_steps.py
+  - assistant/gateway.py
+  - assistant/instructions/core.md:1-28
+  - ui/permissions.py:52-82 (experiment_view actions per route)
+  - ui/templates/ui/panels/group.html
+  - ui/templates/ui/base.html:81-103
 ---
 
 ## In short

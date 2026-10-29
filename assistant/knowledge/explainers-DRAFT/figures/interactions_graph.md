@@ -2,16 +2,15 @@
 id: figure-interactions-graph
 title: "Interactions: graph"
 kind: figure
-about: [figure:interactions_graph, explanation-game, hypershap-baseline]
+about: [figure:interactions_graph, element:explanation-game, element:hypershap-baseline]
 related: [concept-explanation-games, figure-interactions-coalitions, figure-interactions-orders, figure-interactions-heatmap, page-dashboard-sidebar]
 keywords: [Möbius graph, interaction graph, higher-order interactions, coalitions, hyperedge, synergy, redundancy]
 status: draft
 sources:
-  - ui/figures/catalog.py:161-228 (_Interactions, InteractionsGraph)
+  - ui/figures/catalog.py:113-161 (_Interactions, InteractionsGraph)
   - ui/templates/ui/figures/interactions_graph.html, _before_this_run.html
-  - ui/figures/plots.py:636-754 (_circle_positions, hyperparameter_graph_plot)
-  - core/optimizers/base.py:977-992 (_moebius_terms), 2441-2564 (_compute_hp_game)
-  - git show e933531^:docs/walkthroughs/hypershap-plots.md (Möbius value meaning)
+  - ui/figures/plots.py:414-496 (_circle_positions, hyperparameter_graph_plot)
+  - core/analytics.py:176-184 (_moebius_terms), 789-856 (_compute_hp_game)
 ---
 
 ## What it shows

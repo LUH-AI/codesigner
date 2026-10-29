@@ -6,7 +6,19 @@ about: [page:ui:setup, field:name, field:group, field:task, field:use_demo_model
 related: [page-new-experiment, page-setup-step-2, page-setup-step-3, concept-evaluation, concept-metrics, concept-permissions]
 keywords: [setup, experiment name, task, classification, regression, model, upload model, custom model, dataset, csv, demo dataset, target, validation method, cross-validation, folds, dataset split, held out, backtests, forecast, order by, gap, horizon, series column, season length, seed]
 status: draft
-sources: [ui/templates/ui/setup_step_setup.html:1-212, ui/forms.py:22-52, ui/forms.py:55-199, ui/forms.py:233-365, ui/setup_views.py:38-54, ui/setup_views.py:140-159, ui/services/drafts.py:258-365, ui/services/setup.py:1-24, core/splits.py:38, core/io.py:356, core/registry.py:28-41, access/policy.py:330-335]
+sources:
+  - ui/templates/ui/setup_step_setup.html
+  - ui/forms.py:22-52
+  - ui/forms.py:90-367
+  - ui/forms.py:77-87
+  - ui/views/setup.py:41-57
+  - ui/views/setup.py:128-144
+  - ui/drafts.py:254-327
+  - ui/setup_steps.py
+  - core/splits.py:21
+  - core/datasets.py:17
+  - core/registry.py:17-30
+  - access/policy.py:61-65
 ---
 
 ## What it is for

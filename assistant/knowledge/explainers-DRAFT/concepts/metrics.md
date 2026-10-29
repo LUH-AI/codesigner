@@ -6,7 +6,20 @@ about: [field:optimize_metric, field:metric-select]
 related: [concept-evaluation, concept-tasks-and-models, concept-stopping, concept-priors, figure-performance-over-time, figure-trials, page-dashboard-sidebar]
 keywords: [metric, score, accuracy, F1, precision, recall, balanced accuracy, ROC AUC, log loss, RMSE, MAE, R², MASE, sMAPE, null score, baseline score, failed trial, higher is better, lower is better]
 status: draft
-sources: [core/metrics.py:60-157, core/metrics.py:164-260, core/metrics.py:263-285, core/metrics.py:495-576, core/optimizers/trial.py:52-81, core/optimizers/trial.py:230-238, ui/services/drafts.py:316-322, ui/services/drafts.py:368-389, ui/services/run.py:67-84, ui/views.py:1124-1162, assistant/data.py:490-506, ui/templates/ui/_side_evaluation.html:16-28, ui/templates/ui/metric_change.html]
+sources:
+  - core/metrics.py:34-131
+  - core/metrics.py:162-258
+  - core/metrics.py:257-264
+  - core/metrics.py:371-380
+  - core/optimizers/trial.py:58-75
+  - core/optimizers/trial.py:175-183
+  - ui/drafts.py:296-302
+  - ui/drafts.py:330-342
+  - experiments/services/run.py:35-42
+  - experiments/services/priors.py:42-64
+  - assistant/data.py:490-506
+  - ui/templates/ui/_side_evaluation.html:16-28
+  - ui/templates/ui/metric_change.html
 ---
 
 ## In short

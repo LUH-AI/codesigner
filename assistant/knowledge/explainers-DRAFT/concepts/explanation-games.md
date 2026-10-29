@@ -6,7 +6,29 @@ about: [field:explanation-game, field:hypershap-baseline, figure:hyperparameter_
 related: [concept-surrogate-and-acquisition, concept-deferred-computation, figure-hyperparameter-importance, figure-local-explanation, figure-local-effects, figure-interactions-heatmap, figure-interactions-top-pairs, figure-interactions-graph, figure-interactions-coalitions, figure-interactions-orders, page-dashboard-sidebar]
 keywords: [HyperSHAP, Shapley value, explanation game, tunability, sensitivity, mistunability, importance, interactions, Möbius, Harsanyi dividend, FSII, ablation, local explanation, local effects, baseline, compare against, default, incumbent, selected]
 status: draft
-sources: [core/optimizers/base.py:1376-1396, core/optimizers/base.py:1472-1511, core/optimizers/base.py:1587-1664, core/optimizers/base.py:1666-1724, core/optimizers/base.py:2291-2396, core/optimizers/base.py:2398-2565, core/optimizers/base.py:2567-2581, core/optimizers/base.py:775-803, ui/figures/catalog.py:48-249, ui/figures/catalog.py:538-560, ui/templates/ui/_side_explanation.html, ui/templates/ui/figures/hyperparameter_importance.html, ui/templates/ui/figures/local_explanation.html, ui/views.py:716-770, ui/views.py:1715-1755, ui/views.py:1855-1903, ui/views.py:2124-2190, ui/views.py:2980-3028, ui/services/settings.py:29-65, .venv hypershap/games/tunability.py:82-180, .venv hypershap/utils.py:84-150, .venv hypershap/games/ablation.py:34-105]
+sources:
+  - core/analytics.py:11-31
+  - core/analytics.py:234-256
+  - core/analytics.py:259-292
+  - core/analytics.py:310-347
+  - core/analytics.py:700-709
+  - core/analytics.py:765-786
+  - core/analytics.py:859-867
+  - core/analytics.py:58-70
+  - core/optimizers/base.py:71-272
+  - ui/figures/catalog.py:340-354
+  - ui/templates/ui/_side_explanation.html
+  - ui/templates/ui/figures/hyperparameter_importance.html
+  - ui/templates/ui/figures/local_explanation.html
+  - ui/views/analytics.py:61-105
+  - ui/views/analytics.py:213-232
+  - ui/views/analytics.py:306-346
+  - ui/views/analytics.py:349-354
+  - ui/views/analytics.py:373-395
+  - experiments/services/settings.py:16-52
+  - hypershap/games/tunability.py:82-180 (installed package)
+  - hypershap/utils.py:84-150 (installed package)
+  - hypershap/games/ablation.py:34-105 (installed package)
 ---
 
 ## In short

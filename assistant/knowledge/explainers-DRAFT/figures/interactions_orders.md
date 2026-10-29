@@ -2,15 +2,15 @@
 id: figure-interactions-orders
 title: "Interactions: by order"
 kind: figure
-about: [figure:interactions_orders, explanation-game, hypershap-baseline]
+about: [figure:interactions_orders, element:explanation-game, element:hypershap-baseline]
 related: [concept-explanation-games, figure-interactions-graph, figure-interactions-coalitions, figure-hyperparameter-importance, page-dashboard-sidebar]
 keywords: [on its own, in pairs, in larger groups, Möbius, Harsanyi dividend, attributed influence, interaction order]
 status: draft
 sources:
-  - ui/figures/catalog.py:161-248 (_Interactions, InteractionsOrders)
+  - ui/figures/catalog.py:113-180 (_Interactions, InteractionsOrders)
   - ui/templates/ui/figures/interactions_orders.html, _before_this_run.html
-  - ui/figures/plots.py:824-889 (_ORDER_BANDS, hyperparameter_orders_plot)
-  - core/optimizers/base.py:977-992 (_moebius_terms)
+  - ui/figures/plots.py:555-620 (_ORDER_BANDS, hyperparameter_orders_plot)
+  - core/analytics.py:176-184 (_moebius_terms)
 ---
 
 ## What it shows

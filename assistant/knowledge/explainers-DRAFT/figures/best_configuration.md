@@ -7,12 +7,14 @@ related: [figure-selected-configuration, figure-performance-over-time, concept-m
 keywords: [best trial, incumbent, best score, winning hyperparameters, best overall]
 status: draft
 sources:
-  - ui/figures/catalog.py:27-32 (BestConfiguration)
+  - ui/figures/catalog.py:35-40 (BestConfiguration)
   - ui/templates/ui/figures/best_configuration.html
-  - ui/views.py:3643-3667 (_detail_context panels), 1995-2007 (_best_panels), 2054-2062 (_live_payloads best_html)
-  - core/optimizers/base.py:199-228 (OptimizationResult.best_index)
-  - ui/templates/ui/experiment_detail.html:3309-3318 (show), 3495-3507 (swapBestConfiguration)
-  - config/figure_layout.toml (overview, misc)
+  - ui/views/dashboard.py:370-524 (_detail_context panels)
+  - ui/views/common.py:98-117 (_best_panels)
+  - ui/views/runs.py:69-107 (_live_payloads best_html)
+  - core/optimizers/base.py:161-173 (OptimizationResult.best_index)
+  - ui/templates/ui/experiment_detail.html:3055-3064 (show), 3255-3267 (swapBestConfiguration)
+  - ui/figure_layout.toml (overview, misc)
 ---
 
 ## What it shows

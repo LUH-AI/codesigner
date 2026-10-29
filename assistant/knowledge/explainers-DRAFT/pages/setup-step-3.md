@@ -6,7 +6,23 @@ about: [page:ui:setup_data, field:missing, field:scale, field:labels, data-assis
 related: [page-setup-step-1, page-setup-step-4, page-data-handling, page-timeline]
 keywords: [data step, data handling, processing, missing values, fill in, impute, scaling, standardize, label columns, one-hot, categories, model default, planned]
 status: draft
-sources: [ui/setup_views.py:72-93, ui/templates/ui/setup_step_data.html:1-12, datahandling/templates/datahandling/_tabs.html:1-57, datahandling/templates/datahandling/panels/processing_step.html:1-16, datahandling/templates/datahandling/panels/planned.html:1-9, datahandling/panels.py:27-89, datahandling/sections.py:91-134, datahandling/views.py:33-55, core/processing.py:1-62, config/figure_layout.toml:142-149, ui/services/drafts.py:143-168, ui/services/drafts.py:353-354, core/models/svm.py:24-25, core/models/knn.py:19-20, core/models/logistic_regression.py:15-16, core/models/elastic_net.py:17-18]
+sources:
+  - ui/views/setup.py:72-93
+  - ui/templates/ui/setup_step_data.html
+  - ui/templates/ui/data_handling/_tabs.html
+  - ui/templates/ui/data_handling/panels/processing_step.html
+  - ui/templates/ui/data_handling/panels/planned.html
+  - ui/figures/data_handling.py:184-246
+  - ui/figures/data_handling.py:88-131
+  - core/fitted_model.py:17-29
+  - core/processing.py
+  - ui/figure_layout.toml:141-148
+  - ui/drafts.py:157-177
+  - ui/drafts.py:316-317
+  - core/models/svm.py:19-20
+  - core/models/knn.py:19-20
+  - core/models/logistic_regression.py:15-16
+  - core/models/elastic_net.py:16-17
 ---
 
 ## What it is for

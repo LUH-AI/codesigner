@@ -2,18 +2,20 @@
 id: figure-selected-configuration
 title: Selected Configuration
 kind: figure
-about: [figure:selected_configuration, selected-content-<metric>, export-model, export-trial-parameters]
+about: [figure:selected_configuration, element:selected-content-<metric>, element:export-model, element:export-trial-parameters]
 related: [page-dashboard-sidebar, figure-best-configuration, figure-performance-over-time, figure-trials, figure-configuration-cube, concept-metrics]
 keywords: [selected trial, click to select, incumbent, difference to best, failed trial, traceback, proposal, run as trial]
 status: draft
 sources:
-  - ui/figures/catalog.py:35-45 (SelectedConfiguration, in_sidebar)
+  - ui/figures/catalog.py:43-60 (SelectedConfiguration, in_sidebar)
   - ui/templates/ui/figures/selected_configuration.html
   - ui/templates/ui/_selected_config_inner.html
   - ui/templates/ui/_selected_proposal_inner.html
-  - ui/views.py:3277-3312 (_selected_panel_data), 616-676 (proposal_panel, run_proposal), 680-712 (trial_traceback)
-  - ui/templates/ui/experiment_detail.html:437-444 (selectionFor), 730-831 (pointExportAt, selectTrial, selectProposal, dropProposal), 3295-3318 (show)
-  - ui/figures/base.py:184-205 (selects_trials, in_sidebar)
+  - ui/views/dashboard.py:183-207 (_selected_panel_data)
+  - ui/views/priors.py:61-117 (proposal_panel, run_proposal)
+  - ui/views/analytics.py:34-57 (trial_traceback)
+  - ui/templates/ui/experiment_detail.html:439-446 (selectionFor), 729-905 (pointExportAt, selectTrial, selectProposal, dropProposal), 3055-3078 (show)
+  - ui/figures/base.py:125-152 (selects_trials, in_sidebar)
 ---
 
 ## What it shows

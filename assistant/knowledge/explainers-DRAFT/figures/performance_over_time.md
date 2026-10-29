@@ -2,17 +2,17 @@
 id: figure-performance-over-time
 title: Trial performance
 kind: figure
-about: [figure:performance_over_time, view-select-performance_over_time-y, view-select-performance_over_time-x]
+about: [figure:performance_over_time, element:view-select-performance_over_time-y, element:view-select-performance_over_time-x]
 related: [concept-metrics, figure-selected-configuration, figure-trial-duration, figure-best-configuration, page-dashboard-sidebar]
 keywords: [score over time, running best, incumbent, convergence, error over time, trials vs time, absolute scale, log scale]
 status: draft
 sources:
-  - ui/figures/catalog.py:251-327 (PerformanceOverTime, absolute_scale_for)
-  - ui/figures/plots.py:233-347 (performance_over_time_plot), 33-77 (palette), 101-173 (failure marks)
+  - ui/figures/catalog.py:183-239 (PerformanceOverTime, absolute_scale_for)
+  - ui/figures/plots.py:135-222 (performance_over_time_plot), 5-49 (palette), 40-112 (failure marks)
   - ui/templates/ui/figures/performance_over_time.html
-  - ui/templates/ui/experiment_detail.html:305-412 (scale toggle), 3719-3727 (view selects), 3408-3493 (live updates)
-  - core/metrics.py:495-531 (to_error, error_range)
-  - config/figure_layout.toml (overview, misc)
+  - ui/templates/ui/experiment_detail.html:304-411 (scale toggle), 3476-3484 (view selects), 3165-3250 (live updates)
+  - core/metrics.py:371-390 (to_error, error_range)
+  - ui/figure_layout.toml (overview, misc)
 ---
 
 ## What it shows

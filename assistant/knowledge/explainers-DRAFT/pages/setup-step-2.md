@@ -6,7 +6,19 @@ about: [page:ui:setup_optimizer, field:optimizer_name, field:opt_search_strategy
 related: [page-setup-step-1, page-setup-step-3, page-dashboard, concept-optimizers, concept-priors, concept-stopping]
 keywords: [optimizer, SMAC, Random Search, Grid Search, search strategy, Gaussian process, random forest, initial points, share cap, trial cap, random trial rate, model defaults, advanced search settings, acquisition function, surrogate, grid steps]
 status: draft
-sources: [ui/templates/ui/setup_step_optimizer.html:1-18, ui/templates/ui/_optimizer_form.html:1-39, ui/templates/ui/_optimizer_params.html:1-118, ui/templates/ui/_group_initial_points.html:1-36, ui/templates/ui/_use_default.html:1-17, ui/optimizer_labels.py:28-202, core/optimizers/smac_optimizer.py:321-423, core/optimizers/grid_optimizer.py:40-44, core/optimizers/random_optimizer.py:23-24, core/registry.py:53-57, ui/services/optimizer_form.py:1-80, ui/setup_views.py:57-69]
+sources:
+  - ui/templates/ui/setup_step_optimizer.html
+  - ui/templates/ui/_optimizer_form.html
+  - ui/templates/ui/_optimizer_params.html
+  - ui/templates/ui/_group_initial_points.html
+  - ui/templates/ui/_use_default.html
+  - ui/optimizer_labels.py:29-203
+  - core/optimizers/smac_optimizer.py:238-340
+  - core/optimizers/grid_optimizer.py:32-36
+  - core/optimizers/random_optimizer.py:18-19
+  - core/registry.py:41-45
+  - ui/optimizer_form.py
+  - ui/views/setup.py:57-69
 ---
 
 ## What it is for

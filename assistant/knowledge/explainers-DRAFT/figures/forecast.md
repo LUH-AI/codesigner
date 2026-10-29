@@ -2,19 +2,20 @@
 id: figure-forecast
 title: Forecast
 kind: figure
-about: [figure:forecast, forecast-series-select, forecast-compute-btn]
+about: [figure:forecast, element:forecast-series-select, element:forecast-compute-btn]
 related: [figure-selected-configuration, concept-metrics, page-dashboard-sidebar]
 keywords: [forecast, backtest, time series, predicted vs actual, series, horizon]
 status: draft
 sources:
-  - ui/figures/catalog.py:605-620 (Forecast, forecast_only, deferred)
-  - ui/figures/base.py:100-120 (forecast_only, applies)
+  - ui/figures/catalog.py:386-410 (Forecast, forecast_only, deferred)
+  - ui/figures/base.py:72-92 (forecast_only, applies)
   - ui/templates/ui/figures/forecast.html
-  - ui/figures/plots.py:797-841 (forecast_plot)
-  - ui/views.py:803-852 (forecast_figure), 3374-3389 (_evaluation_label)
-  - ui/templates/ui/experiment_detail.html:1553-1613 (refreshForecast), 1198-1205 (noTrialSelected)
-  - ui/services/settings.py (autocompute_forecast off by default)
-  - config/figure_layout.toml (overview, misc)
+  - ui/figures/plots.py:1222-1256 (forecast_plot)
+  - ui/views/analytics.py:131-171 (forecast_figure)
+  - experiments/services/model_export.py:88-108 (_evaluation_label)
+  - ui/templates/ui/experiment_detail.html:1553-1613 (refreshForecast), 1194-1201 (noTrialSelected)
+  - experiments/services/settings.py (autocompute_forecast off by default)
+  - ui/figure_layout.toml (overview, misc)
 ---
 
 ## What it shows

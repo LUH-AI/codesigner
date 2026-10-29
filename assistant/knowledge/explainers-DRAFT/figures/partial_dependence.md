@@ -2,19 +2,20 @@
 id: figure-partial-dependence
 title: Partial dependence (PDP/ICE)
 kind: figure
-about: [figure:partial_dependence, pdp-hp-select, pdp-compute-btn]
+about: [figure:partial_dependence, element:pdp-hp-select, element:pdp-compute-btn]
 related: [figure-hyperparameter-importance, figure-acquisition-slice, figure-parallel-coordinates, concept-metrics, page-dashboard-sidebar]
 keywords: [partial dependence, PDP, ICE, individual conditional expectation, effect of one hyperparameter, predicted score, surrogate]
 status: draft
 sources:
-  - ui/figures/catalog.py:429-457 (PartialDependence)
+  - ui/figures/catalog.py:298-310 (PartialDependence)
   - ui/templates/ui/figures/partial_dependence.html
-  - ui/figures/plots.py:1341-1381 (partial_dependence_plot)
-  - core/optimizers/base.py:806-844 (fit_surrogate), 995-1026 (_hp_grid), 1044-1061 (_sample_evenly), 1726-1849 (compute_partial_dependence)
-  - ui/views.py:777-800 (partial_dependence), 3107-3130 (_partial_dependence_data), 3690-3701 (top_hp)
-  - ui/templates/ui/experiment_detail.html:1449-1500, 1615-1620, 3360-3364
-  - ui/forms.py:381,398-400 (ice_max_curves label)
-  - ui/services/settings.py (ice_max_curves 100, autocompute_partial_dependence off)
+  - ui/figures/plots.py:894-923 (partial_dependence_plot)
+  - core/analytics.py:73-94 (fit_surrogate), 187-201 (_hp_grid), 218-227 (_sample_evenly), 350-406 (compute_partial_dependence)
+  - ui/views/analytics.py:109-127 (partial_dependence), 406-420 (_partial_dependence_data)
+  - ui/views/dashboard.py:440-451 (top_hp)
+  - ui/templates/ui/experiment_detail.html:1443-1494, 1609-1614, 3117-3121
+  - ui/forms.py:373, 385-387 (ice_max_curves label)
+  - experiments/services/settings.py (ice_max_curves 100, autocompute_partial_dependence off)
 ---
 
 ## What it shows

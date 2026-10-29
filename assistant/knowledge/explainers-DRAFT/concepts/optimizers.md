@@ -6,7 +6,22 @@ about: [field:optimizer_name, field:opt_search_strategy, field:opt_random_probab
 related: [concept-initial-design, concept-surrogate-and-acquisition, concept-priors, concept-stopping, page-setup-step-2, page-dashboard]
 keywords: [optimizer, SMAC, Bayesian optimization, Gaussian process, random forest, search strategy, acquisition function, expected improvement, probability of improvement, improvement margin, random trial rate, candidates per trial, local search, refit interval, MCMC, random search, grid search, grid steps]
 status: draft
-sources: [core/registry.py:53-57, core/optimizers/smac_optimizer.py:119-137, core/optimizers/smac_optimizer.py:183-193, core/optimizers/smac_optimizer.py:308-462, core/optimizers/smac_optimizer.py:678-734, core/optimizers/smac_optimizer.py:1088-1146, core/optimizers/random_optimizer.py, core/optimizers/grid_optimizer.py:28-185, core/optimizers/base.py:1129-1143, ui/optimizer_labels.py:28-197, ui/services/optimizer_form.py:1-22, ui/templates/ui/_optimizer_params.html:49-52, SMAC3/smac/facade/blackbox_facade.py, SMAC3/smac/facade/hyperparameter_optimization_facade.py, SMAC3/smac/facade/abstract_facade.py:511]
+sources:
+  - core/registry.py:41-45
+  - core/optimizers/smac_optimizer.py:88-106
+  - core/optimizers/smac_optimizer.py:131-141
+  - core/optimizers/smac_optimizer.py:236-1110
+  - core/optimizers/smac_optimizer.py:503-547
+  - core/optimizers/smac_optimizer.py:761-819
+  - core/optimizers/random_optimizer.py
+  - core/optimizers/grid_optimizer.py:24-125
+  - core/optimizers/base.py:566-570
+  - ui/optimizer_labels.py:29-198
+  - ui/optimizer_form.py
+  - ui/templates/ui/_optimizer_params.html:49-52
+  - SMAC3/smac/facade/blackbox_facade.py
+  - SMAC3/smac/facade/hyperparameter_optimization_facade.py
+  - SMAC3/smac/facade/abstract_facade.py:511
 ---
 
 ## In short
@@ -51,7 +66,7 @@ Grid Search tries every combination of a fixed set of values, in order. "Grid st
 Only SMAC fits a surrogate, so only SMAC offers:
 
 - the "…the search is this sure nothing better remains" stopping criterion;
-- the acquisition figure, Next Trials, the projection's Acquisition layer, and Draw Prior;
+- the acquisition figure, Next Trials, and the projection's Acquisition layer;
 - acting on priors. Random and Grid Search accept priors and ignore them.
 
 "Evaluate Prior" (`judges_priors`) works only under the Gaussian process strategy. The forest is fitted to log-scaled costs, which makes every prior pass.

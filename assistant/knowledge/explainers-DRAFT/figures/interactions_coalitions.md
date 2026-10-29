@@ -2,16 +2,15 @@
 id: figure-interactions-coalitions
 title: "Interactions: coalitions"
 kind: figure
-about: [figure:interactions_coalitions, explanation-game, hypershap-baseline]
+about: [figure:interactions_coalitions, element:explanation-game, element:hypershap-baseline]
 related: [concept-explanation-games, figure-interactions-graph, figure-interactions-orders, figure-interactions-top-pairs, page-dashboard-sidebar]
 keywords: [UpSet plot, coalitions, groups of hyperparameters, Möbius, higher-order interactions, ranked]
 status: draft
 sources:
-  - ui/figures/catalog.py:161-238 (_Interactions, InteractionsCoalitions)
+  - ui/figures/catalog.py:113-171 (_Interactions, InteractionsCoalitions)
   - ui/templates/ui/figures/interactions_coalitions.html, _before_this_run.html
-  - ui/figures/plots.py:757-821 (hyperparameter_upset_plot)
-  - core/optimizers/base.py:977-992 (_moebius_terms)
-  - git show e933531^:docs/walkthroughs/hypershap-plots.md
+  - ui/figures/plots.py:499-550 (hyperparameter_upset_plot)
+  - core/analytics.py:176-184 (_moebius_terms)
 ---
 
 ## What it shows

@@ -6,7 +6,15 @@ about: [page:ui:setup_priors, data-assist:prior, data-assist:evaluate_prior, dat
 related: [page-setup-step-3, page-new-experiment, page-dashboard, figure-prior, concept-priors, concept-optimizers]
 keywords: [priors, constraints, belief, optimum, create experiment, create, not ready, planned, optional step]
 status: draft
-sources: [ui/setup_views.py:96-122, ui/templates/ui/setup_step_priors.html:1-36, ui/services/setup.py:190-194, ui/services/setup.py:228-250, ui/services/drafts.py:143-152, ui/services/drafts.py:171-192, ui/views.py:3315-3340, ui/views.py:940-973, ui/templates/ui/figures/prior.html:1-30, ui/templates/ui/figures/prior.html:140-148, ui/services/drafts.py:333-335]
+sources:
+  - ui/views/setup.py:92-118
+  - ui/templates/ui/setup_step_priors.html
+  - ui/setup_steps.py
+  - ui/drafts.py:157-177
+  - ui/drafts.py:180-197
+  - ui/views/dashboard.py:210-227
+  - ui/views/priors.py:184-217
+  - ui/templates/ui/figures/prior.html:140-148
 ---
 
 ## What it is for

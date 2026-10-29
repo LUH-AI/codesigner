@@ -2,11 +2,26 @@
 id: concept-initial-design
 title: Initial design
 kind: concept
-about: [field:opt_use_share_cap, field:opt_share_cap, field:opt_use_trial_cap, field:opt_trial_cap, field:opt_initial_points_use_max, field:opt_initial_design, field:opt_use_default_config, field:acq-prior-delay, field:pp-delay]
-related: [concept-optimizers, concept-priors, concept-projection-and-projected-priors, concept-surrogate-and-acquisition, figure-prior, figure-projected-prior, page-setup-step-2]
+about: [field:opt_use_share_cap, field:opt_share_cap, field:opt_use_trial_cap, field:opt_trial_cap, field:opt_initial_points_use_max, field:opt_initial_design, field:opt_use_default_config, field:acq-prior-delay]
+related: [concept-optimizers, concept-priors, concept-projection, concept-surrogate-and-acquisition, figure-prior, page-setup-step-2]
 keywords: [initial design, initial points, exploration, share cap, trial cap, Sobol, Latin hypercube, random, defaults only, model-free, delay decay, prior cannot affect]
 status: draft
-sources: [core/optimizers/smac_optimizer.py:70-112, core/optimizers/smac_optimizer.py:137-165, core/optimizers/smac_optimizer.py:489-584, core/optimizers/smac_optimizer.py:1088-1110, core/optimizers/smac_optimizer.py:1470-1535, ui/optimizer_labels.py:34-73, ui/optimizer_labels.py:183-197, ui/views.py:1366-1405, ui/views.py:1552-1568, ui/views.py:1607-1644, ui/services/priors.py:35-41, ui/templates/ui/figures/prior.html, ui/templates/ui/figures/_acquisition_shared.html, ui/static/ui/acquisition.js:633-645, main:ui/templates/ui/figures/projected_prior.html, main:ui/views.py (_projected_answer, prior_inside_design), SMAC3/smac/initial_design/abstract_initial_design.py:28-45]
+sources:
+  - core/optimizers/smac_optimizer.py:54-96
+  - core/optimizers/smac_optimizer.py:104-132
+  - core/optimizers/smac_optimizer.py:390-426
+  - core/optimizers/smac_optimizer.py:761-783
+  - core/optimizers/smac_optimizer.py:998-1063
+  - ui/optimizer_labels.py:35-74
+  - ui/optimizer_labels.py:179-193
+  - core/priors.py:207-225
+  - core/priors.py:228-236
+  - ui/views/analytics.py:292-329
+  - experiments/services/priors.py:85-91
+  - ui/templates/ui/figures/prior.html
+  - ui/templates/ui/figures/_acquisition_shared.html
+  - ui/static/ui/acquisition.js:618-630
+  - SMAC3/smac/initial_design/abstract_initial_design.py:28-45
 ---
 
 ## In short
@@ -58,7 +73,6 @@ The checkbox is on by default. It is shown only while the experiment has no tria
 
 - Setup step 2 and the dashboard's optimizer form, SMAC panel: the "Initial points" group, plus "Sampling method" and "Include the model's defaults".
 - The "Prior" figure: the notice above the plot (`acq-initial`) and the checkbox (`acq-prior-delay`).
-- The "Projected prior" figure has the same checkbox (`pp-delay`) on branch `main`, shown while the design is still to come or under way.
 
 ## Questions people ask
 

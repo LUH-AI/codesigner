@@ -6,7 +6,22 @@ about: [page:ui:experiment_settings, page:ui:default_experiment_settings, field:
 related: [page-dashboard, page-export-import, figure-partial-dependence, figure-local-effects, figure-prior, figure-hyperparameter-importance, concept-priors, concept-permissions]
 keywords: [settings, experiment settings, show figure, hide figure, figures shown, autocompute, compute button, ICE curves, local effects, prior acceptance tolerance, top k, kept trial models, export timestamps, default settings, inherit defaults, reset layout, default layout]
 status: draft
-sources: [ui/templates/ui/experiment_settings.html:1-78, ui/templates/ui/_experiment_settings_fields.html:1-82, ui/templates/ui/default_experiment_settings.html:1-17, ui/templates/ui/save_as_default_confirm.html:1-25, ui/forms.py:381-453, ui/services/settings.py:1-119, ui/views.py:2567-2647, ui/views.py:2718-2732, ui/views.py:3436-3479, ui/figures/base.py:163-175, ui/figures/base.py:262-279, ui/figures/catalog.py:623-648, ui/layout.py:328-385, templates/base.html:96-99, templates/base.html:197-208, ui/views.py:2495-2515]
+sources:
+  - ui/templates/ui/experiment_settings.html
+  - ui/templates/ui/_experiment_settings_fields.html
+  - ui/templates/ui/default_experiment_settings.html
+  - ui/templates/ui/save_as_default_confirm.html
+  - ui/forms.py:373-433
+  - experiments/services/settings.py
+  - ui/views/preferences.py:18-39
+  - ui/views/preferences.py:141-154
+  - ui/views/dashboard.py:258-301
+  - ui/figures/base.py:116-119 (deferred), 164-168 (autocompute_key)
+  - ui/figures/catalog.py:399-421
+  - ui/layout.py:190-247
+  - ui/templates/ui/base.html:96-99
+  - ui/templates/ui/base.html:197-208
+  - ui/views/dashboard.py:112-132
 ---
 
 ## What it is for
@@ -16,7 +31,7 @@ What one experiment's page shows and computes, and what it keeps. Opened with **
 ## What is on it
 
 - **Use default experiment settings** (`use_default_settings`): while ticked, the experiment follows the instance's defaults and the fields below are greyed out.
-- **Figures shown on an experiment page**: one checkbox per figure (`show_<figure>`), all on by default: Selected Configuration, Best configuration, Hyperparameter importance (HyperSHAP), Trial performance, the five Interactions figures, Trial duration, Forecast, Parallel coordinates, Partial dependence (PDP/ICE), Local explanation (selected trial), Local effects across trials, Acquisition function, Prior, Hyperparameter space projection, Projected prior, Trials. A figure switched off is not drawn and nothing is computed for it.
+- **Figures shown on an experiment page**: one checkbox per figure (`show_<figure>`), all on by default: Selected Configuration, Best configuration, Hyperparameter importance (HyperSHAP), Trial performance, the five Interactions figures, Trial duration, Forecast, Parallel coordinates, Partial dependence (PDP/ICE), Local explanation (selected trial), Local effects across trials, Acquisition function, Prior, Hyperparameter space projection, Trials. A figure switched off is not drawn and nothing is computed for it.
 - **Trials drawn on the partial-dependence figure** (`ice_max_curves`, 100; 0 draws every trial).
 - **Trials explained on the local-effects figure** (`local_effects_max_trials`, 100; 0 explains every trial).
 - **Prior acceptance tolerance** (`prior_acceptance_tolerance`, 0.15, 0–1): the share of the metric's scale a prior may fall short by before **Evaluate Prior** calls it unhelpful.

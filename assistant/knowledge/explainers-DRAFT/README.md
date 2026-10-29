@@ -21,22 +21,24 @@ from, so they can be checked.
 
 ## The format
 
-```markdown
----
-id: figure-performance-over-time        # unique; figure-/page-/concept- prefix
-title: Trial performance                # as the page names it
-kind: figure                            # figure | page | concept
-about: [figure:performance_over_time]   # the page targets it explains (figure keys, data-assist names, field names)
-related: [concept-metrics]              # other explainers' ids
-keywords: [score over time, running best, incumbent]
-status: draft
-sources: [ui/figures/catalog.py, ui/templates/ui/figures/performance_over_time.html]
----
-```
+Each kind has a template in `_templates/`: `figure.md`, `page.md` and
+`concept.md`. A file has its template's frontmatter fields in the same order,
+an `id` made of its kind and file name (`figures/trial_duration.md` is
+`figure-trial-duration`), and its template's `##` sections in the same order,
+with no others. The comments in each template say what goes in each section.
 
-The body has short sections with headings. Which sections a file has depends on
-its kind; typical ones are "What it shows", "How to read it", "Controls", "When
-it appears", and "Questions people ask".
+- `about` lists what the file explains, each as `kind:name`: `figure:` a key of
+  `ui/figures/catalog.py`, `page:` a URL name, `field:` a form field,
+  `element:` an element's id, `data-assist:` a page target, `action:` a policy
+  action.
+- `related` lists other explainers' ids.
+- `sources` lists, one per line, the files the facts came from, with line
+  ranges where they help, and papers by their library key.
+- "Questions people ask" holds only bold questions, each answered on the same
+  line.
+
+`tests/assistant/test_explainers.py` checks every file against its template,
+and that every target, related id and cited file exists.
 
 A note that needs a decision or a check is an HTML comment:
 `<!-- REVIEW: … -->`.

@@ -6,7 +6,17 @@ about: [page:ui:experiment_timeline]
 related: [page-dashboard, page-data-handling, page-setup-step-4, page-export-import, concept-priors, concept-stopping, concept-metrics]
 keywords: [timeline, history, what changed, runs, set up, data handling, prior stated, prior applied, prior refused, optimizer changed, metric changed, scheduled, now, details, stopped because]
 status: draft
-sources: [ui/templates/ui/experiment_timeline.html:1-60, ui/templates/ui/_timeline_details.html:1-10, ui/views.py:2392-2403, ui/timeline.py:1-11, ui/timeline.py:118-131, ui/timeline.py:216-370, ui/timeline.py:371-467, ui/timeline.py:470-586, ui/services/history.py:1-45, ui/services/timestamps.py:1-27, templates/base.html:163-175]
+sources:
+  - ui/templates/ui/experiment_timeline.html
+  - ui/templates/ui/_timeline_details.html
+  - ui/views/export.py:32-43
+  - ui/timeline.py:83-96
+  - ui/timeline.py:173-327
+  - ui/timeline.py:309-338
+  - ui/timeline.py:401-452
+  - experiments/services/history.py
+  - experiments/services/timestamps.py
+  - ui/templates/ui/base.html:163-175
 ---
 
 ## What it is for
@@ -21,8 +31,8 @@ The record of everything that changed how the experiment searches, newest first,
   - **Set up**: "Set up: *model* on *dataset*, tuned by *optimizer*." Details: Task, Model, Dataset, Evaluation, Ordered by, Optimizer, Optimizer settings, Seed. Always at the bottom.
   - **Data handling**: just above it, the three processing choices it was set up with, for example "Data handling: as Random Forest does by default."
   - **Imported**: from a `.ihpo` file or a SMAC run, and whether its dataset was attached.
-  - Changes between runs: a Data Handling choice ("Scaling: … → …"), a prior stated, changed, withdrawn or reset on a hyperparameter, a prior drawn in a view (HP Space, PCA or PLS) stated, changed or withdrawn, the optimizer or its settings changed, the model's environment rebuilt.
-  - **Runs**: "Run N ran X trials (a–b), optimizing *metric*. Stopped because …", or "waiting to start", "under way", "Then it failed: …", "Cancelled by *name*". A run of one proposal says so. Details: Status, Queued, Started, Finished, Trial range, Optimized metric, Stopping (the criteria it was given), Stopped by, Time in trials, Priors, Priors drawn in a view, Proposal, Trial timeout. Inside a run, its own events: the optimized metric changing, a prior applied after trial N, a prior not applied or refused, and trial models not kept for lack of room.
+  - Changes between runs: a Data Handling choice ("Scaling: … → …"), a prior stated, changed, withdrawn or reset on a hyperparameter, the optimizer or its settings changed, the model's environment rebuilt.
+  - **Runs**: "Run N ran X trials (a–b), optimizing *metric*. Stopped because …", or "waiting to start", "under way", "Then it failed: …", "Cancelled by *name*". A run of one proposal says so. Details: Status, Queued, Started, Finished, Trial range, Optimized metric, Stopping (the criteria it was given), Stopped by, Time in trials, Priors, Proposal, Trial timeout. Inside a run, its own events: the optimized metric changing, a prior applied after trial N, a prior not applied or refused, and trial models not kept for lack of room.
 - **Scheduled** entries sit above a **Now** stop on a dashed line, with no time: a prior that takes effect "after the initial design" and has not yet.
 
 ## How to use it

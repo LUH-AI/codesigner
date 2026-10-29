@@ -6,7 +6,24 @@ about: [field:autocompute_hypershap_baseline, field:autocompute_local_ablation, 
 related: [concept-explanation-games, concept-surrogate-and-acquisition, concept-priors, concept-permissions, page-experiment-settings, page-dashboard, figure-partial-dependence, figure-local-effects, figure-local-explanation]
 keywords: [compute, compute button, autocompute, computed automatically, deferred, on request, cost, slow, compute explanations, during a run, live, partial result, analytics]
 status: draft
-sources: [ui/figures/base.py:200-279, ui/figures/catalog.py:109-160, ui/figures/catalog.py:330-397, ui/figures/catalog.py:429-620, ui/services/settings.py:10-105, ui/forms.py:381-442, ui/templates/ui/_experiment_settings_fields.html, ui/templates/ui/_side_explanation.html, core/optimizers/base.py:383-392, core/optimizers/base.py:1386-1420, core/optimizers/base.py:1472-1511, core/optimizers/base.py:2308-2396, ui/views.py:876-923, ui/views.py:1342-1357, ui/views.py:1972-2065, ui/views.py:2124-2190, config/settings.py:130]
+sources:
+  - ui/figures/base.py:58-137
+  - ui/figures/catalog.py:76-96
+  - ui/figures/catalog.py:242-274
+  - ui/figures/catalog.py:298-310
+  - experiments/services/settings.py:1-68
+  - ui/forms.py:373-433
+  - ui/templates/ui/_experiment_settings_fields.html
+  - ui/templates/ui/_side_explanation.html
+  - core/analytics.py:23-32
+  - core/analytics.py:21-55
+  - core/analytics.py:234-256
+  - core/analytics.py:712-762
+  - ui/views/priors.py:124-171
+  - ui/views/priors.py:381-393
+  - ui/views/common.py:160-205
+  - ui/views/analytics.py:349-354
+  - config/settings.py:91
 ---
 
 ## In short
@@ -61,7 +78,7 @@ The fitted surrogate and its sample are reused across the acquisition figure and
 
 ### During a run
 
-While trials are arriving, the page polls every 5 to 30 seconds, depending on how long trials take. The figures drawn from the trials alone update. Importance, interactions, partial dependence and local effects stay as they were, because their analyses are not run per trial; they fill in when the run ends. The projection's layers and "Draw Prior" are disabled while a run is adding trials.
+While trials are arriving, the page polls every 5 to 30 seconds, depending on how long trials take. The figures drawn from the trials alone update. Importance, interactions, partial dependence and local effects stay as they were, because their analyses are not run per trial; they fill in when the run ends. The projection's layers are disabled while a run is adding trials.
 
 ### Settings
 

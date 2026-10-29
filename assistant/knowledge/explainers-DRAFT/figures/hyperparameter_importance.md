@@ -2,19 +2,19 @@
 id: figure-hyperparameter-importance
 title: Hyperparameter importance (HyperSHAP)
 kind: figure
-about: [figure:hyperparameter_importance, explanation-game, hypershap-baseline, hypershap-compute-btn, view-select-hyperparameter_importance-rendering, importance-comparison]
+about: [figure:hyperparameter_importance, element:explanation-game, element:hypershap-baseline, element:hypershap-compute-btn, element:view-select-hyperparameter_importance-rendering, element:importance-comparison]
 related: [concept-explanation-games, page-dashboard-sidebar, figure-interactions-heatmap, figure-local-explanation, figure-parallel-coordinates, figure-partial-dependence, concept-metrics]
 keywords: [importance, which hyperparameter matters, tunability, mistunability, sensitivity, Shapley, HyperSHAP, pie, bar, baseline, compute explanations]
 status: draft
 sources:
-  - ui/figures/catalog.py:48-133 (HP_GAME_FIELDS, HP_GAME_LABELS, HP_GAME_HELP, HyperparameterImportance)
+  - core/optimizers/base.py:81-166 (HP_GAME_FIELDS, HP_GAME_LABELS, HP_GAME_HELP, HyperparameterImportance)
   - ui/templates/ui/figures/hyperparameter_importance.html, _importance_table.html, _before_this_run.html
   - ui/templates/ui/_side_explanation.html
-  - ui/figures/plots.py:350-387 (hyperparameter_importance_plot)
-  - ui/templates/ui/experiment_detail.html:1068-1177, 1263-1435, 3616-3718
-  - ui/views.py:1855-1902 (hypershap_figures), 2124-2188 (_analytics_absent, experiment_compute_analytics), 3018-3031 (TUNING_PROGRESS_ENABLED)
-  - core/optimizers/base.py:1376-1386 (HP_GAMES), 1472-1511 (budget), 2308-2396 (compute_hp_games), 2441-2564 (_compute_hp_game)
-  - ui/services/settings.py (autocompute_hypershap_baseline default on, GAME_DISPLAY_FIGURES)
+  - ui/figures/plots.py:225-250 (hyperparameter_importance_plot)
+  - ui/templates/ui/experiment_detail.html:1062-1171, 1257-1429, 3373-3475
+  - ui/views/analytics.py:306-346 (hypershap_figures), 349-370 (_analytics_absent, experiment_compute_analytics), 403-416 (TUNING_PROGRESS_ENABLED)
+  - core/analytics.py:21-31 (HP_GAMES), 234-256 (budget), 712-762 (compute_hp_games), 789-856 (_compute_hp_game)
+  - experiments/services/settings.py (autocompute_hypershap_baseline default on, GAME_DISPLAY_FIGURES)
 ---
 
 ## What it shows

@@ -6,7 +6,28 @@ about: [element:metric-select, field:optimize_metric, field:max_trials, field:ta
 related: [page-dashboard, page-export-import, figure-selected-configuration, figure-hyperparameter-importance, figure-configuration-cube, concept-metrics, concept-stopping, concept-explanation-games, concept-optimizers, concept-permissions]
 keywords: [sidebar, Experiment Evaluation, evaluation metric, run form, next run, run until, stopping criteria, give up, failures, deadline, timeout, run, cancel run, give up on it, HyperSHAP, game, compare against, baseline, compute explanations, selected configuration, proposal, run as trial, export model]
 status: draft
-sources: [ui/templates/ui/_side_evaluation.html:1-243, ui/templates/ui/_metric_select.html:1-12, ui/templates/ui/metric_change.html:1-37, ui/templates/ui/_run_status.html:1-45, ui/templates/ui/_side_explanation.html:1-67, ui/templates/ui/figures/selected_configuration.html:1-21, ui/templates/ui/_selected_config_inner.html:1-33, ui/templates/ui/_selected_proposal_inner.html:1-38, ui/services/run_form.py:14-106, ui/services/run_logic.py:15-45, ui/views.py:156-166, ui/views.py:604-677, ui/views.py:1855-1903, ui/views.py:1905-1951, ui/views.py:2143-2188, ui/views.py:2288-2338, ui/figures/catalog.py:66-94, ui/templates/ui/experiment_detail.html:720-757, config/settings.py:96, core/modelhost/deadline.py:64, core/optimizers/base.py:360-365]
+sources:
+  - ui/templates/ui/_side_evaluation.html
+  - ui/templates/ui/_metric_select.html
+  - ui/templates/ui/metric_change.html
+  - ui/templates/ui/_run_status.html
+  - ui/templates/ui/_side_explanation.html
+  - ui/templates/ui/figures/selected_configuration.html
+  - ui/templates/ui/_selected_config_inner.html
+  - ui/templates/ui/_selected_proposal_inner.html
+  - ui/run_form.py:7-76
+  - experiments/services/run_logic.py:7-17
+  - ui/optimizer_labels.py:13-23
+  - ui/views/priors.py:49-57
+  - ui/views/analytics.py:306-346
+  - ui/views/runs.py:25-71
+  - ui/views/analytics.py:359-370
+  - ui/views/runs.py:166-184
+  - ui/figures/catalog.py:36-64
+  - ui/templates/ui/experiment_detail.html:719-756
+  - config/settings.py:71
+  - core/modelhost/deadline.py:24
+  - core/optimizers/base.py:270-275
 ---
 
 ## What it is for
