@@ -1,4 +1,4 @@
-"""Breadcrumbs come from the resolved route; `?next=` serves only links leaving
+"""Breadcrumbs come from the resolved route; `?next=` only serves links leaving
 the hierarchy and must be validated against open redirects.
 """
 

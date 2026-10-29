@@ -1,4 +1,4 @@
-"""`ExperimentData` holds the work an `.ihpo` carries; `Experiment` holds the
+"""`.ExperimentData` stores the work an `.ihpo` carries; `.Experiment` stores the
 local record, such as owner, group, settings and model environment.
 `IN_THE_FILE` and `STAYS_HERE` assign every field to one half.
 """

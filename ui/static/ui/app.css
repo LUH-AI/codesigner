@@ -4,7 +4,7 @@
 
 :root {
     --primary: #ff4b4b;
-    /* The blue every figure draws a trial in — see plots.py's MARKER_COLOR. */
+    /* The blue every figure draws a trial in — see plots/style.py's MARKER_COLOR. */
     --action: #636efa;
     --action-strong: #4353d8;
     --primary-hover: #ff2b2b;
@@ -15,7 +15,7 @@
     --border: rgba(49, 51, 63, 0.2);
     --border-light: rgba(49, 51, 63, 0.1);
     /* One trial, one experiment, one row: the shade that means "this is the one
-       you picked", shared with plots.py's SELECTION_COLOR so the page and the
+       you picked", shared with plots/style.py's SELECTION_COLOR so the page and the
        figures agree. Deliberately not --primary, which is the brand red and
        means "this is an action" — two different jobs that looked alike. */
     --selected: #EC8273;
@@ -23,7 +23,7 @@
        theme: "selected" is one colour everywhere, in light and in dark. */
     --selected-tint: rgba(236, 130, 115, 0.16);
     /* A proposal: a sampled configuration nobody has run, selected in the
-       trial's place. Its own colour so it never passes for a trial — plots.py's
+       trial's place. Its own colour so it never passes for a trial — plots/style.py's
        PROPOSAL_COLOR. One colour in both themes, like the selection. */
     --proposal: #8B5CF6;
     --proposal-tint: rgba(139, 92, 246, 0.12);
@@ -643,7 +643,7 @@ form.new-experiment button.btn:hover, .setup-heading button.btn:hover {
 }
 
 /* ── Data Handling's planned capabilities ─────────────────────────────── */
-/* Its sections are the dashboard's tabs, holding panels on the same grid: what
+/* Its sections are the dashboard's tabs, containing panels on the same grid: what
    the tab is for above them, and a tab of controls' Save button below. */
 .data-handling .data-save { margin-top: 1.25rem; align-items: center; }
 .data-handling .fig-slot.shape-card > .card select { width: 100%; }
@@ -747,9 +747,9 @@ main.content > .fig-area { margin-top: 0.25rem; }
      squat   3:2   wider than tall, about a screen tall across the whole row
      long    3:1   the same height at two columns as a squat one at one
      table   a fixed block, about a screen tall, scrolling inside
-     stack   as tall as what it holds
+     stack   as tall as its contents
 
-   and a figure with nothing to draw yet is as tall as what it holds, too. On a
+   and a figure with nothing to draw yet is as tall as its contents, too. On a
    grid narrower than four columns a slot is as wide as fits. */
 .fig-slot { min-width: 0; min-height: 0; display: flex; flex-direction: column; }
 .fig-slot[data-w="1"] { grid-column: span 1; }
@@ -779,7 +779,7 @@ main.content > .fig-area { margin-top: 0.25rem; }
     flex: 1; min-height: 0; display: flex; flex-direction: column; overflow: auto;
 }
 .fig-slot > [data-figure] .plot { flex: 1; min-height: 0; }
-/* Sized by what it holds — a figure that is several panels with controls
+/* Sized by its contents — a figure that is several panels with controls
    between them, or any figure with nothing to draw yet. layout.js gives the
    slot as many rows as the figure's natural height needs. */
 .fig-slot.shape-stack > [data-figure],
@@ -943,12 +943,12 @@ table.trials tbody tr:focus-visible { outline: 2px solid var(--primary); outline
 
 /* A figure's own pickers: one row above the plot, reading as one control for
    one figure rather than as a stack of unrelated settings. They wrap only when
-   the card is genuinely too narrow to hold them side by side, and they size to
+   the card is genuinely too narrow to fit them side by side, and they size to
    their contents — a select stretched to the card's full width reads as a form
    field, which is what the page's other selects are and these are not. */
 /* A figure's title and its pickers on one line: the pickers say what the title
    is currently showing, so they are part of the heading rather than a caption
-   under it. They fall below it only when the card is too narrow to hold both. */
+   under it. They fall below it only when the card is too narrow to fit both. */
 .card-head {
     display: flex;
     flex-wrap: wrap;

@@ -107,7 +107,7 @@ def test_but_it_is_not_the_same_experiment(models, metrics, iris_splits):
 def test_resuming_with_a_smaller_budget_explores_less_than_was_planned(
         models, metrics, iris_splits):
     """SMAC sizes the design as a quarter of three plus five trials, and the
-    replayed trials already hold one of the two design points."""
+    replayed trials already contain one of the two design points."""
     straight, _ = _run(models, metrics, iris_splits, 8)
     _, partial = _run(models, metrics, iris_splits, 3)
     resumed, _ = _run(models, metrics, iris_splits, 5, previous=partial)

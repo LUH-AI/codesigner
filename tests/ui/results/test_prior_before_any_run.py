@@ -52,7 +52,7 @@ def test_only_the_prior_panel_is(client):
 
 def test_the_card_says_it_wants_the_prior_alone(client):
     """The script reads `data-prior-only` to skip the full slice the server
-    would refuse."""
+    would answer with a 400 error."""
     html = _page(client, _unrun())
 
     assert 'data-prior-only="1"' in html
@@ -102,7 +102,8 @@ def test_the_density_is_served_without_a_run(client):
 
 
 def test_the_full_slice_is_still_refused_without_a_run(client):
-    """Without a surrogate the full slice is still refused."""
+    """Without a surrogate the server still answers a full slice request with a
+    400 error."""
     exp = _unrun()
     response = client.get(reverse("ui:acquisition_slice", args=[exp.pk]),
                           {"metric": "accuracy", "hp": _hp(exp)})

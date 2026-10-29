@@ -18,7 +18,7 @@ def home(request):
     return render(request, "ui/home.html")
 
 
-#: Experiments per page; the sidebar shows only `SIDEBAR_LIMIT`.
+#: Experiments per page; the sidebar only shows `SIDEBAR_LIMIT`.
 EXPERIMENT_LIST_PAGE_SIZE = 50
 
 
@@ -65,7 +65,7 @@ def _evaluation_schemes():
 
 def new_experiment(request):
     """`new_experiment` creates the draft at once so the draft can be left and
-    resumed. A GET renders only the button.
+    resumed. A GET only renders the button.
     """
     if request.method != "POST":
         return render(request, "ui/new_experiment.html")

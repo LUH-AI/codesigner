@@ -1,5 +1,5 @@
 """`TrialCollector.done` is the stopping check every optimizer loop reads.
-`stopped_by` records the first criterion to fire. `TrialCollector` refuses a run
+`stopped_by` records the first criterion to fire. `.TrialCollector` raises for a run
 with no criterion at all.
 """
 
@@ -374,7 +374,7 @@ def test_a_trial_with_no_status_counts_as_a_success():
 
 def test_a_trial_that_was_never_run_is_not_serialized(optimizers, models, metrics,
                                                       iris_splits, monkeypatch):
-    """SMAC's runhistory can hold entries the collector never recorded, and
+    """SMAC's runhistory can contain entries the collector never recorded, and
     `serialize_result` must drop them instead of reporting unscored rows."""
     import json
 

@@ -104,7 +104,7 @@ def test_the_page_announces_when_it_has_redrawn(client):
 
 
 def _prior_trace_indices(meta, panel):
-    """`_prior_trace_indices` flattens `meta.traces`, where `fictionBand` holds
+    """`_prior_trace_indices` flattens `meta.traces`, where `fictionBand` contains
     a lower and upper pair.
     """
     indices = set()
@@ -183,8 +183,8 @@ def test_the_fiction_does_not_bridge_its_own_gaps(client):
 
 def test_the_skeleton_leaves_the_prior_traces_empty(client):
     """The browser draws whatever depends on its prior, so the traces
-    `meta.traces` names, and only those, arrive empty. `candidates` holds the
-    optimizer's next trials, which exist only once the reader asks."""
+    `meta.traces` names, and only those, arrive empty. `candidates` contains the
+    optimizer's next trials, which only exist once the reader asks."""
     exp = _experiment()
     hp = _hp_names(exp)[0]
     response, data = _slice(client, exp, hp)
@@ -283,7 +283,7 @@ def test_the_script_reveals_the_div_before_drawing_into_it():
 
 
 def test_slicing_two_hyperparameters_fits_the_surrogate_once(client, monkeypatch):
-    """The surrogate depends only on the metric and trials. The test counts
+    """The surrogate only depends on the metric and trials. The test counts
     fits, since a timing check would pass on a fast machine without the cache.
     """
     from core.optimizers.base import BaseOptimizer
@@ -675,7 +675,7 @@ def test_only_the_freeform_prior_takes_a_pointer():
 
 
 def test_freeform_is_offered_and_shares_the_categorical_editor(client):
-    """Choice weights and a curve through points differ only in their x
+    """Choice weights and a curve through points only differ in their x
     constraint."""
     exp = _experiment()
     html = client.get(reverse("ui:experiment_detail", args=[exp.pk])).content.decode()
@@ -753,7 +753,7 @@ def test_a_stated_prior_is_kept(client):
     assert hp in exp.data.priors
     assert exp.data.priors[hp]["kind"] == "normal"
     assert exp.data.priors[hp]["params"] == {"mu": 0.8, "sigma": 0.1}
-    # `exp.data.priors` holds no evaluated curve that could go stale, and
+    # `exp.data.priors` contains no evaluated curve that could go stale, and
     # `delay_decay` derives from nothing else.
     assert set(exp.data.priors[hp]) == {"kind", "params", "decay", "at_trial",
                                    "delay_decay"}
@@ -832,7 +832,7 @@ def test_the_density_comes_back_with_the_save(client):
 
 def test_the_payload_carries_a_sample_of_the_whole_space(client):
     """The shadow needs predictions that move the hyperparameters the slice
-    holds fixed."""
+    keeps fixed."""
     exp = _experiment()
     _response, data = _slice(client, exp, _hp_names(exp)[0])
     meta = data["meta"]
@@ -844,7 +844,7 @@ def test_the_payload_carries_a_sample_of_the_whole_space(client):
 
 
 def test_the_server_sends_predictions_not_acquisition_values(client):
-    """Expected improvement is computed only in the browser, so the server sends
+    """Expected improvement is only computed in the browser, so the server sends
     means and spreads."""
     exp = _experiment()
     _response, data = _slice(client, exp, _hp_names(exp)[0])
@@ -880,7 +880,7 @@ def test_the_shadow_is_named_for_what_it_is(client):
     panel = _panel(data, "acquisition")["data"]
     cloud, ghost = panel[traces["cloud"]], panel[traces["cloudBare"]]
 
-    # The names are translatable, so the test checks only that the pair differs.
+    # The names are translatable, so the test only checks that the pair differs.
     assert cloud["name"] and ghost["name"]
     assert cloud["name"] != ghost["name"], "the pair has to be tellable apart"
 
@@ -1265,7 +1265,7 @@ def test_the_candidate_hover_is_anchored_to_its_marker(client):
 
 
 def test_a_pile_of_candidates_does_not_spell_every_one_out(client):
-    """A cluster spells out only its best member, and the template holds the
+    """A cluster spells out only its best member, and the template contains the
     wording for translators."""
     exp = _experiment()
     html = client.get(reverse("ui:experiment_detail", args=[exp.pk])).content.decode()
@@ -1306,7 +1306,7 @@ def test_the_prior_panel_leaves_room_above_a_full_strength_belief(client):
 
 
 def test_a_prior_only_payload_describes_figures_it_does_not_carry(client):
-    """`meta` describes all three panels while a prior-only payload carries only
+    """`meta` describes all three panels while a prior-only payload only carries
     the prior figure, so `meta.traces.acquisition.candidates` exists with no
     acquisition figure behind it.
     """

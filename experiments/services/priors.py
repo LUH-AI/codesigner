@@ -22,7 +22,7 @@ def run_budget(exp, offset):
     *offset* is the anchor trial where the prior was stated; passing the live
     count instead stops the prior from fading.
     """
-    from core.optimizers.smac_optimizer import scenario_budget
+    from core.optimizers.smac.facade import scenario_budget
 
     last = exp.runs.order_by("-pk").first()
     return scenario_budget(offset, (last.stopping or {}).get("max_trials") if last else None)

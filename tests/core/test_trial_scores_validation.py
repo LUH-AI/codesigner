@@ -1,5 +1,6 @@
-"""`io.parse` refuses a trial missing a declared metric, which would raise
-KeyError when a figure renders. `tests/core/test_derived_values.py` covers the
+"""`.io.parse` raises a `ValueError` for a trial missing a declared metric,
+which would raise `KeyError` when a figure renders.
+`tests/core/test_derived_values.py` covers the
 guards for older rows.
 """
 

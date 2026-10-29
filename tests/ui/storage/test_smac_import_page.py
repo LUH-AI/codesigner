@@ -20,7 +20,7 @@ pytestmark = pytest.mark.django_db
 
 
 def _uploads(names=None):
-    """Django keeps only an upload's basename, so the importer matches on
+    """Django only keeps an upload's basename, so the importer matches on
     basenames.
     """
     return [SimpleUploadedFile(p.name, p.read_bytes(), "application/json")
@@ -36,7 +36,7 @@ def _import(client, uploads=None):
 
 def _imported():
     """`_imported` builds the row through the importer directly."""
-    from core.smac_import import snapshot_from_smac
+    from core.optimizers.smac.importer import snapshot_from_smac
     from experiments.services import snapshot as adapter
 
     files = {p.name: json.loads(p.read_text()) for p in RUN_DIR.glob("*.json")}
@@ -69,7 +69,7 @@ def test_uploading_a_run_creates_an_experiment(client):
 
 def test_two_runs_at_once_are_refused_rather_than_blended(client):
     """A runhistory read against another run's config space never happened, so
-    two runs are refused.
+    the import page shows an error for two runs and creates no experiment.
     """
     from experiments.models import Experiment
 
@@ -104,7 +104,7 @@ def test_the_detail_page_renders_and_offers_no_run(client):
 
 
 def test_the_page_does_not_invent_an_evaluation_scheme():
-    """The columns hold defaults, and reporting them as fact would claim a 20%
+    """The columns contain defaults, and reporting them as fact would claim a 20%
     holdout.
     """
     from experiments.services.model_export import evaluation_label
@@ -137,7 +137,7 @@ def test_every_trial_based_figure_draws():
 
 
 def test_the_analytics_can_be_computed_afterwards(client):
-    """`experiment_compute_analytics` needs only the trials and the config
+    """`experiment_compute_analytics` only needs the trials and the config
     space.
     """
     exp = _imported()

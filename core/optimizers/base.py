@@ -103,7 +103,7 @@ HP_GAME_FIELDS = {
 
 @dataclass
 class OptimizationResult:
-    """`OptimizationResult` holds a run's results."""
+    """`OptimizationResult` stores a run's results."""
 
     trials: List[TrialResult]
     primary_metric: str
@@ -113,31 +113,31 @@ class OptimizationResult:
     hyperparameter_importance_warning: Dict[str, Optional[str]]
     trials_limit: Optional[int] = None    # None means unlimited (finite spaces set it)
     metadata: Dict[str, Any] = field(default_factory=dict)
-    # Older results still deserialize because the sensitivity and mistunability
-    # fields have empty defaults.
+    #: Older results still deserialize because the sensitivity and mistunability
+    #: fields have empty defaults.
     hyperparameter_sensitivity: Dict[str, Dict[str, float]] = field(default_factory=dict)
     hyperparameter_sensitivity_warning: Dict[str, Optional[str]] = field(default_factory=dict)
     hyperparameter_mistunability: Dict[str, Dict[str, float]] = field(default_factory=dict)
     hyperparameter_mistunability_warning: Dict[str, Optional[str]] = field(default_factory=dict)
-    # `hyperparameter_interactions` holds symmetric order-2 values as `metric →
-    # {hp_a: {hp_b: value}}`, with each order-1 value on the diagonal.
+    #: `hyperparameter_interactions` stores symmetric order-2 values as `metric →
+    #: {hp_a: {hp_b: value}}`, with each order-1 value on the diagonal.
     hyperparameter_interactions: Dict[str, Dict[str, Dict[str, float]]] = field(default_factory=dict)
     hyperparameter_interactions_warning: Dict[str, Optional[str]] = field(default_factory=dict)
-    # `hyperparameter_moebius` holds the full Möbius decomposition, one term per
-    # coalition, for views that need terms above order 2. The FSII grid above
-    # stays separate (see `core.analytics.compute_hp_game`).
+    #: `hyperparameter_moebius` stores the full Möbius decomposition, one term per
+    #: coalition, for views that need terms above order 2. The FSII grid above
+    #: stays separate (see `core.analytics.compute_hp_game`).
     hyperparameter_moebius: Dict[str, list] = field(default_factory=dict)
-    # The other games' interactions and Möbius terms come from the same call,
-    # named per game like the importance fields.
+    #: The other games' interactions and Möbius terms come from the same call,
+    #: named per game like the importance fields.
     hyperparameter_sensitivity_interactions: Dict[str, Dict[str, Dict[str, float]]] = field(default_factory=dict)
     hyperparameter_sensitivity_moebius: Dict[str, list] = field(default_factory=dict)
     hyperparameter_mistunability_interactions: Dict[str, Dict[str, Dict[str, float]]] = field(default_factory=dict)
     hyperparameter_mistunability_moebius: Dict[str, list] = field(default_factory=dict)
-    # `hyperparameter_tunability_total` is the sum of raw order-1 magnitudes per
-    # metric, which gives a share its scale in metric units. One float per
-    # metric is enough, because each value equals its share times the total.
+    #: `hyperparameter_tunability_total` is the sum of raw order-1 magnitudes per
+    #: metric, which gives a share its scale in metric units. One float per
+    #: metric is enough, because each value equals its share times the total.
     hyperparameter_tunability_total: Dict[str, float] = field(default_factory=dict)
-    #: `declared_metrics` holds metrics that an imported run declares and the
+    #: `declared_metrics` stores metrics that an imported run declares and the
     #: running build's registry lacks, and it stays empty for local runs. Two
     #: open experiments can define "cost" differently because the metrics live
     #: in a field instead of a global.
@@ -160,7 +160,7 @@ class OptimizationResult:
 
     def best_index(self, metric: str) -> Optional[int]:
         """`best_index` follows the metric's direction and breaks ties toward
-        the lowest index. Every panel therefore highlights the same trial.
+        the lowest index. Therefore every panel highlights the same trial.
         Trials without a score for *metric* are skipped, guarding database rows
         older than `_check_trial_scores`.
         """
@@ -174,7 +174,7 @@ class OptimizationResult:
 
     def has_every_score(self, metric: str) -> bool:
         """Figure builders call `has_every_score` before drawing, since Plotly
-        mishandles a missing y-value. The check fails only for rows stored
+        mishandles a missing y-value. The check only fails for rows stored
         before `_check_trial_scores` existed.
         """
         memo, key = self._derived(), ("has_every_score", metric)
@@ -235,7 +235,7 @@ def rebase_history(previous_result, primary_metric: str):
     """`rebase_history` returns ``(result, stale)``, rescoring each trial and
     the incumbent trajectory under the new metric from the scores every trial
     records. *stale* tells the optimizer to discard state such as a surrogate
-    fitted to the old objective. An old `.ihpo` storing only the optimized score
+    fitted to the old objective. An old `.ihpo` only storing the optimized score
     stays unchanged, with *stale* still set.
     """
     if previous_result is None:
@@ -277,7 +277,7 @@ STOPPING_CRITERIA = ("max_trials", "max_seconds", "max_trial_seconds",
                      "max_consecutive_failures")
 
 #: Failure limits end a run but fail to satisfy the one-criterion rule, because
-#: a run bounded only by failures never ends if nothing breaks. Both have
+#: a run only bounded by failures never ends if nothing breaks. Both have
 #: defaults, so counting them would make the rule always pass.
 FAILURE_CRITERIA = ("max_failures", "max_consecutive_failures")
 
@@ -340,7 +340,7 @@ class TrialCollector:
     """`TrialCollector` records each trial, tracks the incumbent and decides
     when a run stops, and every optimizer loop checks `done`. *trial_offset*,
     *initial_best_score* and *initial_best_config* continue the numbering and
-    the incumbent of a resumed run. *stopping* holds `STOPPING_CRITERIA`, and
+    the incumbent of a resumed run. *stopping* contains `STOPPING_CRITERIA`, and
     any criterion can end the run, but `target_score` must be beaten strictly
     and only `note_confidence` can trigger `incumbent_confidence`. Only the
     failure limits default when absent (`DEFAULT_MAX_FAILURES`,
@@ -466,7 +466,7 @@ class TrialCollector:
         relabels runhistory configurations in place. A cancelled attempt returns
         None and stays out of the history, because its null scores would read as
         a real failed measurement and count toward `max_failures`.
-        `SMACOptimizer.serialize_result` keeps only runhistory entries that
+        `SMACOptimizer.serialize_result` only keeps runhistory entries that
         match a recorded trial.
         """
         if (run_info or {}).get(CANCELLED):
@@ -758,9 +758,9 @@ class BaseOptimizer(ABC):
 
     def _begin(self, previous_result, primary_metric: str, n_trials, stopping, splits,
                X_train, y_train, X_val, y_val):
-        """`_begin` prepares a model-free search with a holdout fold unless
-        *splits* is given, the history rebased to the current metric, and a
-        continuing collector."""
+        """`_begin` returns the evaluation splits, a holdout unless *splits* is
+        given, then the history rebased to the current metric, then a collector
+        that continues the run's trial numbering."""
         splits = splits if splits is not None else holdout(X_train, y_train, X_val, y_val)
         previous_result, _ = rebase_history(previous_result, primary_metric)
         collector = self.new_collector(
@@ -796,10 +796,10 @@ class BaseOptimizer(ABC):
 
     def evaluate_requested(self, configurations, *, model, splits, metrics, primary_metric,
                            seed, collector, cancel_event=None, told=None) -> set:
-        """*configurations* holds `{"config", "origin"}` entries, evaluated in
+        """*configurations* contains `{"config", "origin"}` entries, evaluated in
         order while the criteria allow and recorded as trials. The *told*
         callback receives `(config, all_scores, run_info)` after each, and the
-        returned set holds sorted-item keys for skipping repeats.
+        returned set contains sorted-item keys for skipping repeats.
         """
         done = set()
         for requested in configurations or ():

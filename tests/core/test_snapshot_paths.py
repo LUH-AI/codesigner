@@ -1,6 +1,7 @@
 """`optimizer_state` keys are relative paths, and an absolute or `..` key in a
-hand-edited file could point a write anywhere. `io.parse` and
-`SMACOptimizer.deserialize_result` both refuse such keys where they enter.
+hand-edited file could point a write anywhere. `.io.parse` and
+`.SMACOptimizer.deserialize_result` both raise a `ValueError` for such keys
+where they enter.
 """
 
 import json

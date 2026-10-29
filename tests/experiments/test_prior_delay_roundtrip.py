@@ -2,7 +2,7 @@
 design, since the design runs before any surrogate exists.
 `snapshot_from_experiment` writes the flag instead of the resolved anchor,
 because the design size depends on the reading run's budget. `_prior_record`
-copies only `_PRIOR_FIELDS`, and export drops any field missing there.
+only copies `_PRIOR_FIELDS`, and export drops any field missing there.
 """
 
 import pytest

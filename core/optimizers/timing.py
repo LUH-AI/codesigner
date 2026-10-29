@@ -17,8 +17,8 @@ STATUS_TIMEOUT = 3
 
 #: `CANCELLED` marks an abandoned attempt in `run_info`, and
 #: `TrialCollector.record` drops the attempt. `CANCELLED` stays outside the
-#: `STATUS_` ints because `smac_optimizer` passes those to `StatusType`, which
-#: would raise on a new value.
+#: `STATUS_` ints because `core.optimizers.smac` passes those to `StatusType`,
+#: which would raise on a new value.
 CANCELLED = "cancelled"
 
 #: `evaluate_trial` returns the last fold's model under `FITTED` when asked to

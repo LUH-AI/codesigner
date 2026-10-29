@@ -1,7 +1,7 @@
 /* The acquisition-and-priors figure.
  *
  * The one figure on the page that draws itself. Every other figure is a Plotly
- * payload built in `ui/figures/plots.py` and handed to `Plotly.react`; this one
+ * payload built in `ui/figures/plots/surrogate.py` and handed to `Plotly.react`; this one
  * gets a styled skeleton from there (`acquisition_slice_plot`) with its prior
  * and acquisition traces empty, and fills them here.
  *
@@ -339,7 +339,7 @@
          * The curve above it is a slice — every other hyperparameter pinned at
          * the incumbent — and SMAC's maximizer is under no such constraint. So
          * the gap between the two is how much interest the search can reach by
-         * moving something this panel is holding still, which is most of the
+         * moving something this panel keeps fixed, which is most of the
          * answer to why the next configuration is not the curve's peak.
          *
          * The acquisition is computed here, with the same function the
@@ -727,7 +727,7 @@
 
     var POINT_PX = 11,          /* how close counts as grabbing a control point */
         MIN_POINTS = 2,         /* below this there is no curve to speak of */
-        held = -1,              /* which control point the gesture has hold of */
+        held = -1,              /* which control point the gesture has grabbed */
         drag = null,
         frame = 0,
         bound = null;
@@ -1335,9 +1335,10 @@
             body.prior = {kind: state.prior.kind, params: state.prior.params,
                           decay: {shape: state.prior.decay,
                                   beta_ratio: state.prior.betaRatio},
-                          /* The server refuses it once the design is over, so
-                           * this is what was asked for rather than what will
-                           * hold — see `_inside_initial_design`. */
+                          /* The server only keeps `delay_decay` while the
+                           * initial design is unfinished, so this is what was
+                           * asked for rather than what will apply — see
+                           * `inside_initial_design`. */
                           delay_decay: !!(delayToggle && delayToggle.checked)};
         }
         /* Where the density is wanted back. The server evaluates it at these
@@ -1401,7 +1402,7 @@
      *
      * The verdict is SMAC's: the server offers the prior to `add_prior` behind
      * an `IncumbentComparisonPolicy` and reports whether it was registered.
-     * Nothing here re-decides it, and nothing here is written — a refused
+     * Nothing here re-decides it, and nothing here is written — a rejected
      * belief stays exactly where the reader left it until they say otherwise.
      */
 
@@ -1771,8 +1772,8 @@
         }
         /* Nothing to fit and nothing to wait for. Asking for the full slice
          * would be asking the server for a surrogate over no trials, which it
-         * refuses — correctly, and the reader would see the refusal rather
-         * than the panel they came for. */
+         * answers with a 400 error — correctly, and the reader would see the
+         * error rather than the panel they came for. */
         if (priorOnlyPage) { drawPriorOnly(m, hp); return; }
         /* Not on its own while a run is adding trials: every poll would
          * otherwise refit the surrogate. */

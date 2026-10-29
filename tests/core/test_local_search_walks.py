@@ -1,4 +1,4 @@
-"""`_RecordedWalk` remembers what each candidate entry held, since SMAC's local
+"""`RecordedWalk` remembers what each candidate entry held, since SMAC's local
 search keeps no record of its path.
 """
 
@@ -6,7 +6,7 @@ from types import SimpleNamespace
 
 from ConfigSpace import ConfigurationSpace, Float
 
-from core.optimizers.smac_optimizer import _RecordedWalk, _walks_to
+from core.optimizers.smac.walks import RecordedWalk, walks_to
 
 
 def _configs(*values):
@@ -23,7 +23,7 @@ def test_every_configuration_an_entry_holds_is_kept_in_order():
     """
     start_a, start_b, a, b = _configs(0.1, 0.9, 0.2, 0.3)
     sink = []
-    walk = _RecordedWalk([start_a, start_b], sink)
+    walk = RecordedWalk([start_a, start_b], sink)
 
     walk[0] = a
     walk[0] = b
@@ -34,13 +34,13 @@ def test_every_configuration_an_entry_holds_is_kept_in_order():
 
 
 def test_each_proposal_gets_the_path_that_ended_at_it_once():
-    """`_walks_to` gives each path to one proposal only, and a proposal no path
+    """`walks_to` gives each path to one proposal only, and a proposal no path
     reached gets None.
     """
     s1, s2, end, stranger = _configs(0.1, 0.2, 0.5, 0.8)
     paths = [[s1, end], [s2, end]]
     asked = [SimpleNamespace(config=c) for c in (end, end, stranger)]
 
-    walks = _walks_to(asked, paths)
+    walks = walks_to(asked, paths)
 
     assert walks == [[{"x": 0.1}, {"x": 0.5}], [{"x": 0.2}, {"x": 0.5}], None]

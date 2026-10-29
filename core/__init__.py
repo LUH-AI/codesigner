@@ -1,2 +1,2 @@
-"""`core` holds the HPO domain logic and never imports Django.
+"""`core` contains the HPO domain logic and never imports Django.
 """

@@ -2,9 +2,9 @@
 with their runner and lock, and kept trial models. Binned experiments count
 until purged, and uv's shared environment cache belongs to no group.
 
-An upload over the limit deletes the stalest kept trial models, and only
-datasets and model files alone over the limit refuse it. An experiment without a
-group has no limit.
+An upload over the limit deletes the stalest kept trial models, and the upload
+only fails when datasets and model files alone exceed the limit. An experiment
+without a group has no limit.
 """
 
 from __future__ import annotations

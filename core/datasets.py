@@ -4,14 +4,16 @@ over."""
 from __future__ import annotations
 
 from pathlib import Path
-from typing import Any
+from typing import Any, NamedTuple
 
 import numpy as np
 import pandas as pd
 from sklearn.model_selection import train_test_split
 
-from . import columns, encoding, tasks
-from .splits import MIN_FOLDS, backtest, time_cross_validation, time_holdout
+from . import columns, encoding, forecasting, tasks
+from .splits import (
+    MIN_FOLDS, Splits, backtest, cross_validation, holdout, time_cross_validation, time_holdout,
+)
 
 #: Experiments that omit the share use this value.
 DEFAULT_TEST_SIZE = 0.2
@@ -39,7 +41,7 @@ def mounted_models() -> dict[str, str]:
 
 def read_dataset(source):
     """`read_dataset` sniffs the separator and accepts bytes, since the create
-    form holds an upload in memory.
+    form keeps an upload in memory.
     """
     from io import BytesIO
 
@@ -107,7 +109,8 @@ def dataset_encoding(csv_path: Path) -> dict:
 
 def _in_time_order(df, column: str):
     """`_in_time_order` drops rows without a time, since such rows fit neither
-    side of a split, and refuses a label column.
+    side of a split. A label column has no order, so `_in_time_order` raises a
+    `ValueError` for it.
     """
     if column not in df.columns[:-1]:
         raise ValueError(f"the dataset has no feature column named {column!r} to order it by")
@@ -164,3 +167,50 @@ def load_splits(csv_path: Path, seed: int, test_size: float = DEFAULT_TEST_SIZE,
         except ValueError:
             pass
     return train_test_split(X, y, test_size=size, random_state=seed)
+
+
+class Evaluation(NamedTuple):
+    X_train: Any = None
+    X_val: Any = None
+    y_train: Any = None
+    y_val: Any = None
+    splits: Splits | None = None
+    columns: Any = None
+    times: Any = None
+    forecast: dict | None = None
+
+
+def load_evaluation(path: Path, evaluation: dict, seed: int, task: str) -> Evaluation:
+    cv_folds, test_size = evaluation["folds"], evaluation["test_size"]
+    time_column, gap = evaluation["time_column"], evaluation["gap"]
+    spec = dataset_encoding(path)
+    if evaluation["horizon"] > 0:
+        if not time_column:
+            raise ValueError("a forecast needs the column its rows are ordered in time by")
+        X_all, y_all, times, series = load_forecast(path, time_column,
+                                                    evaluation["series_column"])
+        season = evaluation["season"] or forecasting.infer_season(times)
+        splits = backtest(X_all, y_all, times, evaluation["horizon"], max(cv_folds, 1), gap,
+                          series=series, season=season)
+        forecast = forecasting.context(spec, time_column, evaluation["series_column"],
+                                       evaluation["horizon"], season, gap)
+        # The latest backtest, nearest to real use.
+        train_idx, val_idx = splits.folds[-1]
+        return Evaluation(X_all[train_idx], X_all[val_idx], y_all[train_idx], y_all[val_idx],
+                          splits, spec, times, forecast)
+    if time_column:
+        # A time split is never shuffled or stratified, and the holdout's
+        # arrays equal its one fold.
+        X_all, y_all = load_frame(path, order_by=time_column)
+        splits = (time_cross_validation(X_all, y_all, cv_folds, gap) if cv_folds >= MIN_FOLDS
+                  else time_holdout(X_all, y_all, test_size, gap))
+        train_idx, val_idx = splits.folds[0]
+        return Evaluation(X_all[train_idx], X_all[val_idx], y_all[train_idx], y_all[val_idx],
+                          splits, spec)
+    X_train, X_val, y_train, y_val = load_splits(path, seed, test_size, task)
+    if cv_folds >= MIN_FOLDS:
+        X_all, y_all = load_frame(path)
+        splits = cross_validation(X_all, y_all, cv_folds, seed, task)
+    else:
+        splits = holdout(X_train, y_train, X_val, y_val)
+    return Evaluation(X_train, X_val, y_train, y_val, splits, spec)

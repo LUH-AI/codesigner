@@ -5,7 +5,8 @@ from django.shortcuts import redirect, render
 from django.utils.translation import gettext as _
 
 from access.policy import groups_to_choose_from, policy
-from core import io, smac_import
+from core import io
+from core.optimizers.smac import importer as smac_import
 from experiments.models import account
 from experiments.services import snapshot as snapshot_adapter
 
@@ -62,8 +63,8 @@ def _import_smac_directory(request, context):
         except ValidationError as error:
             context["error"] = error.messages[0]
             return render(request, "ui/import.html", context)
-        # Django keeps only basenames, so two run directories collide and the
-        # importer refuses them.
+        # Django only keeps basenames, so two run directories collide, and the
+        # view shows an error for them.
         name = upload.name
         if not name.endswith(".json"):
             continue

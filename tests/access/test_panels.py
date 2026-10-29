@@ -211,7 +211,7 @@ def test_a_member_sees_their_own_and_what_was_shared_with_them(client, hosted, l
 
 
 def test_the_sharing_controls_name_every_colleague(client, hosted, lab):
-    """A grant can name only group members."""
+    """A grant can only name group members."""
     _experiment(lab["ana"], "hers")
 
     row = _page(client, lab, "ana")["mine"][0]

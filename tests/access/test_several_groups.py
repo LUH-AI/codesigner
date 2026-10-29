@@ -1,4 +1,4 @@
-"""A person can hold a different role in each of several groups, and every rule
+"""A person can have a different role in each of several groups, and every rule
 asks about one named group. Adding a known email address joins that account to
 the group.
 """
@@ -133,7 +133,7 @@ def test_removing_somebody_from_one_group_leaves_the_other(client, hosted, two_l
 
 
 def test_work_held_in_another_group_does_not_block_a_removal(client, hosted, two_labs):
-    """`group_remove_person` weighs only work in the group being left."""
+    """`group_remove_person` only weighs work in the group being left."""
     _experiment(two_labs["mia"], "hers in a", two_labs["a"])
     client.force_login(two_labs["bob"])
     in_b = two_labs["mia"].memberships.get(group=two_labs["b"])

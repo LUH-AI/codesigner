@@ -102,7 +102,7 @@ def evaluate_trial(model, config, splits, metrics, seed=0, keep=False):
     fold_scores = []
     cpu_reported = 0.0
 
-    # A model in another process holds its own copy of the dataset, so
+    # A model in another process has its own copy of the dataset, so
     # `use_fold` names the fold instead of slicing.
     select_fold = getattr(model, "use_fold", None)
 
@@ -143,7 +143,7 @@ def evaluate_trial(model, config, splits, metrics, seed=0, keep=False):
                 break
             except TrialTimeout as exc:
                 failure, status = str(exc), STATUS_TIMEOUT
-                # A traceback would show only the fold loop, where the deadline
+                # A traceback would only show the fold loop, where the deadline
                 # raised `TrialTimeout`.
                 break
             except ModelTrialError as exc:

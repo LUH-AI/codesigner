@@ -228,7 +228,7 @@ def range_for(param):
 
 
 def info_for(param, help_text: str) -> str:
-    """The info bubble holds meaning and range, and the empty-field value lives
+    """The info bubble states the meaning and range, and the empty-field value lives
     in the placeholder instead.
     """
     accepted = range_for(param)

@@ -2,7 +2,7 @@
 reaches a running trial, and the interrupted trial has no score.
 `evaluate_trial` returns zeros to keep its shape, and `TrialCollector.record`
 drops the attempt. A recorded zero would skew the surrogates and count against
-`max_failures`. The collector holds the rule because all three optimizers call
+`max_failures`. The collector implements the rule because all three optimizers call
 `record`.
 """
 

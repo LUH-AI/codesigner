@@ -108,7 +108,7 @@ def test_a_choice_of_holdout_is_still_honoured(client):
 
 
 def test_the_number_beside_the_scheme_is_read_as_that_scheme_asks(client):
-    """One field holds folds under k-fold, a share under holdout."""
+    """One field stores folds under k-fold, a share under holdout."""
     from experiments.models import Experiment
 
     post_new_experiment(client,

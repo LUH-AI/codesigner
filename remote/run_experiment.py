@@ -1,6 +1,6 @@
 """The script runs one experiment from the files in a directory.
 
-A Slurm node runs the script without Django or a database. The directory holds
+A Slurm node runs the script without Django or a database. The directory contains
 the inputs `snapshot.json`, `dataset.csv`, `run.json` and an optional
 `model.py`, and the script writes `partial.json`, `result.json` and
 `status.json` there. The submitter creates a `CANCEL` file to ask for a clean
@@ -71,7 +71,7 @@ def run(workdir: Path) -> int:
     snapshot = json.loads((workdir / "snapshot.json").read_text(encoding="utf-8"))
     settings = json.loads((workdir / "run.json").read_text(encoding="utf-8"))
 
-    # The original dataset path exists only on the machine that wrote the
+    # The original dataset path only exists on the machine that wrote the
     # snapshot.
     snapshot["dataset"]["path"] = str(workdir / "dataset.csv")
 
@@ -112,7 +112,7 @@ def run(workdir: Path) -> int:
         "state": "cancelled" if cancel.is_set() else "done",
         "stopped_by": result.metadata.get("stopped_by") or "",
         "offset": offset,
-        # `prior` records whether the prior was applied, skipped or refused, and
+        # `prior` records whether the prior was applied, skipped or rejected, and
         # at which trial.
         "prior": result.metadata.get("prior"),
         # `_config_space` asks the model now because surrogate-backed figures

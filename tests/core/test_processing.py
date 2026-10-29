@@ -35,7 +35,8 @@ def test_auto_is_what_the_model_needs(name, plan):
 
 
 def test_a_choice_the_model_cannot_take_is_overruled():
-    """`resolve` imputes gaps for an SVM, which refuses NaN, and reports the
+    """`resolve` imputes gaps for an SVM, which raises a `ValueError` for NaN,
+    and reports the
     overruled step."""
     plan, overruled = resolve({"missing": "keep", "scale": "none"}, MODELS["SVM"])
 

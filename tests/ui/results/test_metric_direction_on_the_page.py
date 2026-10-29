@@ -83,7 +83,7 @@ def test_an_unbounded_metric_has_no_error_range():
 # the performance figure
 
 def test_the_incumbent_line_steps_down_for_a_cost():
-    """The running best falls only at improvements."""
+    """The running best only falls at improvements."""
     fig = _drawn(performance_over_time_plot(_a_cost_result(), "smac:cost"))
 
     incumbent = next(t for t in fig.data if t.name == "Incumbent")

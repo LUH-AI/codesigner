@@ -1,6 +1,6 @@
 """`prepare_environment` builds a custom model's uv environment once, at
 creation, so every run uses the same pinned dependencies. The `modelenv` module
-holds every uv call, and the rest of the application reads
+contains every uv call, and the rest of the application reads
 `Experiment.env_status`.
 
 The environment isolates dependencies only, and the model runs with the
@@ -130,8 +130,8 @@ HOSTED_WITHOUT_UV = (
 
 def decide_mode() -> tuple[str, str]:
     """Without uv, `decide_mode` falls back to the application process on an
-    instance without accounts. An instance with accounts refuses, since the
-    model would run beside everyone's data.
+    instance without accounts. An instance with accounts gets the "refused"
+    mode, since the model would run beside everyone's data.
     """
     if uv_path():
         return "subprocess", ""
@@ -178,7 +178,7 @@ def child_env() -> dict:
 def prepare_environment(experiment_id) -> None:
     """`prepare_environment` runs in the worker and finishes by importing and
     instantiating the model in its own environment, which reports failures
-    without holding a request open.
+    without keeping a request open.
     """
     from experiments.models import Experiment
 

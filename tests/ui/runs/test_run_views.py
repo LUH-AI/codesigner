@@ -248,7 +248,7 @@ def test_blank_criteria_are_absent_rather_than_zero(client, no_thread):
 
 @pytest.mark.django_db
 def test_an_unparseable_criterion_costs_the_criterion_not_the_run(client, no_thread):
-    """A typo costs only its criterion, and the trial cap still bounds the run."""
+    """A typo only costs its criterion, and the trial cap still bounds the run."""
     from experiments.models import Run
 
     exp = _experiment()
@@ -353,7 +353,7 @@ def _running(exp, **kw):
 
 @pytest.mark.django_db
 def test_cancelling_comes_first_and_giving_up_only_after(client):
-    """Giving up appears only after a cancel fails, since cancelling keeps
+    """Giving up only appears after a cancel fails, since cancelling keeps
     finished trials."""
     exp = _experiment()
     run = _running(exp)

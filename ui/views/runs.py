@@ -18,13 +18,13 @@ from experiments.services import run as run_service
 from ..figures import FIGURES_BY_KEY
 from ..permissions import experiment_view
 from .common import (
-    _ACTIVE, _best_panels, _figure_plots, _hp_names, _model_available, _poll_seconds,
-    _posted_number, _shown_figures,
+    POLL_MAX_SECONDS, _ACTIVE, _best_panels, _figure_plots, _hp_names, _model_available,
+    _poll_seconds, _posted_number, _shown_figures,
 )
 from .dashboard import _dashboard, _detail_context, _trial_rows
 
 
-# Each Run-form criterion's parser and range.
+#: Each Run-form criterion's parser and range.
 _STOPPING_FIELDS = {
     "max_trials": (int, 1, 100_000),
     # `_posted_stopping` bounds the target by its metric's range.
@@ -98,7 +98,7 @@ def experiment_run(request, exp):
     decision = request.POST.get("decision")
 
     if not any(k not in FAILURE_CRITERIA for k in stopping):
-        # The failure limits catch only broken runs and cannot end a working
+        # The failure limits only catch broken runs and cannot end a working
         # one.
         context = _detail_context(request, exp)
         context["run_error"] = _("Set at least one stopping criterion, so the "
@@ -150,7 +150,7 @@ def _live_payloads(exp, since: int = 0):
         "static_plots": _figure_plots(result, static, None, config_space=config_space),
     }
 
-    # The trials table gets only its missing rows, appended so sort, paging and
+    # The trials table only gets its missing rows, appended so sort, paging and
     # selection survive. The best-configuration cards render whole, and the page
     # swaps each card's contents in place.
     if any(f.key == "best_configuration" for f in shown):
@@ -170,7 +170,7 @@ def _live_payloads(exp, since: int = 0):
 @experiment_view(VIEW)
 def run_status(request, exp):
     """`run_status` serves the HTMX run poll and carries live figure payloads in
-    the same fragment. Plots rebuild only when `?trials=` differs from the
+    the same fragment. Plots only rebuild when `?trials=` differs from the
     stored count, and a page without trials gets the count alone and reloads
     (`experiment_prerun.html`). The response for a finished run is an
     `HX-Refresh`.
@@ -191,7 +191,8 @@ def run_status(request, exp):
         seen = stored
 
     context = {"experiment": exp, "run": active, "trial_count": stored,
-               "poll_seconds": _poll_seconds(exp)}
+               "poll_seconds": (POLL_MAX_SECONDS if active.status == "submitted"
+                                else _poll_seconds(exp))}
     if stored != seen:
         live = {"trials": stored}
         if seen > 0:
@@ -227,7 +228,8 @@ def prepare_env(request, exp):
 @experiment_view(RUN)
 def run_cancel(request, exp):
     """`run_cancel` sets a flag the optimizer polls between trials, so finished
-    trials are kept. GET is refused so a prefetcher cannot cancel a run.
+    trials are kept. `run_cancel` only accepts POST, so a prefetcher cannot
+    cancel a run.
     """
     run_service.request_cancel(exp, account(request.user))
     return redirect("ui:experiment_detail", pk=exp.pk)

@@ -3,7 +3,7 @@ from django.conf import settings
 from . import navigation as nav
 from access.policy import policy, visible_experiments
 
-#: The sidebar renders on every page, so it lists only recent experiments;
+#: The sidebar renders on every page, so it only lists recent experiments;
 #: `ui:experiment_list` has the rest.
 SIDEBAR_LIMIT = 20
 

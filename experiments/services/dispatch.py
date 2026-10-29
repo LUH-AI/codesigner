@@ -1,5 +1,5 @@
-"""In immediate mode, huey executes a task inside the request and would hold a
-run past gunicorn's timeout. `enqueue` therefore starts a daemon thread, which
+"""In immediate mode, huey executes a task inside the request and would keep a
+run past gunicorn's timeout. Therefore `enqueue` starts a daemon thread, which
 tests disable (tests/conftest.py).
 """
 

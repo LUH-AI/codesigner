@@ -17,7 +17,7 @@ from core.registry import MODELS
 
 
 def unavailable(exp):
-    """The check reads only the row, so a page may call it on each render.
+    """The check only reads the row, so a page may call it on each render.
     """
     data = exp.data
     if data.forecasts and not _columns(exp):
@@ -86,7 +86,7 @@ def _model(exp, columns, forecast):
 
 def evaluation_label(exp):
     """`evaluation_label` marks a SMAC import as unrecorded because its split
-    columns hold placeholder defaults, and reporting them would invent a
+    columns contain placeholder defaults, and reporting them would invent a
     holdout.
     """
     if exp.data.model_name not in MODELS and not exp.data.model_file:

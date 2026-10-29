@@ -12,7 +12,7 @@ from tests.conftest import FIXTURES_DIR
 from django.urls import reverse
 
 from core import analytics, io
-from core.analytics import SETTLED, tuning_progress
+from core.analytics import SETTLED, games, tuning_progress
 from core.optimizers import OptimizationResult, TrialResult
 from experiments.services import snapshot as adapter
 
@@ -212,7 +212,7 @@ def test_both_games_are_measured_from_the_same_zero():
                     incumbent_score=0.5 + 0.03 * i, incumbent_config={})
         for i in range(6)]
     space = RandomForestModel().get_config_space(seed=0)
-    explainer = analytics._build_explainer(space, trials, "accuracy", 0)
+    explainer = games.build_explainer(space, trials, "accuracy", 0)
     surrogate = explainer.hs.explanation_task.surrogate_model
     if isinstance(surrogate, list):
         surrogate = surrogate[0]

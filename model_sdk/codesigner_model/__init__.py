@@ -1,4 +1,4 @@
-"""`codesigner_model` holds the model contract as a standalone package without
+"""`codesigner_model` contains the model contract as a standalone package without
 dependencies, because a model file imports it in its own environment.
 """
 

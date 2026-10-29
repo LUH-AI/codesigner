@@ -1,4 +1,4 @@
-"""`ModelBase` holds what every model declares; `OptimizableBaseModel` adds a
+"""`ModelBase` defines what every model declares; `OptimizableBaseModel` adds a
 search space and `fit_predict` for tuning, and `OutputBaseModel` builds, fits
 and predicts for delivery. A built-in is both, and an exported model ships the
 output class alone, so the exported file runs without `codesigner_model`.
@@ -28,14 +28,14 @@ class ModelBase(ABC):
     #: ``"categorical"``, before the first trial, and empty means all numeric.
     feature_kinds: tuple = ()
 
-    #: A forecaster reads `forecast` and is offered only for experiments
+    #: A forecaster reads `forecast` and is only offered for experiments
     #: evaluated by backtests; the value must be a plain literal.
     forecaster: bool = False
 
-    #: For backtest runs, `forecast` holds ``{"horizon", "season", "gap",
+    #: For backtest runs, `forecast` contains ``{"horizon", "season", "gap",
     #: "time", "series", "known"}``: steps ahead, season length, skipped steps,
     #: the time and series columns of ``X``, and the columns known ahead. Rows
-    #: arrive in time order, and ``X_val`` holds each series' next ``horizon``
+    #: arrive in time order, and ``X_val`` contains each series' next ``horizon``
     #: steps; other runs get an empty dict.
     forecast: dict = {}
 
@@ -112,7 +112,7 @@ class OutputBaseModel(ModelBase):
     """`OutputBaseModel.build` turns hyperparameters into an unfitted
     scikit-learn-style estimator for already processed columns, and `fit` and
     `predict` wrap it. The capability flags, such as `accepts_missing`, steer
-    the default processing. `build` sees only the summary from `describe`, so
+    the default processing. `build` only sees the summary from `describe`, so
     the same hyperparameters build the same model anywhere.
     """
 

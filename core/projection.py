@@ -3,7 +3,7 @@ configuration cube does with two raw axes. On standardised data any two axes
 keep two of p units of variance, while PCA's first two components keep λ1 + λ2,
 at least two. Standardising also makes a plotted distance approximate a real one
 with the discarded variance as the error, and PLS keeps the direction that moves
-the score most. The module needs only trials and their space, so it lives
+the score most. The module only needs trials and their space, so it lives
 outside `core/optimizers/` and tests without an optimizer.
 """
 
@@ -243,7 +243,7 @@ class Fitted(NamedTuple):
         """`outline` returns the image of the search space's box, which stays a
         box through the encoding and becomes a convex shape under a linear map.
         The method builds a running Minkowski sum one hyperparameter at a time,
-        keeping only the hull. The shape comes back as `[low, high]` in one
+        only keeping the hull. The shape comes back as `[low, high]` in one
         dimension, as polygon vertices in two and as a triangle mesh in three,
         and `outline` returns None without a space.
         """
@@ -321,7 +321,7 @@ class Fitted(NamedTuple):
 
 
 def _hull_points(points):
-    """`_hull_points` returns hull vertices, ordered only in two dimensions."""
+    """`_hull_points` returns hull vertices, only ordered in two dimensions."""
     import numpy as np
 
     dimensions = points.shape[1]

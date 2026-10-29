@@ -1,4 +1,4 @@
-"""`catalog.py` declares the figures, and `plots.py` builds their Plotly plots.
+"""`catalog.py` declares the figures, and `plots` builds their Plotly plots.
 """
 
 from .base import (

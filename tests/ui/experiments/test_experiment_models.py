@@ -1,4 +1,4 @@
-"""`Experiment` holds an `.ihpo` snapshot's fields through `exp.data`, and `Run`
+"""`.Experiment` exposes an `.ihpo` snapshot's fields through `exp.data`, and `Run`
 tracks one run with a cancel flag the database can read.
 """
 

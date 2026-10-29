@@ -93,7 +93,7 @@ def test_the_account_page_lists_what_this_user_may_do(client, hosted, ana,
 
 def test_a_superuser_is_told_why_everything_is_ticked(client, hosted,
                                                       django_user_model):
-    """Superusers hold every permission without a grant, so the page explains
+    """Superusers have every permission without a grant, so the page explains
     the ticks."""
     # `ALLOW_CUSTOM_MODELS` gates one power and defaults to off.
     hosted.ALLOW_CUSTOM_MODELS = True

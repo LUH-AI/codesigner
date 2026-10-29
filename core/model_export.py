@@ -1,5 +1,5 @@
 """`core.model_export` turns a tuned model into a standalone runnable file. The
-file holds a PEP 723 header, the model's delivered code, the hyperparameters,
+file contains a PEP 723 header, the model's delivered code, the hyperparameters,
 the data processing and a runner, and `uv run` needs no Codesigner.
 `export_upload` delivers an uploaded model as written, minus its search space.
 """
@@ -62,7 +62,7 @@ def _is_local_import(node) -> bool:
 
 
 def _module_body(module, only=None) -> tuple[list[str], str]:
-    """`_module_body` drops the docstring and local imports, and keeps only the
+    """`_module_body` drops the docstring and local imports, and only keeps the
     definitions named in *only*."""
     text = inspect.getsource(module)
     tree, lines = ast.parse(text), text.splitlines()

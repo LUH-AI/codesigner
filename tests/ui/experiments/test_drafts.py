@@ -113,7 +113,7 @@ def test_saving_each_step_moves_on(client):
 
 
 def test_create_waits_for_every_required_save(client):
-    """`ui:setup_create` refuses until steps 1 to 3 are saved, and the page
+    """`ui:setup_create` waits until steps 1 to 3 are saved, and the page
     names the missing step."""
     exp = start_draft(client)
     _save(client, exp, "setup", _setup())

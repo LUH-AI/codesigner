@@ -42,7 +42,7 @@ def _trials(exp) -> int:
 
 
 def record(exp, kind, *, user=None, run=None, **payload):
-    """`record` returns None for a draft, whose `created` entry holds the setup."""
+    """`record` returns None for a draft, whose `created` entry contains the setup."""
     from experiments.models import ExperimentEvent
 
     if kind not in KINDS:

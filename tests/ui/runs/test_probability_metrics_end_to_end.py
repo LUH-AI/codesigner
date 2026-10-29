@@ -52,7 +52,7 @@ def test_a_model_with_probabilities_is_scored_on_them(client):
 
 @pytest.mark.django_db
 def test_the_svm_is_spared_its_calibration(client):
-    """`SVM` experiments track only the label metrics."""
+    """`SVM` experiments only track the label metrics."""
     from experiments.models import Experiment
 
     _create(client, model_name="SVM")
@@ -76,7 +76,7 @@ def test_a_model_without_probabilities_is_created_without_them(client, settings)
 
 @pytest.mark.django_db
 def test_a_regression_experiment_has_no_class_probabilities(client):
-    """A regression experiment tracks only `rmse`, `mae` and `r2`."""
+    """A regression experiment only tracks `rmse`, `mae` and `r2`."""
     from experiments.models import Experiment
 
     _create(client, name="diabetes", demo_dataset=str(DATASETS_DIR / "diabetes.csv"),
@@ -97,7 +97,7 @@ class _LabelsOnly(BaseModel):
 
 def test_a_run_leaves_out_what_its_model_cannot_score():
     """`scoreable` drops ROC AUC and log loss for a labels-only model and
-    refuses to optimize one."""
+    raises when asked to optimize one."""
     metrics = {n: METRICS[n] for n in ("accuracy", "roc_auc", "log_loss")}
 
     assert list(scoreable(metrics, _LabelsOnly(), "accuracy")) == ["accuracy"]

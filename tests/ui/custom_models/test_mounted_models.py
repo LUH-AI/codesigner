@@ -15,7 +15,7 @@ from tests.conftest import post_new_experiment
 
 @pytest.fixture
 def mounted_dir(tmp_path, monkeypatch):
-    """`mounted_dir` patches `_MODELS_DIR` to hold one valid model."""
+    """`mounted_dir` patches `_MODELS_DIR` to contain one valid model."""
     d = tmp_path / "mounted_models"
     d.mkdir()
     (d / "mymodel.py").write_text(VALID_MODEL_SRC, encoding="utf-8")
@@ -62,7 +62,7 @@ def test_selecting_a_mounted_model_resolves_its_name(mounted_dir):
 
 
 def test_create_view_adopts_a_mounted_model(client, mounted_dir):
-    """The created experiment holds its own copy of the mounted model in MEDIA."""
+    """The created experiment has its own copy of the mounted model in MEDIA."""
     from pathlib import Path
 
     resp = post_new_experiment(client, {

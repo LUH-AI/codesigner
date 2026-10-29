@@ -2,7 +2,7 @@
 who can restore it or export an `.ihpo`. A person who dismisses it also gives up
 access.
 
-Once no bin holds it, or `BIN_RETENTION_DAYS` pass, a site admin restores or
+Once no bin contains it, or `BIN_RETENTION_DAYS` pass, a site admin restores or
 destroys it. Restoring is exact because the rows, runs, grants and files stay in
 place.
 """
@@ -14,10 +14,10 @@ from django.db import transaction
 from django.db.models import Q, Exists, OuterRef
 from django.utils import timezone
 
-from experiments.models import account, BinEntry, Experiment, ExperimentShare
+from experiments.models import account, BinEntry, Experiment, ExperimentShare, Run
 
 #: Run statuses stopped on deletion.
-_ACTIVE = ("pending", "running")
+_ACTIVE = Run.ACTIVE_STATUSES
 
 
 def cutoff():
@@ -39,7 +39,7 @@ def orphaned():
 
 
 def its_people(exp):
-    """Contributors count only while in the group, as in
+    """Contributors only count while in the group, as in
     `access.policy.share_of`.
     """
     people = set(exp.shares.filter(level=ExperimentShare.CONTRIBUTOR,

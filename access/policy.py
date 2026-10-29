@@ -2,7 +2,7 @@
 `REQUIRE_LOGIN` is on. A signed-in person reaches their own experiments, grants
 (`ExperimentShare`) in a group they are still in, and everything in a group they
 lead (`Experiment.group`). A viewer may view and export, a contributor may also
-run, edit and delete, and a lead may run and edit. The owner alone holds `SHARE`
+run, edit and delete, and a lead may run and edit. The owner alone has `SHARE`
 and `RENAME`, and membership decides a site admin's reach as for anybody else.
 """
 
@@ -203,13 +203,13 @@ class GroupPolicy(OpenPolicy):
         if _holds(user, VIEW_ALL) or _holds(user, MANAGE_ALL):
             return Experiment.objects.filter(deleted_at__isnull=True)
 
-        # The queries below see only live work, and a deleted group's
+        # The queries below only see live work, and a deleted group's
         # experiments wait in `trash()` for a site admin. The `data` join saves
         # one query per row, since every list shows experiment names.
         live = Experiment.objects.select_related("data").filter(
             trashed_at__isnull=True, deleted_at__isnull=True)
 
-        # A person in no group reaches only their own work. Grants and lead
+        # A person in no group only reaches their own work. Grants and lead
         # reach are checked per group.
         return live.filter(Q(owner=user)
                            | _granted(user)
@@ -217,15 +217,15 @@ class GroupPolicy(OpenPolicy):
 
     def trash(self, request):
         """`trash` returns the site bin for a site admin: a deleted group's
-        work, plus deletions no person's bin still holds.
+        work, plus deletions no person's bin still contains.
         """
         if not settings.REQUIRE_LOGIN:
             return Experiment.objects.none()
         if not is_site_admin(getattr(request, "user", None)):
             return Experiment.objects.none()
         # The site bin receives a deleted group's work unless a person deleted
-        # it first and still holds it in a bin. `orphaned()` adds deletions that
-        # no bin holds any more.
+        # it first and still keeps it in a bin. `orphaned()` adds deletions that
+        # no bin contains any more.
         from experiments.services.bin import orphaned
         group_gone = Experiment.objects.filter(trashed_at__isnull=False,
                                                deleted_at__isnull=True)
@@ -291,7 +291,7 @@ class GroupPolicy(OpenPolicy):
 
         contributor = share_of(user, experiment) == ExperimentShare.CONTRIBUTOR
         if action == DELETE:
-            # A lead deletes only as a contributor, since deletion belongs to
+            # A lead only deletes as a contributor, since deletion belongs to
             # the work's people.
             return contributor
         # Lead reach applies in *its* group only.

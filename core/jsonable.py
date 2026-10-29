@@ -9,7 +9,7 @@ from typing import Any
 def finite(value: Any) -> Any:
     """`finite` replaces non-finite floats in *value* with None, recursively.
     `json.dumps` writes them as `Infinity` and `NaN`, which strict parsers
-    refuse, and SMAC's `crash_cost` and `walltime_limit` default to infinity.
+    fail to read, and SMAC's `crash_cost` and `walltime_limit` default to infinity.
     `default=` cannot help, since `json.dumps` never calls it for a float.
     """
     if isinstance(value, bool):

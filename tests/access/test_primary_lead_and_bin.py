@@ -1,4 +1,4 @@
-"""Each group has a single primary lead, and the role moves only by transfer.
+"""Each group has a single primary lead, and the role only moves by transfer.
 Deleting a group bins its work for a site admin to settle. A database constraint
 and `Group.delete()` enforce both rules outside the views.
 """
@@ -124,7 +124,7 @@ def test_the_role_transfers_only_to_a_lead(client, hosted, lab):
 
 
 def test_transferring_leaves_exactly_one_primary_lead(client, hosted, lab):
-    """Both rows change together, so the group never holds two."""
+    """Both rows change together, so the group never has two."""
     client.force_login(lab["primary"])
 
     client.post(_in_lab("ui:group_transfer_primary", lab, "lead"))

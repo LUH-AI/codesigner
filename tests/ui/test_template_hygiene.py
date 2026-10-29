@@ -32,7 +32,7 @@ def test_no_comment_spans_more_than_one_line():
 
 
 def test_every_template_with_text_of_its_own_marks_it_for_translation():
-    """The i18n check sees only marked strings, so a template with no i18n at
+    """The i18n check only sees marked strings, so a template with no i18n at
     all escapes it. Exempt templates render text translated elsewhere or data.
     """
     exempt = {"_selected_config_inner.html", "_breadcrumbs.html", "_metric_select.html",

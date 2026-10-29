@@ -1,4 +1,4 @@
-"""`core.models.seasonal_naive` holds the baseline forecasts."""
+"""`core.models.seasonal_naive` defines the baseline forecasts."""
 
 from ConfigSpace import Categorical, ConfigurationSpace
 from codesigner_model import OutputBaseModel

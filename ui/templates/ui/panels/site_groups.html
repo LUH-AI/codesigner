@@ -44,8 +44,8 @@
                         </td>
                     </form>
                     <td style="text-align: right;">
-                        {% comment %}Refused while the group still has people in
-                        it. What it holds goes to the bin rather than being
+                        {% comment %}Deletion fails while the group still has people in
+                        it. Its experiments go to the bin rather than being
                         destroyed — see the Bin tab.{% endcomment %}
                         <form method="post" action="{% url 'ui:site_group_delete' %}">
                             {% csrf_token %}

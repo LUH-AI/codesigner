@@ -1,5 +1,5 @@
 """Every experiment route goes through `@experiment_view`, so rules live in one
-policy. An invisible experiment 404s, and a refused action on a visible one
+policy. An invisible experiment 404s, and a forbidden action on a visible one
 gives 403.
 """
 
@@ -127,7 +127,7 @@ def test_each_route_declares_a_known_action():
 
 
 def test_the_declared_actions_match_what_the_routes_do():
-    """A policy that refuses RUN must refuse the right routes."""
+    """A policy that denies RUN must deny the right routes."""
     declared = {p.name: getattr(p.callback, "experiment_action") for p in _experiment_routes()}
 
     assert declared == {

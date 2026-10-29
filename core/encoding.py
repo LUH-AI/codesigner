@@ -1,7 +1,7 @@
 """`fit` records each column's kind and categorical labels as a JSON-able dict,
 and `encode` turns any frame with those columns into floats, NaN for a missing
 or unseen value. `fit` sees the whole dataset, since a fold-fitted vocabulary
-would code one row differently per seed. `encode` uses only numpy and pandas,
+would code one row differently per seed. `encode` only uses numpy and pandas,
 because an exported model carries its source and predicts from a raw CSV.
 """
 
@@ -91,7 +91,7 @@ def encode(spec, frame):
             position = {level: float(i) for i, level in enumerate(column["levels"])}
 
             def code(v, position=position):
-                # A numeric-only label column read back as floats holds 1.0 for
+                # A numeric-only label column read back as floats contains 1.0 for
                 # "1".
                 text = str(v)
                 if text not in position and isinstance(v, float) and v.is_integer():

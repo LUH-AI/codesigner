@@ -8,7 +8,7 @@ from codesigner_model import OutputBaseModel
 from .base import Tunable
 from .parts import categorical_mask
 
-#: Bins hold at most 255 values, one reserved for missing.
+#: The histogram has at most 255 bins, one reserved for missing values.
 MAX_LABELS = 254
 
 

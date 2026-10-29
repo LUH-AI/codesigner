@@ -31,7 +31,8 @@ sys.exit(0)
 '''
 
 _WRITES_LOCK = 'Path(str(script) + ".lock").write_text("# fake lock\\n")'
-# `_GREETS` reads `PROTOCOL_VERSION` because the client refuses a mismatch.
+# `_GREETS` reads `PROTOCOL_VERSION` because `.ModelProcess` raises a
+# `ModelProcessError` for a mismatch.
 _GREETS = (
     'print(json.dumps({"t": "hello", "protocol": ' + str(PROTOCOL_VERSION) + ', '
     '"name": "Fake Model", '
