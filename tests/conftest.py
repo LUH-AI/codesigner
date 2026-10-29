@@ -85,7 +85,7 @@ class FakeOptimizer(BaseOptimizer):
 
 
 class PreCancelled:
-    """`PreCancelled` proves optimizers rely only on `.is_set()`.
+    """`PreCancelled` proves optimizers only rely on `.is_set()`.
     """
 
     def is_set(self) -> bool:
@@ -202,8 +202,9 @@ def get_optimizer_step(client):
 
 def post_new_experiment(client, data, **kwargs):
     """`post_new_experiment` walks New and the three setup steps to Create,
-    using the first optimizer when *data* names none. A refused step 1 returns
-    its form response, and success returns the redirect to the dashboard."""
+    using the first optimizer when *data* names none. A step 1 that fails
+    validation returns its form response, and success returns the redirect to
+    the dashboard."""
     from django.urls import reverse
 
     from core.registry import OPTIMIZERS

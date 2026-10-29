@@ -11,7 +11,8 @@ import pytest
 from ConfigSpace import Categorical, ConfigurationSpace, Float, Integer
 
 from core import analytics
-from core.analytics import _predict_with_spread, fit_surrogate, pair_trials_with_scores
+from core.analytics import fit_surrogate, pair_trials_with_scores
+from core.analytics.surrogate import predict_with_spread
 from core.optimizers import RandomOptimizer
 from core.optimizers.base import TrialResult
 
@@ -29,7 +30,7 @@ def space():
 
 @pytest.fixture
 def trials(space):
-    """`trials` holds thirty trials peaking in `lr` near 1e-2."""
+    """`trials` contains thirty trials peaking in `lr` near 1e-2."""
     rng = random.Random(7)
     out = []
     for i, config in enumerate(space.sample_configuration(30)):
@@ -172,14 +173,14 @@ def test_a_metric_no_trial_carries_is_a_warning(optimizer, space, trials):
 
 
 def test_the_mean_is_the_forests_own_prediction(space, trials):
-    """`_predict_with_spread` takes the mean from the per-tree stack, and that
+    """`predict_with_spread` takes the mean from the per-tree stack, and that
     mean must equal `rf.predict`."""
     import numpy as np
 
     rf, _ = fit_surrogate(space, trials, "accuracy")
     assert rf is not None
     rows = np.array([c.get_array() for c in space.sample_configuration(20)])
-    mean, spread = _predict_with_spread(rf, rows)
+    mean, spread = predict_with_spread(rf, rows)
 
     assert np.allclose(mean, rf.predict(rows))
     assert (spread >= 0).all()
@@ -218,7 +219,7 @@ def test_the_slice_still_draws_without_one(optimizer, space, trials):
                                                ("gp", "GaussianProcess")])
 def test_a_run_is_read_through_its_own_model(space, trials, strategy, expected):
     """The surrogate's class and settings survive the run."""
-    from core.optimizers.smac_optimizer import SMACOptimizer
+    from core.optimizers.smac import SMACOptimizer
 
     surrogate, warning = SMACOptimizer(search_strategy=strategy).refit_surrogate(
         space, trials, "accuracy")
@@ -233,7 +234,7 @@ def test_the_forest_is_not_told_its_targets_are_already_logged(space, trials):
     costs."""
     from smac.model.random_forest import RandomForest
 
-    from core.optimizers.smac_optimizer import SMACOptimizer
+    from core.optimizers.smac import SMACOptimizer
 
     surrogate, _ = SMACOptimizer(search_strategy="rf").refit_surrogate(
         space, trials, "accuracy")
@@ -244,7 +245,7 @@ def test_the_forest_is_not_told_its_targets_are_already_logged(space, trials):
 
 def test_predictions_come_back_in_the_metrics_units(space, trials):
     """An accuracy slice returned as cost would be upside down."""
-    from core.optimizers.smac_optimizer import SMACOptimizer
+    from core.optimizers.smac import SMACOptimizer
 
     optimizer = SMACOptimizer(search_strategy="rf")
     sl = analytics.compute_incumbent_slice(
@@ -258,7 +259,7 @@ def test_predictions_come_back_in_the_metrics_units(space, trials):
 
 def test_a_measured_output_that_is_not_a_metric_keeps_its_own_units(space, trials):
     """Duration skips every metric conversion."""
-    from core.optimizers.smac_optimizer import SMACOptimizer
+    from core.optimizers.smac import SMACOptimizer
 
     sl = analytics.compute_incumbent_slice(
         SMACOptimizer(search_strategy="rf"), space, trials, "accuracy", "depth",
@@ -269,7 +270,7 @@ def test_a_measured_output_that_is_not_a_metric_keeps_its_own_units(space, trial
     assert min(durations) - 1 <= min(mu) <= max(mu) <= max(durations) + 1
 
 
-# The figure marks only the incumbent because the slice passes through no other
+# The figure only marks the incumbent because the slice passes through no other
 # trial.
 
 

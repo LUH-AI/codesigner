@@ -215,7 +215,7 @@ def save_prior(request, exp):
             "params": prior.get("params") or {},
             "decay": prior_math.decay_record(prior.get("decay"),
                                              prior_service.run_budget(exp, at_trial)),
-            # `delay_decay` holds only while the initial design is unfinished.
+            # `delay_decay` only applies while the initial design is unfinished.
             "delay_decay": bool(prior.get("delay_decay")
                                 and prior_math.inside_initial_design(result_now)),
             # An edited parameter keeps the anchor, or decay would stay at zero.

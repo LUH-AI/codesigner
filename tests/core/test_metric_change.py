@@ -76,7 +76,7 @@ def test_the_best_follows_the_new_metric():
 
 
 def test_the_trials_themselves_are_not_rewritten():
-    """`rebase_history` changes only the reading and keeps every measured score."""
+    """`rebase_history` only changes the reading and keeps every measured score."""
     rebased, _ = rebase_history(_result(HISTORY), "f1")
     assert rebased is not None
 
@@ -95,7 +95,7 @@ def test_the_original_result_is_not_mutated():
 
 
 def test_a_history_predating_multi_metric_scores_is_still_reported_stale():
-    """Old files hold only the optimized metric, yet the optimizer must still
+    """Old files only contain the optimized metric, yet the optimizer must still
     hear that its state is stale."""
     thin = [TrialResult(trial=1, config={"x": 1}, scores={"accuracy": 0.9},
                         score=0.9, incumbent_score=0.9, incumbent_config={"x": 1})]

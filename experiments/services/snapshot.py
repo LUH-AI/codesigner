@@ -18,7 +18,7 @@ from core.provenance import (
     dataset_fingerprint, environment, evaluation, model_fingerprint, sha256,
 )
 from core.registry import METRICS, MODELS, OPTIMIZERS, canonical_model_name
-from experiments.models import Experiment, ExperimentData
+from experiments.models import Experiment, ExperimentData, Run
 
 from . import history, modelenv, timestamps
 
@@ -114,7 +114,7 @@ def data_from_snapshot(snapshot: dict, dataset_file=None, model_file=None,
 
 #: An unfinished run was interrupted, so it imports as cancelled instead of
 #: polling forever.
-_UNFINISHED = ("pending", "running")
+_UNFINISHED = Run.ACTIVE_STATUSES
 
 
 def _restore_runs(exp: Experiment, recorded: list) -> None:
@@ -216,7 +216,7 @@ def snapshot_from_experiment(exp: Experiment, *, provenance: bool = False) -> di
                     "original": data.original_metric},
         "optimizer": {"name": data.optimizer_name, "params": data.optimizer_params},
     }
-    # The `space` section appears only when the row stores a search space.
+    # The `space` section only appears when the row stores a search space.
     if data.config_space:
         snapshot["space"] = data.config_space
     # `priors` sits beside `space` and steers the next run, so a re-import keeps

@@ -1,7 +1,7 @@
 """`Group` and `Membership` draw the boundary that keeps research groups on one
-instance from seeing each other's work. `Membership` holds the member and lead
+instance from seeing each other's work. `Membership` records the member and lead
 roles, per group. The site-admin role is the `manage_site` permission, which a
-site admin can hold without being a Django superuser.
+site admin can be granted without being a Django superuser.
 """
 
 from __future__ import annotations
@@ -60,9 +60,9 @@ class Group(models.Model):
     def delete(self, *args, **kwargs):
         """`delete` moves the group's experiments to the site trash for a site
         admin to rehome or discard, since nobody is left to judge whether the
-        results matter. `PROTECT` on `Experiment.group` would otherwise block
+        results matter. Otherwise `PROTECT` on `.Experiment.group` would block
         the deletion. A queryset delete skips `delete` and raises
-        `ProtectedError` for a group that still holds experiments.
+        `ProtectedError` for a group that still contains experiments.
         """
         from django.utils import timezone
 
@@ -101,7 +101,7 @@ class Membership(models.Model):
     user = models.ForeignKey(
         django_settings.AUTH_USER_MODEL, on_delete=models.CASCADE,
         related_name="memberships")
-    # `PROTECT` keeps a group with members from being deleted by accident.
+    #: `PROTECT` keeps a group with members from being deleted by accident.
     group = models.ForeignKey(Group, on_delete=models.PROTECT,
                               related_name="memberships")
     role = models.CharField(max_length=20, choices=ROLES, default=MEMBER)
@@ -139,7 +139,7 @@ class Membership(models.Model):
 class AccessPermissions(models.Model):
     """`AccessPermissions` is an unmanaged model with no table, present only so
     Django creates its `Permission` rows for the admin and `has_perm`. An active
-    superuser holds every one through `ModelBackend`.
+    superuser has every one through `ModelBackend`.
     """
 
     id: int
@@ -155,7 +155,7 @@ class AccessPermissions(models.Model):
             ("change_defaults",
              "Can change the experiment settings every experiment inherits"),
             # `view_all_experiments` and `manage_experiments` reach across every
-            # group, so nobody holds them by default; an admin grants them for a
+            # group, so nobody has them by default; an admin grants them for a
             # support case and takes them back afterwards.
             ("view_all_experiments",
              "Can see every experiment on the instance, across all groups"),

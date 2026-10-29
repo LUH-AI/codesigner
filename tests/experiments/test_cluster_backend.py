@@ -17,7 +17,7 @@ pytestmark = pytest.mark.django_db
 
 class FakeTransport:
     """`FakeTransport` answers from a script instead of a scheduler. Successive
-    polls pop `states`, and `get` reads back whatever `files` holds.
+    polls pop `states`, and `get` reads back whatever `files` contains.
     """
 
     def __init__(self, states=("done",), files=None, submit="81234"):
@@ -112,7 +112,7 @@ def _run(experiment, transport, monkeypatch, states=("done",), status=None,
 
 
 def test_everything_the_job_needs_is_staged(cluster_settings, experiment, monkeypatch):
-    """The snapshot's dataset path exists only here, so the job needs the staged
+    """The snapshot's dataset path only exists here, so the job needs the staged
     file.
     """
     transport = FakeTransport()
@@ -141,6 +141,45 @@ def test_the_job_id_is_recorded_before_the_run_is_watched(cluster_settings,
 
     assert run.job_id == "81234"
     assert run.backend == "slurm"
+
+
+
+def test_a_queued_job_is_submitted_until_the_scheduler_starts_it(cluster_settings,
+                                                                  experiment, monkeypatch):
+    """`execute_run_on_cluster` keeps a run `submitted`, with no start time,
+    until `squeue` reports its job as running."""
+    from experiments.models import Run
+
+    seen = []
+
+    class Watched(FakeTransport):
+        def run(self, command):
+            if command.startswith("squeue"):
+                seen.append(Run.objects.values_list("status", "started_at").get())
+            return super().run(command)
+
+    run, _ = _run(experiment, Watched(), monkeypatch,
+                  states=("queued", "queued", "running", "done"),
+                  status={"state": "done", "offset": 0, "stopped_by": "",
+                          "config_space": None, "error": ""},
+                  result=_finished_result())
+
+    assert [(status, at is None) for status, at in seen] == [
+        ("submitted", True), ("submitted", True), ("submitted", True), ("running", False)]
+    assert run.status == "done"
+
+
+def test_a_restart_fails_a_submitted_run(cluster_settings, experiment):
+    """`sweep_stale_runs` fails a `submitted` run after a restart, because the
+    restart ended the task that watched the run's job."""
+    from experiments.services import run as run_service
+
+    run = run_service.create_run(experiment, {"max_trials": 3}, "accuracy")
+    type(run).objects.filter(pk=run.pk).update(status="submitted", job_id="81234")
+
+    assert run_service.sweep_stale_runs() == 1
+    run.refresh_from_db()
+    assert run.status == "error"
 
 
 def test_a_finished_job_writes_the_rows_a_local_run_writes(cluster_settings,
@@ -300,7 +339,8 @@ def test_the_default_backend_still_runs_here(settings, experiment):
 
 
 def test_a_cluster_run_refuses_a_metric_its_model_cannot_score(tmp_path, monkeypatch):
-    """`run_experiment.main` refuses a probability metric for a labels-only
+    """`run_experiment.main` writes an error status for a probability metric
+    for a labels-only
     model before any trial."""
     from ConfigSpace import ConfigurationSpace
     from codesigner_model import BaseModel

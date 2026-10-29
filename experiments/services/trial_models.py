@@ -51,7 +51,7 @@ class Keeper:
         self.columns = columns
         self.scores = {t.trial: t.score for t in previous_trials if not t.failed}
         self.this_run = set()
-        #: Kept-worthy trials refused for lack of room.
+        #: Kept-worthy trials skipped for lack of room.
         self.no_room = 0
         # Evicts non-best models of earlier runs first.
         self._evict()

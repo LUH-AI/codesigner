@@ -105,7 +105,7 @@ def _duration(seconds) -> str:
 
 _STOPPED_BY = {**_CRITERIA, "cancelled": gettext_lazy("Cancelled"), "all_failing": gettext_lazy("Too many failures"),
                "exhausted": gettext_lazy("Every configuration tried")}
-_STATUSES = {"pending": gettext_lazy("Waiting"), "running": gettext_lazy("Running"), "done": gettext_lazy("Done"),
+_STATUSES = {"pending": gettext_lazy("Waiting"), "submitted": gettext_lazy("Submitted"), "running": gettext_lazy("Running"), "done": gettext_lazy("Done"),
              "error": gettext_lazy("Failed"), "cancelled": gettext_lazy("Cancelled")}
 _SURROGATES = {"none": gettext_lazy("Kept"), "rebuilt_and_replayed": gettext_lazy("Refitted on the trials so far")}
 
@@ -341,7 +341,7 @@ def _run_event_entry(exp, event):
 def _run_entry(exp, run, number):
     n, offset = run.trial_count, run.trial_offset
     metric = run.primary_metric
-    if run.status == "pending":
+    if run.status in ("pending", "submitted"):
         summary = _("Run %(no)s waiting to start, optimizing %(metric)s.")
     elif run.status == "running":
         summary = _("Run %(no)s under way, optimizing %(metric)s.")
@@ -352,7 +352,7 @@ def _run_entry(exp, run, number):
     proposals = [c.get("proposal") for c in run.configurations or [] if c.get("proposal")]
     if proposals and n == 1:
         summary = _("Run %(no)s ran proposal %(proposal)s as trial %(a)s.")
-    elif proposals and run.status in ("pending", "running"):
+    elif proposals and run.status in run.ACTIVE_STATUSES:
         summary = _("Run %(no)s running proposal %(proposal)s as a trial.")
     summary = summary % {"no": number, "metric": metric, "n": n,
                          "a": (offset or 0) + 1, "b": (offset or 0) + (n or 0),
@@ -401,7 +401,7 @@ _PRIOR_KINDS = ("prior_stated", "prior_edited", "prior_withdrawn", "prior_reset"
 def _effective(events, runs):
     """`_effective` keeps prior statements that a run applied or that still
     stand, per hyperparameter. It hides a statement that was replaced or
-    withdrawn before any run applied it, and a withdrawal that cancels only such
+    withdrawn before any run applied it, and a withdrawal that only cancels such
     a statement.
     """
     import copy

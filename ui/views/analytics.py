@@ -130,7 +130,7 @@ def partial_dependence(request, exp):
 @experiment_view(VIEW)
 def forecast_figure(request, exp):
     """`forecast_figure` reruns the model once per backtest for trial *idx*, so
-    the figure is deferred. *series* picks the series when the file holds
+    the figure is deferred. *series* picks the series when the file contains
     several.
     """
     metric = request.GET.get("metric", "")
@@ -204,7 +204,7 @@ def surrogate_uncertainty(request, exp):
     return JsonResponse({
         "x": x_grid, "y": y_grid, "z": z, "warning": warning,
         # The colour ramp travels with the numbers and stays declared in
-        # `plots.py` (see `UNCERTAINTY_SCALE`).
+        # `plots/style.py` (see `UNCERTAINTY_SCALE`).
         "colorscale": UNCERTAINTY_SCALE,
     })
 
@@ -255,7 +255,7 @@ def metric_figures(request, exp):
 @experiment_view(VIEW)
 def surrogate_prediction(request, exp):
     """`surrogate_prediction` sends the sample, the predictions and every view's
-    coordinates in one response, and a new request follows only a metric change.
+    coordinates in one response, and a new request only follows a metric change.
     `core.analytics.sample_prediction_space` does the sampling.
     """
     metric = request.GET.get("metric", "")

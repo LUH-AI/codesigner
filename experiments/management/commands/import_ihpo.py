@@ -3,7 +3,8 @@ from pathlib import Path
 
 from django.core.management.base import BaseCommand, CommandError
 
-from core import io, provenance, smac_import
+from core import io, provenance
+from core.optimizers.smac import importer as smac_import
 
 from experiments.services import snapshot as adapter
 
@@ -46,7 +47,8 @@ class Command(BaseCommand):
 
     def _import_smac(self, directory: Path) -> None:
         """`_import_smac` accepts a run directory or its `smac3_output` parent
-        and refuses duplicate basenames, the mark of two runs.
+        and raises a `CommandError` for duplicate basenames, the mark of two
+        runs.
         """
         if not directory.is_dir():
             raise CommandError(f"not a directory: {directory}")

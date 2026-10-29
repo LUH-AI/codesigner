@@ -25,7 +25,7 @@ _PROBE = (
 
 
 def _settings_with(**env_overrides) -> dict:
-    """`None` unsets a variable, since an empty `HUEY_CLASS=` makes huey refuse
+    """`None` unsets a variable, since an empty `HUEY_CLASS=` makes huey fail
     to start.
     """
     env = {**os.environ, "DJANGO_SETTINGS_MODULE": "config.settings",

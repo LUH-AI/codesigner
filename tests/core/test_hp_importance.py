@@ -10,6 +10,7 @@ from ConfigSpace import CategoricalHyperparameter
 from ConfigSpace.hyperparameters import NumericalHyperparameter
 
 from core import analytics
+from core.analytics import games
 from core.analytics import fit_surrogate
 from core.models import RandomForestModel
 from core.optimizers import RandomOptimizer, TrialResult
@@ -64,7 +65,7 @@ def test_a_game_that_finds_nothing_reports_nothing_rather_than_zeros():
 
 
 def test_a_game_that_finds_nothing_reports_no_interactions_either():
-    """All-zero contributions hold no pairwise structure, and the heatmap shows
+    """All-zero contributions contain no pairwise structure, and the heatmap shows
     its caption."""
     cs = RandomForestModel().get_config_space(seed=0)
     flat = [TrialResult(trial=i, config=dict(cs.sample_configuration()),
@@ -92,7 +93,7 @@ def test_interactions_insufficient_trials_returns_empty_not_uniform():
 
 
 def test_interactions_form_a_symmetric_square_grid(iris_splits, metrics):
-    """The diagonal holds the signed, unnormalized order-1 values from the same
+    """The diagonal contains the signed, unnormalized order-1 values from the same
     HyperSHAP call."""
     cs = RandomForestModel().get_config_space(seed=0)
     trials = _trials(iris_splits, metrics)
@@ -138,8 +139,7 @@ def test_compute_hp_games_builds_the_explainer_once_per_metric_not_per_game(iris
     cs = RandomForestModel().get_config_space(seed=0)
     trials = _trials(iris_splits, metrics)
 
-    with patch.object(analytics, "_build_explainer",
-                     wraps=analytics._build_explainer) as spy:
+    with patch.object(games, "build_explainer", wraps=games.build_explainer) as spy:
         analytics.compute_hp_games(cs, trials, ["accuracy", "f1"], seed=0)
 
     called_metrics = [call.args[2] for call in spy.call_args_list]
@@ -160,7 +160,7 @@ def test_the_fallback_surrogate_is_also_fitted_once_per_metric_not_per_game(iris
     with patch("hypershap.HyperSHAP.tunability", explode), \
          patch("hypershap.HyperSHAP.sensitivity", explode), \
          patch("hypershap.HyperSHAP.mistunability", explode), \
-         patch("core.analytics.fit_surrogate",
+         patch("core.analytics.games.fit_surrogate",
                wraps=fit_surrogate) as fits:
         games = analytics.compute_hp_games(cs, trials, ["accuracy", "f1"], seed=0)
 
@@ -189,7 +189,7 @@ def test_the_moebius_transform_is_truncation_independent(iris_splits, metrics):
     """
     cs = RandomForestModel().get_config_space(seed=0)
     trials = _trials(iris_splits, metrics)
-    explainer = analytics._build_explainer(cs, trials, "accuracy", 0)
+    explainer = games.build_explainer(cs, trials, "accuracy", 0)
     n = len(list(cs.keys()))
 
     from shapiq import ExactComputer
@@ -350,9 +350,9 @@ def test_partial_dependence_log_hp_grid_is_spaced_on_the_log_scale():
     tail. The test checks a constant ratio between consecutive points.
     """
     from core.models import SVMModel
-    from core.analytics import _hp_grid
+    from core.analytics.surrogate import hp_grid
 
-    grid = _hp_grid(SVMModel().get_config_space(seed=0)["C"], 20)
+    grid = hp_grid(SVMModel().get_config_space(seed=0)["C"], 20)
 
     assert grid[0] == pytest.approx(0.01)
     assert grid[-1] == pytest.approx(100.0)
@@ -367,7 +367,7 @@ def test_partial_dependence_linear_hp_grid_is_unchanged():
     """
     import numpy as np
 
-    from core.analytics import _hp_grid
+    from core.analytics.surrogate import hp_grid
 
     cs = RandomForestModel().get_config_space(seed=0)
     for name in cs.keys():
@@ -376,7 +376,7 @@ def test_partial_dependence_linear_hp_grid_is_unchanged():
         expected = (sorted({int(round(v)) for v in native})
                     if type(hp).__name__ == "UniformIntegerHyperparameter"
                     else [float(v) for v in native])
-        assert _hp_grid(hp, 20) == pytest.approx(expected), name
+        assert hp_grid(hp, 20) == pytest.approx(expected), name
 
 
 def test_partial_dependence_ice_lines_and_pdp_share_the_grids_shape(iris_splits, metrics):
@@ -499,7 +499,7 @@ def test_partial_dependence_holes_where_the_config_space_refuses_a_grid_value():
 
     assert warning is None
     assert grid == [1, 2, 3]
-    # b="y" forbids only a=2.
+    # b="y" only forbids a=2.
     assert all(v is not None for v in ice_lines[0])
     for row in ice_lines[1:]:
         assert row[grid.index(2)] is None

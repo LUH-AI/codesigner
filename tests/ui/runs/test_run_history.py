@@ -121,7 +121,7 @@ def test_a_metric_change_says_when_it_happened():
 
 def test_a_prior_event_keeps_when_it_took_effect_and_why_it_was_skipped():
     """`_record_prior_event` keeps the trial a prior took effect at and marks a
-    refused one."""
+    rejected one."""
     from experiments.models import Run
     from experiments.services.run import _record_prior_event, create_run
 

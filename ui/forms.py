@@ -120,9 +120,9 @@ class NewExperimentForm(forms.Form):
                     "of the experiment: how the data is divided, the model's own "
                     "randomness, which configurations the search tries, and the "
                     "surrogates behind partial dependence and the explanations."))
-    # The scheme is fixed for the experiment's life, since k-fold and holdout
-    # scores are incomparable. Cross-validation is the default because one split
-    # on a small table is noisy.
+    #: The scheme is fixed for the experiment's life, since k-fold and holdout
+    #: scores are incomparable. Cross-validation is the default because one split
+    #: on a small table is noisy.
     evaluation_scheme = forms.ChoiceField(
         label=_("Validation method"), initial=EVALUATION_KFOLD, required=False,
         help_text=_("Fixed once the experiment exists: trials evaluated "
@@ -178,7 +178,7 @@ class NewExperimentForm(forms.Form):
         super().__init__(*args, **kwargs)
         self.current_dataset = current_dataset
         self.current_model = current_model
-        # The group field appears only with a choice to make, and is required
+        # The group field only appears with a choice to make, and is required
         # then, since a guess would misfile work.
         if groups:
             self.fields["group"] = forms.TypedChoiceField(

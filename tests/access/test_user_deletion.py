@@ -1,6 +1,6 @@
-"""`Experiment.owner` is `SET_NULL`, and an ownerless experiment is reachable by
-nobody. The Django admin therefore refuses to delete a user who owns
-experiments, and deactivation is the way out.
+"""`Experiment.owner` is `SET_NULL`, and an ownerless experiment is reachable
+by nobody. Therefore `.GuardedUserAdmin.has_delete_permission` returns False
+for a user who owns experiments, and deactivation is the way out.
 """
 
 import pytest
@@ -89,7 +89,8 @@ def test_someone_who_owns_nothing_can_still_be_deleted(client, hosted, root,
 
 def test_a_bulk_delete_including_an_owner_removes_nobody(client, hosted, root,
                                                         django_user_model):
-    """Django refuses the whole bulk selection if any user is refused, and the
+    """Django cancels the whole bulk delete when `has_delete_permission`
+    returns False for any selected user, and the
     Experiments column shows which one.
     """
     owner = django_user_model.objects.create_user(username="owner", password="pw")

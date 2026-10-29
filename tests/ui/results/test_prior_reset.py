@@ -137,7 +137,7 @@ def test_a_run_that_stated_nothing_resets_to_uniform(client):
 
 
 def test_a_pending_run_is_not_what_it_goes_back_to(client):
-    """A pending run's copy holds the very edits reset should undo."""
+    """A pending run's copy contains the very edits reset should undo."""
     exp = _experiment(SINCE_DRAGGED)
     _run(exp, SEARCHED_UNDER)
     _run(exp, SINCE_DRAGGED, status="pending")

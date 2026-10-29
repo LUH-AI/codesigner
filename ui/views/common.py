@@ -11,7 +11,7 @@ from django.utils.translation import gettext as _
 from access.policy import groups_to_choose_from
 from core import datasets
 from core.registry import MODELS, optimizer_class
-from experiments.models import Experiment
+from experiments.models import Experiment, Run
 from experiments.services import storage
 from experiments.services.settings import SETTING_BOUNDS
 
@@ -20,7 +20,7 @@ from ..figures import FIGURES
 from ..formatting import human
 
 
-_ACTIVE = ["pending", "running"]
+_ACTIVE = Run.ACTIVE_STATUSES
 
 
 logger = logging.getLogger(__name__)
@@ -129,9 +129,10 @@ def _best_panels(result, metric_names):
 
 
 def _settle_storage(request, exp) -> bool:
-    """`_settle_storage` deletes kept trial models, stalest first, until *exp*'s
-    group fits its limit. The experiment is refused and its files deleted only
-    when datasets and model files alone exceed the limit.
+    """`_settle_storage` deletes kept trial models, stalest first, until
+    *exp*'s group fits its limit. `_settle_storage` only deletes the
+    experiment's files and reports an error when datasets and model files alone
+    exceed the limit.
     """
     group = exp.group
     if group is None or (not exp.data.dataset and not exp.data.model_file):

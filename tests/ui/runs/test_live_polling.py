@@ -1,4 +1,4 @@
-"""The status poll sets its interval from trial durations and holds while the
+"""The status poll sets its interval from trial durations and pauses while the
 tab is hidden, and it appends new table rows.
 """
 
@@ -20,7 +20,7 @@ def test_the_interval_never_drops_below_the_write_interval():
 
 @pytest.mark.parametrize("durations,expected", [
     ([], 5),                       # nothing measured
-    ([0.05] * 5, 5),               # floor holds
+    ([0.05] * 5, 5),               # floor applies
     ([12.0] * 5, 12),              # one ask per trial
     ([600.0] * 5, 30),             # ceiling keeps long runs live
 ])
@@ -54,8 +54,23 @@ def test_the_fragment_carries_its_own_interval(client, ran_experiment):
     assert "every 2s" not in body, "the old fixed interval"
 
 
+
+@pytest.mark.django_db
+def test_a_submitted_job_polls_only_for_its_start(client, ran_experiment):
+    """`run_status` shows a queued job as submitted and polls at the slowest
+    interval, since no trials arrive while the job waits in the queue."""
+    from ui.views import common
+
+    ran_experiment.runs.all().update(status="submitted", job_id="81234")
+    body = _poll(client, ran_experiment, trials=1)
+
+    assert "Submitted to the cluster as job 81234" in body
+    assert "Optimizing" not in body
+    assert f"every {common.POLL_MAX_SECONDS}s" in body
+
+
 def test_polling_stops_while_the_tab_is_hidden():
-    """The poll holds in a hidden tab, since background tabs still send
+    """The poll pauses in a hidden tab, since background tabs still send
     requests."""
     from pathlib import Path
 

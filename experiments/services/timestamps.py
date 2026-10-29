@@ -1,12 +1,12 @@
 """`timestamps` exports an experiment's times in one of three forms, since
 working hours are personal. *absolute* keeps UTC wall-clock times, *relative*
-gives seconds since the first run launched, and *none* keeps only the order of
+gives seconds since the first run launched, and *none* only keeps the order of
 events.
 
 A file states its form in `snapshot["timestamps"]`; an experiment opened from
 the file keeps that form as `time_basis` and exports it or a vaguer one. On
 import, `anchor` places relative times so the history ends at the import moment,
-inventing only the date.
+only inventing the date.
 """
 
 from __future__ import annotations

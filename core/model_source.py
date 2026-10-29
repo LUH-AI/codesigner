@@ -30,7 +30,7 @@ STARTER_HEADER = """\
 # ///
 """
 
-# From PEP 723; captures the `# /// script` body.
+#: From PEP 723; captures the `# /// script` body.
 PEP723_BLOCK = re.compile(
     r"(?m)^# /// (?P<type>[a-zA-Z0-9-]+)$\s(?P<content>(^#(| .*)$\s)+)^# ///$"
 )
@@ -231,7 +231,7 @@ def _requirement_name(requirement: str) -> str:
 
 def _check_undeclared_imports(tree: ast.Module, deps: list[str],
                               has_header: bool) -> str | None:
-    """A model environment holds only what the file declares, so an undeclared
+    """A model environment only contains what the file declares, so an undeclared
     import would fail minutes later. A present header goes unchecked, because
     import and distribution names differ (`sklearn` from `scikit-learn`).
     """

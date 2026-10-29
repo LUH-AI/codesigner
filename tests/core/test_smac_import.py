@@ -1,5 +1,5 @@
-"""`core/smac_import.py` turns the five files of a SMAC output directory into a
-snapshot. The tests pin where `.ihpo` and SMAC differ, against
+"""`core/optimizers/smac/importer.py` turns the five files of a SMAC output
+directory into a snapshot. The tests pin where `.ihpo` and SMAC differ, against
 `tests/fixtures/smac_run` and hand-built runhistories.
 """
 
@@ -8,7 +8,7 @@ import json
 import pytest
 
 from core import io
-from core.smac_import import (
+from core.optimizers.smac.importer import (
     NAMESPACE, SmacImportError, snapshot_from_smac,
 )
 
@@ -81,7 +81,7 @@ def test_the_objective_is_declared_lower_is_better_and_unbounded():
 
 
 def test_the_objective_name_is_namespaced():
-    """`serialize_result` declares only unregistered names, and a bare
+    """`serialize_result` only declares unregistered names, and a bare
     `accuracy` would read back as higher-is-better.
     """
     scenario = {**_files()["scenario.json"], "objectives": "accuracy"}
@@ -198,7 +198,7 @@ def test_a_directory_missing_its_runhistory_is_refused():
 
 
 def test_files_are_found_by_basename():
-    """Browser directory pickers report relative paths, and Django keeps only
+    """Browser directory pickers report relative paths, and Django only keeps
     basenames.
     """
     nested = {f"smac3_output/demo-run/0/{name}": content
@@ -211,7 +211,7 @@ def test_files_are_found_by_basename():
 
 def test_no_infinities_reach_the_file():
     """`json.dumps` writes the infinite default `crash_cost` as a bare
-    `Infinity`, which strict JSON parsers refuse.
+    `Infinity`, which strict JSON parsers fail to read.
     """
     text = io.to_bytes(snapshot_from_smac(_files())).decode("utf-8")
 
@@ -267,7 +267,7 @@ def test_a_setting_that_cannot_be_read_honestly_is_left_out():
 def test_the_settings_rebuild_an_optimizer():
     """`known_params` drops settings this version lacks before they reach
     `__init__`."""
-    from core.optimizers.smac_optimizer import SMACOptimizer
+    from core.optimizers.smac import SMACOptimizer
 
     params = snapshot_from_smac(_files())["optimizer"]["params"]
 

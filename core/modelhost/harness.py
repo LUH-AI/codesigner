@@ -1,6 +1,6 @@
 """`harness.py` runs as a script in the model's environment, imports the model
 file, sends the model's name and search space, and answers one configuration at
-a time. `harness.py` may import only the standard library, numpy and the model's
+a time. `harness.py` may only import the standard library, numpy and the model's
 needs, as `tests/core/test_harness_isolation.py` enforces.
 """
 
@@ -19,7 +19,7 @@ from typing import Any
 
 PROTOCOL_VERSION = 2
 #: `CAP_PROBA` repeats the value in protocol.py, since `core` is absent here.
-#: The isolation test compares only the version.
+#: The isolation test only compares the version.
 CAP_PROBA = "proba"
 
 
@@ -121,8 +121,8 @@ def _load_dataset(arrays_dir: Path, fold_labels):
     for index, labels in enumerate(fold_labels):
         train_idx = np.load(arrays_dir / f"fold_{index}_train.npy", allow_pickle=False)
         val_idx = np.load(arrays_dir / f"fold_{index}_val.npy", allow_pickle=False)
-        # scikit-learn refuses object-typed integer labels, so the dtype is
-        # inferred.
+        # scikit-learn raises a `ValueError` for object-typed integer labels,
+        # so the dtype is inferred.
         folds.append((X[train_idx], np.asarray(labels), X[val_idx]))
     return folds
 
@@ -258,8 +258,9 @@ def main(argv=None) -> int:
 
 
 def _plain(value):
-    """numpy scalars unwrap via `.item()`; other types are refused instead of
-    stringified into a label that scores as wrong.
+    """`_plain` passes plain values through, unwraps numpy scalars via `.item()`
+    and raises a `TypeError` for any other type, since a stringified value would
+    become a label that scores as wrong.
     """
     if isinstance(value, (str, int, float, bool)):
         return value

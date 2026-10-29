@@ -41,7 +41,7 @@ class BestConfiguration(Figure):
 
 
 class SelectedConfiguration(Figure):
-    """The sidebar holds the selected trial's table, so it stays readable while
+    """The sidebar contains the selected trial's table, so it stays readable while
     the reader clicks figures.
     """
 
@@ -80,11 +80,11 @@ class HyperparameterImportance(Figure):
     home_tab = HYPERSHAP
     per_metric = True
     explains_games = True
-    # The page computes games against any non-default baseline on request, and
-    # the interaction figures share the declaration.
+    #: The page computes games against any non-default baseline on request, and
+    #: the interaction figures share the declaration.
     deferred = (("hypershap_baseline", _("HyperSHAP against the incumbent or selected trial")),)
-    # The view key composes the page-wide game with the importance figure's own
-    # rendering, and tunability plus pie comes first.
+    #: The view key composes the page-wide game with the importance figure's own
+    #: rendering, and tunability plus pie comes first.
     views = tuple(f"{game}-{rendering}"
                   for game in HP_GAME_FIELDS for rendering in HP_RENDERINGS)
 
@@ -106,7 +106,7 @@ class LocalExplanation(Figure):
     label = _("Local explanation (selected trial)")
     home_tab = HYPERSHAP
     per_metric = True
-    # The stored settings key keeps the computation's name.
+    #: The stored settings key keeps the computation's name.
     deferred = (("local_ablation", _("Local explanation (selected trial)")),)
 
 
@@ -187,16 +187,16 @@ class PerformanceOverTime(Figure):
     key = "performance_over_time"
     home_tab = MISC
     shape = LONG
-    # See `Figure.live`.
+    #: See `Figure.live`.
     live = True
-    # The label names the trial as the unit, and the key stays for stored
-    # settings.
+    #: The label names the trial as the unit, and the key stays for stored
+    #: settings.
     label = _("Trial performance")
-    # Clicks here select a trial, as in other figures.
+    #: Clicks here select a trial, as in other figures.
     selects_trials = True
     per_metric = True
     views = ("trial-score", "trial-error", "time-score", "time-error")
-    # `absolute_scale_for` supplies the real ranges; this enables the toggle.
+    #: `absolute_scale_for` supplies the real ranges; this enables the toggle.
     absolute_scale = {
         "trial-score": {"yaxis.range": [0, 1], "yaxis.autorange": False},
         "trial-error": {"yaxis.range": [-3, 0], "yaxis.autorange": False},
@@ -248,18 +248,18 @@ class ConfigurationCube(Figure):
 
     key = "configuration_cube"
     home_tab = ACQUISITION
-    # See `Figure.live`.
+    #: See `Figure.live`.
     live = True
-    # "Projection" covers all three views, and the key stays for stored
-    # settings.
+    #: "Projection" covers all three views, and the key stays for stored
+    #: settings.
     label = _("Hyperparameter space projection")
     per_metric = True
     selects_trials = True
-    # The page opens on PLS, since PLS shows which directions moved the metric.
+    #: The page opens on PLS, since PLS shows which directions moved the metric.
     views = ("axes",) + METHODS
     default_view = "pls"
-    # A logarithmic hyperparameter needs a log axis, and the projections need
-    # the space as well.
+    #: A logarithmic hyperparameter needs a log axis, and the projections need
+    #: the space as well.
     needs_config_space = True
     #: Surrogate uncertainty is per hyperparameter pair, too many to precompute,
     #: and covers the axes view only.
@@ -282,12 +282,12 @@ class ParallelCoordinates(Figure):
     key = "parallel_coordinates"
     home_tab = MISC
     shape = LONG
-    # See `Figure.live`.
+    #: See `Figure.live`.
     live = True
     label = _("Parallel coordinates")
     selects_trials = True
     per_metric = True
-    # Parcoords lacks log axes, so log values are recoded and relabelled.
+    #: Parcoords lacks log axes, so log values are recoded and relabelled.
     needs_config_space = True
 
     @classmethod
@@ -306,7 +306,7 @@ class PartialDependence(Figure):
     home_tab = MISC
     shape = LONG
     per_metric = True
-    # The whole figure is deferred, so the computation shares the key.
+    #: The whole figure is deferred, so the computation shares the key.
     deferred = (("partial_dependence", _("Partial dependence (PDP/ICE)")),)
 
 
@@ -321,7 +321,7 @@ class AcquisitionSlice(Figure):
     home_tab = ACQUISITION
     shape = LONG
     per_metric = True
-    # `Prior` reads it too; the stored name stays.
+    #: `Prior` reads it too; the stored name stays.
     deferred = (("acquisition_slice", _("Acquisition and priors")),)
 
 
@@ -344,11 +344,11 @@ class LocalEffects(Figure):
 
     key = "local_effects"
     label = _("Local effects across trials")
-    # Local explanation's game, across the run.
+    #: Local explanation's game, across the run.
     home_tab = HYPERSHAP
     shape = LONG
-    # Most sampled trials have no point here, so the plot names its trials (see
-    # `_selection_meta`).
+    #: Most sampled trials have no point here, so the plot names its trials (see
+    #: `plots.style.selection_meta`).
     selects_trials = True
     per_metric = True
     deferred = (("local_effects", _("Local effects across trials")),)
@@ -359,7 +359,7 @@ class TrialDuration(Figure):
 
     key = "trial_duration"
     home_tab = MISC
-    # See `Figure.live`.
+    #: See `Figure.live`.
     live = True
     label = _("Trial duration")
     selects_trials = True
@@ -379,7 +379,7 @@ class Trials(Figure):
     #: `page_size` sets the rows per page for the template field and its script,
     #: and readers can change it on the page.
     page_size = 50
-    # Rows carry the trial index, and the highlight is a class.
+    #: Rows carry the trial index, and the highlight is a class.
     selects_trials = True
 
 

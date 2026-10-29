@@ -1,7 +1,7 @@
 
 
 class ModelHostError(Exception):
-    """`detail` holds the model's own traceback, when the model sent one.
+    """`detail` contains the model's own traceback, when the model sent one.
     """
 
     def __init__(self, *args, detail: str = ""):

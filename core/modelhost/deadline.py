@@ -4,8 +4,8 @@ spans both. `PredictedDeadline` allows each configuration `factor` times a
 RandomForest's prediction of its duration, since a median-relative cap would
 prune the slow, high-capacity configurations that often score best. The forest
 cannot extrapolate past the slowest duration seen, so `ceiling` bounds the
-deadline above and `floor` keeps it above the round-trip cost. The forest learns
-only from completed calls, because a timeout or a crash would teach it that a
+deadline above and `floor` keeps it above the round-trip cost. The forest only
+learns from completed calls, because a timeout or a crash would teach it that a
 region is fast.
 """
 

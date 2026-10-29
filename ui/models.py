@@ -50,7 +50,7 @@ class DefaultFigureLayout(models.Model):
 
 
 class ReaderPreferences(models.Model):
-    """`ReaderPreferences` holds per-reader choices beyond any one experiment.
+    """`ReaderPreferences` stores per-reader choices beyond any one experiment.
     """
 
     id: int

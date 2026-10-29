@@ -104,7 +104,7 @@ def test_a_failing_write_does_not_take_the_run_down():
 @pytest.mark.django_db
 def test_a_real_run_writes_its_trials_before_it_finishes(monkeypatch):
     """The model checks the stored result mid-run, since a check after
-    `execute_run` would see only the final write.
+    `execute_run` would only see the final write.
     """
     from experiments.models import Experiment
     from experiments.services import run as run_service
@@ -241,7 +241,7 @@ def test_the_fragment_asks_its_next_question_with_the_count_it_just_sent(
 
 @pytest.mark.django_db
 def test_a_finished_run_still_refreshes_the_whole_page(client, ran_experiment):
-    """Analytics exist only after the run, so the end still triggers a full
+    """Analytics only exist after the run, so the end still triggers a full
     reload."""
     exp = ran_experiment
     exp.runs.all().update(status="done")

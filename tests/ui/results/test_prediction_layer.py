@@ -24,7 +24,7 @@ def _layer(client, exp, metric="accuracy"):
 def test_one_answer_carries_every_view(client):
     """The prediction layer gives every sample its values, mean and spread, plus
     PCA and PLS coordinates. Each projection carries outlines for one to three
-    components, and `eta` holds the best score.
+    components, and `eta` contains the best score.
     """
     data = _layer(client, _experiment()).json()
 

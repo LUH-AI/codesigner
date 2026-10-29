@@ -21,7 +21,7 @@ def _back_to_sharing(request, exp):
 
 
 def _colleague(request, exp):
-    """`_colleague` searches only the experiment's group, so an outside id gets
+    """`_colleague` only searches the experiment's group, so an outside id gets
     the same 404 as a missing one.
     """
     from django.contrib.auth import get_user_model
@@ -55,8 +55,8 @@ def experiment_share(request, exp):
 @require_POST
 @experiment_view(SHARE)
 def experiment_transfer(request, exp):
-    """`experiment_transfer` hands the experiment to a contributor, who gains
-    only `SHARE` and `RENAME`. The previous owner stays a contributor.
+    """`experiment_transfer` hands the experiment to a contributor, who only
+    gains `SHARE` and `RENAME`. The previous owner stays a contributor.
     """
     colleague = _colleague(request, exp)
     if not sharing.transfer(exp, colleague):

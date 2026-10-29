@@ -4,7 +4,7 @@ from experiments.services.run import sweep_stale_runs
 
 
 class Command(BaseCommand):
-    help = "Mark runs left pending/running by a previous process as errored (run at startup)."
+    help = "Mark runs left submitted or running by a previous process as errored (run at startup)."
 
     def handle(self, *args, **options):
         n = sweep_stale_runs()

@@ -1,7 +1,7 @@
-"""Source code in the reference documentation.
+"""`source_view` adds source code to the reference documentation.
 
 Each documented function and class gets its own lines folded under its
-docstring, and each module a page holding its whole file, with a switch
+docstring, and each module a page containing its whole file, with a switch
 between that page and the module's documentation. Names in the code link to
 where they are defined: codesigner's own to their documentation (or, when
 private, the line that defines them), and other projects' into their

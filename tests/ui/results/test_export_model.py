@@ -31,7 +31,7 @@ def _config(body):
 
 
 def test_the_selected_trial_is_exported(client):
-    """The export is an attachment named for model and trial, holding the
+    """The export is an attachment named for model and trial, containing the
     trial's configuration."""
     from experiments.services.snapshot import rebuild_result
 

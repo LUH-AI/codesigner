@@ -60,7 +60,8 @@ def test_a_stored_result_is_rebuilt_with_its_optimizer(filename, opt_cls, metric
 
 
 def test_full_load_requires_dataset_file(metrics, models, optimizers):
-    """The re-supply flow relies on a full load refusing a missing dataset.
+    """The re-supply flow relies on a full load raising a `ValueError` for a
+    missing dataset.
     """
     snapshot = _snapshot("test2.ihpo")   # path missing here
     with pytest.raises(ValueError, match="dataset not found"):

@@ -8,7 +8,7 @@ from .parts import LabelCoded
 
 
 class XGBoost(OutputBaseModel):
-    """`LabelCoded` wraps the classifier because XGBoost knows only labels
+    """`LabelCoded` wraps the classifier because XGBoost only knows labels
     0..k-1, and `fit_args` turns balanced class weights into sample weights.
     """
 

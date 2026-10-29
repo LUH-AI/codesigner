@@ -1,4 +1,4 @@
-"""`optimize()` needs only a name, a config space and `fit_predict`, so a remote
+"""`optimize()` only needs a name, a config space and `fit_predict`, so a remote
 model needs no optimizer changes.
 """
 

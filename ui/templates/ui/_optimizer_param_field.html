@@ -41,7 +41,7 @@ while filling in a form.
         </select>
     {% elif p.type == "float" %}
         {% comment %}
-        Out of range is clamped by the parser rather than refused, so `min` and
+        The parser clamps an out-of-range value to the bounds, so `min` and
         `max` would only be advisory here; the pattern is what keeps a typo from
         silently falling back to the default.
         {% endcomment %}

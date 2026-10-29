@@ -70,7 +70,8 @@ def test_the_forecast_survives_a_round_trip_through_a_file(client):
     ({"series_column": "nowhere"}, "time_column", "no feature column named"),
 ])
 def test_a_forecast_that_cannot_be_backtested_is_refused(client, overrides, field, says):
-    """Each unbacktestable form is refused with its reason."""
+    """The form reports each unbacktestable setup as a validation error with
+    its reason."""
     from experiments.models import Experiment
 
     resp = _create(client, name="nope", **overrides)
@@ -81,7 +82,8 @@ def test_a_forecast_that_cannot_be_backtested_is_refused(client, overrides, fiel
 
 @pytest.mark.django_db
 def test_a_model_that_only_forecasts_needs_backtests(client):
-    """Other validation is refused for Seasonal Naive, which needs a series'
+    """The form reports a validation error for Seasonal Naive under any
+    validation other than backtests, since Seasonal Naive needs a series'
     past."""
     resp = _create(client, name="nope", model_name="Seasonal Naive",
                    evaluation_scheme="kfold", evaluation_value=3)

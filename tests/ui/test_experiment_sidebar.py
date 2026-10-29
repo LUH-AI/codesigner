@@ -67,7 +67,7 @@ def test_other_pages_keep_the_first_section_alone(client):
 
 
 def test_a_read_only_experiment_still_gets_them_all(client):
-    """A read-only experiment keeps every section and loses only the run form."""
+    """A read-only experiment keeps every section and only loses the run form."""
     sidebar = _sidebar(client, _experiment(name="frozen", dataset_path=""))
 
     assert re.findall(r"<h2>([^<]+)</h2>", sidebar) == SECTIONS

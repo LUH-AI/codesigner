@@ -11,7 +11,7 @@ sys.path.insert(0, str(Path(__file__).parent / "_ext"))
 
 project = "Codesigner"
 
-extensions = ["autoapi.extension", "myst_parser", "source_view"]
+extensions = ["autoapi.extension", "myst_parser", "source_view", "doc_comments"]
 
 autoapi_type = "python"
 autoapi_dirs = ["../access", "../config", "../core", "../experiments", "../remote", "../ui",

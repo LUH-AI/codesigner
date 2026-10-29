@@ -4,7 +4,7 @@ optimizer would hand out next. Its prior is the figure beside it (prior.html);
 the two are drawn by one script, ui/static/ui/acquisition.js, because the
 weighted curve here is recomputed from the prior there on every drag — putting
 expected improvement in Python as well would mean maintaining it twice. So the
-server ships a styled skeleton with the traces empty (see plots.py's
+server ships a styled skeleton with the traces empty (see plots/surrogate.py's
 acquisition_slice_plots) and the script fills them.
 
 The token as an attribute rather than a hidden form: this figure posts with
@@ -50,7 +50,7 @@ fetch, which nothing else on the page does.{% endcomment %}
 
         Both are about the acquisition curve, which nothing has computed until
         Compute is pressed (or the figure computes on its own), so they are
-        hidden until there is one — holding their place, so the figure does not
+        hidden until there is one — reserving their place, so the figure does not
         move when they appear.{% endcomment %}
         <p class="selectors stacked acq-controls">
             <select id="acq-hp-select" class="acq-hp-select" aria-label="{% translate 'Hyperparameter' %}">

@@ -7,6 +7,7 @@ from unittest.mock import patch
 import pytest
 
 from core import analytics
+from core.analytics import games
 from core.models import RandomForestModel
 from core.optimizers import RandomOptimizer
 
@@ -28,7 +29,7 @@ def test_stored_values_are_hypershaps_own_fsii(iris_splits, metrics, game):
 
     cs = RandomForestModel().get_config_space(seed=0)
     trials = _trials(iris_splits, metrics)
-    explainer = analytics._build_explainer(cs, trials, "accuracy", 0)
+    explainer = games.build_explainer(cs, trials, "accuracy", 0)
 
     importance, warning, grid, _moebius, total = analytics.compute_hp_game(
         cs, trials, "accuracy", game, seed=7, explainer=explainer)
@@ -57,7 +58,7 @@ def test_a_game_evaluates_its_coalitions_once(iris_splits, metrics):
 
     cs = RandomForestModel().get_config_space(seed=0)
     trials = _trials(iris_splits, metrics)
-    explainer = analytics._build_explainer(cs, trials, "accuracy", 0)
+    explainer = games.build_explainer(cs, trials, "accuracy", 0)
 
     calls = []
     real = hs_games.TunabilityGame.__call__

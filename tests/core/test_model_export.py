@@ -107,7 +107,7 @@ def test_an_export_carries_nothing_of_the_search(name, task):
 
 
 def test_the_hyperparameters_are_the_trials_and_the_processing_the_experiments():
-    """`PROCESSING` holds the experiment's choices as the model resolves them."""
+    """`PROCESSING` contains the experiment's choices as the model resolves them."""
     model, spec, *_ = _model_for("SVM", "classification", _data("classification"),
                                  {"scale": "none"})
     config = dict(model.get_config_space().get_default_configuration())

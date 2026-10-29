@@ -99,7 +99,8 @@ def test_who_pressed_run_is_what_is_checked_not_only_who_owns_it(hosted, ana, tr
     assert refused.status == "error"
 
     # The trusted user passes the permission and stops at the environment gate,
-    # since a hosted instance refuses in-process models.
+    # since `.resolve_runner` returns an error for an in-process model on a
+    # hosted instance.
     allowed = run_service.create_run(exp, {"max_trials": 3}, "accuracy", started_by=trusted)
     run_service.execute_run(allowed.id)
     allowed.refresh_from_db()
@@ -108,7 +109,7 @@ def test_who_pressed_run_is_what_is_checked_not_only_who_owns_it(hosted, ana, tr
 
 
 def test_a_registry_model_is_never_gated(hosted, ana):
-    """The permission covers only uploaded code."""
+    """The permission only covers uploaded code."""
     exp = Experiment.objects.create(
         name="builtin", model_name="Random Forest", optimizer_name="Random Search",
         metric_names=["accuracy"], seed=0, owner=ana)

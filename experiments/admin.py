@@ -4,8 +4,8 @@ from .models import Experiment, ExperimentData, ExperimentShare, GlobalSettings,
 
 
 class ExperimentShareInline(admin.TabularInline):
-    # Group members only; the admin runs `ExperimentShare.clean`, which refuses
-    # others.
+    # Only group members can receive a share. The admin runs
+    # `.ExperimentShare.clean`, which raises a `ValidationError` for anyone else.
     model = ExperimentShare
     extra = 0
     fields = ("user", "level", "granted_by", "granted_at")

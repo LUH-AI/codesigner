@@ -10,7 +10,7 @@ from typing import cast
 import pytest
 from smac import Scenario
 
-from core.optimizers.smac_optimizer import SMACOptimizer
+from core.optimizers.smac import SMACOptimizer
 
 #: scikit-learn names, as `_rf_opts` keys them.
 FOREST = ("n_estimators", "max_depth", "min_samples_split", "min_samples_leaf",
@@ -70,7 +70,7 @@ def test_the_forest_settings_are_ignored_under_the_other_strategy(space):
 
 def test_an_unset_process_is_the_one_the_facade_would_have_built(space):
     """`SMACOptimizer` constructs the process itself because the facade's
-    `get_model` exposes only the model type and kernel."""
+    `get_model` only exposes the model type and kernel."""
     from smac import BlackBoxFacade
     from smac.model.gaussian_process import GaussianProcess
 
@@ -142,7 +142,7 @@ def test_every_surrogate_setting_is_read_back_by_get_params():
 
 
 def test_each_surrogate_setting_declares_the_strategy_it_belongs_to():
-    """The form needs only `depends_on` to hide settings."""
+    """The form only needs `depends_on` to hide settings."""
     scoped = {p.name: p.depends_on for p in SMACOptimizer.params_schema if p.depends_on}
 
     assert scoped == {

@@ -9,6 +9,7 @@ import time
 from pathlib import Path
 
 from django.conf import settings
+from django.db.models import Q
 from django.utils import timezone
 from django.utils.translation import gettext as _
 
@@ -45,7 +46,7 @@ def scoreable(metrics, model, primary_metric):
 def create_run(experiment, stopping, optimize_metric, started_by=None,
                trial_timeout=None, configurations=None):
     """`create_run` commits the optimized metric to the experiment and returns
-    the pending Run. *stopping* holds at least one criterion
+    the pending Run. *stopping* contains at least one criterion
     (`STOPPING_CRITERIA`), and *trial_timeout* limits each model call.
 
     The run copies its stopping criteria, timeout and priors, because the
@@ -118,7 +119,7 @@ def _record_event(run_id, event):
 def _metric_change_event(experiment, now):
     """`_metric_change_event` records a metric change because the trials are
     re-read and a fitted surrogate is discarded. The old metric comes from the
-    stored result, which moves only on an actual trial, because `create_run`
+    stored result, which only moves on an actual trial, because `create_run`
     commits `current_metric` even for a run that then errors.
     """
     stored = experiment.data.result or {}
@@ -212,13 +213,17 @@ def fail_runs(runs, error) -> int:
 
 def request_cancel(exp, user) -> None:
     """`request_cancel` stops runs after the current trial."""
-    exp.runs.filter(status__in=("pending", "running"), cancel_requested=False).update(
+    from experiments.models import Run
+
+    exp.runs.filter(status__in=Run.ACTIVE_STATUSES, cancel_requested=False).update(
         cancel_requested=True, cancel_requested_at=timezone.now(), cancel_requested_by=user)
 
 
 def force_stop(exp) -> None:
     """`force_stop` abandons runs that ignore a cancel request."""
-    stuck = exp.runs.filter(status__in=("pending", "running"), cancel_requested=True)
+    from experiments.models import Run
+
+    stuck = exp.runs.filter(status__in=Run.ACTIVE_STATUSES, cancel_requested=True)
     for job_id in stuck.exclude(job_id="").values_list("job_id", flat=True):
         abandon_cluster_job(job_id)
     fail_runs(stuck, _("Given up on by hand: it stopped answering, and "
@@ -366,7 +371,8 @@ def execute_run_on_cluster(run_id):
     from experiments.models import Run
     run = Run.objects.get(pk=run_id)
     experiment = run.experiment
-    _start(run, backend="slurm")
+    Run.objects.filter(pk=run_id).update(
+        backend="slurm", trial_offset=_trials_stored(experiment.pk))
 
     try:
         dataset = experiment.data.dataset_path()
@@ -393,7 +399,7 @@ def execute_run_on_cluster(run_id):
             model=Path(experiment.data.model_file.path) if experiment.data.model_file else None,
         )
         job_id = jobs.submit(ssh, run_id, workdir, hours=_hours_for(run))
-        Run.objects.filter(pk=run_id).update(job_id=job_id)
+        Run.objects.filter(pk=run_id).update(status="submitted", job_id=job_id)
 
         status = _watch(ssh, run_id, experiment.pk, workdir, job_id)
     except Exception as exc:  # noqa: BLE001 — any failure is reported on the run
@@ -409,8 +415,14 @@ def _watch(ssh, run_id, experiment_pk, workdir, job_id) -> dict:
     """
     from experiments.models import ExperimentData, Run
     cancelled = False
+    started = False
     while True:
         state = jobs.poll(ssh, job_id)
+
+        if not started and state != jobs.QUEUED:
+            Run.objects.filter(pk=run_id, status="submitted").update(
+                status="running", started_at=timezone.now())
+            started = True
 
         if not cancelled and Run.objects.filter(
                 pk=run_id, cancel_requested=True).exists():
@@ -523,12 +535,13 @@ def start_background_run(run_id):
 
 
 def sweep_stale_runs():
-    """The durable huey queue keeps pending runs, so only running runs count as
-    stale.
+    """The durable huey queue keeps pending runs, so only submitted and running
+    runs count as stale.
     """
     from experiments.models import Run
 
-    return fail_runs(Run.objects.filter(status="running"), "Interrupted by a restart.")
+    return fail_runs(Run.objects.filter(status__in=("submitted", "running")),
+                     "Interrupted by a restart.")
 
 
 #: Immediate-mode runs of this process all start later.
@@ -539,7 +552,7 @@ _SWEPT = False
 
 
 def sweep_orphaned_runs():
-    """`sweep_orphaned_runs` applies only in immediate mode, where runs execute
+    """`sweep_orphaned_runs` only applies in immediate mode, where runs execute
     on daemon threads that die when `runserver` restarts. Such a run, if older
     than the process, has no executor, and nobody polls its cancel flag.
     Consumer mode relies on the `sweep_stale_runs` command instead.
@@ -553,7 +566,8 @@ def sweep_orphaned_runs():
         return 0
     _SWEPT = True
     return fail_runs(
-        Run.objects.filter(status="running", started_at__lt=PROCESS_STARTED),
+        Run.objects.filter(Q(status="running", started_at__lt=PROCESS_STARTED)
+                           | Q(status="submitted", created_at__lt=PROCESS_STARTED)),
         "Interrupted before it finished — the process running it was restarted. "
         "Saving a file restarts the development server, which takes any run in "
         "progress with it.")

@@ -66,7 +66,7 @@ def test_labels_become_codes_and_the_unknown_becomes_nan():
 
 
 def test_a_date_becomes_its_calendar_and_an_hour_only_when_there_is_one():
-    """The hour feature appears only when some value has a time."""
+    """The hour feature only appears when some value has a time."""
     frame = pd.DataFrame({"day": ["2024-03-01", "2024-03-04"],
                           "at": ["2024-03-01 08:30", "2024-03-04 17:00"]})
     spec = encoding.fit(frame)

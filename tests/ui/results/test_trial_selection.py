@@ -9,7 +9,7 @@ from ui.figures import FIGURES, FIGURES_BY_KEY
 from experiments.models import Experiment
 
 def _experiment():
-    """`_experiment` holds three finished trials, so a highlight can move."""
+    """`_experiment` contains three finished trials, so a highlight can move."""
     def trial(n, estimators, accuracy):
         return {"config_id": n, "cost": 1 - accuracy, "time": 2.5,
                 "scores": {"accuracy": accuracy, "f1": accuracy - 0.05},

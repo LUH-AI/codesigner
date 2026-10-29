@@ -150,7 +150,8 @@ def test_a_target_above_the_metrics_range_is_clamped():
 
 
 def test_a_negative_target_is_clamped_rather_than_dropped():
-    """Dropping a target of -1 would refuse the run for lacking any criterion.
+    """Dropping a target of -1 would leave the run without a criterion, and
+    `.TrialCollector` would raise `.NoStoppingCriterion`.
     """
     stopping = _posted("accuracy", target_score="-1")
 

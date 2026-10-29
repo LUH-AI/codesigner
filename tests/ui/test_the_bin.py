@@ -1,5 +1,5 @@
 """Deleting puts an experiment in its owner's and contributors' bins, where any
-of them can restore it. Once no person's bin holds it, the site admins' bin
+of them can restore it. Once no person's bin contains it, the site admins' bin
 keeps it until a site admin destroys it.
 """
 
@@ -120,7 +120,7 @@ def test_and_in_no_list(client, hosted, lab):
 
 def test_a_deleted_groups_bin_leaves_it_to_its_people(client, hosted, lab):
     """`GroupPolicy.trash` omits a group-less experiment while a person's bin
-    still holds it."""
+    still contains it."""
     from access.policy import GroupPolicy
 
     _delete(client, lab)

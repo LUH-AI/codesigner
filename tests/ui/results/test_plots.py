@@ -8,7 +8,7 @@ import plotly.graph_objects as go
 import pytest
 
 from core.optimizers import OptimizationResult, TrialResult
-from ui.figures.plots import ACCENT_COLOR, _translucent
+from ui.figures.plots.style import ACCENT_COLOR, translucent
 from ui.figures import (
     configuration_cube_plot,
     configuration_projection_plot,
@@ -34,7 +34,7 @@ def _drawn(fig: go.Figure | None) -> Any:
 
 
 def _result() -> OptimizationResult:
-    """`_result` holds accuracies 0.5, 0.3 and 0.9 and importance for accuracy
+    """`_result` contains accuracies 0.5, 0.3 and 0.9 and importance for accuracy
     only."""
     trials = [
         TrialResult(trial=1, config={"a": 1}, scores={"accuracy": 0.5, "f1": 0.4},
@@ -175,7 +175,7 @@ def test_ablation_plot_none_when_empty():
 
 
 def _interactions():
-    """`_interactions` holds strong a/b synergy, weaker a/c and near-zero b/c
+    """`_interactions` contains strong a/b synergy, weaker a/c and near-zero b/c
     synergy."""
     return {
         "a": {"a": 0.5, "b": 0.3, "c": 0.1},
@@ -198,7 +198,7 @@ def test_interactions_heatmap_none_when_empty():
 
 
 def test_interactions_bar_ranks_off_diagonal_pairs_by_magnitude():
-    """The bar shows only off-diagonal pairs, ranked by magnitude."""
+    """The bar only shows off-diagonal pairs, ranked by magnitude."""
     fig = _drawn(hyperparameter_interactions_bar_plot(_interactions()))
     bar = fig.data[0]
     assert list(bar.x) == ["a × b", "a × c", "b × c"]
@@ -345,7 +345,7 @@ def _cube_result():
 
 def test_configuration_cube_ships_no_axis_assignment_of_its_own():
     """The server leaves every axis empty because the pickers start at None, and
-    customdata holds every value."""
+    customdata contains every value."""
     fig = _drawn(configuration_cube_plot(_cube_result(), "accuracy"))
     trace = fig.data[0]
     assert list(trace.x) == []
@@ -383,7 +383,7 @@ def test_configuration_cube_draws_for_a_single_hyperparameter():
 
 
 def _svm_result():
-    """`_svm_result` holds SVM trials spanning log-searched `C` and `tol`."""
+    """`_svm_result` contains SVM trials spanning log-searched `C` and `tol`."""
     def trial(n, c, tol, kernel, score):
         return TrialResult(trial=n, config={"C": c, "tol": tol, "kernel": kernel},
                            scores={"accuracy": score}, score=score,
@@ -413,14 +413,14 @@ def test_configuration_cube_names_the_log_hyperparameters_for_the_client():
 
 def test_configuration_cube_without_a_config_space_stays_linear():
     """Without a config space, the figure draws a linear axis of real values
-    instead of refusing."""
+    instead of returning None."""
     fig = _drawn(configuration_cube_plot(_svm_result(), "accuracy", config_space=None))
 
     assert fig.layout.meta["log_hps"] == []
 
 
 def test_configuration_cube_values_are_untouched_by_the_log_axis():
-    """A log axis keeps the values real, so customdata holds them unchanged."""
+    """A log axis keeps the values real, so customdata contains them unchanged."""
     fig = _drawn(configuration_cube_plot(_svm_result(), "accuracy", config_space=_svm_space()))
 
     assert [row[0] for row in fig.data[0].customdata] == [0.01, 1.0, 100.0]
@@ -450,7 +450,7 @@ def _axis_positions(fig, label):
     """`_axis_positions` returns each trial's position on one axis, skipping
     `_densified` span points.
     """
-    from ui.figures.plots import _PARCOORDS_STEPS
+    from ui.figures.plots.space import _PARCOORDS_STEPS
 
     x = _axis_labels(fig).index(label) * _PARCOORDS_STEPS
     traces = _trace_of_trial(fig)
@@ -632,7 +632,7 @@ def _selection_of(fig):
 
 
 def test_every_trial_drawing_figure_says_where_its_trials_are():
-    """Each named trace's list must match its point count and hold valid
+    """Each named trace's list must match its point count and contain valid
     positions, since a mistake highlights the wrong trial without failing."""
     result = _cube_result()
     n = len(result.trials)
@@ -697,7 +697,7 @@ def test_the_beeswarm_names_the_trials_it_sampled():
 def test_figures_scaled_to_the_metric_share_one_scale():
     """Both score-coloured figures must share one ramp, though different code
     builds each."""
-    from ui.figures.plots import _INTENSITY_SCALE, _scale_color
+    from ui.figures.plots.space import _INTENSITY_SCALE, _scale_color
 
     result = _cube_result()
     cube = _drawn(configuration_cube_plot(result, "accuracy"))
@@ -719,8 +719,8 @@ def test_the_selection_color_says_only_that_a_trial_is_selected():
     # Fading is per point, so a failure's cross and the selected point both stay
     # at full strength.
     assert fig.data[0].marker.color[1] == SELECTION_COLOR
-    assert fig.data[0].marker.color[0] == _translucent(MARKER_COLOR)
-    assert fig.data[0].marker.color[0] == _translucent(MARKER_COLOR)
+    assert fig.data[0].marker.color[0] == translucent(MARKER_COLOR)
+    assert fig.data[0].marker.color[0] == translucent(MARKER_COLOR)
     assert fig.data[1].line.color == ACCENT_COLOR, "the incumbent line"
     assert fig.data[2].marker.color == ACCENT_COLOR, "the trials that improved it"
 
@@ -754,7 +754,7 @@ def test_a_parallel_coordinates_line_can_be_clicked_between_its_axes():
     """Extra points on each straight span make the whole line clickable without
     changing the picture.
     """
-    from ui.figures.plots import _PARCOORDS_STEPS
+    from ui.figures.plots.space import _PARCOORDS_STEPS
 
     fig = _drawn(parallel_coordinates_plot(_parcoords_result(), "accuracy"))
     sel = fig.layout.meta["selection"]
@@ -840,7 +840,7 @@ def test_the_progress_pie_splits_each_wedge_in_place():
     wedge in place.
     """
     from ui.figures import hyperparameter_progress_plot
-    from ui.figures.plots import _PROGRESS_SHADES
+    from ui.figures.plots.importance import _PROGRESS_SHADES
 
     rows = [{"name": "a", "achievable": 0.08, "banked": 0.06, "remaining": 0.02}]
     trace = _drawn(hyperparameter_progress_plot(rows, "pie")).data[0]
@@ -883,13 +883,13 @@ def test_a_wedge_label_is_one_size_or_absent():
     """`textfont` fixes the label size, and `uniformtext` mode "hide" drops
     labels that no longer fit.
     """
-    from ui.figures.plots import _TEXT_SIZE
+    from ui.figures.plots.style import TEXT_SIZE
 
     pie = _drawn(hyperparameter_importance_plot({"a": 0.8, "b": 0.2}, "pie"))
 
-    assert pie.data[0].textfont.size == _TEXT_SIZE
+    assert pie.data[0].textfont.size == TEXT_SIZE
     assert pie.layout.uniformtext.mode == "hide"
-    assert pie.layout.uniformtext.minsize == _TEXT_SIZE, \
+    assert pie.layout.uniformtext.minsize == TEXT_SIZE, \
         "below it Plotly would be scaling again, which is the thing prevented"
 
 
