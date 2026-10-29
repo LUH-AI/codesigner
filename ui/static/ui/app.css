@@ -1093,6 +1093,8 @@ hr.divider { border: none; border-top: 1px solid var(--border); margin: 1.5rem 0
 .assistant-head-actions { display: flex; gap: 0.35rem; }
 .assistant-head .btn { font-size: 0.8rem; padding: 0.2rem 0.6rem; }
 .assistant-log { flex: 1; overflow-y: auto; display: flex; flex-direction: column; gap: 0.5rem; min-height: 0; }
+/* A full log scrolls; its messages keep their height rather than shrink to fit. */
+.assistant-log > * { flex-shrink: 0; }
 .assistant-msg {
     white-space: pre-wrap;
     overflow-wrap: anywhere;
