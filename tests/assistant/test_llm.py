@@ -93,10 +93,10 @@ def test_arguments_that_are_not_json_are_kept_to_be_refused():
     assert reply.tool_calls[0].arguments == {"__unparseable__": "{oops"}
 
 
-def test_server_specific_switches_are_sent_only_when_set():
-    """The test checks that repetition penalty and thinking, which some servers
-    refuse, are sent only when configured. The test records the stand-in
-    client's arguments with and without them."""
+def test_server_specific_fields_are_sent_only_when_set():
+    """What: the configured extra fields go with every request and nothing is
+    sent without them. How: a stand-in client records its arguments, once
+    without extra fields and once with a thinking switch."""
     seen = []
     response = NS(choices=[NS(message=NS(content="ok", tool_calls=None))], usage=None)
 
@@ -107,12 +107,36 @@ def test_server_specific_switches_are_sent_only_when_set():
     plain = _client(create)
     plain.chat([])
     tuned = ChatClient(base_url="http://model.invalid/v1", model="m", api_key="",
-                       repetition_penalty=1.05, enable_thinking=False)
+                       extra_body={"chat_template_kwargs": {"enable_thinking": False}})
     tuned._client = NS(chat=NS(completions=NS(create=create)))
     tuned.chat([])
 
-    assert "extra_body" not in seen[0]
-    assert seen[1]["extra_body"] == {"repetition_penalty": 1.05, "enable_thinking": False}
+    assert "extra_body" not in seen[0] and "response_format" not in seen[0]
+    assert seen[1]["extra_body"] == {"chat_template_kwargs": {"enable_thinking": False}}
+
+
+def test_one_call_can_add_fields_and_ask_for_a_shape():
+    """What: a call's own extra fields merge into the configured ones, nested
+    objects key by key, and its response format is passed on. How: a client
+    configured with a thinking switch and a penalty makes one call that adds
+    a reasoning effort and asks for a JSON schema."""
+    seen = []
+    response = NS(choices=[NS(message=NS(content="{}", tool_calls=None))], usage=None)
+    client = ChatClient(base_url="http://model.invalid/v1", model="m", api_key="",
+                        extra_body={"chat_template_kwargs": {"enable_thinking": True},
+                                    "repetition_penalty": 1.05})
+    client._client = NS(chat=NS(completions=NS(create=lambda **kw: seen.append(kw) or response)))
+    shape = {"type": "json_schema", "json_schema": {"name": "route", "schema": {"type": "object"}}}
+
+    client.chat([], response_format=shape,
+                extra_body={"chat_template_kwargs": {"enable_thinking": False,
+                                                     "reasoning_effort": "low"}})
+
+    assert seen[0]["response_format"] == shape
+    assert seen[0]["extra_body"] == {
+        "chat_template_kwargs": {"enable_thinking": False, "reasoning_effort": "low"},
+        "repetition_penalty": 1.05}
+    assert client._extra["chat_template_kwargs"] == {"enable_thinking": True}
 
 
 def test_texts_become_unit_vectors_in_their_order_and_in_batches(settings):

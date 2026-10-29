@@ -95,23 +95,24 @@ ANALYTICS_EAGER_MAX_COALITIONS = env.int("ANALYTICS_EAGER_MAX_COALITIONS", defau
 # (assistant/). Off by default: with it off, or its model unreachable, every
 # page is what it was without it.
 ASSISTANT_ENABLED = env.bool("ASSISTANT_ENABLED", default=False)
-# The language model, over the OpenAI chat API: a local LM Studio by default,
-# or any server that speaks it (vLLM, Ollama's /v1, a hosted one).
-ASSISTANT_LLM_BASE_URL = env.str("ASSISTANT_LLM_BASE_URL", default="http://localhost:1234/v1")
-ASSISTANT_LLM_MODEL = env.str("ASSISTANT_LLM_MODEL", default="qwen/qwen3.6-35b-a3b")
+# The language model, over the OpenAI chat API: LUIS's chat-ai service by
+# default, or any server that speaks it (vLLM, LM Studio, Ollama's /v1).
+ASSISTANT_LLM_BASE_URL = env.str("ASSISTANT_LLM_BASE_URL",
+                                 default="https://chat-ai.cluster.uni-hannover.de/v1")
+ASSISTANT_LLM_MODEL = env.str("ASSISTANT_LLM_MODEL", default="qwen38-27b-fp8")
 ASSISTANT_LLM_TOKEN = env.str("ASSISTANT_LLM_TOKEN", default="not-needed")
 # Seconds one call to the model may take, and how often a failed one is retried.
 ASSISTANT_LLM_TIMEOUT = env.float("ASSISTANT_LLM_TIMEOUT", default=120.0)
 ASSISTANT_LLM_RETRIES = env.int("ASSISTANT_LLM_RETRIES", default=2)
-# Sampling switches some local servers take and hosted ones refuse; sent only
-# when set.
-ASSISTANT_LLM_REPETITION_PENALTY = env.float("ASSISTANT_LLM_REPETITION_PENALTY", default=None)
-ASSISTANT_LLM_ENABLE_THINKING = env.bool("ASSISTANT_LLM_ENABLE_THINKING", default=None)
+# Fields added to every request as they are, a JSON object: the server's own
+# switches, such as {"chat_template_kwargs": {"enable_thinking": false}} or a
+# repetition penalty. Servers differ in which they take.
+ASSISTANT_LLM_EXTRA_BODY = env.json("ASSISTANT_LLM_EXTRA_BODY", default={})
 # The model that turns text into vectors, for searching the assistant's
 # library (assistant/knowledge): any server with the OpenAI embeddings API.
 # Without one, the library is searched by its words alone.
 ASSISTANT_EMBED_BASE_URL = env.str("ASSISTANT_EMBED_BASE_URL", default="")
-ASSISTANT_EMBED_MODEL = env.str("ASSISTANT_EMBED_MODEL", default="qwen3-embedding-0.6b")
+ASSISTANT_EMBED_MODEL = env.str("ASSISTANT_EMBED_MODEL", default="qwen3-embedding-8b")
 ASSISTANT_EMBED_TOKEN = env.str("ASSISTANT_EMBED_TOKEN", default="not-needed")
 # Put before a search query, never before a passage: instruction-tuned
 # embedding models (Qwen3-Embedding's format here) rank better told what the

@@ -64,18 +64,14 @@ class ChatClient:
     """A model behind an OpenAI-compatible endpoint."""
 
     def __init__(self, *, base_url: str, model: str, api_key: str, timeout: float = 120.0,
-                 retries: int = 2, repetition_penalty: float | None = None,
-                 enable_thinking: bool | None = None) -> None:
+                 retries: int = 2, extra_body: dict | None = None) -> None:
         from openai import OpenAI
 
         self._client = OpenAI(base_url=base_url, api_key=api_key or "not-needed",
                               timeout=timeout, max_retries=retries)
         self.model = model
-        self._extra = {}
-        if repetition_penalty is not None:
-            self._extra["repetition_penalty"] = repetition_penalty
-        if enable_thinking is not None:
-            self._extra["enable_thinking"] = enable_thinking
+        #: `_extra` holds the fields every request carries beyond the API's own.
+        self._extra = dict(extra_body or {})
 
     @classmethod
     def from_settings(cls) -> "ChatClient":
@@ -84,21 +80,27 @@ class ChatClient:
         return cls(base_url=settings.ASSISTANT_LLM_BASE_URL, model=settings.ASSISTANT_LLM_MODEL,
                    api_key=settings.ASSISTANT_LLM_TOKEN, timeout=settings.ASSISTANT_LLM_TIMEOUT,
                    retries=settings.ASSISTANT_LLM_RETRIES,
-                   repetition_penalty=settings.ASSISTANT_LLM_REPETITION_PENALTY,
-                   enable_thinking=settings.ASSISTANT_LLM_ENABLE_THINKING)
+                   extra_body=settings.ASSISTANT_LLM_EXTRA_BODY)
 
     def chat(self, messages: list[dict], tools: list[dict] | None = None,
-             progress: Progress | None = None) -> Reply:
-        """Ask the model to answer *messages*, offering it *tools*. Streams when
-        *progress* is given, which then hears the text as it arrives."""
+             progress: Progress | None = None, *, response_format: dict | None = None,
+             extra_body: dict | None = None) -> Reply:
+        """`chat` asks the model to answer *messages*, offering it *tools*. A
+        call streams when *progress* is given, which then hears the text as it
+        arrives. *response_format* asks for a reply of a given shape, and
+        *extra_body* adds fields to this request alone, nested ones merged into
+        the client's own."""
         import openai
 
         kwargs: dict = {"model": self.model, "messages": messages}
         if tools:
             kwargs["tools"] = tools
             kwargs["tool_choice"] = "auto"
-        if self._extra:
-            kwargs["extra_body"] = dict(self._extra)
+        if response_format:
+            kwargs["response_format"] = response_format
+        extra = _merged(self._extra, extra_body or {})
+        if extra:
+            kwargs["extra_body"] = extra
         try:
             if progress is None:
                 return self._blocking(kwargs)
@@ -162,6 +164,18 @@ class ChatClient:
                       "function": {"name": built["name"], "arguments": built["arguments"]}}
                      for _, built in sorted(builders.items())]
         return _reply(text or None, raw_calls, tokens)
+
+
+def _merged(base: dict, over: dict) -> dict:
+    """`_merged` returns *base* with *over* laid on top, nested objects merged
+    key by key."""
+    out = dict(base)
+    for key, value in over.items():
+        if isinstance(value, dict) and isinstance(out.get(key), dict):
+            out[key] = _merged(out[key], value)
+        else:
+            out[key] = value
+    return out
 
 
 def _held_back(visible: str) -> str:
