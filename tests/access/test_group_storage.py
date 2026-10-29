@@ -1,7 +1,7 @@
 """A group's usage counts datasets, model files and kept trial models, and
-bundled demos count for nobody. An upload past the limit evicts the stalest kept
-models, and the app refuses the upload only when datasets and model files alone
-exceed the limit.
+bundled demos count for nobody. An upload past the limit evicts the stalest
+kept models, and the app only deletes the upload and reports an error when
+datasets and model files alone exceed the limit.
 """
 
 from pathlib import Path
@@ -129,7 +129,7 @@ def test_a_dataset_past_the_limit_replaces_the_stalest_kept_models(lab, client, 
 
 
 def test_datasets_alone_past_the_limit_are_refused(lab, client):
-    """The refused upload leaves nothing behind."""
+    """An upload past the limit leaves nothing behind."""
     lab["group"].storage_limit_bytes = 100
     lab["group"].save()
 

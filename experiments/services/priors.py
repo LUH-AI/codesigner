@@ -22,7 +22,7 @@ def run_budget(exp, offset):
     *offset* is the anchor trial where the prior was stated; passing the live
     count instead stops the prior from fading.
     """
-    from core.optimizers.smac_optimizer import scenario_budget
+    from core.optimizers.smac.facade import scenario_budget
 
     last = exp.runs.order_by("-pk").first()
     return scenario_budget(offset, (last.stopping or {}).get("max_trials") if last else None)
@@ -86,7 +86,7 @@ def state(exp, hp_name, prior, user=None) -> dict:
             "kind": prior.get("kind") or "uniform",
             "params": prior.get("params") or {},
             "decay": prior_math.decay_record(prior.get("decay"), run_budget(exp, at_trial)),
-            # `delay_decay` holds only while the initial design is unfinished.
+            # `delay_decay` only applies while the initial design is unfinished.
             "delay_decay": bool(prior.get("delay_decay")
                                 and prior_math.inside_initial_design(result_now)),
             # An edited parameter keeps the anchor, or decay would stay at zero.

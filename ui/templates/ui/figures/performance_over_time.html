@@ -1,7 +1,7 @@
 {% load i18n %}
 {% comment %}Clicking a point here selects that trial (see selected_configuration).
 Four views of one curve: trial index or elapsed time on x, score or error on
-y — see ui/figures/plots.py:performance_over_time_plot and
+y — see ui/figures/plots/performance.py:performance_over_time_plot and
 experiment_detail.html's payloadFor/redraw for how the two selects below
 compose into one view key.{% endcomment %}
 <section class="card" data-figure="{{ figure.key }}">

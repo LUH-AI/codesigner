@@ -1,9 +1,11 @@
-"""`CHOICES` holds the processing an experiment records in its `.ihpo`, each
-step starting as "auto" for what the model needs. `resolve` overrules a choice
-the model cannot take. `Processing` fits on a fold's training rows only, so
-validation rows never shape their own scaling. An exported model carries
-`core.processing` as its processing step, since the module imports nothing from
-codesigner.
+"""`CHOICES` maps each data preparation step (missing values, scaling and
+label encoding) to the options an experiment can select for it. An experiment
+saves its selected options in its `.ihpo` file. Every step starts as "auto",
+which `model_defaults` resolves to the option the model needs, and `resolve`
+overrules an option the model cannot take. `Processing` only fits on a fold's
+training rows, so validation rows never shape their own scaling. An exported
+model carries `core.processing` as its processing step, since the module
+imports nothing from codesigner.
 """
 
 from sklearn.base import BaseEstimator
@@ -37,7 +39,7 @@ def model_defaults(model) -> dict:
 
 
 def unavailable(model, step, choice) -> bool:
-    """`unavailable` flags `keep` for a model refusing NaN values."""
+    """`unavailable` flags `keep` for a model whose `accepts_missing` is False."""
     return step == "missing" and choice == "keep" and not getattr(model, "accepts_missing", True)
 
 
@@ -150,9 +152,9 @@ class Processing(BaseEstimator):
 
 
 class TextCategories(BaseEstimator):
-    """CatBoost refuses NaN in a category, so `TextCategories` writes each label
-    code as digits and a missing label as "missing". An empty *columns* makes
-    every given column a label.
+    """CatBoost raises a `CatBoostError` for NaN in a category, so
+    `TextCategories` writes each label code as digits and a missing label as
+    "missing". An empty *columns* makes every given column a label.
     """
 
     def __init__(self, columns=()):

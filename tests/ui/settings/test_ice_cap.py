@@ -1,10 +1,10 @@
 """`ice_max_curves` caps the trials that partial dependence predicts. The cap
-limits the work, so the drawn mean covers only the sample.
+limits the work, so the drawn mean only covers the sample.
 """
 
 from django.urls import reverse
 
-from core.analytics import _sample_evenly
+from core.analytics.surrogate import sample_evenly
 from experiments.models import GlobalSettings
 from experiments.services.settings import SETTING_BOUNDS
 from ui.experiment_settings import SETTING_DEFAULTS, resolve_settings
@@ -13,35 +13,35 @@ from ui.experiment_settings import SETTING_DEFAULTS, resolve_settings
 # Sampler
 
 def test_zero_means_every_trial():
-    assert _sample_evenly(list(range(50)), 0) == list(range(50))
+    assert sample_evenly(list(range(50)), 0) == list(range(50))
 
 
 def test_a_limit_above_the_trial_count_changes_nothing():
-    assert _sample_evenly([1, 2, 3], 10) == [1, 2, 3]
+    assert sample_evenly([1, 2, 3], 10) == [1, 2, 3]
 
 
 def test_the_sample_spans_the_run_rather_than_its_first_k():
     """A trial history explores first and exploits later, so a prefix would
     misstate the average."""
-    assert _sample_evenly(list(range(100)), 5) == [0, 25, 50, 74, 99]
+    assert sample_evenly(list(range(100)), 5) == [0, 25, 50, 74, 99]
 
 
 def test_the_first_and_last_trials_are_always_drawn():
     for limit in (2, 3, 7, 33):
-        sample = _sample_evenly(list(range(100)), limit)
+        sample = sample_evenly(list(range(100)), limit)
         assert sample[0] == 0 and sample[-1] == 99, limit
         assert len(sample) == limit
 
 
 def test_a_limit_of_one_keeps_the_last_trial():
     """The most recent curve informs most."""
-    assert _sample_evenly(list(range(10)), 1) == [9]
+    assert sample_evenly(list(range(10)), 1) == [9]
 
 
 def test_the_sample_is_deterministic():
     """A random sample would flicker between reloads."""
     items = list(range(1000))
-    assert _sample_evenly(items, 40) == _sample_evenly(items, 40)
+    assert sample_evenly(items, 40) == sample_evenly(items, 40)
 
 
 # Setting

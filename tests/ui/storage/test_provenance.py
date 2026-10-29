@@ -1,6 +1,6 @@
 """An exported `.ihpo` should carry everything needed to recreate its
 experiment, and `result` already mirrors SMAC's state. Format 2 states each
-subject once, and `io.normalize` lifts format 1 files instead of refusing them.
+subject once, and `.io.normalize` lifts format 1 files, so they still open.
 """
 
 import hashlib
@@ -78,7 +78,7 @@ def test_the_dataset_is_recorded_by_digest_not_embedded(client):
 
 def test_an_experiment_with_no_dataset_records_nothing_to_check(client):
     """The section records no digest for a browsable import without a dataset,
-    since a digest would refuse every dataset."""
+    since a digest would flag every dataset as a mismatch."""
     exp = _create(client)
     # A demo is named, never stored.
     exp.data.demo_dataset = ""
@@ -125,8 +125,8 @@ def test_a_holdout_records_its_split_size(client):
 
 
 def test_stratification_is_what_happened_not_what_was_asked_for(client):
-    """Both schemes fall back when scikit-learn refuses a continuous target, so
-    the file records what happened."""
+    """Both schemes fall back when scikit-learn raises a `ValueError` for a
+    continuous target, so the file records what happened."""
     rows = "\n".join(f"{i},{i * 0.37:.4f}" for i in range(40))
     continuous = SimpleUploadedFile(
         "continuous.csv", f"x,y\n{rows}\n".encode(), content_type="text/csv")
@@ -178,7 +178,7 @@ def test_only_the_blanks_are_answered(client):
 
 def test_how_the_initial_design_was_bounded_is_in_the_settings(client):
     """The initial design's fields already live in `params`, and SMAC's scenario
-    in `result.optimizer_state` holds the settled number."""
+    in `result.optimizer_state` contains the settled number."""
     record = _exported(client, _create(
         client, opt_use_trial_cap="on", opt_trial_cap="4"))["optimizer"]
 
@@ -582,7 +582,7 @@ def test_a_prior_that_reached_the_search_is_recorded(db):
 
 
 def test_a_prior_that_was_ignored_says_so(db):
-    """`_apply_priors` reports and continues on every failure, so a skipped
+    """`apply_priors` reports and continues on every failure, so a skipped
     prior would look like a weighted run.
     """
     events = _prior_event({"prior": {

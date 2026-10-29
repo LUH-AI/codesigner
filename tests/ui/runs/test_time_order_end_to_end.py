@@ -85,8 +85,8 @@ def test_the_order_survives_a_round_trip_through_a_file(client):
 @pytest.mark.parametrize("column, says", [("city", "holds labels"),
                                           ("nowhere", "no feature column named")])
 def test_a_column_that_cannot_order_the_rows_is_refused(client, column, says):
-    """The form refuses a label column or a missing one, naming the reason and
-    the usable columns."""
+    """The form reports a label column or a missing one as a validation error,
+    naming the reason and the usable columns."""
     from experiments.models import Experiment
 
     resp = _create(client, name=f"bad {column}", time_column=column)

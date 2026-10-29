@@ -10,10 +10,10 @@ sources:
   - core/optimizers/base.py:81-166 (HP_GAME_FIELDS, HP_GAME_LABELS, HP_GAME_HELP, HyperparameterImportance)
   - ui/templates/ui/figures/hyperparameter_importance.html, _importance_table.html, _before_this_run.html
   - ui/templates/ui/_side_explanation.html
-  - ui/figures/plots.py:225-250 (hyperparameter_importance_plot)
+  - ui/figures/plots/importance.py:9-34 (hyperparameter_importance_plot)
   - ui/templates/ui/experiment_detail.html:1062-1171, 1257-1429, 3373-3475
   - ui/views/analytics.py:306-346 (hypershap_figures), 349-370 (_analytics_absent, experiment_compute_analytics), 403-416 (TUNING_PROGRESS_ENABLED)
-  - core/analytics.py:21-31 (HP_GAMES), 234-256 (budget), 712-762 (compute_hp_games), 789-856 (_compute_hp_game)
+  - core/analytics/games.py:19-29 (HP_GAMES), 77-99 (budget), 114-164 (compute_hp_games), 191-258 (_compute_hp_game)
   - experiments/services/settings.py (autocompute_hypershap_baseline default on, GAME_DISPLAY_FIGURES)
 ---
 

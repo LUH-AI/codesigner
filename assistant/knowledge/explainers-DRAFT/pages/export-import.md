@@ -16,7 +16,7 @@ sources:
   - experiments/services/model_export.py
   - ui/templates/ui/import.html
   - ui/templates/ui/_group_picker.html
-  - ui/views/imports.py:17-51
+  - ui/views/imports.py:18-52
   - core/provenance.py:179-193
   - ui/templates/ui/bin.html
   - ui/templates/ui/bin_dismiss_confirm.html

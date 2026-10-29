@@ -1,4 +1,4 @@
-"""`create_site_admin` makes an account holding `manage_site` and, by default, a
+"""`create_site_admin` makes an account granted `manage_site` and, by default, a
 one-seat group with the new admin as primary lead. Membership decides what a
 site admin sees, as for anybody else, and `--users 0` creates no group. The
 command leaves `createsuperuser` alone, since overriding it would mean
@@ -44,8 +44,9 @@ class Command(BaseCommand):
 
         if seats < 0:
             raise CommandError("--users cannot be negative")
-        # An existing account is refused, so a typo'd address never grants
-        # `manage_site` to somebody else.
+        # The command only creates a new account and raises a `CommandError`
+        # for an existing one, so a typo'd address never grants `manage_site`
+        # to somebody else.
         if accounts.find(address) is not None:
             raise CommandError(f"there is already an account for {address!r}")
 

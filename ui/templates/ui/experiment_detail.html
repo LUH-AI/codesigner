@@ -448,8 +448,8 @@ being read.{% endcomment %}
                 if (panel) panel.classList.toggle("is-proposal", !!on);
             }
 
-            // Where a plot's per-trial points are — see plots.py's
-            // `_selection_meta` for the contract. Absent for a figure that
+            // Where a plot's per-trial points are — see plots/style.py's
+            // `selection_meta` for the contract. Absent for a figure that
             // draws a summary rather than the trials, and for the trials
             // table, which has no plot at all.
             function selectionMeta(key) {
@@ -471,7 +471,7 @@ being read.{% endcomment %}
 
             // Show *idx* as selected on one figure, however that figure is
             // able to show it — which is decided by what its colour already
-            // means, not by taste. See plots.py's RECOLOR / OUTLINE / LINE.
+            // means, not by taste. See plots/style.py's RECOLOR / OUTLINE / LINE.
             // What a failure's cross shrinks to in a 3D scene — below the
             // 8 the ordinary points are drawn at, not above it.
             //
@@ -598,7 +598,7 @@ being read.{% endcomment %}
                             // outline — so on a failure the outline is what
                             // carries the selection. Shape says "this was
                             // not measured", colour says "this is the one
-                            // you picked"; see plots.py's _failure_marks.
+                            // you picked"; see plots/style.py's failure_marks.
                             update["marker.line.color"] = [trials.map(function (_v, i) {
                                 return (i === at && isFailure(i))
                                     ? selectionColors.selected : baseLine[i];
@@ -3174,7 +3174,7 @@ being read.{% endcomment %}
             //
             // Merged into the payload maps rather than replacing them. Only
             // the live figures are in it: the analytics are not computed
-            // per trial, and the three fetched figures hold whatever was
+            // per trial, and the three fetched figures keep whatever was
             // last asked for. Both must survive an update that is not about
             // them.
             const liveFigures =
@@ -3568,7 +3568,7 @@ being read.{% endcomment %}
                         camera: cubeCamera, dragmode: cubeDragmode,
                         scroll: window.scrollY, sidebarScroll: sidebar ? sidebar.scrollTop : 0,
                     }));
-                } catch (e) { /* storage refused: the page opens fresh */ }
+                } catch (e) { /* storage unavailable: the page opens fresh */ }
             }
             document.addEventListener("submit", function (event) {
                 if (event.target.matches("form[data-keeps-view]")) keepView();

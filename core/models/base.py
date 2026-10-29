@@ -12,7 +12,7 @@ if TYPE_CHECKING:
 
 
 class Tunable(OptimizableBaseModel, OutputBaseModel):
-    """`Tunable` adds only `get_config_space` to the delivered output class, so
+    """`Tunable` only adds `get_config_space` to the delivered output class, so
     a trial predicts what the delivered model would.
     """
 

@@ -1,4 +1,4 @@
-"""Every view here reaches only drafts (`drafts=ONLY`); `ui/setup_steps.py`
+"""Every view here only reaches drafts (`drafts=ONLY`); `ui/setup_steps.py`
 defines the four steps, and `ui/drafts.py` does the saving.
 """
 

@@ -10,7 +10,7 @@
         {% if user.email %}{{ user.email }}{% endif %}
     </p>
 
-    {% comment %}Said plainly because a superuser holds every permission below
+    {% comment %}Said plainly because a superuser has every permission below
     without any of them appearing as a grant — Django gives them all four — and a
     page listing four ticks with nothing explaining why would read as though
     somebody had ticked them.{% endcomment %}

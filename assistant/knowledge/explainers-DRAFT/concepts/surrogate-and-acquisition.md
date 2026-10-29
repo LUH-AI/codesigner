@@ -7,15 +7,15 @@ related: [concept-optimizers, concept-priors, concept-projection, concept-initia
 keywords: [surrogate, model of the objective, Gaussian process, random forest, uncertainty, spread, confidence, acquisition function, expected improvement, probability of improvement, lower confidence bound, EI, PI, LCB, next trials, requery, proposal, run as trial, prediction layer, acquisition layer, sample]
 status: draft
 sources:
-  - core/analytics.py:73-94
-  - core/analytics.py:115-127
+  - core/analytics/surrogate.py:49-70
+  - core/analytics/surrogate.py:73-85
   - core/optimizers/base.py:535-542
-  - core/analytics.py:409-470
-  - core/analytics.py:473-568
-  - core/analytics.py:590-697
-  - core/optimizers/smac_optimizer.py:211-233
-  - core/optimizers/smac_optimizer.py:475-501
-  - core/optimizers/smac_optimizer.py:573-600
+  - core/analytics/effects.py:168-229
+  - core/analytics/slices.py:35-130
+  - core/analytics/slices.py:152-259
+  - core/optimizers/smac/surrogate.py:19-37
+  - core/optimizers/smac/optimizer.py:57-83
+  - core/optimizers/smac/optimizer.py:85-112
   - ui/static/ui/improvement.js
   - ui/static/ui/acquisition.js:228-246
   - ui/timeline.py:352-377

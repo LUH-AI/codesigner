@@ -22,7 +22,7 @@ sources:
   - ui/views/analytics.py:306-346
   - ui/views/runs.py:25-71
   - ui/views/analytics.py:359-370
-  - ui/views/runs.py:166-184
+  - ui/views/runs.py:167-185
   - ui/figures/catalog.py:36-64
   - ui/templates/ui/experiment_detail.html:719-756
   - config/settings.py:71

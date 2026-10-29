@@ -1,6 +1,6 @@
 """`snapshot_from_smac` turns SMAC's five output files into a snapshot, and
 everything downstream of `io.parse` stays untouched. The `.ihpo` `result` block
-mirrors `runhistory.json`, so the module handles only the differences: repeated
+mirrors `runhistory.json`, so the module only handles the differences: repeated
 configurations, an unnamed minimized cost, bare `Infinity` and `NaN` tokens, and
 unfinished RUNNING rows.
 
@@ -14,11 +14,11 @@ import math
 from importlib.metadata import version as dist_version
 from typing import Any, Mapping, Optional
 
-from .io import SNAPSHOT_FORMAT
-from .jsonable import finite
-from .metrics import LABELS, describe, Metric, unscoreable
-from .optimizers.smac_optimizer import INITIAL_DESIGNS, STRATEGIES
-from .optimizers.timing import RUN_INFO_KEYS, STATUS_SUCCESS
+from ...io import SNAPSHOT_FORMAT
+from ...jsonable import finite
+from ...metrics import LABELS, describe, Metric, unscoreable
+from ..timing import RUN_INFO_KEYS, STATUS_SUCCESS
+from .params import INITIAL_DESIGNS, STRATEGIES
 
 #: Only the first three are read; the other two are carried for a complete
 #: re-export.
@@ -30,7 +30,7 @@ CARRIED = ("intensifier.json", "optimization.json")
 #: SMAC's `StatusType.RUNNING`; its rows carry a placeholder cost.
 STATUS_RUNNING = 0
 
-#: A metric declaration is serialized only for names missing from the registry,
+#: A metric declaration is only serialized for names missing from the registry,
 #: so the prefix keeps an objective called `accuracy` from reading back as a
 #: 0-to-1 score.
 NAMESPACE = "smac:"
@@ -189,7 +189,7 @@ def _optimizer_settings(scenario: dict) -> dict:
     so a re-run uses them instead of codesigner's defaults. `known_params` drops
     settings this version lacks.
     """
-    from .optimizers.smac_optimizer import SMACOptimizer
+    from .optimizer import SMACOptimizer
 
     meta = scenario.get("_meta") or {}
     if not meta:
@@ -267,8 +267,9 @@ def _best(trials: list, metric_name: str) -> int:
 
 
 def _objective(scenario: Mapping[str, Any]) -> str:
-    """Multi-objective runs are refused, since picking one component would
-    report a search nobody ran.
+    """`_objective` only accepts a single objective and raises a
+    `SmacImportError` for a multi-objective run, since picking one component
+    would report a search nobody ran.
     """
     objectives = scenario.get("objectives", "cost")
     if isinstance(objectives, (list, tuple)):

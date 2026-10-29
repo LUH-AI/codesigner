@@ -275,7 +275,7 @@ def test_a_reduced_forecast_never_reads_a_column_only_known_once_it_happens():
 
 
 def test_a_series_that_starts_inside_a_backtest_is_not_validated_in_it():
-    """A backtest validates only series with history before its origin."""
+    """A backtest only validates series with history before its origin."""
     air = pd.read_csv(DATASETS_DIR / "airline.csv")
     frame = pd.concat([air.assign(route="A"), air.tail(6).assign(route="B")])
     frame = frame[["month", "route", "passengers"]].sort_values("month", kind="stable")

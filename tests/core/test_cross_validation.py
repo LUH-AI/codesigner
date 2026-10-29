@@ -143,7 +143,7 @@ def test_a_fold_that_fails_fails_the_trial():
 
 
 def test_a_continuous_target_falls_back_to_a_plain_shuffle():
-    """sklearn refuses to stratify a regression target, and the split must
+    """sklearn raises when asked to stratify a regression target, and the split must
     proceed anyway."""
     X = np.arange(20, dtype=float).reshape(-1, 1)
     y = np.linspace(0.0, 1.0, 20)
@@ -232,7 +232,7 @@ def test_an_optimizer_runs_a_cross_validated_search(optimizers, models):
 @pytest.mark.parametrize("dataset,kind", [("iris.csv", "string"), ("wine.csv", "integer")])
 def test_the_target_keeps_the_type_the_file_gave_it(dataset, kind):
     """Object-dtype integer labels make `type_of_target` answer "unknown", and
-    every classifier refuses to fit."""
+    every classifier fails to fit."""
     from core.datasets import load_frame, load_splits
     from tests.conftest import DATASETS_DIR
 

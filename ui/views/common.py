@@ -10,14 +10,14 @@ from django.utils.translation import gettext as _
 from access.policy import groups_to_choose_from
 from core import datasets
 from core.registry import MODELS, optimizer_class
-from experiments.models import Experiment
+from experiments.models import Experiment, Run
 from experiments.services.settings import SETTING_BOUNDS
 
 from ..experiment_settings import resolve_settings
 from ..figures import FIGURES
 
 
-_ACTIVE = ["pending", "running"]
+_ACTIVE = Run.ACTIVE_STATUSES
 
 
 logger = logging.getLogger(__name__)

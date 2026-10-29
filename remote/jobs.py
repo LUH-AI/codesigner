@@ -1,7 +1,7 @@
 """`jobs` runs experiments on a Slurm cluster over ssh. A Slurm job has no route
 back to the app, so the job and the app exchange files on the cluster's
 filesystem. `remote/run_experiment.py` documents the file contract. The host is
-a name from `~/.ssh/config`, which holds the key, the user and any ProxyJump.
+a name from `~/.ssh/config`, which stores the key, the user and any ProxyJump.
 """
 
 from __future__ import annotations
@@ -22,13 +22,14 @@ QUEUED, RUNNING, DONE, FAILED, GONE = "queued", "running", "done", "failed", "go
 _PENDING_STATES = {"PENDING", "CONFIGURING", "SUSPENDED", "REQUEUED", "RESIZING"}
 _OK_STATES = {"COMPLETED"}
 
-#: `_RUNS` names the directory under `CLUSTER_ROOT` that holds one directory per
+#: `_RUNS` names the directory under `CLUSTER_ROOT` that contains one directory per
 #: run.
 _RUNS = "runs"
 
 
 class ClusterError(RuntimeError):
-    """The cluster was unreachable or refused."""
+    """A call to the cluster failed, timed out or had no `CLUSTER_HOST` to
+    reach."""
 
 
 @dataclass(frozen=True)

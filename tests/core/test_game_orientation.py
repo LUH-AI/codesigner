@@ -1,5 +1,5 @@
-"""`HP_GAMES` names hold only when bigger is better, and
-`_pair_trials_with_oriented_scores` negates a cost before the games see the
+"""`HP_GAMES` names only apply when bigger is better, and
+`pair_trials_with_oriented_scores` negates a cost before the games see the
 scores. `fit_surrogate` stays in the metric's units because partial dependence
 plots them.
 """
@@ -7,7 +7,8 @@ plots them.
 import pytest
 
 from core.metrics import METRICS, Metric, unscoreable
-from core.analytics import _pair_trials_with_oriented_scores, pair_trials_with_scores
+from core.analytics import pair_trials_with_scores
+from core.analytics.surrogate import pair_trials_with_oriented_scores
 from core.optimizers.base import TrialResult
 
 COST = Metric(name="smac:cost", fn=unscoreable, higher_is_better=False, bounds=(None, None))
@@ -36,7 +37,7 @@ def test_a_higher_is_better_metric_is_left_alone(config_space):
     trials = _trials("accuracy", [0.2, 0.9, 0.5])
 
     raw = pair_trials_with_scores(config_space, trials, "accuracy")
-    oriented = _pair_trials_with_oriented_scores(
+    oriented = pair_trials_with_oriented_scores(
         config_space, trials, "accuracy", METRICS["accuracy"])
 
     assert [s for _, s in oriented] == [s for _, s in raw]
@@ -47,7 +48,7 @@ def test_a_cost_is_negated(config_space):
     """
     trials = _trials("smac:cost", [0.2, 0.9, 0.5])
 
-    oriented = _pair_trials_with_oriented_scores(
+    oriented = pair_trials_with_oriented_scores(
         config_space, trials, "smac:cost", COST)
 
     assert [s for _, s in oriented] == [-0.2, -0.9, -0.5]
@@ -58,7 +59,7 @@ def test_differences_survive_the_turn(config_space):
     """The games read gaps, which stay unchanged."""
     trials = _trials("smac:cost", [0.2, 0.9])
 
-    (_, a), (_, b) = _pair_trials_with_oriented_scores(
+    (_, a), (_, b) = pair_trials_with_oriented_scores(
         config_space, trials, "smac:cost", COST)
 
     assert abs(b - a) == pytest.approx(0.7)
@@ -68,7 +69,7 @@ def test_the_registry_answers_when_no_metric_is_handed_over(config_space):
     """Older call sites pass no metric."""
     trials = _trials("accuracy", [0.2, 0.9, 0.5])
 
-    oriented = _pair_trials_with_oriented_scores(config_space, trials, "accuracy")
+    oriented = pair_trials_with_oriented_scores(config_space, trials, "accuracy")
 
     assert [s for _, s in oriented] == [0.2, 0.9, 0.5]
 

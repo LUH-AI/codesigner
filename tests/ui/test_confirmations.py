@@ -46,7 +46,7 @@ def _confirmations(client):
 
 
 def test_every_confirmation_uses_the_shared_page(client):
-    """A warning holds the consequence and one form holds the actions."""
+    """A warning states the consequence and one form contains the actions."""
     for name, html in _confirmations(client):
         assert "confirm-message" in html, name
         assert "confirm-actions" in html, name

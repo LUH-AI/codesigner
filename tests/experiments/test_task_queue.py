@@ -1,5 +1,5 @@
 """`start_background_run` enqueues a huey `db_task` calling `execute_run`, and
-the database holds the run state.
+the database stores the run state.
 """
 
 import pytest

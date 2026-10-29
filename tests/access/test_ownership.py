@@ -202,7 +202,7 @@ def test_a_viewer_deleting_it_is_refused(client, hosted, ana, ben):
 
 
 def test_a_viewer_can_export_it(client, hosted, ana, ben):
-    """An export strips server paths and carries only what the page already
+    """An export strips server paths and only carries what the page already
     shows."""
     exp = _experiment(owner=ben, ana=VIEWER)
     client.force_login(ana)
@@ -331,7 +331,7 @@ def test_ownership_goes_to_a_contributor(client, hosted, ana, ben):
 
 
 def test_ownership_does_not_go_to_a_viewer(client, hosted, ana, ben):
-    """The page offers only contributors, and the view answers any other request
+    """The page only offers contributors, and the view answers any other request
     with a 404."""
     exp = _experiment(owner=ana, ben=VIEWER)
     client.force_login(ana)
@@ -368,8 +368,8 @@ def test_the_new_owner_can_share_it_and_the_old_one_cannot(client, hosted, ana, 
 
 
 def test_an_ownerless_experiment_belongs_to_nobody(client, hosted, ana):
-    """An ownerless row is reachable by nobody, and `access/admin.py` refuses to
-    delete a user who still owns experiments.
+    """An ownerless row is reachable by nobody, and `access/admin.py` blocks any
+    attempt to delete a user who still owns experiments.
     """
     exp = _experiment(owner=None)
     client.force_login(ana)

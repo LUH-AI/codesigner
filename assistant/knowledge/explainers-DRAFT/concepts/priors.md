@@ -12,11 +12,11 @@ sources:
   - ui/views/priors.py:186-207
   - core/priors.py:116-203
   - experiments/services/priors.py:18-28
-  - core/optimizers/smac_optimizer.py:50-55
-  - core/optimizers/smac_optimizer.py:257-262
-  - core/optimizers/smac_optimizer.py:602-659
-  - core/optimizers/smac_optimizer.py:675-765
-  - core/optimizers/smac_optimizer.py:998-1063
+  - core/optimizers/smac/priors.py:16-21
+  - core/optimizers/smac/optimizer.py:50-55
+  - core/optimizers/smac/optimizer.py:114-171
+  - core/optimizers/smac/priors.py:56-145
+  - core/optimizers/smac/facade.py:291-305
   - experiments/services/settings.py:14-28
   - experiments/services/settings.py:35-42
   - ui/forms.py:391-397

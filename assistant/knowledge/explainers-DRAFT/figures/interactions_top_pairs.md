@@ -9,8 +9,8 @@ status: draft
 sources:
   - ui/figures/catalog.py:113-152 (_Interactions, InteractionsTopPairs)
   - ui/templates/ui/figures/interactions_top_pairs.html, _before_this_run.html
-  - ui/figures/plots.py:370-388 (hyperparameter_interactions_bar_plot)
-  - core/analytics.py:859-867 (_extract_pairwise)
+  - ui/figures/plots/interactions.py:28-46 (hyperparameter_interactions_bar_plot)
+  - core/analytics/games.py:261-269 (_extract_pairwise)
   - ui/templates/ui/experiment_detail.html:1431-1441, 3452-3475
 ---
 

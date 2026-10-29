@@ -7,10 +7,10 @@ related: [figure-selected-configuration, concept-metrics, page-dashboard-sidebar
 keywords: [forecast, backtest, time series, predicted vs actual, series, horizon]
 status: draft
 sources:
-  - ui/figures/catalog.py:386-410 (Forecast, forecast_only, deferred)
+  - ui/figures/catalog.py:386-419 (Forecast, forecast_only, deferred)
   - ui/figures/base.py:72-92 (forecast_only, applies)
   - ui/templates/ui/figures/forecast.html
-  - ui/figures/plots.py:1222-1256 (forecast_plot)
+  - ui/figures/plots/performance.py:133-167 (forecast_plot)
   - ui/views/analytics.py:131-171 (forecast_figure)
   - experiments/services/model_export.py:88-108 (_evaluation_label)
   - ui/templates/ui/experiment_detail.html:1553-1613 (refreshForecast), 1194-1201 (noTrialSelected)

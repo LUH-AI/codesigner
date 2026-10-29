@@ -74,7 +74,7 @@ def test_the_larger_can_be_asked_for_instead(space):
 
 
 def test_the_larger_is_ours_and_not_something_smac_offers(space):
-    """SMAC writes only `min(n_configs, max_ratio * n_trials)` and has no larger
+    """SMAC only writes `min(n_configs, max_ratio * n_trials)` and has no larger
     form."""
     scenario = _scenario(space, 200)
 
@@ -186,8 +186,8 @@ def test_a_file_that_records_no_design_falls_back_to_working_it_out(space):
 
 def test_the_size_does_not_come_from_counting_what_the_trials_say(space):
     """The model's default configuration sits outside `n_configs`, and old files
-    label every trial with the optimizer's name. Counting trial origins would
-    therefore drift on every resume or collapse the design to one point.
+    label every trial with the optimizer's name. Therefore counting trial origins
+    would drift on every resume or collapse the design to one point.
     """
     previous = _resumed("LatinHypercubeInitialDesign", 3)
     previous.trials = []          # nothing to count

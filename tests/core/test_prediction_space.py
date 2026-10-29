@@ -174,7 +174,7 @@ def test_the_linear_map_is_the_projection(iris_splits, metrics, method):
 
 
 def test_each_sample_carries_its_vectorized_position():
-    """`vectors` holds each sample's ConfigSpace array, the axis priors are
+    """`vectors` contains each sample's ConfigSpace array, the axis priors are
     stated on."""
     from ConfigSpace import Configuration
 

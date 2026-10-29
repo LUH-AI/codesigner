@@ -10,7 +10,7 @@ sources:
   - core/projection.py
   - ui/figures/catalog.py (ConfigurationCube)
   - ui/templates/ui/figures/configuration_cube.html
-  - core/analytics.py
+  - core/analytics/__init__.py
 ---
 
 ## In short

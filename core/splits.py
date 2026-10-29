@@ -1,4 +1,4 @@
-"""`Splits` holds every evaluation scheme as a list of (train, val) index pairs,
+"""`Splits` represents every evaluation scheme as a list of (train, val) index pairs,
 so the trial loop and the wire protocol handle one shape and a holdout is the
 one-fold case. Cross-validation spends k times the compute to average away the
 split noise of a small table.

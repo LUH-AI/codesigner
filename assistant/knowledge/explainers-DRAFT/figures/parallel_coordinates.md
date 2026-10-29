@@ -9,7 +9,7 @@ status: draft
 sources:
   - ui/figures/catalog.py:277-295 (ParallelCoordinates)
   - ui/templates/ui/figures/parallel_coordinates.html
-  - ui/figures/plots.py:774-891 (parallel_coordinates_plot and helpers), 393-405 (_INTENSITY_SCALE)
+  - ui/figures/plots/space.py:202-319 (parallel_coordinates_plot and helpers), 18-30 (_INTENSITY_SCALE)
   - ui/templates/ui/experiment_detail.html:513-529 (line highlight), 857-978 (click via hover)
   - ui/figure_layout.toml (misc)
 ---

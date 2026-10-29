@@ -9,12 +9,12 @@ status: draft
 sources:
   - ui/figures/catalog.py:313-325 (AcquisitionSlice)
   - ui/templates/ui/figures/acquisition_slice.html, _next_trials.html, _acquisition_shared.html
-  - ui/figures/plots.py:964-1151 (acquisition_slice_plots)
-  - ui/static/ui/acquisition.js:207-444 (compute), 475-518 (priorTraces), 1178-1306 (candidates), 1750-1804 (refresh)
+  - ui/figures/plots/surrogate.py:83-270 (acquisition_slice_plots)
+  - ui/static/ui/acquisition.js:207-444 (compute), 475-518 (priorTraces), 1178-1306 (candidates), 1751-1805 (refresh)
   - ui/static/ui/next_trials.js
   - ui/views/priors.py:136-167 (_slice_model), 319-393 (_next_trials, next_trials), 401-509 (_slice_figures, acquisition_slice), 512-524 (_weighting_warning)
   - core/optimizers/base.py:544-575 (slice_surrogate, acquisition_function)
-  - core/analytics.py:473-568 (sample_prediction_space), 590-697 (compute_incumbent_slice)
+  - core/analytics/slices.py:35-130 (sample_prediction_space), 152-259 (compute_incumbent_slice)
   - experiments/services/settings.py (autocompute_acquisition_slice on by default)
 ---
 

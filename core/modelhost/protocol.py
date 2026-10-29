@@ -7,9 +7,10 @@ validation labels never reach the child, though k-fold sends every label across
 folds (see `core.splits`).
 """
 
-#: A mismatched version is refused. Optional keys never bump `PROTOCOL_VERSION`,
-#: since the exact-equality check would break every built environment;
-#: `capabilities` announces optional features instead.
+#: `.ModelProcess` raises a `ModelProcessError` for a mismatched version.
+#: Optional keys never bump `PROTOCOL_VERSION`, since the exact-equality check
+#: would break every built environment; `capabilities` announces optional
+#: features instead.
 PROTOCOL_VERSION = 2
 
 #: A missing or empty list means labels only.
@@ -29,9 +30,10 @@ KIND_LOAD = "load"
 KIND_TRIAL = "trial"
 KIND_PROTOCOL = "protocol"
 
-#: `X.npy` stores the features without pickling, and a non-numeric feature
-#: column is refused. Fold indices also go as .npy; only labels travel as JSON
-#: in `init`, since labels are often strings.
+#: `X.npy` stores the features without pickling, so `.write_dataset` only
+#: accepts numeric feature columns and otherwise raises a `ValueError`. Fold
+#: indices also go as .npy, and only labels travel as JSON in `init`, since
+#: labels are often strings.
 X_FILE = "X.npy"
 
 

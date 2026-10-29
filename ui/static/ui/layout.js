@@ -197,7 +197,7 @@
                 k = Math.max(1, Math.ceil((natural(slot, width) + gap) / (unit + gap)));
                 height = normal = k * unit + (k - 1) * gap;
             } else if (shape === "card") {
-                /* A card of controls or text is as tall as what it holds. */
+                /* A card of controls or text is as tall as its contents. */
                 height = normal = natural(slot, width);
             } else if (slot.classList.contains("is-content")) {
                 height = natural(slot, width);

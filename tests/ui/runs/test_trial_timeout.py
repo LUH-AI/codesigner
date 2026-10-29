@@ -150,7 +150,7 @@ def test_the_stored_spec_becomes_the_policy_the_session_is_given():
 
 @override_settings(MODEL_TRIAL_TIMEOUT=77.0)
 def test_a_run_from_before_the_field_gets_the_deployment_number():
-    """Rows that predate the column hold `{}` and get `MODEL_TRIAL_TIMEOUT`."""
+    """Rows that predate the column contain `{}` and get `MODEL_TRIAL_TIMEOUT`."""
     from experiments.services import modelenv
 
     assert modelenv.session_kwargs({})["trial_timeout"].seconds_for({}) == 77.0

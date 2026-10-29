@@ -17,7 +17,7 @@ urlpatterns = [
     path("", include("assistant.urls")),
 ]
 
-# Uploads are served only in local development, since the flat `MEDIA_ROOT`
+# Uploads are only served in local development, since the flat `MEDIA_ROOT`
 # would expose every user's data to every account.
 if settings.DEBUG and not settings.REQUIRE_LOGIN:
     urlpatterns += static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT)

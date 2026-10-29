@@ -1,4 +1,4 @@
-"""`core.models.logistic_regression` holds the logistic regression classifier."""
+"""`core.models.logistic_regression` defines the logistic regression classifier."""
 
 from ConfigSpace import Categorical, ConfigurationSpace, Float
 from codesigner_model import OutputBaseModel

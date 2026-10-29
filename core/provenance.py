@@ -2,10 +2,10 @@
 evaluation, search setup and run history. The sections are additive, so older
 and newer builds open each other's files.
 
-The dataset and model are recorded by SHA-256 fingerprint, and a custom-model
-`.ihpo` therefore needs its `.py` supplied alongside. `seed` stays one top-level
-field because one seed drives the split, the sampler, the SMAC scenario,
-`fit_predict` and the importance computation.
+The dataset and model are recorded by SHA-256 fingerprint. Therefore a
+custom-model `.ihpo` needs its `.py` supplied alongside. `seed` stays one
+top-level field because one seed drives the split, the sampler, the SMAC
+scenario, `fit_predict` and the importance computation.
 """
 
 from __future__ import annotations
@@ -102,7 +102,7 @@ def dataset_fingerprint(path, frame=None, target: str = "") -> Dict[str, Any]:
 
 def model_fingerprint(model_name: str, model_path: str, env_meta=None,
                       kind: str = "") -> Dict[str, Any]:
-    """A registry model records only its name, and an uploaded one its digest
+    """A registry model only records its name, and an uploaded one its digest
     and locked environment. The caller passes *kind* for an imported run, which
     `model_path` alone would mislabel as a registry model.
     """
@@ -131,9 +131,9 @@ def evaluation(cv_folds: int, y=None, test_size: Optional[float] = None,
     adds *horizon*, *series_column* and *season* with one backtest per fold.
 
     `stratified` records the outcome, because both schemes fall back to a plain
-    split when scikit-learn refuses the target. The field is null when the
-    target was unavailable and always False for time-ordered or regression
-    splits.
+    split when scikit-learn raises a `ValueError` for the target. The field is
+    null when the target was unavailable and always False for time-ordered or
+    regression splits.
     """
     folds = int(cv_folds or 0)
     forecast = bool(horizon) and bool(time_column)
@@ -164,7 +164,7 @@ def _stratifiable(y) -> bool:
 
         train_test_split(range(len(y)), test_size=0.2, random_state=0, stratify=y)
         return True
-    except Exception:  # noqa: BLE001 — refusing is the answer, not an error
+    except Exception:  # noqa: BLE001 — an exception means no stratified split exists
         return False
 
 
@@ -177,10 +177,10 @@ def environment() -> Dict[str, Any]:
 
 
 def dataset_mismatch(recorded, actual: str) -> str:
-    """`dataset_mismatch` refuses because trials on different data would join an
-    incomparable history and nothing downstream would notice. A file without a
-    fingerprint, or imported without a dataset, passes; the check runs when a
-    dataset is attached.
+    """`dataset_mismatch` reports a mismatch because trials on different data
+    would join an incomparable history and nothing downstream would notice. A
+    file without a fingerprint, or imported without a dataset, passes; the check
+    runs when a dataset is attached.
     """
     expected = (recorded or {}).get("sha256")
     if not expected or not actual or actual == expected:

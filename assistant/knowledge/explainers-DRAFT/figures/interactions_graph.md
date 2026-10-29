@@ -9,8 +9,8 @@ status: draft
 sources:
   - ui/figures/catalog.py:113-161 (_Interactions, InteractionsGraph)
   - ui/templates/ui/figures/interactions_graph.html, _before_this_run.html
-  - ui/figures/plots.py:414-496 (_circle_positions, hyperparameter_graph_plot)
-  - core/analytics.py:176-184 (_moebius_terms), 789-856 (_compute_hp_game)
+  - ui/figures/plots/interactions.py:62-144 (_circle_positions, hyperparameter_graph_plot)
+  - core/analytics/games.py:62-70 (_moebius_terms), 191-258 (_compute_hp_game)
 ---
 
 ## What it shows

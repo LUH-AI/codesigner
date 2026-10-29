@@ -1,6 +1,6 @@
 """`seed_demo` builds groups, roles and all three sharing levels, and must stay
-re-runnable. The command refuses with DEBUG off, since every password it sets is
-the username.
+re-runnable. The command stops with an error when DEBUG is off, since every
+password it sets is the username.
 """
 
 import pytest

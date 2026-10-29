@@ -55,7 +55,7 @@ def test_every_section_renders_what_it_plans(client, section):
 
 
 def test_the_first_sections_slug_is_not_a_second_address(client):
-    """The overview lives only at the data root."""
+    """The overview only lives at the data root."""
     exp = _exp()
     url = reverse("ui:data_section", args=[exp.pk, SECTIONS[0].slug])
     assert client.get(url).status_code == 404
@@ -68,7 +68,7 @@ def test_an_unknown_section_is_a_404(client):
 
 
 def test_an_invisible_experiment_has_no_data_pages(client, settings):
-    """The data pages exist only for experiments the reader can see."""
+    """The data pages only exist for experiments the reader can see."""
     exp = _exp()
     settings.EXPERIMENT_POLICY = f"{__name__}.HidesEverything"
 
@@ -253,7 +253,7 @@ def _panel(html, slug):
 
 
 def test_a_created_experiments_overview_describes_its_data(client):
-    """Overview holds no controls; each other tab saves its own."""
+    """Overview contains no controls; each other tab saves its own."""
     exp = _exp()
     html = client.get(_url(exp, SECTIONS[0])).content.decode()
     overview, cleaning, features = (_panel(html, s) for s in ("overview", "cleaning", "features"))

@@ -126,7 +126,7 @@ def _smape(y_true, y_pred) -> float:
 
 def _mase(y_true, y_pred, history) -> float:
     """`_mase` divides the forecast's MAE by the seasonal naive MAE on each
-    series' history. *history* holds ``{"y", "series", "season"}``. A history
+    series' history. *history* contains ``{"y", "series", "season"}``. A history
     shorter than a season scales by the one-step naive error, and a flat one
     leaves the plain MAE.
     """
@@ -273,7 +273,7 @@ def usable(names: Iterable[str], *, probabilities: bool) -> list[str]:
 
 
 def _prior_log_loss(y_true) -> float:
-    """`_prior_log_loss` scores a model knowing only the class balance."""
+    """`_prior_log_loss` scores a model only knowing the class balance."""
     _, counts = np.unique(np.asarray(y_true), return_counts=True)
     shares = counts / counts.sum()
     return float(-np.sum(shares * np.log(shares)))

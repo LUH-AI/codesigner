@@ -17,7 +17,7 @@ SOURCE_LOCALE = "en"
 
 #: `SECTIONS` lists sections in file order, and the first matching prefix wins,
 #: so specific paths precede general ones. Figures motivate the grouping, since
-#: `catalog.py` holds their titles and their templates hold their controls.
+#: `catalog.py` defines their titles and their templates define their controls.
 SECTIONS = (
     ("Site chrome — navigation, base template, account", (
         "ui/templates/ui/base.html", "ui/navigation.py", "access/", "ui/templates/ui/account",
@@ -71,7 +71,7 @@ class Command(BaseCommand):
             locales = [SOURCE_LOCALE] + list(locales)
 
         # `_apply_wording` runs first because it rewrites the source that
-        # `makemessages` then reads. An override left only in the English
+        # `makemessages` then reads. An override only left in the English
         # catalog keeps the stale `msgid` that the German and Spanish catalogs
         # are keyed on.
         if not options["no_apply"] and not options["no_regenerate"]:
@@ -115,8 +115,8 @@ class Command(BaseCommand):
             lines = [ln for ln in block.split("\n") if not ln.startswith("#. == ")]
             if code == SOURCE_LOCALE:
                 # A fuzzy entry means the source moved under an existing
-                # `msgstr`, and the newer source wins. A stale catalog line
-                # would otherwise override a template edit.
+                # `msgstr`, and the newer source wins. Otherwise a stale
+                # catalog line would override a template edit.
                 stale = any(re.match(r"^#,.*\bfuzzy\b", ln) for ln in lines)
                 lines = [ln for ln in lines if not re.match(r"^#,.*\bfuzzy\b", ln)]
                 block = self._mirror("\n".join(lines), reset=stale)
@@ -143,7 +143,7 @@ class Command(BaseCommand):
     def _apply_wording(self):
         """`_apply_wording` writes English reworded in the catalog back into its
         source files, so the next `makemessages` re-keys every catalog on the
-        new text. It edits only files the `#:` references name and reports
+        new text. It only edits files the `#:` references name and reports
         anything it cannot place.
         """
         path = Path(settings.LOCALE_PATHS[0]) / SOURCE_LOCALE / "LC_MESSAGES" / "django.po"
@@ -189,7 +189,7 @@ class Command(BaseCommand):
     def _rewrite(refs, old: str, new: str) -> bool:
         """`_rewrite` searches the referenced files instead of trusting line
         numbers, since the `#:` lines predate the `makemessages` that follows
-        and may be stale. It writes only when a file holds a single occurrence.
+        and may be stale. It only writes when a file contains a single occurrence.
         """
         placed = False
         for ref in dict.fromkeys(r.rpartition(":")[0] for r in refs):
@@ -198,7 +198,7 @@ class Command(BaseCommand):
                 continue
             text = path.read_text(encoding="utf-8")
             # Template extraction doubles every `%`, so the doubling is undone
-            # for templates only, since Python strings may hold their own `%%`.
+            # for templates only, since Python strings may contain their own `%%`.
             if path.suffix == ".html":
                 old, new = old.replace("%%", "%"), new.replace("%%", "%")
             # The quotes keep "Best sampled" from matching inside "Best sampled,

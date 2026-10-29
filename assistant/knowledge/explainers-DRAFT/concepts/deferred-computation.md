@@ -11,14 +11,14 @@ sources:
   - ui/figures/catalog.py:76-96
   - ui/figures/catalog.py:242-274
   - ui/figures/catalog.py:298-310
-  - experiments/services/settings.py:1-68
+  - experiments/services/settings.py
   - ui/forms.py:373-433
   - ui/templates/ui/_experiment_settings_fields.html
   - ui/templates/ui/_side_explanation.html
-  - core/analytics.py:23-32
-  - core/analytics.py:21-55
-  - core/analytics.py:234-256
-  - core/analytics.py:712-762
+  - core/analytics/slices.py:12-21
+  - core/analytics/games.py:19-53
+  - core/analytics/games.py:77-99
+  - core/analytics/games.py:114-164
   - ui/views/priors.py:124-171
   - ui/views/priors.py:381-393
   - ui/views/common.py:160-205

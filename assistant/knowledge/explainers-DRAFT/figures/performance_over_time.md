@@ -8,7 +8,8 @@ keywords: [score over time, running best, incumbent, convergence, error over tim
 status: draft
 sources:
   - ui/figures/catalog.py:183-239 (PerformanceOverTime, absolute_scale_for)
-  - ui/figures/plots.py:135-222 (performance_over_time_plot), 5-49 (palette), 40-112 (failure marks)
+  - ui/figures/plots/performance.py:22-109 (performance_over_time_plot)
+  - ui/figures/plots/style.py:1-45 (palette), 25-97 (failure marks)
   - ui/templates/ui/figures/performance_over_time.html
   - ui/templates/ui/experiment_detail.html:304-411 (scale toggle), 3476-3484 (view selects), 3165-3250 (live updates)
   - core/metrics.py:371-390 (to_error, error_range)

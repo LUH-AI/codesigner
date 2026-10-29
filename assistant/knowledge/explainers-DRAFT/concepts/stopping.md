@@ -11,14 +11,14 @@ sources:
   - ui/run_form.py:7-76
   - core/optimizers/base.py:274-346
   - core/optimizers/base.py:339-521
-  - core/optimizers/smac_optimizer.py:118-126
-  - core/optimizers/smac_optimizer.py:898-933
-  - core/optimizers/smac_optimizer.py:1085-1087
+  - core/optimizers/smac/surrogate.py:9-17
+  - core/optimizers/smac/surrogate.py:40-75
+  - core/optimizers/smac/optimizer.py:275-277
   - core/modelhost/deadline.py
   - ui/optimizer_labels.py:7-35
-  - ui/views/runs.py:168-173
-  - experiments/services/run.py:248-334
-  - experiments/services/run.py:502-514
+  - ui/views/runs.py:169-175
+  - experiments/services/run.py:253-339
+  - experiments/services/run.py:514-526
   - config/settings.py:71
 ---
 

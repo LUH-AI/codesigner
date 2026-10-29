@@ -7,15 +7,15 @@ related: [concept-surrogate-and-acquisition, concept-deferred-computation, figur
 keywords: [HyperSHAP, Shapley value, explanation game, tunability, sensitivity, mistunability, importance, interactions, Möbius, Harsanyi dividend, FSII, ablation, local explanation, local effects, baseline, compare against, default, incumbent, selected]
 status: draft
 sources:
-  - core/analytics.py:11-31
-  - core/analytics.py:234-256
-  - core/analytics.py:259-292
-  - core/analytics.py:310-347
-  - core/analytics.py:700-709
-  - core/analytics.py:765-786
-  - core/analytics.py:859-867
-  - core/analytics.py:58-70
-  - core/optimizers/base.py:71-272
+  - core/analytics/games.py:9-29
+  - core/analytics/games.py:77-99
+  - core/analytics/effects.py:18-51
+  - core/analytics/effects.py:69-106
+  - core/analytics/games.py:102-111
+  - core/analytics/games.py:167-188
+  - core/analytics/games.py:261-269
+  - core/analytics/surrogate.py:34-46
+  - core/optimizers/base.py:71-75
   - ui/figures/catalog.py:340-354
   - ui/templates/ui/_side_explanation.html
   - ui/templates/ui/figures/hyperparameter_importance.html
@@ -26,9 +26,9 @@ sources:
   - ui/views/analytics.py:349-354
   - ui/views/analytics.py:373-395
   - experiments/services/settings.py:16-52
-  - hypershap/games/tunability.py:82-180 (installed package)
-  - hypershap/utils.py:84-150 (installed package)
-  - hypershap/games/ablation.py:34-105 (installed package)
+  - hypershap/games/tunability.py (installed package)
+  - hypershap/utils.py (installed package)
+  - hypershap/games/ablation.py (installed package)
 ---
 
 ## In short

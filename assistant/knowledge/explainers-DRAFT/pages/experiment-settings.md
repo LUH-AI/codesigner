@@ -18,7 +18,7 @@ sources:
   - ui/views/dashboard.py:258-301
   - ui/figures/base.py:116-119 (deferred), 164-168 (autocompute_key)
   - ui/figures/catalog.py:399-421
-  - ui/layout.py:190-247
+  - ui/layout.py:190-229
   - ui/templates/ui/base.html:96-99
   - ui/templates/ui/base.html:197-208
   - ui/views/dashboard.py:112-132

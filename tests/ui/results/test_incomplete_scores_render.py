@@ -1,4 +1,5 @@
-"""`io.parse` refuses a trial missing one metric, but old rows hold some. That
+"""`.io.parse` raises a `ValueError` for a trial missing one metric, but old
+rows contain some. That
 metric loses its figures while the others still render.
 """
 

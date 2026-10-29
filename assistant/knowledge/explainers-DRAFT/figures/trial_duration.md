@@ -8,7 +8,8 @@ keywords: [how long each trial took, duration, seconds, timeout, slow trials, fa
 status: draft
 sources:
   - ui/figures/catalog.py:357-369 (TrialDuration)
-  - ui/figures/plots.py:1201-1219 (trial_duration_plot), 60-63 (FAILURE_FILL)
+  - ui/figures/plots/performance.py:112-130 (trial_duration_plot)
+  - ui/figures/plots/style.py:44-47 (FAILURE_FILL)
   - ui/templates/ui/figures/trial_duration.html
   - core/optimizers/base.py:53-55 (TrialResult.duration)
   - ui/templates/ui/experiment_detail.html:492-610 (applySelection), 3200-3250 (live updates)

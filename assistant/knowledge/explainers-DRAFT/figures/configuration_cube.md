@@ -9,10 +9,10 @@ status: draft
 sources:
   - ui/figures/catalog.py:242-274 (ConfigurationCube)
   - ui/templates/ui/figures/configuration_cube.html
-  - ui/figures/plots.py:608-697 (configuration_cube_plot, configuration_projection_plot)
+  - ui/figures/plots/space.py:36-125 (configuration_cube_plot, configuration_projection_plot)
   - core/projection.py:162-192, 340-349
   - core/modelhost/deadline.py:125-138
-  - core/analytics.py:473-568 (sample_prediction_space)
+  - core/analytics/slices.py:35-130 (sample_prediction_space)
   - ui/templates/ui/experiment_detail.html:1677-1684 (UNCERTAINTY_DISABLED), 1382-2069 (layer), 2505-2520 (candidates), 2668-3048 (applyCubeAxes, pickers), 3497-3525 (opening state)
   - ui/views/analytics.py:256-302 (surrogate_prediction)
   - ui/views/dashboard.py:392 (can_requery)

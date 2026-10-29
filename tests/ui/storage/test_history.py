@@ -80,7 +80,7 @@ def test_importing_records_the_import_after_the_files_own_history(client):
 
 
 def test_a_processing_change_is_one_entry_per_choice_changed(client):
-    """Each entry holds the value before and after."""
+    """Each entry records the value before and after."""
     exp = _create(client)
     client.post(reverse("ui:data_section", args=[exp.pk, "features"]),
                 {"labels": "categories", "scale": "standardize"})

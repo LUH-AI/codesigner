@@ -16,7 +16,8 @@ from tests.conftest import DATASETS_DIR
 
 
 def test_regression_needs_a_numeric_target():
-    """`target_problem` refuses a text target only for regression."""
+    """`target_problem` only returns a reason for a text target under
+    regression."""
     assert tasks.target_problem(np.array(["a", "b"]), tasks.REGRESSION)
     assert tasks.target_problem(np.array(["a", "b"]), tasks.CLASSIFICATION) is None
     assert tasks.target_problem(np.array([1, 2]), tasks.REGRESSION) is None

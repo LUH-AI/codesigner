@@ -35,7 +35,8 @@ def test_a_regression_is_scored_on_the_regression_metrics(client):
 
 @pytest.mark.django_db
 def test_the_task_is_asked_never_guessed(client):
-    """The form refuses a missing task and never guesses it from the target."""
+    """The form reports a missing task as a validation error and never guesses
+    the task from the target."""
     from experiments.models import Experiment
 
     resp = _create(client, name="unsaid", task="")

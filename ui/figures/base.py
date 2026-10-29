@@ -12,7 +12,7 @@ if TYPE_CHECKING:
     import plotly.graph_objects as go
 
 #: The tab bar shows the tabs in order, and each figure's home is one of the
-#: last three. Overview holds pinned figures.
+#: last three. Overview contains pinned figures.
 OVERVIEW = "overview"
 HYPERSHAP = "hypershap"
 ACQUISITION = "acquisition"
@@ -27,7 +27,7 @@ SQUAT = "squat"
 LONG = "long"
 STACK = "stack"
 TABLE = "table"
-#: A card holds Data Handling controls or text at its natural height.
+#: A card contains Data Handling controls or text at its natural height.
 CARD = "card"
 
 #: shape -> allowed widths, narrowest first.
@@ -51,7 +51,7 @@ class Panel:
     `ui/figure_layout.toml`.
     """
 
-    # Stops Django instantiating the class in templates.
+    #: Stops Django instantiating the class in templates.
     do_not_call_in_templates = True
 
     #: Renaming a key is a data migration, since the key names the template, DOM

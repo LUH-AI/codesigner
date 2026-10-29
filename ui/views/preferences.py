@@ -19,7 +19,7 @@ def _posted_settings(request):
     """`_posted_settings` coerces each field to the type of its
     `SETTING_DEFAULTS` entry. An absent checkbox is off, numbers clamp to
     `SETTING_BOUNDS`, and unreadable or off-list values take the default, since
-    zero would mean "no limit" or "refuse every prior".
+    zero would mean "no limit" or "reject every prior".
     """
     posted = {}
     for key, default in SETTING_DEFAULTS.items():

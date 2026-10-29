@@ -16,7 +16,7 @@ from .figures.data_handling import DATA_PANELS, DATA_PANELS_BY_KEY, SECTIONS
 
 VERSION = 1
 
-#: The `[data]` and `[setup]` tables hold Data Handling layouts, and every other
+#: The `[data]` and `[setup]` tables define Data Handling layouts, and every other
 #: table is the dashboard's.
 DATA_TABLE = "data"
 SETUP_TABLE = "setup"
@@ -54,7 +54,7 @@ def _read_file(path):
 
 def _read_tabs(raw, tab_names, by_key, arrangeable, problems, *, pinned=None, prefix=""):
     """Every panel in *arrangeable* must sit on its home tab once, and the
-    *pinned* tab may hold any panel too.
+    *pinned* tab may contain any panel too.
     """
     unknown = sorted(set(raw) - set(tab_names))
     if unknown:
@@ -134,7 +134,7 @@ def read_data_default(path=None) -> dict:
 
 @lru_cache
 def read_setup_default(path=None) -> list:
-    """The `[setup]` table may hold any Data Handling panel, like the
+    """The `[setup]` table may contain any Data Handling panel, like the
     dashboard's Overview."""
     return _read_table(path, SETUP_TABLE, [OVERVIEW], (), pinned=OVERVIEW)[OVERVIEW]
 

@@ -55,7 +55,7 @@ def test_random_search_resume_continues_numbering(iris_splits, metrics):
 
 
 def test_random_search_cancellation(iris_splits, metrics):
-    """`PreCancelled` proves optimizers rely only on `.is_set()`.
+    """`PreCancelled` proves optimizers only rely on `.is_set()`.
     """
     result = _run(RandomOptimizer(), RandomForestModel(), iris_splits, metrics,
                   n_trials=5, cancel=PreCancelled())
@@ -74,7 +74,7 @@ def test_grid_search_reports_grid_size_as_trials_limit(iris_splits, metrics):
 
 
 def test_grid_search_resume_skips_evaluated_configs(iris_splits, metrics):
-    """The resume walks only the 12 remaining grid points.
+    """The resume only walks the 12 remaining grid points.
     """
     opt = GridOptimizer(numeric_steps=2)
     first = _run(opt, RandomForestModel(), iris_splits, metrics, n_trials=4)

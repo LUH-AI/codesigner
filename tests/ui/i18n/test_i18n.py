@@ -63,7 +63,7 @@ def _parse_po(path: Path) -> dict[str, str]:
 
 @pytest.mark.parametrize("locale", SHELVED)
 def test_every_offered_language_is_compiled(locale):
-    """gettext reads only the `.mo`, so an uncompiled language would switch
+    """gettext only reads the `.mo`, so an uncompiled language would switch
     nothing."""
     assert (CODESIGNER_LOCALE / locale / "LC_MESSAGES" / "django.mo").exists()
 

@@ -11,13 +11,13 @@ from django.utils.translation import gettext_lazy as _
 
 NEXT_PARAM = "next"
 
-#: `_EXPERIMENT_PAGES` holds a crumb label for each per-experiment route, and
+#: `_EXPERIMENT_PAGES` defines a crumb label for each per-experiment route, and
 #: None stands for the experiment's own page.
 _EXPERIMENT_PAGES = {
     "experiment_detail": None,
     "experiment_settings": _("Settings"),
     "experiment_delete": _("Delete"),
-    # Rendered only for a metric change.
+    # Only rendered for a metric change.
     "experiment_run": _("Change metric"),
     "experiment_timeline": _("Timeline"),
 }

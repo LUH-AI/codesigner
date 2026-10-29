@@ -16,7 +16,7 @@ sources:
   - experiments/services/bin.py
   - ui/setup_steps.py
   - assistant/gateway.py
-  - assistant/instructions/core.md:1-28
+  - assistant/instructions/core.md
   - ui/permissions.py:52-82 (experiment_view actions per route)
   - ui/templates/ui/panels/group.html
   - ui/templates/ui/base.html:81-103

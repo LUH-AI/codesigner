@@ -260,7 +260,7 @@ def test_the_child_is_gone_after_the_session(tmp_path):
 
 
 def test_the_split_directory_is_removed_after_the_session(tmp_path):
-    """The temp directory holds the dataset and leaves with the session."""
+    """The temp directory contains the dataset and leaves with the session."""
     session = _session(_model(tmp_path, "return ['a', 'b']"))
     with session as remote:
         arrays_dir = session._arrays_dir
@@ -284,7 +284,7 @@ def test_a_non_numeric_feature_column_is_refused_with_a_reason(tmp_path):
 
 
 def test_a_cross_validated_trial_sends_one_request_per_fold(tmp_path):
-    """The dataset crosses once, and each fold sends only an index."""
+    """The dataset crosses once, and each fold only sends an index."""
     from core.splits import cross_validation
 
     X = np.arange(12, dtype=float).reshape(-1, 1)
@@ -319,7 +319,7 @@ def test_each_fold_gets_its_own_rows(tmp_path):
 
 
 def test_the_child_is_never_sent_the_labels_of_the_fold_it_is_scored_on(tmp_path):
-    """Per fold, the child holds only the training labels."""
+    """Per fold, the child only receives the training labels."""
     from core.modelhost.client import fold_labels_for_json
     from core.splits import cross_validation
 
@@ -373,7 +373,7 @@ def _proba_model(tmp_path, name="proba_model.py"):
 
 
 def test_a_model_says_in_its_greeting_whether_it_has_probabilities(tmp_path):
-    """Cached environments may hold an older SDK."""
+    """Cached environments may contain an older SDK."""
     with _session(_proba_model(tmp_path)) as remote:
         assert remote.supports_proba is True
 

@@ -313,7 +313,7 @@ class RemoteModel:
         if self._process.alive:
             return self._process
         if self._cancel is not None and self._cancel.is_set():
-            # A child spawned now would hold a cancelled run for the full
+            # A child spawned now would block a cancelled run for the full
             # `start_timeout`, because `start()` cannot read the cancel flag.
             raise TrialCancelled("the run was cancelled")
         if self._restart is None or self._restart_failed:
@@ -337,8 +337,8 @@ class RemoteModel:
         return y_pred, y_proba, classes
 
     def fit_predict(self, config, X_train, y_train, X_val, seed: int = 0):
-        """`fit_predict` ignores the arrays, since the child holds them and
-        `use_fold` picks the rows.
+        """`fit_predict` ignores the arrays, since the child process already has
+        them and `use_fold` picks the rows.
         """
         return self._request(config, seed)[0]
 
@@ -402,7 +402,7 @@ def describe(launch, *, seed: int = 0, env=None, task: str | None = None,
 
 
 def write_dataset(splits, directory: Path | None = None) -> Path:
-    """The directory is private (0o700), since it holds the dataset. Pickling
+    """The directory is private (0o700), since it contains the dataset. Pickling
     stays off, so an unencoded text column fails here before a subprocess
     starts.
     """

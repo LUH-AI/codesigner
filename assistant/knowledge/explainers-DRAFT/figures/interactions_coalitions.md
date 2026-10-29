@@ -9,8 +9,8 @@ status: draft
 sources:
   - ui/figures/catalog.py:113-171 (_Interactions, InteractionsCoalitions)
   - ui/templates/ui/figures/interactions_coalitions.html, _before_this_run.html
-  - ui/figures/plots.py:499-550 (hyperparameter_upset_plot)
-  - core/analytics.py:176-184 (_moebius_terms)
+  - ui/figures/plots/interactions.py:147-198 (hyperparameter_upset_plot)
+  - core/analytics/games.py:62-70 (_moebius_terms)
 ---
 
 ## What it shows

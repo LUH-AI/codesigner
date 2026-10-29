@@ -1,5 +1,5 @@
-"""Edge cases in `core.provenance` must never refuse an import or fail an
-export.
+"""Edge cases in `core.provenance` must let every import and every
+export succeed.
 """
 
 import hashlib

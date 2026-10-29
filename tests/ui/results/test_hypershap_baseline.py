@@ -1,4 +1,4 @@
-"""Each stored game holds gains over the config space default. The incumbent and
+"""Each stored game contains gains over the config space default. The incumbent and
 selected-trial baselines depend on the metric and the click, so
 `hypershap_figures` computes them on request.
 """

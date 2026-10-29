@@ -1,5 +1,5 @@
 """`test_real_uv` runs the real uv, catching flag changes that the shim-based
-tests miss. The model needs only ConfigSpace.
+tests miss. The model only needs ConfigSpace.
 """
 
 import shutil

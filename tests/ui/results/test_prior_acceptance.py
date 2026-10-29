@@ -167,7 +167,7 @@ def test_the_tolerance_is_a_share_of_the_metrics_scale():
 
 
 def test_the_tolerance_keeps_its_decimals(client):
-    """Read as an integer, the tolerance would truncate to zero and refuse every
+    """Read as an integer, the tolerance would truncate to zero and reject every
     prior."""
     from django.test import RequestFactory
 
@@ -197,7 +197,7 @@ def test_top_k_defaults_to_smacs():
     ({"top_k": "many"}, 10)])
 def test_the_posted_top_k_is_clamped_or_falls_back(client, monkeypatch, posted, used):
     """A missing or non-numeric top k falls back to the setting."""
-    from core.optimizers.smac_optimizer import SMACOptimizer
+    from core.optimizers.smac import SMACOptimizer
 
     seen = {}
 
@@ -245,7 +245,7 @@ def test_only_the_gaussian_process_judges_priors():
     """Under the random forest every prior passes, and a model-free optimizer
     has nothing to judge with."""
     from core.optimizers.random_optimizer import RandomOptimizer
-    from core.optimizers.smac_optimizer import SMACOptimizer
+    from core.optimizers.smac import SMACOptimizer
 
     smac = SMACOptimizer()
     assert smac.judges_priors({"search_strategy": "gp"})
@@ -277,7 +277,7 @@ def test_the_button_is_disabled_under_the_random_forest(client):
 def test_the_random_forest_is_not_judged_even_if_asked(client, monkeypatch):
     """A stale page's live button gets `unjudged`, never a random forest
     verdict."""
-    from core.optimizers.smac_optimizer import SMACOptimizer
+    from core.optimizers.smac import SMACOptimizer
 
     def _reached(*args, **kwargs):
         raise AssertionError("the random forest was asked to judge a prior")
@@ -309,8 +309,8 @@ def test_only_a_refusal_asks_a_question():
 def test_the_verdict_is_smacs():
     """The server relies on SMAC's `add_prior` acceptance policy, keeping one
     implementation of the judgement."""
-    optimizer = (Path(__file__).parents[3] / "core" / "optimizers"
-                 / "smac_optimizer.py").read_text()
+    smac = Path(__file__).parents[3] / "core" / "optimizers" / "smac"
+    optimizer = (smac / "optimizer.py").read_text() + (smac / "priors.py").read_text()
 
     assert "acceptance_policy=acceptance" in optimizer
     assert "class _RecordingPolicy(ClimbingComparisonPolicy)" in optimizer
@@ -377,7 +377,7 @@ def test_without_its_data_an_unbounded_metric_is_scaled_by_its_trials(client, mo
 
 def test_smac_is_handed_the_tolerance_in_the_metrics_units(client, monkeypatch):
     """SMAC receives the setting's share times the metric's scale."""
-    from core.optimizers.smac_optimizer import SMACOptimizer
+    from core.optimizers.smac import SMACOptimizer
 
     seen = {}
 

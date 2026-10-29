@@ -131,8 +131,8 @@ def _create_group(request, name, limit):
 @site_admin_required
 def site_group_delete(request):
     """`site_group_delete` moves the group's experiments to the bin via
-    `Group.delete()`. `Membership.group` is `PROTECT`, so a group with members
-    is refused.
+    `.Group.delete`. `.Membership.group` is `PROTECT`, so the deletion of a
+    group with members fails.
     """
     group = get_object_or_404(Group, pk=request.POST.get("pk") or 0)
     name = group.name
@@ -242,7 +242,7 @@ def _usage_by_person():
 def site_jobs(request):
     """`site_jobs` lists active runs across every group."""
     active = (Run.objects
-              .filter(status__in=("pending", "running"))
+              .filter(status__in=Run.ACTIVE_STATUSES)
               .select_related("experiment", "started_by")
               .order_by("-started_at"))
     return render(request, "ui/panels/site_jobs.html", {
@@ -253,7 +253,7 @@ def site_jobs(request):
 def _job_row(run) -> dict:
     """What a site admin may see."""
     owner = run.started_by or run.experiment.owner
-    # The job belongs to the experiment's group, since one owner may hold
+    # The job belongs to the experiment's group, since one owner may have
     # several memberships.
     group = run.experiment.group
     return {
@@ -279,7 +279,7 @@ def site_job_stop(request, pk):
     experiment access for `@experiment_view`. The stop is forcible and also
     cancels a cluster job.
     """
-    run = get_object_or_404(Run, pk=pk, status__in=("pending", "running"))
+    run = get_object_or_404(Run, pk=pk, status__in=Run.ACTIVE_STATUSES)
     if run.job_id:
         run_service.abandon_cluster_job(run.job_id)
     run_service.fail_runs([run], _("Stopped by a site administrator."))

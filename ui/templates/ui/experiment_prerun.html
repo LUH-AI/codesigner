@@ -12,7 +12,7 @@ over, at the same address.{% endcomment %}
 
 {% block experiment_body %}
     {% if active_run %}
-        <div class="alert info" style="margin-top: 1rem;">{% translate "Waiting for the first trial…" %}</div>
+        {% if active_run.status != "submitted" %}<div class="alert info" style="margin-top: 1rem;">{% translate "Waiting for the first trial…" %}</div>{% endif %}
     {% if active_run %}
         <script>
             // This page has no figure grid — there was nothing to draw when

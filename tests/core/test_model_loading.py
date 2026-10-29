@@ -1,9 +1,9 @@
-"""`io.load_model_from_path` loads a user's model file.
+"""`model_loading.load_model_from_path` loads a user's model file.
 """
 
 import textwrap
 
-from core import datasets, io
+from core import datasets, model_loading
 
 from tests.conftest import DATASETS_DIR
 
@@ -25,20 +25,20 @@ _VALID_MODEL = textwrap.dedent("""
 def test_load_model_from_path_valid(tmp_path):
     f = tmp_path / "mymodel.py"
     f.write_text(_VALID_MODEL, encoding="utf-8")
-    model, err = io.load_model_from_path(str(f))
+    model, err = model_loading.load_model_from_path(str(f))
     assert err is None
     assert model.name == "My Custom Model"
 
 
 def test_load_model_from_path_missing_file():
-    model, err = io.load_model_from_path("/nope/model.py")
+    model, err = model_loading.load_model_from_path("/nope/model.py")
     assert model is None and "File not found" in err
 
 
 def test_load_model_from_path_no_subclass(tmp_path):
     f = tmp_path / "nomodel.py"
     f.write_text("x = 1\n", encoding="utf-8")
-    model, err = io.load_model_from_path(str(f))
+    model, err = model_loading.load_model_from_path(str(f))
     assert model is None and "No BaseModel subclass" in err
 
 
@@ -53,7 +53,7 @@ def test_load_model_from_path_missing_abstract_methods(tmp_path):
                 from ConfigSpace import ConfigurationSpace
                 return ConfigurationSpace(seed=seed)
     """), encoding="utf-8")
-    model, err = io.load_model_from_path(str(f))
+    model, err = model_loading.load_model_from_path(str(f))
     assert model is None and "fit_predict" in err
 
 

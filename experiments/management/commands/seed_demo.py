@@ -1,8 +1,8 @@
 """`seed_demo` builds a demo instance with groups, roles and sharing to sign in
 to.
 
-Every password equals its username, so the command refuses to run unless `DEBUG`
-is on or `--force` is given. The demo includes two groups at different seat
+Every password equals its username, so the command only runs with `DEBUG` on
+or with `--force`, otherwise it raises a `CommandError`. The demo includes two groups at different seat
 limits, experiments at all three sharing levels, finished runs, and one running
 job.
 """
@@ -20,7 +20,7 @@ from experiments.models import Experiment, ExperimentShare, Run
 
 VIEWER, CONTRIBUTOR = ExperimentShare.VIEWER, ExperimentShare.CONTRIBUTOR
 
-#: `--reset` removes only these groups and their people.
+#: `--reset` only removes these groups and their people.
 DEMO_GROUPS = ("site", "vision-lab", "nlp-group")
 
 
@@ -126,7 +126,7 @@ class Command(BaseCommand):
         return user
 
     def _experiment(self, owner, name, *, shares=None, runs=(), task="classification"):
-        # `get_or_create` would look up a missing column and write only the
+        # `get_or_create` would look up a missing column and only write the
         # instance half, so the manager creates both halves.
         exp = Experiment.objects.filter(data__name=name, owner=owner).first()
         if exp is None:

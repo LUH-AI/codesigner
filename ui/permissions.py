@@ -1,7 +1,7 @@
 """`@experiment_view` is the one route from a view to an experiment, and
 `tests/ui/test_permissions.py` audits the URLconf for it. An experiment outside
 the policy's queryset gets a 404, since a 403 would reveal that the experiment
-exists. A refused action on a visible experiment gets a plain 403.
+exists. A forbidden action on a visible experiment gets a plain 403.
 """
 
 from functools import wraps
@@ -51,8 +51,8 @@ def resolve_experiment(request, pk, action, drafts=CREATED):
 
 def experiment_view(action, drafts=CREATED):
     """`experiment_view` resolves `<int:pk>` to an experiment the request may
-    act on, and calls the view with that experiment in place of `pk`. A view
-    therefore never holds an unchecked `pk`. A GET for the wrong kind (see
+    act on, and calls the view with that experiment in place of `pk`. Therefore
+    a view only receives a checked experiment. A GET for the wrong kind (see
     `DRAFTS`) redirects a draft to its setup and a created experiment to its
     dashboard. Other methods get a 404.
     """

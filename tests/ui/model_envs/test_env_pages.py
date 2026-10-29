@@ -163,7 +163,7 @@ def test_an_in_process_model_can_still_be_run_locally(client, settings):
 def test_an_in_process_model_cannot_be_run_on_a_hosted_instance(client, settings,
                                                                 django_user_model):
     """In-process user code would run beside everyone's data, and the refusal
-    must hold for signed-in users."""
+    must apply to signed-in users."""
     settings.REQUIRE_LOGIN = True
     someone = django_user_model.objects.create_user(username="someone", password="pw")
     client.login(username="someone", password="pw")

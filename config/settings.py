@@ -27,67 +27,67 @@ else:
 
 ALLOWED_HOSTS = env.list("ALLOWED_HOSTS", default=["localhost", "127.0.0.1"])  # pyright: ignore[reportArgumentType]
 
-# `REQUIRE_LOGIN` turns on accounts and the `access` package for a shared
-# instance; local and trusted-network installs leave it off.
+#: `REQUIRE_LOGIN` turns on accounts and the `access` package for a shared
+#: instance; local and trusted-network installs leave it off.
 REQUIRE_LOGIN = env.bool("REQUIRE_LOGIN", default=False)
 
-# With accounts, `BIN_RETENTION_DAYS` is how long a deleted experiment stays in
-# its people's bins before moving to the site admins' bin, which never expires.
+#: With accounts, `BIN_RETENTION_DAYS` is how long a deleted experiment stays in
+#: its people's bins before moving to the site admins' bin, which never expires.
 BIN_RETENTION_DAYS = env.int("BIN_RETENTION_DAYS", default=30)
 
-# `ALLOW_CUSTOM_MODELS` lets users upload model code that the app executes. It
-# defaults to off because, outside a container, that code runs with the host
-# account's files and ssh keys.
+#: `ALLOW_CUSTOM_MODELS` lets users upload model code that the app executes. It
+#: defaults to off because, outside a container, that code runs with the host
+#: account's files and ssh keys.
 ALLOW_CUSTOM_MODELS = env.bool("ALLOW_CUSTOM_MODELS", default=False)
 
-# The default `GroupPolicy` stays open until `REQUIRE_LOGIN` is on, and
-# `access.policy.OpenPolicy` removes the group boundary even with accounts.
+#: The default `GroupPolicy` stays open until `REQUIRE_LOGIN` is on, and
+#: `access.policy.OpenPolicy` removes the group boundary even with accounts.
 EXPERIMENT_POLICY = env.str("EXPERIMENT_POLICY", default="access.policy.GroupPolicy")
 
-# `LOGIN_URL` and the redirects stay set while `REQUIRE_LOGIN` is off, so
-# turning it on takes one variable.
+#: `LOGIN_URL` and the redirects stay set while `REQUIRE_LOGIN` is off, so
+#: turning it on takes one variable.
 LOGIN_URL = "ui:login"
 LOGIN_REDIRECT_URL = "ui:home"
 LOGOUT_REDIRECT_URL = "ui:login"
 
-# uv runs each model in its own process, in an environment built from its PEP
-# 723 header; without uv, a hosted instance refuses and a local one imports the
-# model in-process.
+#: uv runs each model in its own process, in an environment built from its PEP
+#: 723 header; without uv, a local instance imports the model in-process and a
+#: hosted instance stops the run with an error (see `.resolve_runner`).
 UV_BIN = env.str("UV_BIN", default="uv")
 
-# `MODEL_SDK_WHEEL` points at the built model contract; the `MODEL_SDK_PATH`
-# source fallback makes uv fetch a build backend, which fails offline.
+#: `MODEL_SDK_WHEEL` points at the built model contract; the `MODEL_SDK_PATH`
+#: source fallback makes uv fetch a build backend, which fails offline.
 MODEL_SDK_WHEEL = env.str("MODEL_SDK_WHEEL", default=str(BASE_DIR / "wheels" / "sdk"))
 MODEL_SDK_PATH = env.str("MODEL_SDK_PATH", default=str(BASE_DIR / "model_sdk"))
 
-# An air-gapped deployment turns `MODEL_ENV_OFFLINE` on and Python downloads
-# off.
+#: An air-gapped deployment turns `MODEL_ENV_OFFLINE` on and Python downloads
+#: off.
 MODEL_ENV_OFFLINE = env.bool("MODEL_ENV_OFFLINE", default=False)
 MODEL_ENV_PYTHON_DOWNLOADS = env.bool("MODEL_ENV_PYTHON_DOWNLOADS", default=True)
 
-# `MODEL_ENV_PREPARE_TIMEOUT` is generous because preparing an environment can
-# mean a large download.
+#: `MODEL_ENV_PREPARE_TIMEOUT` is generous because preparing an environment can
+#: mean a large download.
 MODEL_ENV_PREPARE_TIMEOUT = env.float("MODEL_ENV_PREPARE_TIMEOUT", default=900.0)
 MODEL_TRIAL_TIMEOUT = env.float("MODEL_TRIAL_TIMEOUT", default=600.0)
 
-# Per-file write cap (`RLIMIT_FSIZE`) for a model.
+#: Per-file write cap (`RLIMIT_FSIZE`) for a model.
 MODEL_MAX_FILE_BYTES = env.int("MODEL_MAX_FILE_BYTES", default=1024 * 1024 * 1024)
 
-# `MAX_UPLOAD_BYTES` caps browser uploads; `MODEL_MAX_FILE_BYTES` caps what a
-# running model writes.
+#: `MAX_UPLOAD_BYTES` caps browser uploads; `MODEL_MAX_FILE_BYTES` caps what a
+#: running model writes.
 MAX_UPLOAD_BYTES = env.int("MAX_UPLOAD_BYTES", default=100 * 1024 * 1024)
 
-# `GROUP_STORAGE_LIMIT_BYTES` caps a group's disk use unless a site admin sets
-# the group's own limit; bundled demo datasets count against nobody.
+#: `GROUP_STORAGE_LIMIT_BYTES` caps a group's disk use unless a site admin sets
+#: the group's own limit; bundled demo datasets count against nobody.
 GROUP_STORAGE_LIMIT_BYTES = env.int("GROUP_STORAGE_LIMIT_BYTES", default=20 * 1024 ** 3)
 
-# Usage share past which members see a warning banner.
+#: Usage share past which members see a warning banner.
 STORAGE_WARNING_SHARE = env.float("STORAGE_WARNING_SHARE", default=0.9)
 
-# `ANALYTICS_EAGER_MAX_COALITIONS` caps the shapiq evaluations
-# (2^hyperparameters x 3 games x metrics) run at completion for importance
-# analytics. Each metric over the cap shows a skip reason. The cost grows
-# exponentially with hyperparameter count, and 0 lifts the cap.
+#: `ANALYTICS_EAGER_MAX_COALITIONS` caps the shapiq evaluations
+#: (2^hyperparameters x 3 games x metrics) run at completion for importance
+#: analytics. Each metric over the cap shows a skip reason. The cost grows
+#: exponentially with hyperparameter count, and 0 lifts the cap.
 ANALYTICS_EAGER_MAX_COALITIONS = env.int("ANALYTICS_EAGER_MAX_COALITIONS", default=1024)
 
 # ── The assistant ────────────────────────────────────────────────────────────
@@ -148,8 +148,8 @@ ASSISTANT_ACT_SECONDS = env.float("ASSISTANT_ACT_SECONDS", default=8.0)
 # How recently a page must have shown it is open for the assistant to act on it.
 ASSISTANT_PAGE_SECONDS = env.float("ASSISTANT_PAGE_SECONDS", default=90.0)
 
-# A model's process inherits every variable except the listed ones, since proxy
-# and certificate settings vary by operator.
+#: A model's process inherits every variable except the listed ones, since proxy
+#: and certificate settings vary by operator.
 MODEL_ENV_DENYLIST = (
     "SECRET_KEY", "DATABASE_URL", "DJANGO_SETTINGS_MODULE", "HUEY_FILENAME",
     "MEDIA_ROOT", "ALLOWED_HOSTS", "REQUIRE_LOGIN", "ALLOW_CUSTOM_MODELS",
@@ -157,29 +157,29 @@ MODEL_ENV_DENYLIST = (
     "ASSISTANT_EMBED_TOKEN", "ASSISTANT_EMBED_BASE_URL",
 )
 
-# `local` runs the optimization in the consumer process; `slurm` has the
-# consumer submit it to a cluster. The queue and database settings below decide
-# separately where the consumer runs.
+#: `local` runs the optimization in the consumer process; `slurm` has the
+#: consumer submit it to a cluster. The queue and database settings below decide
+#: separately where the consumer runs.
 RUN_BACKEND = env.str("RUN_BACKEND", default="local")
 
-# `CLUSTER_HOST` is an `ssh` host name, so ProxyJump, key and user stay in
-# ~/.ssh/config.
+#: `CLUSTER_HOST` is an `ssh` host name, so ProxyJump, key and user stay in
+#: ~/.ssh/config.
 CLUSTER_HOST = env.str("CLUSTER_HOST", default="")
 CLUSTER_ROOT = env.str("CLUSTER_ROOT", default="codesigner")
 CLUSTER_PARTITION = env.str("CLUSTER_PARTITION", default="")
-# `CLUSTER_CPUS` sets the job's cores and its thread-pool sizes
-# (remote/job.sbatch).
+#: `CLUSTER_CPUS` sets the job's cores and its thread-pool sizes
+#: (remote/job.sbatch).
 CLUSTER_CPUS = env.int("CLUSTER_CPUS", default=8)
-# `CLUSTER_MAX_HOURS` caps a job's wall-clock hours and should match the
-# partition limit, since a queue refuses longer jobs.
+#: `CLUSTER_MAX_HOURS` caps a job's wall-clock hours and should match the
+#: partition limit, since `sbatch` fails to submit a longer job.
 CLUSTER_MAX_HOURS = env.int("CLUSTER_MAX_HOURS", default=24)
-# Each poll is an ssh round trip and also paces page figures.
+#: Each poll is an ssh round trip and also paces page figures.
 CLUSTER_POLL_SECONDS = env.float("CLUSTER_POLL_SECONDS", default=5.0)
 
-# SqliteHuey needs the `manage.py run_huey` consumer on the web process's
-# filesystem, and RedisHuey lets the two run on separate machines. A lone
-# `runserver` runs tasks inline because the `immediate` flag follows DEBUG. Four
-# thread workers keep a minutes-long environment build from blocking every run.
+#: SqliteHuey needs the `manage.py run_huey` consumer on the web process's
+#: filesystem, and RedisHuey lets the two run on separate machines. A lone
+#: `runserver` runs tasks inline because the `immediate` flag follows DEBUG. Four
+#: thread workers keep a minutes-long environment build from blocking every run.
 HUEY_CLASS = env.str("HUEY_CLASS", default="huey.SqliteHuey")
 HUEY = {
     "huey_class": HUEY_CLASS,
@@ -193,16 +193,16 @@ HUEY = {
 }
 
 # A Redis setup never falls back to a SQLite file another machine cannot see,
-# because each broker class gets only its own argument.
+# because each broker class only gets its own argument.
 if HUEY_CLASS.endswith("RedisHuey"):
     HUEY["url"] = env.str("REDIS_URL", default="redis://localhost:6379/0")
 else:
     HUEY["filename"] = env.str("HUEY_FILENAME",
                                default=str(BASE_DIR / "huey.sqlite3"))
 
-# Immediate mode runs a task inside the launching request, so
-# `RUN_IMMEDIATE_IN_THREAD` moves it to a background thread; tests/conftest.py
-# turns it off.
+#: Immediate mode runs a task inside the launching request, so
+#: `RUN_IMMEDIATE_IN_THREAD` moves it to a background thread; tests/conftest.py
+#: turns it off.
 RUN_IMMEDIATE_IN_THREAD = env.bool("RUN_IMMEDIATE_IN_THREAD", default=True)
 
 
@@ -291,8 +291,8 @@ AUTH_PASSWORD_VALIDATORS = [
 
 LANGUAGE_CODE = "en"
 
-# `manage.py translations` compiles the catalogs, and `msgfmt` drops fuzzy
-# entries, so a string whose English changed falls back to English.
+#: `manage.py translations` compiles the catalogs, and `msgfmt` drops fuzzy
+#: entries, so a string whose English changed falls back to English.
 LANGUAGES = [
     ("en", "English"),
     ("de", "Deutsch"),
@@ -329,17 +329,17 @@ STORAGES = {
     "staticfiles": {"BACKEND": "whitenoise.storage.CompressedStaticFilesStorage"},
 }
 
-# `MEDIA_ROOT` holds uploads, and the container points it at its shared data
-# volume.
 MEDIA_URL = "media/"
+#: `MEDIA_ROOT` stores uploads, and the container points it at its shared data
+#: volume.
 MEDIA_ROOT = env.str("MEDIA_ROOT", default=str(BASE_DIR / "media"))
 
 DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
 
 
-# Local and private-network installs serve plain HTTP, so forcing HTTPS whenever
-# `DEBUG=False` would redirect them to a port nobody answers.
-# `SECURE_BEHIND_TLS` is for a TLS-terminating reverse proxy in front.
+#: Local and private-network installs serve plain HTTP, so forcing HTTPS whenever
+#: `DEBUG=False` would redirect them to a port nobody answers.
+#: `SECURE_BEHIND_TLS` is for a TLS-terminating reverse proxy in front.
 SECURE_BEHIND_TLS = env.bool("SECURE_BEHIND_TLS", default=False)
 
 if SECURE_BEHIND_TLS:
@@ -356,17 +356,17 @@ if SECURE_BEHIND_TLS:
     # must overwrite any client-sent `X-Forwarded-Proto`.
     SECURE_PROXY_SSL_HEADER = ("HTTP_X_FORWARDED_PROTO", "https")
 
-# Django checks a secure request's Origin against `CSRF_TRUSTED_ORIGINS`, so an
-# empty list fails every hosted form. The list defaults from `ALLOWED_HOSTS` and
-# applies without `SECURE_BEHIND_TLS`, since a proxy can still terminate TLS.
+#: Django checks a secure request's Origin against `CSRF_TRUSTED_ORIGINS`, so an
+#: empty list fails every hosted form. The list defaults from `ALLOWED_HOSTS` and
+#: applies without `SECURE_BEHIND_TLS`, since a proxy can still terminate TLS.
 CSRF_TRUSTED_ORIGINS = env.list(
     "CSRF_TRUSTED_ORIGINS",
     default=[f"https://{host}" for host in ALLOWED_HOSTS if host != "*"],  # pyright: ignore[reportArgumentType]
 )
 
 
-# `LOGGING` keeps Django's console-only fallback, since the container stores the
-# logs.
+#: `LOGGING` keeps Django's console-only fallback, since the container stores the
+#: logs.
 LOGGING = {
     "version": 1,
     "disable_existing_loggers": False,

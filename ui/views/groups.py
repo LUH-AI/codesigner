@@ -50,7 +50,7 @@ def lead_required(view):
 
 
 def primary_lead_required(view):
-    """`primary_lead_required` admits only the primary lead, who appoints the
+    """`primary_lead_required` only admits the primary lead, who appoints the
     other leads.
     """
     @wraps(view)
@@ -187,8 +187,9 @@ def group_add_person(request, membership):
 @require_POST
 @lead_required
 def group_remove_person(request, membership, pk):
-    """`group_remove_person` refuses while the person still owns experiments
-    here, since nobody could reach them afterwards. The account survives.
+    """`group_remove_person` removes a person only once that person owns no
+    experiments here, since nobody could reach those experiments afterwards. The
+    account survives.
     """
     target = get_object_or_404(Membership, pk=pk, group=membership.group)
     if target.pk == membership.pk:
@@ -215,7 +216,7 @@ def group_remove_person(request, membership, pk):
 @primary_lead_required
 def group_set_role(request, membership, pk):
     """`group_set_role` switches a member between lead and member; the primary
-    role moves only by transfer.
+    role only moves by transfer.
     """
     target = get_object_or_404(Membership, pk=pk, group=membership.group)
     role = request.POST.get("role") or ""

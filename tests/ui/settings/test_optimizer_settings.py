@@ -138,7 +138,7 @@ def test_an_experiment_stored_under_the_old_name_still_works(client):
 
 def test_a_stored_setting_the_optimizer_no_longer_has_is_ignored(client):
     """A withdrawn setting would reach `__init__` as an unexpected keyword, and
-    the page catches only ValueError."""
+    the page only catches ValueError."""
     exp = _experiment(params={"search_strategy": "gp", "withdrawn_long_ago": 7})
 
     assert client.get(
@@ -363,7 +363,7 @@ def test_a_strategy_dependent_default_carries_both_strategies_values(client):
 
 
 def test_a_bounded_setting_shows_its_range(client):
-    """`min` and `max` speak only once a value is wrong."""
+    """`min` and `max` only speak once a value is wrong."""
     panel = _smac_panel(client)
     at = panel.index('id="opt_random_probability"')
     field = panel[panel.rindex('<div class="field"', 0, at):panel.index("</div>", at)]

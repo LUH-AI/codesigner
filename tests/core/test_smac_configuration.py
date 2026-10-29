@@ -5,6 +5,7 @@ initial design as a share of that budget.
 import pytest
 
 from core.optimizers import SMACOptimizer
+from core.optimizers.smac import optimizer as smac_optimizer
 
 pytestmark = pytest.mark.slow
 
@@ -79,16 +80,17 @@ def test_either_strategy_runs_and_searches(strategy, models, metrics, iris_split
 
 @pytest.mark.parametrize("strategy", ["gp", "rf"])
 def test_either_strategy_answers_when_asked_how_sure_it_is(strategy, models, metrics,
-                                                           iris_splits):
+                                                           iris_splits, monkeypatch):
     """The random forest raises on any covariance type except "diagonal", and
     the surrounding `except` would turn the criterion off without an error."""
     X_train, X_val, y_train, y_val = iris_splits
     optimizer = SMACOptimizer(search_strategy=strategy)
     answers = []
-    real = optimizer._confidence_nothing_better
-    optimizer._confidence_nothing_better = (
-        lambda smac, config_space, incumbent_config, _r=real:
-        answers.append(_r(smac, config_space, incumbent_config)) or answers[-1])
+    real = smac_optimizer.confidence_nothing_better
+    monkeypatch.setattr(
+        smac_optimizer, "confidence_nothing_better",
+        lambda smac, config_space, incumbent_config:
+        answers.append(real(smac, config_space, incumbent_config)) or answers[-1])
 
     optimizer.optimize(
         models["Random Forest"], X_train, y_train, X_val, y_val,
@@ -101,18 +103,19 @@ def test_either_strategy_answers_when_asked_how_sure_it_is(strategy, models, met
 
 
 def test_the_gaussian_process_gives_an_answer_that_actually_varies(
-        models, metrics, iris_splits):
+        models, metrics, iris_splits, monkeypatch):
     """The test asserts variation for the Gaussian process only, because a
     forest of the default ten trees gives coarse readings near 0.5."""
     X_train, X_val, y_train, y_val = iris_splits
     seen = {}
+    real = smac_optimizer.confidence_nothing_better
     for strategy in ("gp", "rf"):
         optimizer = SMACOptimizer(search_strategy=strategy)
         answers = []
-        real = optimizer._confidence_nothing_better
-        optimizer._confidence_nothing_better = (
-            lambda smac, config_space, incumbent_config, _r=real, _s=answers:
-            _s.append(_r(smac, config_space, incumbent_config)) or _s[-1])
+        monkeypatch.setattr(
+            smac_optimizer, "confidence_nothing_better",
+            lambda smac, config_space, incumbent_config, _s=answers:
+            _s.append(real(smac, config_space, incumbent_config)) or _s[-1])
         optimizer.optimize(
             models["Random Forest"], X_train, y_train, X_val, y_val,
             metrics=metrics, primary_metric="accuracy", seed=0,

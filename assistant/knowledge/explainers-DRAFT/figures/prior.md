@@ -9,7 +9,7 @@ status: draft
 sources:
   - ui/figures/catalog.py:328-337 (Prior)
   - ui/templates/ui/figures/prior.html (assistant branch: data-assist="prior", "evaluate_prior"), _acquisition_shared.html
-  - ui/static/ui/acquisition.js:89-132 (KINDS), 711-1019 (editing), 1021-1169 (controls), 1577-1791 (judge, reset, strength, syncControls)
+  - ui/static/ui/acquisition.js:89-132 (KINDS), 711-1019 (editing), 1021-1169 (controls), 1578-1792 (judge, reset, strength, syncControls)
   - ui/views/priors.py:186-316 (save_prior, reset_prior, evaluate_prior)
   - core/priors.py:99-161 (β ratio), 207-225 (_initial_design_notice)
   - ui/views/analytics.py:292-344 (_decayed)

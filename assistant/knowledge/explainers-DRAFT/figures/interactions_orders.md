@@ -9,8 +9,8 @@ status: draft
 sources:
   - ui/figures/catalog.py:113-180 (_Interactions, InteractionsOrders)
   - ui/templates/ui/figures/interactions_orders.html, _before_this_run.html
-  - ui/figures/plots.py:555-620 (_ORDER_BANDS, hyperparameter_orders_plot)
-  - core/analytics.py:176-184 (_moebius_terms)
+  - ui/figures/plots/interactions.py:203-244 (_ORDER_BANDS, hyperparameter_orders_plot)
+  - core/analytics/games.py:62-70 (_moebius_terms)
 ---
 
 ## What it shows

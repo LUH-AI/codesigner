@@ -1,5 +1,5 @@
 """`core.priors` is the one density implementation, shared by the figure's
-`prior_density` and `SMACOptimizer._apply_priors`.
+`prior_density` and `core.optimizers.smac.priors.apply_priors`.
 """
 
 import math

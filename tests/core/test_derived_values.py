@@ -85,7 +85,7 @@ def test_incumbent_scores_leads_with_none_until_the_first_real_score():
 
 
 def test_has_every_score_is_what_the_figure_builders_ask():
-    """Per-metric builders refuse partial pictures."""
+    """Per-metric builders return None for partial pictures."""
     r = _result([{"accuracy": 0.4, "f1": 0.5}, {"accuracy": 0.9}])
     assert r.has_every_score("accuracy")
     assert not r.has_every_score("f1")

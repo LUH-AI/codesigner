@@ -7,15 +7,15 @@ related: [page-dashboard-sidebar, figure-best-configuration, figure-performance-
 keywords: [selected trial, click to select, incumbent, difference to best, failed trial, traceback, proposal, run as trial]
 status: draft
 sources:
-  - ui/figures/catalog.py:43-60 (SelectedConfiguration, in_sidebar)
+  - ui/figures/catalog.py:43-67 (SelectedConfiguration, in_sidebar)
   - ui/templates/ui/figures/selected_configuration.html
   - ui/templates/ui/_selected_config_inner.html
   - ui/templates/ui/_selected_proposal_inner.html
   - ui/views/dashboard.py:183-207 (_selected_panel_data)
   - ui/views/priors.py:61-117 (proposal_panel, run_proposal)
   - ui/views/analytics.py:34-57 (trial_traceback)
-  - ui/templates/ui/experiment_detail.html:439-446 (selectionFor), 729-905 (pointExportAt, selectTrial, selectProposal, dropProposal), 3055-3078 (show)
-  - ui/figures/base.py:125-152 (selects_trials, in_sidebar)
+  - ui/templates/ui/experiment_detail.html:439-446 (selectionFor), 729-980 (pointExportAt, selectTrial, selectProposal, dropProposal), 3055-3078 (show)
+  - ui/figures/base.py:125-158 (selects_trials, in_sidebar)
 ---
 
 ## What it shows

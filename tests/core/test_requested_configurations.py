@@ -62,7 +62,7 @@ def test_without_requests_a_run_searches_as_it_always_did(iris_splits, metrics):
 @pytest.mark.slow
 def test_smac_evaluates_the_request_and_learns_from_it(iris_splits, metrics):
     """`SMACOptimizer` tells SMAC the requested trial like its own, and the
-    runhistory of the resumed run holds all three trials.
+    runhistory of the resumed run contains all three trials.
     """
     first = _run(SMACOptimizer(), iris_splits, metrics, None, n_trials=2)
     config = _requested()

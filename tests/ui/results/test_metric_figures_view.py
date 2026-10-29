@@ -1,5 +1,5 @@
 """The metric switcher fetches each other metric here once. The numbers are
-stored at run completion, so the endpoint defers only building and serializing
+stored at run completion, so the endpoint only defers building and serializing
 the Plotly objects.
 """
 
