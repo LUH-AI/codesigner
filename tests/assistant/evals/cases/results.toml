@@ -1,0 +1,26 @@
+# Questions about a finished experiment's results (tests/fixtures/analytics.ihpo).
+# Until the assistant can read results these measure how it copes without.
+
+[[case]]
+id = "most-important-hyperparameter"
+say = "Which hyperparameter mattered most?"
+[case.situation]
+phase = "results"
+[case.expect]
+calls = [{tool = "read_experiment"}]
+
+[[case]]
+id = "best-trial"
+say = "What was the best configuration?"
+[case.situation]
+phase = "results"
+[case.expect]
+calls = [{tool = "read_experiment"}]
+
+[[case]]
+id = "show-performance-over-time"
+say = "Show me how the score improved over time."
+[case.situation]
+phase = "results"
+[case.expect]
+calls = [{tool = "show"}]

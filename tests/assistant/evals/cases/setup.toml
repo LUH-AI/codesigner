@@ -1,0 +1,70 @@
+# A draft's setup steps, filled from the approved iris plan: the person asks
+# for changes, which the assistant makes on the page and never saves.
+
+[[case]]
+id = "ten-folds-filled"
+say = "Use 10 folds instead."
+[case.situation]
+phase = "setup"
+dataset = "iris"
+plan = "iris"
+[case.expect]
+calls = [{tool = "fill", args = {values = {evaluation_value = 10}}}]
+absent = ["I saved", "I've saved", "has been saved", "is now saved", "was saved"]
+
+[[case]]
+id = "model-changed"
+say = "Switch the model to SVM."
+[case.situation]
+phase = "setup"
+dataset = "iris"
+plan = "iris"
+[case.expect]
+calls = [{tool = "fill", args = {values = {model_name = "SVM"}}}]
+absent = ["I saved", "I've saved", "has been saved", "is now saved", "was saved"]
+
+[[case]]
+id = "field-explained-not-changed"
+say = "What does the evaluation scheme mean?"
+[case.situation]
+phase = "setup"
+dataset = "iris"
+plan = "iris"
+[case.expect]
+never = ["fill", "navigate"]
+ended = ["answered"]
+
+[[case]]
+id = "next-step-is-saving"
+say = "What do I do now?"
+[case.situation]
+phase = "setup"
+dataset = "iris"
+plan = "iris"
+[case.expect]
+never = ["fill"]
+mentions = ["save"]
+
+[[case]]
+id = "save-button-pointed-at"
+say = "Where is the save button?"
+[case.situation]
+phase = "setup"
+dataset = "iris"
+plan = "iris"
+[case.expect]
+calls = [{tool = "highlight", args = {target = "save"}}]
+never = ["fill"]
+
+[[case]]
+id = "back-to-step-one"
+say = "Take me back to the first step."
+[case.situation]
+phase = "setup"
+dataset = "iris"
+plan = "iris"
+saved = ["setup"]
+page = "ui:setup_optimizer"
+[case.expect]
+calls = [{tool = "navigate", args = {page = "setup"}}]
+never = ["fill"]

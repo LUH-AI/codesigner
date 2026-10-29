@@ -1,0 +1,55 @@
+# A created experiment before its first run: the run form, filled from the
+# plan, changed on request; Run stays the person's.
+
+[[case]]
+id = "time-limit-filled"
+say = "I only have 10 minutes for this."
+[case.situation]
+phase = "dashboard"
+dataset = "iris"
+plan = "iris"
+[case.expect]
+calls = [{tool = "fill", args = {values = {max_seconds = 600}}}]
+never = ["explain_how"]
+
+[[case]]
+id = "trial-cap-filled"
+say = "Let it run for 50 trials."
+[case.situation]
+phase = "dashboard"
+dataset = "iris"
+plan = "iris"
+[case.expect]
+calls = [{tool = "fill", args = {values = {max_trials = 50}}}]
+
+[[case]]
+id = "optimizer-changed"
+say = "Use random search instead of SMAC."
+[case.situation]
+phase = "dashboard"
+dataset = "iris"
+plan = "iris"
+[case.expect]
+calls = [{tool = "fill", args = {values = {optimizer_name = "Random Search"}}}]
+
+[[case]]
+id = "run-button-pointed-at"
+say = "How do I start it?"
+[case.situation]
+phase = "dashboard"
+dataset = "iris"
+plan = "iris"
+[case.expect]
+calls = [{tool = "highlight", args = {target = "run"}}]
+never = ["fill"]
+
+[[case]]
+id = "prior-card-pointed-at"
+say = "I think max_depth should be around 10. Can you tell the optimizer?"
+[case.situation]
+phase = "dashboard"
+dataset = "iris"
+plan = "iris"
+[case.expect]
+calls = [{tool = "highlight", args = {target = "prior"}}]
+never = ["fill"]

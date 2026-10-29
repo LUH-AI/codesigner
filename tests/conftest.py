@@ -20,6 +20,19 @@ from core.optimizers import (
 from core.optimizers.base import merge_stopping
 
 FIXTURES_DIR = Path(__file__).parent / "fixtures"
+
+def pytest_addoption(parser):
+    """`pytest_addoption` registers the evals' options (tests/assistant/evals),
+    here because only a top-level conftest may add options."""
+    group = parser.getgroup("assistant evals")
+    group.addoption("--eval", action="store_true",
+                    help="Run the assistant's evals against ASSISTANT_LLM_*.")
+    group.addoption("--eval-repeat", type=int, default=1, help="Runs of each eval case.")
+    group.addoption("--eval-report", default="eval-report.json",
+                    help="Where the evals' report is written.")
+    group.addoption("--eval-case", action="append", default=[],
+                    help="Only the eval cases whose id or group starts with this.")
+
 DATASETS_DIR = Path(__file__).parent.parent / "datasets"
 
 
