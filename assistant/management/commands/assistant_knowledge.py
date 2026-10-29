@@ -4,7 +4,10 @@ Fetches each paper in assistant/knowledge/literature.toml from its open-access
 source, splits it into passages, embeds them through the embedding endpoint
 (`ASSISTANT_EMBED_*`) unless `--no-embed`, and writes the index to
 `ASSISTANT_KNOWLEDGE_DIR`. `--only KEY ...` fetches just those papers again.
-Needs pypdf (requirements-knowledge.txt), for building only.
+
+`ensure` builds only what is needed: nothing while the assistant is off or the
+index matches the paper list and the embedding model, else a build on the
+worker's queue, or here with `--now`. The worker runs it on starting.
 """
 
 from django.core.management.base import BaseCommand, CommandError
@@ -14,10 +17,12 @@ class Command(BaseCommand):
     help = "Build the assistant's library of papers."
 
     def add_arguments(self, parser):
-        parser.add_argument("action", choices=["build", "status"])
+        parser.add_argument("action", choices=["build", "status", "ensure"])
         parser.add_argument("--only", nargs="+", default=None, help="Keys to fetch again.")
         parser.add_argument("--no-embed", action="store_true",
                             help="Build for search by words alone.")
+        parser.add_argument("--now", action="store_true",
+                            help="With ensure: build here rather than on the queue.")
 
     def handle(self, *args, **options):
         import json
@@ -25,6 +30,8 @@ class Command(BaseCommand):
         from assistant import library
         from assistant.llm import EmbeddingClient
 
+        if options["action"] == "ensure":
+            return self.ensure(now=options["now"])
         if options["action"] == "status":
             built = library.index_dir() / "built.json"
             if not built.exists():
@@ -41,3 +48,26 @@ class Command(BaseCommand):
             raise CommandError(f"Not in the list: {sorted(unknown)}")
         built = library.build(embedder=embedder, only=only, progress=self.stdout.write)
         self.stdout.write(json.dumps(built, indent=2))
+
+    def ensure(self, now: bool):
+        from django.conf import settings
+
+        from assistant import library
+        from assistant.llm import EmbeddingClient
+
+        if not settings.ASSISTANT_ENABLED:
+            self.stdout.write("The assistant is off; no library is needed.")
+            return
+        embedder = EmbeddingClient.from_settings()
+        reason = library.stale(getattr(embedder, "model", None))
+        if not reason:
+            self.stdout.write(f"The library at {library.index_dir()} is current.")
+            return
+        if now:
+            self.stdout.write(f"Building the library: {reason}.")
+            library.build(embedder=embedder, progress=self.stdout.write)
+            return
+        from assistant.tasks import build_library_task
+
+        build_library_task()
+        self.stdout.write(f"Library build queued: {reason}.")

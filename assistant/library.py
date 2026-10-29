@@ -7,7 +7,13 @@ endpoint when there is one, and writes the index to `ASSISTANT_KNOWLEDGE_DIR`:
 
     passages.jsonl   one passage per line: id, key, title, page, text, kind
     embeddings.npy   one unit vector per passage, in the same order (optional)
-    built.json       when, with which embedding model, what could not be fetched
+    built.json       when, from which list and with which embedding model, and
+                     what could not be fetched
+
+Nothing of it is kept in the repository: each instance fetches the papers
+itself. `stale` says when the index no longer matches the list or the
+configured embedding model, and the worker builds it again on starting
+(`manage.py assistant_knowledge ensure`).
 
 `search` ranks passages two ways — BM25 over their words, cosine similarity of
 their embeddings — and merges the two rankings (reciprocal rank fusion), so it
@@ -20,9 +26,12 @@ Fetching and PDF reading are only for building; searching needs neither.
 
 from __future__ import annotations
 
+import contextlib
+import hashlib
 import json
 import logging
 import math
+import os
 import re
 import threading
 import time
@@ -63,6 +72,66 @@ def papers() -> list[dict]:
 
 def index_dir() -> Path:
     return Path(settings.ASSISTANT_KNOWLEDGE_DIR)
+
+
+def manifest() -> str:
+    """`manifest` returns a digest of the paper list, which an index records to
+    tell whether it was built from the list as it stands."""
+    return hashlib.sha256(LITERATURE.read_bytes()).hexdigest()[:16]
+
+
+def built() -> dict | None:
+    """`built` returns what the index records about its build, or None
+    without one."""
+    path = index_dir() / "built.json"
+    if not (path.exists() and (index_dir() / "passages.jsonl").exists()):
+        return None
+    try:
+        return json.loads(path.read_text(encoding="utf-8"))
+    except ValueError:
+        return None
+
+
+def stale(embedding_model: str | None) -> str:
+    """`stale` returns why the index needs building, or "" when it is current:
+    missing, built from another paper list, or embedded with a model other
+    than *embedding_model* (None for search by words alone)."""
+    record = built()
+    if record is None:
+        return "there is no library yet"
+    if record.get("manifest") != manifest():
+        return "the paper list has changed"
+    if record.get("embedding_model") != embedding_model:
+        return (f"it was embedded with {record.get('embedding_model') or 'no model'}, "
+                f"not {embedding_model or 'no model'}")
+    return ""
+
+
+@contextlib.contextmanager
+def _building(directory: Path):
+    """`_building` holds the index folder's build lock, so two builds never
+    write at once; it yields False when another build has it."""
+    import fcntl
+
+    directory.mkdir(parents=True, exist_ok=True)
+    with open(directory / ".building", "w") as handle:
+        try:
+            fcntl.flock(handle, fcntl.LOCK_EX | fcntl.LOCK_NB)
+        except BlockingIOError:
+            yield False
+            return
+        try:
+            yield True
+        finally:
+            fcntl.flock(handle, fcntl.LOCK_UN)
+
+
+def _replace(path: Path, write) -> None:
+    """`_replace` writes *path* through a temporary file renamed into place, so
+    a reader sees the old file or the new one, never half of one."""
+    temporary = path.with_name(path.name + ".tmp")
+    write(temporary)
+    os.replace(temporary, path)
 
 
 # ── building ─────────────────────────────────────────────────────────────────
@@ -181,11 +250,19 @@ def link_of(paper: dict) -> str:
     return paper.get("pdf") or paper.get("html") or ""
 
 
-def build(embedder=None, only: set | None = None, progress=print) -> dict:
+def build(embedder=None, only: set | None = None, progress=print) -> dict | None:
     """Fetch, split and embed the library into `index_dir()`. With *only*, just
-    those keys are fetched again; the others keep their passages."""
+    those keys are fetched again; the others keep their passages. Returns
+    None, building nothing, while another build holds the folder."""
     directory = index_dir()
-    directory.mkdir(parents=True, exist_ok=True)
+    with _building(directory) as mine:
+        if not mine:
+            progress("Another build is under way; leaving it to finish.")
+            return None
+        return _build(directory, embedder, only, progress)
+
+
+def _build(directory: Path, embedder, only, progress) -> dict:
     kept = {}
     if only and (directory / "passages.jsonl").exists():
         for passage in _read_passages(directory):
@@ -216,22 +293,31 @@ def build(embedder=None, only: set | None = None, progress=print) -> dict:
         progress(f"{key}: {len(found)} passages" + (f" (failed: {failed[key]})" if key in failed else ""))
     for number, passage in enumerate(passages):
         passage["id"] = number
-    with open(directory / "passages.jsonl", "w", encoding="utf-8") as out:
-        for passage in passages:
-            out.write(json.dumps(passage, ensure_ascii=False) + "\n")
     vectors = None
     if embedder is not None:
-        texts = [f"{_title(p['key'])}\n{p['text']}" for p in passages]
-        vectors = embedder.embed(texts)
-        np.save(directory / "embeddings.npy", vectors)
+        vectors = embedder.embed([f"{_title(p['key'])}\n{p['text']}" for p in passages])
+
+    def write_passages(path):
+        with open(path, "w", encoding="utf-8") as out:
+            for passage in passages:
+                out.write(json.dumps(passage, ensure_ascii=False) + "\n")
+
+    _replace(directory / "passages.jsonl", write_passages)
+    if vectors is not None:
+        def write_vectors(path):
+            with open(path, "wb") as out:
+                np.save(out, vectors)
+
+        _replace(directory / "embeddings.npy", write_vectors)
     elif (directory / "embeddings.npy").exists():
         (directory / "embeddings.npy").unlink()
-    built = {"at": time.strftime("%Y-%m-%dT%H:%M:%S"), "passages": len(passages),
-             "papers": len(papers()), "failed": failed,
-             "embedding_model": getattr(embedder, "model", None) if vectors is not None else None}
-    (directory / "built.json").write_text(json.dumps(built, indent=2))
+    record = {"at": time.strftime("%Y-%m-%dT%H:%M:%S"), "manifest": manifest(),
+              "passages": len(passages), "papers": len(papers()), "failed": failed,
+              "embedding_model": getattr(embedder, "model", None) if vectors is not None else None}
+    _replace(directory / "built.json",
+             lambda path: path.write_text(json.dumps(record, indent=2), encoding="utf-8"))
     Library.forget()
-    return built
+    return record
 
 
 def _title(key: str) -> str:
@@ -262,6 +348,10 @@ class Library:
         self.papers = {p["key"]: p for p in papers()}
         path = directory / "embeddings.npy"
         self.vectors = np.load(path) if path.exists() else None
+        # Vectors from another build than the passages, caught mid-replacement,
+        # would rank the wrong passages; the words alone serve until it ends.
+        if self.vectors is not None and len(self.vectors) != len(self.passages):
+            self.vectors = None
         built = directory / "built.json"
         self.embedding_model = (json.loads(built.read_text()).get("embedding_model")
                                 if built.exists() else None)
@@ -273,12 +363,21 @@ class Library:
         n = len(self._terms)
         self._idf = {t: math.log(1 + (n - f + 0.5) / (f + 0.5)) for t, f in frequency.items()}
 
+    #: `_stamp` is the build record's modification time when the library was
+    #: loaded; a later build, by the worker say, makes it reload.
+    _stamp: float | None = None
+
     @classmethod
     def get(cls) -> "Library | None":
         """The library, or None when none has been built."""
+        record = index_dir() / "built.json"
+        stamp = record.stat().st_mtime if record.exists() else None
         with cls._lock:
+            if cls._loaded is not None and stamp != cls._stamp:
+                cls._loaded = None
             if cls._loaded is None and (index_dir() / "passages.jsonl").exists():
                 cls._loaded = cls(index_dir())
+                cls._stamp = stamp
             return cls._loaded
 
     @classmethod

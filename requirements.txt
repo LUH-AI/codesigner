@@ -53,6 +53,8 @@ skops>=0.13
 # which most servers speak: a local LM Studio, vLLM or Ollama as well as hosted
 # ones. Off unless ASSISTANT_ENABLED.
 openai>=2.0
+# Reading the papers the assistant's library is built from, on each instance.
+pypdf>=4.0
 
 # Development / CI
 pytest>=8

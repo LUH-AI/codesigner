@@ -171,3 +171,120 @@ def test_a_cited_answer_puts_its_sources_under_the_reply(built, monkeypatch):
     sources = AssistantEvent.objects.get(conversation=conversation, kind="sources")
 
     assert [p["key"] for p in sources.payload["papers"]] == ["AB20"]
+
+
+# ── keeping the library current ─────────────────────────────────────────────
+
+def test_a_fresh_build_is_current_and_names_its_list(built):
+    """What: a build records the paper list's digest and its embedding model,
+    and `stale` finds nothing to do afterwards. How: the fixture's build is
+    read back."""
+    assert built["manifest"] == library.manifest()
+    assert built["embedding_model"] == "stand-in"
+    assert library.stale("stand-in") == ""
+
+
+def test_a_missing_library_a_changed_list_or_another_model_is_stale(built, tmp_path, monkeypatch, settings):
+    """What: `stale` gives a reason when there is no index, when the paper list
+    has changed since the build, and when another embedding model is
+    configured. How: each condition is set up against the fixture's build."""
+    assert "other-model" in library.stale("other-model")
+    assert "no model" in library.stale(None)
+
+    changed = tmp_path / "literature.toml"
+    changed.write_text(library.LITERATURE.read_text() + "\n# one more line\n")
+    monkeypatch.setattr(library, "LITERATURE", changed)
+    assert library.stale("stand-in") == "the paper list has changed"
+
+    settings.ASSISTANT_KNOWLEDGE_DIR = tmp_path / "elsewhere"
+    assert library.stale("stand-in") == "there is no library yet"
+
+
+def test_a_build_already_running_is_left_to_finish(built, settings):
+    """What: a second build gives way while another holds the folder's lock.
+    How: the test holds the lock itself and asks for a build."""
+    with library._building(library.index_dir()) as mine:
+        assert mine
+        assert library.build(embedder=Embedder(), progress=lambda line: None) is None
+
+
+def test_another_process_s_build_is_picked_up(built):
+    """What: a library already loaded reloads once the index is rebuilt
+    elsewhere, as the worker does for the web process. How: the passages and
+    the build record are rewritten behind the loaded library, without
+    `Library.forget`."""
+    import os
+
+    loaded = library.Library.get()
+    directory = library.index_dir()
+    first = loaded.passages[0]
+    (directory / "passages.jsonl").write_text(json.dumps({**first, "text": "rebuilt"}) + "\n")
+    (directory / "embeddings.npy").unlink()
+    record = directory / "built.json"
+    stamp = record.stat().st_mtime + 5
+    os.utime(record, (stamp, stamp))
+
+    again = library.Library.get()
+    assert again is not loaded
+    assert [p["text"] for p in again.passages] == ["rebuilt"]
+
+
+def test_vectors_from_another_build_are_set_aside(built):
+    """What: embeddings whose count differs from the passages', as when a
+    reader catches a rebuild between files, are ignored and search goes by
+    words. How: one passage is dropped from the file and the library is
+    loaded fresh."""
+    directory = library.index_dir()
+    lines = (directory / "passages.jsonl").read_text().splitlines()
+    (directory / "passages.jsonl").write_text("\n".join(lines[:-1]) + "\n")
+    library.Library.forget()
+
+    found = library.Library.get()
+    assert found.vectors is None
+    assert found.search("prior decayed belief fades", k=1)
+
+
+def test_ensure_builds_only_when_on_and_stale(built, settings, monkeypatch):
+    """What: `assistant_knowledge ensure` does nothing while the assistant is
+    off or the library is current, and queues a build when it is stale. How:
+    the command runs in each state, with the queued task recorded instead of
+    run."""
+    from io import StringIO
+
+    from django.core.management import call_command
+
+    import assistant.tasks
+    from assistant import llm
+
+    queued = []
+    monkeypatch.setattr(assistant.tasks, "build_library_task", lambda: queued.append(True))
+    monkeypatch.setattr(llm.EmbeddingClient, "from_settings", classmethod(lambda cls: Embedder()))
+
+    def ensure():
+        out = StringIO()
+        call_command("assistant_knowledge", "ensure", stdout=out)
+        return out.getvalue()
+
+    settings.ASSISTANT_ENABLED = False
+    assert "off" in ensure() and not queued
+    settings.ASSISTANT_ENABLED = True
+    assert "current" in ensure() and not queued
+    (library.index_dir() / "built.json").unlink()
+    assert "queued: there is no library yet" in ensure() and queued == [True]
+
+
+def test_the_queued_task_builds_a_stale_library(built, monkeypatch):
+    """What: the worker's task builds the library when it is stale and leaves
+    a current one alone. How: the task runs on the test queue, which runs tasks
+    at once, before and after the build record is removed."""
+    from assistant import llm, tasks
+
+    monkeypatch.setattr(llm.EmbeddingClient, "from_settings", classmethod(lambda cls: Embedder()))
+    before = (library.index_dir() / "built.json").read_text()
+
+    tasks.build_library_task()
+    assert (library.index_dir() / "built.json").read_text() == before
+
+    (library.index_dir() / "built.json").unlink()
+    tasks.build_library_task()
+    assert library.stale("stand-in") == ""

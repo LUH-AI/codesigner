@@ -97,6 +97,10 @@ fi
 
 "$PY" manage.py migrate --noinput
 "$PY" manage.py sweep_stale_runs
+# The assistant's library, when the assistant is on and its library is stale:
+# minutes of downloading, so beside the server rather than before it.
+mkdir -p var
+"$PY" manage.py assistant_knowledge ensure --now > var/assistant-library.log 2>&1 &
 
 if $DEMO; then
     if [ "$MODE" != auth ]; then
