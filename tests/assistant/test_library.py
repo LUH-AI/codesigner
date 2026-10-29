@@ -288,3 +288,28 @@ def test_the_queued_task_builds_a_stale_library(built, monkeypatch):
     (library.index_dir() / "built.json").unlink()
     tasks.build_library_task()
     assert library.stale("stand-in") == ""
+
+
+def test_papers_a_build_could_not_fetch_are_named_on_every_ensure(built, settings, monkeypatch):
+    """What: once a build fails to fetch a paper, `ensure` names it, its
+    address and why, even while the library is otherwise current. How: the
+    build record is given a failure and `ensure` runs."""
+    from io import StringIO
+
+    from django.core.management import call_command
+
+    from assistant import llm
+
+    monkeypatch.setattr(llm.EmbeddingClient, "from_settings", classmethod(lambda cls: Embedder()))
+    monkeypatch.setattr("assistant.sources.papers", lambda: PAPERS)
+    record = library.index_dir() / "built.json"
+    record.write_text(json.dumps({**json.loads(record.read_text()),
+                                  "failed": {"CD21": "HTTP Error 404: Not Found"}}))
+    settings.ASSISTANT_ENABLED = True
+    out, err = StringIO(), StringIO()
+
+    call_command("assistant_knowledge", "ensure", stdout=out, stderr=err)
+
+    assert "current" in out.getvalue()
+    assert "1 paper(s) of the library could not be fetched" in err.getvalue()
+    assert "CD21  https://example.org/cd.pdf  HTTP Error 404: Not Found" in err.getvalue()

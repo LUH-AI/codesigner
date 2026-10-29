@@ -37,6 +37,7 @@ class Command(BaseCommand):
             if not built.exists():
                 raise CommandError(f"No library at {library.index_dir()}.")
             self.stdout.write(built.read_text())
+            self.warn_failures(json.loads(built.read_text()))
             return
         embedder = None if options["no_embed"] else EmbeddingClient.from_settings()
         if embedder is None and not options["no_embed"]:
@@ -47,7 +48,9 @@ class Command(BaseCommand):
         if unknown:
             raise CommandError(f"Not in the list: {sorted(unknown)}")
         built = library.build(embedder=embedder, only=only, progress=self.stdout.write)
-        self.stdout.write(json.dumps(built, indent=2))
+        if built is not None:
+            self.stdout.write(json.dumps(built, indent=2))
+            self.warn_failures(built)
 
     def ensure(self, now: bool):
         from django.conf import settings
@@ -62,12 +65,28 @@ class Command(BaseCommand):
         reason = library.stale(getattr(embedder, "model", None))
         if not reason:
             self.stdout.write(f"The library at {library.index_dir()} is current.")
+            self.warn_failures(library.built())
             return
         if now:
             self.stdout.write(f"Building the library: {reason}.")
-            library.build(embedder=embedder, progress=self.stdout.write)
+            self.warn_failures(library.build(embedder=embedder, progress=self.stdout.write))
             return
         from assistant.tasks import build_library_task
 
         build_library_task()
         self.stdout.write(f"Library build queued: {reason}.")
+
+    def warn_failures(self, record):
+        """`warn_failures` names each paper the last build could not fetch,
+        which the library knows only by its summary until a build fetches it."""
+        failed = (record or {}).get("failed") or {}
+        if not failed:
+            return
+        from assistant.sources import papers, source_of
+
+        where = {p["key"]: source_of(p)[0] for p in papers()}
+        self.stderr.write(self.style.WARNING(
+            f"{len(failed)} paper(s) of the library could not be fetched and are known only "
+            f"by their summary:"))
+        for key, reason in sorted(failed.items()):
+            self.stderr.write(self.style.WARNING(f"  {key}  {where.get(key, '')}  {reason}"))

@@ -19,4 +19,5 @@ def build_library_task():
     if not reason:
         return None
     log.info("Building the assistant's library: %s.", reason)
+    # A paper that could not be fetched is logged as a warning by `build`.
     return build(embedder=embedder, progress=log.info)

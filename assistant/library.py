@@ -35,7 +35,6 @@ import os
 import re
 import threading
 import time
-import tomllib
 from collections import Counter
 from dataclasses import dataclass
 from pathlib import Path
@@ -43,9 +42,10 @@ from pathlib import Path
 import numpy as np
 from django.conf import settings
 
-log = logging.getLogger(__name__)
+from .sources import LITERATURE, fetch, link_of, papers
+from .sources import source_of as _source
 
-LITERATURE = Path(__file__).resolve().parent / "knowledge" / "literature.toml"
+log = logging.getLogger(__name__)
 
 #: Characters per passage, and how many each overlaps the next by.
 PASSAGE = 2400
@@ -62,12 +62,6 @@ this to was were which with we our their these those can not than then also into
 
 def words(text: str) -> list[str]:
     return [w for w in _WORD.findall(text.lower()) if w not in _STOP and len(w) > 1]
-
-
-def papers() -> list[dict]:
-    """The library's list."""
-    with open(LITERATURE, "rb") as handle:
-        return tomllib.load(handle)["paper"]
 
 
 def index_dir() -> Path:
@@ -135,14 +129,6 @@ def _replace(path: Path, write) -> None:
 
 
 # ── building ─────────────────────────────────────────────────────────────────
-
-def _fetch(url: str, timeout: float = 60.0) -> bytes:
-    import urllib.request
-
-    request = urllib.request.Request(url, headers={"User-Agent": "Codesigner library builder"})
-    with urllib.request.urlopen(request, timeout=timeout) as response:
-        return response.read()
-
 
 def _pdf_pages(raw: bytes) -> list[str]:
     import io
@@ -215,17 +201,6 @@ def split(pages: list[str]) -> list[tuple[int, str]]:
     return out
 
 
-def _source(paper: dict) -> tuple[str, str]:
-    """Where the paper's text is, and what form it comes in."""
-    if paper.get("arxiv"):
-        return f"https://arxiv.org/pdf/{paper['arxiv']}", "pdf"
-    if paper.get("pdf"):
-        return paper["pdf"], "pdf"
-    if paper.get("html"):
-        return paper["html"], "html"
-    return "", ""
-
-
 def _text_of(paper: dict) -> tuple[list[str], str]:
     """The paper's pages and where they came from. A download is kept in the
     index folder, so building again — with embeddings, say — reads it there."""
@@ -236,18 +211,12 @@ def _text_of(paper: dict) -> tuple[list[str], str]:
     if kept.exists():
         raw = kept.read_bytes()
     else:
-        raw = _fetch(url)
+        raw = fetch(url)
         kept.parent.mkdir(parents=True, exist_ok=True)
         kept.write_bytes(raw)
     if form == "pdf":
         return _pdf_pages(raw), url
     return [_Text(raw.decode("utf-8", "replace")).text], url
-
-
-def link_of(paper: dict) -> str:
-    if paper.get("arxiv"):
-        return f"https://arxiv.org/abs/{paper['arxiv']}"
-    return paper.get("pdf") or paper.get("html") or ""
 
 
 def build(embedder=None, only: set | None = None, progress=print) -> dict | None:
@@ -291,6 +260,9 @@ def _build(directory: Path, embedder, only, progress) -> dict:
                       "text": f"{paper['title']} ({paper['authors']}, {paper['year']})."}]
         passages += found
         progress(f"{key}: {len(found)} passages" + (f" (failed: {failed[key]})" if key in failed else ""))
+        if key in failed:
+            log.warning("The library could not fetch %s from %s: %s. It is indexed by its "
+                        "summary instead.", key, _source(paper)[0], failed[key])
     for number, passage in enumerate(passages):
         passage["id"] = number
     vectors = None
