@@ -327,6 +327,12 @@ def _save_setup(request, exp, data, files) -> Saved:
     return Saved(True, form=form, notices=notices)
 
 
+def free_probabilities(task: str, model_name: str) -> bool:
+    """`free_probabilities` answers `_free_probabilities` for a built-in model
+    by name, as the assistant's lookups and plan checks need it."""
+    return _free_probabilities({"task": task, "model_name": model_name})
+
+
 def _free_probabilities(cleaned) -> bool:
     """`_free_probabilities` tracks ROC AUC and log loss when the classifier's
     own fit yields probabilities at no extra cost. An uploaded model's claim is

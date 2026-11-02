@@ -58,6 +58,9 @@ class Metric:
     forecast_only: bool = False
     #: Only figures read `label`, and an imported metric shows its plain name.
     label: str = ""
+    #: `definition` says how the score is computed, for the assistant to quote;
+    #: an imported metric has none.
+    definition: str = ""
 
 
     @property
@@ -162,22 +165,27 @@ def _log_loss(y_true, proba, classes) -> float:
 METRICS: dict[str, Metric] = {
     "accuracy": Metric(
         name="accuracy",
+        definition='The share of rows predicted correctly, so the largest classes count most.',
         fn=lambda y, yp: float(accuracy_score(y, yp)),
     ),
     "f1": Metric(
         name="f1",
+        definition="F1 per class, averaged weighted by each class's size (scikit-learn's average='weighted'), so large classes dominate it.",
         fn=lambda y, yp: float(f1_score(y, yp, average="weighted", zero_division=0)),  # pyright: ignore[reportArgumentType]
     ),
     "precision": Metric(
         name="precision",
+        definition="Precision per class, averaged weighted by each class's size (average='weighted').",
         fn=lambda y, yp: float(precision_score(y, yp, average="weighted", zero_division=0)),  # pyright: ignore[reportArgumentType]
     ),
     "recall(macro)": Metric(
         name="recall(macro)",
+        definition="Recall per class, as an unweighted mean over the classes (average='macro'): each class counts equally.",
         fn=lambda y, yp: float(recall_score(y, yp, average="macro", zero_division=0)),  # pyright: ignore[reportArgumentType]
     ),
     "balanced_accuracy": Metric(
         name="balanced_accuracy",
+        definition='Recall per class, as an unweighted mean over the classes; the same number as recall(macro).',
         label="Balanced accuracy",
         fn=lambda y, yp: float(balanced_accuracy_score(y, yp)),
     ),
@@ -185,6 +193,7 @@ METRICS: dict[str, Metric] = {
     # that offers them and a run that asks get these.
     "roc_auc": Metric(
         name="roc_auc",
+        definition="One-vs-rest ROC AUC per class, as an unweighted mean (the binary AUC for two classes); scores the predicted probabilities' ranking.",
         label="ROC AUC",
         fn=_roc_auc,
         needs=PROBABILITIES,
@@ -192,6 +201,7 @@ METRICS: dict[str, Metric] = {
     ),
     "log_loss": Metric(
         name="log_loss",
+        definition='Cross-entropy of the predicted class probabilities; lower is better, and the class balance alone scores the null.',
         label="Log loss",
         fn=_log_loss,
         higher_is_better=False,
@@ -203,6 +213,7 @@ METRICS: dict[str, Metric] = {
     # under 1 beats repeating last season.
     "mase": Metric(
         name="mase",
+        definition="Mean absolute error relative to the seasonal naive forecast's; below 1 beats repeating last season.",
         label="MASE",
         fn=_mase,
         higher_is_better=False,
@@ -215,6 +226,7 @@ METRICS: dict[str, Metric] = {
     ),
     "smape": Metric(
         name="smape",
+        definition='Symmetric mean absolute percentage error, from 0 (perfect) to 200.',
         label="sMAPE (%)",
         fn=_smape,
         higher_is_better=False,
@@ -227,6 +239,7 @@ METRICS: dict[str, Metric] = {
     # baseline.
     "rmse": Metric(
         name="rmse",
+        definition="Root mean squared error, in the target's units; large errors weigh most.",
         label="RMSE",
         fn=lambda y, yp: float(root_mean_squared_error(y, yp)),
         higher_is_better=False,
@@ -236,6 +249,7 @@ METRICS: dict[str, Metric] = {
     ),
     "mae": Metric(
         name="mae",
+        definition="Mean absolute error, in the target's units.",
         label="MAE",
         fn=lambda y, yp: float(mean_absolute_error(y, yp)),
         higher_is_better=False,
@@ -246,6 +260,7 @@ METRICS: dict[str, Metric] = {
     ),
     "r2": Metric(
         name="r2",
+        definition="The share of the target's variance explained; 0 is predicting the mean, 1 is perfect.",
         label="R²",
         fn=lambda y, yp: float(r2_score(y, yp)),
         bounds=(None, 1.0),

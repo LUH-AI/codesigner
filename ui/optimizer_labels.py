@@ -34,13 +34,14 @@ LABELS = {
     ),
     "use_share_cap": (
         _("Use share cap"),
-        _("Bound the initial points by a fraction of the run's budget, so a "
-          "longer run explores for longer."),
+        _("Bound the initial points by a fraction of the budget, counting the "
+          "trials already run plus this run's, so a longer run explores for "
+          "longer."),
     ),
     "share_cap": (
         _("Share cap"),
-        _("Fraction of the run's trials spent sampling before the model takes "
-          "over."),
+        _("Fraction of the trials, those already run plus this run's, spent "
+          "sampling before the model takes over."),
     ),
     "use_trial_cap": (
         _("Use trial cap"),
@@ -64,8 +65,8 @@ LABELS = {
     ),
     "use_default_config": (
         _("Include the model's defaults"),
-        _("Spend one of the exploration trials on the configuration the model "
-          "ships with, as a reference point to beat."),
+        _("Add a trial for the configuration the model ships with, beside the "
+          "exploration trials, as a reference point to beat."),
     ),
     "initial_design": (
         _("Sampling method"),

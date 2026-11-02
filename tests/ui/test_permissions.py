@@ -166,6 +166,8 @@ def test_the_declared_actions_match_what_the_routes_do():
         "save_layout": access_policy.VIEW,
         "experiment_settings": access_policy.EDIT,
         "experiment_timeline": access_policy.VIEW,
+        # Viewers read the notes; saving them is checked as EDIT inside.
+        "experiment_notes": access_policy.VIEW,
         # Contributors get everything except sharing.
         "experiment_share": access_policy.SHARE,
         "experiment_transfer": access_policy.SHARE,
@@ -191,14 +193,15 @@ def test_the_declared_actions_match_what_the_routes_do():
 
 
 def test_drafts_are_reached_only_where_they_are_set_up():
-    """A draft is reachable only through its setup routes and the prior requests
-    of the last step."""
+    """A draft is reachable only through its setup routes, the prior requests
+    of the last step, and its notes, which the assistant starts while the
+    draft is set up."""
     declared = {p.name: getattr(p.callback, "experiment_drafts") for p in _experiment_routes()}
     reach = {name for name, drafts in declared.items() if drafts != CREATED}
 
     assert reach == {"setup", "setup_optimizer", "setup_data", "setup_priors", "setup_resume", "setup_create",
                      "setup_discard", "save_prior", "reset_prior", "evaluate_prior",
-                     "acquisition_slice"}
+                     "acquisition_slice", "experiment_notes"}
     assert {name for name, drafts in declared.items() if drafts == ONLY} == {
         "setup", "setup_optimizer", "setup_data", "setup_priors", "setup_resume", "setup_create",
         "setup_discard"}

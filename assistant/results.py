@@ -32,8 +32,15 @@ class ResultsError(ValueError):
 #: How a trial's configuration arose, by phase.
 DESIGN, GUIDED, RANDOM, REQUESTED, SEARCH, UNKNOWN = (
     "initial_design", "model_guided", "random_interleaved", "requested", "search", "unknown")
+PHASES = (DESIGN, GUIDED, RANDOM, REQUESTED, SEARCH, UNKNOWN)
 
 STATUS = {STATUS_SUCCESS: "ok", STATUS_CRASHED: "crashed", STATUS_TIMEOUT: "timeout"}
+#: The values a trial's `status` field can take: those of `STATUS`, and
+#: "failed" for any other ending.
+STATUSES = (*STATUS.values(), "failed")
+
+#: The run statuses during which trials are still being added.
+ACTIVE = ("pending", "submitted", "running")
 
 #: The orders `rows` lists trials in.
 ORDERS = ("best", "worst", "first", "last", "slowest", "failed")
@@ -94,13 +101,18 @@ class Trials:
     """An experiment's trials and what reading them needs: its result, its
     search space (None when the model is gone), the optimizer's current name
     (never a former alias) and settings, and its runs as `{index, first, last, status, stopped_by,
-    stopping}` with 1-based inclusive trial numbers."""
+    stopping}` with 1-based inclusive trial numbers. `planned` is the initial
+    design worked out from the settings and the latest run's budget, as
+    `{size, bound_by, budget}`, for when the run has not recorded one; `budget`
+    is that run's whole budget, trials before it included."""
 
     result: object
     space: object = None
     optimizer: str = ""
     settings: dict = field(default_factory=dict)
     runs: list = field(default_factory=list)
+    planned: dict | None = None
+    budget: int | None = None
 
     @property
     def trials(self):
@@ -108,8 +120,32 @@ class Trials:
 
     @cached_property
     def design(self) -> dict | None:
-        """The initial design's planned size, or None without one."""
-        return initial_design_notice(self.result)
+        """The initial design's size, as the run recorded it or else as
+        `planned` works it out, with `source` saying which; None without one.
+        A run records its design only when it ends."""
+        recorded = initial_design_notice(self.result)
+        if recorded is not None:
+            return {**recorded, "source": "recorded by the run"}
+        if self.planned is None:
+            return None
+        size = self.planned["size"]
+        return {"size": size, "trials": len(self.trials), "name": "",
+                "done": len(self.trials) >= size, "bound_by": self.planned["bound_by"],
+                "source": "worked out from the settings and the run's budget; the run "
+                          "records it when it ends"}
+
+    @property
+    def live(self) -> dict | None:
+        """The run still adding trials, or None."""
+        return next((r for r in self.runs if r.get("status") in ACTIVE), None)
+
+    def phase_counts(self) -> dict:
+        """How many trials arose in each phase, leaving out empty ones."""
+        counts = {}
+        for index in range(len(self.trials)):
+            phase = self.phase(index)
+            counts[phase] = counts.get(phase, 0) + 1
+        return counts
 
     def metric(self, name: str | None) -> str:
         """*name* if the trials were scored on it, else the primary metric."""
@@ -284,6 +320,14 @@ def _check_conditions(t: Trials, where):
                                f"have {sorted(known)}")
         if condition.get("op") not in OPERATORS:
             raise ResultsError(f"op must be one of {list(OPERATORS)}")
+        allowed = {"phase": PHASES, "status": STATUSES}.get(condition["field"])
+        if allowed:
+            value = condition.get("value")
+            wrong = [v for v in (value if isinstance(value, list) else [value])
+                     if v not in allowed]
+            if wrong:
+                raise ResultsError(f"{condition['field']} is never {wrong[0]!r}; it is one of "
+                                   f"{list(allowed)}")
 
 
 def rows(t: Trials, order: str = "best", metric: str | None = None, limit: int = 10,
@@ -449,6 +493,9 @@ def _initial_design(t: Trials, metric, _hp) -> dict:
             "initial_points_use_max", "use_default_config")
     out = {"applies": True,
            "planned_size": t.design["size"] if t.design else None,
+           "planned_size_from": t.design["source"] if t.design else None,
+           "bound_by": (t.design or {}).get("bound_by"),
+           "budget": t.budget,
            "kind": recorded.get("name") or t.settings.get("initial_design"),
            "per_hyperparameter": recorded.get("n_configs_per_hyperparameter"),
            "settings": {k: t.settings.get(k) for k in keys if k in t.settings},
@@ -469,8 +516,7 @@ def _initial_design(t: Trials, metric, _hp) -> dict:
     if ranked:
         out["best_trial"] = {"trial": t.trials[ranked[0]].trial, "phase": t.phase(ranked[0])}
     if not after:
-        out["note"] = ("No trial ran after the design: the design used the whole budget, so "
-                       "the model never chose a configuration.")
+        out["note"] = _design_note(t, len(design))
     coverage = {}
     for hp in t.hyperparameters():
         units = _unit(hp, [t.trials[i].config.get(hp.name) for i in design
@@ -484,6 +530,23 @@ def _initial_design(t: Trials, metric, _hp) -> dict:
     if coverage:
         out["design_coverage"] = coverage
     return out
+
+
+def _design_note(t: Trials, done: int) -> str:
+    """What it means that no trial followed the design, which depends on whether
+    the run is still going and on whether the design was sized to the whole
+    budget."""
+    size = t.design["size"] if t.design else None
+    if t.live is not None and (size is None or done < size):
+        return (f"The run is in its initial design: {done} of {size if size else '?'} done. "
+                "After it the model chooses each configuration.")
+    if size is not None and done >= size and (t.budget is None or size >= t.budget):
+        return ("No trial ran after the design: the design used the whole budget, so the "
+                "model never chose a configuration.")
+    if size is not None and done < size:
+        return (f"The runs so far stopped inside the initial design ({done} of {size}), so "
+                "the model has chosen no configuration yet; a further run continues it.")
+    return "No trial has run after the design yet."
 
 
 def _bounds(hp) -> dict:
@@ -606,8 +669,13 @@ def _importance(t: Trials, metric, _hp) -> dict:
 
 
 def _metrics(t: Trials, metric, _hp) -> dict:
+    from core.metrics import METRICS
+
     names = sorted({m for x in t.trials for m in x.scores})
     ok = [i for i in range(len(t.trials)) if not t.trials[i].failed]
+    phases = {}
+    for i in ok:
+        phases[t.phase(i)] = phases.get(t.phase(i), 0) + 1
     pairs = {}
     for a_pos, a in enumerate(names):
         for b in names[a_pos + 1:]:
@@ -630,9 +698,15 @@ def _metrics(t: Trials, metric, _hp) -> dict:
             best[name] = {"trial": t.trials[ranked[0]].trial,
                           "score": _r(t.score(ranked[0], name)),
                           "higher_is_better": t.higher_is_better(name)}
-    return {"spearman_between_metrics": dict(sorted(pairs.items(), key=lambda kv: -abs(kv[1]))),
+    return {"trials_used": len(ok), "trials_by_phase": phases,
+            "definitions": {n: METRICS[n].definition for n in names
+                            if n in METRICS and METRICS[n].definition},
+            "spearman_between_metrics": dict(sorted(pairs.items(), key=lambda kv: -abs(kv[1]))),
             "spearman_with_seconds": seconds, "best_trial_per_metric": best,
-            "same_best_trial": len({b["trial"] for b in best.values()}) == 1}
+            "same_best_trial": len({b["trial"] for b in best.values()}) == 1,
+            "reading": "Spearman's rho over the trials the optimizer chose, not a sample of "
+                       "the space: few trials, or trials from one phase, say little about how "
+                       "the metrics relate in general."}
 
 
 def _durations(t: Trials, metric, _hp) -> dict:

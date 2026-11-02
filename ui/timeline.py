@@ -387,12 +387,29 @@ def _run_entry(exp, run, number):
         (_("Proposal"), [(name, _value(value)) for requested in run.configurations or []
                          for name, value in sorted((requested.get("config") or {}).items())]),
         (_("Trial timeout"), timeout_rows(run.trial_timeout)),
+        (_("Search settings"), _run_safe_rows(exp, run.optimizer_params)),
     ]
     children = sorted((_run_event_entry(exp, e) for e in run.events or []),
                       key=lambda e: e["at_trial"], reverse=True)
     return _entry(exp, "run", run.created_at or run.started_at,
                   offset if offset is not None else 0, summary, details, children,
                   actor=_name(run.started_by))
+
+
+def _run_safe_rows(exp, params):
+    """`_run_safe_rows` lists the settings a run may change from the last
+    (`run_safe`), as the run started with them; a run from before the record
+    has none."""
+    from core.registry import optimizer_class
+
+    from .optimizer_labels import LABELS
+
+    kind = optimizer_class(exp.data.optimizer_name)
+    if not params or kind is None:
+        return []
+    return [(str(LABELS.get(p.name, (p.label, ""))[0]),
+             _value(params.get(p.name)) if params.get(p.name) is not None else _("default"))
+            for p in kind.params_schema if p.name in kind.run_safe]
 
 
 _PRIOR_KINDS = ("prior_stated", "prior_edited", "prior_withdrawn", "prior_reset")

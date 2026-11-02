@@ -6,10 +6,19 @@ read this folder. Once a file is reviewed, it moves to
 `read_explainer` and finds it through `search_knowledge`.
 
 Each file explains one figure, page or concept, for the assistant to answer
-from and to point at. The files were drafted from Codesigner's own texts: figure
-descriptions, ⓘ help texts, form help, template comments, and the user docs
-deleted in commit `e933531`. Each file's `sources` lists where its facts came
-from, so they can be checked.
+from and to point at, or weighs one choice: when moving a setting from its
+default, the metric or the validation method is worth it, and what it costs.
+The files were drafted from Codesigner's own texts: figure descriptions, ⓘ help
+texts, form help, template comments, and the user docs deleted in commit
+`e933531`; the trade-offs also from the papers in the library. Each file's
+`sources` lists where its facts came from, so they can be checked.
+
+**Exception: `tradeoffs/` and `pages/` are in use.** Until the review, the
+owner treats them as reviewed. `assistant/explainers.py` reads them:
+`list_optimizers`, `list_metrics` and `read_experiment settings` hand the
+trade-off notes to the model (`assistant/tradeoffs.py`), and `about_page`
+hands it a page's explainer. A file moved to `explainers/<folder>/` replaces
+the draft of the same id.
 
 ## Folders
 
@@ -18,13 +27,14 @@ from, so they can be checked.
 | `figures/` | figure on the experiment dashboard (`ui/figures/catalog.py`) |
 | `pages/` | page or panel: setup steps, the dashboard's sidebar, Data Handling, settings, timeline, … |
 | `concepts/` | idea a person may ask about: metrics, evaluation, optimizers, priors, explanation games, … |
+| `tradeoffs/` | choice with a default worth weighing: a SMAC setting or group of them, the optimized metric, the validation method |
 
 ## The format
 
-Each kind has a template in `_templates/`: `figure.md`, `page.md` and
-`concept.md`. A file has its template's frontmatter fields in the same order,
-an `id` made of its kind and file name (`figures/trial_duration.md` is
-`figure-trial-duration`), and its template's `##` sections in the same order,
+Each kind has a template in `_templates/`: `figure.md`, `page.md`,
+`concept.md` and `tradeoff.md`. A file has its template's frontmatter fields in
+the same order, an `id` made of its kind and file name
+(`figures/trial_duration.md` is `figure-trial-duration`), and its template's `##` sections in the same order,
 with no others. The comments in each template say what goes in each section.
 
 - `about` lists what the file explains, each as `kind:name`: `figure:` a key of

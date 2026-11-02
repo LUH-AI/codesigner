@@ -5,8 +5,8 @@
 
 {% block content %}
     <h1>{% translate "Appearance" %}</h1>
-    {% comment %}Saved for this browser rather than for the account: the same
-    person may want a dark laptop and a light projector.{% endcomment %}
+    {% comment %}The theme is saved for this browser rather than for the account:
+    the same person may want a dark laptop and a light projector.{% endcomment %}
     <form method="post" class="settings-form" style="max-width: 34rem; margin-top: 1rem;">
         {% csrf_token %}
         <fieldset class="field">
@@ -21,6 +21,24 @@
             {% endfor %}
             <p class="caption">{% translate "Saved for this browser." %}</p>
         </fieldset>
+        {% if assistant_offered %}
+            <fieldset class="field">
+                <legend class="subheader">{% translate "Assistant" %}</legend>
+                <label class="check">
+                    <input type="radio" name="assistant" value="on"
+                           {% if assistant_on %}checked{% endif %}
+                           onchange="this.form.submit()">
+                    {% translate "On" %}
+                </label>
+                <label class="check">
+                    <input type="radio" name="assistant" value="off"
+                           {% if not assistant_on %}checked{% endif %}
+                           onchange="this.form.submit()">
+                    {% translate "Off" %}
+                </label>
+                <p class="caption">{% translate "Off hides the assistant on every page. Its chats and notes are kept for when you turn it back on." %}</p>
+            </fieldset>
+        {% endif %}
         <noscript><button type="submit" class="btn-primary">{% translate "Save" %}</button></noscript>
     </form>
 {% endblock %}

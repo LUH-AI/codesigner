@@ -10,16 +10,26 @@ from core.registry import OPTIMIZERS
 from experiments.services import history
 
 from . import run_form
-from .optimizer_labels import describe_all, grouped
+from .optimizer_labels import LABELS, describe_all, grouped
 
 
-def why_fixed(exp) -> str | None:
-    result = exp.data.result or {}
-    if result.get("data") or result.get("trials"):
-        return _("This experiment has trials, and the next run continues their search.")
+def why_fixed(exp, name: str | None = None) -> str | None:
+    """`why_fixed` says why the optimizer, or its setting *name*, cannot change
+    now, or returns None. Between runs an experiment with trials keeps its
+    optimizer and every setting outside the optimizer's `run_safe`.
+    """
+    if has_trials(exp):
+        kind = OPTIMIZERS.get(exp.data.optimizer_name)
+        if name is None or kind is None or name not in kind.run_safe:
+            return _("This experiment has trials, and the next run continues their search.")
     if exp.is_running:
         return _("A run is under way with this optimizer.")
     return None
+
+
+def has_trials(exp) -> bool:
+    result = exp.data.result or {}
+    return bool(result.get("data") or result.get("trials"))
 
 
 def context(exp, locked=False) -> dict:
@@ -43,9 +53,12 @@ def save(request, exp, data=None, *, partial=False) -> str | None:
     """`save` stores the optimizer in *data*, the posted form by default, on
     *exp* and returns a refusal reason or None. A change goes into the history.
     With *partial*, *data* holds only the changes, and an absent
-    `optimizer_name` or setting keeps its current value.
+    `optimizer_name` or setting keeps its current value. Once there are trials,
+    only the optimizer's `run_safe` settings change (`_save_run_safe`).
     """
     data = request.POST if data is None else data
+    if has_trials(exp):
+        return _save_run_safe(request, exp, data, partial)
     refusal = why_fixed(exp)
     if refusal:
         return refusal
@@ -58,14 +71,56 @@ def save(request, exp, data=None, *, partial=False) -> str | None:
         base = (chosen.known_params(exp.data.optimizer_params or {})
                 if name == exp.data.optimizer_name else {})
     optimizer = chosen(**chosen.known_params(_posted_params(data, chosen, base)))
+    return _store(request, exp, optimizer.name, optimizer.get_params())
+
+
+def _save_run_safe(request, exp, data, partial) -> str | None:
+    """`_save_run_safe` changes the run-safe settings between runs. A posted
+    locked setting with a value other than its stored one is refused by name,
+    and one the form leaves out keeps its value.
+    """
+    if exp.is_running:
+        return _("A run is under way with this optimizer.")
+    chosen = OPTIMIZERS.get(exp.data.optimizer_name)
+    name = data.get("optimizer_name")
+    if chosen is None or not chosen.run_safe or (name and name != exp.data.optimizer_name):
+        return why_fixed(exp)
+    stored = {p.name: p.default for p in chosen.params_schema}
+    stored.update(chosen.known_params(exp.data.optimizer_params or {}))
+    posted = _posted_params(data, chosen, stored if partial else None)
+    locked = [str(LABELS.get(p.name, (p.label, ""))[0]) for p in chosen.params_schema
+              if p.name not in chosen.run_safe and f"{_OPTIMIZER_PREFIX}{p.name}" in data
+              and posted[p.name] != stored[p.name]]
+    if locked:
+        return _("These settings stay as the first run had them: %(names)s.") % {
+            "names": ", ".join(locked)}
+    params = {**stored, **{n: posted[n] for n in chosen.run_safe}}
+    return _store(request, exp, chosen.name, chosen(**chosen.known_params(params)).get_params())
+
+
+def _store(request, exp, name, params) -> None:
     data = exp.data
     old = {"name": data.optimizer_name, "params": data.optimizer_params or {}}
-    new = {"name": optimizer.name, "params": optimizer.get_params()}
-    data.optimizer_name, data.optimizer_params = new["name"], new["params"]
+    new = {"name": name, "params": params}
+    data.optimizer_name, data.optimizer_params = name, params
     data.save(update_fields=["optimizer_name", "optimizer_params"])
     if new != old:
         history.record(exp, "optimizer_changed", user=request.user, old=old, new=new)
     return None
+
+
+def next_run_context(exp) -> dict:
+    """`next_run_context` lays out the settings a run of *exp* with trials may
+    still change, for the run form's "Next run" fold. An optimizer without
+    run-safe settings gets nothing.
+    """
+    kind = OPTIMIZERS.get(exp.data.optimizer_name)
+    if kind is None or not kind.run_safe:
+        return {}
+    described = [p for p in describe_all(kind, exp.data.optimizer_params or {})
+                 if p["name"] in kind.run_safe]
+    layout, advanced = grouped(described)
+    return {"next_run_layout": layout, "next_run_advanced": advanced}
 
 
 #: The prefix keeps optimizer setting names clear of `n_trials` and stopping
@@ -109,6 +164,13 @@ def _posted_params(data, optimizer, base=None) -> dict:
             value = min(param.max, value)
         params[param.name] = value
     return params
+
+
+def cleaned_params(optimizer, params: dict) -> dict:
+    """`cleaned_params` returns what this form would store for *params*, given
+    by setting name, with every setting they omit at its default."""
+    posted = {f"{_OPTIMIZER_PREFIX}{name}": value for name, value in params.items()}
+    return _posted_params(posted, optimizer, base={})
 
 
 def _param_context(optimizer, stored=None) -> dict:

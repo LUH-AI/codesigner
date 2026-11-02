@@ -1077,10 +1077,11 @@ hr.divider { border: none; border-top: 1px solid var(--border); margin: 1.5rem 0
 .usage-bar { height: 0.5rem; border-radius: 999px; background: var(--border); overflow: hidden; margin: 0.25rem 0 1rem; }
 .usage-bar > span { display: block; height: 100%; background: var(--selected); }
 
-/* ── The assistant (assistant/_chat.html) ─────────────────────────────────
-   Three places: the home page, where it is the page; a window docked to the
-   bottom right of every other page, collapsed to a button until opened; and a
-   browser window of its own. Only the log scrolls. */
+/* ── The assistant (assistant/_dock.html, assistant/_chat.html) ──────────
+   Three places: the home page, where the general chat is the page; a window
+   docked to the bottom right of every page, with a tab per chat, collapsed to
+   a button until opened; and a browser window of its own. Only the log
+   scrolls. */
 .assistant { display: flex; flex-direction: column; gap: 0.75rem; min-height: 0; }
 .assistant-full { height: calc(100vh - 12rem); max-width: 52rem; }
 /* Before anything is said, the box to type in sits in the middle of the page;
@@ -1105,21 +1106,23 @@ hr.divider { border: none; border-top: 1px solid var(--border); margin: 1.5rem 0
 }
 .assistant-msg.user { align-self: flex-end; background: var(--selected-tint); }
 .assistant-msg.assistant { align-self: flex-start; background: var(--secondary-bg); white-space: normal; }
-/* A reply's Markdown (chat.js `markdown`), spaced for a chat bubble. */
+/* An answer withdrawn for citing a paper the library lacks stays readable, marked. */
+.assistant-msg.assistant.is-withdrawn { opacity: 0.55; text-decoration: line-through; }
+/* A reply's Markdown (ui/markdown.js), spaced for a chat bubble. */
 .assistant-msg.assistant > :first-child { margin-top: 0; }
 .assistant-msg.assistant > :last-child { margin-bottom: 0; }
 .assistant-msg.assistant p, .assistant-msg.assistant ul, .assistant-msg.assistant ol,
 .assistant-msg.assistant pre, .assistant-msg.assistant blockquote,
-.assistant-msg.assistant .assistant-table { margin: 0 0 0.55em; }
+.assistant-msg.assistant .md-table { margin: 0 0 0.55em; }
 .assistant-msg.assistant ul, .assistant-msg.assistant ol { padding-left: 1.3em; }
 .assistant-msg.assistant li + li { margin-top: 0.15em; }
-.assistant-msg.assistant .assistant-heading { font-weight: 600; }
+.assistant-msg.assistant .md-heading { font-weight: 600; }
 .assistant-msg.assistant code { font-size: 0.875em; background: var(--hover); padding: 0.05em 0.3em; border-radius: 4px; }
 .assistant-msg.assistant pre { white-space: pre; overflow-x: auto; background: var(--hover); padding: 0.5em 0.65em; border-radius: var(--radius); }
 .assistant-msg.assistant pre code { background: none; padding: 0; }
 .assistant-msg.assistant blockquote { border-left: 3px solid var(--border); padding-left: 0.65em; color: var(--muted); }
 .assistant-msg.assistant hr { border: none; border-top: 1px solid var(--border); margin: 0.6em 0; }
-.assistant-msg.assistant .assistant-table { overflow-x: auto; }
+.assistant-msg.assistant .md-table { overflow-x: auto; }
 .assistant-msg.assistant table { border-collapse: collapse; font-size: 0.875em; }
 .assistant-msg.assistant th, .assistant-msg.assistant td { border: 1px solid var(--border); padding: 0.2em 0.5em; text-align: left; vertical-align: top; }
 .assistant-msg.assistant th { background: var(--hover); font-weight: 600; }
@@ -1266,6 +1269,55 @@ hr.divider { border: none; border-top: 1px solid var(--border); margin: 1.5rem 0
 .assistant-dock:not(.popped) [data-assistant-return] { display: none; }
 .assistant-dock.popped [data-assistant-popout] { display: none; }
 .assistant-dock.popped .assistant-bar-popped { display: inline; }
+/* The dock's chats (assistant/_dock.html): a tab each, named, with the
+   experiment it is about in small text under the name; only the chosen
+   tab's panel shows. */
+.assistant-tabs { display: flex; gap: 0.25rem; border-bottom: 1px solid var(--border-light); margin-top: -0.6rem; }
+.assistant-tab {
+    flex: 1 1 auto;
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    border: none;
+    border-bottom: 2px solid transparent;
+    border-radius: 0;
+    background: none;
+    color: var(--muted);
+    font: inherit;
+    font-size: 0.85rem;
+    padding: 0.35rem 0.4rem 0.3rem;
+    text-align: left;
+    cursor: pointer;
+}
+.assistant-tab:hover:not(:disabled) { color: var(--text); background: var(--hover); border: none; border-bottom: 2px solid transparent; }
+.assistant-tab[aria-selected="true"], .assistant-tab[aria-selected="true"]:hover:not(:disabled) { color: var(--text); border-bottom-color: var(--primary); }
+.assistant-tab-name { max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 600; }
+.assistant-tab.is-visiting .assistant-tab-name { color: var(--info-fg); }
+.assistant-caption {
+    max-width: 100%;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    font-size: 0.75rem;
+    font-weight: normal;
+    color: var(--muted);
+}
+.assistant-panel { flex: 1; gap: 0.6rem; }
+/* A chat visiting from its own experiment: where from, and the way back. */
+.assistant-visiting {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.5rem;
+    padding: 0.4rem 0.4rem 0.4rem 0.7rem;
+    border-radius: var(--radius);
+    background: var(--info-bg);
+    color: var(--info-fg);
+    font-size: 0.875rem;
+}
+.assistant-visiting .btn-primary { flex-shrink: 0; padding: 0.2rem 0.75rem; }
+.assistant-head h2 .assistant-caption { margin-left: 0.4rem; }
 /* Its own window: the whole of it. */
 body.assistant-window-body { display: block; height: 100vh; }
 .assistant-window { height: 100vh; padding: 1rem; }
@@ -1364,3 +1416,40 @@ label[data-slice-control][hidden] { display: inline-flex; }
 .run-proposal button[type="submit"]:hover:not(:disabled) {
     background: #7C3AED; border-color: #7C3AED; color: #fff;
 }
+/* An experiment's notes (ui/experiment_notes.html): the editor, Write and
+   Preview, and the notes drawn from their Markdown. */
+.notes-page { max-width: 52rem; display: flex; flex-direction: column; gap: 0.75rem; }
+.notes-editor { display: flex; flex-direction: column; gap: 0.5rem; }
+.notes-modes { display: flex; gap: 0.25rem; border-bottom: 1px solid var(--border-light); }
+.notes-mode {
+    border: none; border-bottom: 2px solid transparent; border-radius: 0; background: none;
+    color: var(--muted); font: inherit; font-size: 0.9rem; padding: 0.35rem 0.75rem; cursor: pointer;
+}
+.notes-mode:hover:not(:disabled) { color: var(--text); background: var(--hover); border: none; border-bottom: 2px solid transparent; }
+.notes-mode[aria-selected="true"], .notes-mode[aria-selected="true"]:hover:not(:disabled) { color: var(--text); border-bottom-color: var(--primary); }
+.notes-editor textarea {
+    width: 100%; min-height: 18rem; box-sizing: border-box; padding: 0.75rem 0.9rem;
+    border: 1px solid var(--border); border-radius: var(--radius); background: var(--bg); color: var(--text);
+    font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size: 0.9rem; line-height: 1.5; resize: vertical;
+}
+.notes-editor textarea:focus { outline: none; border-color: var(--primary); box-shadow: 0 0 0 1px var(--primary); }
+.notes-rendered { white-space: pre-wrap; overflow-wrap: anywhere; line-height: 1.55; }
+.notes-rendered.is-drawn, .notes-preview { white-space: normal; }
+.notes-preview { min-height: 18rem; padding: 0.75rem 0.9rem; border: 1px solid var(--border-light); border-radius: var(--radius); }
+.notes-rendered p, .notes-rendered ul, .notes-rendered ol, .notes-rendered pre,
+.notes-rendered blockquote, .notes-rendered .md-table { margin: 0 0 0.75em; }
+.notes-rendered ul, .notes-rendered ol { padding-left: 1.4em; }
+.notes-rendered .md-heading { font-weight: 600; margin: 1em 0 0.4em; }
+.notes-rendered .md-h1 { font-size: 1.35rem; }
+.notes-rendered .md-h2 { font-size: 1.15rem; }
+.notes-rendered .md-h3 { font-size: 1rem; }
+.notes-rendered > :first-child { margin-top: 0; }
+.notes-rendered code { font-size: 0.875em; background: var(--hover); padding: 0.05em 0.3em; border-radius: 4px; }
+.notes-rendered pre { white-space: pre; overflow-x: auto; background: var(--hover); padding: 0.6em 0.75em; border-radius: var(--radius); }
+.notes-rendered pre code { background: none; padding: 0; }
+.notes-rendered blockquote { border-left: 3px solid var(--border); padding-left: 0.75em; color: var(--muted); }
+.notes-rendered .md-table { overflow-x: auto; }
+.notes-rendered table { border-collapse: collapse; font-size: 0.9em; }
+.notes-rendered th, .notes-rendered td { border: 1px solid var(--border); padding: 0.25em 0.6em; text-align: left; vertical-align: top; }
+.notes-rendered th { background: var(--hover); font-weight: 600; }
+.notes-stale { display: flex; flex-direction: column; gap: 0.5rem; padding: 0.75rem 0.9rem; border: 1px solid var(--border); border-radius: var(--radius); }

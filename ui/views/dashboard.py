@@ -19,7 +19,7 @@ from experiments.services import model_export
 from experiments.services.snapshot import config_space_for, rebuild_experiment, rebuild_result
 
 from . import analytics
-from .. import optimizer_form
+from .. import optimizer_form, run_form
 from ..experiment_settings import resolve_settings
 from ..figures import (
     ACCENT_COLOR, HP_GAME_FIELDS, HP_GAME_HELP, HP_GAME_LABELS, MARKER_COLOR, NEGATIVE_COLOR,
@@ -367,6 +367,13 @@ def experiment_header(request, exp, result=_UNBUILT):
     }
 
 
+def _budget_context(exp, done: int) -> dict:
+    """`_budget_context` gives the run form its trial limit and the budget it
+    comes from (`run_form.opening_trials`)."""
+    return {"trial_budget": exp.data.trial_budget,
+            "next_run_trials": run_form.opening_trials(exp.data.trial_budget, done)}
+
+
 def _detail_context(request, exp):
     """`_detail_context` rebuilds the result read-only and builds panels and
     figures for the enabled figures; metrics switch in the browser.
@@ -398,6 +405,7 @@ def _detail_context(request, exp):
         # The poll echoes the drawn trial count; 0 means no figure grid.
         "trial_count": 0,
         "poll_seconds": _poll_seconds(exp),
+        **_budget_context(exp, len(result.trials) if result is not None else 0),
     }
     # A result without trials takes the same early return, since `io.parse`
     # accepts an empty `data`. Only the prior figure goes out, because a prior
@@ -409,6 +417,8 @@ def _detail_context(request, exp):
     # `run_status` compares the drawn trial count with the stored one to decide
     # whether to rebuild plots.
     context["trial_count"] = len(result.trials)
+    context.update(optimizer_form.next_run_context(exp) if policy().may(request, exp, EDIT)
+                   else {})
     # Missing explanations can be requested, except during a run, which computes
     # them at the end.
     context["analytics_absent"] = _analytics_absent(result) and not active_run
@@ -467,7 +477,10 @@ def _detail_context(request, exp):
 
     # The Run form's target starts at the incumbent, per metric for the
     # dropdown.
-    incumbent_targets = {p["metric"]: surpass_target(p["best_score"]) for p in panels}
+    # A planned budget leaves the target empty, since a target just above the
+    # best would end the run at its first improvement.
+    incumbent_targets = ({} if exp.data.trial_budget else
+                         {p["metric"]: surpass_target(p["best_score"]) for p in panels})
     context.update(
         result=result,
         panels=panels,

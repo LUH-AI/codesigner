@@ -23,16 +23,24 @@ from ..models import ClientAct
 from .registry import Refused, ToolResult, ToolSpec
 
 #: The pages the assistant can take the person to: name → URL name, and
-#: whether it is one experiment's page.
+#: whether it is one experiment's page. The pages of the whole instance after
+#: the experiment list are the person's settings, groups and bin.
 PAGES = {
     "home": ("ui:home", False),
     "experiments": ("ui:experiment_list", False),
+    "appearance": ("ui:appearance", False),
+    "export_preferences": ("ui:export_preferences", False),
+    "experiment_defaults": ("ui:default_experiment_settings", False),
+    "account": ("ui:account", False),
+    "groups": ("ui:group_index", False),
+    "bin": ("ui:experiment_bin", False),
     "setup": ("ui:setup", True),
     "setup_optimizer": ("ui:setup_optimizer", True),
     "setup_data": ("ui:setup_data", True),
     "setup_priors": ("ui:setup_priors", True),
     "dashboard": ("ui:experiment_detail", True),
     "timeline": ("ui:experiment_timeline", True),
+    "notes": ("ui:experiment_notes", True),
     "settings": ("ui:experiment_settings", True),
 }
 
@@ -117,6 +125,56 @@ LOOK_AT_PAGE = ToolSpec(
 )
 
 
+def _person_may_open(context, page: str) -> bool:
+    """Whether the person may open *page*, one of the whole instance's, as its
+    view checks: the account page exists only with accounts, the defaults'
+    only for a person who may change them. Opening one changes nothing, so
+    it is the person's own right that counts, not what the assistant may do
+    there."""
+    from types import SimpleNamespace
+
+    from django.conf import settings
+
+    from access.policy import policy
+
+    request = context.request()
+    if page == "account":
+        return settings.REQUIRE_LOGIN
+    if page == "experiment_defaults":
+        user = request.user
+        if settings.REQUIRE_LOGIN:
+            from django.contrib.auth import get_user_model
+
+            user = get_user_model().objects.get(pk=context.conversation.owner_id)
+        return policy().may_change_defaults(SimpleNamespace(user=user, via_agent=False))
+    return True
+
+
+def _visit(context, experiment_id) -> tuple:
+    """Note on the person's browser whether this chat takes them away from its
+    own experiment's pages, to a page about *experiment_id* or about none, and
+    return how it stood, to undo it if the page does not go. A chat about no
+    experiment never visits: the general chat is a tab on every page."""
+    from ..models import BrowserPage
+
+    conversation = context.conversation
+    found = BrowserPage.objects.filter(browser=conversation.browser).first()
+    if conversation.experiment_id is None or found is None:
+        return None, ()
+    was = (found.visitor_id, found.return_path)
+    if experiment_id == conversation.experiment_id:
+        if found.visitor_id == conversation.pk:
+            found.visitor, found.return_path = None, ""
+    elif found.visitor_id != conversation.pk:
+        from ..views import home_of
+
+        found.visitor = conversation
+        found.return_path = (found.path if found.experiment_id == conversation.experiment_id
+                             else home_of(conversation))
+    found.save(update_fields=["visitor", "return_path"])
+    return found, was
+
+
 def _navigate(context, page: str, experiment: int | None = None, tab: str = "") -> ToolResult:
     from django.core.exceptions import PermissionDenied
     from django.http import Http404
@@ -154,16 +212,26 @@ def _navigate(context, page: str, experiment: int | None = None, tab: str = "") 
             raise Refused(f"the person has no {page} page for experiment {args[0]}")
         except PermissionDenied:
             raise Refused(f"the person may not open that page of experiment {args[0]}")
+    elif not _person_may_open(context, page):
+        raise Refused(f"the person cannot open the {page} page")
+    found, was = _visit(context, args[0] if args else None)
     act = acts.send(context.conversation, ClientAct.NAVIGATE, {"url": url})
+    if act.status == ClientAct.FAILED and found is not None:
+        found.visitor_id, found.return_path = was
+        found.save(update_fields=["visitor", "return_path"])
     return ToolResult(output=acts.outcome(act), experiment_id=args[0] if args else None)
 
 
 NAVIGATE = ToolSpec(
     name="navigate",
     description=(
-        "Take the person to a page: home, the experiment list, a draft's setup steps "
+        "Take the person to a page: home, the experiment list, their settings (appearance, "
+        "export_preferences, account, and experiment_defaults if they may change them), "
+        "their groups, the bin, a draft's setup steps "
         "(setup, setup_optimizer, setup_data, setup_priors), or an experiment's dashboard, "
-        "timeline or settings. Without `experiment`, this conversation's experiment. "
+        "timeline, notes or settings. Without `experiment`, this conversation's experiment. "
+        "A page outside this conversation's experiment is visited: the person sees this "
+        "chat as a tab with Return, and you can look but not fill there. "
         "`tab` opens one of the dashboard's tabs of figures. To show something on the page "
         "the person already has open, use highlight instead."),
     parameters={"type": "object",
@@ -181,6 +249,8 @@ def _fill(context, values: dict, reason: str = "") -> ToolResult:
             "ui:experiment_detail", "ui:experiment_settings")):
         raise Refused("fields can be filled only on a draft's setup steps, an experiment's "
                       f"page or its settings; the person is on {page.title or page.path}")
+    if page.experiment_id != context.conversation.experiment_id:
+        raise Refused("you are visiting this page; only its own experiment's assistant fills it")
     step = FILLABLE.get(page.url_name)
     exp = context.experiment(page.experiment_id, EDIT, BOTH)
     if not values:
@@ -207,8 +277,13 @@ def _fill(context, values: dict, reason: str = "") -> ToolResult:
     act = acts.send(context.conversation, ClientAct.FILL,
                     {"values": {k: _plain(v) for k, v in values.items()}, "reason": reason[:300]},
                     path=page.path)
-    still = (" The person presses Run themselves." if page.url_name == "ui:experiment_detail"
-             and set(values) <= _run_fields() else " The person still has to save it themselves.")
+    from ui.optimizer_form import has_trials
+
+    on_run_form = page.url_name == "ui:experiment_detail" and all(
+        name in _run_fields() or (name.startswith("opt_") and has_trials(exp)) for name in values)
+    still = (" The person presses Run themselves; optimizer settings filled here are saved "
+             "when the run starts." if on_run_form
+             else " The person still has to save it themselves.")
     return ToolResult(output=acts.outcome(act) + still, experiment_id=exp.pk)
 
 

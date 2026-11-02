@@ -1,14 +1,12 @@
 {% extends "ui/base.html" %}
 {% load i18n %}
 
-{% comment %}With the assistant on, the home page is its chat: say what the
-experiment is for, and it plans it with you.{% endcomment %}
-{% block assistant_panel %}{% endblock %}
-
+{% comment %}With the assistant on, the home page is its general chat: say
+what the experiment is for, and it plans it with you.{% endcomment %}
 {% block content %}
     <h1>Codesigner</h1>
     {% if assistant %}
-        {% include "assistant/_chat.html" with full=True %}
+        {% include "assistant/_chat.html" with full=True chat=assistant.general %}
     {% else %}
         <p>{% translate "Use the sidebar to create a new experiment." %}</p>
     {% endif %}

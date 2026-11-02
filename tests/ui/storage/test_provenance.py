@@ -201,18 +201,19 @@ def test_a_run_records_the_trials_it_produced(client):
     assert [r["trial_range"] for r in runs] == [[1, 6], [7, 10]]
 
 
-def test_the_settings_are_recorded_once_for_the_whole_experiment(client):
-    """Per-run copies would imply the settings could differ, since they are
-    fixed at creation."""
+def test_each_run_records_the_settings_it_ran_with(client):
+    """The experiment records its current settings, and each run the copy it
+    started with, since the run-safe ones may change between runs
+    (`RUN_SAFE`)."""
     exp = _create(client, opt_search_strategy="rf", opt_rf_trees="24")
-    _run(exp)
-    _run(exp)
+    _run(exp, optimizer_params={**exp.data.optimizer_params, "random_probability": 0.5})
+    _run(exp, optimizer_params={**exp.data.optimizer_params, "random_probability": 0.1})
 
     body = _exported(client, exp)
 
     assert body["optimizer"]["params"]["rf_trees"] == 24
-    assert all("optimizer_params" not in run for run in body["runs"])
-    assert all("params" not in run for run in body["runs"])
+    assert [run["optimizer_params"]["random_probability"] for run in body["runs"]] == [0.5, 0.1]
+    assert all(run["optimizer_params"]["rf_trees"] == 24 for run in body["runs"])
 
 
 def test_a_run_records_what_bounded_it_and_what_ended_it(client):

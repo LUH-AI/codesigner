@@ -46,6 +46,7 @@ class ETS(OutputBaseModel):
 
 
 class ETSModel(Tunable, ETS):
+    """`ETSModel` is Holt-Winters exponential smoothing (ETS), fitted per series."""
 
     #: Processing must leave a series' times alone.
     takes_processing = False

@@ -20,6 +20,7 @@ _EXPERIMENT_VIEWS: dict[str | None, str] = {
     "data_overview": "data",
     "data_section": "data",
     "experiment_timeline": "timeline",
+    "experiment_notes": "notes",
     # An open draft has no views yet.
     "setup": "setup",
     "setup_optimizer": "setup",

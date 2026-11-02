@@ -1,0 +1,35 @@
+# SMAC's settings weighed against their trade-off notes
+# (assistant/knowledge/tradeoffs.toml): the assistant reads the note, says what
+# a change gains and what it costs, and leaves the decision to the person.
+
+[[case]]
+id = "continued-run-keeps-the-model-guiding"
+say = "I want to continue to 236 trials in all, and I'd rather the model keep choosing than draw more initial points. What should I change before pressing Run?"
+[case.situation]
+phase = "results"
+fixture = "wine_cancelled"
+[case.expect]
+calls = [{tool = "read_experiment"}]
+mentions = ["trial cap", "37"]
+
+[[case]]
+id = "categorical-model-weighs-the-strategy"
+say = "I'll tune an SVM to predict the variety, with 60 trials. Is SMAC's default search strategy right for it? Don't change the plan, just tell me."
+[case.situation]
+phase = "planning"
+dataset = "iris"
+[case.expect]
+calls = [{tool = "list_optimizers"}]
+never = ["update_plan"]
+mentions = ["kernel"]
+
+[[case]]
+id = "small-data-metric-weighed"
+say = "Predict the variety with a random forest. Which metric should the search optimize, and why? Just tell me, don't write the plan yet."
+[case.situation]
+phase = "planning"
+dataset = "iris"
+[case.expect]
+calls = [{tool = "list_metrics"}]
+never = ["update_plan"]
+mentions = ["log loss"]

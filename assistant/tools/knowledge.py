@@ -1,11 +1,13 @@
 """The tools that search the assistant's library (assistant/library.py): the
-papers SMAC and Codesigner rest on, and background on tuning hyperparameters."""
+papers SMAC and Codesigner rest on, and background on tuning hyperparameters;
+and the one that explains a Codesigner page (assistant/explainers.py)."""
 
 from __future__ import annotations
 
 import json
 
 from .. import library
+from .client import PAGES
 from .registry import Refused, ToolResult, ToolSpec
 
 
@@ -73,6 +75,37 @@ READ_PASSAGE = ToolSpec(
 )
 
 
+def _about_page(context, page: str = "") -> ToolResult:
+    from .. import acts, explainers
+
+    if page:
+        url_name = PAGES[page][0]
+    else:
+        open_now = acts.current(context.conversation)
+        if open_now is None or not open_now.url_name:
+            raise Refused("name the page; the person has no Codesigner page open")
+        url_name = open_now.url_name
+    for explainer in explainers.read("pages").values():
+        if f"page:{url_name}" in explainer["fields"]["about"]:
+            return ToolResult(output=json.dumps(
+                {"page": url_name, "title": explainer["fields"]["title"],
+                 **explainer["sections"]}, ensure_ascii=False))
+    raise Refused(f"there is no explainer for {url_name}")
+
+
+ABOUT_PAGE = ToolSpec(
+    name="about_page",
+    description=(
+        "How a Codesigner page works, from its explainer: what it is for, what is on it, "
+        "how to use it, its rules and limits, and questions people ask. Without `page`, "
+        "the page the person has open. Use it for questions about the application "
+        "itself, such as where a setting is."),
+    parameters={"type": "object",
+                "properties": {"page": {"type": "string", "enum": sorted(PAGES)}}},
+    handler=_about_page,
+)
+
+
 def knowledge():
-    """The library's tools."""
-    return [SEARCH_KNOWLEDGE, READ_PASSAGE]
+    """The library's tools, and the pages' explainer."""
+    return [SEARCH_KNOWLEDGE, READ_PASSAGE, ABOUT_PAGE]

@@ -100,6 +100,7 @@ def run_turn(conversation, text: str, *, llm, tools: ToolRegistry, stream: bool 
     emit(conversation, "user", text=text)
     context = Context(conversation)
     calls_made, seen = 0, {}
+    corrected = False
 
     steps = max(1, settings.ASSISTANT_MAX_STEPS)
     for step in range(steps):
@@ -124,6 +125,12 @@ def run_turn(conversation, text: str, *, llm, tools: ToolRegistry, stream: bool 
                                content=reply.content or "",
                                tool_calls=reply.message.get("tool_calls"), tokens=reply.tokens)
         if not reply.tool_calls:
+            invented = _invented(reply.content)
+            if invented and not corrected and step < steps - 1:
+                # Once a turn, so a model that keeps inventing still ends.
+                corrected = True
+                _warn_invented(conversation, invented)
+                continue
             _cite(conversation, reply.content)
             return _end(conversation, "answered")
 
@@ -155,6 +162,28 @@ def run_turn(conversation, text: str, *, llm, tools: ToolRegistry, stream: bool 
         if waiting:
             return _end(conversation, "waiting")
     return _end(conversation, "steps")
+
+
+def _invented(text: str) -> list[str]:
+    from .library import uncited_keys
+
+    return uncited_keys(text)
+
+
+def _warn_invented(conversation, keys: list[str]) -> None:
+    """The answer cited *keys*, which name no paper in the library: the page
+    marks it withdrawn, and the model is told why and to answer again. The
+    warning is kept as a message to the model, so later turns see it too; no
+    event shows it as the person's."""
+    named = ", ".join(f"[{key}]" for key in keys)
+    emit(conversation, "withdrawn", keys=keys)
+    Message.objects.create(conversation=conversation, role=Message.USER, content=(
+        f"Codesigner's citation check, not the person: your answer cited {named}, which "
+        "is not a paper in the library. The person cannot follow it, and it may not exist; "
+        "they have been told your answer is withdrawn and a corrected one follows. Answer "
+        "again in full. Cite a paper only by a key that search_knowledge returned, for what "
+        "its passage says: search for what you meant to cite, and if the library has "
+        "nothing on it, make the point without a citation and say the library has nothing."))
 
 
 def _cite(conversation, text: str) -> None:

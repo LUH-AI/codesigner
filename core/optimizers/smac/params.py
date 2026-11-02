@@ -134,3 +134,12 @@ PARAMS_SCHEMA = [
                    True, advanced=True,
                    depends_on=("search_strategy", "gp")),
 ]
+
+#: `RUN_SAFE` names the settings a later run may change without invalidating the
+#: trials before it: they steer which configuration comes next, while the space,
+#: the surrogate and the sampling method that made the earlier trials stay fixed.
+#: A continued run re-sizes its initial design from the caps (`initial_points`).
+RUN_SAFE = frozenset({
+    "random_probability", "acquisition", "acquisition_xi",
+    "use_share_cap", "share_cap", "use_trial_cap", "trial_cap", "initial_points_use_max",
+})

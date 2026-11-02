@@ -20,6 +20,7 @@ _EXPERIMENT_PAGES = {
     # Only rendered for a metric change.
     "experiment_run": _("Change metric"),
     "experiment_timeline": _("Timeline"),
+    "experiment_notes": _("Notes"),
 }
 
 

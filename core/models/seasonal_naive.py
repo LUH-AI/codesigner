@@ -25,6 +25,8 @@ class SeasonalNaive(OutputBaseModel):
 
 
 class SeasonalNaiveModel(Tunable, SeasonalNaive):
+    """`SeasonalNaiveModel` is the seasonal naive forecast, which repeats the value
+    one season back, the baseline MASE measures against."""
 
     #: Processing must leave a series' times alone.
     takes_processing = False

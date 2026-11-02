@@ -30,6 +30,8 @@ class RandomForest(OutputBaseModel):
 
 
 class RandomForestModel(Tunable, RandomForest):
+    """`RandomForestModel` is a random forest: many trees on bootstrap samples,
+    averaged; it needs no scaling."""
 
     def get_config_space(self, seed: int = 0) -> ConfigurationSpace:
         cs = ConfigurationSpace(seed=seed)

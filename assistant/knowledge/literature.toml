@@ -304,6 +304,16 @@ topics = ["sobol sequence", "quasi-random", "initial design", "space filling"]
 used_by = ["SMAC Sobol initial design", "Codesigner prediction-space sample (8192 Sobol points)"]
 
 [[paper]]
+key = "COKT26"
+title = "How Many Initial Points Does Bayesian Optimization Need?"
+authors = "Cheon, Odgers, Koh, Tsay"
+year = 2026
+venue = "ICML 2026 Workshop on Decision-Making from Offline Datasets to Online Adaptation"
+arxiv = "2607.04356"
+topics = ["initial design", "number of initial points", "budget allocation", "thompson sampling"]
+used_by = ["Codesigner's initial points (share cap, trial cap)"]
+
+[[paper]]
 key = "YJ00"
 title = "A New Family of Power Transformations to Improve Normality or Symmetry"
 authors = "Yeo, Johnson"

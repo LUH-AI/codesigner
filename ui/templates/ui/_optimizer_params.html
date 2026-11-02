@@ -71,7 +71,18 @@ keeping.
                         function (control) { control.disabled = off; });
                 }
 
-                function apply() {
+                function apply(event) {
+                    // A value typed or filled into a field means it is no
+                    // longer the default, so its "use default" lets go of it
+                    // before the pass below would empty it again.
+                    const changed = event && event.target;
+                    if (changed && changed.id && changed.value !== "") {
+                        box.querySelectorAll("[data-default-for]").forEach(function (row) {
+                            if (row.dataset.defaultFor === changed.id) {
+                                row.querySelector("input").checked = false;
+                            }
+                        });
+                    }
                     // Hidden: belongs to a search strategy that is not chosen.
                     box.querySelectorAll("[data-when]").forEach(function (field) {
                         const [name, wanted] = field.dataset.when.split("=");

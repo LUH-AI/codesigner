@@ -119,13 +119,18 @@ def test_rebuilding_one_paper_keeps_the_others(built, monkeypatch):
 
 
 def test_an_answer_lists_the_papers_it_cites(built):
-    """What: keys cited as [KEY] in an answer are listed under it, once each,
-    with their link; text that only looks like a key is not.
-    How: `cited` on an answer citing AB20 twice and a made-up key."""
+    """What: keys cited as [KEY], or several in one bracket, are listed under
+    an answer once each, with their link; a key no paper has is not listed but
+    named as made up, inside a group too.
+    How: `cited` and `uncited_keys` on answers citing AB20 twice, EF99 in a
+    group, and a made-up key alone and in a group."""
     found = library.cited("Priors fade [AB20], as shown [AB20]; see also [ZZ99].")
+    grouped = "Both [EF99, AB20] say so, and [AB20; YY98] too."
 
     assert [p["key"] for p in found] == ["AB20"]
     assert found[0]["link"] == "https://arxiv.org/abs/0000.00001"
+    assert [p["key"] for p in library.cited(grouped)] == ["EF99", "AB20"]
+    assert library.uncited_keys(grouped) == ["YY98"]
 
 
 def test_the_tools_search_and_read_around(built):

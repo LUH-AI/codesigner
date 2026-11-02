@@ -202,3 +202,43 @@ def test_a_turn_always_ends_in_words(settings):
     ended = run_turn(conversation, "run it", llm=Model(), tools=tools_for(conversation), stream=False)
 
     assert ended == "answered" and offered[-1] is None and offered[0]
+
+
+def test_an_invented_citation_is_withdrawn_and_the_model_warned():
+    """What: an answer citing a key the library lacks is marked withdrawn on
+    the page, the model is told which key and to answer again, and the
+    corrected answer ends the turn with only real papers as its sources; the
+    warning is kept for the model and never shown as the person's.
+    How: a scripted answer citing [ZZZ+99], then one citing [HSSL22]."""
+    conversation, llm, reason = _turn(text("Priors help [ZZZ+99]."),
+                                      text("Priors steer the search [HSSL22]."))
+
+    assert reason == "answered"
+    assert _kinds(conversation).count("withdrawn") == 1
+    assert conversation.events.get(kind="withdrawn").payload["keys"] == ["ZZZ+99"]
+    warning = conversation.messages.filter(role=Message.USER).last()
+    assert "[ZZZ+99], which is not a paper in the library" in warning.content
+    assert "search_knowledge" in warning.content
+    assert warning.content in [m["content"] for m in llm.calls[1]["messages"] if m["role"] == "user"]
+    assert [e.payload["text"] for e in conversation.events.filter(kind="user")] == ["hello"]
+    assert [p["key"] for p in conversation.events.get(kind="sources").payload["papers"]] \
+        == ["HSSL22"]
+
+
+def test_a_model_that_invents_again_is_warned_only_once():
+    """What: a second invented citation in the same turn ends it rather than
+    asking again, and its unknown key is left out of the sources.
+    How: two scripted answers that each cite a made-up key."""
+    conversation, _, reason = _turn(text("See [ZZZ+99]."), text("See [YYY+98] instead."))
+
+    assert reason == "answered"
+    assert _kinds(conversation).count("withdrawn") == 1
+    assert not conversation.events.filter(kind="sources").exists()
+
+
+def test_a_real_citation_passes_unwarned():
+    """What: an answer citing only library papers ends the turn at once.
+    How: one scripted answer citing [HSSL22]."""
+    conversation, _, reason = _turn(text("Priors steer the search [HSSL22]."))
+
+    assert reason == "answered" and "withdrawn" not in _kinds(conversation)

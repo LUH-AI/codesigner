@@ -8,7 +8,9 @@ field with options; each element marked `data-assist` as a target; the tabs of
 figures with the figures each holds, and the trials table's trial numbers. No
 script runs here, so a field that a page's script would add or show is
 missing, every field counts as visible, the first tab shows unless the address
-names one, and no trial is selected until one is pointed at.
+names one, and no trial is selected until one is pointed at. A fill is read
+back as act.js reads it, which here can only find a field the post would leave
+out: disabled, or inside a disabled fieldset.
 """
 
 from __future__ import annotations
@@ -56,6 +58,12 @@ class _Reader(HTMLParser):
     def _inside_chat(self):
         return any("data-assistant" in attrs for _, attrs in self.stack)
 
+    def _disabled(self, attrs):
+        """`_disabled` is True for a control a post would leave out: disabled
+        itself or inside a disabled fieldset."""
+        return "disabled" in attrs or any(tag == "fieldset" and "disabled" in a
+                                          for tag, a in self.stack)
+
     def handle_starttag(self, tag, attrs):
         attrs = dict(attrs)
         if tag not in VOID:
@@ -77,12 +85,13 @@ class _Reader(HTMLParser):
         elif tag == "select" and name:
             self._select = {"name": name, "id": attrs.get("id"), "label": attrs.get("aria-label", ""),
                             "type": "select-one", "fillable": True, "visible": True,
-                            "options": [], "value": None}
+                            "options": [], "value": None, "disabled": self._disabled(attrs)}
         elif tag == "option" and self._select is not None:
             self._option = [attrs.get("value"), "", "selected" in attrs]
         elif tag == "textarea" and name:
             self._textarea = {"name": name, "id": attrs.get("id"), "label": attrs.get("aria-label", ""),
-                              "type": "textarea", "fillable": True, "visible": True, "value": ""}
+                              "type": "textarea", "fillable": True, "visible": True, "value": "",
+                              "disabled": self._disabled(attrs)}
 
     def _view_start(self, tag, attrs):
         classes = (attrs.get("class") or "").split()
@@ -128,14 +137,15 @@ class _Reader(HTMLParser):
             group = next((f for f in self.fields if f["name"] == name and f["type"] == "radio"), None)
             if group is None:
                 group = {"name": name, "id": None, "label": attrs.get("aria-label", ""), "type": "radio",
-                         "fillable": True, "visible": True, "options": [], "value": ""}
+                         "fillable": True, "visible": True, "options": [], "value": "",
+                         "disabled": self._disabled(attrs)}
                 self.fields.append(group)
             group["options"].append([attrs.get("value", "on"), attrs.get("id")])
             if "checked" in attrs:
                 group["value"] = attrs.get("value", "on")
             return
         field = {"name": name, "id": attrs.get("id"), "label": attrs.get("aria-label", ""),
-                 "type": kind, "fillable": True, "visible": True}
+                 "type": kind, "fillable": True, "visible": True, "disabled": self._disabled(attrs)}
         field["value"] = "checked" in attrs if kind == "checkbox" else attrs.get("value", "")
         self.fields.append(field)
 
@@ -213,6 +223,7 @@ class _Reader(HTMLParser):
                 field["options"] = [[value, self.labels.get(rid or "", value)]
                                     for value, rid in field["options"]]
             field.pop("id", None)
+            field.pop("disabled", None)
             out.append(field)
         return out
 
@@ -231,6 +242,9 @@ class SimulatedPage:
         self.targets = []
         self.view = {}
         self._reader = None
+        #: `disabled` names the fields a post would leave out, which act.js
+        #: finds by reading the fill back.
+        self.disabled = set()
         #: Every action carried out, as `(kind, args, done, detail)`.
         self.log = []
 
@@ -245,6 +259,7 @@ class SimulatedPage:
         self.status = response.status_code
         self.title = " ".join(reader.title.split())
         self.fields = reader.report()
+        self.disabled = {f["name"] for f in reader.fields if f.get("disabled")}
         self.targets = reader.targets
         self._reader = reader
         self.view = reader.view(tab or None)
@@ -332,9 +347,11 @@ class SimulatedPage:
             values = args.get("values") or {}
             missed = [name for name, value in values.items() if not self._set(name, value)]
             self._report()
-            done = not missed
-            detail = (f"Not on the page: {', '.join(missed)}." if missed
-                      else f"Filled {', '.join(values)}.")
+            problems = ([f"Not on the page: {', '.join(missed)}."] if missed else []) + [
+                f"{name} is disabled on the page, so it would not be sent."
+                for name in values if name not in missed and name in self.disabled]
+            done = not problems
+            detail = " ".join(problems) if problems else f"Filled {', '.join(values)}."
         elif act.kind == "highlight":
             target = args.get("target")
             done = self._point_at(target)

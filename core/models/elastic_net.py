@@ -26,6 +26,7 @@ class ElasticNet(OutputBaseModel):
 
 
 class ElasticNetModel(Tunable, ElasticNet):
+    """`ElasticNetModel` is linear regression with mixed L1 and L2 penalties."""
 
     def get_config_space(self, seed: int = 0) -> ConfigurationSpace:
         cs = ConfigurationSpace(seed=seed)

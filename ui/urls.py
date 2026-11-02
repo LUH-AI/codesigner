@@ -2,7 +2,7 @@ from django.contrib.auth import views as auth_views
 from django.urls import path, reverse_lazy
 
 from .views import (
-    analytics, bin, dashboard, data_handling, export, groups, imports, pages, preferences,
+    analytics, bin, dashboard, data_handling, export, groups, imports, notes, pages, preferences,
     priors, runs, setup, sharing, site,
 )
 
@@ -115,5 +115,6 @@ urlpatterns = [
          name="experiment_export_trial_model"),
     path("experiments/<int:pk>/settings/", preferences.experiment_settings, name="experiment_settings"),
     path("experiments/<int:pk>/timeline/", export.experiment_timeline, name="experiment_timeline"),
+    path("experiments/<int:pk>/notes/", notes.experiment_notes, name="experiment_notes"),
     path("experiments/<int:pk>/delete/", bin.experiment_delete, name="experiment_delete"),
 ]

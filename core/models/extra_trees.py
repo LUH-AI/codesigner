@@ -35,6 +35,8 @@ class ExtraTrees(OutputBaseModel):
 
 
 class ExtraTreesModel(Tunable, ExtraTrees):
+    """`ExtraTreesModel` is extremely randomized trees: like a random forest with
+    random split thresholds, cheaper per tree."""
 
     def get_config_space(self, seed: int = 0) -> ConfigurationSpace:
         cs = ConfigurationSpace(seed=seed)

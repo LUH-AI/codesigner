@@ -59,3 +59,6 @@ class ReaderPreferences(models.Model):
     user = models.OneToOneField(django_settings.AUTH_USER_MODEL, null=True, blank=True,
                                 on_delete=models.CASCADE, related_name="reader_preferences")
     export_timestamps = models.CharField(max_length=10, default="relative")
+    #: `assistant_enabled` is off when the reader has turned the assistant off
+    #: for themselves; the instance's `ASSISTANT_ENABLED` still comes first.
+    assistant_enabled = models.BooleanField(default=True)

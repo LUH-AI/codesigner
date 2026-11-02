@@ -61,6 +61,12 @@ SCHEMA = {
                 "max_seconds": {"type": "number"},
                 "no_improvement_trials": {"type": "integer"},
                 "target_score": {"type": "number"},
+                "max_failures": {"type": "integer",
+                                 "description": "Give up after this many failed trials in "
+                                                "all; the run form's default is 1."},
+                "max_consecutive_failures": {"type": "integer",
+                                             "description": "Give up after this many failed "
+                                                            "in a row; the default is 15."},
             },
         },
         "seed": {"type": "integer"},
@@ -228,10 +234,7 @@ def problems(plan: dict, request, dataset, group_id=None) -> list[str]:
         found.append(f"optimizer: there is no optimizer called {optimizer.get('name')!r}; "
                      f"there are {sorted(OPTIMIZERS)}.")
     else:
-        known = {param.name for param in chosen.params_schema}
-        for name in optimizer.get("params") or {}:
-            if name not in known:
-                found.append(f"optimizer: {chosen.name} has no setting {name!r}.")
+        found += _optimizer_problems(chosen, optimizer.get("params") or {})
 
     model = MODELS.get(plan.get("model_name"))
     for step, choice in (plan.get("processing") or {}).items():
@@ -245,6 +248,70 @@ def problems(plan: dict, request, dataset, group_id=None) -> list[str]:
     if metric:
         from core.metrics import metrics_for
 
-        if metric not in metrics_for(plan.get("task") or ""):
-            found.append(f"metric: {metric!r} is not scored for a {plan.get('task')}.")
+        from ui.drafts import free_probabilities
+
+        task = plan.get("task") or ""
+        probabilities = model is not None and free_probabilities(task, plan["model_name"])
+        if metric not in metrics_for(task, probabilities=probabilities):
+            found.append(f"metric: {metric!r} is not scored for a {task} with "
+                         f"{plan.get('model_name')}.")
     return found
+
+
+def _optimizer_problems(optimizer, params: dict) -> list[str]:
+    """What the optimizer step's own form would do differently with *params*
+    than they say: a setting it lacks, a value it would change (a bound, a
+    choice, a type), or a setting that does nothing as the others stand."""
+    from ui.optimizer_form import cleaned_params
+
+    schema = {param.name: param for param in optimizer.params_schema}
+    found = [f"optimizer: {optimizer.name} has no setting {name!r}." for name in params
+             if name not in schema]
+    given = {k: v for k, v in params.items() if k in schema}
+    stored = cleaned_params(optimizer, given)
+    for name, value in given.items():
+        if value is None:
+            continue
+        kept = stored[name]
+        if kept != value and str(kept) != str(value):
+            found.append(f"optimizer: {name} {value!r} would be stored as {kept!r}"
+                         + _range(schema[name]) + ".")
+            continue
+        param = schema[name]
+        if param.depends_on and stored.get(param.depends_on[0]) != param.depends_on[1]:
+            found.append(f"optimizer: {name} applies only when {param.depends_on[0]} is "
+                         f"{param.depends_on[1]!r}.")
+        for flag in param.enabled_by or ():
+            if not stored.get(flag):
+                found.append(f"optimizer: {name} does nothing while {flag} is off.")
+    return found
+
+
+def _range(param) -> str:
+    if param.choices:
+        return f"; it takes one of {list(param.choices)}"
+    if param.min is not None or param.max is not None:
+        return f"; it runs from {param.min} to {param.max}"
+    return ""
+
+
+def design(plan: dict) -> str:
+    """The initial design *plan* sets, as a sentence such as "Initial design: 37
+    of 150 trials (share cap 0.25 of 150).", or "" when the plan has no SMAC
+    model to size it for."""
+    from core.optimizers.smac.facade import initial_points, scenario_budget
+
+    from core.registry import MODELS
+
+    optimizer = plan.get("optimizer") or {}
+    model = MODELS.get(plan.get("model_name"))
+    if optimizer.get("name") != "SMAC" or model is None:
+        return ""
+    stopping = plan.get("stopping") or {}
+    budget = scenario_budget(0, stopping.get("max_trials"))
+    size = initial_points(len(list(model.get_config_space().values())), budget,
+                          optimizer.get("params") or {})
+    of = (f"{budget} trials" if stopping.get("max_trials")
+          else f"the {budget} assumed when no trial limit is set")
+    return (f"Initial design: {size.trials} of {of} ({size.bound_by}); the model chooses "
+            f"the rest.")

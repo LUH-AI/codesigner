@@ -61,6 +61,8 @@ class CatBoost(OutputBaseModel):
 
 
 class CatBoostModel(Tunable, CatBoost):
+    """`CatBoostModel` is CatBoost gradient-boosted trees on symmetric splits,
+    encoding categories itself."""
 
     def get_config_space(self, seed: int = 0) -> ConfigurationSpace:
         cs = ConfigurationSpace(seed=seed)

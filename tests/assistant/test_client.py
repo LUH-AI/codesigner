@@ -217,12 +217,13 @@ def test_the_assistant_cannot_take_the_person_where_they_may_not_go(client, on, 
 
 def test_every_page_the_assistant_can_open_is_only_looked_at(client, on):
     """What: each page navigate can open answers a plain GET, so opening it
-    changes nothing.
+    changes nothing; the account page, which exists only with accounts, is
+    not found without them.
     How: every page on the list, for a draft, fetched."""
     _, exp = _setting_up(client)
     for name, (url_name, per_experiment) in PAGES.items():
         url = reverse(url_name, args=[exp.pk] if per_experiment else [])
-        assert client.get(url).status_code in (200, 302), name
+        assert client.get(url).status_code in ((404,) if name == "account" else (200, 302)), name
 
 
 def test_the_assistant_fills_fields_on_the_open_step(client, on):
@@ -282,17 +283,17 @@ def test_the_assistant_points_at_what_is_on_the_page(client, on):
 
 
 def test_planning_only_looks_and_points_and_the_plan_tools_go_after_approval(client, on):
-    """What: while planning there is no experiment to open or fill, so the
-    page tools are only looking and pointing; once approved, all of them, and
-    the plan is no longer written, though what Codesigner offers can still be
-    looked up.
+    """What: the general chat, which plans, has no experiment of its own to
+    fill, so of the page tools it looks, points and navigates; once approved,
+    all of them, and the plan is no longer written, though what Codesigner
+    offers can still be looked up.
     How: the tools of a planning conversation and of one setting up."""
     planning = set(tools_for(Conversation.objects.create()).names)
     conversation, _ = _setting_up(client)
     setting_up = set(tools_for(conversation).names)
 
-    assert {"look_at_page", "highlight"} <= planning
-    assert not {"navigate", "fill"} & planning
+    assert {"look_at_page", "highlight", "navigate"} <= planning
+    assert "fill" not in planning
     assert {"look_at_page", "navigate", "fill", "highlight"} <= setting_up
     assert "update_plan" in planning and "update_plan" not in setting_up
     assert "list_models" in setting_up

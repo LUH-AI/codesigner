@@ -42,6 +42,8 @@ class HistGradientBoosting(OutputBaseModel):
 
 
 class HistGradientBoostingModel(Tunable, HistGradientBoosting):
+    """`HistGradientBoostingModel` is scikit-learn's histogram gradient boosting:
+    boosted trees on binned features, with native missing values."""
 
     def get_config_space(self, seed: int = 0) -> ConfigurationSpace:
         cs = ConfigurationSpace(seed=seed)

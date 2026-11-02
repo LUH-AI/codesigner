@@ -53,6 +53,8 @@ class LightGBM(OutputBaseModel):
 
 
 class LightGBMModel(Tunable, LightGBM):
+    """`LightGBMModel` is LightGBM gradient-boosted trees, grown leaf-wise on
+    binned features, with native missing values."""
 
     def get_config_space(self, seed: int = 0) -> ConfigurationSpace:
         cs = ConfigurationSpace(seed=seed)

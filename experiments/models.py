@@ -108,6 +108,10 @@ class ExperimentData(models.Model):
     #: so page and search never drift, and kind and params only restore the
     #: controls. SafeJSONField stores the infinity a spike can produce.
     priors = SafeJSONField(default=dict, blank=True)
+    #: `trial_budget` is the total number of trials the experiment was planned
+    #: for, across its runs; the run form offers what is left of it. Null means
+    #: no budget was set.
+    trial_budget = models.PositiveIntegerField(null=True, blank=True)
 
     def __str__(self) -> str:
         return self.name or str(UNTITLED)
@@ -432,6 +436,9 @@ class Run(models.Model):
     #: `Experiment.priors` changes with every drag. `events` record what the
     #: prior did, and the `priors` field records what it was.
     priors = models.JSONField(default=dict, blank=True)
+    #: `optimizer_params` copies the experiment's optimizer settings at creation,
+    #: since the run-safe ones may change between runs (`RUN_SAFE`).
+    optimizer_params = models.JSONField(default=dict, blank=True)
     #: Page-picked configurations, each `{"config", "origin", "proposal"}`, run
     #: first.
     configurations = models.JSONField(default=list, blank=True)

@@ -9,6 +9,7 @@ urlpatterns = [
     path("assistant/dataset/", views.dataset, name="dataset"),
     path("assistant/approve/", views.approve, name="approve"),
     path("assistant/reset/", views.reset, name="reset"),
+    path("assistant/back/", views.back, name="back"),
     path("assistant/window/", views.window, name="window"),
     path("assistant/page/", views.page, name="page"),
     path("assistant/acts/", views.acts, name="acts"),

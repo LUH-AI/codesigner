@@ -62,6 +62,8 @@ class XGBoost(OutputBaseModel):
 
 
 class XGBoostModel(Tunable, XGBoost):
+    """`XGBoostModel` is XGBoost gradient-boosted trees, grown depth-wise, with
+    native missing values."""
 
     def get_config_space(self, seed: int = 0) -> ConfigurationSpace:
         cs = ConfigurationSpace(seed=seed)

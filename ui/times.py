@@ -38,6 +38,17 @@ def set_reader_preference(user, mode) -> None:
             user=account(user), defaults={"export_timestamps": mode})
 
 
+def assistant_on(user) -> bool:
+    """`assistant_on` says whether *user* has the assistant on, as it is
+    until they turn it off."""
+    row = ReaderPreferences.objects.filter(user=account(user)).first()
+    return row.assistant_enabled if row else True
+
+
+def set_assistant_on(user, on: bool) -> None:
+    ReaderPreferences.objects.update_or_create(user=account(user),
+                                               defaults={"assistant_enabled": on})
+
 
 def for_export(exp, user) -> str:
     """`for_export` takes the experiment setting, else the reader preference,

@@ -42,6 +42,8 @@ class SVM(OutputBaseModel):
 
 
 class SVMModel(Tunable, SVM):
+    """`SVMModel` is a support vector machine with an RBF, linear, polynomial or
+    sigmoid kernel; it is sensitive to scaling and slow on many rows."""
 
     #: The name in `.ihpo` files from before SVM regression.
     aliases = ("SVM Classifier",)

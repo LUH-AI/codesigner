@@ -85,7 +85,8 @@ def experiment_settings(request, exp):
 
 def appearance(request):
     """`appearance` saves the theme (light, dark or system) in a year-long
-    cookie and ignores any other choice.
+    cookie and ignores any other choice. Whether the assistant is shown is
+    kept with the account instead, like the export time format.
     """
     from ..context_processors import THEME_COOKIE, THEMES
     if request.method == "POST":
@@ -94,10 +95,14 @@ def appearance(request):
         if chosen in THEMES:
             response.set_cookie(THEME_COOKIE, chosen, max_age=365 * 24 * 3600,
                                 samesite="Lax", secure=request.is_secure())
+        if request.POST.get("assistant") in ("on", "off"):
+            times.set_assistant_on(request.user, request.POST["assistant"] == "on")
         return response
     return render(request, "ui/appearance.html", {
         "themes": [("light", _("Light")), ("dark", _("Dark")),
                    ("system", _("Same as my system"))],
+        "assistant_offered": settings.ASSISTANT_ENABLED,
+        "assistant_on": times.assistant_on(request.user),
     })
 
 

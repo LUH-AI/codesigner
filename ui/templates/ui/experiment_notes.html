@@ -1,0 +1,56 @@
+{% extends "ui/base.html" %}
+{% load i18n assets %}
+
+{% block title %}{% translate "Notes" %} · {{ summary.name }} · Codesigner{% endblock %}
+
+{% comment %}The experiment's notepad (ui/views/notes.py): one Markdown document
+for everyone who works on it and for their assistants. A person who may edit
+the experiment gets the editor, Write and Preview; everyone else the notes as
+drawn. A save over a newer version comes back with the newer notes above the
+editor, which still holds what the person wrote. The Markdown is drawn by
+ui/markdown.js as elements and text, never as markup; without the script it
+shows as written.{% endcomment %}
+{% block content %}
+    {% if draft %}
+        <h1>{{ summary.name }}</h1>
+    {% else %}
+        {% include "ui/_experiment_header.html" %}
+    {% endif %}
+    <section class="notes-page">
+        <h2 class="subheader">{% translate "Notes" %}</h2>
+        <p class="caption">
+            {% translate "Shared with everyone who can open this experiment, and with their assistants." %}
+            {% if updated_at %}{% blocktranslate with by=notes.by when=updated_at|date:"DATETIME_FORMAT" %}Last changed by {{ by }}: {{ when }}{% endblocktranslate %}{% endif %}
+        </p>
+        {% if stale %}
+            <div class="notes-stale">
+                <p class="form-error">{% blocktranslate with by=stale.by %}{{ by }} changed the notes after you opened them. They now read as below; your text is still in the editor. Merge the two and save again.{% endblocktranslate %}</p>
+                <div class="notes-rendered" data-markdown>{{ stale.text }}</div>
+            </div>
+        {% endif %}
+        {% if error %}<p class="form-error">{{ error }}</p>{% endif %}
+        {% if may_edit %}
+            <form method="post" class="notes-editor" data-notes-editor>
+                {% csrf_token %}
+                <input type="hidden" name="seen" value="{% if stale %}{{ stale.updated_at }}{% else %}{{ notes.updated_at }}{% endif %}">
+                <div class="notes-modes" role="tablist">
+                    <button type="button" role="tab" class="notes-mode" data-notes-mode="write" aria-selected="true">{% translate "Write" %}</button>
+                    <button type="button" role="tab" class="notes-mode" data-notes-mode="preview" aria-selected="false">{% translate "Preview" %}</button>
+                </div>
+                <label class="visually-hidden" for="notes-text">{% translate "Notes" %}</label>
+                <textarea id="notes-text" name="text" rows="20" maxlength="{{ max_length }}"
+                          placeholder="{% translate 'What everyone working on this experiment should know: goals, rules, decisions and why, what was tried.' %}"
+                          data-notes-text>{{ text }}</textarea>
+                <div class="notes-rendered notes-preview" data-notes-preview hidden></div>
+                <p class="caption">{% translate "Markdown: # headings, **bold**, *italics*, - lists, 1. numbered lists, > quotes, `code`, [links](https://…) and | tables |." %}</p>
+                <p class="selectors"><button type="submit" class="btn-primary">{% translate "Save" %}</button></p>
+            </form>
+        {% elif notes.text %}
+            <div class="notes-rendered" data-markdown>{{ notes.text }}</div>
+        {% else %}
+            <p class="caption">{% translate "Nothing written down yet." %}</p>
+        {% endif %}
+    </section>
+    <script src="{% asset 'ui/markdown.js' %}" defer></script>
+    <script src="{% asset 'ui/notes.js' %}" defer></script>
+{% endblock %}

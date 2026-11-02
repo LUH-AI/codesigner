@@ -4,7 +4,7 @@ from django.template.loader import render_to_string
 from django.utils.translation import gettext as _
 from django.views.decorators.http import require_POST
 
-from access.policy import RUN, VIEW
+from access.policy import EDIT, RUN, VIEW, policy
 from core.optimizers.base import FAILURE_CRITERIA
 from experiments.models import account
 from experiments.services import modelenv
@@ -16,7 +16,7 @@ from .common import (
     POLL_MAX_SECONDS, _ACTIVE, _best_panels, _figure_plots, _hp_names, _model_available,
     _poll_seconds, _shown_figures,
 )
-from .. import run_form
+from .. import optimizer_form, run_form
 from ..figures import FIGURES_BY_KEY
 from ..permissions import experiment_view
 from .dashboard import _dashboard, _detail_context, _trial_rows
@@ -44,6 +44,15 @@ def experiment_run(request, exp):
         context["run_error"] = _("Set at least one stopping criterion, so the "
                                  "run has something to end on.")
         return _dashboard(request, exp, context)
+
+    if request.POST.get("next_run_settings") and policy().may(request, exp, EDIT):
+        # Saved before any metric confirmation, since they are the next run's
+        # settings whichever metric it optimizes.
+        refusal = optimizer_form.save(request, exp)
+        if refusal:
+            context = _detail_context(request, exp)
+            context["run_error"] = refusal
+            return _dashboard(request, exp, context)
 
     if decision:
         optimize_metric = resolve_metric_change(decision, exp.data.current_metric, chosen)

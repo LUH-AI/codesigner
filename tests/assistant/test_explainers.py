@@ -1,6 +1,7 @@
-"""The assistant's explainers (assistant/knowledge/explainers*/) follow the
-template for their kind in `_templates/`: the same frontmatter fields, the same
-sections in the same order, and references that point at things that exist."""
+"""The assistant's explainers (assistant/knowledge/explainers*/), trade-offs
+included, follow the template for their kind in `_templates/`: the same
+frontmatter fields, the same sections in the same order, and references that
+point at things that exist."""
 
 import re
 from functools import cache
@@ -11,7 +12,7 @@ from django.conf import settings
 
 KNOWLEDGE = Path(settings.BASE_DIR) / "assistant" / "knowledge"
 TEMPLATES = KNOWLEDGE / "explainers-DRAFT" / "_templates"
-FOLDERS = {"concepts": "concept", "figures": "figure", "pages": "page"}
+FOLDERS = {"concepts": "concept", "figures": "figure", "pages": "page", "tradeoffs": "tradeoff"}
 ABOUT_KINDS = {"figure", "page", "field", "element", "data-assist", "action"}
 FRONT = re.compile(r"\A---\n(.*?)\n---\n", re.S)
 

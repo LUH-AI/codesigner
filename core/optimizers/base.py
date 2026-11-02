@@ -526,6 +526,10 @@ class BaseOptimizer(ABC):
 
     params_schema: List[OptimizerParam] = []
 
+    #: `run_safe` names the settings a later run may change once trials exist;
+    #: every other setting stays as the first run had it.
+    run_safe: frozenset = frozenset()
+
     #: `.ihpo` files record the optimizer by name, so renames keep old ones
     #: here.
     aliases: tuple = ()
@@ -707,6 +711,13 @@ class BaseOptimizer(ABC):
         class leaves unknown defaults visibly unanswered.
         """
         return dict(self.get_params())
+
+    @classmethod
+    def effective_defaults(cls) -> dict:
+        """`effective_defaults` maps each setting to what a blank one runs
+        with. The base class has only the declared defaults.
+        """
+        return {p.name: p.default for p in cls.params_schema}
 
     @classmethod
     def known_params(cls, stored: Mapping[str, Any]) -> Dict[str, Any]:

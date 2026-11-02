@@ -58,3 +58,19 @@ def test_failures_are_annotated_on_their_line_under_github_actions(monkeypatch, 
     assert line > 1
     assert "::warning file=" in out and f",line={line},title=Library source missing::" in out
     assert f"{broken['key']}: answered 404 Not Found" in out
+
+
+def test_every_paper_entry_is_complete():
+    """What: every paper has a unique key the answers can cite it by, the
+    fields the library shows, and a source or a summary to index. How: the
+    real list, against `cited`'s pattern."""
+    import re
+
+    papers = sources.papers()
+    keys = [p["key"] for p in papers]
+    assert len(keys) == len(set(keys)), [k for k in keys if keys.count(k) > 1]
+    for paper in papers:
+        assert re.fullmatch(r"[A-Za-z]+\+?\d{2}", paper["key"]), paper["key"]
+        missing = [f for f in ("title", "authors", "year", "venue", "topics", "used_by") if not paper.get(f)]
+        assert not missing, (paper["key"], missing)
+        assert any(paper.get(f) for f in ("arxiv", "pdf", "html", "summary")), paper["key"]

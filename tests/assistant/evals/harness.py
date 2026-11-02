@@ -15,6 +15,14 @@ file's name is the case's group:
     page = "ui:home"              # the page open, by URL name
     fixture = "analytics"         # results only: a .ihpo of tests/fixtures
     tab = "hypershap"             # results only: the dashboard's tab showing
+    running_at = 27               # results only: the last run still going, at
+                                  # this many trials, as its progress writes
+                                  # leave them
+    trial_budget = 150            # results only: the trials the plan budgeted
+    also = ["smac_iris"]          # more .ihpo of tests/fixtures, imported as
+                                  # the person's other experiments
+    earlier = [{role = "user", content = "No SVMs."}]
+                                  # messages said before the case, while planning
     [case.expect]
     calls = [{tool = "profile_dataset"}, {tool = "present_choices"}]
     never = ["update_plan"]
@@ -22,6 +30,7 @@ file's name is the case's group:
     absent = ["saved"]
     ended = ["waiting"]
     plan = {task = "classification"}
+    plan_not = {optimizer = {params = {trial_cap = 150}}}
     plan_ready = true
 
 `calls` must appear in that order among the calls made, each matched on the
@@ -29,8 +38,8 @@ arguments it gives (a string ignoring case, a table key by key). `never`
 lists tools that must not be called, `mentions` and `absent` words that the
 last turn's answer must and must not contain, and `ended` how the last turn
 may end (assistant/loop.py `run_turn`). `plan` is matched against the plan
-as the run leaves it, and `plan_ready` asks that the setup's own forms would
-take it (`assistant.plan.problems`).
+as the run leaves it, `plan_not` must not match it, and `plan_ready` asks that
+the setup's own forms would take it (`assistant.plan.problems`).
 """
 
 from __future__ import annotations
@@ -61,6 +70,20 @@ PLANS = {
         "reasons": {"model_name": "A random forest needs no scaling and handles few rows well.",
                     "evaluation": "Five folds suit 150 rows.",
                     "stopping": "Thirty trials cover a forest's few hyperparameters."},
+    },
+    # The plan of the wine-150 exchange, as the assistant wrote it then, less
+    # its trial cap of 150.
+    "wine": {
+        "goal": "Find the best hyperparameters for a classifier on wine quality within a "
+                "fixed budget of 150 trials.",
+        "name": "wine-150",
+        "task": "classification",
+        "target_column": "quality",
+        "model_name": "LightGBM",
+        "evaluation": {"scheme": "kfold", "value": 5},
+        "optimizer": {"name": "SMAC"},
+        "metric": "balanced_accuracy",
+        "stopping": {"max_trials": 150},
     },
 }
 
@@ -137,12 +160,19 @@ def build(situation: dict, client):
     if isinstance(plan, str):
         plan = dict(PLANS[plan])
     page = SimulatedPage(client, browser)
+    from tests.conftest import FIXTURES_DIR
+
+    for name in situation.get("also", []):
+        snapshot.experiment_from_snapshot(io.parse((FIXTURES_DIR / f"{name}.ihpo").read_bytes()))
 
     if phase == "results":
-        from tests.conftest import FIXTURES_DIR
-
         exp = snapshot.experiment_from_snapshot(
             io.parse((FIXTURES_DIR / f"{situation.get('fixture', 'analytics')}.ihpo").read_bytes()))
+        if situation.get("trial_budget"):
+            exp.data.trial_budget = situation["trial_budget"]
+            exp.data.save(update_fields=["trial_budget"])
+        if situation.get("running_at"):
+            _running_at(exp, situation["running_at"])
         conversation = Conversation.objects.create(browser=browser, experiment=exp,
                                                    phase=Conversation.DASHBOARD)
         tab = situation.get("tab")
@@ -152,6 +182,8 @@ def build(situation: dict, client):
 
     conversation = Conversation.objects.create(browser=browser, plan=plan,
                                                demo_dataset=situation.get("dataset", ""))
+    for said in situation.get("earlier", []):
+        conversation.messages.create(role=said["role"], content=said["content"])
     if situation.get("dataset_file"):
         from django.core.files.base import ContentFile
 
@@ -185,6 +217,28 @@ def build(situation: dict, client):
     return conversation, page
 
 
+def _running_at(exp, count: int) -> None:
+    """`_running_at` leaves *exp* as its last run would be after *count*
+    trials: still running, its trials stored by a progress write
+    (experiments/services/run.py `_partial_result_writer`), which records no
+    initial design and no analytics."""
+    from core.optimizers.base import OptimizationResult
+    from experiments.services.snapshot import rebuild_experiment
+
+    built = rebuild_experiment(exp)
+    trials = built["result"].trials[:count]
+    partial = OptimizationResult(trials=trials, primary_metric=built["result"].primary_metric,
+                                 best_config=trials[-1].incumbent_config or {},
+                                 best_score=trials[-1].incumbent_score,
+                                 hyperparameter_importance={},
+                                 hyperparameter_importance_warning={})
+    exp.data.result = built["optimizer"].serialize_result(partial)
+    exp.data.save(update_fields=["result"])
+    exp.runs.filter(pk=exp.runs.order_by("pk").last().pk).update(
+        status="running", trial_count=None, stopped_by="", finished_at=None,
+        cancel_requested=False, cancel_requested_at=None)
+
+
 def run(case: Case, llm, client) -> Outcome:
     """`run` plays *case* against *llm* and scores what happened."""
     from assistant.loop import run_turn
@@ -208,6 +262,8 @@ def run(case: Case, llm, client) -> Outcome:
     failures = score(case.expect, calls, answer, ended)
     if "plan" in case.expect and not matches(case.expect["plan"], conversation.plan):
         failures.append(f"plan is {conversation.plan}")
+    if "plan_not" in case.expect and matches(case.expect["plan_not"], conversation.plan):
+        failures.append(f"plan has {case.expect['plan_not']}")
     if case.expect.get("plan_ready"):
         from assistant.plan import problems
 

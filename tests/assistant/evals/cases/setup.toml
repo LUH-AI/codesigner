@@ -68,3 +68,17 @@ page = "ui:setup_optimizer"
 [case.expect]
 calls = [{tool = "navigate", args = {page = "setup"}}]
 never = ["fill"]
+
+[[case]]
+id = "directives-noted-after-approval"
+say = "I've approved it. What's next?"
+[case.situation]
+phase = "setup"
+plan = "iris"
+dataset = "iris"
+earlier = [
+    {role = "user", content = "Plan a tuning experiment on iris for me. Two rules: never use an SVM, and my lab reports balanced accuracy, so judge everything by that."},
+    {role = "assistant", content = "Understood: no SVMs, and balanced accuracy is what you report. I'll keep both in mind."},
+]
+[case.expect]
+calls = [{tool = "write_notes"}]

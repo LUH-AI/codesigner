@@ -286,14 +286,16 @@ def _run(conversation, tool, **args):
     return tools_for(conversation).execute(tool, args, Context(conversation))
 
 
-def test_the_experiment_tools_are_offered_once_there_is_an_experiment():
-    """What: the tools that read an experiment are offered with an experiment
-    and not while planning.
+def test_the_experiment_tools_are_offered_with_and_without_an_experiment():
+    """What: the tools that list and read experiments, and their notepads,
+    are offered to a chat about an experiment and to the general chat, which
+    answers across experiments.
     How: the tools of a planning conversation and of one on a dashboard."""
-    names = {"read_experiment", "read_trials", "compare_trials", "analyze_experiment"}
+    names = {"list_experiments", "read_experiment", "read_trials", "compare_trials",
+             "analyze_experiment", "read_notes", "write_notes"}
     exp = _experiment("analytics")
 
-    assert not names & set(tools_for(Conversation.objects.create()).names)
+    assert names <= set(tools_for(Conversation.objects.create()).names)
     assert names <= set(tools_for(Conversation.objects.create(
         experiment=exp, phase=Conversation.DASHBOARD)).names)
 
@@ -327,3 +329,217 @@ def test_a_wrong_question_is_refused_with_what_there_is(guided):
     conversation = Conversation.objects.create(experiment=guided, phase=Conversation.DASHBOARD)
 
     assert "trials run from 1 to 40" in _run(conversation, "read_trials", trial=99).output
+
+
+# ── while a run is going ────────────────────────────────────────────────────
+
+def _mid_design(done=27, planned=37, budget=150):
+    """SMAC part way through a run whose design is *planned*: *done* design
+    trials stored and no design record, as a progress write leaves them."""
+    t = _made([0.3 + i / 1000 for i in range(done)], [i / done for i in range(done)])
+    for trial in t.trials:
+        trial.origin = "Initial Design: Sobol"
+    t.optimizer = "SMAC"
+    t.runs = [{"index": 1, "status": "running", "stopped_by": None, "stopping": {},
+               "first": 1, "last": done}]
+    t.planned = {"size": planned, "bound_by": "share cap 0.25 of 150", "budget": budget}
+    t.budget = budget
+    return t
+
+
+def test_a_run_in_its_design_is_not_said_to_have_used_the_budget():
+    """What: mid-run, with no design record yet, the design's size is worked out
+    from the settings and said to be, and the note says the run is in its
+    design rather than that the design took the whole budget.
+    How: 27 of a planned 37 design trials stored, the run still going."""
+    found = results.analyze(_mid_design(), "initial_design")
+
+    assert found["planned_size"] == 37 and found["bound_by"] == "share cap 0.25 of 150"
+    assert found["planned_size_from"].startswith("worked out from the settings")
+    assert "in its initial design: 27 of 37" in found["note"]
+    assert "whole budget" not in found["note"]
+
+
+def test_a_run_stopped_inside_its_design_says_so():
+    """What: runs that ended before the design was done say the model has
+    chosen nothing yet and a further run continues the design.
+    How: the same trials with the run cancelled."""
+    t = _mid_design()
+    t.runs[0]["status"] = "cancelled"
+
+    assert "stopped inside the initial design (27 of 37)" in \
+        results.analyze(t, "initial_design")["note"]
+
+
+@pytest.mark.parametrize("field, value, said", [
+    ("phase", ["model_guided", "random"], "phase is never 'random'"),
+    ("status", "succeeded", "status is never 'succeeded'"),
+])
+def test_a_phase_or_status_there_is_not_is_refused(field, value, said):
+    """What: a filter on a phase or status that never occurs is refused with
+    the values there are, rather than silently matching nothing.
+    How: the phase name the wine exchange used, and a made-up status."""
+    with pytest.raises(results.ResultsError, match=said):
+        results.rows(_mid_design(), where=[{"field": field, "op": "in", "value": value}])
+
+
+def test_the_metrics_analysis_says_what_it_rests_on():
+    """What: the metrics analysis gives how many trials it used, from which
+    phases, and how each metric is computed.
+    How: the 27 design trials."""
+    found = results.analyze(_mid_design(), "metrics")
+
+    assert found["trials_used"] == 27 and found["trials_by_phase"] == {results.DESIGN: 27}
+    assert "weighted by each class's size" in found["definitions"]["f1"]
+
+
+def _running(exp, offset):
+    """*exp*'s last run made to be still going from *offset*."""
+    run = exp.runs.order_by("pk").last()
+    run.status, run.trial_count, run.stopped_by, run.trial_offset = "running", None, "", offset
+    run.save()
+    return run
+
+
+def test_a_running_run_has_its_range_and_fresh_trials(guided):
+    """What: a running run's trial range runs to the trials stored so far, and
+    each progress write is read afresh rather than from an earlier call.
+    How: the guided fixture's second run marked running, then its stored
+    trials cut to 30 as an earlier progress write would have left them."""
+    _running(guided, 25)
+    t = trials_of(guided)
+    assert t.runs[-1] == {**t.runs[-1], "first": 26, "last": 40, "status": "running"}
+
+    guided.data.result = {**guided.data.result, "data": guided.data.result["data"][:30]}
+    guided.data.save(update_fields=["result"])
+    assert len(trials_of(guided).trials) == 30
+
+
+def test_every_answer_says_when_it_was_made(guided):
+    """What: each tool's answer carries the trials and run status it was made
+    at, and while a run is going, that it will be out of date.
+    How: read_experiment on the guided fixture, done and then running."""
+    conversation = Conversation.objects.create(experiment=guided, phase=Conversation.DASHBOARD)
+    done = json.loads(_run(conversation, "read_experiment").output)["as_of"]
+    assert done == {"trials": 40, "run": {"index": 2, "status": "done"}}
+
+    _running(guided, 25)
+    found = json.loads(_run(conversation, "read_experiment").output)
+    assert "out of date" in found["as_of"]["note"] and found["running"] is True
+
+
+def test_the_settings_say_what_can_change_now(guided):
+    """What: the settings list every optimizer setting with its stored and
+    effective value, blank ones included, and whether it can change before the
+    next run; the trade-off notes cover only those that can, and the metric.
+    How: the guided fixture, finished, with trials."""
+    conversation = Conversation.objects.create(experiment=guided, phase=Conversation.DASHBOARD)
+    settings_ = json.loads(_run(conversation, "read_experiment",
+                                aspect="settings").output)["optimizer_settings"]
+
+    assert settings_["random_probability"]["editable_now"] is True
+    assert "Next run" in settings_["random_probability"]["changes_in"]
+    assert settings_["initial_design"]["editable_now"] is False
+    assert "has trials" in settings_["initial_design"]["why_not"]
+    assert settings_["trial_cap"]["stored"] == 10
+    assert settings_["random_probability"]["stored"] == "blank, so its default"
+    assert settings_["random_probability"]["in_effect"] == pytest.approx(0.08447, abs=1e-4)
+    assert "rf_trees" not in settings_, "a forest setting does not apply to a GP search"
+    notes = json.loads(_run(conversation, "read_experiment", aspect="settings").output)["tradeoffs"]
+    assert {"random-trial-rate", "initial-design-size", "improvement-margin"} <= set(notes)
+    assert "sampling-method" not in notes and "search-strategy" not in notes, \
+        "a setting fixed by the trials has nothing to weigh"
+    assert "optimized-metric" in notes, "the metric is chosen for each run"
+
+
+def _page(conversation, exp, **values):
+    from django.utils import timezone
+
+    from assistant.models import BrowserPage
+
+    conversation.browser = "b1"
+    conversation.save(update_fields=["browser"])
+    BrowserPage.objects.create(
+        browser="b1", path=f"/experiments/{exp.pk}/", url_name="ui:experiment_detail",
+        experiment_id=exp.pk, title="dashboard", reported_at=timezone.now(),
+        seen_at=timezone.now(),
+        fields=[{"name": k, "value": v, "type": "text"} for k, v in values.items()])
+
+
+def test_the_next_run_preview_reads_the_form_as_opened(guided):
+    """What: with no page showing the form, the preview reads it as it would
+    open: what is left of a planned budget, how many design points that budget
+    draws, and the failure limit's meaning.
+    How: the guided fixture (10 design trials of 40, trial cap 10) with a
+    budget of 150."""
+    guided.data.trial_budget = 150
+    guided.data.save(update_fields=["trial_budget"])
+    conversation = Conversation.objects.create(experiment=guided, phase=Conversation.DASHBOARD)
+    found = json.loads(_run(conversation, "read_experiment", aspect="next_run").output)
+
+    assert found["read_from"].startswith("the run form as it opens")
+    assert found["trials_this_run"] == 110 and found["budget_for_sizing"] == 150
+    assert found["initial_design"]["already_drawn"] == 10
+    assert found["initial_design"]["will_draw"] == 0
+    assert "re-sizes" not in found["initial_design"]["reads"], "the trial cap of 10 holds it"
+    assert any("finishes it" in s for s in found["stops"])
+    assert any("stops at the first failed trial" in s for s in found["stops"])
+
+
+def test_a_design_with_none_left_says_when_it_would_grow():
+    """What: with no design points left at the run's length, the preview names
+    the total from which a longer run would draw more, unless a cap holds it.
+    How: the wine-150 case, five hyperparameters and 37 points drawn, at 86 +
+    30 trials, under the default caps and with the trial cap at 37."""
+    from assistant.tools.experiment import _design_grows_from
+
+    assert _design_grows_from(5, 116, {}, 37) == 152
+    assert _design_grows_from(5, 116, {"trial_cap": 37}, 37) is None
+    assert _design_grows_from(5, 236, {}, 37) is None, "it already grows at 236"
+
+
+def test_the_next_run_preview_reads_the_persons_page(guided):
+    """What: the preview reads the run form as the person's page shows it: a
+    target just above the best stops the run at its first improvement, and a
+    filled run-safe setting changes the design it draws.
+    How: a page with 30 trials, the target the form used to open with, and a
+    trial cap of 20."""
+    from ui.views.common import surpass_target
+
+    t = trials_of(guided)
+    best = t.score(t.ranked("accuracy")[0], "accuracy")
+    conversation = Conversation.objects.create(experiment=guided, phase=Conversation.DASHBOARD)
+    _page(conversation, guided, max_trials="30", target_score=surpass_target(best),
+          max_failures="1", optimize_metric="accuracy", opt_trial_cap="20")
+    found = json.loads(_run(conversation, "read_experiment", aspect="next_run").output)
+
+    assert found["read_from"].startswith("the run form as the person's page")
+    assert any("first trial that beats the best" in s for s in found["stops"])
+    assert found["initial_design"]["will_draw"] == 10
+    assert found["random_trial_rate"] is not None
+
+
+def test_no_next_run_while_one_is_going(guided):
+    """What: the preview says a run is under way instead of previewing one.
+    How: the guided fixture's last run marked running."""
+    _running(guided, 25)
+    conversation = Conversation.objects.create(experiment=guided, phase=Conversation.DASHBOARD)
+
+    assert json.loads(_run(conversation, "read_experiment",
+                           aspect="next_run").output)["can_run"] is False
+
+
+def test_the_system_prompt_says_where_the_runs_stand_now(guided):
+    """What: on a created experiment, each turn's system prompt states the run,
+    the trials per phase, the design's progress and the best trial, so earlier
+    tool results are visibly older.
+    How: the guided fixture finished, then with its last run going."""
+    from assistant.prompts import system_prompt
+
+    conversation = Conversation.objects.create(experiment=guided, phase=Conversation.DASHBOARD)
+    told = system_prompt(conversation)
+    assert "Status now, as this turn starts: run 2 done, 40 trials stored (10 initial_design" in told
+    assert "Initial design: 10 of 10 done." in told and "Best: trial " in told
+
+    _running(guided, 25)
+    assert "run 2 running" in system_prompt(conversation)

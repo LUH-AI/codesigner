@@ -20,6 +20,20 @@ STOPPING_FIELDS = {
 }
 
 
+#: `UNPLANNED_TRIALS` is the trial limit the run form opens with when the
+#: experiment has no planned budget.
+UNPLANNED_TRIALS = 30
+
+
+def opening_trials(budget: int | None, done: int):
+    """`opening_trials` is the trial limit the run form opens with: what is
+    left of a planned *budget* after *done* trials, "" once it is spent, and
+    `UNPLANNED_TRIALS` without one."""
+    if not budget:
+        return UNPLANNED_TRIALS
+    return max(budget - done, 0) or ""
+
+
 def text(value) -> str:
     """`text` gives a value as a browser would post it, so a number 0 stays
     "0" and a missing value becomes ""."""

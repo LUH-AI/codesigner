@@ -49,7 +49,12 @@ you cannot have.
                     <div class="field">
                         <label for="max_trials">{% translate "…this many trials have run" %}</label>
                         <input type="number" id="max_trials" name="max_trials"
-                               value="30" min="1" max="100000">
+                               value="{{ next_run_trials }}" min="1" max="100000">
+                        {% if trial_budget and not next_run_trials %}
+                            <p class="caption">{% blocktranslate count n=trial_budget %}The planned {{ n }} trial has run.{% plural %}The planned {{ n }} trials have run.{% endblocktranslate %}</p>
+                        {% elif trial_budget %}
+                            <p class="caption">{% blocktranslate with n=trial_budget %}What is left of the {{ n }} trials planned.{% endblocktranslate %}</p>
+                        {% endif %}
                     </div>
                     <div class="field">
                         <label for="target_score">{% translate "…performance surpasses" %}</label>
@@ -162,6 +167,15 @@ you cannot have.
                                    value="{{ default_trial_factor }}" min="1" step="0.5">
                         </div>
                     </fieldset>
+                {% endif %}
+                {% comment %}The optimizer settings a later run may change
+                (`run_safe`), saved when the run starts. The rest stay as the
+                first run had them, since its trials were made with them. The
+                marker tells the run view the panel was on the form, so a form
+                without it leaves the stored settings alone.{% endcomment %}
+                {% if next_run_layout %}
+                    <input type="hidden" name="next_run_settings" value="1">
+                    {% include "ui/_optimizer_params.html" with optimizer_layout=next_run_layout advanced_params=next_run_advanced has_advanced_params=next_run_advanced %}
                 {% endif %}
                 <button type="submit" class="btn-primary btn-block" data-assist="run">{% translate "▶ Run" %}</button>
                 {% if env.ready and env.summary %}

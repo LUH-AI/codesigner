@@ -16,7 +16,7 @@ from access.policy import VIEW
 
 from ui.permissions import BOTH
 
-from .. import results
+from .. import results, tradeoffs
 from .registry import Refused, ToolResult, ToolSpec
 
 #: Rebuilt trials kept between calls, by what would change them.
@@ -39,15 +39,41 @@ def experiment_of(context, experiment: int | None = None):
     return context.experiment(pk, VIEW, BOTH)
 
 
-def _runs(exp) -> list[dict]:
+def _runs(exp, stored: int) -> list[dict]:
+    """*exp*'s runs, each with its trial range. A run still going has no count
+    yet, so its range runs to the *stored* trials past its offset."""
     out = []
     for index, run in enumerate(exp.runs.order_by("pk"), start=1):
         row = {"index": index, "status": run.status, "stopped_by": run.stopped_by or None,
                "stopping": run.stopping or {}, "first": None, "last": None}
         if run.trial_offset is not None and run.trial_count is not None:
             row["first"], row["last"] = run.trial_offset + 1, run.trial_offset + run.trial_count
+        elif (run.trial_offset is not None and run.status in results.ACTIVE
+              and stored > run.trial_offset):
+            row["first"], row["last"] = run.trial_offset + 1, stored
         out.append(row)
     return out
+
+
+def _stored(exp) -> int:
+    """How many trials *exp* stores now, which a running run raises with each
+    progress write."""
+    return len((exp.data.result or {}).get("data") or [])
+
+
+def _planned(exp, kind, space) -> tuple[dict | None, int | None]:
+    """The initial design SMAC sizes for *exp*'s latest run, and that run's
+    whole budget, from the settings it started with; None for another
+    optimizer or without a run or space."""
+    from core.optimizers.smac.facade import initial_points, scenario_budget
+
+    latest = exp.runs.order_by("pk").last()
+    if latest is None or space is None or getattr(kind, "name", "") != "SMAC":
+        return None, None
+    budget = scenario_budget(latest.trial_offset or 0, latest.max_trials)
+    params = latest.optimizer_params or exp.data.optimizer_params or {}
+    size = initial_points(len(list(space.values())), budget, params)
+    return {"size": size.trials, "bound_by": size.bound_by, "budget": budget}, budget
 
 
 def trials_of(exp) -> results.Trials:
@@ -55,8 +81,9 @@ def trials_of(exp) -> results.Trials:
     stored result changes."""
     from experiments.services.snapshot import config_space_for, rebuild_experiment
 
-    runs = _runs(exp)
-    key = (exp.pk, exp.data_id, len(runs), tuple((r["status"], r["last"]) for r in runs),
+    stored = _stored(exp)
+    runs = _runs(exp, stored)
+    key = (exp.pk, exp.data_id, stored, len(runs), tuple((r["status"], r["last"]) for r in runs),
            json.dumps(exp.data.optimizer_params or {}, sort_keys=True, default=str))
     with _kept_lock:
         if key in _KEPT:
@@ -69,9 +96,12 @@ def trials_of(exp) -> results.Trials:
     from core.registry import optimizer_class
 
     kind = optimizer_class(exp.data.optimizer_name)
-    found = results.Trials(result=built["result"], space=config_space_for(built),
+    space = config_space_for(built)
+    planned, budget = _planned(exp, kind, space)
+    found = results.Trials(result=built["result"], space=space,
                            optimizer=kind.name if kind is not None else exp.data.optimizer_name,
-                           settings=dict(exp.data.optimizer_params or {}), runs=runs)
+                           settings=dict(exp.data.optimizer_params or {}), runs=runs,
+                           planned=planned, budget=budget)
     with _kept_lock:
         _KEPT[key] = found
         while len(_KEPT) > _KEPT_SIZE:
@@ -79,8 +109,17 @@ def trials_of(exp) -> results.Trials:
     return found
 
 
-def _answer(exp, found: dict) -> ToolResult:
-    return ToolResult(output=json.dumps(found, default=str, ensure_ascii=False),
+def _answer(exp, found: dict, t: results.Trials) -> ToolResult:
+    """*found* as the tool's output, stamped with the trials and run status it
+    was worked out at, since a running run makes it out of date."""
+    stamp = {"trials": len(t.trials)}
+    if t.runs:
+        stamp["run"] = {k: t.runs[-1][k] for k in ("index", "status")}
+    if t.live is not None:
+        stamp["note"] = ("a run is still adding trials, so this is out of date as soon as "
+                         "the next one lands; ask again before relying on it later")
+    return ToolResult(output=json.dumps({"as_of": stamp, **found}, default=str,
+                                        ensure_ascii=False),
                       experiment_id=exp.pk)
 
 
@@ -108,10 +147,19 @@ def _overview(exp, t) -> dict:
         ranked = t.ranked(metric)
         if ranked:
             out["best_trial"] = t.row(ranked[0], [metric])
+    out["trials_by_phase"] = t.phase_counts()
     if t.design:
-        out["initial_design_size"] = t.design["size"]
+        design_done = out["trials_by_phase"].get(results.DESIGN, 0)
+        out["initial_design"] = {"planned": t.design["size"], "done": design_done,
+                                 "bound_by": t.design.get("bound_by"),
+                                 "planned_from": t.design["source"]}
     if t.runs:
-        out["last_run"] = {k: t.runs[-1][k] for k in ("index", "status", "stopped_by")}
+        out["last_run"] = {k: t.runs[-1][k] for k in ("index", "status", "stopped_by",
+                                                       "first", "last")}
+    if t.live is not None:
+        out["running"] = True
+    if data.trial_budget:
+        out["trial_budget"] = {"planned": data.trial_budget, "done": len(t.trials)}
     return out
 
 
@@ -130,15 +178,7 @@ def _runs_aspect(exp, t) -> dict:
 
 
 def _settings(exp, t) -> dict:
-    from core.registry import optimizer_class
-
     data = exp.data
-    labels = {}
-    kind = optimizer_class(data.optimizer_name)
-    if kind is not None:
-        labels = {p.name: p.label for p in kind.params_schema}
-    params = {name: {"value": value, **({"label": labels[name]} if name in labels else {})}
-              for name, value in (data.optimizer_params or {}).items() if value is not None}
     space = []
     for hp in t.hyperparameters():
         row = {"name": hp.name, "type": type(hp).__name__,
@@ -148,10 +188,87 @@ def _settings(exp, t) -> dict:
         if hasattr(hp, "choices"):
             row["choices"] = list(hp.choices)
         space.append(row)
-    return {"optimizer": data.optimizer_name, "optimizer_settings": params,
-            "search_space": space, "seed": data.seed, "cv_folds": data.cv_folds or None,
+    settings = _optimizer_settings(exp, t)
+    out = {"optimizer": data.optimizer_name, "optimizer_settings": settings}
+    from core.registry import optimizer_class
+
+    kind = optimizer_class(data.optimizer_name)
+    editable = [name for name, row in settings.items() if row["editable_now"]]
+    # The metric is chosen for each run, so its note always applies.
+    out["tradeoffs"] = {**(tradeoffs.for_optimizer(kind, editable) if kind else {}),
+                        **tradeoffs.notes(["optimize_metric"])}
+    if t.design:
+        out["initial_design_these_give"] = {
+            "planned": t.design["size"], "done": t.phase_counts().get(results.DESIGN, 0),
+            "bound_by": t.design.get("bound_by"), "planned_from": t.design["source"]}
+    return {**out, "search_space": space, "seed": data.seed, "cv_folds": data.cv_folds or None,
             "test_size": data.test_size if not data.cv_folds else None,
             "time_column": data.time_column or None, "processing": data.processing or {}}
+
+
+def _design_grows_from(n_hyperparameters, budget, params, drawn) -> int | None:
+    """The smallest total of trials above *budget* at which the initial design
+    holds more than the *drawn* points, or None when the caps keep it at most
+    that at any total. The design's size never shrinks as the total grows."""
+    from core.optimizers.smac.facade import initial_points
+
+    def bigger(total):
+        return initial_points(n_hyperparameters, total, params).trials > drawn
+
+    low, high = budget, 100_000
+    if bigger(low) or not bigger(high):
+        return None
+    while high - low > 1:
+        middle = (low + high) // 2
+        low, high = (low, middle) if bigger(middle) else (middle, high)
+    return high
+
+
+def _optimizer_settings(exp, t) -> dict:
+    """Each optimizer setting that applies under the stored search strategy: the
+    stored value (blank meaning its default), the value in effect, and whether
+    it can change now, with why not and where it changes."""
+    from core.optimizers.smac.params import signature_default
+
+    from core.registry import optimizer_class
+    from ui.optimizer_form import has_trials, why_fixed
+    from ui.optimizer_labels import LABELS
+
+    kind = optimizer_class(exp.data.optimizer_name)
+    if kind is None:
+        return {}
+    stored = kind.known_params(exp.data.optimizer_params or {})
+    try:
+        in_effect = kind(**stored).resolved_params()
+    except (TypeError, ValueError):
+        in_effect = {}
+    effective = kind.effective_defaults()
+    strategy = stored.get("search_strategy")
+    where = ("the run form's Next run fold on the experiment's page, saved when the run "
+             "starts" if has_trials(exp) else "the optimizer form")
+    out = {}
+    for param in kind.params_schema:
+        if (param.depends_on and param.depends_on[0] == "search_strategy" and strategy
+                and strategy != param.depends_on[1]):
+            continue
+        value = stored.get(param.name)
+        current = in_effect.get(param.name)
+        if current is None:
+            current = effective.get(param.name)
+        if param.name == "trial_cap" and value is None and t.space is not None:
+            from smac.initial_design import AbstractInitialDesign
+
+            per_hp = signature_default(AbstractInitialDesign.__init__,
+                                       "n_configs_per_hyperparameter") or 10
+            current = f"{per_hp * len(t.hp_names())} ({per_hp} per hyperparameter)"
+        row = {"label": str(LABELS.get(param.name, (param.label, ""))[0]),
+               "stored": "blank, so its default" if value is None else value,
+               "in_effect": current}
+        fixed = why_fixed(exp, param.name)
+        row["editable_now"] = fixed is None
+        row["changes_in" if fixed is None else "why_not"] = where if fixed is None else fixed
+        out[param.name] = row
+    return out
 
 
 def _priors(exp, t) -> dict:
@@ -203,14 +320,142 @@ def _timeline(exp, t) -> dict:
             "order": "newest first"}
 
 
+def _form_values(context, exp) -> tuple[dict, str]:
+    """The run form's fields, as the person's page shows them when it is this
+    experiment's, else as the form opens; and which of the two."""
+    from .. import acts
+
+    page = acts.current(context.conversation)
+    if (page is not None and page.experiment_id == exp.pk
+            and page.url_name == "ui:experiment_detail"):
+        values = {f["name"]: f.get("value") for f in page.fields or [] if f.get("name")}
+        if "max_trials" in values:
+            return values, "the run form as the person's page shows it now"
+    from ui.run_form import opening_trials
+
+    values = {"max_trials": opening_trials(exp.data.trial_budget, _stored(exp)),
+              "max_failures": 1, "max_consecutive_failures": 15,
+              "optimize_metric": exp.data.current_metric or ""}
+    return values, "the run form as it opens, since the person's page does not show it"
+
+
+def _stops(stopping: dict, best, higher_is_better: bool, done: int, budget) -> list[str]:
+    """Each criterion in *stopping* as what it will do to the run."""
+    out = []
+    for key, value in stopping.items():
+        if key == "max_trials":
+            line = f"max_trials {value}: stops after {value} more trials, {done + value} in all"
+            if budget:
+                line += (f"; the plan's budget is {budget}, so this "
+                         + ("finishes it" if done + value == budget else
+                            f"{'overshoots' if done + value > budget else 'leaves'} "
+                            f"{abs(budget - done - value)}"))
+            out.append(line + ".")
+        elif key == "target_score":
+            close = best is not None and (value - best if higher_is_better else best - value) < 1e-3
+            out.append(f"target_score {value}: " + (
+                f"stops at the first trial that beats the best so far ({results._r(best)}), however "
+                "slightly" if close else f"stops once a trial scores {value} or better") + ".")
+        elif key == "max_failures":
+            out.append(f"max_failures {value}: " + (
+                "stops at the first failed trial" if value == 1
+                else f"stops after {value} failed trials") + ".")
+        elif key == "max_consecutive_failures":
+            out.append(f"max_consecutive_failures {value}: stops after {value} failures in a row.")
+        elif key == "no_improvement_trials":
+            out.append(f"no_improvement_trials {value}: stops after {value} trials in a row "
+                       "without a new best.")
+        else:
+            out.append(f"{key} {value}.")
+    return out
+
+
+def _next_run(context, exp, t, trials: int | None = None) -> dict:
+    """What pressing Run would do with the run form as it stands, or with
+    *trials* in place of its trial limit."""
+    from core.optimizers.smac.facade import initial_points, scenario_budget
+    from core.optimizers.smac.params import EXTENDABLE_DESIGNS
+
+    from core.registry import optimizer_class
+    from ui import run_form
+    from ui.optimizer_form import cleaned_params, why_fixed
+
+    if t.live is not None:
+        return {"can_run": False, "why": "a run is under way; the next can start when it ends"}
+    values, source = _form_values(context, exp)
+    if trials:
+        values = {**values, "max_trials": trials}
+        source += f", with a trial limit of {trials} asked about instead of the form's"
+    metric = values.get("optimize_metric") or exp.data.current_metric or ""
+    stopping = run_form.stopping_from(values, metric)
+    done = len(t.trials)
+    out = {"read_from": source, "trials_so_far": done, "metric": metric,
+           "metric_note": "The metric is chosen for each run, so this run may optimize another."}
+    kind = optimizer_class(exp.data.optimizer_name)
+    stored = kind.known_params(exp.data.optimizer_params or {}) if kind else {}
+    filled = {k[4:]: v for k, v in values.items() if k.startswith("opt_")}
+    params = (cleaned_params(kind, {**stored, **{k: v for k, v in filled.items()
+                                                 if k in kind.run_safe}})
+              if kind is not None else {})
+    best = None
+    if t.trials and metric in {m for x in t.trials for m in x.scores}:
+        ranked = t.ranked(metric)
+        best = t.score(ranked[0], metric) if ranked else None
+    higher = t.higher_is_better(metric) if t.trials and best is not None else True
+    out["stops"] = _stops(stopping, best, higher, done, exp.data.trial_budget)
+    if not any(k not in ("max_failures", "max_consecutive_failures") for k in stopping):
+        out["stops"].append("Nothing but the failure limits would end it: the run form "
+                            "refuses that.")
+    max_trials = stopping.get("max_trials")
+    if max_trials:
+        out["trials_this_run"] = max_trials
+    if kind is not None and kind.name == "SMAC" and t.space is not None:
+        budget = scenario_budget(done, max_trials)
+        size = initial_points(len(t.hp_names()), budget, params)
+        design_done = t.phase_counts().get(results.DESIGN, 0)
+        extendable = params.get("initial_design", "sobol") in EXTENDABLE_DESIGNS
+        draws = max(0, size.trials - design_done) if extendable else 0
+        out["budget_for_sizing"] = budget
+        none_left = f"No design points are left to draw at {budget} trials in all; the model " \
+                    f"chooses every trial."
+        grows = _design_grows_from(len(t.hp_names()), budget, params, design_done)
+        if grows is not None:
+            none_left += (f" A run taking the total to {grows} or more re-sizes the design "
+                          f"and draws more points first.")
+        out["initial_design"] = {
+            "size_at_this_budget": size.trials, "bound_by": size.bound_by,
+            "already_drawn": design_done, "will_draw": draws,
+            "reads": (f"The design is re-sized to the larger budget, so this run first draws "
+                      f"{draws} more design points, then the model chooses." if draws else
+                      none_left)
+            if extendable else "A Latin hypercube design keeps its first size on a resume."}
+        if not max_trials:
+            out["initial_design"]["note"] = (f"With no trial limit the design is sized as if "
+                                             f"for {budget} trials in all.")
+        rate = params.get("random_probability")
+        effective = kind.effective_defaults().get("random_probability")
+        if rate is None and isinstance(effective, dict):
+            rate = effective.get(params.get("search_strategy", "gp"))
+        out["random_trial_rate"] = rate if rate is not None else effective
+    out["can_change_before_it"] = (
+        ["the run form's limits and metric"]
+        + [f"opt_{name}" for name in sorted(getattr(kind, "run_safe", ()))
+           if why_fixed(exp, name) is None])
+    out["fixed"] = "every other optimizer setting, the model, the space and the evaluation"
+    return out
+
+
 ASPECTS = {"overview": _overview, "runs": _runs_aspect, "settings": _settings,
-           "priors": _priors, "timeline": _timeline}
+           "priors": _priors, "timeline": _timeline, "next_run": None}
 
 
-def _read_experiment(context, aspect: str = "overview", experiment: int | None = None
-                     ) -> ToolResult:
+def _read_experiment(context, aspect: str = "overview", experiment: int | None = None,
+                     trials: int | None = None) -> ToolResult:
     exp = experiment_of(context, experiment)
-    return _answer(exp, ASPECTS[aspect](exp, trials_of(exp)))
+    t = trials_of(exp)
+    found = (_next_run(context, exp, t, trials) if aspect == "next_run"
+             else ASPECTS[aspect](exp, t))
+    return _answer(exp, found, t)
 
 
 _EXPERIMENT = {"type": "integer",
@@ -221,13 +466,21 @@ READ_EXPERIMENT = ToolSpec(
     name="read_experiment",
     description=(
         "What an experiment is, from what it stores. `aspect`: overview (task, data, model, "
-        "optimizer, metric, trial and failure counts, the best trial, the initial design's "
-        "size), runs (each run's trials, how it was set to stop and why it stopped), "
-        "settings (the optimizer's settings and the search space with bounds), priors (each "
-        "stated prior and how much it still counts), timeline (what was done, when, by "
-        "whom)."),
+        "optimizer, metric, trial and failure counts, trials per phase, the best trial, the "
+        "initial design planned and done, whether a run is going), runs (each run's "
+        "trials, how it was set to stop and why it stopped), "
+        "settings (each optimizer setting stored and in effect, whether it can change "
+        "now, for those that can and for the metric when moving them from the default is "
+        "worth it and what it costs, and the search space with bounds), priors (each stated prior and how much it "
+        "still counts), timeline (what was done, when, by whom), next_run (what pressing Run "
+        "would do with the run form as filled: trials, the new budget, how many initial-"
+        "design points it draws, the random rate, what each early stop means, and what can "
+        "still change before it; `trials` asks about a run of that many instead of the "
+        "form's limit). Every answer says the trials and run status it was made at."),
     parameters={"type": "object", "properties": {
-        "aspect": {"type": "string", "enum": list(ASPECTS)}, "experiment": _EXPERIMENT}},
+        "aspect": {"type": "string", "enum": list(ASPECTS)}, "experiment": _EXPERIMENT,
+        "trials": {"type": "integer",
+                   "description": "With next_run: a trial limit to ask about."}}},
     handler=_read_experiment,
 )
 
@@ -240,8 +493,8 @@ def _read_trials(context, trial: int | None = None, order: str = "best",
     exp = experiment_of(context, experiment)
     t = trials_of(exp)
     if trial is not None:
-        return _answer(exp, _run(lambda: results.trial(t, int(trial), metric or None)))
-    return _answer(exp, _run(lambda: results.rows(t, order, metric or None, limit, where)))
+        return _answer(exp, _run(lambda: results.trial(t, int(trial), metric or None)), t)
+    return _answer(exp, _run(lambda: results.rows(t, order, metric or None, limit, where)), t)
 
 
 READ_TRIALS = ToolSpec(
@@ -270,7 +523,8 @@ READ_TRIALS = ToolSpec(
 
 def _compare_trials(context, trials: list, experiment: int | None = None) -> ToolResult:
     exp = experiment_of(context, experiment)
-    return _answer(exp, _run(lambda: results.compare(trials_of(exp), trials)))
+    t = trials_of(exp)
+    return _answer(exp, _run(lambda: results.compare(t, trials)), t)
 
 
 COMPARE_TRIALS = ToolSpec(
@@ -287,8 +541,9 @@ COMPARE_TRIALS = ToolSpec(
 def _analyze_experiment(context, analysis: str, metric: str = "", hyperparameter: str = "",
                         experiment: int | None = None) -> ToolResult:
     exp = experiment_of(context, experiment)
-    return _answer(exp, _run(lambda: results.analyze(trials_of(exp), analysis, metric or None,
-                                                     hyperparameter or None)))
+    t = trials_of(exp)
+    return _answer(exp, _run(lambda: results.analyze(t, analysis, metric or None,
+                                                     hyperparameter or None)), t)
 
 
 ANALYZE_EXPERIMENT = ToolSpec(
@@ -328,6 +583,44 @@ FIGURE_DATA = {
 }
 
 
+# ── list_experiments ────────────────────────────────────────────────────────
+
+#: The most experiments one list gives.
+LISTED = 50
+
+
+def _list_experiments(context) -> ToolResult:
+    from access.policy import visible_experiments
+
+    out = []
+    found = (visible_experiments(context.request()).select_related("data")
+             .order_by("-created_at")[:LISTED])
+    for exp in found:
+        data = exp.data
+        latest = exp.runs.order_by("pk").last()
+        out.append({"experiment": exp.pk, "name": exp.title,
+                    "kind": "draft" if exp.draft else "created",
+                    "task": data.task, "model": data.model_name,
+                    "dataset": data.demo_dataset or (data.dataset.name.rsplit("/", 1)[-1]
+                                                     if data.dataset else None),
+                    "target": data.target_column or None, "optimizer": data.optimizer_name,
+                    "trials": _stored(exp),
+                    "last_run": latest.status if latest is not None else None})
+    return ToolResult(output=json.dumps({"experiments": out, "shown": len(out)}, default=str))
+
+
+LIST_EXPERIMENTS = ToolSpec(
+    name="list_experiments",
+    description=(
+        "The experiments the person can see, newest first: each one's id, name, whether it "
+        "is a draft, task, model, dataset, target, optimizer, trials stored and the last "
+        "run's status. Use it to find related experiments; read_experiment with "
+        "`experiment` reads any of them."),
+    parameters={"type": "object", "properties": {}},
+    handler=_list_experiments,
+)
+
+
 def experiment_tools():
-    """The tools that read an experiment."""
-    return [READ_EXPERIMENT, READ_TRIALS, COMPARE_TRIALS, ANALYZE_EXPERIMENT]
+    """The tools that read an experiment, and the one that lists them."""
+    return [LIST_EXPERIMENTS, READ_EXPERIMENT, READ_TRIALS, COMPARE_TRIALS, ANALYZE_EXPERIMENT]

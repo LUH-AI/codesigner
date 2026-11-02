@@ -1,4 +1,8 @@
-/* The chat beside every page (assistant/_chat.html).
+/* The chats beside every page (assistant/_dock.html, assistant/_chat.html).
+ *
+ * Each chat on the page is a panel, `[data-assistant]`, run by `chat`: in the
+ * dock a tab each (the general chat, the experiment's, a visitor's), on the
+ * home page and in a window of its own just one.
  *
  * Saying something is a POST; what happens next arrives through the
  * conversation's event stream, an EventSource, which reconnects by itself —
@@ -14,10 +18,30 @@
  * a status line while the model works, a card per tool, buttons for a choice. */
 (function () {
     "use strict";
-    var root = document.querySelector("[data-assistant]");
-    if (!root || root.dataset.ready) return;
-    root.dataset.ready = "1";
+    // The home page with a visitor has the script twice: its own chat's, and
+    // the dock's.
+    if (document.documentElement.dataset.assistantChats) return;
+    document.documentElement.dataset.assistantChats = "1";
 
+    // A chart the assistant drew from the data, under its reply: Plotly, from
+    // the page when it has it, else loaded once for every chat on the page.
+    var plotly = null;
+    function withPlotly(url, then) {
+        if (window.Plotly) return then(window.Plotly);
+        if (!plotly) {
+            plotly = new Promise(function (resolve, reject) {
+                var script = document.createElement("script");
+                script.src = url;
+                script.onload = function () { resolve(window.Plotly); };
+                script.onerror = reject;
+                document.head.appendChild(script);
+            });
+        }
+        plotly.then(then).catch(function () {});
+    }
+
+    // One chat, in the panel *root*; what the dock needs of it is returned.
+    function chat(root) {
     var log = root.querySelector(".assistant-log");
     var status = root.querySelector(".assistant-status");
     var form = root.querySelector(".assistant-form");
@@ -56,167 +80,8 @@
         if (following) log.scrollTop = log.scrollHeight;
     }
 
-    // ── The model's formatting ────────────────────────────────────────────
-    // A reply's Markdown, as far as a chat needs it: paragraphs, headings,
-    // lists, quotes, tables, code, bold, italics and links. Built from elements
-    // and text nodes, never from markup, so nothing the model writes can add
-    // to the page beyond these.
-    var INLINE = [
-        ["code", /`([^`\n]+)`/],
-        ["link", /\[([^\]\n]+)\]\((https?:\/\/[^\s)]+)\)/],
-        ["strong", /\*\*(?=\S)([\s\S]*?\S)\*\*|__(?=\S)([\s\S]*?\S)__(?!\w)/],
-        ["em", /\*(?=[^\s*])([^*\n]*?[^\s*])\*|(?<![\w])_(?=\S)([^_\n]*?\S)_(?![\w])/],
-        ["del", /~~(?=\S)([^~\n]*?\S)~~/]
-    ];
-
-    function inline(text, into) {
-        while (text) {
-            var best = null;
-            INLINE.forEach(function (rule) {
-                var m = rule[1].exec(text);
-                if (m && (!best || m.index < best.m.index)) best = {kind: rule[0], m: m};
-            });
-            if (!best) { into.appendChild(document.createTextNode(text)); return; }
-            if (best.m.index) into.appendChild(document.createTextNode(text.slice(0, best.m.index)));
-            var el;
-            if (best.kind === "code") {
-                el = document.createElement("code");
-                el.textContent = best.m[1];
-            } else if (best.kind === "link") {
-                el = document.createElement("a");
-                el.href = best.m[2];
-                el.target = "_blank";
-                el.rel = "noopener noreferrer";
-                inline(best.m[1], el);
-            } else {
-                el = document.createElement(best.kind);
-                inline(best.m[1] !== undefined ? best.m[1] : best.m[2], el);
-            }
-            into.appendChild(el);
-            text = text.slice(best.m.index + best.m[0].length);
-        }
-    }
-
-    function cells(line) {
-        return line.trim().replace(/^\|/, "").replace(/\|$/, "").split("|").map(function (c) { return c.trim(); });
-    }
-
-    function markdown(source) {
-        var out = document.createDocumentFragment();
-        var lines = source.replace(/\r/g, "").replace(/^\s*\n/, "").split("\n");
-        var i = 0, paragraph = [];
-        function flush() {
-            if (!paragraph.length) return;
-            var p = document.createElement("p");
-            paragraph.forEach(function (line, n) {
-                if (n) p.appendChild(document.createElement("br"));
-                inline(line, p);
-            });
-            out.appendChild(p);
-            paragraph = [];
-        }
-        while (i < lines.length) {
-            var line = lines[i];
-            var fence = /^\s*(```|~~~)/.exec(line);
-            if (fence) {
-                flush();
-                var code = [];
-                i += 1;
-                while (i < lines.length && lines[i].trim().indexOf(fence[1]) !== 0) code.push(lines[i++]);
-                i += 1;
-                var pre = document.createElement("pre"), c = document.createElement("code");
-                c.textContent = code.join("\n");
-                pre.appendChild(c);
-                out.appendChild(pre);
-                continue;
-            }
-            if (!line.trim()) { flush(); i += 1; continue; }
-            var heading = /^\s{0,3}(#{1,6})\s+(.*?)\s*#*\s*$/.exec(line);
-            if (heading) {
-                flush();
-                var h = document.createElement("p");
-                h.className = "assistant-heading";
-                inline(heading[2], h);
-                out.appendChild(h);
-                i += 1;
-                continue;
-            }
-            if (/^\s{0,3}([-*_])(\s*\1){2,}\s*$/.test(line)) {
-                flush();
-                out.appendChild(document.createElement("hr"));
-                i += 1;
-                continue;
-            }
-            if (/^\s*\|/.test(line) && i + 1 < lines.length && /^\s*\|?\s*:?-{2,}/.test(lines[i + 1])) {
-                flush();
-                var table = document.createElement("table");
-                var head = document.createElement("tr");
-                cells(line).forEach(function (cell) {
-                    var th = document.createElement("th");
-                    inline(cell, th);
-                    head.appendChild(th);
-                });
-                var thead = document.createElement("thead");
-                thead.appendChild(head);
-                table.appendChild(thead);
-                var tbody = document.createElement("tbody");
-                i += 2;
-                while (i < lines.length && /^\s*\|/.test(lines[i])) {
-                    var row = document.createElement("tr");
-                    cells(lines[i]).forEach(function (cell) {
-                        var td = document.createElement("td");
-                        inline(cell, td);
-                        row.appendChild(td);
-                    });
-                    tbody.appendChild(row);
-                    i += 1;
-                }
-                table.appendChild(tbody);
-                var wrap = document.createElement("div");
-                wrap.className = "assistant-table";
-                wrap.appendChild(table);
-                out.appendChild(wrap);
-                continue;
-            }
-            var item = /^\s*([-*+]|\d+[.)])\s+(.*)$/.exec(line);
-            if (item) {
-                flush();
-                var ordered = /\d/.test(item[1]);
-                var list = document.createElement(ordered ? "ol" : "ul");
-                if (ordered && parseInt(item[1], 10) !== 1) list.start = parseInt(item[1], 10);
-                while (i < lines.length) {
-                    var next = /^\s*([-*+]|\d+[.)])\s+(.*)$/.exec(lines[i]);
-                    if (!next || /\d/.test(next[1]) !== ordered) break;
-                    var li = document.createElement("li");
-                    inline(next[2], li);
-                    i += 1;
-                    // A line indented under an item continues it.
-                    while (i < lines.length && /^\s{2,}\S/.test(lines[i])
-                           && !/^\s*([-*+]|\d+[.)])\s+/.test(lines[i])) {
-                        li.appendChild(document.createElement("br"));
-                        inline(lines[i].trim(), li);
-                        i += 1;
-                    }
-                    list.appendChild(li);
-                }
-                out.appendChild(list);
-                continue;
-            }
-            if (/^\s*>/.test(line)) {
-                flush();
-                var quote = document.createElement("blockquote");
-                var quoted = [];
-                while (i < lines.length && /^\s*>/.test(lines[i])) quoted.push(lines[i++].replace(/^\s*>\s?/, ""));
-                quote.appendChild(markdown(quoted.join("\n")));
-                out.appendChild(quote);
-                continue;
-            }
-            paragraph.push(line);
-            i += 1;
-        }
-        flush();
-        return out;
-    }
+    // A reply's Markdown is drawn by ui/markdown.js.
+    var markdown = window.codesignerMarkdown;
 
     // ── Writing a reply out ───────────────────────────────────────────────
     // Text arrives in pieces of any size; a reply shows it a few characters a
@@ -311,23 +176,7 @@
         }).join(", ");
     }
 
-    // A chart the assistant drew from the data, under its reply: Plotly, from
-    // the page when it has it, else loaded once. Colours follow the page.
-    var plotly = null;
-    function withPlotly(then) {
-        if (window.Plotly) return then(window.Plotly);
-        if (!plotly) {
-            plotly = new Promise(function (resolve, reject) {
-                var script = document.createElement("script");
-                script.src = root.dataset.plotlyUrl;
-                script.onload = function () { resolve(window.Plotly); };
-                script.onerror = reject;
-                document.head.appendChild(script);
-            });
-        }
-        plotly.then(then).catch(function () {});
-    }
-
+    // Colours follow the page.
     function drawChart(title, spec) {
         if (!spec || !spec.data) return;
         var box = document.createElement("div");
@@ -341,7 +190,7 @@
             paper_bgcolor: "rgba(0,0,0,0)", plot_bgcolor: "rgba(0,0,0,0)",
             font: {color: colour, size: 11}
         });
-        withPlotly(function (Plotly) {
+        withPlotly(root.dataset.plotlyUrl, function (Plotly) {
             Plotly.newPlot(box, spec.data, layout, {displayModeBar: false, responsive: true});
         });
     }
@@ -540,6 +389,14 @@
             }
         } else if (kind === "sources") {
             drawSources(payload.papers || []);
+        } else if (kind === "withdrawn") {
+            // The answer cited a paper the library lacks; the model answers
+            // again, and this one stays visible but marked.
+            var answers = log.querySelectorAll(".assistant-msg.assistant");
+            if (answers.length) answers[answers.length - 1].classList.add("is-withdrawn");
+            reply = null;
+            bubble("notice", text("withdrawn", {keys: (payload.keys || []).map(function (k) {
+                return "[" + k + "]"; }).join(", ")}));
         } else if (kind === "chart") {
             drawChart(payload.title, payload.spec);
         } else if (kind === "approved") {
@@ -560,7 +417,7 @@
         root.dataset.conversation = conversation;
         source = new EventSource(eventsUrl(conversation));
         ["user", "status", "text", "tool_call", "tool_result", "choices", "turn_end",
-         "plan", "dataset", "approved", "chart", "sources"]
+         "plan", "dataset", "approved", "chart", "sources", "withdrawn"]
             .forEach(function (kind) {
                 source.addEventListener(kind, function (e) {
                     var id = parseInt(e.lastEventId || "0", 10);
@@ -630,9 +487,9 @@
             form.requestSubmit();
         }
     });
-    // Reset (the home page), shown once something has been said: after
-    // asking, the chat is deleted, and the draft it made with it, and the page
-    // starts again as it was.
+    // Reset, shown once something has been said: after asking, the chat is
+    // deleted (assistant/views.py `reset` says what stays), and the page
+    // starts again with it empty.
     var resetDialog = root.querySelector("[data-assistant-reset-dialog]");
     if (resetButton && resetDialog) {
         resetButton.addEventListener("click", function () { resetDialog.showModal(); });
@@ -651,6 +508,36 @@
         });
     }
 
+    // A visiting chat's way back to its own experiment, where the visit ends.
+    var back = root.querySelector("[data-assistant-back]");
+    if (back) {
+        back.addEventListener("click", function () {
+            back.disabled = true;
+            post(root.dataset.backUrl, new FormData()).then(function (r) {
+                window.location.assign(r.data.url || window.location.href);
+            }).catch(function () {
+                back.disabled = false;
+                bubble("notice", text("error"));
+            });
+        });
+    }
+
+    if (conversation) follow(conversation);
+    if (root.dataset.busy) waiting(true);
+    return {
+        root: root,
+        scroll: scroll,
+        focus: function () { if (!box.disabled) box.focus(); },
+        windowUrl: function (base) {
+            if (conversation) return base + "?conversation=" + encodeURIComponent(conversation);
+            if (root.dataset.experiment) return base + "?experiment=" + encodeURIComponent(root.dataset.experiment);
+            return base;
+        }
+    };
+    }
+
+    var chats = Array.prototype.map.call(document.querySelectorAll("[data-assistant]"), chat);
+
     // Where the chat is, shared by every page of this browser and the window
     // it pops out into: "open" or "closed" in the dock, or "popped" out. Kept in
     // localStorage, whose change every other page and the window hear, so each
@@ -664,19 +551,39 @@
         try { localStorage.setItem(KEY, state); } catch (e) { /* this page alone */ }
     }
 
-    var dock = root.closest("[data-assistant-dock]");
-    if (dock) {
-        var bar = root.querySelector("[data-assistant-toggle]");
+    var dock = document.querySelector("[data-assistant-dock]");
+    var shell = dock && dock.querySelector("[data-assistant-shell]");
+    if (shell) {
+        // The tab showing; the others keep following their conversations.
+        var docked = chats.filter(function (c) { return shell.contains(c.root); });
+        var tabs = shell.querySelectorAll("[data-assistant-tab]");
+        var current = docked.filter(function (c) { return !c.root.hidden; })[0] || docked[0];
+        var pick = function (key) {
+            docked.forEach(function (c) {
+                c.root.hidden = c.root.dataset.tab !== key;
+                if (!c.root.hidden) current = c;
+            });
+            tabs.forEach(function (t) {
+                t.setAttribute("aria-selected", t.dataset.assistantTab === key ? "true" : "false");
+            });
+            current.scroll(true);
+            current.focus();
+        };
+        tabs.forEach(function (t) {
+            t.addEventListener("click", function () { pick(t.dataset.assistantTab); });
+        });
+
+        var bar = shell.querySelector("[data-assistant-toggle]");
         var show = function (state) {
             dock.classList.toggle("collapsed", state !== "open");
             dock.classList.toggle("popped", state === "popped");
             bar.setAttribute("aria-expanded", state === "open" ? "true" : "false");
-            if (state === "open") scroll();
+            if (state === "open") current.scroll();
         };
         var go = function (state) {
             put(state);
             show(state);
-            if (state === "open") box.focus();
+            if (state === "open") current.focus();
         };
         bar.addEventListener("click", function () {
             var state = where();
@@ -694,19 +601,24 @@
                 w.focus();
             }
         });
-        root.querySelector("[data-assistant-collapse]").addEventListener("click", function () { go("closed"); });
-        root.querySelector("[data-assistant-return]").addEventListener("click", function () { go("open"); });
-        root.querySelector("[data-assistant-popout]").addEventListener("click", function () {
-            var w = window.open(root.dataset.windowUrl, WINDOW, "popup,width=460,height=720");
+        shell.querySelector("[data-assistant-collapse]").addEventListener("click", function () { go("closed"); });
+        shell.querySelector("[data-assistant-return]").addEventListener("click", function () { go("open"); });
+        // The window takes the tab showing.
+        shell.querySelector("[data-assistant-popout]").addEventListener("click", function () {
+            var w = window.open(current.windowUrl(shell.dataset.windowUrl), WINDOW,
+                                "popup,width=460,height=720");
             if (w) go("popped");
         });
         window.addEventListener("storage", function (e) { if (e.key === KEY) show(where()); });
-        show(where());
+        // A visitor, or a chat that is answering, has just brought the person
+        // here: the dock opens on it.
+        var arriving = current.root.dataset.tab === "visitor" || current.root.dataset.busy;
+        show(arriving && where() === "closed" ? "open" : where());
 
         // Its size, set by dragging the corner grip and kept for every page of
         // this browser; held inside the window when the window is smaller.
         var SIZE = "assistant-dock-size";
-        var grip = root.querySelector("[data-assistant-grip]");
+        var grip = shell.querySelector("[data-assistant-grip]");
         var size = null;
         try { size = JSON.parse(localStorage.getItem(SIZE) || "null"); } catch (e) { size = null; }
         var fit = function (w, h) {
@@ -722,7 +634,7 @@
         grip.addEventListener("pointerdown", function (e) {
             e.preventDefault();
             grip.setPointerCapture(e.pointerId);
-            start = {x: e.clientX, y: e.clientY, w: dock.offsetWidth, h: root.offsetHeight};
+            start = {x: e.clientX, y: e.clientY, w: dock.offsetWidth, h: shell.offsetHeight};
         });
         grip.addEventListener("pointermove", function (e) {
             if (start) fit(start.w + start.x - e.clientX, start.h + start.y - e.clientY);
@@ -730,9 +642,9 @@
         var stop = function () {
             if (!start) return;
             start = null;
-            size = {w: dock.offsetWidth, h: root.offsetHeight};
+            size = {w: dock.offsetWidth, h: shell.offsetHeight};
             try { localStorage.setItem(SIZE, JSON.stringify(size)); } catch (e) { /* this page alone */ }
-            scroll();
+            current.scroll();
         };
         grip.addEventListener("pointerup", stop);
         grip.addEventListener("pointercancel", stop);
@@ -740,9 +652,10 @@
 
     // The window of its own: it says so while it is open, and goes when the
     // chat is brought back — by its own button or from a page.
-    if (root.dataset.mode === "window") {
+    var own = document.querySelector('[data-assistant][data-mode="window"]');
+    if (own) {
         put("popped");
-        root.querySelector("[data-assistant-return]").addEventListener("click", function () {
+        own.querySelector("[data-assistant-return]").addEventListener("click", function () {
             put("open");
             window.close();
         });
@@ -753,7 +666,4 @@
             if (where() === "popped") put("closed");
         });
     }
-
-    if (conversation) follow(conversation);
-    if (root.dataset.busy) waiting(true);
 })();

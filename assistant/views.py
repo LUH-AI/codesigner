@@ -41,8 +41,16 @@ KEEP_ALIVE_SECONDS = 15.0
 REPLAY = 300
 
 
-def _enabled():
-    if not settings.ASSISTANT_ENABLED:
+def on_for(request) -> bool:
+    """Whether the assistant is on for *request*'s person: on for the instance,
+    and not turned off by them (Settings → Appearance)."""
+    from ui.times import assistant_on
+
+    return settings.ASSISTANT_ENABLED and assistant_on(request.user)
+
+
+def _enabled(request):
+    if not on_for(request):
         raise Http404
 
 
@@ -68,15 +76,55 @@ def conversation_for_page(request, experiment_id=None):
     return found.order_by("-updated_at").first()
 
 
-def chat_context(request, experiment_id=None, url_name="") -> dict:
-    """What the chat (assistant/_chat.html) needs on a page about
-    *experiment_id*, or about none: the conversation it continues, where its
-    replay starts, whether anything has been said in it yet, and — while
-    planning — the dataset and what can be chosen instead."""
-    conversation = _moved_on(conversation_for_page(request, experiment_id))
+#: The dock's tabs: the person's general chat, the chat of the experiment the
+#: page is about, and the visitor — another experiment's chat that took the
+#: person here and shows Return.
+GENERAL, OWN, VISITOR = "general", "experiment", "visitor"
+
+
+def chats_context(request, experiment_id=None, url_name="") -> dict:
+    """What the chats on a page about *experiment_id*, or about none, need.
+
+    `general` is the general chat, which the home page shows as the page
+    itself. `tabs` are what the dock shows, in order: the general chat (not on
+    the home page), the experiment's own, and the visitor. `active` is the
+    tab the dock opens on: the visitor while there is one, else the page's
+    own. `fill` is what the page is filled with from its own chat's plan."""
+    own_conversation = None
+    general = _tab(request, GENERAL, conversation_for_page(request))
+    tabs = [] if url_name == "ui:home" else [general]
+    if experiment_id is not None:
+        own_conversation = _moved_on(conversation_for_page(request, experiment_id))
+        tabs.append(_tab(request, OWN, own_conversation, experiment_id))
+    visitor = _visitor(request, experiment_id)
+    if visitor is not None:
+        tabs.append(visitor)
+    acting = [tab for tab in tabs if tab["busy"]] or tabs
+    return {"general": general, "tabs": tabs,
+            "active": acting[-1]["key"] if acting else GENERAL,
+            "fill": _fill(own_conversation, url_name) if request.method == "GET" else []}
+
+
+def _tab(request, key, conversation, experiment_id=None, return_path="") -> dict:
+    """One chat's tab: the conversation it continues (none yet, until something
+    is said), where its replay starts, whether anything has been said in it,
+    the experiment it is about and its name, and — while planning — the
+    dataset and what can be chosen instead."""
+    from experiments.models import Experiment
+
+    if conversation is not None:
+        experiment_id = conversation.experiment_id
+    caption = ""
+    if experiment_id is not None:
+        exp = Experiment.objects.filter(pk=experiment_id).first()
+        caption = exp.title if exp else ""
     planning = experiment_id is None and (conversation is None
                                           or conversation.phase == Conversation.PLANNING)
     out = {
+        "key": key,
+        "caption": caption,
+        "visiting": key == VISITOR,
+        "return_path": return_path,
         "conversation": conversation.pk if conversation else "",
         "experiment": experiment_id or "",
         "after": replay_from(conversation),
@@ -85,7 +133,6 @@ def chat_context(request, experiment_id=None, url_name="") -> dict:
         "busy": bool(conversation and turns.busy(conversation)),
         "started": bool(conversation and conversation.events.filter(kind="user").exists()),
         "planning": planning,
-        "fill": _fill(conversation, url_name) if request.method == "GET" else [],
     }
     if planning:
         from access.policy import groups_to_choose_from
@@ -97,6 +144,46 @@ def chat_context(request, experiment_id=None, url_name="") -> dict:
         out["demos"] = sorted(demo_datasets())
         out["groups"] = [(g.pk, g.name) for g in groups_to_choose_from(request.user)]
     return out
+
+
+def _visitor(request, experiment_id):
+    """The visitor's tab for *request*'s browser, or None. A visit ends when the
+    person is back on one of the visitor's own experiment's pages, or the chat
+    is no longer theirs."""
+    from .models import BrowserPage
+
+    if not request.session.session_key:
+        return None
+    page = BrowserPage.objects.filter(browser=request.session.session_key,
+                                      visitor__isnull=False).first()
+    if page is None:
+        return None
+    visitor = conversations_of(request).filter(pk=page.visitor_id).first()
+    if visitor is None or visitor.experiment_id in (None, experiment_id):
+        end_visit(page.browser)
+        return None
+    return _tab(request, VISITOR, visitor, return_path=page.return_path or home_of(visitor))
+
+
+def end_visit(browser: str) -> None:
+    """End *browser*'s visit, if it has one."""
+    from .models import BrowserPage
+
+    BrowserPage.objects.filter(browser=browser).update(visitor=None, return_path="")
+
+
+def home_of(conversation) -> str:
+    """The page *conversation*'s experiment is at home on: its setup while a
+    draft, else its dashboard."""
+    from django.urls import reverse
+
+    from ui import setup_steps as steps
+
+    exp = conversation.experiment
+    if exp is None:
+        return reverse("ui:home")
+    return steps.url(exp, steps.SETUP) if exp.draft else reverse("ui:experiment_detail",
+                                                                 args=[exp.pk])
 
 
 def _fill(conversation, url_name) -> list:
@@ -143,7 +230,7 @@ def message(request):
     """The person says *text*, in *conversation* or a new one (about
     *experiment*, when the page is one's). Starts the turn and answers with
     where to follow it."""
-    _enabled()
+    _enabled(request)
     text = (request.POST.get("text") or "").strip()
     if not text:
         return HttpResponseBadRequest("nothing said")
@@ -180,7 +267,7 @@ def dataset(request):
 
     from .loop import emit
 
-    _enabled()
+    _enabled(request)
     conversation = _conversation(request) or _new_conversation(request)
     if conversation.phase != Conversation.PLANNING:
         return JsonResponse({"error": "This conversation's plan is approved."}, status=400)
@@ -223,7 +310,7 @@ def approve(request):
     from . import plan as plans
     from .loop import emit
 
-    _enabled()
+    _enabled(request)
     conversation = _conversation(request)
     if conversation is None:
         raise Http404
@@ -249,6 +336,10 @@ def approve(request):
             storage.delete_experiment_files(exp)
         return JsonResponse({"problems": [outcome.refusal]
                              + [text for _, text in outcome.notices if text]}, status=400)
+    budget = (conversation.plan.get("stopping") or {}).get("max_trials")
+    if budget:
+        exp.data.trial_budget = int(budget)
+        exp.data.save(update_fields=["trial_budget"])
     conversation.forget_dataset()
     conversation.experiment = exp
     conversation.phase = Conversation.SETUP
@@ -261,40 +352,78 @@ def approve(request):
 
 @require_POST
 def reset(request):
-    """The person throws the conversation away and starts again: the chat is
-    deleted, with the dataset it was planning for, so the home page is as it
-    was before anything was said. Only while planning — nothing else was made
-    yet. What the assistant did stays in the audit (`AgentAction`)."""
-    _enabled()
+    """The person throws the conversation away and starts again.
+
+    A chat still planning is deleted, with the dataset it was planning for, so
+    the home page is as it was before anything was said. A chat about an
+    experiment is replaced by an empty one about the same experiment, which
+    keeps its stage and its plan, so the setup's forms are still filled from
+    it. The experiment, its notes and what the assistant did (`AgentAction`)
+    stay."""
+    from .models import BrowserPage
+
+    _enabled(request)
     conversation = _conversation(request)
     if conversation is None:
         return JsonResponse({"reset": True})
-    if conversation.phase != Conversation.PLANNING:
-        return JsonResponse({"error": "Only a conversation still planning can be reset."},
-                            status=400)
     if turns.busy(conversation):
         return JsonResponse({"error": "The assistant is still answering."}, status=409)
-    conversation.forget_dataset()
+    if conversation.phase == Conversation.PLANNING:
+        conversation.forget_dataset()
+        conversation.delete()
+        return JsonResponse({"reset": True})
+    fresh = Conversation.objects.create(
+        owner_id=conversation.owner_id, session_key=conversation.session_key,
+        browser=conversation.browser, experiment_id=conversation.experiment_id,
+        phase=conversation.phase, plan=conversation.plan, group_id=conversation.group_id,
+        data_brief=conversation.data_brief)
+    BrowserPage.objects.filter(visitor=conversation).update(visitor=fresh)
     conversation.delete()
-    return JsonResponse({"reset": True})
+    return JsonResponse({"reset": True, "conversation": fresh.pk})
+
+
+@require_POST
+def back(request):
+    """The person leaves the page a visiting chat took them to: the visit ends,
+    and the answer is the page to go back to."""
+    from .models import BrowserPage
+
+    _enabled(request)
+    page = BrowserPage.objects.filter(browser=browser_of(request)).first()
+    visitor = (conversations_of(request).filter(pk=page.visitor_id).first()
+               if page is not None and page.visitor_id else None)
+    if visitor is None:
+        return JsonResponse({"url": ""})
+    url = page.return_path or home_of(visitor)
+    end_visit(page.browser)
+    return JsonResponse({"url": url})
 
 
 @require_GET
 def window(request):
-    """The chat in a window of its own, popped out of a page: the conversation
-    about *experiment*, or the one being planned."""
+    """The chat in a window of its own, popped out of a page: *conversation*,
+    else the conversation about *experiment*, else the general one."""
     from django.shortcuts import render
 
-    _enabled()
-    experiment_id = None
-    if request.GET.get("experiment"):
+    _enabled(request)
+    if request.GET.get("conversation"):
+        conversation = conversations_of(request).filter(
+            pk=_int(request.GET["conversation"])).first()
+        if conversation is None:
+            raise Http404
+        key = GENERAL if conversation.experiment_id is None else OWN
+        chat = _tab(request, key, conversation)
+    elif request.GET.get("experiment"):
         try:
             experiment_id = resolve_experiment(request, _int(request.GET["experiment"]),
                                                VIEW, BOTH).pk
         except PermissionDenied:
             raise Http404
-    return render(request, "assistant/window.html",
-                  {"assistant": chat_context(request, experiment_id)})
+        chat = _tab(request, OWN, _moved_on(conversation_for_page(request, experiment_id)),
+                    experiment_id)
+    else:
+        chat = _tab(request, GENERAL, conversation_for_page(request))
+    return render(request, "assistant/window.html", {"chat": chat})
 
 
 def browser_of(request) -> str:
@@ -339,7 +468,7 @@ def _new_conversation(request, experiment=None):
 @require_GET
 def events(request, pk):
     """What has happened in conversation *pk* since the last event the page saw."""
-    _enabled()
+    _enabled(request)
     conversation = conversations_of(request).filter(pk=pk).first()
     if conversation is None:
         raise Http404
@@ -434,7 +563,7 @@ def page(request):
 
     from .models import BrowserPage
 
-    _enabled()
+    _enabled(request)
     try:
         report = _json.loads(request.body or b"{}")
     except ValueError:
@@ -516,7 +645,7 @@ def _view(view) -> dict:
 def acts(request):
     """The actions for this browser's pages to carry out: those still pending,
     then each new one, as server-sent events (assistant/acts.py)."""
-    _enabled()
+    _enabled(request)
     browser = browser_of(request)
     from django.core.handlers.asgi import ASGIRequest
 
@@ -599,7 +728,7 @@ def acted(request):
     """A page says how an action went: *act*, *ok*, and a word on it."""
     from .models import ClientAct
 
-    _enabled()
+    _enabled(request)
     status = ClientAct.DONE if request.POST.get("ok") == "1" else ClientAct.FAILED
     ClientAct.objects.filter(pk=_int(request.POST.get("act")), browser=browser_of(request),
                              status=ClientAct.PENDING).update(

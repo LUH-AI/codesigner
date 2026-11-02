@@ -26,6 +26,8 @@ class LogisticRegression(OutputBaseModel):
 
 
 class LogisticRegressionModel(Tunable, LogisticRegression):
+    """`LogisticRegressionModel` is logistic regression with an L2 penalty: a
+    linear classifier and a strong simple baseline."""
 
     def get_config_space(self, seed: int = 0) -> ConfigurationSpace:
         cs = ConfigurationSpace(seed=seed)

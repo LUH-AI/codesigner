@@ -85,9 +85,11 @@ def test_a_change_to_the_plan_is_laid_over_it_field_by_field():
 
 def test_a_plan_the_setup_accepts_has_no_problems():
     """What: iris as a classification with a forest, SMAC and 30 trials can be
-    set up as it stands.
+    set up as it stands, and so can a metric needing probabilities from a
+    model that gives them.
     How: `problems` on the plan against a draft with iris on it."""
     assert plans.problems(IRIS, _request(), _iris()) == []
+    assert plans.problems({**IRIS, "metric": "roc_auc"}, _request(), _iris()) == []
 
 
 @pytest.mark.parametrize("change, expected", [
@@ -101,6 +103,13 @@ def test_a_plan_the_setup_accepts_has_no_problems():
     ({"model_name": "SVM", "processing": {"missing": "keep"}}, "cannot take"),
     ({"metric": "rmse"}, "rmse"),
     ({"stopping": {"max_trials": 0}}, "would end a run"),
+    ({"optimizer": {"name": "SMAC", "params": {"share_cap": 3}}}, "would be stored as 1.0"),
+    ({"optimizer": {"name": "SMAC", "params": {"acquisition": "ucb"}}}, "one of ['ei', 'pi']"),
+    ({"optimizer": {"name": "SMAC", "params": {"rf_trees": 50}}},
+     "applies only when search_strategy is 'rf'"),
+    ({"optimizer": {"name": "SMAC", "params": {"use_trial_cap": False, "trial_cap": 20}}},
+     "does nothing while use_trial_cap is off"),
+    ({"model_name": "SVM", "metric": "roc_auc"}, "'roc_auc' is not scored"),
 ])
 def test_a_plan_the_setup_would_refuse_says_why(change, expected):
     """What: each kind of mistake the setup would catch is reported in its words
@@ -124,6 +133,31 @@ def test_nothing_is_made_by_checking():
     assert not Experiment.objects.exists()
 
 
+def test_the_plan_says_how_big_its_initial_design_is():
+    """What: a SMAC plan states its initial design, of how many trials and
+    what bound it, and a trial cap above the share binds nothing.
+    How: `design` on the wine plan of the exchange (LightGBM's five
+    hyperparameters, 150 trials, trial cap 150) and on iris without a limit."""
+    wine = {"task": "classification", "model_name": "LightGBM", "stopping": {"max_trials": 150},
+            "optimizer": {"name": "SMAC", "params": {"use_trial_cap": True, "trial_cap": 150}}}
+
+    assert plans.design(wine) == ("Initial design: 37 of 150 trials (share cap 0.25 of 150); "
+                                  "the model chooses the rest.")
+    assert "of the 100 assumed when no trial limit is set" in plans.design(
+        {**IRIS, "stopping": {}})
+    assert plans.design({**IRIS, "optimizer": {"name": "Random Search"}}) == ""
+
+
+def test_the_plan_sets_the_failure_limits():
+    """What: failure limits in the plan reach the run form like the other
+    limits.
+    How: `run_items` on a plan with both."""
+    items = dict(plans.run_items({**IRIS, "stopping": {"max_trials": 150, "max_failures": 5,
+                                                       "max_consecutive_failures": 10}}))
+
+    assert items["max_failures"] == 5 and items["max_consecutive_failures"] == 10
+
+
 # ── the tools ────────────────────────────────────────────────────────────────
 
 def test_planning_offers_what_codesigner_can_do():
@@ -141,6 +175,42 @@ def test_planning_offers_what_codesigner_can_do():
     assert '"rmse"' in metrics
     smac = next(o for o in optimizers if o["name"] == "SMAC")
     assert "search_strategy" in [s["name"] for s in smac["settings"]]
+
+
+def test_the_lookups_say_what_things_mean():
+    """What: every model and optimizer has a description of its own, each
+    optimizer setting its help, what a blank one runs with and, for SMAC, when to
+    move it from its default, and each metric its definition, with what choosing
+    the metric and the validation method trades, with those needing probabilities offered only for a model
+    that gives them.
+    How: the three listing tools; LightGBM and SVM for the metrics."""
+    tools, context = tools_for(Conversation.objects.create()), Context(Conversation.objects.create())
+    models = json.loads(tools.execute("list_models", {}, context).output)
+    optimizers = {o["name"]: o for o in json.loads(
+        tools.execute("list_optimizers", {}, context).output)}
+    lightgbm = tools.execute("list_metrics", {"task": "classification", "model": "LightGBM"},
+                             context).output
+    svm = tools.execute("list_metrics", {"task": "classification", "model": "SVM"},
+                        context).output
+
+    assert all(m["about"] for m in models) and len(models) == 12
+    smac = optimizers["SMAC"]
+    assert smac["about"].startswith("`SMACOptimizer` runs SMAC's Bayesian optimization")
+    assert "Metaclass" not in json.dumps(optimizers)
+    trial_cap = next(s for s in smac["settings"] if s["name"] == "trial_cap")
+    assert trial_cap["blank_means"] == "10 × hyperparameters"
+    assert "before the model takes over" in trial_cap["help"]
+    assert trial_cap["group"].startswith("Initial points:")
+    rate = next(s for s in smac["settings"] if s["name"] == "random_probability")
+    assert set(rate["blank_means"]) == {"gp", "rf"}
+    caps = smac["tradeoffs"]["initial-design-size"]
+    assert "trial_cap" in caps["applies_to"] and caps["verdict"] == "trade-off"
+    assert any("continued run" in when for when in caps["stray_when"])
+    assert "tradeoffs" not in optimizers["Random Search"]
+    assert "Every one of these 7" in lightgbm
+    assert "weighted by each class's size" in lightgbm and '"roc_auc"' in lightgbm
+    assert '"roc_auc"' not in svm.split("]")[0] and "Left out: roc_auc, log_loss" in svm
+    assert '"optimized-metric"' in lightgbm and '"validation-method"' in lightgbm
 
 
 def test_the_plan_is_written_down_and_shown_with_what_stops_it():
@@ -273,6 +343,7 @@ def test_approving_makes_the_draft_and_moves_on_to_the_setup(client, on):
     assert data["url"] == steps.url(exp, steps.SETUP)
     assert conversation.phase == Conversation.SETUP
     assert conversation.events.filter(kind="approved").exists()
+    assert exp.data.trial_budget == IRIS["stopping"]["max_trials"]
     home = client.get(reverse("ui:home")).content.decode()
     setup = client.get(data["url"]).content.decode()
     assert 'data-conversation=""' in home
@@ -366,16 +437,22 @@ def test_an_uploaded_dataset_goes_onto_the_draft_at_approval(client, on):
     assert not held.exists() and not conversation.dataset
 
 
-def test_an_approved_conversation_is_not_reset(client, on):
+def test_an_approved_conversation_resets_to_an_empty_one_with_its_plan(client, on):
     """What: once the plan is approved, its draft is the person's to keep or
-    discard on its own pages; reset refuses.
+    discard on its own pages, so a reset keeps the draft and the plan the
+    setup is filled from, and only the chat starts again.
     How: approving the iris plan, then resetting."""
     conversation = _planning(plan=IRIS)
     client.post(reverse("assistant:approve"), {"conversation": conversation.pk})
+    conversation.refresh_from_db()
 
     response = client.post(reverse("assistant:reset"), {"conversation": conversation.pk})
-    assert response.status_code == 400
-    assert Conversation.objects.filter(pk=conversation.pk).exists()
+    fresh = Conversation.objects.get(pk=response.json()["conversation"])
+
+    assert not Conversation.objects.filter(pk=conversation.pk).exists()
+    assert (fresh.experiment_id, fresh.phase, fresh.plan) == (
+        conversation.experiment_id, Conversation.SETUP, conversation.plan)
+    assert not fresh.events.exists() and not fresh.messages.exists()
 
 
 def test_somebody_elses_conversation_is_not_reset(client, on, hosted, world):  # noqa: F811

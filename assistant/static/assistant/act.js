@@ -210,6 +210,41 @@
         next(0);
     }
 
+    // What a page's own script did to the fill once it settled: a value it put
+    // back, or a field it left disabled, which a post would leave out.
+    function sameValue(have, want) {
+        if (String(have) === String(want)) return true;
+        var a = parseFloat(have), b = parseFloat(want);
+        return have !== "" && !isNaN(a) && !isNaN(b) && a === b;
+    }
+    function readBack(items) {
+        var problems = [];
+        items.forEach(function (item) {
+            var els = Array.prototype.filter.call(
+                main.querySelectorAll('[name="' + CSS.escape(item.name) + '"]'),
+                function (el) { return !SKIP[el.type] && !el.closest("[data-assistant]"); });
+            if (!els.length) return;
+            var el = els[0], have, want = item.value;
+            if (el.type === "radio") {
+                var on = els.filter(function (r) { return r.checked; })[0];
+                have = on ? on.value : "";
+            } else if (el.type === "checkbox") {
+                have = el.checked;
+                want = want === true || want === "true" || want === "on" || want === 1;
+            } else {
+                have = el.value;
+                want = want === null || want === undefined ? "" : want;
+            }
+            if (el.type === "checkbox" ? have !== want : !sameValue(have, want)) {
+                problems.push("The page changed " + item.name + " back to "
+                              + (have === "" ? "empty" : JSON.stringify(have)) + ".");
+            } else if (el.matches(":disabled")) {
+                problems.push(item.name + " is disabled on the page, so it would not be sent.");
+            }
+        });
+        return problems;
+    }
+
     function showTab(name) {
         var tab = document.querySelector('.fig-tab[data-tab="' + CSS.escape(name) + '"]');
         if (!tab) return false;
@@ -306,9 +341,14 @@
                 return {name: name, value: values[name], reason: args.reason};
             });
             fill(items, function (missed) {
-                report();
-                if (missed.length) acted(act.id, false, "Not on the page: " + missed.join(", ") + ".");
-                else acted(act.id, true, "Filled " + Object.keys(values).join(", ") + ".");
+                setTimeout(function () {
+                    report();
+                    var placed = items.filter(function (item) { return missed.indexOf(item.name) < 0; });
+                    var problems = (missed.length ? ["Not on the page: " + missed.join(", ") + "."] : [])
+                        .concat(readBack(placed));
+                    if (problems.length) acted(act.id, false, problems.join(" "));
+                    else acted(act.id, true, "Filled " + Object.keys(values).join(", ") + ".");
+                }, 300);
             });
         } else if (act.kind === "report") {
             clearTimeout(reportTimer);

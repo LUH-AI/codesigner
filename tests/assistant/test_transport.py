@@ -187,9 +187,10 @@ def test_a_conversation_is_about_an_experiment_only_the_person_can_see(client, o
 # ── on the page ─────────────────────────────────────────────────────────────
 
 def test_the_home_page_is_the_chat_and_other_pages_have_it_docked(client, on, model):
-    """What: with the assistant on, the home page is the chat itself, its box in
-    the middle until anything is said; an experiment's page has it docked to the
-    bottom right, collapsed, about that experiment, and able to pop out.
+    """What: with the assistant on, the home page is the general chat itself,
+    its box in the middle until anything is said; an experiment's page has
+    the chats docked to the bottom right, collapsed, the general one and the
+    experiment's, named, and able to pop out.
     How: the HTML of the home page and of an experiment's dashboard."""
     home = client.get(reverse("ui:home")).content.decode()
     assert "assistant-full is-empty" in home and "assistant-dock" not in home
@@ -202,7 +203,9 @@ def test_the_home_page_is_the_chat_and_other_pages_have_it_docked(client, on, mo
     page = client.get(reverse("ui:experiment_detail", args=[exp.pk])).content.decode()
     assert 'class="assistant-dock collapsed"' in page and "assistant-floating" in page
     assert f'data-experiment="{exp.pk}"' in page
-    assert f"/assistant/window/?experiment={exp.pk}" in page
+    assert 'data-assistant-tab="general"' in page and 'data-assistant-tab="experiment"' in page
+    assert '<span class="assistant-caption">e</span>' in page
+    assert 'data-window-url="/assistant/window/"' in page
 
 
 def test_once_something_is_said_the_home_page_opens_on_the_conversation(client, on, model):
@@ -259,5 +262,5 @@ def test_a_page_knows_which_events_it_shows_at_once(client, on):
 
     page = client.get(reverse("ui:home"))
 
-    assert page.context["assistant"]["live_after"] == last.pk
+    assert page.context["assistant"]["general"]["live_after"] == last.pk
     assert f'data-live-after="{last.pk}"' in page.content.decode()

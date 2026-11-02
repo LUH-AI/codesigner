@@ -31,6 +31,12 @@ SLICE_CANDIDATES = 12
 
 
 class SMACOptimizer(FacadeBuilder):
+    """`SMACOptimizer` runs SMAC's Bayesian optimization: an initial design of
+    space-filling points, then a surrogate model (a Gaussian process or a random
+    forest) fitted to the trials proposes each next configuration through an
+    acquisition function, with an occasional random one mixed in.
+    """
+
     name = "SMAC"
 
     #: `aliases` keeps the name from when SMAC always used the Gaussian-process

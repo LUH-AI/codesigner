@@ -410,15 +410,30 @@ class Library:
         return [self.passages[i] for i in span if self.passages[i]["key"] == key]
 
 
+#: How an answer cites papers: their keys in square brackets, e.g. [HSSL22] or
+#: [LEF+22, HHL11].
+_KEY = r"[A-Za-z]+\+?\d{2}"
+CITATION = re.compile(rf"\[({_KEY}(?:[,;] *{_KEY})*)\]")
+
+
+def _cited_keys(text: str) -> list[str]:
+    """Every key *text* cites, in order, each once."""
+    out = []
+    for match in CITATION.finditer(text or ""):
+        out += [key for key in re.split(r"[,;] *", match.group(1)) if key not in out]
+    return out
+
+
+def uncited_keys(text: str) -> list[str]:
+    """The keys *text* cites that name no paper in the library, in order: a
+    citation the model made up, which the person cannot follow."""
+    keys = {p["key"] for p in papers()}
+    return [key for key in _cited_keys(text) if key not in keys]
+
+
 def cited(text: str) -> list[dict]:
     """The library's papers *text* cites by key, as [KEY], in order."""
     keys = {p["key"]: p for p in papers()}
-    seen, out = set(), []
-    for match in re.finditer(r"\[([A-Za-z]+\+?\d{2})\]", text or ""):
-        key = match.group(1)
-        if key in keys and key not in seen:
-            seen.add(key)
-            paper = keys[key]
-            out.append({"key": key, "title": paper["title"], "authors": paper["authors"],
-                        "year": paper["year"], "link": link_of(paper)})
-    return out
+    return [{"key": key, "title": keys[key]["title"], "authors": keys[key]["authors"],
+             "year": keys[key]["year"], "link": link_of(keys[key])}
+            for key in _cited_keys(text) if key in keys]

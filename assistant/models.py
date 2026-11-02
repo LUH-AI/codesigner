@@ -1,9 +1,9 @@
 """`assistant.models` stores what the assistant keeps: each conversation,
-every message in it as the model saw it, the events a page is shown, and a
-record of every tool call.
+every message in it as the model saw it, the events a page is shown, a record
+of every tool call, and each experiment's notepad.
 
-The records stay on the serving instance and belong to no experiment, so no
-`.ihpo` file contains them.
+The records stay on the serving instance, so no `.ihpo` file contains them,
+not even an experiment's notes.
 """
 
 from django.conf import settings
@@ -201,6 +201,13 @@ class BrowserPage(models.Model):
     reported_at = models.DateTimeField(null=True, blank=True)
     #: When a page of the session last showed it was open.
     seen_at = models.DateTimeField()
+    #: `visitor` is the chat that took this browser away from its own
+    #: experiment's pages with `navigate`, shown as a tab of its own until the
+    #: person goes back; `return_path` is the page it took them from. Set by
+    #: the server only, never from what a page reports.
+    visitor = models.ForeignKey(Conversation, null=True, blank=True,
+                                on_delete=models.SET_NULL, related_name="+")
+    return_path = models.CharField(max_length=500, blank=True, default="")
 
 
 class ClientAct(models.Model):
@@ -235,3 +242,27 @@ class ClientAct(models.Model):
 
     class Meta:
         ordering = ["id"]
+
+
+class ExperimentNotes(models.Model):
+    """`ExperimentNotes` is an experiment's notepad: one Markdown document of
+    what assistants and people wrote down for whoever works on the experiment
+    next, their own later chats and the people it is shared with. It has a
+    page of its own beside the dashboard (ui:experiment_notes). Anyone who can
+    view the experiment reads it; those who can edit it, and their assistants,
+    write it."""
+
+    #: The longest notepad, in characters.
+    MAX_LENGTH = 20000
+
+    experiment = models.OneToOneField("experiments.Experiment", on_delete=models.CASCADE,
+                                      related_name="notepad")
+    text = models.TextField(blank=True, default="")
+    updated_by = models.ForeignKey(settings.AUTH_USER_MODEL, null=True, blank=True,
+                                   on_delete=models.SET_NULL, related_name="+")
+    #: `by_assistant` is whether an assistant made the last change, in
+    #: `conversation`, or the person `updated_by` did.
+    by_assistant = models.BooleanField(default=False)
+    conversation = models.ForeignKey(Conversation, null=True, blank=True,
+                                     on_delete=models.SET_NULL, related_name="+")
+    updated_at = models.DateTimeField(auto_now=True)

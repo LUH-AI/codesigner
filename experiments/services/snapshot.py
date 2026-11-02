@@ -86,6 +86,7 @@ def data_from_snapshot(snapshot: dict, dataset_file=None, model_file=None,
         target_column=str((snapshot.get("dataset") or {}).get("target_column") or ""),
         config_space=snapshot.get("space"),
         priors=snapshot.get("priors") or {},
+        trial_budget=snapshot.get("trial_budget"),
         result=snapshot.get("result"),
     )
 
@@ -140,6 +141,7 @@ def _restore_runs(exp: Experiment, recorded: list) -> None:
             priors=entry.get("priors") or {},
             configurations=entry.get("configurations") or [],
             trial_timeout=entry.get("trial_timeout") or {},
+            optimizer_params=entry.get("optimizer_params") or {},
             created_at=_when(entry.get("created_at")),
             started_at=_when(entry.get("started_at")),
             finished_at=_when(entry.get("finished_at")),
@@ -229,6 +231,9 @@ def snapshot_from_experiment(exp: Experiment, *, provenance: bool = False) -> di
     if data.priors:
         snapshot["priors"] = {name: _prior_record(stated)
                               for name, stated in sorted(data.priors.items())}
+    # `trial_budget` is optional, so a file without it reads as no budget.
+    if data.trial_budget:
+        snapshot["trial_budget"] = data.trial_budget
     if provenance:
         _add_provenance(snapshot, exp, dataset, model_path)
     snapshot["result"] = data.result
@@ -344,6 +349,7 @@ def _run_record(index: int, run) -> dict:
         "priors": run.priors or {},
         "trial_timeout": run.trial_timeout or {},
         "configurations": run.configurations or [],
+        "optimizer_params": run.optimizer_params or {},
     }
 
 
@@ -353,11 +359,12 @@ def _dataset_name(snapshot: dict) -> str:
 
 
 def replace_data(exp: Experiment, new: ExperimentData) -> set[str]:
-    """`replace_data` keeps processing, plus priors and space unless the model
-    changed."""
+    """`replace_data` keeps processing and the trial budget, plus priors and
+    space unless the model changed."""
     old = exp.data
     changed = what_changed(old, new)
     new.processing = old.processing
+    new.trial_budget = old.trial_budget
     new.priors = {} if "model" in changed else (old.priors or {})
     new.config_space = None if "model" in changed else old.config_space
     with transaction.atomic():

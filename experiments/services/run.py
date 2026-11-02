@@ -49,8 +49,8 @@ def create_run(experiment, stopping, optimize_metric, started_by=None,
     the pending Run. *stopping* contains at least one criterion
     (`STOPPING_CRITERIA`), and *trial_timeout* limits each model call.
 
-    The run copies its stopping criteria, timeout and priors, because the
-    experiment's own statement keeps changing.
+    The run copies its stopping criteria, timeout, priors and optimizer
+    settings, because the experiment's own statement keeps changing.
     """
     from experiments.models import Run
 
@@ -71,6 +71,7 @@ def create_run(experiment, stopping, optimize_metric, started_by=None,
         # The copy happens at creation, because the reader may change the priors
         # before the run finishes.
         priors=dict(experiment.data.priors or {}),
+        optimizer_params=dict(experiment.data.optimizer_params or {}),
         configurations=list(configurations or []),
         events=events,
     )

@@ -31,6 +31,8 @@ class KNN(OutputBaseModel):
 
 
 class KNNModel(Tunable, KNN):
+    """`KNNModel` is k-nearest neighbours, which predicts from the closest training
+    rows and is sensitive to scaling."""
 
     def get_config_space(self, seed: int = 0) -> ConfigurationSpace:
         cs = ConfigurationSpace(seed=seed)

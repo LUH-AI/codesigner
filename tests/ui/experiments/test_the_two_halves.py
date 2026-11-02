@@ -41,6 +41,7 @@ IN_THE_FILE = {
     "target_column": ("dataset", "target_column"),
     "config_space": ("space",),
     "priors": ("priors",),
+    "trial_budget": ("trial_budget",),
     "result": ("result",),
 }
 
@@ -96,7 +97,8 @@ def test_the_file_really_has_those_places(client):
     exp.data.config_space = {"hyperparameters": []}
     exp.data.priors = {"n_estimators": {"kind": "normal", "params": {}}}
     exp.data.target_column = "species"
-    exp.data.save(update_fields=["config_space", "priors", "target_column"])
+    exp.data.trial_budget = 150
+    exp.data.save(update_fields=["config_space", "priors", "target_column", "trial_budget"])
 
     snapshot = adapter.snapshot_from_experiment(exp, provenance=True)
 

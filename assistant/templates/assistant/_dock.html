@@ -1,0 +1,42 @@
+{% load i18n assets %}
+{% comment %}The chats docked to the bottom right of a page: a bar it collapses
+to, which opens it again — or, while a chat is in a window of its own, brings
+that window to the front — then a tab per chat (assistant/views.py
+`chats_context`): the general one, the experiment's own on its pages, and a
+visitor from another experiment. Each tab names its experiment in small text;
+the panels under them are assistant/_chat.html.{% endcomment %}
+<div class="assistant assistant-floating" data-assistant-shell
+     data-window-url="{% url 'assistant:window' %}">
+    {% comment %}Dragged, the corner resizes the dock: it is pinned to the
+    bottom right, so the top left is the corner that moves.{% endcomment %}
+    <div class="assistant-grip" data-assistant-grip title="{% translate 'Drag to resize' %}" aria-hidden="true"></div>
+    <header class="assistant-head">
+        <button type="button" class="assistant-bar" data-assistant-toggle aria-expanded="false">
+            <span class="assistant-bar-title">{% translate "Assistant" %}</span>
+            <span class="assistant-bar-popped">{% translate "in its own window" %}</span>
+        </button>
+        <div class="assistant-head-actions">
+            <button type="button" class="assistant-icon" data-assistant-popout
+                    title="{% translate 'Open in its own window' %}"><span aria-hidden="true">↗</span><span class="visually-hidden">{% translate "Open in its own window" %}</span></button>
+            <button type="button" class="assistant-icon" data-assistant-return
+                    title="{% translate 'Bring the chat back here' %}"><span aria-hidden="true">↙</span><span class="visually-hidden">{% translate "Bring the chat back here" %}</span></button>
+            <button type="button" class="assistant-icon" data-assistant-collapse
+                    title="{% translate 'Minimize' %}"><span aria-hidden="true">⌄</span><span class="visually-hidden">{% translate "Minimize" %}</span></button>
+        </div>
+    </header>
+    <div class="assistant-tabs" role="tablist">
+        {% for tab in assistant.tabs %}
+            <button type="button" role="tab" class="assistant-tab{% if tab.visiting %} is-visiting{% endif %}"
+                    data-assistant-tab="{{ tab.key }}"
+                    aria-selected="{% if tab.key == assistant.active %}true{% else %}false{% endif %}">
+                <span class="assistant-tab-name">{% if tab.key == "general" %}{% translate "General" %}{% elif tab.visiting %}{% translate "Visiting" %}{% else %}{% translate "This experiment" %}{% endif %}</span>
+                {% if tab.caption %}<span class="assistant-caption">{{ tab.caption }}</span>{% endif %}
+            </button>
+        {% endfor %}
+    </div>
+    {% for tab in assistant.tabs %}
+        {% include "assistant/_chat.html" with chat=tab dock=True active=assistant.active %}
+    {% endfor %}
+</div>
+<script src="{% asset 'ui/markdown.js' %}" defer></script>
+<script src="{% asset 'assistant/chat.js' %}" defer></script>

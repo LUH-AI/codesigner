@@ -117,3 +117,32 @@ def test_every_case_situation_builds(case, client):
     assert page.status == 200, page.path
     assert conversation.browser == page.browser
     assert page.fields or page.targets, page.path
+
+
+def test_a_fill_the_post_would_leave_out_fails_as_act_js_reads_it():
+    """What: filling a disabled field, or one inside a disabled fieldset, fails
+    with why, as act.js's read-back fails it; an enabled field still fills.
+    How: a stand-in page read from a small form, and a fill of all three."""
+    from tests.assistant.evals.page import SimulatedPage, _Reader
+
+    reader = _Reader()
+    reader.feed('<form><fieldset disabled><input name="opt_x" value="1"></fieldset>'
+                '<input name="b" disabled><input name="c"></form>')
+    page = SimulatedPage(client=None, browser="b")
+    page.fields, page._reader = reader.report(), reader
+    page.disabled = {f["name"] for f in reader.fields if f.get("disabled")}
+    page._report = lambda: None
+
+    class Act:
+        DONE, FAILED = "done", "failed"
+        kind, path, args = "fill", "", {"values": {"opt_x": 2, "b": 3, "c": 4}}
+
+        def save(self, update_fields):
+            pass
+
+    act = Act()
+    page.carry_out(act)
+
+    assert page.disabled == {"opt_x", "b"} and act.status == Act.FAILED
+    assert "opt_x is disabled on the page" in act.detail and "b is disabled" in act.detail
+    assert page.value("c") == "4"
