@@ -1,6 +1,6 @@
-"""`core.optimizers` declares the settings, and `optimizer_labels` supplies
-their translatable words, since `core` has no Django. A parameter without an
-entry falls back to its `OptimizerParam` label.
+"""`optimizer_labels` supplies translatable words for `core.optimizers`
+settings, since `core` imports no Django. Unlisted parameters keep their
+`OptimizerParam` label.
 """
 
 import json
@@ -9,7 +9,6 @@ from django.utils.translation import gettext_lazy as _
 
 from .formatting import sigfigs
 
-#: Every stopping criterion is named, since none is the default.
 STOPPED_BY_LABELS = {
     "max_trials": _("all the requested trials ran"),
     "target_score": _("performance surpassed the target"),
@@ -23,9 +22,7 @@ STOPPED_BY_LABELS = {
 }
 
 
-#: Each entry pairs a short label with tooltip text, and "" means the label
-#: needs no tooltip. "Search strategy" names the same thing everywhere,
-#: placeholders included.
+#: Each entry pairs a label with tooltip text; an empty text means no tooltip.
 LABELS = {
     "search_strategy": (
         _("Search strategy"),
@@ -34,13 +31,14 @@ LABELS = {
     ),
     "use_share_cap": (
         _("Use share cap"),
-        _("Bound the initial points by a fraction of the run's budget, so a "
-          "longer run explores for longer."),
+        _("Bound the initial points by a fraction of the budget, counting the "
+          "trials already run plus this run's, so a longer run explores for "
+          "longer."),
     ),
     "share_cap": (
         _("Share cap"),
-        _("Fraction of the run's trials spent sampling before the model takes "
-          "over."),
+        _("Fraction of the trials, those already run plus this run's, spent "
+          "sampling before the model takes over."),
     ),
     "use_trial_cap": (
         _("Use trial cap"),
@@ -64,8 +62,8 @@ LABELS = {
     ),
     "use_default_config": (
         _("Include the model's defaults"),
-        _("Spend one of the exploration trials on the configuration the model "
-          "ships with, as a reference point to beat."),
+        _("Add a trial for the configuration the model ships with, beside the "
+          "exploration trials, as a reference point to beat."),
     ),
     "initial_design": (
         _("Sampling method"),
@@ -102,8 +100,8 @@ LABELS = {
         _("Values tried per numeric hyperparameter. Combinations multiply."),
     ),
 
-    # Surrogate labels lead with "surrogate", since the tuned model can have
-    # settings of the same names on the same page.
+    # Labels lead with "surrogate", since the tuned model can share setting
+    # names.
     "rf_trees": (
         _("Surrogate trees"),
         _("Trees in the forest the search fits over your trials — not in the "
@@ -150,8 +148,7 @@ LABELS = {
     ),
 }
 
-#: `select` values are named per parameter, since "random" differs between
-#: parameters; tooltips explain them.
+#: Named per parameter, since "random" differs between parameters.
 CHOICES = {
     "search_strategy": {
         "gp": _("Gaussian process"),
@@ -174,8 +171,6 @@ CHOICES = {
 }
 
 
-#: Exceptions to the strategy-default placeholder, for settings without a
-#: default.
 PLACEHOLDERS = {
     "share_cap": _("0.25"),
     "trial_cap": _("10 per hyperparameter"),
@@ -190,21 +185,18 @@ GROUPS = {
     ),
 }
 
-#: Fallback placeholder when the strategy's default cannot be read.
 STRATEGY_DEFAULT = _("search strategy default")
 
 
 def _number(value):
-    """`_number` rounds placeholders to four significant figures, since SMAC
-    defaults such as 0.08447232371720552 would widen the field. The exact value
-    is used and recorded.
+    """`_number` rounds placeholders to four significant figures, since long
+    SMAC defaults would widen the field.
     """
     return sigfigs(value)
 
 
 def placeholder_for(param, strategy_default=None):
-    """An empty field means *strategy_default*, so the placeholder shows that
-    number instead of naming the strategy.
+    """The placeholder shows *strategy_default*, the value an empty field means.
     """
     if param.default is not None:
         return ""
@@ -216,8 +208,8 @@ def placeholder_for(param, strategy_default=None):
 
 
 def range_for(param):
-    """`range_for` returns the range as a phrase for the info bubble, since
-    browsers report a `min`/`max` breach only after a wrong entry.
+    """`range_for` writes the info bubble's range, since a browser only shows a
+    breach after entry.
     """
     low, high = param.min, param.max
     if low is None and high is None:
@@ -228,8 +220,7 @@ def range_for(param):
 
 
 def info_for(param, help_text: str) -> str:
-    """The info bubble states the meaning and range, and the empty-field value lives
-    in the placeholder instead.
+    """`info_for` adds the range; the placeholder shows the empty-field value.
     """
     accepted = range_for(param)
     if not accepted:
@@ -267,9 +258,6 @@ def described(param, value=None, strategy_defaults=None, strategy_defaults_all=N
 
 
 def describe_all(optimizer, stored=None):
-    """Optimizers without `strategy_defaults()` get placeholders that name the
-    strategy instead of quoting a value.
-    """
     stored = stored or {}
     by_param = (optimizer.strategy_defaults()
                 if hasattr(optimizer, "strategy_defaults") else {})
@@ -281,8 +269,7 @@ def describe_all(optimizer, stored=None):
 
 
 def grouped(described_params):
-    """`grouped` places a group where its first member was declared, keeping a
-    block of settings from drifting to the bottom.
+    """`grouped` places each group where its first member was declared.
     """
     layout, advanced, seen = [], [], set()
     for param in described_params:
@@ -311,9 +298,8 @@ def _group(name, described_params):
 
 
 def summary(optimizer_name, params) -> list[tuple[str, str]]:
-    """`summary` leaves out other-strategy settings, settings whose switch is
-    off, the switches themselves, false booleans, and values left to the
-    strategy's default.
+    """`summary` skips other-strategy settings, disabled settings, switches,
+    false booleans and unset values.
     """
     from django.utils.translation import gettext as _now
 

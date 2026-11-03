@@ -45,14 +45,16 @@ def test_new_makes_a_draft_and_opens_its_first_step(client):
 
 def test_a_draft_is_in_the_sidebar_as_a_draft(client):
     """The sidebar lists the draft at once, marked Draft and linking to its
-    setup."""
+    setup; open, its views are its setup and its notes, none of a created
+    experiment's."""
     exp = start_draft(client)
     html = client.get(reverse("ui:setup", args=[exp.pk])).content.decode()
     sidebar = html.split('<nav class="sidebar"', 1)[1].split("</nav>", 1)[0]
 
     assert 'class="draft-badge"' in sidebar
     assert f'href="{reverse("ui:setup_resume", args=[exp.pk])}"' in sidebar
-    assert "experiment-views" not in sidebar
+    assert f'href="{reverse("ui:experiment_notes", args=[exp.pk])}"' in sidebar
+    assert reverse("ui:experiment_timeline", args=[exp.pk]) not in sidebar
 
 
 def test_a_draft_cannot_be_reached_as_an_experiment(client):
@@ -193,11 +195,26 @@ def test_step_1_is_filled_from_the_draft_and_keeps_its_upload(client):
     upload = SimpleUploadedFile("flowers.csv", (DATASETS_DIR / "iris.csv").read_bytes())
     _save(client, exp, "setup", {**_setup(demo_dataset=""), "dataset_file": upload})
     html = client.get(reverse("ui:setup", args=[exp.pk])).content.decode()
-    assert 'value="set up"' in html and "Currently flowers.csv" in html
+    assert 'value="set up"' in html and re.search(r"data-file-pick-name[^>]*>flowers\.csv<", html)
 
     assert _save(client, exp, "setup", _setup(demo_dataset="", name="again")).status_code == 302
     exp.refresh_from_db()
     assert exp.data.name == "again" and exp.data.dataset.name.endswith(".csv")
+
+
+def test_a_draft_upload_removed_with_the_picker_is_not_kept(client):
+    """What: removing the draft's dataset in the picker means step 1 has none,
+    and says to choose one.
+    How: saves with an uploaded CSV, then saves again with `clear_dataset`."""
+    from django.core.files.uploadedfile import SimpleUploadedFile
+
+    exp = start_draft(client)
+    upload = SimpleUploadedFile("flowers.csv", (DATASETS_DIR / "iris.csv").read_bytes())
+    _save(client, exp, "setup", {**_setup(demo_dataset=""), "dataset_file": upload})
+    response = _save(client, exp, "setup", {**_setup(demo_dataset=""), "clear_dataset": "1"})
+
+    assert response.status_code == 200
+    assert "Choose a demo dataset or upload a CSV file." in response.content.decode()
 
 
 def test_a_draft_can_be_thrown_away(client):

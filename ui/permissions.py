@@ -23,6 +23,32 @@ BOTH = "both"
 DRAFTS = (CREATED, ONLY, BOTH)
 
 
+class WrongKind(Http404):
+    """`WrongKind` is the 404 for a draft reached where a created experiment
+    was asked for, or the reverse. A page catches it and sends the reader to
+    where that kind is worked on.
+    """
+
+    def __init__(self, experiment):
+        super().__init__("not reached by this route")
+        self.experiment = experiment
+
+
+def resolve_experiment(request, pk, action, drafts=CREATED):
+    """`resolve_experiment` runs the check of `experiment_view` for code that
+    reaches an experiment outside a view. A pk the policy hides raises
+    `Http404`, the wrong kind raises `WrongKind`, and a refused action raises
+    `PermissionDenied`.
+    """
+    current = policy()
+    exp = get_object_or_404(current.experiments(request), pk=pk)
+    if (exp.draft and drafts == CREATED) or (not exp.draft and drafts == ONLY):
+        raise WrongKind(exp)
+    if not current.may(request, exp, action):
+        raise PermissionDenied
+    return exp
+
+
 def experiment_view(action, drafts=CREATED):
     """`experiment_view` resolves `<int:pk>` to an experiment the request may
     act on, and calls the view with that experiment in place of `pk`. Therefore
@@ -38,17 +64,13 @@ def experiment_view(action, drafts=CREATED):
     def decorate(view: Callable[..., Any]) -> Callable[..., Any]:
         @wraps(view)
         def wrapped(request, pk, *args, **kwargs):
-            current = policy()
-            exp = get_object_or_404(current.experiments(request), pk=pk)
-            wrong = ((exp.draft and drafts == CREATED)
-                     or (not exp.draft and drafts == ONLY))
-            if wrong:
+            try:
+                exp = resolve_experiment(request, pk, action, drafts)
+            except WrongKind as wrong:
                 if request.method != "GET":
-                    raise Http404
-                return redirect("ui:setup_resume" if exp.draft else "ui:experiment_detail",
-                                pk=exp.pk)
-            if not current.may(request, exp, action):
-                raise PermissionDenied
+                    raise
+                return redirect("ui:setup_resume" if wrong.experiment.draft
+                                else "ui:experiment_detail", pk=wrong.experiment.pk)
             return view(request, exp, *args, **kwargs)
 
         #: The URLconf audit reads these; `wraps` keeps them past

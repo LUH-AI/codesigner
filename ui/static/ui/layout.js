@@ -383,17 +383,28 @@
         return (window.location.hash || "").replace(/^#/, "");
     }
 
-    tabs.forEach(function (tab) {
-        tab.addEventListener("click", function () {
-            var name = show(tab.dataset.tab);
-            /* In the address bar, so a reload or a shared link opens the same
-             * tab — replaced rather than pushed, so Back still leaves the page.
-             * A tab with an address of its own (Data Handling's sections) is
-             * that address; the dashboard's are the page's with a #tab. */
-            if (window.history && window.history.replaceState) {
-                window.history.replaceState(null, "", tab.dataset.url || "#" + name);
-            }
+    function choose(tab) {
+        var name = show(tab.dataset.tab);
+        /* In the address bar, so a reload or a shared link opens the same
+         * tab — replaced rather than pushed, so Back still leaves the page.
+         * A tab with an address of its own (Data Handling's sections) is
+         * that address; the dashboard's are the page's with a #tab. */
+        if (window.history && window.history.replaceState) {
+            window.history.replaceState(null, "", tab.dataset.url || "#" + name);
+        }
+    }
+
+    /* The assistant shows a tab as the person's click would
+     * (assistant/static/assistant/act.js). */
+    document.addEventListener("assistant:show-tab", function (ev) {
+        var wanted = ev.detail && ev.detail.tab;
+        Array.prototype.forEach.call(tabs, function (tab) {
+            if (tab.dataset.tab === wanted) choose(tab);
         });
+    });
+
+    tabs.forEach(function (tab) {
+        tab.addEventListener("click", function () { choose(tab); });
         /* Arrow keys move between tabs, as a tablist's do. */
         tab.addEventListener("keydown", function (ev) {
             var list = Array.prototype.slice.call(tabs), i = list.indexOf(tab);

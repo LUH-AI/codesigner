@@ -18,6 +18,9 @@ wheels/
 # One-off scripts for looking at something locally.
 scratch/
 
+# The assistant's library index, built per instance (assistant/library.py).
+var/
+
 .vscode/
 
 # The built documentation site (sphinx-build).
@@ -26,3 +29,4 @@ docs/autoapi/
 
 # The comment check's baseline and scores; the tooling lives outside this repository.
 .commentcheck/
+eval-report.json

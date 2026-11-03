@@ -1,0 +1,22 @@
+# Checks that every paper the assistant's library is built from can still be
+# fetched from its source (assistant/knowledge/literature.toml), since each
+# instance fetches them itself. A missing source fails the run and is
+# annotated on its line of the list; the library then knows that paper only
+# by its summary until the source is replaced.
+name: Library sources
+
+on:
+  push:
+  workflow_dispatch:
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Fetch the start of every paper
+        run: python -m assistant.sources

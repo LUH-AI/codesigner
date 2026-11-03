@@ -1,0 +1,49 @@
+# Knowing where the person is on an experiment's page, and pointing at what is
+# there: tabs, figures and trials.
+
+# tests/fixtures/test.ihpo's best score improves at trials 1 and 15 only.
+[[case]]
+id = "highlight-first-incumbent-after-trial-1"
+say = "Can you highlight the earliest incumbent after the first trial for me in the trials list?"
+[case.situation]
+phase = "results"
+fixture = "test"
+tab = "hypershap"
+[case.expect]
+calls = [{tool = "highlight", args = {target = "trial:15"}}]
+never = ["navigate"]
+mentions = ["15"]
+
+[[case]]
+id = "highlight-the-trials-list"
+say = "Can you highlight the trials list?"
+[case.situation]
+phase = "results"
+fixture = "smac_iris_guided"
+tab = "hypershap"
+[case.expect]
+calls = [{tool = "highlight", args = {target = "figure:trials"}}]
+never = ["navigate"]
+max_calls = 2
+
+[[case]]
+id = "which-tab-am-i-on"
+say = "What am I looking at right now?"
+[case.situation]
+phase = "results"
+fixture = "smac_iris_guided"
+tab = "hypershap"
+[case.expect]
+mentions = ["HyperSHAP"]
+never = ["navigate"]
+
+[[case]]
+id = "show-the-importance-figure"
+say = "Show me where the importance chart is."
+[case.situation]
+phase = "results"
+fixture = "smac_iris_guided"
+tab = "misc"
+[case.expect]
+calls = [{tool = "highlight", args = {target = "figure:hyperparameter_importance"}}]
+never = ["navigate"]

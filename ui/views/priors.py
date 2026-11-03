@@ -9,13 +9,12 @@ from django.shortcuts import redirect, render
 from django.utils.translation import gettext as _
 from django.views.decorators.http import require_POST
 
-from access.policy import EDIT, RUN, VIEW, policy
+from access.policy import COMPUTE, EDIT, RUN, VIEW, policy
 from core import analytics
 from core.jsonable import plain
 from core.metrics import metric_for
 from core import priors as prior_math
 from experiments.models import account
-from experiments.services import history
 from experiments.services.settings import SETTING_BOUNDS
 from experiments.services.snapshot import config_space_for, rebuild_experiment, rebuild_result
 from experiments.services import priors as prior_service
@@ -198,35 +197,7 @@ def save_prior(request, exp):
     if not hp_name:
         return HttpResponseBadRequest("no hyperparameter named")
 
-    priors = dict(exp.data.priors or {})
-    prior = body.get("prior")
-    if prior is None:
-        # Uniform states nothing, so it is stored as absence.
-        priors.pop(hp_name, None)
-    else:
-        # Decay counts trials since the prior was stated, so a late belief
-        # starts at full strength.
-        built = rebuild_experiment(exp)
-        at_trial = len((built["result"].trials if built and built["result"] else []))
-        previous = (exp.data.priors or {}).get(hp_name) or {}
-        result_now = built["result"] if built else None
-        priors[hp_name] = {
-            "kind": prior.get("kind") or "uniform",
-            "params": prior.get("params") or {},
-            "decay": prior_math.decay_record(prior.get("decay"),
-                                             prior_service.run_budget(exp, at_trial)),
-            # `delay_decay` only applies while the initial design is unfinished.
-            "delay_decay": bool(prior.get("delay_decay")
-                                and prior_math.inside_initial_design(result_now)),
-            # An edited parameter keeps the anchor, or decay would stay at zero.
-            "at_trial": (previous.get("at_trial")
-                         if previous.get("kind") == prior.get("kind") else at_trial),
-        }
-
-    stated_before = (exp.data.priors or {}).get(hp_name)
-    exp.data.priors = priors
-    exp.data.save(update_fields=["priors"])
-    history.record_prior(exp, hp_name, stated_before, priors.get(hp_name), user=request.user)
+    priors = prior_service.state(exp, hp_name, body.get("prior"), user=request.user)
 
     # `prior_densities` produces both the returned curve and the optimizer's
     # weights, so the save doubles as the redraw.
@@ -247,22 +218,8 @@ def reset_prior(request, exp):
     if not hp_name:
         return HttpResponseBadRequest("no hyperparameter named")
 
-    # Pending runs are skipped, since their priors are the edits being undone.
-    last = (exp.runs.exclude(status="pending")
-            .order_by("-id").values_list("priors", flat=True).first())
-    restored = (last or {}).get(hp_name)
-
-    priors = dict(exp.data.priors or {})
-    stated_before = priors.get(hp_name)
-    if restored:
-        priors[hp_name] = restored
-    else:
-        priors.pop(hp_name, None)
-    exp.data.priors = priors
-    exp.data.save(update_fields=["priors"])
-    if stated_before != priors.get(hp_name):
-        history.record(exp, "prior_reset", user=request.user, hyperparameter=hp_name,
-                       old=stated_before, new=priors.get(hp_name))
+    restored = prior_service.reset(exp, hp_name, user=request.user)
+    priors = exp.data.priors or {}
 
     # The response carries the decayed prior and density for the redraw.
     result = rebuild_result(exp)
@@ -274,7 +231,7 @@ def reset_prior(request, exp):
     if isinstance(meta, dict):
         density = prior_math.prior_densities(priors.get(hp_name), meta)
     return JsonResponse({
-        "restored": bool(restored),
+        "restored": restored,
         "prior": prior_service.decayed_prior(exp, hp_name,
                                 len(result.trials) if result else 0,
                                 prior_math.inside_initial_design(result)),
@@ -282,12 +239,12 @@ def reset_prior(request, exp):
     })
 
 
-@experiment_view(RUN, drafts=BOTH)
+@experiment_view(COMPUTE, drafts=BOTH)
 @require_POST
 def evaluate_prior(request, exp):
     """`evaluate_prior` replays the trials into SMAC and asks its `add_prior`
     safeguard whether the stated belief is worth acting on. The tolerance is a
-    share of the metric's scale, and *top_k* is clamped to its bounds. `RUN`
+    share of the metric's scale, and *top_k* is clamped to its bounds. `COMPUTE`
     guards the view because each call costs seconds of fitting and search, and
     nothing is written.
     """

@@ -1,4 +1,3 @@
-"""`SVM` wraps scikit-learn's SVMs."""
 
 from typing import Any
 
@@ -9,8 +8,7 @@ from .base import Tunable
 
 
 class SVM(OutputBaseModel):
-    """`build` wraps `SVC` in five-fold sigmoid calibration only when
-    ``data["probabilities"]`` is set, since calibrating costs several fits.
+    """Calibration costs several fits, so `build` only calibrates on request.
     """
 
     name = "SVM"
@@ -42,8 +40,9 @@ class SVM(OutputBaseModel):
 
 
 class SVMModel(Tunable, SVM):
+    """`SVMModel` is a kernel SVM, sensitive to scaling and slow on many rows."""
 
-    #: The name in `.ihpo` files from before SVM regression.
+    #: Pre-regression `.ihpo` name.
     aliases = ("SVM Classifier",)
 
     def get_config_space(self, seed: int = 0) -> ConfigurationSpace:

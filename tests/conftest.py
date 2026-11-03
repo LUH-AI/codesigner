@@ -20,6 +20,19 @@ from core.optimizers import (
 from core.optimizers.base import merge_stopping
 
 FIXTURES_DIR = Path(__file__).parent / "fixtures"
+
+def pytest_addoption(parser):
+    """`pytest_addoption` registers the evals' options (tests/assistant/evals),
+    here because only a top-level conftest may add options."""
+    group = parser.getgroup("assistant evals")
+    group.addoption("--eval", action="store_true",
+                    help="Run the assistant's evals against ASSISTANT_LLM_*.")
+    group.addoption("--eval-repeat", type=int, default=1, help="Runs of each eval case.")
+    group.addoption("--eval-report", default="eval-report.json",
+                    help="Where the evals' report is written.")
+    group.addoption("--eval-case", action="append", default=[],
+                    help="Only the eval cases whose id or group starts with this.")
+
 DATASETS_DIR = Path(__file__).parent.parent / "datasets"
 
 
@@ -110,12 +123,15 @@ def runs_execute_synchronously(settings):
 @pytest.fixture(autouse=True)
 def suite_runs_in_its_own_configuration(settings):
     """A developer's `.env` may set `REQUIRE_LOGIN`, which turns tests into
-    login-wall tests, or `RUN_BACKEND=slurm`, which submits real cluster jobs.
+    login-wall tests, `RUN_BACKEND=slurm`, which submits real cluster jobs, or
+    `ASSISTANT_ENABLED`, which puts a chat with an absent model on every page.
     `suite_runs_in_its_own_configuration` restores the fresh-checkout defaults,
     and the `hosted` fixtures opt out.
     """
     settings.REQUIRE_LOGIN = False
     settings.RUN_BACKEND = "local"
+    settings.ASSISTANT_ENABLED = False
+    settings.ASSISTANT_TURNS_INLINE = True
 
 
 @pytest.fixture

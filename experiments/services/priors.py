@@ -62,3 +62,63 @@ def metric_scale(exp, metric_name, result):
     scores = [float(v) for v in scores if v is not None and np.isfinite(v)]
     spread = max(scores) - min(scores) if scores else 0.0
     return spread if spread > 0 else None
+
+
+def state(exp, hp_name, prior, user=None) -> dict:
+    """`state` records *prior* about *hp_name* on *exp* as *user* and returns
+    every hyperparameter's prior. A *prior* of None withdraws the belief, since
+    a uniform prior is stored as absence.
+    """
+    from . import history
+    from .snapshot import rebuild_experiment
+
+    priors = dict(exp.data.priors or {})
+    if prior is None:
+        priors.pop(hp_name, None)
+    else:
+        # Decay counts trials since the prior was stated, so a late belief
+        # starts at full strength.
+        built = rebuild_experiment(exp)
+        result_now = built["result"] if built else None
+        at_trial = len(result_now.trials if result_now else [])
+        previous = (exp.data.priors or {}).get(hp_name) or {}
+        priors[hp_name] = {
+            "kind": prior.get("kind") or "uniform",
+            "params": prior.get("params") or {},
+            "decay": prior_math.decay_record(prior.get("decay"), run_budget(exp, at_trial)),
+            # `delay_decay` only applies while the initial design is unfinished.
+            "delay_decay": bool(prior.get("delay_decay")
+                                and prior_math.inside_initial_design(result_now)),
+            # An edited parameter keeps the anchor, or decay would stay at zero.
+            "at_trial": (previous.get("at_trial")
+                         if previous.get("kind") == prior.get("kind") else at_trial),
+        }
+    stated_before = (exp.data.priors or {}).get(hp_name)
+    exp.data.priors = priors
+    exp.data.save(update_fields=["priors"])
+    history.record_prior(exp, hp_name, stated_before, priors.get(hp_name), user=user)
+    return priors
+
+
+def reset(exp, hp_name, user=None) -> bool:
+    """`reset` restores *hp_name*'s prior to what the last run searched under,
+    or to uniform when no run left one, and reports whether a prior came back.
+    Pending runs are skipped, since their priors are the edits being undone.
+    """
+    from . import history
+
+    last = (exp.runs.exclude(status="pending")
+            .order_by("-id").values_list("priors", flat=True).first())
+    restored = (last or {}).get(hp_name)
+    priors = dict(exp.data.priors or {})
+    stated_before = priors.get(hp_name)
+    if restored:
+        priors[hp_name] = restored
+    else:
+        priors.pop(hp_name, None)
+    exp.data.priors = priors
+    exp.data.save(update_fields=["priors"])
+    if stated_before != priors.get(hp_name):
+        history.record(exp, "prior_reset", user=user, hyperparameter=hp_name,
+                       old=stated_before, new=priors.get(hp_name))
+    return bool(restored)

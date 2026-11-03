@@ -225,7 +225,7 @@ def attach_dataset(exp: dict, dataset_path: str) -> None:
         raise ValueError(f"dataset not found: {dataset_path}")
     X_train, X_val, y_train, y_val = load_splits(
         path, exp["seed"], exp.get("test_size") or DEFAULT_TEST_SIZE,
-        exp.get("task", tasks.DEFAULT))
+        exp.get("task", tasks.DEFAULT), exp.get("target_column") or None)
     exp["X_train"]      = X_train
     exp["y_train"]      = y_train
     exp["X_val"]        = X_val
@@ -252,6 +252,8 @@ def build_experiment(
     metric_names = snapshot["metrics"]["names"]
     model_path = snapshot["model"].get("path", "")
     task = tasks.task_of(snapshot)
+    # A file that names no target column predicts its dataset's last column.
+    target = str((snapshot.get("dataset") or {}).get("target_column") or "") or None
 
     # A file may declare its own metrics, so an imported run with an unknown
     # objective still opens; `.undescribe` gives them a scorer that raises.
@@ -280,7 +282,7 @@ def build_experiment(
         path = Path(dataset_path)
         if not path.is_file():
             raise ValueError(f"dataset not found: {dataset_path}")
-        data = load_evaluation(path, ev, seed, task)
+        data = load_evaluation(path, ev, seed, task, target)
         if model is not None:
             give_context(model, "feature_kinds", tuple(encoding.feature_kinds(data.columns)))
             # Each built-in model gets the processing plan, while an uploaded
@@ -309,6 +311,7 @@ def build_experiment(
         "metrics":         metrics,
         "seed":            seed,
         "dataset_path":    snapshot["dataset"].get("path", ""),
+        "target_column":   target or "",
         "X_train": data.X_train, "y_train": data.y_train,
         "X_val":   data.X_val,   "y_val":   data.y_val,
         "cv_folds": ev["folds"],

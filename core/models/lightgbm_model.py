@@ -1,4 +1,3 @@
-"""LightGBM gradient boosted trees."""
 
 from typing import Any
 
@@ -10,8 +9,7 @@ from .parts import categorical_columns
 
 
 class LightGBM(OutputBaseModel):
-    """`fit_args` marks label columns categorical, so LightGBM groups labels
-    itself.
+    """`fit_args` names categorical columns for LightGBM.
     """
 
     name = "LightGBM"
@@ -39,7 +37,7 @@ class LightGBM(OutputBaseModel):
         return {"categorical_feature": categorical_columns(data) or "auto"}
 
     def save_parameters(self, fitted, directory):
-        """`save_parameters` writes LightGBM's readable, resumable text format."""
+        """`model.txt` is readable text."""
         from pathlib import Path
 
         fitted.booster_.save_model(str(Path(directory) / "model.txt"))
@@ -53,6 +51,7 @@ class LightGBM(OutputBaseModel):
 
 
 class LightGBMModel(Tunable, LightGBM):
+    """`LightGBMModel` is LightGBM gradient-boosted trees grown leaf-wise."""
 
     def get_config_space(self, seed: int = 0) -> ConfigurationSpace:
         cs = ConfigurationSpace(seed=seed)

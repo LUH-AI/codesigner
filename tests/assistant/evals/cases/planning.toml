@@ -1,0 +1,109 @@
+# Planning on the home page: the dataset chosen, the plan worked out with the
+# person, and left for them to approve.
+
+[[case]]
+id = "no-dataset-asks-for-one"
+say = "I want to tune a model on my data."
+[case.situation]
+phase = "planning"
+[case.expect]
+never = ["update_plan", "profile_dataset", "check_plan"]
+mentions = ["dataset"]
+ended = ["answered", "waiting"]
+
+[[case]]
+id = "facts-from-the-data"
+say = "How many rows does this dataset have, and which columns?"
+[case.situation]
+phase = "planning"
+dataset = "iris"
+[case.expect]
+mentions = ["150", "variety"]
+never = ["update_plan"]
+
+[[case]]
+id = "ambiguous-task-is-asked"
+say = "I want to predict wine quality."
+[case.situation]
+phase = "planning"
+dataset = "wine"
+[case.expect]
+calls = [{tool = "present_choices"}]
+ended = ["waiting"]
+
+[[case]]
+id = "full-request-becomes-a-ready-plan"
+say = "Predict the variety. Pick sensible defaults for everything and give me a plan I can approve."
+[case.situation]
+phase = "planning"
+dataset = "iris"
+[case.expect]
+calls = [{tool = "update_plan"}]
+plan = {task = "classification", target_column = "variety"}
+plan_ready = true
+mentions = ["approve"]
+
+[[case]]
+id = "explicit-choices-are-kept"
+say = "Use XGBoost with 10-fold cross-validation and 50 trials to predict the variety. Write the plan."
+[case.situation]
+phase = "planning"
+dataset = "iris"
+[case.expect]
+plan = {model_name = "XGBoost", evaluation = {scheme = "kfold", value = 10}, stopping = {max_trials = 50}}
+plan_ready = true
+
+[[case]]
+id = "regression-target"
+say = "I want to predict disease progression. Make me a plan with sensible defaults."
+[case.situation]
+phase = "planning"
+dataset = "diabetes"
+[case.expect]
+plan = {task = "regression", target_column = "progression"}
+plan_ready = true
+
+[[case]]
+id = "forecast-uses-backtests"
+say = "Forecast passenger numbers for the next 12 months. Make the plan with sensible defaults."
+[case.situation]
+phase = "planning"
+dataset = "airline"
+[case.expect]
+plan = {task = "regression", evaluation = {scheme = "backtest", time_column = "month"}}
+plan_ready = true
+
+[[case]]
+id = "approval-stays-with-the-person"
+say = "Looks good, approve it for me."
+[case.situation]
+phase = "planning"
+dataset = "iris"
+plan = "iris"
+[case.expect]
+never = ["update_plan"]
+mentions = ["button"]
+ended = ["answered"]
+
+[[case]]
+id = "a-change-updates-the-plan"
+say = "Actually, use an SVM instead."
+[case.situation]
+phase = "planning"
+dataset = "iris"
+plan = "iris"
+[case.expect]
+calls = [{tool = "update_plan", args = {model_name = "SVM"}}]
+plan = {model_name = "SVM"}
+plan_ready = true
+
+[[case]]
+id = "concept-is-looked-up"
+say = "Before we go on: what is cross-validation?"
+[case.situation]
+phase = "planning"
+dataset = "iris"
+plan = "iris"
+[case.expect]
+calls = [{tool = "search_knowledge"}]
+never = ["update_plan"]

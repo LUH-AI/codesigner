@@ -9,8 +9,8 @@ from django.shortcuts import redirect, render
 from access.policy import visible_experiments
 from core import datasets, tasks
 from core.registry import MODELS
-from experiments.models import account, Experiment
 
+from .. import drafts
 from ..forms import EVALUATION_SCHEMES
 
 
@@ -69,10 +69,19 @@ def new_experiment(request):
     """
     if request.method != "POST":
         return render(request, "ui/new_experiment.html")
-    exp = Experiment.objects.create(
-        name="", model_name="", optimizer_name="",
-        metric_names=[], seed=0, owner=account(request.user), draft=True)
-    return redirect("ui:setup", pk=exp.pk)
+    return redirect("ui:setup", pk=drafts.new(request).pk)
+
+
+def _demo_columns():
+    """`_demo_columns` maps each demo dataset to its columns, which the create
+    form offers as targets."""
+    out = {}
+    for path in datasets.demo_datasets().values():
+        try:
+            out[path] = [str(c) for c in datasets.read_dataset(Path(path)).columns]
+        except Exception:  # noqa: BLE001 — an unreadable demo just suggests nothing
+            out[path] = []
+    return out
 
 
 def _demo_time_columns():

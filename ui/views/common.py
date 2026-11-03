@@ -5,19 +5,16 @@ import statistics
 from django.conf import settings
 from django.contrib import messages
 from django.urls import reverse
-from django.utils.translation import ngettext
 from django.utils.translation import gettext as _
 
 from access.policy import groups_to_choose_from
 from core import datasets
 from core.registry import MODELS, optimizer_class
 from experiments.models import Experiment, Run
-from experiments.services import storage
 from experiments.services.settings import SETTING_BOUNDS
 
 from ..experiment_settings import resolve_settings
 from ..figures import FIGURES
-from ..formatting import human
 
 
 _ACTIVE = Run.ACTIVE_STATUSES
@@ -87,14 +84,6 @@ def surpass_target(score: float, places: int = 4) -> str:
     return f"{shown:g}"
 
 
-def _posted_number(request, key: str, default: float, *, low: float) -> float:
-    raw = (request.POST.get(key) or "").strip()
-    try:
-        return max(low, float(raw.replace(",", ".")))
-    except ValueError:
-        return float(default)
-
-
 def _judges_priors(exp):
     optimizer = optimizer_class(exp.data.optimizer_name)
     return bool(optimizer) and optimizer.judges_priors(exp.data.optimizer_params or {})
@@ -128,33 +117,18 @@ def _best_panels(result, metric_names):
     return panels
 
 
+def tell(request, notices) -> None:
+    """`tell` turns each `(level, text)` notice from a service into a message."""
+    for level, text in notices:
+        getattr(messages, level)(request, text)
+
+
 def _settle_storage(request, exp) -> bool:
-    """`_settle_storage` deletes kept trial models, stalest first, until
-    *exp*'s group fits its limit. `_settle_storage` only deletes the
-    experiment's files and reports an error when datasets and model files alone
-    exceed the limit.
-    """
-    group = exp.group
-    if group is None or (not exp.data.dataset and not exp.data.model_file):
-        return True
-    within, deleted = storage.make_room(group)
-    now = storage.usage(group)
-    numbers = {"group": group.name, "used": human(now["total"]),
-               "limit": human(now["limit"])}
-    if not within:
-        storage.delete_experiment_files(exp)
-        messages.error(request, _(
-            "%(group)s has no room for this: its datasets and model files alone would take "
-            "%(used)s of its %(limit)s. Delete experiments it no longer needs, or ask a site "
-            "administrator for more.") % numbers)
-        return False
-    if deleted:
-        messages.warning(request, ngettext(
-            "To make room in %(group)s, %(n)s kept trial model was deleted, the stalest "
-            "first. It now uses %(used)s of %(limit)s.",
-            "To make room in %(group)s, %(n)s kept trial models were deleted, the stalest "
-            "first. It now uses %(used)s of %(limit)s.", deleted) % dict(numbers, n=deleted))
-    return True
+    from .. import drafts
+
+    kept, notices = drafts.settle_storage(exp)
+    tell(request, notices)
+    return kept
 
 
 def _plot_json(plot):
@@ -163,7 +137,7 @@ def _plot_json(plot):
 
 def _target_name(exp):
     try:
-        return datasets.target_of(exp.data.dataset_path())[0]
+        return datasets.target_of(exp.data.dataset_path(), exp.data.target_column or None)[0]
     except Exception:  # noqa: BLE001 — an axis title is not worth an error
         return ""
 

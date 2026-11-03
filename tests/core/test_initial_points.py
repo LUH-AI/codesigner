@@ -202,3 +202,34 @@ def test_the_default_configuration_does_not_inflate_the_size(space):
 
     assert _points(space, 200, initial_design="latin_hypercube",
                    use_default_config=True, previous_result=previous) == 3
+
+
+@pytest.mark.parametrize("budget, caps", [
+    (30, {}), (150, {}), (600, {}), (236, {}),
+    (40, {"share_cap": 0.5, "use_trial_cap": False}),
+    (200, {"initial_points_use_max": True}),
+    (50, {"use_share_cap": False, "use_trial_cap": False, "use_default_config": True}),
+    (30, {"use_default_config": True}),
+])
+def test_the_pure_sizing_is_what_the_facade_hands_smac(space, budget, caps):
+    """`initial_points` is the facade's own sizing, so a page or the assistant
+    working it out from the settings cannot disagree with the run."""
+    from core.optimizers.smac.facade import initial_points
+
+    size = initial_points(len(list(space.values())), budget, caps)
+    assert size.points == _points(space, budget, **caps)
+    assert size.trials == size.points + (1 if caps.get("use_default_config") else 0)
+
+
+def test_the_sizing_names_the_cap_that_bound_it():
+    """Five hyperparameters over 150 trials (the wine run) give 37 by the share;
+    the same search continued to 236 trials gives 50 by the count, 13 more."""
+    from core.optimizers.smac.facade import initial_points
+
+    first = initial_points(5, 150, {})
+    assert (first.points, first.bound_by) == (37, "share cap 0.25 of 150")
+    continued = initial_points(5, 236, {})
+    assert continued.points == 50 and continued.bound_by.startswith("trial cap 50")
+    assert initial_points(5, 150, {"trial_cap": 150}).points == 37, "a cap of 150 binds nothing"
+    assert initial_points(5, 50, {"use_share_cap": False, "use_trial_cap": False}).bound_by \
+        == "both caps off, so the whole budget"

@@ -17,13 +17,14 @@ from experiments.models import Experiment, ExperimentShare
 #: URLconf shows what each route does.
 VIEW = "view"        # render page or fragment
 RUN = "run"          # start, cancel or prepare its environment
+COMPUTE = "compute"  # spend this machine on analysing it
 EDIT = "edit"        # change settings
 DELETE = "delete"
 EXPORT = "export"    # copy off the instance
 SHARE = "share"      # grant access or hand over
 RENAME = "rename"
 
-ACTIONS = frozenset({VIEW, RUN, EDIT, DELETE, EXPORT, SHARE, RENAME})
+ACTIONS = frozenset({VIEW, RUN, COMPUTE, EDIT, DELETE, EXPORT, SHARE, RENAME})
 
 
 class OpenPolicy:
@@ -76,15 +77,53 @@ class OpenPolicy:
 _cached: tuple[str, OpenPolicy] | None = None
 
 
+#: A person does these themselves, even with an assistant acting for them.
+HUMAN_ONLY = frozenset({RUN, DELETE, SHARE})
+
+
+def via_agent(request) -> bool:
+    """`via_agent` tells an assistant acting for somebody
+    (`assistant.gateway`) from the person themselves."""
+    return bool(getattr(request, "via_agent", False))
+
+
+class AgentLimits:
+    """`AgentLimits` sits in front of the configured policy, so every question
+    asked of `policy` is narrowed for an assistant's request before the policy
+    answers it. For a person's own request, the policy answers alone.
+    """
+
+    def may(self, request, experiment, action):
+        if via_agent(request) and action in HUMAN_ONLY:
+            return False
+        return super().may(request, experiment, action)  # type: ignore[misc]
+
+    def may_upload_models(self, request):
+        return not via_agent(request) and super().may_upload_models(request)  # type: ignore[misc]
+
+    def may_change_defaults(self, request):
+        return not via_agent(request) and super().may_change_defaults(request)  # type: ignore[misc]
+
+    def trash(self, request):
+        if via_agent(request):
+            return Experiment.objects.none()
+        return super().trash(request)  # type: ignore[misc]
+
+
 def policy() -> OpenPolicy:
     """`policy` caches one instance per `EXPERIMENT_POLICY` value, so a test can
-    repoint the setting.
+    repoint the setting. The instance carries the configured class's name and
+    wears `AgentLimits` in front of it.
     """
     global _cached
     path = getattr(settings, "EXPERIMENT_POLICY", None) or (
         f"{OpenPolicy.__module__}.{OpenPolicy.__qualname__}")
     if _cached is None or _cached[0] != path:
-        _cached = (path, import_string(path)())
+        configured = import_string(path)
+        limited = type(configured.__name__, (AgentLimits, configured),
+                       {"__module__": configured.__module__,
+                        "__qualname__": configured.__qualname__})
+        _cached = (path, limited())
     return _cached[1]
 
 
@@ -295,7 +334,7 @@ class GroupPolicy(OpenPolicy):
             # the work's people.
             return contributor
         # Lead reach applies in *its* group only.
-        return contributor or (action in (RUN, EDIT)
+        return contributor or (action in (RUN, COMPUTE, EDIT)
                                and is_lead_of(user, experiment.group_id))
 
     # ── instance-wide questions ──────────────────────────────────────────────

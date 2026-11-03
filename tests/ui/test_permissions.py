@@ -151,12 +151,12 @@ def test_the_declared_actions_match_what_the_routes_do():
         "run_proposal": access_policy.RUN,
         "experiment_optimizer": access_policy.EDIT,
         "experiment_rename": access_policy.RENAME,
-        # Computing analytics needs RUN, since it spends CPU and writes the
-        # result.
-        "experiment_compute_analytics": access_policy.RUN,
+        # Computing analytics spends CPU and writes the result, and starts no
+        # run.
+        "experiment_compute_analytics": access_policy.COMPUTE,
         "prepare_env": access_policy.RUN,
-        # Judging a prior costs seconds of compute, which RUN covers.
-        "evaluate_prior": access_policy.RUN,
+        # Judging a prior costs seconds of compute and writes nothing.
+        "evaluate_prior": access_policy.COMPUTE,
         # Resetting a prior changes the next run.
         "reset_prior": access_policy.EDIT,
         "run_cancel": access_policy.RUN,
@@ -166,6 +166,8 @@ def test_the_declared_actions_match_what_the_routes_do():
         "save_layout": access_policy.VIEW,
         "experiment_settings": access_policy.EDIT,
         "experiment_timeline": access_policy.VIEW,
+        # Viewers read the notes; saving them is checked as EDIT inside.
+        "experiment_notes": access_policy.VIEW,
         # Contributors get everything except sharing.
         "experiment_share": access_policy.SHARE,
         "experiment_transfer": access_policy.SHARE,
@@ -185,19 +187,21 @@ def test_the_declared_actions_match_what_the_routes_do():
         "setup_priors": access_policy.EDIT,
         "setup_resume": access_policy.EDIT,
         "setup_create": access_policy.EDIT,
-        "setup_discard": access_policy.EDIT,
+        # Discarding a draft deletes it for good, files and all.
+        "setup_discard": access_policy.DELETE,
     }
 
 
 def test_drafts_are_reached_only_where_they_are_set_up():
-    """A draft is reachable only through its setup routes and the prior requests
-    of the last step."""
+    """A draft is reachable only through its setup routes, the prior requests
+    of the last step, and its notes, which the assistant starts while the
+    draft is set up."""
     declared = {p.name: getattr(p.callback, "experiment_drafts") for p in _experiment_routes()}
     reach = {name for name, drafts in declared.items() if drafts != CREATED}
 
     assert reach == {"setup", "setup_optimizer", "setup_data", "setup_priors", "setup_resume", "setup_create",
                      "setup_discard", "save_prior", "reset_prior", "evaluate_prior",
-                     "acquisition_slice"}
+                     "acquisition_slice", "experiment_notes"}
     assert {name for name, drafts in declared.items() if drafts == ONLY} == {
         "setup", "setup_optimizer", "setup_data", "setup_priors", "setup_resume", "setup_create",
         "setup_discard"}
@@ -303,3 +307,54 @@ def test_the_view_is_handed_the_experiment_not_the_pk():
 
 
 pytestmark = pytest.mark.django_db
+
+
+# ── the same check, without a view ───────────────────────────────────────────
+
+def test_resolving_without_a_view_answers_as_the_decorator_does(settings):
+    """What: `resolve_experiment`, the decorator's check for code that is not a
+    view, gives the experiment, a 404 for one the policy hides, and a 403 for
+    an action it refuses.
+    How: one experiment under the default policy and both restrictive ones."""
+    from django.http import Http404
+
+    from ui.permissions import resolve_experiment
+
+    exp = _experiment()
+    request = RequestFactory().get("/")
+    assert resolve_experiment(request, exp.pk, access_policy.EDIT).pk == exp.pk
+
+    settings.EXPERIMENT_POLICY = f"{__name__}.HidesEverything"
+    with pytest.raises(Http404):
+        resolve_experiment(request, exp.pk, access_policy.VIEW)
+
+    settings.EXPERIMENT_POLICY = f"{__name__}.RefusesEverything"
+    with pytest.raises(PermissionDenied):
+        resolve_experiment(request, exp.pk, access_policy.VIEW)
+
+
+def test_resolving_the_wrong_kind_is_not_found():
+    """What: a created experiment asked for as a draft, or a draft as a created
+    one, is not found — only a page turns that into a redirect.
+    How: both mismatches through `resolve_experiment`, and the decorator's
+    redirect for a GET."""
+    from django.http import Http404
+
+    from ui.permissions import ONLY, resolve_experiment
+
+    created = _experiment()
+    draft = _experiment()
+    draft.draft = True
+    draft.save(update_fields=["draft"])
+    request = RequestFactory().get("/")
+
+    with pytest.raises(Http404):
+        resolve_experiment(request, created.pk, access_policy.EDIT, ONLY)
+    with pytest.raises(Http404):
+        resolve_experiment(request, draft.pk, access_policy.VIEW)
+
+    @experiment_view(access_policy.VIEW)
+    def view(request, experiment):
+        raise AssertionError("should not have been called")
+
+    assert view(request, pk=draft.pk).status_code == 302

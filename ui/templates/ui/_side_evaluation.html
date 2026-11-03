@@ -49,7 +49,12 @@ you cannot have.
                     <div class="field">
                         <label for="max_trials">{% translate "…this many trials have run" %}</label>
                         <input type="number" id="max_trials" name="max_trials"
-                               value="30" min="1" max="100000">
+                               value="{{ next_run_trials }}" min="1" max="100000">
+                        {% if trial_budget and not next_run_trials %}
+                            <p class="caption">{% blocktranslate count n=trial_budget %}The planned {{ n }} trial has run.{% plural %}The planned {{ n }} trials have run.{% endblocktranslate %}</p>
+                        {% elif trial_budget %}
+                            <p class="caption">{% blocktranslate with n=trial_budget %}What is left of the {{ n }} trials planned.{% endblocktranslate %}</p>
+                        {% endif %}
                     </div>
                     <div class="field">
                         <label for="target_score">{% translate "…performance surpasses" %}</label>
@@ -58,7 +63,7 @@ you cannot have.
                         sign and exponent notation, which are ordinary ways to
                         write a target for a metric that is not bounded 0 to 1.
                         The server bounds this by the metric being optimized —
-                        see `_posted_stopping` — so no min/max is asserted here,
+                        see `run_form.stopping_from` — so no min/max is asserted here,
                         where only one metric's would fit.{% endcomment %}
                         <input type="number" step="any"
                                id="target_score" name="target_score"
@@ -163,7 +168,16 @@ you cannot have.
                         </div>
                     </fieldset>
                 {% endif %}
-                <button type="submit" class="btn-primary btn-block">{% translate "▶ Run" %}</button>
+                {% comment %}The optimizer settings a later run may change
+                (`run_safe`), saved when the run starts. The rest stay as the
+                first run had them, since its trials were made with them. The
+                marker tells the run view the panel was on the form, so a form
+                without it leaves the stored settings alone.{% endcomment %}
+                {% if next_run_layout %}
+                    <input type="hidden" name="next_run_settings" value="1">
+                    {% include "ui/_optimizer_params.html" with optimizer_layout=next_run_layout advanced_params=next_run_advanced has_advanced_params=next_run_advanced %}
+                {% endif %}
+                <button type="submit" class="btn-primary btn-block" data-assist="run">{% translate "▶ Run" %}</button>
                 {% if env.ready and env.summary %}
                     <p class="caption">{% blocktranslate with summary=env.summary %}Environment: {{ summary }}{% endblocktranslate %}</p>
                 {% endif %}

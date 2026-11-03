@@ -1,0 +1,80 @@
+# The wine-150 exchange replayed: a person with a fixed budget of 150 trials
+# asks for the best configuration, then questions the plan, the run part way
+# through, and what happens after cancelling it at 86 trials. The fixture
+# `wine_cancelled` is that experiment (tests/fixtures/make_wine_fixture.py):
+# five hyperparameters, so an initial design of 37, cancelled at 86.
+
+[[case]]
+id = "fixed-budget-is-the-trial-limit"
+say = "Take this demo dataset and set up the optimizer to get the best hyperparameter configuration you can, with a fixed budget of 150 trials. Decide everything yourself; don't ask me anything."
+[case.situation]
+phase = "planning"
+dataset = "wine"
+[case.expect]
+calls = [{tool = "update_plan"}]
+plan = {stopping = {max_trials = 150}}
+plan_not = {optimizer = {params = {trial_cap = 150}}}
+
+[[case]]
+id = "model-reason-follows-the-budget"
+say = "Justify your choice of model. Remember the budget is a fixed number of trials."
+[case.situation]
+phase = "planning"
+dataset = "wine"
+plan = "wine"
+[case.expect]
+absent = ["faster"]
+
+[[case]]
+id = "initial-design-mid-run"
+say = "The run is going. Did you stick with the default number of initial trials? If so, why?"
+[case.situation]
+phase = "results"
+fixture = "wine_cancelled"
+running_at = 27
+[case.expect]
+calls = [{tool = "analyze_experiment", args = {analysis = "initial_design"}}]
+mentions = ["37"]
+absent = ["whole budget"]
+
+[[case]]
+id = "random-rate-after-cancel"
+say = "I've cancelled the run. Can you change the proportion of random trials SMAC uses now?"
+[case.situation]
+phase = "results"
+fixture = "wine_cancelled"
+[case.expect]
+calls = [{tool = "read_experiment", args = {aspect = "settings"}}]
+mentions = ["next run"]
+
+[[case]]
+id = "reenter-initial-design"
+say = "If I run another 150 trials, does the search go back into its initial design?"
+[case.situation]
+phase = "results"
+fixture = "wine_cancelled"
+[case.expect]
+calls = [{tool = "read_experiment", args = {aspect = "next_run"}}]
+mentions = ["13"]
+
+[[case]]
+id = "continue-to-150-planned"
+say = "I want the run to continue up to the 150 trials we planned. What do I do?"
+[case.situation]
+phase = "results"
+fixture = "wine_cancelled"
+trial_budget = 150
+[case.expect]
+calls = [{tool = "read_experiment", args = {aspect = "next_run"}}]
+mentions = ["64"]
+
+[[case]]
+id = "continue-to-150-unplanned"
+say = "I want to continue up to 150 trials in all. Set up the run form for that."
+[case.situation]
+phase = "results"
+fixture = "wine_cancelled"
+[case.expect]
+calls = [{tool = "read_experiment", args = {aspect = "next_run"}},
+         {tool = "fill", args = {values = {max_trials = 64}}}]
+mentions = ["64"]

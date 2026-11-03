@@ -1,0 +1,16 @@
+{% load assets i18n %}
+<!doctype html>
+{% comment %}The chat in a browser window of its own, popped out of a page's
+dock: nothing but the conversation, so it can sit beside the page it is about.
+{% endcomment %}
+<html lang="{{ LANGUAGE_CODE }}" data-theme="{{ theme }}">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>{% translate "Assistant" %} · Codesigner</title>
+    <link rel="stylesheet" href="{% asset 'ui/app.css' %}">
+</head>
+<body class="assistant-window-body">
+    {% include "assistant/_chat.html" with window=True %}
+</body>
+</html>

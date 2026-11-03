@@ -14,6 +14,7 @@ urlpatterns = [
     # login page carries the language switcher.
     path("i18n/setlang/", login_not_required(set_language), name="set_language"),
     path("", include("ui.urls")),
+    path("", include("assistant.urls")),
 ]
 
 # Uploads are only served in local development, since the flat `MEDIA_ROOT`

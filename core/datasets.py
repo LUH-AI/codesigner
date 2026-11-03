@@ -39,20 +39,34 @@ def mounted_models() -> dict[str, str]:
     return _files_in(_MODELS_DIR, "*.py")
 
 
-def read_dataset(source):
+def target_last(df, target: str | None = None):
+    """`target_last` moves the *target* column to the end, where every reader
+    of a dataset looks for the target. A *target* of None leaves the last
+    column as the target.
+    """
+    if not target:
+        return df
+    names = [str(c) for c in df.columns]
+    if target not in names:
+        raise ValueError(f"the dataset has no column named {target!r} to predict")
+    at = names.index(target)
+    return df[[c for i, c in enumerate(df.columns) if i != at] + [df.columns[at]]]
+
+
+def read_dataset(source, target: str | None = None):
     """`read_dataset` sniffs the separator and accepts bytes, since the create
-    form keeps an upload in memory.
+    form keeps an upload in memory. The *target* column comes last.
     """
     from io import BytesIO
 
     raw = bytes(source) if isinstance(source, (bytes, bytearray)) else Path(source).read_bytes()
     sample = raw[:2048].decode("utf-8", errors="replace")
     sep = ";" if sample.count(";") > sample.count(",") else ","
-    return pd.read_csv(BytesIO(raw), sep=sep)
+    return target_last(pd.read_csv(BytesIO(raw), sep=sep), target)
 
 
-def target_of(source) -> tuple[str, Any]:
-    df = read_dataset(source)
+def target_of(source, target: str | None = None) -> tuple[str, Any]:
+    df = read_dataset(source, target)
     return str(df.columns[-1]), df.iloc[:, -1].to_numpy()
 
 
@@ -100,10 +114,10 @@ def _labelled(df):
     return df[df.iloc[:, -1].notna()]
 
 
-def dataset_encoding(csv_path: Path) -> dict:
-    """`dataset_encoding` depends on the file alone, so every caller encodes it
-    the same way."""
-    df = _labelled(read_dataset(csv_path))
+def dataset_encoding(csv_path: Path, target: str | None = None) -> dict:
+    """`dataset_encoding` depends on the file and its target alone, so every
+    caller encodes it the same way."""
+    df = _labelled(read_dataset(csv_path, target))
     return encoding.fit(df.iloc[:, :-1])
 
 
@@ -127,11 +141,11 @@ def _in_time_order(df, column: str):
     return df[known].iloc[order], times[known].iloc[order].to_numpy()
 
 
-def load_frame(csv_path: Path, order_by: str | None = None):
+def load_frame(csv_path: Path, order_by: str | None = None, target: str | None = None):
     """`load_frame` encodes X as floats and drops rows without a target, or,
     with *order_by*, without a time.
     """
-    df = _labelled(read_dataset(csv_path))
+    df = _labelled(read_dataset(csv_path, target))
     # Fitted before time filtering, to match `dataset_encoding`.
     spec = encoding.fit(df.iloc[:, :-1])
     if order_by:
@@ -139,10 +153,11 @@ def load_frame(csv_path: Path, order_by: str | None = None):
     return encoding.encode(spec, df.iloc[:, :-1]), df.iloc[:, -1].to_numpy()
 
 
-def load_forecast(csv_path: Path, time_column: str, series_column: str = ""):
+def load_forecast(csv_path: Path, time_column: str, series_column: str = "",
+                  target: str | None = None):
     """*series* is each row's series as text, or None without a series column;
     *times* is what a backtest cuts on."""
-    df = _labelled(read_dataset(csv_path))
+    df = _labelled(read_dataset(csv_path, target))
     spec = encoding.fit(df.iloc[:, :-1])
     df, times = _in_time_order(df, time_column)
     series = None
@@ -155,11 +170,11 @@ def load_forecast(csv_path: Path, time_column: str, series_column: str = ""):
 
 
 def load_splits(csv_path: Path, seed: int, test_size: float = DEFAULT_TEST_SIZE,
-                 task: str = tasks.DEFAULT):
+                task: str = tasks.DEFAULT, target: str | None = None):
     """`load_splits` stratifies classification when possible; `train_test_split`
     would treat repeated regression values as classes.
     """
-    X, y = load_frame(csv_path)
+    X, y = load_frame(csv_path, target=target)
     size = float(test_size or DEFAULT_TEST_SIZE)
     if task == tasks.CLASSIFICATION:
         try:
@@ -180,15 +195,16 @@ class Evaluation(NamedTuple):
     forecast: dict | None = None
 
 
-def load_evaluation(path: Path, evaluation: dict, seed: int, task: str) -> Evaluation:
+def load_evaluation(path: Path, evaluation: dict, seed: int, task: str,
+                    target: str | None = None) -> Evaluation:
     cv_folds, test_size = evaluation["folds"], evaluation["test_size"]
     time_column, gap = evaluation["time_column"], evaluation["gap"]
-    spec = dataset_encoding(path)
+    spec = dataset_encoding(path, target)
     if evaluation["horizon"] > 0:
         if not time_column:
             raise ValueError("a forecast needs the column its rows are ordered in time by")
         X_all, y_all, times, series = load_forecast(path, time_column,
-                                                    evaluation["series_column"])
+                                                    evaluation["series_column"], target)
         season = evaluation["season"] or forecasting.infer_season(times)
         splits = backtest(X_all, y_all, times, evaluation["horizon"], max(cv_folds, 1), gap,
                           series=series, season=season)
@@ -201,15 +217,15 @@ def load_evaluation(path: Path, evaluation: dict, seed: int, task: str) -> Evalu
     if time_column:
         # A time split is never shuffled or stratified, and the holdout's
         # arrays equal its one fold.
-        X_all, y_all = load_frame(path, order_by=time_column)
+        X_all, y_all = load_frame(path, order_by=time_column, target=target)
         splits = (time_cross_validation(X_all, y_all, cv_folds, gap) if cv_folds >= MIN_FOLDS
                   else time_holdout(X_all, y_all, test_size, gap))
         train_idx, val_idx = splits.folds[0]
         return Evaluation(X_all[train_idx], X_all[val_idx], y_all[train_idx], y_all[val_idx],
                           splits, spec)
-    X_train, X_val, y_train, y_val = load_splits(path, seed, test_size, task)
+    X_train, X_val, y_train, y_val = load_splits(path, seed, test_size, task, target)
     if cv_folds >= MIN_FOLDS:
-        X_all, y_all = load_frame(path)
+        X_all, y_all = load_frame(path, target=target)
         splits = cross_validation(X_all, y_all, cv_folds, seed, task)
     else:
         splits = holdout(X_train, y_train, X_val, y_val)

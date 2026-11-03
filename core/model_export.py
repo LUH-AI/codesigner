@@ -138,10 +138,10 @@ def _docstring(about: str) -> str:
 
 def export_model(model, *, config: dict, task: str, seed: int = 0, columns: dict | None = None,
                  plan: dict | None = None, about: str = "", forecast: dict | None = None,
-                 time_column: str = "", series_column: str = "") -> str:
+                 time_column: str = "", series_column: str = "", target: str = "") -> str:
     """*model* is a tuned built-in or a `Reduced`; *columns* comes from
     `core.encoding.fit` and *plan* from `core.processing.resolve`. The *about*
-    argument becomes the docstring.
+    argument becomes the docstring, and *target* names the column predicted.
     """
     from .forecasting import PREFIX, Reduced
 
@@ -193,6 +193,7 @@ def export_model(model, *, config: dict, task: str, seed: int = 0, columns: dict
     out.append(_literal("COLUMNS", columns if columns and not encoding.is_plain(columns) else None)
                + "\n")
     out.append(_literal("PROCESSING", dict(plan or {})) + "\n")
+    out.append(_target_line(target))
     if forecast is not None:
         out.append(_literal("FORECAST", dict(forecast)) + "\n")
         out.append(f"TIME_COLUMN = {time_column!r}\nSERIES_COLUMN = {series_column!r}\n")
@@ -251,16 +252,24 @@ class Process:
         return self.steps.transform(self._columns(frame))
 '''
 
+def _target_line(target: str) -> str:
+    return ("#: The column predicted, moved last on reading; None keeps the CSV's last.\n"
+            + _literal("TARGET", target or None) + "\n")
+
+
 _READ_CSV = '''
 def _read_csv(path):
     """A CSV read the way Codesigner read it: `;` or `,`, whichever the first
-    lines use more of."""
+    lines use more of, with TARGET moved last when the CSV has it."""
     import pandas as pd
 
     with open(path, "rb") as f:
         sample = f.read(2048).decode("utf-8", errors="replace")
     sep = ";" if sample.count(";") > sample.count(",") else ","
-    return pd.read_csv(path, sep=sep)
+    frame = pd.read_csv(path, sep=sep)
+    if TARGET is not None and TARGET in frame.columns:
+        frame = frame[[c for c in frame.columns if c != TARGET] + [TARGET]]
+    return frame
 '''
 
 RUNNER = _READ_CSV + '''
@@ -273,7 +282,8 @@ def main(argv=None):
 
     parser = argparse.ArgumentParser(description=__doc__.strip().splitlines()[0]
                                      + " Trains on the whole of TRAIN.")
-    parser.add_argument("train", help="CSV to train on; the last column is the target")
+    parser.add_argument("train", help="CSV to train on, with the target "
+                        + (repr(TARGET) if TARGET is not None else "as its last column"))
     parser.add_argument("--predict", metavar="CSV", required=True,
                         help="CSV to predict. Its last column is ignored if it has as "
                              "many columns as TRAIN (the target), used otherwise.")
@@ -356,8 +366,9 @@ def main(argv=None):
     parser = argparse.ArgumentParser(description=__doc__.strip().splitlines()[0]
                                      + " Learns from all of HISTORY and forecasts what "
                                        "comes after it.")
-    parser.add_argument("history", help="CSV of the series so far; the last column is "
-                                        "the target, " + repr(TIME_COLUMN) + " its time")
+    parser.add_argument("history", help="CSV of the series so far, with the target "
+                        + (repr(TARGET) if TARGET is not None else "as its last column")
+                        + " and " + repr(TIME_COLUMN) + " its time")
     parser.add_argument("--horizon", type=int, default=FORECAST["horizon"],
                         help="how many steps ahead to forecast (default: the tuned %(default)s)")
     parser.add_argument("--out", metavar="CSV",
@@ -430,7 +441,8 @@ def main(argv=None):
 
     parser = argparse.ArgumentParser(description=__doc__.strip().splitlines()[0]
                                      + " Trains on the whole of TRAIN.")
-    parser.add_argument("train", help="CSV to train on; the last column is the target")
+    parser.add_argument("train", help="CSV to train on, with the target "
+                        + (repr(TARGET) if TARGET is not None else "as its last column"))
     parser.add_argument("--predict", metavar="CSV", required=True,
                         help="CSV to predict. Its last column is ignored if it has as "
                              "many columns as TRAIN (the target), used otherwise.")
@@ -473,7 +485,7 @@ def _without_search_space(body: str, class_name: str) -> str:
 
 
 def export_upload(source: str, *, class_name: str, task: str, config: dict, seed: int = 0,
-                  columns: dict | None = None, about: str = "") -> str:
+                  columns: dict | None = None, about: str = "", target: str = "") -> str:
     """`export_upload` keeps the person's code as written, minus its search
     space, and adds the hyperparameters and column reading."""
     match = PEP723_BLOCK.search(source)
@@ -498,7 +510,8 @@ def export_upload(source: str, *, class_name: str, task: str, config: dict, seed
             + _literal("HYPERPARAMETERS", configuration(config)) + "\n\n\n"
             + _section("The data processing")
             + _literal("COLUMNS", columns if columns and not encoding.is_plain(columns) else None)
-            + "\n\n\n" + textwrap.dedent(inspect.getsource(encoding.encode))
+            + "\n" + _target_line(target)
+            + "\n\n" + textwrap.dedent(inspect.getsource(encoding.encode))
             + PROCESS.split("class Process:")[0]
             + "\n" + _section("Running it")
             + UPLOAD_RUNNER.replace("{cls}", class_name).replace("{task}", repr(task))

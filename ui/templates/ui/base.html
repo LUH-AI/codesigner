@@ -160,9 +160,10 @@
                            href="{% if e.draft %}{% url 'ui:setup_resume' e.pk %}{% else %}{% url 'ui:experiment_detail' e.pk %}{% endif %}">
                             {{ e.title }} {% if e.draft %}<span class="draft-badge">{% translate "Draft" %}</span>{% else %}<span class="exp-id">({{ e.identifier }})</span>{% endif %}{% if e.is_running %} <span class="spinner" title="{% translate 'Running' %}"></span>{% elif e.env_pending %} <span title="{% translate 'Preparing its environment' %}">⏳</span>{% endif %}
                         </a>
-                        {% comment %}The open experiment's three views. Only its
-                        own: every other row stays one line, and choosing it
-                        opens its dashboard.{% endcomment %}
+                        {% comment %}The open experiment's views: a created one's
+                        dashboard, Data Handling, timeline and notes; a draft's
+                        setup and notes. Only its own: every other row stays
+                        one line, and choosing it opens its dashboard.{% endcomment %}
                         {% if sidebar_open == e.pk and not e.draft %}
                             <div class="tab-list experiment-views">
                                 <a class="tab{% if sidebar_view == 'dashboard' %} active{% endif %}"
@@ -171,6 +172,15 @@
                                    href="{% url 'ui:data_overview' e.pk %}"{% if sidebar_view == 'data' %} aria-current="page"{% endif %}>{% translate "Data Handling" %}</a>
                                 <a class="tab{% if sidebar_view == 'timeline' %} active{% endif %}"
                                    href="{% url 'ui:experiment_timeline' e.pk %}"{% if sidebar_view == 'timeline' %} aria-current="page"{% endif %}>{% translate "Timeline" %}</a>
+                                <a class="tab{% if sidebar_view == 'notes' %} active{% endif %}"
+                                   href="{% url 'ui:experiment_notes' e.pk %}"{% if sidebar_view == 'notes' %} aria-current="page"{% endif %}>{% translate "Notes" %}</a>
+                            </div>
+                        {% elif sidebar_open == e.pk %}
+                            <div class="tab-list experiment-views">
+                                <a class="tab{% if sidebar_view == 'setup' %} active{% endif %}"
+                                   href="{% url 'ui:setup_resume' e.pk %}"{% if sidebar_view == 'setup' %} aria-current="page"{% endif %}>{% translate "Setup" %}</a>
+                                <a class="tab{% if sidebar_view == 'notes' %} active{% endif %}"
+                                   href="{% url 'ui:experiment_notes' e.pk %}"{% if sidebar_view == 'notes' %} aria-current="page"{% endif %}>{% translate "Notes" %}</a>
                             </div>
                         {% endif %}
                     {% empty %}
@@ -208,5 +218,28 @@
         {% endfor %}
         {% block content %}{% endblock %}
     </main>
+    {% comment %}The assistant's chats, when it is on: a tab on the bottom edge
+    at the right, which opens into them, and can pop one out into a browser
+    window of its own. On the home page, which is the general chat itself,
+    it holds only a visitor's.{% endcomment %}
+    {% block assistant_panel %}
+        {% if assistant.tabs %}
+            <div class="assistant-dock collapsed" data-assistant-dock>
+                {% include "assistant/_dock.html" %}
+            </div>
+        {% endif %}
+    {% endblock %}
+    {% comment %}What lets the assistant act on this page: it says what the page
+    is, carries out what the assistant does here, and fills a setup step from
+    the approved plan (assistant/acts.py).{% endcomment %}
+    {% if assistant %}
+        {{ assistant.fill|json_script:"assistant-fill" }}
+        <script src="{% asset 'assistant/act.js' %}" defer
+                data-page-url="{% url 'assistant:page' %}"
+                data-acts-url="{% url 'assistant:acts' %}"
+                data-acted-url="{% url 'assistant:acted' %}"
+                data-csrf="{{ csrf_token }}"
+                data-text-filled="{% translate 'Filled by the assistant' %}"></script>
+    {% endif %}
 </body>
 </html>

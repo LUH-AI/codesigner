@@ -1,4 +1,3 @@
-"""`random_forest` wraps scikit-learn's RandomForest."""
 
 from ConfigSpace import ConfigurationSpace, Float, Integer
 from codesigner_model import OutputBaseModel
@@ -7,8 +6,8 @@ from .base import Tunable
 
 
 class RandomForest(OutputBaseModel):
-    """Label columns arrive one-hot, since a split on codes would group labels
-    alphabetically."""
+    """`RandomForest` takes label columns one-hot, since splits on integer codes
+    would group labels alphabetically."""
 
     name = "Random Forest"
     tasks = ("classification", "regression")
@@ -30,6 +29,7 @@ class RandomForest(OutputBaseModel):
 
 
 class RandomForestModel(Tunable, RandomForest):
+    """`RandomForestModel` is a random forest needing no scaling."""
 
     def get_config_space(self, seed: int = 0) -> ConfigurationSpace:
         cs = ConfigurationSpace(seed=seed)

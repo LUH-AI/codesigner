@@ -10,7 +10,7 @@ from django.shortcuts import redirect
 from django.utils.translation import gettext as _
 from django.views.decorators.http import require_POST
 
-from access.policy import RUN, VIEW
+from access.policy import COMPUTE, VIEW
 from core import analytics, forecasting, io, tasks
 from core.registry import METRICS, MODELS, OPTIMIZERS
 from core import priors as prior_math
@@ -355,7 +355,7 @@ def _analytics_absent(result) -> bool:
 
 
 @require_POST
-@experiment_view(RUN)
+@experiment_view(COMPUTE)
 def experiment_compute_analytics(request, exp):
     """`experiment_compute_analytics` runs synchronously under the eager budget
     (`eager_analytics_budget_exceeded`). It writes the games back onto the

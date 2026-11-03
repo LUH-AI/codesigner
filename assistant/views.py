@@ -1,0 +1,702 @@
+"""`assistant.views` serves the page chat: `message` takes a message, and
+`events` streams what follows as server-sent events. A reconnecting browser
+sends `Last-Event-ID` and resumes after that id; each stream closes after
+`.ASSISTANT_STREAM_SECONDS`. Under WSGI (the development server) each stream
+occupies a thread. Without the stream's Accept header, `events` answers
+`?after=<id>` once as JSON.
+"""
+
+from __future__ import annotations
+
+import json
+import time
+
+from django.conf import settings
+from django.core.exceptions import PermissionDenied
+from django.http import Http404, HttpResponseBadRequest, JsonResponse, StreamingHttpResponse
+from django.views.decorators.http import require_GET, require_POST
+
+from access.policy import VIEW
+
+from ui.permissions import BOTH, resolve_experiment
+
+from . import turns
+from .models import AssistantEvent, Conversation
+
+#: `MAX_MESSAGE` caps a message, in characters.
+MAX_MESSAGE = 4000
+POLL_SECONDS = 0.3
+#: `KEEP_ALIVE_SECONDS` spaces an idle stream's keep-alive comments.
+KEEP_ALIVE_SECONDS = 15.0
+#: `REPLAY` caps the events a page replays on opening.
+REPLAY = 300
+
+
+def on_for(request) -> bool:
+    """`on_for` checks both the instance switch and the person's own (Settings →
+    Appearance)."""
+    from ui.times import assistant_on
+
+    return settings.ASSISTANT_ENABLED and assistant_on(request.user)
+
+
+def _enabled(request):
+    if not on_for(request):
+        raise Http404
+
+
+def _owner(request):
+    user = request.user
+    return user if user.is_authenticated else None
+
+
+def conversations_of(request):
+    """`conversations_of` returns the person's conversations, or every ownerless
+    one."""
+    return Conversation.objects.filter(owner=_owner(request))
+
+
+def conversation_for_page(request, experiment_id=None):
+    """With *experiment_id*, `conversation_for_page` returns that experiment's
+    newest conversation, and otherwise the newest planning one."""
+    found = conversations_of(request)
+    if experiment_id is not None:
+        found = found.filter(experiment_id=experiment_id)
+    else:
+        found = found.filter(phase=Conversation.PLANNING)
+    return found.order_by("-updated_at").first()
+
+
+#: `VISITOR` is another experiment's chat that brought the person here and
+#: offers Return.
+GENERAL, OWN, VISITOR = "general", "experiment", "visitor"
+
+
+def chats_context(request, experiment_id=None, url_name="") -> dict:
+    """`general` is the general chat, shown full-page on the home page. `tabs`
+    are the dock's tabs in order, minus the general chat on the home page.
+    `active` is the last busy tab, else the last tab, and `fill` comes from the
+    page's own chat's plan."""
+    own_conversation = None
+    general = _tab(request, GENERAL, conversation_for_page(request))
+    tabs = [] if url_name == "ui:home" else [general]
+    if experiment_id is not None:
+        own_conversation = _moved_on(conversation_for_page(request, experiment_id))
+        tabs.append(_tab(request, OWN, own_conversation, experiment_id))
+    visitor = _visitor(request, experiment_id)
+    if visitor is not None:
+        tabs.append(visitor)
+    acting = [tab for tab in tabs if tab["busy"]] or tabs
+    return {"general": general, "tabs": tabs,
+            "active": acting[-1]["key"] if acting else GENERAL,
+            "fill": _fill(own_conversation, url_name) if request.method == "GET" else []}
+
+
+def _tab(request, key, conversation, experiment_id=None, return_path="") -> dict:
+    """`_tab` describes one chat's tab: its conversation, where its replay
+    starts, and its experiment. A planning tab also carries the dataset, demos
+    and groups."""
+    from experiments.models import Experiment
+
+    if conversation is not None:
+        experiment_id = conversation.experiment_id
+    caption = ""
+    if experiment_id is not None:
+        exp = Experiment.objects.filter(pk=experiment_id).first()
+        caption = exp.title if exp else ""
+    planning = experiment_id is None and (conversation is None
+                                          or conversation.phase == Conversation.PLANNING)
+    out = {
+        "key": key,
+        "caption": caption,
+        "visiting": key == VISITOR,
+        "return_path": return_path,
+        "conversation": conversation.pk if conversation else "",
+        "experiment": experiment_id or "",
+        "after": replay_from(conversation),
+        "live_after": (conversation.events.order_by("-id").values_list("id", flat=True).first()
+                       if conversation else None) or 0,
+        "busy": bool(conversation and turns.busy(conversation)),
+        "started": bool(conversation and conversation.events.filter(kind="user").exists()),
+        "planning": planning,
+    }
+    if planning:
+        from access.policy import groups_to_choose_from
+        from core.datasets import demo_datasets
+
+        out["dataset"] = conversation.dataset_name if conversation else ""
+        out["dataset_is_demo"] = bool(conversation and conversation.demo_dataset)
+        out["dataset_upload"] = conversation.dataset_name if conversation and conversation.dataset else ""
+        out["demos"] = sorted(demo_datasets())
+        out["groups"] = [(g.pk, g.name) for g in groups_to_choose_from(request.user)]
+    return out
+
+
+def _visitor(request, experiment_id):
+    """`_visitor` returns the visitor's tab or None. The visit ends on the
+    visitor's experiment or once the person loses the chat."""
+    from .models import BrowserPage
+
+    if not request.session.session_key:
+        return None
+    page = BrowserPage.objects.filter(browser=request.session.session_key,
+                                      visitor__isnull=False).first()
+    if page is None:
+        return None
+    visitor = conversations_of(request).filter(pk=page.visitor_id).first()
+    if visitor is None or visitor.experiment_id in (None, experiment_id):
+        end_visit(page.browser)
+        return None
+    return _tab(request, VISITOR, visitor, return_path=page.return_path or home_of(visitor))
+
+
+def end_visit(browser: str) -> None:
+    from .models import BrowserPage
+
+    BrowserPage.objects.filter(browser=browser).update(visitor=None, return_path="")
+
+
+def home_of(conversation) -> str:
+    """`home_of` returns a draft's setup page and otherwise the experiment
+    dashboard."""
+    from django.urls import reverse
+
+    from ui import setup_steps as steps
+
+    exp = conversation.experiment
+    if exp is None:
+        return reverse("ui:home")
+    return steps.url(exp, steps.SETUP) if exp.draft else reverse("ui:experiment_detail",
+                                                                 args=[exp.pk])
+
+
+def _fill(conversation, url_name) -> list:
+    """`_fill` fills a setup step until saved, since then the values are the
+    person's, and the run form until the first run."""
+    from ui import setup_steps as steps
+
+    from .plan import RUN, fill_for
+    from .tools.client import FILLABLE
+
+    if conversation is None or not conversation.plan or conversation.experiment is None:
+        return []
+    exp = conversation.experiment
+    step = FILLABLE.get(url_name)
+    if step is not None:
+        if conversation.phase != Conversation.SETUP or not exp.draft or steps.saved(exp, step):
+            return []
+        return fill_for(conversation.plan, step)
+    if url_name == "ui:experiment_detail" and not exp.draft and not exp.runs.exists():
+        return fill_for(conversation.plan, RUN)
+    return []
+
+
+def _moved_on(conversation):
+    if (conversation is not None and conversation.phase == Conversation.SETUP
+            and conversation.experiment is not None and not conversation.experiment.draft):
+        conversation.phase = Conversation.DASHBOARD
+        conversation.save(update_fields=["phase"])
+    return conversation
+
+
+def replay_from(conversation) -> int:
+    if conversation is None:
+        return 0
+    ids = list(conversation.events.order_by("-id").values_list("id", flat=True)[:REPLAY])
+    return ids[-1] - 1 if ids else 0
+
+
+@require_POST
+def message(request):
+    """`message` starts a turn in *conversation*, or a new one, and answers 409
+    while busy."""
+    _enabled(request)
+    text = (request.POST.get("text") or "").strip()
+    if not text:
+        return HttpResponseBadRequest("nothing said")
+    if len(text) > MAX_MESSAGE:
+        return HttpResponseBadRequest("too long")
+
+    conversation = _conversation(request)
+    if conversation is None:
+        experiment = None
+        if request.POST.get("experiment"):
+            try:
+                experiment = resolve_experiment(request, _int(request.POST["experiment"]),
+                                                VIEW, BOTH)
+            except PermissionDenied:
+                raise Http404
+        conversation = _new_conversation(request, experiment)
+
+    note_browser(request, conversation)
+    after = conversation.events.order_by("-id").values_list("id", flat=True).first() or 0
+    if not turns.start(conversation, text):
+        return JsonResponse({"conversation": conversation.pk, "busy": True}, status=409)
+    return JsonResponse({"conversation": conversation.pk, "after": after})
+
+
+@require_POST
+def dataset(request):
+    """`dataset` keeps the planning dataset, a demo or an upload, on the
+    conversation after `.check_dataset`; `approve` makes the draft later. With
+    `clear`, `dataset` drops the dataset. A conversation past planning gets a
+    400."""
+    from ui import drafts
+
+    from .loop import emit
+
+    _enabled(request)
+    conversation = _conversation(request) or _new_conversation(request)
+    if conversation.phase != Conversation.PLANNING:
+        return JsonResponse({"error": "This conversation's plan is approved."}, status=400)
+    if request.POST.get("clear"):
+        conversation.forget_dataset()
+        conversation.save()
+        emit(conversation, "dataset", name="", demo=False)
+        return JsonResponse({"conversation": conversation.pk, "dataset": ""})
+    upload = request.FILES.get("dataset_file")
+    stem, refusal = drafts.check_dataset(request.POST.get("demo") or "", upload)
+    if not refusal:
+        group = request.POST.get("group")
+        chosen, refusal = drafts.check_group(request, _int(group) if group else None)
+    if refusal:
+        return JsonResponse({"conversation": conversation.pk, "error": refusal}, status=400)
+    conversation.forget_dataset()
+    conversation.demo_dataset = stem
+    if not stem:
+        conversation.dataset_filename = upload.name.rsplit("/", 1)[-1]
+        conversation.dataset.save(conversation.dataset_filename, upload, save=False)
+    conversation.group = chosen
+    conversation.save()
+    emit(conversation, "dataset", name=conversation.dataset_name, demo=bool(stem))
+    return JsonResponse({"conversation": conversation.pk, "dataset": conversation.dataset_name})
+
+
+@require_POST
+def approve(request):
+    """`approve` checks the plan against the setup forms, then makes the
+    person's draft and stages the dataset on it as setup step 1 would. The
+    conversation moves to the setup phase. No tool reaches `approve`."""
+    from django.core.files import File
+
+    from ui import drafts
+
+    from experiments.services import storage
+    from ui import setup_steps as steps
+
+    from . import plan as plans
+    from .loop import emit
+
+    _enabled(request)
+    conversation = _conversation(request)
+    if conversation is None:
+        raise Http404
+    if conversation.phase != Conversation.PLANNING:
+        return JsonResponse({"problems": ["There is no plan to approve."]}, status=400)
+    if turns.busy(conversation):
+        return JsonResponse({"problems": ["The assistant is still answering."]}, status=409)
+    found = plans.problems(conversation.plan, request, conversation.dataset_path(),
+                           conversation.group_id)
+    if found:
+        return JsonResponse({"problems": found}, status=400)
+
+    exp = drafts.new(request)
+    if conversation.dataset:
+        with conversation.dataset.open("rb") as handle:
+            outcome = drafts.stage_dataset(request, exp, upload=File(handle, name=conversation.dataset_name),
+                                           group=conversation.group_id)
+    else:
+        outcome = drafts.stage_dataset(request, exp, demo=conversation.demo_dataset,
+                                       group=conversation.group_id)
+    if not outcome.saved:
+        if not outcome.gone:
+            storage.delete_experiment_files(exp)
+        return JsonResponse({"problems": [outcome.refusal]
+                             + [text for _, text in outcome.notices if text]}, status=400)
+    budget = (conversation.plan.get("stopping") or {}).get("max_trials")
+    if budget:
+        exp.data.trial_budget = int(budget)
+        exp.data.save(update_fields=["trial_budget"])
+    conversation.forget_dataset()
+    conversation.experiment = exp
+    conversation.phase = Conversation.SETUP
+    conversation.browser = browser_of(request)
+    conversation.save()
+    url = steps.url(exp, steps.SETUP)
+    emit(conversation, "approved", url=url)
+    return JsonResponse({"url": url})
+
+
+@require_POST
+def reset(request):
+    """`reset` deletes a planning chat and its dataset. `reset` replaces a chat
+    about an experiment with an empty one of the same stage and plan, so the
+    setup forms stay filled. The experiment, its notes and the `.AgentAction`
+    records stay."""
+    from .models import BrowserPage
+
+    _enabled(request)
+    conversation = _conversation(request)
+    if conversation is None:
+        return JsonResponse({"reset": True})
+    if turns.busy(conversation):
+        return JsonResponse({"error": "The assistant is still answering."}, status=409)
+    if conversation.phase == Conversation.PLANNING:
+        conversation.forget_dataset()
+        conversation.delete()
+        return JsonResponse({"reset": True})
+    fresh = Conversation.objects.create(
+        owner_id=conversation.owner_id, session_key=conversation.session_key,
+        browser=conversation.browser, experiment_id=conversation.experiment_id,
+        phase=conversation.phase, plan=conversation.plan, group_id=conversation.group_id,
+        data_brief=conversation.data_brief)
+    BrowserPage.objects.filter(visitor=conversation).update(visitor=fresh)
+    conversation.delete()
+    return JsonResponse({"reset": True, "conversation": fresh.pk})
+
+
+@require_POST
+def back(request):
+    from .models import BrowserPage
+
+    _enabled(request)
+    page = BrowserPage.objects.filter(browser=browser_of(request)).first()
+    visitor = (conversations_of(request).filter(pk=page.visitor_id).first()
+               if page is not None and page.visitor_id else None)
+    if visitor is None:
+        return JsonResponse({"url": ""})
+    url = page.return_path or home_of(visitor)
+    end_visit(page.browser)
+    return JsonResponse({"url": url})
+
+
+@require_GET
+def window(request):
+    """`window` pops the chat out into its own window: *conversation*, else
+    *experiment*'s, else the general one."""
+    from django.shortcuts import render
+
+    _enabled(request)
+    if request.GET.get("conversation"):
+        conversation = conversations_of(request).filter(
+            pk=_int(request.GET["conversation"])).first()
+        if conversation is None:
+            raise Http404
+        key = GENERAL if conversation.experiment_id is None else OWN
+        chat = _tab(request, key, conversation)
+    elif request.GET.get("experiment"):
+        try:
+            experiment_id = resolve_experiment(request, _int(request.GET["experiment"]),
+                                               VIEW, BOTH).pk
+        except PermissionDenied:
+            raise Http404
+        chat = _tab(request, OWN, _moved_on(conversation_for_page(request, experiment_id)),
+                    experiment_id)
+    else:
+        chat = _tab(request, GENERAL, conversation_for_page(request))
+    return render(request, "assistant/window.html", {"chat": chat})
+
+
+def browser_of(request) -> str:
+    if not request.session.session_key:
+        request.session.save()
+    return request.session.session_key
+
+
+def note_browser(request, conversation) -> None:
+    browser = browser_of(request)
+    if conversation.browser != browser:
+        conversation.browser = browser
+        conversation.save(update_fields=["browser"])
+
+
+def _conversation(request):
+    """`_conversation` returns the POST's conversation or None, and raises
+    `.Http404` for another person's."""
+    if not request.POST.get("conversation"):
+        return None
+    found = conversations_of(request).filter(pk=_int(request.POST["conversation"])).first()
+    if found is None:
+        raise Http404
+    return found
+
+
+def _new_conversation(request, experiment=None):
+    """`_new_conversation` picks the setup or dashboard phase for *experiment*,
+    else planning."""
+    if settings.REQUIRE_LOGIN and not request.session.session_key:
+        request.session.save()
+    phase = Conversation.PLANNING
+    if experiment is not None:
+        phase = Conversation.SETUP if experiment.draft else Conversation.DASHBOARD
+    return Conversation.objects.create(
+        owner=_owner(request), experiment=experiment, phase=phase,
+        session_key=(request.session.session_key or "") if settings.REQUIRE_LOGIN else "")
+
+
+@require_GET
+def events(request, pk):
+    _enabled(request)
+    conversation = conversations_of(request).filter(pk=pk).first()
+    if conversation is None:
+        raise Http404
+    after = _int(request.headers.get("Last-Event-ID") or request.GET.get("after") or 0)
+    if "text/event-stream" not in request.headers.get("Accept", ""):
+        found = AssistantEvent.objects.filter(conversation_id=pk, id__gt=after)[:REPLAY]
+        return JsonResponse({"events": [_as_dict(e) for e in found],
+                             "busy": turns.busy(conversation)})
+
+    from django.core.handlers.asgi import ASGIRequest
+
+    stream = _async_stream if isinstance(request, ASGIRequest) else _sync_stream
+    response = StreamingHttpResponse(stream(pk, after), content_type="text/event-stream")
+    response["Cache-Control"] = "no-cache"
+    response["X-Accel-Buffering"] = "no"
+    return response
+
+
+def _sync_stream(pk, after):
+    from django.db import close_old_connections
+
+    yield "retry: 1000\n\n"
+    last, until, quiet = after, time.monotonic() + settings.ASSISTANT_STREAM_SECONDS, time.monotonic()
+    while time.monotonic() < until:
+        found = list(AssistantEvent.objects.filter(conversation_id=pk, id__gt=last)[:REPLAY])
+        for event in found:
+            last = event.id
+            yield _frame(event)
+        if found:
+            quiet = time.monotonic()
+        elif time.monotonic() - quiet > KEEP_ALIVE_SECONDS:
+            quiet = time.monotonic()
+            yield ": still here\n\n"
+        close_old_connections()
+        time.sleep(POLL_SECONDS)
+
+
+async def _async_stream(pk, after):
+    import asyncio
+
+    from asgiref.sync import sync_to_async
+
+    def fetch(last):
+        return list(AssistantEvent.objects.filter(conversation_id=pk, id__gt=last)[:REPLAY])
+
+    yield "retry: 1000\n\n"
+    last, until, quiet = after, time.monotonic() + settings.ASSISTANT_STREAM_SECONDS, time.monotonic()
+    while time.monotonic() < until:
+        found = await sync_to_async(fetch)(last)
+        for event in found:
+            last = event.id
+            yield _frame(event)
+        if found:
+            quiet = time.monotonic()
+        elif time.monotonic() - quiet > KEEP_ALIVE_SECONDS:
+            quiet = time.monotonic()
+            yield ": still here\n\n"
+        await asyncio.sleep(POLL_SECONDS)
+
+
+def _frame(event) -> str:
+    return f"id: {event.id}\nevent: {event.kind}\ndata: {json.dumps(event.payload)}\n\n"
+
+
+def _as_dict(event) -> dict:
+    return {"id": event.id, "kind": event.kind, "payload": event.payload}
+
+
+def _int(value) -> int:
+    try:
+        return int(value)
+    except (TypeError, ValueError):
+        raise Http404
+
+
+#: `PAGE_ITEMS` caps a page report's fields and named elements.
+PAGE_ITEMS = 300
+#: `PAGE_VALUE` caps each reported field value.
+PAGE_VALUE = 500
+
+
+@require_POST
+def page(request):
+    """`page` stores what the open page reports: its path, title, fields and
+    named elements (`.acts`). Pages send the report as JSON on opening and on
+    reuse."""
+    import json as _json
+
+    from django.urls import Resolver404, resolve
+    from django.utils import timezone
+
+    from .models import BrowserPage
+
+    _enabled(request)
+    try:
+        report = _json.loads(request.body or b"{}")
+    except ValueError:
+        return HttpResponseBadRequest("not JSON")
+    if not isinstance(report, dict):
+        return HttpResponseBadRequest("not an object")
+    path = str(report.get("path") or "")[:500]
+    url_name, experiment_id = "", None
+    try:
+        match = resolve(path)
+        url_name = match.view_name
+        if getattr(match.func, "experiment_action", None):
+            experiment_id = match.kwargs.get("pk")
+    except Resolver404:
+        pass
+    BrowserPage.objects.update_or_create(
+        browser=browser_of(request),
+        defaults={"path": path, "url_name": url_name, "experiment_id": experiment_id,
+                  "title": str(report.get("title") or "")[:300],
+                  "fields": _clipped(report.get("fields")),
+                  "targets": _clipped(report.get("targets")),
+                  "view": _view(report.get("view")),
+                  "reported_at": timezone.now(), "seen_at": timezone.now()})
+    return JsonResponse({"ok": True})
+
+
+def _clipped(items) -> list:
+    out = []
+    for item in (items if isinstance(items, list) else [])[:PAGE_ITEMS]:
+        if not isinstance(item, dict):
+            continue
+        kept = {}
+        for key, value in item.items():
+            if key == "options" and isinstance(value, list):
+                kept[key] = [[str(v)[:PAGE_VALUE] for v in (o if isinstance(o, list) else [o])][:2]
+                             for o in value[:PAGE_ITEMS]]
+            elif isinstance(value, (bool, int, float)) or value is None:
+                kept[str(key)[:50]] = value
+            else:
+                kept[str(key)[:50]] = str(value)[:PAGE_VALUE]
+        out.append(kept)
+    return out
+
+
+def _view(view) -> dict:
+    """`_view` keeps figure tabs and trials table fields `.BrowserPage.view`
+    names, plain and bounded."""
+    if not isinstance(view, dict):
+        return {}
+
+    def text(value):
+        return None if value is None else str(value)[:PAGE_VALUE]
+
+    def figures(items):
+        return [{"key": text(f.get("key")), "label": text(f.get("label")),
+                 **({"home": bool(f["home"])} if "home" in f else {})}
+                for f in (items if isinstance(items, list) else [])[:PAGE_ITEMS]
+                if isinstance(f, dict) and f.get("key")]
+
+    out = {"tab": text(view.get("tab")),
+           "tabs": [{"name": text(t.get("name")), "label": text(t.get("label")),
+                     "figures": figures(t.get("figures"))}
+                    for t in (view.get("tabs") if isinstance(view.get("tabs"), list) else [])[:20]
+                    if isinstance(t, dict) and t.get("name")],
+           "outside_tabs": figures(view.get("outside_tabs"))}
+    selected = view.get("selected_trial")
+    if isinstance(selected, int) and not isinstance(selected, bool):
+        out["selected_trial"] = selected
+    trials = view.get("trials")
+    if isinstance(trials, dict):
+        kept = {k: trials.get(k) for k in ("count", "first", "last")}
+        if all(isinstance(v, int) and not isinstance(v, bool) for v in kept.values()):
+            out["trials"] = kept
+    return out
+
+
+@require_GET
+def acts(request):
+    """`acts` streams the browser's pending actions, then each new one, as
+    server-sent events."""
+    _enabled(request)
+    browser = browser_of(request)
+    from django.core.handlers.asgi import ASGIRequest
+
+    stream = _async_acts if isinstance(request, ASGIRequest) else _sync_acts
+    response = StreamingHttpResponse(stream(browser), content_type="text/event-stream")
+    response["Cache-Control"] = "no-cache"
+    response["X-Accel-Buffering"] = "no"
+    return response
+
+
+#: `SEEN_SECONDS` spaces the acts stream's `seen_at` updates.
+SEEN_SECONDS = 10.0
+
+
+def _act_frame(act) -> str:
+    data = {"id": act.id, "kind": act.kind, "args": act.args, "path": act.path}
+    return f"id: {act.id}\nevent: act\ndata: {json.dumps(data)}\n\n"
+
+
+def _touch(browser) -> None:
+    from django.utils import timezone
+
+    from .models import BrowserPage
+
+    BrowserPage.objects.filter(browser=browser).update(seen_at=timezone.now())
+
+
+def _sync_acts(browser):
+    from django.db import close_old_connections
+
+    from . import acts as client
+
+    yield "retry: 1000\n\n"
+    sent, until = set(), time.monotonic() + settings.ASSISTANT_STREAM_SECONDS
+    quiet = seen = 0.0
+    while time.monotonic() < until:
+        for act in client.pending(browser).exclude(id__in=sent):
+            sent.add(act.id)
+            yield _act_frame(act)
+        now = time.monotonic()
+        if now - seen > SEEN_SECONDS:
+            seen = now
+            _touch(browser)
+        if now - quiet > KEEP_ALIVE_SECONDS:
+            quiet = now
+            yield ": still here\n\n"
+        close_old_connections()
+        time.sleep(POLL_SECONDS)
+
+
+async def _async_acts(browser):
+    import asyncio
+
+    from asgiref.sync import sync_to_async
+
+    from . import acts as client
+
+    def fetch(sent):
+        return list(client.pending(browser).exclude(id__in=sent))
+
+    yield "retry: 1000\n\n"
+    sent, until = set(), time.monotonic() + settings.ASSISTANT_STREAM_SECONDS
+    quiet = seen = 0.0
+    while time.monotonic() < until:
+        for act in await sync_to_async(fetch)(set(sent)):
+            sent.add(act.id)
+            yield _act_frame(act)
+        now = time.monotonic()
+        if now - seen > SEEN_SECONDS:
+            seen = now
+            await sync_to_async(_touch)(browser)
+        if now - quiet > KEEP_ALIVE_SECONDS:
+            quiet = now
+            yield ": still here\n\n"
+        await asyncio.sleep(POLL_SECONDS)
+
+
+@require_POST
+def acted(request):
+    """`acted` records how a page's action went."""
+    from .models import ClientAct
+
+    _enabled(request)
+    status = ClientAct.DONE if request.POST.get("ok") == "1" else ClientAct.FAILED
+    ClientAct.objects.filter(pk=_int(request.POST.get("act")), browser=browser_of(request),
+                             status=ClientAct.PENDING).update(
+        status=status, detail=(request.POST.get("detail") or "")[:1000])
+    return JsonResponse({"ok": True})

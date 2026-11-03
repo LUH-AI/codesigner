@@ -7,27 +7,23 @@ from smac.initial_design import (
 
 from ..base import OptimizerParam
 
-#: Each facade bundles a surrogate, acquisition function, maximizer and encoder
-#: chosen to work together.
+#: Each facade brings a matched surrogate and acquisition setup.
 STRATEGIES = {
     "gp": BlackBoxFacade,
     "rf": HyperparameterOptimizationFacade,
 }
 
-#: The `mcmc` fit draws kernel hyperparameters as an ensemble, which is better
-#: calibrated and about ten times slower than the single likelihood fit of
-#: `vanilla`.
+#: `mcmc` draws an ensemble of kernel hyperparameters; `vanilla` fits one set by
+#: maximum likelihood.
 GP_MODELS = ("vanilla", "mcmc")
 
-#: `INITIAL_POINTS` names the form group for the two initial-design caps and the
-#: choice of the binding cap, since all three set how many starting points SMAC
-#: samples.
+#: `INITIAL_POINTS` names the form group of the settings that size the initial
+#: design.
 INITIAL_POINTS = "initial_points"
 
 
-#: A Sobol or seeded random draw is a sequence, and a resumed run asking for
-#: more points gets the old ones plus the rest. A Latin hypercube shifts every
-#: point when `n` changes, so a resume under it keeps its size.
+#: A Sobol or seeded random draw extends on resume, while a Latin hypercube
+#: shifts every point when `n` changes.
 EXTENDABLE_DESIGNS = frozenset({"sobol", "random", "default_only"})
 
 INITIAL_DESIGNS = {
@@ -38,9 +34,8 @@ INITIAL_DESIGNS = {
 }
 
 
-#: `FACADE_DEFAULTS` reads each blank setting's default from the installed SMAC
-#: facade signature, which keeps the export current. The `rf_` entries resolve
-#: only under `rf`, and `signature_default` returns None otherwise.
+#: `FACADE_DEFAULTS` maps blank settings to SMAC facade signature defaults;
+#: `rf_` entries only resolve under `rf`.
 FACADE_DEFAULTS = {
     "random_probability": ("get_random_design", "probability"),
     "challengers": ("get_acquisition_maximizer", "challengers"),
@@ -55,7 +50,6 @@ FACADE_DEFAULTS = {
 
 
 def signature_default(function, argument) -> Any:
-    """`signature_default` looks up the default of *argument*, or None."""
     import inspect
 
     parameter = inspect.signature(function).parameters.get(argument)
@@ -67,8 +61,8 @@ def signature_default(function, argument) -> Any:
 PARAMS_SCHEMA = [
     OptimizerParam("search_strategy", "Search strategy", "select", "gp",
                    choices=["gp", "rf"]),
-    # SMAC takes the smaller of a budget share and a count, and both caps
-    # can be switched off or swapped to the larger (see `_initial_points`).
+    # SMAC takes the smaller of the share and trial caps (see
+    # `.initial_points`).
     OptimizerParam("use_share_cap", "Use share cap", "bool", True,
                    group=INITIAL_POINTS),
     OptimizerParam("share_cap", "Share cap", "float", None,
@@ -101,9 +95,8 @@ PARAMS_SCHEMA = [
     OptimizerParam("retrain_after", "Refit interval", "int",
                    None, min=1, max=100, advanced=True),
 
-    # Every surrogate setting carries the `rf_` prefix and a "surrogate"
-    # label, because the Random Forest model's own `max_depth` and
-    # `min_samples_split` can be on screen at once.
+    # Surrogate settings carry the `rf_` prefix, since a Random Forest model has
+    # its own `max_depth`.
     OptimizerParam("rf_trees", "Surrogate trees", "int", None,
                    min=2, max=1_000, advanced=True,
                    depends_on=("search_strategy", "rf")),
@@ -116,7 +109,6 @@ PARAMS_SCHEMA = [
     OptimizerParam("rf_min_samples_leaf", "Surrogate leaf size", "int", None,
                    min=1, max=100, advanced=True,
                    depends_on=("search_strategy", "rf")),
-    # Above 1.0 SMAC computes `max_features = 0`.
     OptimizerParam("rf_feature_ratio", "Surrogate feature ratio", "float",
                    None, min=0.05, max=1.0, advanced=True,
                    depends_on=("search_strategy", "rf")),
@@ -134,3 +126,10 @@ PARAMS_SCHEMA = [
                    True, advanced=True,
                    depends_on=("search_strategy", "gp")),
 ]
+
+#: `RUN_SAFE` names the settings that a later run may change without
+#: invalidating earlier trials, since they only steer the next configuration.
+RUN_SAFE = frozenset({
+    "random_probability", "acquisition", "acquisition_xi",
+    "use_share_cap", "share_cap", "use_trial_cap", "trial_cap", "initial_points_use_max",
+})

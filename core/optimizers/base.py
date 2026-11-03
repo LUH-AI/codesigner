@@ -14,70 +14,61 @@ from .trial import evaluate_trial
 
 @dataclass
 class OptimizerParam:
-    """`label` is an English fallback because `core` has no Django for
-    translation, and `ui` supplies translated labels keyed by `name`. A
-    `default` of None keeps the component's own default, and the form shows an
-    empty field. `depends_on` hides a setting unless another parameter has a
-    given value, keeping the stored value, while `enabled_by` greys a setting
-    out until its boolean parameters are on. `group` places related settings in
-    one block the form lays out.
+    """`label` is an English fallback, since `core` has no Django; `ui`
+    translates labels keyed by `name`. `depends_on` hides a setting unless
+    another parameter has a given value, and `enabled_by` greys it out until its
+    boolean parameters are on.
     """
     name: str                               # `__init__` kwarg
     label: str
     type: str                               # `int`/`float`/`bool`/`select`
     default: Any
-    min: Any = None                         # int/float lower bound
-    max: Any = None                         # int/float upper bound
-    choices: List[Any] = field(default_factory=list)  # select options
-    advanced: bool = False                  # hidden by default
-    depends_on: Optional[tuple] = None      # (parameter, required value)
-    enabled_by: tuple = ()                  # required boolean parameters
-    group: str = ""                         # named form block
+    min: Any = None                         # lower bound
+    max: Any = None                         # upper bound
+    choices: List[Any] = field(default_factory=list)
+    advanced: bool = False                  # collapsed initially
+    depends_on: Optional[tuple] = None      # (parameter, value)
+    enabled_by: tuple = ()                  # boolean parameters
+    group: str = ""                         # form block
 
 
 @dataclass
 class TrialResult:
     trial: int
     config: Dict[str, Any]
-    scores: Dict[str, float]    # per-metric scores
-    score: float                # primary metric score
+    scores: Dict[str, float]
+    score: float                # primary metric
     incumbent_score: float
     incumbent_config: Dict[str, Any]
-    run_info: Dict[str, Any] = field(default_factory=dict)  # SMAC runhistory fields
-    #: `origin` records how the configuration arose, kept outside `run_info`
-    #: because SMAC stores origins in a separate map beside its runhistory
-    #: entries. An empty string means the origin went unrecorded.
+    run_info: Dict[str, Any] = field(default_factory=dict)  # runhistory fields
+    #: `origin` stays outside `run_info`, matching SMAC's separate origin map.
     origin: str = ""
 
     @property
     def duration(self) -> float:
-        """`duration` is wall-clock seconds, or 0.0."""
+        """`duration` is wall-clock seconds."""
         return self.run_info.get("time") or 0.0
 
     @property
     def failed(self) -> bool:
-        """`failed` tells a bad trial from a failed one, since a failed trial
-        still carries `null_scores` that figures read as a score. A missing
-        status means success.
+        """A failed trial carries `null_scores` that figures read as scores, so
+        `failed` marks it.
         """
         return self.run_info.get("status", STATUS_SUCCESS) != STATUS_SUCCESS
 
     @property
     def failure(self) -> str:
-        """`failure` gives the one-line reason, if any."""
         return (self.run_info.get("additional_info") or {}).get("error", "")
 
     @property
     def traceback(self) -> str:
-        """`traceback` is empty for a success, an older failure, or one stripped
-        on export.
+        """`traceback` is empty for successes, older failures and stripped
+        exports.
         """
         return (self.run_info.get("additional_info") or {}).get("traceback", "")
 
 
-#: `HP_GAME_FIELDS` maps each HyperSHAP game (see `core.analytics.HP_GAMES`) to
-#: its four result fields, in the page's selector order. Tunability's field
-#: names omit the game because every `.ihpo` already stores them.
+#: Tunability's field names omit the game, as every `.ihpo` stores them.
 HP_GAME_FIELDS = {
     "tunability": {
         "importance": "hyperparameter_importance",
@@ -85,7 +76,6 @@ HP_GAME_FIELDS = {
         "interactions": "hyperparameter_interactions",
         "moebius": "hyperparameter_moebius",
     },
-    # Mistunability mirrors tunability, so the two read as a pair.
     "mistunability": {
         "importance": "hyperparameter_mistunability",
         "warning": "hyperparameter_mistunability_warning",
@@ -103,7 +93,6 @@ HP_GAME_FIELDS = {
 
 @dataclass
 class OptimizationResult:
-    """`OptimizationResult` stores a run's results."""
 
     trials: List[TrialResult]
     primary_metric: str
@@ -111,47 +100,39 @@ class OptimizationResult:
     best_score: Optional[float]
     hyperparameter_importance: Dict[str, Dict[str, float]]
     hyperparameter_importance_warning: Dict[str, Optional[str]]
-    trials_limit: Optional[int] = None    # None means unlimited (finite spaces set it)
+    trials_limit: Optional[int] = None    # None means unlimited
     metadata: Dict[str, Any] = field(default_factory=dict)
-    #: Older results still deserialize because the sensitivity and mistunability
-    #: fields have empty defaults.
+    #: Empty defaults let older results deserialize.
     hyperparameter_sensitivity: Dict[str, Dict[str, float]] = field(default_factory=dict)
     hyperparameter_sensitivity_warning: Dict[str, Optional[str]] = field(default_factory=dict)
     hyperparameter_mistunability: Dict[str, Dict[str, float]] = field(default_factory=dict)
     hyperparameter_mistunability_warning: Dict[str, Optional[str]] = field(default_factory=dict)
-    #: `hyperparameter_interactions` stores symmetric order-2 values as `metric →
-    #: {hp_a: {hp_b: value}}`, with each order-1 value on the diagonal.
+    #: `hyperparameter_interactions` stores symmetric order-2 values with
+    #: order-1 values on the diagonal.
     hyperparameter_interactions: Dict[str, Dict[str, Dict[str, float]]] = field(default_factory=dict)
     hyperparameter_interactions_warning: Dict[str, Optional[str]] = field(default_factory=dict)
-    #: `hyperparameter_moebius` stores the full Möbius decomposition, one term per
-    #: coalition, for views that need terms above order 2. The FSII grid above
-    #: stays separate (see `core.analytics.compute_hp_game`).
+    #: `hyperparameter_moebius` stores one Möbius term per coalition, for views
+    #: needing terms above order 2.
     hyperparameter_moebius: Dict[str, list] = field(default_factory=dict)
-    #: The other games' interactions and Möbius terms come from the same call,
-    #: named per game like the importance fields.
     hyperparameter_sensitivity_interactions: Dict[str, Dict[str, Dict[str, float]]] = field(default_factory=dict)
     hyperparameter_sensitivity_moebius: Dict[str, list] = field(default_factory=dict)
     hyperparameter_mistunability_interactions: Dict[str, Dict[str, Dict[str, float]]] = field(default_factory=dict)
     hyperparameter_mistunability_moebius: Dict[str, list] = field(default_factory=dict)
-    #: `hyperparameter_tunability_total` is the sum of raw order-1 magnitudes per
-    #: metric, which gives a share its scale in metric units. One float per
-    #: metric is enough, because each value equals its share times the total.
+    #: `hyperparameter_tunability_total` sums the raw order-1 magnitudes, and a
+    #: share times it gives metric units.
     hyperparameter_tunability_total: Dict[str, float] = field(default_factory=dict)
-    #: `declared_metrics` stores metrics that an imported run declares and the
-    #: running build's registry lacks, and it stays empty for local runs. Two
-    #: open experiments can define "cost" differently because the metrics live
-    #: in a field instead of a global.
+    #: `declared_metrics` stores the metrics that an imported run declares and
+    #: the registry lacks. Two experiments can then define "cost" differently.
     declared_metrics: Dict[str, Any] = field(default_factory=dict)
 
     def metric(self, name: str):
-        """Unknown metrics fall back to higher-is-better on [0, 1], which older
-        files assumed.
+        """Unknown metrics fall back to higher-is-better on [0, 1].
         """
         return self.declared_metrics.get(name) or metric_for(name)
 
     def _derived(self) -> Dict[tuple, Any]:
-        """The memo is a plain attribute, so `dataclasses.replace` in
-        `rebase_history` leaves it behind instead of copying stale values.
+        """`dataclasses.replace` skips the plain-attribute memo, so stale values
+        stay behind.
         """
         memo = getattr(self, "_derived_memo", None)
         if memo is None:
@@ -159,10 +140,8 @@ class OptimizationResult:
         return memo
 
     def best_index(self, metric: str) -> Optional[int]:
-        """`best_index` follows the metric's direction and breaks ties toward
-        the lowest index. Therefore every panel highlights the same trial.
-        Trials without a score for *metric* are skipped, guarding database rows
-        older than `_check_trial_scores`.
+        """`best_index` skips trials without a score for *metric*. Every panel
+        highlights the same trial because the lowest index wins a tie.
         """
         memo, key = self._derived(), ("best_index", metric)
         if key not in memo:
@@ -174,8 +153,7 @@ class OptimizationResult:
 
     def has_every_score(self, metric: str) -> bool:
         """Figure builders call `has_every_score` before drawing, since Plotly
-        mishandles a missing y-value. The check only fails for rows stored
-        before `_check_trial_scores` existed.
+        mishandles a missing y-value.
         """
         memo, key = self._derived(), ("has_every_score", metric)
         if key not in memo:
@@ -183,10 +161,8 @@ class OptimizationResult:
         return memo[key]
 
     def incumbent_scores(self, metric: str) -> List[float]:
-        """`incumbent_scores` returns the memoized running best, monotone in the
-        metric's direction, and callers must leave the list unchanged. A trial
-        without a score carries the best forward, and leading entries stay None
-        until a score appears.
+        """`incumbent_scores` returns a memoized list that callers must leave
+        unchanged. Leading entries stay None until a trial has a score.
         """
         memo, key = self._derived(), ("incumbent_scores", metric)
         if key not in memo:
@@ -202,7 +178,6 @@ class OptimizationResult:
         return memo[key]
 
 
-#: Fields the games fill.
 GAME_RESULT_FIELDS = tuple(f.name for f in fields(OptimizationResult)
                            if f.name.startswith("hyperparameter_"))
 
@@ -219,9 +194,8 @@ def game_fields(games) -> dict:
 
 
 def storable_score(score) -> Optional[float]:
-    """An all-failing start leaves the incumbent at an infinite worst end, which
-    `json.dumps` writes as `-Infinity`, invalid JSON. None is valid, and
-    `TrialCollector` reads None as nothing to beat.
+    """`storable_score` returns None for infinity, since `json.dumps` writes
+    `-Infinity`, invalid JSON. `TrialCollector` reads None as nothing to beat.
     """
     if score is None:
         return None
@@ -232,11 +206,10 @@ def storable_score(score) -> Optional[float]:
 
 
 def rebase_history(previous_result, primary_metric: str):
-    """`rebase_history` returns ``(result, stale)``, rescoring each trial and
-    the incumbent trajectory under the new metric from the scores every trial
-    records. *stale* tells the optimizer to discard state such as a surrogate
-    fitted to the old objective. An old `.ihpo` only storing the optimized score
-    stays unchanged, with *stale* still set.
+    """`rebase_history` returns ``(result, stale)`` with trials rescored under
+    the new metric. *stale* tells the optimizer to discard state such as a
+    fitted surrogate. Without new-metric scores, the result stays unchanged with
+    *stale* set.
     """
     if previous_result is None:
         return None, False
@@ -249,7 +222,6 @@ def rebase_history(previous_result, primary_metric: str):
         return previous_result, True
 
     trials: List[TrialResult] = []
-    # The incumbent follows the new metric's direction.
     metric = previous_result.metric(primary_metric)
     best_score = metric.worst_sentinel
     best_config: Optional[Dict[str, Any]] = None
@@ -270,47 +242,43 @@ def rebase_history(previous_result, primary_metric: str):
     ), True
 
 
-#: A run needs at least one criterion, and the first to fire ends it.
+#: The first criterion to fire ends the run.
 STOPPING_CRITERIA = ("max_trials", "max_seconds", "max_trial_seconds",
                      "target_score", "no_improvement_trials",
                      "incumbent_confidence", "max_failures",
                      "max_consecutive_failures")
 
-#: Failure limits end a run but fail to satisfy the one-criterion rule, because
-#: a run only bounded by failures never ends if nothing breaks. Both have
-#: defaults, so counting them would make the rule always pass.
+#: A run needs a stopping criterion outside the failure limits, because a run
+#: only bounded by failures never ends if nothing breaks.
 FAILURE_CRITERIA = ("max_failures", "max_consecutive_failures")
 
-#: Without `DEFAULT_MAX_CONSECUTIVE_FAILURES`, a model that cannot fit would
-#: fail instantly on every trial and burn the whole budget.
+#: `DEFAULT_MAX_CONSECUTIVE_FAILURES` stops a model that cannot fit from burning
+#: the whole budget.
 DEFAULT_MAX_CONSECUTIVE_FAILURES = 15
 
-#: `DEFAULT_MAX_FAILURES` is one, because the first failure is the one worth
-#: seeing. A search probing a region that cannot work raises the limit.
+#: `DEFAULT_MAX_FAILURES` ends a run at its first failure, and a search of
+#: invalid regions needs more.
 DEFAULT_MAX_FAILURES = 1
 
-#: One stop reason covers both failure counts, since the finding is that trials
-#: were failing.
 STOPPED_BY_ALL_FAILING = "all_failing"
 
-#: `STOPPED_BY_CANCELLED` goes into `Run.stopped_by` from whoever noticed the
-#: interruption, so one field answers why a run stopped.
+#: Whoever notices the interruption stores `STOPPED_BY_CANCELLED` in
+#: `.Run.stopped_by`.
 STOPPED_BY_CANCELLED = "cancelled"
 
-#: `STOPPED_BY_EXHAUSTED` marks a small discrete space with every configuration
-#: tried.
+#: `STOPPED_BY_EXHAUSTED` marks a fully tried space.
 STOPPED_BY_EXHAUSTED = "exhausted"
 
-#: The origin of a requested configuration without its own.
+#: Default origin of requested configurations.
 REQUESTED_ORIGIN = "Requested"
 
 
 class NoStoppingCriterion(ValueError):
-    """Raised for a run nothing could end."""
+    """`NoStoppingCriterion` flags unbounded runs."""
 
 
 def merge_stopping(n_trials, stopping) -> Dict[str, Any]:
-    """An explicit `max_trials` wins over *n_trials*.
+    """`merge_stopping` prefers `max_trials`.
     """
     merged = dict(stopping or {})
     if n_trials is not None:
@@ -319,8 +287,7 @@ def merge_stopping(n_trials, stopping) -> Dict[str, Any]:
 
 
 class PolledFlag:
-    """`PolledFlag` caches *check* for *ttl* seconds, since the optimizer polls
-    once per trial."""
+    """`PolledFlag` caches *check* for *ttl* seconds across trial polls."""
 
     def __init__(self, check, ttl: float = 1.0):
         self._check = check
@@ -337,15 +304,10 @@ class PolledFlag:
 
 
 class TrialCollector:
-    """`TrialCollector` records each trial, tracks the incumbent and decides
-    when a run stops, and every optimizer loop checks `done`. *trial_offset*,
-    *initial_best_score* and *initial_best_config* continue the numbering and
-    the incumbent of a resumed run. *stopping* contains `STOPPING_CRITERIA`, and
-    any criterion can end the run, but `target_score` must be beaten strictly
-    and only `note_confidence` can trigger `incumbent_confidence`. Only the
-    failure limits default when absent (`DEFAULT_MAX_FAILURES`,
-    `DEFAULT_MAX_CONSECUTIVE_FAILURES`), so a failing run always stops, and a
-    large number permits failures.
+    """`TrialCollector` records trials and tracks the incumbent, and every
+    optimizer loop checks its `done`. `target_score` must be beaten strictly,
+    and `incumbent_confidence` only fires on a probability from
+    `note_confidence`. Missing failure limits take the defaults.
     """
 
     def __init__(
@@ -358,20 +320,14 @@ class TrialCollector:
         metric=None,
         on_keep=None,
     ):
-        #: `_on_keep` receives each trial and its last fold's model, and the
-        #: collector keeps neither.
+        #: `_on_keep` receives each trial and its last fold's model.
         self._on_keep = on_keep
-        #: `_on_record` sees the collector after each recorded trial (see
-        #: `BaseOptimizer.new_collector`), and a cancelled attempt never
-        #: triggers it.
+        #: `_on_record` receives the collector after each recorded trial.
         self._on_record = on_record
-        #: The default metric reads higher-is-better on [0, 1], as older callers
-        #: assumed.
         self._metric = metric or metric_for("")
         self.results: List[TrialResult] = []
         self._trial_offset = trial_offset
-        #: Without a best score, the incumbent starts at the metric's own worst
-        #: end, which is +inf for RMSE.
+        #: A missing best score means the worst end, +inf for RMSE.
         self._incumbent_score = (self._metric.worst_sentinel
                                  if initial_best_score is None else initial_best_score)
         self._incumbent_config = initial_best_config
@@ -392,39 +348,28 @@ class TrialCollector:
         self._consecutive_failures = 0
         self._failures = 0
         self._confidence: Optional[float] = None
-        #: The criterion that ended the run.
         self.stopped_by: Optional[str] = None
 
     @property
     def incumbent_score(self) -> float:
-        """`incumbent_score` is the best score so far, resumed runs included."""
         return self._incumbent_score
 
     @property
     def incumbent_config(self) -> Optional[Dict[str, Any]]:
-        """`incumbent_config` serves surrogate queries with the best
-        configuration."""
         return self._incumbent_config
 
     def note_confidence(self, probability: Optional[float]) -> None:
-        """The optimizer reports the probability from its surrogate, and None
-        leaves `incumbent_confidence` unfired.
+        """A None probability leaves `incumbent_confidence` unfired.
         """
         self._confidence = probability
 
     @property
     def metric(self):
-        """All three optimizers read the metric here instead of resolving it
-        again.
-        """
         return self._metric
 
     def _fired(self) -> Optional[str]:
-        """`_fired` checks the target and confidence first, then budgets,
-        failures and stagnation.
-        """
-        # The target must be surpassed in the metric's direction, so filling it
-        # with the incumbent's score runs until something beats it.
+        # `.Metric.better` is strict, so a target at the incumbent's score needs
+        # a better trial.
         target = self._stopping.get("target_score")
         if target is not None and self._metric.better(self._incumbent_score, target):
             return "target_score"
@@ -448,8 +393,6 @@ class TrialCollector:
 
     @property
     def done(self) -> bool:
-        """`done` keeps the first stop reason found.
-        """
         if self.stopped_by is None:
             self.stopped_by = self._fired()
         return self.stopped_by is not None
@@ -462,21 +405,17 @@ class TrialCollector:
         run_info: Optional[Dict[str, Any]] = None,
         origin: str = "",
     ) -> Optional[TrialResult]:
-        """*origin* is taken at proposal time because SMAC's local search
-        relabels runhistory configurations in place. A cancelled attempt returns
-        None and stays out of the history, because its null scores would read as
-        a real failed measurement and count toward `max_failures`.
-        `SMACOptimizer.serialize_result` only keeps runhistory entries that
-        match a recorded trial.
+        """*origin* comes from proposal time, since SMAC's local search relabels
+        runhistory configurations in place. `record` returns None for a
+        cancelled attempt, whose null scores would count toward `max_failures`.
         """
         if (run_info or {}).get(CANCELLED):
-            # Latching here ends every loop on the collector's terms and stores
-            # the interruption.
+            # Latching ends every loop and stores the interruption.
             self.stopped_by = STOPPED_BY_CANCELLED
             return None
 
-        # A failed trial can never become the incumbent, because its null score
-        # is a real value that can beat a bad RMSE.
+        # Failed trials never become the incumbent, since their null scores can
+        # beat a bad RMSE.
         failed = (run_info or {}).get("status", STATUS_SUCCESS) != STATUS_SUCCESS
         if not failed and self._metric.better(score, self._incumbent_score):
             self._incumbent_score = score
@@ -490,7 +429,7 @@ class TrialCollector:
             self._consecutive_failures = 0
         else:
             self._consecutive_failures += 1
-            # The total never resets.
+            # Never resets.
             self._failures += 1
 
         trial = TrialResult(
@@ -506,14 +445,14 @@ class TrialCollector:
         fitted = (run_info or {}).pop(FITTED, None)
         self.results.append(trial)
         if fitted is not None and self._on_keep is not None:
-            # Keeping a model never fails the run.
+            # `_on_keep` errors never propagate.
             try:
                 self._on_keep(trial, fitted)
             except Exception:  # noqa: BLE001 — see above
                 pass
         if self._on_record is not None:
-            # `_on_record` runs after the append so `results` includes the
-            # trial, and its failures never fail the run.
+            # `_on_record` runs after the append, so `results` includes the
+            # trial.
             try:
                 self._on_record(self)
             except Exception:  # noqa: BLE001 — see above
@@ -522,30 +461,29 @@ class TrialCollector:
 
 
 class BaseOptimizer(ABC):
-    """`BaseOptimizer` underlies every optimizer."""
 
     params_schema: List[OptimizerParam] = []
 
-    #: `.ihpo` files record the optimizer by name, so renames keep old ones
-    #: here.
+    #: `run_safe` names the settings a later run may change once trials exist.
+    run_safe: frozenset = frozenset()
+
+    #: `aliases` keeps old names that `.ihpo` files record.
     aliases: tuple = ()
 
     name: str
 
     def refit_surrogate(self, config_space, trials, metric_name: str, seed: int = 0,
                         values=None) -> tuple[Any, Optional[str]]:
-        """`refit_surrogate` returns ``(surrogate, warning)``, or ``(None,
-        None)`` for random and grid search, which fit nothing. The surrogate is
-        refit from the recorded class, settings and trials, since a stored
-        binary would be versioned and cross hosts.
+        """`refit_surrogate` returns ``(surrogate, warning)`` or ``(None,
+        None)``. A stored binary would be version-bound, so the surrogate is
+        refit from settings and trials.
         """
         return None, None
 
     def slice_surrogate(self, config_space, trials, metric_name: str, seed: int = 0,
                         values=None):
-        """`slice_surrogate` depends on *metric_name* and *values* only, so a
-        caller fits once for all slices of a run. Refitting per hyperparameter
-        cost about 300 ms for a GP and 750 ms for a forest over fifteen trials.
+        """`slice_surrogate` only depends on *metric_name* and *values*, so one
+        fit serves all slices of a run.
         """
         rf, warning = self.refit_surrogate(config_space, trials, metric_name, seed,
                                            values=values)
@@ -554,24 +492,22 @@ class BaseOptimizer(ABC):
                                         values=values)
         return rf, warning
 
-    #: Only such an optimizer can answer `incumbent_confidence`, and the Run
-    #: form offers the criterion only then.
+    #: The Run form only offers `incumbent_confidence` when
+    #: `supports_confidence_stopping` is True.
     supports_confidence_stopping: bool = False
 
-    #: `fits_surrogate` decides whether a rebased run lost a fitted model or
-    #: only rescored its trials.
+    #: `fits_surrogate` tells whether a rebase discards a fitted model.
     fits_surrogate: bool = False
 
     @classmethod
     def judges_priors(cls, params: Mapping[str, Any]) -> bool:
-        """The page offers "Evaluate Prior" only when `judges_priors` is True
-        for *params*.
+        """The page only offers "Evaluate Prior" when True.
         """
         return False
 
     def acquisition_function(self) -> Optional[dict]:
         """`acquisition_function` returns `kind` ("ei" or "pi") and `xi`, or
-        None, since the page computes the acquisition itself."""
+        None."""
         return None
 
     @abstractmethod
@@ -588,17 +524,16 @@ class BaseOptimizer(ABC):
         cancel_event=None,
         stopping: Optional[Dict[str, Any]] = None,
         splits=None,
-        # Optimizers without a model of the objective ignore `priors`.
+        # Model-free optimizers ignore `priors`.
         priors=None,
-        # Evaluated first; see `evaluate_requested`.
+        # Evaluated first.
         configurations=None,
     ) -> OptimizationResult: ...
 
     def serialize_result(self, result: "OptimizationResult") -> dict:
-        """The stored dict follows SMAC's runhistory.json and adds `scores`,
-        `incumbent_score` and `incumbent_config_id` to each entry. An optimizer
-        with internal state overrides `serialize_result` and stores the state
-        under ``optimizer_state``.
+        """The stored dict follows SMAC's runhistory.json plus `scores`,
+        `incumbent_score` and `incumbent_config_id` per entry. Subclasses store
+        internal state under ``optimizer_state``.
         """
         configs: Dict[str, Any] = {}
         config_id_by_key: Dict[tuple, str] = {}
@@ -608,8 +543,8 @@ class BaseOptimizer(ABC):
             configs[cid] = t.config
             config_id_by_key[tuple(sorted(t.config.items()))] = cid
 
-        # The cost derives from the metric, so a cost metric stores itself and
-        # older metrics keep `1.0 - score` (see `core.metrics.to_cost`).
+        # Cost metrics store themselves, and older metrics store `1.0 - score`
+        # (see `.to_cost`).
         cost_of = result.metric(result.primary_metric)
 
         data = []
@@ -617,12 +552,10 @@ class BaseOptimizer(ABC):
             incumbent_key = tuple(sorted(t.incumbent_config.items()))
             incumbent_cid = config_id_by_key.get(incumbent_key, str(t.trial))
             data.append({
-                **t.run_info,  # SMAC fields, disjoint from the keys below
+                **t.run_info,  # disjoint from keys below
                 "config_id": t.trial,
                 "cost": to_cost(cost_of, t.score),
                 "scores": t.scores,
-                # The incumbent stays None until a trial succeeds, since
-                # infinity is invalid JSON.
                 "incumbent_score": storable_score(t.incumbent_score),
                 "incumbent_config_id": int(incumbent_cid),
             })
@@ -636,13 +569,11 @@ class BaseOptimizer(ABC):
             "stats": {"submitted": len(result.trials), "finished": len(result.trials), "running": 0},
             "data": data,
             "configs": configs,
-            # An empty origin stays empty, since "unrecorded" and "chosen by the
-            # model" differ downstream.
+            # An empty origin means unrecorded, never model-chosen.
             "config_origins": {str(t.trial): t.origin for t in result.trials},
             "optimizer_state": {},
             "primary_metric": result.primary_metric,
-            # Registry metrics stay out of the file, so a later build's
-            # correction wins.
+            # Registry metrics stay out, so later corrections win.
             "declared_metrics": {
                 name: describe(metric)
                 for name, metric in result.declared_metrics.items()
@@ -655,16 +586,12 @@ class BaseOptimizer(ABC):
         }
 
     def deserialize_result(self, d: dict) -> "OptimizationResult":
-        """`deserialize_result` inverts `serialize_result`.
-        """
         configs = d.get("configs", {})
         data = d.get("data", [])
         origins = d.get("config_origins") or {}
         primary_metric = d.get("primary_metric", "")
         declared = declarations(d.get("declared_metrics"))
 
-        # For older metrics the inverse is `1.0 - cost`, and `declared` reads an
-        # imported run's objective.
         cost_of = declared.get(primary_metric) or metric_for(primary_metric)
 
         trials = []
@@ -690,29 +617,33 @@ class BaseOptimizer(ABC):
             primary_metric=primary_metric,
             best_config=configs.get(best_config_id, {}),
             best_score=storable_score(d.get("best_score", 0.0)),
-            # Fields missing from older files read as empty.
             **{name: d.get(name, {}) for name in GAME_RESULT_FIELDS},
             trials_limit=d.get("trials_limit"),
             metadata={},
         )
 
     def get_params(self) -> dict:
-        """Schema parameter ``foo`` lives on the instance as ``self._foo``.
+        """Parameter ``foo`` lives on ``self._foo``.
         """
         return {p.name: getattr(self, f"_{p.name}") for p in self.params_schema}
 
     def resolved_params(self) -> dict:
-        """`resolved_params` fills unset settings with the defaults in force,
-        for the record, while reconstruction uses `optimizer_params`. The base
-        class leaves unknown defaults visibly unanswered.
+        """Subclasses fill unset settings with the defaults in force;
+        reconstruction uses `.Run.optimizer_params` instead.
         """
         return dict(self.get_params())
 
     @classmethod
+    def effective_defaults(cls) -> dict:
+        """`effective_defaults` maps each setting to the value a blank one runs
+        with.
+        """
+        return {p.name: p.default for p in cls.params_schema}
+
+    @classmethod
     def known_params(cls, stored: Mapping[str, Any]) -> Dict[str, Any]:
-        """A renamed or withdrawn parameter would raise `TypeError` in
-        `__init__`, which the result page fails to catch, so `known_params`
-        drops it.
+        """`known_params` drops renamed or withdrawn parameters, which would
+        raise `TypeError` in `__init__`.
         """
         known = {p.name for p in cls.params_schema}
         stored = cls.migrate_params(stored or {})
@@ -720,34 +651,30 @@ class BaseOptimizer(ABC):
 
     @classmethod
     def migrate_params(cls, stored: Mapping[str, Any]) -> Mapping[str, Any]:
-        """An optimizer that reshapes its settings translates old ones here, so
-        a stored run returns with the configuration it ran with.
+        """An optimizer that reshapes its settings translates stored ones here.
         """
         return stored
 
-    #: `experiments/services/run.py` copies the `ANALYTICS_EAGER_MAX_COALITIONS`
-    #: setting here, keeping `core/` free of Django (see
-    #: `eager_analytics_budget_exceeded`).
+    #: `experiments/services/run.py` copies `ANALYTICS_EAGER_MAX_COALITIONS`
+    #: here, keeping `core/` Django-free.
     analytics_max_coalitions: Optional[int] = EAGER_MAX_COALITIONS
 
-    #: False makes `compute_hp_games` skip work when the page shows no
-    #: importance or interaction figure. `experiments/services/run.py` sets the
-    #: flag per instance.
+    #: False makes `.compute_hp_games` skip work for a page without importance
+    #: or interaction figures.
     analytics_wanted: bool = True
 
     #: `experiments/services/run.py` sets `progress` to a throttled
-    #: partial-result write, so the page can draw a running experiment.
+    #: partial-result write.
     progress = None
 
-    #: The caller sets `keep_model` to keep fitted models for export (see
-    #: experiments/services/trial_models.py).
+    #: `experiments/services/run.py` sets `keep_model` to keep fitted models for
+    #: export.
     keep_model = None
 
     def new_collector(self, metric_name: str = "", previous_result=None,
                       **kwargs) -> TrialCollector:
-        """`new_collector` passes `progress`, `keep_model` and the metric to the
-        collector of every optimizer. The metric comes from the resumed run
-        first, since an imported run declares its objective only in its file.
+        """`new_collector` takes the metric from the resumed run first, since an
+        imported run only declares its objective in its file.
         """
         declared = getattr(previous_result, "declared_metrics", None) or {}
         return TrialCollector(
@@ -758,16 +685,14 @@ class BaseOptimizer(ABC):
 
     def _begin(self, previous_result, primary_metric: str, n_trials, stopping, splits,
                X_train, y_train, X_val, y_val):
-        """`_begin` returns the evaluation splits, a holdout unless *splits* is
-        given, then the history rebased to the current metric, then a collector
-        that continues the run's trial numbering."""
+        """`_begin` returns splits (a holdout by default), the history rebased
+        to the metric, and a collector continuing its numbering."""
         splits = splits if splits is not None else holdout(X_train, y_train, X_val, y_val)
         previous_result, _ = rebase_history(previous_result, primary_metric)
         collector = self.new_collector(
             metric_name=primary_metric,
             previous_result=previous_result,
             trial_offset=len(previous_result.trials) if previous_result else 0,
-            # None means the metric's own worst end, +inf for lower-is-better.
             initial_best_score=previous_result.best_score if previous_result else None,
             initial_best_config=previous_result.best_config if previous_result else None,
             stopping=merge_stopping(n_trials, stopping),
@@ -776,8 +701,6 @@ class BaseOptimizer(ABC):
 
     def _finish(self, collector, previous_result, config_space, metrics, primary_metric: str,
                 seed: int, cancel_event, **result_fields) -> "OptimizationResult":
-        """`_finish` returns every trial, the best one and the explanation
-        games."""
         all_trials = (previous_result.trials if previous_result else []) + collector.results
         metric = collector.metric
         best = metric.best(all_trials, key=lambda t: t.scores[primary_metric])
@@ -796,10 +719,9 @@ class BaseOptimizer(ABC):
 
     def evaluate_requested(self, configurations, *, model, splits, metrics, primary_metric,
                            seed, collector, cancel_event=None, told=None) -> set:
-        """*configurations* contains `{"config", "origin"}` entries, evaluated in
-        order while the criteria allow and recorded as trials. The *told*
-        callback receives `(config, all_scores, run_info)` after each, and the
-        returned set contains sorted-item keys for skipping repeats.
+        """`evaluate_requested` runs *configurations* in order while criteria
+        allow and returns their sorted-item keys. The *told* callback receives
+        `(config, all_scores, run_info)` after each trial.
         """
         done = set()
         for requested in configurations or ():

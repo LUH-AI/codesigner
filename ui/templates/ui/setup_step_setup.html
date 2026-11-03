@@ -72,19 +72,41 @@ chosen.{% endcomment %}
         {% if form.model_file.errors %}<div class="form-error">{{ form.model_file.errors|join:" " }}</div>{% endif %}
         {% if form.mounted_model.errors %}<div class="form-error">{{ form.mounted_model.errors|join:" " }}</div>{% endif %}
 
-        {# ── Dataset: an uploaded CSV by default, or a demo when the box is checked ── #}
+        {% comment %}Dataset: an uploaded CSV by default, or a demo when the box
+        beside the label is checked. One label for both, saying which it is;
+        the script below points it at whichever control is showing. Both
+        wordings take the same room, so the checkbox stays put.{% endcomment %}
         <div class="field">
-            <label class="check"><input type="checkbox" name="use_demo_dataset"{% if form.demo_dataset.value %} checked{% endif %}> {% translate "Use demo datasets" %}</label>
+            <div class="field-label">
+                <label data-dataset-label
+                       data-for-upload="{{ form.dataset_file.id_for_label }}"
+                       data-for-demo="{{ form.demo_dataset.id_for_label }}"
+                       class="label-swap" data-showing="{% if form.demo_dataset.value %}demo{% else %}upload{% endif %}"
+                       for="{% if form.demo_dataset.value %}{{ form.demo_dataset.id_for_label }}{% else %}{{ form.dataset_file.id_for_label }}{% endif %}"><span data-when="upload">{{ form.dataset_file.label }}</span><span data-when="demo">{{ form.demo_dataset.label }}</span></label>
+                <label class="check"><input type="checkbox" name="use_demo_dataset"{% if form.demo_dataset.value %} checked{% endif %}> {% translate "Use demo dataset" %}</label>
+            </div>
+            <div data-pane="dataset-demo">{{ form.demo_dataset }}</div>
+            <div data-pane="dataset-upload">
+                {% include "ui/_file_pick.html" with id=form.dataset_file.id_for_label name=form.dataset_file.html_name accept=".csv" current=current_dataset_upload clear=form.clear_dataset.html_name %}
+            </div>
         </div>
-        <div class="field" data-pane="dataset-demo">
-            <label for="{{ form.demo_dataset.id_for_label }}">{{ form.demo_dataset.label }}</label>
-            {{ form.demo_dataset }}
+        {% comment %}Named, like the time column below, from the chosen
+        dataset's columns: a demo's from the server, an upload's from its
+        header. Empty is the last column, which is what every experiment made
+        before the target was a choice predicts.{% endcomment %}
+        <div class="field">
+            <div class="field-label">
+                <label for="{{ form.target_column.id_for_label }}">{{ form.target_column.label }}</label>
+                {% include "ui/_info.html" with info_id=form.target_column.id_for_label|add:"_helptext" info_text=form.target_column.help_text %}
+            </div>
+            <input type="text" name="target_column" id="{{ form.target_column.id_for_label }}"
+                   value="{{ form.target_column.value|default_if_none:'' }}" list="target-column-options"
+                   placeholder="{% translate 'Last column' %}" autocomplete="off"
+                   aria-describedby="{{ form.target_column.id_for_label }}_helptext">
+            <datalist id="target-column-options"></datalist>
+            {% if form.target_column.errors %}<div class="form-error">{{ form.target_column.errors|join:" " }}</div>{% endif %}
         </div>
-        <div class="field" data-pane="dataset-upload">
-            <label for="{{ form.dataset_file.id_for_label }}">{{ form.dataset_file.label }}</label>
-            {{ form.dataset_file }}
-            {% if current_dataset and not form.demo_dataset.value %}<p class="caption">{% blocktranslate with name=current_dataset %}Currently {{ name }}; kept unless another is chosen.{% endblocktranslate %}</p>{% endif %}
-        </div>
+        {{ demo_columns|json_script:"demo-columns" }}
 
         {% comment %}Two controls, not one menu of preset pairs: the scheme and
         the number are separate decisions, and folding them together meant
@@ -185,7 +207,7 @@ chosen.{% endcomment %}
         </div>
 
         <div class="setup-actions">
-            <button type="submit" class="btn-primary">{% translate "Save and continue" %}</button>
+            <button type="submit" class="btn-primary" data-assist="save">{% translate "Save and continue" %}</button>
         </div>
     </form>
 
@@ -232,32 +254,46 @@ chosen.{% endcomment %}
         // dataset in hand. A demo's are known to the server, and are its dates
         // and numbers; an upload's are read from its header line, all but the
         // target, and the server says if the one named cannot be ordered by.
+        //
+        // The target is suggested the same way, from every column.
         (function () {
             const options = document.getElementById("time-column-options");
+            const targets = document.getElementById("target-column-options");
+            const target = document.getElementById("{{ form.target_column.id_for_label }}");
             const demo = document.getElementById("{{ form.demo_dataset.id_for_label }}");
             const upload = document.getElementById("{{ form.dataset_file.id_for_label }}");
             const demos = JSON.parse(document.getElementById("demo-time-columns").textContent);
+            const demoColumns = JSON.parse(document.getElementById("demo-columns").textContent);
             if (!options) return;
-            function offer(names) {
-                options.replaceChildren(...names.map(function (name) {
+            function fill(list, names) {
+                if (!list) return;
+                list.replaceChildren(...names.map(function (name) {
                     const option = document.createElement("option");
                     option.value = name;
                     return option;
                 }));
             }
-            if (demo) demo.addEventListener("change", function () { offer(demos[demo.value] || []); });
+            function offer(times, columns) {
+                fill(options, times);
+                fill(targets, columns);
+            }
+            function fromDemo() { offer(demos[demo.value] || [], demoColumns[demo.value] || []); }
+            if (demo) demo.addEventListener("change", fromDemo);
             if (upload) upload.addEventListener("change", function () {
                 const file = upload.files && upload.files[0];
-                if (!file) return offer([]);
+                if (!file) return offer([], []);
                 file.slice(0, 65536).text().then(function (text) {
                     const header = text.split(/\r?\n/)[0];
                     const sep = (header.split(";").length > header.split(",").length) ? ";" : ",";
-                    offer(header.split(sep).slice(0, -1).map(function (name) {
+                    const names = header.split(sep).map(function (name) {
                         return name.trim().replace(/^"|"$/g, "");
-                    }));
+                    });
+                    const chosen = target && target.value.trim();
+                    const predicted = names.indexOf(chosen) >= 0 ? chosen : names[names.length - 1];
+                    offer(names.filter(function (name) { return name !== predicted; }), names);
                 });
             });
-            if (demo && demo.value) offer(demos[demo.value] || []);
+            if (demo && demo.value) fromDemo();
         })();
 
         // What follows from the task and the validation method: the forecast's
@@ -316,6 +352,18 @@ chosen.{% endcomment %}
             wire("use_demo_dataset",
                 document.querySelector('[data-pane="dataset-demo"]'),
                 document.querySelector('[data-pane="dataset-upload"]'));
+            // The dataset's one label says which it is, and points at it.
+            const label = document.querySelector("[data-dataset-label]");
+            const demoBox = document.querySelector('input[name="use_demo_dataset"]');
+            if (label && demoBox) {
+                const name = function () {
+                    const demo = demoBox.checked;
+                    label.dataset.showing = demo ? "demo" : "upload";
+                    label.htmlFor = demo ? label.dataset.forDemo : label.dataset.forUpload;
+                };
+                demoBox.addEventListener("change", name);
+                name();
+            }
             wire("use_demo_model",
                 document.querySelector('[data-pane="model-builtin"]'),
                 document.querySelector('[data-pane="model-upload"]'));

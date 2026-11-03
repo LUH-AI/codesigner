@@ -25,22 +25,24 @@ from .walks import record_walks, walks_to
 
 logger = logging.getLogger(__name__)
 
-#: `SLICE_CANDIDATES` is also the extra budget of a reconstructed scenario, so
-#: the figure quotes the decay factor the walk uses.
+#: `SLICE_CANDIDATES` pads the rebuilt scenario's budget, so the figure quotes
+#: the walk's decay factor.
 SLICE_CANDIDATES = 12
 
 
 class SMACOptimizer(FacadeBuilder):
+    """`SMACOptimizer` runs SMAC's Bayesian optimization: a space-filling
+    initial design, then a Gaussian-process or random-forest surrogate that
+    proposes each next configuration through an acquisition function.
+    """
+
     name = "SMAC"
 
-    #: `aliases` keeps the name from when SMAC always used the Gaussian-process
-    #: facade.
     aliases = ("SMAC (BlackBox)",)
 
-    #: The surrogate can report its confidence (see `incumbent_confidence`).
     supports_confidence_stopping = True
 
-    #: A changed metric invalidates the surrogate carried between runs.
+    #: A changed metric invalidates the surrogate.
     fits_surrogate = True
 
     def acquisition_function(self):
@@ -48,17 +50,15 @@ class SMACOptimizer(FacadeBuilder):
 
     @classmethod
     def judges_priors(cls, params):
-        """`judges_priors` only accepts the GP, because the forest's log-scaled
-        lower confidence bound maps to near-zero cost everywhere and every prior
-        would pass."""
+        """`judges_priors` only returns True for the GP, since the forest's
+        log-scaled bound passes every prior."""
         strategy = cls.known_params(params).get("search_strategy")
         return (strategy if strategy in STRATEGIES else "gp") == "gp"
 
     def refit_surrogate(self, config_space, trials, metric_name: str, seed: int = 0,
                         values=None):
-        """A GP run is read through a GP, since a generic forest would make
-        every surrogate look alike. The model trains on cost and answers in
-        metric units, or on *values* as given, and a failed refit returns
+        """`refit_surrogate` refits the run's own surrogate kind, since a
+        generic forest makes every surrogate look alike. A failed refit returns
         `(None, warning)`.
         """
         data = pair_trials_with_scores(config_space, trials, metric_name, values=values)
@@ -85,14 +85,10 @@ class SMACOptimizer(FacadeBuilder):
     def slice_challengers(self, config_space, trials, metric_name: str, seed: int = 0,
                           priors=None, count=SLICE_CANDIDATES, previous_result=None,
                           budget=None, with_walks=False):
-        """`slice_challengers` builds the facade with `_facade`, replays the
-        trials, applies priors and calls `ask()`, returning `(configs, origins)`
-        in the search's own rank order, or None. The initial design keeps the
-        size the run recorded, since a rebuild sized for an unbounded budget
-        would propose space-filling samples. Successive calls to `ask()` without
-        a `tell()` walk the maximizer's cached challenger list. *with_walks*
-        adds each candidate's local-search path (see `record_walks`), or None
-        for one reached without climbing.
+        """`slice_challengers` rebuilds the facade with the trials and priors
+        and returns `(configs, origins)` from `count` calls to `ask()`, or None.
+        Successive `ask()` calls without `tell()` walk the cached challenger
+        list. *with_walks* adds each candidate's local-search path.
         """
         if not trials:
             return None
@@ -114,14 +110,10 @@ class SMACOptimizer(FacadeBuilder):
     def evaluate_prior(self, config_space, trials, metric_name: str, seed: int = 0,
                        priors=None, tolerance: float = 0.15, previous_result=None,
                        budget=None, top_k: int = 10):
-        """SMAC's `ClimbingComparisonPolicy` runs DynaBO's safeguard on demand,
-        climbing from the best *top_k* draws of the belief and of the
-        incumbent's neighbourhood and rejecting the belief when its climbs end
-        worse by more than *tolerance*. The facade is rebuilt as in
-        `slice_challengers`, and the verdict comes from `add_prior`. *tolerance*
-        is positive, in raw objective units, and passed negated as the policy
-        expects. An "unjudged" verdict means the policy had nothing to compare
-        and accepted by rule, which `_RecordingPolicy` detects.
+        """`evaluate_prior` runs SMAC's `ClimbingComparisonPolicy`, which climbs
+        from the best *top_k* draws of the belief and of the incumbent's
+        neighbourhood. The verdict is "rejected" when the belief's climbs end
+        worse by more than *tolerance*.
         """
         if not priors:
             return {"verdict": "unjudged", "reason": "no prior is stated"}
@@ -143,7 +135,6 @@ class SMACOptimizer(FacadeBuilder):
                 return self.compared
 
         try:
-            # DynaBO draws the neighbourhood as wide as the belief.
             policy = _RecordingPolicy(
                 threshold=-abs(tolerance), top_k=int(top_k),
                 n_samples_per_hyperparameter=PRIOR_JUDGING_SAMPLES_PER_HYPERPARAMETER,
@@ -167,7 +158,7 @@ class SMACOptimizer(FacadeBuilder):
                               "than where the search is already looking"}
         if applied.get("rejected"):
             return {"verdict": "rejected", "reason": applied.get("reason", "")}
-        # A prior that failed to apply is no judgement on the belief.
+        # A failed apply leaves the belief unjudged.
         return {"verdict": "unjudged", "reason": applied.get("reason", "")}
 
     def serialize_result(self, result: OptimizationResult) -> dict:
@@ -181,16 +172,13 @@ class SMACOptimizer(FacadeBuilder):
                  n_trials=None, previous_result=None, seed: int = 0, cancel_event=None,
                  stopping: dict | None = None, splits=None, priors=None,
                  configurations=None):
-        # A surrogate fitted to another objective must be rebuilt, so the
-        # history is replayed below.
         splits, previous_result, collector = self._begin(
             previous_result, primary_metric, n_trials, stopping, splits,
             X_train, y_train, X_val, y_val)
         criteria = merge_stopping(n_trials, stopping)
 
-        # Each run uses a fresh directory and replays history, which costs
-        # little and avoids SMAC's `overwrite=False` console prompt that hangs a
-        # worker.
+        # A fresh directory per run avoids SMAC's `overwrite=False` prompt,
+        # which hangs a worker.
         trial_offset = len(previous_result.trials) if previous_result else 0
         output_dir = tempfile.mkdtemp()
 
@@ -198,7 +186,7 @@ class SMACOptimizer(FacadeBuilder):
         scenario = Scenario(
             config_space,
             name="ihpo",
-            # SMAC sizes its initial design as a fraction of the real budget.
+            # The initial design scales with the real budget.
             n_trials=scenario_budget(trial_offset, criteria.get("max_trials")),
             deterministic=True,
             seed=seed,
@@ -213,28 +201,23 @@ class SMACOptimizer(FacadeBuilder):
 
         wants_confidence = "incumbent_confidence" in criteria
 
-        # A fresh facade needs the evaluated trials to avoid starting from zero.
         if previous_result is not None:
             history.replay(smac, config_space, previous_result.trials, primary_metric,
                            seed, replay_metric=collector.metric)
 
-        # `add_prior` anchors the decay at the finished trials it sees and
-        # keeps the anchor fixed afterwards, so the prior goes in after the
-        # replay. A belief
-        # that waits goes in once the initial design is exhausted, since the
-        # design trials are beyond its reach and fading through them would
-        # weaken it.
+        # `add_prior` anchors the decay at the finished trials it sees, so the
+        # prior follows the replay. A waiting belief follows the initial design,
+        # so the decay skips the design trials.
         waiting = waits_for_the_design(priors)
-        # The design end is an absolute count from the start of the search,
-        # since a resume continues inside the design.
+        # `design_end` counts from the search's start; a resume may continue the
+        # design.
         design_end = (self._initial_points(scenario, previous_result)
                       if waiting else 0)
         prior_report = None
         if not waiting:
             prior_report = stamped(apply_priors(smac, scenario, config_space, priors), smac)
 
-        # Requested configurations are told to SMAC like its own, since the
-        # model learns the same from them.
+        # SMAC learns from requested configurations as from its own.
         def tell_requested(config, all_scores, run_info):
             chosen = Configuration(config_space, values=config)
             chosen.origin = REQUESTED_ORIGIN
@@ -249,17 +232,15 @@ class SMACOptimizer(FacadeBuilder):
         while not collector.done:
             if cancel_event and cancel_event.is_set():
                 break
-            # The prior goes in before the ask, so the first model-chosen trial
-            # is weighted, and the count comes from SMAC's runhistory, where
-            # `add_prior` takes its anchor.
+            # The prior goes in before `ask` and weights the first model-chosen
+            # trial.
             if prior_report is None and len(smac.runhistory) >= design_end:
                 prior_report = stamped(apply_priors(smac, scenario, config_space, priors),
                                        smac)
             try:
                 info = smac.ask()
             except ConfigurationSpaceExhaustedException:
-                # A small discrete space can be exhausted, which completes the
-                # search.
+                # An exhausted space completes the search.
                 collector.stopped_by = STOPPED_BY_EXHAUSTED
                 break
             config = dict(info.config)
@@ -270,8 +251,7 @@ class SMACOptimizer(FacadeBuilder):
             collector.record(config, all_scores[primary_metric], all_scores,
                              run_info=run_info, origin=info.config.origin or "")
 
-            # SMAC trains inside `ask`, so the model is one trial stale, which
-            # suffices for a stopping heuristic.
+            # SMAC trains inside `ask`; one trial of lag suffices here.
             if wants_confidence and len(collector.results) >= CONFIDENCE_MIN_TRIALS:
                 collector.note_confidence(confidence_nothing_better(
                     smac, config_space, collector.incumbent_config))
@@ -287,13 +267,12 @@ class SMACOptimizer(FacadeBuilder):
             trials=all_trials,
             primary_metric=primary_metric,
             best_config=dict(incumbent) if incumbent else (all_trials[-1].config if all_trials else {}),
-            # `scores` contains the rebased metric, with `score` as the fallback
-            # for an old one-metric file.
+            # Old one-metric files only have `score`.
             best_score=collector.metric.best(
                 (t.scores.get(primary_metric, t.score) for t in all_trials), default=0.0),
             **game_fields(games),
-            # `metadata` stays in memory, and `experiments/services/run.py`
-            # writes the prior event, since `core/` knows nothing of a Run.
+            # `experiments/services/run.py` writes the prior event, since
+            # `core/` knows no Run.
             metadata={"smac_output_dir": str(output_dir),
                       "stopped_by": collector.stopped_by,
                       "prior": prior_report},

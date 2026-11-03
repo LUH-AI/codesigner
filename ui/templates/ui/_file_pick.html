@@ -1,0 +1,42 @@
+{% load i18n %}
+{% comment %}A file chooser that says what it holds: a box with an "Upload"
+button, then "Upload Dataset" until a file is chosen, then the file's name and
+an × that clears it. The real input is still there, out of sight, so the form
+and the keyboard use it as ever; the script below names the file.
+
+`id`, `name`, `accept` and `pane` (a `data-dataset-pane` value) are the
+input's; `current` is what to say while a file is already in hand. With
+`clear`, clearing a file already in hand posts that field as 1, so the form
+lets it go. The × also sends a `file-pick-clear` event from the input, for
+pages that act on the choice at once.{% endcomment %}
+<span class="file-pick{% if current %} has-file{% endif %}"{% if pane %} data-dataset-pane="{{ pane }}"{% endif %}>
+    <input type="file" class="visually-hidden" id="{{ id }}"{% if name %} name="{{ name }}"{% endif %}{% if accept %} accept="{{ accept }}"{% endif %}
+           data-file-pick>
+    {% if clear %}<input type="hidden" name="{{ clear }}" value="" data-file-pick-cleared>{% endif %}
+    <label for="{{ id }}" class="btn file-pick-button">{% translate "Upload" %}</label>
+    <span class="file-pick-name" data-file-pick-name data-empty="{% translate 'Upload Dataset' %}">{% if current %}{{ current }}{% else %}{% translate "Upload Dataset" %}{% endif %}</span>
+    <button type="button" class="file-pick-clear" data-file-pick-clear
+            title="{% translate 'Remove' %}"><span aria-hidden="true">×</span><span class="visually-hidden">{% translate "Remove" %}</span></button>
+</span>
+<script>
+    (function () {
+        var box = document.currentScript.previousElementSibling;
+        var input = box.querySelector("[data-file-pick]");
+        var name = box.querySelector("[data-file-pick-name]");
+        var cleared = box.querySelector("[data-file-pick-cleared]");
+        input.addEventListener("change", function () {
+            var file = input.files && input.files[0];
+            if (!file) return;
+            name.textContent = file.name;
+            box.classList.add("has-file");
+            if (cleared) cleared.value = "";
+        });
+        box.querySelector("[data-file-pick-clear]").addEventListener("click", function () {
+            input.value = "";
+            name.textContent = name.dataset.empty;
+            box.classList.remove("has-file");
+            if (cleared) cleared.value = "1";
+            input.dispatchEvent(new CustomEvent("file-pick-clear", {bubbles: true}));
+        });
+    })();
+</script>

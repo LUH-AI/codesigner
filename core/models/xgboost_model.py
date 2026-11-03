@@ -1,4 +1,3 @@
-"""XGBoost gradient boosted trees."""
 
 from ConfigSpace import Categorical, ConfigurationSpace, Float, Integer
 from codesigner_model import OutputBaseModel
@@ -8,8 +7,7 @@ from .parts import LabelCoded
 
 
 class XGBoost(OutputBaseModel):
-    """`LabelCoded` wraps the classifier because XGBoost only knows labels
-    0..k-1, and `fit_args` turns balanced class weights into sample weights.
+    """`.LabelCoded` maps labels to the 0..k-1 that XGBoost requires.
     """
 
     name = "XGBoost"
@@ -39,8 +37,8 @@ class XGBoost(OutputBaseModel):
         return LabelCoded(XGBClassifier(**shared))
 
     def save_parameters(self, fitted, directory):
-        """`classes` in trial.json maps the saved booster's 0..k-1 back to
-        labels."""
+        """The saved booster predicts class codes; each code is a position in
+        `classes` in trial.json."""
         from pathlib import Path
 
         booster = getattr(fitted, "classifier", fitted)
@@ -62,6 +60,7 @@ class XGBoost(OutputBaseModel):
 
 
 class XGBoostModel(Tunable, XGBoost):
+    """`XGBoostModel` is XGBoost gradient-boosted trees."""
 
     def get_config_space(self, seed: int = 0) -> ConfigurationSpace:
         cs = ConfigurationSpace(seed=seed)

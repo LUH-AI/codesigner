@@ -1,8 +1,5 @@
-"""`core.metrics` scores every trial in the application, since a model scoring
-itself under its own scikit-learn version could store incomparable numbers in
-the `.ihpo`. Each `Metric` declares its direction and bounds, because an RMSE, a
-log-loss or an imported SMAC cost breaks the old bigger-is-better-on-[0, 1]
-assumption.
+"""`core.metrics` scores every trial, so numbers in one `.ihpo` stay comparable.
+Each `Metric` declares its direction and bounds.
 """
 
 import math
@@ -18,12 +15,11 @@ from sklearn.metrics import (
 
 from .tasks import CLASSIFICATION, REGRESSION
 
-#: `LABELS` is one predicted label per row; `PROBABILITIES` is a
-#: class-probability matrix plus class order, from `fit_predict_proba`. A string
-#: leaves room for a third input kind without a second boolean.
+#: `LABELS` is one label per row; `PROBABILITIES` is a class-probability matrix
+#: from `.fit_predict_proba`.
 LABELS = "labels"
 PROBABILITIES = "probabilities"
-#: MASE scales by each series' training values and season length.
+#: MASE scales by training values and season.
 HISTORY = "history"
 
 
@@ -33,31 +29,25 @@ def _zero(y_true) -> float:
 
 @dataclass(frozen=True)
 class Metric:
-    """`name` repeats the `METRICS` key, so a metric passed alone can name
-    itself and an imported run can declare an unknown metric.
+    """`Metric` describes one score; `name` repeats its `METRICS` key.
     """
 
     name: str
-    #: Called with `(y_true, y_pred)` or `(y_true, y_proba, classes)`.
     fn: Callable[..., float]
-    #: Every comparison in the application consults `higher_is_better`.
     higher_is_better: bool = True
-    #: RMSE is `(0.0, None)`, safe for a log axis; a raw cost is `(None, None)`,
-    #: with no absolute scale.
+    #: RMSE has `(0.0, None)`; a raw cost has `(None, None)`.
     bounds: tuple[Optional[float], Optional[float]] = (0.0, 1.0)
     needs: str = LABELS
-    #: `null_score` takes `y_true` because a constant null score for an
-    #: unbounded metric would be infinity, which JSON, `np.mean`, Plotly and a
-    #: surrogate all reject.
+    #: `null_score` takes `y_true`, since a constant null score for an unbounded
+    #: metric would be infinity.
     null_score: Callable[[Any], float] = field(default=_zero)
-    #: A metric of the wrong task is meaningless, like the accuracy of a
-    #: regression.
     tasks: tuple[str, ...] = (CLASSIFICATION,)
-    #: A forecast metric needs a series' history or the values' scale, which
-    #: unrelated rows lack.
+    #: `forecast_only` metrics need series history, which plain rows lack.
     forecast_only: bool = False
-    #: Only figures read `label`, and an imported metric shows its plain name.
+    #: `label` titles figures, and imported metrics have none.
     label: str = ""
+    #: `definition` explains the score for the assistant to quote.
+    definition: str = ""
 
 
     @property
@@ -74,7 +64,7 @@ class Metric:
 
     @property
     def worst_bound(self) -> Optional[float]:
-        """`worst_bound` is the range's worst end, or None."""
+        """`worst_bound` can be None."""
         return self.low if self.higher_is_better else self.high
 
     @property
@@ -83,8 +73,6 @@ class Metric:
 
     @property
     def worst_sentinel(self) -> float:
-        """Every real score beats `worst_sentinel`.
-        """
         return float("-inf") if self.higher_is_better else float("inf")
 
     def better(self, score: float, than: float) -> bool:
@@ -92,8 +80,7 @@ class Metric:
         return score > than if self.higher_is_better else score < than
 
     def best(self, items: Iterable, *, key=None, default=None):
-        """`best` takes `key` and `default` to replace `max`/`min` at both kinds
-        of call site.
+        """`best` replaces `max`/`min` and takes their `key` and `default`.
         """
         picker = max if self.higher_is_better else min
         if key is None:
@@ -102,8 +89,7 @@ class Metric:
 
 
 def _roc_auc(y_true, proba, classes) -> float:
-    """`_roc_auc` averages one-vs-rest AUC over the classes a fold can rank, and
-    two classes give the binary AUC."""
+    """`_roc_auc` averages one-vs-rest AUC over the classes a fold can rank."""
     y = np.asarray(y_true)
     proba = np.asarray(proba, dtype=float)
     scores = [roc_auc_score(y == label, proba[:, column])
@@ -115,7 +101,7 @@ def _roc_auc(y_true, proba, classes) -> float:
 
 
 def _smape(y_true, y_pred) -> float:
-    """0 is perfect and 200 is maximal; two zeros count as no error."""
+    """`_smape` scores two zeros as no error."""
     y = np.asarray(y_true, dtype=float)
     p = np.asarray(y_pred, dtype=float)
     denominator = np.abs(y) + np.abs(p)
@@ -125,10 +111,8 @@ def _smape(y_true, y_pred) -> float:
 
 
 def _mase(y_true, y_pred, history) -> float:
-    """`_mase` divides the forecast's MAE by the seasonal naive MAE on each
-    series' history. *history* contains ``{"y", "series", "season"}``. A history
-    shorter than a season scales by the one-step naive error, and a flat one
-    leaves the plain MAE.
+    """`_mase` divides the forecast MAE by the series' mean seasonal naive MAE.
+    A history within one season uses lag 1.
     """
     y_hist = np.asarray(history["y"], dtype=float)
     series = history.get("series")
@@ -146,8 +130,8 @@ def _mase(y_true, y_pred, history) -> float:
 
 
 def _log_loss(y_true, proba, classes) -> float:
-    """`_log_loss` gives an unseen validation label zero probability, the worst
-    score for its row, and the trial stays scoreable."""
+    """`_log_loss` keeps the trial scoreable by giving an unseen validation
+    label zero probability."""
     classes = list(classes)
     proba = np.asarray(proba, dtype=float)
     unseen = [label for label in np.unique(np.asarray(y_true)) if label not in classes]
@@ -157,34 +141,39 @@ def _log_loss(y_true, proba, classes) -> float:
     return float(log_loss(y_true, proba, labels=classes))
 
 
-#: .ihpo files store the metric names verbatim, so renaming or redefining one
-#: breaks old experiments.
+#: Renaming or redefining a metric breaks old `.ihpo` files.
 METRICS: dict[str, Metric] = {
     "accuracy": Metric(
         name="accuracy",
+        definition='The share of rows predicted correctly, so the largest classes count most.',
         fn=lambda y, yp: float(accuracy_score(y, yp)),
     ),
     "f1": Metric(
         name="f1",
+        definition="F1 per class, averaged weighted by each class's size (scikit-learn's average='weighted'), so large classes dominate it.",
         fn=lambda y, yp: float(f1_score(y, yp, average="weighted", zero_division=0)),  # pyright: ignore[reportArgumentType]
     ),
     "precision": Metric(
         name="precision",
+        definition="Precision per class, averaged weighted by each class's size (average='weighted').",
         fn=lambda y, yp: float(precision_score(y, yp, average="weighted", zero_division=0)),  # pyright: ignore[reportArgumentType]
     ),
     "recall(macro)": Metric(
         name="recall(macro)",
+        definition="Recall per class, as an unweighted mean over the classes (average='macro'): each class counts equally.",
         fn=lambda y, yp: float(recall_score(y, yp, average="macro", zero_division=0)),  # pyright: ignore[reportArgumentType]
     ),
     "balanced_accuracy": Metric(
         name="balanced_accuracy",
+        definition='Recall per class, as an unweighted mean over the classes; the same number as recall(macro).',
         label="Balanced accuracy",
         fn=lambda y, yp: float(balanced_accuracy_score(y, yp)),
     ),
-    # Probabilities cost an SVM several plain fits per trial, so only a model
-    # that offers them and a run that asks get these.
+    # `usable` only lists probability metrics on request, since an SVM fits
+    # several times for probabilities.
     "roc_auc": Metric(
         name="roc_auc",
+        definition="One-vs-rest ROC AUC per class, as an unweighted mean (the binary AUC for two classes); scores the predicted probabilities' ranking.",
         label="ROC AUC",
         fn=_roc_auc,
         needs=PROBABILITIES,
@@ -192,6 +181,7 @@ METRICS: dict[str, Metric] = {
     ),
     "log_loss": Metric(
         name="log_loss",
+        definition='Cross-entropy of the predicted class probabilities; lower is better, and the class balance alone scores the null.',
         label="Log loss",
         fn=_log_loss,
         higher_is_better=False,
@@ -199,22 +189,22 @@ METRICS: dict[str, Metric] = {
         needs=PROBABILITIES,
         null_score=lambda y: _prior_log_loss(y),
     ),
-    # `metrics_for` lists MASE first for a forecast, and a forecast with MASE
-    # under 1 beats repeating last season.
     "mase": Metric(
         name="mase",
+        definition="Mean absolute error relative to the seasonal naive forecast's; below 1 beats repeating last season.",
         label="MASE",
         fn=_mase,
         higher_is_better=False,
         bounds=(0.0, None),
         needs=HISTORY,
-        # A seasonal naive forecast scores about 1 by construction.
+        # Seasonal naive scores about 1.
         null_score=lambda y: 1.0,
         tasks=(REGRESSION,),
         forecast_only=True,
     ),
     "smape": Metric(
         name="smape",
+        definition='Symmetric mean absolute percentage error, from 0 (perfect) to 200.',
         label="sMAPE (%)",
         fn=_smape,
         higher_is_better=False,
@@ -223,10 +213,10 @@ METRICS: dict[str, Metric] = {
         tasks=(REGRESSION,),
         forecast_only=True,
     ),
-    # `null_score` here equals the error of predicting the mean, which is the R²
-    # baseline.
+    # The mean predictor sets `null_score`, as in R².
     "rmse": Metric(
         name="rmse",
+        definition="Root mean squared error, in the target's units; large errors weigh most.",
         label="RMSE",
         fn=lambda y, yp: float(root_mean_squared_error(y, yp)),
         higher_is_better=False,
@@ -236,6 +226,7 @@ METRICS: dict[str, Metric] = {
     ),
     "mae": Metric(
         name="mae",
+        definition="Mean absolute error, in the target's units.",
         label="MAE",
         fn=lambda y, yp: float(mean_absolute_error(y, yp)),
         higher_is_better=False,
@@ -246,6 +237,7 @@ METRICS: dict[str, Metric] = {
     ),
     "r2": Metric(
         name="r2",
+        definition="The share of the target's variance explained; 0 is predicting the mean, 1 is perfect.",
         label="R²",
         fn=lambda y, yp: float(r2_score(y, yp)),
         bounds=(None, 1.0),
@@ -255,8 +247,7 @@ METRICS: dict[str, Metric] = {
 
 
 def metrics_for(task: str, *, probabilities: bool = False, forecast: bool = False) -> list[str]:
-    """The first name is a new experiment's default objective. Probability
-    metrics need *probabilities*, and a *forecast* puts its own metrics first.
+    """`metrics_for` lists a new experiment's default objective first.
     """
     names = [name for name, metric in METRICS.items()
              if task in metric.tasks and (forecast or not metric.forecast_only)]
@@ -265,15 +256,15 @@ def metrics_for(task: str, *, probabilities: bool = False, forecast: bool = Fals
 
 
 def usable(names: Iterable[str], *, probabilities: bool) -> list[str]:
-    """An unscoreable metric would fail every trial, so `usable` settles the
-    list before the first.
+    """`usable` drops probability metrics, which fail every trial without
+    probabilities.
     """
     return [name for name in names
             if probabilities or metric_for(name).needs != PROBABILITIES]
 
 
 def _prior_log_loss(y_true) -> float:
-    """`_prior_log_loss` scores a model only knowing the class balance."""
+    """`_prior_log_loss` scores the class-balance predictor."""
     _, counts = np.unique(np.asarray(y_true), return_counts=True)
     shares = counts / counts.sum()
     return float(-np.sum(shares * np.log(shares)))
@@ -284,13 +275,13 @@ def unscoreable(*_args):
         "this metric is a reading of a stored number, not a way to compute one")
 
 
-#: Older files assumed `ASSUMED`'s reading of every score. `unscoreable` lets an
-#: unknown metric be shown and compared but never computed.
+#: Older files assume `ASSUMED` for every score; its `unscoreable` `fn` raises
+#: `ValueError`.
 ASSUMED = Metric(name="", fn=unscoreable)
 
 
 def metric_for(name: str) -> Metric:
-    """`metric_for` spares callers a branch on unknown metrics.
+    """`metric_for` falls back to `ASSUMED`.
     """
     return METRICS.get(name) or ASSUMED
 
@@ -302,14 +293,12 @@ def resolve(names: Iterable[str]) -> dict[str, Metric]:
     return {n: METRICS[n] for n in names}
 
 
-# A file may declare its own metrics, so an imported run with an unknown
-# objective still opens. Declarations sit beside the numbers, since a stored
-# cost needs its direction.
+# A file may declare its metrics, so an imported run with an unknown objective
+# still opens.
 
 
 def describe(metric: Metric) -> dict:
-    """`describe` keeps the name, direction and range, and drops `fn` and
-    `null_score`.
+    """`describe` drops `fn` and `null_score`.
     """
     return {"name": metric.name,
             "higher_is_better": metric.higher_is_better,
@@ -318,7 +307,6 @@ def describe(metric: Metric) -> dict:
 
 
 def undescribe(raw: Mapping[str, Any]) -> Metric:
-    """`undescribe` builds an unscoreable metric."""
     low, high = (list(raw.get("bounds") or [None, None]) + [None, None])[:2]
     return Metric(
         name=str(raw.get("name") or ""),
@@ -330,7 +318,7 @@ def undescribe(raw: Mapping[str, Any]) -> Metric:
 
 
 def declarations(raw) -> dict[str, Metric]:
-    """A malformed entry falls back to `ASSUMED` for its own metric alone.
+    """`declarations` skips malformed entries.
     """
     if not isinstance(raw, Mapping):
         return {}
@@ -343,9 +331,8 @@ def declarations(raw) -> dict[str, Metric]:
 
 def score_all(y_true, y_pred, metrics: Mapping[str, Metric],
               *, y_proba=None, classes=None, history=None) -> dict[str, float]:
-    """*y_pred* may be a list, as from a model in another process, but the label
-    type must match the target. A metric missing its probabilities or *history*
-    raises.
+    """*y_pred* labels must match the target's type. `score_all` raises
+    `ValueError` for missing probabilities or *history*.
     """
     scores = {}
     for name, metric in metrics.items():
@@ -363,15 +350,13 @@ def score_all(y_true, y_pred, metrics: Mapping[str, Metric],
     return scores
 
 
-# SMAC wants a cost to minimise, and `to_cost` derives one from the metric
-# itself. The four original metrics come out at `1.0 - score`, and a metric that
-# is already a cost round-trips unchanged.
+# `to_cost` derives the SMAC cost from the metric's direction and bounds;
+# `from_cost` inverts `to_cost`.
 
 
 def to_error(metric: Metric, score: float) -> Optional[float]:
-    """An unbounded higher-is-better metric has no fixed best, so `to_error`
-    returns None and the figure shows its empty caption. `to_error` passes a
-    lower-is-better score through.
+    """`to_error` returns None for an unbounded higher-is-better metric and
+    passes lower-is-better scores through.
     """
     if not metric.higher_is_better:
         return score
@@ -381,7 +366,7 @@ def to_error(metric: Metric, score: float) -> Optional[float]:
 
 
 def error_range(metric: Metric) -> Optional[tuple[float, float]]:
-    """None hides the absolute-scale toggle for an unbounded metric.
+    """None hides the absolute-scale toggle.
     """
     if metric.low is None or metric.high is None:
         return None
@@ -394,7 +379,7 @@ def to_cost(metric: Metric, score: float) -> float:
     if not metric.higher_is_better:
         return score
     if metric.high is None:
-        # With no upper bound, negation reverses the order without loss.
+        # Negation reverses the order without loss.
         return -score
     return metric.high - score
 
@@ -408,8 +393,7 @@ def from_cost(metric: Metric, cost: float) -> float:
 
 
 def scale(metric: Metric, null_score: Optional[float] = None) -> Optional[float]:
-    """`scale` returns the range of a bounded metric, otherwise the distance
-    from the best end to *null_score*, or None.
+    """`scale` returns the range, or the best end's distance to *null_score*.
     """
     if metric.low is not None and metric.high is not None:
         return metric.high - metric.low

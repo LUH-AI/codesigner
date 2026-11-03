@@ -16,10 +16,9 @@ from ..permissions import experiment_view
 
 
 def _posted_settings(request):
-    """`_posted_settings` coerces each field to the type of its
-    `SETTING_DEFAULTS` entry. An absent checkbox is off, numbers clamp to
-    `SETTING_BOUNDS`, and unreadable or off-list values take the default, since
-    zero would mean "no limit" or "reject every prior".
+    """`_posted_settings` coerces each field to its `.SETTING_DEFAULTS` type
+    within `.SETTING_BOUNDS`. Unreadable values take the default rather than
+    zero, since zero lifts the trial caps.
     """
     posted = {}
     for key, default in SETTING_DEFAULTS.items():
@@ -41,9 +40,6 @@ def _posted_settings(request):
 
 @experiment_view(EDIT)
 def experiment_settings(request, exp):
-    """`experiment_settings` inherits, overrides, resets or promotes one
-    experiment's settings; optimizer settings stay fixed from creation.
-    """
     if request.method == "POST":
         if "reset" in request.POST or request.POST.get("use_default_settings"):
             exp.use_default_settings = True
@@ -84,8 +80,8 @@ def experiment_settings(request, exp):
 
 
 def appearance(request):
-    """`appearance` saves the theme (light, dark or system) in a year-long
-    cookie and ignores any other choice.
+    """`appearance` stores the theme in a year-long cookie and the assistant
+    switch on the account.
     """
     from ..context_processors import THEME_COOKIE, THEMES
     if request.method == "POST":
@@ -94,16 +90,20 @@ def appearance(request):
         if chosen in THEMES:
             response.set_cookie(THEME_COOKIE, chosen, max_age=365 * 24 * 3600,
                                 samesite="Lax", secure=request.is_secure())
+        if request.POST.get("assistant") in ("on", "off"):
+            times.set_assistant_on(request.user, request.POST["assistant"] == "on")
         return response
     return render(request, "ui/appearance.html", {
         "themes": [("light", _("Light")), ("dark", _("Dark")),
                    ("system", _("Same as my system"))],
+        "assistant_offered": settings.ASSISTANT_ENABLED,
+        "assistant_on": times.assistant_on(request.user),
     })
 
 
 def export_preferences(request):
-    """`export_preferences` keeps the reader's export time format on the
-    account, so the format follows the reader to any browser."""
+    """`export_preferences` stores the time format with the account, for every
+    browser."""
     if request.method == "POST":
         times.set_reader_preference(request.user, request.POST.get("export_timestamps"))
         return redirect("ui:export_preferences")
@@ -114,9 +114,7 @@ def export_preferences(request):
 
 
 def account(request):
-    """`account` lists what the signed-in user may do, assembled from four
-    grants held directly or through a group. With `REQUIRE_LOGIN` off, the page
-    is a 404.
+    """`account` lists the signed-in user's four grants.
     """
     if not settings.REQUIRE_LOGIN:
         raise Http404
@@ -132,16 +130,13 @@ def account(request):
             (_("Upload and run custom models"),
              current.may_upload_models(request)),
         ],
-        # An instance-wide floor, separate from this account's grants.
+        # `.ALLOW_CUSTOM_MODELS` gates every account's grant.
         "custom_models_off": not settings.ALLOW_CUSTOM_MODELS,
         "is_administrator": request.user.is_superuser,
     })
 
 
 def default_experiment_settings(request):
-    """`default_experiment_settings` edits the defaults inheriting experiments
-    use.
-    """
     if not policy().may_change_defaults(request):
         raise PermissionDenied
     gs = GlobalSettings.get_solo()

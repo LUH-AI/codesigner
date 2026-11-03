@@ -1,4 +1,3 @@
-"""`CatBoost` wraps CatBoost."""
 
 from typing import Any
 
@@ -10,7 +9,7 @@ from .parts import categorical_columns
 
 
 class CatBoost(OutputBaseModel):
-    """`CatBoost` encodes categories itself, so label columns arrive as text."""
+    """`CatBoost` takes categorical columns as text and encodes them internally."""
 
     name = "CatBoost"
     tasks = ("classification", "regression")
@@ -30,7 +29,7 @@ class CatBoost(OutputBaseModel):
             random_seed=seed,
             thread_count=-1,
             verbose=False,
-            # Skip CatBoost's default training log files.
+            # Skips log files.
             allow_writing_files=False,
         )
         if self.task == "regression":
@@ -54,13 +53,14 @@ class CatBoost(OutputBaseModel):
                 "# label columns as text, as processing.json says.")
 
     def predict(self, fitted, X):
-        """CatBoost's classifier returns a column; `ravel` flattens it."""
+        """`ravel` flattens classifier columns."""
         import numpy as np
 
         return np.ravel(fitted.predict(X))
 
 
 class CatBoostModel(Tunable, CatBoost):
+    """`CatBoostModel` is CatBoost's gradient-boosted symmetric trees."""
 
     def get_config_space(self, seed: int = 0) -> ConfigurationSpace:
         cs = ConfigurationSpace(seed=seed)

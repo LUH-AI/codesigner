@@ -290,7 +290,7 @@ def test_the_explanation_is_behind_a_marked_control(client):
 
     assert '<button type="button" class="info-mark"' in panel
     assert ('<span class="info-bubble" role="tooltip" id="opt_share_cap_help">'
-            "Fraction of the run") in panel
+            "Fraction of the trials") in panel
 
 
 def test_the_explanation_is_readable_without_a_pointer_too(client):

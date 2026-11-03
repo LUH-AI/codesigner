@@ -19,6 +19,8 @@ services:
       DATABASE_URL: "sqlite:////app/data/db.sqlite3"
       HUEY_FILENAME: "/app/data/huey.sqlite3"
       MEDIA_ROOT: "/app/data/media"
+      # The assistant's library, built by the worker and searched by web.
+      ASSISTANT_KNOWLEDGE_DIR: "/app/data/assistant-knowledge"
       ALLOWED_HOSTS: "*"
       # On here and off on bare metal: this is the configuration where an
       # uploaded model executes with a container between it and the host.
@@ -46,6 +48,8 @@ services:
       DATABASE_URL: "sqlite:////app/data/db.sqlite3"
       HUEY_FILENAME: "/app/data/huey.sqlite3"
       MEDIA_ROOT: "/app/data/media"
+      # The assistant's library, built by the worker and searched by web.
+      ASSISTANT_KNOWLEDGE_DIR: "/app/data/assistant-knowledge"
       ALLOW_CUSTOM_MODELS: "True"
     volumes:
       - data:/app/data

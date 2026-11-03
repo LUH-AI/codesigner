@@ -1,6 +1,5 @@
-"""`timeline` merges runs and between-run history (`ExperimentEvent`) into one
-list, newest first. An experiment older than the history gets a made-up
-`created` entry.
+"""`timeline` merges runs and `ExperimentEvent` history into one list, newest
+first.
 """
 
 from __future__ import annotations
@@ -21,8 +20,7 @@ from .optimizer_labels import summary as optimizer_summary
 
 _STEPS = {"missing": gettext_lazy("Missing values"), "scale": gettext_lazy("Scaling"),
           "labels": gettext_lazy("Label columns")}
-#: Translators choose the in-sentence forms, since a German noun keeps its
-#: capital.
+#: A German noun keeps its capital mid-sentence.
 _STEPS_IN_SENTENCE = {"missing": gettext_lazy("missing values"), "scale": gettext_lazy("scaling"),
                       "labels": gettext_lazy("label columns")}
 
@@ -54,7 +52,7 @@ def _prior_params(prior):
 
 
 def describe_prior(prior) -> str:
-    """`describe_prior` renders a prior like "normal (μ 0.5, σ 0.1)"."""
+    """`describe_prior` gives "normal (μ 0.5, σ 0.1)"."""
     if not prior:
         return _("none")
     params = ", ".join(f"{name} {value}" for name, value in _prior_params(prior))
@@ -68,7 +66,6 @@ def describe_prior(prior) -> str:
 
 
 def prior_rows(prior) -> list:
-    """`prior_rows` lists a prior's distribution, parameters and fading as rows."""
     if not prior:
         return [(_("Distribution"), _("none"))]
     kind = prior.get("kind") or "uniform"
@@ -85,7 +82,7 @@ def prior_rows(prior) -> list:
     return rows
 
 
-#: Stopping criteria in run-form order, by short names.
+#: Run-form order.
 _CRITERIA = {
     "max_trials": gettext_lazy("Trials"),
     "target_score": gettext_lazy("Target score"),
@@ -111,7 +108,7 @@ _SURROGATES = {"none": gettext_lazy("Kept"), "rebuilt_and_replayed": gettext_laz
 
 
 def _time(exp, when) -> str | None:
-    """`_time` shows *when* in UTC or relative per *exp*'s basis, else None."""
+    """`_time` formats *when* per *exp*'s basis, or None."""
     from django.utils.dateformat import format as date_format
 
     shown = times.shown(exp, when)
@@ -136,8 +133,6 @@ def stopping_rows(stopping) -> list:
 
 
 def timeout_rows(timeout) -> list:
-    """`timeout_rows` lists the per-fit deadline: fixed or predicted, bound,
-    multiple."""
     if not timeout:
         return []
     predicted = timeout.get("mode") == "predicted"
@@ -154,8 +149,7 @@ def timeout_rows(timeout) -> list:
 
 def _entry(exp, kind, at, at_trial, summary, details=(), children=(), actor=None, seq=0,
            scheduled=False):
-    """*details* are `(label, value)` or `(label, rows)` pairs, and empty ones
-    are dropped. A *scheduled* entry has no time."""
+    """`_entry` drops *details* pairs whose value is empty."""
     shown = []
     for label, value in details:
         if isinstance(value, list):
@@ -198,9 +192,8 @@ def _configuration_details(configuration):
 
 
 def _data_handling_entry(exp, configuration, at, at_trial, seq):
-    """`_data_handling_entry` lists every step as a row and names the
-    non-default ones in the summary. It returns None for configurations recorded
-    before processing."""
+    """`_data_handling_entry` returns None for configurations recorded before
+    `processing` existed."""
     from core.processing import choices_of
 
     dataset = configuration.get("dataset") or {}
@@ -289,8 +282,7 @@ def _event_entry(exp, event):
     else:
         summary = kind.replace("_", " ").capitalize() + "."
         details = [(key, _value(value)) for key, value in p.items()]
-    # The page shows a prior awaiting the initial design's end as scheduled,
-    # without a time.
+    # A prior waiting for the initial design has no time.
     if p.get("scheduled"):
         return _entry(exp, kind, None, None, summary, details, actor=_name(event.actor),
                       seq=event.pk or 0, scheduled=True)
@@ -366,7 +358,7 @@ def _run_entry(exp, run, number):
     if run.cancel_requested_by is not None:
         summary += " " + _("Cancelled by %(name)s.") % {"name": _name(run.cancel_requested_by)}
 
-    # Fields of `snapshot._run_record`, in its order.
+    # `._run_record` field order.
     details = [
         (_("Status"), str(_STATUSES.get(run.status, run.status))),
         (_("Queued"), _time(exp, run.created_at)),
@@ -383,10 +375,11 @@ def _run_entry(exp, run, number):
         (_("Time in trials"), _duration(run.trial_seconds) if run.trial_seconds else None),
         (_("Error"), run.error or None),
         (_("Priors"), [(hp, describe_prior(prior)) for hp, prior in (run.priors or {}).items()]),
-        # A configuration picked on the page by hand.
+        # Configurations picked by hand.
         (_("Proposal"), [(name, _value(value)) for requested in run.configurations or []
                          for name, value in sorted((requested.get("config") or {}).items())]),
         (_("Trial timeout"), timeout_rows(run.trial_timeout)),
+        (_("Search settings"), _run_safe_rows(exp, run.optimizer_params)),
     ]
     children = sorted((_run_event_entry(exp, e) for e in run.events or []),
                       key=lambda e: e["at_trial"], reverse=True)
@@ -395,14 +388,26 @@ def _run_entry(exp, run, number):
                   actor=_name(run.started_by))
 
 
+def _run_safe_rows(exp, params):
+    """`_run_safe_rows` lists the `run_safe` settings a run started with."""
+    from core.registry import optimizer_class
+
+    from .optimizer_labels import LABELS
+
+    kind = optimizer_class(exp.data.optimizer_name)
+    if not params or kind is None:
+        return []
+    return [(str(LABELS.get(p.name, (p.label, ""))[0]),
+             _value(params.get(p.name)) if params.get(p.name) is not None else _("default"))
+            for p in kind.params_schema if p.name in kind.run_safe]
+
+
 _PRIOR_KINDS = ("prior_stated", "prior_edited", "prior_withdrawn", "prior_reset")
 
 
 def _effective(events, runs):
-    """`_effective` keeps prior statements that a run applied or that still
-    stand, per hyperparameter. It hides a statement that was replaced or
-    withdrawn before any run applied it, and a withdrawal that only cancels such
-    a statement.
+    """`_effective` hides prior statements replaced or withdrawn before any run
+    applied them.
     """
     import copy
 
@@ -433,7 +438,7 @@ def _effective(events, runs):
             new = event.payload.get("new")
             end = chain[i + 1].at if i + 1 < len(chain) else None
             last = i + 1 == len(chain)
-            # Without times, the event is shown instead of hidden on a guess.
+            # An event without a time stays shown.
             counted = (event.at is None
                        or (applied(hp, event.at, end) if new is not None
                            else ran_between(event.at, end) or last))
@@ -461,7 +466,6 @@ def build(exp) -> list[dict]:
     others = [e for e in history if e.kind not in _PRIOR_KINDS]
     priors = _effective([e for e in history if e.kind in _PRIOR_KINDS], runs)
     entries = [_event_entry(exp, e) for e in others + priors]
-    # Each set-up's Data Handling entry follows it.
     for event in others:
         if event.kind == "created":
             entry = _data_handling_entry(exp, (event.payload or {}).get("configuration") or {},
@@ -481,8 +485,7 @@ def build(exp) -> list[dict]:
         if entry:
             entries.append(entry)
 
-    # The list follows time, and entries from one moment keep their creation
-    # order. A file without times is ordered by trial count.
+    # A file without times sorts by trial count.
     scheduled = [e for e in entries if e["scheduled"]]
     entries = [e for e in entries if not e["scheduled"]]
     timed = [e for e in entries if e["at"] is not None]
@@ -493,8 +496,7 @@ def build(exp) -> list[dict]:
     else:
         entries.sort(key=lambda e: ((1, e["at"].timestamp()) if e["at"] else (0, 0.0), e["seq"]),
                      reverse=True)
-    # `build` places the set-up last and its Data Handling above, since a
-    # made-up set-up has no earlier time.
+    # A made-up set-up has no earlier time, so `build` places it last.
     first = ("data_handling", "created")
     return (scheduled + [e for e in entries if e["kind"] not in first]
             + [e for kind in first for e in entries if e["kind"] == kind])

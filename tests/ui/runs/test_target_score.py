@@ -132,13 +132,13 @@ def test_typing_a_target_stops_the_page_replacing_it(client):
 
 
 def _posted(metric_name, **fields):
-    """`_posted` posts *fields* through `_posted_stopping`."""
+    """`_posted` reads *fields* through `run_form.stopping_from`."""
     from django.test import RequestFactory
 
-    from ui.views.runs import _posted_stopping
+    from ui.run_form import stopping_from
 
     request = RequestFactory().post("/", {k: str(v) for k, v in fields.items()})
-    return _posted_stopping(request, metric_name)
+    return stopping_from(request.POST, metric_name)
 
 
 def test_a_target_inside_the_metrics_range_is_kept():
@@ -169,7 +169,7 @@ def test_an_unbounded_metric_accepts_a_negative_target():
 
     cost = Metric(name="smac:cost", fn=unscoreable, higher_is_better=False,
                   bounds=(None, None))
-    with patch("ui.views.runs.metric_for", return_value=cost):
+    with patch("ui.run_form.metric_for", return_value=cost):
         stopping = _posted("smac:cost", target_score="-12.5")
 
     assert stopping["target_score"] == -12.5

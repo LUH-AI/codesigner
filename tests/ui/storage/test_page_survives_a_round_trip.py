@@ -26,6 +26,8 @@ DISPLAYED = [
     "hp_names",
     "incumbent_targets",  # run form's opening target
     "incumbent_target",
+    "trial_budget",       # the trials planned, and what is left of them
+    "next_run_trials",
     "metric_names",
     "run_default_metric",
     "trials_exhausted",

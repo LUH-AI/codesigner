@@ -2,7 +2,7 @@ import tempfile
 from collections.abc import Mapping
 from contextlib import contextmanager
 from pathlib import Path
-from typing import Any
+from typing import Any, NamedTuple
 
 from smac import Scenario
 from smac.acquisition.function import PI, IntegratedAcquisitionFunction
@@ -12,34 +12,81 @@ from smac.model.gaussian_process import GaussianProcess, MCMCGaussianProcess
 from ..base import BaseOptimizer
 from .history import replay
 from .params import (
-    EXTENDABLE_DESIGNS, FACADE_DEFAULTS, GP_MODELS, INITIAL_DESIGNS, PARAMS_SCHEMA, STRATEGIES,
-    signature_default,
+    EXTENDABLE_DESIGNS, FACADE_DEFAULTS, GP_MODELS, INITIAL_DESIGNS, PARAMS_SCHEMA, RUN_SAFE,
+    STRATEGIES, signature_default,
 )
 
-# `_UNBOUNDED_BUDGET` stands in for a missing trial cap and only sizes the
-# initial design, where the share cap is the real setting.
+# `_UNBOUNDED_BUDGET` replaces a missing trial cap and only sizes the initial
+# design.
 _UNBOUNDED_BUDGET = 100
 
 
 def scenario_budget(trial_offset, max_trials=None) -> int:
-    """`scenario_budget` serves a run, its re-walk and the figure, which
-    therefore quote the same decay factor.
+    """`scenario_budget` gives a run, its re-walk and the figure one budget.
     """
     return int(trial_offset) + int(max_trials or _UNBOUNDED_BUDGET)
 
 
+class InitialPoints(NamedTuple):
+    """`InitialPoints` is a design's size: sampled `points`, `trials` with any
+    default configuration, and `bound_by`, the limit that set it.
+    """
+
+    points: int
+    trials: int
+    bound_by: str
+
+
+def initial_points(n_hyperparameters: int, budget: int, params: Mapping[str, Any]) -> InitialPoints:
+    """`initial_points` sizes the initial design for *budget* trials, counting
+    those already run. SMAC takes the smaller cap; `initial_points_use_max`
+    picks the larger instead. SMAC raises on a design larger than the budget
+    less the default configuration.
+    """
+    def setting(name):
+        value = params.get(name)
+        if value is None:
+            value = next(p.default for p in PARAMS_SCHEMA if p.name == name)
+        return value
+
+    use_default = bool(setting("use_default_config"))
+    caps = []
+    if setting("use_share_cap"):
+        share = params.get("share_cap")
+        if share is None:
+            share = signature_default(AbstractInitialDesign.__init__, "max_ratio")
+        caps.append((int(float(share) * budget), f"share cap {share:g} of {budget}"))
+    if setting("use_trial_cap"):
+        count = params.get("trial_cap")
+        if count is None:
+            per_hp = signature_default(AbstractInitialDesign.__init__,
+                                       "n_configs_per_hyperparameter") or 10
+            count = per_hp * n_hyperparameters
+            caps.append((int(count), f"trial cap {count} ({per_hp} per hyperparameter)"))
+        else:
+            caps.append((int(count), f"trial cap {int(count)}"))
+
+    if not caps:
+        wanted, bound_by = budget, "both caps off, so the whole budget"
+    else:
+        pick = max if setting("initial_points_use_max") else min
+        wanted, bound_by = pick(caps, key=lambda cap: cap[0])
+
+    room = budget - (1 if use_default else 0)
+    if wanted > room:
+        wanted, bound_by = room, f"the budget of {budget}"
+    points = max(1, wanted)
+    return InitialPoints(points, points + (1 if use_default else 0), bound_by)
+
+
 class FacadeBuilder(BaseOptimizer):
-    """`FacadeBuilder` stores the configuration of `.SMACOptimizer` and
-    constructs the SMAC facade from it: the initial design, the surrogate
-    model, the acquisition function and the acquisition maximizer.
-    `.SMACOptimizer` extends `FacadeBuilder` with the optimization loop and
-    with the methods that reconstruct the search of a finished run. A blank
-    setting resolves to the default of the strategy selected from `.STRATEGIES`,
-    since `smac.BlackBoxFacade` and `smac.HyperparameterOptimizationFacade`
-    define different defaults.
+    """`FacadeBuilder` builds the SMAC facade of `.SMACOptimizer`. A blank
+    setting takes the selected strategy's default, since `smac.BlackBoxFacade`
+    and `smac.HyperparameterOptimizationFacade` define different defaults.
     """
 
     params_schema = PARAMS_SCHEMA
+    run_safe = RUN_SAFE
 
     def __init__(self, search_strategy="gp",
                  use_share_cap=True, share_cap=None,
@@ -53,7 +100,7 @@ class FacadeBuilder(BaseOptimizer):
                  rf_min_samples_leaf=None, rf_feature_ratio=None,
                  rf_bootstrapping=True,
                  gp_model_type="vanilla", gp_restarts=None, gp_normalize_y=True):
-        # `get_params()` reads these back for the `.ihpo` round trip.
+        # `get_params()` returns these for `.ihpo` files.
         self._search_strategy = search_strategy if search_strategy in STRATEGIES else "gp"
         self._use_share_cap = bool(use_share_cap)
         self._share_cap = share_cap
@@ -80,9 +127,8 @@ class FacadeBuilder(BaseOptimizer):
 
     @classmethod
     def migrate_params(cls, stored: Mapping[str, Any]) -> Mapping[str, Any]:
-        """`exploration_trials` was an exact count that bypassed the share, so
-        it becomes the trial cap with the share cap off. `exploration_ratio`
-        alone becomes the share cap.
+        """`exploration_trials` becomes the trial cap with the share cap off,
+        and `exploration_ratio` becomes the share cap.
         """
         if "exploration_ratio" not in stored and "exploration_trials" not in stored:
             return stored
@@ -97,50 +143,21 @@ class FacadeBuilder(BaseOptimizer):
         return migrated
 
     def _initial_points(self, scenario, previous_result=None) -> int:
-        """A resume under a non-nesting design such as Latin hypercube keeps the
-        size the first run recorded (see `_pinned_points`), since a new size
-        resamples every point mid-search. SMAC takes the smaller of a budget
-        share (`max_ratio`) and a count (`n_configs`, ten per hyperparameter by
-        default), and choosing the larger is arithmetic here. With both caps off
-        the whole budget is sampled. The result is clamped to at least one and
-        to the budget less the default configuration, because SMAC raises on an
-        oversized design.
+        """A non-nesting design keeps its recorded size on resume, since
+        resizing resamples every point.
         """
         pinned = self._pinned_points(previous_result)
         if pinned is not None:
             return pinned
-
-        budget = scenario.n_trials
-        caps = []
-        if self._use_share_cap:
-            share = self._share_cap
-            if share is None:
-                share = signature_default(AbstractInitialDesign.__init__, "max_ratio")
-            caps.append(int(float(share) * budget))
-        if self._use_trial_cap:
-            count = self._trial_cap
-            if count is None:
-                # SMAC's per-hyperparameter count, read from its signature.
-                per_hp = signature_default(AbstractInitialDesign.__init__,
-                                           "n_configs_per_hyperparameter") or 10
-                count = per_hp * len(list(scenario.configspace.values()))
-            caps.append(int(count))
-
-        if not caps:
-            wanted = budget
-        else:
-            wanted = max(caps) if self._initial_points_use_max else min(caps)
-
-        room = budget - (1 if self._use_default_config else 0)
-        return max(1, min(wanted, room))
+        return initial_points(len(list(scenario.configspace.values())), scenario.n_trials,
+                              self.get_params()).points
 
     def _pinned_points(self, previous_result) -> int | None:
-        """`_pinned_points` returns None for a nesting design, a first run, a
-        file without SMAC's scenario, or a changed sampling method.
+        """`_pinned_points` returns None unless a non-nesting design resumes
+        under the same sampling method.
         """
         if self._initial_design in EXTENDABLE_DESIGNS:
-            # A nesting design lets the phase grow with the budget, so a resumed
-            # run samples as much as an uninterrupted one.
+            # A nesting design grows with the budget like an uninterrupted run.
             return None
 
         recorded = (previous_result.metadata.get("initial_design")
@@ -154,9 +171,8 @@ class FacadeBuilder(BaseOptimizer):
 
     @classmethod
     def strategy_defaults(cls) -> dict:
-        """Both strategies' defaults come from SMAC's signatures, because the
-        form switches strategy client-side and its placeholders must stay
-        correct.
+        """The form switches strategy client-side, so its placeholders need both
+        strategies' defaults.
         """
         return {
             name: {strategy: signature_default(getattr(facade, getter), argument)
@@ -165,9 +181,8 @@ class FacadeBuilder(BaseOptimizer):
         }
 
     def resolved_params(self) -> dict:
-        """Blank settings take SMAC's signature defaults, and the SMAC version
-        sits in `environment.packages.smac`. Settings of the other strategy stay
-        null, which re-imports correctly.
+        """Blank settings take SMAC's signature defaults; the other strategy's
+        settings stay null.
         """
         facade = STRATEGIES[self._search_strategy]
         filled = dict(self.get_params())
@@ -181,11 +196,29 @@ class FacadeBuilder(BaseOptimizer):
             filled["gp_restarts"] = signature_default(GaussianProcess.__init__, "n_restarts")
         return filled
 
+    @classmethod
+    def effective_defaults(cls) -> dict:
+        """`effective_defaults` maps strategy to value where defaults differ.
+        """
+        by_strategy = {s: cls(search_strategy=s).resolved_params() for s in STRATEGIES}
+        out = {}
+        for param in cls.params_schema:
+            if param.name == "search_strategy":
+                out[param.name] = param.default
+                continue
+            values = {s: resolved.get(param.name) for s, resolved in by_strategy.items()}
+            if param.depends_on and param.depends_on[0] == "search_strategy":
+                values = {param.depends_on[1]: values[param.depends_on[1]]}
+            distinct = {repr(v) for v in values.values()}
+            out[param.name] = next(iter(values.values())) if len(distinct) == 1 else values
+        per_hp = signature_default(AbstractInitialDesign.__init__,
+                                   "n_configs_per_hyperparameter") or 10
+        out["trial_cap"] = f"{per_hp} × hyperparameters"
+        return out
+
     def _surrogate(self, facade, scenario, log_y=None):
-        """The GP facade exposes only `model_type` and `kernel`, so restarts and
-        normalisation require building the process here with the facade's
-        kernel. Only given settings are passed, so an unset one keeps the
-        strategy's default.
+        """The GP facade only exposes `model_type` and `kernel`, so `_surrogate`
+        builds the process to set restarts.
         """
         if self._search_strategy == "rf":
             given = {
@@ -193,7 +226,7 @@ class FacadeBuilder(BaseOptimizer):
                 "max_depth": self._rf_max_depth,
                 "min_samples_split": self._rf_min_samples_split,
                 "min_samples_leaf": self._rf_min_samples_leaf,
-                # SMAC computes `max_features = 0` above 1.0.
+                # SMAC zeroes `max_features` above 1.0.
                 "ratio_features": (None if self._rf_feature_ratio is None
                                    else min(float(self._rf_feature_ratio), 1.0)),
             }
@@ -201,8 +234,7 @@ class FacadeBuilder(BaseOptimizer):
             if log_y is None:
                 return facade.get_model(
                     scenario, bootstrapping=self._rf_bootstrapping, **given)
-            # `get_model` hardcodes `log_y=True`, and raw costs can be negative,
-            # so a refit builds the forest here with `log_y` off.
+            # `get_model` hardcodes `log_y=True`, and raw costs can be negative.
             from smac.model.random_forest.random_forest import RandomForest
             defaults = dict(n_trees=10, ratio_features=1.0, min_samples_split=2,
                             min_samples_leaf=1, max_depth=2 ** 20)
@@ -214,7 +246,7 @@ class FacadeBuilder(BaseOptimizer):
 
         kernel = facade.get_kernel(scenario)
         if self._gp_model_type == "mcmc":
-            # `walkers` mirrors the facade's MCMC setup and must be even.
+            # The facade's MCMC walker count, rounded even.
             walkers = 3 * len(kernel.theta)
             return MCMCGaussianProcess(
                 configspace=scenario.configspace, kernel=kernel,
@@ -228,21 +260,18 @@ class FacadeBuilder(BaseOptimizer):
             normalize_y=self._gp_normalize_y, seed=scenario.seed, **restarts)
 
     def _scenario_extras(self) -> dict:
-        """`_scenario_extras` adds the use-default-config switch to scenarios."""
         return {"use_default_config": self._use_default_config}
 
     def _facade(self, scenario, target_function, previous_result=None,
                 initial_points=None):
-        """Each component comes from the facade's own `get_*`, so an unset knob
-        keeps the strategy's default, which differs between GP and forest.
+        """The facade's `get_*` methods build each component with the strategy's
+        defaults.
         """
         facade = STRATEGIES[self._search_strategy]
 
         design = INITIAL_DESIGNS[self._initial_design]
-        # `max_ratio=1.0` and an explicit `n_configs` stop SMAC clamping the
-        # count again, which makes the larger cap reachable (see
-        # `_initial_points`). *initial_points* lets a rebuild reuse a finished
-        # run's design size instead of guessing from a budget.
+        # `max_ratio=1.0` and an explicit `n_configs` keep SMAC from re-clamping
+        # the count. A rebuild passes the recorded size as *initial_points*.
         initial_design = design(
             scenario, max_ratio=1.0,
             n_configs=(initial_points if initial_points is not None
@@ -253,8 +282,7 @@ class FacadeBuilder(BaseOptimizer):
             acquisition = PI(xi=self._acquisition_xi)
 
         model = self._surrogate(facade, scenario)
-        # An acquisition function handed an MCMC ensemble scores one member, so
-        # `IntegratedAcquisitionFunction` marginalizes over all of them.
+        # A plain acquisition function only scores one MCMC member.
         if isinstance(model, MCMCGaussianProcess):
             acquisition = IntegratedAcquisitionFunction(acquisition)
 
@@ -287,9 +315,9 @@ class FacadeBuilder(BaseOptimizer):
     @contextmanager
     def _rebuilt(self, config_space, trials, metric_name: str, seed: int, previous_result,
                  n_trials: int, purpose: str):
-        """`_rebuilt` provides a run's facade with *trials* replayed, in a
-        scratch directory, and its target raises, naming *purpose*."""
-        # The recorded design size, as `_pinned_points` reads it.
+        """`_rebuilt` yields a facade with *trials* replayed; its target raises
+        `RuntimeError`."""
+        # The size `_pinned_points` reads.
         recorded = ((getattr(previous_result, "metadata", None) or {})
                     .get("initial_design") or {}).get("n_configs")
         with tempfile.TemporaryDirectory() as directory:

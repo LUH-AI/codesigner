@@ -1,4 +1,4 @@
-"""`ui.times` formats times for export forms and pages.
+"""`ui.times` formats export times.
 """
 
 from __future__ import annotations
@@ -27,7 +27,6 @@ LABELS = {
 
 
 def reader_preference(user) -> str:
-    """`reader_preference` returns *user*'s default export time form."""
     row = ReaderPreferences.objects.filter(user=account(user)).first()
     return row.export_timestamps if row and row.export_timestamps in MODES else DEFAULT
 
@@ -38,16 +37,25 @@ def set_reader_preference(user, mode) -> None:
             user=account(user), defaults={"export_timestamps": mode})
 
 
+def assistant_on(user) -> bool:
+    """`assistant_on` returns True for a user without a `.ReaderPreferences`
+    row."""
+    row = ReaderPreferences.objects.filter(user=account(user)).first()
+    return row.assistant_enabled if row else True
+
+
+def set_assistant_on(user, on: bool) -> None:
+    ReaderPreferences.objects.update_or_create(user=account(user),
+                                               defaults={"assistant_enabled": on})
+
 
 def for_export(exp, user) -> str:
-    """`for_export` takes the experiment setting, else the reader preference,
-    clamped to *exp*'s precision."""
+    """`for_export` prefers the experiment setting over the reader preference."""
     chosen = resolve_settings(exp).get("export_timestamps") or reader_preference(user)
     return clamp(exp, chosen)
 
 
 def offset_text(seconds: float) -> str:
-    """`offset_text` formats a duration as "+3 h 12 min"."""
     seconds = max(0.0, seconds)
     if seconds < 60:
         return _("+%(n)d s") % {"n": round(seconds)}
@@ -62,7 +70,7 @@ def offset_text(seconds: float) -> str:
 
 
 def shown(exp, when) -> dict | None:
-    """`shown` formats *when* per *exp*'s time basis, or returns None."""
+    """`shown` formats *when* per *exp*'s time basis."""
     if when is None:
         return None
     if isinstance(when, str):

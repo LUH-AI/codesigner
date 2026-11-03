@@ -1,0 +1,34 @@
+# The general chat and the experiments' chats (assistant/views.py
+# `chats_context`): answering across the person's experiments, about
+# Codesigner's own pages, and keeping an experiment's notepad.
+
+[[case]]
+id = "general-compares-experiments"
+say = "Two of my experiments tune on iris. Which one found the better accuracy, and by how much?"
+[case.situation]
+phase = "planning"
+page = "ui:experiment_list"
+also = ["smac_iris", "smac_iris_guided"]
+[case.expect]
+calls = [{tool = "list_experiments"}, {tool = "read_experiment"}]
+never = ["update_plan"]
+
+[[case]]
+id = "where-a-setting-is"
+say = "Where do I change how times appear in my exports?"
+[case.situation]
+phase = "planning"
+page = "ui:experiment_list"
+[case.expect]
+calls = [{tool = "about_page"}]
+never = ["update_plan"]
+mentions = ["Export"]
+
+[[case]]
+id = "notes-the-goal"
+say = "Remember this for later, and for my colleagues: in this experiment we only care about recall on class 2."
+[case.situation]
+phase = "results"
+fixture = "analytics"
+[case.expect]
+calls = [{tool = "write_notes"}]
