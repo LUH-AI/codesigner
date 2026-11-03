@@ -1,9 +1,5 @@
-"""The tools that answer questions about an experiment from what it stores — its
-set-up, runs, priors, history and every trial — rather than from what its pages
-draw (assistant/results.py does the analyses).
-
-The experiment is the one named, else the conversation's, else the one whose
-page the person has open, reached as the person may view it.
+"""`assistant.tools.experiment` answers questions from an experiment's stored
+set-up, runs and trials.
 """
 
 from __future__ import annotations
@@ -19,14 +15,13 @@ from ui.permissions import BOTH
 from .. import results, tradeoffs
 from .registry import Refused, ToolResult, ToolSpec
 
-#: Rebuilt trials kept between calls, by what would change them.
 _KEPT: OrderedDict = OrderedDict()
 _KEPT_SIZE = 8
 _kept_lock = threading.Lock()
 
 
 def experiment_of(context, experiment: int | None = None):
-    """The experiment a call is about, as the person may view it."""
+    """`experiment_of` tries the conversation, then the open page."""
     pk = experiment or context.conversation.experiment_id
     if pk is None:
         from .. import acts
@@ -40,8 +35,8 @@ def experiment_of(context, experiment: int | None = None):
 
 
 def _runs(exp, stored: int) -> list[dict]:
-    """*exp*'s runs, each with its trial range. A run still going has no count
-    yet, so its range runs to the *stored* trials past its offset."""
+    """`_runs` lists *exp*'s runs with trial ranges; a running run's range ends
+    at the *stored* trial count."""
     out = []
     for index, run in enumerate(exp.runs.order_by("pk"), start=1):
         row = {"index": index, "status": run.status, "stopped_by": run.stopped_by or None,
@@ -56,15 +51,12 @@ def _runs(exp, stored: int) -> list[dict]:
 
 
 def _stored(exp) -> int:
-    """How many trials *exp* stores now, which a running run raises with each
-    progress write."""
     return len((exp.data.result or {}).get("data") or [])
 
 
 def _planned(exp, kind, space) -> tuple[dict | None, int | None]:
-    """The initial design SMAC sizes for *exp*'s latest run, and that run's
-    whole budget, from the settings it started with; None for another
-    optimizer or without a run or space."""
+    """`_planned` returns the latest run's SMAC initial design and budget, or
+    `(None, None)`."""
     from core.optimizers.smac.facade import initial_points, scenario_budget
 
     latest = exp.runs.order_by("pk").last()
@@ -77,8 +69,8 @@ def _planned(exp, kind, space) -> tuple[dict | None, int | None]:
 
 
 def trials_of(exp) -> results.Trials:
-    """*exp*'s trials, rebuilt from what it stores; kept until a run or the
-    stored result changes."""
+    """`trials_of` rebuilds *exp*'s trials and caches them until the result
+    changes."""
     from experiments.services.snapshot import config_space_for, rebuild_experiment
 
     stored = _stored(exp)
@@ -110,8 +102,8 @@ def trials_of(exp) -> results.Trials:
 
 
 def _answer(exp, found: dict, t: results.Trials) -> ToolResult:
-    """*found* as the tool's output, stamped with the trials and run status it
-    was worked out at, since a running run makes it out of date."""
+    """`_answer` adds the trial count and run status to *found*, since a running
+    run outdates the answer."""
     stamp = {"trials": len(t.trials)}
     if t.runs:
         stamp["run"] = {k: t.runs[-1][k] for k in ("index", "status")}
@@ -130,7 +122,6 @@ def _run(question):
         raise Refused(str(error))
 
 
-# ── read_experiment ─────────────────────────────────────────────────────────
 
 def _overview(exp, t) -> dict:
     data = exp.data
@@ -194,7 +185,7 @@ def _settings(exp, t) -> dict:
 
     kind = optimizer_class(data.optimizer_name)
     editable = [name for name, row in settings.items() if row["editable_now"]]
-    # The metric is chosen for each run, so its note always applies.
+    # The metric note applies to every run.
     out["tradeoffs"] = {**(tradeoffs.for_optimizer(kind, editable) if kind else {}),
                         **tradeoffs.notes(["optimize_metric"])}
     if t.design:
@@ -207,9 +198,9 @@ def _settings(exp, t) -> dict:
 
 
 def _design_grows_from(n_hyperparameters, budget, params, drawn) -> int | None:
-    """The smallest total of trials above *budget* at which the initial design
-    holds more than the *drawn* points, or None when the caps keep it at most
-    that at any total. The design's size never shrinks as the total grows."""
+    """`_design_grows_from` returns the smallest trial total above *budget*
+    whose initial design exceeds *drawn*, or None. The search relies on the
+    design never shrinking as the total grows."""
     from core.optimizers.smac.facade import initial_points
 
     def bigger(total):
@@ -225,9 +216,8 @@ def _design_grows_from(n_hyperparameters, budget, params, drawn) -> int | None:
 
 
 def _optimizer_settings(exp, t) -> dict:
-    """Each optimizer setting that applies under the stored search strategy: the
-    stored value (blank meaning its default), the value in effect, and whether
-    it can change now, with why not and where it changes."""
+    """`_optimizer_settings` lists each applicable setting's stored value, value
+    in effect and editability."""
     from core.optimizers.smac.params import signature_default
 
     from core.registry import optimizer_class
@@ -321,8 +311,8 @@ def _timeline(exp, t) -> dict:
 
 
 def _form_values(context, exp) -> tuple[dict, str]:
-    """The run form's fields, as the person's page shows them when it is this
-    experiment's, else as the form opens; and which of the two."""
+    """`_form_values` reads the run form from the person's page showing *exp*,
+    else from its opening values."""
     from .. import acts
 
     page = acts.current(context.conversation)
@@ -340,7 +330,7 @@ def _form_values(context, exp) -> tuple[dict, str]:
 
 
 def _stops(stopping: dict, best, higher_is_better: bool, done: int, budget) -> list[str]:
-    """Each criterion in *stopping* as what it will do to the run."""
+    """`_stops` describes each *stopping* criterion's effect."""
     out = []
     for key, value in stopping.items():
         if key == "max_trials":
@@ -371,8 +361,8 @@ def _stops(stopping: dict, best, higher_is_better: bool, done: int, budget) -> l
 
 
 def _next_run(context, exp, t, trials: int | None = None) -> dict:
-    """What pressing Run would do with the run form as it stands, or with
-    *trials* in place of its trial limit."""
+    """`_next_run` describes the next run from the form, with *trials*
+    overriding its limit."""
     from core.optimizers.smac.facade import initial_points, scenario_budget
     from core.optimizers.smac.params import EXTENDABLE_DESIGNS
 
@@ -485,7 +475,6 @@ READ_EXPERIMENT = ToolSpec(
 )
 
 
-# ── read_trials, compare_trials, analyze_experiment ─────────────────────────
 
 def _read_trials(context, trial: int | None = None, order: str = "best",
                  metric: str = "", limit: int = 10, where: list | None = None,
@@ -562,7 +551,7 @@ ANALYZE_EXPERIMENT = ToolSpec(
 )
 
 
-#: Where the numbers behind each of the dashboard's figures are read.
+#: `FIGURE_DATA` maps dashboard figures to tool calls.
 FIGURE_DATA = {
     "trials": "read_trials",
     "best_configuration": "read_trials(order=best, limit=1)",
@@ -583,9 +572,8 @@ FIGURE_DATA = {
 }
 
 
-# ── list_experiments ────────────────────────────────────────────────────────
 
-#: The most experiments one list gives.
+#: `LISTED` caps one list.
 LISTED = 50
 
 
@@ -622,5 +610,4 @@ LIST_EXPERIMENTS = ToolSpec(
 
 
 def experiment_tools():
-    """The tools that read an experiment, and the one that lists them."""
     return [LIST_EXPERIMENTS, READ_EXPERIMENT, READ_TRIALS, COMPARE_TRIALS, ANALYZE_EXPERIMENT]

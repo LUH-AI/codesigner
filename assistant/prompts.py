@@ -1,12 +1,10 @@
-"""What the model is told before the conversation: who it is acting for, what
-it may not do, and where the conversation stands. The words themselves are in
-assistant/instructions/."""
+"""`assistant.prompts` builds the system message from the texts in
+assistant/instructions/ and the conversation's state."""
 
 from __future__ import annotations
 
 
 def system_prompt(conversation) -> str:
-    """The system message for *conversation* as it stands."""
     import json
 
     from .instructions import load
@@ -53,8 +51,7 @@ def system_prompt(conversation) -> str:
 
 
 def _notes_line(conversation, pk) -> str:
-    """Experiment *pk*'s notepad as far as it fits, or "" when the person
-    cannot view it."""
+    """`_notes_line` returns "" when the person cannot view experiment *pk*."""
     import json
 
     from access.policy import VIEW
@@ -76,8 +73,8 @@ def _notes_line(conversation, pk) -> str:
 
 
 def _status_line(exp) -> str:
-    """Where *exp*'s runs stand as this turn starts, so a tool result from an
-    earlier turn is visibly older than the run."""
+    """`_status_line` reports run status at the turn's start, so older tool
+    results visibly predate it."""
     import logging
 
     from . import results
@@ -107,8 +104,6 @@ def _status_line(exp) -> str:
 
 
 def _tab_line(page) -> str:
-    """Which of *page*'s tabs is showing and the figures on it, or "" for a
-    page without tabs."""
     import json
 
     view = page.view or {}
@@ -125,7 +120,7 @@ def _tab_line(page) -> str:
 
 
 def _brief(conversation):
-    """The dataset's brief, or None when there is none or it cannot be read."""
+    """`_brief` returns None for a missing or unreadable brief."""
     import logging
 
     from .gateway import Context

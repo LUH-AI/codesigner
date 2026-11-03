@@ -1,8 +1,5 @@
-"""The explainers the assistant reads, from assistant/knowledge/explainers*/:
-one Markdown file each, with frontmatter and `## ` sections, in a folder per
-kind (pages, tradeoffs, …). A file in `explainers/` replaces the draft of the
-same id in `explainers-DRAFT/`; the drafts are in use until they are reviewed
-(explainers-DRAFT/README.md).
+"""`explainers` reads one Markdown file per explainer from
+assistant/knowledge/explainers/, in a folder per kind (explainers/README.md).
 """
 
 import re
@@ -10,14 +7,13 @@ from functools import cache
 from pathlib import Path
 
 KNOWLEDGE = Path(__file__).resolve().parent / "knowledge"
-ROOTS = (KNOWLEDGE / "explainers", KNOWLEDGE / "explainers-DRAFT")
+ROOT = KNOWLEDGE / "explainers"
 
 _FRONT = re.compile(r"\A---\n(.*?)\n---\n", re.S)
 _COMMENT = re.compile(r"<!--.*?-->", re.S)
 
 
 def _front(text: str) -> dict:
-    """The frontmatter's fields: a list for `[a, b]` or `  - ` items, else text."""
     fields, current = {}, None
     for line in text.splitlines():
         item = re.match(r"^  - (.*)$", line)
@@ -40,19 +36,13 @@ def _sections(body: str) -> dict:
 
 @cache
 def read(kind: str) -> dict:
-    """The explainers of *kind* (the folder's name) by file stem, each
-    `{"fields": frontmatter, "sections": {title: text}}`; the reviewed one of
-    an id first, its draft skipped."""
-    found, ids = {}, set()
-    for root in ROOTS:
-        for path in sorted((root / kind).glob("*.md")):
-            if path.name == "index.md":
-                continue
-            text = path.read_text(encoding="utf-8")
-            match = _FRONT.match(text)
-            fields = _front(match.group(1))
-            if fields["id"] in ids:
-                continue
-            ids.add(fields["id"])
-            found[path.stem] = {"fields": fields, "sections": _sections(text[match.end():])}
+    """`read` returns fields and sections for each file of *kind*."""
+    found = {}
+    for path in sorted((ROOT / kind).glob("*.md")):
+        if path.name == "index.md":
+            continue
+        text = path.read_text(encoding="utf-8")
+        match = _FRONT.match(text)
+        found[path.stem] = {"fields": _front(match.group(1)),
+                            "sections": _sections(text[match.end():])}
     return found

@@ -1,4 +1,3 @@
-"""`core.models.seasonal_naive` defines the baseline forecasts."""
 
 from ConfigSpace import Categorical, ConfigurationSpace
 from codesigner_model import OutputBaseModel
@@ -8,15 +7,14 @@ from .base import Tunable
 
 
 class SeasonalNaive(OutputBaseModel):
-    """MASE measures every other forecaster against the seasonal
-    `SeasonalNaive`."""
+    """`SeasonalNaive` is the MASE baseline forecaster."""
 
     name = "Seasonal Naive"
     tasks = ("regression",)
     forecaster = True
     probabilities = False
     dependencies = ("numpy",)
-    #: The forecast replays history, leaving no parameters.
+    #: `.save` raises `.NothingToKeep`.
     has_parameters = False
 
     def build(self, hyperparameters, data, seed=0):
@@ -25,10 +23,9 @@ class SeasonalNaive(OutputBaseModel):
 
 
 class SeasonalNaiveModel(Tunable, SeasonalNaive):
-    """`SeasonalNaiveModel` is the seasonal naive forecast, which repeats the value
-    one season back, the baseline MASE measures against."""
+    """`SeasonalNaiveModel` is a naive forecast baseline."""
 
-    #: Processing must leave a series' times alone.
+    #: Series times stay unprocessed.
     takes_processing = False
 
     def get_config_space(self, seed: int = 0) -> ConfigurationSpace:

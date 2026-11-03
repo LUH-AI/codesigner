@@ -1,5 +1,4 @@
-"""`experiment_from_snapshot` and `snapshot_from_experiment` are the only bridge
-between the `.ihpo` format and the database.
+"""`snapshot` converts between `.ihpo` snapshots and database rows.
 """
 
 import copy
@@ -24,8 +23,6 @@ from . import history, modelenv, timestamps
 
 
 def finish_import(exp, *, source: str, filename: str, user=None) -> None:
-    """`finish_import` re-locks an imported model instead of trusting the
-    exporter's pins."""
     history.record(exp, "imported", user=user, source=source, filename=filename,
                    dataset_attached=exp.data.has_dataset)
     modelenv.start_preparation(exp)
@@ -34,19 +31,15 @@ def finish_import(exp, *, source: str, filename: str, user=None) -> None:
 def experiment_from_snapshot(snapshot: dict, dataset_file=None, model_file=None,
                              adopt_paths: bool = False, owner=None,
                              group=None) -> Experiment:
-    """`experiment_from_snapshot` adopts files from *dataset_file* and
-    *model_file*, and without them the row stays browsable until someone
-    attaches a dataset. *adopt_paths* lets the server read the snapshot's paths,
-    so only the create form and the import command, which wrote those paths,
-    enable it. `experiment_from_snapshot` adopts a custom model only when
-    ALLOW_CUSTOM_MODELS is on, and takes *owner* because an `.ihpo` records no
+    """A row without a dataset stays browsable until someone attaches one. The
+    create form and the import command alone pass *adopt_paths*, which reads the
+    snapshot's server paths. Callers pass *owner* because an `.ihpo` records no
     author.
     """
     snapshot = timestamps.anchor(copy.deepcopy(io.normalize(snapshot)))
     data = data_from_snapshot(snapshot, dataset_file, model_file, adopt_paths)
 
-    # The transaction writes both halves or neither, so no orphan
-    # `ExperimentData` row survives a failure.
+    # The transaction leaves no orphan `.ExperimentData` row on failure.
     with transaction.atomic():
         data.save()
         exp = Experiment(data=data, owner=owner, group=group)
@@ -58,12 +51,12 @@ def experiment_from_snapshot(snapshot: dict, dataset_file=None, model_file=None,
 
 def data_from_snapshot(snapshot: dict, dataset_file=None, model_file=None,
                        adopt_paths: bool = False) -> ExperimentData:
-    """`data_from_snapshot` returns the unsaved portable half with its files
-    saved; a draft's setup reuses it at each save of step 1."""
+    """`data_from_snapshot` returns the unsaved `.ExperimentData` with its files
+    saved."""
     ev = io.evaluation_of(snapshot)
     data = ExperimentData(
         name=snapshot.get("name") or "",
-        # A renamed built-in takes its current name; an upload keeps its own.
+        # A renamed built-in takes its current name.
         model_name=(snapshot["model"]["name"] if snapshot["model"].get("kind") == "file"
                     else canonical_model_name(snapshot["model"]["name"])),
         optimizer_name=snapshot["optimizer"]["name"],
@@ -114,15 +107,13 @@ def data_from_snapshot(snapshot: dict, dataset_file=None, model_file=None,
     return data
 
 
-#: An unfinished run was interrupted, so it imports as cancelled instead of
-#: polling forever.
+#: Unfinished runs import as cancelled rather than poll forever.
 _UNFINISHED = Run.ACTIVE_STATUSES
 
 
 def _restore_runs(exp: Experiment, recorded: list) -> None:
-    """`_restore_runs` keeps the round trip lossless for the `runs` section.
-    `started_by` stays empty, because an account elsewhere has no local
-    counterpart.
+    """`_restore_runs` leaves `started_by` empty, since a foreign account has no
+    local counterpart.
     """
     from experiments.models import Run
 
@@ -159,8 +150,8 @@ def _when(value):
 
 
 def _model_kind(data, model_path: str) -> str:
-    """`_model_kind` infers the kind: a `.py` is a file, a registry name is a
-    registry model, and anything else is external, such as a SMAC import.
+    """`_model_kind` returns "file" for a model path, "registry" for a registry
+    name, and "external" otherwise (a SMAC import).
     """
     if model_path:
         return "file"
@@ -168,8 +159,7 @@ def _model_kind(data, model_path: str) -> str:
 
 
 def _demo_named(snapshot, adopt_paths) -> str:
-    """`_demo_named` matches a bundled demo by name, or by file for a path the
-    caller produced."""
+    """`_demo_named` matches a demo by name, or by file under *adopt_paths*."""
     section = snapshot.get("dataset") or {}
     demos = datasets.demo_datasets()
     named = section.get("demo")
@@ -184,14 +174,9 @@ def _demo_named(snapshot, adopt_paths) -> str:
 
 def snapshot_from_experiment(exp: Experiment, *, provenance: bool = False) -> dict:
     """`snapshot_from_experiment` points paths at the row's own files and never
-    echoes a foreign path.
-
-    *provenance* adds digests, data shape, resolved defaults, run history and
-    versions; export alone enables it because the fingerprint hashes the
-    dataset.
+    echoes a foreign path. Export alone sets *provenance*, because the
+    fingerprint hashes the dataset.
     """
-    # Everything except the last two lines reads `data`, so `ExperimentData`
-    # defines the file format.
     data = exp.data
     dataset = str(data.dataset_path() or "")
     model_path = data.model_file.path if data.model_file else ""
@@ -200,12 +185,10 @@ def snapshot_from_experiment(exp: Experiment, *, provenance: bool = False) -> di
         "version": dist_version("codesigner"),
         "name": data.name,
         "seed": data.seed,
-        # Start time and time form; an export restates the form.
         "began_at": data.created_at.isoformat() if data.created_at else None,
         "timestamps": data.time_basis,
         "dataset": {"filename": Path(dataset).name if dataset else "",
                     "path": dataset,
-                    # Another instance reads a demo by name from its own copy.
                     "demo": data.demo_dataset or None,
                     "processing": choices_of(data.processing)},
         "model": {"kind": _model_kind(data, model_path),
@@ -219,19 +202,16 @@ def snapshot_from_experiment(exp: Experiment, *, provenance: bool = False) -> di
                     "original": data.original_metric},
         "optimizer": {"name": data.optimizer_name, "params": data.optimizer_params},
     }
-    # An absent `target_column` keeps the dataset's last column as the target,
-    # as in every file written before the target was a choice.
+    # An absent `target_column` means the dataset's last column is the target.
     if data.target_column:
         snapshot["dataset"]["target_column"] = data.target_column
-    # The `space` section only appears when the row stores a search space.
     if data.config_space:
         snapshot["space"] = data.config_space
-    # `priors` sits beside `space` and steers the next run, so a re-import keeps
-    # searching weighted. The section is optional, so `format` stays unchanged.
+    # `priors` steers the next run after a re-import; the optional section
+    # leaves `format` unchanged.
     if data.priors:
         snapshot["priors"] = {name: _prior_record(stated)
                               for name, stated in sorted(data.priors.items())}
-    # `trial_budget` is optional, so a file without it reads as no budget.
     if data.trial_budget:
         snapshot["trial_budget"] = data.trial_budget
     if provenance:
@@ -240,18 +220,14 @@ def snapshot_from_experiment(exp: Experiment, *, provenance: bool = False) -> di
     return snapshot
 
 
-#: A prior is its shape, params, decay and stating time. `knots` stays out
-#: because the grid density would restate `kind` and `params` and could disagree
-#: with them.
+#: `knots` stays out of `_PRIOR_FIELDS` because grid density would restate
+#: `kind` and `params` and could disagree with them.
 _PRIOR_FIELDS = ("kind", "params", "decay", "at_trial", "delay_decay")
 
 
 def export(exp: Experiment, mode: str, keep_tracebacks: bool) -> bytes:
-    """`export` writes *exp* as an `.ihpo` with times in *mode*, keeping
-    tracebacks only when *keep_tracebacks* is set."""
     snapshot = snapshot_from_experiment(exp, provenance=True)
-    # Server paths are useless to the file's reader and reveal the instance
-    # layout.
+    # Server paths would reveal the instance layout.
     snapshot["dataset"]["path"] = ""
     snapshot["model"]["path"] = ""
     if snapshot.get("result"):
@@ -259,27 +235,24 @@ def export(exp: Experiment, mode: str, keep_tracebacks: bool) -> bytes:
     timestamps.apply(snapshot, timestamps.clamp(exp, mode), timestamps.origin(exp))
     if not keep_tracebacks and snapshot.get("result"):
         for entry in snapshot["result"].get("data", []):
-            # The reason stays; the traceback describes the machine.
+            # The traceback describes the machine.
             (entry.get("additional_info") or {}).pop("traceback", None)
     return io.to_bytes(snapshot)
 
 
 def _prior_record(stated: dict) -> dict:
-    """`_prior_record` uses an allow-list to drop `exponent`, which is
-    recomputed on every request and would contradict the schedule. `delay_decay`
-    stays because nothing else records that the belief starts after the initial
-    design of the reading run.
+    """`_prior_record` drops `exponent`, which every request recomputes.
+    `delay_decay` stays because nothing else records that the belief starts
+    after the initial design.
     """
     return {key: stated[key] for key in _PRIOR_FIELDS if key in stated}
 
 
 def _add_provenance(snapshot: dict, exp: Experiment, dataset: str, model_path: str) -> None:
-    """Provenance fills existing sections in place, so each fact appears once.
+    """`_add_provenance` fills existing sections without duplicating facts.
     """
     if dataset:
         snapshot["dataset"].update(dataset_fingerprint(dataset, target=exp.data.target_column))
-    # `env_meta` describes the environment built locally and rides along as
-    # provenance.
     data = exp.data
     snapshot["model"].update(
         model_fingerprint(data.model_name, model_path, exp.env_meta,
@@ -307,9 +280,8 @@ def _target(dataset_path: str, target: str = ""):
 
 
 def _defaults_used(data) -> dict:
-    """`_defaults_used` records what the installed SMAC filled into blank
-    settings, read from its signatures. Reconstruction still uses `params`, and
-    blanks of the other strategy stay blank.
+    """`_defaults_used` records what the optimizer filled into blank settings; a
+    rebuild still reads `params`.
     """
     kind = OPTIMIZERS.get(data.optimizer_name)
     params = data.optimizer_params or {}
@@ -328,7 +300,7 @@ def _run_record(index: int, run) -> dict:
     count = run.trial_count
     span = None
     if offset is not None and count is not None:
-        # Inclusive 1-based range; empty is [offset + 1, offset].
+        # The range is inclusive and 1-based.
         span = [offset + 1, offset + count]
     return {
         "index": index,
@@ -342,7 +314,6 @@ def _run_record(index: int, run) -> dict:
         "primary_metric": run.primary_metric,
         "stopping": run.stopping,
         "stopped_by": run.stopped_by or None,
-        # The round trip keeps trial time and the failure reason.
         "trial_seconds": run.trial_seconds,
         "error": run.error or None,
         "events": run.events or [],
@@ -359,8 +330,7 @@ def _dataset_name(snapshot: dict) -> str:
 
 
 def replace_data(exp: Experiment, new: ExperimentData) -> set[str]:
-    """`replace_data` keeps processing and the trial budget, plus priors and
-    space unless the model changed."""
+    """`replace_data` drops priors and space when the model changes."""
     old = exp.data
     changed = what_changed(old, new)
     new.processing = old.processing
@@ -380,7 +350,7 @@ def replace_data(exp: Experiment, new: ExperimentData) -> set[str]:
 
 def what_changed(before, after) -> set[str]:
     def dataset(data):
-        # A different target makes a different dataset for every reader.
+        # A new target makes a different dataset.
         if data.demo_dataset:
             return ("demo", data.demo_dataset, data.target_column)
         path = data.dataset_path()
@@ -406,9 +376,8 @@ def what_changed(before, after) -> set[str]:
 
 
 def rebuild_experiment(exp) -> dict | None:
-    """`rebuild_experiment` returns the read-only `build_experiment` dict, or
-    None when a metric or optimizer is gone. `built["model"]` is None only for
-    custom uploads.
+    """`rebuild_experiment` returns None for missing metrics or optimizers;
+    `built["model"]` is only None for custom uploads.
     """
     try:
         _, built = io.build_experiment(
@@ -421,15 +390,13 @@ def rebuild_experiment(exp) -> dict | None:
 
 
 def rebuild_result(exp):
-    """`rebuild_result` returns the read-only result, or None."""
     built = rebuild_experiment(exp)
     return built["result"] if built else None
 
 
 def config_space_for(built):
-    """The stored `space` comes first and the model second, since an external
-    run has no model and a read-only upload has no reachable model. Figures
-    handle None with linear axes or a caption.
+    """`config_space_for` prefers the stored `space`, since an external run has
+    no model and a read-only upload has no reachable one.
     """
     built = built or {}
     stored = io.config_space_from_serialized(built.get("config_space"),

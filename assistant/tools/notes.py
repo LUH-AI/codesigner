@@ -1,11 +1,10 @@
-"""The tools that read and write an experiment's notepad (assistant/notes.py):
-one Markdown document of what is worth knowing about the experiment for
-whoever works on it next, the person's later chats, other assistants, and the
-people it is shared with. People edit it on the experiment's Notes page.
+"""`assistant.tools.notes` reads and writes an experiment's notepad
+(assistant/notes.py), one Markdown document for whoever works on the experiment
+next.
 
-Reading needs the person to be able to view the experiment, writing to be able
-to edit it. The notes say what the people around it decided or found, not what
-the experiment stores: read_experiment has that.
+Reading needs view access and writing needs edit access. The notepad records
+what people decided or found; read_experiment returns what the experiment
+stores.
 """
 
 from __future__ import annotations
@@ -74,5 +73,4 @@ WRITE_NOTES = ToolSpec(
 
 
 def notes():
-    """The notepad's tools."""
     return [READ_NOTES, WRITE_NOTES]

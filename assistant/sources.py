@@ -1,14 +1,9 @@
-"""Where the assistant's library gets its papers: the list in
-assistant/knowledge/literature.toml, each paper's open-access address, and a
-check that every address still serves the paper.
+"""The `sources` module reads the library's papers from
+`assistant/knowledge/literature.toml` and checks that each open-access address
+still serves its paper.
 
-Only the standard library, so the check runs without Codesigner installed:
-
-    python -m assistant.sources
-
-prints each paper whose source fails and exits 1 when any does. Under GitHub
-Actions each failure is also an annotation on its line of literature.toml
-(.github/workflows/library-sources.yml runs it on every push).
+The module only uses the standard library, so `python -m assistant.sources` runs
+without Codesigner.
 """
 
 from __future__ import annotations
@@ -26,14 +21,13 @@ AGENT = "Codesigner library builder"
 
 
 def papers() -> list[dict]:
-    """`papers` returns the library's list."""
     with open(LITERATURE, "rb") as handle:
         return tomllib.load(handle)["paper"]
 
 
 def source_of(paper: dict) -> tuple[str, str]:
-    """`source_of` returns where *paper*'s text is and its form, "pdf" or
-    "html", or two empty strings for a paper kept as its summary."""
+    """`source_of` returns ``(url, form)`` with form "pdf" or "html", or empty
+    strings for summary-only papers."""
     if paper.get("arxiv"):
         return f"https://arxiv.org/pdf/{paper['arxiv']}", "pdf"
     if paper.get("pdf"):
@@ -44,15 +38,14 @@ def source_of(paper: dict) -> tuple[str, str]:
 
 
 def link_of(paper: dict) -> str:
-    """`link_of` returns the page a person reading the citation is sent to."""
+    """`link_of` returns the page a citation links to."""
     if paper.get("arxiv"):
         return f"https://arxiv.org/abs/{paper['arxiv']}"
     return paper.get("pdf") or paper.get("html") or ""
 
 
 def fetch(url: str, timeout: float = 60.0, first: int | None = None) -> bytes:
-    """`fetch` returns the body at *url*, or only its first *first* bytes when
-    the server honours a range."""
+    """`fetch` returns the body at *url*, or its first *first* bytes."""
     headers = {"User-Agent": AGENT}
     if first:
         headers["Range"] = f"bytes=0-{first - 1}"
@@ -61,8 +54,8 @@ def fetch(url: str, timeout: float = 60.0, first: int | None = None) -> bytes:
 
 
 def problem(paper: dict, fetch=fetch) -> str:
-    """`problem` returns why *paper*'s source fails to serve it, or "" when it
-    serves a PDF or a page with text as listed."""
+    """`problem` returns why *paper*'s source fails, or "" when it serves the
+    listed form."""
     url, form = source_of(paper)
     if not url:
         return ""
@@ -87,7 +80,6 @@ def _line_of(key: str) -> int:
 
 
 def main() -> int:
-    """`main` checks every paper's source and reports each that fails."""
     found = []
     for paper in papers():
         reason = problem(paper)

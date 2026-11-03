@@ -13,25 +13,20 @@ urlpatterns = [
     path("experiments/", pages.experiment_list, name="experiment_list"),
     path("healthz/", pages.healthz, name="healthz"),
     path("settings/account/", preferences.account, name="account"),
-    # Auth routes are mounted unconditionally, so `REQUIRE_LOGIN` adds or
-    # removes no route. Password reset is absent because it needs a mail server,
-    # and an administrator resets passwords in the Django admin. Registration is
-    # absent too, since uploading a model runs arbitrary code, and
-    # administrators create accounts.
+    # Auth routes stay mounted without `REQUIRE_LOGIN`. Password reset needs a
+    # mail server, and uploaded models run arbitrary code, so administrators
+    # reset passwords and create accounts.
     path("accounts/login/", auth_views.LoginView.as_view(template_name="ui/account/login.html"),
          name="login"),
-    # POST-only, since any page can trigger a GET logout.
+    # `LogoutView` only accepts POST.
     path("accounts/logout/", auth_views.LogoutView.as_view(), name="logout"),
-    # Django's form asks for the current password, so a borrowed signed-in
-    # browser cannot lock its owner out.
+    # The current-password check stops a borrowed browser locking its owner out.
     path("accounts/password/", auth_views.PasswordChangeView.as_view(
         template_name="ui/account/password_change.html",
         success_url=reverse_lazy("ui:password_changed")), name="password_change"),
     path("accounts/password/done/", auth_views.PasswordChangeDoneView.as_view(
         template_name="ui/account/password_changed.html"), name="password_changed"),
-    # Group and site routes bypass `@experiment_view` (see ui/views/groups.py).
-    # Membership routes carry their group's pk, and the view looks the
-    # membership up within that group.
+    # Group and site routes bypass `@experiment_view`.
     path("group/", groups.group_index, name="group_index"),
     path("group/<int:group_pk>/", groups.group_detail, name="group_detail"),
     path("group/<int:group_pk>/add/", groups.group_add_person, name="group_add_person"),
@@ -56,7 +51,7 @@ urlpatterns = [
     path("experiments/new/", pages.new_experiment, name="new_experiment"),
     path("experiments/<int:pk>/data/", data_handling.data_overview, name="data_overview"),
     path("experiments/<int:pk>/data/<slug:section>/", data_handling.data_section, name="data_section"),
-    # Draft setup routes (ui/setup_steps.py): four steps, create, discard.
+    # Draft setup routes (ui/setup_steps.py).
     path("experiments/<int:pk>/setup/", setup.setup, name="setup"),
     path("experiments/<int:pk>/setup/optimizer/", setup.setup_optimizer,
          name="setup_optimizer"),

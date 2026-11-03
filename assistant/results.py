@@ -1,14 +1,10 @@
-"""Questions about an experiment's results answered from its stored trials, not
-read off its pages: one trial, the trials ranked or filtered, a few side by
-side, and a fixed set of analyses — the scores, how the search progressed, the
-initial design, how much of the space was explored, how each hyperparameter
-went with the score, importance, the metrics against each other, durations
-and failures.
+"""`results` answers questions about an experiment's results from its stored
+trials: one trial, ranked or filtered trials, a side-by-side comparison, and the
+analyses in `ANALYSES`.
 
-Everything here works on `Trials`, built from the experiment's rebuilt result
-(experiments/services/snapshot.py); nothing touches the database. The tools
-that ask these questions are in assistant/tools/experiment.py. Numbers are
-rounded to four significant figures: enough to compare, short enough to read.
+Everything here works on `Trials` and never touches the database.
+`assistant/tools/experiment.py` defines the tools that ask. Numbers keep four
+significant figures.
 """
 
 from __future__ import annotations
@@ -25,30 +21,28 @@ from core.priors import initial_design_notice
 
 
 class ResultsError(ValueError):
-    """A question the trials cannot answer: a metric, trial or field there is
-    not. Its message is said to the model."""
+    """`ResultsError` tells the model about a missing metric, trial or field."""
 
 
-#: How a trial's configuration arose, by phase.
+#: Trial origins by phase.
 DESIGN, GUIDED, RANDOM, REQUESTED, SEARCH, UNKNOWN = (
     "initial_design", "model_guided", "random_interleaved", "requested", "search", "unknown")
 PHASES = (DESIGN, GUIDED, RANDOM, REQUESTED, SEARCH, UNKNOWN)
 
 STATUS = {STATUS_SUCCESS: "ok", STATUS_CRASHED: "crashed", STATUS_TIMEOUT: "timeout"}
-#: The values a trial's `status` field can take: those of `STATUS`, and
-#: "failed" for any other ending.
+#: `STATUS` values, plus "failed" for any other ending.
 STATUSES = (*STATUS.values(), "failed")
 
-#: The run statuses during which trials are still being added.
+#: Run statuses that still add trials.
 ACTIVE = ("pending", "submitted", "running")
 
-#: The orders `rows` lists trials in.
+#: `rows` sort orders.
 ORDERS = ("best", "worst", "first", "last", "slowest", "failed")
 
-#: The comparisons a `rows` condition may make.
+#: `rows` condition operators.
 OPERATORS = ("=", "!=", "<", "<=", ">", ">=", "in")
 
-#: The analyses `analyze` runs, each with what it answers.
+#: Analyses and what each answers.
 ANALYSES = {
     "scores": "the metric's spread over all trials, by phase and by run",
     "progress": "when the best score improved, and how much the last trials added",
@@ -65,7 +59,7 @@ ANALYSES = {
 
 
 def _r(value):
-    """*value* to four significant figures; None for missing or not finite."""
+    """`_r` returns None for non-finite values."""
     if value is None:
         return None
     if isinstance(value, (bool, np.bool_)):
@@ -86,8 +80,7 @@ def _plain(config: dict) -> dict:
 
 
 def _spearman(xs, ys):
-    """Spearman's ρ between *xs* and *ys*, or None with fewer than five pairs or
-    nothing varying."""
+    """`_spearman` returns None under five pairs or without variation."""
     from scipy.stats import spearmanr
 
     if len(xs) < 5 or len(set(xs)) < 2 or len(set(ys)) < 2:
@@ -98,13 +91,11 @@ def _spearman(xs, ys):
 
 @dataclass
 class Trials:
-    """An experiment's trials and what reading them needs: its result, its
-    search space (None when the model is gone), the optimizer's current name
-    (never a former alias) and settings, and its runs as `{index, first, last, status, stopped_by,
-    stopping}` with 1-based inclusive trial numbers. `planned` is the initial
-    design worked out from the settings and the latest run's budget, as
-    `{size, bound_by, budget}`, for when the run has not recorded one; `budget`
-    is that run's whole budget, trials before it included."""
+    """`Trials` carries an experiment's result, search space (None without the
+    model), current optimizer name, settings and runs. Runs are `{index, first,
+    last, status, stopped_by, stopping}` with 1-based inclusive trial numbers.
+    `planned` gives the initial design as `{size, bound_by, budget}` for a run
+    that has recorded none; `budget` counts the earlier trials too."""
 
     result: object
     space: object = None
@@ -120,9 +111,8 @@ class Trials:
 
     @cached_property
     def design(self) -> dict | None:
-        """The initial design's size, as the run recorded it or else as
-        `planned` works it out, with `source` saying which; None without one.
-        A run records its design only when it ends."""
+        """`design` gives the recorded initial design, else the `planned` one;
+        `source` says which. A run only records it at its end."""
         recorded = initial_design_notice(self.result)
         if recorded is not None:
             return {**recorded, "source": "recorded by the run"}
@@ -136,11 +126,10 @@ class Trials:
 
     @property
     def live(self) -> dict | None:
-        """The run still adding trials, or None."""
         return next((r for r in self.runs if r.get("status") in ACTIVE), None)
 
     def phase_counts(self) -> dict:
-        """How many trials arose in each phase, leaving out empty ones."""
+        """`phase_counts` skips empty phases."""
         counts = {}
         for index in range(len(self.trials)):
             phase = self.phase(index)
@@ -148,7 +137,7 @@ class Trials:
         return counts
 
     def metric(self, name: str | None) -> str:
-        """*name* if the trials were scored on it, else the primary metric."""
+        """`metric` raises `ResultsError` for an unscored *name*."""
         name = name or self.result.primary_metric
         known = {m for t in self.trials for m in t.scores}
         if self.trials and name not in known:
@@ -162,7 +151,7 @@ class Trials:
         return bool(self.result.metric(metric).higher_is_better)
 
     def phase(self, index: int) -> str:
-        """How trial *index* (0-based) arose."""
+        """*index* is 0-based."""
         origin = self.trials[index].origin or ""
         if origin == REQUESTED_ORIGIN:
             return REQUESTED
@@ -179,7 +168,7 @@ class Trials:
         return UNKNOWN
 
     def run_of(self, number: int) -> int | None:
-        """The run (1-based) trial *number* belongs to."""
+        """Runs count from 1."""
         for run in self.runs:
             if run.get("first") and run["first"] <= number <= run["last"]:
                 return run["index"]
@@ -194,7 +183,7 @@ class Trials:
                            if self.trials else "the experiment has no trials yet")
 
     def score(self, index: int, metric: str):
-        """Trial *index*'s score on *metric*, or None when it failed or has none."""
+        """`score` gives None for failed or missing scores."""
         trial = self.trials[index]
         value = trial.scores.get(metric)
         if trial.failed or value is None or not math.isfinite(value):
@@ -202,18 +191,17 @@ class Trials:
         return float(value)
 
     def scored(self, metric: str, indices=None) -> list[tuple[int, float]]:
-        """`(index, score)` of the trials with a score on *metric*."""
         indices = range(len(self.trials)) if indices is None else indices
         return [(i, s) for i in indices if (s := self.score(i, metric)) is not None]
 
     def ranked(self, metric: str) -> list[int]:
-        """The scored trials' indices, best first."""
+        """`ranked` lists best first."""
         pairs = self.scored(metric)
         pairs.sort(key=lambda p: p[1], reverse=self.higher_is_better(metric))
         return [i for i, _ in pairs]
 
     def hyperparameters(self) -> list:
-        """The search space's hyperparameters, or those the trials set."""
+        """`hyperparameters` is empty without a space."""
         if self.space is not None:
             return list(self.space.values())
         return []
@@ -224,7 +212,6 @@ class Trials:
         return sorted({k for t in self.trials for k in t.config})
 
     def row(self, index: int, metrics=()) -> dict:
-        """Trial *index* in brief."""
         trial = self.trials[index]
         out = {"trial": trial.trial, "phase": self.phase(index),
                "status": STATUS.get(trial.run_info.get("status", STATUS_SUCCESS), "failed"),
@@ -247,16 +234,14 @@ def _stats(values: list[float], higher_is_better: bool) -> dict:
 
 
 def _gain(t: Trials, metric: str, before, after):
-    """How much better *after* is than *before*, positive when it improved."""
+    """A positive `_gain` means *after* improved."""
     if before is None or after is None:
         return None
     return _r(after - before if t.higher_is_better(metric) else before - after)
 
 
-# ── single trials and lists of them ─────────────────────────────────────────
 
 def trial(t: Trials, number: int, metric: str | None = None) -> dict:
-    """Everything stored about trial *number*."""
     metric = t.metric(metric)
     index = t.index_of(number)
     found = t.trials[index]
@@ -332,7 +317,7 @@ def _check_conditions(t: Trials, where):
 
 def rows(t: Trials, order: str = "best", metric: str | None = None, limit: int = 10,
          where: list | None = None) -> dict:
-    """The trials in *order*, those matching every condition in *where*."""
+    """`rows` keeps trials matching every *where* condition."""
     metric = t.metric(metric)
     where = where or []
     _check_conditions(t, where)
@@ -359,8 +344,7 @@ def rows(t: Trials, order: str = "best", metric: str | None = None, limit: int =
 
 
 def compare(t: Trials, numbers: list[int]) -> dict:
-    """Trials *numbers* side by side: what they set differently and how they
-    scored."""
+    """`compare` lists differing hyperparameters and scores."""
     if not 2 <= len(numbers) <= 5:
         raise ResultsError("compare two to five trials")
     indices = [t.index_of(int(n)) for n in numbers]
@@ -375,11 +359,9 @@ def compare(t: Trials, numbers: list[int]) -> dict:
     }
 
 
-# ── the analyses ─────────────────────────────────────────────────────────────
 
 def analyze(t: Trials, analysis: str, metric: str | None = None,
             hyperparameter: str | None = None) -> dict:
-    """Run *analysis*, one of `ANALYSES`."""
     if analysis not in ANALYSES:
         raise ResultsError(f"analysis must be one of {list(ANALYSES)}")
     if not t.trials:
@@ -423,7 +405,6 @@ def _improvements(t: Trials, metric) -> list[dict]:
 
 
 def _best_by(t: Trials, metric, count: int):
-    """The best score among the first *count* trials."""
     pairs = t.scored(metric, range(min(count, len(t.trials))))
     if not pairs:
         return None
@@ -456,8 +437,8 @@ def _progress(t: Trials, metric, _hp) -> dict:
 
 
 def _unit(hp, values) -> list[float] | None:
-    """*values* of *hp* on the unit interval as the optimizer sees it (a log
-    scale for a log hyperparameter); None for a category."""
+    """`_unit` maps *values* onto the unit interval, log-scaled for log
+    hyperparameters; categories give None."""
     from ConfigSpace.hyperparameters import CategoricalHyperparameter, OrdinalHyperparameter
 
     if isinstance(hp, (CategoricalHyperparameter, OrdinalHyperparameter)):
@@ -472,8 +453,7 @@ def _unit(hp, values) -> list[float] | None:
 
 
 def _spread(units: list[float]) -> dict:
-    """How evenly points cover [0, 1]: the share of ten equal bins with a
-    point, and the widest stretch without one."""
+    """`_spread` reports filled bins of ten and the widest empty stretch."""
     if not units:
         return {"bins_hit_of_10": 0, "widest_gap": 1.0}
     edges = sorted([0.0] + list(units) + [1.0])
@@ -533,9 +513,7 @@ def _initial_design(t: Trials, metric, _hp) -> dict:
 
 
 def _design_note(t: Trials, done: int) -> str:
-    """What it means that no trial followed the design, which depends on whether
-    the run is still going and on whether the design was sized to the whole
-    budget."""
+    """`_design_note` explains why no trial followed the design."""
     size = t.design["size"] if t.design else None
     if t.live is not None and (size is None or done < size):
         return (f"The run is in its initial design: {done} of {size if size else '?'} done. "

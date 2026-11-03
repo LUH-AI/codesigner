@@ -1,9 +1,5 @@
-"""`assistant.models` stores what the assistant keeps: each conversation,
-every message in it as the model saw it, the events a page is shown, a record
-of every tool call, and each experiment's notepad.
-
-The records stay on the serving instance, so no `.ihpo` file contains them,
-not even an experiment's notes.
+"""`assistant.models` stores the assistant's chats, tool-call audit and
+experiment notepads, which no `.ihpo` file contains.
 """
 
 from django.conf import settings
@@ -11,51 +7,40 @@ from django.db import models
 
 
 class Conversation(models.Model):
-    """`Conversation` is one person's conversation with the assistant, about one
-    experiment once the experiment exists."""
+    """`Conversation` is one person's chat with the assistant."""
 
     PLANNING = "planning"
     SETUP = "setup"
     DASHBOARD = "dashboard"
     PHASES = [(PLANNING, "planning"), (SETUP, "setup"), (DASHBOARD, "dashboard")]
 
-    #: `owner` is None on an instance without accounts, which has one user.
+    #: `owner` is None on an instance without accounts.
     owner = models.ForeignKey(settings.AUTH_USER_MODEL, null=True, blank=True,
                               on_delete=models.CASCADE, related_name="conversations")
-    #: `session_key` names the browser session the conversation was started
-    #: from. The conversation's tools act only while that session is signed in
-    #: as the owner, so signing out or an expired session stops the assistant
-    #: acting for anybody. `session_key` is empty for a conversation started
-    #: from the terminal by somebody who already has the server.
+    #: With accounts on, `.Context.request` raises `.Refused` once the browser
+    #: session `session_key` signs out. `session_key` is empty for a terminal
+    #: chat.
     session_key = models.CharField(max_length=40, blank=True, default="")
-    #: `browser` names the browser session the person last wrote from, and the
-    #: assistant's actions on a page go there (assistant/acts.py). `browser` is
-    #: kept with or without accounts.
+    #: `browser` names the browser session the person last wrote from, and
+    #: `.acts.send` addresses page actions to it.
     browser = models.CharField(max_length=40, blank=True, default="")
     experiment = models.ForeignKey("experiments.Experiment", null=True, blank=True,
                                    on_delete=models.SET_NULL, related_name="conversations")
     phase = models.CharField(max_length=20, choices=PHASES, default=PLANNING)
-    #: `plan` holds the plan agreed with the person; the assistant fills the
-    #: forms from it.
     plan = models.JSONField(default=dict, blank=True)
-    #: `demo_dataset` names a bundled demo, or `dataset` holds the person's
-    #: upload, while the plan is being made. A draft gets made, with the dataset
-    #: on it, only once the plan is approved, as setup step 1 would.
+    #: `demo_dataset` names a bundled demo, or `dataset` stores the upload, until
+    #: the plan is approved and a draft gets the dataset.
     demo_dataset = models.CharField(max_length=200, blank=True, default="")
     dataset = models.FileField(upload_to="assistant/datasets/", blank=True, null=True)
-    #: `dataset_filename` keeps the upload's original name, since storage may
-    #: store the file under another.
+    #: `dataset_filename` keeps the upload's original name.
     dataset_filename = models.CharField(max_length=255, blank=True, default="")
-    #: `group` is the group the experiment will go in, for a person with more
-    #: than one.
+    #: `group` picks the experiment's group for a person in several.
     group = models.ForeignKey("access.Group", null=True, blank=True,
                               on_delete=models.SET_NULL, related_name="+")
-    #: `data_brief` caches what the dataset says while the file stays the same
-    #: (`assistant.tools.data.brief_for`): {"for": file and target, "facts"}.
+    #: `data_brief` caches the facts of `.brief_for` for one file and target.
     data_brief = models.JSONField(default=dict, blank=True)
-    #: `turn_started_at` is when the running turn began, or None. Only one turn
-    #: runs at a time, and a turn left by a stopped server counts as over
-    #: (assistant/turns.py).
+    #: `turn_started_at` is when the running turn began; `.turns.busy` treats a
+    #: turn older than `.turns.STALE` as over.
     turn_started_at = models.DateTimeField(null=True, blank=True)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
@@ -64,8 +49,7 @@ class Conversation(models.Model):
         ordering = ["-updated_at"]
 
     def dataset_path(self):
-        """`dataset_path` returns the planned dataset's file as a `Path`, or
-        None without one."""
+        """`dataset_path` returns the planned dataset's `Path`, or None."""
         from pathlib import Path
 
         from core.datasets import demo_datasets
@@ -77,7 +61,6 @@ class Conversation(models.Model):
 
     @property
     def dataset_name(self) -> str:
-        """`dataset_name` is the name the chat uses for the planned dataset."""
         if self.demo_dataset:
             return self.demo_dataset
         if not self.dataset:
@@ -85,17 +68,15 @@ class Conversation(models.Model):
         return self.dataset_filename or self.dataset.name.rsplit("/", 1)[-1]
 
     def forget_dataset(self) -> None:
-        """`forget_dataset` drops the planned dataset, and its file if it is an
-        upload."""
+        """`forget_dataset` clears the planned dataset and deletes its upload."""
         if self.dataset:
             self.dataset.delete(save=False)
         self.demo_dataset = self.dataset_filename = ""
 
 
 class Message(models.Model):
-    """`Message` is one message of a conversation as the model is sent it: the
-    person's, the assistant's (with any tool calls it made), and each tool's
-    answer."""
+    """`Message` is one message as the model receives it, from the person, the
+    assistant or a tool."""
 
     USER = "user"
     ASSISTANT = "assistant"
@@ -106,12 +87,10 @@ class Message(models.Model):
                                      related_name="messages")
     role = models.CharField(max_length=10, choices=ROLES)
     content = models.TextField(blank=True, default="")
-    #: The calls an assistant message made, in the OpenAI wire format.
+    #: `tool_calls` uses the OpenAI wire format.
     tool_calls = models.JSONField(null=True, blank=True)
-    #: The call a tool message answers.
     tool_call_id = models.CharField(max_length=100, blank=True, default="")
-    #: `tokens` counts the model tokens an assistant message cost; the daily
-    #: budget is counted in them.
+    #: `tokens` counts an assistant message's model tokens for the daily budget.
     tokens = models.PositiveIntegerField(default=0)
     created_at = models.DateTimeField(auto_now_add=True)
 
@@ -119,7 +98,6 @@ class Message(models.Model):
         ordering = ["id"]
 
     def as_openai(self) -> dict:
-        """`as_openai` returns the message in the OpenAI chat format."""
         if self.role == self.TOOL:
             return {"role": "tool", "tool_call_id": self.tool_call_id, "content": self.content}
         message = {"role": self.role, "content": self.content}
@@ -130,10 +108,8 @@ class Message(models.Model):
 
 
 class AssistantEvent(models.Model):
-    """`AssistantEvent` is something a page showing the conversation should
-    show: text, a tool at work, a question with choices, the end of a turn.
-    Event ids order the events, so a page that reconnects asks for the ones
-    after the last it saw."""
+    """`AssistantEvent` is one item a chat page shows, such as text or a
+    question. A reconnecting page asks for events after the last id it saw."""
 
     conversation = models.ForeignKey(Conversation, on_delete=models.CASCADE,
                                      related_name="events")
@@ -146,10 +122,8 @@ class AssistantEvent(models.Model):
 
 
 class AgentAction(models.Model):
-    """`AgentAction` records one tool call, who it was for, and what came of
-    it; the records audit everything the assistant did or tried. A record
-    survives deletion of its conversation, because a chat can be reset and
-    what was done in it cannot."""
+    """`AgentAction` audits one tool call and its outcome. A record outlives its
+    conversation, because a chat reset leaves done actions in effect."""
 
     OK = "ok"
     REFUSED = "refused"
@@ -175,51 +149,40 @@ class AgentAction(models.Model):
 
 
 class BrowserPage(models.Model):
-    """`BrowserPage` is the Codesigner page a browser session last had open, as
-    the page reported it: which page, its form's fields and values, the
-    elements it names for the assistant (`data-assist`), and its tabs of
-    figures. The assistant reads the record and never trusts it as permission
-    for anything."""
+    """`BrowserPage` is the page a browser session last reported open, with its
+    fields, `data-assist` targets and figure tabs. The assistant never treats
+    the record as permission."""
 
     browser = models.CharField(max_length=40, unique=True)
     path = models.CharField(max_length=500)
-    #: `url_name` is the URL's name, e.g. "ui:setup_optimizer", or empty for an
-    #: unnamed path.
     url_name = models.CharField(max_length=100, blank=True, default="")
     experiment_id = models.IntegerField(null=True, blank=True)
     title = models.CharField(max_length=300, blank=True, default="")
     fields = models.JSONField(default=list, blank=True)
     targets = models.JSONField(default=list, blank=True)
-    #: `view` is what a page with tabs of figures shows: `tab`, the one
-    #: showing; `tabs`, each `{name, label, figures: [{key, label, home}]}`;
-    #: `outside_tabs`, the figures in no tab; `trials`, `{count, first, last}`
-    #: of the trials table; and `selected_trial`, the trial its figures show.
-    #: Empty for a page without them.
+    #: `view` stores a figure page's `tab`, `tabs`, `outside_tabs`, `trials`
+    #: (`{count, first, last}`) and `selected_trial`; other pages leave `view`
+    #: empty.
     view = models.JSONField(default=dict, blank=True)
-    #: When the page last said what it shows. It says so whenever that
-    #: changes, so the record stands until the next report.
+    #: Pages report on every change, so `reported_at` stays current.
     reported_at = models.DateTimeField(null=True, blank=True)
-    #: When a page of the session last showed it was open.
     seen_at = models.DateTimeField()
-    #: `visitor` is the chat that took this browser away from its own
-    #: experiment's pages with `navigate`, shown as a tab of its own until the
-    #: person goes back; `return_path` is the page it took them from. Set by
-    #: the server only, never from what a page reports.
+    #: `visitor` is the chat whose `navigate` took the browser off its own
+    #: experiment's pages, and `return_path` is the page it left. Only the
+    #: server sets them.
     visitor = models.ForeignKey(Conversation, null=True, blank=True,
                                 on_delete=models.SET_NULL, related_name="+")
     return_path = models.CharField(max_length=500, blank=True, default="")
 
 
 class ClientAct(models.Model):
-    """`ClientAct` is something the assistant does on the person's page (go to
-    a page, fill fields, point something out) and what the page reported back.
-    An act is addressed to a browser session, so whichever of its pages is open
-    carries it out."""
+    """`ClientAct` is one assistant action on the person's page plus the page's
+    report. Any open page of the browser session carries the act out."""
 
     NAVIGATE = "navigate"
     FILL = "fill"
     HIGHLIGHT = "highlight"
-    #: `REPORT` asks the page to say what it shows now.
+    #: `REPORT` asks the page to describe itself.
     REPORT = "report"
     KINDS = [(NAVIGATE, "navigate"), (FILL, "fill"), (HIGHLIGHT, "highlight"), (REPORT, "report")]
 
@@ -233,8 +196,7 @@ class ClientAct(models.Model):
                                      on_delete=models.SET_NULL, related_name="acts")
     kind = models.CharField(max_length=20, choices=KINDS)
     args = models.JSONField(default=dict, blank=True)
-    #: `path` is the page the act is meant for, or empty for an act that goes
-    #: anywhere.
+    #: `path` is the act's page, or empty for any page.
     path = models.CharField(max_length=500, blank=True, default="")
     status = models.CharField(max_length=10, choices=STATUSES, default=PENDING)
     detail = models.TextField(blank=True, default="")
@@ -245,14 +207,11 @@ class ClientAct(models.Model):
 
 
 class ExperimentNotes(models.Model):
-    """`ExperimentNotes` is an experiment's notepad: one Markdown document of
-    what assistants and people wrote down for whoever works on the experiment
-    next, their own later chats and the people it is shared with. It has a
-    page of its own beside the dashboard (ui:experiment_notes). Anyone who can
-    view the experiment reads it; those who can edit it, and their assistants,
-    write it."""
+    """`ExperimentNotes` is an experiment's Markdown notepad for later chats and
+    collaborators, shown at ui:experiment_notes. Viewers read it; editors and
+    their assistants write it."""
 
-    #: The longest notepad, in characters.
+    #: `MAX_LENGTH` counts characters.
     MAX_LENGTH = 20000
 
     experiment = models.OneToOneField("experiments.Experiment", on_delete=models.CASCADE,
@@ -260,8 +219,7 @@ class ExperimentNotes(models.Model):
     text = models.TextField(blank=True, default="")
     updated_by = models.ForeignKey(settings.AUTH_USER_MODEL, null=True, blank=True,
                                    on_delete=models.SET_NULL, related_name="+")
-    #: `by_assistant` is whether an assistant made the last change, in
-    #: `conversation`, or the person `updated_by` did.
+    #: `by_assistant` is True when the last change came from `conversation`.
     by_assistant = models.BooleanField(default=False)
     conversation = models.ForeignKey(Conversation, null=True, blank=True,
                                      on_delete=models.SET_NULL, related_name="+")

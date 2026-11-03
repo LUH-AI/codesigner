@@ -3,8 +3,9 @@
 to, which opens it again — or, while a chat is in a window of its own, brings
 that window to the front — then a tab per chat (assistant/views.py
 `chats_context`): the general one, the experiment's own on its pages, and a
-visitor from another experiment. Each tab names its experiment in small text;
-the panels under them are assistant/_chat.html.{% endcomment %}
+visitor from another experiment, whose tab carries the way back. Each tab
+names its experiment in small text; the panels under them are
+assistant/_chat.html.{% endcomment %}
 <div class="assistant assistant-floating" data-assistant-shell
      data-window-url="{% url 'assistant:window' %}">
     {% comment %}Dragged, the corner resizes the dock: it is pinned to the
@@ -26,12 +27,19 @@ the panels under them are assistant/_chat.html.{% endcomment %}
     </header>
     <div class="assistant-tabs" role="tablist">
         {% for tab in assistant.tabs %}
-            <button type="button" role="tab" class="assistant-tab{% if tab.visiting %} is-visiting{% endif %}"
-                    data-assistant-tab="{{ tab.key }}"
-                    aria-selected="{% if tab.key == assistant.active %}true{% else %}false{% endif %}">
-                <span class="assistant-tab-name">{% if tab.key == "general" %}{% translate "General" %}{% elif tab.visiting %}{% translate "Visiting" %}{% else %}{% translate "This experiment" %}{% endif %}</span>
-                {% if tab.caption %}<span class="assistant-caption">{{ tab.caption }}</span>{% endif %}
-            </button>
+            <div class="assistant-tab-slot" role="presentation">
+                <button type="button" role="tab" class="assistant-tab{% if tab.visiting %} is-visiting{% endif %}"
+                        data-assistant-tab="{{ tab.key }}"
+                        aria-selected="{% if tab.key == assistant.active %}true{% else %}false{% endif %}">
+                    <span class="assistant-tab-name">{% if tab.key == "general" %}{% translate "General" %}{% elif tab.visiting %}{% translate "Visiting" %}{% else %}{% translate "This experiment" %}{% endif %}</span>
+                    {% if tab.caption %}<span class="assistant-caption">{{ tab.caption }}</span>{% endif %}
+                </button>
+                {% comment %}The way back from a visit sits on its tab.{% endcomment %}
+                {% if tab.visiting %}
+                    <button type="button" class="btn-primary assistant-tab-return" data-assistant-back
+                            title="{% blocktranslate with name=tab.caption %}Return to {{ name }}{% endblocktranslate %}">{% translate "Return" %}</button>
+                {% endif %}
+            </div>
         {% endfor %}
     </div>
     {% for tab in assistant.tabs %}

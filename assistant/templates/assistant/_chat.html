@@ -10,7 +10,8 @@ as elements and text, never as markup.
 
 On the home page the box to type in sits in the middle until the assistant
 starts answering, and the dataset to plan with is chosen beside it. A visiting
-chat says where it is from, with Return.
+chat says where it is from, with Return: on its tab in the dock, else over the
+box to type in.
 
 The words the script shows are here, translated, as data attributes.{% endcomment %}
 <section class="assistant{% if full %} assistant-full{% if not chat.started %} is-empty{% endif %}{% elif window %} assistant-window{% else %} assistant-panel{% endif %}"
@@ -74,16 +75,16 @@ The words the script shows are here, translated, as data attributes.{% endcommen
             <button type="button" class="btn" data-assistant-return>{% translate "Return to page" %}</button>
         </header>
     {% endif %}
-    {% comment %}A chat visiting from its own experiment says so above
-    everything else, with the way back.{% endcomment %}
-    {% if chat.visiting %}
+    <div class="assistant-log" aria-live="polite"></div>
+    <p class="assistant-status caption" hidden></p>
+    {% comment %}A visiting chat shown without tabs says so over the box to
+    type in, with the way back; in the dock, its tab does.{% endcomment %}
+    {% if chat.visiting and not dock %}
         <div class="assistant-visiting">
             <span>{% blocktranslate with name=chat.caption %}Visiting from <strong>{{ name }}</strong>{% endblocktranslate %}</span>
             <button type="button" class="btn-primary" data-assistant-back>{% translate "Return" %}</button>
         </div>
     {% endif %}
-    <div class="assistant-log" aria-live="polite"></div>
-    <p class="assistant-status caption" hidden></p>
     <form class="assistant-form">
         {% comment %}The dataset to plan with, just over the box: on the home
         page, until the plan is approved. Choosing one keeps it with the

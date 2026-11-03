@@ -1,14 +1,7 @@
-"""Each experiment's notepad (`ExperimentNotes`): one Markdown document of what
-assistants and people write down for whoever works on the experiment next.
-
-People edit it on its own page (ui:experiment_notes), the assistant with its
-tools (assistant/tools/notes.py); both come through here, after checking what
-the person may do with the experiment: viewing it reads the notes, editing it
-writes them.
-
-A person saves the whole document, refused if it changed since they opened
-it. An assistant changes one passage, or adds one, against the document as it
-is then, so it never writes over what someone saved meanwhile.
+"""`assistant.notes` reads and writes each experiment's Markdown notepad
+(`.ExperimentNotes`). A person saves the whole document, and `save` raises
+`Stale` on a conflict. An assistant edits one passage against the current text,
+so `edit` never overwrites a concurrent save.
 """
 
 from __future__ import annotations
@@ -19,12 +12,11 @@ from .models import ExperimentNotes
 
 
 class NoteError(Exception):
-    """The notes cannot be written as asked. Its message says why."""
+    """`NoteError` messages say why the write failed."""
 
 
 class Stale(NoteError):
-    """The notes changed since the writer opened them; `notes` is how they
-    are now."""
+    """`Stale.notes` is the current stored notepad."""
 
     def __init__(self, notes) -> None:
         super().__init__("the notes changed since they were opened")
@@ -32,13 +24,11 @@ class Stale(NoteError):
 
 
 def notes_of(exp):
-    """*exp*'s notepad, unsaved and empty if nothing was written yet."""
     return (ExperimentNotes.objects.filter(experiment=exp).select_related("updated_by").first()
             or ExperimentNotes(experiment=exp))
 
 
 def as_dict(notes) -> dict:
-    """*notes* as the page and the model are given them."""
     who = notes.updated_by.get_username() if notes.updated_by is not None else ""
     if notes.by_assistant:
         who = f"{who}'s assistant" if who else "the assistant"
@@ -59,9 +49,8 @@ def _author(user):
 
 
 def save(exp, text: str, *, user, seen: str):
-    """A person saves *text* as *exp*'s notes. *seen* is the `updated_at` of
-    the notes they opened ("" for none yet), and the save is refused with
-    `Stale` if they have changed since. Returns the notes."""
+    """`save` raises `Stale` when the stored notes differ from *text* and their
+    `updated_at` differs from *seen* ("" for none yet)."""
     text = _checked((text or "").replace("\r\n", "\n").rstrip())
     with transaction.atomic():
         notes, created = ExperimentNotes.objects.select_for_update().get_or_create(experiment=exp)
@@ -74,10 +63,9 @@ def save(exp, text: str, *, user, seen: str):
 
 
 def edit(exp, text: str, *, user, conversation, replace: str = ""):
-    """An assistant, in *conversation*, changes *exp*'s notes: the passage
-    *replace*, which must be in them exactly once, becomes *text*; without
-    *replace*, *text* is added at the end as a paragraph of its own. Returns
-    the notes."""
+    """`edit` replaces the passage *replace* with *text* and raises `NoteError`
+    unless *replace* occurs once. Without *replace*, `edit` appends *text* as a
+    new paragraph."""
     text = (text or "").strip()
     with transaction.atomic():
         notes, _ = ExperimentNotes.objects.select_for_update().get_or_create(experiment=exp)
@@ -98,13 +86,12 @@ def edit(exp, text: str, *, user, conversation, replace: str = ""):
     return notes
 
 
-#: How much of the notepad the system prompt carries, in characters.
+#: `PROMPT_CHARACTERS` caps the system prompt's notes.
 PROMPT_CHARACTERS = 4000
 
 
 def for_prompt(exp) -> str:
-    """The start of *exp*'s notes, up to `PROMPT_CHARACTERS`, saying how much
-    more there is."""
+    """`for_prompt` marks truncated notes with a `read_notes` hint."""
     text = notes_of(exp).text
     if len(text) <= PROMPT_CHARACTERS:
         return text

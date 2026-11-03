@@ -1,17 +1,12 @@
-"""The plan: what the person and the assistant agree an experiment will be,
-field for field what its setup asks.
-
-Kept on the conversation (`Conversation.plan`) as it is worked out, checked
-against the setup's own forms without saving anything (`problems`), and
-approved by the person before the setup is filled from it.
+"""The `plan` module describes the experiment that the person and the assistant
+agree on.
 """
 
 from __future__ import annotations
 
 from ui.forms import EVALUATION_BACKTEST, EVALUATION_HOLDOUT, EVALUATION_KFOLD
 
-#: The plan's fields, as the model may state them (`update_plan`). Each maps to
-#: a field of the setup or of the first run's form.
+#: `SCHEMA` lists the plan fields the `update_plan` tool accepts.
 SCHEMA = {
     "type": "object",
     "properties": {
@@ -78,12 +73,12 @@ SCHEMA = {
     },
 }
 
-#: What the setup cannot be filled from without.
+#: Fields the setup needs.
 REQUIRED = ("task", "model_name", "evaluation", "optimizer")
 
 
 def merged(plan: dict, changes: dict) -> dict:
-    """*plan* with *changes* laid over it, nested sections field by field."""
+    """`merged` overlays *changes* on *plan*, merging sections."""
     out = dict(plan or {})
     for key, value in changes.items():
         if isinstance(value, dict) and isinstance(out.get(key), dict):
@@ -100,8 +95,8 @@ def merged(plan: dict, changes: dict) -> dict:
 
 
 def setup_data(plan: dict, group_id=None) -> dict:
-    """Step 1's form, as the page would post it, from *plan* — the dataset in
-    hand kept, the experiment in group *group_id*."""
+    """`setup_data` builds step 1's form data from *plan*, for an experiment in
+    group *group_id*."""
     evaluation = plan.get("evaluation") or {}
     scheme = evaluation.get("scheme") or EVALUATION_KFOLD
     default = {EVALUATION_KFOLD: 5, EVALUATION_HOLDOUT: 0.2, EVALUATION_BACKTEST: 3}[scheme]
@@ -125,7 +120,7 @@ def setup_data(plan: dict, group_id=None) -> dict:
 
 
 def optimizer_data(plan: dict) -> dict:
-    """Step 2's form from *plan*: the optimizer and the settings it names."""
+    """`optimizer_data` builds step 2's form from *plan*."""
     optimizer = plan.get("optimizer") or {}
     data = {"optimizer_name": optimizer.get("name") or ""}
     for name, value in (optimizer.get("params") or {}).items():
@@ -134,18 +129,17 @@ def optimizer_data(plan: dict) -> dict:
 
 
 def processing_data(plan: dict) -> dict:
-    """Step 3's form from *plan*."""
     return dict(plan.get("processing") or {})
 
 
-#: The run form on a created experiment's page, filled like a setup step.
+#: `RUN` names the created experiment's run form.
 RUN = "run"
 
 
 def run_items(plan: dict) -> list[tuple]:
-    """The run form's fields from *plan*: the metric, and the stopping criteria
-    it states. The form's default trial limit is cleared when the plan does
-    not keep one, so the run ends on what was agreed."""
+    """`run_items` returns the run form's metric and stopping fields from
+    *plan*. A stopping section without `max_trials` clears the form's trial
+    limit."""
     from ui.run_form import STOPPING_FIELDS
 
     items = [("optimize_metric", plan["metric"])] if plan.get("metric") else []
@@ -157,7 +151,7 @@ def run_items(plan: dict) -> list[tuple]:
     return items
 
 
-#: Which of the plan's fields each form field is filled from, for its reason.
+#: `_FROM` maps form fields to plan fields for their reasons.
 _FROM = {"evaluation_scheme": "evaluation", "evaluation_value": "evaluation",
          "time_column": "evaluation", "time_gap": "evaluation", "horizon": "evaluation",
          "series_column": "evaluation", "season": "evaluation", "optimizer_name": "optimizer",
@@ -169,10 +163,8 @@ _FROM = {"evaluation_scheme": "evaluation", "evaluation_value": "evaluation",
 
 
 def fill_for(plan: dict, step: str) -> list[dict]:
-    """What setup *step*'s page is filled with from *plan*: each field's name,
-    value and the plan's reason for it, in the order the page needs them (a
-    field that decides what the next offers comes first). Only what the plan
-    says; the rest of the page is left as it is."""
+    """`fill_for` returns the name, value and reason of each field of *step*
+    that *plan* states. A field that limits the next one comes first."""
     from ui import setup_steps as steps
 
     if step == steps.SETUP:
@@ -207,10 +199,8 @@ def fill_for(plan: dict, step: str) -> list[dict]:
 
 
 def problems(plan: dict, request, dataset, group_id=None) -> list[str]:
-    """What stops *plan* being set up on the dataset at *dataset* (a path) in
-    group *group_id*, in the words the setup's own forms would use — or
-    nothing. Nothing is saved, and no draft is needed: this is what is checked
-    before the person approves the plan, and again when they do."""
+    """`problems` returns the setup forms' errors for *plan* on the dataset at
+    path *dataset*, or an empty list. It saves nothing and needs no draft."""
     from core.processing import CHOICES, unavailable
 
     from core.registry import MODELS, OPTIMIZERS
@@ -259,9 +249,9 @@ def problems(plan: dict, request, dataset, group_id=None) -> list[str]:
 
 
 def _optimizer_problems(optimizer, params: dict) -> list[str]:
-    """What the optimizer step's own form would do differently with *params*
-    than they say: a setting it lacks, a value it would change (a bound, a
-    choice, a type), or a setting that does nothing as the others stand."""
+    """`_optimizer_problems` lists where the optimizer form would change
+    *params*: an unknown setting, an altered value, or a setting inactive given
+    the others."""
     from ui.optimizer_form import cleaned_params
 
     schema = {param.name: param for param in optimizer.params_schema}
@@ -296,9 +286,8 @@ def _range(param) -> str:
 
 
 def design(plan: dict) -> str:
-    """The initial design *plan* sets, as a sentence such as "Initial design: 37
-    of 150 trials (share cap 0.25 of 150).", or "" when the plan has no SMAC
-    model to size it for."""
+    """`design` describes the initial design *plan* sets, or returns "" unless
+    the plan uses SMAC with a known model."""
     from core.optimizers.smac.facade import initial_points, scenario_budget
 
     from core.registry import MODELS

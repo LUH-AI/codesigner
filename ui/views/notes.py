@@ -1,7 +1,5 @@
-"""An experiment's notepad as a page of its own, beside its dashboard: one
-Markdown document that people who may edit the experiment write in an editor,
-and everyone who may view it reads. Assistants write it too, with their tools
-(assistant/tools/notes.py); both go through assistant/notes.py.
+"""`ui.views.notes` shows an experiment's Markdown notepad beside its dashboard.
+Editors and assistants both save through `assistant.notes`.
 """
 
 from django.core.exceptions import PermissionDenied
@@ -14,10 +12,9 @@ from ..permissions import BOTH, experiment_view
 
 @experiment_view(VIEW, drafts=BOTH)
 def experiment_notes(request, exp):
-    """`experiment_notes` shows *exp*'s notes, in the editor for a person who
-    may edit it. A save made over a newer version is refused: the page comes
-    back with the person's text still in the editor and the newer notes
-    beside it, to merge and save again."""
+    """`experiment_notes` shows *exp*'s notes, editable for a person with EDIT.
+    A stale save raises `.Stale`, and the page shows the person's text beside
+    the newer notes."""
     from assistant import notes as notepad
 
     may_edit = policy().may(request, exp, EDIT)

@@ -7,11 +7,9 @@ from experiments.fields import SafeJSONField
 
 
 class FigureLayout(models.Model):
-    """`FigureLayout` stores one reader's arrangement of one experiment's page
-    and stays out of the `.ihpo`. A reader with no row sees the site default.
-    With `user` null on an install without accounts, the partial constraint
-    keeps one row per experiment, since NULLs never collide in the plain unique
-    one.
+    """`FigureLayout` stores one reader's arrangement of one experiment's page.
+    The partial constraint covers a null `user`, since NULLs never collide in a
+    plain unique constraint.
     """
 
     id: int
@@ -36,8 +34,7 @@ class FigureLayout(models.Model):
 
 
 class DefaultFigureLayout(models.Model):
-    """`DefaultFigureLayout` arranges experiments the reader has no
-    `FigureLayout` for, ahead of `ui/figure_layout.toml`.
+    """`DefaultFigureLayout` overrides `ui/figure_layout.toml` per reader.
     """
 
     id: int
@@ -50,8 +47,6 @@ class DefaultFigureLayout(models.Model):
 
 
 class ReaderPreferences(models.Model):
-    """`ReaderPreferences` stores per-reader choices beyond any one experiment.
-    """
 
     id: int
     user_id: int | None
@@ -59,6 +54,5 @@ class ReaderPreferences(models.Model):
     user = models.OneToOneField(django_settings.AUTH_USER_MODEL, null=True, blank=True,
                                 on_delete=models.CASCADE, related_name="reader_preferences")
     export_timestamps = models.CharField(max_length=10, default="relative")
-    #: `assistant_enabled` is off when the reader has turned the assistant off
-    #: for themselves; the instance's `ASSISTANT_ENABLED` still comes first.
+    #: The reader's own switch; the instance's `ASSISTANT_ENABLED` comes first.
     assistant_enabled = models.BooleanField(default=True)

@@ -1,13 +1,11 @@
-"""The assistant's background work: building its library of papers, which takes
-minutes of downloading and embedding, on the worker."""
+"""The worker builds the assistant's paper library, which takes minutes."""
 
 from huey.contrib.djhuey import db_task
 
 
 @db_task(priority=5)
 def build_library_task():
-    """`build_library_task` builds the library when it is stale, logging what
-    it fetched."""
+    """`build_library_task` only builds a stale library."""
     import logging
 
     from .library import build, stale
@@ -19,5 +17,4 @@ def build_library_task():
     if not reason:
         return None
     log.info("Building the assistant's library: %s.", reason)
-    # A paper that could not be fetched is logged as a warning by `build`.
     return build(embedder=embedder, progress=log.info)

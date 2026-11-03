@@ -508,19 +508,19 @@
         });
     }
 
-    // A visiting chat's way back to its own experiment, where the visit ends.
-    var back = root.querySelector("[data-assistant-back]");
-    if (back) {
-        back.addEventListener("click", function () {
-            back.disabled = true;
-            post(root.dataset.backUrl, new FormData()).then(function (r) {
-                window.location.assign(r.data.url || window.location.href);
-            }).catch(function () {
-                back.disabled = false;
-                bubble("notice", text("error"));
-            });
+    // A visiting chat's way back to its own experiment, where the visit ends:
+    // pressed on the chat itself, or on its tab in the dock.
+    function goBack(button) {
+        button.disabled = true;
+        post(root.dataset.backUrl, new FormData()).then(function (r) {
+            window.location.assign(r.data.url || window.location.href);
+        }).catch(function () {
+            button.disabled = false;
+            bubble("notice", text("error"));
         });
     }
+    var back = root.querySelector("[data-assistant-back]");
+    if (back) back.addEventListener("click", function () { goBack(back); });
 
     if (conversation) follow(conversation);
     if (root.dataset.busy) waiting(true);
@@ -528,6 +528,7 @@
         root: root,
         scroll: scroll,
         focus: function () { if (!box.disabled) box.focus(); },
+        back: goBack,
         windowUrl: function (base) {
             if (conversation) return base + "?conversation=" + encodeURIComponent(conversation);
             if (root.dataset.experiment) return base + "?experiment=" + encodeURIComponent(root.dataset.experiment);
@@ -572,6 +573,11 @@
         tabs.forEach(function (t) {
             t.addEventListener("click", function () { pick(t.dataset.assistantTab); });
         });
+        var visitor = docked.filter(function (c) { return c.root.dataset.tab === "visitor"; })[0];
+        var tabBack = shell.querySelector(".assistant-tabs [data-assistant-back]");
+        if (visitor && tabBack) {
+            tabBack.addEventListener("click", function () { visitor.back(tabBack); });
+        }
 
         var bar = shell.querySelector("[data-assistant-toggle]");
         var show = function (state) {

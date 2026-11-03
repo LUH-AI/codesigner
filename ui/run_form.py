@@ -1,15 +1,14 @@
-"""`run_form` reads the Run form's fields from a plain mapping, so the page and
-the assistant start a run from the same reading."""
+"""`run_form` parses the Run form for the page and the assistant."""
 
 from django.conf import settings
 
 from core.metrics import metric_for
 from core.modelhost import deadline
 
-#: Each Run-form criterion's parser and range.
+#: Criterion parsers and ranges.
 STOPPING_FIELDS = {
     "max_trials": (int, 1, 100_000),
-    # `stopping_from` bounds the target by its metric's range.
+    # The metric bounds the target.
     "target_score": (float, None, None),
     "max_seconds": (float, 1.0, None),
     "max_trial_seconds": (float, 1.0, None),
@@ -20,30 +19,24 @@ STOPPING_FIELDS = {
 }
 
 
-#: `UNPLANNED_TRIALS` is the trial limit the run form opens with when the
-#: experiment has no planned budget.
 UNPLANNED_TRIALS = 30
 
 
 def opening_trials(budget: int | None, done: int):
-    """`opening_trials` is the trial limit the run form opens with: what is
-    left of a planned *budget* after *done* trials, "" once it is spent, and
-    `UNPLANNED_TRIALS` without one."""
+    """`opening_trials` gives the run form's opening trial limit."""
     if not budget:
         return UNPLANNED_TRIALS
     return max(budget - done, 0) or ""
 
 
 def text(value) -> str:
-    """`text` gives a value as a browser would post it, so a number 0 stays
-    "0" and a missing value becomes ""."""
+    """`text` mimics a browser post, so 0 stays "0" and None becomes ""."""
     return "" if value is None else str(value).strip()
 
 
 def stopping_from(data, metric_name: str = "") -> dict:
-    """`stopping_from` drops blank and unparseable criteria instead of reading
-    them as zero, since zero would stop the run at once. *metric_name* supplies
-    the bounds of `target_score`.
+    """`stopping_from` skips blank and unparseable criteria, since zero would
+    stop the run at once.
     """
     stopping = {}
     for key, (parse, low, high) in STOPPING_FIELDS.items():
@@ -56,8 +49,7 @@ def stopping_from(data, metric_name: str = "") -> dict:
             continue
         if key == "target_score":
             low, high = metric_for(metric_name).bounds
-            # Clamping keeps an out-of-range target from vanishing and tripping
-            # the no-criterion refusal.
+            # Clamping keeps an out-of-range target from vanishing.
             if low is not None:
                 value = max(value, low)
         elif value < low:
@@ -67,10 +59,8 @@ def stopping_from(data, metric_name: str = "") -> dict:
 
 
 def trial_timeout_from(data) -> dict:
-    """`trial_timeout_from` reads the per-trial deadline apart from the
-    criteria, since a timeout fails one trial and the run continues. A blank box
-    falls back to `MODEL_TRIAL_TIMEOUT`, and only an explicit 0 turns the
-    deadline off.
+    """`trial_timeout_from` keeps the per-trial deadline out of the stopping
+    criteria. A blank box uses `MODEL_TRIAL_TIMEOUT`; 0 turns the deadline off.
     """
     mode = data.get("trial_timeout_mode")
     if mode not in deadline.MODES:

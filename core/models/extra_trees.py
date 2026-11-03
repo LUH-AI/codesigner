@@ -1,4 +1,3 @@
-"""`core.models.extra_trees` wraps scikit-learn's extra trees."""
 
 from typing import Any
 
@@ -9,7 +8,7 @@ from .base import Tunable
 
 
 class ExtraTrees(OutputBaseModel):
-    """`ExtraTrees` draws split thresholds at random, cheaper than a forest."""
+    """`ExtraTrees` draws split thresholds at random."""
 
     name = "Extra Trees"
     tasks = ("classification", "regression")
@@ -35,8 +34,7 @@ class ExtraTrees(OutputBaseModel):
 
 
 class ExtraTreesModel(Tunable, ExtraTrees):
-    """`ExtraTreesModel` is extremely randomized trees: like a random forest with
-    random split thresholds, cheaper per tree."""
+    """`ExtraTreesModel` is extremely randomized trees, a cheaper random forest."""
 
     def get_config_space(self, seed: int = 0) -> ConfigurationSpace:
         cs = ConfigurationSpace(seed=seed)

@@ -1,13 +1,7 @@
-"""Build the assistant's library: `manage.py assistant_knowledge build`.
-
-Fetches each paper in assistant/knowledge/literature.toml from its open-access
-source, splits it into passages, embeds them through the embedding endpoint
-(`ASSISTANT_EMBED_*`) unless `--no-embed`, and writes the index to
-`ASSISTANT_KNOWLEDGE_DIR`. `--only KEY ...` fetches just those papers again.
-
-`ensure` builds only what is needed: nothing while the assistant is off or the
-index matches the paper list and the embedding model, else a build on the
-worker's queue, or here with `--now`. The worker runs it on starting.
+"""`assistant_knowledge build` fetches each paper in literature.toml, splits it
+into passages, embeds them unless `--no-embed` is given, and writes the index to
+`ASSISTANT_KNOWLEDGE_DIR`. `ensure` rebuilds a stale index while the assistant
+is on, on the worker's queue or here with `--now`.
 """
 
 from django.core.management.base import BaseCommand, CommandError
@@ -77,8 +71,7 @@ class Command(BaseCommand):
         self.stdout.write(f"Library build queued: {reason}.")
 
     def warn_failures(self, record):
-        """`warn_failures` names each paper the last build could not fetch,
-        which the library knows only by its summary until a build fetches it."""
+        """`warn_failures` names each paper the last build failed to fetch."""
         failed = (record or {}).get("failed") or {}
         if not failed:
             return

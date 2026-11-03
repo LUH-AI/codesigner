@@ -1,10 +1,6 @@
-"""When a choice is worth moving from its default, and what that costs: the
-trade-off explainers in assistant/knowledge/explainers*/tradeoffs/, one per
-SMAC setting or group of settings, the optimized metric and the validation
-method, which the assistant proposes changes from.
-
-A note is found by the form fields its `about` names (`opt_trial_cap`,
-`optimize_metric`). A file in `explainers/` replaces the draft of the same id.
+"""`tradeoffs` reads the trade-off explainers in
+`assistant/knowledge/explainers/tradeoffs/`, which the assistant proposes
+changes from. A note matches the form fields its `about` names.
 """
 
 from functools import cache
@@ -36,9 +32,8 @@ def _read() -> dict:
 
 
 def notes(fields=None) -> dict:
-    """The notes by name, each with the settings it `applies_to` (an optimizer
-    setting by its own name); with *fields*, only the notes about one of
-    those form fields."""
+    """`applies_to` uses optimizer setting names. With *fields*, `notes` only
+    returns notes on those form fields."""
     out = {}
     for name, note in _read().items():
         if fields is not None and not set(note["fields"]) & set(fields):
@@ -50,6 +45,6 @@ def notes(fields=None) -> dict:
 
 
 def for_optimizer(optimizer, settings=None) -> dict:
-    """The notes on *optimizer*'s settings, or on those of *settings*."""
+    """*settings* replaces the optimizer's setting names."""
     names = [p.name for p in optimizer.params_schema] if settings is None else settings
     return notes([f"opt_{name}" for name in names]) if names else {}

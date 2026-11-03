@@ -1,16 +1,11 @@
-"""One turn of a conversation: the person says something, and the model answers
-— calling tools as often as it needs to, within limits — until it replies in
-words or asks the person something.
+"""`run_turn` runs one conversation turn: the model calls tools within limits
+until it replies in words or asks the person something.
 
-Everything a page should show is written as an `AssistantEvent` as it happens,
-so a page can follow a turn running elsewhere and pick it up again after being
-reloaded. Every message, tool calls and their answers included, is kept as the
-model saw it, so the next turn continues the same conversation.
+`emit` writes each page update as an `AssistantEvent`, so a reloaded page can
+resume a turn running elsewhere.
 
-A3S ran one copy of this loop per phase (https://github.com/LUH-AI/A3S, BSD-3-
-Clause, Copyright (c) Marcel Wever); this is one loop for every turn, keeping
-from it the nudge-free handing back of control on a question, and the giving up
-on a model that repeats itself.
+`run_turn` adapts the loop of A3S (https://github.com/LUH-AI/A3S, BSD-3-Clause,
+Copyright (c) Marcel Wever).
 """
 
 from __future__ import annotations
@@ -26,23 +21,21 @@ from django.utils import timezone
 from .models import AssistantEvent, Message
 from .tools.registry import ToolRegistry
 
-#: How many messages of history are sent with each call. Older ones stay in the
-#: conversation; the plan carries what matters of them.
+#: `HISTORY` caps the messages sent per call; `.Conversation.plan` carries what
+#: matters from older ones.
 HISTORY = 60
-#: How often streamed text is written out, in seconds.
+#: Streamed-text flush interval.
 FLUSH_SECONDS = 0.15
-#: The same call this many times in one turn is a model going round in circles.
+#: `REPEATS` identical calls in one turn end the turn.
 REPEATS = 3
 
 
 def emit(conversation, kind: str, **payload) -> AssistantEvent:
-    """Write an event for pages showing *conversation*."""
     return AssistantEvent.objects.create(conversation=conversation, kind=kind, payload=payload)
 
 
 def tokens_today(owner_id) -> int:
-    """Model tokens spent in the last day by *owner_id*'s conversations (None:
-    the conversations of an instance without accounts)."""
+    """`tokens_today` takes None for an instance without accounts."""
     since = timezone.now() - timedelta(days=1)
     spent = (Message.objects.filter(conversation__owner_id=owner_id, created_at__gte=since)
              .aggregate(total=Sum("tokens"))["total"])
@@ -50,10 +43,8 @@ def tokens_today(owner_id) -> int:
 
 
 def history(conversation) -> list[dict]:
-    """The conversation as the model is sent it: about its last `HISTORY`
-    messages, reaching back to start at one of the person's, so no tool answer
-    arrives without the call it answers and the message being answered is
-    always there."""
+    """`history` returns about the last `HISTORY` messages, starting at one of
+    the person's, so every tool answer keeps its call."""
     messages = list(conversation.messages.all())
     start = max(0, len(messages) - HISTORY)
     while start > 0 and messages[start].role != Message.USER:
@@ -62,7 +53,7 @@ def history(conversation) -> list[dict]:
 
 
 class _Stream:
-    """Streamed text, written out in pieces rather than per token."""
+    """`_Stream` batches streamed text."""
 
     def __init__(self, conversation):
         self.conversation = conversation
@@ -89,8 +80,7 @@ class _Stream:
 
 
 def run_turn(conversation, text: str, *, llm, tools: ToolRegistry, stream: bool = True) -> str:
-    """The person's *text*, and the model's answer to it. Returns how the turn
-    ended: "answered", "waiting" (for the person's choice), or why it stopped —
+    """`run_turn` returns "answered", "waiting", or why it stopped:
     "unavailable", "budget", "steps", "tool_calls" or "repeating"."""
     from .gateway import Context
     from .llm import Unavailable
@@ -111,8 +101,7 @@ def run_turn(conversation, text: str, *, llm, tools: ToolRegistry, stream: bool 
         messages = [{"role": "system", "content": system_prompt(conversation)}]
         messages += history(conversation)
         try:
-            # The last step offers no tools, so a turn always ends in an answer
-            # to the person rather than in one more call.
+            # The last step offers no tools, so every turn ends in an answer.
             reply = llm.chat(messages, tools=tools.schemas if step < steps - 1 else None,
                              progress=progress)
         except Unavailable as exc:
@@ -127,7 +116,7 @@ def run_turn(conversation, text: str, *, llm, tools: ToolRegistry, stream: bool 
         if not reply.tool_calls:
             invented = _invented(reply.content)
             if invented and not corrected and step < steps - 1:
-                # Once a turn, so a model that keeps inventing still ends.
+                # Once per turn, so inventing still ends.
                 corrected = True
                 _warn_invented(conversation, invented)
                 continue
@@ -171,10 +160,9 @@ def _invented(text: str) -> list[str]:
 
 
 def _warn_invented(conversation, keys: list[str]) -> None:
-    """The answer cited *keys*, which name no paper in the library: the page
-    marks it withdrawn, and the model is told why and to answer again. The
-    warning is kept as a message to the model, so later turns see it too; no
-    event shows it as the person's."""
+    """`_warn_invented` marks the answer withdrawn and tells the model which
+    *keys* name no library paper. The warning is stored with the user role for
+    the model; no event shows it to the person."""
     named = ", ".join(f"[{key}]" for key in keys)
     emit(conversation, "withdrawn", keys=keys)
     Message.objects.create(conversation=conversation, role=Message.USER, content=(
@@ -187,7 +175,7 @@ def _warn_invented(conversation, keys: list[str]) -> None:
 
 
 def _cite(conversation, text: str) -> None:
-    """The papers the answer cites from the library, listed under it."""
+    """`_cite` lists cited papers under the answer."""
     from .library import cited
 
     sources = cited(text)

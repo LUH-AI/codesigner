@@ -1,5 +1,4 @@
-"""`optimizer_form` renders the optimizer select and per-optimizer settings
-panels for setup step 2 and for an experiment page before its first trial.
+"""`optimizer_form` renders the optimizer select and its settings panels.
 """
 
 from __future__ import annotations
@@ -14,9 +13,9 @@ from .optimizer_labels import LABELS, describe_all, grouped
 
 
 def why_fixed(exp, name: str | None = None) -> str | None:
-    """`why_fixed` says why the optimizer, or its setting *name*, cannot change
-    now, or returns None. Between runs an experiment with trials keeps its
-    optimizer and every setting outside the optimizer's `run_safe`.
+    """`why_fixed` returns why the optimizer or its setting *name* cannot
+    change, or None. With trials, only the optimizer's `run_safe` settings
+    change between runs.
     """
     if has_trials(exp):
         kind = OPTIMIZERS.get(exp.data.optimizer_name)
@@ -33,8 +32,6 @@ def has_trials(exp) -> bool:
 
 
 def context(exp, locked=False) -> dict:
-    """`context` fills the chosen panel from *exp*, and every control is
-    disabled under *locked*."""
     data = exp.data
     selected = data.optimizer_name if data.optimizer_name in OPTIMIZERS else next(iter(OPTIMIZERS))
     panels = []
@@ -50,11 +47,8 @@ def context(exp, locked=False) -> dict:
 
 
 def save(request, exp, data=None, *, partial=False) -> str | None:
-    """`save` stores the optimizer in *data*, the posted form by default, on
-    *exp* and returns a refusal reason or None. A change goes into the history.
-    With *partial*, *data* holds only the changes, and an absent
-    `optimizer_name` or setting keeps its current value. Once there are trials,
-    only the optimizer's `run_safe` settings change (`_save_run_safe`).
+    """`save` stores the optimizer from *data* on *exp* and returns an error
+    message or None. With *partial*, *data* carries only the changes.
     """
     data = request.POST if data is None else data
     if has_trials(exp):
@@ -75,9 +69,8 @@ def save(request, exp, data=None, *, partial=False) -> str | None:
 
 
 def _save_run_safe(request, exp, data, partial) -> str | None:
-    """`_save_run_safe` changes the run-safe settings between runs. A posted
-    locked setting with a value other than its stored one is refused by name,
-    and one the form leaves out keeps its value.
+    """`_save_run_safe` returns an error naming each posted locked setting that
+    differs from its stored value.
     """
     if exp.is_running:
         return _("A run is under way with this optimizer.")
@@ -110,9 +103,8 @@ def _store(request, exp, name, params) -> None:
 
 
 def next_run_context(exp) -> dict:
-    """`next_run_context` lays out the settings a run of *exp* with trials may
-    still change, for the run form's "Next run" fold. An optimizer without
-    run-safe settings gets nothing.
+    """`next_run_context` lays out the run-safe settings for the run form's
+    "Next run" fold.
     """
     kind = OPTIMIZERS.get(exp.data.optimizer_name)
     if kind is None or not kind.run_safe:
@@ -123,17 +115,15 @@ def next_run_context(exp) -> dict:
     return {"next_run_layout": layout, "next_run_advanced": advanced}
 
 
-#: The prefix keeps optimizer setting names clear of `n_trials` and stopping
-#: criteria on the same form.
+#: `_OPTIMIZER_PREFIX` keeps setting names clear of `n_trials` and stopping
+#: criteria.
 _OPTIMIZER_PREFIX = "opt_"
 
 
 def _posted_params(data, optimizer, base=None) -> dict:
-    """`_posted_params` reads types and bounds from the optimizer's own schema,
-    so a newly declared setting needs no change here. A blank field takes the
-    declared default. Without *base*, *data* is a whole posted form, where an
-    unticked box is absent and so off. With *base*, a setting that *data* omits
-    keeps its value in *base*.
+    """`_posted_params` reads types and bounds from the optimizer's schema, so a
+    newly declared setting needs no change here. Without *base*, an absent
+    checkbox is off; with *base*, an omitted setting keeps its *base* value.
     """
     params = {}
     for param in optimizer.params_schema:
@@ -167,8 +157,8 @@ def _posted_params(data, optimizer, base=None) -> dict:
 
 
 def cleaned_params(optimizer, params: dict) -> dict:
-    """`cleaned_params` returns what this form would store for *params*, given
-    by setting name, with every setting they omit at its default."""
+    """`cleaned_params` returns what the form would store for *params*, with
+    omitted settings at defaults."""
     posted = {f"{_OPTIMIZER_PREFIX}{name}": value for name, value in params.items()}
     return _posted_params(posted, optimizer, base={})
 

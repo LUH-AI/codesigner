@@ -1,13 +1,7 @@
-"""Check what the configured model server can do for the assistant.
-
-    manage.py assistant_probe
-    manage.py assistant_probe --model DeepSeek-V4-Flash --thinking-off '{"chat_template_kwargs": {"enable_thinking": false}}'
-
-Each check sends a short made-up request, never anything of a person's, and
-reports what came back and how long it took: the model's status, a plain
-reply, a tool round trip, several tool calls in one reply, streaming with token
-counts, a reply in a JSON schema, how reasoning is returned, the switch that
-turns reasoning off, and embeddings.
+"""`assistant_probe` checks what the configured model server can do for the
+assistant. Each check sends a short made-up request and reports the reply and
+its time: model status, plain replies, tool calls, streaming, JSON-schema
+replies, reasoning and embeddings.
 """
 
 import json
@@ -77,8 +71,7 @@ class Command(BaseCommand):
         return self.client.chat.completions.create(model=self.model, **kwargs)
 
     def listed(self):
-        """`listed` reads the model's status from chat-ai's `/modellist`, or
-        from `/models` on other servers."""
+        """`listed` reads chat-ai's `/modellist`, or `/models` elsewhere."""
         base = settings.ASSISTANT_LLM_BASE_URL.rstrip("/")
         root = base[:-3] if base.endswith("/v1") else base
         request = urllib.request.Request(root + "/modellist",

@@ -1,4 +1,3 @@
-"""`hist_gradient_boosting` wraps scikit-learn's HistGradientBoosting."""
 
 from typing import Any
 
@@ -8,13 +7,12 @@ from codesigner_model import OutputBaseModel
 from .base import Tunable
 from .parts import categorical_mask
 
-#: The histogram has at most 255 bins, one reserved for missing values.
+#: One bin is reserved for missing values.
 MAX_LABELS = 254
 
 
 class HistGradientBoosting(OutputBaseModel):
-    """`build` disables early stopping, which would stop each fold at a
-    different iteration.
+    """`build` disables early stopping, which varies across folds.
     """
 
     name = "HistGradientBoosting"
@@ -42,8 +40,8 @@ class HistGradientBoosting(OutputBaseModel):
 
 
 class HistGradientBoostingModel(Tunable, HistGradientBoosting):
-    """`HistGradientBoostingModel` is scikit-learn's histogram gradient boosting:
-    boosted trees on binned features, with native missing values."""
+    """`HistGradientBoostingModel` is scikit-learn's histogram gradient
+    boosting."""
 
     def get_config_space(self, seed: int = 0) -> ConfigurationSpace:
         cs = ConfigurationSpace(seed=seed)

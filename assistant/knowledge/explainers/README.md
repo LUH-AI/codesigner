@@ -1,9 +1,4 @@
-# DRAFT explainers: awaiting review
-
-**Not reviewed. Not used by the assistant yet.** The library builder does not
-read this folder. Once a file is reviewed, it moves to
-`assistant/knowledge/explainers/`, where the assistant reads it with
-`read_explainer` and finds it through `search_knowledge`.
+# Explainers
 
 Each file explains one figure, page or concept, for the assistant to answer
 from and to point at, or weighs one choice: when moving a setting from its
@@ -13,12 +8,11 @@ texts, form help, template comments, and the user docs deleted in commit
 `e933531`; the trade-offs also from the papers in the library. Each file's
 `sources` lists where its facts came from, so they can be checked.
 
-**Exception: `tradeoffs/` and `pages/` are in use.** Until the review, the
-owner treats them as reviewed. `assistant/explainers.py` reads them:
+`assistant/explainers.py` reads `tradeoffs/` and `pages/`:
 `list_optimizers`, `list_metrics` and `read_experiment settings` hand the
 trade-off notes to the model (`assistant/tradeoffs.py`), and `about_page`
-hands it a page's explainer. A file moved to `explainers/<folder>/` replaces
-the draft of the same id.
+hands it a page's explainer. Nothing reads `figures/` or `concepts/` yet; the
+library builder does not index this folder.
 
 ## Folders
 
@@ -58,4 +52,4 @@ A note that needs a decision or a check is an HTML comment:
 - Is it right? Every statement should match what Codesigner does today.
 - Is it what a person would want to know, in words they would use?
 - Are the `<!-- REVIEW -->` notes resolved or deleted?
-- Then set `status: reviewed` and move the file to `explainers/`.
+- Then set `status: reviewed`.

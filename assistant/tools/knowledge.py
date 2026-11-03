@@ -1,6 +1,5 @@
-"""The tools that search the assistant's library (assistant/library.py): the
-papers SMAC and Codesigner rest on, and background on tuning hyperparameters;
-and the one that explains a Codesigner page (assistant/explainers.py)."""
+"""The tools here search `.library` and explain a Codesigner page
+(`.explainers`)."""
 
 from __future__ import annotations
 
@@ -107,5 +106,5 @@ ABOUT_PAGE = ToolSpec(
 
 
 def knowledge():
-    """The library's tools, and the pages' explainer."""
+    """`knowledge` lists the tools."""
     return [SEARCH_KNOWLEDGE, READ_PASSAGE, ABOUT_PAGE]

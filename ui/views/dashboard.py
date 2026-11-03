@@ -38,12 +38,11 @@ from .common import (
 
 @experiment_view(VIEW)
 def experiment_detail(request, exp):
-    """`experiment_detail` shows the saved experiment's dashboard."""
     return _dashboard(request, exp, _detail_context(request, exp))
 
 
 def _dashboard(request, exp, context):
-    """`_dashboard` shows figures after the first trial, else the pre-run page."""
+    """`_dashboard` renders the pre-run page before trials."""
     if context["trial_count"]:
         return render(request, "ui/experiment_detail.html", context)
     fixed = optimizer_form.why_fixed(exp)
@@ -56,7 +55,7 @@ def _dashboard(request, exp, context):
 @require_POST
 @experiment_view(RENAME)
 def experiment_rename(request, exp):
-    """`experiment_rename` lets an empty name stand for "Untitled Experiment"."""
+    """An empty name shows `.UNTITLED`."""
     exp.data.name = (request.POST.get("name") or "").strip()[:200]
     exp.data.save(update_fields=["name"])
     return redirect(safe_next(request) or reverse("ui:experiment_detail", args=[exp.pk]))
@@ -65,7 +64,6 @@ def experiment_rename(request, exp):
 @require_POST
 @experiment_view(EDIT)
 def experiment_optimizer(request, exp):
-    """`experiment_optimizer` saves the optimizer before the first trial."""
     refusal = optimizer_form.save(request, exp)
     if refusal:
         messages.error(request, refusal)
@@ -76,8 +74,7 @@ def experiment_optimizer(request, exp):
 
 @experiment_view(VIEW)
 def trial_panel(request, exp):
-    """`trial_panel` renders the selected-config panel for a click on the
-    performance figure, with *idx* indexing `result.trials`.
+    """`trial_panel` renders the selected-config panel for `result.trials[idx]`.
     """
     metric = request.GET.get("metric", "")
     idx_raw = request.GET.get("idx", "")
@@ -94,13 +91,11 @@ def trial_panel(request, exp):
 
     return render(request, "ui/_selected_config_inner.html",
                   {"sel": _selected_panel_data(result, metric, idx),
-                   # The traceback link needs `exp` because the partial is also
-                   # served alone.
+                   # The standalone partial's traceback link needs `exp`.
                    "experiment": exp})
 
 
 def _kept_trial_indices(exp, result):
-    """`_kept_trial_indices` finds trials with kept models."""
     from experiments.models import TrialModel
 
     if result is None or not result.trials:
@@ -110,7 +105,6 @@ def _kept_trial_indices(exp, result):
 
 
 def trial_models_reason(exp):
-    """`trial_models_reason` explains why trials lack kept models."""
     from core.optimizers.trial import keeps_its_fit
 
     model = MODELS.get(exp.data.model_name)
@@ -133,8 +127,7 @@ def trial_models_reason(exp):
 
 
 def _figure_options(figure, result, metric_names):
-    """`_figure_options` gives the page script one figure's `absoluteScale` and
-    `perMetric`. A per-metric scale is keyed by metric, and None hides the
+    """`_figure_options` returns `absoluteScale` and `perMetric`; None hides the
     toggle.
     """
     scale = figure.absolute_scale
@@ -146,21 +139,18 @@ def _figure_options(figure, result, metric_names):
 
 
 def _trial_rows(result, metric_names, hp_names, start: int = 0) -> list:
-    """`_trial_rows` renders rows from *start* so the page build and the poll
-    append share one partial.
+    """`_trial_rows` skips rows before *start* for the poll append.
     """
     return [
         {
-            # `idx` is the result position every trial reference uses; `n` is
-            # the displayed number.
+            # `idx` indexes the result; `n` is the displayed number.
             "idx": i,
             "n": t.trial,
             "config_values": [t.config.get(h) for h in hp_names],
-            # `.get` tolerates older stored rows that miss a metric.
+            # Older rows can miss a metric.
             "scores": [t.scores.get(m) for m in metric_names],
             "duration": t.duration,
-            # The row flags a failed trial and its reason, since its 0.0 scores
-            # look like a bad result.
+            # A failed trial's 0.0 scores look like a bad result.
             "failed": t.failed,
             "failure": t.failure,
         }
@@ -170,8 +160,8 @@ def _trial_rows(result, metric_names, hp_names, start: int = 0) -> list:
 
 
 def metric_label(current_metric, original_metric):
-    """`metric_label` returns "~" before a run commits a metric and
-    "Inconsistent" when the current metric differs from the results' metric.
+    """`metric_label` returns "~" without an original metric and "Inconsistent"
+    on a mismatch.
     """
     if original_metric is None:
         return "~"
@@ -181,8 +171,8 @@ def metric_label(current_metric, original_metric):
 
 
 def _selected_panel_data(result, metric, idx):
-    """`_selected_panel_data` always includes the distance from the best trial,
-    which is zero for the best itself with `is_best` set.
+    """`_selected_panel_data` sets `delta` to zero and `is_best` for the best
+    trial.
     """
     trials = result.trials
     best_idx = result.best_index(metric)
@@ -193,13 +183,11 @@ def _selected_panel_data(result, metric, idx):
         "trial_n": trial.trial,
         "score": score,
         "delta": score - best,
-        # The metric decides which sign of `delta` is better, and the template
-        # must avoid comparing it to zero.
+        # The metric decides which sign of `delta` is better.
         "delta_better": result.metric(metric).better(score, best),
         "is_best": idx == best_idx,
         "config": list(trial.config.items()),
-        # A failed trial's score is a placeholder; `idx` is what the traceback
-        # endpoint takes.
+        # A failed trial's score is a placeholder.
         "failed": trial.failed,
         "failure": trial.failure,
         "idx": idx,
@@ -208,10 +196,8 @@ def _selected_panel_data(result, metric, idx):
 
 
 def _prior_only_context(exp, built):
-    """`_prior_only_context` gives the prior figure what it needs before any
-    trial, without acquisition, candidates or incumbent. The figure fetches its
-    density with a `prior_only` request, and an empty dict leaves the page
-    unchanged.
+    """`_prior_only_context` serves the prior figure before any trial. The
+    figure fetches its density with a `prior_only` request.
     """
     figure = next((f for f in _shown_figures(exp) if f.key == "prior"), None)
     config_space = config_space_for(built)
@@ -219,7 +205,6 @@ def _prior_only_context(exp, built):
         return {}
     return {
         "prior_only_figure": figure,
-        # Taken from the space, since there are no trials.
         "hp_names": list(config_space.keys()),
         "beta_min": prior_math.BETA_RATIO_MIN,
         "beta_max": prior_math.BETA_RATIO_MAX,
@@ -227,7 +212,6 @@ def _prior_only_context(exp, built):
     }
 
 
-#: Tab labels on the page.
 TAB_LABELS = {
     "overview": gettext_lazy("Overview"),
     "hypershap": gettext_lazy("HyperSHAP"),
@@ -237,9 +221,8 @@ TAB_LABELS = {
 
 
 def _computed_version(exp, result):
-    """`_computed_version` keys computed answers to the trials, the last run and
-    the settings. The prior, selected trial and shown hyperparameter belong in
-    each figure's own key.
+    """`_computed_version` keys computed answers to the trial count, last run
+    and settings. Each figure keys its own inputs.
     """
     import hashlib
     last = exp.runs.order_by("-id").values_list("pk", "status").first()
@@ -250,7 +233,6 @@ def _computed_version(exp, result):
 
 
 def _figure_tabs(layout, figures):
-    """Tabs arranged per *layout*."""
     from ..layout import placed
     return [dict(tab, label=TAB_LABELS[tab["tab"]]) for tab in placed(layout, figures)]
 
@@ -258,9 +240,8 @@ def _figure_tabs(layout, figures):
 @experiment_view(VIEW)
 @require_POST
 def save_layout(request, exp):
-    """`save_layout` saves the reader's own arrangement under `VIEW`, since only
-    the reader's row changes. A JSON `layout` or `reset` returns the normalised
-    arrangement; the settings page's forms redirect to the experiment.
+    """`save_layout` only needs `VIEW`, since it only changes the reader's row.
+    JSON requests get the normalised arrangement back; form posts redirect.
     """
     from .. import layout as layouts
     if request.POST.get("reset"):
@@ -285,12 +266,11 @@ def save_layout(request, exp):
     return JsonResponse({"layout": layouts.save(exp, request.user, body["layout"])})
 
 
-#: Sentinel meaning rebuild here, unlike None.
+#: `_UNBUILT` requests a rebuild.
 _UNBUILT: Any = object()
 
 
 def _prepared_summary(exp) -> str:
-    """`_prepared_summary` describes the environment in one line."""
     meta = exp.env_meta or {}
     parts = []
     deps = meta.get("dependencies") or []
@@ -302,8 +282,7 @@ def _prepared_summary(exp) -> str:
 
 
 def experiment_header(request, exp, result=_UNBUILT):
-    """`experiment_header` builds the shared top of the dashboard, Data Handling
-    and timeline, rebuilding *result* unless the caller passes one.
+    """`experiment_header` builds the top shared by the experiment pages.
     """
     if result is _UNBUILT:
         result = rebuild_result(exp)
@@ -319,14 +298,13 @@ def experiment_header(request, exp, result=_UNBUILT):
 
     has_result = result is not None and bool(result.trials)
     kept = _kept_trial_indices(exp, result)
-    # Before any selection, the export buttons name the best trial on the viewed
-    # metric.
+    # Exports default to the viewed metric's best trial.
     current = exp.data.current_metric or (exp.data.metric_names or [None])[0]
     best = (result.best_index(current)
             if has_result and result is not None and current in exp.data.metric_names else None)
 
     return {
-        "experiment": exp,  # for `_run_status.html` URLs
+        "experiment": exp,  # `_run_status.html` URLs
         "summary": {
             "pk": exp.pk,
             "name": exp.title,
@@ -339,20 +317,18 @@ def experiment_header(request, exp, result=_UNBUILT):
             "seed": exp.data.seed,
             "evaluation": model_export.evaluation_label(exp),
         },
-        # An empty result takes the template's "No results yet" branch.
+        # An empty result shows "No results yet".
         "has_result": has_result,
-        # Per-action permissions for the buttons.
         "may": {action: policy().may(request, exp, action)
                 for action in (RUN, COMPUTE, EDIT, DELETE, EXPORT, SHARE, RENAME)},
         "ownership": _ownership(request, exp),
         "model_export_unavailable": model_export.unavailable(exp),
-        # The parameters button links only for a selected trial whose model was
-        # kept.
+        # The parameters button only links trials with kept models.
         "kept_trial_indices": kept,
         "trial_models_reason": trial_models_reason(exp),
         "export_default_kept": best is not None and best in kept,
         "run_error": last_run.error if (last_run and last_run.status == "error") else None,
-        # Shown so the form explains its own refusal.
+        # The form shows why a custom model cannot run.
         "model_refusal": policy().custom_model_refusal(exp, request.user),
         "env": {
             "status": exp.env_status,
@@ -368,15 +344,14 @@ def experiment_header(request, exp, result=_UNBUILT):
 
 
 def _budget_context(exp, done: int) -> dict:
-    """`_budget_context` gives the run form its trial limit and the budget it
-    comes from (`run_form.opening_trials`)."""
+    """`_budget_context` gives the run form its budget and opening trials."""
     return {"trial_budget": exp.data.trial_budget,
             "next_run_trials": run_form.opening_trials(exp.data.trial_budget, done)}
 
 
 def _detail_context(request, exp):
-    """`_detail_context` rebuilds the result read-only and builds panels and
-    figures for the enabled figures; metrics switch in the browser.
+    """`_detail_context` rebuilds the result read-only; the browser switches
+    metrics.
     """
     built = rebuild_experiment(exp)
     result = built["result"] if built else None
@@ -392,38 +367,31 @@ def _detail_context(request, exp):
         "can_run": (exp.data.has_dataset and _model_available(exp)
                     and policy().may(request, exp, RUN)
                     and not model_refusal),
-        # Only a model-fitting optimizer supports the confidence criterion.
         "supports_confidence": getattr(
             optimizer_class(exp.data.optimizer_name), "supports_confidence_stopping", False),
-        # Requery needs an optimizer with `slice_challengers`.
         "can_requery": hasattr(optimizer_class(exp.data.optimizer_name), "slice_challengers"),
         **_prior_judging_context(exp),
         "run_default_metric": exp.data.current_metric or (metric_names[0] if metric_names else None),
-        # Deadline fields open on the deployment's `MODEL_TRIAL_TIMEOUT`.
         "default_trial_timeout": int(settings.MODEL_TRIAL_TIMEOUT),
         "default_trial_factor": deadline.DEFAULT_FACTOR,
-        # The poll echoes the drawn trial count; 0 means no figure grid.
+        # Polls echo the count; 0 means no grid.
         "trial_count": 0,
         "poll_seconds": _poll_seconds(exp),
         **_budget_context(exp, len(result.trials) if result is not None else 0),
     }
-    # A result without trials takes the same early return, since `io.parse`
-    # accepts an empty `data`. Only the prior figure goes out, because a prior
-    # needs the search space alone (`_prior_only_context`).
+    # A result can lack trials, since `io.parse` accepts an empty `data`. The
+    # prior figure needs the search space alone.
     if result is None or not result.trials:
         context.update(_prior_only_context(exp, built))
         return context
 
-    # `run_status` compares the drawn trial count with the stored one to decide
-    # whether to rebuild plots.
+    # `run_status` rebuilds plots when the stored trial count differs.
     context["trial_count"] = len(result.trials)
     context.update(optimizer_form.next_run_context(exp) if policy().may(request, exp, EDIT)
                    else {})
-    # Missing explanations can be requested, except during a run, which computes
-    # them at the end.
+    # An active run computes missing explanations when it ends.
     context["analytics_absent"] = _analytics_absent(result) and not active_run
 
-    # Switched-off figures are never built.
     figures = _shown_figures(exp)
     from ..layout import layout_for
     figure_layout = layout_for(exp, request.user)
@@ -435,24 +403,20 @@ def _detail_context(request, exp):
         m, best_idx = panel["metric"], panel["best_idx"]
         best = result.trials[best_idx]
         panel.update({
-            # Defaults to the best trial.
             "selected": _selected_panel_data(result, m, best_idx),
-            # Each HyperSHAP game gets its warning and table rows, keyed by game
-            # for the page's game selector. The warning also covers the
-            # interaction figures from the same call.
+            # The page's game selector reads `importance_by_game`; each warning
+            # also covers interaction figures.
             "importance_by_game": {
                 game: {
                     "warning": getattr(result, fields["warning"]).get(m),
-                    # Each hyperparameter gets a row even without stored values,
-                    # for the incumbent and selected columns.
+                    # Each hyperparameter gets a row even without stored values.
                     "table": (sorted(getattr(result, fields["importance"]).get(m, {}).items(),
                                      key=lambda kv: kv[1], reverse=True)
                               or [(hp, None) for hp in hp_names]),
                 }
                 for game, fields in HP_GAME_FIELDS.items()
             },
-            # The partial-dependence picker opens on the metric's most important
-            # hyperparameter, else the first.
+            # The partial-dependence picker opens on the top hyperparameter.
             "top_hp": (
                 sorted(result.hyperparameter_importance.get(m, {}).items(),
                        key=lambda kv: kv[1], reverse=True)[0][0]
@@ -461,9 +425,8 @@ def _detail_context(request, exp):
             ),
         })
 
-    # Only the opening metric's plots are built; the browser fetches others on
-    # first selection (`metric_figures`). Metric-independent figures are drawn
-    # once here.
+    # The browser fetches other metrics' plots on first selection
+    # (`metric_figures`).
     opening_metric = context["run_default_metric"]
     config_space = config_space_for(built)
     metric_plots = {
@@ -475,10 +438,8 @@ def _detail_context(request, exp):
                                  config_space=config_space)
     static_plots = {key: plot for key, plot in static_plots.items() if plot is not None}
 
-    # The Run form's target starts at the incumbent, per metric for the
-    # dropdown.
-    # A planned budget leaves the target empty, since a target just above the
-    # best would end the run at its first improvement.
+    # With a planned budget the Run form's target stays empty, since a near-best
+    # target would end the run at its first improvement.
     incumbent_targets = ({} if exp.data.trial_budget else
                          {p["metric"]: surpass_target(p["best_score"]) for p in panels})
     context.update(
@@ -488,49 +449,40 @@ def _detail_context(request, exp):
         static_plots=static_plots,
         figure_options={f.key: _figure_options(f, result, metric_names)
                         for f in figures},
-        # The script reads view names here instead of guessing from payload
-        # shape.
         figure_views={f.key: list(f.views) for f in figures if f.views},
-        # Tab arrangement per `ui/layout.py`; sidebar figures sit outside the
-        # tabs.
+        # Sidebar figures sit outside the tabs.
         figures=figures,
         figure_tabs=_figure_tabs(figure_layout, figures),
-        # Labels for computed answers (`computed.js`).
+        # `computed.js` version label.
         computed_version=_computed_version(exp, result),
-        # The full arrangement, for layout.js to edit.
+        # For `layout.js` to edit.
         figure_layout=figure_layout,
         sidebar_figures=[f for f in figures if f.in_sidebar],
-        # Figures that take a trial click (`Figure.selects_trials`).
         selectable_figures=[f.key for f in figures if f.selects_trials],
-        # `Figure.live` drives both this list and the `run_status` payloads.
+        # `Figure.live` also drives `run_status` payloads.
         live_figures=[f.key for f in figures if f.live],
-        # Figures that draw HyperSHAP games (`Figure.explains_games`).
         game_figures=[f.key for f in figures if f.explains_games],
-        # Highlight colours come from the plot builders so the script restates
-        # none. A 3D scene draws no marker outline, and the page draws its
-        # failure mark from `failure`.
+        # Colours come from the plot builders, so the script restates none. The
+        # page draws failure marks from `failure`.
         selection_colors={"base": MARKER_COLOR, "selected": SELECTION_COLOR,
                           "comparison": ACCENT_COLOR,
                           "failure": NEGATIVE_COLOR, "proposal": PROPOSAL_COLOR},
-        # Lazy labels resolve here because `json_script` cannot serialize them.
+        # `json_script` cannot serialize lazy labels.
         explanation_games=[(game, str(label)) for game, label in HP_GAME_LABELS.items()],
         explanation_game_help={game: str(text) for game, text in HP_GAME_HELP.items()},
         hp_names=hp_names,
-        # β field bounds, fixed constants.
         beta_min=prior_math.BETA_RATIO_MIN,
         beta_max=prior_math.BETA_RATIO_MAX,
-        # With "still to gain" off, the markup goes too.
         tuning_progress=analytics.TUNING_PROGRESS_ENABLED,
         incumbent_targets=incumbent_targets,
         incumbent_target=incumbent_targets.get(context["run_default_metric"], ""),
         trial_rows=_trial_rows(result, metric_names, hp_names),
-        # The table's page size comes from the figure.
         trials_page_size=Trials.page_size,
         trials_exhausted=(
             result.trials_limit is not None
             and len(result.trials) >= result.trials_limit
         ),
-        # Deferred analytics allowed to fetch without a button.
+        # Analytics fetched without a button.
         autocompute={name: shown[autocompute_key(name)]
                      for name, _label in deferred_computations()},
     )

@@ -1,5 +1,5 @@
-"""`create_run` records a run, `execute_run` rebuilds and executes it out of
-band, and the page polls the status written back.
+"""`create_run` records a run; `execute_run` executes it out of band while the
+page polls.
 """
 
 import logging
@@ -29,12 +29,11 @@ logger = logging.getLogger(__name__)
 
 
 def resolve_seed(seed_input: int) -> int:
-    """Negative picks a random seed."""
+    """Negatives pick randomly."""
     return random.randint(0, 2**31 - 1) if seed_input < 0 else int(seed_input)
 
 
 def scoreable(metrics, model, primary_metric):
-    """`scoreable` translates the refusal."""
     try:
         return trial.scoreable(metrics, model, primary_metric)
     except trial.NoProbabilities as error:
@@ -45,12 +44,8 @@ def scoreable(metrics, model, primary_metric):
 
 def create_run(experiment, stopping, optimize_metric, started_by=None,
                trial_timeout=None, configurations=None):
-    """`create_run` commits the optimized metric to the experiment and returns
-    the pending Run. *stopping* contains at least one criterion
-    (`STOPPING_CRITERIA`), and *trial_timeout* limits each model call.
-
-    The run copies its stopping criteria, timeout, priors and optimizer
-    settings, because the experiment's own statement keeps changing.
+    """`create_run` commits the optimized metric and returns the pending Run.
+    *stopping* needs at least one criterion.
     """
     from experiments.models import Run
 
@@ -68,8 +63,7 @@ def create_run(experiment, stopping, optimize_metric, started_by=None,
         started_by=started_by,
         stopping=dict(stopping),
         trial_timeout=dict(trial_timeout or {}),
-        # The copy happens at creation, because the reader may change the priors
-        # before the run finishes.
+        # The copy lets the reader edit the priors mid-run.
         priors=dict(experiment.data.priors or {}),
         optimizer_params=dict(experiment.data.optimizer_params or {}),
         configurations=list(configurations or []),
@@ -82,11 +76,9 @@ def _event(kind, at_trial, **fields) -> dict:
 
 
 def _record_prior_event(run_id, report, offset):
-    """`_record_prior_event` appends the optimizer's prior report to
-    `runs[].events`, at the trial where the prior took effect. `prior_skipped`
-    matters as much as `prior_applied`, since `_apply_priors` continues past
-    every failure, and a skip the surrogate chose is marked `rejected`. A run
-    without a stated prior gets no event.
+    """`_record_prior_event` appends the prior report to `runs[].events`.
+    `.apply_priors` continues past every failure, so `prior_skipped` events
+    matter; `rejected` marks a skip the surrogate chose.
     """
     if not report:
         return
@@ -118,10 +110,9 @@ def _record_event(run_id, event):
 
 
 def _metric_change_event(experiment, now):
-    """`_metric_change_event` records a metric change because the trials are
-    re-read and a fitted surrogate is discarded. The old metric comes from the
-    stored result, which only moves on an actual trial, because `create_run`
-    commits `current_metric` even for a run that then errors.
+    """A metric change discards a fitted surrogate. The old metric comes from
+    the stored result, since `create_run` commits `current_metric` even for a
+    failed run.
     """
     stored = experiment.data.result or {}
     trials = stored.get("data") or []
@@ -138,16 +129,13 @@ def _metric_change_event(experiment, now):
     })]
 
 
-#: Wall-clock throttling bounds serialization cost whether trials take 0.07
-#: seconds or ten minutes.
+#: Wall-clock throttling bounds serialization cost for any trial length.
 PARTIAL_RESULT_SECONDS = 5.0
 
 
 def _partial_result_writer(experiment_pk, optimizer, previous_result, primary_metric):
-    """`_partial_result_writer` saves the trials so far, which every trial-based
-    figure can draw, and leaves the costly analytics empty as a cancelled run
-    does. The database carries the update because a huey worker shares no memory
-    with the page.
+    """`_partial_result_writer` saves the trials so far with empty analytics, as
+    a cancelled run does. Huey workers share no memory with the page.
     """
     from experiments.models import ExperimentData
 
@@ -166,12 +154,10 @@ def _partial_result_writer(experiment_pk, optimizer, previous_result, primary_me
             primary_metric=primary_metric,
             best_config=collector.incumbent_config or {},
             best_score=collector.incumbent_score,
-            # Empty dicts for the two fields without defaults.
             hyperparameter_importance={},
             hyperparameter_importance_warning={},
         )
-        # The filter on the owning experiment makes the write a no-op after
-        # deletion mid-run, since `ExperimentData` cascades from `Experiment`.
+        # The filter skips the write after a mid-run deletion.
         ExperimentData.objects.filter(experiment__pk=experiment_pk).update(
             result=optimizer.serialize_result(partial))
         return True
@@ -188,8 +174,7 @@ def _trials_stored(experiment_pk) -> int:
 
 
 def _start(run, **fields) -> None:
-    """The offset is taken at start so a failed run still owns the trials its
-    partial writes saved.
+    """The start offset lets a failed run own its partial trials.
     """
     from experiments.models import Run
 
@@ -199,7 +184,7 @@ def _start(run, **fields) -> None:
 
 
 def fail_runs(runs, error) -> int:
-    """`fail_runs` lets each run keep its trials and returns the count."""
+    """`fail_runs` keeps trials and returns a count."""
     from experiments.models import Run
 
     now = timezone.now()
@@ -232,9 +217,8 @@ def force_stop(exp) -> None:
 
 
 def abandon_cluster_job(job_id: str) -> None:
-    """`abandon_cluster_job` stays quiet on failure, because an unreachable
-    cluster is the likely cause and freeing the row matters more. The job's
-    wall-clock limit bounds it anyway.
+    """`abandon_cluster_job` logs failures, since an unreachable cluster is the
+    likely cause. The job's wall-clock limit bounds it anyway.
     """
     try:
         jobs.kill(jobs.SshTransport(settings.CLUSTER_HOST, timeout=15.0), job_id)
@@ -243,9 +227,8 @@ def abandon_cluster_job(job_id: str) -> None:
 
 
 def execute_run(run_id):
-    """The `local` backend executes in the calling process, as the test suite
-    does, and `slurm` hands the optimization to a cluster that writes the same
-    rows.
+    """`local` executes the run in-process; `slurm` sends it to a cluster that
+    writes the same rows.
     """
     if settings.RUN_BACKEND == "slurm":
         return execute_run_on_cluster(run_id)
@@ -253,9 +236,8 @@ def execute_run(run_id):
 
 
 def _execute_run_locally(run_id):
-    """`_execute_run_locally` rebuilds from the stored snapshot, resumes prior
-    results and honours the cancel flag. Failures mark the run errored without
-    crashing the caller.
+    """`_execute_run_locally` rebuilds from the stored snapshot and marks a
+    failed run errored without raising.
     """
     from experiments.models import Run
 
@@ -264,10 +246,9 @@ def _execute_run_locally(run_id):
     experiment = run.experiment
 
     try:
-        # The custom-model policy is checked here as well as at the form,
-        # because the executing process would run the code. A prepared custom
-        # model gets its own process, and `launch` is None for a registry model
-        # or an in-process upload.
+        # The executing process checks the custom-model policy again, since it
+        # would run the code. `launch` is None for a registry model or an
+        # in-process upload.
         refusal = policy().custom_model_refusal(
             experiment, run.started_by or experiment.owner)
         if refusal:
@@ -283,18 +264,18 @@ def _execute_run_locally(run_id):
             read_only=False, load_model=launch is None,
         )
         optimizer = built["optimizer"]
-        # Analytics budget for this machine; 0 means unlimited.
+        # 0 means unlimited.
         optimizer.analytics_max_coalitions = (
             settings.ANALYTICS_EAGER_MAX_COALITIONS or None)
-        # Hidden game figures skip the coalition evaluations entirely.
+        # Hidden games skip coalition evaluations.
         optimizer.analytics_wanted = eager_analytics_wanted(resolve_settings(run.experiment))
-        # The callback writes to the database, which `core/` cannot see.
+        # `core/` cannot see the database.
         optimizer.progress = _partial_result_writer(
             experiment.pk, optimizer, built["result"], run.primary_metric)
         offset = len(built["result"].trials) if built["result"] else 0
         cancel = PolledFlag(
             lambda: Run.objects.filter(pk=run_id, cancel_requested=True).exists())
-        # Only an in-process model can hand a fit over.
+        # Out-of-process models keep no fit.
         keeper = (trial_models.keeper_for(run, built, metric_for(run.primary_metric))
                   if launch is None else None)
         optimizer.keep_model = keeper
@@ -311,9 +292,9 @@ def _execute_run_locally(run_id):
                 cancel_event=cancel,
                 stopping=run.stopping,
                 splits=built["splits"],
-                # Passed in, since `core/` imports no Django.
+                # `core/` imports no Django.
                 priors=experiment.data.priors or None,
-                # Page-picked configurations run before the search proposes any.
+                # Page-picked configurations run first.
                 configurations=run.configurations or None,
             )
 
@@ -343,12 +324,10 @@ def _execute_run_locally(run_id):
                                      count=keeper.no_room, reason="no room"))
     cancelled = Run.objects.filter(pk=run_id, cancel_requested=True).exists()
     if result.trials:
-        # A filtered update keeps a deleted experiment deleted.
         ExperimentData.objects.filter(experiment__pk=experiment.pk).update(
             result=optimizer.serialize_result(result),
         )
-    # The run box shows the count, time and overhead of the trials this run
-    # added.
+    # The run box only counts this run's trials.
     new_trials = result.trials[offset:]
     _record_prior_event(run_id, (getattr(result, "metadata", None) or {}).get("prior"), offset)
     Run.objects.filter(pk=run_id).update(
@@ -356,18 +335,14 @@ def _execute_run_locally(run_id):
         trial_seconds=sum(t.duration for t in new_trials),
         trial_count=len(new_trials),
         trial_offset=offset,
-        # A cancel counts as the stop reason.
         stopped_by=(STOPPED_BY_CANCELLED if cancelled
                     else (result.metadata.get("stopped_by") or "")),
     )
 
 
 def execute_run_on_cluster(run_id):
-    """`execute_run_on_cluster` relays the job's files, since the job has no
-    route to the application database. `partial.json` becomes the live result, a
-    Cancel writes a `CANCEL` file that keeps the trials, and `result.json` and
-    `status.json` become the final writes. Errors are recorded on the run, as on
-    the local path.
+    """`execute_run_on_cluster` relays the job's files, since the job cannot
+    reach the database. A Cancel writes a `CANCEL` file that keeps the trials.
     """
     from experiments.models import Run
     run = Run.objects.get(pk=run_id)
@@ -392,7 +367,6 @@ def execute_run_on_cluster(run_id):
                 "trial_timeout": run.trial_timeout,
                 "analytics_max_coalitions": settings.ANALYTICS_EAGER_MAX_COALITIONS,
                 "analytics_wanted": eager_analytics_wanted(resolve_settings(experiment)),
-                # Priors travel with the other run bounds.
                 "priors": experiment.data.priors or None,
                 "configurations": run.configurations or None,
             },
@@ -411,8 +385,7 @@ def execute_run_on_cluster(run_id):
 
 
 def _watch(ssh, run_id, experiment_pk, workdir, job_id) -> dict:
-    """`_watch` returns the job's `status.json`, or an error status when the
-    scheduler killed the job before it wrote one.
+    """`_watch` returns `status.json`, or an error status for a killed job.
     """
     from experiments.models import ExperimentData, Run
     cancelled = False
@@ -427,14 +400,13 @@ def _watch(ssh, run_id, experiment_pk, workdir, job_id) -> dict:
 
         if not cancelled and Run.objects.filter(
                 pk=run_id, cancel_requested=True).exists():
-            # Requested once; the run still writes its trials.
+            # Cancelled jobs still write trials.
             jobs.request_cancel(ssh, workdir)
             cancelled = True
 
         if state in (jobs.DONE, jobs.FAILED, jobs.GONE):
             break
 
-        # Queued jobs have written nothing, so polling waits for RUNNING.
         if state == jobs.RUNNING:
             partial = jobs.fetch(ssh, workdir, "partial.json")
             if partial:
@@ -455,9 +427,6 @@ def _watch(ssh, run_id, experiment_pk, workdir, job_id) -> dict:
 
 
 def _finish_cluster_run(run_id, experiment_pk, status: dict) -> None:
-    """`_finish_cluster_run` writes the same fields with the same filtered
-    `update()` as the local path.
-    """
     from experiments.models import ExperimentData, Run
 
     if status["state"] == "error":
@@ -489,9 +458,8 @@ def _finish_cluster_run(run_id, experiment_pk, status: dict) -> None:
 
 
 def _hours_for(run) -> int:
-    """`_hours_for` rounds the run's time limit up and adds an hour, else uses
-    the deployment ceiling. An outlived allocation kills the job mid-write and
-    loses trials.
+    """`_hours_for` adds an hour to the rounded-up time limit, since an outlived
+    allocation kills the job mid-write.
     """
     seconds = (run.stopping or {}).get("max_seconds")
     if not seconds:
@@ -500,9 +468,8 @@ def _hours_for(run) -> int:
 
 
 def _remember_config_space(experiment_pk, model, seed) -> None:
-    """The run is the only moment the space is certainly available, since a
-    read-only page never imports a custom model. A model that cannot describe
-    its space leaves the stored one alone.
+    """A read-only page never imports a custom model, so the run stores the
+    space. A failing model leaves the stored space alone.
     """
     from experiments.models import ExperimentData
 
@@ -515,9 +482,8 @@ def _remember_config_space(experiment_pk, model, seed) -> None:
 
 
 def _model_launch(experiment):
-    """`_model_launch` gives ``(None, "")`` for an in-process import, and a
-    refusal string blocks the run.
-    """
+    """`_model_launch` gives `(None, "")` for an in-process import; a refusal
+    string blocks the run."""
     from . import modelenv
 
     if not experiment.data.model_file:
@@ -526,8 +492,7 @@ def _model_launch(experiment):
 
 
 def start_background_run(run_id):
-    """The lazy import avoids an import cycle with tasks.py; dispatch.py
-    explains the immediate-mode thread.
+    """The lazy import avoids a cycle with `.tasks`.
     """
     from .. import tasks
     from .dispatch import enqueue
@@ -536,8 +501,7 @@ def start_background_run(run_id):
 
 
 def sweep_stale_runs():
-    """The durable huey queue keeps pending runs, so only submitted and running
-    runs count as stale.
+    """The durable huey queue keeps pending runs.
     """
     from experiments.models import Run
 
@@ -545,18 +509,16 @@ def sweep_stale_runs():
                      "Interrupted by a restart.")
 
 
-#: Immediate-mode runs of this process all start later.
 PROCESS_STARTED = timezone.now()
 
-#: Once per process; ui/apps.py explains why `ready()` skips the database.
+#: Sweeps once per process; `ui/apps.py` explains why.
 _SWEPT = False
 
 
 def sweep_orphaned_runs():
     """`sweep_orphaned_runs` only applies in immediate mode, where runs execute
-    on daemon threads that die when `runserver` restarts. Such a run, if older
-    than the process, has no executor, and nobody polls its cancel flag.
-    Consumer mode relies on the `sweep_stale_runs` command instead.
+    on daemon threads that die when `runserver` restarts. Consumer mode uses the
+    `sweep_stale_runs` command instead.
     """
     global _SWEPT
     from huey.contrib.djhuey import HUEY

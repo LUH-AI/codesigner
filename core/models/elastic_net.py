@@ -1,4 +1,3 @@
-"""`elastic_net` offers elastic net regression."""
 
 from ConfigSpace import ConfigurationSpace, Float
 from codesigner_model import OutputBaseModel
@@ -7,7 +6,7 @@ from .base import Tunable
 
 
 class ElasticNet(OutputBaseModel):
-    """`ElasticNet` mixes L1 and L2 penalties."""
+    """`ElasticNet` is linear regression."""
 
     name = "Elastic Net"
     tasks = ("regression",)
@@ -26,7 +25,7 @@ class ElasticNet(OutputBaseModel):
 
 
 class ElasticNetModel(Tunable, ElasticNet):
-    """`ElasticNetModel` is linear regression with mixed L1 and L2 penalties."""
+    """`ElasticNetModel` is L1/L2-penalized linear regression."""
 
     def get_config_space(self, seed: int = 0) -> ConfigurationSpace:
         cs = ConfigurationSpace(seed=seed)

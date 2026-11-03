@@ -1,5 +1,5 @@
 """The trade-off explainers (assistant/tradeoffs.py, read from
-assistant/knowledge/explainers*/tradeoffs/): each SMAC setting has exactly one,
+assistant/knowledge/explainers/tradeoffs/): each SMAC setting has exactly one,
 the metric and the validation method have theirs, and each note is complete
 and cites only papers in the library. The explainer tests check the files
 against their template."""

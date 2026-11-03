@@ -127,9 +127,9 @@ def test_the_chat_answering_is_the_tab_a_page_opens_on(client, on):
 
 def test_a_chat_that_navigates_away_from_its_experiment_visits_with_return(client, on):
     """What: an experiment's chat that takes the person to another experiment
-    stays as a third tab, saying where it is from, with Return; it cannot
-    fill there; Return goes back to the page it took them from and ends the
-    visit.
+    stays as a third tab, saying where it is from, with Return on the tab
+    rather than in the chat; it cannot fill there; Return goes back to the
+    page it took them from and ends the visit.
     How: navigate from a draft's setup to another experiment's dashboard,
     that page, a fill, then Return."""
     conversation, exp = _setting_up(client)
@@ -143,7 +143,9 @@ def test_a_chat_that_navigates_away_from_its_experiment_visits_with_return(clien
     assert BrowserPage.objects.get().visitor_id == conversation.pk
     assert _keys(page) == ["general", "experiment", "visitor"]
     assert page.context["assistant"]["active"] == "visitor"
-    assert "data-assistant-back" in page.content.decode()
+    html = page.content.decode()
+    assert 'class="btn-primary assistant-tab-return" data-assistant-back' in html
+    assert "assistant-visiting" not in html
 
     _report(client, reverse("ui:experiment_settings", args=[other.pk]))
     refused = _run(conversation, "fill", values={"ice_max_curves": 5})

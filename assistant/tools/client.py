@@ -1,11 +1,6 @@
-"""The tools that act on the person's page, in their browser (assistant/acts.py):
-seeing it, going to another page, filling fields, pointing something out.
-
-Each checks on the server, as the person, what it may do before anything is
-sent: a page to go to must be one of `PAGES`, and one the person may open; a
-field to fill must be on the page they have open, one of a setup step's, and
-the value one the form takes. None clicks or submits — saving, creating,
-running and deleting stay the person's.
+"""`client` lists the tools that act on the person's page in the browser
+(assistant/acts.py). Each tool checks on the server, as the person, what it may
+do before sending anything, and no tool clicks or submits.
 """
 
 from __future__ import annotations
@@ -22,9 +17,7 @@ from .. import acts
 from ..models import ClientAct
 from .registry import Refused, ToolResult, ToolSpec
 
-#: The pages the assistant can take the person to: name → URL name, and
-#: whether it is one experiment's page. The pages of the whole instance after
-#: the experiment list are the person's settings, groups and bin.
+#: `PAGES` maps a page name to its URL name and a per-experiment flag.
 PAGES = {
     "home": ("ui:home", False),
     "experiments": ("ui:experiment_list", False),
@@ -44,12 +37,11 @@ PAGES = {
     "settings": ("ui:experiment_settings", True),
 }
 
-#: The setup steps, by URL name.
 FILLABLE = {"ui:setup": "setup", "ui:setup_optimizer": "optimizer", "ui:setup_data": "data",
             "ui:setup_priors": "priors"}
 
-#: The run form's fields on an experiment's page: what ends a run, what ends a
-#: model fit, and the metric optimized.
+#: `RUN_FIELDS` lists the run form's timeout and metric fields; `_run_fields`
+#: adds the stopping fields.
 RUN_FIELDS = {"optimize_metric", "trial_timeout_mode", "trial_timeout_seconds",
               "trial_timeout_factor"}
 
@@ -61,9 +53,8 @@ def _run_fields():
 
 
 def _may_fill(url_name: str, name: str) -> bool:
-    """Whether field *name* is one `fill` may set on the page at *url_name*:
-    any on a setup step or the experiment's settings; on its dashboard, the
-    run form's and the optimizer's, not its name."""
+    """`_may_fill` accepts any field on a setup step or the experiment's
+    settings; on the dashboard it only accepts run-form and optimizer fields."""
     if url_name in FILLABLE or url_name == "ui:experiment_settings":
         return True
     if url_name == "ui:experiment_detail":
@@ -71,7 +62,7 @@ def _may_fill(url_name: str, name: str) -> bool:
     return False
 
 
-#: Kinds of field never filled, whatever a page reports.
+#: Input types never filled.
 NEVER_FILLED = {"hidden", "file", "password", "submit", "button", "reset", "image"}
 
 
@@ -103,8 +94,7 @@ def _look_at_page(context) -> ToolResult:
 
 
 def _with_data(figure: dict) -> dict:
-    """*figure* with its highlight target and the tool that reads the
-    numbers it draws."""
+    """`_with_data` adds the highlight target and data tool."""
     from .experiment import FIGURE_DATA
 
     read = FIGURE_DATA.get(figure.get("key"))
@@ -126,11 +116,8 @@ LOOK_AT_PAGE = ToolSpec(
 
 
 def _person_may_open(context, page: str) -> bool:
-    """Whether the person may open *page*, one of the whole instance's, as its
-    view checks: the account page exists only with accounts, the defaults'
-    only for a person who may change them. Opening one changes nothing, so
-    it is the person's own right that counts, not what the assistant may do
-    there."""
+    """`_person_may_open` checks the person's own right to open *page*, since
+    opening changes nothing."""
     from types import SimpleNamespace
 
     from django.conf import settings
@@ -151,10 +138,9 @@ def _person_may_open(context, page: str) -> bool:
 
 
 def _visit(context, experiment_id) -> tuple:
-    """Note on the person's browser whether this chat takes them away from its
-    own experiment's pages, to a page about *experiment_id* or about none, and
-    return how it stood, to undo it if the page does not go. A chat about no
-    experiment never visits: the general chat is a tab on every page."""
+    """`_visit` marks the browser as visiting when the chat leaves its
+    experiment's pages and returns the prior state for undo. A general chat
+    never visits, since it is a tab on every page."""
     from ..models import BrowserPage
 
     conversation = context.conversation
@@ -288,7 +274,6 @@ def _fill(context, values: dict, reason: str = "") -> ToolResult:
 
 
 def _plain(value):
-    """*value* as a form field holds it."""
     if isinstance(value, bool):
         return value
     if isinstance(value, float) and value.is_integer():
@@ -297,8 +282,8 @@ def _plain(value):
 
 
 def _setup_errors(context, exp, page, values) -> list[str]:
-    """What step 1's own form says against *values*, laid over the page as it
-    stands — only about the fields being filled."""
+    """`_setup_errors` returns step 1's form errors on *values*, laid over the
+    current page."""
     from ui import drafts
 
     data = {f["name"]: f.get("value") for f in page.fields if f.get("name")}
@@ -316,8 +301,8 @@ def _setup_errors(context, exp, page, values) -> list[str]:
 
 
 def _run_errors(page, values) -> list[str]:
-    """What the run form would make of *values*, laid over it as it stands: a
-    criterion it would drop as unusable, or a run with nothing to end it."""
+    """`_run_errors` returns the run form's complaints: a criterion it would
+    drop as unusable, or a run that nothing ends."""
     from core.optimizers.base import FAILURE_CRITERIA
 
     from ui.run_form import STOPPING_FIELDS, stopping_from
@@ -356,7 +341,7 @@ def _tabs():
 
 
 def _on_page(page, target: str) -> str:
-    """Why *target* is not on *page*, or "" when it is."""
+    """`_on_page` explains a missing *target*, else ""."""
     view = page.view or {}
     kind, _, rest = target.partition(":")
     if kind == "tab" and rest:
@@ -393,8 +378,7 @@ def _highlight(context, target: str) -> ToolResult:
 
 
 def _after(page, target: str) -> str:
-    """What *page* shows after pointing at *target*: the tab, and the trial
-    its figures show."""
+    """`_after` reports the showing tab and selected trial."""
     view = (page.view or {}) if page is not None else {}
     showing = next((t for t in view.get("tabs") or [] if t["name"] == view.get("tab")), None)
     out = f" The {showing['label']} tab is showing." if showing else ""
@@ -419,5 +403,5 @@ HIGHLIGHT = ToolSpec(
 
 
 def client():
-    """The tools that act on the person's page."""
+    """`client` lists the page tools."""
     return [LOOK_AT_PAGE, NAVIGATE, FILL, HIGHLIGHT]

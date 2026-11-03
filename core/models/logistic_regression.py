@@ -1,4 +1,3 @@
-"""`core.models.logistic_regression` defines the logistic regression classifier."""
 
 from ConfigSpace import Categorical, ConfigurationSpace, Float
 from codesigner_model import OutputBaseModel
@@ -7,7 +6,7 @@ from .base import Tunable
 
 
 class LogisticRegression(OutputBaseModel):
-    """`LogisticRegression` uses an L2 penalty."""
+    """`LogisticRegression` is L2-penalized."""
 
     name = "Logistic Regression"
     tasks = ("classification",)
@@ -26,8 +25,8 @@ class LogisticRegression(OutputBaseModel):
 
 
 class LogisticRegressionModel(Tunable, LogisticRegression):
-    """`LogisticRegressionModel` is logistic regression with an L2 penalty: a
-    linear classifier and a strong simple baseline."""
+    """`LogisticRegressionModel` is L2-penalized logistic regression, a linear
+    baseline classifier."""
 
     def get_config_space(self, seed: int = 0) -> ConfigurationSpace:
         cs = ConfigurationSpace(seed=seed)

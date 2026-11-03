@@ -1,13 +1,10 @@
-"""The language model, over the OpenAI chat API.
+"""The `llm` module calls the language model over the OpenAI chat API.
 
-Callers work with `Reply` and `ToolCall` rather than the SDK's types, so the
-backend can change without touching them. Synchronous, because the assistant's
-turns run in a worker thread beside the ORM (assistant/loop.py).
+Calls are synchronous because assistant turns run in a worker thread beside the
+ORM (see `assistant/turns.py`).
 
-Ported from A3S's `a3s/agent/llm.py` (https://github.com/LUH-AI/A3S),
-BSD-3-Clause, Copyright (c) Marcel Wever: the normalised reply, the assembly of
-streamed tool-call fragments, the removal of `<think>` blocks, and the reading of
-tool calls some local models write as text.
+Parts come from A3S's `a3s/agent/llm.py` (https://github.com/LUH-AI/A3S),
+BSD-3-Clause, Copyright (c) Marcel Wever.
 """
 
 from __future__ import annotations
@@ -24,15 +21,15 @@ log = logging.getLogger(__name__)
 
 _THINK = re.compile(r"<think>.*?</think>", re.DOTALL)
 
-# Some local models (gemma, for one) write a tool call into their text instead
-# of calling it:  <|tool_call>call:NAME{KEY:<|"|>VALUE<|"|>, ...}
+# Some local models write tool calls as text:
+# <|tool_call>call:NAME{KEY:<|"|>VALUE<|"|>, ...}
 _TEXT_TOOL_CALL = re.compile(r"<\|tool_call\>call:(\w+)\{", re.DOTALL)
 _TEXT_KV = re.compile(r'(\w+):<\|"\|>(.*?)<\|"\|>', re.DOTALL)
 
 
 @dataclass
 class ToolCall:
-    """One tool call the model asked for, its arguments already parsed."""
+    """`ToolCall` stores a requested call's parsed arguments."""
 
     id: str
     name: str
@@ -41,27 +38,24 @@ class ToolCall:
 
 @dataclass
 class Reply:
-    """What the model answered: text, tool calls, or both."""
 
     content: str | None
     tool_calls: list[ToolCall] = field(default_factory=list)
-    #: The reply as an assistant message for the history, in the wire format.
+    #: `message` is the reply as a wire-format history entry.
     message: dict = field(default_factory=dict)
-    #: Tokens the call cost, prompt and completion, as the server counted them.
+    #: Prompt plus completion tokens, as the server counts.
     tokens: int = 0
 
 
 class Unavailable(Exception):
-    """The model could not be reached, or did not answer in time."""
+    """`Unavailable` signals an unreachable or timed-out model."""
 
 
-#: Called while a reply streams in: `(kind, value)` with kind "text" and the
-#: new text, or "thinking" and True while the model reasons before answering.
+#: `Progress` receives ("text", new text) or ("thinking", True).
 Progress = Callable[[str, object], None]
 
 
 class ChatClient:
-    """A model behind an OpenAI-compatible endpoint."""
 
     def __init__(self, *, base_url: str, model: str, api_key: str, timeout: float = 120.0,
                  retries: int = 2, extra_body: dict | None = None) -> None:
@@ -70,7 +64,7 @@ class ChatClient:
         self._client = OpenAI(base_url=base_url, api_key=api_key or "not-needed",
                               timeout=timeout, max_retries=retries)
         self.model = model
-        #: `_extra` holds the fields every request carries beyond the API's own.
+        #: Extra fields every request carries.
         self._extra = dict(extra_body or {})
 
     @classmethod
@@ -85,11 +79,9 @@ class ChatClient:
     def chat(self, messages: list[dict], tools: list[dict] | None = None,
              progress: Progress | None = None, *, response_format: dict | None = None,
              extra_body: dict | None = None) -> Reply:
-        """`chat` asks the model to answer *messages*, offering it *tools*. A
-        call streams when *progress* is given, which then hears the text as it
-        arrives. *response_format* asks for a reply of a given shape, and
-        *extra_body* adds fields to this request alone, nested ones merged into
-        the client's own."""
+        """`chat` streams the reply when given *progress* and passes each text
+        chunk to *progress*. *extra_body* only extends the current request,
+        merging nested fields into the client's."""
         import openai
 
         kwargs: dict = {"model": self.model, "messages": messages}
@@ -136,10 +128,8 @@ class ChatClient:
                 progress("thinking", True)
             if delta.content:
                 text += delta.content
-                # What is outside the reasoning so far, recomputed from the whole
-                # text so a tag split across chunks is still recognised, less an
-                # ending that may yet turn out to open one; only what has not
-                # been passed on yet is.
+                # The whole text is rescanned so a tag split across chunks still
+                # matches.
                 visible = _held_back(_THINK.sub("", text).split("<think>", 1)[0])
                 if len(visible) > shown:
                     progress("text", visible[shown:])
@@ -167,8 +157,7 @@ class ChatClient:
 
 
 def _merged(base: dict, over: dict) -> dict:
-    """`_merged` returns *base* with *over* laid on top, nested objects merged
-    key by key."""
+    """`_merged` overlays *over* on *base*, recursing into nested dicts."""
     out = dict(base)
     for key, value in over.items():
         if isinstance(value, dict) and isinstance(out.get(key), dict):
@@ -179,7 +168,7 @@ def _merged(base: dict, over: dict) -> dict:
 
 
 def _held_back(visible: str) -> str:
-    """*visible* without an ending that could be the start of `<think>`."""
+    """`_held_back` trims a partial `<think>` ending."""
     for n in range(min(len("<think>") - 1, len(visible)), 0, -1):
         if "<think>".startswith(visible[-n:]):
             return visible[:-n]
@@ -187,8 +176,8 @@ def _held_back(visible: str) -> str:
 
 
 def _reply(content: str | None, raw_calls: list[dict], tokens: int) -> Reply:
-    """A reply from the model's text and its calls in the wire format, reading a
-    call some models write into their text when they made none properly."""
+    """`_reply` builds a `Reply` from text and wire-format calls, and reads
+    calls from the text when none came."""
     calls = []
     for raw in raw_calls:
         try:
@@ -213,7 +202,7 @@ def _reply(content: str | None, raw_calls: list[dict], tokens: int) -> Reply:
 
 
 def _text_tool_calls(content: str) -> list[ToolCall]:
-    """Tool calls written into the text in the gemma style."""
+    """`_text_tool_calls` parses gemma-style calls from text."""
     calls = []
     for match in _TEXT_TOOL_CALL.finditer(content):
         rest = content[match.end():]
@@ -229,10 +218,9 @@ def _text_tool_calls(content: str) -> list[ToolCall]:
 
 
 class EmbeddingClient:
-    """A model behind an OpenAI-compatible embeddings endpoint, turning text
-    into vectors for searching the assistant's library."""
+    """`EmbeddingClient` embeds text for searching the assistant's library."""
 
-    #: How many texts go to the server in one request.
+    #: Texts per request.
     BATCH = 64
 
     def __init__(self, *, base_url: str, model: str, api_key: str, timeout: float = 120.0,
@@ -245,7 +233,7 @@ class EmbeddingClient:
 
     @classmethod
     def from_settings(cls) -> "EmbeddingClient | None":
-        """The configured embedding model, or None when there is none."""
+        """`from_settings` returns None without `ASSISTANT_EMBED_BASE_URL`."""
         from django.conf import settings
 
         if not settings.ASSISTANT_EMBED_BASE_URL:
@@ -255,7 +243,7 @@ class EmbeddingClient:
                    retries=settings.ASSISTANT_LLM_RETRIES)
 
     def embed(self, texts: list[str]):
-        """One unit-length vector per text, as rows of a float32 array."""
+        """`embed` returns a unit-length float32 row per text."""
         import numpy as np
         import openai
 

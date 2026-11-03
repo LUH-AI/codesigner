@@ -1,5 +1,4 @@
-"""The tools for working out a plan with the person: what Codesigner offers,
-and writing the plan down and checking it."""
+"""`assistant.tools.planning` lists options and writes and checks plans."""
 
 from __future__ import annotations
 
@@ -11,7 +10,7 @@ from .registry import Refused, ToolResult, ToolSpec
 
 
 def _about(cls) -> str:
-    """The first paragraph of *cls*'s own docstring, on one line."""
+    """`_about` returns a class docstring's first paragraph."""
     import inspect
 
     doc = (cls.__dict__.get("__doc__") or "").strip()
@@ -130,7 +129,6 @@ LIST_OPTIMIZERS = ToolSpec(
 
 
 def _dataset(context):
-    """The dataset this conversation plans for."""
     path = context.conversation.dataset_path()
     if path is None:
         raise Refused("there is no dataset yet; ask the person to choose one")
@@ -198,10 +196,10 @@ CHECK_PLAN = ToolSpec(
 
 
 def lookups():
-    """What Codesigner offers: models, metrics, optimizers."""
+    """`lookups` lists catalogue tools."""
     return [LIST_MODELS, LIST_METRICS, LIST_OPTIMIZERS]
 
 
 def planning():
-    """The tools for planning, beside the ones every conversation has."""
+    """`planning` adds plan tools to `lookups`."""
     return lookups() + [UPDATE_PLAN, CHECK_PLAN]

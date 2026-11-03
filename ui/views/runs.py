@@ -24,9 +24,8 @@ from .dashboard import _dashboard, _detail_context, _trial_rows
 
 @experiment_view(RUN)
 def experiment_run(request, exp):
-    """`experiment_run` starts a background run, or first asks for confirmation
-    when the optimized metric changes; the confirmation posts a `decision` of
-    "new" or "old".
+    """`experiment_run` confirms a metric change with a "new" or "old"
+    `decision`.
     """
     if (request.method != "POST" or not exp.data.has_dataset or exp.is_running
             or not _model_available(exp)):
@@ -38,16 +37,14 @@ def experiment_run(request, exp):
     decision = request.POST.get("decision")
 
     if not any(k not in FAILURE_CRITERIA for k in stopping):
-        # The failure limits only catch broken runs and cannot end a working
-        # one.
+        # Failure limits only catch broken runs.
         context = _detail_context(request, exp)
         context["run_error"] = _("Set at least one stopping criterion, so the "
                                  "run has something to end on.")
         return _dashboard(request, exp, context)
 
     if request.POST.get("next_run_settings") and policy().may(request, exp, EDIT):
-        # Saved before any metric confirmation, since they are the next run's
-        # settings whichever metric it optimizes.
+        # Next-run settings apply whichever metric the run optimizes.
         refusal = optimizer_form.save(request, exp)
         if refusal:
             context = _detail_context(request, exp)
@@ -63,7 +60,6 @@ def experiment_run(request, exp):
         if action == "warn":
             return render(request, "ui/metric_change.html", {
                 "experiment": exp, "chosen": chosen,
-                # Carried through so the confirmation keeps the run's limits.
                 "stopping": stopping,
                 "trial_timeout": trial_timeout,
             })
@@ -76,10 +72,9 @@ def experiment_run(request, exp):
 
 
 def _live_payloads(exp, since: int = 0):
-    """`_live_payloads` builds every metric's `Figure.live` plots, since the
-    page switches metric without asking the server, plus the trial rows past
-    *since*. The keys match the page's `metric_plots[metric][key]` and
-    `static_plots[key]` maps.
+    """`_live_payloads` builds every metric's live plots, since the page
+    switches metric locally. Its keys match the page's
+    `metric_plots[metric][key]` and `static_plots[key]`.
     """
     built = rebuild_experiment(exp)
     result = built["result"] if built else None
@@ -99,9 +94,8 @@ def _live_payloads(exp, since: int = 0):
         "static_plots": _figure_plots(result, static, None, config_space=config_space),
     }
 
-    # The trials table only gets its missing rows, appended so sort, paging and
-    # selection survive. The best-configuration cards render whole, and the page
-    # swaps each card's contents in place.
+    # The table only appends missing rows, so sort, paging and selection
+    # survive. The page swaps best-configuration card contents in place.
     if any(f.key == "best_configuration" for f in shown):
         payload["best_html"] = render_to_string(
             "ui/figures/best_configuration.html",
@@ -118,11 +112,9 @@ def _live_payloads(exp, since: int = 0):
 
 @experiment_view(VIEW)
 def run_status(request, exp):
-    """`run_status` serves the HTMX run poll and carries live figure payloads in
-    the same fragment. Plots only rebuild when `?trials=` differs from the
-    stored count, and a page without trials gets the count alone and reloads
-    (`experiment_prerun.html`). The response for a finished run is an
-    `HX-Refresh`.
+    """`run_status` serves the run poll with live figure payloads. Plots only
+    rebuild when `?trials=` differs from the stored count; a page without trials
+    reloads on the count. A finished run gets `HX-Refresh`.
     """
     run_service.sweep_orphaned_runs()
     active = exp.runs.filter(status__in=_ACTIVE).order_by("-id").first()
@@ -131,8 +123,6 @@ def run_status(request, exp):
         response["HX-Refresh"] = "true"
         return response
 
-    # The stored count comes straight off the JSON, since `rebuild_experiment`
-    # costs too much per poll.
     stored = len((exp.data.result or {}).get("data") or [])
     try:
         seen = int(request.GET.get("trials", stored))
@@ -152,9 +142,6 @@ def run_status(request, exp):
 
 @experiment_view(VIEW)
 def env_status(request, exp):
-    """`env_status` mirrors `run_status` with the partial during the build and
-    `HX-Refresh` afterwards.
-    """
     if not exp.env_pending:
         response = HttpResponse("")
         response["HX-Refresh"] = "true"
@@ -165,8 +152,8 @@ def env_status(request, exp):
 @require_POST
 @experiment_view(RUN)
 def prepare_env(request, exp):
-    """`prepare_env` retries the build, which helps after a transient failure or
-    a late uv install. A bad dependency name needs a new experiment.
+    """`prepare_env` retries the build; a bad dependency name needs a new
+    experiment.
     """
     if exp.data.model_file and not exp.is_running:
         modelenv.start_preparation(exp)
@@ -176,9 +163,8 @@ def prepare_env(request, exp):
 @require_POST
 @experiment_view(RUN)
 def run_cancel(request, exp):
-    """`run_cancel` sets a flag the optimizer polls between trials, so finished
-    trials are kept. `run_cancel` only accepts POST, so a prefetcher cannot
-    cancel a run.
+    """`run_cancel` sets a flag the optimizer polls between trials. Requiring
+    POST stops a prefetcher from cancelling.
     """
     run_service.request_cancel(exp, account(request.user))
     return redirect("ui:experiment_detail", pk=exp.pk)
@@ -187,9 +173,8 @@ def run_cancel(request, exp):
 @require_POST
 @experiment_view(RUN)
 def run_force_stop(request, exp):
-    """`run_force_stop` marks a run that ignored a cancel as failed, freeing the
-    experiment. A local worker keeps running and may overwrite the row if alive.
-    A cluster job also gets `scancel`, which loses its unwritten trials.
+    """`run_force_stop` fails a run that ignored a cancel. A live local worker
+    can still overwrite the row.
     """
     run_service.force_stop(exp)
     return redirect("ui:experiment_detail", pk=exp.pk)

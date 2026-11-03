@@ -1,4 +1,3 @@
-"""`KNN` wraps scikit-learn's neighbours."""
 
 from typing import Any
 
@@ -9,8 +8,7 @@ from .base import Tunable
 
 
 class KNN(OutputBaseModel):
-    """`build` caps `n_neighbors` at the training row count, since more cannot
-    be fitted.
+    """`build` caps `n_neighbors` at the training row count.
     """
 
     name = "k-Nearest Neighbors"
@@ -31,8 +29,7 @@ class KNN(OutputBaseModel):
 
 
 class KNNModel(Tunable, KNN):
-    """`KNNModel` is k-nearest neighbours, which predicts from the closest training
-    rows and is sensitive to scaling."""
+    """`KNNModel` is k-nearest neighbours, sensitive to feature scaling."""
 
     def get_config_space(self, seed: int = 0) -> ConfigurationSpace:
         cs = ConfigurationSpace(seed=seed)

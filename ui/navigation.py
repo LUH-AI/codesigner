@@ -1,6 +1,5 @@
-"""Breadcrumbs give a page's place in the app and come from its resolved URL.
-The back link gives where the user came from, carried in a validated `?next=`,
-for pages reached from outside their hierarchy.
+"""Breadcrumbs follow the resolved URL; the back link follows a validated
+`?next=`.
 """
 
 from urllib.parse import urlparse
@@ -11,13 +10,12 @@ from django.utils.translation import gettext_lazy as _
 
 NEXT_PARAM = "next"
 
-#: `_EXPERIMENT_PAGES` defines a crumb label for each per-experiment route, and
-#: None stands for the experiment's own page.
+#: None labels the experiment's own page.
 _EXPERIMENT_PAGES = {
     "experiment_detail": None,
     "experiment_settings": _("Settings"),
     "experiment_delete": _("Delete"),
-    # Only rendered for a metric change.
+    # Shown for metric changes.
     "experiment_run": _("Change metric"),
     "experiment_timeline": _("Timeline"),
     "experiment_notes": _("Notes"),
@@ -25,8 +23,7 @@ _EXPERIMENT_PAGES = {
 
 
 def _experiment(request, pk):
-    """`_experiment` filters through the policy, so crumbs never reveal hidden
-    experiments.
+    """Crumbs only name experiments `.visible_experiments` returns.
     """
     from access.policy import visible_experiments
 
@@ -66,14 +63,14 @@ def _crumbs_for(request, url_name, kwargs):
         return [experiments, itself] if page is None else [experiments, itself, (page, None)]
 
     if url_name in ("setup", "setup_optimizer", "setup_data", "setup_priors"):
-        # Drafts have no dashboard, so the trail ends at setup.
+        # Drafts have no dashboard to link.
         exp = _experiment(request, kwargs.get("pk"))
         if exp is None:
             return [experiments]
         return [experiments, (exp.title, None), (_("Setup"), None)]
 
     if url_name in ("data_overview", "data_section"):
-        # Sections are tabs, so the trail ignores them.
+        # Sections are tabs.
         exp = _experiment(request, kwargs.get("pk"))
         if exp is None:
             return [experiments]
@@ -92,8 +89,7 @@ def breadcrumbs(request):
 
 
 def safe_next(request):
-    """`safe_next` keeps `?next=` only on the same host, blocking open
-    redirects.
+    """`safe_next` blocks open redirects to other hosts.
     """
     target = request.GET.get(NEXT_PARAM) or request.POST.get(NEXT_PARAM)
     if target and url_has_allowed_host_and_scheme(
@@ -103,7 +99,7 @@ def safe_next(request):
 
 
 def back_link(request):
-    """`back_link` reuses the breadcrumb label, so the two always agree.
+    """`back_link` reuses the breadcrumb label.
     """
     target = safe_next(request)
     if not target:

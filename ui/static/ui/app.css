@@ -403,7 +403,7 @@ select:disabled { opacity: 0.5; cursor: not-allowed; }
 /* ── Form fields (label above control, full-width) ─────────────────────── */
 .field { margin-bottom: 1rem; }
 .field label, form p label { display: block; font-size: 0.875rem; margin-bottom: 0.25rem; }
-input[type="text"], input[type="email"], input[type="number"], input[type="file"], select, form p input, form p select {
+input[type="text"], input[type="email"], input[type="password"], input[type="number"], input[type="file"], select, form p input, form p select {
     width: 100%;
     padding: 0.5rem 0.75rem;
     border: 1px solid var(--border);
@@ -1202,8 +1202,10 @@ hr.divider { border: none; border-top: 1px solid var(--border); margin: 1.5rem 0
     right: 1.25rem;
     bottom: 0;
     z-index: 20;
-    width: var(--dock-width, min(24rem, calc(100vw - 2.5rem)));
+    /* Wide enough by default for the chat box's hint on one line. */
+    width: var(--dock-width, min(38rem, calc(100vw - 2.5rem)));
 }
+.assistant-dock.collapsed { width: var(--dock-width, min(24rem, calc(100vw - 2.5rem))); }
 .assistant-floating {
     position: relative;
     height: var(--dock-height, min(38rem, calc(100vh - 2rem)));
@@ -1293,6 +1295,10 @@ hr.divider { border: none; border-top: 1px solid var(--border); margin: 1.5rem 0
 .assistant-tab:hover:not(:disabled) { color: var(--text); background: var(--hover); border: none; border-bottom: 2px solid transparent; }
 .assistant-tab[aria-selected="true"], .assistant-tab[aria-selected="true"]:hover:not(:disabled) { color: var(--text); border-bottom-color: var(--primary); }
 .assistant-tab-name { max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 600; }
+.assistant-tab-slot { flex: 1 1 auto; min-width: 0; display: flex; align-items: center; gap: 0.25rem; }
+.assistant-tab-slot .assistant-tab { align-self: stretch; }
+/* The way back from a visit, on the visiting chat's tab. */
+.assistant-tab-return { flex-shrink: 0; font-size: 0.75rem; padding: 0.15rem 0.55rem; }
 .assistant-tab.is-visiting .assistant-tab-name { color: var(--info-fg); }
 .assistant-caption {
     max-width: 100%;
@@ -1418,7 +1424,7 @@ label[data-slice-control][hidden] { display: inline-flex; }
 }
 /* An experiment's notes (ui/experiment_notes.html): the editor, Write and
    Preview, and the notes drawn from their Markdown. */
-.notes-page { max-width: 52rem; display: flex; flex-direction: column; gap: 0.75rem; }
+.notes-page { display: flex; flex-direction: column; gap: 0.75rem; }
 .notes-editor { display: flex; flex-direction: column; gap: 0.5rem; }
 .notes-modes { display: flex; gap: 0.25rem; border-bottom: 1px solid var(--border-light); }
 .notes-mode {
