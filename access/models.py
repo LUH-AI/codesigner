@@ -63,13 +63,16 @@ class Group(models.Model):
         the deletion. A queryset delete skips `delete` and raises
         `ProtectedError` for a group that still contains experiments.
         """
+        from django.db import transaction
         from django.utils import timezone
 
         from experiments.models import Experiment
 
-        Experiment.objects.filter(group=self).update(
-            group=None, trashed_at=timezone.now())
-        return super().delete(*args, **kwargs)
+        # One transaction, so a group that `PROTECT` keeps also keeps its work.
+        with transaction.atomic():
+            Experiment.objects.filter(group=self).update(
+                group=None, trashed_at=timezone.now())
+            return super().delete(*args, **kwargs)
 
     @property
     def seats_left(self) -> int:

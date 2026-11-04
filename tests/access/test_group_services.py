@@ -62,11 +62,15 @@ def test_group_names_are_unique_on_create_and_rename():
 
 
 def test_a_group_with_members_is_not_deleted():
-    """What: `delete_group` keeps a group that still has people. How: delete a
-    new group, whose lead is a member."""
-    group, *_ = group_service.create_group("vision", 3, "a@b.de")
+    """What: `delete_group` keeps a group that still has people, and its
+    experiments stay in it rather than going to the site bin. How: delete a
+    new group whose lead owns one experiment."""
+    group, lead, _ = group_service.create_group("vision", 3, "a@b.de")
+    experiment = _experiment(lead, group)
     with pytest.raises(ServiceError, match="still has people"):
         group_service.delete_group(group)
+    experiment.refresh_from_db()
+    assert experiment.group_id == group.pk and experiment.trashed_at is None
 
 
 def test_adding_people_respects_seats_roles_and_membership():
