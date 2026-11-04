@@ -7,13 +7,13 @@ related: [concept-optimizers, concept-priors, concept-projection, concept-surrog
 keywords: [initial design, initial points, exploration, share cap, trial cap, Sobol, Latin hypercube, random, defaults only, model-free, delay decay, prior cannot affect]
 status: draft
 sources:
-  - core/optimizers/smac/facade.py:16-58
-  - core/optimizers/smac/params.py:25-53
-  - core/optimizers/smac/facade.py:99-135
-  - core/optimizers/smac/facade.py:228-250
-  - core/optimizers/smac/facade.py:291-305
-  - ui/optimizer_labels.py:35-74
-  - ui/optimizer_labels.py:179-193
+  - core/optimizers/smac/facade.py:16-52
+  - core/optimizers/smac/params.py:22-48
+  - core/optimizers/smac/facade.py:88-124
+  - core/optimizers/smac/facade.py:209-228
+  - core/optimizers/smac/facade.py:269-280
+  - ui/optimizer_labels.py:32-71
+  - ui/optimizer_labels.py:174-187
   - core/priors.py:207-225
   - core/priors.py:228-236
   - ui/views/analytics.py:292-329

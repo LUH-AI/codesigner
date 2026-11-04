@@ -9,7 +9,7 @@ status: draft
 sources:
   - ui/figures/catalog.py (FIGURES, home_tab)
   - ui/figures/base.py:13-20 (tabs)
-  - ui/views/dashboard.py:231-237 (TAB_LABELS)
+  - ui/views/dashboard.py:215-221 (TAB_LABELS)
   - ui/figure_layout.toml (default placement and Overview pins)
 ---
 

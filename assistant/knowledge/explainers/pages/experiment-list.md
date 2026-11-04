@@ -9,7 +9,7 @@ status: draft
 sources:
   - ui/templates/ui/experiment_list.html
   - ui/views/pages.py:19-34
-  - ui/context_processors.py:5-8
+  - ui/context_processors.py:5-7
   - access/policy.py:130-134
   - access/policy.py:49-53
   - ui/permissions.py:64-80

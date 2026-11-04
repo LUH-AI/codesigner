@@ -17,12 +17,12 @@ sources:
   - core/fitted_model.py:17-29
   - core/processing.py
   - ui/figure_layout.toml:141-148
-  - ui/drafts.py:157-177
-  - ui/drafts.py:316-317
-  - core/models/svm.py:19-20
-  - core/models/knn.py:19-20
-  - core/models/logistic_regression.py:15-16
-  - core/models/elastic_net.py:16-17
+  - ui/drafts.py:147-166
+  - ui/drafts.py:295-296
+  - core/models/svm.py:17-18
+  - core/models/knn.py:17-18
+  - core/models/logistic_regression.py:14-15
+  - core/models/elastic_net.py:15-16
 ---
 
 ## What it is for

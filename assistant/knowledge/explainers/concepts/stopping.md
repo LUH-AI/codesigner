@@ -8,18 +8,18 @@ keywords: [stopping criteria, run until, trials, budget, target score, time limi
 status: draft
 sources:
   - ui/templates/ui/_side_evaluation.html:39-213
-  - ui/run_form.py:7-76
-  - core/optimizers/base.py:274-346
-  - core/optimizers/base.py:339-521
+  - ui/run_form.py:6-66
+  - core/optimizers/base.py:246-306
+  - core/optimizers/base.py:306-460
   - core/optimizers/smac/surrogate.py:9-17
   - core/optimizers/smac/surrogate.py:40-75
-  - core/optimizers/smac/optimizer.py:275-277
+  - core/optimizers/smac/optimizer.py:250-252
   - core/modelhost/deadline.py
-  - ui/optimizer_labels.py:7-35
-  - ui/views/runs.py:169-175
-  - experiments/services/run.py:253-339
-  - experiments/services/run.py:514-526
-  - config/settings.py:71
+  - ui/optimizer_labels.py:7-32
+  - ui/views/runs.py:157-162
+  - experiments/services/run.py:236-320
+  - experiments/services/run.py:481-492
+  - config/settings.py:62
 ---
 
 ## In short

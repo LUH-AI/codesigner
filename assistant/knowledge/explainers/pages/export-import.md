@@ -11,7 +11,7 @@ sources:
   - ui/templates/ui/export_confirm.html
   - ui/views/export.py:22-47
   - ui/views/export.py:45-121
-  - ui/views/dashboard.py:112-132
+  - ui/views/dashboard.py:107-126
   - experiments/services/timestamps.py
   - experiments/services/model_export.py
   - ui/templates/ui/import.html
@@ -23,7 +23,7 @@ sources:
   - ui/templates/ui/delete_confirm.html
   - ui/views/bin.py:15-85
   - experiments/services/bin.py
-  - config/settings.py:36
+  - config/settings.py:33
   - ui/templates/ui/experiment_detail.html:719-756
 ---
 

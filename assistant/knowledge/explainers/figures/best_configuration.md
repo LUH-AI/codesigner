@@ -9,10 +9,10 @@ status: draft
 sources:
   - ui/figures/catalog.py:35-40 (BestConfiguration)
   - ui/templates/ui/figures/best_configuration.html
-  - ui/views/dashboard.py:370-524 (_detail_context panels)
+  - ui/views/dashboard.py:346-477 (_detail_context panels)
   - ui/views/common.py:98-117 (_best_panels)
-  - ui/views/runs.py:69-107 (_live_payloads best_html)
-  - core/optimizers/base.py:161-173 (OptimizationResult.best_index)
+  - ui/views/runs.py:65-101 (_live_payloads best_html)
+  - core/optimizers/base.py:142-152 (OptimizationResult.best_index)
   - ui/templates/ui/experiment_detail.html:3055-3064 (show), 3255-3267 (swapBestConfiguration)
   - ui/figure_layout.toml (overview, misc)
 ---

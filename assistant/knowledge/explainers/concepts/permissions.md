@@ -11,7 +11,7 @@ sources:
   - access/policy.py:212-370
   - access/policy.py:378-386
   - access/models.py
-  - experiments/models.py:286-344
+  - experiments/models.py:246-301
   - ui/views/sharing.py:16-20
   - experiments/services/bin.py
   - ui/setup_steps.py

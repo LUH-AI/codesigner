@@ -7,15 +7,15 @@ related: [concept-evaluation, concept-tasks-and-models, concept-stopping, concep
 keywords: [metric, score, accuracy, F1, precision, recall, balanced accuracy, ROC AUC, log loss, RMSE, MAE, R², MASE, sMAPE, null score, baseline score, failed trial, higher is better, lower is better]
 status: draft
 sources:
-  - core/metrics.py:34-131
-  - core/metrics.py:162-258
-  - core/metrics.py:257-264
-  - core/metrics.py:371-380
+  - core/metrics.py:30-113
+  - core/metrics.py:143-235
+  - core/metrics.py:234-241
+  - core/metrics.py:343-352
   - core/optimizers/trial.py:58-75
   - core/optimizers/trial.py:175-183
-  - ui/drafts.py:296-302
-  - ui/drafts.py:330-342
-  - experiments/services/run.py:36-43
+  - ui/drafts.py:276-281
+  - ui/drafts.py:309-320
+  - experiments/services/run.py:36-42
   - experiments/services/priors.py:42-64
   - assistant/data.py:490-506
   - ui/templates/ui/_side_evaluation.html:16-28

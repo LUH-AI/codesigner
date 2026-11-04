@@ -13,7 +13,7 @@ sources:
   - ui/static/ui/acquisition.js:207-444 (compute), 475-518 (priorTraces), 1178-1306 (candidates), 1751-1805 (refresh)
   - ui/static/ui/next_trials.js
   - ui/views/priors.py:136-167 (_slice_model), 319-393 (_next_trials, next_trials), 401-509 (_slice_figures, acquisition_slice), 512-524 (_weighting_warning)
-  - core/optimizers/base.py:544-575 (slice_surrogate, acquisition_function)
+  - core/optimizers/base.py:480-507 (slice_surrogate, acquisition_function)
   - core/analytics/slices.py:35-130 (sample_prediction_space), 152-259 (compute_incumbent_slice)
   - experiments/services/settings.py (autocompute_acquisition_slice on by default)
 ---

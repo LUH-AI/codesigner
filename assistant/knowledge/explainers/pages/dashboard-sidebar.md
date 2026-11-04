@@ -15,19 +15,19 @@ sources:
   - ui/templates/ui/figures/selected_configuration.html
   - ui/templates/ui/_selected_config_inner.html
   - ui/templates/ui/_selected_proposal_inner.html
-  - ui/run_form.py:7-76
+  - ui/run_form.py:6-66
   - experiments/services/run_logic.py:7-17
-  - ui/optimizer_labels.py:13-23
+  - ui/optimizer_labels.py:12-22
   - ui/views/priors.py:49-57
   - ui/views/analytics.py:306-346
-  - ui/views/runs.py:25-71
+  - ui/views/runs.py:25-67
   - ui/views/analytics.py:359-370
-  - ui/views/runs.py:167-185
+  - ui/views/runs.py:154-171
   - ui/figures/catalog.py:36-64
   - ui/templates/ui/experiment_detail.html:719-756
-  - config/settings.py:71
+  - config/settings.py:62
   - core/modelhost/deadline.py:24
-  - core/optimizers/base.py:270-275
+  - core/optimizers/base.py:242-247
 ---
 
 ## What it is for

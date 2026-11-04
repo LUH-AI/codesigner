@@ -15,7 +15,7 @@ sources:
   - ui/views/pages.py:17-18
   - assistant/templates/assistant/_chat.html
   - assistant/context_processors.py
-  - assistant/views.py:209-257
+  - assistant/views.py:192-237
 ---
 
 ## What it is for

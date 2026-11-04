@@ -13,10 +13,10 @@ sources:
   - core/priors.py:116-203
   - experiments/services/priors.py:18-28
   - core/optimizers/smac/priors.py:16-21
-  - core/optimizers/smac/optimizer.py:50-55
-  - core/optimizers/smac/optimizer.py:114-171
+  - core/optimizers/smac/optimizer.py:46-51
+  - core/optimizers/smac/optimizer.py:104-156
   - core/optimizers/smac/priors.py:56-145
-  - core/optimizers/smac/facade.py:291-305
+  - core/optimizers/smac/facade.py:269-280
   - experiments/services/settings.py:14-28
   - experiments/services/settings.py:35-42
   - ui/forms.py:391-397

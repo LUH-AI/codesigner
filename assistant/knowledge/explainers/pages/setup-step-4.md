@@ -10,9 +10,9 @@ sources:
   - ui/views/setup.py:92-118
   - ui/templates/ui/setup_step_priors.html
   - ui/setup_steps.py
-  - ui/drafts.py:157-177
-  - ui/drafts.py:180-197
-  - ui/views/dashboard.py:210-227
+  - ui/drafts.py:147-166
+  - ui/drafts.py:169-186
+  - ui/views/dashboard.py:198-212
   - ui/views/priors.py:184-217
   - ui/templates/ui/figures/prior.html:140-148
 ---

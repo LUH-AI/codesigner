@@ -17,7 +17,7 @@ sources:
   - ui/figure_layout.toml:56-139
   - core/processing.py
   - ui/templates/ui/base.html:163-175
-  - ui/timeline.py:246-254
+  - ui/timeline.py:239-247
 ---
 
 ## What it is for

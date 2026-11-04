@@ -8,15 +8,15 @@ keywords: [optimizer, SMAC, Bayesian optimization, Gaussian process, random fore
 status: draft
 sources:
   - core/registry.py:41-45
-  - core/optimizers/smac/params.py:9-27
-  - core/optimizers/smac/params.py:44-54
-  - core/optimizers/smac/optimizer.py:33-300
-  - core/optimizers/smac/facade.py:184-228
-  - core/optimizers/smac/facade.py:228-286
+  - core/optimizers/smac/params.py:9-24
+  - core/optimizers/smac/params.py:39-49
+  - core/optimizers/smac/optimizer.py:33-273
+  - core/optimizers/smac/facade.py:170-209
+  - core/optimizers/smac/facade.py:209-263
   - core/optimizers/random_optimizer.py
   - core/optimizers/grid_optimizer.py:24-125
-  - core/optimizers/base.py:566-570
-  - ui/optimizer_labels.py:29-198
+  - core/optimizers/base.py:500-503
+  - ui/optimizer_labels.py:26-191
   - ui/optimizer_form.py
   - ui/templates/ui/_optimizer_params.html:49-52
   - SMAC3/smac/facade/blackbox_facade.py

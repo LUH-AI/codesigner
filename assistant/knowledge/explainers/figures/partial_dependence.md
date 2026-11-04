@@ -13,7 +13,7 @@ sources:
   - core/analytics/surrogate.py:49-70 (fit_surrogate), 101-115 (_hp_grid), 132-141 (_sample_evenly)
   - core/analytics/effects.py:109-165 (compute_partial_dependence)
   - ui/views/analytics.py:109-127 (partial_dependence), 406-420 (_partial_dependence_data)
-  - ui/views/dashboard.py:440-451 (top_hp)
+  - ui/views/dashboard.py:409-416 (top_hp)
   - ui/templates/ui/experiment_detail.html:1443-1494, 1609-1614, 3117-3121
   - ui/forms.py:373, 385-387 (ice_max_curves label)
   - experiments/services/settings.py (ice_max_curves 100, autocompute_partial_dependence off)

@@ -13,7 +13,7 @@ sources:
   - ui/views/priors.py:186-316 (save_prior, reset_prior, evaluate_prior)
   - core/priors.py:99-161 (β ratio), 207-225 (_initial_design_notice)
   - ui/views/analytics.py:292-344 (_decayed)
-  - ui/views/dashboard.py:210-227 (_prior_only_context)
+  - ui/views/dashboard.py:198-212 (_prior_only_context)
   - ui/templates/ui/experiment_prerun.html, setup_step_priors.html
   - experiments/services/settings.py (prior_acceptance_tolerance 0.15, prior_acceptance_top_k 10)
 ---

@@ -13,7 +13,7 @@ sources:
   - ui/forms.py:77-87
   - ui/views/setup.py:41-57
   - ui/views/setup.py:128-144
-  - ui/drafts.py:254-327
+  - ui/drafts.py:235-306
   - ui/setup_steps.py
   - core/splits.py:21
   - core/datasets.py:19

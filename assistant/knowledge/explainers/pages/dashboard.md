@@ -11,20 +11,20 @@ sources:
   - ui/templates/ui/_experiment_header.html
   - ui/templates/ui/experiment_detail.html
   - ui/templates/ui/experiment_prerun.html
-  - ui/views/dashboard.py:39-54
-  - ui/views/dashboard.py:56-67
-  - ui/views/dashboard.py:172-180
+  - ui/views/dashboard.py:39-53
+  - ui/views/dashboard.py:55-66
+  - ui/views/dashboard.py:162-170
   - experiments/services/model_export.py:88-108
-  - ui/views/dashboard.py:258-301
-  - ui/views/dashboard.py:304-367
+  - ui/views/dashboard.py:240-281
+  - ui/views/dashboard.py:284-343
   - ui/figures/base.py:13-20
   - ui/figures/catalog.py:35-40
   - ui/figure_layout.toml:20-55
   - ui/static/ui/layout.js:560-680
   - ui/layout.py:187-247
-  - ui/optimizer_form.py:16-22
+  - ui/optimizer_form.py:15-21
   - access/policy.py:55-57
-  - ui/context_processors.py:10-28
+  - ui/context_processors.py:9-26
 ---
 
 ## What it is for

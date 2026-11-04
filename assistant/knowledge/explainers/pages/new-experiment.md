@@ -11,14 +11,14 @@ sources:
   - ui/templates/ui/base.html:158-162
   - ui/templates/ui/new_experiment.html
   - ui/views/pages.py:66-72
-  - ui/drafts.py:50-54
+  - ui/drafts.py:48-51
   - ui/setup_steps.py:47-52
   - ui/views/setup.py:35-38
   - ui/views/setup.py:116-126
   - ui/templates/ui/_setup_heading.html
   - ui/templates/ui/_setup_steps.html
   - access/policy.py:34-38
-  - ui/drafts.py:57-82 (settle_storage)
+  - ui/drafts.py:54-78 (settle_storage)
   - access/policy.py:79-81
 ---
 

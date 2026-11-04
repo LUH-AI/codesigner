@@ -11,13 +11,13 @@ sources:
   - ui/templates/ui/appearance.html
   - ui/templates/ui/export_preferences.html
   - ui/templates/ui/account.html
-  - ui/views/preferences.py:86-101
-  - ui/context_processors.py:106-120
-  - core/metrics.py:23-58
+  - ui/views/preferences.py:82-96
+  - ui/context_processors.py:97-109
+  - core/metrics.py:20-46
   - ui/templates/ui/panels/group.html
   - ui/templates/ui/panels/group_none.html
   - ui/views/groups.py
-  - experiments/models.py:297-313
+  - experiments/models.py:255-270
   - access/models.py:91-104
   - access/policy.py:55-57
   - access/signals.py:12-18

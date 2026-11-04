@@ -9,16 +9,16 @@ status: draft
 sources:
   - core/analytics/surrogate.py:49-70
   - core/analytics/surrogate.py:73-85
-  - core/optimizers/base.py:535-542
+  - core/optimizers/base.py:471-476
   - core/analytics/effects.py:168-229
   - core/analytics/slices.py:35-130
   - core/analytics/slices.py:152-259
   - core/optimizers/smac/surrogate.py:19-37
-  - core/optimizers/smac/optimizer.py:57-83
-  - core/optimizers/smac/optimizer.py:85-112
+  - core/optimizers/smac/optimizer.py:55-77
+  - core/optimizers/smac/optimizer.py:79-102
   - ui/static/ui/improvement.js
   - ui/static/ui/acquisition.js:228-246
-  - ui/timeline.py:352-377
+  - ui/timeline.py:344-369
   - ui/views/priors.py:61-93
   - ui/views/priors.py:124-171
   - ui/views/priors.py:319-352

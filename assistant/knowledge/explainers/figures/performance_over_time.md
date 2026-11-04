@@ -12,7 +12,7 @@ sources:
   - ui/figures/plots/style.py:1-45 (palette), 25-97 (failure marks)
   - ui/templates/ui/figures/performance_over_time.html
   - ui/templates/ui/experiment_detail.html:304-411 (scale toggle), 3476-3484 (view selects), 3165-3250 (live updates)
-  - core/metrics.py:371-390 (to_error, error_range)
+  - core/metrics.py:343-360 (to_error, error_range)
   - ui/figure_layout.toml (overview, misc)
 ---
 

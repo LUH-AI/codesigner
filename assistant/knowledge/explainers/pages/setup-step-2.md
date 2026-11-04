@@ -12,8 +12,8 @@ sources:
   - ui/templates/ui/_optimizer_params.html
   - ui/templates/ui/_group_initial_points.html
   - ui/templates/ui/_use_default.html
-  - ui/optimizer_labels.py:29-203
-  - core/optimizers/smac/facade.py:264-285
+  - ui/optimizer_labels.py:26-195
+  - core/optimizers/smac/facade.py:242-262
   - core/optimizers/grid_optimizer.py:32-36
   - core/optimizers/random_optimizer.py:18-19
   - core/registry.py:41-45

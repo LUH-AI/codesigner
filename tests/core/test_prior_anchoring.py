@@ -38,7 +38,7 @@ def test_the_two_paths_agree_about_it():
     walk = SOURCE[SOURCE.index("def slice_challengers"):]
     walk = walk[:walk.index("def evaluate_prior")]
 
-    assert rebuilt.index("replay(") < rebuilt.index("yield"), "the rebuild replays"
+    assert rebuilt.index("replay(") < rebuilt.index("yield smac"), "the rebuild replays"
     assert (walk.index("self._rebuilt(")
             < walk.index("apply_priors(")), "the re-walk replays first"
 

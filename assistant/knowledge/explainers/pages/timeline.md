@@ -10,10 +10,10 @@ sources:
   - ui/templates/ui/experiment_timeline.html
   - ui/templates/ui/_timeline_details.html
   - ui/views/export.py:32-43
-  - ui/timeline.py:83-96
-  - ui/timeline.py:173-327
-  - ui/timeline.py:309-338
-  - ui/timeline.py:401-452
+  - ui/timeline.py:80-93
+  - ui/timeline.py:167-319
+  - ui/timeline.py:301-330
+  - ui/timeline.py:393-440
   - experiments/services/history.py
   - experiments/services/timestamps.py
   - ui/templates/ui/base.html:163-175

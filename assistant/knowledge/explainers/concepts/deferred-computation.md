@@ -23,7 +23,7 @@ sources:
   - ui/views/priors.py:381-393
   - ui/views/common.py:160-205
   - ui/views/analytics.py:349-354
-  - config/settings.py:91
+  - config/settings.py:79
 ---
 
 ## In short

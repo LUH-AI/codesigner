@@ -11,7 +11,7 @@ sources:
   - ui/templates/ui/figures/selected_configuration.html
   - ui/templates/ui/_selected_config_inner.html
   - ui/templates/ui/_selected_proposal_inner.html
-  - ui/views/dashboard.py:183-207 (_selected_panel_data)
+  - ui/views/dashboard.py:173-195 (_selected_panel_data)
   - ui/views/priors.py:61-117 (proposal_panel, run_proposal)
   - ui/views/analytics.py:34-57 (trial_traceback)
   - ui/templates/ui/experiment_detail.html:439-446 (selectionFor), 729-980 (pointExportAt, selectTrial, selectProposal, dropProposal), 3055-3078 (show)
