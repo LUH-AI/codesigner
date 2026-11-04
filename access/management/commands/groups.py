@@ -1,9 +1,4 @@
 """`manage.py groups` lists, creates, edits and deletes groups.
-
-    manage.py groups list
-    manage.py groups create NAME --seats N --lead WHO
-    manage.py groups update NAME [--name NEW] [--seats N] [--storage-gb G] [--active|--inactive]
-    manage.py groups delete NAME
 """
 
 from django.utils.translation import gettext as _
@@ -15,7 +10,7 @@ from experiments.management.jsoncommand import JsonCommand
 
 
 def group_named(name_or_pk: str):
-    """`group_named` finds a group by its name, or by its number."""
+    """`group_named` takes a group name or pk."""
     group = Group.objects.filter(name=name_or_pk).first()
     if group is None and str(name_or_pk).isdigit():
         group = Group.objects.filter(pk=int(name_or_pk)).first()
@@ -25,7 +20,6 @@ def group_named(name_or_pk: str):
 
 
 def group_row(group) -> dict:
-    """`group_row` describes *group* with its seats and storage."""
     from experiments.services.storage import usage
 
     storage = usage(group)

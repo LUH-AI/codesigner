@@ -1,8 +1,5 @@
 """`manage.py usage` reports runs, trials and trial seconds per group or per
-person within each group.
-
-    manage.py usage groups [--json | --csv]
-    manage.py usage people [--json | --csv]
+person.
 """
 
 import csv

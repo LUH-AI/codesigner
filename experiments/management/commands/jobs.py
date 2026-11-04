@@ -1,7 +1,4 @@
-"""`manage.py jobs` lists and stops the runs in progress across every group.
-
-    manage.py jobs list
-    manage.py jobs stop RUN [--reason TEXT]
+"""`manage.py jobs` lists and stops in-progress runs of every group.
 """
 
 from django.utils.translation import gettext as _

@@ -169,7 +169,8 @@ class Account(models.Model):
 
     user = models.OneToOneField(django_settings.AUTH_USER_MODEL, on_delete=models.CASCADE,
                                 related_name="account")
-    #: Empty once a password is set; otherwise how it will be.
+    #: `password_pending` is empty once a password is set, and otherwise names
+    #: how the person will set one.
     password_pending = models.CharField(max_length=10, choices=PENDING, blank=True, default="")
     #: Set by `manage.py users require-new-password`; cleared by a change.
     must_change_password = models.BooleanField(default=False)

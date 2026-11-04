@@ -1,6 +1,5 @@
-"""Groups and their people: the operations the group pages, the management
-commands and codesigner-manage share. Each raises `.ServiceError` with the
-reason it cannot proceed and changes nothing in that case.
+"""Each `.ServiceError` raised in `groups` carries the reason its operation
+cannot proceed.
 """
 
 from django.core.exceptions import ValidationError
@@ -14,9 +13,6 @@ from access.services.errors import ServiceError
 
 
 def _join(group, identifier: str, role: str):
-    """`_join` finds or creates, through `.onboarding`, the account of
-    *identifier* and makes it a *role* of *group*. It returns `(user,
-    created)`."""
     hook = onboarding()
     try:
         user = hook.find(identifier)
@@ -31,10 +27,9 @@ def _join(group, identifier: str, role: str):
 
 
 def create_group(name: str, seats: int, lead: str):
-    """`create_group` creates group *name* with *seats* seats and its primary
-    lead *lead* (an identifier `.onboarding` reads) in one transaction, since a
-    group without one could never appoint leads. It returns `(group, user,
-    message)`, the message saying how the lead gets in.
+    """`create_group` creates the group and its primary lead *lead* in one
+    transaction, since a leadless group could never appoint leads. It returns
+    `(group, user, message)`.
     """
     name = (name or "").strip()
     identifier = onboarding().normalize(lead)
@@ -54,8 +49,6 @@ def create_group(name: str, seats: int, lead: str):
 
 def update_group(group, *, name: str, seats: int, active: bool,
                  storage_gb: float | None = None) -> None:
-    """`update_group` renames *group* and sets its seats, its active flag and,
-    when *storage_gb* is given, its storage limit in GB."""
     from experiments.services.storage import forget
 
     name = (name or "").strip()
@@ -72,9 +65,8 @@ def update_group(group, *, name: str, seats: int, active: bool,
 
 
 def delete_group(group) -> None:
-    """`delete_group` moves the group's experiments to the bin through
-    `.Group.delete`. `.Membership.group` is `PROTECT`, so a group with members
-    stays."""
+    """`delete_group` raises `.ServiceError` while the group has members, since
+    `.Membership.group` is `PROTECT`."""
     try:
         group.delete()
     except ProtectedError:
@@ -83,20 +75,17 @@ def delete_group(group) -> None:
 
 
 def grantable_roles(membership) -> list[tuple[str, str]]:
-    """`grantable_roles` lists the roles *membership* may give a new person:
-    only a primary lead grants the lead role."""
+    """`grantable_roles` only offers the lead role to a primary lead."""
     if membership.is_primary_lead:
         return [(Membership.MEMBER, "Member"), (Membership.LEAD, "Group lead")]
     return [(Membership.MEMBER, "Member")]
 
 
 def add_person(group, identifier: str, role: str = Membership.MEMBER, *, allowed_roles=None):
-    """`add_person` joins the account of *identifier* to *group*, creating it
-    through `.onboarding` when there is none. It returns `(user, created,
-    message)`, the message saying how the person gets in. *allowed_roles*
-    narrows the roles to those the person adding may grant. The primary role
-    is only granted to a group without a primary lead; otherwise it moves by
-    `transfer_primary`.
+    """`add_person` adds *identifier* to *group*, creating the account when
+    missing, and returns `(user, created, message)`. Without *allowed_roles*,
+    `add_person` also accepts the primary role for a group that has none;
+    otherwise the role moves by `transfer_primary`.
     """
     identifier = onboarding().normalize(identifier)
     allowed = set(allowed_roles) if allowed_roles is not None else {
@@ -122,9 +111,8 @@ def add_person(group, identifier: str, role: str = Membership.MEMBER, *, allowed
 
 
 def remove_person(target, *, by=None) -> None:
-    """`remove_person` removes membership *target* once its person owns no
-    experiments in the group, since nobody could reach those afterwards. *by*
-    is the remover's own membership, which cannot remove itself. The account
+    """`remove_person` raises `.ServiceError` while the person owns experiments
+    in the group, since nobody could reach those afterwards. The account
     survives."""
     name = target.user.get_username()
     if by is not None and target.pk == by.pk:
@@ -141,8 +129,6 @@ def remove_person(target, *, by=None) -> None:
 
 
 def set_role(target, role: str, *, by=None) -> None:
-    """`set_role` switches membership *target* between lead and member. *by*,
-    the primary lead's own membership, cannot change itself."""
     if by is not None and target.pk == by.pk:
         raise ServiceError(_(
             "You cannot change your own role. Transfer the primary lead role "
@@ -154,9 +140,8 @@ def set_role(target, role: str, *, by=None) -> None:
 
 
 def transfer_primary(current, target) -> None:
-    """`transfer_primary` makes lead *target* the primary lead and *current* a
-    lead, in one transaction, since the constraint allows one primary lead per
-    group."""
+    """`transfer_primary` demotes *current* before promoting *target*, since
+    `one_primary_lead_per_group` allows one primary lead per group."""
     if target.pk == current.pk:
         raise ServiceError(_("You already hold it."))
     if target.role != Membership.LEAD:

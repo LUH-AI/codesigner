@@ -1,13 +1,5 @@
 """`manage.py users` lists and manages accounts. WHO is a username or an email
 address.
-
-    manage.py users list
-    manage.py users deactivate WHO
-    manage.py users activate WHO
-    manage.py users delete WHO
-    manage.py users custom-models WHO on|off
-    manage.py users reset-password WHO
-    manage.py users require-new-password (WHO... | --all)
 """
 
 from django.contrib.auth import get_user_model

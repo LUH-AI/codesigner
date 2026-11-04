@@ -1,8 +1,5 @@
-"""`manage.py setup_links` issues one-time links to set a password, and sweeps
-accounts whose links expired unused.
-
-    manage.py setup_links issue WHO [--hours H] [--base-url URL]
-    manage.py setup_links sweep
+"""`manage.py setup_links` issues one-time password links and sweeps accounts
+whose links expired.
 """
 
 from access.services import setup_links

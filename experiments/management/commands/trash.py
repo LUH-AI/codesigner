@@ -1,8 +1,4 @@
-"""`manage.py trash` works the site bin by experiment identifier.
-
-    manage.py trash list
-    manage.py trash rehome IDENTIFIER GROUP
-    manage.py trash discard IDENTIFIER
+"""`manage.py trash` rehomes or discards site-bin experiments by identifier.
 """
 
 from django.utils.translation import gettext as _
@@ -14,7 +10,7 @@ from experiments.services import site as site_service
 
 
 def binned(identifier: str):
-    """`binned` finds an experiment of the site bin by identifier."""
+    """`binned` raises `.ServiceError` when absent."""
     found = site_service.trash().filter(identifier=identifier).first()
     if found is None:
         raise ServiceError(_("Experiment %(id)s is not in the site bin.") % {"id": identifier})

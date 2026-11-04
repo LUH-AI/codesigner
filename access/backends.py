@@ -1,6 +1,5 @@
-"""`SiteBackend` signs people in to the site by username or email address.
-Staff and superuser accounts belong to the operators' tools, so neither signs
-in here nor keeps a session.
+"""`SiteBackend` signs people in by username or email; staff and superusers only
+use the operators' tools.
 """
 
 from django.contrib.auth import get_user_model
@@ -8,8 +7,7 @@ from django.contrib.auth.backends import ModelBackend
 
 
 def account_named(identifier: str):
-    """`account_named` finds the account whose username, or else whose unique
-    email address, is *identifier*, ignoring case."""
+    """`account_named` matches a username, else a unique email, ignoring case."""
     identifier = (identifier or "").strip()
     if not identifier:
         return None
@@ -26,13 +24,11 @@ def operator(user) -> bool:
 
 
 class SiteBackend(ModelBackend):
-    """`SiteBackend` is `ModelBackend` with `account_named` lookup, and with
-    staff and superuser accounts excluded."""
 
     def authenticate(self, request, username=None, password=None, **kwargs):
         user = account_named(username)
         if user is None or password is None:
-            # The hash still runs, so timing does not reveal unknown names.
+            # A dummy hash hides which names exist.
             get_user_model()().set_password(password or "")
             return None
         if user.check_password(password) and self.user_can_authenticate(user):

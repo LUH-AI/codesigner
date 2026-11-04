@@ -1,7 +1,5 @@
-"""`JsonCommand` is the base of the site-management commands (`groups`,
-`members`, `users`, `trash`, `jobs`, `usage`, `defaults`): subcommands, a
-`--json` switch for scripts and codesigner-manage, and `.ServiceError` reported
-as a `CommandError`.
+"""`JsonCommand` is the base of the site-management commands, and its `--json`
+switch prints output for scripts.
 """
 
 import argparse
@@ -11,10 +9,9 @@ from django.core.management.base import BaseCommand, CommandError
 
 
 class JsonCommand(BaseCommand):
-    """`JsonCommand` dispatches to `do_<subcommand>`, each returning data that
-    `emit` prints as JSON or as aligned text."""
+    """`JsonCommand` runs `do_<subcommand>` and hands its result to `emit`."""
 
-    #: Switches every subcommand also takes after its own name.
+    #: Switches also valid after the subcommand.
     switches = (("--json", "Print JSON."),)
 
     def add_arguments(self, parser):
@@ -22,8 +19,7 @@ class JsonCommand(BaseCommand):
             parser.add_argument(flag, action="store_true", help=text)
         sub = parser.add_subparsers(dest="subcommand", required=True)
         self.add_subcommands(sub)
-        # SUPPRESS keeps a subcommand's unset switch from overwriting one given
-        # before the subcommand's name.
+        # `SUPPRESS` keeps a switch set before the subcommand name.
         for subparser in sub.choices.values():
             for flag, text in self.switches:
                 subparser.add_argument(flag, action="store_true", help=text,
@@ -43,8 +39,6 @@ class JsonCommand(BaseCommand):
         self.emit(result, options["json"])
 
     def emit(self, result, as_json: bool) -> None:
-        """`emit` prints *result*: a list of dicts as a table, a dict as
-        `key: value` lines, a string as itself."""
         if result is None:
             return
         if as_json:

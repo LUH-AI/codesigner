@@ -1,7 +1,4 @@
-"""Signing in, and the pages that set a password without the old one: the
-first sign-in of a `LocalOnboarding` account, a one-time `SetupLink`, and the
-agreement `ACCOUNT_AGREEMENT` supplies. `ui:password_forgot` appears only for
-an onboarding with `offers_reset`.
+"""`accounts` serves sign-in and the password and agreement pages.
 """
 
 from urllib.parse import urlencode
@@ -25,14 +22,12 @@ from access.services.passwords import accept_agreement, agreement_due, password_
 
 from ..navigation import safe_next
 
-#: The session key naming the account whose first password is being chosen.
+#: The key stores the first-sign-in account's pk.
 FIRST_SIGN_IN = "first_sign_in"
 BACKEND = "access.backends.SiteBackend"
 
 
 def _first_sign_in_account(identifier: str):
-    """`_first_sign_in_account` returns the account of *identifier* when it is
-    waiting for its first sign-in to choose a password, else None."""
     user = account_named(identifier)
     if (user is None or not user.is_active or operator(user) or user.has_usable_password()
             or account_of(user).password_pending != Account.FIRST_SIGN_IN):
@@ -46,9 +41,8 @@ def _first_sign_in_account_by_pk(pk):
 
 
 class SignInForm(AuthenticationForm):
-    """`SignInForm` leaves the password optional in the browser, so a
-    first sign-in can go by username alone; an empty password still fails
-    `AuthenticationForm.clean`."""
+    """`SignInForm` lets a first sign-in submit a username alone; `clean` still
+    fails an empty password."""
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
@@ -78,8 +72,7 @@ class SignInView(auth_views.LoginView):
 
 
 class PasswordSetupForm(SetPasswordForm):
-    """`PasswordSetupForm` sets a password without the old one, and asks for
-    the agreement when one is due."""
+    """`PasswordSetupForm` also asks for the agreement when one is due."""
 
     accept = forms.BooleanField(required=False, label=gettext_lazy("I accept these terms."))
 
@@ -100,9 +93,8 @@ class PasswordSetupForm(SetPasswordForm):
 
 
 def _set_password_page(request, user, *, title, done):
-    """`_set_password_page` shows and handles `PasswordSetupForm` for *user*;
-    *done* runs once, after a valid form and before the password is saved, and
-    returns False when the page is no longer good for anything."""
+    """`_set_password_page` calls *done* before saving a valid form and renders
+    `link_dead.html` when *done* returns False."""
     terms = agreement_due(user)
     form = PasswordSetupForm(user, request.POST or None, terms=terms)
     if request.method == "POST" and form.is_valid():
@@ -117,8 +109,6 @@ def _set_password_page(request, user, *, title, done):
 
 @login_not_required
 def first_password(request):
-    """`first_password` lets a `LocalOnboarding` account named on the sign-in
-    page choose its password."""
     user = _first_sign_in_account_by_pk(request.session.get(FIRST_SIGN_IN))
     if user is None:
         return redirect("ui:login")
@@ -132,8 +122,8 @@ def first_password(request):
 
 @login_not_required
 def account_setup(request, token):
-    """`account_setup` opens a `SetupLink`. Opening it uses nothing up, since
-    mail scanners open links too; only setting the password does."""
+    """`account_setup` only uses the `SetupLink` on a valid POST, since mail
+    scanners open links."""
     link = setup_links.live(token)
     if link is None or not link.user.is_active or operator(link.user):
         return render(request, "ui/account/link_dead.html", status=410)
@@ -142,8 +132,8 @@ def account_setup(request, token):
 
 
 def agreement_page(request):
-    """`agreement_page` asks a signed-in person to accept the current
-    agreement, which `.AccountGateMiddleware` sends them to."""
+    """`.AccountGateMiddleware` redirects to `agreement_page` while an agreement
+    is due."""
     terms = agreement_due(request.user)
     if terms is None:
         return redirect(safe_next(request) or "ui:home")
@@ -155,8 +145,8 @@ def agreement_page(request):
 
 @login_not_required
 def password_forgot(request):
-    """`password_forgot` hands the identifier typed to `.onboarding`'s `reset`.
-    The answer is the same whether or not an account matched."""
+    """`password_forgot` passes a matched account to `reset` and shows one
+    message either way."""
     hook = onboarding()
     if not hook.offers_reset:
         raise Http404

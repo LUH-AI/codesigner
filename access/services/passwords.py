@@ -1,5 +1,5 @@
-"""Passwords and the agreement: what every way of setting a password records,
-and what `.AccountGateMiddleware` asks of a signed-in person.
+"""`passwords` records password changes and supplies the checks of
+`.AccountGateMiddleware`.
 """
 
 from django.utils import timezone
@@ -9,8 +9,8 @@ from access.onboarding import agreement
 
 
 def password_set(user) -> None:
-    """`password_set` records that *user* chose a password: nothing is pending
-    and no change is required. The caller saves the password itself."""
+    """`password_set` clears `password_pending` and `must_change_password`; the
+    caller saves the password itself."""
     account = account_of(user)
     account.password_pending = ""
     account.must_change_password = False
@@ -20,8 +20,6 @@ def password_set(user) -> None:
 
 
 def require_new_password(users) -> int:
-    """`require_new_password` makes each of *users* set a new password at their
-    next request, and returns how many."""
     count = 0
     for user in users:
         account = account_of(user)
@@ -36,8 +34,8 @@ def must_change_password(user) -> bool:
 
 
 def agreement_due(user):
-    """`agreement_due` returns `(version, html)` when *user* has not accepted
-    the current agreement, else None."""
+    """`agreement_due` returns the `(version, html)` agreement *user* has yet to
+    accept, or None."""
     current = agreement()
     if current is None:
         return None

@@ -1,20 +1,13 @@
-"""How a lead's "add somebody" becomes an account, and how a forgotten password
-is set again. `ACCOUNT_ONBOARDING` names the class; `LocalOnboarding` is the
-default for an install without email: a lead adds a username, and the person
-chooses a password the first time they sign in with it.
+"""`ACCOUNT_ONBOARDING` names the class that turns a lead's "add somebody" into
+an account: `LocalOnboarding` by default, or a class that mails a `SetupLink`.
 
-A deployment replaces the class to change the identifier and what follows
-adding somebody, for example requiring an email address and mailing a
-`SetupLink` (`access.services.setup_links`). Its methods:
-
-- `label` and `input_type` describe the identifier field on the group page;
-- `find(identifier)` returns the existing account, or None;
-- `create(identifier)` makes the account, without a usable password;
-- `welcome(user, created, group)` runs after the membership exists and
-  returns the message for the person who added them;
-- `reset(user)` makes the account's password settable again and returns a
-  message for the operator; `offers_reset` says whether the sign-in page links
-  to `ui:password_forgot`, whose page calls `reset` for the identifier typed.
+`label` and `input_type` describe the identifier field. `find(identifier)`
+returns the account or None, `create(identifier)` makes one without a usable
+password, and `welcome(user, created, group)` runs once the membership exists
+and returns the message for whoever added *user*. `reset(user)` makes the
+password settable again and returns the operator's message; `offers_reset`
+decides whether the sign-in page links to `ui:password_forgot`, which calls
+`reset`.
 """
 
 from django.conf import settings
@@ -28,8 +21,7 @@ from access.services.errors import ServiceError
 
 
 class LocalOnboarding:
-    """`LocalOnboarding` adds people by username; their first sign-in sets the
-    password, which suits a trusted network without a mail server."""
+    """`LocalOnboarding` lets the first sign-in set the password."""
 
     label = gettext_lazy("Username")
     input_type = "text"
@@ -74,14 +66,11 @@ class LocalOnboarding:
 
 
 def onboarding():
-    """`onboarding` returns an instance of the class `ACCOUNT_ONBOARDING`
-    names."""
     path = getattr(settings, "ACCOUNT_ONBOARDING", "") or "access.onboarding.LocalOnboarding"
     return import_string(path)()
 
 
 def agreement():
-    """`agreement` returns `(version, html)` from the callable
-    `ACCOUNT_AGREEMENT` names, or None when there is no agreement to accept."""
+    """`agreement` returns `(version, html)` from `ACCOUNT_AGREEMENT`, or None."""
     path = getattr(settings, "ACCOUNT_AGREEMENT", "")
     return import_string(path)() if path else None

@@ -1,10 +1,4 @@
 """`manage.py members` manages the people of one group.
-
-    manage.py members list GROUP
-    manage.py members add GROUP WHO [--role member|lead|primary_lead]
-    manage.py members remove GROUP WHO
-    manage.py members set-role GROUP WHO member|lead
-    manage.py members transfer GROUP WHO
 """
 
 from django.utils.translation import gettext as _
@@ -19,8 +13,7 @@ from .groups import group_named
 
 
 def membership_of(group, who: str):
-    """`membership_of` finds the membership of *who*, a username or email
-    address, in *group*."""
+    """`membership_of` raises `.ServiceError` unless *who* belongs to *group*."""
     user = account_named(who)
     membership = (group.memberships.select_related("user").filter(user=user).first()
                   if user else None)

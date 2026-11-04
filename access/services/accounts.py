@@ -1,6 +1,7 @@
-"""Accounts keyed by email address, for an onboarding that identifies people
-by address (`access.onboarding`). A case-insensitive unique index
-(`access/migrations/0009`) backs that key up against races.
+"""`access.services.accounts` finds and creates accounts by email address, for
+an onboarding that identifies people by address (`access.onboarding`). A
+case-insensitive unique index (`access/migrations/0009`) stops two racing
+requests from creating two accounts for one address.
 """
 
 from django.contrib.auth import get_user_model

@@ -1,9 +1,4 @@
-"""`manage.py defaults` shows and changes the settings every experiment
-inherits.
-
-    manage.py defaults show
-    manage.py defaults set KEY=VALUE [KEY=VALUE ...]
-    manage.py defaults reset
+"""`manage.py defaults` shows and edits the settings every experiment inherits.
 """
 
 from django.core.management.base import CommandError

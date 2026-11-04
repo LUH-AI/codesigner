@@ -277,8 +277,9 @@ DATABASES = {
 }
 
 
-#: NIST SP 800-63B rev. 4 for a password that is the only factor: at least 15
-#: characters, no composition rules, and a check against common passwords.
+#: The validators follow NIST SP 800-63B revision 4 for a password used as the
+#: only factor: at least 15 characters, a check against common passwords, and
+#: no composition rules.
 AUTH_PASSWORD_VALIDATORS = [
     {"NAME": "django.contrib.auth.password_validation.UserAttributeSimilarityValidator"},
     {"NAME": "django.contrib.auth.password_validation.MinimumLengthValidator",

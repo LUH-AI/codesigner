@@ -1,10 +1,10 @@
 """`GroupPolicy`, the default `EXPERIMENT_POLICY`, stays inert until
-`REQUIRE_LOGIN` is on. A signed-in person reaches their own experiments, grants
-(`ExperimentShare`) in a group they are still in, and everything in a group they
-lead (`Experiment.group`). A viewer may view and export, a contributor may also
-run, edit and delete, and a lead may run and edit. The owner alone has `SHARE`
-and `RENAME`. Membership alone decides reach: no flag or permission reaches
-across groups.
+`REQUIRE_LOGIN` is on. A signed-in person reaches their own experiments, their
+grants (`ExperimentShare`) in groups they are still in, and everything in the
+groups they lead (`Experiment.group`). A viewer may view and export; a
+contributor may also run, edit and delete; a lead may run and edit, and only the
+owner has `SHARE` and `RENAME`. Membership alone decides reach, so no flag or
+permission crosses a group boundary.
 """
 
 from django.conf import settings

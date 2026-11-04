@@ -1,7 +1,5 @@
-"""`ServiceError` carries a translated message that a view shows as an error
-and a management command raises as a `CommandError`."""
+"""Views show a `ServiceError` message; commands re-raise it as `CommandError`."""
 
 
 class ServiceError(Exception):
-    """`ServiceError` means the request was understood and cannot be carried
-    out; its message says why, in words fit for the person who asked."""
+    """`ServiceError` carries a translated message for the person who asked."""
