@@ -66,3 +66,36 @@ def resolve_settings(exp, schema=SETTING_DEFAULTS) -> dict:
     if exp.use_default_settings:
         return defaults
     return {key: exp.settings.get(key, defaults[key]) for key in schema}
+
+
+def coerce_settings(values, schema=SETTING_DEFAULTS) -> dict:
+    """`coerce_settings` reads every setting of *schema* from mapping *values*
+    (a form's POST, or a command's options), converting each to its default's
+    type within `SETTING_BOUNDS`. An unreadable value takes the default rather
+    than zero, since zero lifts the trial caps; a missing boolean reads as off,
+    as an unticked checkbox does.
+    """
+    coerced = {}
+    for key, default in schema.items():
+        if isinstance(default, bool):
+            coerced[key] = bool(values.get(key))
+            continue
+        try:
+            value = type(default)(values.get(key, ""))
+        except (TypeError, ValueError):
+            value = default
+        low, high = SETTING_BOUNDS.get(key, (None, None))
+        if low is not None:
+            value = max(low, min(high, value))
+        if key in SETTING_CHOICES and value not in SETTING_CHOICES[key]:
+            value = default
+        coerced[key] = value
+    return coerced
+
+
+def set_global_defaults(values: dict) -> None:
+    """`set_global_defaults` stores *values* as the instance's default
+    experiment settings."""
+    stored = GlobalSettings.get_solo()
+    stored.default_experiment_settings = values
+    stored.save(update_fields=["default_experiment_settings"])

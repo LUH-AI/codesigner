@@ -13,8 +13,8 @@ sources:
   - ui/templates/ui/save_as_default_confirm.html
   - ui/forms.py:373-433
   - experiments/services/settings.py
-  - ui/views/preferences.py:18-38
-  - ui/views/preferences.py:134-144
+  - experiments/services/settings.py:71-93
+  - ui/views/preferences.py:113-122
   - ui/views/dashboard.py:240-281
   - ui/figures/base.py:116-119 (deferred), 164-168 (autocompute_key)
   - ui/figures/catalog.py:399-421

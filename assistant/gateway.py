@@ -41,9 +41,9 @@ class AgentRequest:
 #: site, the instance's defaults, running uploaded code. A person who holds them
 #: uses them themselves; the assistant acts as if they did not.
 def _escape_permissions():
-    from access.policy import CHANGE_DEFAULTS, MANAGE_ALL, MANAGE_SITE, USE_CUSTOM_MODELS, VIEW_ALL
+    from access.policy import USE_CUSTOM_MODELS
 
-    return frozenset({MANAGE_ALL, VIEW_ALL, MANAGE_SITE, CHANGE_DEFAULTS, USE_CUSTOM_MODELS})
+    return frozenset({USE_CUSTOM_MODELS})
 
 
 @dataclass

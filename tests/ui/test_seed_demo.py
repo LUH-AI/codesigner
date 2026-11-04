@@ -21,12 +21,11 @@ def debugging(settings):
 def test_it_builds_the_whole_shape(debugging):
     call_command("seed_demo", verbosity=0)
 
-    assert set(Group.objects.values_list("name", flat=True)) == {
-        "site", "vision-lab", "nlp-group"}
+    assert set(Group.objects.values_list("name", flat=True)) == {"vision-lab", "nlp-group"}
     # Only a primary lead can appoint other leads.
-    assert Membership.objects.filter(role=Membership.PRIMARY_LEAD).count() == 3
+    assert Membership.objects.filter(role=Membership.PRIMARY_LEAD).count() == 2
     assert Run.objects.filter(status="running").exists(), \
-        "the Jobs panel needs something to stop"
+        "`manage.py jobs` needs something to stop"
 
 
 def test_all_three_sharing_levels_are_represented(debugging):
@@ -55,7 +54,7 @@ def test_reset_rebuilds_rather_than_accumulating(debugging):
     call_command("seed_demo", verbosity=0)
     call_command("seed_demo", reset=True, verbosity=0)
 
-    assert Group.objects.count() == 3
+    assert Group.objects.count() == 2
 
 
 def test_reset_leaves_anything_it_did_not_make(debugging, django_user_model):

@@ -3,6 +3,8 @@ of them can restore it. Once no person's bin contains it, the site admins' bin
 keeps it until a site admin destroys it.
 """
 
+import io
+
 import pytest
 from django.urls import reverse
 
@@ -119,16 +121,13 @@ def test_and_in_no_list(client, hosted, lab):
 
 
 def test_a_deleted_groups_bin_leaves_it_to_its_people(client, hosted, lab):
-    """`GroupPolicy.trash` omits a group-less experiment while a person's bin
-    still contains it."""
-    from access.policy import GroupPolicy
-
+    """The site bin omits a group-less experiment while a person's bin still
+    contains it."""
     _delete(client, lab)
     Experiment.objects.filter(pk=lab["exp"].pk).update(trashed_at=lab["exp"].deleted_at,
                                                        group=None)
-    site = type("R", (), {"user": lab["ana"]})()
 
-    assert not GroupPolicy().trash(site).exists()
+    assert _site_bin(lab) == []
 
 
 # Restoring
@@ -203,17 +202,10 @@ def _dismiss(client, user, exp):
 
 
 def _site_bin(lab):
-    from access.policy import GroupPolicy
-    from django.contrib.auth.models import Permission
+    """The site bin's experiments, through `experiments.services.site.trash`."""
+    from experiments.services.site import trash
 
-    site = lab.get("site")
-    if site is None:
-        site = type(lab["ana"]).objects.create_user(username="site")
-        site.user_permissions.add(Permission.objects.get(
-            content_type__app_label="access", codename="manage_site"))
-        lab["site"] = site = type(site).objects.get(pk=site.pk)
-    return list(GroupPolicy().trash(type("R", (), {"user": site})())
-                .values_list("pk", flat=True))
+    return list(trash().values_list("pk", flat=True))
 
 
 def test_taking_it_out_of_your_bin_leaves_everyone_elses(client, hosted, lab):
@@ -279,7 +271,7 @@ def test_the_confirmation_says_who_still_has_it(client, hosted, lab):
 
 # Site bin
 
-def test_once_nobody_keeps_it_it_is_the_site_admins(client, hosted, lab):
+def test_once_nobody_keeps_it_it_is_the_site_bins(client, hosted, lab):
     _delete(client, lab)
     _dismiss(client, lab["ben"], lab["exp"])
     assert _site_bin(lab) == [], "Ana still has it"
@@ -328,8 +320,12 @@ def test_the_bin_says_when_it_leaves(client, hosted, lab, settings):
     assert row["expires_at"] == lab["exp"].deleted_at + timedelta(days=settings.BIN_RETENTION_DAYS)
 
 
-def test_a_site_admin_puts_it_back(client, hosted, lab):
-    """Ben's bin expired, so Ben keeps his grant."""
+def test_rehoming_from_the_site_bin_puts_it_back(client, hosted, lab):
+    """What: `rehome` restores the experiment with its owner and shares;
+    Ben's bin expired, so Ben keeps his grant. How: an expired deletion
+    rehomed into its group."""
+    from experiments.services.site import rehome
+
     from datetime import timedelta
 
     from django.utils import timezone
@@ -338,44 +334,50 @@ def test_a_site_admin_puts_it_back(client, hosted, lab):
     _dismiss(client, lab["ana"], lab["exp"])
     Experiment.objects.filter(pk=lab["exp"].pk).update(
         deleted_at=timezone.now() - timedelta(days=60))
-    _site_bin(lab)
-    client.force_login(lab["site"])
+    assert _site_bin(lab) == [lab["exp"].pk]
 
-    client.post(reverse("ui:site_trash_rehome", args=[lab["exp"].pk]),
-                {"group": lab["group"].pk})
+    rehome(Experiment.objects.get(pk=lab["exp"].pk), lab["group"])
     exp = Experiment.objects.get(pk=lab["exp"].pk)
 
     assert exp.deleted_at is None and not exp.bin_entries.exists()
-    assert exp.owner == lab["ana"], "the owner of record, by the site admin's decision"
+    assert exp.owner == lab["ana"], "the owner of record stays"
     assert dict(exp.shares.values_list("user__username", "level")) == {
         "ben": CONTRIBUTOR, "cleo": VIEWER}
 
 
-def test_and_is_the_only_one_who_destroys_it(client, hosted, lab):
+def test_discarding_from_the_site_bin_destroys_it(client, hosted, lab):
+    """What: `trash discard` destroys a site-bin experiment and its runs.
+    How: a deletion nobody keeps, discarded by identifier."""
+    from django.core.management import call_command
+
     _delete(client, lab)
     for who in ("ana", "ben"):
         _dismiss(client, lab[who], lab["exp"])
-    _site_bin(lab)
-    client.force_login(lab["site"])
 
-    client.post(reverse("ui:site_trash_delete", args=[lab["exp"].pk]))
+    call_command("trash", "discard", lab["exp"].identifier, stdout=io.StringIO())
 
     assert not Experiment.objects.filter(pk=lab["exp"].pk).exists()
     assert not Run.objects.exists()
 
 
 def test_the_site_bin_does_not_take_what_somebody_still_has(client, hosted, lab):
+    """What: `trash discard` leaves an experiment a person's bin still keeps.
+    How: a fresh deletion, discarded by identifier."""
+    from django.core.management import call_command
+    from django.core.management.base import CommandError
+
     _delete(client, lab)
-    _site_bin(lab)
-    client.force_login(lab["site"])
 
-    resp = client.post(reverse("ui:site_trash_delete", args=[lab["exp"].pk]))
-
-    assert resp.status_code == 404
+    with pytest.raises(CommandError, match="not in the site bin"):
+        call_command("trash", "discard", lab["exp"].identifier, stdout=io.StringIO())
     assert Experiment.objects.filter(pk=lab["exp"].pk).exists()
 
 
-def test_the_site_bin_page_lists_both_kinds(client, hosted, lab, django_user_model):
+def test_the_site_bin_lists_both_kinds(client, hosted, lab, django_user_model):
+    """What: the site bin holds both a deletion nobody keeps and a deleted
+    group's work. How: one of each."""
+    from experiments.services.site import trash_rows
+
     _delete(client, lab)
     for who in ("ana", "ben"):
         _dismiss(client, lab[who], lab["exp"])
@@ -386,15 +388,8 @@ def test_the_site_bin_page_lists_both_kinds(client, hosted, lab, django_user_mod
         metric_names=["accuracy"], seed=0, owner=owner)
     Membership.objects.filter(user=owner).delete()
     gone.delete()
-    _site_bin(lab)
-    client.force_login(lab["site"])
 
-    resp = client.get(reverse("ui:site_trash"))
-    body = resp.content.decode()
-
-    assert resp.status_code == 200
-    assert {e.pk for e in resp.context["experiments"]} == {lab["exp"].pk, other.pk}
-    assert "Nobody kept it" in body and "Its group was deleted" in body
+    assert {e.pk for e in trash_rows()} == {lab["exp"].pk, other.pk}
 
 
 # Without accounts

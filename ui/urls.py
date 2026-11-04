@@ -1,9 +1,9 @@
 from django.contrib.auth import views as auth_views
-from django.urls import path, reverse_lazy
+from django.urls import path
 
 from .views import (
-    analytics, bin, dashboard, data_handling, export, groups, imports, notes, pages, preferences,
-    priors, runs, setup, sharing, site,
+    accounts, analytics, bin, dashboard, data_handling, export, groups, imports, notes, pages,
+    preferences, priors, runs, setup, sharing,
 )
 
 app_name = "ui"
@@ -13,20 +13,19 @@ urlpatterns = [
     path("experiments/", pages.experiment_list, name="experiment_list"),
     path("healthz/", pages.healthz, name="healthz"),
     path("settings/account/", preferences.account, name="account"),
-    # Auth routes stay mounted without `REQUIRE_LOGIN`. Password reset needs a
-    # mail server, and uploaded models run arbitrary code, so administrators
-    # reset passwords and create accounts.
-    path("accounts/login/", auth_views.LoginView.as_view(template_name="ui/account/login.html"),
-         name="login"),
+    # Auth routes stay mounted without `REQUIRE_LOGIN`.
+    path("accounts/login/", accounts.SignInView.as_view(), name="login"),
     # `LogoutView` only accepts POST.
     path("accounts/logout/", auth_views.LogoutView.as_view(), name="logout"),
+    path("accounts/first-password/", accounts.first_password, name="first_password"),
+    path("accounts/setup/<str:token>/", accounts.account_setup, name="account_setup"),
+    path("accounts/agreement/", accounts.agreement_page, name="agreement"),
+    path("accounts/forgot/", accounts.password_forgot, name="password_forgot"),
     # The current-password check stops a borrowed browser locking its owner out.
-    path("accounts/password/", auth_views.PasswordChangeView.as_view(
-        template_name="ui/account/password_change.html",
-        success_url=reverse_lazy("ui:password_changed")), name="password_change"),
+    path("accounts/password/", accounts.PasswordChangeView.as_view(), name="password_change"),
     path("accounts/password/done/", auth_views.PasswordChangeDoneView.as_view(
         template_name="ui/account/password_changed.html"), name="password_changed"),
-    # Group and site routes bypass `@experiment_view`.
+    # Group routes bypass `@experiment_view`.
     path("group/", groups.group_index, name="group_index"),
     path("group/<int:group_pk>/", groups.group_detail, name="group_detail"),
     path("group/<int:group_pk>/add/", groups.group_add_person, name="group_add_person"),
@@ -36,15 +35,6 @@ urlpatterns = [
          name="group_set_role"),
     path("group/<int:group_pk>/people/<int:pk>/primary/", groups.group_transfer_primary,
          name="group_transfer_primary"),
-    path("site/", site.site_groups, name="site_groups"),
-    path("site/groups/save/", site.site_group_save, name="site_group_save"),
-    path("site/groups/delete/", site.site_group_delete, name="site_group_delete"),
-    path("site/trash/", site.site_trash, name="site_trash"),
-    path("site/trash/<int:pk>/rehome/", site.site_trash_rehome, name="site_trash_rehome"),
-    path("site/trash/<int:pk>/delete/", site.site_trash_delete, name="site_trash_delete"),
-    path("site/usage/", site.site_usage, name="site_usage"),
-    path("site/jobs/", site.site_jobs, name="site_jobs"),
-    path("site/jobs/<int:pk>/stop/", site.site_job_stop, name="site_job_stop"),
     path("settings/appearance/", preferences.appearance, name="appearance"),
     path("settings/export/", preferences.export_preferences, name="export_preferences"),
     path("settings/experiment-defaults/", preferences.default_experiment_settings, name="default_experiment_settings"),

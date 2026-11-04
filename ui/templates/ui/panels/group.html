@@ -155,7 +155,8 @@
             {% for m in memberships %}
                 <tr>
                     <td>{{ m.user.get_username }}{% if m.user == user %} <span class="caption">({% translate "you" %})</span>{% endif %}
-                        {% if not m.user.is_active %} <span class="caption">— {% translate "deactivated" %}</span>{% endif %}</td>
+                        {% if not m.user.is_active %} <span class="caption">— {% translate "deactivated" %}</span>
+                        {% elif not m.user.has_usable_password %} <span class="caption">— {% translate "no password yet" %}</span>{% endif %}</td>
                     {% comment %}Editable only for the primary lead, and never
                     their own row: standing down is a transfer, which names a
                     successor, rather than a role anybody can simply drop.
@@ -200,9 +201,8 @@
         </tbody>
     </table>
 
-    {% comment %}A lead creates an account and hands over the first password.
-    There is no registration surface and no mail server anywhere in this: an
-    account exists because somebody with a group decided it should.{% endcomment %}
+    {% comment %}`.onboarding` decides what the identifier is and how a new
+    account gets its password; nobody registers themselves.{% endcomment %}
     {% if is_lead %}
         <section class="card" style="max-width: 34rem; margin-top: 1.5rem;">
             <div class="subheader">{% translate "Add somebody" %}</div>
@@ -210,18 +210,8 @@
                 <form method="post" action="{% url 'ui:group_add_person' group.pk %}">
                     {% csrf_token %}
                     <div class="field">
-                        <label for="email">{% translate "Email address" %}</label>
-                        <input type="email" id="email" name="email" required autocomplete="off">
-                        <p class="caption">{% translate "If somebody here already has this address, they are added to the group. Otherwise an account is created for it." %}</p>
-                    </div>
-                    {% comment %}Optional, and only used when the address is new. Left
-                    empty, one is generated and shown once after adding — there is no
-                    mail server to send it by, so either way it is handed over in
-                    person.{% endcomment %}
-                    <div class="field">
-                        <label for="password">{% translate "First password (optional)" %}</label>
-                        <input type="text" id="password" name="password" autocomplete="off">
-                        <p class="caption">{% translate "Only for a new account. Leave it empty and one is made up for you." %}</p>
+                        <label for="identifier">{{ onboarding.label }}</label>
+                        <input type="{{ onboarding.input_type }}" id="identifier" name="identifier" required autocomplete="off">
                     </div>
                     <div class="field">
                         <label for="role">{% translate "Role" %}</label>

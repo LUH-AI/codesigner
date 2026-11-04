@@ -34,13 +34,9 @@ def _experiment(owner, name, **kw):
 
 @pytest.fixture
 def lab(django_user_model):
-    from django.contrib.auth.models import Permission
-
     group = Group.objects.create(name="lab", user_limit=5)
     spare = Group.objects.create(name="spare", user_limit=5)
     site = _person(django_user_model, "site")
-    site.user_permissions.add(Permission.objects.get(
-        content_type__app_label="access", codename="manage_site"))
     return {
         "group": group,
         "spare": spare,
@@ -108,9 +104,9 @@ def test_an_ordinary_lead_may_only_add_members(client, hosted, lab,
     client.force_login(lab["lead"])
 
     client.post(reverse("ui:group_add_person", args=[lab["group"].pk]),
-                {"email": "newbie@example.org", "role": Membership.LEAD})
+                {"identifier": "newbie", "role": Membership.LEAD})
 
-    assert not django_user_model.objects.filter(email="newbie@example.org").exists()
+    assert not django_user_model.objects.filter(username="newbie").exists()
 
 
 def test_the_role_transfers_only_to_a_lead(client, hosted, lab):
@@ -190,11 +186,14 @@ def test_deleting_a_group_puts_its_work_in_the_bin(hosted, django_user_model):
     assert exp.trashed_at is not None
 
 
-def test_a_group_with_people_in_it_is_not_deleted(client, hosted, lab):
-    client.force_login(lab["site"])
+def test_a_group_with_people_in_it_is_not_deleted(hosted, lab):
+    """What: `delete_group` keeps a group that still has people. How: the
+    lab group with its three members."""
+    from access.services.errors import ServiceError
+    from access.services.groups import delete_group
 
-    client.post(reverse("ui:site_group_delete"), {"pk": lab["group"].pk})
-
+    with pytest.raises(ServiceError):
+        delete_group(lab["group"])
     assert Group.objects.filter(pk=lab["group"].pk).exists()
 
 
@@ -211,51 +210,43 @@ def test_binned_work_is_visible_to_nobody(hosted, lab, django_user_model):
         assert "left behind" not in set(names)
 
 
-def test_a_site_admin_opens_the_bin(client, hosted, lab, django_user_model):
-    """The bin page lists each experiment's run count."""
+def test_the_site_bin_lists_each_experiments_run_count(hosted, lab, django_user_model):
+    """What: `trash_rows` lists a deleted group's work with its run count.
+    How: an emptied group holding one experiment with one run, deleted."""
+    from experiments.services.site import trash_rows
+
     group, exp = _emptied_group_holding_work(django_user_model)
     Run.objects.create(experiment=exp, primary_metric="accuracy", status="done",
                        stopping={"max_trials": 1}, trial_offset=0)
     group.delete()
-    client.force_login(lab["site"])
 
-    resp = client.get(reverse("ui:site_trash"))
-
-    assert resp.status_code == 200
-    assert [e.run_count for e in resp.context["experiments"]] == [1]
+    assert [e.run_count for e in trash_rows()] == [1]
 
 
-def test_only_a_site_admin_sees_the_bin(client, hosted, lab):
-    client.force_login(lab["primary"])
+def test_rehoming_puts_it_back_in_a_group(hosted, lab, django_user_model):
+    """What: `rehome` sets the group and clears `trashed_at` together. How: a
+    binned experiment rehomed into the lab group."""
+    from experiments.services.site import rehome
 
-    assert client.get(reverse("ui:site_trash")).status_code == 404
-
-
-def test_rehoming_puts_it_back_in_a_group(client, hosted, lab,
-                                          django_user_model):
-    """Rehoming sets the group and clears `trashed_at` together."""
     group, exp = _emptied_group_holding_work(django_user_model)
     group.delete()
-    client.force_login(lab["site"])
 
-    client.post(reverse("ui:site_trash_rehome", args=[exp.pk]),
-                {"group": lab["group"].pk})
+    rehome(exp, lab["group"])
     exp.refresh_from_db()
 
     assert exp.group_id == lab["group"].pk
     assert exp.trashed_at is None
 
 
-def test_a_rehomed_experiment_is_its_new_groups(client, hosted, lab,
-                                                django_user_model):
-    """Rehoming makes the work reachable again."""
+def test_a_rehomed_experiment_is_its_new_groups(hosted, lab, django_user_model):
+    """What: rehoming makes the work reachable to its new group again. How: a
+    binned experiment rehomed, then listed for the group's primary lead."""
     from access.policy import GroupPolicy
+    from experiments.services.site import rehome
 
     group, exp = _emptied_group_holding_work(django_user_model)
     group.delete()
-    client.force_login(lab["site"])
-    client.post(reverse("ui:site_trash_rehome", args=[exp.pk]),
-                {"group": lab["group"].pk})
+    rehome(exp, lab["group"])
 
     request = type("R", (), {"user": lab["primary"]})()
     names = set(GroupPolicy().experiments(request).values_list("data__name", flat=True))
@@ -263,13 +254,15 @@ def test_a_rehomed_experiment_is_its_new_groups(client, hosted, lab,
     assert "left behind" in names
 
 
-def test_discarding_from_the_bin_is_a_second_decision(client, hosted, lab,
-                                                      django_user_model):
-    """Only `site_trash_delete` can destroy binned work."""
+def test_discarding_from_the_bin_is_a_second_decision(hosted, lab, django_user_model):
+    """What: deleting a group bins its work, and only `discard` destroys it.
+    How: an emptied group deleted, its experiment then discarded."""
+    from experiments.services.site import discard
+
     group, exp = _emptied_group_holding_work(django_user_model)
     group.delete()
-    client.force_login(lab["site"])
+    assert Experiment.objects.filter(pk=exp.pk).exists()
 
-    client.post(reverse("ui:site_trash_delete", args=[exp.pk]))
+    discard(Experiment.objects.get(pk=exp.pk))
 
     assert not Experiment.objects.filter(pk=exp.pk).exists()

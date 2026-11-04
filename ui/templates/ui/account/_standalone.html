@@ -1,0 +1,36 @@
+{% load assets i18n %}
+<!doctype html>
+<html lang="{{ LANGUAGE_CODE }}">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>{% block title %}{% endblock %} · Codesigner</title>
+    <link rel="stylesheet" href="{% asset 'ui/app.css' %}">
+</head>
+{% comment %}
+Deliberately not extending base.html: there is no session yet, or one that
+`.AccountGateMiddleware` holds here, so the rail and the experiment sidebar
+would offer links that bounce straight back. The language switcher is kept,
+because choosing a language you can read should not require signing in first.
+{% endcomment %}
+<body class="signin">
+    <main class="signin-panel">
+        <h1>Codesigner</h1>
+        {% for message in messages %}<p class="alert {{ message.tags }}">{{ message }}</p>{% endfor %}
+        {% block content %}{% endblock %}
+
+        {% get_current_language as CURRENT_LANGUAGE %}
+        {% if LANGUAGES|length > 1 %}
+        <form class="signin-locale" action="{% url 'set_language' %}" method="post">
+            {% csrf_token %}
+            <input type="hidden" name="next" value="{{ request.get_full_path }}">
+            <select name="language" onchange="this.form.submit()" aria-label="{% translate 'Language' %}">
+                {% for code, label in LANGUAGES %}
+                    <option value="{{ code }}"{% if code == CURRENT_LANGUAGE %} selected{% endif %}>{{ label }}</option>
+                {% endfor %}
+            </select>
+        </form>
+        {% endif %}
+    </main>
+</body>
+</html>

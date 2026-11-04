@@ -201,26 +201,12 @@ def test_the_instance_flag_still_outranks_the_permission(client, settings, hoste
     assert 'name="model_file"' not in html
 
 
-def test_changing_the_defaults_needs_the_permission_for_it(client, hosted, ana,
-                                                           django_user_model):
-    """The `change_defaults` permission protects defaults that reach every
-    inheriting experiment.
-    """
-    from django.contrib.auth.models import Permission
-
+def test_a_hosted_site_changes_its_defaults_only_on_the_command_line(
+        client, hosted, ana, django_user_model):
+    """What: with accounts, nobody opens the defaults page; `manage.py
+    defaults` changes them. How: a member asking for the page."""
     client.force_login(ana)
     assert client.get(reverse("ui:default_experiment_settings")).status_code == 403
-
-    # `is_staff` only reaches the admin site.
-    clerk = django_user_model.objects.create_user(
-        username="deskclerk", password="pw", is_staff=True)
-    client.force_login(clerk)
-    assert client.get(reverse("ui:default_experiment_settings")).status_code == 403
-
-    ana.user_permissions.add(Permission.objects.get(
-        content_type__app_label="access", codename="change_defaults"))
-    client.force_login(django_user_model.objects.get(pk=ana.pk))
-    assert client.get(reverse("ui:default_experiment_settings")).status_code == 200
 
 
 def test_an_ordinary_user_is_not_shown_the_defaults_link(client, hosted, ana):

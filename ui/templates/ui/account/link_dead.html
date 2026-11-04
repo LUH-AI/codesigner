@@ -1,0 +1,11 @@
+{% extends "ui/account/_standalone.html" %}
+{% load i18n %}
+
+{% block title %}{% translate "Link expired" %}{% endblock %}
+
+{% block content %}
+        <div class="card">
+            <p>{% translate "This link has expired or was already used. Ask your group lead to add you again." %}</p>
+            <p><a href="{% url 'ui:login' %}">{% translate "Sign in" %}</a></p>
+        </div>
+{% endblock %}

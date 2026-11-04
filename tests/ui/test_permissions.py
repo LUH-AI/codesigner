@@ -29,16 +29,12 @@ NOT_EXPERIMENTS = {
     "group_remove_person": "a membership, removed by that group's lead",
     "group_set_role": "a membership, whose role the primary lead sets",
     "group_transfer_primary": "a membership, receiving the primary lead role",
-    "site_job_stop": "a run, stopped by a site admin from outside its group",
 }
 
-#: Routes listed here reach an experiment through `GroupPolicy.trash` instead of
-#: `@experiment_view`. A binned experiment sits outside
-#: `policy().experiments()`, since it is in no group.
+#: Routes listed here reach an experiment through a person's bin,
+#: `policy().bin()`, instead of `@experiment_view`: a binned experiment sits
+#: outside `policy().experiments()`.
 THROUGH_THE_BIN = {
-    "site_trash_rehome": "put back into a group by a site admin",
-    "site_trash_delete": "discarded for good by a site admin",
-    # A person's bin goes through `policy().bin()` for the same reason.
     "bin_restore": "put back by one of its people",
     "bin_download": "taken away as an .ihpo by one of its people",
     "bin_dismiss": "taken out of one person's bin",
@@ -64,16 +60,15 @@ def test_the_exceptions_are_real_routes():
 
 
 def test_the_exceptions_do_not_reach_an_experiment_through_the_pk():
-    """A site admin has no experiment visibility for `@experiment_view` to
-    check.
+    """A membership's pk names no experiment for `@experiment_view` to check.
     """
-    from ui.views import groups, site
+    from ui.views import groups
 
     assert {p.name: p.callback for p in urls.urlpatterns
             if p.name in NOT_EXPERIMENTS}.keys() == NOT_EXPERIMENTS.keys()
     for name in NOT_EXPERIMENTS:
         route = next(p for p in urls.urlpatterns if p.name == name)
-        assert route.callback.__module__ in (groups.__name__, site.__name__), (
+        assert route.callback.__module__ == groups.__name__, (
             f"{name} is not a panel route any more; re-check what its pk means")
 
 
@@ -84,11 +79,8 @@ def test_the_bin_routes_resolve_through_the_bin(client):
     import inspect
 
     from ui.views import bin as bin_views
-    from ui.views import site
 
-    # A deleted group's bin and a person's bin.
-    through = {site.__name__: "policy().trash(request)",
-               bin_views.__name__: "_binned(request, pk)"}
+    through = {bin_views.__name__: "_binned(request, pk)"}
     assert "policy().bin(request)" in inspect.getsource(bin_views._binned)
 
     for name in THROUGH_THE_BIN:

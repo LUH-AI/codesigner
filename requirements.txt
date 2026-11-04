@@ -2,6 +2,11 @@ django>=6.0,<7
 django-environ>=0.12
 huey>=3.3           # background task queue (SqliteHuey; run via `manage.py run_huey`)
 
+# Accounts: Argon2 password hashing, and a lockout after repeated failed
+# sign-ins that reads the client's address behind a proxy (ipware).
+argon2-cffi>=25.1
+django-axes[ipware]>=9.0
+
 # Production server / static serving (container). Gunicorn runs the ASGI
 # application through uvicorn's worker, so the assistant's event stream
 # (assistant/views.py) holds no worker while it waits.

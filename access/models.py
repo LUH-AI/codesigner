@@ -1,7 +1,6 @@
 """`Group` and `Membership` draw the boundary that keeps research groups on one
 instance from seeing each other's work. `Membership` records the member and lead
-roles, per group. The site-admin role is the `manage_site` permission, which a
-site admin can be granted without being a Django superuser.
+roles, per group. Groups themselves are managed with `manage.py groups`.
 """
 
 from __future__ import annotations
@@ -138,8 +137,8 @@ class Membership(models.Model):
 
 class AccessPermissions(models.Model):
     """`AccessPermissions` is an unmanaged model with no table, present only so
-    Django creates its `Permission` rows for the admin and `has_perm`. An active
-    superuser has every one through `ModelBackend`.
+    Django creates the `Permission` row behind `has_perm`. `manage.py users
+    custom-models` grants it.
     """
 
     id: int
@@ -150,16 +149,68 @@ class AccessPermissions(models.Model):
         permissions = [
             ("use_custom_models",
              "Can upload and run custom models (arbitrary code execution)"),
-            ("manage_site",
-             "Can manage groups, their size and their usage (a site admin)"),
-            ("change_defaults",
-             "Can change the experiment settings every experiment inherits"),
-            # `view_all_experiments` and `manage_experiments` reach across every
-            # group, so nobody has them by default; an admin grants them for a
-            # support case and takes them back afterwards.
-            ("view_all_experiments",
-             "Can see every experiment on the instance, across all groups"),
-            ("manage_experiments",
-             "Can act on every experiment on the instance, across all groups"),
         ]
         verbose_name_plural = "Access permissions"
+
+
+class Account(models.Model):
+    """`Account` holds what codesigner adds to a Django user: how the first
+    password gets set, and whether a new one is required. `account_of` creates
+    it on first use, so users made before it existed have one too.
+    """
+
+    #: The person chooses a password the first time they sign in by username.
+    FIRST_SIGN_IN = "sign_in"
+    #: The person sets a password through a `SetupLink`.
+    SETUP_LINK = "link"
+    PENDING = [(FIRST_SIGN_IN, "At first sign-in"), (SETUP_LINK, "Through a setup link")]
+
+    id: int
+
+    user = models.OneToOneField(django_settings.AUTH_USER_MODEL, on_delete=models.CASCADE,
+                                related_name="account")
+    #: Empty once a password is set; otherwise how it will be.
+    password_pending = models.CharField(max_length=10, choices=PENDING, blank=True, default="")
+    #: Set by `manage.py users require-new-password`; cleared by a change.
+    must_change_password = models.BooleanField(default=False)
+    password_changed_at = models.DateTimeField(null=True, blank=True)
+
+
+def account_of(user) -> Account:
+    """`account_of` returns *user*'s `Account`, creating it when missing."""
+    try:
+        return user.account
+    except Account.DoesNotExist:
+        account, _ = Account.objects.get_or_create(user=user)
+        return account
+
+
+class SetupLink(models.Model):
+    """`SetupLink` is a one-time link to set a password, stored as the SHA-256
+    of its token, so the database never holds a usable link. It works until
+    `expires_at` and only once (`used_at`)."""
+
+    id: int
+
+    user = models.ForeignKey(django_settings.AUTH_USER_MODEL, on_delete=models.CASCADE,
+                             related_name="setup_links")
+    token_hash = models.CharField(max_length=64, unique=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    expires_at = models.DateTimeField()
+    used_at = models.DateTimeField(null=True, blank=True)
+
+
+class AgreementAcceptance(models.Model):
+    """`AgreementAcceptance` records that a person accepted one version of the
+    agreement `ACCOUNT_AGREEMENT` supplies; a new version asks again."""
+
+    id: int
+
+    user = models.ForeignKey(django_settings.AUTH_USER_MODEL, on_delete=models.CASCADE,
+                             related_name="agreements")
+    version = models.CharField(max_length=64)
+    accepted_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        constraints = [models.UniqueConstraint(fields=["user", "version"],
+                                               name="one_acceptance_per_version")]

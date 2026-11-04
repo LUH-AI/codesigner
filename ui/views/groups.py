@@ -5,8 +5,6 @@
 from functools import wraps
 
 from django.contrib import messages
-from django.core.exceptions import ValidationError
-from django.db import transaction
 from django.db.models import Q, Count, OuterRef, Prefetch, Subquery
 from django.http import Http404
 from django.shortcuts import get_object_or_404, redirect, render
@@ -16,7 +14,9 @@ from django.views.decorators.http import require_POST
 
 from access.models import Membership
 from access.policy import membership_in, memberships_of
-from access.services.accounts import find_or_create_by_email, normalize
+from access.onboarding import onboarding
+from access.services import groups as group_service
+from access.services.errors import ServiceError
 from experiments.models import Experiment, ExperimentShare
 from experiments.services.storage import usage as storage_usage
 
@@ -118,7 +118,8 @@ def group_detail(request, membership):
         "seats_left": group.seats_left,
         "storage": _storage_line(group),
         # Primary moves only by transfer, never by grant.
-        "roles": _grantable_roles(membership) if membership.is_lead else [],
+        "roles": group_service.grantable_roles(membership) if membership.is_lead else [],
+        "onboarding": onboarding(),
         "is_lead": membership.is_lead,
         "is_primary": membership.is_primary_lead,
         "mine": mine,
@@ -129,58 +130,20 @@ def group_detail(request, membership):
     })
 
 
-def _grantable_roles(membership):
-    """Only a primary lead may grant the lead role.
-    """
-    if membership.is_primary_lead:
-        return [(Membership.MEMBER, "Member"), (Membership.LEAD, "Group lead")]
-    return [(Membership.MEMBER, "Member")]
-
-
 @require_POST
 @lead_required
 def group_add_person(request, membership):
-    """`group_add_person` joins an existing account by email or creates one with
-    a first password the lead hands over. Either way the new member takes a
-    seat.
-    """
-
-    group = membership.group
-    address = normalize(request.POST.get("email"))
-    password = request.POST.get("password") or ""
-    role = request.POST.get("role") or Membership.MEMBER
-
-    if not address:
-        messages.error(request, _("An email address is needed."))
-    elif group.seats_left < 1:
-        messages.error(request, _(
-            "%(group)s is full: %(limit)s of %(limit)s seats used. A site admin "
-            "can raise the limit.") % {"group": group.name,
-                                       "limit": group.user_limit})
-    elif role not in dict(_grantable_roles(membership)):
-        # The server checks the role because posts can bypass the form.
-        messages.error(request, _("You cannot add somebody with that role."))
-    elif group.memberships.filter(user__email__iexact=address).exists():
-        messages.error(request, _("%(email)s is already in %(group)s.")
-                       % {"email": address, "group": group.name})
+    """`group_add_person` adds a person through `.onboarding`, which decides
+    how a new account gets its password. The new member takes a seat."""
+    try:
+        _user, _created, message = group_service.add_person(
+            membership.group, request.POST.get("identifier") or "",
+            request.POST.get("role") or Membership.MEMBER,
+            allowed_roles=dict(group_service.grantable_roles(membership)))
+    except ServiceError as error:
+        messages.error(request, str(error))
     else:
-        try:
-            with transaction.atomic():
-                user, created, given = find_or_create_by_email(address, password=password)
-                Membership.objects.create(user=user, group=group, role=role)
-        except ValidationError:
-            messages.error(request, _("“%(email)s” is not an email address.")
-                           % {"email": address})
-        else:
-            if created:
-                messages.success(request, _(
-                    "Created an account for %(email)s and added it to %(group)s. "
-                    "Its first password is %(password)s — hand it over; they can "
-                    "change it under Settings → Account.") % {
-                        "email": address, "group": group.name, "password": given})
-            else:
-                messages.success(request, _("Added %(email)s to %(group)s.")
-                                 % {"email": address, "group": group.name})
+        messages.success(request, message)
     return redirect("ui:group_detail", group_pk=membership.group_id)
 
 
@@ -192,22 +155,12 @@ def group_remove_person(request, membership, pk):
     account survives.
     """
     target = get_object_or_404(Membership, pk=pk, group=membership.group)
-    if target.pk == membership.pk:
-        messages.error(request, _("You cannot remove yourself from your own group."))
-    elif target.is_primary_lead:
-        # Only a second lead can try to remove the primary lead, whose departure
-        # would leave nobody to appoint leads.
-        messages.error(request, _(
-            "%(name)s is the primary lead. The role has to be transferred "
-            "before they can leave.") % {"name": target.user.get_username()})
-    # Only this group's experiments count.
-    elif target.user.experiments.filter(group_id=membership.group_id).exists():
-        messages.error(request, _(
-            "%(name)s still owns experiments. Out of the group nobody could "
-            "reach them — reassign them first.") % {"name": target.user.get_username()})
+    name = target.user.get_username()
+    try:
+        group_service.remove_person(target, by=membership)
+    except ServiceError as error:
+        messages.error(request, str(error))
     else:
-        name = target.user.get_username()
-        target.delete()
         messages.success(request, _("Removed %(name)s from the group.") % {"name": name})
     return redirect("ui:group_detail", group_pk=membership.group_id)
 
@@ -219,17 +172,11 @@ def group_set_role(request, membership, pk):
     role only moves by transfer.
     """
     target = get_object_or_404(Membership, pk=pk, group=membership.group)
-    role = request.POST.get("role") or ""
-
-    if target.pk == membership.pk:
-        messages.error(request, _(
-            "You cannot change your own role. Transfer the primary lead role "
-            "to somebody else instead."))
-    elif role not in (Membership.MEMBER, Membership.LEAD):
-        messages.error(request, _("That is not a role you can set."))
+    try:
+        group_service.set_role(target, request.POST.get("role") or "", by=membership)
+    except ServiceError as error:
+        messages.error(request, str(error))
     else:
-        target.role = role
-        target.save(update_fields=["role"])
         messages.success(request, _("%(name)s is now a %(role)s.") % {
             "name": target.user.get_username(),
             "role": target.get_role_display().lower()})
@@ -244,19 +191,11 @@ def group_transfer_primary(request, membership, pk):
     per group.
     """
     target = get_object_or_404(Membership, pk=pk, group=membership.group)
-
-    if target.pk == membership.pk:
-        messages.error(request, _("You already hold it."))
-    elif target.role != Membership.LEAD:
-        messages.error(request, _(
-            "The primary lead role can only go to a group lead. Make "
-            "%(name)s a lead first.") % {"name": target.user.get_username()})
+    try:
+        group_service.transfer_primary(membership, target)
+    except ServiceError as error:
+        messages.error(request, str(error))
     else:
-        with transaction.atomic():
-            membership.role = Membership.LEAD
-            membership.save(update_fields=["role"])
-            target.role = Membership.PRIMARY_LEAD
-            target.save(update_fields=["role"])
         messages.success(request, _(
             "%(name)s is now the primary lead of %(group)s. You are a group "
             "lead.") % {"name": target.user.get_username(),

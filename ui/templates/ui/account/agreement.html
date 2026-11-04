@@ -1,0 +1,20 @@
+{% extends "ui/account/_standalone.html" %}
+{% load i18n %}
+
+{% block title %}{% translate "Terms of use" %}{% endblock %}
+
+{% block content %}
+        <form method="post" class="card">
+            {% csrf_token %}
+            <div class="agreement">{{ terms.1|safe }}</div>
+            <div class="field">
+                <label><input type="checkbox" name="accept" value="1" required> {% translate "I accept these terms." %}</label>
+            </div>
+            <input type="hidden" name="next" value="{{ request.GET.next }}">
+            <button type="submit" class="btn-block">{% translate "Continue" %}</button>
+        </form>
+        <form method="post" action="{% url 'ui:logout' %}" class="signin-signout">
+            {% csrf_token %}
+            <button type="submit">{% translate "Sign out" %}</button>
+        </form>
+{% endblock %}

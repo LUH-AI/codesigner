@@ -154,17 +154,14 @@ def test_every_member_is_warned_past_ninety_percent(lab, client):
     assert "storage-warning" in page and "lab has used 95%" in page
 
 
-def test_a_site_admin_sets_a_groups_limit(lab, client, django_user_model):
-    """The group page shows its usage against the limit."""
-    from django.contrib.auth.models import Permission
+def test_a_groups_storage_limit_is_set_and_shown(lab, client):
+    """What: `groups update --storage-gb` sets the limit, and the group page
+    shows usage against it. How: a 2.5 GB limit, then the member's group page."""
+    import io
 
-    admin = django_user_model.objects.create_user(username="site", password="pw")
-    admin.user_permissions.add(Permission.objects.get(content_type__app_label="access",
-                                                      codename="manage_site"))
-    client.force_login(admin)
-    client.post(reverse("ui:site_group_save"), {
-        "pk": lab["group"].pk, "name": "lab", "user_limit": 5, "is_active": "on",
-        "storage_gb": "2.5"})
+    from django.core.management import call_command
+
+    call_command("groups", "update", "lab", "--storage-gb", "2.5", stdout=io.StringIO())
     lab["group"].refresh_from_db()
     assert lab["group"].storage_limit == int(2.5 * 1024 ** 3)
 

@@ -37,14 +37,10 @@ def _experiment(owner, name, group, **kw):
 
 @pytest.fixture
 def two_labs(django_user_model):
-    """Mia leads `a` and is a member of `b`."""
-    from django.contrib.auth.models import Permission
-
+    """Mia leads `a` and is a member of `b`; `site` is in no group."""
     a = Group.objects.create(name="a", user_limit=5)
     b = Group.objects.create(name="b", user_limit=5)
     site = _person(django_user_model, "site")
-    site.user_permissions.add(Permission.objects.get(
-        content_type__app_label="access", codename="manage_site"))
     return {
         "a": a, "b": b,
         "mia": _person(django_user_model, "mia",
@@ -167,16 +163,18 @@ def test_a_group_the_caller_names_is_kept(hosted, two_labs):
     assert exp.group_id == two_labs["b"].pk
 
 
-def test_usage_counts_each_run_under_its_own_group_once(client, hosted, two_labs):
+def test_usage_counts_each_run_under_its_own_group_once(hosted, two_labs):
+    """What: `usage_by_group` and `usage_by_person` count a run once, under
+    its experiment's group. How: Mia's run in `a`, with Mia also in `b`."""
+    from experiments.services.site import usage_by_group, usage_by_person
+
     exp = _experiment(two_labs["mia"], "hers in a", two_labs["a"])
     Run.objects.create(experiment=exp, primary_metric="accuracy", status="done",
                        stopping={"max_trials": 5}, started_by=two_labs["mia"],
                        trial_count=7, trial_offset=0)
-    client.force_login(two_labs["site"])
 
-    groups = {g.name: g for g in client.get(reverse("ui:site_usage")).context["groups"]}
-    people = {(m.user.username, m.group.name): m
-              for m in client.get(reverse("ui:site_usage")).context["people"]}
+    groups = {g.name: g for g in usage_by_group()}
+    people = {(m.user.username, m.group.name): m for m in usage_by_person()}
 
     assert (groups["a"].runs, groups["a"].trials) == (1, 7)
     assert groups["b"].runs == 0
@@ -184,15 +182,15 @@ def test_usage_counts_each_run_under_its_own_group_once(client, hosted, two_labs
     assert people[("mia", "b")].runs == 0
 
 
-def test_adding_an_address_somebody_has_joins_that_account(
+def test_adding_somebody_with_an_account_joins_that_account(
         client, hosted, two_labs, django_user_model):
-    """The existing account keeps its password, which the lead has no right to
-    set."""
+    """What: adding an existing person, by email address in any case, joins
+    their account, which keeps its password. How: Ann adds Bob of group b."""
     client.force_login(two_labs["ann"])
     before = django_user_model.objects.count()
 
     client.post(reverse("ui:group_add_person", args=[two_labs["a"].pk]),
-                {"email": "BOB@example.org", "password": "new", "role": "member"})
+                {"identifier": "BOB@example.org", "role": "member"})
 
     bob = django_user_model.objects.get(pk=two_labs["bob"].pk)
     assert django_user_model.objects.count() == before
@@ -200,19 +198,20 @@ def test_adding_an_address_somebody_has_joins_that_account(
     assert bob.check_password("pw")
 
 
-def test_adding_an_unknown_address_creates_the_account(
+def test_adding_an_unknown_username_creates_the_account(
         client, hosted, two_labs, django_user_model):
-    """The username is the address itself."""
+    """What: adding a new username creates an account without a password,
+    which the group page marks. How: Ann adds "newperson"."""
     client.force_login(two_labs["ann"])
 
     resp = client.post(reverse("ui:group_add_person", args=[two_labs["a"].pk]),
-                       {"email": "New.Person@Example.org", "role": "member"},
-                       follow=True)
+                       {"identifier": "newperson", "role": "member"}, follow=True)
 
-    user = django_user_model.objects.get(email="new.person@example.org")
-    assert user.username == "new.person@example.org"
+    user = django_user_model.objects.get(username="newperson")
+    assert not user.has_usable_password()
     assert user.memberships.get().group == two_labs["a"]
-    assert "first password" in resp.content.decode()
+    assert "first time they sign in" in resp.content.decode()
+    assert "no password yet" in resp.content.decode()
 
 
 def test_adding_somebody_already_in_the_group_is_refused(
@@ -220,76 +219,46 @@ def test_adding_somebody_already_in_the_group_is_refused(
     client.force_login(two_labs["ann"])
 
     resp = client.post(reverse("ui:group_add_person", args=[two_labs["a"].pk]),
-                       {"email": "mia@example.org", "role": "member"}, follow=True)
+                       {"identifier": "mia", "role": "member"}, follow=True)
 
     assert "already in" in resp.content.decode()
     assert two_labs["mia"].memberships.filter(group=two_labs["a"]).count() == 1
 
 
-def test_an_address_that_is_not_one_creates_nothing(
+def test_a_username_that_is_too_long_creates_nothing(
         client, hosted, two_labs, django_user_model):
+    """What: a username past 150 characters creates no account. How: Ann adds
+    one."""
     client.force_login(two_labs["ann"])
     before = django_user_model.objects.count()
 
     client.post(reverse("ui:group_add_person", args=[two_labs["a"].pk]),
-                {"email": "not an address", "role": "member"})
+                {"identifier": "x" * 151, "role": "member"})
 
     assert django_user_model.objects.count() == before
 
 
-def test_a_new_group_is_refused_without_a_primary_lead(client, hosted, two_labs):
-    """Without a primary lead, nobody could appoint leads."""
-    client.force_login(two_labs["site"])
+def test_a_new_group_starts_with_its_primary_lead(hosted, two_labs, django_user_model):
+    """What: `create_group` makes the new username the group's primary lead.
+    How: a group created for a new username."""
+    from access.services.groups import create_group
 
-    client.post(reverse("ui:site_group_save"), {"name": "c", "user_limit": "3"})
-
-    assert not Group.objects.filter(name="c").exists()
-
-
-def test_a_new_group_starts_with_its_primary_lead(client, hosted, two_labs,
-                                                  django_user_model):
-    client.force_login(two_labs["site"])
-
-    client.post(reverse("ui:site_group_save"),
-                {"name": "c", "user_limit": "3",
-                 "primary_lead_email": "lead.of.c@example.org"})
+    create_group("c", 3, "lead_of_c")
 
     group = Group.objects.get(name="c")
-    lead = django_user_model.objects.get(email="lead.of.c@example.org")
+    lead = django_user_model.objects.get(username="lead_of_c")
     assert group.memberships.get().user == lead
     assert group.memberships.get().role == Membership.PRIMARY_LEAD
 
 
-def test_a_new_groups_primary_lead_may_already_have_an_account(
-        client, hosted, two_labs):
-    """`site_group_save` lets a site admin lead a new group."""
-    client.force_login(two_labs["site"])
+def test_a_new_groups_primary_lead_may_already_have_an_account(hosted, two_labs):
+    """What: `create_group` joins an existing account as the primary lead.
+    How: a group created for the address of `site`, who is in no group."""
+    from access.services.groups import create_group
 
-    client.post(reverse("ui:site_group_save"),
-                {"name": "c", "user_limit": "3",
-                 "primary_lead_email": "site@example.org"})
+    create_group("c", 3, "site@example.org")
 
     assert Group.objects.get(name="c").memberships.get().user == two_labs["site"]
-
-
-def test_a_bad_primary_lead_address_leaves_no_group_behind(client, hosted, two_labs):
-    """Group and lead are created atomically."""
-    client.force_login(two_labs["site"])
-
-    client.post(reverse("ui:site_group_save"),
-                {"name": "c", "user_limit": "3", "primary_lead_email": "nope"})
-
-    assert not Group.objects.filter(name="c").exists()
-
-
-def test_a_new_group_needs_a_seat_for_its_lead(client, hosted, two_labs):
-    client.force_login(two_labs["site"])
-
-    client.post(reverse("ui:site_group_save"),
-                {"name": "c", "user_limit": "0",
-                 "primary_lead_email": "lead.of.c@example.org"})
-
-    assert not Group.objects.filter(name="c").exists()
 
 
 def test_one_membership_per_person_per_group(hosted, two_labs):
@@ -299,8 +268,8 @@ def test_one_membership_per_person_per_group(hosted, two_labs):
 
 def test_an_address_is_one_account_whatever_its_case(hosted, two_labs,
                                                      django_user_model):
-    """The index stops duplicates because the admin's user editor skips
-    `find_or_create_by_email`."""
+    """The index stops duplicates from any path that skips
+    `find_or_create_by_email`, such as `create_user` in a shell."""
     with pytest.raises(IntegrityError), transaction.atomic():
         django_user_model.objects.create_user(username="mia2", email="MIA@example.org")
 

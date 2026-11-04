@@ -86,12 +86,3 @@ def test_runs_are_deleted_with_their_experiment():
 
     exp.delete()
     assert Run.objects.count() == 0
-
-
-@pytest.mark.django_db
-def test_experiment_and_run_are_registered_in_admin():
-    from django.contrib import admin
-    from experiments.models import Experiment, Run
-
-    assert Experiment in admin.site._registry
-    assert Run in admin.site._registry

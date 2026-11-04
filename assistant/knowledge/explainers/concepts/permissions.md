@@ -8,8 +8,8 @@ keywords: [permission, owner, group, group lead, primary lead, site admin, membe
 status: draft
 sources:
   - ui/permissions.py:14-82
-  - access/policy.py:212-370
-  - access/policy.py:378-386
+  - access/policy.py:194-331
+  - access/policy.py:334-343
   - access/models.py
   - experiments/models.py:246-301
   - ui/views/sharing.py:16-20

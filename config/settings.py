@@ -29,7 +29,7 @@ ALLOWED_HOSTS = env.list("ALLOWED_HOSTS", default=["localhost", "127.0.0.1"])  #
 REQUIRE_LOGIN = env.bool("REQUIRE_LOGIN", default=False)
 
 #: After `BIN_RETENTION_DAYS`, a deleted experiment leaves personal bins for the
-#: site admins' bin.
+#: site bin (`manage.py trash`).
 BIN_RETENTION_DAYS = env.int("BIN_RETENTION_DAYS", default=30)
 
 #: `ALLOW_CUSTOM_MODELS` lets users upload model code; outside a container, that
@@ -39,6 +39,17 @@ ALLOW_CUSTOM_MODELS = env.bool("ALLOW_CUSTOM_MODELS", default=False)
 #: `.GroupPolicy` stays open while `REQUIRE_LOGIN` is off; `.OpenPolicy` drops
 #: group boundaries.
 EXPERIMENT_POLICY = env.str("EXPERIMENT_POLICY", default="access.policy.GroupPolicy")
+
+#: `ACCOUNT_ONBOARDING` names the class that turns a lead's "add somebody" into
+#: an account (`access.onboarding`); the default takes a username and lets the
+#: first sign-in choose the password.
+ACCOUNT_ONBOARDING = env.str("ACCOUNT_ONBOARDING", default="access.onboarding.LocalOnboarding")
+#: `ACCOUNT_AGREEMENT` names a callable returning `(version, html)`, the terms
+#: a person accepts before using the site; empty means none.
+ACCOUNT_AGREEMENT = env.str("ACCOUNT_AGREEMENT", default="")
+#: `CODESIGNER_EXTENSIONS` lists apps installed after codesigner's own, such as
+#: a deployment's onboarding.
+CODESIGNER_EXTENSIONS = env.list("CODESIGNER_EXTENSIONS", default=[])  # pyright: ignore[reportArgumentType]
 
 LOGIN_URL = "ui:login"
 LOGIN_REDIRECT_URL = "ui:home"
@@ -180,7 +191,6 @@ RUN_IMMEDIATE_IN_THREAD = env.bool("RUN_IMMEDIATE_IN_THREAD", default=True)
 
 
 INSTALLED_APPS = [
-    "django.contrib.admin",
     "django.contrib.auth",
     "django.contrib.contenttypes",
     "django.contrib.sessions",
@@ -191,6 +201,8 @@ INSTALLED_APPS = [
     "experiments",
     "ui",
     "assistant",
+    "axes",
+    *CODESIGNER_EXTENSIONS,
 ]
 
 MIDDLEWARE = [
@@ -206,8 +218,29 @@ MIDDLEWARE = [
     # Needs `request.user` from AuthenticationMiddleware.
     "access.middleware.LoginWallMiddleware",
     "django.contrib.messages.middleware.MessageMiddleware",
+    "access.middleware.AccountGateMiddleware",
     "django.middleware.clickjacking.XFrameOptionsMiddleware",
+    # Last, as django-axes requires.
+    "axes.middleware.AxesMiddleware",
 ]
+
+#: `AxesStandaloneBackend` stops locked-out sign-ins before `.SiteBackend`
+#: checks the password.
+AUTHENTICATION_BACKENDS = [
+    "axes.backends.AxesStandaloneBackend",
+    "access.backends.SiteBackend",
+]
+
+#: Five wrong passwords lock one username from one address for an hour.
+AXES_FAILURE_LIMIT = env.int("AXES_FAILURE_LIMIT", default=5)
+AXES_COOLOFF_TIME = 1
+AXES_LOCKOUT_PARAMETERS = [["username", "ip_address"]]
+AXES_RESET_ON_SUCCESS = True
+#: `AXES_PROXY_COUNT` is the number of proxies in front of the site, so the
+#: client address comes from `X-Forwarded-For`; 0 reads the socket address.
+AXES_IPWARE_PROXY_COUNT = env.int("AXES_PROXY_COUNT", default=0)
+if AXES_IPWARE_PROXY_COUNT:
+    AXES_IPWARE_META_PRECEDENCE_ORDER = ["HTTP_X_FORWARDED_FOR", "REMOTE_ADDR"]
 
 ROOT_URLCONF = "config.urls"
 
@@ -244,19 +277,19 @@ DATABASES = {
 }
 
 
+#: NIST SP 800-63B rev. 4 for a password that is the only factor: at least 15
+#: characters, no composition rules, and a check against common passwords.
 AUTH_PASSWORD_VALIDATORS = [
-    {
-        "NAME": "django.contrib.auth.password_validation.UserAttributeSimilarityValidator",
-    },
-    {
-        "NAME": "django.contrib.auth.password_validation.MinimumLengthValidator",
-    },
-    {
-        "NAME": "django.contrib.auth.password_validation.CommonPasswordValidator",
-    },
-    {
-        "NAME": "django.contrib.auth.password_validation.NumericPasswordValidator",
-    },
+    {"NAME": "django.contrib.auth.password_validation.UserAttributeSimilarityValidator"},
+    {"NAME": "django.contrib.auth.password_validation.MinimumLengthValidator",
+     "OPTIONS": {"min_length": 15}},
+    {"NAME": "django.contrib.auth.password_validation.CommonPasswordValidator"},
+]
+
+#: New passwords use Argon2; older PBKDF2 hashes upgrade at the next sign-in.
+PASSWORD_HASHERS = [
+    "django.contrib.auth.hashers.Argon2PasswordHasher",
+    "django.contrib.auth.hashers.PBKDF2PasswordHasher",
 ]
 
 

@@ -1,10 +1,14 @@
 """`Experiment.owner` is `SET_NULL`, and an ownerless experiment is reachable
-by nobody. Therefore `.GuardedUserAdmin.has_delete_permission` returns False
-for a user who owns experiments, and deactivation is the way out.
+by nobody. Therefore `manage.py users delete` (`.delete_user`) keeps an account
+that owns experiments, and deactivation is the way out.
 """
 
+import io
+import json
+
 import pytest
-from django.urls import reverse
+from django.core.management import call_command
+from django.core.management.base import CommandError
 
 from experiments.models import Experiment
 
@@ -17,115 +21,74 @@ def hosted(settings):
     return settings
 
 
-@pytest.fixture
-def root(client, django_user_model):
-    user = django_user_model.objects.create_superuser(
-        username="root", password="pw", email="root@example.org")
-    client.force_login(user)
-    return user
-
-
 def _experiment(owner=None, name="theirs") -> Experiment:
     return Experiment.objects.create(
         name=name, model_name="Random Forest", optimizer_name="Random Search",
         metric_names=["accuracy"], seed=0, owner=owner)
 
 
-def _delete_url(user):
-    return reverse("admin:auth_user_delete", args=[user.pk])
+def _users(*args):
+    out = io.StringIO()
+    call_command("users", *args, json=True, stdout=out)
+    return json.loads(out.getvalue())
 
 
-def test_an_orphaned_experiment_is_reachable_by_nobody(client, hosted, root,
-                                                      django_user_model):
-    """The test pins the direction of the failure, since the guard reads the
-    same either way.
-    """
+def test_an_orphaned_experiment_is_reachable_by_nobody(hosted, django_user_model):
+    """What: an experiment whose owner was deleted is nobody's. How: an
+    experiment left ownerless as `SET_NULL` would leave it, asked for by a
+    stranger."""
     from access.policy import GroupPolicy
 
     leaver = django_user_model.objects.create_user(username="leaver", password="pw")
     exp = _experiment(owner=leaver)
     stranger = django_user_model.objects.create_user(username="nosy", password="pw")
 
-    exp.owner = None            # what SET_NULL leaves
+    exp.owner = None
     exp.save(update_fields=["owner"])
 
     request = type("R", (), {"user": stranger})()
     assert not GroupPolicy().experiments(request).filter(pk=exp.pk).exists()
 
 
-def test_deleting_someone_who_owns_experiments_is_refused(client, hosted, root,
-                                                          django_user_model):
-    leaver = django_user_model.objects.create_user(username="leaver", password="pw")
+def test_deleting_someone_who_owns_experiments_is_refused(hosted, django_user_model):
+    """What: `users delete` keeps an owner and their experiments, and says to
+    deactivate instead. How: an account owning one experiment."""
+    leaver = django_user_model.objects.create_user("leaver", "leaver@x.de", "pw")
     _experiment(owner=leaver)
 
-    resp = client.post(_delete_url(leaver), {"post": "yes"}, follow=True)
+    with pytest.raises(CommandError, match="Deactivate it instead"):
+        _users("delete", "leaver@x.de")
 
     assert django_user_model.objects.filter(pk=leaver.pk).exists()
     assert Experiment.objects.get().owner_id == leaver.pk
 
 
-def test_the_account_page_says_why_there_is_no_delete_button(client, hosted, root,
-                                                            django_user_model):
-    """A silent missing button would read as a bug."""
-    leaver = django_user_model.objects.create_user(username="leaver", password="pw")
-    _experiment(owner=leaver)
+def test_someone_who_owns_nothing_can_still_be_deleted(hosted, django_user_model):
+    """What: the guard protects work only. How: an account owning nothing."""
+    nobody = django_user_model.objects.create_user("nobody", "nobody@x.de", "pw")
 
-    body = client.get(
-        reverse("admin:auth_user_change", args=[leaver.pk])).content.decode()
-
-    assert "cannot be deleted" in body
-    assert "reassign" in body
-
-
-def test_someone_who_owns_nothing_can_still_be_deleted(client, hosted, root,
-                                                       django_user_model):
-    """The guard protects work only."""
-    nobody = django_user_model.objects.create_user(username="nobody", password="pw")
-
-    client.post(_delete_url(nobody), {"post": "yes"}, follow=True)
+    _users("delete", "nobody@x.de")
 
     assert not django_user_model.objects.filter(pk=nobody.pk).exists()
 
 
-def test_a_bulk_delete_including_an_owner_removes_nobody(client, hosted, root,
-                                                        django_user_model):
-    """Django cancels the whole bulk delete when `has_delete_permission`
-    returns False for any selected user, and the
-    Experiments column shows which one.
-    """
-    owner = django_user_model.objects.create_user(username="owner", password="pw")
-    _experiment(owner=owner)
-    spare = django_user_model.objects.create_user(username="spare", password="pw")
-
-    client.post(reverse("admin:auth_user_changelist"), {
-        "action": "delete_selected", "post": "yes",
-        "_selected_action": [str(owner.pk), str(spare.pk)],
-    })
-
-    assert django_user_model.objects.filter(pk=owner.pk).exists()
-    assert django_user_model.objects.filter(pk=spare.pk).exists(), \
-        "the whole selection is refused, not part of it"
-
-
-def test_deactivating_blocks_signing_in_and_keeps_the_work(client, hosted,
-                                                           django_user_model):
-    leaver = django_user_model.objects.create_user(username="leaver", password="pw")
+def test_deactivating_blocks_signing_in_and_keeps_the_work(client, hosted, django_user_model):
+    """What: `users deactivate` stops sign-in and leaves the work owned. How:
+    an owner deactivated, then signing in."""
+    leaver = django_user_model.objects.create_user("leaver", "leaver@x.de", "pw")
     _experiment(owner=leaver)
 
-    leaver.is_active = False
-    leaver.save(update_fields=["is_active"])
+    _users("deactivate", "leaver@x.de")
 
     assert not client.login(username="leaver", password="pw")
     assert Experiment.objects.get().owner_id == leaver.pk
 
 
-def test_the_list_shows_how_much_someone_owns(client, hosted, root,
-                                              django_user_model):
-    """The count shows before anyone tries to delete."""
-    owner = django_user_model.objects.create_user(username="owner", password="pw")
+def test_the_list_shows_how_much_someone_owns(hosted, django_user_model):
+    """What: `users list` counts each account's experiments, so an owner shows
+    before anyone tries to delete. How: an account owning two."""
+    owner = django_user_model.objects.create_user("owner", "owner@x.de", "pw")
     _experiment(owner=owner, name="a")
     _experiment(owner=owner, name="b")
 
-    body = client.get(reverse("admin:auth_user_changelist")).content.decode()
-
-    assert "Experiments" in body
+    assert {u["email"]: u["experiments"] for u in _users("list")} == {"owner@x.de": 2}

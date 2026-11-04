@@ -76,35 +76,19 @@ def test_a_stranger_cannot_reach_the_page(client, hosted):
     assert reverse("ui:login") in resp["Location"]
 
 
-def test_the_account_page_lists_what_this_user_may_do(client, hosted, ana,
+def test_the_account_page_lists_the_custom_model_grant(client, hosted, ana,
                                                       django_user_model):
-    """`powers` combines four separate grants."""
-    ana = _granted(django_user_model, ana, "view_all_experiments")
-    client.force_login(ana)
-
-    # Lazy translation labels need `str()` to work as dict keys.
-    granted = {str(what): allowed
-               for what, allowed in client.get(reverse("ui:account")).context["powers"]}
-
-    assert granted["See every experiment on this instance"] is True
-    assert granted["Run, edit and delete other people's experiments"] is False
-    assert granted["Change the settings every experiment inherits"] is False
-
-
-def test_a_superuser_is_told_why_everything_is_ticked(client, hosted,
-                                                      django_user_model):
-    """Superusers have every permission without a grant, so the page explains
-    the ticks."""
-    # `ALLOW_CUSTOM_MODELS` gates one power and defaults to off.
+    """What: the account page lists one power, custom models, as granted or
+    not. How: Ana without the grant, then with it."""
     hosted.ALLOW_CUSTOM_MODELS = True
-    root = django_user_model.objects.create_superuser(username="su", password="pw")
-    client.force_login(root)
+    client.force_login(ana)
+    before = dict((str(w), a) for w, a in client.get(reverse("ui:account")).context["powers"])
+    ana = _granted(django_user_model, ana, "use_custom_models")
+    client.force_login(ana)
+    after = dict((str(w), a) for w, a in client.get(reverse("ui:account")).context["powers"])
 
-    resp = client.get(reverse("ui:account"))
-
-    assert resp.context["is_administrator"]
-    assert all(allowed for _what, allowed in resp.context["powers"])
-    assert "superuser" in resp.content.decode()
+    assert before == {"Upload and run custom models": False}
+    assert after == {"Upload and run custom models": True}
 
 
 def test_the_instance_wide_switch_is_shown_as_such(client, hosted,
@@ -112,8 +96,7 @@ def test_the_instance_wide_switch_is_shown_as_such(client, hosted,
     """The page marks `ALLOW_CUSTOM_MODELS=False` as an instance-wide floor, so
     admins skip hunting for a grant."""
     hosted.ALLOW_CUSTOM_MODELS = False
-    root = django_user_model.objects.create_superuser(username="su", password="pw")
-    client.force_login(root)
+    client.force_login(django_user_model.objects.create_user(username="ana", password="pw"))
 
     resp = client.get(reverse("ui:account"))
 

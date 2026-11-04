@@ -9,7 +9,6 @@ job.
 
 from django.conf import settings
 from django.contrib.auth import get_user_model
-from django.contrib.auth.models import Permission
 from django.core.management.base import BaseCommand, CommandError
 from django.db import transaction
 from django.utils import timezone
@@ -45,7 +44,6 @@ class Command(BaseCommand):
         if options["reset"]:
             self._reset()
 
-        site = self._site_admin()
         vision = self._group("vision-lab", limit=5)
         nlp = self._group("nlp-group", limit=3)
 
@@ -78,7 +76,7 @@ class Command(BaseCommand):
                       "backend": "slurm", "job_id": "2519001",
                       "started_at": timezone.now(), "trial_offset": 0})
 
-        self._report(site, [(vision, lead_v, [ana, ben]), (nlp, lead_n, [cleo])])
+        self._report([(vision, lead_v, [ana, ben]), (nlp, lead_n, [cleo])])
 
 
     def _reset(self) -> None:
@@ -93,20 +91,6 @@ class Command(BaseCommand):
         users.delete()
         groups.delete()
         self.stdout.write("Removed the demo groups and their people.")
-
-    def _site_admin(self):
-        User = get_user_model()
-        user, made = User.objects.get_or_create(
-            username="site", defaults={"email": "site@example.org"})
-        if made:
-            user.set_password("site")
-            user.save(update_fields=["password"])
-        user.user_permissions.add(Permission.objects.get(
-            content_type__app_label="access", codename="manage_site"))
-        group = self._group("site", limit=1)
-        Membership.objects.get_or_create(
-            user=user, group=group, defaults={"role": Membership.PRIMARY_LEAD})
-        return user
 
     def _group(self, name, *, limit):
         group, _ = Group.objects.get_or_create(
@@ -151,10 +135,9 @@ class Command(BaseCommand):
                           "finished_at": timezone.now()})
         return exp
 
-    def _report(self, site, groups) -> None:
+    def _report(self, groups) -> None:
         out, ok = self.stdout, self.style.SUCCESS
         out.write(ok("\nSeeded. Every password is the username.\n"))
-        out.write(f"  {'site':10s} site admin — Site tab, and no experiments anywhere")
         for group, lead, members in groups:
             out.write(f"\n  {group.name} ({group.member_count}/{group.user_limit} seats)")
             out.write(f"  {'  ' + lead.get_username():10s} group lead — "

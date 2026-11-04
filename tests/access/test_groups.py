@@ -38,9 +38,7 @@ def _experiment(owner, name, *, shares=None):
 
 @pytest.fixture
 def world(django_user_model):
-    """`world` seeds two groups and one admin."""
-    from django.contrib.auth.models import Permission
-
+    """`world` seeds two groups, and one account in no group."""
     vision = Group.objects.create(name="vision-lab", user_limit=5)
     nlp = Group.objects.create(name="nlp-group", user_limit=3)
 
@@ -53,9 +51,6 @@ def world(django_user_model):
         "cleo": _user(django_user_model, "cleo", nlp),
         "site": django_user_model.objects.create_user("site", password="pw"),
     }
-    w["site"].user_permissions.add(Permission.objects.get(
-        content_type__app_label="access", codename="manage_site"))
-    w["site"] = django_user_model.objects.get(pk=w["site"].pk)
 
     w["ana_private"] = _experiment(w["ana"], "ana private")
     w["ana_viewer"] = _experiment(w["ana"], "ana viewer", shares={w["ben"]: VIEWER})
@@ -206,12 +201,10 @@ def test_but_their_everyday_list_stays_their_own(hosted, world):
 
 
 def test_a_shared_experiment_is_listed_once(client, hosted, world):
-    """The listing joins grants onto a superuser lead's reach, which lacks
+    """The listing joins grants onto a lead's reach, which lacks
     `distinct()`."""
     ExperimentShare.objects.create(experiment=world["ana_viewer"],
                                    user=world["lead_v"], level=VIEWER)
-    world["ana"].is_superuser = True
-    world["ana"].save(update_fields=["is_superuser"])
     Membership.objects.filter(user=world["ana"]).update(role=Membership.PRIMARY_LEAD)
     client.force_login(world["ana"])
 
@@ -269,22 +262,30 @@ def test_a_member_may_not(hosted, world):
     assert not GroupPolicy().may(request, world["ana_viewer"], RUN)
 
 
-def test_a_site_admin_in_no_group_sees_no_experiments(hosted, world):
-    """`manage_site` governs administration and membership governs reading, and
-    the site admin in `world` has no membership.
-    """
+def test_somebody_in_no_group_sees_no_experiments(hosted, world):
+    """What: membership alone governs reading, so an account in no group sees
+    nothing. How: `world`'s account without a membership."""
     assert _visible(None, world["site"]) == set()
 
 
-def test_a_site_admin_cannot_reach_another_groups_by_url(client, hosted, world):
+def test_a_superuser_reaches_nothing_beyond_their_groups(hosted, world, django_user_model):
+    """What: a superuser flag grants no reach; membership still decides. How:
+    `world`'s account in no group, made a superuser, then a member."""
+    world["site"].is_superuser = True
+    world["site"].save(update_fields=["is_superuser"])
+    site = django_user_model.objects.get(pk=world["site"].pk)
+    assert _visible(None, site) == set()
+
+
+def test_somebody_in_no_group_cannot_reach_a_groups_work_by_url(client, hosted, world):
     client.force_login(world["site"])
 
     assert _detail(client, world["ana_viewer"]).status_code == 404
 
 
-def test_a_site_admin_with_a_group_sees_that_group(hosted, world, django_user_model):
-    """`create_site_admin` gives a site admin a group of one by default, and the
-    permission `manage_site` neither grants nor withdraws reach.
+def test_joining_a_group_reaches_that_group(hosted, world, django_user_model):
+    """What: a primary lead reaches their group's work and nothing else. How:
+    `world`'s account in no group made primary lead of the vision group.
     """
     Membership.objects.create(user=world["site"], group=world["vision"],
                               role=Membership.PRIMARY_LEAD)

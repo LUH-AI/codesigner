@@ -55,27 +55,6 @@ def administrator(django_user_model, group):
     return _member(django_user_model, "root", group, role="lead")
 
 
-@pytest.fixture
-def staff(django_user_model):
-    """`staff` has `is_staff` alone, which reaches /admin/ and nothing in
-    codesigner.
-    """
-    return django_user_model.objects.create_user(
-        username="deskclerk", password="pw", is_staff=True)
-
-
-def _granted(django_user_model, username, *codenames):
-    """The re-fetch clears Django's per-instance permission cache.
-    """
-    from django.contrib.auth.models import Permission
-
-    user = django_user_model.objects.create_user(username=username, password="pw")
-    user.user_permissions.set(
-        Permission.objects.filter(content_type__app_label="access",
-                                  codename__in=codenames))
-    return django_user_model.objects.get(pk=user.pk)
-
-
 def _experiment(owner=None, name="owned", **shares) -> Experiment:
     """Shares pass as `ana=VIEWER` keywords."""
     exp = Experiment.objects.create(
@@ -368,8 +347,8 @@ def test_the_new_owner_can_share_it_and_the_old_one_cannot(client, hosted, ana, 
 
 
 def test_an_ownerless_experiment_belongs_to_nobody(client, hosted, ana):
-    """An ownerless row is reachable by nobody, and `access/admin.py` blocks any
-    attempt to delete a user who still owns experiments.
+    """An ownerless row is reachable by nobody, and `.delete_user` keeps any
+    user who still owns experiments.
     """
     exp = _experiment(owner=None)
     client.force_login(ana)
@@ -404,51 +383,19 @@ def test_a_lead_sees_and_can_run_everything_in_their_group(client, hosted, ben,
                                    "delete": False, "share": False, "rename": False}
 
 
-def test_is_staff_alone_grants_nothing_here(client, hosted, ben, staff):
-    """A refactor reaching for `is_staff` again fails here.
-    """
-    exp = _experiment(owner=ben)
-    client.force_login(staff)
-
-    assert _detail(client, exp).status_code == 404
-
-
-def test_seeing_everything_is_not_being_allowed_to_touch_it(client, hosted, ben,
-                                                            django_user_model):
-    """A supervisor can read results without spending compute or deleting
-    anything."""
-    reader = _granted(django_user_model, "reader", "view_all_experiments")
-    exp = _experiment(owner=ben)
-    client.force_login(reader)
-
-    resp = _detail(client, exp)
-
-    # Reaching the page is the view check.
-    assert resp.status_code == 200, "they should be able to see it"
-    assert resp.context["may"][EXPORT], "reading includes taking a copy"
-    assert not resp.context["may"][RUN]
-    assert not resp.context["may"][DELETE]
-
-
-def test_managing_implies_seeing(client, hosted, ben, django_user_model):
-    """The queryset returns everything for either permission."""
-    manager = _granted(django_user_model, "manager", "manage_experiments")
-    exp = _experiment(owner=ben)
-    client.force_login(manager)
-
-    resp = _detail(client, exp)
-
-    assert resp.status_code == 200
-    assert resp.context["may"][RUN]
-
-
-def test_a_superuser_needs_no_grant(client, hosted, ben, django_user_model):
-    """Superusers keep every power through an upgrade."""
-    root = django_user_model.objects.create_superuser(username="su", password="pw")
+@pytest.mark.parametrize("flag", ["is_staff", "is_superuser"])
+def test_operator_accounts_have_no_session_on_the_site(client, hosted, ben,
+                                                       django_user_model, flag):
+    """What: `.SiteBackend` drops the session of a staff or superuser account,
+    so it gets no further than the sign-in page. How: such an
+    account forced in, opening Ben's experiment."""
+    root = django_user_model.objects.create_user(username="su", password="pw", **{flag: True})
     exp = _experiment(owner=ben)
     client.force_login(root)
 
-    assert all(_detail(client, exp).context["may"].values())
+    resp = _detail(client, exp)
+
+    assert resp.status_code == 302 and reverse("ui:login") in resp["Location"]
 
 
 def test_an_export_names_no_paths_on_this_server(client, ana):

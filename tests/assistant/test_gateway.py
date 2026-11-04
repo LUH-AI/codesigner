@@ -86,16 +86,15 @@ def test_nothing_the_assistant_may_do_is_beyond_the_person(hosted, world):  # no
                     assert not as_agent, (name, exp_name, action)
 
 
-def test_a_site_admins_reach_is_not_the_assistants(hosted, world, django_user_model):  # noqa: F811
-    """The test checks that a superuser sees every experiment, while the
-    assistant acting for the superuser sees only the superuser's own. The test
-    counts the experiments visible to a superuser and to an assistant for the
-    superuser."""
+def test_a_superuser_reaches_nothing_the_assistant_could_use(hosted, world, django_user_model):  # noqa: F811
+    """What: a superuser in no group reaches no experiment, so neither does an
+    assistant acting for one. How: the experiments visible to a superuser and
+    to an assistant for the superuser."""
     root = django_user_model.objects.create_superuser("root", password="pw")
     policy = permissions.policy()
     agent = Context(Conversation.objects.create(owner=root)).request()
 
-    assert policy.experiments(_Person(root)).count() == 4
+    assert policy.experiments(_Person(root)).count() == 0
     assert policy.experiments(agent).count() == 0
 
 

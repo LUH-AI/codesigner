@@ -3,12 +3,9 @@ carries it."""
 
 import json
 import re
-from typing import Any, cast
 
 import pytest
-from django.contrib.admin.sites import AdminSite
 from django.core.files.uploadedfile import SimpleUploadedFile
-from django.test import RequestFactory
 from django.urls import reverse
 
 from tests.conftest import DATASETS_DIR, export_ihpo, post_new_experiment
@@ -147,24 +144,6 @@ def test_resetting_a_prior_is_recorded(client):
     entry = exp.data.history.order_by("-id").first()
     assert entry is not None
     assert entry.kind == "prior_reset" and entry.payload["new"] is None
-
-
-def test_an_admin_edit_of_the_optimizer_is_recorded(client):
-    """The admin is the only place optimizer parameters can change."""
-    from django.contrib.auth.models import AnonymousUser
-
-    from experiments.admin import ExperimentDataAdmin
-    from experiments.models import ExperimentData
-
-    exp = _create(client)
-    data = ExperimentData.objects.get(pk=exp.data_id)
-    data.optimizer_params = {"n_initial": 7}
-    request = RequestFactory().post("/")
-    request.user = AnonymousUser()
-    ExperimentDataAdmin(ExperimentData, AdminSite()).save_model(request, data, cast(Any, None), True)
-
-    entry = exp.data.history.get(kind="optimizer_params_changed")
-    assert entry.payload["new"] == {"n_initial": 7}
 
 
 def test_an_unknown_kind_is_a_mistake():

@@ -1,11 +1,7 @@
-"""Codesigner's views and commands create every `User` through
-`find_or_create_by_email`, which keeps the email address a reliable key. A
-case-insensitive unique index (`access/migrations/0009`) backs that key up
-against races, and a duplicate typed into the Django admin fails with an
-`IntegrityError`.
+"""Accounts keyed by email address, for an onboarding that identifies people
+by address (`access.onboarding`). A case-insensitive unique index
+(`access/migrations/0009`) backs that key up against races.
 """
-
-import secrets
 
 from django.contrib.auth import get_user_model
 from django.core.validators import validate_email
@@ -41,26 +37,19 @@ def free_username(base: str) -> str:
     return name
 
 
-def generated_password() -> str:
-    """`generated_password` makes a short first password to hand over in person,
-    since no mail server exists.
-    """
-    return secrets.token_urlsafe(9)
-
-
-def find_or_create_by_email(email: str, *, password: str = ""):
-    """`find_or_create_by_email` returns `(user, created, password)`, where
-    *password* is the one given or generated for a new account and empty for an
-    existing one. The username is the address itself if it fits and is free,
-    else a free name from the part before the `@`. An invalid address raises
-    `ValidationError` before anything is written.
+def find_or_create_by_email(email: str):
+    """`find_or_create_by_email` returns `(user, created)`. A new account has
+    no usable password until its person sets one. The username is the address
+    itself if it fits and is free, else a free name from the part before the
+    `@`. An invalid address raises `ValidationError` before anything is
+    written.
     """
     address = normalize(email)
     validate_email(address)
 
     existing = find(address)
     if existing is not None:
-        return existing, False, ""
+        return existing, False
 
     User = get_user_model()
     if len(address) <= USERNAME_MAX and not User.objects.filter(
@@ -69,8 +58,8 @@ def find_or_create_by_email(email: str, *, password: str = ""):
     else:
         username = free_username(address.split("@", 1)[0])
 
-    given = password or generated_password()
     with transaction.atomic():
-        user = User.objects.create_user(username=username, email=address,
-                                        password=given)
-    return user, True, given
+        user = User.objects.create_user(username=username, email=address)
+        user.set_unusable_password()
+        user.save(update_fields=["password"])
+    return user, True

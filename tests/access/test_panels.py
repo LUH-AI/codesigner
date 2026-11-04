@@ -1,10 +1,14 @@
 """Every account gets a Group tab, and a lead's group page adds colleagues'
-experiments and people controls. The Site tab shows a site admin groups, usage,
-jobs and the bin, without naming any experiment. Panels outside a user's role
-return 404.
+experiments and people controls. Panels outside a user's role return 404. Site
+administration has no pages at all; its services (`manage.py jobs`, `usage`)
+identify work without naming it.
 """
 
+import io
+import json
+
 import pytest
+from django.core.management import call_command
 from django.urls import reverse
 
 from access.models import Group, Membership
@@ -28,20 +32,21 @@ def _person(django_user_model, name, group=None, role=Membership.MEMBER, **kw):
 
 @pytest.fixture
 def lab(django_user_model):
-    from django.contrib.auth.models import Permission
-
     group = Group.objects.create(name="lab", user_limit=3)
     other = Group.objects.create(name="other", user_limit=5)
-    site = _person(django_user_model, "site")
-    site.user_permissions.add(Permission.objects.get(
-        content_type__app_label="access", codename="manage_site"))
     return {
         "group": group, "other": other,
         "lead": _person(django_user_model, "vera", group, Membership.LEAD),
         "ana": _person(django_user_model, "ana", group),
         "outsider": _person(django_user_model, "cleo", other),
-        "site": django_user_model.objects.get(pk=site.pk),
+        "nobody": _person(django_user_model, "nils"),
     }
+
+
+def _printed(*args):
+    out = io.StringIO()
+    call_command(*args, json=True, stdout=out)
+    return out.getvalue()
 
 
 def _experiment(owner, name, **kw):
@@ -75,16 +80,19 @@ def test_a_member_cannot_post_to_the_lead_controls(client, hosted, lab):
     client.force_login(lab["ana"])
 
     resp = client.post(reverse("ui:group_add_person", args=[lab["group"].pk]),
-                       {"email": "x@example.org", "role": "member"})
+                       {"identifier": "x", "role": "member"})
 
     assert resp.status_code == 404
 
 
-@pytest.mark.parametrize("route", ["ui:site_groups", "ui:site_usage", "ui:site_jobs"])
-def test_only_a_site_admin_has_a_site_panel(client, hosted, lab, route):
-    client.force_login(lab["lead"])
+@pytest.mark.parametrize("path", ["/site/", "/site/usage/", "/site/jobs/", "/site/trash/",
+                                  "/admin/"])
+def test_the_site_has_no_administration_pages(client, hosted, django_user_model, path):
+    """What: neither the old site pages nor Django's admin exist, even for a
+    superuser. How: each old address, signed in as a superuser."""
+    client.force_login(django_user_model.objects.create_superuser("root", "r@x.de", "pw"))
 
-    assert client.get(reverse(route)).status_code == 404
+    assert client.get(path).status_code == 404
 
 
 def test_a_lead_opens_their_own_group_and_no_other(client, hosted, lab):
@@ -103,9 +111,9 @@ def test_a_lead_fills_the_seats_they_were_given(client, hosted, lab,
     client.force_login(lab["lead"])
 
     client.post(reverse("ui:group_add_person", args=[lab["group"].pk]),
-                {"email": "newbie@example.org", "password": "pw", "role": "member"})
+                {"identifier": "newbie", "role": "member"})
 
-    added = django_user_model.objects.get(email="newbie@example.org")
+    added = django_user_model.objects.get(username="newbie")
     assert added.memberships.get().group == lab["group"]
 
 
@@ -113,37 +121,14 @@ def test_and_is_refused_past_them_with_the_number(client, hosted, lab):
     """The refusal states the count and whose limit applies."""
     client.force_login(lab["lead"])
     add = reverse("ui:group_add_person", args=[lab["group"].pk])
-    client.post(add, {"email": "third@example.org", "role": "member"})
+    client.post(add, {"identifier": "third", "role": "member"})
 
-    resp = client.post(add, {"email": "fourth@example.org", "role": "member"},
+    resp = client.post(add, {"identifier": "fourth", "role": "member"},
                        follow=True)
 
     body = resp.content.decode()
     assert "full" in body and "3" in body
     assert "site admin" in body, "it should say whose limit it is"
-
-
-def test_a_lead_cannot_raise_their_own_limit(client, hosted, lab):
-    """The save route belongs to the site admin."""
-    client.force_login(lab["lead"])
-
-    resp = client.post(reverse("ui:site_group_save"),
-                       {"pk": lab["group"].pk, "name": "lab", "user_limit": "99"})
-
-    lab["group"].refresh_from_db()
-    assert resp.status_code == 404
-    assert lab["group"].user_limit == 3
-
-
-def test_a_site_admin_can(client, hosted, lab):
-    client.force_login(lab["site"])
-
-    client.post(reverse("ui:site_group_save"),
-                {"pk": lab["group"].pk, "name": "lab", "user_limit": "9",
-                 "is_active": "on"})
-
-    lab["group"].refresh_from_db()
-    assert lab["group"].user_limit == 9
 
 
 def test_removing_somebody_who_owns_work_is_refused(client, hosted, lab):
@@ -244,7 +229,7 @@ def test_the_experiment_page_points_to_where_sharing_is(client, hosted, lab):
 
 
 def test_somebody_in_no_group_is_told_so(client, hosted, lab):
-    client.force_login(lab["site"])
+    client.force_login(lab["nobody"])
 
     resp = client.get(reverse("ui:group_index"))
 
@@ -252,85 +237,44 @@ def test_somebody_in_no_group_is_told_so(client, hosted, lab):
     assert "not in a group" in resp.content.decode()
 
 
-def test_the_site_panels_name_no_experiment(client, hosted, lab):
-    """The test asserts the privacy claim as an absence."""
+def test_the_site_reports_name_no_experiment(hosted, lab):
+    """What: the group, usage and jobs reports never name an experiment, only
+    its identifier and who started it. How: a running job on an experiment
+    with a telling name, through each command's JSON."""
     exp = _experiment(lab["ana"], "Secret cancer model")
     Run.objects.create(experiment=exp, primary_metric="accuracy", status="running",
                        stopping={"max_trials": 5}, started_by=lab["ana"],
                        job_id="99", trial_offset=0)
-    client.force_login(lab["site"])
 
-    for route in ("ui:site_groups", "ui:site_usage", "ui:site_jobs"):
-        body = client.get(reverse(route)).content.decode()
-        assert "Secret cancer model" not in body, route
-
-
-def test_a_job_is_identified_without_saying_what_it_is(client, hosted, lab):
-    """The short code identifies a job without describing the work."""
-    exp = _experiment(lab["ana"], "Secret cancer model")
-    Run.objects.create(experiment=exp, primary_metric="accuracy", status="running",
-                       stopping={"max_trials": 5}, started_by=lab["ana"],
-                       job_id="99", trial_offset=0)
-    client.force_login(lab["site"])
-
-    body = client.get(reverse("ui:site_jobs")).content.decode()
-
-    assert exp.identifier in body
-    assert "ana" in body, "who started it is theirs to see"
+    for args in (("groups", "list"), ("usage", "groups"), ("usage", "people"),
+                 ("jobs", "list")):
+        assert "Secret cancer model" not in _printed(*args), args
+    job = json.loads(_printed("jobs", "list"))[0]
+    assert job["identifier"] == exp.identifier and job["who"] == "ana"
 
 
-def test_a_site_admin_can_stop_a_job_they_cannot_see_the_experiment_for(
-        client, hosted, lab):
-    """The stop route takes a run, since the site admin has no experiment
-    visibility."""
-    exp = _experiment(lab["ana"], "running")
-    run = Run.objects.create(experiment=exp, primary_metric="accuracy",
-                             status="running", stopping={"max_trials": 5},
-                             started_by=lab["ana"], trial_offset=0)
-    client.force_login(lab["site"])
-
-    client.post(reverse("ui:site_job_stop", args=[run.pk]), follow=True)
-
-    run.refresh_from_db()
-    assert run.status == "error"
-
-
-def test_a_job_a_site_admin_stops_keeps_count_of_its_trials(client, hosted, lab):
-    """The stopped run counts its trials past `trial_offset`, as a page stop
-    does."""
+def test_a_stopped_job_keeps_count_of_its_trials(hosted, lab):
+    """What: `jobs stop` ends a run and counts its trials past `trial_offset`,
+    as a page stop does. How: a running run with three stored trials and an
+    offset of one."""
     exp = _experiment(lab["ana"], "running")
     exp.data.result = {"data": [{}, {}, {}]}
     exp.data.save(update_fields=["result"])
     run = Run.objects.create(experiment=exp, primary_metric="accuracy",
                              status="running", stopping={"max_trials": 5},
                              started_by=lab["ana"], trial_offset=1)
-    client.force_login(lab["site"])
 
-    client.post(reverse("ui:site_job_stop", args=[run.pk]), follow=True)
+    _printed("jobs", "stop", str(run.pk))
 
     run.refresh_from_db()
-    assert run.trial_count == 2
+    assert run.status == "error" and run.trial_count == 2
 
 
-def test_nobody_else_can_stop_a_job_that_way(client, hosted, lab):
-    exp = _experiment(lab["ana"], "running")
-    run = Run.objects.create(experiment=exp, primary_metric="accuracy",
-                             status="running", stopping={"max_trials": 5},
-                             started_by=lab["ana"], trial_offset=0)
-    client.force_login(lab["lead"])
-
-    assert client.post(reverse("ui:site_job_stop", args=[run.pk])).status_code == 404
-    run.refresh_from_db()
-    assert run.status == "running"
-
-
-def test_the_rail_offers_each_tab_to_its_own_role(client, hosted, lab):
-    """Only site admins see the Site tab."""
-    for who, expected in [("ana", ["ui:group_index"]), ("vera", ["ui:group_index"]),
-                          ("site", ["ui:group_index", "ui:site_groups"])]:
-        client.force_login(lab["site"] if who == "site"
-                           else lab["lead"] if who == "vera" else lab["ana"])
+def test_the_rail_offers_the_group_tab_and_no_site_tab(client, hosted, lab):
+    """What: every account's rail offers the Group tab and none offers a Site
+    tab. How: a member's and a lead's home page."""
+    for who in ("ana", "lead"):
+        client.force_login(lab[who])
         body = client.get(reverse("ui:home")).content.decode()
-        for route in ("ui:group_index", "ui:site_groups"):
-            present = reverse(route) in body
-            assert present == (route in expected), f"{who}: {route}"
+        assert reverse("ui:group_index") in body, who
+        assert "/site/" not in body, who

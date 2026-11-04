@@ -175,6 +175,9 @@ body.signin { display: block; background: var(--rail-bg); }
 .signin-panel .card { background: var(--bg); }
 .signin-locale { margin-top: 1rem; text-align: center; }
 .signin-locale select { width: auto; }
+.signin-panel > .caption, .signin-signout { margin-top: 0.75rem; text-align: center; }
+.signin-panel .agreement { max-height: 40vh; overflow: auto; margin-bottom: 1rem; }
+.signin-signout button { background: none; border: 0; color: inherit; text-decoration: underline; cursor: pointer; }
 
 /* Language switcher: a native <select> transparently overlaid on the globe
    icon, so the rail stays icon-only while the control stays fully clickable

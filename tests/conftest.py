@@ -124,14 +124,20 @@ def runs_execute_synchronously(settings):
 def suite_runs_in_its_own_configuration(settings):
     """A developer's `.env` may set `REQUIRE_LOGIN`, which turns tests into
     login-wall tests, `RUN_BACKEND=slurm`, which submits real cluster jobs, or
-    `ASSISTANT_ENABLED`, which puts a chat with an absent model on every page.
+    `ASSISTANT_ENABLED`, which puts a chat with an absent model on every page,
+    and `ACCOUNT_ONBOARDING` or `ACCOUNT_AGREEMENT` change how accounts start.
     `suite_runs_in_its_own_configuration` restores the fresh-checkout defaults,
-    and the `hosted` fixtures opt out.
+    and the `hosted` fixtures opt out. Sign-in lockouts are off and passwords
+    hash with MD5, since Argon2 costs every created user tens of milliseconds.
     """
     settings.REQUIRE_LOGIN = False
     settings.RUN_BACKEND = "local"
     settings.ASSISTANT_ENABLED = False
     settings.ASSISTANT_TURNS_INLINE = True
+    settings.ACCOUNT_ONBOARDING = "access.onboarding.LocalOnboarding"
+    settings.ACCOUNT_AGREEMENT = ""
+    settings.AXES_ENABLED = False
+    settings.PASSWORD_HASHERS = ["django.contrib.auth.hashers.MD5PasswordHasher"]
 
 
 @pytest.fixture

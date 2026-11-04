@@ -3,7 +3,8 @@
 (`ExperimentShare`) in a group they are still in, and everything in a group they
 lead (`Experiment.group`). A viewer may view and export, a contributor may also
 run, edit and delete, and a lead may run and edit. The owner alone has `SHARE`
-and `RENAME`, and membership decides a site admin's reach as for anybody else.
+and `RENAME`. Membership alone decides reach: no flag or permission reaches
+across groups.
 """
 
 from django.conf import settings
@@ -42,9 +43,6 @@ class OpenPolicy:
         without accounts means all of them.
         """
         return Experiment.objects.filter(deleted_at__isnull=False)
-
-    def trash(self, request):
-        return Experiment.objects.none()
 
     def for_listing(self, request):
         """`for_listing` returns what a page should list, which may be narrower
@@ -104,11 +102,6 @@ class AgentLimits:
     def may_change_defaults(self, request):
         return not via_agent(request) and super().may_change_defaults(request)  # type: ignore[misc]
 
-    def trash(self, request):
-        if via_agent(request):
-            return Experiment.objects.none()
-        return super().trash(request)  # type: ignore[misc]
-
 
 def policy() -> OpenPolicy:
     """`policy` caches one instance per `EXPERIMENT_POLICY` value, so a test can
@@ -133,21 +126,14 @@ def visible_experiments(request):
     """
     return policy().for_listing(request)
 
-#: Manages groups; grants no experiment access.
-MANAGE_SITE = "access.manage_site"
-#: May change the instance-wide default settings.
-CHANGE_DEFAULTS = "access.change_defaults"
 #: May upload custom models, which run arbitrary code.
 USE_CUSTOM_MODELS = "access.use_custom_models"
-#: Escape hatch across groups; off by default.
-VIEW_ALL = "access.view_all_experiments"
-MANAGE_ALL = "access.manage_experiments"
 
 
 def memberships_of(user) -> list:
     """`memberships_of` caches *user*'s memberships, groups included, on the
-    user, so a page costs one query. An empty list is normal, since a site admin
-    may be in no group.
+    user, so a page costs one query. An empty list is normal: a person may be in
+    no group.
     """
     if user is None or not getattr(user, "is_authenticated", False):
         return []
@@ -188,10 +174,6 @@ def groups_to_choose_from(user) -> list:
         return []
     groups = [m.group for m in memberships_of(user)]
     return sorted(groups, key=lambda g: g.name.lower()) if len(groups) > 1 else []
-
-
-def is_site_admin(user) -> bool:
-    return _holds(user, MANAGE_SITE)
 
 
 def is_lead(user) -> bool:
@@ -237,14 +219,9 @@ class GroupPolicy(OpenPolicy):
             # cannot leak data.
             return Experiment.objects.none()
 
-        # The escape hatch also reaches a deleted group's work, for support
-        # cases, and excludes what a person deleted.
-        if _holds(user, VIEW_ALL) or _holds(user, MANAGE_ALL):
-            return Experiment.objects.filter(deleted_at__isnull=True)
-
-        # The queries below only see live work, and a deleted group's
-        # experiments wait in `trash()` for a site admin. The `data` join saves
-        # one query per row, since every list shows experiment names.
+        # Only live work counts: a deleted group's experiments wait in the site
+        # bin (`experiments.services.site.trash`). The `data` join saves one
+        # query per row, since every list shows experiment names.
         live = Experiment.objects.select_related("data").filter(
             trashed_at__isnull=True, deleted_at__isnull=True)
 
@@ -253,22 +230,6 @@ class GroupPolicy(OpenPolicy):
         return live.filter(Q(owner=user)
                            | _granted(user)
                            | Q(group_id__in=led_group_ids(user))).distinct()
-
-    def trash(self, request):
-        """`trash` returns the site bin for a site admin: a deleted group's
-        work, plus deletions no person's bin still contains.
-        """
-        if not settings.REQUIRE_LOGIN:
-            return Experiment.objects.none()
-        if not is_site_admin(getattr(request, "user", None)):
-            return Experiment.objects.none()
-        # The site bin receives a deleted group's work unless a person deleted
-        # it first and still keeps it in a bin. `orphaned()` adds deletions that
-        # no bin contains any more.
-        from experiments.services.bin import orphaned
-        group_gone = Experiment.objects.filter(trashed_at__isnull=False,
-                                               deleted_at__isnull=True)
-        return (group_gone | orphaned()).distinct()
 
     def bin(self, request):
         """`bin` returns what the requesting user deleted or had deleted under
@@ -315,9 +276,6 @@ class GroupPolicy(OpenPolicy):
             return True
 
         user = request.user
-        if _holds(user, MANAGE_ALL):
-            return True
-
         # Every experiment in the queryset may be viewed and exported, since an
         # export strips server paths.
         if action in (VIEW, EXPORT):
@@ -363,11 +321,9 @@ class GroupPolicy(OpenPolicy):
                  "run custom models.")
 
     def may_change_defaults(self, request):
-        """`may_change_defaults` guards the defaults every inheriting experiment
-        shares."""
-        if not settings.REQUIRE_LOGIN:
-            return True
-        return _holds(getattr(request, "user", None), CHANGE_DEFAULTS)
+        """`may_change_defaults` only allows the defaults page without accounts;
+        a hosted instance changes them with `manage.py defaults`."""
+        return not settings.REQUIRE_LOGIN
 
 
 #: `OwnerPolicy` is the pre-group name, kept so old `EXPERIMENT_POLICY` values

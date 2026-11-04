@@ -51,9 +51,6 @@ _SETTINGS_URL_NAMES = {"appearance", "export_preferences", "account",
 _GROUP_URL_NAMES = {"group_index", "group_detail", "group_add_person",
                     "group_remove_person", "group_set_role",
                     "group_transfer_primary"}
-_SITE_URL_NAMES = {"site_groups", "site_group_save", "site_group_delete",
-                   "site_usage", "site_jobs", "site_job_stop",
-                   "site_trash", "site_trash_rehome", "site_trash_delete"}
 
 
 def active_tab(request):
@@ -62,8 +59,6 @@ def active_tab(request):
         tab = "settings"
     elif url_name in _GROUP_URL_NAMES:
         tab = "group"
-    elif url_name in _SITE_URL_NAMES:
-        tab = "site"
     else:
         tab = "experiments"
     return {"active_tab": tab}
@@ -85,14 +80,13 @@ def offered_languages(request):
 def capabilities(request):
     """`capabilities` exposes instance-wide permissions to the layout.
     """
-    from access.policy import is_lead, is_site_admin, memberships_of
+    from access.policy import is_lead, memberships_of
 
     user = getattr(request, "user", None)
     return {
         "may_change_defaults": policy().may_change_defaults(request),
         # Computed once for the rail tabs.
         "is_group_lead": is_lead(user),
-        "is_site_admin": is_site_admin(user),
         # Group tab sidebar, from cached memberships.
         "my_groups": sorted((m.group for m in memberships_of(user)),
                             key=lambda g: g.name.lower()),

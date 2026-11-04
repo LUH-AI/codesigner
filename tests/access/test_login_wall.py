@@ -118,7 +118,8 @@ def test_the_language_route_is_reachable_before_signing_in(client, hosted):
 
 
 def test_the_url_space_has_no_unintended_exemptions(hosted):
-    """The wall is default-closed, so every exemption listed here is deliberate."""
+    """The wall is default-closed, so every exemption listed here is
+    deliberate: the pages that set a password come before any session."""
     exempt = set()
     for pattern in get_resolver().url_patterns:
         for route in getattr(pattern, "url_patterns", [pattern]):
@@ -126,4 +127,5 @@ def test_the_url_space_has_no_unintended_exemptions(hosted):
             if callback is not None and getattr(callback, "login_required", True) is False:
                 exempt.add(route.name)
 
-    assert exempt == {"healthz", "set_language", "login"}
+    assert exempt == {"healthz", "set_language", "login", "first_password", "account_setup",
+                      "password_forgot"}

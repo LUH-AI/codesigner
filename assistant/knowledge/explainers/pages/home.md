@@ -24,7 +24,7 @@ The page Codesigner opens on (the "Codesigner" heading). When the assistant is s
 
 ## What is on it
 
-- **Icon rail** (far left): 🧪 Experiments, 👥 Group, 🏛 Site (administrators), ⚙ Settings, ⏻ sign out, and the 🌐 language select (`language-select`).
+- **Icon rail** (far left): 🧪 Experiments, 👥 Group, ⚙ Settings, ⏻ sign out, and the 🌐 language select (`language-select`).
 - **Experiment Selection** (sidebar):
   - **＋ New**: makes a new draft at once and opens its setup.
   - **📂 Load**: opens the page for loading a `.ihpo` file or a SMAC output folder.
