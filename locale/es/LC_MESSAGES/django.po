@@ -8,7 +8,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: PACKAGE VERSION\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2026-11-04 13:32+0000\n"
+"POT-Creation-Date: 2026-11-04 14:52+0000\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
 "Language-Team: LANGUAGE <LL@li.org>\n"
@@ -18,25 +18,29 @@ msgstr ""
 "Content-Transfer-Encoding: 8bit\n"
 "Plural-Forms: nplurals=2; plural=(n != 1);\n"
 
-#: access/management/commands/groups.py:23
+#: access/management/commands/groups.py:18
 #, python-format
 msgid "There is no group called “%(name)s”."
 msgstr "No hay ningún grupo llamado «%(name)s»."
 
-#: access/management/commands/members.py:28
+#: access/management/commands/members.py:21
 #, python-format
 msgid "%(who)s is not in %(group)s."
 msgstr "%(who)s no está en %(group)s."
 
-#: access/onboarding.py:34 ui/templates/ui/account/login.html:13
+#: access/onboarding.py:28 ui/templates/ui/account/login.html:13
 msgid "Username"
 msgstr "Usuario"
 
-#: access/onboarding.py:50
+#: access/onboarding.py:44
 msgid "A username of 1 to 150 characters is needed."
 msgstr "Se necesita un nombre de usuario de 1 a 150 caracteres."
 
-#: access/onboarding.py:60
+#: access/onboarding.py:48
+msgid "A username can only contain letters, digits and @ . + - _."
+msgstr "Un nombre de usuario solo puede contener letras, dígitos y @ . + - _."
+
+#: access/onboarding.py:58
 #, python-format
 msgid ""
 "Added %(name)s to %(group)s. They choose their password the first time they "
@@ -45,12 +49,12 @@ msgstr ""
 "%(name)s se ha añadido a %(group)s. La contraseña se elige al iniciar sesión "
 "por primera vez con este nombre de usuario."
 
-#: access/onboarding.py:63
+#: access/onboarding.py:61
 #, python-format
 msgid "Added %(name)s to %(group)s."
 msgstr "%(name)s se ha añadido a %(group)s."
 
-#: access/onboarding.py:72
+#: access/onboarding.py:70
 #, python-format
 msgid "%(name)s chooses a new password the next time they sign in."
 msgstr ""
@@ -70,30 +74,30 @@ msgstr ""
 "no puede ejecutarse. Asigne al experimento una persona propietaria con "
 "permiso para ejecutar modelos propios."
 
-#: access/services/groups.py:28
+#: access/services/groups.py:24
 #, python-format
 msgid "“%(who)s” is not a valid %(what)s."
 msgstr "«%(who)s» no es un valor válido para: %(what)s."
 
-#: access/services/groups.py:42
+#: access/services/groups.py:37
 msgid "A group needs a name."
 msgstr "Un grupo necesita un nombre."
 
-#: access/services/groups.py:44 access/services/groups.py:66
+#: access/services/groups.py:39 access/services/groups.py:59
 #, python-format
 msgid "There is already a group called “%(name)s”."
 msgstr "Ya existe un grupo llamado «%(name)s»."
 
-#: access/services/groups.py:46
+#: access/services/groups.py:41
 msgid "A new group needs a primary lead."
 msgstr "Un grupo nuevo necesita una dirección principal."
 
-#: access/services/groups.py:48
+#: access/services/groups.py:43
 msgid "A new group needs at least one seat, for its primary lead."
 msgstr ""
 "Un grupo nuevo necesita al menos una plaza, para su dirección principal."
 
-#: access/services/groups.py:63
+#: access/services/groups.py:56
 msgid ""
 "A group needs a name, a seat limit of zero or more, and a storage limit of "
 "zero or more."
@@ -101,16 +105,16 @@ msgstr ""
 "Un grupo necesita un nombre, un límite de plazas de cero o más y un límite de"
 " almacenamiento de cero o más."
 
-#: access/services/groups.py:81
+#: access/services/groups.py:73
 #, python-format
 msgid "%(name)s still has people in it. Remove them first."
 msgstr "%(name)s todavía tiene personas. Elimínelas primero."
 
-#: access/services/groups.py:108
+#: access/services/groups.py:97
 msgid "Say who to add."
 msgstr "Indique a quién quiere añadir."
 
-#: access/services/groups.py:111
+#: access/services/groups.py:100
 #, python-format
 msgid ""
 "%(group)s is full: %(limit)s of %(limit)s seats used. A site admin can raise "
@@ -119,20 +123,20 @@ msgstr ""
 "%(group)s está lleno: %(limit)s de %(limit)s plazas ocupadas. La "
 "administración del sitio puede subir el límite."
 
-#: access/services/groups.py:114
+#: access/services/groups.py:103
 msgid "You cannot add somebody with that role."
 msgstr "No puede añadir a nadie con ese rol."
 
-#: access/services/groups.py:117
+#: access/services/groups.py:106
 #, python-format
 msgid "%(who)s is already in %(group)s."
 msgstr "%(who)s ya está en %(group)s."
 
-#: access/services/groups.py:131
+#: access/services/groups.py:119
 msgid "You cannot remove yourself from your own group."
 msgstr "No puede quitarse a sí mismo de su propio grupo."
 
-#: access/services/groups.py:134
+#: access/services/groups.py:122
 #, python-format
 msgid ""
 "%(name)s is the primary lead. The role has to be transferred before they can "
@@ -141,7 +145,7 @@ msgstr ""
 "%(name)s es la dirección principal. El rol debe transferirse antes de que "
 "pueda salir."
 
-#: access/services/groups.py:138
+#: access/services/groups.py:126
 #, python-format
 msgid ""
 "%(name)s still owns experiments. Out of the group nobody could reach them — "
@@ -150,7 +154,7 @@ msgstr ""
 "%(name)s todavía posee experimentos. Fuera del grupo nadie podría acceder a "
 "ellos — reasígnelos primero."
 
-#: access/services/groups.py:148
+#: access/services/groups.py:134
 msgid ""
 "You cannot change your own role. Transfer the primary lead role to somebody "
 "else instead."
@@ -158,15 +162,15 @@ msgstr ""
 "No puede cambiar su propio rol. Transfiera el rol de dirección principal a "
 "otra persona."
 
-#: access/services/groups.py:151
+#: access/services/groups.py:137
 msgid "That is not a role you can set."
 msgstr "Ese no es un rol que pueda asignar."
 
-#: access/services/groups.py:161
+#: access/services/groups.py:146
 msgid "You already hold it."
 msgstr "Ya lo tiene."
 
-#: access/services/groups.py:164
+#: access/services/groups.py:149
 #, python-format
 msgid ""
 "The primary lead role can only go to a group lead. Make %(name)s a lead "
@@ -175,12 +179,12 @@ msgstr ""
 "El rol de dirección principal solo puede ir a una dirección de grupo. Haga "
 "primero que %(name)s sea dirección de grupo."
 
-#: access/services/users.py:20
+#: access/services/users.py:18
 #, python-format
 msgid "There is no account for %(who)s."
 msgstr "No hay ninguna cuenta para %(who)s."
 
-#: access/services/users.py:45
+#: access/services/users.py:39
 #, python-format
 msgid ""
 "%(who)s still owns experiments, so this account cannot be deleted. Deactivate"
@@ -476,16 +480,16 @@ msgstr "Este experimento"
 msgid "Return to %(name)s"
 msgstr "Volver a %(name)s"
 
-#: experiments/management/commands/jobs.py:30
+#: experiments/management/commands/jobs.py:27
 #, python-format
 msgid "Run %(pk)s is not in progress."
 msgstr "La ejecución %(pk)s no está en curso."
 
-#: experiments/management/commands/jobs.py:31
+#: experiments/management/commands/jobs.py:28
 msgid "Stopped by a site administrator."
 msgstr "Detenido por la administración del sitio."
 
-#: experiments/management/commands/trash.py:20
+#: experiments/management/commands/trash.py:16
 #, python-format
 msgid "Experiment %(id)s is not in the site bin."
 msgstr "El experimento %(id)s no está en la papelera del sitio."
@@ -2934,7 +2938,7 @@ msgstr "Idioma"
 msgid "Terms of use"
 msgstr "Condiciones de uso"
 
-#: ui/templates/ui/account/agreement.html:11 ui/views/accounts.py:84
+#: ui/templates/ui/account/agreement.html:11 ui/views/accounts.py:77
 msgid "I accept these terms."
 msgstr "Acepto estas condiciones."
 
@@ -4895,15 +4899,15 @@ msgstr "%(name)s supera el límite de subida de %(mb)s MB."
 msgid "%(name)s must be a .%(ext)s file."
 msgstr "%(name)s debe ser un archivo .%(ext)s."
 
-#: ui/views/accounts.py:130
+#: ui/views/accounts.py:120
 msgid "Choose your password"
 msgstr "Elija su contraseña"
 
-#: ui/views/accounts.py:140
+#: ui/views/accounts.py:130
 msgid "Set your password"
 msgstr "Establezca su contraseña"
 
-#: ui/views/accounts.py:167
+#: ui/views/accounts.py:157
 msgid "If an account matches, a message is on its way."
 msgstr "Si hay una cuenta que coincide, se le ha enviado un mensaje."
 

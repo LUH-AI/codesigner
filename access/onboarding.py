@@ -12,6 +12,8 @@ decides whether the sign-in page links to `ui:password_forgot`, which calls
 
 from django.conf import settings
 from django.contrib.auth import get_user_model
+from django.contrib.auth.validators import UnicodeUsernameValidator
+from django.core.exceptions import ValidationError
 from django.utils.module_loading import import_string
 from django.utils.translation import gettext as _
 from django.utils.translation import gettext_lazy
@@ -31,8 +33,14 @@ class LocalOnboarding:
         return (identifier or "").strip()
 
     def find(self, identifier: str):
+        """`find` ignores usernames that break `UnicodeUsernameValidator`, which
+        leaves system accounts such as codesigner-manage's out of reach."""
         identifier = self.normalize(identifier)
         User = get_user_model()
+        try:
+            UnicodeUsernameValidator()(identifier)
+        except ValidationError:
+            return None
         return (User.objects.filter(username__iexact=identifier).first()
                 or User.objects.filter(email__iexact=identifier).first())
 
@@ -40,6 +48,10 @@ class LocalOnboarding:
         username = self.normalize(identifier)
         if not username or len(username) > 150:
             raise ServiceError(_("A username of 1 to 150 characters is needed."))
+        try:
+            UnicodeUsernameValidator()(username)
+        except ValidationError:
+            raise ServiceError(_("A username can only contain letters, digits and @ . + - _."))
         user = get_user_model().objects.create_user(username=username)
         user.set_unusable_password()
         user.save(update_fields=["password"])
