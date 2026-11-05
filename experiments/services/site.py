@@ -130,96 +130,20 @@ def usage_by_model() -> list[dict]:
         c, r = counts.get(model, {}), runs.get(model, {})
         rows.append({"model": model, "experiments": c.get("experiments", 0),
                      "people": c.get("people", 0), "groups": c.get("groups", 0),
-                     "runs": r.get("runs", 0), "trials": r.get("trials") or 0,
+                     "trials": r.get("trials") or 0, "runs": r.get("runs", 0),
                      "seconds": r.get("seconds") or 0.0})
     return sorted(rows, key=lambda row: row["seconds"], reverse=True)
 
 
 def model_seconds_by_group() -> list[dict]:
-    """`model_seconds_by_group` gives trial seconds and runs per model and
-    group."""
+    """`model_seconds_by_group` gives trials, runs and trial seconds per model
+    and group."""
     return [{"model": row["experiment__data__model_name"],
              "group": row["experiment__group__name"] or "",
-             "runs": row["runs"], "seconds": row["seconds"] or 0.0}
+             "trials": row["trials"] or 0, "runs": row["runs"],
+             "seconds": row["seconds"] or 0.0}
             for row in (Run.objects
                         .values("experiment__data__model_name", "experiment__group__name")
-                        .annotate(runs=Count("pk"), seconds=Sum("trial_seconds"))
+                        .annotate(trials=Sum("trial_count"), runs=Count("pk"),
+                                  seconds=Sum("trial_seconds"))
                         .order_by("experiment__data__model_name", "experiment__group__name"))]
-
-
-def _quantile(ordered: list, q: float) -> float:
-    position = q * (len(ordered) - 1)
-    low = int(position)
-    high = min(low + 1, len(ordered) - 1)
-    return ordered[low] + (ordered[high] - ordered[low]) * (position - low)
-
-
-def best_configurations() -> dict:
-    """`best_configurations` gathers, per model, the best configuration of
-    every live experiment with a finished search: for a numeric
-    hyperparameter the spread of its best values within the range searched,
-    for a categorical one how often each choice won, and for both the mean
-    importance the experiments measured. Hyperparameters come most important
-    first.
-    """
-    import math
-
-    gathered: dict = {}
-    for data in (exp.data for exp in _live().filter(data__result__isnull=False)
-                 .select_related("data")):
-        result = data.result or {}
-        best = (result.get("configs") or {}).get(str(result.get("best_config_id")))
-        if not best:
-            continue
-        space = {hp["name"]: hp for hp in (data.config_space or {}).get("hyperparameters", [])}
-        importance = (result.get("hyperparameter_importance") or {}).get(
-            result.get("primary_metric")) or {}
-        model = gathered.setdefault(data.model_name, {"experiments": 0, "hps": {}})
-        model["experiments"] += 1
-        for name, value in best.items():
-            hp = model["hps"].setdefault(name, {"values": [], "importance": [],
-                                                "lower": None, "upper": None, "log": False})
-            hp["values"].append(value)
-            if isinstance(importance.get(name), (int, float)):
-                hp["importance"].append(importance[name])
-            bounds = space.get(name, {})
-            if "lower" in bounds:
-                hp["lower"] = bounds["lower"] if hp["lower"] is None else min(hp["lower"], bounds["lower"])
-                hp["upper"] = bounds["upper"] if hp["upper"] is None else max(hp["upper"], bounds["upper"])
-                hp["log"] = hp["log"] or bool(bounds.get("log"))
-
-    def position(hp, x):
-        low, high = hp["lower"], hp["upper"]
-        if low is None or high is None or high <= low:
-            return None
-        if hp["log"] and low > 0 and x > 0:
-            return (math.log(x) - math.log(low)) / (math.log(high) - math.log(low))
-        return (x - low) / (high - low)
-
-    summary = {}
-    for model, found in gathered.items():
-        rows = []
-        for name, hp in found["hps"].items():
-            numbers = [v for v in hp["values"] if isinstance(v, (int, float))
-                       and not isinstance(v, bool)]
-            row = {"name": name, "n": len(hp["values"]),
-                   "importance": (sum(hp["importance"]) / len(hp["importance"])
-                                  if hp["importance"] else None)}
-            if numbers and len(numbers) == len(hp["values"]):
-                ordered = sorted(numbers)
-                stats = {"min": ordered[0], "q1": _quantile(ordered, 0.25),
-                         "median": _quantile(ordered, 0.5), "q3": _quantile(ordered, 0.75),
-                         "max": ordered[-1]}
-                row.update(kind="numeric", lower=hp["lower"], upper=hp["upper"], log=hp["log"],
-                           **stats, positions={k: position(hp, v) for k, v in stats.items()})
-            else:
-                counts: dict = {}
-                for value in hp["values"]:
-                    counts[str(value)] = counts.get(str(value), 0) + 1
-                row.update(kind="categorical", choices=sorted(
-                    ({"choice": c, "share": n / len(hp["values"])} for c, n in counts.items()),
-                    key=lambda choice: choice["share"], reverse=True))
-            rows.append(row)
-        rows.sort(key=lambda row: (row["importance"] is None, -(row["importance"] or 0)))
-        summary[model] = {"experiments": found["experiments"], "hyperparameters": rows}
-    return summary

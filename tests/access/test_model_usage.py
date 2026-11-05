@@ -1,5 +1,5 @@
-"""Site-wide usage per model, where each model's best configurations land,
-and deleting an account whose experiments are already in the bin."""
+"""Site-wide usage per model, and deleting an account whose experiments are
+already in the bin."""
 
 import pytest
 
@@ -11,22 +11,10 @@ from experiments.services import site as site_service
 
 pytestmark = pytest.mark.django_db
 
-SPACE = {"hyperparameters": [
-    {"type": "uniform_float", "name": "C", "lower": 0.01, "upper": 100.0, "log": True},
-    {"type": "categorical", "name": "kernel", "choices": ["rbf", "linear"]}]}
-
-
-def _experiment(owner, group, model, best=None):
-    exp = Experiment.objects.create(
+def _experiment(owner, group, model):
+    return Experiment.objects.create(
         name="x", model_name=model, optimizer_name="SMAC", metric_names=["accuracy"],
         seed=0, owner=owner, group=group)
-    if best is not None:
-        exp.data.config_space = SPACE
-        exp.data.result = {"configs": {"7": best}, "best_config_id": 7,
-                           "primary_metric": "accuracy",
-                           "hyperparameter_importance": {"accuracy": {"C": 0.6, "kernel": 0.1}}}
-        exp.data.save(update_fields=["config_space", "result"])
-    return exp
 
 
 @pytest.fixture
@@ -53,24 +41,6 @@ def test_usage_is_totalled_per_model(lab):
     assert (rows[0]["experiments"], rows[0]["runs"], rows[0]["trials"], rows[0]["seconds"]) == (
         2, 2, 10, 80.0)
     assert rows[0]["people"] == 1 and rows[0]["groups"] == 1
-
-
-def test_best_configurations_summarise_where_the_winners_land(lab):
-    """What: `best_configurations` gives a numeric hyperparameter's median of
-    best values and its place in the searched log range, a categorical one's
-    winning shares, and orders them by mean importance. How: three SVM
-    experiments with known best configurations."""
-    group, ana = lab
-    for c, kernel in ((0.1, "rbf"), (1.0, "rbf"), (10.0, "linear")):
-        _experiment(ana, group, "SVM", best={"C": c, "kernel": kernel})
-
-    svm = site_service.best_configurations()["SVM"]
-
-    assert svm["experiments"] == 3
-    c, kernel = svm["hyperparameters"]
-    assert c["name"] == "C" and c["median"] == 1.0 and c["importance"] == pytest.approx(0.6)
-    assert c["positions"]["median"] == pytest.approx(0.5)
-    assert kernel["choices"][0] == {"choice": "rbf", "share": pytest.approx(2 / 3)}
 
 
 def test_an_account_whose_experiments_are_binned_can_be_deleted(lab):

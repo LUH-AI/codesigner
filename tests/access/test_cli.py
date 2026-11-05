@@ -125,7 +125,7 @@ def test_usage_reports_groups_and_people_as_json_and_csv():
                                          "trials": 0, "trial_seconds": 0}
     out = io.StringIO()
     call_command("usage", "people", csv=True, stdout=out)
-    assert out.getvalue().splitlines()[0] == "group,email,role,runs,trials,trial_seconds"
+    assert out.getvalue().splitlines()[0] == "group,email,role,trials,runs,trial_seconds"
 
 
 def test_defaults_are_shown_set_and_reset():
