@@ -133,14 +133,17 @@ def test_everything_the_job_needs_is_staged(cluster_settings, experiment, monkey
 
 def test_the_job_id_is_recorded_before_the_run_is_watched(cluster_settings,
                                                           experiment, monkeypatch):
-    """A restarted consumer can then find the job again."""
+    """What: the run's job records the scheduler's number and the trials it
+    produced. How: a finished cluster run with three trials."""
     run, _ = _run(experiment, FakeTransport(), monkeypatch,
                   status={"state": "done", "offset": 0, "stopped_by": "",
                           "config_space": None, "error": ""},
                   result=_finished_result())
 
-    assert run.job_id == "81234"
-    assert run.backend == "slurm"
+    (job,) = run.jobs.all()
+    assert (job.backend, job.scheduler_id, job.status) == ("slurm", "81234", "done")
+    assert (job.trial_offset, job.trial_count) == (0, 3)
+    assert job.submitted_at is not None and job.started_at is not None
 
 
 
@@ -175,11 +178,13 @@ def test_a_restart_fails_a_submitted_run(cluster_settings, experiment):
     from experiments.services import run as run_service
 
     run = run_service.create_run(experiment, {"max_trials": 3}, "accuracy")
-    type(run).objects.filter(pk=run.pk).update(status="submitted", job_id="81234")
+    type(run).objects.filter(pk=run.pk).update(status="submitted")
+    run.jobs.create(backend="slurm", scheduler_id="81234", status="submitted",
+                    trial_offset=0)
 
     assert run_service.sweep_stale_runs() == 1
     run.refresh_from_db()
-    assert run.status == "error"
+    assert run.status == "error" and run.job.status == "error"
 
 
 def test_a_finished_job_writes_the_rows_a_local_run_writes(cluster_settings,
@@ -334,8 +339,9 @@ def test_the_default_backend_still_runs_here(settings, experiment):
     run.refresh_from_db()
 
     assert run.status == "done"
-    assert run.backend == "local"
-    assert run.job_id == ""
+    (job,) = run.jobs.all()
+    assert (job.backend, job.scheduler_id, job.status) == ("local", "", "done")
+    assert job.trial_count == run.trial_count == 2
 
 
 def test_a_cluster_run_refuses_a_metric_its_model_cannot_score(tmp_path, monkeypatch):

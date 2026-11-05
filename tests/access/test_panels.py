@@ -248,9 +248,10 @@ def test_the_site_reports_name_no_experiment(hosted, lab):
     its identifier and who started it. How: a running job on an experiment
     with a telling name, through each command's JSON."""
     exp = _experiment(lab["ana"], "Secret cancer model")
-    Run.objects.create(experiment=exp, primary_metric="accuracy", status="running",
-                       stopping={"max_trials": 5}, started_by=lab["ana"],
-                       job_id="99", trial_offset=0)
+    run = Run.objects.create(experiment=exp, primary_metric="accuracy", status="running",
+                             stopping={"max_trials": 5}, started_by=lab["ana"],
+                             trial_offset=0)
+    run.jobs.create(backend="slurm", scheduler_id="99", trial_offset=0)
 
     for args in (("groups", "list"), ("usage", "groups"), ("usage", "people"),
                  ("jobs", "list")):

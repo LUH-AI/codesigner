@@ -129,6 +129,32 @@ def test_usage_reports_groups_and_people_as_json_and_csv():
     assert out.getvalue().splitlines()[0] == "group,email,role,trials,runs,trial_seconds"
 
 
+def test_usage_counts_only_runs_started_in_the_window():
+    """What: `usage --since/--until` count the runs started on those days and
+    the days between, each end included. How: three runs in one group, started
+    on the 1st, 10th and 20th of a month, counted over the 10th to the 20th and
+    from the 11th."""
+    from datetime import datetime, timezone as tz
+
+    run("groups", "create", "vision", "--seats", "3", "--lead", "vera@lab.de")
+    group = Group.objects.get(name="vision")
+    exp = Experiment.objects.create(
+        name="x", model_name="Random Forest", optimizer_name="Random Search",
+        metric_names=["accuracy"], seed=0, group=group)
+    for day, trials in ((1, 5), (10, 7), (20, 11)):
+        Run.objects.create(experiment=exp, primary_metric="accuracy", status="done",
+                           stopping={}, trial_count=trials, trial_seconds=float(trials),
+                           started_at=datetime(2026, 3, day, 12, tzinfo=tz.utc))
+
+    (between,) = run("usage", "groups", "--since", "2026-03-10", "--until", "2026-03-20")
+    (later,) = run("usage", "groups", "--since", "2026-03-11")
+    (models,) = run("usage", "models", "--until", "2026-03-01")
+
+    assert (between["runs"], between["trials"]) == (2, 18)
+    assert (later["runs"], later["trials"]) == (1, 11)
+    assert (models["runs"], models["trials"]) == (1, 5)
+
+
 def test_defaults_are_shown_set_and_reset():
     """What: `defaults show/set/reset` read and change the inherited settings,
     coerced like the settings form, and refuse an unknown key. How: one

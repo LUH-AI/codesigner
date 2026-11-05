@@ -177,13 +177,39 @@ def _trials_stored(experiment_pk) -> int:
 
 
 def _start(run, **fields) -> None:
-    """The start offset lets a failed run own its partial trials.
+    """The start offset lets a failed run own its partial trials. A local run
+    is one job, in the worker.
     """
     from experiments.models import Run
 
+    now, offset = timezone.now(), _trials_stored(run.experiment_id)
     Run.objects.filter(pk=run.pk).update(
-        status="running", started_at=timezone.now(),
-        trial_offset=_trials_stored(run.experiment_id), **fields)
+        status="running", started_at=now, trial_offset=offset, **fields)
+    _open_job(run.pk, "local", status="running", submitted_at=now, started_at=now,
+              trial_offset=offset)
+
+
+def _open_job(run_id, backend, **fields):
+    from experiments.models import Job
+
+    return Job.objects.create(run_id=run_id, backend=backend, **fields)
+
+
+def _close_jobs(run, status, error="") -> None:
+    """`_close_jobs` ends *run*'s unfinished jobs with *status*, each with the
+    trials stored since its own offset and their seconds."""
+    from experiments.models import ExperimentData, Job
+
+    result = (ExperimentData.objects.filter(experiment__pk=run.experiment_id)
+              .values_list("result", flat=True).first()) or {}
+    trials = result.get("data") or []
+    for job in Job.objects.filter(run_id=run.pk, finished_at__isnull=True):
+        produced = None if job.trial_offset is None else trials[job.trial_offset:]
+        Job.objects.filter(pk=job.pk).update(
+            status=status, error=error, finished_at=timezone.now(),
+            trial_count=None if produced is None else len(produced),
+            trial_seconds=(None if produced is None
+                           else sum(float(t.get("time") or 0.0) for t in produced)))
 
 
 def fail_runs(runs, error) -> int:
@@ -197,6 +223,7 @@ def fail_runs(runs, error) -> int:
                     else max(0, _trials_stored(run.experiment_id) - run.trial_offset))
         count += Run.objects.filter(pk=run.pk).update(
             status="error", error=error, finished_at=now, trial_count=produced)
+        _close_jobs(run, "error", error)
     return count
 
 
@@ -213,10 +240,18 @@ def force_stop(exp) -> None:
     from experiments.models import Run
 
     stuck = exp.runs.filter(status__in=Run.ACTIVE_STATUSES, cancel_requested=True)
-    for job_id in stuck.exclude(job_id="").values_list("job_id", flat=True):
-        abandon_cluster_job(job_id)
+    abandon_jobs(stuck)
     fail_runs(stuck, _("Given up on by hand: it stopped answering, and "
                        "cancelling it had no effect."))
+
+
+def abandon_jobs(runs) -> None:
+    """`abandon_jobs` cancels the scheduler jobs still open for *runs*."""
+    from experiments.models import Job
+
+    for scheduler_id in (Job.objects.filter(run__in=runs, finished_at__isnull=True)
+                         .exclude(scheduler_id="").values_list("scheduler_id", flat=True)):
+        abandon_cluster_job(scheduler_id)
 
 
 def abandon_cluster_job(job_id: str) -> None:
@@ -340,6 +375,7 @@ def _execute_run_locally(run_id):
         stopped_by=(STOPPED_BY_CANCELLED if cancelled
                     else (result.metadata.get("stopped_by") or "")),
     )
+    _close_jobs(run, "cancelled" if cancelled else "done")
 
 
 def execute_run_on_cluster(run_id):
@@ -349,8 +385,7 @@ def execute_run_on_cluster(run_id):
     from experiments.models import Run
     run = Run.objects.get(pk=run_id)
     experiment = run.experiment
-    Run.objects.filter(pk=run_id).update(
-        backend="slurm", trial_offset=_trials_stored(experiment.pk))
+    Run.objects.filter(pk=run_id).update(trial_offset=_trials_stored(experiment.pk))
 
     try:
         # The job runs the code on the cluster, so the policy check comes first.
@@ -380,7 +415,9 @@ def execute_run_on_cluster(run_id):
             model=Path(experiment.data.model_file.path) if experiment.data.model_file else None,
         )
         job_id = jobs.submit(ssh, run_id, workdir, hours=_hours_for(run))
-        Run.objects.filter(pk=run_id).update(status="submitted", job_id=job_id)
+        Run.objects.filter(pk=run_id).update(status="submitted")
+        _open_job(run_id, "slurm", scheduler_id=job_id, status="submitted",
+                  submitted_at=timezone.now(), trial_offset=_trials_stored(experiment.pk))
 
         status = _watch(ssh, run_id, experiment.pk, workdir, job_id)
     except Exception as exc:  # noqa: BLE001 — any failure is reported on the run
@@ -393,15 +430,18 @@ def execute_run_on_cluster(run_id):
 def _watch(ssh, run_id, experiment_pk, workdir, job_id) -> dict:
     """`_watch` returns `status.json`, or an error status for a killed job.
     """
-    from experiments.models import ExperimentData, Run
+    from experiments.models import ExperimentData, Job, Run
     cancelled = False
     started = False
     while True:
         state = jobs.poll(ssh, job_id)
 
         if not started and state != jobs.QUEUED:
+            now = timezone.now()
             Run.objects.filter(pk=run_id, status="submitted").update(
-                status="running", started_at=timezone.now())
+                status="running", started_at=now)
+            Job.objects.filter(run_id=run_id, scheduler_id=job_id, status="submitted").update(
+                status="running", started_at=now)
             started = True
 
         if not cancelled and Run.objects.filter(
@@ -452,6 +492,7 @@ def _finish_cluster_run(run_id, experiment_pk, status: dict) -> None:
         ExperimentData.objects.filter(experiment__pk=experiment_pk).update(**fields)
 
     _record_prior_event(run_id, status.get("prior"), offset)
+    run = Run.objects.get(pk=run_id)
     Run.objects.filter(pk=run_id).update(
         status="cancelled" if status["state"] == "cancelled" else "done",
         finished_at=timezone.now(),
@@ -461,6 +502,7 @@ def _finish_cluster_run(run_id, experiment_pk, status: dict) -> None:
         stopped_by=(STOPPED_BY_CANCELLED if status["state"] == "cancelled"
                     else (status.get("stopped_by") or "")),
     )
+    _close_jobs(run, "cancelled" if status["state"] == "cancelled" else "done")
 
 
 def _hours_for(run) -> int:

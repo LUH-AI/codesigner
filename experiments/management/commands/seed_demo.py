@@ -70,12 +70,15 @@ class Command(BaseCommand):
 
         # Gives the Jobs panel a row and Stop a target.
         running = self._experiment(ben, "Iris — running now")
-        Run.objects.get_or_create(
+        run, made = Run.objects.get_or_create(
             experiment=running, status="running",
             defaults={"primary_metric": "accuracy",
                       "stopping": {"max_trials": 60}, "started_by": ben,
-                      "backend": "slurm", "job_id": "2519001",
                       "started_at": timezone.now(), "trial_offset": 0})
+        if made:
+            run.jobs.create(backend="slurm", scheduler_id="2519001", status="running",
+                            submitted_at=run.started_at, started_at=run.started_at,
+                            trial_offset=0)
 
         self._report([(vision, lead_v, [ana, ben]), (nlp, lead_n, [cleo])])
 

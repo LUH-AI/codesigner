@@ -371,6 +371,7 @@ class Run(models.Model):
     cancel_requested_by_id: int | None
     history: RelatedManager[ExperimentEvent]
     trial_models: RelatedManager[TrialModel]
+    jobs: RelatedManager[Job]
 
     STATUS_CHOICES = [
         ("pending", "Pending"),
@@ -409,10 +410,6 @@ class Run(models.Model):
     #: Append-only search-level events.
     events = models.JSONField(default=list, blank=True)
     status = models.CharField(max_length=20, choices=STATUS_CHOICES, default="pending")
-    #: `backend` records where each run ran, since the configured backend can
-    #: change later.
-    backend = models.CharField(max_length=20, default="local")
-    job_id = models.CharField(max_length=64, blank=True, default="")
     cancel_requested = models.BooleanField(default=False)
     #: `finished_at` is set once the trial in flight returns.
     cancel_requested_at = models.DateTimeField(null=True, blank=True)
@@ -433,9 +430,63 @@ class Run(models.Model):
         return f"{self.experiment.title} run #{self.pk} ({self.status})"
 
     @property
+    def job(self):
+        """`job` is the run's latest `.Job`, or None before one starts."""
+        return self.jobs.order_by("-pk").first()
+
+    @property
     def max_trials(self):
         """`max_trials` gives the trial cap, else None."""
         return self.stopping.get("max_trials")
+
+    @property
+    def duration(self):
+        if self.started_at and self.finished_at:
+            return (self.finished_at - self.started_at).total_seconds()
+        return None
+
+
+class Job(models.Model):
+    """`Job` is one execution of a `.Run`: in the worker (`local`) or as a
+    scheduler job (`slurm`). A run has one job today and may have several, and
+    each job produces a range of the experiment's trials. Jobs are this
+    instance's record of where work ran, so an `.ihpo` never carries them.
+    """
+
+    id: int
+    run_id: int
+
+    STATUS_CHOICES = [
+        ("submitted", "Submitted"),
+        ("running", "Running"),
+        ("done", "Done"),
+        ("error", "Error"),
+        ("cancelled", "Cancelled"),
+    ]
+    ACTIVE_STATUSES = ("submitted", "running")
+
+    run = models.ForeignKey(Run, on_delete=models.CASCADE, related_name="jobs")
+    #: `backend` records where the job ran, since the configured backend can
+    #: change later.
+    backend = models.CharField(max_length=20, default="local")
+    #: The scheduler's own number for the job; empty for a local one.
+    scheduler_id = models.CharField(max_length=64, blank=True, default="")
+    status = models.CharField(max_length=20, choices=STATUS_CHOICES, default="running")
+    submitted_at = models.DateTimeField(null=True, blank=True)
+    started_at = models.DateTimeField(null=True, blank=True)
+    finished_at = models.DateTimeField(null=True, blank=True)
+    #: With `trial_count`, gives the job's trial range in the experiment.
+    trial_offset = models.IntegerField(null=True, blank=True)
+    #: Null until finished.
+    trial_count = models.IntegerField(null=True, blank=True)
+    trial_seconds = models.FloatField(null=True, blank=True)
+    error = models.TextField(blank=True, default="")
+
+    class Meta:
+        ordering = ["-pk"]
+
+    def __str__(self) -> str:
+        return f"job #{self.pk} of run #{self.run_id} ({self.backend}, {self.status})"
 
     @property
     def duration(self):

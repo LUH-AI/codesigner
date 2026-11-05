@@ -17,8 +17,8 @@ sources:
   - core/modelhost/deadline.py
   - ui/optimizer_labels.py:7-32
   - ui/views/runs.py:157-162
-  - experiments/services/run.py:236-320
-  - experiments/services/run.py:481-492
+  - experiments/services/run.py:230-246 (request_cancel, force_stop)
+  - experiments/services/run.py:508-515 (_hours_for)
   - config/settings.py:62
 ---
 

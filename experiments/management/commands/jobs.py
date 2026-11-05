@@ -26,4 +26,5 @@ class Command(JsonCommand):
         if run is None:
             raise ServiceError(_("Run %(pk)s is not in progress.") % {"pk": options["run"]})
         site_service.stop_job(run, options["reason"] or _("Stopped by a site administrator."))
-        return {"stopped": run.pk, "job_id": run.job_id}
+        job = run.job
+        return {"stopped": run.pk, "job_id": job.scheduler_id if job else ""}

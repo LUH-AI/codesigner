@@ -10,7 +10,7 @@ sources:
   - ui/figures/catalog.py:35-40 (BestConfiguration)
   - ui/templates/ui/figures/best_configuration.html
   - ui/views/dashboard.py:346-477 (_detail_context panels)
-  - ui/views/common.py:99-118 (_best_panels)
+  - ui/views/common.py:91-110 (_best_panels)
   - ui/views/runs.py:65-101 (_live_payloads best_html)
   - core/optimizers/base.py:142-152 (OptimizationResult.best_index)
   - ui/templates/ui/experiment_detail.html:3055-3064 (show), 3255-3267 (swapBestConfiguration)

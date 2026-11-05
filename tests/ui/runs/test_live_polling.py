@@ -61,7 +61,9 @@ def test_a_submitted_job_polls_only_for_its_start(client, ran_experiment):
     interval, since no trials arrive while the job waits in the queue."""
     from ui.views import common
 
-    ran_experiment.runs.all().update(status="submitted", job_id="81234")
+    ran_experiment.runs.all().update(status="submitted")
+    ran_experiment.runs.get().jobs.create(backend="slurm", scheduler_id="81234",
+                                          status="submitted")
     body = _poll(client, ran_experiment, trials=1)
 
     assert "Submitted to the cluster as job 81234" in body
