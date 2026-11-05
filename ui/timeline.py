@@ -12,6 +12,8 @@ from django.utils.dateparse import parse_datetime
 from django.utils.translation import gettext as _
 from django.utils.translation import gettext_lazy
 
+from experiments.services.history import PRIOR_KINDS
+
 from . import times
 from .figures.data_handling import describe, is_default
 from .formatting import sigfigs
@@ -218,12 +220,17 @@ def _data_handling_entry(exp, configuration, at, at_trial, seq):
     return _entry(exp, "data_handling", at, at_trial, summary, rows, seq=seq)
 
 
-def _event_entry(exp, event):
+#: `_BELOW_ITS_RUN` exceeds every event id, so run-linked entries sort below
+#: the run entry (sequence 0) that shares their time.
+_BELOW_ITS_RUN = 10 ** 12
+
+
+def _event_entry(exp, event, started_as=None):
     p: Any = event.payload or {}
     kind = event.kind
     hp = p.get("hyperparameter")
     if kind == "created":
-        configuration = p.get("configuration") or {}
+        configuration = started_as or {}
         summary = _("Set up: %(model)s on %(dataset)s, tuned by %(optimizer)s.") % {
             "model": (configuration.get("model") or {}).get("name") or "?",
             "dataset": ((configuration.get("dataset") or {}).get("demo")
@@ -259,11 +266,6 @@ def _event_entry(exp, event):
     elif kind == "prior_withdrawn":
         summary = _("Prior on %(hp)s withdrawn.") % {"hp": hp}
         details = [(_("Hyperparameter"), hp), (_("Was"), prior_rows(p.get("old")))]
-    elif kind == "prior_reset":
-        summary = _("Prior on %(hp)s put back to what the last run searched under: "
-                    "%(new)s.") % {"hp": hp, "new": describe_prior(p.get("new"))}
-        details = [(_("Hyperparameter"), hp), (_("Before"), prior_rows(p.get("old"))),
-                   (_("After"), prior_rows(p.get("new")))]
     elif kind == "optimizer_params_changed":
         summary = _("Optimizer settings changed.")
         details = [(_("Before"), optimizer_summary(exp.data.optimizer_name, p.get("old"))),
@@ -288,8 +290,10 @@ def _event_entry(exp, event):
     if p.get("scheduled"):
         return _entry(exp, kind, None, None, summary, details, actor=_name(event.actor),
                       seq=event.pk or 0, scheduled=True)
+    # An entry a run wrote at its start sorts just below that run.
+    seq = (event.pk or 0) - (_BELOW_ITS_RUN if event.run_id else 0)
     return _entry(exp, kind, event.at, event.at_trial, summary, details,
-                  actor=_name(event.actor), seq=event.pk or 0)
+                  actor=_name(event.actor), seq=seq)
 
 
 def _at(value):
@@ -404,73 +408,36 @@ def _run_safe_rows(exp, params):
             for p in kind.params_schema if p.name in kind.run_safe]
 
 
-_PRIOR_KINDS = ("prior_stated", "prior_edited", "prior_withdrawn", "prior_reset")
-
-
-def _effective(events, runs):
-    """`_effective` hides prior statements replaced or withdrawn before any run
-    applied them.
-    """
+def _scheduled(event, runs):
+    """`_scheduled` marks a prior that its run under way holds back until the
+    initial design ends."""
     import copy
 
-    def at_of(run):
-        return run.created_at or run.started_at
-
-    def applied(hp, start, end):
-        for run in runs:
-            when = at_of(run)
-            if when is None or start is None or when < start or (end and when >= end):
-                continue
-            if any(e.get("kind") == "prior_applied" and hp in (e.get("hyperparameters") or [])
-                   for e in run.events or []):
-                return True
-        return False
-
-    def ran_between(start, end):
-        return any(at_of(r) and start and at_of(r) >= start and (not end or at_of(r) < end)
-                   for r in runs)
-
-    chains = {}
-    for event in events:
-        chains.setdefault(event.payload.get("hyperparameter"), []).append(event)
-    shown = []
-    for hp, chain in chains.items():
-        standing = None
-        for i, event in enumerate(chain):
-            new = event.payload.get("new")
-            end = chain[i + 1].at if i + 1 < len(chain) else None
-            last = i + 1 == len(chain)
-            # An event without a time stays shown.
-            counted = (event.at is None
-                       or (applied(hp, event.at, end) if new is not None
-                           else ran_between(event.at, end) or last))
-            if not (counted or last) or new == standing:
-                continue
-            shown_event = copy.copy(event)
-            payload = dict(event.payload, old=standing)
-            if new is not None and last and not applied(hp, event.at, None):
-                payload["scheduled"] = bool(new.get("delay_decay"))
-            shown_event.payload = payload
-            if event.kind != "prior_reset":
-                shown_event.kind = ("prior_stated" if standing is None else
-                                    "prior_withdrawn" if new is None else "prior_edited")
-            shown.append(shown_event)
-            standing = new
+    new = (event.payload or {}).get("new")
+    run = runs.get(event.run_id)
+    if (event.kind not in PRIOR_KINDS or not new or not new.get("delay_decay") or run is None
+            or run.status not in ("pending", "submitted", "running")
+            or any(e.get("kind") == "prior_applied"
+                   and event.payload.get("hyperparameter") in (e.get("hyperparameters") or [])
+                   for e in run.events or [])):
+        return event
+    shown = copy.copy(event)
+    shown.payload = dict(event.payload, scheduled=True)
     return shown
 
 
 def build(exp) -> list[dict]:
     from experiments.services import snapshot as adapter
-    from experiments.services.history import configuration
+    from experiments.services.history import configuration, starting_configuration
 
     runs = list(exp.runs.order_by("id").select_related("started_by", "cancel_requested_by"))
     history = list(exp.data.history.select_related("actor").order_by("at", "id"))
-    others = [e for e in history if e.kind not in _PRIOR_KINDS]
-    priors = _effective([e for e in history if e.kind in _PRIOR_KINDS], runs)
-    entries = [_event_entry(exp, e) for e in others + priors]
-    for event in others:
+    by_pk = {run.pk: run for run in runs}
+    started_as = starting_configuration(exp, history)
+    entries = [_event_entry(exp, _scheduled(e, by_pk), started_as) for e in history]
+    for event in history:
         if event.kind == "created":
-            entry = _data_handling_entry(exp, (event.payload or {}).get("configuration") or {},
+            entry = _data_handling_entry(exp, started_as,
                                          event.at, event.at_trial or 0, (event.pk or 0) + 0.5)
             if entry:
                 entries.append(entry)

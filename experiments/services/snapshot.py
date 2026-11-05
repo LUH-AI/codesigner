@@ -12,6 +12,7 @@ from django.utils import timezone
 from django.utils.dateparse import parse_datetime
 
 from core import datasets, io, tasks
+from core.analytics import games
 from core.processing import choices_of
 from core.provenance import (
     dataset_fingerprint, environment, evaluation, model_fingerprint, sha256,
@@ -62,8 +63,8 @@ def data_from_snapshot(snapshot: dict, dataset_file=None, model_file=None,
         optimizer_name=snapshot["optimizer"]["name"],
         optimizer_params=snapshot["optimizer"].get("params") or {},
         metric_names=snapshot["metrics"]["names"],
-        current_metric=snapshot["metrics"].get("current"),
-        original_metric=snapshot["metrics"].get("original"),
+        current_metric=io.metrics_of(snapshot)[0],
+        original_metric=io.metrics_of(snapshot)[1],
         seed=snapshot["seed"],
         created_at=_when(snapshot.get("began_at")) or timezone.now(),
         time_basis=timestamps.basis_of(snapshot),
@@ -231,7 +232,8 @@ def export(exp: Experiment, mode: str, keep_tracebacks: bool) -> bytes:
     snapshot["dataset"]["path"] = ""
     snapshot["model"]["path"] = ""
     if snapshot.get("result"):
-        snapshot["result"] = copy.deepcopy(snapshot["result"])
+        # `io.parse` rebuilds what the Möbius terms imply.
+        snapshot["result"] = games.without_derived(copy.deepcopy(snapshot["result"]))
     timestamps.apply(snapshot, timestamps.clamp(exp, mode), timestamps.origin(exp))
     if not keep_tracebacks and snapshot.get("result"):
         for entry in snapshot["result"].get("data", []):
@@ -252,7 +254,7 @@ def _add_provenance(snapshot: dict, exp: Experiment, dataset: str, model_path: s
     """`_add_provenance` fills existing sections without duplicating facts.
     """
     if dataset:
-        snapshot["dataset"].update(dataset_fingerprint(dataset, target=exp.data.target_column))
+        snapshot["dataset"].update(dataset_fingerprint(dataset))
     data = exp.data
     snapshot["model"].update(
         model_fingerprint(data.model_name, model_path, exp.env_meta,
@@ -265,6 +267,8 @@ def _add_provenance(snapshot: dict, exp: Experiment, dataset: str, model_path: s
     snapshot["optimizer"]["defaults_used"] = _defaults_used(data)
     snapshot["runs"] = [_run_record(index, run)
                         for index, run in enumerate(exp.runs.order_by("id"), start=1)]
+    # The runs and the result name each optimized metric (`io.metrics_of`).
+    snapshot["metrics"] = {"names": snapshot["metrics"]["names"]}
     snapshot["history"] = history.serialized(exp)
     snapshot["environment"] = environment()
 

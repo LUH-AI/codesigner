@@ -24,7 +24,9 @@ because choosing a language you can read should not require signing in first.
         <form class="signin-locale" action="{% url 'set_language' %}" method="post">
             {% csrf_token %}
             <input type="hidden" name="next" value="{{ request.get_full_path }}">
-            <select name="language" onchange="this.form.submit()" aria-label="{% translate 'Language' %}">
+            <label for="signin-language" class="locale-icon" aria-hidden="true">🌐</label>
+            <select id="signin-language" name="language" onchange="this.form.submit()"
+                    aria-label="{% translate 'Language' %}">
                 {% for code, label in LANGUAGES %}
                     <option value="{{ code }}"{% if code == CURRENT_LANGUAGE %} selected{% endif %}>{{ label }}</option>
                 {% endfor %}

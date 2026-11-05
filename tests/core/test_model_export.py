@@ -183,3 +183,22 @@ def test_an_uploaded_model_without_a_header_gets_one():
 
     header = script.split("\n# ///\n", 1)[0]
     assert header.startswith("# /// script") and '"pandas"' in header
+
+
+@pytest.mark.parametrize("about", [
+    'Wine """\nimport os; os.system("echo owned")\n"""',
+    'Ends in a quote "',
+    'A backslash \\""" before the quotes',
+])
+def test_the_description_stays_text_in_the_exported_file(about):
+    """What: an experiment's description becomes the exported file's docstring
+    and nothing else, whatever quotes or backslashes it holds.
+    How: an upload exported with descriptions that try to close the docstring;
+    the parsed file's docstring is the description and its second statement is
+    the shim's `__future__` import."""
+    script = export_upload(CUSTOM, class_name="Majority", task="classification",
+                           config={"suffix": "!"}, seed=0, about=about)
+
+    body = ast.parse(script.split("# ///\n", 1)[1])
+    assert ast.get_docstring(body, clean=False) == about.strip() + "\n"
+    assert cast(ast.ImportFrom, body.body[1]).module == "__future__"

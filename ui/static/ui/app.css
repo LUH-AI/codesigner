@@ -173,7 +173,8 @@ body.signin { display: block; background: var(--rail-bg); }
 .signin-panel { max-width: 22rem; margin: 12vh auto; padding: 0 1rem; }
 .signin-panel h1 { text-align: center; margin-bottom: 1.5rem; }
 .signin-panel .card { background: var(--bg); }
-.signin-locale { margin-top: 1rem; text-align: center; }
+.signin-locale { margin-top: 1rem; display: flex; justify-content: center; align-items: center; gap: 0.4rem; }
+.signin-locale .locale-icon { color: var(--muted); }
 .signin-locale select { width: auto; }
 .signin-panel > .caption, .signin-signout { margin-top: 0.75rem; text-align: center; }
 .signin-panel .agreement { max-height: 40vh; overflow: auto; margin-bottom: 1rem; }

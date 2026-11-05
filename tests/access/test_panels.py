@@ -218,14 +218,20 @@ def test_a_share_set_from_the_group_page_goes_back_to_it(client, hosted, lab):
     assert exp.shares.get().user == lab["lead"]
 
 
-def test_the_experiment_page_points_to_where_sharing_is(client, hosted, lab):
+def test_only_somebody_elses_experiment_says_whose_it_is(client, hosted, lab):
+    """What: the owner's page carries no line about sharing, and a lead
+    looking at a member's experiment is told whose it is. How: Ana's
+    experiment opened by Ana, then by her lead."""
     exp = _experiment(lab["ana"], "hers")
+
     client.force_login(lab["ana"])
+    own = client.get(reverse("ui:experiment_detail", args=[exp.pk])).content.decode()
+    client.force_login(lab["lead"])
+    led = client.get(reverse("ui:experiment_detail", args=[exp.pk])).content.decode()
 
-    body = client.get(reverse("ui:experiment_detail", args=[exp.pk])).content.decode()
-
-    assert reverse("ui:group_detail", args=[lab["group"].pk]) in body
-    assert 'name="shared"' not in body, "the old checkbox is gone"
+    assert 'class="caption ownership"' not in own
+    assert reverse("ui:group_detail", args=[lab["group"].pk]) + "#" not in own
+    assert 'class="caption ownership"' in led and "in a group you lead" in led
 
 
 def test_somebody_in_no_group_is_told_so(client, hosted, lab):

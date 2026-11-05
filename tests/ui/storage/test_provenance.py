@@ -65,15 +65,14 @@ def _run(exp, **overrides):
 # Data
 
 def test_the_dataset_is_recorded_by_digest_not_embedded(client):
-    """The digest makes the record enforceable, and the shape keeps it readable
-    without the file."""
+    """What: the dataset is recorded by name and digest, which pins the exact
+    file, and nothing the file itself answers. How: an exported experiment's
+    dataset section."""
     record = _exported(client, _create(client))["dataset"]
 
     assert record["sha256"] == hashlib.sha256(IRIS.read_bytes()).hexdigest()
     assert record["filename"] == "iris.csv"
-    assert record["rows"] == 150
-    assert record["columns"] == 5
-    assert record["target_column"] == record["column_names"][-1]
+    assert not {"rows", "columns", "column_names", "column_kinds"} & set(record)
 
 
 def test_an_experiment_with_no_dataset_records_nothing_to_check(client):

@@ -77,6 +77,62 @@ def test_the_worker_refuses_an_untrusted_owners_model(hosted, ana):
     assert "not allowed to run custom models" in run.error
 
 
+def test_a_cluster_job_refuses_an_untrusted_owners_model(hosted, settings, ana, monkeypatch):
+    """What: a run sent to the cluster makes the same check as a local one, so
+    the model is never staged for a person without the permission.
+    How: the slurm backend with a transport that records every file sent."""
+    from remote import jobs
+    from tests.experiments.test_cluster_backend import FakeTransport
+
+    settings.RUN_BACKEND = "slurm"
+    settings.CLUSTER_HOST = "fake"
+    transport = FakeTransport()
+    monkeypatch.setattr(jobs, "transport", lambda: transport)
+    exp = _custom_experiment(owner=ana)
+    run = run_service.create_run(exp, {"max_trials": 3}, "accuracy", started_by=ana)
+
+    run_service.execute_run(run.id)
+    run.refresh_from_db()
+
+    assert run.status == "error" and "not allowed to run custom models" in run.error
+    assert not transport.files
+
+
+def test_building_the_environment_refuses_an_untrusted_owners_model(hosted, ana,
+                                                                    monkeypatch):
+    """What: the environment build, which imports the model, makes the same
+    check as a run. How: `prepare_environment` for Ana's model, with uv
+    commands that fail the test if called."""
+    from experiments.services import modelenv
+
+    def never(*args, **kwargs):
+        raise AssertionError("the build ran")
+
+    monkeypatch.setattr(modelenv, "write_runner", never)
+    exp = _custom_experiment(owner=ana)
+
+    modelenv.prepare_environment(exp.pk)
+    exp.refresh_from_db()
+
+    assert exp.env_status == Experiment.ENV_FAILED
+    assert "not allowed to run custom models" in exp.env_error
+
+
+def test_the_worker_runs_no_custom_model_with_the_floor_down(settings, trusted):
+    """What: with `ALLOW_CUSTOM_MODELS` off, the worker refuses a stored model
+    even for a person holding the permission. How: a run by a trusted owner
+    with the floor lowered after the upload."""
+    settings.REQUIRE_LOGIN = True
+    settings.ALLOW_CUSTOM_MODELS = False
+    exp = _custom_experiment(owner=trusted)
+    run = run_service.create_run(exp, {"max_trials": 3}, "accuracy", started_by=trusted)
+
+    run_service.execute_run(run.id)
+    run.refresh_from_db()
+
+    assert run.status == "error" and "turned off" in run.error
+
+
 def test_the_worker_names_who_was_refused(hosted, ana):
     """A bare "denied" log entry cannot be acted on."""
     exp = _custom_experiment(owner=ana)

@@ -271,6 +271,42 @@ def test_wrong_passwords_lock_the_username_out(client, hosted, settings, django_
     assert resp.status_code == 429 and "_auth_user_id" not in client.session
 
 
+def test_every_spelling_of_an_address_shares_one_lockout(client, hosted, settings,
+                                                         django_user_model):
+    """What: failures count against the account, so changing the letter case
+    of the address or adding spaces gives no fresh attempts.
+    How: three wrong attempts under three spellings with a limit of three, then
+    the right password under a fourth."""
+    settings.AXES_ENABLED = True
+    settings.AXES_FAILURE_LIMIT = 3
+    django_user_model.objects.create_user("ana@lab.de", email="ana@lab.de", password=GOOD)
+
+    for typed in ("ana@lab.de", "Ana@Lab.de", " ANA@LAB.DE "):
+        client.post(reverse("ui:login"), {"username": typed, "password": "wrong"})
+    resp = client.post(reverse("ui:login"), {"username": "aNa@lab.DE", "password": GOOD})
+
+    assert resp.status_code == 429 and "_auth_user_id" not in client.session
+
+
+def test_a_forged_forwarded_for_header_gives_no_fresh_attempts(client, hosted, settings,
+                                                               django_user_model):
+    """What: the lockout counts the socket address, which a client-sent
+    `X-Forwarded-For` leaves alone.
+    How: three wrong attempts, each claiming a different address in the header,
+    with a limit of three, then the right password."""
+    settings.AXES_ENABLED = True
+    settings.AXES_FAILURE_LIMIT = 3
+    django_user_model.objects.create_user("ana@lab.de", email="ana@lab.de", password=GOOD)
+
+    for n in range(3):
+        client.post(reverse("ui:login"), {"username": "ana@lab.de", "password": "wrong"},
+                    HTTP_X_FORWARDED_FOR=f"198.51.100.{n}, 203.0.113.7")
+    resp = client.post(reverse("ui:login"), {"username": "ana@lab.de", "password": GOOD},
+                       HTTP_X_FORWARDED_FOR="198.51.100.9, 203.0.113.7")
+
+    assert resp.status_code == 429 and "_auth_user_id" not in client.session
+
+
 def test_the_shipped_password_rules():
     """What: outside the tests, passwords hash with Argon2 and need 15
     characters. How: the settings module itself, which the suite's fixtures

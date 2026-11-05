@@ -13,13 +13,13 @@ from django.db.models import Q
 from django.utils import timezone
 from django.utils.translation import gettext as _
 
-from access.policy import policy
 from core import io, registry
 from core.metrics import metric_for
 from core.optimizers.base import STOPPED_BY_CANCELLED, OptimizationResult, PolledFlag
 from core.optimizers import trial
 from remote import jobs
 
+from . import history
 from . import snapshot as snapshot_adapter
 from . import trial_models
 from .run_logic import apply_metrics
@@ -44,8 +44,9 @@ def scoreable(metrics, model, primary_metric):
 
 def create_run(experiment, stopping, optimize_metric, started_by=None,
                trial_timeout=None, configurations=None):
-    """`create_run` commits the optimized metric and returns the pending Run.
-    *stopping* needs at least one criterion.
+    """`create_run` commits the optimized metric, records the priors the run
+    takes up, and returns the pending Run. *stopping* needs at least one
+    criterion.
     """
     from experiments.models import Run
 
@@ -55,7 +56,7 @@ def create_run(experiment, stopping, optimize_metric, started_by=None,
     experiment.data.original_metric = original
     experiment.data.save(update_fields=["current_metric", "original_metric"])
 
-    return Run.objects.create(
+    run = Run.objects.create(
         experiment=experiment,
         primary_metric=optimize_metric,
         status="pending",
@@ -69,6 +70,8 @@ def create_run(experiment, stopping, optimize_metric, started_by=None,
         configurations=list(configurations or []),
         events=events,
     )
+    history.record_run_priors(run)
+    return run
 
 
 def _event(kind, at_trial, **fields) -> dict:
@@ -249,8 +252,7 @@ def _execute_run_locally(run_id):
         # The executing process checks the custom-model policy again, since it
         # would run the code. `launch` is None for a registry model or an
         # in-process upload.
-        refusal = policy().custom_model_refusal(
-            experiment, run.started_by or experiment.owner)
+        refusal = _model_refusal(run)
         if refusal:
             raise RuntimeError(refusal)
 
@@ -351,6 +353,10 @@ def execute_run_on_cluster(run_id):
         backend="slurm", trial_offset=_trials_stored(experiment.pk))
 
     try:
+        # The job runs the code on the cluster, so the policy check comes first.
+        refusal = _model_refusal(run)
+        if refusal:
+            raise RuntimeError(refusal)
         dataset = experiment.data.dataset_path()
         if dataset is None:
             raise RuntimeError(
@@ -479,6 +485,12 @@ def _remember_config_space(experiment_pk, model, seed) -> None:
         return
     ExperimentData.objects.filter(experiment__pk=experiment_pk).update(
         config_space=space)
+
+
+def _model_refusal(run) -> str:
+    from . import modelenv
+
+    return modelenv.refusal(run.experiment, run.started_by or run.experiment.owner)
 
 
 def _model_launch(experiment):

@@ -133,7 +133,10 @@ def _section(title: str) -> str:
 
 
 def _docstring(about: str) -> str:
-    return f'"""{about.strip()}\n"""\n\n' if about else ""
+    """`_docstring` escapes backslashes and triple quotes, so *about* stays
+    text however it is written."""
+    text = about.strip().replace("\0", "").replace("\\", "\\\\").replace('"""', '\\"\\"\\"')
+    return f'"""{text}\n"""\n\n' if text else ""
 
 
 def export_model(model, *, config: dict, task: str, seed: int = 0, columns: dict | None = None,

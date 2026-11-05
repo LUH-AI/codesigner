@@ -129,3 +129,26 @@ def test_the_url_space_has_no_unintended_exemptions(hosted):
 
     assert exempt == {"healthz", "set_language", "login", "first_password", "account_setup",
                       "password_forgot"}
+
+
+def test_the_health_check_answers_over_plain_http_behind_tls(client, settings):
+    """What: with `SECURE_BEHIND_TLS`, a plain-HTTP request is redirected to
+    HTTPS, except `/healthz/`, which deploy scripts ask on the loopback port.
+    How: both paths requested without the proxy's HTTPS header."""
+    settings.SECURE_SSL_REDIRECT = True
+    settings.SECURE_REDIRECT_EXEMPT = [r"^healthz/$"]
+
+    assert client.get(reverse("ui:healthz")).status_code == 200
+    assert client.get(reverse("ui:home")).status_code == 301
+
+
+def test_the_sign_in_language_switch_carries_the_globe(client, hosted, settings):
+    """What: the sign-in page's language switch has the globe the rail uses,
+    labelling the select. How: the login page with three languages offered."""
+    settings.LANGUAGES = [("en", "English"), ("de", "Deutsch"), ("es", "Español")]
+
+    html = client.get(reverse("ui:login")).content.decode()
+    form = html.split('class="signin-locale"', 1)[1].split("</form>", 1)[0]
+
+    assert '<label for="signin-language" class="locale-icon" aria-hidden="true">🌐</label>' in form
+    assert form.index("🌐") < form.index('<select id="signin-language"')

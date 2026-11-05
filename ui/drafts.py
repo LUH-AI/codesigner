@@ -168,8 +168,8 @@ def save_step(request, exp, step, data, files=None, *, partial=False) -> Saved:
 
 def create(request, exp) -> str | None:
     """`create` turns a draft with steps 1 to 3 saved into an experiment and
-    returns an error message, or None. `.history` records the configuration,
-    then each stated prior.
+    returns an error message, or None. `.history` records the moment; the first
+    run records the priors it takes up.
     """
     refusal = steps.not_ready(exp)
     if refusal:
@@ -178,11 +178,7 @@ def create(request, exp) -> str | None:
     exp.save(update_fields=["draft"])
     exp.data.created_at = timezone.now()
     exp.data.save(update_fields=["created_at"])
-    history.record(exp, "created", user=request.user, configuration=history.configuration(
-        snapshot_adapter.snapshot_from_experiment(exp)))
-    for hp, prior in (exp.data.priors or {}).items():
-        history.record(exp, "prior_stated", user=request.user,
-                       hyperparameter=hp, old=None, new=prior)
+    history.record(exp, "created", user=request.user)
     return None
 
 

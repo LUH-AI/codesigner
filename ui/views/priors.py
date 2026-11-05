@@ -197,7 +197,7 @@ def save_prior(request, exp):
     if not hp_name:
         return HttpResponseBadRequest("no hyperparameter named")
 
-    priors = prior_service.state(exp, hp_name, body.get("prior"), user=request.user)
+    priors = prior_service.state(exp, hp_name, body.get("prior"))
 
     # `prior_densities` produces both the returned curve and the optimizer's
     # weights, so the save doubles as the redraw.
@@ -218,7 +218,7 @@ def reset_prior(request, exp):
     if not hp_name:
         return HttpResponseBadRequest("no hyperparameter named")
 
-    restored = prior_service.reset(exp, hp_name, user=request.user)
+    restored = prior_service.reset(exp, hp_name)
     priors = exp.data.priors or {}
 
     # The response carries the decayed prior and density for the redraw.

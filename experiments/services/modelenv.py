@@ -185,6 +185,10 @@ def prepare_environment(experiment_id) -> None:
     exp = Experiment.objects.filter(pk=experiment_id).first()
     if exp is None or not exp.data.model_file:
         return
+    refused = refusal(exp, exp.owner)
+    if refused:
+        _settle(exp, Experiment.ENV_FAILED, error=refused)
+        return
 
     mode, explanation = decide_mode()
     if mode == "in_process":
@@ -275,6 +279,20 @@ def _digest(path: Path) -> str:
         return hashlib.sha256(path.read_bytes()).hexdigest()
     except OSError:
         return ""
+
+
+def refusal(exp, user) -> str:
+    """`refusal` returns why the worker must not run *exp*'s custom model for
+    *user*, or "". Every path that runs the code asks it: a local run, a cluster
+    job and an environment build.
+    """
+    from access.policy import policy
+
+    if not exp.data.model_file:
+        return ""
+    if not settings.ALLOW_CUSTOM_MODELS:
+        return "Custom models are turned off on this instance."
+    return policy().custom_model_refusal(exp, user)
 
 
 def resolve_runner(exp) -> tuple[list[str] | None, str]:

@@ -13,8 +13,9 @@ from experiments.services import snapshot as adapter
 pytestmark = pytest.mark.django_db
 
 #: `IN_THE_FILE` maps each `ExperimentData` field to its `.ihpo` path.
-#: `cv_folds` and `test_size` share one `evaluation` section, and `dataset`
-#: carries its identity without its bytes.
+#: `cv_folds` and `test_size` share one `evaluation` section, `dataset`
+#: carries its identity without its bytes, and the optimized metrics are each
+#: run's `primary_metric` (`core.io.metrics_of`).
 IN_THE_FILE = {
     "name": ("name",),
     "created_at": ("began_at",),
@@ -26,8 +27,8 @@ IN_THE_FILE = {
     "optimizer_name": ("optimizer", "name"),
     "optimizer_params": ("optimizer", "params"),
     "metric_names": ("metrics", "names"),
-    "current_metric": ("metrics", "current"),
-    "original_metric": ("metrics", "original"),
+    "current_metric": ("runs",),
+    "original_metric": ("runs",),
     "cv_folds": ("evaluation", "folds"),
     "test_size": ("evaluation", "test_size"),
     "task": ("evaluation", "task"),

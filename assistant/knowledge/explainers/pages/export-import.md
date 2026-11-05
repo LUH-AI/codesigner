@@ -17,7 +17,7 @@ sources:
   - ui/templates/ui/import.html
   - ui/templates/ui/_group_picker.html
   - ui/views/imports.py:18-52
-  - core/provenance.py:179-193
+  - core/provenance.py:146-160
   - ui/templates/ui/bin.html
   - ui/templates/ui/bin_dismiss_confirm.html
   - ui/templates/ui/delete_confirm.html

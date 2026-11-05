@@ -79,13 +79,15 @@ def test_the_other_two_games_carry_their_own_interactions(client):
 
 
 def test_an_exported_file_carries_every_game(client):
+    """What: the file carries each game's Möbius terms, and reading it gives
+    back each game's interactions. How: an export, then `io.parse` on it."""
     exp = _experiment()
-    body = json.loads(
-        export_ihpo(client, exp.pk).content)
+    content = export_ihpo(client, exp.pk).content
+    body, read = json.loads(content), io.parse(content)
 
     for game, fields in HP_GAME_FIELDS.items():
-        for part in ("interactions", "moebius"):
-            assert body["result"][fields[part]], f"{game} {part}"
+        assert body["result"][fields["moebius"]], f"{game} moebius"
+        assert read["result"][fields["interactions"]], f"{game} interactions"
 
 
 def test_a_file_written_before_this_still_opens(client):

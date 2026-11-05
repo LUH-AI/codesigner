@@ -19,6 +19,17 @@ def account_named(identifier: str):
     return user
 
 
+def lockout_name(request, credentials=None) -> str:
+    """`lockout_name` is the key django-axes counts failures under: the
+    matching account's `get_username()`, else the typed address in lower case,
+    so every spelling of one address shares one count.
+    """
+    typed = ((credentials or {}).get("username")
+             or getattr(request, "POST", {}).get("username") or "")
+    user = account_named(typed)
+    return user.get_username() if user is not None else typed.strip().lower()
+
+
 def operator(user) -> bool:
     return bool(user.is_staff or user.is_superuser)
 

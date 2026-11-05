@@ -78,11 +78,13 @@ def dismiss(exp, user):
 def restore(exp, by=None):
     """`restore` clears every bin at once and leaves out anyone who dismissed
     the experiment. If the owner dismissed it, the restoring contributor becomes
-    owner.
+    owner, but only while a member of the experiment's group, if it has one.
     """
     with transaction.atomic():
         if (by is not None and getattr(by, "is_authenticated", False) and exp.owner_id != by.pk
-                and not exp.bin_entries.filter(user_id=exp.owner_id).exists()):
+                and not exp.bin_entries.filter(user_id=exp.owner_id).exists()
+                and (exp.group is None
+                     or exp.group.memberships.filter(user_id=by.pk).exists())):
             exp.shares.filter(user=by).delete()
             exp.owner = by
         _put_back(exp)

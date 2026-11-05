@@ -258,6 +258,41 @@ def test_if_the_owner_gave_it_up_whoever_restores_it_owns_it(client, hosted, lab
     assert client.get(reverse("ui:experiment_detail", args=[exp.pk])).status_code == 404
 
 
+def test_leaving_the_group_empties_your_bin_of_its_work(client, hosted, lab):
+    """What: a contributor removed from the group loses its binned work, so
+    cannot restore an experiment the owner gave up and take it over.
+    How: the experiment in Ana's group, deleted and given up by Ana; Ben's
+    membership goes, then Ben tries to restore it."""
+    Experiment.objects.filter(pk=lab["exp"].pk).update(group=lab["group"])
+    _delete(client, lab)
+    _dismiss(client, lab["ana"], lab["exp"])
+    Membership.objects.filter(user=lab["ben"], group=lab["group"]).delete()
+
+    assert _in_bin(client, lab["ben"]) == []
+    client.post(reverse("ui:bin_restore", args=[lab["exp"].pk]))
+    exp = Experiment.objects.get(pk=lab["exp"].pk)
+    assert exp.owner == lab["ana"] and exp.deleted_at is not None
+
+
+def test_restoring_hands_ownership_only_to_a_member(hosted, lab):
+    """What: `restore` makes the restoring person owner only while they belong
+    to the experiment's group, whatever bin rows remain.
+    How: Ben's membership goes and his bin entry is put back by hand before
+    he restores through the service."""
+    from experiments.services import bin as bin_service
+
+    Experiment.objects.filter(pk=lab["exp"].pk).update(group=lab["group"])
+    exp = Experiment.objects.get(pk=lab["exp"].pk)
+    bin_service.delete(exp, by=lab["ana"])
+    bin_service.dismiss(exp, lab["ana"])
+    Membership.objects.filter(user=lab["ben"], group=lab["group"]).delete()
+    BinEntry.objects.get_or_create(experiment=exp, user=lab["ben"])
+
+    bin_service.restore(exp, by=lab["ben"])
+
+    assert Experiment.objects.get(pk=exp.pk).owner == lab["ana"]
+
+
 def test_the_confirmation_says_who_still_has_it(client, hosted, lab):
     _delete(client, lab)
     client.force_login(lab["ben"])

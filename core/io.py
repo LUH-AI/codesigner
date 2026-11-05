@@ -162,9 +162,27 @@ def parse(data: bytes) -> dict:
         raise ValueError(f"missing field: {missing[0]!r}")
 
     snapshot = normalize(raw)
+    _restore_derived_analytics(snapshot)
     check_optimizer_state(snapshot)
     _check_trial_scores(snapshot)
     return snapshot
+
+
+def _restore_derived_analytics(snapshot: dict) -> None:
+    """An export leaves out what the Möbius terms imply
+    (`analytics.games.without_derived`), and `_restore_derived_analytics` puts
+    it back in the space's hyperparameter order."""
+    result = snapshot.get("result")
+    if not isinstance(result, dict):
+        return
+    from .analytics import games
+
+    space = config_space_from_serialized(snapshot.get("space"))
+    names = (list(space.keys()) if space is not None else
+             sorted({p for terms in (result.get("hyperparameter_moebius") or {}).values()
+                     for row in terms for p in row["members"]}))
+    games.with_derived(result, names)
+    result.setdefault("hyperparameter_importance", {})
 
 
 def check_optimizer_state(snapshot: dict) -> None:
@@ -205,6 +223,19 @@ def _check_trial_scores(snapshot: dict) -> None:
             raise ValueError(
                 f"trial {trial} has no score for {missing[0]!r}, which this "
                 f"experiment lists as one of its metrics")
+
+
+def metrics_of(snapshot: dict) -> tuple[str | None, str | None]:
+    """`metrics_of` returns the current and the original optimized metric: as
+    stated in `metrics`, else the last and the first run's, else the result's.
+    An exported file states neither."""
+    stated = snapshot.get("metrics") or {}
+    runs = [r.get("primary_metric") for r in snapshot.get("runs") or []
+            if isinstance(r, dict) and r.get("primary_metric")]
+    fallback = (snapshot.get("result") or {}).get("primary_metric")
+    current = stated.get("current") or (runs[-1] if runs else fallback)
+    original = stated.get("original") or (runs[0] if runs else fallback)
+    return current, original
 
 
 def dataset_path_ok(snapshot: dict) -> bool:
@@ -306,8 +337,8 @@ def build_experiment(
         "model_name":      resolved_model,
         "model_path":      model_path,
         "optimizer":       optimizer,
-        "current_metric":  snapshot["metrics"].get("current"),
-        "original_metric": snapshot["metrics"].get("original"),
+        "current_metric":  metrics_of(snapshot)[0],
+        "original_metric": metrics_of(snapshot)[1],
         "metrics":         metrics,
         "seed":            seed,
         "dataset_path":    snapshot["dataset"].get("path", ""),

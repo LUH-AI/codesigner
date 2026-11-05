@@ -129,13 +129,13 @@ def test_a_prior_is_stated_and_taken_back_without_a_page():
     """A belief about one hyperparameter is stored, then reset to nothing, since
     no run searched under one. The test calls `priors.state` and `priors.reset`
     on a draft."""
-    request, exp = _saved_through_step_one()
+    _, exp = _saved_through_step_one()
     stated = priors.state(exp, "max_depth",
                           {"kind": "normal", "params": {"mu": 0.3, "sigma": 0.1},
-                           "decay": {"shape": "none"}}, user=request.user)
+                           "decay": {"shape": "none"}})
     assert stated["max_depth"]["kind"] == "normal"
 
-    assert priors.reset(exp, "max_depth", user=request.user) is False
+    assert priors.reset(exp, "max_depth") is False
     exp.refresh_from_db()
     assert "max_depth" not in (exp.data.priors or {})
 

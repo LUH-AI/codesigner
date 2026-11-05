@@ -135,8 +135,12 @@ def test_create_waits_for_every_required_save(client):
 
 
 def test_creating_records_how_it_was_set_up(client):
-    """`created` opens the history with the full configuration, then each prior
-    gets an entry; setup choices record no changes."""
+    """What: creating opens the history with one `created` entry, from which
+    the set-up is rebuilt; the draft's choices and its prior record nothing
+    more. How: a draft with a scale choice and a prior, created, then its
+    history and starting configuration."""
+    from experiments.services import history
+
     exp = start_draft(client)
     _save(client, exp, "setup", _setup())
     _save(client, exp, "optimizer")
@@ -147,10 +151,11 @@ def test_creating_records_how_it_was_set_up(client):
                 content_type="application/json")
     _create(client, exp)
 
-    created, prior = Experiment.objects.get(pk=exp.pk).data.history.order_by("id")
-    assert created.kind == "created"
-    assert created.payload["configuration"]["dataset"]["processing"]["scale"] == "standardize"
-    assert (prior.kind, prior.payload["hyperparameter"]) == ("prior_stated", "max_depth")
+    exp = Experiment.objects.get(pk=exp.pk)
+    (created,) = exp.data.history.all()
+    assert created.kind == "created" and created.payload == {}
+    started = history.starting_configuration(exp, [created])
+    assert started["dataset"]["processing"]["scale"] == "standardize"
 
 
 def test_a_different_dataset_asks_for_step_2_again(client):

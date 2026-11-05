@@ -1,5 +1,6 @@
 """The timeline lists changes newest first, nesting each run's events inside it."""
 
+import json
 import re
 from datetime import timedelta
 
@@ -37,28 +38,26 @@ def _summaries(client, exp):
 
 
 def _story(exp):
-    """`_story` records set-up, prior, run and processing events."""
+    """`_story` records set-up, a run that takes up a prior, and a processing
+    change."""
     from experiments.models import ExperimentEvent, Run
+    from experiments.services import history
 
     t0 = timezone.now() - timedelta(hours=1)
     exp.data.created_at = t0
     exp.data.save(update_fields=["created_at"])
-    ExperimentEvent.objects.create(data=exp.data, at=t0, kind="created", payload={
-        "configuration": {"model": {"name": "Random Forest"}, "dataset": {"demo": "iris"},
-                          "optimizer": {"name": "Random Search"}, "seed": 0}})
-    ExperimentEvent.objects.create(data=exp.data, at=t0 + timedelta(minutes=1),
-                                   kind="prior_stated", payload={
-                                       "hyperparameter": "max_depth", "old": None,
-                                       "new": {"kind": "normal", "params": {"mu": 0.5}}})
-    Run.objects.create(
+    ExperimentEvent.objects.create(data=exp.data, at=t0, kind="created", payload={})
+    run = Run.objects.create(
         experiment=exp, primary_metric="f1", status="done", stopped_by="max_trials",
         stopping={"max_trials": 4}, created_at=t0 + timedelta(minutes=2),
         started_at=t0 + timedelta(minutes=2), finished_at=t0 + timedelta(minutes=3),
         trial_offset=0, trial_count=4,
+        priors={"max_depth": {"kind": "normal", "params": {"mu": 0.5}}},
         events=[{"kind": "metric_changed", "from": "accuracy", "to": "f1", "at_trial": 0,
                  "surrogate": "none", "at": (t0 + timedelta(minutes=2)).isoformat()},
                 {"kind": "prior_applied", "at_trial": 2, "hyperparameters": ["max_depth"],
                  "at": (t0 + timedelta(minutes=2, seconds=30)).isoformat()}])
+    history.record_run_priors(run)
     ExperimentEvent.objects.create(data=exp.data, at=t0 + timedelta(minutes=4), at_trial=4,
                                    kind="processing_changed",
                                    payload={"step": "scale", "old": "auto", "new": "standardize"})
@@ -72,7 +71,8 @@ def test_newest_first_down_to_the_set_up(client):
     assert summaries[0].startswith("Scaling: leave as they are (Random Forest default) → standardize")
     assert summaries[1].startswith("Run 1 ran 4 trials (1–4), optimizing f1.")
     assert summaries[2].startswith("Prior stated on max_depth: normal (μ 0.5)")
-    assert summaries[3].startswith("Set up: Random Forest on iris, tuned by Random Search.")
+    assert summaries[3].startswith("Data handling: as Random Forest does by default.")
+    assert summaries[4].startswith("Set up: Random Forest on iris, tuned by Random Search.")
 
 
 def test_a_runs_events_are_inside_it_newest_first(client):
@@ -123,8 +123,8 @@ def test_a_failed_and_a_cancelled_run_say_so(client):
 
 
 def test_relative_times_are_shown_as_time_since_the_first_run(client):
-    """Each relative time is an offset from the first run's launch, and earlier
-    entries have none."""
+    """Each relative time is an offset from the first run's launch, which the
+    prior it took up shares, and earlier entries have none."""
     exp = _experiment()
     _story(exp)
     exp.data.time_basis = "relative"
@@ -134,8 +134,8 @@ def test_relative_times_are_shown_as_time_since_the_first_run(client):
              for w in re.findall(r'<div class="timeline-when">(.*?)</div>', html, re.S)]
 
     assert "<time" not in html
-    assert shown[:2] == ["+2 min", "+0 s"]
-    assert all(w == "" for w in shown[2:])
+    assert shown[:3] == ["+2 min", "+0 s", "+0 s"]
+    assert all(w == "" for w in shown[3:])
 
 
 def test_without_times_the_order_still_holds(client):
@@ -164,43 +164,45 @@ def test_the_timeline_is_for_those_who_can_see_the_experiment(client, settings):
 
 # Priors
 
-def _prior_event(exp, kind, at, new, old=None):
-    from experiments.models import ExperimentEvent
-
-    return ExperimentEvent.objects.create(data=exp.data, at=at, kind=kind, payload={
-        "hyperparameter": "max_depth", "old": old, "new": new})
-
-
-def _run_at(exp, at, applied=False):
+def _run_at(exp, at, priors, applied=False, status="done"):
+    """`_run_at` adds a run at *at* that takes up *priors*, as `create_run`
+    records them."""
     from experiments.models import Run
+    from experiments.services import history
 
     events = ([{"kind": "prior_applied", "at_trial": 0, "hyperparameters": ["max_depth"]}]
               if applied else [])
-    return Run.objects.create(experiment=exp, primary_metric="accuracy", status="done",
-                              stopped_by="max_trials", stopping={"max_trials": 2},
-                              created_at=at, started_at=at, finished_at=at,
-                              trial_offset=0, trial_count=2, events=events)
+    run = Run.objects.create(experiment=exp, primary_metric="accuracy", status=status,
+                             stopped_by="max_trials", stopping={"max_trials": 2},
+                             created_at=at, started_at=at, finished_at=at,
+                             trial_offset=0, trial_count=2, events=events,
+                             priors={"max_depth": priors} if priors else {})
+    history.record_run_priors(run)
+    return run
 
 
 NORMAL = {"kind": "normal", "params": {"mu": 0.5}}
 
 
-def test_a_prior_withdrawn_before_it_was_applied_leaves_no_trace(client):
-    """A prior no run applied leaves no trace, withdrawal included."""
+def test_a_prior_no_run_took_up_leaves_no_trace(client):
+    """What: a prior stated and edited on the card but never run is not in the
+    timeline. How: saves through the prior card, with no run."""
     exp = _experiment()
-    t0 = timezone.now() - timedelta(hours=1)
-    _prior_event(exp, "prior_stated", t0, {**NORMAL, "delay_decay": True})
-    _run_at(exp, t0 + timedelta(minutes=1))
-    _prior_event(exp, "prior_withdrawn", t0 + timedelta(minutes=2), None,
-                 old={**NORMAL, "delay_decay": True})
+    for mu in (0.5, 0.6):
+        client.post(reverse("ui:save_prior", args=[exp.pk]),
+                    json.dumps({"hp": "max_depth",
+                                "prior": {"kind": "normal", "params": {"mu": mu, "sigma": 0.1}}}),
+                    content_type="application/json")
 
     assert not any("Prior" in s for s in _summaries(client, exp))
 
 
 def test_a_scheduled_prior_is_shown_as_scheduled(client):
-    """A waiting prior sits above a "Now" stop, marked scheduled."""
+    """What: a prior that the run under way holds back until the initial design
+    ends sits above a "Now" stop, marked scheduled. How: a running run whose
+    delayed prior has no `prior_applied` event yet."""
     exp = _experiment()
-    _prior_event(exp, "prior_stated", timezone.now(), {**NORMAL, "delay_decay": True})
+    _run_at(exp, timezone.now(), {**NORMAL, "delay_decay": True}, status="running")
     html = client.get(reverse("ui:experiment_timeline", args=[exp.pk])).content.decode()
     entry = html.split('class="timeline-entry is-scheduled', 1)[1].split("</li>", 1)[0]
 
@@ -211,29 +213,30 @@ def test_a_scheduled_prior_is_shown_as_scheduled(client):
 
 
 def test_an_applied_prior_and_its_withdrawal_are_both_shown(client):
-    """Once a run applied a prior, its withdrawal is worth showing."""
+    """What: the run that drops a prior records its withdrawal. How: a run with
+    the prior, then one without."""
     exp = _experiment()
     t0 = timezone.now() - timedelta(hours=1)
-    _prior_event(exp, "prior_stated", t0, NORMAL)
-    _run_at(exp, t0 + timedelta(minutes=1), applied=True)
-    _prior_event(exp, "prior_withdrawn", t0 + timedelta(minutes=2), None, old=NORMAL)
+    _run_at(exp, t0, NORMAL, applied=True)
+    _run_at(exp, t0 + timedelta(minutes=2), None)
     summaries = _summaries(client, exp)
 
-    assert summaries[0].startswith("Prior on max_depth withdrawn.")
+    assert summaries[1].startswith("Prior on max_depth withdrawn.")
     assert any(s.startswith("Prior stated on max_depth") for s in summaries)
 
 
-def test_an_unapplied_change_is_folded_into_the_one_that_counted(client):
-    """`experiment_timeline` folds an unapplied middle version into one change."""
+def test_only_the_versions_a_run_took_up_are_listed(client):
+    """What: a version edited between runs but replaced before the next one
+    never reaches the timeline. How: runs under the first and the last of
+    three versions, with the middle one saved through the card between them."""
     exp = _experiment()
     t0 = timezone.now() - timedelta(hours=1)
-    first, middle, last = (NORMAL, {"kind": "normal", "params": {"mu": 0.6}},
-                           {"kind": "normal", "params": {"mu": 0.7}})
-    _prior_event(exp, "prior_stated", t0, first)
-    _run_at(exp, t0 + timedelta(minutes=1), applied=True)
-    _prior_event(exp, "prior_edited", t0 + timedelta(minutes=2), middle, old=first)
-    _run_at(exp, t0 + timedelta(minutes=3))
-    _prior_event(exp, "prior_edited", t0 + timedelta(minutes=4), last, old=middle)
+    _run_at(exp, t0, NORMAL, applied=True)
+    client.post(reverse("ui:save_prior", args=[exp.pk]),
+                json.dumps({"hp": "max_depth",
+                            "prior": {"kind": "normal", "params": {"mu": 0.6}}}),
+                content_type="application/json")
+    _run_at(exp, t0 + timedelta(minutes=4), {"kind": "normal", "params": {"mu": 0.7}})
     html = client.get(reverse("ui:experiment_timeline", args=[exp.pk])).content.decode()
 
     priors = [s for s in _summaries(client, exp) if "Prior" in s]
@@ -285,11 +288,10 @@ def test_a_changed_prior_is_listed_as_the_figure_sets_it(client):
     exp = _experiment()
     t0 = timezone.now() - timedelta(hours=1)
     normal = {"kind": "normal", "params": {"mu": 0.5, "sigma": 0.1}}
-    _prior_event(exp, "prior_stated", t0, normal)
-    _run_at(exp, t0 + timedelta(minutes=1), applied=True)
-    _prior_event(exp, "prior_edited", t0 + timedelta(minutes=2),
-                 {"kind": "beta", "params": {"alpha": 2, "beta": 3},
-                  "decay": {"shape": "linear", "beta_ratio": 0.1}}, old=normal)
+    _run_at(exp, t0, normal, applied=True)
+    _run_at(exp, t0 + timedelta(minutes=2),
+            {"kind": "beta", "params": {"alpha": 2, "beta": 3},
+             "decay": {"shape": "linear", "beta_ratio": 0.1}})
     html = client.get(reverse("ui:experiment_timeline", args=[exp.pk])).content.decode()
 
     assert _details(html, "Before") == {"Distribution": "Normal", "μ": "0.5", "σ": "0.1"}
@@ -316,9 +318,7 @@ def _created_with(exp, processing):
 
     exp.data.processing = processing
     exp.data.save(update_fields=["processing"])
-    ExperimentEvent.objects.create(data=exp.data, at=timezone.now(), kind="created", payload={
-        "configuration": {"model": {"name": "Random Forest"}, "dataset": {
-            "demo": "iris", "processing": processing}, "optimizer": {"name": "Random Search"}}})
+    ExperimentEvent.objects.create(data=exp.data, at=timezone.now(), kind="created", payload={})
 
 
 def test_the_data_handling_set_up_is_an_entry_of_its_own(client):

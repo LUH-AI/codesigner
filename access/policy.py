@@ -243,7 +243,7 @@ class GroupPolicy(OpenPolicy):
 
     def bin(self, request):
         """`bin` returns what the requesting user deleted or had deleted under
-        them, from their `BinEntry` rows.
+        them, from their `BinEntry` rows, outside groups they have left.
         """
         if not settings.REQUIRE_LOGIN:
             return super().bin(request)
@@ -252,7 +252,8 @@ class GroupPolicy(OpenPolicy):
             return Experiment.objects.none()
         from experiments.services.bin import cutoff
         return (Experiment.objects.select_related("data")
-                .filter(deleted_at__gte=cutoff(), bin_entries__user=user))
+                .filter(Q(group__isnull=True) | Q(group__memberships__user=user),
+                        deleted_at__gte=cutoff(), bin_entries__user=user))
 
     def for_listing(self, request):
         """`for_listing` matches `experiments()` except for a group lead, whose

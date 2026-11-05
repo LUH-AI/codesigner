@@ -267,3 +267,81 @@ def _extract_pairwise(named: Dict[tuple, float], names: List[str]) -> Dict[str, 
         for b in names[i + 1:]:
             grid[a][b] = grid[b][a] = float(named.get((a, b), 0.0))
     return grid
+
+
+#: `TOTAL_FIELD` is the one game total a result stores, tunability's.
+TOTAL_FIELD = "hyperparameter_tunability_total"
+
+
+def _derived_fields(game: str) -> tuple:
+    from ..optimizers.base import HP_GAME_FIELDS
+
+    fields = HP_GAME_FIELDS[game]
+    return (fields["importance"], fields["interactions"],
+            *((TOTAL_FIELD,) if game == "tunability" else ()))
+
+
+def without_derived(result: dict) -> dict:
+    """`without_derived` returns a copy of *result* without each game's
+    importance, interactions and total wherever its Möbius terms are stored,
+    since `with_derived` rebuilds them exactly. A game that fell back to forest
+    importances or uniform weights has no terms and keeps its values.
+    """
+    from ..optimizers.base import HP_GAME_FIELDS
+
+    out = dict(result)
+    for game, fields in HP_GAME_FIELDS.items():
+        covered = [m for m, terms in (result.get(fields["moebius"]) or {}).items() if terms]
+        for name in _derived_fields(game):
+            if isinstance(out.get(name), dict):
+                kept = {m: v for m, v in out[name].items() if m not in covered}
+                if kept:
+                    out[name] = kept
+                else:
+                    out.pop(name)
+    return out
+
+
+def with_derived(result: dict, names: List[str]) -> dict:
+    """`with_derived` fills in *result*, in place, each game's importance,
+    interactions and total from its Möbius terms wherever a file left them
+    out, as `compute_hp_game` derives them. *names* are the space's
+    hyperparameters, in order.
+    """
+    from ..optimizers.base import HP_GAME_FIELDS
+
+    for game, fields in HP_GAME_FIELDS.items():
+        importance_field, interactions_field, *total_field = _derived_fields(game)
+        for metric, terms in (result.get(fields["moebius"]) or {}).items():
+            if not terms or metric in (result.get(importance_field) or {}):
+                continue
+            fsii = _fsii_from_terms(terms, names)
+            raw = {p: abs(fsii.get((p,), 0.0)) for p in names}
+            total = sum(raw.values())
+            result.setdefault(importance_field, {})[metric] = (
+                {p: v / total for p, v in raw.items()} if total else {})
+            result.setdefault(interactions_field, {})[metric] = _extract_pairwise(fsii, names)
+            for name in total_field:
+                result.setdefault(name, {})[metric] = total
+    return result
+
+
+def _fsii_from_terms(terms: list, names: List[str]) -> Dict[tuple, float]:
+    """`_fsii_from_terms` converts stored Möbius rows to order-2 FSII values
+    keyed by name tuples, putting back the empty coalition `_moebius_terms`
+    dropped, which no order-1 or order-2 value depends on."""
+    import numpy as np
+    from shapiq import InteractionValues
+
+    index = {p: i for i, p in enumerate(names)}
+    lookup = {(): 0.0}
+    for row in terms:
+        lookup[tuple(sorted(index[p] for p in row["members"]))] = float(row["value"])
+    coalitions = list(lookup)
+    moebius = InteractionValues(
+        values=np.array([lookup[c] for c in coalitions]), index="Moebius",
+        max_order=len(names), min_order=0, n_players=len(names),
+        interaction_lookup={c: i for i, c in enumerate(coalitions)}, baseline_value=0.0)
+    fsii = MoebiusConverter(moebius)(index="FSII", order=2)
+    return {tuple(names[i] for i in coalition): float(fsii.values[position])
+            for coalition, position in fsii.interaction_lookup.items()}

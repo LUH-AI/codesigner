@@ -4,7 +4,6 @@ import statistics
 
 from django.conf import settings
 from django.contrib import messages
-from django.urls import reverse
 from django.utils.translation import gettext as _
 
 from access.policy import groups_to_choose_from
@@ -63,16 +62,9 @@ def _ownership(request, exp):
     """`_ownership` returns ownership details, or None without accounts."""
     if not settings.REQUIRE_LOGIN:
         return None
-    from access.policy import membership_in, share_of
-    # Only group members get the group link, since others would hit a 404.
-    in_group = membership_in(request.user, exp.group_id) is not None
+    from access.policy import share_of
     return {"owner": exp.owner, "mine": exp.owner_id == request.user.pk,
-            "shared_with": exp.shares.count(),
-            "group_share": exp.group_share,
-            "level": share_of(request.user, exp),
-            "group": exp.group if in_group else None,
-            "group_url": (reverse("ui:group_detail", args=[exp.group_id])
-                          + f"#exp-{exp.pk}") if in_group else None}
+            "level": share_of(request.user, exp)}
 
 
 def surpass_target(score: float, places: int = 4) -> str:

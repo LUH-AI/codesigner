@@ -236,11 +236,11 @@ AXES_FAILURE_LIMIT = env.int("AXES_FAILURE_LIMIT", default=5)
 AXES_COOLOFF_TIME = 1
 AXES_LOCKOUT_PARAMETERS = [["username", "ip_address"]]
 AXES_RESET_ON_SUCCESS = True
-#: `AXES_PROXY_COUNT` is the number of proxies in front of the site, so the
-#: client address comes from `X-Forwarded-For`; 0 reads the socket address.
-AXES_IPWARE_PROXY_COUNT = env.int("AXES_PROXY_COUNT", default=0)
-if AXES_IPWARE_PROXY_COUNT:
-    AXES_IPWARE_META_PRECEDENCE_ORDER = ["HTTP_X_FORWARDED_FOR", "REMOTE_ADDR"]
+AXES_USERNAME_CALLABLE = "access.backends.lockout_name"
+#: django-axes reads only `REMOTE_ADDR`. Behind a proxy on the loopback address,
+#: uvicorn sets it from the last `X-Forwarded-For` entry, the one the proxy
+#: added; the earlier entries come from the client.
+AXES_IPWARE_META_PRECEDENCE_ORDER = ["REMOTE_ADDR"]
 
 ROOT_URLCONF = "config.urls"
 #: `SITE_URLCONF` is the site's own URL table, for links that leave by mail
@@ -348,6 +348,9 @@ SECURE_BEHIND_TLS = env.bool("SECURE_BEHIND_TLS", default=False)
 
 if SECURE_BEHIND_TLS:
     SECURE_SSL_REDIRECT = True
+    # The health check is asked over plain HTTP on the loopback port, by
+    # deploy scripts and codesigner-manage, and answers there.
+    SECURE_REDIRECT_EXEMPT = [r"^healthz/$"]
     SESSION_COOKIE_SECURE = True
     CSRF_COOKIE_SECURE = True
     # Subdomains and preload stay off until every subdomain serves HTTPS.

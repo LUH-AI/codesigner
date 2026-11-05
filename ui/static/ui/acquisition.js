@@ -1712,7 +1712,8 @@
          * reader, and is dropped on a move to a different hyperparameter, where
          * the same centre and width would mean something else entirely. */
         var kept = state && state.hp === hp ? state.prior
-                   : (latest[hp] ? latest[hp].prior : null);
+                   : (latest[hp] ? latest[hp].prior : null),
+            density;
         /* Nothing held over from this session, but something was stated in an
          * earlier one: put the controls back where they were left. Only the
          * shape and its parameters are restored — the knots are recomputed from
@@ -1743,10 +1744,19 @@
         if (data.meta.acquisitionFunction) {
             acquisitionAt = window.codesignerImprovement.acquisition(data.meta.acquisitionFunction);
         }
+        density = (state && state.hp === hp && state.density)
+                  || (latest[hp] && latest[hp].density) || data.density || null;
+        /* A density held from the prior-only draw has no cloud, since that
+         * payload samples none. Without it the envelope is drawn unweighted
+         * and its unweighted twin not at all, until an edit fetches both. The
+         * full slice's own cloud density goes with its own samples. */
+        if (density && !density.cloud && data.density && data.density.cloud
+                && data.meta && data.meta.cloud) {
+            density = {grid: density.grid, cloud: data.density.cloud};
+        }
         state = {figures: data.figures, meta: data.meta, prior: kept, hp: hp,
                  candidates: null,
-                 density: (state && state.hp === hp && state.density)
-                          || (latest[hp] && latest[hp].density) || data.density || null,
+                 density: density,
                  /* Whether there is still a design to wait for, which decides
                   * whether the wait is worth offering. Said by the server
                   * rather than read off `initialDesign`, which is also null for

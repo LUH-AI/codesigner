@@ -59,45 +59,12 @@ def sha256_stream(fh) -> str:
     return digest.hexdigest()
 
 
-def dataset_fingerprint(path, frame=None, target: str = "") -> Dict[str, Any]:
-    """`dataset_fingerprint` records the digest, shape, column names and target,
-    so the record reads without the file. *frame* spares an export a second
-    read, and *target* names the column predicted.
-    """
+def dataset_fingerprint(path) -> Dict[str, Any]:
+    """`dataset_fingerprint` records the file's name and digest. The digest
+    pins the exact file, so its columns and their kinds follow from it and the
+    app's version."""
     path = Path(path)
-    record: Dict[str, Any] = {
-        "filename": path.name,
-        "sha256": sha256(path),
-        "rows": None, "columns": None,
-        "column_names": None, "target_column": None,
-        "column_kinds": None,
-    }
-    if not path.is_file():
-        return record
-
-    import pandas as pd
-
-    from .columns import infer_kinds
-    from .datasets import read_dataset
-
-    try:
-        df = read_dataset(path, target or None) if frame is None else frame
-    except Exception:  # noqa: BLE001 — an unreadable file still gets its digest
-        return record
-    if not isinstance(df, pd.DataFrame) or df.empty:
-        return record
-
-    names = [str(c) for c in df.columns]
-    record.update({
-        "rows": int(len(df)),
-        "columns": int(len(names)),
-        "column_names": names,
-        # The target is read last, as everywhere in the app.
-        "target_column": names[-1] if names else None,
-        # Each feature's kind decides what the model received (`core.encoding`).
-        "column_kinds": infer_kinds(df.iloc[:, :-1]),
-    })
-    return record
+    return {"filename": path.name, "sha256": sha256(path) if path.is_file() else None}
 
 
 def model_fingerprint(model_name: str, model_path: str, env_meta=None,

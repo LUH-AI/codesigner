@@ -54,15 +54,33 @@ def _import(client, body, name):
 # Recording
 
 def test_creating_an_experiment_records_how_it_was_set_up(client):
-    """The first entry omits where the dataset lives."""
+    """What: the first entry marks the moment, and the set-up it shows is
+    rebuilt without where the dataset lives. How: a new experiment's history
+    and `starting_configuration`."""
+    from experiments.services import history
+
     exp = _create(client)
     (entry,) = exp.data.history.all()
-    configuration = entry.payload["configuration"]
+    configuration = history.starting_configuration(exp, [entry])
 
-    assert entry.kind == "created" and entry.at is not None
+    assert entry.kind == "created" and entry.at is not None and entry.payload == {}
     assert configuration["model"]["name"] == "Random Forest"
     assert configuration["evaluation"]["task"] == "classification"
     assert "path" not in configuration["dataset"]
+
+
+def test_the_set_up_is_shown_as_it_was_before_later_changes(client):
+    """What: a Data Handling change after creation leaves the set-up as it was
+    created. How: a scale change, then the starting configuration."""
+    from experiments.services import history
+
+    exp = _create(client)
+    client.post(reverse("ui:data_section", args=[exp.pk, "features"]),
+                {"scale": "standardize"})
+    events = list(exp.data.history.order_by("at", "id"))
+
+    started = history.starting_configuration(exp, events)
+    assert started["dataset"]["processing"]["scale"] == "auto"
 
 
 def test_importing_records_the_import_after_the_files_own_history(client):
@@ -106,44 +124,64 @@ def _state(client, exp, hp, prior):
                 json.dumps({"hp": hp, "prior": prior}), content_type="application/json")
 
 
-def test_dragging_a_prior_is_one_change_of_mind(client):
-    """Repeated saves of one prior make one entry; ending where it began leaves
-    none."""
-    exp = _create(client)
-    normal = {"kind": "normal", "params": {"mu": 0.5, "sigma": 0.1}}
-
-    _state(client, exp, "max_depth", normal)
-    _state(client, exp, "max_depth", {**normal, "params": {"mu": 0.6, "sigma": 0.1}})
-    _state(client, exp, "max_depth", {**normal, "params": {"mu": 0.7, "sigma": 0.1}})
-    (entry,) = exp.data.history.filter(kind__startswith="prior")
-    assert entry.kind == "prior_stated" and entry.payload["old"] is None
-    assert entry.payload["new"]["params"]["mu"] == 0.7
-
-    _state(client, exp, "max_depth", None)
-    assert not exp.data.history.filter(kind__startswith="prior").exists()
+def _priors(exp):
+    return [(e.kind, e.payload["hyperparameter"], e.run_id)
+            for e in exp.data.history.filter(kind__startswith="prior").order_by("id")]
 
 
-def test_a_run_between_two_edits_keeps_them_apart(client):
-    """A run splits a prior's edits into separate entries."""
+def test_editing_a_prior_records_nothing_until_a_run_takes_it_up(client):
+    """What: the prior card's saves, resets and changes of distribution leave
+    no entry; the run that takes the prior up records it once. How: several
+    edits, a withdrawal, a reset and a restatement, then a run."""
     from experiments.services.run import create_run
 
     exp = _create(client)
     normal = {"kind": "normal", "params": {"mu": 0.5, "sigma": 0.1}}
     _state(client, exp, "max_depth", normal)
-    create_run(exp, {"max_trials": 3}, "accuracy")
-    _state(client, exp, "max_depth", {**normal, "params": {"mu": 0.8, "sigma": 0.1}})
-
-    assert _kinds(exp)[-2:] == ["prior_stated", "prior_edited"]
-
-
-def test_resetting_a_prior_is_recorded(client):
-    exp = _create(client)
-    _state(client, exp, "max_depth", {"kind": "normal", "params": {"mu": 0.5, "sigma": 0.1}})
+    _state(client, exp, "max_depth", {**normal, "params": {"mu": 0.6, "sigma": 0.1}})
+    _state(client, exp, "max_depth", {"kind": "beta", "params": {"alpha": 2, "beta": 3}})
+    _state(client, exp, "max_depth", None)
     client.post(reverse("ui:reset_prior", args=[exp.pk]), {"hp": "max_depth"})
+    _state(client, exp, "max_depth", {**normal, "params": {"mu": 0.7, "sigma": 0.1}})
+    assert _priors(exp) == []
 
-    entry = exp.data.history.order_by("-id").first()
-    assert entry is not None
-    assert entry.kind == "prior_reset" and entry.payload["new"] is None
+    run = create_run(exp, {"max_trials": 3}, "accuracy")
+
+    (entry,) = exp.data.history.filter(kind__startswith="prior")
+    assert (entry.kind, entry.run_id, entry.payload["old"]) == ("prior_stated", run.pk, None)
+    assert entry.payload["new"]["params"]["mu"] == 0.7
+
+
+def test_each_run_records_how_its_priors_differ_from_the_last(client):
+    """What: a run records an edit, a withdrawal and a new prior against the run
+    before it, and an unchanged prior not at all. How: three runs with priors
+    on two hyperparameters changed between them."""
+    from experiments.models import Run
+    from experiments.services.run import create_run
+
+    exp = _create(client)
+    normal = {"kind": "normal", "params": {"mu": 0.5, "sigma": 0.1}}
+    def run():
+        exp.data.refresh_from_db()
+        made = create_run(exp, {"max_trials": 3}, "accuracy")
+        # Priors only change between runs.
+        Run.objects.filter(pk=made.pk).update(status="done")
+        return made
+
+    _state(client, exp, "max_depth", normal)
+    first = run()
+    second = run()
+    _state(client, exp, "max_depth", {**normal, "params": {"mu": 0.8, "sigma": 0.1}})
+    _state(client, exp, "n_estimators", normal)
+    third = run()
+    _state(client, exp, "max_depth", None)
+    fourth = run()
+
+    assert second.pk not in [run for *_, run in _priors(exp)]
+    assert _priors(exp) == [("prior_stated", "max_depth", first.pk),
+                            ("prior_edited", "max_depth", third.pk),
+                            ("prior_stated", "n_estimators", third.pk),
+                            ("prior_withdrawn", "max_depth", fourth.pk)]
 
 
 def test_an_unknown_kind_is_a_mistake():
@@ -157,19 +195,23 @@ def test_an_unknown_kind_is_a_mistake():
 # File and times
 
 def _ran(client):
-    """`_ran` adds a run whose trials start a second later, ten seconds apart."""
+    """`_ran` adds a run that takes up a prior, with trials starting a second
+    later, ten seconds apart."""
     from django.utils import timezone
 
     from experiments.models import ExperimentData, Run
+    from experiments.services import history
 
     exp = _create(client)
     _state(client, exp, "max_depth", {"kind": "normal", "params": {"mu": 0.5, "sigma": 0.1}})
     now = timezone.now()
     ExperimentData.objects.filter(pk=exp.data_id).update(
         result=_trials(3, exp.data.metric_names, start=now.timestamp() + 1.0))
-    Run.objects.create(experiment=exp, primary_metric="accuracy", status="done",
-                       stopping={"max_trials": 3}, created_at=now, started_at=now,
-                       finished_at=now, trial_offset=0, trial_count=3)
+    run = Run.objects.create(experiment=exp, primary_metric="accuracy", status="done",
+                             stopping={"max_trials": 3}, created_at=now, started_at=now,
+                             finished_at=now, trial_offset=0, trial_count=3,
+                             priors=exp.data.priors)
+    history.record_run_priors(run, at_trial=0)
     return exp
 
 
@@ -185,6 +227,7 @@ def test_the_history_travels_in_the_file(client):
 
     assert body["timestamps"] == "absolute"
     assert _kinds(again)[:2] == ["created", "prior_stated"]
+    assert again.data.history.get(kind="prior_stated").run == again.runs.get()
     assert again.data.time_basis == "absolute"
 
 
@@ -202,11 +245,11 @@ def test_relative_times_carry_no_date(client):
 
 def test_relative_times_count_from_the_first_run(client):
     """Times count in seconds from the first run's launch; earlier entries carry
-    none."""
+    none, and the prior the run took up dates from its launch."""
     exp = _ran(client)
     body = _export(client, exp, "relative")
 
-    assert [e["at"] for e in body["history"]] == [None, None]
+    assert [e["at"] for e in body["history"]] == [None, 0]
     assert body["runs"][0]["created_at"] == 0
     assert body["result"]["data"][0]["starttime"] == pytest.approx(1.0, abs=0.01)
     assert body["began_at"] is None
@@ -228,7 +271,7 @@ def test_a_relative_file_keeps_what_came_before_its_first_run_in_order(client):
     assert summaries[1].startswith("Run 1")
     assert summaries[2].startswith("Prior stated on max_depth")
     assert summaries[-1].startswith("Set up:")
-    assert times[1] == "+0 s" and all(t == "" for t in times[2:])
+    assert times[1] == times[2] == "+0 s" and all(t == "" for t in times[3:])
 
 
 def test_no_times_means_none(client):
@@ -276,3 +319,111 @@ def test_the_export_offers_the_experiments_choice_then_the_readers(client):
     exp.save(update_fields=["use_default_settings", "settings"])
     assert checked() == "absolute"
     assert times.reader_preference(None) == "none"
+
+
+# Leaner files
+
+def test_the_file_names_the_optimized_metric_only_in_its_runs(client):
+    """What: an export leaves out `metrics.current` and `metrics.original`, and
+    importing it works both out from the runs. How: two runs on different
+    metrics, exported and imported again."""
+    from experiments.models import Run
+    from experiments.services.run import create_run
+
+    exp = _create(client)
+    for metric in ("accuracy", "f1"):
+        exp.data.refresh_from_db()
+        made = create_run(exp, {"max_trials": 3}, metric)
+        Run.objects.filter(pk=made.pk).update(status="done")
+    body = _export(client, exp, "absolute")
+    again = _import(client, body, "metrics again")
+
+    assert set(body["metrics"]) == {"names"}
+    assert (again.data.current_metric, again.data.original_metric) == ("f1", "accuracy")
+
+
+def test_a_file_without_runs_takes_the_metric_from_its_result():
+    """What: `metrics_of` falls back to the result's optimized metric, as for a
+    SMAC run, and prefers stated fields in older files. How: three
+    snapshots."""
+    from core import io
+
+    assert io.metrics_of({"metrics": {"names": ["f1"]},
+                          "result": {"primary_metric": "f1"}}) == ("f1", "f1")
+    assert io.metrics_of({"metrics": {"current": "f1", "original": "accuracy"},
+                          "runs": [{"primary_metric": "recall"}]}) == ("f1", "accuracy")
+    assert io.metrics_of({"metrics": {"names": []}}) == (None, None)
+
+
+def test_an_older_file_keeps_only_the_priors_its_runs_took_up(client):
+    """What: importing a file written before priors were recorded per run drops
+    its per-edit prior entries and the copied set-up, and rebuilds the priors
+    from the runs. How: an export with edit entries and a `prior_reset` added
+    by hand."""
+    exp = _ran(client)
+    body = _export(client, exp, "absolute")
+    noise = {"hyperparameter": "max_depth", "old": None,
+             "new": {"kind": "beta", "params": {"alpha": 2, "beta": 3}}}
+    body["history"][0]["payload"] = {"configuration": {"seed": 0}}
+    body["history"] += [{"kind": "prior_edited", "at": None, "at_trial": 3,
+                         "payload": noise, "run": None},
+                        {"kind": "prior_reset", "at": None, "at_trial": 3,
+                         "payload": noise, "run": None}]
+    again = _import(client, body, "older")
+
+    assert _kinds(again) == ["created", "prior_stated", "imported"]
+    assert again.data.history.get(kind="created").payload == {}
+    assert again.data.history.get(kind="prior_stated").payload["new"]["kind"] == "normal"
+
+
+def test_the_migration_rebuilds_prior_history_from_the_runs(client):
+    """What: migration 0008 deletes per-edit prior entries and `prior_reset`,
+    empties the `created` copy, and writes one entry per run that took a
+    prior up differently. How: an experiment with noisy entries and two runs,
+    then the migration's function on the current models."""
+    import importlib
+
+    from django.apps import apps
+
+    from experiments.models import ExperimentEvent, Run
+
+    exp = _create(client)
+    ExperimentEvent.objects.filter(data=exp.data, kind="created").update(
+        payload={"configuration": {"seed": 0}})
+    normal = {"kind": "normal", "params": {"mu": 0.5, "sigma": 0.1}}
+    for kind in ("prior_stated", "prior_edited", "prior_reset", "prior_withdrawn"):
+        ExperimentEvent.objects.create(data=exp.data, kind=kind, payload={
+            "hyperparameter": "max_depth", "old": None, "new": normal})
+    first = Run.objects.create(experiment=exp, primary_metric="accuracy", status="done",
+                               stopping={"max_trials": 3}, priors={"max_depth": normal})
+    second = Run.objects.create(experiment=exp, primary_metric="accuracy", status="done",
+                                stopping={"max_trials": 3}, priors={})
+
+    importlib.import_module(
+        "experiments.migrations.0008_prior_history_from_runs").priors_from_runs(apps, None)
+
+    rows = [(e.kind, e.run_id) for e in exp.data.history.order_by("id")]
+    assert rows == [("created", None), ("prior_stated", first.pk),
+                    ("prior_withdrawn", second.pk)]
+    assert exp.data.history.get(kind="created").payload == {}
+
+
+def test_the_file_leaves_out_what_the_moebius_terms_imply(client):
+    """What: an export carries each game's Möbius terms without the importance
+    and interactions they imply, and importing it again restores them. How:
+    the analytics fixture imported, exported and imported once more."""
+    from tests.conftest import FIXTURES_DIR
+
+    first = _import(client, json.loads((FIXTURES_DIR / "analytics.ihpo").read_bytes()), "games")
+    body = _export(client, first, "absolute")
+    again = _import(client, body, "games again")
+
+    assert "hyperparameter_interactions" not in body["result"]
+    assert "hyperparameter_importance" not in body["result"]
+    assert body["result"]["hyperparameter_moebius"]
+    assert again.data.result["hyperparameter_importance"].keys() == \
+        first.data.result["hyperparameter_importance"].keys()
+    want = first.data.result["hyperparameter_interactions"]["accuracy"]
+    got = again.data.result["hyperparameter_interactions"]["accuracy"]
+    for row in want:
+        assert got[row] == pytest.approx(want[row], abs=1e-9)
