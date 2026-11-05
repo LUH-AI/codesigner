@@ -21,7 +21,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: PACKAGE VERSION\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2026-11-04 14:52+0000\n"
+"POT-Creation-Date: 2026-11-05 08:55+0000\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
 "Language-Team: LANGUAGE <LL@li.org>\n"
@@ -47,38 +47,38 @@ msgstr "%(email)s is already in %(group)s."
 msgid "Username"
 msgstr "Username"
 
-#: access/onboarding.py:44
+#: access/onboarding.py:50
 msgid "A username of 1 to 150 characters is needed."
 msgstr ""
 
-#: access/onboarding.py:48
+#: access/onboarding.py:54
 msgid "A username can only contain letters, digits and @ . + - _."
 msgstr ""
 
-#: access/onboarding.py:58
+#: access/onboarding.py:64
 #, python-format
 msgid ""
 "Added %(name)s to %(group)s. They choose their password the first time they "
 "sign in with this username."
 msgstr ""
 
-#: access/onboarding.py:61
+#: access/onboarding.py:67
 #, fuzzy, python-format
 #| msgid "Added %(email)s to %(group)s."
 msgid "Added %(name)s to %(group)s."
 msgstr "Added %(email)s to %(group)s."
 
-#: access/onboarding.py:70
+#: access/onboarding.py:76
 #, python-format
 msgid "%(name)s chooses a new password the next time they sign in."
 msgstr ""
 
-#: access/policy.py:318
+#: access/policy.py:327
 #, python-format
 msgid "%(user)s is not allowed to run custom models here."
 msgstr "%(user)s is not allowed to run custom models here."
 
-#: access/policy.py:319
+#: access/policy.py:328
 msgid ""
 "This experiment's custom model has no account behind it, so it cannot be "
 "run. Give the experiment an owner who is allowed to run custom models."
@@ -528,19 +528,19 @@ msgstr "Deleted %(name)s. Anything it held is in the bin."
 msgid "Untitled Experiment"
 msgstr "Untitled Experiment"
 
-#: experiments/models.py:263
+#: experiments/models.py:171 experiments/models.py:269
 msgid "Viewer"
 msgstr "Viewer"
 
-#: experiments/models.py:265
+#: experiments/models.py:171 experiments/models.py:271
 msgid "Contributor"
 msgstr "Contributor"
 
-#: experiments/models.py:300
+#: experiments/models.py:306
 msgid "The owner already has every kind of access."
 msgstr "The owner already has every kind of access."
 
-#: experiments/models.py:304
+#: experiments/models.py:310
 #, python-format
 msgid ""
 "%(user)s is not in this experiment's group, so it cannot be shared with them."
@@ -1837,7 +1837,7 @@ msgid "Notes"
 msgstr ""
 
 #: ui/navigation.py:37 ui/templates/ui/base.html:15
-#: ui/templates/ui/base.html:17 ui/templates/ui/panels/group.html:153
+#: ui/templates/ui/base.html:17 ui/templates/ui/panels/group.html:166
 msgid "Experiments"
 msgstr "Experiments"
 
@@ -2428,54 +2428,61 @@ msgid "🗑 Delete"
 msgstr "🗑 Delete"
 
 #: ui/templates/ui/_experiment_header.html:85
+#, fuzzy
+#| msgid "Yours, shared with %(people)s person in its group."
+#| msgid_plural "Yours, shared with %(people)s people in its group."
+msgid "Yours, shared with everyone in its group."
+msgstr "Yours, shared with %(people)s person in its group."
+
+#: ui/templates/ui/_experiment_header.html:87
 #, python-format
 msgid "Yours, shared with %(people)s person in its group."
 msgid_plural "Yours, shared with %(people)s people in its group."
 msgstr[0] "Yours, shared with %(people)s person in its group."
 msgstr[1] "Yours, shared with %(people)s people in its group."
 
-#: ui/templates/ui/_experiment_header.html:87
+#: ui/templates/ui/_experiment_header.html:89
 msgid "Yours, and not shared."
 msgstr "Yours, and not shared."
 
-#: ui/templates/ui/_experiment_header.html:90
+#: ui/templates/ui/_experiment_header.html:92
 #, python-format
 msgid "Share it from %(name)s"
 msgstr "Share it from %(name)s"
 
-#: ui/templates/ui/_experiment_header.html:94
+#: ui/templates/ui/_experiment_header.html:96
 #, python-format
 msgid "%(name)s's — you are a contributor, so you can run and delete it too."
 msgstr "%(name)s's — you are a contributor, so you can run and delete it too."
 
-#: ui/templates/ui/_experiment_header.html:96
+#: ui/templates/ui/_experiment_header.html:98
 #, python-format
 msgid "Shared with you by %(name)s — read only."
 msgstr "Shared with you by %(name)s — read only."
 
-#: ui/templates/ui/_experiment_header.html:98
+#: ui/templates/ui/_experiment_header.html:100
 #, python-format
 msgid "%(name)s's, in a group you lead."
 msgstr "%(name)s's, in a group you lead."
 
-#: ui/templates/ui/_experiment_header.html:101
+#: ui/templates/ui/_experiment_header.html:103
 msgid "This experiment has no owner, so everyone here can change it."
 msgstr "This experiment has no owner, so everyone here can change it."
 
-#: ui/templates/ui/_experiment_header.html:111
+#: ui/templates/ui/_experiment_header.html:113
 #, python-format
 msgid "Run failed: %(run_error)s"
 msgstr "Run failed: %(run_error)s"
 
-#: ui/templates/ui/_experiment_header.html:121
+#: ui/templates/ui/_experiment_header.html:123
 msgid "This model's environment could not be built."
 msgstr "This model's environment could not be built."
 
-#: ui/templates/ui/_experiment_header.html:126
+#: ui/templates/ui/_experiment_header.html:128
 msgid "Try again"
 msgstr "Try again"
 
-#: ui/templates/ui/_experiment_header.html:130
+#: ui/templates/ui/_experiment_header.html:132
 msgid ""
 "This model runs inside the application's own Python environment, not one of "
 "its own — so the dependencies it declares are ignored."
@@ -2483,7 +2490,7 @@ msgstr ""
 "This model runs inside the application's own Python environment, not one of "
 "its own — so the dependencies it declares are ignored."
 
-#: ui/templates/ui/_experiment_header.html:135
+#: ui/templates/ui/_experiment_header.html:137
 msgid "Prepare an isolated environment"
 msgstr "Prepare an isolated environment"
 
@@ -2505,7 +2512,7 @@ msgstr ""
 msgid "Upload Dataset"
 msgstr "Dataset"
 
-#: ui/templates/ui/_file_pick.html:20 ui/templates/ui/panels/group.html:199
+#: ui/templates/ui/_file_pick.html:20 ui/templates/ui/panels/group.html:212
 msgid "Remove"
 msgstr "Remove"
 
@@ -3119,12 +3126,12 @@ msgstr[1] ""
 "Each stays here for %(days)s days, then goes to the site administrators' bin."
 
 #: ui/templates/ui/bin.html:14 ui/templates/ui/panels/group.html:39
-#: ui/templates/ui/panels/group.html:98 ui/templates/ui/panels/group.html:124
+#: ui/templates/ui/panels/group.html:111 ui/templates/ui/panels/group.html:137
 msgid "Experiment"
 msgstr "Experiment"
 
-#: ui/templates/ui/bin.html:15 ui/templates/ui/panels/group.html:99
-#: ui/templates/ui/panels/group.html:125
+#: ui/templates/ui/bin.html:15 ui/templates/ui/panels/group.html:112
+#: ui/templates/ui/panels/group.html:138
 msgid "Owner"
 msgstr "Owner"
 
@@ -3136,7 +3143,7 @@ msgstr "Deleted"
 msgid "Leaves your bin"
 msgstr "Leaves your bin"
 
-#: ui/templates/ui/bin.html:25 ui/templates/ui/panels/group.html:135
+#: ui/templates/ui/bin.html:25 ui/templates/ui/panels/group.html:148
 msgid "nobody"
 msgstr "nobody"
 
@@ -3260,7 +3267,7 @@ msgstr ""
 msgid "It will be in the bin of:"
 msgstr "It will be in the bin of:"
 
-#: ui/templates/ui/delete_confirm.html:11 ui/templates/ui/panels/group.html:160
+#: ui/templates/ui/delete_confirm.html:11 ui/templates/ui/panels/group.html:173
 msgid "you"
 msgstr "you"
 
@@ -3328,7 +3335,7 @@ msgid "Uncertainty"
 msgstr "Uncertainty"
 
 #: ui/templates/ui/experiment_list.html:15
-#: ui/templates/ui/panels/group.html:127
+#: ui/templates/ui/panels/group.html:140
 msgid "Created"
 msgstr "Created"
 
@@ -4196,54 +4203,65 @@ msgid "Shared with"
 msgstr "Shared with"
 
 #: ui/templates/ui/panels/group.html:55
+msgid "Everyone in the group"
+msgstr ""
+
+#: ui/templates/ui/panels/group.html:56
 msgid "Nobody"
 msgstr "Nobody"
 
-#: ui/templates/ui/panels/group.html:65
+#: ui/templates/ui/panels/group.html:61
+#, fuzzy, python-format
+#| msgid "Experiment: %(name)s"
+msgid "Everyone in %(name)s"
+msgstr "Experiment: %(name)s"
+
+#: ui/templates/ui/panels/group.html:63 ui/templates/ui/panels/group.html:78
 msgid "Not shared"
 msgstr "Not shared"
 
-#: ui/templates/ui/panels/group.html:70 ui/templates/ui/panels/group.html:177
+#: ui/templates/ui/panels/group.html:68 ui/templates/ui/panels/group.html:83
+#: ui/templates/ui/panels/group.html:190
 msgid "Set"
 msgstr "Set"
 
-#: ui/templates/ui/panels/group.html:77
+#: ui/templates/ui/panels/group.html:90
 msgid "Make owner"
 msgstr "Make owner"
 
-#: ui/templates/ui/panels/group.html:82
+#: ui/templates/ui/panels/group.html:95
 msgid "Nobody else is in this group yet."
 msgstr "Nobody else is in this group yet."
 
-#: ui/templates/ui/panels/group.html:88
+#: ui/templates/ui/panels/group.html:101
 msgid "You have no experiments in this group."
 msgstr "You have no experiments in this group."
 
-#: ui/templates/ui/panels/group.html:94
+#: ui/templates/ui/panels/group.html:107
 msgid "Shared with you"
 msgstr "Shared with you"
 
-#: ui/templates/ui/panels/group.html:100
+#: ui/templates/ui/panels/group.html:113
 msgid "You are"
 msgstr "You are"
 
-#: ui/templates/ui/panels/group.html:109
+#: ui/templates/ui/panels/group.html:122
 msgid "a contributor"
 msgstr "a contributor"
 
-#: ui/templates/ui/panels/group.html:109
+#: ui/templates/ui/panels/group.html:122
 msgid "a viewer"
 msgstr "a viewer"
 
-#: ui/templates/ui/panels/group.html:112
+#: ui/templates/ui/panels/group.html:125
 msgid "Nothing in this group has been shared with you."
 msgstr "Nothing in this group has been shared with you."
 
-#: ui/templates/ui/panels/group.html:119
+#: ui/templates/ui/panels/group.html:132
 msgid "Everybody else's"
 msgstr "Everybody else's"
 
-#: ui/templates/ui/panels/group.html:120
+#: ui/templates/ui/panels/group.html:133
 msgid ""
 "As a lead you can open, run and stop any of these. Deleting one, or deciding "
 "who it is shared with, stays with its owner."
@@ -4251,57 +4269,61 @@ msgstr ""
 "As a lead you can open, run and stop any of these. Deleting one, or deciding "
 "who it is shared with, stays with its owner."
 
-#: ui/templates/ui/panels/group.html:126
+#: ui/templates/ui/panels/group.html:139
 msgid "Shared"
 msgstr "Shared"
 
-#: ui/templates/ui/panels/group.html:136
+#: ui/templates/ui/panels/group.html:149
+msgid "with everyone"
+msgstr ""
+
+#: ui/templates/ui/panels/group.html:149
 #, python-format
 msgid "with %(people)s person"
 msgid_plural "with %(people)s people"
 msgstr[0] "with %(people)s person"
 msgstr[1] "with %(people)s people"
 
-#: ui/templates/ui/panels/group.html:140
+#: ui/templates/ui/panels/group.html:153
 msgid "Nobody else in this group has an experiment yet."
 msgstr "Nobody else in this group has an experiment yet."
 
-#: ui/templates/ui/panels/group.html:147
+#: ui/templates/ui/panels/group.html:160
 msgid "People"
 msgstr "People"
 
-#: ui/templates/ui/panels/group.html:151
+#: ui/templates/ui/panels/group.html:164
 msgid "Who"
 msgstr "Who"
 
-#: ui/templates/ui/panels/group.html:152 ui/templates/ui/panels/group.html:172
-#: ui/templates/ui/panels/group.html:223
+#: ui/templates/ui/panels/group.html:165 ui/templates/ui/panels/group.html:185
+#: ui/templates/ui/panels/group.html:236
 msgid "Role"
 msgstr "Role"
 
-#: ui/templates/ui/panels/group.html:161
+#: ui/templates/ui/panels/group.html:174
 msgid "deactivated"
 msgstr "deactivated"
 
-#: ui/templates/ui/panels/group.html:162
+#: ui/templates/ui/panels/group.html:175
 #, fuzzy
 #| msgid "Change password"
 msgid "no password yet"
 msgstr "Change password"
 
-#: ui/templates/ui/panels/group.html:193
+#: ui/templates/ui/panels/group.html:206
 msgid "Make primary lead"
 msgstr "Make primary lead"
 
-#: ui/templates/ui/panels/group.html:214
+#: ui/templates/ui/panels/group.html:227
 msgid "Add somebody"
 msgstr "Add somebody"
 
-#: ui/templates/ui/panels/group.html:228
+#: ui/templates/ui/panels/group.html:241
 msgid "Add"
 msgstr "Add"
 
-#: ui/templates/ui/panels/group.html:231
+#: ui/templates/ui/panels/group.html:244
 msgid "This group is full. A site administrator can raise the limit."
 msgstr "This group is full. A site administrator can raise the limit."
 
@@ -5044,17 +5066,17 @@ msgstr "Inconsistent"
 msgid "Misc"
 msgstr "Misc"
 
-#: ui/views/groups.py:164
+#: ui/views/groups.py:167
 #, python-format
 msgid "Removed %(name)s from the group."
 msgstr "Removed %(name)s from the group."
 
-#: ui/views/groups.py:180
+#: ui/views/groups.py:183
 #, python-format
 msgid "%(name)s is now a %(role)s."
 msgstr "%(name)s is now a %(role)s."
 
-#: ui/views/groups.py:200
+#: ui/views/groups.py:203
 #, python-format
 msgid "%(name)s is now the primary lead of %(group)s. You are a group lead."
 msgstr "%(name)s is now the primary lead of %(group)s. You are a group lead."
@@ -5181,11 +5203,11 @@ msgstr ""
 msgid "Discarded the draft “%(name)s”."
 msgstr "Discarded the draft “%(name)s”."
 
-#: ui/views/sharing.py:50
+#: ui/views/sharing.py:50 ui/views/sharing.py:64
 msgid "Unknown sharing level."
 msgstr "Unknown sharing level."
 
-#: ui/views/sharing.py:64
+#: ui/views/sharing.py:78
 #, python-format
 msgid "%(name)s now belongs to %(user)s. You are a contributor."
 msgstr "%(name)s now belongs to %(user)s. You are a contributor."

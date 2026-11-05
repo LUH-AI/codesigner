@@ -162,6 +162,7 @@ def test_the_declared_actions_match_what_the_routes_do():
         "experiment_notes": access_policy.VIEW,
         # Contributors get everything except sharing.
         "experiment_share": access_policy.SHARE,
+        "experiment_share_group": access_policy.SHARE,
         "experiment_transfer": access_policy.SHARE,
         "experiment_delete": access_policy.DELETE,
         "experiment_export": access_policy.EXPORT,

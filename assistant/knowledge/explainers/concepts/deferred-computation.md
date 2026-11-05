@@ -21,7 +21,7 @@ sources:
   - core/analytics/games.py:114-164
   - ui/views/priors.py:124-171
   - ui/views/priors.py:381-393
-  - ui/views/common.py:160-205
+  - ui/views/common.py:161-206
   - ui/views/analytics.py:349-354
   - config/settings.py:79
 ---

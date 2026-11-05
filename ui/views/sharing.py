@@ -54,6 +54,20 @@ def experiment_share(request, exp):
 
 @require_POST
 @experiment_view(SHARE)
+def experiment_share_group(request, exp):
+    """`experiment_share_group` sets the whole group's access to none, viewer
+    or contributor."""
+    if not settings.REQUIRE_LOGIN or exp.group_id is None:
+        raise Http404
+    level = request.POST.get("level", "")
+    if level not in dict(ExperimentShare.LEVELS) and level != "none":
+        return HttpResponseBadRequest(_("Unknown sharing level."))
+    sharing.set_group_access(exp, level)
+    return _back_to_sharing(request, exp)
+
+
+@require_POST
+@experiment_view(SHARE)
 def experiment_transfer(request, exp):
     """`experiment_transfer` hands the experiment to a contributor, who only
     gains `SHARE` and `RENAME`. The previous owner stays a contributor.

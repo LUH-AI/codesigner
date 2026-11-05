@@ -63,6 +63,8 @@ urlpatterns = [
     path("experiments/<int:pk>/cancel/", runs.run_cancel, name="run_cancel"),
     path("experiments/<int:pk>/force-stop/", runs.run_force_stop, name="run_force_stop"),
     path("experiments/<int:pk>/share/", sharing.experiment_share, name="experiment_share"),
+    path("experiments/<int:pk>/share/group/", sharing.experiment_share_group,
+         name="experiment_share_group"),
     path("experiments/<int:pk>/transfer/", sharing.experiment_transfer, name="experiment_transfer"),
     path("bin/", bin.experiment_bin, name="experiment_bin"),
     path("bin/<int:pk>/restore/", bin.bin_restore, name="bin_restore"),

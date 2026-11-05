@@ -1494,6 +1494,17 @@
             })
             .then(answer)
             .then(function (data) {
+                /* The cube weights its acquisition layer by every stated prior,
+                 * so it hears of a reset as it hears of a save: a uniform or
+                 * missing prior weights nothing. Sent before the check below,
+                 * for the same reason the save sends it first. */
+                var weighed = !!(data.prior && data.prior.kind && data.prior.kind !== "uniform");
+                document.dispatchEvent(new CustomEvent("prior:density", {detail: {
+                    hp: hp, positions: meta.positions,
+                    density: weighed && data.density ? data.density.grid : null,
+                    exponent: weighed ? (data.prior.exponent || 1) : null,
+                    categorical: !!(meta && meta.kind === "categorical")
+                }}));
                 if (!state || state.hp !== hp) return;
                 if (data.density) state.density = data.density;
                 var restored = data.prior && data.prior.kind;

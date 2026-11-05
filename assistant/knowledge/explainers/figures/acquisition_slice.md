@@ -10,7 +10,7 @@ sources:
   - ui/figures/catalog.py:313-325 (AcquisitionSlice)
   - ui/templates/ui/figures/acquisition_slice.html, _next_trials.html, _acquisition_shared.html
   - ui/figures/plots/surrogate.py:83-270 (acquisition_slice_plots)
-  - ui/static/ui/acquisition.js:207-444 (compute), 475-518 (priorTraces), 1178-1306 (candidates), 1751-1805 (refresh)
+  - ui/static/ui/acquisition.js:207-444 (compute), 475-518 (priorTraces), 1178-1306 (candidates), 1762-1816 (refresh)
   - ui/static/ui/next_trials.js
   - ui/views/priors.py:136-167 (_slice_model), 319-393 (_next_trials, next_trials), 401-509 (_slice_figures, acquisition_slice), 512-524 (_weighting_warning)
   - core/optimizers/base.py:480-507 (slice_surrogate, acquisition_function)

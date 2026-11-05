@@ -68,6 +68,7 @@ def _ownership(request, exp):
     in_group = membership_in(request.user, exp.group_id) is not None
     return {"owner": exp.owner, "mine": exp.owner_id == request.user.pk,
             "shared_with": exp.shares.count(),
+            "group_share": exp.group_share,
             "level": share_of(request.user, exp),
             "group": exp.group if in_group else None,
             "group_url": (reverse("ui:group_detail", args=[exp.group_id])

@@ -45,6 +45,8 @@ def its_people(exp):
     people = set(exp.shares.filter(level=ExperimentShare.CONTRIBUTOR,
                                    user__memberships__group_id=exp.group_id)
                  .values_list("user_id", flat=True))
+    if exp.group_share == ExperimentShare.CONTRIBUTOR and exp.group_id is not None:
+        people |= set(exp.group.memberships.values_list("user_id", flat=True))
     if exp.owner_id is not None:
         people.add(exp.owner_id)
     return people

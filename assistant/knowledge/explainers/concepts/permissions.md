@@ -8,10 +8,10 @@ keywords: [permission, owner, group, group lead, primary lead, site admin, membe
 status: draft
 sources:
   - ui/permissions.py:14-82
-  - access/policy.py:194-331
-  - access/policy.py:334-343
+  - access/policy.py:203-340
+  - access/policy.py:343-372
   - access/models.py
-  - experiments/models.py:246-301
+  - experiments/models.py:252-307
   - ui/views/sharing.py:16-20
   - experiments/services/bin.py
   - ui/setup_steps.py
@@ -48,7 +48,7 @@ With no login, there are no owners and nothing is refused (except the assistant'
 **What you can reach:**
 
 - your own experiments;
-- experiments shared with you, in a group you are still in;
+- experiments shared with you, or with your whole group, in a group you are still in;
 - every experiment in a group you lead.
 
 Someone else's draft is never reachable, not even by their group lead or a site admin. An experiment you cannot reach looks as if it does not exist.
@@ -62,7 +62,7 @@ Someone else's draft is never reachable, not even by their group lead or a site 
 | Viewer | yes | no | no | no |
 | Group lead (its group) | yes | yes | no | no |
 
-**Sharing.** The owner gives one colleague from the experiment's group at a time a level: none, Viewer or Contributor. The owner can also hand the experiment over to a contributor. The new owner takes over, and the previous owner stays on as a contributor.
+**Sharing.** The owner gives one colleague from the experiment's group at a time a level: none, Viewer or Contributor. The owner can also give the whole group a level at once (**Everyone in** *group*), which covers people who join later; a person's own level counts when it is higher. The owner can also hand the experiment over to a contributor. The new owner takes over, and the previous owner stays on as a contributor.
 
 **Roles.**
 

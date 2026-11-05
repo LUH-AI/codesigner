@@ -19,13 +19,13 @@ sources:
   - ui/views/groups.py
   - ui/views/accounts.py
   - access/onboarding.py
-  - experiments/models.py:255-270
+  - experiments/models.py:261-276
   - access/models.py:91-104
   - access/policy.py:55-57
   - access/signals.py:12-18
   - ui/urls.py
-  - ui/views/sharing.py:41-67
-  - ui/templates/ui/_experiment_header.html:78-101
+  - ui/views/sharing.py:41-81
+  - ui/templates/ui/_experiment_header.html:78-103
   - access/policy.py:79-119
   - assistant/tools/client.py
 ---
@@ -44,15 +44,15 @@ The pages about you rather than about one experiment: how Codesigner looks, how 
 
 **Group** (👥 on the rail, with accounts): the sidebar lists your groups; with none, "You are not in a group yet. A group's lead can add you." A group's page has:
 - **Storage**: used of the limit, and how much is kept trial models. Leads also see the seats left.
-- **Your experiments**: each with **Shared with**. Open it to set each colleague to **Not shared**, **Viewer** or **Contributor** (`level`). A contributor also gets **Make owner**.
-- **Shared with you**: experiments, their owner, and whether you are a viewer or a contributor.
+- **Your experiments**: each with **Shared with**. Open it to set **Everyone in** *group* at once, or each colleague, to **Not shared**, **Viewer** or **Contributor** (`level`). The group-wide level also covers people who join later. A contributor also gets **Make owner**.
+- **Shared with you**: experiments shared with you or with the whole group, their owner, and whether you are a viewer or a contributor.
 - **Everybody else's** (leads only): the rest of the group's experiments.
 - **People**: name, **Role**, number of experiments. The primary lead can set others' roles (Member, Group lead) and pass on **Make primary lead** to another lead. Leads can **Remove** people.
 - **Add somebody** (leads only): **Username** (or **Email address**, on an instance that sends invitations), **Role**, **Add**. A person without a password yet is marked "no password yet".
 
 ## How to use it
 
-1. **Share an experiment**: Group → your group → Your experiments → open **Shared with** → set the colleague's level. It applies at once.
+1. **Share an experiment**: Group → your group → Your experiments → open **Shared with** → set **Everyone in** *group*, or one colleague's level. It applies at once.
 2. **Hand it over**: make them a Contributor first, then **Make owner**. You stay on as a contributor.
 3. **Set your first password**: sign in with your username and an empty password, then choose one. On an instance that sends invitations, open the emailed link instead, accept the terms if asked, and choose one; the link works once and for 24 hours.
 4. **Change your password**: Settings → Account → **Change password**.
@@ -71,6 +71,8 @@ The pages about you rather than about one experiment: how Codesigner looks, how 
 ## Questions people ask
 
 **How do I let a colleague run my experiment?** Share it with them as Contributor from your Group page.
+
+**How do I share with my whole group?** Set **Everyone in** *group* under **Shared with** on your Group page; it covers people who join later too.
 
 **Why can my lead see my experiment?** Leads reach every experiment in the group they lead, to run or stop it, but cannot delete or share it.
 

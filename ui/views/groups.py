@@ -13,7 +13,7 @@ from django.utils.translation import gettext as _
 from django.views.decorators.http import require_POST
 
 from access.models import Membership
-from access.policy import membership_in, memberships_of
+from access.policy import membership_in, memberships_of, stronger
 from access.onboarding import onboarding
 from access.services import groups as group_service
 from access.services.errors import ServiceError
@@ -104,8 +104,11 @@ def group_detail(request, membership):
                                     for c in colleagues]})
 
     level = ExperimentShare.objects.filter(experiment=OuterRef("pk"), user=user)
-    shared = list(live.filter(shares__user=user)
-                  .annotate(level=Subquery(level.values("level")[:1])))
+    shared = list(live.exclude(owner=user)
+                  .filter(Q(shares__user=user) | ~Q(group_share=""))
+                  .annotate(own=Subquery(level.values("level")[:1])).distinct())
+    for exp in shared:
+        exp.level = stronger(exp.own, exp.group_share)
     others = []
     if membership.is_lead:
         others = list(live.exclude(owner=user).exclude(pk__in=[e.pk for e in shared])

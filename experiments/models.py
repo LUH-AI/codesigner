@@ -163,6 +163,12 @@ class Experiment(models.Model):
     group = models.ForeignKey(
         "access.Group", null=True, blank=True,
         on_delete=models.PROTECT, related_name="experiments")
+    #: `group_share` shares the experiment with everyone in its group, people
+    #: who join later included, at an `ExperimentShare` level; empty shares it
+    #: with nobody. A person's own share counts when it is the higher level.
+    group_share = models.CharField(
+        max_length=16, blank=True, default="",
+        choices=[("viewer", _("Viewer")), ("contributor", _("Contributor"))])
     #: Group deletion sets `trashed_at`, which hides the experiment until
     #: rehoming clears it.
     trashed_at = models.DateTimeField(null=True, blank=True)

@@ -8,7 +8,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: PACKAGE VERSION\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2026-11-04 14:52+0000\n"
+"POT-Creation-Date: 2026-11-05 08:55+0000\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
 "Language-Team: LANGUAGE <LL@li.org>\n"
@@ -32,15 +32,15 @@ msgstr "%(who)s no está en %(group)s."
 msgid "Username"
 msgstr "Usuario"
 
-#: access/onboarding.py:44
+#: access/onboarding.py:50
 msgid "A username of 1 to 150 characters is needed."
 msgstr "Se necesita un nombre de usuario de 1 a 150 caracteres."
 
-#: access/onboarding.py:48
+#: access/onboarding.py:54
 msgid "A username can only contain letters, digits and @ . + - _."
 msgstr "Un nombre de usuario solo puede contener letras, dígitos y @ . + - _."
 
-#: access/onboarding.py:58
+#: access/onboarding.py:64
 #, python-format
 msgid ""
 "Added %(name)s to %(group)s. They choose their password the first time they "
@@ -49,23 +49,23 @@ msgstr ""
 "%(name)s se ha añadido a %(group)s. La contraseña se elige al iniciar sesión "
 "por primera vez con este nombre de usuario."
 
-#: access/onboarding.py:61
+#: access/onboarding.py:67
 #, python-format
 msgid "Added %(name)s to %(group)s."
 msgstr "%(name)s se ha añadido a %(group)s."
 
-#: access/onboarding.py:70
+#: access/onboarding.py:76
 #, python-format
 msgid "%(name)s chooses a new password the next time they sign in."
 msgstr ""
 "%(name)s elegirá una contraseña nueva al iniciar sesión la próxima vez."
 
-#: access/policy.py:318
+#: access/policy.py:327
 #, python-format
 msgid "%(user)s is not allowed to run custom models here."
 msgstr "%(user)s no puede ejecutar modelos propios aquí."
 
-#: access/policy.py:319
+#: access/policy.py:328
 msgid ""
 "This experiment's custom model has no account behind it, so it cannot be run."
 " Give the experiment an owner who is allowed to run custom models."
@@ -498,19 +498,19 @@ msgstr "El experimento %(id)s no está en la papelera del sitio."
 msgid "Untitled Experiment"
 msgstr "Experimento sin título"
 
-#: experiments/models.py:263
+#: experiments/models.py:171 experiments/models.py:269
 msgid "Viewer"
 msgstr "Lector"
 
-#: experiments/models.py:265
+#: experiments/models.py:171 experiments/models.py:271
 msgid "Contributor"
 msgstr "Colaborador"
 
-#: experiments/models.py:300
+#: experiments/models.py:306
 msgid "The owner already has every kind of access."
 msgstr "El propietario ya tiene todo tipo de acceso."
 
-#: experiments/models.py:304
+#: experiments/models.py:310
 #, python-format
 msgid ""
 "%(user)s is not in this experiment's group, so it cannot be shared with them."
@@ -1837,7 +1837,7 @@ msgid "Notes"
 msgstr "Notas"
 
 #: ui/navigation.py:37 ui/templates/ui/base.html:15
-#: ui/templates/ui/base.html:17 ui/templates/ui/panels/group.html:153
+#: ui/templates/ui/base.html:17 ui/templates/ui/panels/group.html:166
 msgid "Experiments"
 msgstr "Experimentos"
 
@@ -2430,57 +2430,61 @@ msgid "🗑 Delete"
 msgstr "🗑 Eliminar"
 
 #: ui/templates/ui/_experiment_header.html:85
+msgid "Yours, shared with everyone in its group."
+msgstr "Suyo, compartido con todo su grupo."
+
+#: ui/templates/ui/_experiment_header.html:87
 #, python-format
 msgid "Yours, shared with %(people)s person in its group."
 msgid_plural "Yours, shared with %(people)s people in its group."
 msgstr[0] "Suyo, compartido con %(people)s persona de su grupo."
 msgstr[1] "Suyo, compartido con %(people)s personas de su grupo."
 
-#: ui/templates/ui/_experiment_header.html:87
+#: ui/templates/ui/_experiment_header.html:89
 msgid "Yours, and not shared."
 msgstr "Suyo, y sin compartir."
 
-#: ui/templates/ui/_experiment_header.html:90
+#: ui/templates/ui/_experiment_header.html:92
 #, python-format
 msgid "Share it from %(name)s"
 msgstr "Compartirlo desde %(name)s"
 
-#: ui/templates/ui/_experiment_header.html:94
+#: ui/templates/ui/_experiment_header.html:96
 #, python-format
 msgid "%(name)s's — you are a contributor, so you can run and delete it too."
 msgstr ""
 "De %(name)s — usted colabora, así que también puede ejecutarlo y eliminarlo."
 
-#: ui/templates/ui/_experiment_header.html:96
+#: ui/templates/ui/_experiment_header.html:98
 #, python-format
 msgid "Shared with you by %(name)s — read only."
 msgstr "Compartido con usted por %(name)s — solo lectura."
 
-#: ui/templates/ui/_experiment_header.html:98
+#: ui/templates/ui/_experiment_header.html:100
 #, python-format
 msgid "%(name)s's, in a group you lead."
 msgstr "De %(name)s, en un grupo que usted dirige."
 
-#: ui/templates/ui/_experiment_header.html:101
+#: ui/templates/ui/_experiment_header.html:103
 msgid "This experiment has no owner, so everyone here can change it."
 msgstr ""
 "Este experimento no tiene propietario, así que cualquiera aquí puede "
 "cambiarlo."
 
-#: ui/templates/ui/_experiment_header.html:111
+#: ui/templates/ui/_experiment_header.html:113
 #, python-format
 msgid "Run failed: %(run_error)s"
 msgstr "La ejecución falló: %(run_error)s"
 
-#: ui/templates/ui/_experiment_header.html:121
+#: ui/templates/ui/_experiment_header.html:123
 msgid "This model's environment could not be built."
 msgstr "No se pudo construir el entorno de este modelo."
 
-#: ui/templates/ui/_experiment_header.html:126
+#: ui/templates/ui/_experiment_header.html:128
 msgid "Try again"
 msgstr "Reintentar"
 
-#: ui/templates/ui/_experiment_header.html:130
+#: ui/templates/ui/_experiment_header.html:132
 msgid ""
 "This model runs inside the application's own Python environment, not one of "
 "its own — so the dependencies it declares are ignored."
@@ -2488,7 +2492,7 @@ msgstr ""
 "Este modelo se ejecuta dentro del propio entorno de Python de la aplicación, "
 "no en uno propio — por eso se ignoran las dependencias que declara."
 
-#: ui/templates/ui/_experiment_header.html:135
+#: ui/templates/ui/_experiment_header.html:137
 msgid "Prepare an isolated environment"
 msgstr "Preparar un entorno aislado"
 
@@ -2508,7 +2512,7 @@ msgstr "Subir"
 msgid "Upload Dataset"
 msgstr "Subir conjunto de datos"
 
-#: ui/templates/ui/_file_pick.html:20 ui/templates/ui/panels/group.html:199
+#: ui/templates/ui/_file_pick.html:20 ui/templates/ui/panels/group.html:212
 msgid "Remove"
 msgstr "Quitar"
 
@@ -3126,12 +3130,12 @@ msgstr[1] ""
 "administración del sitio."
 
 #: ui/templates/ui/bin.html:14 ui/templates/ui/panels/group.html:39
-#: ui/templates/ui/panels/group.html:98 ui/templates/ui/panels/group.html:124
+#: ui/templates/ui/panels/group.html:111 ui/templates/ui/panels/group.html:137
 msgid "Experiment"
 msgstr "Experimento"
 
-#: ui/templates/ui/bin.html:15 ui/templates/ui/panels/group.html:99
-#: ui/templates/ui/panels/group.html:125
+#: ui/templates/ui/bin.html:15 ui/templates/ui/panels/group.html:112
+#: ui/templates/ui/panels/group.html:138
 msgid "Owner"
 msgstr "Propietario"
 
@@ -3143,7 +3147,7 @@ msgstr "Eliminado"
 msgid "Leaves your bin"
 msgstr "Sale de su papelera"
 
-#: ui/templates/ui/bin.html:25 ui/templates/ui/panels/group.html:135
+#: ui/templates/ui/bin.html:25 ui/templates/ui/panels/group.html:148
 msgid "nobody"
 msgstr "nadie"
 
@@ -3267,7 +3271,7 @@ msgstr ""
 msgid "It will be in the bin of:"
 msgstr "Estará en la papelera de:"
 
-#: ui/templates/ui/delete_confirm.html:11 ui/templates/ui/panels/group.html:160
+#: ui/templates/ui/delete_confirm.html:11 ui/templates/ui/panels/group.html:173
 msgid "you"
 msgstr "usted"
 
@@ -3335,7 +3339,7 @@ msgid "Uncertainty"
 msgstr "Incertidumbre"
 
 #: ui/templates/ui/experiment_list.html:15
-#: ui/templates/ui/panels/group.html:127
+#: ui/templates/ui/panels/group.html:140
 msgid "Created"
 msgstr "Creado"
 
@@ -4197,54 +4201,64 @@ msgid "Shared with"
 msgstr "Compartido con"
 
 #: ui/templates/ui/panels/group.html:55
+msgid "Everyone in the group"
+msgstr "Todo el grupo"
+
+#: ui/templates/ui/panels/group.html:56
 msgid "Nobody"
 msgstr "Nadie"
 
-#: ui/templates/ui/panels/group.html:65
+#: ui/templates/ui/panels/group.html:61
+#, python-format
+msgid "Everyone in %(name)s"
+msgstr "Todo %(name)s"
+
+#: ui/templates/ui/panels/group.html:63 ui/templates/ui/panels/group.html:78
 msgid "Not shared"
 msgstr "Sin compartir"
 
-#: ui/templates/ui/panels/group.html:70 ui/templates/ui/panels/group.html:177
+#: ui/templates/ui/panels/group.html:68 ui/templates/ui/panels/group.html:83
+#: ui/templates/ui/panels/group.html:190
 msgid "Set"
 msgstr "Aplicar"
 
-#: ui/templates/ui/panels/group.html:77
+#: ui/templates/ui/panels/group.html:90
 msgid "Make owner"
 msgstr "Hacer propietario"
 
-#: ui/templates/ui/panels/group.html:82
+#: ui/templates/ui/panels/group.html:95
 msgid "Nobody else is in this group yet."
 msgstr "Todavía no hay nadie más en este grupo."
 
-#: ui/templates/ui/panels/group.html:88
+#: ui/templates/ui/panels/group.html:101
 msgid "You have no experiments in this group."
 msgstr "No tiene experimentos en este grupo."
 
-#: ui/templates/ui/panels/group.html:94
+#: ui/templates/ui/panels/group.html:107
 msgid "Shared with you"
 msgstr "Compartido con usted"
 
-#: ui/templates/ui/panels/group.html:100
+#: ui/templates/ui/panels/group.html:113
 msgid "You are"
 msgstr "Usted"
 
-#: ui/templates/ui/panels/group.html:109
+#: ui/templates/ui/panels/group.html:122
 msgid "a contributor"
 msgstr "colabora"
 
-#: ui/templates/ui/panels/group.html:109
+#: ui/templates/ui/panels/group.html:122
 msgid "a viewer"
 msgstr "puede verlo"
 
-#: ui/templates/ui/panels/group.html:112
+#: ui/templates/ui/panels/group.html:125
 msgid "Nothing in this group has been shared with you."
 msgstr "En este grupo no se ha compartido nada con usted."
 
-#: ui/templates/ui/panels/group.html:119
+#: ui/templates/ui/panels/group.html:132
 msgid "Everybody else's"
 msgstr "Los de los demás"
 
-#: ui/templates/ui/panels/group.html:120
+#: ui/templates/ui/panels/group.html:133
 msgid ""
 "As a lead you can open, run and stop any of these. Deleting one, or deciding "
 "who it is shared with, stays with its owner."
@@ -4252,55 +4266,59 @@ msgstr ""
 "Como dirección puede abrir, ejecutar y detener cualquiera de estos. Eliminar "
 "uno, o decidir con quién se comparte, le corresponde a su propietario."
 
-#: ui/templates/ui/panels/group.html:126
+#: ui/templates/ui/panels/group.html:139
 msgid "Shared"
 msgstr "Compartido"
 
-#: ui/templates/ui/panels/group.html:136
+#: ui/templates/ui/panels/group.html:149
+msgid "with everyone"
+msgstr "con todos"
+
+#: ui/templates/ui/panels/group.html:149
 #, python-format
 msgid "with %(people)s person"
 msgid_plural "with %(people)s people"
 msgstr[0] "con %(people)s persona"
 msgstr[1] "con %(people)s personas"
 
-#: ui/templates/ui/panels/group.html:140
+#: ui/templates/ui/panels/group.html:153
 msgid "Nobody else in this group has an experiment yet."
 msgstr "Nadie más en este grupo tiene todavía un experimento."
 
-#: ui/templates/ui/panels/group.html:147
+#: ui/templates/ui/panels/group.html:160
 msgid "People"
 msgstr "Personas"
 
-#: ui/templates/ui/panels/group.html:151
+#: ui/templates/ui/panels/group.html:164
 msgid "Who"
 msgstr "Quién"
 
-#: ui/templates/ui/panels/group.html:152 ui/templates/ui/panels/group.html:172
-#: ui/templates/ui/panels/group.html:223
+#: ui/templates/ui/panels/group.html:165 ui/templates/ui/panels/group.html:185
+#: ui/templates/ui/panels/group.html:236
 msgid "Role"
 msgstr "Rol"
 
-#: ui/templates/ui/panels/group.html:161
+#: ui/templates/ui/panels/group.html:174
 msgid "deactivated"
 msgstr "desactivada"
 
-#: ui/templates/ui/panels/group.html:162
+#: ui/templates/ui/panels/group.html:175
 msgid "no password yet"
 msgstr "sin contraseña todavía"
 
-#: ui/templates/ui/panels/group.html:193
+#: ui/templates/ui/panels/group.html:206
 msgid "Make primary lead"
 msgstr "Hacer dirección principal"
 
-#: ui/templates/ui/panels/group.html:214
+#: ui/templates/ui/panels/group.html:227
 msgid "Add somebody"
 msgstr "Añadir a alguien"
 
-#: ui/templates/ui/panels/group.html:228
+#: ui/templates/ui/panels/group.html:241
 msgid "Add"
 msgstr "Añadir"
 
-#: ui/templates/ui/panels/group.html:231
+#: ui/templates/ui/panels/group.html:244
 msgid "This group is full. A site administrator can raise the limit."
 msgstr ""
 "Este grupo está lleno. La administración del sitio puede subir el límite."
@@ -5035,17 +5053,17 @@ msgstr "Inconsistente"
 msgid "Misc"
 msgstr "Varios"
 
-#: ui/views/groups.py:164
+#: ui/views/groups.py:167
 #, python-format
 msgid "Removed %(name)s from the group."
 msgstr "Se quitó a %(name)s del grupo."
 
-#: ui/views/groups.py:180
+#: ui/views/groups.py:183
 #, python-format
 msgid "%(name)s is now a %(role)s."
 msgstr "%(name)s es ahora %(role)s."
 
-#: ui/views/groups.py:200
+#: ui/views/groups.py:203
 #, python-format
 msgid "%(name)s is now the primary lead of %(group)s. You are a group lead."
 msgstr ""
@@ -5170,11 +5188,11 @@ msgstr ""
 msgid "Discarded the draft “%(name)s”."
 msgstr "Se descartó el borrador «%(name)s»."
 
-#: ui/views/sharing.py:50
+#: ui/views/sharing.py:50 ui/views/sharing.py:64
 msgid "Unknown sharing level."
 msgstr "Nivel de acceso desconocido."
 
-#: ui/views/sharing.py:64
+#: ui/views/sharing.py:78
 #, python-format
 msgid "%(name)s now belongs to %(user)s. You are a contributor."
 msgstr "%(name)s ahora pertenece a %(user)s. Usted colabora."

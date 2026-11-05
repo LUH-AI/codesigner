@@ -159,6 +159,15 @@ def primary_led_group_ids(user) -> set:
     return {m.group_id for m in memberships_of(user) if m.is_primary_lead}
 
 
+def assume_memberships(user, memberships) -> None:
+    """`assume_memberships` makes *memberships* what `memberships_of` returns
+    for this *user* object, without saving them. A deployment uses it to
+    present an account as a member, such as codesigner-manage's support view,
+    which shows its system account every group as a lead.
+    """
+    user._memberships = list(memberships)
+
+
 def membership_in(user, group_id):
     for membership in memberships_of(user):
         if membership.group_id == group_id:
@@ -331,23 +340,36 @@ class GroupPolicy(OpenPolicy):
 OwnerPolicy = GroupPolicy
 
 
+#: Share levels from weakest to strongest.
+LEVEL_RANK = {None: 0, "": 0, ExperimentShare.VIEWER: 1, ExperimentShare.CONTRIBUTOR: 2}
+
+
+def stronger(*levels):
+    """`stronger` returns the strongest of *levels*, or None for no share."""
+    return max(levels, key=lambda level: LEVEL_RANK[level]) or None
+
+
 def share_of(user, experiment):
-    """`share_of` returns *user*'s grant level on *experiment*, or None after
-    *user* leaves the group. The check also covers memberships removed without
-    the signal.
+    """`share_of` returns *user*'s level on *experiment*, the stronger of their
+    own share and `Experiment.group_share`, or None after *user* leaves the
+    group. The check also covers memberships removed without the signal.
     """
     if experiment.group_id not in group_ids_of(user):
         return None
-    return (experiment.shares.filter(user=user)
-            .values_list("level", flat=True).first())
+    own = (experiment.shares.filter(user=user)
+           .values_list("level", flat=True).first())
+    return stronger(own, experiment.group_share)
 
 
 def _granted(user):
-    """`_granted` uses a subquery because a join through `shares` would repeat
-    an experiment once per grant.
+    """`_granted` matches experiments shared with *user* in a group they are
+    still in, one by one or with the whole group. It uses a subquery because a
+    join through `shares` would repeat an experiment once per grant.
     """
-    return Q(pk__in=ExperimentShare.objects.filter(user=user).values("experiment_id"),
-             group_id__in=group_ids_of(user))
+    groups = group_ids_of(user)
+    return (Q(pk__in=ExperimentShare.objects.filter(user=user).values("experiment_id"),
+              group_id__in=groups)
+            | (Q(group_id__in=groups) & ~Q(group_share="")))
 
 
 def _holds(user, permission: str) -> bool:

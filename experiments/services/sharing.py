@@ -15,6 +15,13 @@ def set_access(exp, colleague, level, granted_by) -> None:
             defaults={"level": level, "granted_by": granted_by})
 
 
+def set_group_access(exp, level) -> None:
+    """`set_group_access` shares *exp* with its whole group at *level*; level
+    "none" ends the group-wide share and leaves the individual ones."""
+    exp.group_share = "" if level == "none" else level
+    exp.save(update_fields=["group_share"])
+
+
 def transfer(exp, colleague) -> bool:
     """`transfer` atomically exchanges owner and contributor, giving False for a
     non-contributor."""

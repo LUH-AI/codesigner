@@ -2299,7 +2299,7 @@ being read.{% endcomment %}
                 const low = layer === "acquisition" ? 0 : colours.cmin;
                 const high = layer === "acquisition" ? Math.max.apply(null, scores.filter(present))
                                                      : colours.cmax;
-                let levels = !numeric || (dims > 2 && logged.some(Boolean)) ? []
+                let levels = !numeric ? []
                     : SHELL_LEVELS[layer].map(function (f) {
                         return better ? low + f * (high - low) : high - f * (high - low);
                     }).filter(function (level) {
@@ -2338,7 +2338,7 @@ being read.{% endcomment %}
                                        showlabels: false},
                             line: {color: "#111827", width: 1.2}, showscale: false}, scenery));
                     });
-                } else if (numeric && !logged.some(Boolean)) {
+                } else if (numeric) {
                     // Nested shells of equal value through the good part of the
                     // space — what a heat map becomes in three dimensions
                     // without filling the cube with colour. One per level, so
@@ -2389,8 +2389,8 @@ being read.{% endcomment %}
                                      colorbar: colours.colorbar}}, scenery));
                     }
                 } else {
-                    // A categorical or logarithmic axis, which a shell cannot be
-                    // drawn across: the cells themselves, faintly.
+                    // A categorical axis, whose categories have no order for a
+                    // shell to run between: the cells themselves, faintly.
                     const xs = [], ys = [], zs = [], vs = [];
                     shown.forEach(function (v, at) {
                         if (v === null) return;

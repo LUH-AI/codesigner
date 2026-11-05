@@ -49,8 +49,21 @@
                         rather than to change anything.{% endcomment %}
                         <details>
                             <summary>
-                                {% for share in row.shares %}{{ share.user.get_username }} <span class="caption">({{ share.get_level_display|lower }})</span>{% if not forloop.last %}, {% endif %}{% empty %}{% translate "Nobody" %}{% endfor %}
+                                {% if exp.group_share %}{% translate "Everyone in the group" %} <span class="caption">({{ exp.get_group_share_display|lower }})</span>{% if row.shares %}, {% endif %}{% endif %}
+                                {% for share in row.shares %}{{ share.user.get_username }} <span class="caption">({{ share.get_level_display|lower }})</span>{% if not forloop.last %}, {% endif %}{% empty %}{% if not exp.group_share %}{% translate "Nobody" %}{% endif %}{% endfor %}
                             </summary>
+                            <form method="post" action="{% url 'ui:experiment_share_group' exp.pk %}" class="selectors" style="margin-top: 0.4rem;">
+                                {% csrf_token %}
+                                <input type="hidden" name="next" value="{{ here }}#exp-{{ exp.pk }}">
+                                <label for="share-{{ exp.pk }}-group">{% blocktranslate with name=group.name %}Everyone in {{ name }}{% endblocktranslate %}</label>
+                                <select id="share-{{ exp.pk }}-group" name="level" onchange="this.form.submit()">
+                                    <option value="none"{% if not exp.group_share %} selected{% endif %}>{% translate "Not shared" %}</option>
+                                    {% for value, label in levels %}
+                                        <option value="{{ value }}"{% if exp.group_share == value %} selected{% endif %}>{{ label }}</option>
+                                    {% endfor %}
+                                </select>
+                                <noscript><button type="submit" class="btn">{% translate "Set" %}</button></noscript>
+                            </form>
                             {% for c in row.colleagues %}
                                 <div class="selectors" style="margin-top: 0.4rem;">
                                     <form method="post" action="{% url 'ui:experiment_share' exp.pk %}" class="selectors">
@@ -130,7 +143,7 @@
                         <td><a href="{% url 'ui:experiment_detail' exp.pk %}">{{ exp.title }}</a>
                             <span class="exp-id">({{ exp.identifier }})</span></td>
                         <td>{% if exp.owner %}{{ exp.owner.get_username }}{% else %}<span class="caption">{% translate "nobody" %}</span>{% endif %}</td>
-                        <td>{% if exp.people %}{% blocktranslate count people=exp.people %}with {{ people }} person{% plural %}with {{ people }} people{% endblocktranslate %}{% else %}—{% endif %}</td>
+                        <td>{% if exp.group_share %}{% translate "with everyone" %}{% elif exp.people %}{% blocktranslate count people=exp.people %}with {{ people }} person{% plural %}with {{ people }} people{% endblocktranslate %}{% else %}—{% endif %}</td>
                         <td>{{ exp.created_at|date:"Y-m-d" }}</td>
                     </tr>
                 {% empty %}
