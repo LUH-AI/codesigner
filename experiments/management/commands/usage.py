@@ -1,5 +1,8 @@
-"""`manage.py usage` reports runs, trials and trial seconds per group or per
-person.
+"""`manage.py usage` reports runs, trials and trial seconds per group, per
+person or per model, and where each model's best configurations land.
+
+    manage.py usage groups|people|models [--csv]
+    manage.py usage best-configs [MODEL]
 """
 
 import csv
@@ -22,19 +25,33 @@ def person_rows():
 
 
 class Command(JsonCommand):
-    help = "Report usage per group or per person."
+    help = "Report usage per group, person or model, and the best configurations per model."
 
     switches = (*JsonCommand.switches, ("--csv", "Print CSV."))
 
     def add_subcommands(self, sub):
         sub.add_parser("groups")
         sub.add_parser("people")
+        sub.add_parser("models")
+        best = sub.add_parser("best-configs")
+        best.add_argument("model", nargs="?")
 
     def do_groups(self, options):
         return self._maybe_csv(group_rows(), options)
 
     def do_people(self, options):
         return self._maybe_csv(person_rows(), options)
+
+    def do_models(self, options):
+        rows = [{**row, "seconds": round(row["seconds"], 1)}
+                for row in site_service.usage_by_model()]
+        return self._maybe_csv(rows, options)
+
+    def do_best_configs(self, options):
+        found = site_service.best_configurations()
+        if options["model"]:
+            return found.get(options["model"], {})
+        return found
 
     def _maybe_csv(self, rows, options):
         if not options["csv"]:

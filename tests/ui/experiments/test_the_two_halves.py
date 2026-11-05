@@ -56,6 +56,7 @@ STAYS_HERE = {
     "use_default_settings": "and whether it was asked at all",
     "owner": "an .ihpo has no notion of who made it",
     "group": "the boundary is this instance's",
+    "group_share": "who it is shared with means this instance's groups",
     "trashed_at": "a bin is a state on this instance",
     "deleted_at": "and so is somebody's having deleted it",
     "draft": "a setup in progress here; a file holds only created experiments",

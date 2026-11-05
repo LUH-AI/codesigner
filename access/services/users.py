@@ -33,8 +33,10 @@ def set_active(user, active: bool) -> None:
 
 
 def delete_user(user) -> None:
-    """`delete_user` raises `.ServiceError` when *user* still owns experiments."""
-    if user.experiments.exists():
+    """`delete_user` raises `.ServiceError` when *user* still owns live
+    experiments. Experiments of theirs in the bin lose their owner and, with no
+    bin left holding them, go to the site bin (`.orphaned`)."""
+    if user.experiments.filter(deleted_at__isnull=True, trashed_at__isnull=True).exists():
         raise ServiceError(_(
             "%(who)s still owns experiments, so this account cannot be deleted. "
             "Deactivate it instead, or hand the experiments to somebody else "
