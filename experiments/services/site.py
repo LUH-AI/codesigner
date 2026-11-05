@@ -50,10 +50,11 @@ def rehome(experiment, group) -> None:
 
 
 def discard(experiment) -> None:
-    """`discard` deletes a binned experiment for good."""
-    from experiments.services.storage import delete_experiment_files
+    """`discard` deletes a binned experiment for good, with its runs and their
+    jobs, through `.bin.purge`."""
+    from experiments.services.bin import purge
 
-    delete_experiment_files(experiment)
+    purge(experiment)
 
 
 def active_runs():
@@ -84,11 +85,11 @@ def job_row(run) -> dict:
 
 def stop_job(run, reason: str) -> None:
     """`stop_job` cancels the scheduler jobs of *run* and fails *run* with
-    *reason*."""
+    *reason*; its jobs end as cancelled, since somebody stopped them."""
     from experiments.services import run as run_service
 
     run_service.abandon_jobs([run])
-    run_service.fail_runs([run], reason)
+    run_service.fail_runs([run], reason, jobs_end="cancelled")
 
 
 def _window(since=None, until=None) -> dict:

@@ -72,3 +72,46 @@ def test_a_file_carries_no_jobs(client, experiment):  # noqa: F811
 
     assert "4242" not in text and "slurm" not in text
     assert not {"jobs", "backend", "job_id", "scheduler_id"} & set(json.loads(text)["runs"][0])
+
+
+def test_discarding_from_the_site_bin_removes_the_jobs(experiment, monkeypatch):  # noqa: F811
+    """What: discarding an experiment deletes its runs and their jobs, and
+    first cancels a scheduler job still open, which nothing would watch
+    afterwards. How: a finished local job and an open cluster job, discarded
+    with the scheduler stubbed."""
+    from experiments.services import site as site_service
+
+    cancelled = []
+    monkeypatch.setattr(run_service, "abandon_cluster_job", cancelled.append)
+    done = Run.objects.create(experiment=experiment, primary_metric="accuracy", status="done",
+                              stopping={})
+    done.jobs.create(backend="local", status="done", finished_at=timezone.now())
+    open_run = Run.objects.create(experiment=experiment, primary_metric="accuracy",
+                                  status="running", stopping={})
+    open_run.jobs.create(backend="slurm", scheduler_id="555", status="running")
+
+    site_service.discard(experiment)
+
+    assert cancelled == ["555"]
+    assert not Job.objects.exists() and not Run.objects.exists()
+
+
+def test_a_job_stopped_by_somebody_ends_cancelled(experiment, monkeypatch):  # noqa: F811
+    """What: an operator's Stop fails the run with the reason but ends its job
+    as cancelled, telling it apart from a job that errored. How: a running
+    local run stopped through `site.stop_job`, and another failed by an
+    error."""
+    from experiments.services import site as site_service
+
+    stopped = run_service.create_run(experiment, {"max_trials": 3}, "accuracy")
+    run_service._start(stopped)
+    site_service.stop_job(stopped, "Stopped by the site's operator.")
+    failed = run_service.create_run(experiment, {"max_trials": 3}, "accuracy")
+    run_service._start(failed)
+    run_service.fail_runs(Run.objects.filter(pk=failed.pk), "out of memory")
+
+    stopped.refresh_from_db()
+    assert stopped.status == "error"
+    assert (stopped.job.status, stopped.job.error) == ("cancelled",
+                                                       "Stopped by the site's operator.")
+    assert failed.job.status == "error"

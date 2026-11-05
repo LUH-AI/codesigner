@@ -212,8 +212,9 @@ def _close_jobs(run, status, error="") -> None:
                            else sum(float(t.get("time") or 0.0) for t in produced)))
 
 
-def fail_runs(runs, error) -> int:
-    """`fail_runs` keeps trials and returns a count."""
+def fail_runs(runs, error, *, jobs_end="error") -> int:
+    """`fail_runs` keeps trials and returns a count. The runs' open jobs end
+    with *jobs_end*: "error", or "cancelled" for somebody who stopped them."""
     from experiments.models import Run
 
     now = timezone.now()
@@ -223,7 +224,7 @@ def fail_runs(runs, error) -> int:
                     else max(0, _trials_stored(run.experiment_id) - run.trial_offset))
         count += Run.objects.filter(pk=run.pk).update(
             status="error", error=error, finished_at=now, trial_count=produced)
-        _close_jobs(run, "error", error)
+        _close_jobs(run, jobs_end, error)
     return count
 
 
@@ -242,7 +243,7 @@ def force_stop(exp) -> None:
     stuck = exp.runs.filter(status__in=Run.ACTIVE_STATUSES, cancel_requested=True)
     abandon_jobs(stuck)
     fail_runs(stuck, _("Given up on by hand: it stopped answering, and "
-                       "cancelling it had no effect."))
+                       "cancelling it had no effect."), jobs_end="cancelled")
 
 
 def abandon_jobs(runs) -> None:
