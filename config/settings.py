@@ -243,6 +243,11 @@ if AXES_IPWARE_PROXY_COUNT:
     AXES_IPWARE_META_PRECEDENCE_ORDER = ["HTTP_X_FORWARDED_FOR", "REMOTE_ADDR"]
 
 ROOT_URLCONF = "config.urls"
+#: `SITE_URLCONF` is the site's own URL table, for links that leave by mail
+#: (`access.services.setup_links`): a project that mounts the site's pages
+#: elsewhere, such as codesigner-manage's support view, keeps it while
+#: replacing `ROOT_URLCONF`.
+SITE_URLCONF = ROOT_URLCONF
 
 TEMPLATES = [
     {

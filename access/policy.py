@@ -12,6 +12,7 @@ from django.db.models import Q
 from django.utils.module_loading import import_string
 from django.utils.translation import gettext_lazy as _
 
+from access.models import shown_name
 from experiments.models import Experiment, ExperimentShare
 
 #: Every route declares one action, so a policy answers per action and the
@@ -322,7 +323,7 @@ class GroupPolicy(OpenPolicy):
             return ""
         if _holds(user, USE_CUSTOM_MODELS):
             return ""
-        who = user.get_username() if getattr(user, "is_authenticated", False) else None
+        who = shown_name(user) if getattr(user, "is_authenticated", False) else None
         if who:
             return _("%(user)s is not allowed to run custom models here.") % {"user": who}
         return _("This experiment's custom model has no account behind it, so it "

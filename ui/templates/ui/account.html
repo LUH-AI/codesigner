@@ -1,14 +1,25 @@
 {% extends "ui/base.html" %}
-{% load i18n %}
+{% load i18n people %}
 
 {% block title %}{% translate "Account" %} · Codesigner{% endblock %}
 
 {% block content %}
     <h1>{% translate "Account" %}</h1>
     <p class="caption">
-        {% blocktranslate with name=user.get_username %}Signed in as {{ name }}.{% endblocktranslate %}
+        {% blocktranslate with name=user|shown %}Signed in as {{ name }}.{% endblocktranslate %}
         {% if user.email %}{{ user.email }}{% endif %}
     </p>
+
+    <section class="card" style="max-width: 34rem; margin-top: 1rem;">
+        <div class="subheader">{% translate "Display name" %}</div>
+        <form method="post" class="selectors" style="margin-top: 0.5rem;">
+            {% csrf_token %}
+            {% for error in name_form.display_name.errors %}<p class="alert error">{{ error }}</p>{% endfor %}
+            {{ name_form.display_name }}
+            <button type="submit" class="btn">{% translate "Save" %}</button>
+        </form>
+        <p class="caption">{{ name_form.display_name.help_text }}</p>
+    </section>
 
     <section class="card" style="max-width: 34rem; margin-top: 1rem;">
         <div class="subheader">{% translate "What you may do here" %}</div>

@@ -29,7 +29,9 @@ def notes_of(exp):
 
 
 def as_dict(notes) -> dict:
-    who = notes.updated_by.get_username() if notes.updated_by is not None else ""
+    from access.models import shown_name
+
+    who = shown_name(notes.updated_by) if notes.updated_by is not None else ""
     if notes.by_assistant:
         who = f"{who}'s assistant" if who else "the assistant"
     return {"text": notes.text, "by": who or ("someone" if notes.pk else ""),

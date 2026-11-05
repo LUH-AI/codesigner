@@ -1,4 +1,4 @@
-{% load assets i18n %}
+{% load assets i18n people %}
 <!doctype html>
 <html lang="{{ LANGUAGE_CODE }}" data-theme="{{ theme }}">
 <head>
@@ -38,7 +38,7 @@
         {% endcomment %}
         {% if user.is_authenticated %}
             <form class="account" action="{% url 'ui:logout' %}" method="post"
-                  title="{% blocktranslate with name=user.get_username %}Signed in as {{ name }} — sign out{% endblocktranslate %}">
+                  title="{% blocktranslate with name=user|shown %}Signed in as {{ name }} — sign out{% endblocktranslate %}">
                 {% csrf_token %}
                 <button type="submit" class="rail-icon">
                     <span aria-hidden="true">⏻</span>

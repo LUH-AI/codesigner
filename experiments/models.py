@@ -306,9 +306,11 @@ class ExperimentShare(models.Model):
             raise ValidationError(_("The owner already has every kind of access."))
         if experiment.group_id is None or not self.user.memberships.filter(
                 group_id=experiment.group_id).exists():
+            from access.models import shown_name
+
             raise ValidationError(
                 _("%(user)s is not in this experiment's group, so it cannot be "
-                  "shared with them.") % {"user": self.user.get_username()})
+                  "shared with them.") % {"user": shown_name(self.user)})
 
 
 class ExperimentEvent(models.Model):

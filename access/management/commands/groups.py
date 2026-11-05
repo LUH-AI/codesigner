@@ -37,7 +37,7 @@ class Command(JsonCommand):
         create.add_argument("name")
         create.add_argument("--seats", type=int, required=True)
         create.add_argument("--lead", required=True,
-                            help="The primary lead: a username, or what the onboarding takes.")
+                            help="The primary lead's email address.")
         update = sub.add_parser("update")
         update.add_argument("group")
         update.add_argument("--name")
@@ -55,7 +55,7 @@ class Command(JsonCommand):
     def do_create(self, options):
         group, lead, message = group_service.create_group(
             options["name"], options["seats"], options["lead"])
-        return {**group_row(group), "lead": lead.get_username(), "message": message}
+        return {**group_row(group), "lead": lead.email, "message": message}
 
     def do_update(self, options):
         group = group_named(options["group"])

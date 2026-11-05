@@ -11,50 +11,32 @@ decides whether the sign-in page links to `ui:password_forgot`, which calls
 """
 
 from django.conf import settings
-from django.contrib.auth import get_user_model
-from django.contrib.auth.validators import UnicodeUsernameValidator
-from django.core.exceptions import ValidationError
 from django.utils.module_loading import import_string
 from django.utils.translation import gettext as _
 from django.utils.translation import gettext_lazy
 
-from access.models import Account, account_of
-from access.services.errors import ServiceError
+from access.models import Account, account_of, shown_name
+from access.services import accounts
 
 
 class LocalOnboarding:
-    """`LocalOnboarding` lets the first sign-in set the password."""
+    """`LocalOnboarding` adds people by email address, sends nothing, and lets
+    the first sign-in with that address set the password."""
 
-    label = gettext_lazy("Username")
-    input_type = "text"
+    label = gettext_lazy("Email address")
+    input_type = "email"
     offers_reset = False
 
     def normalize(self, identifier: str) -> str:
-        return (identifier or "").strip()
+        return accounts.normalize(identifier)
 
     def find(self, identifier: str):
-        """`find` ignores usernames that break `UnicodeUsernameValidator`, which
-        leaves system accounts such as codesigner-manage's out of reach."""
-        identifier = self.normalize(identifier)
-        User = get_user_model()
-        try:
-            UnicodeUsernameValidator()(identifier)
-        except ValidationError:
-            return None
-        return (User.objects.filter(username__iexact=identifier).first()
-                or User.objects.filter(email__iexact=identifier).first())
+        return accounts.find(identifier)
 
     def create(self, identifier: str):
-        username = self.normalize(identifier)
-        if not username or len(username) > 150:
-            raise ServiceError(_("A username of 1 to 150 characters is needed."))
-        try:
-            UnicodeUsernameValidator()(username)
-        except ValidationError:
-            raise ServiceError(_("A username can only contain letters, digits and @ . + - _."))
-        user = get_user_model().objects.create_user(username=username)
-        user.set_unusable_password()
-        user.save(update_fields=["password"])
+        """`create` raises `ValidationError` for something other than an email
+        address."""
+        user, _created = accounts.find_or_create_by_email(identifier)
         Account.objects.update_or_create(
             user=user, defaults={"password_pending": Account.FIRST_SIGN_IN})
         return user
@@ -62,9 +44,9 @@ class LocalOnboarding:
     def welcome(self, user, created: bool, group) -> str:
         if created:
             return _("Added %(name)s to %(group)s. They choose their password the first "
-                     "time they sign in with this username.") % {
-                         "name": user.get_username(), "group": group.name}
-        return _("Added %(name)s to %(group)s.") % {"name": user.get_username(),
+                     "time they sign in with this email address.") % {
+                         "name": user.email, "group": group.name}
+        return _("Added %(name)s to %(group)s.") % {"name": shown_name(user),
                                                    "group": group.name}
 
     def reset(self, user) -> str:
@@ -74,7 +56,7 @@ class LocalOnboarding:
         account.password_pending = Account.FIRST_SIGN_IN
         account.save(update_fields=["password_pending"])
         return _("%(name)s chooses a new password the next time they sign in.") % {
-            "name": user.get_username()}
+            "name": shown_name(user)}
 
 
 def onboarding():

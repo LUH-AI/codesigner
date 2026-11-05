@@ -1,5 +1,5 @@
 {% extends "ui/base.html" %}
-{% load i18n %}
+{% load i18n people %}
 
 {% block title %}{% translate "Bin" %} · Codesigner{% endblock %}
 
@@ -22,8 +22,8 @@
                 {% for row in binned %}{% with e=row.experiment %}
                     <tr>
                         <td>{{ e.title }} <span class="exp-id">({{ e.identifier }})</span></td>
-                        <td>{% if e.owner %}{{ e.owner.get_username }}{% else %}<span class="caption">{% translate "nobody" %}</span>{% endif %}</td>
-                        <td>{{ e.deleted_at|date:"Y-m-d H:i" }}{% if e.deleted_by %} <span class="caption">{% blocktranslate with name=e.deleted_by.get_username %}by {{ name }}{% endblocktranslate %}</span>{% endif %}</td>
+                        <td>{% if e.owner %}{{ e.owner|shown }}{% else %}<span class="caption">{% translate "nobody" %}</span>{% endif %}</td>
+                        <td>{{ e.deleted_at|date:"Y-m-d H:i" }}{% if e.deleted_by %} <span class="caption">{% blocktranslate with name=e.deleted_by|shown %}by {{ name }}{% endblocktranslate %}</span>{% endif %}</td>
                         {% if row.expires_at %}<td>{{ row.expires_at|date:"Y-m-d" }}</td>{% endif %}
                         <td class="selectors" style="justify-content: flex-end;">
                             <form method="post" action="{% url 'ui:bin_restore' e.pk %}">

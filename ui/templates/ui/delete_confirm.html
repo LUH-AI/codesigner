@@ -1,5 +1,5 @@
 {% extends "ui/_confirm_page.html" %}
-{% load i18n %}
+{% load i18n people %}
 
 {% block confirm_title %}{% blocktranslate with name=experiment.title %}Delete {{ name }}{% endblocktranslate %}{% endblock %}
 {% block confirm_heading %}{% translate "Delete experiment" %}{% endblock %}
@@ -8,7 +8,7 @@
     {% blocktranslate with name=experiment.title ref=experiment.identifier %}Delete <strong>{{ name }}</strong> (<code>{{ ref }}</code>)? Any run still going is stopped, and it moves to the bin, where it can be restored exactly as it is now.{% endblocktranslate %}
     {% if people %}
         <p>{% translate "It will be in the bin of:" %}
-            {% for person in people %}{{ person.get_username }}{% if person == user %} ({% translate "you" %}){% endif %}{% if not forloop.last %}, {% endif %}{% endfor %}</p>
+            {% for person in people %}{{ person|shown }}{% if person == user %} ({% translate "you" %}){% endif %}{% if not forloop.last %}, {% endif %}{% endfor %}</p>
     {% endif %}
 {% endblock %}
 

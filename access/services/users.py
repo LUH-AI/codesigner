@@ -4,10 +4,12 @@ message gives the reason.
 
 from django.contrib.auth import get_user_model
 from django.contrib.auth.models import Permission
-from django.db.models import Count
+from django.db.models import Case, CharField, Count, Exists, OuterRef, Value, When
+from django.utils import timezone
 from django.utils.translation import gettext as _
 
 from access.backends import account_named
+from access.models import DISPLAY_NAME_MIN, account_of, shown_name
 from access.services.errors import ServiceError
 
 
@@ -19,11 +21,49 @@ def named(who: str):
     return user
 
 
+#: An account's status, from its flag, its pending password and its links.
+ACTIVE = "active"
+INVITED = "invited"
+INVITE_EXPIRED = "invite expired"
+DEACTIVATED = "deactivated"
+STATUSES = (ACTIVE, INVITED, INVITE_EXPIRED, DEACTIVATED)
+
+
+def with_status(users):
+    """`with_status` annotates each of *users* with `status`: deactivated
+    when switched off, invited while a password is still to be set (by a live
+    `.SetupLink`, or at the first sign-in), invite expired once every link
+    lapsed, and active otherwise."""
+    from access.models import Account, SetupLink
+
+    live_link = SetupLink.objects.filter(user=OuterRef("pk"), used_at__isnull=True,
+                                         expires_at__gt=timezone.now())
+    return users.annotate(status=Case(
+        When(is_active=False, then=Value(DEACTIVATED)),
+        When(account__password_pending=Account.SETUP_LINK, then=Case(
+            When(Exists(live_link), then=Value(INVITED)), default=Value(INVITE_EXPIRED))),
+        When(account__password_pending=Account.FIRST_SIGN_IN, then=Value(INVITED)),
+        default=Value(ACTIVE), output_field=CharField()))
+
+
 def list_users():
-    return (get_user_model().objects
+    return (with_status(get_user_model().objects)
             .annotate(experiment_count=Count("experiments"))
             .prefetch_related("memberships__group")
             .order_by("username"))
+
+
+def set_display_name(user, name: str) -> None:
+    """`set_display_name` sets how other people see *user*; an empty *name*
+    shows their email address instead. It raises `.ServiceError` for a name
+    under `DISPLAY_NAME_MIN` characters."""
+    name = " ".join((name or "").split())
+    if name and len(name) < DISPLAY_NAME_MIN:
+        raise ServiceError(_("A display name needs at least %(n)s characters.")
+                           % {"n": DISPLAY_NAME_MIN})
+    account = account_of(user)
+    account.display_name = name[:150]
+    account.save(update_fields=["display_name"])
 
 
 def set_active(user, active: bool) -> None:
@@ -40,7 +80,7 @@ def delete_user(user) -> None:
         raise ServiceError(_(
             "%(who)s still owns experiments, so this account cannot be deleted. "
             "Deactivate it instead, or hand the experiments to somebody else "
-            "first.") % {"who": user.get_username()})
+            "first.") % {"who": shown_name(user)})
     user.delete()
 
 

@@ -36,7 +36,7 @@ def lab():
     return Group.objects.create(name="lab", user_limit=9)
 
 
-def _added(lab, name="newbie"):
+def _added(lab, name="newbie@lab.de"):
     user, created, _ = group_service.add_person(lab, name)
     assert created
     return user
@@ -47,12 +47,13 @@ def _set(client, url, password=GOOD, **extra):
 
 
 def test_a_new_account_chooses_its_password_at_first_sign_in(client, hosted, lab):
-    """What: a username a lead added signs in without a password, chooses one
-    and lands on the site; afterwards the password is required. How: sign in
-    as the new account, set a password, sign out, sign in by username alone."""
+    """What: an address a lead added signs in without a password, chooses
+    one and lands on the site; afterwards the password is required. How: sign
+    in as the new account, set a password, sign out, sign in by address
+    alone."""
     user = _added(lab)
 
-    resp = client.post(reverse("ui:login"), {"username": "newbie", "password": ""})
+    resp = client.post(reverse("ui:login"), {"username": "newbie@lab.de", "password": ""})
     assert resp.status_code == 302 and resp["Location"] == reverse("ui:first_password")
     resp = _set(client, reverse("ui:first_password"))
     assert resp.status_code == 302 and resp["Location"] == reverse("ui:home")
@@ -61,7 +62,7 @@ def test_a_new_account_chooses_its_password_at_first_sign_in(client, hosted, lab
     user.refresh_from_db()
     assert user.check_password(GOOD) and user.account.password_pending == ""
     client.logout()
-    resp = client.post(reverse("ui:login"), {"username": "newbie", "password": ""})
+    resp = client.post(reverse("ui:login"), {"username": "newbie@lab.de", "password": ""})
     assert resp.status_code == 200 and "do not match" in resp.content.decode()
 
 
@@ -69,7 +70,7 @@ def test_the_first_password_follows_the_password_rules(client, hosted, lab):
     """What: the first password needs 15 characters and is not a common one.
     How: a 14-character password, then a common one, then a good one."""
     _added(lab)
-    client.post(reverse("ui:login"), {"username": "newbie", "password": ""})
+    client.post(reverse("ui:login"), {"username": "newbie@lab.de", "password": ""})
 
     for weak in ("abcdefghijklmn", "1q2w3e4r5t6y7u8i9o0p"):
         resp = _set(client, reverse("ui:first_password"), weak)
@@ -78,7 +79,7 @@ def test_the_first_password_follows_the_password_rules(client, hosted, lab):
 
 
 def test_the_first_password_page_needs_the_sign_in_first(client, hosted, lab):
-    """What: the first-password page without a username named on the sign-in
+    """What: the first-password page without an address named on the sign-in
     page sends the visitor back there. How: open it directly."""
     _added(lab)
 
@@ -223,7 +224,8 @@ def test_the_sweep_removes_accounts_whose_links_lapsed(lab, django_user_model):
     """What: `setup_links sweep` deletes an account whose links expired
     unused, with its membership, and keeps one with a live link or one that
     signed in. How: three added people in those states."""
-    lapsed, waiting, joined = (_added(lab, name) for name in ("lapsed", "waiting", "joined"))
+    lapsed, waiting, joined = (_added(lab, f"{name}@lab.de")
+                               for name in ("lapsed", "waiting", "joined"))
     for user in (lapsed, waiting, joined):
         setup_links.issue(user, hours=24)
     SetupLink.objects.filter(user=lapsed).update(expires_at=timezone.now())
@@ -231,9 +233,9 @@ def test_the_sweep_removes_accounts_whose_links_lapsed(lab, django_user_model):
     joined.last_login = timezone.now()
     joined.save()
 
-    assert run("setup_links", "sweep") == {"removed": ["lapsed"]}
-    assert set(Membership.objects.values_list("user__username", flat=True)) == {
-        "waiting", "joined"}
+    assert run("setup_links", "sweep") == {"removed": ["lapsed@lab.de"]}
+    assert set(Membership.objects.values_list("user__email", flat=True)) == {
+        "waiting@lab.de", "joined@lab.de"}
 
 
 def test_setup_links_issue_prints_a_full_link(lab):
@@ -241,7 +243,7 @@ def test_setup_links_issue_prints_a_full_link(lab):
     link for a new account."""
     _added(lab)
 
-    issued = run("setup_links", "issue", "newbie", "--base-url", "https://example.org/")
+    issued = run("setup_links", "issue", "newbie@lab.de", "--base-url", "https://example.org/")
 
     assert issued["link"].startswith("https://example.org/accounts/setup/")
 
@@ -279,3 +281,61 @@ def test_the_shipped_password_rules():
     lengths = [v.get("OPTIONS", {}).get("min_length") for v in shipped.AUTH_PASSWORD_VALIDATORS
                if v["NAME"].endswith("MinimumLengthValidator")]
     assert lengths == [15]
+
+
+def test_a_setup_link_points_at_the_site_whoever_issues_it(settings, django_user_model):
+    """What: `setup_links.issue` builds the link from `SITE_URLCONF`, so a
+    project that mounts the site's pages under a prefix, as codesigner-manage
+    does under /support/, still mails a link to the site's own page. How:
+    a URL table with the site under /support/ as `ROOT_URLCONF`."""
+    import sys
+    import types
+
+    from django.urls import include, path
+
+    from access.services import setup_links
+
+    mounted = types.ModuleType("mounted_urls")
+    mounted.urlpatterns = [path("support/", include("config.urls"))]
+    sys.modules["mounted_urls"] = mounted
+    settings.ROOT_URLCONF = "mounted_urls"
+
+    link = setup_links.issue(django_user_model.objects.create_user("ana"), 24)
+
+    assert link.startswith("/accounts/setup/")
+
+
+def test_a_display_name_is_chosen_with_the_password(client, hosted, lab):
+    """What: the setup page takes an optional display name of at least three
+    characters with the password, and the group page then shows it beside
+    the email address. How: a two-letter name, then a good one."""
+    user = _added(lab)
+    Membership.objects.filter(user=user).update(role=Membership.PRIMARY_LEAD)
+    url = setup_links.issue(user, hours=24)
+
+    resp = _set(client, url, display_name="Al")
+    assert resp.status_code == 200 and "display_name" in resp.context["form"].errors
+    assert _set(client, url, display_name="  Ada   Lovelace ").status_code == 302
+
+    user.account.refresh_from_db()
+    assert user.account.display_name == "Ada Lovelace"
+    page = client.get(reverse("ui:group_detail", args=[lab.pk])).content.decode()
+    assert "Ada Lovelace (newbie@lab.de)" in page
+
+
+def test_the_display_name_changes_on_the_account_page(client, hosted, django_user_model):
+    """What: the account page changes the display name, refuses one under
+    three characters, and an empty one shows the email address again. How:
+    three posts to the page."""
+    from access.models import shown_name
+
+    user = django_user_model.objects.create_user("ana@lab.de", "ana@lab.de", GOOD)
+    client.force_login(user)
+    url = reverse("ui:account")
+
+    client.post(url, {"display_name": "Ana"})
+    assert shown_name(django_user_model.objects.get(pk=user.pk)) == "Ana"
+    resp = client.post(url, {"display_name": "A"})
+    assert resp.status_code == 200 and resp.context["name_form"].errors
+    client.post(url, {"display_name": ""})
+    assert shown_name(django_user_model.objects.get(pk=user.pk)) == "ana@lab.de"

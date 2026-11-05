@@ -21,7 +21,7 @@ class Command(JsonCommand):
     def do_issue(self, options):
         user = user_service.named(options["who"])
         path = setup_links.issue(user, options["hours"])
-        return {"username": user.get_username(),
+        return {"email": user.email,
                 "link": options["base_url"].rstrip("/") + path}
 
     def do_sweep(self, options):

@@ -164,7 +164,9 @@ def _entry(exp, kind, at, at_trial, summary, details=(), children=(), actor=None
 
 
 def _name(user):
-    return user.get_username() if user is not None else None
+    from access.models import shown_name
+
+    return shown_name(user) if user is not None else None
 
 
 def _configuration_details(configuration):

@@ -12,7 +12,7 @@ from django.urls import reverse
 from django.utils.translation import gettext as _
 from django.views.decorators.http import require_POST
 
-from access.models import Membership
+from access.models import Membership, shown_name
 from access.policy import membership_in, memberships_of, stronger
 from access.onboarding import onboarding
 from access.services import groups as group_service
@@ -158,7 +158,7 @@ def group_remove_person(request, membership, pk):
     account survives.
     """
     target = get_object_or_404(Membership, pk=pk, group=membership.group)
-    name = target.user.get_username()
+    name = shown_name(target.user)
     try:
         group_service.remove_person(target, by=membership)
     except ServiceError as error:
@@ -181,7 +181,7 @@ def group_set_role(request, membership, pk):
         messages.error(request, str(error))
     else:
         messages.success(request, _("%(name)s is now a %(role)s.") % {
-            "name": target.user.get_username(),
+            "name": shown_name(target.user),
             "role": target.get_role_display().lower()})
     return redirect("ui:group_detail", group_pk=membership.group_id)
 
@@ -201,7 +201,7 @@ def group_transfer_primary(request, membership, pk):
     else:
         messages.success(request, _(
             "%(name)s is now the primary lead of %(group)s. You are a group "
-            "lead.") % {"name": target.user.get_username(),
+            "lead.") % {"name": shown_name(target.user),
                         "group": membership.group.name})
     return redirect("ui:group_detail", group_pk=membership.group_id)
 

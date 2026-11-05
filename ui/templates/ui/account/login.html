@@ -1,5 +1,5 @@
 {% extends "ui/account/_standalone.html" %}
-{% load i18n %}
+{% load i18n people %}
 
 {% block title %}{% translate "Sign in" %}{% endblock %}
 
@@ -7,10 +7,10 @@
         <form method="post" class="card">
             {% csrf_token %}
             {% if form.errors %}
-                <p class="alert error">{% translate "That username and password do not match an account." %}</p>
+                <p class="alert error">{% translate "That email address and password do not match an account." %}</p>
             {% endif %}
             <div class="field">
-                <label for="{{ form.username.id_for_label }}">{% translate "Username" %}</label>
+                <label for="{{ form.username.id_for_label }}">{% translate "Email address" %}</label>
                 {{ form.username }}
             </div>
             <div class="field">

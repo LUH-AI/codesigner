@@ -58,3 +58,34 @@ def test_an_account_whose_experiments_are_binned_can_be_deleted(lab):
     user_service.delete_user(ana)
 
     assert set(site_service.trash().values_list("pk", flat=True)) == {exp.pk, live.pk}
+
+
+def test_each_account_has_one_status(django_user_model):
+    """What: `with_status` tells an active account, one invited with a live
+    link, one whose links all lapsed, one invited to choose a password at
+    first sign-in, and a deactivated one apart. How: one account of each."""
+    from datetime import timedelta
+
+    from django.utils import timezone
+
+    from access.models import Account, SetupLink
+    from access.services import setup_links
+
+    def account(name, pending=""):
+        user = django_user_model.objects.create_user(name, password=None if pending else "pw")
+        Account.objects.create(user=user, password_pending=pending)
+        return user
+
+    account("act")
+    setup_links.issue(account("inv", Account.SETUP_LINK), 24)
+    setup_links.issue(account("exp", Account.SETUP_LINK), 24)
+    SetupLink.objects.filter(user__username="exp").update(
+        expires_at=timezone.now() - timedelta(hours=1))
+    account("first", Account.FIRST_SIGN_IN)
+    gone = account("off")
+    user_service.set_active(gone, False)
+
+    statuses = dict(user_service.with_status(django_user_model.objects)
+                    .values_list("username", "status"))
+    assert statuses == {"act": "active", "inv": "invited", "exp": "invite expired",
+                        "first": "invited", "off": "deactivated"}

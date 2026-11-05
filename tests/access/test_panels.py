@@ -111,9 +111,9 @@ def test_a_lead_fills_the_seats_they_were_given(client, hosted, lab,
     client.force_login(lab["lead"])
 
     client.post(reverse("ui:group_add_person", args=[lab["group"].pk]),
-                {"identifier": "newbie", "role": "member"})
+                {"identifier": "newbie@lab.de", "role": "member"})
 
-    added = django_user_model.objects.get(username="newbie")
+    added = django_user_model.objects.get(email="newbie@lab.de")
     assert added.memberships.get().group == lab["group"]
 
 

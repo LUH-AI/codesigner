@@ -28,8 +28,8 @@ def run(*args, **options):
 def test_groups_are_created_listed_updated_and_deleted():
     """What: `groups create/list/update/delete` round-trip a group. How: a
     group with a lead, renamed and resized, then emptied and deleted."""
-    made = run("groups", "create", "vision", "--seats", "3", "--lead", "vera")
-    assert made["name"] == "vision" and made["lead"] == "vera"
+    made = run("groups", "create", "vision", "--seats", "3", "--lead", "vera@lab.de")
+    assert made["name"] == "vision" and made["lead"] == "vera@lab.de"
     assert "first time they sign in" in made["message"]
     assert [g["name"] for g in run("groups", "list")] == ["vision"]
 
@@ -48,20 +48,21 @@ def test_groups_are_created_listed_updated_and_deleted():
 def test_members_are_added_listed_promoted_handed_the_lead_and_removed():
     """What: `members add/list/set-role/transfer/remove` manage a group's people.
     How: a lead and a newcomer through every subcommand."""
-    run("groups", "create", "vision", "--seats", "3", "--lead", "vera")
-    added = run("members", "add", "vision", "ana")
+    run("groups", "create", "vision", "--seats", "3", "--lead", "vera@lab.de")
+    added = run("members", "add", "vision", "ana@lab.de")
     assert added["created"] and added["role"] == Membership.MEMBER
     with pytest.raises(CommandError, match="already in"):
-        run("members", "add", "vision", "ANA")
+        run("members", "add", "vision", "ANA@lab.de")
 
-    assert run("members", "set-role", "vision", "ana", "lead")["role"] == Membership.LEAD
-    assert run("members", "transfer", "vision", "ana")["role"] == Membership.PRIMARY_LEAD
-    roles = {m["username"]: m["role"] for m in run("members", "list", "vision")}
-    assert roles == {"ana": Membership.PRIMARY_LEAD, "vera": Membership.LEAD}
+    assert run("members", "set-role", "vision", "ana@lab.de", "lead")["role"] == Membership.LEAD
+    assert (run("members", "transfer", "vision", "ana@lab.de")["role"]
+            == Membership.PRIMARY_LEAD)
+    roles = {m["email"]: m["role"] for m in run("members", "list", "vision")}
+    assert roles == {"ana@lab.de": Membership.PRIMARY_LEAD, "vera@lab.de": Membership.LEAD}
 
-    assert run("members", "remove", "vision", "vera")["removed"] == "vera"
+    assert run("members", "remove", "vision", "vera@lab.de")["removed"] == "vera@lab.de"
     with pytest.raises(CommandError, match="is not in"):
-        run("members", "remove", "vision", "vera")
+        run("members", "remove", "vision", "vera@lab.de")
 
 
 def test_users_are_listed_deactivated_and_granted_custom_models(django_user_model):

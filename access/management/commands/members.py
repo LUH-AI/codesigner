@@ -24,7 +24,7 @@ def membership_of(group, who: str):
 
 
 def member_row(membership) -> dict:
-    return {"email": membership.user.email, "username": membership.user.get_username(),
+    return {"email": membership.user.email, "display_name": getattr(getattr(membership.user, "account", None), "display_name", ""),
             "role": membership.role, "joined_at": membership.joined_at}
 
 
@@ -36,7 +36,7 @@ class Command(JsonCommand):
         listing.add_argument("group")
         add = sub.add_parser("add")
         add.add_argument("group")
-        add.add_argument("who", help="A username, or what the onboarding takes.")
+        add.add_argument("who", help="The email address of the person to add.")
         add.add_argument("--role", default=Membership.MEMBER,
                          choices=[Membership.MEMBER, Membership.LEAD, Membership.PRIMARY_LEAD],
                          help="primary_lead only for a group without one.")
@@ -54,12 +54,12 @@ class Command(JsonCommand):
     def do_list(self, options):
         group = group_named(options["group"])
         return [member_row(m) for m in
-                group.memberships.select_related("user").order_by("user__username")]
+                group.memberships.select_related("user").order_by("user__email")]
 
     def do_add(self, options):
         group = group_named(options["group"])
         user, created, message = group_service.add_person(group, options["who"], options["role"])
-        return {"who": user.get_username(), "group": group.name, "role": options["role"],
+        return {"who": user.email, "group": group.name, "role": options["role"],
                 "created": created, "message": message}
 
     def do_remove(self, options):

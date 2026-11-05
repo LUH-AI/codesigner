@@ -8,7 +8,7 @@ from typing import cast
 from django.db.models import Count, OuterRef, Subquery, Sum
 from django.db.models.functions import Coalesce
 
-from access.models import Group, Membership
+from access.models import Group, Membership, shown_name
 from experiments.models import Experiment, Run
 
 
@@ -58,7 +58,7 @@ def job_row(run) -> dict:
         "duration": run.duration,
         "trial_count": run.trial_count,
         "identifier": run.experiment.identifier,
-        "who": owner.get_username() if owner else "",
+        "who": shown_name(owner) if owner else "",
         "email": getattr(owner, "email", ""),
         "group": group.name if group else "",
     }

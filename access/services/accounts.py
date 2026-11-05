@@ -40,9 +40,10 @@ def free_username(base: str) -> str:
 
 def find_or_create_by_email(email: str):
     """`find_or_create_by_email` returns `(user, created)`. A new account has
-    no usable password until its person sets one. The username is the address
-    itself if it fits and is free, else a free name from the part before the
-    `@`. An invalid address raises `ValidationError` before anything is
+    no usable password until its person sets one. Its username, which nobody
+    sees or types, is a copy of the address, or a free name from the part
+    before the `@` in the rare case another account holds the address as its
+    username. An invalid address raises `ValidationError` before anything is
     written.
     """
     address = normalize(email)

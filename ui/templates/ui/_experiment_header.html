@@ -1,4 +1,4 @@
-{% load i18n numbers %}
+{% load i18n numbers people %}
 {% comment %}The top of every view of an experiment — its dashboard, its Data
 Handling and its timeline: what it is, the buttons for what may be done with
 it, whose it is, and anything wrong with it. Placed by
@@ -90,11 +90,11 @@ parameters starts as a link only if that trial's fitted model was kept.
                 {% endif %}
             {% elif ownership.owner %}
                 {% if ownership.level == "contributor" %}
-                    {% blocktranslate with name=ownership.owner.get_username %}{{ name }}'s — you are a contributor, so you can run and delete it too.{% endblocktranslate %}
+                    {% blocktranslate with name=ownership.owner|shown %}{{ name }}'s — you are a contributor, so you can run and delete it too.{% endblocktranslate %}
                 {% elif ownership.level == "viewer" %}
-                    {% blocktranslate with name=ownership.owner.get_username %}Shared with you by {{ name }} — read only.{% endblocktranslate %}
+                    {% blocktranslate with name=ownership.owner|shown %}Shared with you by {{ name }} — read only.{% endblocktranslate %}
                 {% else %}
-                    {% blocktranslate with name=ownership.owner.get_username %}{{ name }}'s, in a group you lead.{% endblocktranslate %}
+                    {% blocktranslate with name=ownership.owner|shown %}{{ name }}'s, in a group you lead.{% endblocktranslate %}
                 {% endif %}
             {% else %}
                 {% translate "This experiment has no owner, so everyone here can change it." %}

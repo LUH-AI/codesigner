@@ -25,25 +25,25 @@ def _experiment(owner, group):
 def test_a_group_starts_with_its_primary_lead():
     """What: `create_group` creates the group and, through `LocalOnboarding`,
     an account for its primary lead that has no password until the first
-    sign-in. How: a new group with a new username."""
-    group, lead, message = group_service.create_group("vision", 3, "vera")
+    sign-in. How: a new group with a new address."""
+    group, lead, message = group_service.create_group("vision", 3, "Vera@Lab.de")
 
-    assert lead.username == "vera" and not lead.has_usable_password()
+    assert lead.email == "vera@lab.de" and not lead.has_usable_password()
     assert lead.account.password_pending == Account.FIRST_SIGN_IN
     assert "first time they sign in" in message
     assert group.memberships.get().role == Membership.PRIMARY_LEAD
 
 
 @pytest.mark.parametrize("name, seats, lead, said", [
-    ("", 3, "vera", "needs a name"),
-    ("vision", 0, "vera", "at least one seat"),
+    ("", 3, "vera@lab.de", "needs a name"),
+    ("vision", 0, "vera@lab.de", "at least one seat"),
     ("vision", 3, "", "needs a primary lead"),
-    ("vision", 3, "v" * 151, "1 to 150 characters"),
-    ("vision", 3, "operator:vera", "only contain letters"),
+    ("vision", 3, "vera", "not a valid email address"),
+    ("vision", 3, "operator:vera", "not a valid email address"),
 ])
 def test_a_group_that_cannot_start_leaves_nothing_behind(name, seats, lead, said):
     """What: `create_group` raises `ServiceError` for a group without a name, a
-    seat or a valid lead username, and writes nothing. How: each missing piece
+    seat or a valid lead address, and writes nothing. How: each missing piece
     in turn."""
     with pytest.raises(ServiceError, match=said):
         group_service.create_group(name, seats, lead)
@@ -158,13 +158,13 @@ def test_the_custom_model_grant_is_given_and_taken(django_user_model):
 
 
 def test_a_system_account_cannot_be_added_to_a_group(django_user_model):
-    """What: `add_person` neither finds nor creates a name outside Django's
-    username characters, so a system account such as codesigner-manage's
-    `support:dashboard` never joins a group. How: that account made
-    beforehand, then added to a group by name."""
+    """What: `add_person` finds and creates accounts by email address alone,
+    so a system account without one, such as codesigner-manage's
+    `support:dashboard`, never joins a group. How: that account made
+    beforehand, then added to a group by its name."""
     django_user_model.objects.create_user("support:dashboard", is_active=False)
-    group, *_ = group_service.create_group("vision", 3, "vera")
+    group, *_ = group_service.create_group("vision", 3, "vera@lab.de")
 
-    with pytest.raises(ServiceError, match="only contain letters"):
+    with pytest.raises(ServiceError, match="not a valid email address"):
         group_service.add_person(group, "support:dashboard")
     assert group.memberships.count() == 1

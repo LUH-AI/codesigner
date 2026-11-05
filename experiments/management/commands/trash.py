@@ -28,7 +28,7 @@ class Command(JsonCommand):
         sub.add_parser("discard").add_argument("identifier")
 
     def do_list(self, options):
-        return [{"identifier": e.identifier, "owner": e.owner.get_username() if e.owner else "",
+        return [{"identifier": e.identifier, "owner": e.owner.email if e.owner else "",
                  "runs": e.run_count, "binned_at": e.deleted_at or e.trashed_at}
                 for e in site_service.trash_rows()]
 

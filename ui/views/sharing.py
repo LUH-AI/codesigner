@@ -6,6 +6,7 @@ from django.urls import reverse
 from django.utils.translation import gettext as _
 from django.views.decorators.http import require_POST
 
+from access.models import shown_name
 from access.policy import SHARE
 from experiments.models import ExperimentShare
 from experiments.services import sharing
@@ -77,5 +78,5 @@ def experiment_transfer(request, exp):
         raise Http404
     messages.success(request, _("%(name)s now belongs to %(user)s. You are a "
                                 "contributor.")
-                     % {"name": exp.title, "user": colleague.get_username()})
+                     % {"name": exp.title, "user": shown_name(colleague)})
     return _back_to_sharing(request, exp)

@@ -1,5 +1,4 @@
-"""`manage.py users` lists and manages accounts. WHO is a username or an email
-address.
+"""`manage.py users` lists and manages accounts. WHO is an email address.
 """
 
 from django.contrib.auth import get_user_model
@@ -13,7 +12,8 @@ from experiments.management.jsoncommand import JsonCommand
 
 
 def user_row(user) -> dict:
-    return {"email": user.email, "username": user.get_username(), "active": user.is_active,
+    return {"email": user.email, "display_name": getattr(getattr(user, "account", None), "display_name", ""),
+            "status": getattr(user, "status", None), "active": user.is_active,
             "groups": ", ".join(sorted(m.group.name for m in user.memberships.all())),
             "experiments": getattr(user, "experiment_count", None),
             "last_login": user.last_login, "joined": user.date_joined}
@@ -41,12 +41,12 @@ class Command(JsonCommand):
     def do_deactivate(self, options):
         user = user_service.named(options["who"])
         user_service.set_active(user, False)
-        return {"username": user.get_username(), "active": False}
+        return {"email": user.email, "active": False}
 
     def do_activate(self, options):
         user = user_service.named(options["who"])
         user_service.set_active(user, True)
-        return {"username": user.get_username(), "active": True}
+        return {"email": user.email, "active": True}
 
     def do_delete(self, options):
         user = user_service.named(options["who"])
@@ -56,7 +56,7 @@ class Command(JsonCommand):
     def do_custom_models(self, options):
         user = user_service.named(options["who"])
         user_service.set_custom_models(user, options["state"] == "on")
-        return {"username": user.get_username(), "custom_models": options["state"] == "on"}
+        return {"email": user.email, "custom_models": options["state"] == "on"}
 
     def do_reset_password(self, options):
         return onboarding().reset(user_service.named(options["who"]))

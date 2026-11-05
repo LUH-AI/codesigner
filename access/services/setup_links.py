@@ -6,6 +6,7 @@ import hashlib
 import secrets
 from datetime import timedelta
 
+from django.conf import settings
 from django.db.models import Q
 from django.urls import reverse
 from django.utils import timezone
@@ -18,8 +19,9 @@ def _hash(token: str) -> str:
 
 
 def issue(user, hours: float) -> str:
-    """`issue` returns the new link's path; earlier unused links of *user*
-    expire at once."""
+    """`issue` returns the new link's path on the site (`SITE_URLCONF`),
+    whichever project calls it; earlier unused links of *user* expire at
+    once."""
     SetupLink.objects.filter(user=user, used_at__isnull=True).update(
         expires_at=timezone.now())
     token = secrets.token_urlsafe(32)
@@ -29,7 +31,7 @@ def issue(user, hours: float) -> str:
     if not user.has_usable_password():
         account.password_pending = Account.SETUP_LINK
         account.save(update_fields=["password_pending"])
-    return reverse("ui:account_setup", args=[token])
+    return reverse("ui:account_setup", args=[token], urlconf=settings.SITE_URLCONF)
 
 
 def live(token: str):
@@ -58,7 +60,7 @@ def sweep() -> list[str]:
         if (user.has_usable_password() or user.experiments.exists()
                 or user.setup_links.filter(expires_at__gt=now).exists()):
             continue
-        removed.append(user.get_username())
+        removed.append(user.email or user.get_username())
         user.delete()
     SetupLink.objects.filter(Q(used_at__isnull=False) | Q(expires_at__lte=now)).delete()
     return removed

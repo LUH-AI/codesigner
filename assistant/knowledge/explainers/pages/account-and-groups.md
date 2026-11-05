@@ -2,7 +2,7 @@
 id: page-account-and-groups
 title: Settings, account and groups
 kind: page
-about: [page:ui:appearance, page:ui:export_preferences, page:ui:account, page:ui:group_index, page:ui:group_detail, field:theme, field:export_timestamps, field:level, field:role, field:identifier]
+about: [page:ui:appearance, page:ui:export_preferences, page:ui:account, page:ui:group_index, page:ui:group_detail, field:theme, field:export_timestamps, field:level, field:role, field:identifier, field:display_name]
 related: [concept-permissions, page-dashboard, page-export-import, page-experiment-settings]
 keywords: [settings, appearance, theme, dark mode, export preference, account, permissions, password, group, members, lead, primary lead, roles, seats, storage, share, sharing, viewer, contributor, make owner, transfer, add somebody, remove]
 status: draft
@@ -39,7 +39,7 @@ The pages about you rather than about one experiment: how Codesigner looks, how 
 **Settings** (⚙ on the rail):
 - **Appearance**: **Theme** (`theme`): Light, Dark or Same as my system. It is saved for this browser, not the account.
 - **Export**: **Time** (`export_timestamps`): Real Times, Relative Times (the default) or No Times. This is what the export page preselects unless the experiment says otherwise.
-- **Account** (with accounts only): "Signed in as *name*", and **What you may do here**, ticking Upload and run custom models. **Change password** asks for the current one.
+- **Account** (with accounts only): "Signed in as *name*" with your email address, **Display name** (`display_name`) to change how others see you (at least 3 characters; empty shows your email address), **What you may do here**, ticking Upload and run custom models, and **Change password**, which asks for the current one.
 - **Default experiment settings**: only for people allowed to change them.
 
 **Group** (👥 on the rail, with accounts): the sidebar lists your groups; with none, "You are not in a group yet. A group's lead can add you." A group's page has:
@@ -47,14 +47,14 @@ The pages about you rather than about one experiment: how Codesigner looks, how 
 - **Your experiments**: each with **Shared with**. Open it to set **Everyone in** *group* at once, or each colleague, to **Not shared**, **Viewer** or **Contributor** (`level`). The group-wide level also covers people who join later. A contributor also gets **Make owner**.
 - **Shared with you**: experiments shared with you or with the whole group, their owner, and whether you are a viewer or a contributor.
 - **Everybody else's** (leads only): the rest of the group's experiments.
-- **People**: name, **Role**, number of experiments. The primary lead can set others' roles (Member, Group lead) and pass on **Make primary lead** to another lead. Leads can **Remove** people.
-- **Add somebody** (leads only): **Username** (or **Email address**, on an instance that sends invitations), **Role**, **Add**. A person without a password yet is marked "no password yet".
+- **People**: display name with email address, **Role**, number of experiments. The primary lead can set others' roles (Member, Group lead) and pass on **Make primary lead** to another lead. Leads can **Remove** people.
+- **Add somebody** (leads only): **Email address**, **Role**, **Add**. A person without a password yet is marked "no password yet".
 
 ## How to use it
 
 1. **Share an experiment**: Group → your group → Your experiments → open **Shared with** → set **Everyone in** *group*, or one colleague's level. It applies at once.
 2. **Hand it over**: make them a Contributor first, then **Make owner**. You stay on as a contributor.
-3. **Set your first password**: sign in with your username and an empty password, then choose one. On an instance that sends invitations, open the emailed link instead, accept the terms if asked, and choose one; the link works once and for 24 hours.
+3. **Set your first password**: sign in with your email address and an empty password, then choose one. On an instance that sends invitations, open the emailed link instead, accept the terms if asked, and choose one; the link works once and for 24 hours. Either page also takes an optional **Display name**.
 4. **Change your password**: Settings → Account → **Change password**.
 5. **Switch to dark mode**: Settings → Appearance → Dark.
 

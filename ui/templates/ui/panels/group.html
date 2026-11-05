@@ -1,5 +1,5 @@
 {% extends "ui/base.html" %}
-{% load i18n %}
+{% load i18n people %}
 
 {% block title %}{{ group.name }} · Codesigner{% endblock %}
 
@@ -50,7 +50,7 @@
                         <details>
                             <summary>
                                 {% if exp.group_share %}{% translate "Everyone in the group" %} <span class="caption">({{ exp.get_group_share_display|lower }})</span>{% if row.shares %}, {% endif %}{% endif %}
-                                {% for share in row.shares %}{{ share.user.get_username }} <span class="caption">({{ share.get_level_display|lower }})</span>{% if not forloop.last %}, {% endif %}{% empty %}{% if not exp.group_share %}{% translate "Nobody" %}{% endif %}{% endfor %}
+                                {% for share in row.shares %}{{ share.user|shown_with_email }} <span class="caption">({{ share.get_level_display|lower }})</span>{% if not forloop.last %}, {% endif %}{% empty %}{% if not exp.group_share %}{% translate "Nobody" %}{% endif %}{% endfor %}
                             </summary>
                             <form method="post" action="{% url 'ui:experiment_share_group' exp.pk %}" class="selectors" style="margin-top: 0.4rem;">
                                 {% csrf_token %}
@@ -70,7 +70,7 @@
                                         {% csrf_token %}
                                         <input type="hidden" name="user" value="{{ c.user.pk }}">
                                         <input type="hidden" name="next" value="{{ here }}#exp-{{ exp.pk }}">
-                                        <label for="share-{{ exp.pk }}-{{ c.user.pk }}">{{ c.user.get_username }}</label>
+                                        <label for="share-{{ exp.pk }}-{{ c.user.pk }}">{{ c.user|shown_with_email }}</label>
                                         <select id="share-{{ exp.pk }}-{{ c.user.pk }}" name="level" onchange="this.form.submit()">
                                             <option value="none"{% if c.level == "none" %} selected{% endif %}>{% translate "Not shared" %}</option>
                                             {% for value, label in levels %}
@@ -115,7 +115,7 @@
                 <tr>
                     <td><a href="{% url 'ui:experiment_detail' exp.pk %}">{{ exp.title }}</a>
                         <span class="exp-id">({{ exp.identifier }})</span></td>
-                    <td>{{ exp.owner.get_username }}</td>
+                    <td>{{ exp.owner|shown_with_email }}</td>
                     <td>{% if exp.level == "contributor" %}{% translate "a contributor" %}{% else %}{% translate "a viewer" %}{% endif %}</td>
                 </tr>
             {% empty %}
@@ -142,7 +142,7 @@
                     <tr>
                         <td><a href="{% url 'ui:experiment_detail' exp.pk %}">{{ exp.title }}</a>
                             <span class="exp-id">({{ exp.identifier }})</span></td>
-                        <td>{% if exp.owner %}{{ exp.owner.get_username }}{% else %}<span class="caption">{% translate "nobody" %}</span>{% endif %}</td>
+                        <td>{% if exp.owner %}{{ exp.owner|shown_with_email }}{% else %}<span class="caption">{% translate "nobody" %}</span>{% endif %}</td>
                         <td>{% if exp.group_share %}{% translate "with everyone" %}{% elif exp.people %}{% blocktranslate count people=exp.people %}with {{ people }} person{% plural %}with {{ people }} people{% endblocktranslate %}{% else %}—{% endif %}</td>
                         <td>{{ exp.created_at|date:"Y-m-d" }}</td>
                     </tr>
@@ -167,7 +167,7 @@
         <tbody>
             {% for m in memberships %}
                 <tr>
-                    <td>{{ m.user.get_username }}{% if m.user == user %} <span class="caption">({% translate "you" %})</span>{% endif %}
+                    <td>{{ m.user|shown_with_email }}{% if m.user == user %} <span class="caption">({% translate "you" %})</span>{% endif %}
                         {% if not m.user.is_active %} <span class="caption">— {% translate "deactivated" %}</span>
                         {% elif not m.user.has_usable_password %} <span class="caption">— {% translate "no password yet" %}</span>{% endif %}</td>
                     {% comment %}Editable only for the primary lead, and never

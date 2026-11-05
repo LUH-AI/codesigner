@@ -15,10 +15,11 @@ from django.utils.translation import gettext as _
 from django.utils.translation import gettext_lazy
 
 from access.backends import account_named, operator
-from access.models import Account, account_of
+from access.models import DISPLAY_NAME_MIN, Account, account_of
 from access.onboarding import onboarding
 from access.services import setup_links
 from access.services.passwords import accept_agreement, agreement_due, password_set
+from access.services.users import set_display_name
 
 from ..navigation import safe_next
 
@@ -71,13 +72,28 @@ class SignInView(auth_views.LoginView):
         return {**super().get_context_data(**kwargs), "onboarding": onboarding()}
 
 
-class PasswordSetupForm(SetPasswordForm):
-    """`PasswordSetupForm` also asks for the agreement when one is due."""
+def display_name_field():
+    return forms.CharField(
+        required=False, min_length=DISPLAY_NAME_MIN, max_length=150,
+        label=gettext_lazy("Display name"),
+        help_text=gettext_lazy("Shown to others instead of your email address."))
 
+
+class DisplayNameForm(forms.Form):
+    display_name = display_name_field()
+
+
+class PasswordSetupForm(SetPasswordForm):
+    """`PasswordSetupForm` also takes an optional display name, and asks for
+    the agreement when one is due."""
+
+    display_name = display_name_field()
     accept = forms.BooleanField(required=False, label=gettext_lazy("I accept these terms."))
+    field_order = ["display_name", "new_password1", "new_password2", "accept"]
 
     def __init__(self, user, *args, terms=None, **kwargs):
         super().__init__(user, *args, **kwargs)
+        self.fields["display_name"].initial = account_of(user).display_name
         self.terms = terms
         if terms is None:
             del self.fields["accept"]
@@ -86,6 +102,7 @@ class PasswordSetupForm(SetPasswordForm):
 
     def save(self, commit=True):
         user = super().save(commit)
+        set_display_name(user, self.cleaned_data.get("display_name", ""))
         if self.terms is not None:
             accept_agreement(user, self.terms[0])
         password_set(user)
@@ -104,7 +121,7 @@ def _set_password_page(request, user, *, title, done):
         login(request, user, backend=BACKEND)
         return redirect(safe_next(request) or "ui:home")
     return render(request, "ui/account/set_password.html", {
-        "form": form, "terms": terms, "title": title, "who": user.get_username()})
+        "form": form, "terms": terms, "title": title, "who": user.email or user.get_username()})
 
 
 @login_not_required

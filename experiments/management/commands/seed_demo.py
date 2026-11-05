@@ -1,8 +1,9 @@
 """`seed_demo` builds a demo instance with groups, roles and sharing to sign in
 to.
 
-Every password equals its username, so the command only runs with `DEBUG` on
-or with `--force`, otherwise it raises a `CommandError`. The demo includes two groups at different seat
+Every account signs in as NAME@example.org with NAME as its password, so the
+command only runs with `DEBUG` on or with `--force`, otherwise it raises a
+`CommandError`. The demo includes two groups at different seat
 limits, experiments at all three sharing levels, finished runs, and one running
 job.
 """
@@ -31,14 +32,14 @@ class Command(BaseCommand):
                             help="delete the demo groups and their people first")
         parser.add_argument("--force", action="store_true",
                             help="run even with DEBUG off. The passwords here are "
-                                 "the usernames; do not do this on a real instance.")
+                                 "the names; do not do this on a real instance.")
 
     @transaction.atomic
     def handle(self, *args, **options):
         if not settings.DEBUG and not options["force"]:
             raise CommandError(
-                "DEBUG is off. Every account this creates has its username as "
-                "its password, so it refuses to run on what might be a real "
+                "DEBUG is off. Every account this creates has its name as its "
+                "password, so it refuses to run on what might be a real "
                 "instance. Pass --force if this is not one.")
 
         if options["reset"]:
@@ -97,13 +98,17 @@ class Command(BaseCommand):
             name=name, defaults={"user_limit": limit})
         return group
 
-    def _person(self, username, group, role=Membership.MEMBER):
+    def _person(self, name, group, role=Membership.MEMBER):
+        from access.models import Account
+
         User = get_user_model()
-        user, made = User.objects.get_or_create(
-            username=username, defaults={"email": f"{username}@example.org"})
+        address = f"{name}@example.org"
+        user, made = User.objects.get_or_create(username=address, defaults={"email": address})
         if made:
-            user.set_password(username)
+            user.set_password(name)
             user.save(update_fields=["password"])
+            Account.objects.update_or_create(user=user,
+                                             defaults={"display_name": name.capitalize()})
         # Pair-keyed: a person may belong to several groups.
         Membership.objects.get_or_create(
             user=user, group=group, defaults={"role": role})
@@ -137,12 +142,12 @@ class Command(BaseCommand):
 
     def _report(self, groups) -> None:
         out, ok = self.stdout, self.style.SUCCESS
-        out.write(ok("\nSeeded. Every password is the username.\n"))
+        out.write(ok("\nSeeded. Sign in as NAME@example.org; every password is the NAME.\n"))
         for group, lead, members in groups:
             out.write(f"\n  {group.name} ({group.member_count}/{group.user_limit} seats)")
-            out.write(f"  {'  ' + lead.get_username():10s} group lead — "
+            out.write(f"  {'  ' + lead.email:20s} group lead — "
                       "sees and runs everyone's here, deletes only their own")
             for member in members:
-                out.write(f"  {'  ' + member.get_username():10s} member")
-        out.write("\nTry: sign in as ben and look for ana's three experiments — "
+                out.write(f"  {'  ' + member.email:20s} member")
+        out.write("\nTry: sign in as ben@example.org and look for Ana's three experiments — "
                   "he should see two, and be able to run only one of them.\n")

@@ -42,7 +42,9 @@ class Command(BaseCommand):
 
             if not options["user"]:
                 raise CommandError("Accounts are on: name the person to act for with --user.")
-            owner = get_user_model().objects.filter(username=options["user"]).first()
+            from access.backends import account_named
+
+            owner = account_named(options["user"])
             if owner is None:
                 raise CommandError(f"There is no account {options['user']!r}.")
 

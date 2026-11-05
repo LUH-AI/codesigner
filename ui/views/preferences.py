@@ -1,4 +1,5 @@
 from django.conf import settings
+from django.contrib import messages
 from django.core.exceptions import PermissionDenied
 from django.http import Http404
 from django.shortcuts import redirect, render
@@ -99,8 +100,20 @@ def account(request):
     """
     if not settings.REQUIRE_LOGIN:
         raise Http404
+    from access.models import account_of
+    from access.services.users import set_display_name
+
+    from .accounts import DisplayNameForm
+
+    form = DisplayNameForm(request.POST or None,
+                           initial={"display_name": account_of(request.user).display_name})
+    if request.method == "POST" and form.is_valid():
+        set_display_name(request.user, form.cleaned_data["display_name"])
+        messages.success(request, _("Saved your display name."))
+        return redirect("ui:account")
     current = policy()
     return render(request, "ui/account.html", {
+        "name_form": form,
         "powers": [
             (_("Upload and run custom models"),
              current.may_upload_models(request)),

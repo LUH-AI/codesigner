@@ -178,6 +178,25 @@ class Account(models.Model):
     #: Set by `manage.py users require-new-password`; cleared by a change.
     must_change_password = models.BooleanField(default=False)
     password_changed_at = models.DateTimeField(null=True, blank=True)
+    #: How other people see this person: not unique, never used to sign in.
+    #: Empty shows the email address (`shown_name`).
+    display_name = models.CharField(max_length=150, blank=True, default="")
+
+
+#: The fewest characters a display name may have.
+DISPLAY_NAME_MIN = 3
+
+
+def shown_name(user) -> str:
+    """`shown_name` is how *user* appears to other people: their display
+    name, else their email address, else the account's internal name."""
+    if user is None:
+        return ""
+    try:
+        name = user.account.display_name
+    except (Account.DoesNotExist, AttributeError):
+        name = ""
+    return name or user.email or user.get_username()
 
 
 def account_of(user) -> Account:

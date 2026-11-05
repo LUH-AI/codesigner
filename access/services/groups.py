@@ -7,7 +7,7 @@ from django.db import transaction
 from django.db.models.deletion import ProtectedError
 from django.utils.translation import gettext as _
 
-from access.models import Group, Membership
+from access.models import Group, Membership, shown_name
 from access.onboarding import onboarding
 from access.services.errors import ServiceError
 
@@ -114,7 +114,7 @@ def remove_person(target, *, by=None) -> None:
     """`remove_person` raises `.ServiceError` while the person owns experiments
     in the group, since nobody could reach those afterwards. The account
     survives."""
-    name = target.user.get_username()
+    name = shown_name(target.user)
     if by is not None and target.pk == by.pk:
         raise ServiceError(_("You cannot remove yourself from your own group."))
     if target.is_primary_lead:
@@ -147,7 +147,7 @@ def transfer_primary(current, target) -> None:
     if target.role != Membership.LEAD:
         raise ServiceError(_(
             "The primary lead role can only go to a group lead. Make "
-            "%(name)s a lead first.") % {"name": target.user.get_username()})
+            "%(name)s a lead first.") % {"name": shown_name(target.user)})
     with transaction.atomic():
         current.role = Membership.LEAD
         current.save(update_fields=["role"])

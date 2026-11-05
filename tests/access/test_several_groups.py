@@ -198,16 +198,17 @@ def test_adding_somebody_with_an_account_joins_that_account(
     assert bob.check_password("pw")
 
 
-def test_adding_an_unknown_username_creates_the_account(
+def test_adding_an_unknown_address_creates_the_account(
         client, hosted, two_labs, django_user_model):
-    """What: adding a new username creates an account without a password,
-    which the group page marks. How: Ann adds "newperson"."""
+    """What: adding a new email address creates an account without a
+    password, which the group page marks. How: Ann adds
+    "newperson@example.org"."""
     client.force_login(two_labs["ann"])
 
     resp = client.post(reverse("ui:group_add_person", args=[two_labs["a"].pk]),
-                       {"identifier": "newperson", "role": "member"}, follow=True)
+                       {"identifier": "NewPerson@Example.org", "role": "member"}, follow=True)
 
-    user = django_user_model.objects.get(username="newperson")
+    user = django_user_model.objects.get(email="newperson@example.org")
     assert not user.has_usable_password()
     assert user.memberships.get().group == two_labs["a"]
     assert "first time they sign in" in resp.content.decode()
@@ -219,34 +220,34 @@ def test_adding_somebody_already_in_the_group_is_refused(
     client.force_login(two_labs["ann"])
 
     resp = client.post(reverse("ui:group_add_person", args=[two_labs["a"].pk]),
-                       {"identifier": "mia", "role": "member"}, follow=True)
+                       {"identifier": "mia@example.org", "role": "member"}, follow=True)
 
     assert "already in" in resp.content.decode()
     assert two_labs["mia"].memberships.filter(group=two_labs["a"]).count() == 1
 
 
-def test_a_username_that_is_too_long_creates_nothing(
+def test_something_other_than_an_address_creates_nothing(
         client, hosted, two_labs, django_user_model):
-    """What: a username past 150 characters creates no account. How: Ann adds
-    one."""
+    """What: adding something that is not an email address creates no
+    account. How: Ann adds a bare name."""
     client.force_login(two_labs["ann"])
     before = django_user_model.objects.count()
 
     client.post(reverse("ui:group_add_person", args=[two_labs["a"].pk]),
-                {"identifier": "x" * 151, "role": "member"})
+                {"identifier": "newperson", "role": "member"})
 
     assert django_user_model.objects.count() == before
 
 
 def test_a_new_group_starts_with_its_primary_lead(hosted, two_labs, django_user_model):
-    """What: `create_group` makes the new username the group's primary lead.
-    How: a group created for a new username."""
+    """What: `create_group` makes the new address the group's primary lead.
+    How: a group created for a new address."""
     from access.services.groups import create_group
 
-    create_group("c", 3, "lead_of_c")
+    create_group("c", 3, "lead.of.c@example.org")
 
     group = Group.objects.get(name="c")
-    lead = django_user_model.objects.get(username="lead_of_c")
+    lead = django_user_model.objects.get(email="lead.of.c@example.org")
     assert group.memberships.get().user == lead
     assert group.memberships.get().role == Membership.PRIMARY_LEAD
 
