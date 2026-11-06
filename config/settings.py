@@ -9,11 +9,11 @@ import environ
 
 BASE_DIR = Path(__file__).resolve().parent.parent
 
-env = environ.Env(
-    DEBUG=(bool, True),
-)
+env = environ.Env()
 environ.Env.read_env(BASE_DIR / ".env")
 
+# `DEBUG` has no default, so a missing `.env` stops startup here instead of
+# serving a debug site that shows settings and tracebacks to every visitor.
 DEBUG = env.bool("DEBUG")
 
 # Outside DEBUG, `SECRET_KEY` has no default and startup fails without it.

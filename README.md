@@ -37,7 +37,7 @@ purpose: `config/settings.py` reads `.env`, so a value left there is inherited
 by the test suite and every account-agnostic test silently becomes a login-wall
 test.
 
-By default (`DEBUG=True`) there is no consumer: runs execute in-process on a
+With `DEBUG=True`, as `.env.example` sets it, there is no consumer: runs execute in-process on a
 background thread, and the page comes back as soon as you press Run rather than
 waiting out the optimization. `./run.sh queue` switches to the real queue, which
 needs a consumer in a second terminal — the script prints the line.
