@@ -21,7 +21,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: PACKAGE VERSION\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2026-11-10 15:37+0000\n"
+"POT-Creation-Date: 2026-11-10 15:58+0000\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
 "Language-Team: LANGUAGE <LL@li.org>\n"
@@ -228,20 +228,13 @@ msgid ""
 "first."
 msgstr "%(name)s is now the primary lead of %(group)s. You are a group lead."
 
-#: access/services/users.py:128
-#, python-format
-msgid ""
-"You are the primary lead of %(group)s and nobody else there is a group lead. "
-"Make somebody a group lead first, so the group is not left without one."
-msgstr ""
-
-#: access/services/users.py:180
+#: access/services/users.py:191
 #, fuzzy, python-format
 #| msgid "%(name)s is now a %(role)s."
 msgid "%(address)s is not an email address."
 msgstr "%(name)s is now a %(role)s."
 
-#: access/services/users.py:186
+#: access/services/users.py:197
 #, python-format
 msgid "Another account already uses %(address)s."
 msgstr ""
@@ -500,7 +493,7 @@ msgid ""
 msgstr ""
 
 #: assistant/templates/assistant/_chat.html:129
-#: ui/templates/ui/_confirm_page.html:33 ui/templates/ui/account_delete.html:27
+#: ui/templates/ui/_confirm_page.html:33 ui/templates/ui/account_delete.html:31
 msgid "Cancel"
 msgstr "Cancel"
 
@@ -3078,7 +3071,7 @@ msgid "To change your email address, ask the site's operator."
 msgstr ""
 
 #: ui/templates/ui/account.html:69 ui/templates/ui/account_delete.html:4
-#: ui/templates/ui/account_delete.html:7 ui/templates/ui/account_delete.html:26
+#: ui/templates/ui/account_delete.html:7 ui/templates/ui/account_delete.html:30
 msgid "Delete my account"
 msgstr ""
 
@@ -3192,7 +3185,8 @@ msgstr ""
 
 #: ui/templates/ui/account_delete.html:12
 msgid ""
-"If you are a group's primary lead, its longest-serving group lead takes over."
+"If you are a group's primary lead, its longest-serving group lead takes "
+"over, or without another lead, the member with the oldest account."
 msgstr ""
 
 #: ui/templates/ui/account_delete.html:13
@@ -3201,7 +3195,23 @@ msgid ""
 "your work stays, it shows a former member instead of you."
 msgstr ""
 
-#: ui/templates/ui/account_delete.html:15
+#: ui/templates/ui/account_delete.html:17
+#, python-format
+msgid ""
+"You are the primary lead of <a href=\"%(url)s\">%(group)s</a>. Unless you "
+"make somebody else primary lead first, %(heir)s, its longest-serving group "
+"lead, takes over."
+msgstr ""
+
+#: ui/templates/ui/account_delete.html:17
+#, python-format
+msgid ""
+"You are the primary lead of <a href=\"%(url)s\">%(group)s</a>, which has no "
+"other group lead. Unless you make somebody else primary lead first, "
+"%(heir)s, the member with the oldest account, takes over."
+msgstr ""
+
+#: ui/templates/ui/account_delete.html:19
 msgid "Download your data first if you want a copy."
 msgstr ""
 

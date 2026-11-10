@@ -109,25 +109,36 @@ def _refuse_while_primary(user) -> None:
                               "groups": ", ".join(m.group.name for m in led)})
 
 
+def successors(user) -> list:
+    """`successors` pairs each group *user* leads primarily, with somebody else
+    in it, with the membership that takes the role over when *user* leaves:
+    the longest-serving group lead, or without one, the member whose account
+    is oldest."""
+    from access.models import Membership
+
+    pairs = []
+    for membership in _led_groups(user):
+        others = membership.group.memberships.exclude(user=user).select_related("user")
+        heir = (others.filter(role=Membership.LEAD).order_by("joined_at", "pk").first()
+                or others.order_by("user__date_joined", "user__pk").first())
+        pairs.append((membership, heir))
+    return pairs
+
+
 def erase_user(user) -> None:
     """`erase_user` deletes *user* at their own request (DSGVO Art. 17). Their
-    primary-lead role passes to the longest-serving lead of each group, and
-    their live experiments pass to their group's primary lead, or to the bin
-    when nobody else is in the group. It raises `.ServiceError`, with nothing
-    changed, when a group they lead primarily has nobody to take it over."""
+    primary-lead role passes to each group's heir from `successors`, and their
+    live experiments pass to their group's primary lead, or to the bin when
+    nobody else is in the group."""
     from access.models import Membership
     from access.services import groups as group_service
     from experiments.services import bin as bin_service
 
     with transaction.atomic():
-        for membership in _led_groups(user):
-            heir = (membership.group.memberships.exclude(user=user)
-                    .filter(role=Membership.LEAD).order_by("joined_at", "pk").first())
-            if heir is None:
-                raise ServiceError(_(
-                    "You are the primary lead of %(group)s and nobody else there is a "
-                    "group lead. Make somebody a group lead first, so the group is "
-                    "not left without one.") % {"group": membership.group.name})
+        for membership, heir in successors(user):
+            if heir.role != Membership.LEAD:
+                heir.role = Membership.LEAD
+                heir.save(update_fields=["role"])
             group_service.transfer_primary(membership, heir)
         for experiment in user.experiments.filter(deleted_at__isnull=True,
                                                   trashed_at__isnull=True):

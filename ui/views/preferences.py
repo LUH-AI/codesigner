@@ -163,7 +163,13 @@ def delete_my_account(request):
             logout(request)
             messages.success(request, _("Your account is deleted."))
             return redirect("ui:login")
-    return render(request, "ui/account_delete.html", {"form": form})
+    from access.models import shown_name
+    from access.services.users import successors
+
+    handovers = [{"group": m.group, "heir": shown_name(heir.user),
+                  "heir_is_lead": heir.role != heir.MEMBER}
+                 for m, heir in successors(request.user)]
+    return render(request, "ui/account_delete.html", {"form": form, "handovers": handovers})
 
 
 def default_experiment_settings(request):

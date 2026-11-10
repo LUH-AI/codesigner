@@ -8,7 +8,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: PACKAGE VERSION\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2026-11-10 15:37+0000\n"
+"POT-Creation-Date: 2026-11-10 15:58+0000\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
 "Language-Team: LANGUAGE <LL@li.org>\n"
@@ -212,22 +212,12 @@ msgstr ""
 "%(who)s ist die Hauptleitung von %(groups)s. Machen Sie zuerst jemand "
 "anderen zur Hauptleitung."
 
-#: access/services/users.py:128
-#, python-format
-msgid ""
-"You are the primary lead of %(group)s and nobody else there is a group lead. "
-"Make somebody a group lead first, so the group is not left without one."
-msgstr ""
-"Sie sind die Hauptleitung von %(group)s, und niemand sonst dort ist "
-"Gruppenleitung. Machen Sie zuerst jemanden zur Gruppenleitung, damit die "
-"Gruppe nicht ohne Leitung bleibt."
-
-#: access/services/users.py:180
+#: access/services/users.py:191
 #, python-format
 msgid "%(address)s is not an email address."
 msgstr "%(address)s ist keine E-Mail-Adresse."
 
-#: access/services/users.py:186
+#: access/services/users.py:197
 #, python-format
 msgid "Another account already uses %(address)s."
 msgstr "Ein anderes Konto verwendet bereits %(address)s."
@@ -480,7 +470,7 @@ msgstr ""
 "rückgängig machen."
 
 #: assistant/templates/assistant/_chat.html:129
-#: ui/templates/ui/_confirm_page.html:33 ui/templates/ui/account_delete.html:27
+#: ui/templates/ui/_confirm_page.html:33 ui/templates/ui/account_delete.html:31
 msgid "Cancel"
 msgstr "Abbrechen"
 
@@ -3088,7 +3078,7 @@ msgstr ""
 "Um Ihre E-Mail-Adresse zu ändern, wenden Sie sich an den Betrieb der Website."
 
 #: ui/templates/ui/account.html:69 ui/templates/ui/account_delete.html:4
-#: ui/templates/ui/account_delete.html:7 ui/templates/ui/account_delete.html:26
+#: ui/templates/ui/account_delete.html:7 ui/templates/ui/account_delete.html:30
 msgid "Delete my account"
 msgstr "Mein Konto löschen"
 
@@ -3106,7 +3096,9 @@ msgstr "Ich akzeptiere die Nutzungsbedingungen."
 msgid ""
 "I have read the <a href=\"%(url_privacy)s\" target=\"_blank\" "
 "rel=\"noopener\">privacy policy</a>."
-msgstr "Ich habe die <a href=\"%(url_privacy)s\" target=\"_blank\" rel=\"noopener\">Datenschutzerklärung</a> gelesen."
+msgstr ""
+"Ich habe die <a href=\"%(url_privacy)s\" target=\"_blank\" "
+"rel=\"noopener\">Datenschutzerklärung</a> gelesen."
 
 #: ui/templates/ui/account/agreement.html:19
 msgid "Continue"
@@ -3174,7 +3166,12 @@ msgid ""
 "href=\"%(url_terms)s\" target=\"_blank\" rel=\"noopener\">terms of use</a> "
 "and confirm that you have read its <a href=\"%(url_privacy)s\" "
 "target=\"_blank\" rel=\"noopener\">privacy policy</a>."
-msgstr "Mit dem Ankreuzen der Kästchen unten stimmen Sie den <a href=\"%(url_terms)s\" target=\"_blank\" rel=\"noopener\">Nutzungsbedingungen</a> von Codesigner zu und bestätigen, dass Sie die <a href=\"%(url_privacy)s\" target=\"_blank\" rel=\"noopener\">Datenschutzerklärung</a> gelesen haben."
+msgstr ""
+"Mit dem Ankreuzen der Kästchen unten stimmen Sie den <a "
+"href=\"%(url_terms)s\" target=\"_blank\" "
+"rel=\"noopener\">Nutzungsbedingungen</a> von Codesigner zu und bestätigen, "
+"dass Sie die <a href=\"%(url_privacy)s\" target=\"_blank\" "
+"rel=\"noopener\">Datenschutzerklärung</a> gelesen haben."
 
 #: ui/templates/ui/account/set_password.html:34
 #, python-format
@@ -3206,11 +3203,11 @@ msgstr ""
 "kommen sie in den Papierkorb."
 
 #: ui/templates/ui/account_delete.html:12
+#
 msgid ""
-"If you are a group's primary lead, its longest-serving group lead takes over."
-msgstr ""
-"Sind Sie Hauptleitung einer Gruppe, übernimmt die am längsten dabei gewesene "
-"Gruppenleitung."
+"If you are a group's primary lead, its longest-serving group lead takes "
+"over, or without another lead, the member with the oldest account."
+msgstr "Sind Sie Hauptleitung einer Gruppe, übernimmt die am längsten dabei gewesene Gruppenleitung, oder ohne weitere Gruppenleitung das Mitglied mit dem ältesten Konto."
 
 #: ui/templates/ui/account_delete.html:13
 msgid ""
@@ -3221,7 +3218,23 @@ msgstr ""
 "Einstellungen werden gelöscht. Wo Ihre Arbeit bleibt, steht statt Ihnen ein "
 "ehemaliges Mitglied."
 
-#: ui/templates/ui/account_delete.html:15
+#: ui/templates/ui/account_delete.html:17
+#, python-format
+msgid ""
+"You are the primary lead of <a href=\"%(url)s\">%(group)s</a>. Unless you "
+"make somebody else primary lead first, %(heir)s, its longest-serving group "
+"lead, takes over."
+msgstr "Sie sind Hauptleitung von <a href=\"%(url)s\">%(group)s</a>. Wenn Sie nicht vorher jemand anderen zur Hauptleitung machen, übernimmt %(heir)s, die am längsten dabei gewesene Gruppenleitung."
+
+#: ui/templates/ui/account_delete.html:17
+#, python-format
+msgid ""
+"You are the primary lead of <a href=\"%(url)s\">%(group)s</a>, which has no "
+"other group lead. Unless you make somebody else primary lead first, "
+"%(heir)s, the member with the oldest account, takes over."
+msgstr "Sie sind Hauptleitung von <a href=\"%(url)s\">%(group)s</a>, und die Gruppe hat keine weitere Gruppenleitung. Wenn Sie nicht vorher jemand anderen zur Hauptleitung machen, übernimmt %(heir)s, das Mitglied mit dem ältesten Konto."
+
+#: ui/templates/ui/account_delete.html:19
 msgid "Download your data first if you want a copy."
 msgstr "Laden Sie Ihre Daten vorher herunter, wenn Sie eine Kopie möchten."
 
@@ -5167,8 +5180,8 @@ msgstr "Das ist nicht Ihr Passwort."
 msgid "That is not the address you sign in with."
 msgstr "Das ist nicht die Adresse, mit der Sie sich anmelden."
 
-#: ui/views/accounts.py:119
 #
+#: ui/views/accounts.py:119
 msgid "I have read the privacy policy."
 msgstr "Ich habe die Datenschutzerklärung gelesen."
 

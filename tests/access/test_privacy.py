@@ -157,25 +157,42 @@ def test_deleting_your_account_hands_your_experiments_to_the_group(
     assert not Conversation.objects.exists() and not AgentAction.objects.exists()
 
 
-def test_a_primary_lead_hands_the_role_on_or_is_told_why_not(django_user_model):
-    """What: a primary lead's deletion promotes the longest-serving lead; with
-    only plain members left it is refused and nothing changes. How: two
-    groups, one with a lead and one without."""
+def test_a_primary_lead_always_has_an_heir(django_user_model):
+    """What: a primary lead's deletion goes ahead in every group: the
+    longest-serving lead takes over where there is one, and otherwise the
+    member with the oldest account, ahead of members who joined the group
+    earlier. How: two groups, one with a lead and one with only members."""
     led = Group.objects.create(name="led", user_limit=5)
     unled = Group.objects.create(name="unled", user_limit=5)
     vera = _person(django_user_model, "vera@lab.de", led, Membership.PRIMARY_LEAD)
     Membership.objects.create(user=vera, group=unled, role=Membership.PRIMARY_LEAD)
     ben = _person(django_user_model, "ben@lab.de", led, Membership.LEAD)
-    _person(django_user_model, "cleo@lab.de", unled)
+    cleo = _person(django_user_model, "cleo@lab.de", unled)
+    dan = _person(django_user_model, "dan@lab.de", unled)
+    django_user_model.objects.filter(pk=dan.pk).update(
+        date_joined=timezone.now() - timedelta(days=400))
 
-    with pytest.raises(ServiceError, match="unled"):
-        user_service.erase_user(vera)
-    assert Membership.objects.get(user=vera, group=led).role == Membership.PRIMARY_LEAD
-
-    Membership.objects.filter(user=vera, group=unled).delete()
+    heirs = {m.group.name: h.user for m, h in user_service.successors(vera)}
+    assert heirs == {"led": ben, "unled": dan}
     user_service.erase_user(vera)
 
     assert Membership.objects.get(user=ben, group=led).role == Membership.PRIMARY_LEAD
+    assert Membership.objects.get(user=dan, group=unled).role == Membership.PRIMARY_LEAD
+    assert Membership.objects.get(user=cleo, group=unled).role == Membership.MEMBER
+
+
+def test_the_delete_page_names_who_takes_over(client, settings, django_user_model):
+    """What: a primary lead sees, before deleting, who takes over each group
+    unless they hand the role on first. How: the delete page for a primary
+    lead with one other lead."""
+    settings.REQUIRE_LOGIN = True
+    group = Group.objects.create(name="lab", user_limit=5)
+    vera = _person(django_user_model, "vera@lab.de", group, Membership.PRIMARY_LEAD)
+    _person(django_user_model, "ben@lab.de", group, Membership.LEAD)
+    client.force_login(vera)
+
+    page = client.get(reverse("ui:account_delete")).content.decode()
+    assert "ben@lab.de, its longest-serving group lead, takes over" in page
 
 
 def test_an_only_member_s_experiments_go_to_the_bin(django_user_model):

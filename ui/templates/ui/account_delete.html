@@ -9,9 +9,13 @@
         <p>{% translate "This deletes your account and signs you out. It cannot be undone." %}</p>
         <ul>
             <li>{% translate "Experiments you own pass to your group's primary lead, so your group keeps its work. In a group with nobody else, they go to the bin." %}</li>
-            <li>{% translate "If you are a group's primary lead, its longest-serving group lead takes over." %}</li>
+            <li>{% translate "If you are a group's primary lead, its longest-serving group lead takes over, or without another lead, the member with the oldest account." %}</li>
             <li>{% translate "Your memberships, shares, assistant chats and settings are deleted. Where your work stays, it shows a former member instead of you." %}</li>
         </ul>
+        {% for handover in handovers %}
+            {% url 'ui:group_detail' handover.group.pk as group_url %}
+            <p class="alert warning">{% if handover.heir_is_lead %}{% blocktranslate with group=handover.group.name heir=handover.heir url=group_url %}You are the primary lead of <a href="{{ url }}">{{ group }}</a>. Unless you make somebody else primary lead first, {{ heir }}, its longest-serving group lead, takes over.{% endblocktranslate %}{% else %}{% blocktranslate with group=handover.group.name heir=handover.heir url=group_url %}You are the primary lead of <a href="{{ url }}">{{ group }}</a>, which has no other group lead. Unless you make somebody else primary lead first, {{ heir }}, the member with the oldest account, takes over.{% endblocktranslate %}{% endif %}</p>
+        {% endfor %}
         <p class="caption">{% translate "Download your data first if you want a copy." %}</p>
         <form method="post" style="margin-top: 1rem;">
             {% csrf_token %}
