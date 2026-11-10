@@ -2,6 +2,6 @@
 <nav class="legal-links" aria-label="{% translate 'Legal' %}">
     {% if legal_links.imprint %}<a href="{% url 'ui:imprint' %}">{% translate "Imprint" %}</a>{% endif %}
     {% if legal_links.privacy %}<a href="{% url 'ui:privacy' %}">{% translate "Privacy policy" %}</a>{% endif %}
-    {% if legal_links.terms %}<a href="{% url 'ui:terms' %}">{% translate "Terms of use" %}</a>{% endif %}
+    {% if legal_links.terms and not terms_shown %}<a href="{% url 'ui:terms' %}">{% translate "Terms of use" %}</a>{% endif %}
 </nav>
 {% endif %}

@@ -34,7 +34,7 @@ because choosing a language you can read should not require signing in first.
             </select>
         </form>
         {% endif %}
-        {% include "ui/_legal_links.html" %}
+        {% block legal_links %}{% include "ui/_legal_links.html" %}{% endblock %}
     </main>
 </body>
 </html>

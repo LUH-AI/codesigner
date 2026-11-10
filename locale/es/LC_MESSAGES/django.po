@@ -8,7 +8,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: PACKAGE VERSION\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2026-11-10 14:59+0000\n"
+"POT-Creation-Date: 2026-11-10 15:13+0000\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
 "Language-Team: LANGUAGE <LL@li.org>\n"
@@ -3077,7 +3077,7 @@ msgstr "Eliminar mi cuenta"
 msgid "Language"
 msgstr "Idioma"
 
-#: ui/templates/ui/account/agreement.html:13
+#: ui/templates/ui/account/agreement.html:14
 #, python-format
 msgid ""
 "How codesigner handles your data is described in the <a "
@@ -3088,15 +3088,15 @@ msgstr ""
 "href=\"%(url_privacy)s\" target=\"_blank\" rel=\"noopener\">política de "
 "privacidad</a>."
 
-#: ui/templates/ui/account/agreement.html:15
+#: ui/templates/ui/account/agreement.html:16
 msgid "I accept these terms."
 msgstr "Acepto estas condiciones."
 
-#: ui/templates/ui/account/agreement.html:18
+#: ui/templates/ui/account/agreement.html:19
 msgid "Continue"
 msgstr "Continuar"
 
-#: ui/templates/ui/account/agreement.html:22 ui/templates/ui/base.html:47
+#: ui/templates/ui/account/agreement.html:23 ui/templates/ui/base.html:47
 msgid "Sign out"
 msgstr "Cerrar sesión"
 
@@ -3152,21 +3152,23 @@ msgstr "Volver a su cuenta"
 msgid "Forgot password"
 msgstr "Contraseña olvidada"
 
-#: ui/templates/ui/account/set_password.html:32
+#: ui/templates/ui/account/set_password.html:33
 #, python-format
 msgid ""
-"Your account is subject to the <a href=\"%(url_terms)s\" target=\"_blank\" "
-"rel=\"noopener\">terms of use</a>."
-msgstr "Su cuenta está sujeta a las <a href=\"%(url_terms)s\" target=\"_blank\" rel=\"noopener\">condiciones de uso</a>."
+"By clicking the box below you agree to Codesigner's <a "
+"href=\"%(url_terms)s\" target=\"_blank\" rel=\"noopener\">terms of use</a>."
+msgstr "Al marcar la casilla de abajo, acepta las <a href=\"%(url_terms)s\" target=\"_blank\" rel=\"noopener\">condiciones de uso</a> de Codesigner."
 
-#: ui/templates/ui/account/set_password.html:33
+#: ui/templates/ui/account/set_password.html:34
 #, python-format
 msgid ""
 "The <a href=\"%(url_privacy)s\" target=\"_blank\" rel=\"noopener\">privacy "
 "policy</a> explains how your data is handled."
-msgstr "La <a href=\"%(url_privacy)s\" target=\"_blank\" rel=\"noopener\">política de privacidad</a> explica cómo se tratan sus datos."
+msgstr ""
+"La <a href=\"%(url_privacy)s\" target=\"_blank\" rel=\"noopener\">política "
+"de privacidad</a> explica cómo se tratan sus datos."
 
-#: ui/templates/ui/account/set_password.html:39
+#: ui/templates/ui/account/set_password.html:40
 msgid "Register"
 msgstr "Registrarse"
 
@@ -5136,18 +5138,18 @@ msgstr "Esa no es su contraseña."
 msgid "That is not the address you sign in with."
 msgstr "Esa no es la dirección con la que inicia sesión."
 
-#: ui/views/accounts.py:115
 #
+#: ui/views/accounts.py:115
 msgid "I accept the terms of use."
 msgstr "Acepto las condiciones de uso."
 
-#: ui/views/accounts.py:121
 #
+#: ui/views/accounts.py:121
 msgid "Confirm password"
 msgstr "Confirmar contraseña"
 
-#: ui/views/accounts.py:123
 #
+#: ui/views/accounts.py:123
 msgid "Display name (optional)"
 msgstr "Nombre visible (opcional)"
 

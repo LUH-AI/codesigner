@@ -159,7 +159,9 @@ def test_a_setup_link_asks_for_the_agreement(client, hosted, lab):
     user = _added(lab)
     url = setup_links.issue(user, hours=24)
 
-    assert f'href="{reverse("ui:terms")}"' in client.get(url).content.decode()
+    page = client.get(url).content.decode()
+    assert "By clicking the box below you agree" in page
+    assert page.count(f'href="{reverse("ui:terms")}"') == 1
     assert _set(client, url).status_code == 200
     assert not AgreementAcceptance.objects.exists()
     assert _set(client, url, accept="on").status_code == 302

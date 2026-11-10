@@ -21,7 +21,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: PACKAGE VERSION\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2026-11-10 14:59+0000\n"
+"POT-Creation-Date: 2026-11-10 15:13+0000\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
 "Language-Team: LANGUAGE <LL@li.org>\n"
@@ -3082,7 +3082,7 @@ msgstr ""
 msgid "Language"
 msgstr "Language"
 
-#: ui/templates/ui/account/agreement.html:13
+#: ui/templates/ui/account/agreement.html:14
 #, python-format
 msgid ""
 "How codesigner handles your data is described in the <a "
@@ -3090,17 +3090,17 @@ msgid ""
 "a>."
 msgstr ""
 
-#: ui/templates/ui/account/agreement.html:15
+#: ui/templates/ui/account/agreement.html:16
 msgid "I accept these terms."
 msgstr ""
 
-#: ui/templates/ui/account/agreement.html:18
+#: ui/templates/ui/account/agreement.html:19
 #, fuzzy
 #| msgid "Contributor"
 msgid "Continue"
 msgstr "Contributor"
 
-#: ui/templates/ui/account/agreement.html:22 ui/templates/ui/base.html:47
+#: ui/templates/ui/account/agreement.html:23 ui/templates/ui/base.html:47
 msgid "Sign out"
 msgstr "Sign out"
 
@@ -3157,21 +3157,21 @@ msgstr "Back to your account"
 msgid "Forgot password"
 msgstr "Change password"
 
-#: ui/templates/ui/account/set_password.html:32
+#: ui/templates/ui/account/set_password.html:33
 #, python-format
 msgid ""
-"Your account is subject to the <a href=\"%(url_terms)s\" target=\"_blank\" "
-"rel=\"noopener\">terms of use</a>."
+"By clicking the box below you agree to Codesigner's <a "
+"href=\"%(url_terms)s\" target=\"_blank\" rel=\"noopener\">terms of use</a>."
 msgstr ""
 
-#: ui/templates/ui/account/set_password.html:33
+#: ui/templates/ui/account/set_password.html:34
 #, python-format
 msgid ""
 "The <a href=\"%(url_privacy)s\" target=\"_blank\" rel=\"noopener\">privacy "
 "policy</a> explains how your data is handled."
 msgstr ""
 
-#: ui/templates/ui/account/set_password.html:39
+#: ui/templates/ui/account/set_password.html:40
 msgid "Register"
 msgstr ""
 

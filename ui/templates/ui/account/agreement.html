@@ -5,6 +5,7 @@
 
 {% block panel_class %} wide{% endblock %}
 {% block notice %}{% include "ui/account/_legal_notice.html" %}{% endblock %}
+{% block legal_links %}{% include "ui/_legal_links.html" with terms_shown=True %}{% endblock %}
 
 {% block content %}
         <form method="post" class="card">
