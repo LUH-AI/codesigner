@@ -55,15 +55,25 @@ def _experiment(owner, group=None, name="study"):
 # Legal pages
 
 def test_the_legal_pages_are_open_to_everybody(client, hosted):
-    """What: the imprint, privacy policy and terms answer without signing in,
-    and the sign-in page links all three. How: GETs while signed out."""
-    for name, words in (("ui:imprint", "Who runs this."), ("ui:privacy", "What is stored"),
-                        ("ui:terms", "Be kind to the cluster.")):
-        page = client.get(reverse(name))
-        assert page.status_code == 200 and words in page.content.decode(), name
+    """What: the imprint and the terms answer without signing in; the terms
+    page carries the privacy policy after the terms, and the privacy address
+    leads to that section. The sign-in page links the imprint and the combined
+    page. How: GETs while signed out."""
+    assert "Who runs this." in client.get(reverse("ui:imprint")).content.decode()
+    page = client.get(reverse("ui:terms")).content.decode()
+    assert page.index("Be kind to the cluster.") < page.index("What is stored")
+    resp = client.get(reverse("ui:privacy"))
+    assert resp.status_code == 302 and resp["Location"] == reverse("ui:terms") + "#privacy"
     login = client.get(reverse("ui:login")).content.decode()
-    for name in ("ui:imprint", "ui:privacy", "ui:terms"):
-        assert reverse(name) in login
+    assert reverse("ui:imprint") in login and reverse("ui:terms") in login
+
+
+def test_without_terms_the_privacy_policy_has_its_own_page(client, hosted):
+    """What: with only `LEGAL_PAGES` set, the privacy policy shows on its own
+    page. How: unset `ACCOUNT_AGREEMENT`, open the privacy page."""
+    hosted.ACCOUNT_AGREEMENT = ""
+    page = client.get(reverse("ui:privacy"))
+    assert page.status_code == 200 and "What is stored" in page.content.decode()
 
 
 def test_the_privacy_policy_is_readable_before_the_terms_are_accepted(
@@ -74,7 +84,7 @@ def test_the_privacy_policy_is_readable_before_the_terms_are_accepted(
                                                  password=GOOD)
     client.force_login(user)
 
-    assert client.get(reverse("ui:privacy")).status_code == 200
+    assert client.get(reverse("ui:privacy"), follow=True).status_code == 200
     gate = client.get(reverse("ui:agreement")).content.decode()
     assert reverse("ui:privacy") in gate
 

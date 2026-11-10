@@ -21,7 +21,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: PACKAGE VERSION\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2026-11-10 15:13+0000\n"
+"POT-Creation-Date: 2026-11-10 15:23+0000\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
 "Language-Team: LANGUAGE <LL@li.org>\n"
@@ -2628,16 +2628,20 @@ msgstr "What this setting means"
 msgid "Legal"
 msgstr ""
 
-#: ui/templates/ui/_legal_links.html:3 ui/views/legal.py:22
+#: ui/templates/ui/_legal_links.html:3 ui/views/legal.py:25
 msgid "Imprint"
 msgstr ""
 
-#: ui/templates/ui/_legal_links.html:4 ui/views/legal.py:27
+#: ui/templates/ui/_legal_links.html:4 ui/views/legal.py:43
+msgid "Terms of use and privacy policy"
+msgstr ""
+
+#: ui/templates/ui/_legal_links.html:6 ui/views/legal.py:32
 msgid "Privacy policy"
 msgstr ""
 
-#: ui/templates/ui/_legal_links.html:5 ui/templates/ui/account/agreement.html:4
-#: ui/views/legal.py:33
+#: ui/templates/ui/_legal_links.html:7 ui/templates/ui/account/agreement.html:4
+#: ui/views/legal.py:42
 msgid "Terms of use"
 msgstr ""
 

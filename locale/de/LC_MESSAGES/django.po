@@ -8,7 +8,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: PACKAGE VERSION\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2026-11-10 15:13+0000\n"
+"POT-Creation-Date: 2026-11-10 15:23+0000\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
 "Language-Team: LANGUAGE <LL@li.org>\n"
@@ -2633,16 +2633,20 @@ msgstr "Was diese Einstellung bedeutet"
 msgid "Legal"
 msgstr "Rechtliches"
 
-#: ui/templates/ui/_legal_links.html:3 ui/views/legal.py:22
+#: ui/templates/ui/_legal_links.html:3 ui/views/legal.py:25
 msgid "Imprint"
 msgstr "Impressum"
 
-#: ui/templates/ui/_legal_links.html:4 ui/views/legal.py:27
+#: ui/templates/ui/_legal_links.html:4 ui/views/legal.py:43
+msgid "Terms of use and privacy policy"
+msgstr "Nutzungsbedingungen und Datenschutzerklärung"
+
+#: ui/templates/ui/_legal_links.html:6 ui/views/legal.py:32
 msgid "Privacy policy"
 msgstr "Datenschutzerklärung"
 
-#: ui/templates/ui/_legal_links.html:5 ui/templates/ui/account/agreement.html:4
-#: ui/views/legal.py:33
+#: ui/templates/ui/_legal_links.html:7 ui/templates/ui/account/agreement.html:4
+#: ui/views/legal.py:42
 msgid "Terms of use"
 msgstr "Nutzungsbedingungen"
 
@@ -3171,7 +3175,10 @@ msgstr "Passwort vergessen"
 msgid ""
 "By clicking the box below you agree to Codesigner's <a "
 "href=\"%(url_terms)s\" target=\"_blank\" rel=\"noopener\">terms of use</a>."
-msgstr "Mit dem Ankreuzen des Kästchens unten stimmen Sie den <a href=\"%(url_terms)s\" target=\"_blank\" rel=\"noopener\">Nutzungsbedingungen</a> von Codesigner zu."
+msgstr ""
+"Mit dem Ankreuzen des Kästchens unten stimmen Sie den <a "
+"href=\"%(url_terms)s\" target=\"_blank\" "
+"rel=\"noopener\">Nutzungsbedingungen</a> von Codesigner zu."
 
 #: ui/templates/ui/account/set_password.html:34
 #, python-format
