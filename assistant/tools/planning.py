@@ -1,4 +1,4 @@
-"""`assistant.tools.planning` lists options and writes and checks plans."""
+"""`assistant.tools.planning` writes and checks plans."""
 
 from __future__ import annotations
 
@@ -10,7 +10,6 @@ from .registry import Refused, ToolResult, ToolSpec
 
 
 def _about(cls) -> str:
-    """`_about` returns a class docstring's first paragraph."""
     import inspect
 
     doc = (cls.__dict__.get("__doc__") or "").strip()
@@ -196,10 +195,9 @@ CHECK_PLAN = ToolSpec(
 
 
 def lookups():
-    """`lookups` lists catalogue tools."""
     return [LIST_MODELS, LIST_METRICS, LIST_OPTIMIZERS]
 
 
 def planning():
-    """`planning` adds plan tools to `lookups`."""
+    """`planning` extends `lookups`."""
     return lookups() + [UPDATE_PLAN, CHECK_PLAN]

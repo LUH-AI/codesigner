@@ -1,5 +1,4 @@
-"""`explainers` reads one Markdown file per explainer from
-assistant/knowledge/explainers/, in a folder per kind (explainers/README.md).
+"""`explainers` reads one folder per kind (explainers/README.md).
 """
 
 import re
@@ -36,7 +35,7 @@ def _sections(body: str) -> dict:
 
 @cache
 def read(kind: str) -> dict:
-    """`read` returns fields and sections for each file of *kind*."""
+    """`read` parses each file except index.md."""
     found = {}
     for path in sorted((ROOT / kind).glob("*.md")):
         if path.name == "index.md":

@@ -1,12 +1,11 @@
-"""The `plan` module describes the experiment that the person and the assistant
-agree on.
+"""`plan` describes the agreed experiment.
 """
 
 from __future__ import annotations
 
 from ui.forms import EVALUATION_BACKTEST, EVALUATION_HOLDOUT, EVALUATION_KFOLD
 
-#: `SCHEMA` lists the plan fields the `update_plan` tool accepts.
+#: `SCHEMA` is the `update_plan` argument schema.
 SCHEMA = {
     "type": "object",
     "properties": {
@@ -73,12 +72,12 @@ SCHEMA = {
     },
 }
 
-#: Fields the setup needs.
 REQUIRED = ("task", "model_name", "evaluation", "optimizer")
 
 
 def merged(plan: dict, changes: dict) -> dict:
-    """`merged` overlays *changes* on *plan*, merging sections."""
+    """`merged` applies *changes* over *plan*, merging each section's inner
+    dict."""
     out = dict(plan or {})
     for key, value in changes.items():
         if isinstance(value, dict) and isinstance(out.get(key), dict):
@@ -95,8 +94,7 @@ def merged(plan: dict, changes: dict) -> dict:
 
 
 def setup_data(plan: dict, group_id=None) -> dict:
-    """`setup_data` builds step 1's form data from *plan*, for an experiment in
-    group *group_id*."""
+    """`setup_data` builds step 1's form data."""
     evaluation = plan.get("evaluation") or {}
     scheme = evaluation.get("scheme") or EVALUATION_KFOLD
     default = {EVALUATION_KFOLD: 5, EVALUATION_HOLDOUT: 0.2, EVALUATION_BACKTEST: 3}[scheme]
@@ -120,7 +118,6 @@ def setup_data(plan: dict, group_id=None) -> dict:
 
 
 def optimizer_data(plan: dict) -> dict:
-    """`optimizer_data` builds step 2's form from *plan*."""
     optimizer = plan.get("optimizer") or {}
     data = {"optimizer_name": optimizer.get("name") or ""}
     for name, value in (optimizer.get("params") or {}).items():
@@ -132,14 +129,12 @@ def processing_data(plan: dict) -> dict:
     return dict(plan.get("processing") or {})
 
 
-#: `RUN` names the created experiment's run form.
 RUN = "run"
 
 
 def run_items(plan: dict) -> list[tuple]:
-    """`run_items` returns the run form's metric and stopping fields from
-    *plan*. A stopping section without `max_trials` clears the form's trial
-    limit."""
+    """`run_items` returns the run form's fields. Stopping without `max_trials`
+    clears the trial limit."""
     from ui.run_form import STOPPING_FIELDS
 
     items = [("optimize_metric", plan["metric"])] if plan.get("metric") else []
@@ -151,7 +146,7 @@ def run_items(plan: dict) -> list[tuple]:
     return items
 
 
-#: `_FROM` maps form fields to plan fields for their reasons.
+#: `_FROM` maps form fields to plan sections.
 _FROM = {"evaluation_scheme": "evaluation", "evaluation_value": "evaluation",
          "time_column": "evaluation", "time_gap": "evaluation", "horizon": "evaluation",
          "series_column": "evaluation", "season": "evaluation", "optimizer_name": "optimizer",
@@ -163,8 +158,7 @@ _FROM = {"evaluation_scheme": "evaluation", "evaluation_value": "evaluation",
 
 
 def fill_for(plan: dict, step: str) -> list[dict]:
-    """`fill_for` returns the name, value and reason of each field of *step*
-    that *plan* states. A field that limits the next one comes first."""
+    """`fill_for` returns the value and reason of each *step* field *plan* sets."""
     from ui import setup_steps as steps
 
     if step == steps.SETUP:
@@ -199,8 +193,10 @@ def fill_for(plan: dict, step: str) -> list[dict]:
 
 
 def problems(plan: dict, request, dataset, group_id=None) -> list[str]:
-    """`problems` returns the setup forms' errors for *plan* on the dataset at
-    path *dataset*, or an empty list. It saves nothing and needs no draft."""
+    """`problems` returns what keeps *plan* from being set up on *dataset*:
+    missing keys or data, the setup forms' errors, an unknown optimizer or bad
+    optimizer parameters, and processing, stopping or metric choices the model
+    and task cannot take. It saves nothing."""
     from core.processing import CHOICES, unavailable
 
     from core.registry import MODELS, OPTIMIZERS
@@ -249,9 +245,8 @@ def problems(plan: dict, request, dataset, group_id=None) -> list[str]:
 
 
 def _optimizer_problems(optimizer, params: dict) -> list[str]:
-    """`_optimizer_problems` lists where the optimizer form would change
-    *params*: an unknown setting, an altered value, or a setting inactive given
-    the others."""
+    """`_optimizer_problems` reports settings in *params* that are unknown,
+    altered by the optimizer form, or inactive."""
     from ui.optimizer_form import cleaned_params
 
     schema = {param.name: param for param in optimizer.params_schema}
@@ -286,8 +281,7 @@ def _range(param) -> str:
 
 
 def design(plan: dict) -> str:
-    """`design` describes the initial design *plan* sets, or returns "" unless
-    the plan uses SMAC with a known model."""
+    """`design` describes *plan*'s SMAC initial design, else returns ""."""
     from core.optimizers.smac.facade import initial_points, scenario_budget
 
     from core.registry import MODELS

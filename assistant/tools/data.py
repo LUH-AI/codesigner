@@ -1,12 +1,6 @@
-"""The tools that answer questions about the dataset from the data
-(assistant/data.py): one column, what relates to the target, correlations,
-missing values, a structured query, the layout in time, and what a model that
-knows nothing would score.
-
-The dataset is the conversation's: the one chosen while planning, or its
-experiment's, reached as the person may view it. Each tool can also draw what
-it found as a chart under the reply (`show`), for the person; the model is told
-the numbers.
+"""`assistant.tools.data` answers questions from the conversation's dataset
+through `assistant/data.py`. Each tool except `_baseline_scores` draws its
+finding as a chart under the reply when `show` is set.
 """
 
 from __future__ import annotations
@@ -24,9 +18,8 @@ from .registry import Refused, ToolResult, ToolSpec
 
 
 def source_of(context) -> tuple:
-    """Where the conversation's dataset is and which column it predicts: the
-    planning dataset (with the plan's target, once it names one), else the
-    experiment's, as the person may view it."""
+    """`source_of` returns the dataset path and target column of the planning
+    dataset, else of the experiment."""
     conversation = context.conversation
     path = conversation.dataset_path()
     if path is not None:
@@ -41,9 +34,8 @@ def source_of(context) -> tuple:
 
 
 def dataset_of(context):
-    """The conversation's dataset as a frame, the predicted column last. A
-    target the plan names that the file does not have is set aside for the
-    last column, as step 1 reads it."""
+    """`dataset_of` loads the dataset with the target column last. A target
+    missing from the file falls back to the last column."""
     path, target = source_of(context)
     try:
         return data.load(path, target)
@@ -52,9 +44,8 @@ def dataset_of(context):
 
 
 def brief_for(context) -> dict | None:
-    """The brief of the conversation's dataset (`data.brief`), worked out the
-    first time it is asked for and kept on the conversation until the file or
-    its target changes. None without a dataset."""
+    """`brief_for` returns `data.brief` for the dataset, cached on the
+    conversation until the file or target changes, or None without a dataset."""
     try:
         path, target = source_of(context)
     except Refused:
@@ -221,6 +212,6 @@ BASELINE_SCORES = ToolSpec(
 
 
 def data_tools():
-    """The tools that look at the dataset, beside `profile_dataset`."""
+    """`data_tools` excludes `profile_dataset`."""
     return [DESCRIBE_COLUMN, TARGET_RELATIONS, CORRELATIONS, MISSING_VALUES, QUERY_DATA,
             TIME_PROFILE, BASELINE_SCORES]

@@ -1,12 +1,7 @@
-"""The one way a tool reaches the application: as the person, and never as
-more than them.
-
-Every tool call gets a request built here, afresh: the conversation's owner
-loaded from the database again, refused if they can no longer be acted for, and
-marked `via_agent`, which the policy narrows by `ui.permissions.HUMAN_ONLY`
-whatever the person may do. An experiment is reached only through
-`ui.permissions.resolve_experiment`, the check every view makes — so a tool can
-reach what the person's own pages can, minus what they must do themselves.
+"""`gateway` lets a tool act as the conversation's owner, never with more
+rights. Each tool call gets a fresh `AgentRequest`, and the policy denies that
+request the `HUMAN_ONLY` actions. Tools only reach experiments through
+`resolve_experiment`, the check views make.
 """
 
 from __future__ import annotations
@@ -25,9 +20,8 @@ from .tools.registry import Refused
 
 
 class AgentRequest:
-    """What services and the policy are given as the request when the assistant
-    acts: who for, and that it is the assistant. Nothing else of a request —
-    there is no browser here, and no tool may read one."""
+    """`AgentRequest` is the request services and the policy receive when the
+    assistant acts, with no browser behind it."""
 
     via_agent = True
     method = "POST"
@@ -37,9 +31,8 @@ class AgentRequest:
         self.session_key = session_key
 
 
-#: Permissions that reach beyond a person's own work — every experiment, the
-#: site, the instance's defaults, running uploaded code. A person who holds them
-#: uses them themselves; the assistant acts as if they did not.
+#: The assistant never uses the permissions `_escape_permissions` returns, even
+#: for a person who has them.
 def _escape_permissions():
     from access.policy import USE_CUSTOM_MODELS
 
@@ -48,15 +41,14 @@ def _escape_permissions():
 
 @dataclass
 class Context:
-    """What a tool is given: the conversation it acts in, and through it, the
-    person it acts for."""
+    """`Context` gives a tool its conversation, and with it the person."""
 
     conversation: object
 
     def request(self) -> AgentRequest:
-        """A request for the person, checked now: still there, still active,
-        and — for a conversation started from a browser — still signed in there.
-        Raises `Refused` when they cannot be acted for."""
+        """With `REQUIRE_LOGIN` off, `request` acts as an anonymous visitor.
+        Otherwise it raises `Refused` unless the owner exists, is active and,
+        for a browser conversation, is still signed in there."""
         if not settings.REQUIRE_LOGIN:
             from django.contrib.auth.models import AnonymousUser
 
@@ -80,8 +72,8 @@ class Context:
         return AgentRequest(user, self.conversation.session_key)
 
     def experiment(self, pk, action, drafts=BOTH):
-        """Experiment *pk*, for the person to do *action* to, through the check
-        every view makes. Raises `Refused` with why not."""
+        """`experiment` resolves *pk* for *action* as views do and raises
+        `Refused` on failure."""
         request = self.request()
         if action in HUMAN_ONLY:
             raise Refused(f"only the person can {action} an experiment; explain how instead")
@@ -94,8 +86,7 @@ class Context:
 
 
 def _signed_in(session_key: str, user) -> bool:
-    """Whether the browser session *session_key* is signed in as *user*, and
-    their password has not changed since."""
+    """`_signed_in` returns False after a sign-out or password change."""
     from importlib import import_module
 
     from django.contrib.auth import HASH_SESSION_KEY, SESSION_KEY

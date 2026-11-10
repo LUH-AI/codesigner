@@ -1,11 +1,11 @@
-"""The worker builds the assistant's paper library, which takes minutes."""
+"""Library builds take minutes."""
 
 from huey.contrib.djhuey import db_task
 
 
 @db_task(priority=5)
 def build_library_task():
-    """`build_library_task` only builds a stale library."""
+    """`build_library_task` skips fresh libraries."""
     import logging
 
     from .library import build, stale

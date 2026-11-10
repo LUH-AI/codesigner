@@ -1,6 +1,5 @@
 """`tradeoffs` reads the trade-off explainers in
-`assistant/knowledge/explainers/tradeoffs/`, which the assistant proposes
-changes from. A note matches the form fields its `about` names.
+`assistant/knowledge/explainers/tradeoffs/`.
 """
 
 from functools import cache
@@ -32,8 +31,7 @@ def _read() -> dict:
 
 
 def notes(fields=None) -> dict:
-    """`applies_to` uses optimizer setting names. With *fields*, `notes` only
-    returns notes on those form fields."""
+    """`notes` filters by form *fields*; `applies_to` uses setting names."""
     out = {}
     for name, note in _read().items():
         if fields is not None and not set(note["fields"]) & set(fields):
@@ -45,6 +43,6 @@ def notes(fields=None) -> dict:
 
 
 def for_optimizer(optimizer, settings=None) -> dict:
-    """*settings* replaces the optimizer's setting names."""
+    """*settings* overrides `params_schema` names."""
     names = [p.name for p in optimizer.params_schema] if settings is None else settings
     return notes([f"opt_{name}" for name in names]) if names else {}

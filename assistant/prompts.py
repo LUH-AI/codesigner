@@ -1,5 +1,5 @@
-"""`assistant.prompts` builds the system message from the texts in
-assistant/instructions/ and the conversation's state."""
+"""`assistant.prompts` builds the system message from assistant/instructions/
+and the conversation."""
 
 from __future__ import annotations
 
@@ -51,7 +51,7 @@ def system_prompt(conversation) -> str:
 
 
 def _notes_line(conversation, pk) -> str:
-    """`_notes_line` returns "" when the person cannot view experiment *pk*."""
+    """`_notes_line` returns "" for an unviewable *pk*."""
     import json
 
     from access.policy import VIEW
@@ -73,8 +73,7 @@ def _notes_line(conversation, pk) -> str:
 
 
 def _status_line(exp) -> str:
-    """`_status_line` reports run status at the turn's start, so older tool
-    results visibly predate it."""
+    """`_status_line` reports the status as the turn starts."""
     import logging
 
     from . import results
@@ -120,7 +119,6 @@ def _tab_line(page) -> str:
 
 
 def _brief(conversation):
-    """`_brief` returns None for a missing or unreadable brief."""
     import logging
 
     from .gateway import Context

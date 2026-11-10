@@ -1,7 +1,5 @@
-"""`assistant.notes` reads and writes each experiment's Markdown notepad
-(`.ExperimentNotes`). A person saves the whole document, and `save` raises
-`Stale` on a conflict. An assistant edits one passage against the current text,
-so `edit` never overwrites a concurrent save.
+"""`assistant.notes` stores each experiment's notepad. `save` raises `Stale` on
+a conflict, and `edit` never overwrites a concurrent save.
 """
 
 from __future__ import annotations
@@ -12,11 +10,10 @@ from .models import ExperimentNotes
 
 
 class NoteError(Exception):
-    """`NoteError` messages say why the write failed."""
+    """`NoteError` messages explain failures."""
 
 
 class Stale(NoteError):
-    """`Stale.notes` is the current stored notepad."""
 
     def __init__(self, notes) -> None:
         super().__init__("the notes changed since they were opened")
@@ -51,8 +48,7 @@ def _author(user):
 
 
 def save(exp, text: str, *, user, seen: str):
-    """`save` raises `Stale` when the stored notes differ from *text* and their
-    `updated_at` differs from *seen* ("" for none yet)."""
+    """`save` raises `Stale` when other text was saved since *seen*."""
     text = _checked((text or "").replace("\r\n", "\n").rstrip())
     with transaction.atomic():
         notes, created = ExperimentNotes.objects.select_for_update().get_or_create(experiment=exp)
@@ -65,9 +61,8 @@ def save(exp, text: str, *, user, seen: str):
 
 
 def edit(exp, text: str, *, user, conversation, replace: str = ""):
-    """`edit` replaces the passage *replace* with *text* and raises `NoteError`
-    unless *replace* occurs once. Without *replace*, `edit` appends *text* as a
-    new paragraph."""
+    """`edit` raises `NoteError` unless *replace* occurs once; without
+    *replace*, `edit` appends."""
     text = (text or "").strip()
     with transaction.atomic():
         notes, _ = ExperimentNotes.objects.select_for_update().get_or_create(experiment=exp)
@@ -88,12 +83,12 @@ def edit(exp, text: str, *, user, conversation, replace: str = ""):
     return notes
 
 
-#: `PROMPT_CHARACTERS` caps the system prompt's notes.
+#: `PROMPT_CHARACTERS` caps prompt notes.
 PROMPT_CHARACTERS = 4000
 
 
 def for_prompt(exp) -> str:
-    """`for_prompt` marks truncated notes with a `read_notes` hint."""
+    """Truncated notes end with `read_notes`."""
     text = notes_of(exp).text
     if len(text) <= PROMPT_CHARACTERS:
         return text

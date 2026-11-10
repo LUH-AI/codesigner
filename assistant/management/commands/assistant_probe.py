@@ -1,7 +1,5 @@
-"""`assistant_probe` checks what the configured model server can do for the
-assistant. Each check sends a short made-up request and reports the reply and
-its time: model status, plain replies, tool calls, streaming, JSON-schema
-replies, reasoning and embeddings.
+"""`assistant_probe` checks each server feature with one or two short requests
+and reports each reply with its time.
 """
 
 import json
@@ -71,7 +69,7 @@ class Command(BaseCommand):
         return self.client.chat.completions.create(model=self.model, **kwargs)
 
     def listed(self):
-        """`listed` reads chat-ai's `/modellist`, or `/models` elsewhere."""
+        """`listed` tries `/modellist` first."""
         base = settings.ASSISTANT_LLM_BASE_URL.rstrip("/")
         root = base[:-3] if base.endswith("/v1") else base
         request = urllib.request.Request(root + "/modellist",

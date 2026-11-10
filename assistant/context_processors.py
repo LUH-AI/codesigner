@@ -1,12 +1,11 @@
-"""`assistant` picks the chats a page shows."""
+"""`assistant` supplies page chats."""
 
 from django.conf import settings
 
 
 def assistant(request):
-    """`assistant` returns the conversations the page's chats show, or an empty
-    context when the assistant is off or `REQUIRE_LOGIN` turns a signed-out
-    visitor away."""
+    """`assistant` returns {} when the assistant is off for the site or for
+    the signed-in person, or when `REQUIRE_LOGIN` excludes the visitor."""
     if not settings.ASSISTANT_ENABLED:
         return {}
     user = getattr(request, "user", None)

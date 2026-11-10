@@ -1,13 +1,8 @@
-"""Tools: what they are called, what they take, and calling one.
-
-The shape is A3S's (`a3s/tools/registry.py`, https://github.com/LUH-AI/A3S,
-BSD-3-Clause, Copyright (c) Marcel Wever): a spec with a JSON-schema for its
-arguments and a handler, a result that can hand control back to the person, and
-a registry that offers the schemas to the model and dispatches its calls. What
-is new is that arguments are checked against the schema before a handler sees
-them, every call is recorded (`AgentAction`), and a handler is given the
-gateway rather than a session — it reaches the application as the person, or
-not at all.
+"""The design follows A3S (`a3s/tools/registry.py`,
+https://github.com/LUH-AI/A3S, BSD-3-Clause, Copyright (c) Marcel Wever).
+`ToolRegistry.execute` checks arguments against the schema and records each call
+as `AgentAction`. A handler receives the gateway instead of a session and so
+reaches the application only as the person.
 """
 
 from __future__ import annotations
@@ -22,26 +17,25 @@ log = logging.getLogger(__name__)
 
 @dataclass
 class ToolResult:
-    """What a tool answers: text for the model, and what the turn should do."""
 
     output: str
-    #: The tool asked the person something and the turn waits for the answer.
+    #: The turn waits for the person's answer.
     waits_for_person: bool = False
-    #: Shown on the page as well as given to the model (a question's choices).
+    #: The page also shows `show` (a question's choices).
     show: dict = field(default_factory=dict)
-    #: The experiment the call touched, for the audit.
+    #: The call's experiment, for `AgentAction`.
     experiment_id: int | None = None
 
 
 class Refused(Exception):
-    """The person this assistant acts for may not do what was asked, or is no
-    longer signed in to be acted for. Its message is said to the model."""
+    """Handlers raise `Refused` when the person lacks permission or has signed
+    out. `ToolRegistry.execute` passes the message to the model."""
 
 
 @dataclass
 class ToolSpec:
-    """One tool: its name, what it does, its arguments' JSON schema, and the
-    function that does it — called with the turn's context and the arguments."""
+    """`ToolSpec.handler` receives the turn's context, then the arguments as
+    keywords."""
 
     name: str
     description: str
@@ -50,14 +44,14 @@ class ToolSpec:
 
     @property
     def schema(self) -> dict:
-        """The tool in the OpenAI wire format."""
+        """`schema` uses OpenAI's format."""
         return {"type": "function",
                 "function": {"name": self.name, "description": self.description,
                              "parameters": self.parameters}}
 
 
 class ToolRegistry:
-    """The tools offered for one turn, in order."""
+    """`ToolRegistry` offers one turn's tools."""
 
     def __init__(self, specs=()) -> None:
         self._tools: dict[str, ToolSpec] = {}
@@ -79,12 +73,10 @@ class ToolRegistry:
         return [spec.schema for spec in self._tools.values()]
 
     def execute(self, name: str, arguments: dict, context) -> ToolResult:
-        """Run tool *name* with *arguments* for *context*'s conversation, and
-        record that it was called and what came of it.
+        """`execute` runs tool *name* and records the call as `AgentAction`.
 
-        A tool that does not exist, arguments its schema does not allow, a
-        refusal and a failure are all answers to the model rather than errors:
-        it reads why and can try something else.
+        An unknown tool, invalid arguments, `Refused` and handler exceptions
+        become the result text, so the model reads the reason and can retry.
         """
         from ..models import AgentAction
 
@@ -121,14 +113,11 @@ _TYPES = {"string": str, "integer": int, "number": (int, float), "boolean": bool
 
 
 def invalid(value, schema: dict, where: str = "") -> str:
-    """Why *value* does not fit *schema*, or "" if it does.
+    """`invalid` returns why *value* fails *schema*, or "" when *value* fits.
 
-    The subset of JSON schema tools here are written in: objects with
-    properties, required names and nothing else; arrays of items; the plain
-    types; enums. Anything a schema leaves out of an object is refused, so a
-    model cannot slip in an argument a handler would quietly take — unless the
-    object says `additionalProperties`: true for a map of names the handler
-    checks itself, or a schema every value under a name not listed must fit.
+    An object key missing from `properties` fails unless `additionalProperties`
+    is true or a schema the value fits. Thus a model cannot slip in an argument
+    a handler would accept unchecked.
     """
     kind = schema.get("type")
     if kind:

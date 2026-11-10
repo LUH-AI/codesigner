@@ -1,7 +1,5 @@
-"""`assistant_knowledge build` fetches each paper in literature.toml, splits it
-into passages, embeds them unless `--no-embed` is given, and writes the index to
-`ASSISTANT_KNOWLEDGE_DIR`. `ensure` rebuilds a stale index while the assistant
-is on, on the worker's queue or here with `--now`.
+"""`build` indexes the literature.toml papers into `ASSISTANT_KNOWLEDGE_DIR`.
+`ensure` rebuilds a stale index when the assistant is on, queued unless `--now`.
 """
 
 from django.core.management.base import BaseCommand, CommandError
@@ -71,7 +69,7 @@ class Command(BaseCommand):
         self.stdout.write(f"Library build queued: {reason}.")
 
     def warn_failures(self, record):
-        """`warn_failures` names each paper the last build failed to fetch."""
+        """`warn_failures` names papers the last build missed."""
         failed = (record or {}).get("failed") or {}
         if not failed:
             return

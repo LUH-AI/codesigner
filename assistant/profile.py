@@ -1,11 +1,9 @@
-"""What the assistant is told about a dataset: worked out here, never by the
-model.
+"""`profile` computes what the assistant knows about a dataset, so the model
+invents no facts.
 
-The model gets facts it could not make up — how many rows, each column's kind
-as Codesigner reads it, how much of it is missing, how many distinct values it
-has — and a few example values of each, as many as `ASSISTANT_SAMPLE_ROWS`
-allows. With that at 0, nothing of the data itself leaves this machine: only
-names, kinds and counts.
+Columns get kinds, missing and distinct counts, numeric ranges and up to
+`ASSISTANT_SAMPLE_ROWS` examples. With that setting at 0, examples and the
+target's class names stay out.
 """
 
 from __future__ import annotations
@@ -19,14 +17,12 @@ from django.conf import settings
 from core import columns as kinds
 from core import datasets, tasks
 
-#: More distinct values than this, in a target of whole numbers, reads as a
-#: quantity rather than as classes.
+#: Distinct-value limit for reading a whole-number target as classes.
 _FEW_CLASSES = 20
 
 
 def profile(path: Path, target: str = "") -> dict:
-    """The facts about the dataset at *path*, *target* the column predicted
-    (the last when "")."""
+    """An empty *target* means the last column."""
     frame = datasets.read_dataset(path, target or None)
     samples = max(0, int(settings.ASSISTANT_SAMPLE_ROWS))
     feature_kinds = kinds.infer_kinds(frame.iloc[:, :-1])
@@ -66,9 +62,8 @@ def _column(values: pd.Series, name: str, kind: str, samples: int) -> dict:
 
 
 def _target(values: pd.Series, name: str, samples: int, chosen: bool) -> dict:
-    """The predicted column, and the task it reads as — a suggestion for the
-    person to confirm, never a decision: a column of whole numbers is classes
-    to one person and a quantity to the next."""
+    """`_target` only suggests a task for the person: whole numbers can be
+    classes or a quantity."""
     present = values.dropna()
     numeric = tasks.is_numeric(present.to_numpy())
     distinct = int(present.nunique())
@@ -99,7 +94,6 @@ def _target(values: pd.Series, name: str, samples: int, chosen: bool) -> dict:
 
 
 def _plain(value):
-    """A value as JSON has it."""
     if isinstance(value, np.generic):
         value = value.item()
     if isinstance(value, float) and not np.isfinite(value):

@@ -1,5 +1,4 @@
-"""The tools every conversation has: looking at the dataset, asking the person
-something, and saying how to do what only the person may do."""
+"""`assistant.tools.basic` defines the tools every conversation has."""
 
 from __future__ import annotations
 
@@ -76,8 +75,7 @@ PRESENT_CHOICES = ToolSpec(
 )
 
 
-#: How the person does what the assistant may not do for them. Plain steps, in
-#: the words the pages use.
+#: `HOW` gives steps for person-only actions in the pages' own words.
 HOW = {
     "run": "On the experiment's page, fill in when the run should stop under "
            "\"Run until…\" in the sidebar, then press \"▶ Run\".",
@@ -122,5 +120,4 @@ EXPLAIN_HOW = ToolSpec(
 
 
 def basic():
-    """The tools every conversation has."""
     return [PROFILE_DATASET, PRESENT_CHOICES, EXPLAIN_HOW]

@@ -1,15 +1,9 @@
 """`library` searches passages of the papers in
-assistant/knowledge/literature.toml by meaning and by words.
+`assistant/knowledge/literature.toml`.
 
-`build` fetches each paper's open-access text, splits it into overlapping
-passages, embeds them when an embedding endpoint exists, and writes
-`passages.jsonl`, `embeddings.npy` and `built.json` to
-`ASSISTANT_KNOWLEDGE_DIR`. Each instance fetches the papers itself, and the
-worker rebuilds a `stale` index on starting (`manage.py assistant_knowledge
-ensure`).
-
-`search` merges a BM25 ranking with an embedding ranking by reciprocal rank
-fusion, so it falls back to words without embeddings.
+`build` writes the index to `ASSISTANT_KNOWLEDGE_DIR` on each instance, and the
+worker rebuilds a `stale` index on starting. `search` fuses BM25 and embedding
+rankings by reciprocal rank, so it falls back to words without embeddings.
 """
 
 from __future__ import annotations
@@ -35,12 +29,12 @@ from .sources import source_of as _source
 
 log = logging.getLogger(__name__)
 
-#: Passage length and overlap, in characters.
+#: Lengths in characters.
 PASSAGE = 2400
 OVERLAP = 300
-#: Reciprocal rank fusion constant.
+#: Reciprocal-rank-fusion constant.
 RRF = 60
-#: BM25 saturation and normalisation.
+#: BM25 parameters.
 K1, B = 1.5, 0.75
 
 _WORD = re.compile(r"[^\W_]+", re.UNICODE)
@@ -57,8 +51,7 @@ def index_dir() -> Path:
 
 
 def manifest() -> str:
-    """`manifest` digests the paper list; `stale` compares it with the index's
-    record."""
+    """`manifest` digests the paper list for `stale`."""
     return hashlib.sha256(LITERATURE.read_bytes()).hexdigest()[:16]
 
 
@@ -73,8 +66,8 @@ def built() -> dict | None:
 
 
 def stale(embedding_model: str | None) -> str:
-    """`stale` returns why the index needs building, or "" when it matches the
-    paper list and *embedding_model* (None for word search)."""
+    """`stale` returns why a rebuild is due, or "". A None *embedding_model*
+    means word search."""
     record = built()
     if record is None:
         return "there is no library yet"
@@ -88,7 +81,7 @@ def stale(embedding_model: str | None) -> str:
 
 @contextlib.contextmanager
 def _building(directory: Path):
-    """`_building` yields False while another build has the folder's lock."""
+    """`_building` yields False while another build runs."""
     import fcntl
 
     directory.mkdir(parents=True, exist_ok=True)
@@ -105,8 +98,7 @@ def _building(directory: Path):
 
 
 def _replace(path: Path, write) -> None:
-    """`_replace` renames a temporary file into place, so a reader never sees
-    half a file."""
+    """`_replace` writes atomically, so readers never see half a file."""
     temporary = path.with_name(path.name + ".tmp")
     write(temporary)
     os.replace(temporary, path)
@@ -123,7 +115,6 @@ def _pdf_pages(raw: bytes) -> list[str]:
 
 
 class _Text:
-    """`_Text` extracts an HTML page's visible text."""
 
     SKIP = {"script", "style", "nav", "header", "footer", "noscript"}
 
@@ -154,14 +145,13 @@ class _Text:
 
 def _clean(text: str) -> str:
     text = text.replace("­", "")
-    text = re.sub(r"-\n(?=[a-z])", "", text)          # line-break hyphens
+    text = re.sub(r"-\n(?=[a-z])", "", text)          # dehyphenate
     text = re.sub(r"[ \t]+", " ", text)
     return re.sub(r"\n{3,}", "\n\n", text).strip()
 
 
 def split(pages: list[str]) -> list[tuple[int, str]]:
-    """`split` cuts overlapping passages at paragraph or sentence ends, each
-    with its 1-based start page."""
+    """`split` returns passages cut at paragraph or sentence ends."""
     joined, starts = "", []
     for number, page in enumerate(pages, 1):
         starts.append((len(joined), number))
@@ -185,8 +175,7 @@ def split(pages: list[str]) -> list[tuple[int, str]]:
 
 
 def _text_of(paper: dict) -> tuple[list[str], str]:
-    """`_text_of` returns the paper's pages and source URL and keeps each
-    download in the index folder for rebuilds."""
+    """`_text_of` caches each download in the index folder for rebuilds."""
     url, form = _source(paper)
     if not url:
         return [], ""
@@ -203,8 +192,9 @@ def _text_of(paper: dict) -> tuple[list[str], str]:
 
 
 def build(embedder=None, only: set | None = None, progress=print) -> dict | None:
-    """`build` returns None while another build runs. `build` only refetches the
-    keys in *only*."""
+    """`build` returns None while another build runs. With *only*, it re-indexes
+    the papers keyed in *only* and keeps the rest. `_text_of` reuses cached
+    downloads."""
     directory = index_dir()
     with _building(directory) as mine:
         if not mine:
@@ -231,7 +221,7 @@ def _build(directory: Path, embedder, only, progress) -> dict:
                 pages, source = _text_of(paper)
                 found = [{"key": key, "page": page, "text": text, "kind": "paper", "source": source}
                          for page, text in split(pages)]
-                time.sleep(1.0 if paper.get("arxiv") else 0.2)    # arXiv throttling
+                time.sleep(1.0 if paper.get("arxiv") else 0.2)
             except Exception as error:  # noqa: BLE001 — one paper missing, not the library
                 failed[key] = str(error)[:200]
         if not found and paper.get("summary"):
@@ -291,7 +281,7 @@ class Hit:
 
 
 class Library:
-    """`Library` loads the index once per process."""
+    """`Library` caches the index."""
 
     _loaded: "Library | None" = None
     _lock = threading.Lock()
@@ -301,8 +291,7 @@ class Library:
         self.papers = {p["key"]: p for p in papers()}
         path = directory / "embeddings.npy"
         self.vectors = np.load(path) if path.exists() else None
-        # Mismatched vectors come from a build in progress, so search uses words
-        # meanwhile.
+        # Mismatched vectors mean a build is running.
         if self.vectors is not None and len(self.vectors) != len(self.passages):
             self.vectors = None
         built = directory / "built.json"
@@ -316,13 +305,11 @@ class Library:
         n = len(self._terms)
         self._idf = {t: math.log(1 + (n - f + 0.5) / (f + 0.5)) for t, f in frequency.items()}
 
-    #: `_stamp` records the build record's mtime at load, so a later build
-    #: triggers a reload.
+    #: `get` reloads when `built.json` changes.
     _stamp: float | None = None
 
     @classmethod
     def get(cls) -> "Library | None":
-        """`get` returns None before any build."""
         record = index_dir() / "built.json"
         stamp = record.stat().st_mtime if record.exists() else None
         with cls._lock:
@@ -349,7 +336,6 @@ class Library:
         return scores
 
     def search(self, query: str, k: int = 5, kind: str = "all", embedder=None) -> list[Hit]:
-        """`search` returns at most two passages per paper."""
         candidates = np.arange(len(self.passages))
         if kind != "all":
             candidates = np.array([i for i, p in enumerate(self.passages)
@@ -383,7 +369,6 @@ class Library:
         return hits
 
     def around(self, passage_id: int, before: int = 1, after: int = 1) -> list[dict]:
-        """`around` stays within one paper."""
         if not 0 <= passage_id < len(self.passages):
             return []
         key = self.passages[passage_id]["key"]
@@ -391,13 +376,12 @@ class Library:
         return [self.passages[i] for i in span if self.passages[i]["key"] == key]
 
 
-#: Citations look like [HSSL22] or [LEF+22, HHL11].
+#: For example [LEF+22, HHL11].
 _KEY = r"[A-Za-z]+\+?\d{2}"
 CITATION = re.compile(rf"\[({_KEY}(?:[,;] *{_KEY})*)\]")
 
 
 def _cited_keys(text: str) -> list[str]:
-    """`_cited_keys` drops repeated keys."""
     out = []
     for match in CITATION.finditer(text or ""):
         out += [key for key in re.split(r"[,;] *", match.group(1)) if key not in out]
@@ -405,14 +389,12 @@ def _cited_keys(text: str) -> list[str]:
 
 
 def uncited_keys(text: str) -> list[str]:
-    """`uncited_keys` returns cited keys missing from the library, such as
-    invented citations."""
+    """`uncited_keys` returns cited keys missing from the library."""
     keys = {p["key"] for p in papers()}
     return [key for key in _cited_keys(text) if key not in keys]
 
 
 def cited(text: str) -> list[dict]:
-    """`cited` returns the library papers *text* cites."""
     keys = {p["key"]: p for p in papers()}
     return [{"key": key, "title": keys[key]["title"], "authors": keys[key]["authors"],
              "year": keys[key]["year"], "link": link_of(keys[key])}

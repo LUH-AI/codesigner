@@ -1,10 +1,6 @@
-"""`assistant.tools.notes` reads and writes an experiment's notepad
-(assistant/notes.py), one Markdown document for whoever works on the experiment
-next.
-
-Reading needs view access and writing needs edit access. The notepad records
-what people decided or found; read_experiment returns what the experiment
-stores.
+"""`assistant.tools.notes` reads and writes an experiment's Markdown notepad.
+The notepad keeps what people decided or found; `read_experiment` returns stored
+data.
 """
 
 from __future__ import annotations

@@ -1,14 +1,10 @@
-"""Talk to the assistant from the terminal.
-
-For trying a model and the tools before, or without, the page: each line typed
-is a turn, and what the assistant did and said is printed after it.
+"""`assistant_chat` runs one assistant turn per typed line and prints its
+events.
 
     manage.py assistant_chat --experiment 12
     manage.py assistant_chat --user ana --experiment 12     (with accounts)
 
-The conversation is kept like any other, and acts as the person named — with
-accounts on, as no more than they may. Somebody at this terminal already has
-the server, so it is not tied to a browser session.
+The conversation is stored like any other and acts as the named person.
 """
 
 from django.conf import settings
@@ -85,7 +81,7 @@ class Command(BaseCommand):
                 choices = self._show(event) or choices
 
     def _show(self, event):
-        """Print *event*; return the choices it offers, if it offers any."""
+        """`_show` prints *event* and returns its choices."""
         kind, payload = event.kind, event.payload
         if kind == "text":
             self.stdout.write(payload["text"], ending="")

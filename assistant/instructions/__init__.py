@@ -1,4 +1,6 @@
-"""The model always gets `core.md`, plus one file per stage."""
+"""`load` reads `<name>.md` from `assistant/instructions/`. `assistant.prompts`
+gives the model `core.md` plus the stage file for planning or for an
+experiment."""
 
 from __future__ import annotations
 
@@ -10,5 +12,4 @@ HERE = Path(__file__).parent
 
 @cache
 def load(name: str) -> str:
-    """`load` reads *name*.md without its closing newline."""
     return (HERE / f"{name}.md").read_text(encoding="utf-8").rstrip("\n")

@@ -1,9 +1,7 @@
-"""The `sources` module reads the library's papers from
-`assistant/knowledge/literature.toml` and checks that each open-access address
-still serves its paper.
+"""`sources` checks that each paper in `assistant/knowledge/literature.toml`
+still serves its source.
 
-The module only uses the standard library, so `python -m assistant.sources` runs
-without Codesigner.
+The module only imports the standard library.
 """
 
 from __future__ import annotations
@@ -26,8 +24,7 @@ def papers() -> list[dict]:
 
 
 def source_of(paper: dict) -> tuple[str, str]:
-    """`source_of` returns ``(url, form)`` with form "pdf" or "html", or empty
-    strings for summary-only papers."""
+    """`source_of` returns ``(url, form)``, or empty strings."""
     if paper.get("arxiv"):
         return f"https://arxiv.org/pdf/{paper['arxiv']}", "pdf"
     if paper.get("pdf"):
@@ -38,14 +35,13 @@ def source_of(paper: dict) -> tuple[str, str]:
 
 
 def link_of(paper: dict) -> str:
-    """`link_of` returns the page a citation links to."""
+    """`link_of` returns the citation page."""
     if paper.get("arxiv"):
         return f"https://arxiv.org/abs/{paper['arxiv']}"
     return paper.get("pdf") or paper.get("html") or ""
 
 
 def fetch(url: str, timeout: float = 60.0, first: int | None = None) -> bytes:
-    """`fetch` returns the body at *url*, or its first *first* bytes."""
     headers = {"User-Agent": AGENT}
     if first:
         headers["Range"] = f"bytes=0-{first - 1}"
@@ -54,8 +50,7 @@ def fetch(url: str, timeout: float = 60.0, first: int | None = None) -> bytes:
 
 
 def problem(paper: dict, fetch=fetch) -> str:
-    """`problem` returns why *paper*'s source fails, or "" when it serves the
-    listed form."""
+    """`problem` returns why *paper*'s source fails, or ""."""
     url, form = source_of(paper)
     if not url:
         return ""

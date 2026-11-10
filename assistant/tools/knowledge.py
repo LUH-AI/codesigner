@@ -1,5 +1,4 @@
-"""The tools here search `.library` and explain a Codesigner page
-(`.explainers`)."""
+"""The tools search `.library` and quote `.explainers`."""
 
 from __future__ import annotations
 
@@ -106,5 +105,4 @@ ABOUT_PAGE = ToolSpec(
 
 
 def knowledge():
-    """`knowledge` lists the tools."""
     return [SEARCH_KNOWLEDGE, READ_PASSAGE, ABOUT_PAGE]

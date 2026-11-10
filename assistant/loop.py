@@ -1,10 +1,7 @@
-"""`run_turn` runs one conversation turn: the model calls tools within limits
-until it replies in words or asks the person something.
+"""`emit` stores page updates as `AssistantEvent` rows so a reloaded page
+resumes the turn.
 
-`emit` writes each page update as an `AssistantEvent`, so a reloaded page can
-resume a turn running elsewhere.
-
-`run_turn` adapts the loop of A3S (https://github.com/LUH-AI/A3S, BSD-3-Clause,
+`run_turn` adapts the A3S loop (https://github.com/LUH-AI/A3S, BSD-3-Clause,
 Copyright (c) Marcel Wever).
 """
 
@@ -21,12 +18,11 @@ from django.utils import timezone
 from .models import AssistantEvent, Message
 from .tools.registry import ToolRegistry
 
-#: `HISTORY` caps the messages sent per call; `.Conversation.plan` carries what
-#: matters from older ones.
+#: `HISTORY` caps the messages per call, extended back to the nearest user
+#: message.
 HISTORY = 60
-#: Streamed-text flush interval.
 FLUSH_SECONDS = 0.15
-#: `REPEATS` identical calls in one turn end the turn.
+#: `REPEATS` identical calls end the turn.
 REPEATS = 3
 
 
@@ -35,7 +31,7 @@ def emit(conversation, kind: str, **payload) -> AssistantEvent:
 
 
 def tokens_today(owner_id) -> int:
-    """`tokens_today` takes None for an instance without accounts."""
+    """`tokens_today` accepts None as *owner_id*."""
     since = timezone.now() - timedelta(days=1)
     spent = (Message.objects.filter(conversation__owner_id=owner_id, created_at__gte=since)
              .aggregate(total=Sum("tokens"))["total"])
@@ -43,8 +39,7 @@ def tokens_today(owner_id) -> int:
 
 
 def history(conversation) -> list[dict]:
-    """`history` returns about the last `HISTORY` messages, starting at one of
-    the person's, so every tool answer keeps its call."""
+    """`history` starts at a user message so each tool answer keeps its call."""
     messages = list(conversation.messages.all())
     start = max(0, len(messages) - HISTORY)
     while start > 0 and messages[start].role != Message.USER:
@@ -53,7 +48,6 @@ def history(conversation) -> list[dict]:
 
 
 class _Stream:
-    """`_Stream` batches streamed text."""
 
     def __init__(self, conversation):
         self.conversation = conversation
@@ -80,8 +74,7 @@ class _Stream:
 
 
 def run_turn(conversation, text: str, *, llm, tools: ToolRegistry, stream: bool = True) -> str:
-    """`run_turn` returns "answered", "waiting", or why it stopped:
-    "unavailable", "budget", "steps", "tool_calls" or "repeating"."""
+    """`run_turn` returns "answered", "waiting" or the stop reason."""
     from .gateway import Context
     from .llm import Unavailable
     from .prompts import system_prompt
@@ -101,7 +94,7 @@ def run_turn(conversation, text: str, *, llm, tools: ToolRegistry, stream: bool 
         messages = [{"role": "system", "content": system_prompt(conversation)}]
         messages += history(conversation)
         try:
-            # The last step offers no tools, so every turn ends in an answer.
+            # A tool-free last step forces an answer.
             reply = llm.chat(messages, tools=tools.schemas if step < steps - 1 else None,
                              progress=progress)
         except Unavailable as exc:
@@ -116,7 +109,7 @@ def run_turn(conversation, text: str, *, llm, tools: ToolRegistry, stream: bool 
         if not reply.tool_calls:
             invented = _invented(reply.content)
             if invented and not corrected and step < steps - 1:
-                # Once per turn, so inventing still ends.
+                # One correction per turn.
                 corrected = True
                 _warn_invented(conversation, invented)
                 continue
@@ -160,9 +153,8 @@ def _invented(text: str) -> list[str]:
 
 
 def _warn_invented(conversation, keys: list[str]) -> None:
-    """`_warn_invented` marks the answer withdrawn and tells the model which
-    *keys* name no library paper. The warning is stored with the user role for
-    the model; no event shows it to the person."""
+    """`_warn_invented` withdraws the answer and tells the model, as a user-role
+    message, which *keys* name no library paper."""
     named = ", ".join(f"[{key}]" for key in keys)
     emit(conversation, "withdrawn", keys=keys)
     Message.objects.create(conversation=conversation, role=Message.USER, content=(
@@ -175,7 +167,7 @@ def _warn_invented(conversation, keys: list[str]) -> None:
 
 
 def _cite(conversation, text: str) -> None:
-    """`_cite` lists cited papers under the answer."""
+    """`_cite` shows cited papers."""
     from .library import cited
 
     sources = cited(text)

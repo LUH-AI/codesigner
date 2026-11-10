@@ -1,7 +1,5 @@
-"""`start` runs a turn in a thread of the web process (at most
-`ASSISTANT_TURN_THREADS`), since a turn mostly waits on the model and runs
-occupy the task queue's workers for hours. The page follows the turn's events
-(assistant/views.py).
+"""`start` runs turns in web-process threads, since the task queue's workers
+serve hours-long runs.
 """
 
 from __future__ import annotations
@@ -20,7 +18,7 @@ from .models import Conversation
 
 log = logging.getLogger(__name__)
 
-#: Turns older than `STALE` count as abandoned.
+#: `STALE` marks abandoned turns.
 STALE = timedelta(minutes=15)
 
 _pool: ThreadPoolExecutor | None = None
@@ -42,7 +40,7 @@ def busy(conversation) -> bool:
 
 
 def start(conversation, text: str) -> bool:
-    """`start` returns False while a turn runs."""
+    """`start` returns False when busy."""
     now = timezone.now()
     claimed = (Conversation.objects.filter(pk=conversation.pk)
                .filter(Q(turn_started_at__isnull=True) | Q(turn_started_at__lt=now - STALE))
@@ -57,8 +55,7 @@ def start(conversation, text: str) -> bool:
 
 
 def tools_for(conversation):
-    """`tools_for` offers the planning tools while the general chat plans an
-    experiment, and their lookups otherwise."""
+    """`tools_for` gives planning tools during planning and lookups otherwise."""
     from .tools.basic import basic
     from .tools.client import client
     from .tools.data import data_tools
@@ -69,7 +66,7 @@ def tools_for(conversation):
     from .tools.registry import ToolRegistry
 
     planning_now = conversation.phase == Conversation.PLANNING
-    # A planning chat has nothing to fill.
+    # Planning chats fill nothing.
     page = [t for t in client() if not planning_now or t.name != "fill"]
     specs = basic() + data_tools() + knowledge() + page
     specs += (planning() if planning_now else lookups()) + experiment_tools() + notes()

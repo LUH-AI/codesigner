@@ -1,17 +1,11 @@
-"""Questions about a dataset, answered from the data: worked out here, never by
-code the model writes.
+"""`assistant.data` answers questions about a dataset with fixed operations,
+never with code the model writes.
 
-Each analysis is a fixed operation on the dataset as Codesigner reads it
-(`core.datasets.read_dataset`, the predicted column last), with its arguments
-checked: a column must be one of the dataset's, an operator one of a short
-list. What goes back to the model is aggregates — counts, shares, statistics.
-Values of the data themselves (a category's name, a row) only as far as
-`ASSISTANT_SAMPLE_ROWS` allows: with it at 0, nothing of the data leaves this
-machine but names, kinds and numbers about them. Charts are drawn for the
-person, in their browser, and are not what the model is told.
-
-A large dataset is sampled, with a fixed seed, for what costs time on every
-row (associations, correlations); counts and shares are always over all rows.
+Every operation raises `DataError` for an unknown column, operator or aggregate.
+The model gets aggregates, plus data values only as far as
+`ASSISTANT_SAMPLE_ROWS` allows; charts only go to the person's browser.
+Associations and correlations use a seeded sample of large datasets, and counts
+and shares cover all rows.
 """
 
 from __future__ import annotations
@@ -26,16 +20,15 @@ import pandas as pd
 from core import columns as kinds
 from core import datasets, tasks
 
-#: Above this many rows, associations and correlations are worked out on a
-#: sample of this many.
+#: Row limit above which associations and correlations sample.
 SAMPLE_ROWS = 50_000
-#: Most groups a query answers with.
+#: Group cap per query.
 MAX_GROUPS = 50
-#: Numeric columns grouped by are cut into this many ranges of equal counts.
+#: Equal-count ranges for grouping a many-valued numeric column.
 BINS = 5
-#: Fewer distinct values than this, and a numeric column is grouped by value.
+#: Distinct-value limit for grouping a numeric column by value.
 FEW_VALUES = 20
-#: How many frames are kept in memory between questions.
+#: Frames `load` keeps in memory.
 CACHED = 4
 
 OPERATORS = ("=", "!=", "<", "<=", ">", ">=", "in", "not_in", "is_missing", "not_missing")
@@ -43,19 +36,19 @@ AGGREGATES = ("count", "mean", "median", "min", "max", "sum", "std", "nunique", 
 
 
 class DataError(ValueError):
-    """A question about the data that cannot be asked as put: a column the
-    dataset does not have, an operator or aggregate not on the list."""
+    """`DataError` reports a question the data cannot answer as put, such as an
+    unknown column, operator or aggregate."""
 
 
-# ── reading ──────────────────────────────────────────────────────────────────
+# ── reading
 
 _frames: "OrderedDict[tuple, pd.DataFrame]" = OrderedDict()
 _lock = threading.Lock()
 
 
 def load(path, target: str = "") -> pd.DataFrame:
-    """The dataset at *path* with *target* (the last column when "") last,
-    kept for the next question while the file is unchanged."""
+    """`load` caches the frame until the file changes; an empty *target* means
+    the last column."""
     path = Path(path)
     key = (str(path), path.stat().st_mtime_ns, target or "")
     with _lock:
@@ -71,7 +64,7 @@ def load(path, target: str = "") -> pd.DataFrame:
 
 
 def sampled(frame: pd.DataFrame, rows: int = SAMPLE_ROWS) -> pd.DataFrame:
-    """*frame*, or a seeded sample of *rows* of it when it is larger."""
+    """`sampled` caps *frame* at *rows* with a seeded sample."""
     return frame if len(frame) <= rows else frame.sample(rows, random_state=0)
 
 
@@ -80,7 +73,7 @@ def target_name(frame: pd.DataFrame) -> str:
 
 
 def column_of(frame: pd.DataFrame, name) -> pd.Series:
-    """The column called *name*, or `DataError` naming the ones there are."""
+    """`column_of` raises `DataError` listing the existing columns."""
     for column in frame.columns:
         if str(column) == str(name):
             return frame[column]
@@ -92,8 +85,7 @@ def kind(series: pd.Series) -> str:
 
 
 def is_classes(series: pd.Series) -> bool:
-    """Whether *series*, as a target, reads as classes: not numbers, or few
-    whole numbers."""
+    """`is_classes` treats non-numbers and few whole numbers as classes."""
     present = series.dropna()
     if not tasks.is_numeric(present.to_numpy()):
         return True
@@ -107,7 +99,6 @@ def _numbers(series: pd.Series) -> pd.Series:
 
 
 def _plain(value):
-    """A value as JSON has it."""
     if isinstance(value, np.generic):
         value = value.item()
     if isinstance(value, float):
@@ -118,16 +109,15 @@ def _plain(value):
 
 
 def _label(value, samples: int, index: int) -> str:
-    """A category as the model may see it: itself, or a stand-in when no values
-    of the data may leave this machine."""
+    """`_label` hides category names behind stand-ins when *samples* is 0."""
     return str(value) if samples else f"value {index + 1}"
 
 
-# ── one column ───────────────────────────────────────────────────────────────
+# ── column
 
 def describe_column(frame: pd.DataFrame, name, samples: int) -> tuple[dict, dict | None]:
-    """What one column holds, and a chart of it: a histogram for numbers, the
-    commonest values for categories, the range for dates."""
+    """`describe_column` charts many-valued numbers as a histogram and other
+    columns by top values."""
     series = column_of(frame, name)
     present = series.dropna()
     out = {"column": str(name), "kind": kind(series), "rows": int(len(series)),
@@ -160,11 +150,10 @@ def describe_column(frame: pd.DataFrame, name, samples: int) -> tuple[dict, dict
     return out, chart
 
 
-# ── relations ────────────────────────────────────────────────────────────────
+# ── relations
 
 def _correlation_ratio(groups: pd.Series, values: pd.Series) -> float:
-    """η: how much of a number's spread lies between the groups of a category,
-    0 to 1."""
+    """`_correlation_ratio` returns η, 0 to 1, for a category against numbers."""
     data = pd.DataFrame({"g": groups.astype(str), "v": values}).dropna()
     if len(data) < 3 or data["v"].std() == 0:
         return 0.0
@@ -175,7 +164,6 @@ def _correlation_ratio(groups: pd.Series, values: pd.Series) -> float:
 
 
 def _cramers_v(a: pd.Series, b: pd.Series) -> float:
-    """Cramér's V between two categories, 0 to 1."""
     table = pd.crosstab(a.astype(str), b.astype(str))
     if min(table.shape) < 2:
         return 0.0
@@ -186,9 +174,8 @@ def _cramers_v(a: pd.Series, b: pd.Series) -> float:
 
 
 def association(a: pd.Series, b: pd.Series) -> tuple[float, str]:
-    """How strongly two columns go together, 0 to 1, and how it was measured:
-    Spearman's ρ (as |ρ|) between numbers, the correlation ratio η between a
-    category and numbers, Cramér's V between categories."""
+    """`association` returns a strength from 0 to 1 and the measure used, chosen
+    by column kinds."""
     a_numeric, b_numeric = kind(a) == kinds.NUMERIC, kind(b) == kinds.NUMERIC
     if a_numeric and b_numeric:
         pair = pd.DataFrame({"a": _numbers(a), "b": _numbers(b)}).dropna()
@@ -203,7 +190,6 @@ def association(a: pd.Series, b: pd.Series) -> tuple[float, str]:
 
 
 def target_relations(frame: pd.DataFrame, top: int = 10) -> tuple[dict, dict]:
-    """Each feature's association with the target, strongest first."""
     data = sampled(frame)
     target = data.iloc[:, -1]
     if is_classes(target) and kind(target) == kinds.NUMERIC:
@@ -221,7 +207,6 @@ def target_relations(frame: pd.DataFrame, top: int = 10) -> tuple[dict, dict]:
 
 def correlations(frame: pd.DataFrame, names=None, method: str = "spearman",
                  top: int = 10) -> tuple[dict, dict | None]:
-    """The most strongly correlated pairs among numeric features."""
     if method not in ("spearman", "pearson"):
         raise DataError("method is 'spearman' or 'pearson'")
     data = sampled(frame)
@@ -242,7 +227,7 @@ def correlations(frame: pd.DataFrame, names=None, method: str = "spearman",
 
 
 def missing_values(frame: pd.DataFrame) -> tuple[dict, dict | None]:
-    """Missing values per column, and which columns go missing together."""
+    """`missing_values` also finds columns missing together."""
     missing = frame.isna()
     per_column = [{"column": str(c), "missing": int(missing[c].sum()),
                    "share": round(float(missing[c].mean()), 4)}
@@ -264,7 +249,7 @@ def missing_values(frame: pd.DataFrame) -> tuple[dict, dict | None]:
     return out, chart
 
 
-# ── the structured query ─────────────────────────────────────────────────────
+# ── structured query
 
 def _condition(frame: pd.DataFrame, condition: dict) -> pd.Series:
     if not isinstance(condition, dict):
@@ -311,8 +296,8 @@ def _to_number(value) -> float:
 
 
 def _grouping(frame: pd.DataFrame, name) -> pd.Series:
-    """A column as groups: categories as they are, numbers with many values
-    cut into ranges of equal counts, dates by year when they span several."""
+    """`_grouping` cuts many-valued numbers into equal-count ranges and dates
+    into years."""
     series = column_of(frame, name)
     column_kind = kind(series)
     if column_kind == kinds.NUMERIC and series.nunique() > FEW_VALUES:
@@ -354,7 +339,6 @@ def _aggregate(frame: pd.DataFrame, spec: dict, groups, total: int) -> tuple[str
 
 
 class _Groups:
-    """The groups a query's rows fall into, by up to two columns."""
 
     def __init__(self, keys: list[pd.Series]):
         self.keys_for_values = keys
@@ -366,9 +350,9 @@ class _Groups:
 
 def query_data(frame: pd.DataFrame, where=None, group_by=None, aggregate=None,
                order_by=None, limit: int = 20, samples: int = 0) -> dict:
-    """Rows matching *where*, grouped by up to two columns, with *aggregate*
-    worked out per group — or, with neither, how many match and (as far as
-    `ASSISTANT_SAMPLE_ROWS` allows) a few of them."""
+    """`query_data` aggregates rows matching *where*, grouped by *group_by*.
+    Without *group_by* or *aggregate*, it counts matches and shows up to
+    *samples* rows."""
     where = where or []
     if not isinstance(where, list):
         raise DataError("where is a list of conditions")
@@ -413,7 +397,7 @@ def query_data(frame: pd.DataFrame, where=None, group_by=None, aggregate=None,
 
 
 def _counted(label: str, value):
-    """*value* as JSON has it, a whole number where *label* counts."""
+    """`_counted` turns counts into whole numbers."""
     value = _plain(value)
     if (label == "count" or label.startswith(("count(", "nunique("))) and value is not None:
         return int(value)
@@ -421,13 +405,14 @@ def _counted(label: str, value):
 
 
 def _is_range(label) -> bool:
-    """A numeric range or a year — not a value of the data, so always shown."""
+    """`_is_range` is True for a range or an all-digit label, such as a year,
+    which stays visible when *samples* is 0."""
     text = str(label)
     return (text.startswith(("(", "[")) and text.endswith(("]", ")"))) or text.isdigit()
 
 
 def query_chart(result: dict) -> dict | None:
-    """A bar chart of a grouped query's first aggregate."""
+    """`query_chart` charts the first aggregate."""
     rows = result.get("result") or []
     if not rows:
         return None
@@ -436,11 +421,11 @@ def query_chart(result: dict) -> dict | None:
                [r[measure] for r in rows], measure)
 
 
-# ── time ─────────────────────────────────────────────────────────────────────
+# ── time
 
 def time_profile(frame: pd.DataFrame, time_column, series_column=None) -> tuple[dict, dict | None]:
-    """How a time-ordered dataset is laid out: its range, its spacing and gaps,
-    how many series, the season, and which way the target trends."""
+    """`time_profile` reports the time range, spacing, gaps, series count,
+    season and target trend."""
     from core.forecasting import infer_season
 
     times = column_of(frame, time_column)
@@ -485,13 +470,11 @@ def time_profile(frame: pd.DataFrame, time_column, series_column=None) -> tuple[
     return out, chart
 
 
-# ── yardsticks ───────────────────────────────────────────────────────────────
+# ── yardsticks
 
 def baseline_scores(frame: pd.DataFrame, task: str) -> dict:
-    """What a model that knows nothing scores on each metric of *task*, here —
-    the score a failed trial is given (`Metric.null_score`: nothing right for
-    accuracy, a coin flip for ROC AUC, always the average for an error), worked
-    out on every row rather than per fold."""
+    """`baseline_scores` returns each metric's `Metric.null_score`, the score a
+    failed trial gets, over all rows instead of per fold."""
     from core.metrics import METRICS, metrics_for
 
     if task not in (tasks.CLASSIFICATION, tasks.REGRESSION):
@@ -506,11 +489,11 @@ def baseline_scores(frame: pd.DataFrame, task: str) -> dict:
     return {"task": task, "rows": int(len(y)), "scores": scores}
 
 
-# ── the brief, worked out once ───────────────────────────────────────────────
+# ── the brief
 
 def brief(frame: pd.DataFrame, samples: int) -> dict:
-    """What anyone planning on this dataset should know before asking: its
-    size, the target, problems in the data, and what relates to the target."""
+    """`brief` returns the size, target, data problems and strongest target
+    relations."""
     target = frame.iloc[:, -1]
     out = {"rows": int(len(frame)), "columns": int(frame.shape[1] - 1),
            "target": target_name(frame)}
@@ -561,7 +544,7 @@ def brief(frame: pd.DataFrame, samples: int) -> dict:
     return out
 
 
-# ── charts, as Plotly specs drawn in the person's browser ───────────────────
+# ── Plotly charts for the browser
 
 def _layout(title: str, **extra) -> dict:
     return {"title": {"text": title}, "margin": {"l": 48, "r": 12, "t": 36, "b": 48},
