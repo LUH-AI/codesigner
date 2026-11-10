@@ -4,6 +4,7 @@
 from urllib.parse import urlencode
 
 from django import forms
+from django.conf import settings
 from django.contrib import messages
 from django.contrib.auth import get_user_model, views as auth_views
 from django.contrib.auth.decorators import login_not_required  # pyright: ignore[reportAttributeAccessIssue]
@@ -108,12 +109,15 @@ class DeleteAccountForm(forms.Form):
 
 class PasswordSetupForm(SetPasswordForm):
     """`PasswordSetupForm` also takes an optional display name, and asks for
-    the agreement when one is due. `password_rules` lists the validators'
-    requirements once, under both password fields."""
+    the agreement when one is due, with a confirmation that the privacy
+    policy was read when `LEGAL_PAGES` supplies one. `password_rules` lists
+    the validators' requirements once, under both password fields."""
 
     display_name = display_name_field()
     accept = forms.BooleanField(required=False, label=gettext_lazy("I accept the terms of use."))
-    field_order = ["new_password1", "new_password2", "display_name", "accept"]
+    privacy_read = forms.BooleanField(required=False,
+                                      label=gettext_lazy("I have read the privacy policy."))
+    field_order = ["new_password1", "new_password2", "display_name", "accept", "privacy_read"]
 
     def __init__(self, user, *args, terms=None, **kwargs):
         super().__init__(user, *args, **kwargs)
@@ -131,6 +135,10 @@ class PasswordSetupForm(SetPasswordForm):
             del self.fields["accept"]
         else:
             self.fields["accept"].required = True
+        if terms is None or not settings.LEGAL_PAGES:
+            del self.fields["privacy_read"]
+        else:
+            self.fields["privacy_read"].required = True
 
     def save(self, commit=True):
         user = super().save(commit)
@@ -190,7 +198,8 @@ def agreement_page(request):
     terms = agreement_due(request.user)
     if terms is None:
         return redirect(safe_next(request) or "ui:home")
-    if request.method == "POST" and request.POST.get("accept"):
+    if (request.method == "POST" and request.POST.get("accept")
+            and (request.POST.get("privacy_read") or not settings.LEGAL_PAGES)):
         accept_agreement(request.user, terms[0])
         return redirect(safe_next(request) or "ui:home")
     return render(request, "ui/account/agreement.html", {"terms": terms})

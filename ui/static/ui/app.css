@@ -179,6 +179,7 @@ body.signin { display: block; background: var(--rail-bg); }
 .signin-panel > .caption, .signin-signout { margin-top: 0.75rem; text-align: center; }
 .signin-panel .agreement { max-height: 40vh; overflow: auto; margin-bottom: 1rem; }
 .signin-panel.wide { max-width: 30rem; }
+.signin-panel .field label.check { display: flex; align-items: baseline; margin-bottom: 0.4rem; }
 .signin-panel .legal-notice { margin-bottom: 1rem; }
 .legal-text .legal-box { border-left: 3px solid var(--warning-fg); padding: 0.25rem 0 0.25rem 0.75rem; margin: 1rem 0; }
 .legal-text hr.legal-divider { margin: 2.5rem 0 1rem; border: none; border-top: 1px solid var(--border); }

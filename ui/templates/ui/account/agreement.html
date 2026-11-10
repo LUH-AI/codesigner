@@ -11,9 +11,9 @@
         <form method="post" class="card">
             {% csrf_token %}
             <div class="agreement">{{ terms.1|safe }}</div>
-            {% url 'ui:privacy' as privacy_url %}{% if legal_links.privacy %}<p class="caption">{% blocktranslate with url_privacy=privacy_url %}How codesigner handles your data is described in the <a href="{{ url_privacy }}" target="_blank" rel="noopener">privacy policy</a>.{% endblocktranslate %}</p>{% endif %}
             <div class="field">
-                <label><input type="checkbox" name="accept" value="1" required> {% translate "I accept these terms." %}</label>
+                <label class="check"><input type="checkbox" name="accept" value="1" required> {% translate "I accept the terms of use." %}</label>
+                {% if legal_links.privacy %}{% url 'ui:privacy' as privacy_url %}<label class="check"><input type="checkbox" name="privacy_read" value="1" required> {% blocktranslate with url_privacy=privacy_url %}I have read the <a href="{{ url_privacy }}" target="_blank" rel="noopener">privacy policy</a>.{% endblocktranslate %}</label>{% endif %}
             </div>
             <input type="hidden" name="next" value="{{ request.GET.next }}">
             <button type="submit" class="btn-block">{% translate "Continue" %}</button>

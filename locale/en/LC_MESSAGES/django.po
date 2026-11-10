@@ -21,7 +21,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: PACKAGE VERSION\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2026-11-10 15:23+0000\n"
+"POT-Creation-Date: 2026-11-10 15:37+0000\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
 "Language-Team: LANGUAGE <LL@li.org>\n"
@@ -3013,7 +3013,7 @@ msgstr "Account"
 msgid "Signed in as %(name)s."
 msgstr "Signed in as %(name)s."
 
-#: ui/templates/ui/account.html:14 ui/views/accounts.py:78
+#: ui/templates/ui/account.html:14 ui/views/accounts.py:79
 msgid "Display name"
 msgstr ""
 
@@ -3042,7 +3042,7 @@ msgid "The site's operator grants this."
 msgstr ""
 
 #: ui/templates/ui/account.html:53 ui/templates/ui/account/login.html:17
-#: ui/views/accounts.py:120
+#: ui/views/accounts.py:124
 msgid "Password"
 msgstr "Password"
 
@@ -3086,16 +3086,15 @@ msgstr ""
 msgid "Language"
 msgstr "Language"
 
-#: ui/templates/ui/account/agreement.html:14
-#, python-format
-msgid ""
-"How codesigner handles your data is described in the <a "
-"href=\"%(url_privacy)s\" target=\"_blank\" rel=\"noopener\">privacy policy</"
-"a>."
+#: ui/templates/ui/account/agreement.html:15 ui/views/accounts.py:117
+msgid "I accept the terms of use."
 msgstr ""
 
 #: ui/templates/ui/account/agreement.html:16
-msgid "I accept these terms."
+#, python-format
+msgid ""
+"I have read the <a href=\"%(url_privacy)s\" target=\"_blank\" "
+"rel=\"noopener\">privacy policy</a>."
 msgstr ""
 
 #: ui/templates/ui/account/agreement.html:19
@@ -3164,18 +3163,20 @@ msgstr "Change password"
 #: ui/templates/ui/account/set_password.html:33
 #, python-format
 msgid ""
-"By clicking the box below you agree to Codesigner's <a "
-"href=\"%(url_terms)s\" target=\"_blank\" rel=\"noopener\">terms of use</a>."
+"By clicking the boxes below you agree to Codesigner's <a "
+"href=\"%(url_terms)s\" target=\"_blank\" rel=\"noopener\">terms of use</a> "
+"and confirm that you have read its <a href=\"%(url_privacy)s\" "
+"target=\"_blank\" rel=\"noopener\">privacy policy</a>."
 msgstr ""
 
 #: ui/templates/ui/account/set_password.html:34
 #, python-format
 msgid ""
-"The <a href=\"%(url_privacy)s\" target=\"_blank\" rel=\"noopener\">privacy "
-"policy</a> explains how your data is handled."
+"By clicking the box below you agree to Codesigner's <a "
+"href=\"%(url_terms)s\" target=\"_blank\" rel=\"noopener\">terms of use</a>."
 msgstr ""
 
-#: ui/templates/ui/account/set_password.html:40
+#: ui/templates/ui/account/set_password.html:41
 msgid "Register"
 msgstr ""
 
@@ -5112,65 +5113,65 @@ msgstr "%(name)s is larger than the %(mb)s MB upload limit."
 msgid "%(name)s must be a .%(ext)s file."
 msgstr "%(name)s must be a .%(ext)s file."
 
-#: ui/views/accounts.py:79
+#: ui/views/accounts.py:80
 msgid "Shown to others instead of your email address."
 msgstr ""
 
-#: ui/views/accounts.py:90
+#: ui/views/accounts.py:91
 #, fuzzy
 #| msgid "Change password"
 msgid "Your password"
 msgstr "Change password"
 
-#: ui/views/accounts.py:92
+#: ui/views/accounts.py:93
 msgid "Your email address, typed out"
 msgstr ""
 
-#: ui/views/accounts.py:100
+#: ui/views/accounts.py:101
 #, fuzzy
 #| msgid "Change password"
 msgid "That is not your password."
 msgstr "Change password"
 
-#: ui/views/accounts.py:105
+#: ui/views/accounts.py:106
 #, fuzzy
 #| msgid "That is not a role you can set."
 msgid "That is not the address you sign in with."
 msgstr "That is not a role you can set."
 
-#: ui/views/accounts.py:115
-msgid "I accept the terms of use."
+#: ui/views/accounts.py:119
+msgid "I have read the privacy policy."
 msgstr ""
 
-#: ui/views/accounts.py:121
+#: ui/views/accounts.py:125
 #, fuzzy
 #| msgid "Change password"
 msgid "Confirm password"
 msgstr "Change password"
 
-#: ui/views/accounts.py:123
+#: ui/views/accounts.py:127
 #, fuzzy
 #| msgid "Dataset CSV (optional)"
 msgid "Display name (optional)"
 msgstr "Dataset CSV (optional)"
 
-#: ui/views/accounts.py:154
+#: ui/views/accounts.py:162
 msgid "Your account is ready. Sign in with your new password."
 msgstr ""
 
-#: ui/views/accounts.py:173
+#: ui/views/accounts.py:181
 #, fuzzy
 #| msgid "Change password"
 msgid "Choose your password"
 msgstr "Change password"
 
-#: ui/views/accounts.py:183
+#: ui/views/accounts.py:191
 #, fuzzy
 #| msgid "Change password"
 msgid "Set your password"
 msgstr "Change password"
 
-#: ui/views/accounts.py:210
+#: ui/views/accounts.py:219
 msgid "If an account matches, a message is on its way."
 msgstr ""
 

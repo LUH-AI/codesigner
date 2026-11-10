@@ -25,6 +25,15 @@ def terms():
     return "v1", "<p>Be kind to the cluster.</p>"
 
 
+def newer_terms():
+    return "v2", "<p>Be kinder to the cluster.</p>"
+
+
+def pages():
+    """`pages` stands in for a deployment's `LEGAL_PAGES`."""
+    return {"privacy": "<p>What is stored.</p>", "imprint": "<p>Who runs this.</p>"}
+
+
 @pytest.fixture
 def hosted(settings):
     settings.REQUIRE_LOGIN = True
@@ -166,6 +175,30 @@ def test_a_setup_link_asks_for_the_agreement(client, hosted, lab):
     assert not AgreementAcceptance.objects.exists()
     assert _set(client, url, accept="on").status_code == 302
     assert AgreementAcceptance.objects.get().version == "v1"
+
+
+def test_with_a_privacy_policy_both_boxes_are_required(client, hosted, lab):
+    """What: with `LEGAL_PAGES` also set, the setup page has a second box
+    confirming the privacy policy was read, and sets nothing until both are
+    ticked; the re-acceptance page needs both too. How: post with only the
+    terms box, then with both; then the agreement page the same way."""
+    hosted.ACCOUNT_AGREEMENT = "tests.access.test_onboarding.terms"
+    hosted.LEGAL_PAGES = "tests.access.test_onboarding.pages"
+    user = _added(lab)
+    url = setup_links.issue(user, hours=24)
+
+    assert 'name="privacy_read"' in client.get(url).content.decode()
+    assert _set(client, url, accept="on").status_code == 200
+    assert not AgreementAcceptance.objects.exists()
+    assert _set(client, url, accept="on", privacy_read="on").status_code == 302
+    assert AgreementAcceptance.objects.get().version == "v1"
+
+    hosted.ACCOUNT_AGREEMENT = "tests.access.test_onboarding.newer_terms"
+    _sign_in(client)
+    client.post(reverse("ui:agreement"), {"accept": "1"})
+    assert AgreementAcceptance.objects.count() == 1
+    client.post(reverse("ui:agreement"), {"accept": "1", "privacy_read": "1"})
+    assert AgreementAcceptance.objects.count() == 2
 
 
 def test_the_gate_holds_a_person_at_a_new_agreement(client, hosted, lab,

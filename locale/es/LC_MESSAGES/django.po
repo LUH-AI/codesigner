@@ -8,7 +8,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: PACKAGE VERSION\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2026-11-10 15:23+0000\n"
+"POT-Creation-Date: 2026-11-10 15:37+0000\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
 "Language-Team: LANGUAGE <LL@li.org>\n"
@@ -3006,7 +3006,7 @@ msgstr "Cuenta"
 msgid "Signed in as %(name)s."
 msgstr "Sesión iniciada como %(name)s."
 
-#: ui/templates/ui/account.html:14 ui/views/accounts.py:78
+#: ui/templates/ui/account.html:14 ui/views/accounts.py:79
 msgid "Display name"
 msgstr "Nombre visible"
 
@@ -3035,7 +3035,7 @@ msgid "The site's operator grants this."
 msgstr "La administración del sitio concede esto."
 
 #: ui/templates/ui/account.html:53 ui/templates/ui/account/login.html:17
-#: ui/views/accounts.py:120
+#: ui/views/accounts.py:124
 msgid "Password"
 msgstr "Contraseña"
 
@@ -3081,20 +3081,17 @@ msgstr "Eliminar mi cuenta"
 msgid "Language"
 msgstr "Idioma"
 
-#: ui/templates/ui/account/agreement.html:14
-#, python-format
-msgid ""
-"How codesigner handles your data is described in the <a "
-"href=\"%(url_privacy)s\" target=\"_blank\" rel=\"noopener\">privacy policy</"
-"a>."
-msgstr ""
-"Cómo trata Codesigner sus datos se describe en la <a "
-"href=\"%(url_privacy)s\" target=\"_blank\" rel=\"noopener\">política de "
-"privacidad</a>."
+#
+#: ui/templates/ui/account/agreement.html:15 ui/views/accounts.py:117
+msgid "I accept the terms of use."
+msgstr "Acepto las condiciones de uso."
 
 #: ui/templates/ui/account/agreement.html:16
-msgid "I accept these terms."
-msgstr "Acepto estas condiciones."
+#, python-format
+msgid ""
+"I have read the <a href=\"%(url_privacy)s\" target=\"_blank\" "
+"rel=\"noopener\">privacy policy</a>."
+msgstr "He leído la <a href=\"%(url_privacy)s\" target=\"_blank\" rel=\"noopener\">política de privacidad</a>."
 
 #: ui/templates/ui/account/agreement.html:19
 msgid "Continue"
@@ -3159,22 +3156,22 @@ msgstr "Contraseña olvidada"
 #: ui/templates/ui/account/set_password.html:33
 #, python-format
 msgid ""
+"By clicking the boxes below you agree to Codesigner's <a "
+"href=\"%(url_terms)s\" target=\"_blank\" rel=\"noopener\">terms of use</a> "
+"and confirm that you have read its <a href=\"%(url_privacy)s\" "
+"target=\"_blank\" rel=\"noopener\">privacy policy</a>."
+msgstr "Al marcar las casillas de abajo, acepta las <a href=\"%(url_terms)s\" target=\"_blank\" rel=\"noopener\">condiciones de uso</a> de Codesigner y confirma que ha leído su <a href=\"%(url_privacy)s\" target=\"_blank\" rel=\"noopener\">política de privacidad</a>."
+
+#: ui/templates/ui/account/set_password.html:34
+#, python-format
+msgid ""
 "By clicking the box below you agree to Codesigner's <a "
 "href=\"%(url_terms)s\" target=\"_blank\" rel=\"noopener\">terms of use</a>."
 msgstr ""
 "Al marcar la casilla de abajo, acepta las <a href=\"%(url_terms)s\" "
 "target=\"_blank\" rel=\"noopener\">condiciones de uso</a> de Codesigner."
 
-#: ui/templates/ui/account/set_password.html:34
-#, python-format
-msgid ""
-"The <a href=\"%(url_privacy)s\" target=\"_blank\" rel=\"noopener\">privacy "
-"policy</a> explains how your data is handled."
-msgstr ""
-"La <a href=\"%(url_privacy)s\" target=\"_blank\" rel=\"noopener\">política "
-"de privacidad</a> explica cómo se tratan sus datos."
-
-#: ui/templates/ui/account/set_password.html:40
+#: ui/templates/ui/account/set_password.html:41
 msgid "Register"
 msgstr "Registrarse"
 
@@ -5124,54 +5121,54 @@ msgstr "%(name)s supera el límite de subida de %(mb)s MB."
 msgid "%(name)s must be a .%(ext)s file."
 msgstr "%(name)s debe ser un archivo .%(ext)s."
 
-#: ui/views/accounts.py:79
+#: ui/views/accounts.py:80
 msgid "Shown to others instead of your email address."
 msgstr "Se muestra a los demás en lugar de su dirección de correo."
 
-#: ui/views/accounts.py:90
+#: ui/views/accounts.py:91
 msgid "Your password"
 msgstr "Su contraseña"
 
-#: ui/views/accounts.py:92
+#: ui/views/accounts.py:93
 msgid "Your email address, typed out"
 msgstr "Su dirección de correo electrónico, escrita"
 
-#: ui/views/accounts.py:100
+#: ui/views/accounts.py:101
 msgid "That is not your password."
 msgstr "Esa no es su contraseña."
 
-#: ui/views/accounts.py:105
+#: ui/views/accounts.py:106
 msgid "That is not the address you sign in with."
 msgstr "Esa no es la dirección con la que inicia sesión."
 
+#: ui/views/accounts.py:119
 #
-#: ui/views/accounts.py:115
-msgid "I accept the terms of use."
-msgstr "Acepto las condiciones de uso."
+msgid "I have read the privacy policy."
+msgstr "He leído la política de privacidad."
 
 #
-#: ui/views/accounts.py:121
+#: ui/views/accounts.py:125
 msgid "Confirm password"
 msgstr "Confirmar contraseña"
 
 #
-#: ui/views/accounts.py:123
+#: ui/views/accounts.py:127
 msgid "Display name (optional)"
 msgstr "Nombre visible (opcional)"
 
-#: ui/views/accounts.py:154
+#: ui/views/accounts.py:162
 msgid "Your account is ready. Sign in with your new password."
 msgstr "Su cuenta está lista. Inicie sesión con su nueva contraseña."
 
-#: ui/views/accounts.py:173
+#: ui/views/accounts.py:181
 msgid "Choose your password"
 msgstr "Elija su contraseña"
 
-#: ui/views/accounts.py:183
+#: ui/views/accounts.py:191
 msgid "Set your password"
 msgstr "Establezca su contraseña"
 
-#: ui/views/accounts.py:210
+#: ui/views/accounts.py:219
 msgid "If an account matches, a message is on its way."
 msgstr "Si hay una cuenta que coincide, se le ha enviado un mensaje."
 
