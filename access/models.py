@@ -9,6 +9,7 @@ from typing import TYPE_CHECKING
 
 from django.conf import settings as django_settings
 from django.db import models
+from django.utils.translation import gettext_lazy
 
 if TYPE_CHECKING:
     from collections.abc import Callable
@@ -68,7 +69,8 @@ class Group(models.Model):
 
         from experiments.models import Experiment
 
-        # One transaction, so a group that `PROTECT` keeps also keeps its work.
+        # Both steps share one transaction, so a group that `PROTECT` keeps also
+        # keeps its work.
         with transaction.atomic():
             Experiment.objects.filter(group=self).update(
                 group=None, trashed_at=timezone.now())
@@ -95,8 +97,8 @@ class Membership(models.Model):
     #: A primary lead is a lead who also appoints and removes leads. The
     #: constraint in `Meta` keeps it to one per group.
     PRIMARY_LEAD = _PRIMARY_LEAD
-    ROLES = [(MEMBER, "Member"), (LEAD, "Group lead"),
-             (PRIMARY_LEAD, "Primary group lead")]
+    ROLES = [(MEMBER, gettext_lazy("Member")), (LEAD, gettext_lazy("Group lead")),
+             (PRIMARY_LEAD, gettext_lazy("Primary group lead"))]
     #: Roles with a lead's reach over the group.
     LEAD_ROLES = (LEAD, PRIMARY_LEAD)
 
@@ -157,7 +159,7 @@ class AccessPermissions(models.Model):
 
 
 class Account(models.Model):
-    """`Account` holds what codesigner adds to a Django user: how the first
+    """`Account` stores what codesigner adds to a Django user: how the first
     password gets set, and whether a new one is required. `account_of` creates
     it on first use, so users made before it existed have one too.
     """
@@ -178,8 +180,9 @@ class Account(models.Model):
     #: Set by `manage.py users require-new-password`; cleared by a change.
     must_change_password = models.BooleanField(default=False)
     password_changed_at = models.DateTimeField(null=True, blank=True)
-    #: How other people see this person: not unique, never used to sign in.
-    #: Empty shows the email address (`shown_name`).
+    #: `display_name` is what other people see in place of the email address.
+    #: Names may repeat, and sign-in only uses the address. An empty name shows
+    #: the address (`shown_name`).
     display_name = models.CharField(max_length=150, blank=True, default="")
 
 
@@ -210,7 +213,7 @@ def account_of(user) -> Account:
 
 class SetupLink(models.Model):
     """`SetupLink` is a one-time link to set a password, stored as the SHA-256
-    of its token, so the database never holds a usable link. It works until
+    of its token, so the database never contains a usable link. It works until
     `expires_at` and only once (`used_at`)."""
 
     id: int

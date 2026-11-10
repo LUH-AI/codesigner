@@ -85,7 +85,7 @@ def acquisition_slice_plots(hp_name, positions, labels, mu, sigma, metric_label,
                             incumbent=None, cloud=None):
     """`acquisition_slice_plots` returns three separate figures so each carries
     its own controls, and they share span, ticks and positions to keep one x
-    axis. `meta` holds the data and each figure's trace indices, which the
+    axis. `meta` contains the data and each figure's trace indices, which the
     browser fills. The function returns `(None, None)` for empty *positions*.
     """
     if not positions:

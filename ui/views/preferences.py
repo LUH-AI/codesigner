@@ -1,7 +1,9 @@
 from django.conf import settings
 from django.contrib import messages
 from django.core.exceptions import PermissionDenied
-from django.http import Http404
+from django.contrib.auth import logout
+from django.http import Http404, HttpResponse
+from django.views.decorators.http import require_POST
 from django.shortcuts import redirect, render
 from django.utils.translation import gettext as _
 
@@ -121,6 +123,47 @@ def account(request):
         # `.ALLOW_CUSTOM_MODELS` gates every account's grant.
         "custom_models_off": not settings.ALLOW_CUSTOM_MODELS,
     })
+
+
+@require_POST
+def download_my_data(request):
+    """`download_my_data` hands the signed-in person a zip of everything
+    codesigner stores about them (DSGVO Art. 15 and 20)."""
+    if not settings.REQUIRE_LOGIN:
+        raise Http404
+    from django.utils import timezone
+
+    from access.services.personal_data import export_zip
+
+    response = HttpResponse(export_zip(request.user), content_type="application/zip")
+    response["Content-Disposition"] = (
+        f'attachment; filename="codesigner-my-data-{timezone.now():%Y-%m-%d}.zip"')
+    return response
+
+
+def delete_my_account(request):
+    """`delete_my_account` deletes the signed-in person's account at their
+    request (DSGVO Art. 17), after their password and address; their
+    experiments pass to their group (`access.services.users.erase_user`)."""
+    if not settings.REQUIRE_LOGIN:
+        raise Http404
+    from access.services.errors import ServiceError
+    from access.services.users import erase_user
+
+    from .accounts import DeleteAccountForm
+
+    form = DeleteAccountForm(request.user, request.POST or None)
+    if request.method == "POST" and form.is_valid():
+        user = request.user
+        try:
+            erase_user(user)
+        except ServiceError as error:
+            form.add_error(None, str(error))
+        else:
+            logout(request)
+            messages.success(request, _("Your account is deleted."))
+            return redirect("ui:login")
+    return render(request, "ui/account_delete.html", {"form": form})
 
 
 def default_experiment_settings(request):

@@ -207,6 +207,12 @@ def request_cancel(ssh: SshTransport, workdir: str) -> None:
     ssh.run(f"touch {shlex.quote(workdir)}/CANCEL")
 
 
+def remove(ssh: SshTransport, workdir: str) -> None:
+    """`remove` deletes the run's directory on the cluster once its results are
+    home, so no copy of the dataset or the model stays there."""
+    ssh.run(f"rm -rf -- {shlex.quote(workdir)}")
+
+
 def kill(ssh: SshTransport, job_id: str) -> None:
     """`kill` cancels the job in Slurm, losing unwritten results."""
     ssh.run(f"scancel {shlex.quote(job_id)}")

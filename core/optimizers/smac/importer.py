@@ -292,7 +292,7 @@ def _model_name(scenario: Mapping[str, Any]) -> str:
 
 def _finite(value) -> Optional[float]:
     """`json.loads` accepts SMAC's `Infinity` and `NaN`, and `json.dumps` would
-    write them back into an `.ihpo` that stricter readers reject.
+    write them back into an `.ihpo` that strict JSON parsers raise errors on.
     """
     if isinstance(value, bool) or not isinstance(value, (int, float)):
         return None

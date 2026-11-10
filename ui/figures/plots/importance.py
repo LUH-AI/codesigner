@@ -111,7 +111,7 @@ def hyperparameter_ablation_plot(ablation: dict):
     fig = go.Figure(go.Waterfall(
         orientation="v",
         measure=["absolute"] + ["relative"] * len(names) + ["total"],
-        x=["Default"] + list(names) + ["This trial"],
+        x=[_("Default")] + list(names) + [_("This trial")],
         y=[0.0] + list(values) + [0.0],
         text=[""] + [signed(v) for v in values] + [""],
         textposition="outside",

@@ -2,10 +2,10 @@
 evaluation, search setup and run history. The sections are additive, so older
 and newer builds open each other's files.
 
-The dataset and model are recorded by SHA-256 fingerprint. Therefore a
-custom-model `.ihpo` needs its `.py` supplied alongside. `seed` stays one
-top-level field because one seed drives the split, the sampler, the SMAC
-scenario, `fit_predict` and the importance computation.
+The dataset and model are recorded by SHA-256 fingerprint, so a custom-model
+`.ihpo` needs its `.py` supplied alongside. `seed` stays one top-level field.
+One seed drives the split, the sampler, the SMAC scenario, `fit_predict` and
+the importance computation.
 """
 
 from __future__ import annotations

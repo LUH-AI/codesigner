@@ -68,3 +68,10 @@ def agreement():
     """`agreement` returns `(version, html)` from `ACCOUNT_AGREEMENT`, or None."""
     path = getattr(settings, "ACCOUNT_AGREEMENT", "")
     return import_string(path)() if path else None
+
+
+def legal_pages():
+    """`legal_pages` returns `{"privacy": html, "imprint": html}` in the active
+    language from `LEGAL_PAGES`, or None."""
+    path = getattr(settings, "LEGAL_PAGES", "")
+    return import_string(path)() if path else None

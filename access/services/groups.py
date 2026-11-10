@@ -77,8 +77,8 @@ def delete_group(group) -> None:
 def grantable_roles(membership) -> list[tuple[str, str]]:
     """`grantable_roles` only offers the lead role to a primary lead."""
     if membership.is_primary_lead:
-        return [(Membership.MEMBER, "Member"), (Membership.LEAD, "Group lead")]
-    return [(Membership.MEMBER, "Member")]
+        return [(Membership.MEMBER, _("Member")), (Membership.LEAD, _("Group lead"))]
+    return [(Membership.MEMBER, _("Member"))]
 
 
 def add_person(group, identifier: str, role: str = Membership.MEMBER, *, allowed_roles=None):

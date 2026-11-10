@@ -164,8 +164,9 @@ class Experiment(models.Model):
         "access.Group", null=True, blank=True,
         on_delete=models.PROTECT, related_name="experiments")
     #: `group_share` shares the experiment with everyone in its group, people
-    #: who join later included, at an `ExperimentShare` level; empty shares it
-    #: with nobody. A person's own share counts when it is the higher level.
+    #: who join later included, at an `ExperimentShare` level. An empty value
+    #: shares it with nobody. A person's own share counts when it is the higher
+    #: level.
     group_share = models.CharField(
         max_length=16, blank=True, default="",
         choices=[("viewer", _("Viewer")), ("contributor", _("Contributor"))])
@@ -449,8 +450,8 @@ class Run(models.Model):
 class Job(models.Model):
     """`Job` is one execution of a `.Run`: in the worker (`local`) or as a
     scheduler job (`slurm`). A run has one job today and may have several, and
-    each job produces a range of the experiment's trials. Jobs are this
-    instance's record of where work ran, so an `.ihpo` never carries them.
+    each job produces a range of the experiment's trials. An `.ihpo` never
+    carries jobs, since they record where work ran on one instance.
     """
 
     id: int
@@ -469,7 +470,8 @@ class Job(models.Model):
     #: `backend` records where the job ran, since the configured backend can
     #: change later.
     backend = models.CharField(max_length=20, default="local")
-    #: The scheduler's own number for the job; empty for a local one.
+    #: `scheduler_id` is the scheduler's number for the job, and empty for a
+    #: local job.
     scheduler_id = models.CharField(max_length=64, blank=True, default="")
     status = models.CharField(max_length=20, choices=STATUS_CHOICES, default="running")
     submitted_at = models.DateTimeField(null=True, blank=True)

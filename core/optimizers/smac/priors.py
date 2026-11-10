@@ -123,8 +123,8 @@ def apply_priors(smac, scenario, config_space, priors, budget=None, acceptance=N
     try:
         prior = TabulatedPrior(config_space, tables)
         prior.validate_against(config_space)
-        # `add_prior` returns None when the acceptance policy refuses the
-        # belief, and the default policy accepts everything.
+        # `add_prior` returns None when the acceptance policy judges the belief
+        # worse than the search, and the default policy accepts everything.
         key = smac.add_prior(prior, key="codesigner",
                              decay=get_decay_schedule(shape, beta),
                              acceptance_policy=acceptance)

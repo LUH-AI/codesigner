@@ -71,7 +71,7 @@ def serialized(out: dict, result: OptimizationResult) -> dict:
         tuple(sorted(t.config.items())): str(t.trial) for t in result.trials
     }
 
-    # SMAC's runhistory can hold entries the run never recorded, such as a
+    # SMAC's runhistory can contain entries the run never recorded, such as a
     # trial asked for before a stop, and those would appear as unscored
     # trials.
     recorded = []

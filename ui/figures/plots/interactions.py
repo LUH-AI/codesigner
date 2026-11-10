@@ -1,5 +1,6 @@
 # Immediate `gettext`, since `to_json` cannot serialize a lazy proxy.
 from django.utils.translation import gettext as _
+from django.utils.translation import gettext_noop
 import plotly.graph_objects as go
 
 from ...formatting import sigfigs
@@ -7,8 +8,8 @@ from .style import MARKER_COLOR, NEGATIVE_COLOR, signed
 
 
 def hyperparameter_interactions_heatmap_plot(interactions: dict):
-    """The diagonal holds each hyperparameter's signed order-1 value, and
-    off-diagonal cells hold pairwise interactions, positive for synergy and
+    """The diagonal shows each hyperparameter's signed order-1 value, and
+    off-diagonal cells show pairwise interactions, positive for synergy and
     negative for redundancy. Rows are ordered by absolute diagonal value,
     largest first. `hyperparameter_interactions_heatmap_plot` returns None for
     empty *interactions*.
@@ -201,9 +202,9 @@ def hyperparameter_upset_plot(moebius: list, top_k: int = 12):
 #: Every order from 3 up shares one band, since past pairs the distinction stops
 #: being actionable.
 _ORDER_BANDS = (
-    (1, 1, "On its own"),
-    (2, 2, "In pairs"),
-    (3, None, "In larger groups"),
+    (1, 1, gettext_noop("On its own")),
+    (2, 2, gettext_noop("In pairs")),
+    (3, None, gettext_noop("In larger groups")),
 )
 
 
@@ -234,7 +235,7 @@ def hyperparameter_orders_plot(moebius: list):
     for band_index, (_low, _high, label) in enumerate(_ORDER_BANDS):
         fig.add_trace(go.Bar(
             x=names, y=[totals[n][band_index] for n in names],
-            name=label, marker_color=shades[band_index],
+            name=_(label), marker_color=shades[band_index],
         ))
     fig.update_layout(
         barmode="stack", yaxis_title=_("Attributed influence"),

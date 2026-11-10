@@ -21,7 +21,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: PACKAGE VERSION\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2026-11-05 11:11+0000\n"
+"POT-Creation-Date: 2026-11-10 11:49+0000\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
 "Language-Team: LANGUAGE <LL@li.org>\n"
@@ -42,6 +42,23 @@ msgstr "There is already a group called “%(name)s”."
 #| msgid "%(email)s is already in %(group)s."
 msgid "%(who)s is not in %(group)s."
 msgstr "%(email)s is already in %(group)s."
+
+#: access/models.py:99 access/services/groups.py:80
+#: access/services/groups.py:81
+msgid "Member"
+msgstr ""
+
+#: access/models.py:99 access/services/groups.py:80
+#, fuzzy
+#| msgid "Group"
+msgid "Group lead"
+msgstr "Group"
+
+#: access/models.py:100
+#, fuzzy
+#| msgid "Make primary lead"
+msgid "Primary group lead"
+msgstr "Make primary lead"
 
 #: access/onboarding.py:26 ui/templates/ui/account/login.html:13
 msgid "Email address"
@@ -65,12 +82,12 @@ msgstr "Added %(email)s to %(group)s."
 msgid "%(name)s chooses a new password the next time they sign in."
 msgstr ""
 
-#: access/policy.py:328
+#: access/policy.py:329
 #, python-format
 msgid "%(user)s is not allowed to run custom models here."
 msgstr "%(user)s is not allowed to run custom models here."
 
-#: access/policy.py:329
+#: access/policy.py:330
 msgid ""
 "This experiment's custom model has no account behind it, so it cannot be "
 "run. Give the experiment an owner who is allowed to run custom models."
@@ -186,21 +203,47 @@ msgstr ""
 "The primary lead role can only go to a group lead. Make %(name)s a lead "
 "first."
 
-#: access/services/users.py:20
+#: access/services/users.py:23
 #, python-format
 msgid "There is no account for %(who)s."
 msgstr ""
 
-#: access/services/users.py:62
+#: access/services/users.py:65
 #, python-format
 msgid "A display name needs at least %(n)s characters."
 msgstr ""
 
-#: access/services/users.py:81
+#: access/services/users.py:85
 #, python-format
 msgid ""
 "%(who)s still owns experiments, so this account cannot be deleted. "
 "Deactivate it instead, or hand the experiments to somebody else first."
+msgstr ""
+
+#: access/services/users.py:106
+#, fuzzy, python-format
+#| msgid "%(name)s is now the primary lead of %(group)s. You are a group lead."
+msgid ""
+"%(who)s is the primary lead of %(groups)s. Make somebody else primary lead "
+"first."
+msgstr "%(name)s is now the primary lead of %(group)s. You are a group lead."
+
+#: access/services/users.py:127
+#, python-format
+msgid ""
+"You are the primary lead of %(group)s and nobody else there is a group lead. "
+"Make somebody a group lead first, so the group is not left without one."
+msgstr ""
+
+#: access/services/users.py:179
+#, fuzzy, python-format
+#| msgid "%(name)s is now a %(role)s."
+msgid "%(address)s is not an email address."
+msgstr "%(name)s is now a %(role)s."
+
+#: access/services/users.py:185
+#, python-format
+msgid "Another account already uses %(address)s."
 msgstr ""
 
 #: assistant/templates/assistant/_chat.html:21
@@ -249,7 +292,8 @@ msgid ""
 "is withdrawn; a corrected answer follows."
 msgstr ""
 
-#: assistant/templates/assistant/_chat.html:43
+#: assistant/templates/assistant/_chat.html:43 assistant/views.py:298
+#: assistant/views.py:344
 #, fuzzy
 #| msgid "This trial is the baseline."
 msgid "The assistant is still answering."
@@ -306,7 +350,7 @@ msgstr "Name"
 
 #: assistant/templates/assistant/_chat.html:54
 #: assistant/templates/assistant/_chat.html:64 ui/forms.py:115
-#: ui/timeline.py:183
+#: ui/timeline.py:185
 msgid "Task"
 msgstr "Task"
 
@@ -319,7 +363,7 @@ msgstr "Target"
 #: assistant/templates/assistant/_chat.html:56
 #: assistant/templates/assistant/_chat.html:66 ui/forms.py:98
 #: ui/templates/ui/_experiment_header.html:35
-#: ui/templates/ui/experiment_list.html:13 ui/timeline.py:186
+#: ui/templates/ui/experiment_list.html:13 ui/timeline.py:188
 msgid "Model"
 msgstr "Model"
 
@@ -334,8 +378,8 @@ msgstr "Validation method"
 #: ui/templates/ui/_optimizer_form.html:9
 #: ui/templates/ui/experiment_list.html:14
 #: ui/templates/ui/experiment_prerun.html:52
-#: ui/templates/ui/setup_step_optimizer.html:4 ui/timeline.py:190
-#: ui/timeline.py:276 ui/timeline.py:278
+#: ui/templates/ui/setup_step_optimizer.html:4 ui/timeline.py:192
+#: ui/timeline.py:278 ui/timeline.py:280
 msgid "Optimizer"
 msgstr "Optimizer"
 
@@ -360,7 +404,7 @@ msgid "Stopping criteria"
 msgstr "Stopping"
 
 #: assistant/templates/assistant/_chat.html:72 ui/forms.py:125
-#: ui/templates/ui/_experiment_header.html:39 ui/timeline.py:192
+#: ui/templates/ui/_experiment_header.html:39 ui/timeline.py:194
 msgid "Seed"
 msgstr "Seed"
 
@@ -456,7 +500,7 @@ msgid ""
 msgstr ""
 
 #: assistant/templates/assistant/_chat.html:129
-#: ui/templates/ui/_confirm_page.html:33
+#: ui/templates/ui/_confirm_page.html:33 ui/templates/ui/account_delete.html:27
 msgid "Cancel"
 msgstr "Cancel"
 
@@ -505,6 +549,14 @@ msgstr "New experiment"
 #| msgid "Restored %(name)s."
 msgid "Return to %(name)s"
 msgstr "Restored %(name)s."
+
+#: assistant/views.py:252
+msgid "This conversation's plan is approved."
+msgstr ""
+
+#: assistant/views.py:296
+msgid "There is no plan to approve."
+msgstr ""
 
 #: experiments/management/commands/jobs.py:27
 #, python-format
@@ -596,6 +648,10 @@ msgstr "%(k)s-fold CV"
 msgid "%(pct)s%% held out"
 msgstr "%(pct)s%% held out"
 
+#: experiments/services/modelenv.py:295
+msgid "Custom models are turned off on this instance."
+msgstr ""
+
 #: experiments/services/processing.py:18
 msgid ""
 "This experiment has trials, and they were scored on its columns processed as "
@@ -619,7 +675,7 @@ msgstr ""
 "%(metric)s is scored on class probabilities, and this model does not give "
 "them. Optimize another metric."
 
-#: experiments/services/run.py:215
+#: experiments/services/run.py:245
 msgid ""
 "Given up on by hand: it stopped answering, and cancelling it had no effect."
 msgstr ""
@@ -670,7 +726,7 @@ msgstr "Choose a demo dataset or upload a CSV file."
 msgid "The dataset could not be read: %(error)s"
 msgstr "The dataset could not be read: %(error)s"
 
-#: ui/drafts.py:143 ui/views/common.py:58
+#: ui/drafts.py:143 ui/views/common.py:57
 msgid "Choose which group this experiment is in."
 msgstr "Choose which group this experiment is in."
 
@@ -771,7 +827,7 @@ msgid "Acquisition and priors"
 msgstr "Acquisition and priors"
 
 #: ui/figures/catalog.py:335 ui/figures/plots/surrogate.py:198
-#: ui/figures/plots/surrogate.py:208 ui/timeline.py:253
+#: ui/figures/plots/surrogate.py:208 ui/timeline.py:260
 msgid "Prior"
 msgstr "Prior"
 
@@ -783,7 +839,7 @@ msgstr "Local effects across trials"
 msgid "Trial duration"
 msgstr "Trial duration"
 
-#: ui/figures/catalog.py:376 ui/timeline.py:87 ui/timeline.py:328
+#: ui/figures/catalog.py:376 ui/timeline.py:89 ui/timeline.py:332
 msgid "Trials"
 msgstr "Trials"
 
@@ -982,7 +1038,7 @@ msgstr "The same row on both sides of a split, which flatters every score."
 msgid "Cleaning"
 msgstr "Cleaning"
 
-#: ui/figures/data_handling.py:91 ui/timeline.py:21
+#: ui/figures/data_handling.py:91 ui/timeline.py:23
 msgid "Missing values"
 msgstr "Missing values"
 
@@ -1050,7 +1106,7 @@ msgstr "Merge spellings of one category; group rare categories into \"other\"."
 msgid "Features"
 msgstr "Features"
 
-#: ui/figures/data_handling.py:111 ui/timeline.py:22
+#: ui/figures/data_handling.py:111 ui/timeline.py:24
 msgid "Label columns"
 msgstr "Label columns"
 
@@ -1062,7 +1118,7 @@ msgstr ""
 "One column per label, or the labels as categories of their own for a model "
 "that takes them so — codes for a booster, words for CatBoost."
 
-#: ui/figures/data_handling.py:114 ui/timeline.py:21
+#: ui/figures/data_handling.py:114 ui/timeline.py:23
 msgid "Scaling"
 msgstr "Scaling"
 
@@ -1362,36 +1418,88 @@ msgstr "Still to gain"
 msgid "Achievable gain"
 msgstr "Achievable gain"
 
+#: ui/figures/plots/importance.py:114 ui/templates/ui/_side_explanation.html:43
+#: ui/templates/ui/figures/_importance_table.html:19
+#: ui/templates/ui/figures/hyperparameter_importance.html:31
+msgid "Default"
+msgstr "Default"
+
+#: ui/figures/plots/importance.py:114
+#, fuzzy
+#| msgid "vs. trials"
+msgid "This trial"
+msgstr "vs. trials"
+
 #: ui/figures/plots/importance.py:123
 msgid "vs. default"
 msgstr "vs. default"
 
-#: ui/figures/plots/interactions.py:22 ui/figures/plots/interactions.py:121
-#: ui/figures/plots/interactions.py:193
+#: ui/figures/plots/interactions.py:23 ui/figures/plots/interactions.py:122
+#: ui/figures/plots/interactions.py:194
 msgid "Interaction"
 msgstr "Interaction"
 
-#: ui/figures/plots/interactions.py:44
+#: ui/figures/plots/interactions.py:45
 msgid "Interaction strength"
 msgstr "Interaction strength"
 
-#: ui/figures/plots/interactions.py:128
+#: ui/figures/plots/interactions.py:129
 #: ui/templates/ui/_selected_config_inner.html:29
 #: ui/templates/ui/_selected_proposal_inner.html:33
 #: ui/templates/ui/figures/_importance_table.html:18
 #: ui/templates/ui/figures/acquisition_slice.html:60
 #: ui/templates/ui/figures/best_configuration.html:13
 #: ui/templates/ui/figures/partial_dependence.html:17
-#: ui/templates/ui/figures/prior.html:34 ui/timeline.py:253 ui/timeline.py:257
-#: ui/timeline.py:261 ui/timeline.py:265
+#: ui/templates/ui/figures/prior.html:34 ui/timeline.py:260 ui/timeline.py:264
+#: ui/timeline.py:268
 msgid "Hyperparameter"
 msgstr "Hyperparameter"
 
-#: ui/figures/plots/interactions.py:240
+#: ui/figures/plots/interactions.py:205
+#, fuzzy
+#| msgid "Lags and windows"
+msgid "On its own"
+msgstr "Lags and windows"
+
+#: ui/figures/plots/interactions.py:206
+msgid "In pairs"
+msgstr ""
+
+#: ui/figures/plots/interactions.py:207
+msgid "In larger groups"
+msgstr ""
+
+#: ui/figures/plots/interactions.py:241
 msgid "Attributed influence"
 msgstr "Attributed influence"
 
-#: ui/figures/plots/performance.py:86 ui/figures/plots/surrogate.py:163
+#: ui/figures/plots/performance.py:39
+#, fuzzy
+#| msgid "Time"
+msgid "Time (s)"
+msgstr "Time"
+
+#: ui/figures/plots/performance.py:42 ui/figures/plots/performance.py:126
+msgid "Trial"
+msgstr "Trial"
+
+#: ui/figures/plots/performance.py:59 ui/timeline.py:382
+msgid "Error"
+msgstr "Error"
+
+#: ui/figures/plots/performance.py:59
+#, fuzzy
+#| msgid "Trial performance"
+msgid "Trial error"
+msgstr "Trial performance"
+
+#: ui/figures/plots/performance.py:63
+#, fuzzy
+#| msgid "Trial range"
+msgid "Trial score"
+msgstr "Trial range"
+
+#: ui/figures/plots/performance.py:87 ui/figures/plots/surrogate.py:163
 #: ui/figures/plots/surrogate.py:166 ui/figures/plots/surrogate.py:233
 #: ui/figures/plots/surrogate.py:236 ui/templates/ui/_side_explanation.html:44
 #: ui/templates/ui/figures/_importance_table.html:20
@@ -1399,36 +1507,32 @@ msgstr "Attributed influence"
 msgid "Incumbent"
 msgstr "Incumbent"
 
-#: ui/figures/plots/performance.py:95
+#: ui/figures/plots/performance.py:96
 msgid "New incumbent"
 msgstr "New incumbent"
 
-#: ui/figures/plots/performance.py:125
-msgid "Trial"
-msgstr "Trial"
-
-#: ui/figures/plots/performance.py:125
+#: ui/figures/plots/performance.py:126
 msgid "Duration (s)"
 msgstr "Duration (s)"
 
-#: ui/figures/plots/performance.py:145
+#: ui/figures/plots/performance.py:146
 msgid "Actual"
 msgstr "Actual"
 
-#: ui/figures/plots/performance.py:147
+#: ui/figures/plots/performance.py:148
 msgid "actual"
 msgstr "actual"
 
-#: ui/figures/plots/performance.py:155
+#: ui/figures/plots/performance.py:156
 #, python-format
 msgid "Backtest %(n)s"
 msgstr "Backtest %(n)s"
 
-#: ui/figures/plots/performance.py:158
+#: ui/figures/plots/performance.py:159
 msgid "forecast"
 msgstr "forecast"
 
-#: ui/figures/plots/space.py:284 ui/figures/plots/space.py:285
+#: ui/figures/plots/space.py:286 ui/figures/plots/space.py:287
 #, python-format
 msgid "Trial %(n)s"
 msgstr "Trial %(n)s"
@@ -1561,11 +1665,11 @@ msgstr ""
 msgid "— select —"
 msgstr "— select —"
 
-#: ui/forms.py:121 ui/timeline.py:183
+#: ui/forms.py:121 ui/timeline.py:185
 msgid "Classification"
 msgstr "Classification"
 
-#: ui/forms.py:122 ui/timeline.py:184
+#: ui/forms.py:122 ui/timeline.py:186
 msgid "Regression"
 msgstr "Regression"
 
@@ -1728,7 +1832,7 @@ msgstr ""
 "This dataset cannot be ordered that way: %(problem)s. Columns it can be "
 "ordered by: %(columns)s."
 
-#: ui/forms.py:358 ui/timeline.py:57 ui/timeline.py:70 ui/timeline.py:371
+#: ui/forms.py:358 ui/timeline.py:59 ui/timeline.py:72 ui/timeline.py:375
 msgid "none"
 msgstr "none"
 
@@ -1805,6 +1909,32 @@ msgstr "What the export page preselects."
 #: ui/forms.py:433
 msgid "Use default experiment settings"
 msgstr "Use default experiment settings"
+
+#: ui/metric_names.py:9
+msgid "Accuracy"
+msgstr ""
+
+#: ui/metric_names.py:9
+msgid "F1"
+msgstr ""
+
+#: ui/metric_names.py:9
+#, fuzzy
+#| msgid "Regression"
+msgid "Precision"
+msgstr "Regression"
+
+#: ui/metric_names.py:10
+msgid "Recall(macro)"
+msgstr ""
+
+#: ui/metric_names.py:10
+msgid "Balanced accuracy"
+msgstr ""
+
+#: ui/metric_names.py:11
+msgid "Log loss"
+msgstr ""
 
 #: ui/navigation.py:16 ui/navigation.py:38 ui/templates/ui/base.html:31
 #: ui/templates/ui/base.html:33 ui/templates/ui/base.html:78
@@ -2263,7 +2393,7 @@ msgstr "0.25"
 msgid "10 per hyperparameter"
 msgstr "10 per hyperparameter"
 
-#: ui/optimizer_labels.py:177 ui/timeline.py:144
+#: ui/optimizer_labels.py:177 ui/timeline.py:146
 msgid "no limit"
 msgstr "no limit"
 
@@ -2356,7 +2486,7 @@ msgstr "Rename"
 msgid "Save"
 msgstr "Save"
 
-#: ui/templates/ui/_experiment_header.html:38 ui/timeline.py:188
+#: ui/templates/ui/_experiment_header.html:38 ui/timeline.py:190
 msgid "Evaluation"
 msgstr "Evaluation"
 
@@ -2373,7 +2503,7 @@ msgstr ""
 "Last run: %(count)s trials in %(total)s s — %(trials)s s in trials, "
 "%(overhead)s s overhead."
 
-#: ui/templates/ui/_experiment_header.html:41 ui/timeline.py:359
+#: ui/templates/ui/_experiment_header.html:41 ui/timeline.py:363
 #, python-format
 msgid "Stopped because %(reason)s."
 msgstr "Stopped because %(reason)s."
@@ -2425,61 +2555,38 @@ msgid "🗑 Delete"
 msgstr "🗑 Delete"
 
 #: ui/templates/ui/_experiment_header.html:85
-#, fuzzy
-#| msgid "Yours, shared with %(people)s person in its group."
-#| msgid_plural "Yours, shared with %(people)s people in its group."
-msgid "Yours, shared with everyone in its group."
-msgstr "Yours, shared with %(people)s person in its group."
-
-#: ui/templates/ui/_experiment_header.html:87
-#, python-format
-msgid "Yours, shared with %(people)s person in its group."
-msgid_plural "Yours, shared with %(people)s people in its group."
-msgstr[0] "Yours, shared with %(people)s person in its group."
-msgstr[1] "Yours, shared with %(people)s people in its group."
-
-#: ui/templates/ui/_experiment_header.html:89
-msgid "Yours, and not shared."
-msgstr "Yours, and not shared."
-
-#: ui/templates/ui/_experiment_header.html:92
-#, python-format
-msgid "Share it from %(name)s"
-msgstr "Share it from %(name)s"
-
-#: ui/templates/ui/_experiment_header.html:96
 #, python-format
 msgid "%(name)s's — you are a contributor, so you can run and delete it too."
 msgstr "%(name)s's — you are a contributor, so you can run and delete it too."
 
-#: ui/templates/ui/_experiment_header.html:98
+#: ui/templates/ui/_experiment_header.html:87
 #, python-format
 msgid "Shared with you by %(name)s — read only."
 msgstr "Shared with you by %(name)s — read only."
 
-#: ui/templates/ui/_experiment_header.html:100
+#: ui/templates/ui/_experiment_header.html:89
 #, python-format
 msgid "%(name)s's, in a group you lead."
 msgstr "%(name)s's, in a group you lead."
 
-#: ui/templates/ui/_experiment_header.html:103
+#: ui/templates/ui/_experiment_header.html:92
 msgid "This experiment has no owner, so everyone here can change it."
 msgstr "This experiment has no owner, so everyone here can change it."
 
-#: ui/templates/ui/_experiment_header.html:113
+#: ui/templates/ui/_experiment_header.html:102
 #, python-format
 msgid "Run failed: %(run_error)s"
 msgstr "Run failed: %(run_error)s"
 
-#: ui/templates/ui/_experiment_header.html:123
+#: ui/templates/ui/_experiment_header.html:112
 msgid "This model's environment could not be built."
 msgstr "This model's environment could not be built."
 
-#: ui/templates/ui/_experiment_header.html:128
+#: ui/templates/ui/_experiment_header.html:117
 msgid "Try again"
 msgstr "Try again"
 
-#: ui/templates/ui/_experiment_header.html:132
+#: ui/templates/ui/_experiment_header.html:121
 msgid ""
 "This model runs inside the application's own Python environment, not one of "
 "its own — so the dependencies it declares are ignored."
@@ -2487,7 +2594,7 @@ msgstr ""
 "This model runs inside the application's own Python environment, not one of "
 "its own — so the dependencies it declares are ignored."
 
-#: ui/templates/ui/_experiment_header.html:137
+#: ui/templates/ui/_experiment_header.html:126
 msgid "Prepare an isolated environment"
 msgstr "Prepare an isolated environment"
 
@@ -2517,6 +2624,23 @@ msgstr "Remove"
 msgid "What this setting means"
 msgstr "What this setting means"
 
+#: ui/templates/ui/_legal_links.html:2
+msgid "Legal"
+msgstr ""
+
+#: ui/templates/ui/_legal_links.html:3 ui/views/legal.py:22
+msgid "Imprint"
+msgstr ""
+
+#: ui/templates/ui/_legal_links.html:4 ui/views/legal.py:27
+msgid "Privacy policy"
+msgstr ""
+
+#: ui/templates/ui/_legal_links.html:5 ui/templates/ui/account/agreement.html:4
+#: ui/views/legal.py:33
+msgid "Terms of use"
+msgstr ""
+
 #: ui/templates/ui/_optimizer_params.html:39
 msgid "Configure optimizer"
 msgstr "Configure optimizer"
@@ -2525,31 +2649,31 @@ msgstr "Configure optimizer"
 msgid "Advanced search settings"
 msgstr "Advanced search settings"
 
-#: ui/templates/ui/_run_status.html:13
+#: ui/templates/ui/_run_status.html:14
 #, fuzzy, python-format
 #| msgid "Running on the cluster as job %(job)s."
 msgid "Submitted to the cluster as job %(job)s. Waiting for a node."
 msgstr "Running on the cluster as job %(job)s."
 
-#: ui/templates/ui/_run_status.html:17
+#: ui/templates/ui/_run_status.html:18
 #, python-format
 msgid "Optimizing… (%(status)s)"
 msgstr "Optimizing… (%(status)s)"
 
-#: ui/templates/ui/_run_status.html:29
+#: ui/templates/ui/_run_status.html:30
 #, python-format
 msgid "Running on the cluster as job %(job)s."
 msgstr "Running on the cluster as job %(job)s."
 
-#: ui/templates/ui/_run_status.html:41
+#: ui/templates/ui/_run_status.html:43
 msgid "Cancelling — it stops after the trial it is on."
 msgstr "Cancelling — it stops after the trial it is on."
 
-#: ui/templates/ui/_run_status.html:44
+#: ui/templates/ui/_run_status.html:46
 msgid "Give up on it"
 msgstr "Give up on it"
 
-#: ui/templates/ui/_run_status.html:49
+#: ui/templates/ui/_run_status.html:51
 msgid "Cancel run"
 msgstr "Cancel run"
 
@@ -2581,7 +2705,7 @@ msgid "Value"
 msgstr "Value"
 
 #: ui/templates/ui/_selected_proposal_inner.html:9
-#: ui/templates/ui/experiment_detail.html:2162 ui/timeline.py:381
+#: ui/templates/ui/experiment_detail.html:2162 ui/timeline.py:385
 msgid "Proposal"
 msgstr ""
 
@@ -2848,12 +2972,6 @@ msgstr "What a hyperparameter could have gained you, had it been tuned."
 msgid "Compare against"
 msgstr "Compare against"
 
-#: ui/templates/ui/_side_explanation.html:43
-#: ui/templates/ui/figures/_importance_table.html:19
-#: ui/templates/ui/figures/hyperparameter_importance.html:31
-msgid "Default"
-msgstr "Default"
-
 #: ui/templates/ui/_side_explanation.html:45
 #: ui/templates/ui/figures/_importance_table.html:21
 #: ui/templates/ui/figures/hyperparameter_importance.html:29
@@ -2934,25 +3052,55 @@ msgstr ""
 msgid "Change password"
 msgstr "Change password"
 
-#: ui/templates/ui/account/_standalone.html:27 ui/templates/ui/base.html:67
+#: ui/templates/ui/account.html:61
+msgid "Your data"
+msgstr ""
+
+#: ui/templates/ui/account.html:62
+msgid ""
+"A zip of everything codesigner holds about you, with a file for each "
+"experiment you own."
+msgstr ""
+
+#: ui/templates/ui/account.html:65
+#, fuzzy
+#| msgid "Download .ihpo first"
+msgid "Download my data"
+msgstr "Download .ihpo first"
+
+#: ui/templates/ui/account.html:67
+msgid "To change your email address, ask the site's operator."
+msgstr ""
+
+#: ui/templates/ui/account.html:69 ui/templates/ui/account_delete.html:4
+#: ui/templates/ui/account_delete.html:7 ui/templates/ui/account_delete.html:26
+msgid "Delete my account"
+msgstr ""
+
+#: ui/templates/ui/account/_standalone.html:29 ui/templates/ui/base.html:67
 msgid "Language"
 msgstr "Language"
 
-#: ui/templates/ui/account/agreement.html:4
-msgid "Terms of use"
+#: ui/templates/ui/account/agreement.html:10
+#: ui/templates/ui/account/set_password.html:19
+#, python-format
+msgid ""
+"How codesigner handles your data is described in the <a "
+"href=\"%(url_privacy)s\" target=\"_blank\" rel=\"noopener\">privacy policy</"
+"a>."
 msgstr ""
 
-#: ui/templates/ui/account/agreement.html:11 ui/views/accounts.py:91
+#: ui/templates/ui/account/agreement.html:12 ui/views/accounts.py:114
 msgid "I accept these terms."
 msgstr ""
 
-#: ui/templates/ui/account/agreement.html:14
+#: ui/templates/ui/account/agreement.html:15
 #, fuzzy
 #| msgid "Contributor"
 msgid "Continue"
 msgstr "Contributor"
 
-#: ui/templates/ui/account/agreement.html:18 ui/templates/ui/base.html:47
+#: ui/templates/ui/account/agreement.html:19 ui/templates/ui/base.html:47
 msgid "Sign out"
 msgstr "Sign out"
 
@@ -3009,11 +3157,36 @@ msgstr "Back to your account"
 msgid "Forgot password"
 msgstr "Change password"
 
-#: ui/templates/ui/account/set_password.html:31
+#: ui/templates/ui/account/set_password.html:32
 #, fuzzy
 #| msgid "Change password"
 msgid "Set password"
 msgstr "Change password"
+
+#: ui/templates/ui/account_delete.html:9
+msgid "This deletes your account and signs you out. It cannot be undone."
+msgstr ""
+
+#: ui/templates/ui/account_delete.html:11
+msgid ""
+"Experiments you own pass to your group's primary lead, so your group keeps "
+"its work. In a group with nobody else, they go to the bin."
+msgstr ""
+
+#: ui/templates/ui/account_delete.html:12
+msgid ""
+"If you are a group's primary lead, its longest-serving group lead takes over."
+msgstr ""
+
+#: ui/templates/ui/account_delete.html:13
+msgid ""
+"Your memberships, shares, assistant chats and settings are deleted. Where "
+"your work stays, it shows a former member instead of you."
+msgstr ""
+
+#: ui/templates/ui/account_delete.html:15
+msgid "Download your data first if you want a copy."
+msgstr ""
 
 #: ui/templates/ui/appearance.html:14
 msgid "Theme"
@@ -3067,7 +3240,7 @@ msgid "Draft"
 msgstr "Draft"
 
 #: ui/templates/ui/base.html:146 ui/templates/ui/experiment_list.html:22
-#: ui/timeline.py:105
+#: ui/timeline.py:107
 msgid "Running"
 msgstr "Running"
 
@@ -3105,7 +3278,7 @@ msgstr ""
 "%(group)s has used %(percent)s%% of its storage (%(used)s of %(limit)s). "
 "When it is full, a new dataset replaces the stalest kept trial models."
 
-#: ui/templates/ui/base.html:232
+#: ui/templates/ui/base.html:233
 msgid "Filled by the assistant"
 msgstr ""
 
@@ -3897,23 +4070,23 @@ msgstr "No data available."
 msgid "Prior distribution"
 msgstr "Prior distribution"
 
-#: ui/templates/ui/figures/prior.html:77 ui/timeline.py:36
+#: ui/templates/ui/figures/prior.html:77 ui/timeline.py:38
 msgid "Uniform"
 msgstr "Uniform"
 
-#: ui/templates/ui/figures/prior.html:78 ui/timeline.py:36
+#: ui/templates/ui/figures/prior.html:78 ui/timeline.py:38
 msgid "Normal"
 msgstr "Normal"
 
-#: ui/templates/ui/figures/prior.html:79 ui/timeline.py:36
+#: ui/templates/ui/figures/prior.html:79 ui/timeline.py:38
 msgid "Beta"
 msgstr "Beta"
 
-#: ui/templates/ui/figures/prior.html:85 ui/timeline.py:37
+#: ui/templates/ui/figures/prior.html:85 ui/timeline.py:39
 msgid "Freeform"
 msgstr "Freeform"
 
-#: ui/templates/ui/figures/prior.html:91 ui/timeline.py:76
+#: ui/templates/ui/figures/prior.html:91 ui/timeline.py:78
 msgid "Decay"
 msgstr "Decay"
 
@@ -3969,7 +4142,7 @@ msgstr "Delay decay until after the initial design"
 msgid "Top k"
 msgstr "Top k"
 
-#: ui/templates/ui/figures/prior.html:162 ui/views/priors.py:284
+#: ui/templates/ui/figures/prior.html:162 ui/views/priors.py:285
 msgid "Needs the Gaussian process search strategy."
 msgstr "Needs the Gaussian process search strategy."
 
@@ -4109,6 +4282,10 @@ msgstr "SMAC output directory"
 #: ui/templates/ui/import.html:54
 msgid "Load run"
 msgstr "Load run"
+
+#: ui/templates/ui/legal.html:10
+msgid "Back to Codesigner"
+msgstr ""
 
 #: ui/templates/ui/metric_change.html:5
 msgid "Change the optimized metric?"
@@ -4404,474 +4581,463 @@ msgstr "Currently %(name)s; kept unless another is chosen."
 msgid "Last column"
 msgstr "Label columns"
 
-#: ui/timeline.py:24
+#: ui/timeline.py:26
 msgid "missing values"
 msgstr "missing values"
 
-#: ui/timeline.py:24
+#: ui/timeline.py:26
 msgid "scaling"
 msgstr "scaling"
 
-#: ui/timeline.py:25
+#: ui/timeline.py:27
 msgid "label columns"
 msgstr "label columns"
 
-#: ui/timeline.py:39
+#: ui/timeline.py:41
 msgid "Logarithmic"
 msgstr "Logarithmic"
 
-#: ui/timeline.py:39
+#: ui/timeline.py:41
 msgid "Linear"
 msgstr "Linear"
 
-#: ui/timeline.py:40
+#: ui/timeline.py:42
 msgid "Quadratic"
 msgstr "Quadratic"
 
-#: ui/timeline.py:40
+#: ui/timeline.py:42
 msgid "Cubic"
 msgstr "Cubic"
 
-#: ui/timeline.py:64
+#: ui/timeline.py:66
 #, python-format
 msgid ", fading (%(kind)s)"
 msgstr ", fading (%(kind)s)"
 
-#: ui/timeline.py:70 ui/timeline.py:72
+#: ui/timeline.py:72 ui/timeline.py:74
 msgid "Distribution"
 msgstr "Distribution"
 
-#: ui/timeline.py:81
+#: ui/timeline.py:83
 msgid "Delayed until after the initial design"
 msgstr "Delayed until after the initial design"
 
-#: ui/timeline.py:81 ui/timeline.py:123
+#: ui/timeline.py:83 ui/timeline.py:125
 msgid "Yes"
 msgstr "Yes"
 
-#: ui/timeline.py:88
+#: ui/timeline.py:90
 msgid "Target score"
 msgstr "Target score"
 
-#: ui/timeline.py:89
+#: ui/timeline.py:91
 msgid "Time limit"
 msgstr "Time limit"
 
-#: ui/timeline.py:90
+#: ui/timeline.py:92
 msgid "Time spent in trials"
 msgstr "Time spent in trials"
 
-#: ui/timeline.py:91
+#: ui/timeline.py:93
 msgid "Trials without improvement"
 msgstr "Trials without improvement"
 
-#: ui/timeline.py:92
+#: ui/timeline.py:94
 msgid "Confidence nothing better remains"
 msgstr "Confidence nothing better remains"
 
-#: ui/timeline.py:93
+#: ui/timeline.py:95
 msgid "Failed trials allowed"
 msgstr "Failed trials allowed"
 
-#: ui/timeline.py:94
+#: ui/timeline.py:96
 msgid "Failed in a row allowed"
 msgstr "Failed in a row allowed"
 
-#: ui/timeline.py:103 ui/timeline.py:106
+#: ui/timeline.py:105 ui/timeline.py:108
 msgid "Cancelled"
 msgstr "Cancelled"
 
-#: ui/timeline.py:103
+#: ui/timeline.py:105
 msgid "Too many failures"
 msgstr "Too many failures"
 
-#: ui/timeline.py:104
+#: ui/timeline.py:106
 msgid "Every configuration tried"
 msgstr "Every configuration tried"
 
-#: ui/timeline.py:105
+#: ui/timeline.py:107
 msgid "Waiting"
 msgstr "Waiting"
 
-#: ui/timeline.py:105
+#: ui/timeline.py:107
 msgid "Submitted"
 msgstr ""
 
-#: ui/timeline.py:105
+#: ui/timeline.py:107
 msgid "Done"
 msgstr "Done"
 
-#: ui/timeline.py:106
+#: ui/timeline.py:108
 msgid "Failed"
 msgstr "Failed"
 
-#: ui/timeline.py:107
+#: ui/timeline.py:109
 msgid "Kept"
 msgstr "Kept"
 
-#: ui/timeline.py:107
+#: ui/timeline.py:109
 msgid "Refitted on the trials so far"
 msgstr "Refitted on the trials so far"
 
-#: ui/timeline.py:123
+#: ui/timeline.py:125
 msgid "No"
 msgstr "No"
 
-#: ui/timeline.py:140
+#: ui/timeline.py:142
 msgid "Deadline"
 msgstr "Deadline"
 
-#: ui/timeline.py:140
+#: ui/timeline.py:142
 msgid "A multiple of the predicted duration"
 msgstr "A multiple of the predicted duration"
 
-#: ui/timeline.py:141
+#: ui/timeline.py:143
 msgid "Fixed"
 msgstr "Fixed"
 
-#: ui/timeline.py:143
+#: ui/timeline.py:145
 msgid "At most"
 msgstr "At most"
 
-#: ui/timeline.py:143
+#: ui/timeline.py:145
 msgid "Limit"
 msgstr "Limit"
 
-#: ui/timeline.py:146
+#: ui/timeline.py:148
 msgid "Multiple"
 msgstr "Multiple"
 
-#: ui/timeline.py:178
+#: ui/timeline.py:180
 #, python-format
 msgid "%(n)s-fold cross-validation"
 msgstr "%(n)s-fold cross-validation"
 
-#: ui/timeline.py:180
+#: ui/timeline.py:182
 #, python-format
 msgid "%(n)s backtests"
 msgstr "%(n)s backtests"
 
-#: ui/timeline.py:181
+#: ui/timeline.py:183
 #, python-format
 msgid "one split, %(share)s held out"
 msgstr "one split, %(share)s held out"
 
-#: ui/timeline.py:187
+#: ui/timeline.py:189
 msgid "Dataset"
 msgstr "Dataset"
 
-#: ui/timeline.py:189
+#: ui/timeline.py:191
 msgid "Ordered by"
 msgstr "Ordered by"
 
-#: ui/timeline.py:191
+#: ui/timeline.py:193
 msgid "Optimizer settings"
 msgstr "Optimizer settings"
 
-#: ui/timeline.py:207
+#: ui/timeline.py:209
 #, python-format
 msgid "%(step)s, %(choice)s"
 msgstr "%(step)s, %(choice)s"
 
-#: ui/timeline.py:212
+#: ui/timeline.py:214
 #, python-format
 msgid "Data handling: as %(model)s does by default."
 msgstr "Data handling: as %(model)s does by default."
 
-#: ui/timeline.py:214
+#: ui/timeline.py:216
 #, python-format
 msgid "Data handling: %(choices)s."
 msgstr "Data handling: %(choices)s."
 
-#: ui/timeline.py:216
+#: ui/timeline.py:218
 #, python-format
 msgid "Data handling: %(choices)s; the rest as %(model)s does by default."
 msgstr "Data handling: %(choices)s; the rest as %(model)s does by default."
 
-#: ui/timeline.py:227
+#: ui/timeline.py:234
 #, python-format
 msgid "Set up: %(model)s on %(dataset)s, tuned by %(optimizer)s."
 msgstr "Set up: %(model)s on %(dataset)s, tuned by %(optimizer)s."
 
-#: ui/timeline.py:234
+#: ui/timeline.py:241
 #, python-format
 msgid "Imported from the SMAC run %(name)s."
 msgstr "Imported from the SMAC run %(name)s."
 
-#: ui/timeline.py:235
+#: ui/timeline.py:242
 #, python-format
 msgid "Imported from %(name)s."
 msgstr "Imported from %(name)s."
 
-#: ui/timeline.py:237
+#: ui/timeline.py:244
 msgid "Its dataset was not attached."
 msgstr "Its dataset was not attached."
 
-#: ui/timeline.py:238
+#: ui/timeline.py:245
 msgid "Source"
 msgstr "Source"
 
-#: ui/timeline.py:238
+#: ui/timeline.py:245
 msgid "SMAC run"
 msgstr "SMAC run"
 
-#: ui/timeline.py:238
+#: ui/timeline.py:245
 msgid ".ihpo file"
 msgstr ".ihpo file"
 
-#: ui/timeline.py:239
+#: ui/timeline.py:246
 msgid "File"
 msgstr "File"
 
-#: ui/timeline.py:240
+#: ui/timeline.py:247
 msgid "Dataset attached"
 msgstr "Dataset attached"
 
-#: ui/timeline.py:242
+#: ui/timeline.py:249
 #, python-format
 msgid "%(step)s: %(old)s → %(new)s."
 msgstr "%(step)s: %(old)s → %(new)s."
 
-#: ui/timeline.py:246
+#: ui/timeline.py:253
 msgid "Step"
 msgstr "Step"
 
-#: ui/timeline.py:247 ui/timeline.py:257 ui/timeline.py:265 ui/timeline.py:269
-#: ui/timeline.py:276
+#: ui/timeline.py:254 ui/timeline.py:264 ui/timeline.py:271 ui/timeline.py:278
 msgid "Before"
 msgstr "Before"
 
-#: ui/timeline.py:248 ui/timeline.py:258 ui/timeline.py:266 ui/timeline.py:270
-#: ui/timeline.py:278
+#: ui/timeline.py:255 ui/timeline.py:265 ui/timeline.py:272 ui/timeline.py:280
 msgid "After"
 msgstr "After"
 
-#: ui/timeline.py:250
+#: ui/timeline.py:257
 #, python-format
 msgid "Prior to be applied to %(hp)s when the initial design ends: %(new)s."
 msgstr "Prior to be applied to %(hp)s when the initial design ends: %(new)s."
 
-#: ui/timeline.py:251
+#: ui/timeline.py:258
 #, python-format
 msgid "Prior stated on %(hp)s: %(new)s."
 msgstr "Prior stated on %(hp)s: %(new)s."
 
-#: ui/timeline.py:255
+#: ui/timeline.py:262
 #, python-format
 msgid "Prior on %(hp)s to change when the initial design ends."
 msgstr "Prior on %(hp)s to change when the initial design ends."
 
-#: ui/timeline.py:256
+#: ui/timeline.py:263
 #, python-format
 msgid "Prior on %(hp)s changed."
 msgstr "Prior on %(hp)s changed."
 
-#: ui/timeline.py:260
+#: ui/timeline.py:267
 #, python-format
 msgid "Prior on %(hp)s withdrawn."
 msgstr "Prior on %(hp)s withdrawn."
 
-#: ui/timeline.py:261
+#: ui/timeline.py:268
 msgid "Was"
 msgstr "Was"
 
-#: ui/timeline.py:263
-#, python-format
-msgid "Prior on %(hp)s put back to what the last run searched under: %(new)s."
-msgstr "Prior on %(hp)s put back to what the last run searched under: %(new)s."
-
-#: ui/timeline.py:268 ui/timeline.py:275
+#: ui/timeline.py:270 ui/timeline.py:277
 msgid "Optimizer settings changed."
 msgstr "Optimizer settings changed."
 
-#: ui/timeline.py:273
+#: ui/timeline.py:275
 #, python-format
 msgid "Optimizer changed: %(old)s → %(new)s."
 msgstr "Optimizer changed: %(old)s → %(new)s."
 
-#: ui/timeline.py:281
+#: ui/timeline.py:283
 msgid "The model's environment was rebuilt with different packages."
 msgstr "The model's environment was rebuilt with different packages."
 
-#: ui/timeline.py:282
+#: ui/timeline.py:284
 msgid "Lock before"
 msgstr "Lock before"
 
-#: ui/timeline.py:283
+#: ui/timeline.py:285
 msgid "Lock after"
 msgstr "Lock after"
 
-#: ui/timeline.py:308
+#: ui/timeline.py:312
 #, python-format
 msgid "Optimized metric changed: %(old)s → %(new)s."
 msgstr "Optimized metric changed: %(old)s → %(new)s."
 
-#: ui/timeline.py:311
+#: ui/timeline.py:315
 msgid "The search's model was refitted on the trials so far."
 msgstr "The search's model was refitted on the trials so far."
 
-#: ui/timeline.py:312
+#: ui/timeline.py:316
 msgid "From"
 msgstr "From"
 
-#: ui/timeline.py:312
+#: ui/timeline.py:316
 msgid "To"
 msgstr "To"
 
-#: ui/timeline.py:313
+#: ui/timeline.py:317
 msgid "Search's model"
 msgstr "Search's model"
 
-#: ui/timeline.py:316
+#: ui/timeline.py:320
 #, python-format
 msgid "Prior applied to %(hps)s after trial %(n)s."
 msgstr "Prior applied to %(hps)s after trial %(n)s."
 
-#: ui/timeline.py:318
+#: ui/timeline.py:322
 msgid "Hyperparameters"
 msgstr "Hyperparameters"
 
-#: ui/timeline.py:319
+#: ui/timeline.py:323
 msgid "After trial"
 msgstr "After trial"
 
-#: ui/timeline.py:321
+#: ui/timeline.py:325
 #, python-format
 msgid "Prior refused: %(reason)s."
 msgstr "Prior refused: %(reason)s."
 
-#: ui/timeline.py:322
+#: ui/timeline.py:326
 #, python-format
 msgid "Prior not applied: %(reason)s."
 msgstr "Prior not applied: %(reason)s."
 
-#: ui/timeline.py:323
+#: ui/timeline.py:327
 msgid "Reason"
 msgstr "Reason"
 
-#: ui/timeline.py:324
+#: ui/timeline.py:328
 msgid "Refused"
 msgstr "Refused"
 
-#: ui/timeline.py:326
+#: ui/timeline.py:330
 #, python-format
 msgid "%(n)s trials' fitted models were not kept: no room."
 msgstr "%(n)s trials' fitted models were not kept: no room."
 
-#: ui/timeline.py:331
+#: ui/timeline.py:335
 msgid "At"
 msgstr "At"
 
-#: ui/timeline.py:339
+#: ui/timeline.py:343
 #, python-format
 msgid "Run %(no)s waiting to start, optimizing %(metric)s."
 msgstr "Run %(no)s waiting to start, optimizing %(metric)s."
 
-#: ui/timeline.py:341
+#: ui/timeline.py:345
 #, python-format
 msgid "Run %(no)s under way, optimizing %(metric)s."
 msgstr "Run %(no)s under way, optimizing %(metric)s."
 
-#: ui/timeline.py:343
+#: ui/timeline.py:347
 #, python-format
 msgid "Run %(no)s ran no trials, optimizing %(metric)s."
 msgstr "Run %(no)s ran no trials, optimizing %(metric)s."
 
-#: ui/timeline.py:345
+#: ui/timeline.py:349
 #, python-format
 msgid "Run %(no)s ran %(n)s trials (%(a)s–%(b)s), optimizing %(metric)s."
 msgstr "Run %(no)s ran %(n)s trials (%(a)s–%(b)s), optimizing %(metric)s."
 
-#: ui/timeline.py:348
+#: ui/timeline.py:352
 #, fuzzy, python-format
 #| msgid "Run %(no)s ran no trials, optimizing %(metric)s."
 msgid "Run %(no)s ran proposal %(proposal)s as trial %(a)s."
 msgstr "Run %(no)s ran no trials, optimizing %(metric)s."
 
-#: ui/timeline.py:350
+#: ui/timeline.py:354
 #, python-format
 msgid "Run %(no)s running proposal %(proposal)s as a trial."
 msgstr ""
 
-#: ui/timeline.py:355
+#: ui/timeline.py:359
 #, python-format
 msgid "Then it failed: %(error)s"
 msgstr "Then it failed: %(error)s"
 
-#: ui/timeline.py:361
+#: ui/timeline.py:365
 #, python-format
 msgid "Cancelled by %(name)s."
 msgstr "Cancelled by %(name)s."
 
-#: ui/timeline.py:365
+#: ui/timeline.py:369
 msgid "Status"
 msgstr "Status"
 
-#: ui/timeline.py:366
+#: ui/timeline.py:370
 msgid "Queued"
 msgstr "Queued"
 
-#: ui/timeline.py:367
+#: ui/timeline.py:371
 msgid "Started"
 msgstr "Started"
 
-#: ui/timeline.py:368
+#: ui/timeline.py:372
 msgid "Finished"
 msgstr "Finished"
 
-#: ui/timeline.py:369
+#: ui/timeline.py:373
 msgid "Cancel requested"
 msgstr "Cancel requested"
 
-#: ui/timeline.py:370
+#: ui/timeline.py:374
 msgid "Cancelled by"
 msgstr "Cancelled by"
 
-#: ui/timeline.py:371
+#: ui/timeline.py:375
 msgid "Trial range"
 msgstr "Trial range"
 
-#: ui/timeline.py:373
+#: ui/timeline.py:377
 msgid "Optimized metric"
 msgstr "Optimized metric"
 
-#: ui/timeline.py:374
+#: ui/timeline.py:378
 msgid "Stopping"
 msgstr "Stopping"
 
-#: ui/timeline.py:375
+#: ui/timeline.py:379
 msgid "Stopped by"
 msgstr "Stopped by"
 
-#: ui/timeline.py:377
+#: ui/timeline.py:381
 msgid "Time in trials"
 msgstr "Time in trials"
 
-#: ui/timeline.py:378
-msgid "Error"
-msgstr "Error"
-
-#: ui/timeline.py:379
+#: ui/timeline.py:383
 msgid "Priors"
 msgstr "Priors"
 
-#: ui/timeline.py:383
+#: ui/timeline.py:387
 msgid "Trial timeout"
 msgstr "Trial timeout"
 
-#: ui/timeline.py:384
+#: ui/timeline.py:388
 #, fuzzy
 #| msgid "Save settings"
 msgid "Search settings"
 msgstr "Save settings"
 
-#: ui/timeline.py:403
+#: ui/timeline.py:407
 #, fuzzy
 #| msgid "Default"
 msgid "default"
 msgstr "Default"
 
-#: ui/timeline.py:483
+#: ui/timeline.py:450
 #, python-format
 msgid "Set up: %(model)s, tuned by %(optimizer)s."
 msgstr "Set up: %(model)s, tuned by %(optimizer)s."
@@ -4934,19 +5100,41 @@ msgstr "%(name)s must be a .%(ext)s file."
 msgid "Shown to others instead of your email address."
 msgstr ""
 
-#: ui/views/accounts.py:137
+#: ui/views/accounts.py:90
+#, fuzzy
+#| msgid "Change password"
+msgid "Your password"
+msgstr "Change password"
+
+#: ui/views/accounts.py:92
+msgid "Your email address, typed out"
+msgstr ""
+
+#: ui/views/accounts.py:100
+#, fuzzy
+#| msgid "Change password"
+msgid "That is not your password."
+msgstr "Change password"
+
+#: ui/views/accounts.py:105
+#, fuzzy
+#| msgid "That is not a role you can set."
+msgid "That is not the address you sign in with."
+msgstr "That is not a role you can set."
+
+#: ui/views/accounts.py:160
 #, fuzzy
 #| msgid "Change password"
 msgid "Choose your password"
 msgstr "Change password"
 
-#: ui/views/accounts.py:147
+#: ui/views/accounts.py:170
 #, fuzzy
 #| msgid "Change password"
 msgid "Set your password"
 msgstr "Change password"
 
-#: ui/views/accounts.py:174
+#: ui/views/accounts.py:197
 msgid "If an account matches, a message is on its way."
 msgstr ""
 
@@ -4963,7 +5151,7 @@ msgstr ""
 msgid "This configuration failed to forecast: %(error)s"
 msgstr "This configuration failed to forecast: %(error)s"
 
-#: ui/views/analytics.py:198 ui/views/analytics.py:273 ui/views/priors.py:448
+#: ui/views/analytics.py:198 ui/views/analytics.py:273 ui/views/priors.py:449
 msgid ""
 "The model this experiment used is not available here, so its search space "
 "cannot be rebuilt."
@@ -5106,51 +5294,55 @@ msgstr "Could not read %(name)s."
 msgid "This is not a readable SMAC run."
 msgstr "This is not a readable SMAC run."
 
-#: ui/views/preferences.py:78
+#: ui/views/preferences.py:80
 msgid "Light"
 msgstr "Light"
 
-#: ui/views/preferences.py:78
+#: ui/views/preferences.py:80
 msgid "Dark"
 msgstr "Dark"
 
-#: ui/views/preferences.py:79
+#: ui/views/preferences.py:81
 msgid "Same as my system"
 msgstr "Same as my system"
 
-#: ui/views/preferences.py:112
+#: ui/views/preferences.py:114
 msgid "Saved your display name."
 msgstr ""
 
-#: ui/views/preferences.py:118
+#: ui/views/preferences.py:120
 msgid "Upload and run custom models"
 msgstr "Upload and run custom models"
 
-#: ui/views/priors.py:52
+#: ui/views/preferences.py:164
+msgid "Your account is deleted."
+msgstr ""
+
+#: ui/views/priors.py:53
 #, fuzzy
 #| msgid "you can view this experiment but not run it"
 msgid "You can view this experiment but not run it."
 msgstr "you can view this experiment but not run it"
 
-#: ui/views/priors.py:54
+#: ui/views/priors.py:55
 #, fuzzy
 #| msgid "A run is under way with this optimizer."
 msgid "A run is under way."
 msgstr "A run is under way with this optimizer."
 
-#: ui/views/priors.py:56
+#: ui/views/priors.py:57
 #, fuzzy
 #| msgid "This experiment has no owner, so everyone here can change it."
 msgid "This experiment cannot be run here."
 msgstr "This experiment has no owner, so everyone here can change it."
 
-#: ui/views/priors.py:114
+#: ui/views/priors.py:115
 #, fuzzy, python-format
 #| msgid "Trial %(n)s"
 msgid "Proposal %(n)s"
 msgstr "Trial %(n)s"
 
-#: ui/views/priors.py:274
+#: ui/views/priors.py:275
 msgid ""
 "Nothing has been run yet, so there is no model to judge this against. A "
 "belief stated now is acted on in full."
@@ -5158,7 +5350,7 @@ msgstr ""
 "Nothing has been run yet, so there is no model to judge this against. A "
 "belief stated now is acted on in full."
 
-#: ui/views/priors.py:281
+#: ui/views/priors.py:282
 msgid ""
 "This optimizer fits no model of the objective, so it has no opinion about "
 "where the optimum is."
@@ -5166,11 +5358,11 @@ msgstr ""
 "This optimizer fits no model of the objective, so it has no opinion about "
 "where the optimum is."
 
-#: ui/views/priors.py:287
+#: ui/views/priors.py:288
 msgid "This metric has no scale to measure the tolerance against yet."
 msgstr "This metric has no scale to measure the tolerance against yet."
 
-#: ui/views/priors.py:304
+#: ui/views/priors.py:305
 msgid ""
 "This prior is potentially informative: the model rates the region it points "
 "at as promising as where the search is already headed."
@@ -5178,7 +5370,7 @@ msgstr ""
 "This prior is potentially informative: the model rates the region it points "
 "at as promising as where the search is already headed."
 
-#: ui/views/priors.py:308
+#: ui/views/priors.py:309
 #, python-format
 msgid ""
 "This prior is unlikely to be helpful: the model rates the region it points "
@@ -5189,11 +5381,11 @@ msgstr ""
 "at more than %(margin)s worse than where the search is already headed, so "
 "acting on it would cost trials."
 
-#: ui/views/priors.py:314
+#: ui/views/priors.py:315
 msgid "This prior could not be judged, so it stands as stated."
 msgstr "This prior could not be judged, so it stands as stated."
 
-#: ui/views/priors.py:521
+#: ui/views/priors.py:522
 msgid ""
 "This SMAC has no acquisition weight layer, so a stated prior does not affect "
 "the search or the candidates below. Install the version requirements.txt "
@@ -5222,3 +5414,28 @@ msgstr "Unknown sharing level."
 #, python-format
 msgid "%(name)s now belongs to %(user)s. You are a contributor."
 msgstr "%(name)s now belongs to %(user)s. You are a contributor."
+
+#, fuzzy
+#~| msgid "Yours, shared with %(people)s person in its group."
+#~| msgid_plural "Yours, shared with %(people)s people in its group."
+#~ msgid "Yours, shared with everyone in its group."
+#~ msgstr "Yours, shared with %(people)s person in its group."
+
+#, python-format
+#~ msgid "Yours, shared with %(people)s person in its group."
+#~ msgid_plural "Yours, shared with %(people)s people in its group."
+#~ msgstr[0] "Yours, shared with %(people)s person in its group."
+#~ msgstr[1] "Yours, shared with %(people)s people in its group."
+
+#~ msgid "Yours, and not shared."
+#~ msgstr "Yours, and not shared."
+
+#, python-format
+#~ msgid "Share it from %(name)s"
+#~ msgstr "Share it from %(name)s"
+
+#, python-format
+#~ msgid ""
+#~ "Prior on %(hp)s put back to what the last run searched under: %(new)s."
+#~ msgstr ""
+#~ "Prior on %(hp)s put back to what the last run searched under: %(new)s."

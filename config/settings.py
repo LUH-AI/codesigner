@@ -31,6 +31,13 @@ REQUIRE_LOGIN = env.bool("REQUIRE_LOGIN", default=False)
 #: After `BIN_RETENTION_DAYS`, a deleted experiment leaves personal bins for the
 #: site bin (`manage.py trash`).
 BIN_RETENTION_DAYS = env.int("BIN_RETENTION_DAYS", default=30)
+#: How long `manage.py privacy sweep` keeps failed sign-ins (with their IP
+#: address) and assistant chats nobody has touched.
+PRIVACY_FAILED_SIGN_IN_DAYS = env.int("PRIVACY_FAILED_SIGN_IN_DAYS", default=30)
+ASSISTANT_RETENTION_DAYS = env.int("ASSISTANT_RETENTION_DAYS", default=90)
+#: A signed-in session lasts two weeks; `manage.py privacy sweep` removes it
+#: once expired.
+SESSION_COOKIE_AGE = 14 * 24 * 3600
 
 #: `ALLOW_CUSTOM_MODELS` lets users upload model code; outside a container, that
 #: code runs with the host account's ssh keys.
@@ -47,6 +54,9 @@ ACCOUNT_ONBOARDING = env.str("ACCOUNT_ONBOARDING", default="access.onboarding.Lo
 #: `ACCOUNT_AGREEMENT` names a callable returning `(version, html)`, the terms
 #: a person accepts before using the site; empty means none.
 ACCOUNT_AGREEMENT = env.str("ACCOUNT_AGREEMENT", default="")
+#: `LEGAL_PAGES` names a callable returning `{"privacy": html, "imprint": html}`
+#: in the active language. With it empty, the site shows neither page nor links.
+LEGAL_PAGES = env.str("LEGAL_PAGES", default="")
 #: `CODESIGNER_EXTENSIONS` lists apps installed after codesigner's own, such as
 #: a deployment's onboarding.
 CODESIGNER_EXTENSIONS = env.list("CODESIGNER_EXTENSIONS", default=[])  # pyright: ignore[reportArgumentType]
@@ -237,6 +247,9 @@ AXES_COOLOFF_TIME = 1
 AXES_LOCKOUT_PARAMETERS = [["username", "ip_address"]]
 AXES_RESET_ON_SUCCESS = True
 AXES_USERNAME_CALLABLE = "access.backends.lockout_name"
+#: django-axes logs only failed sign-ins, which `manage.py privacy sweep`
+#: deletes after `PRIVACY_FAILED_SIGN_IN_DAYS`.
+AXES_DISABLE_ACCESS_LOG = True
 #: django-axes reads only `REMOTE_ADDR`. Behind a proxy on the loopback address,
 #: uvicorn sets it from the last `X-Forwarded-For` entry, the one the proxy
 #: added; the earlier entries come from the client.
@@ -264,6 +277,7 @@ TEMPLATES = [
                 "ui.context_processors.navigation",
                 "ui.context_processors.capabilities",
                 "ui.context_processors.offered_languages",
+                "ui.context_processors.legal",
                 "ui.context_processors.theme",
                 "ui.context_processors.storage",
                 "assistant.context_processors.assistant",

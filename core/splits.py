@@ -41,8 +41,8 @@ def holdout(X_train, y_train, X_val, y_val) -> Splits:
     """
     n_train, n_val = len(X_train), len(X_val)
     X = np.concatenate([np.asarray(X_train), np.asarray(X_val)])
-    # Forcing a dtype would turn an integer target into object, which
-    # scikit-learn rejects as an "unknown" target.
+    # Forcing a dtype would turn an integer target into object, for which
+    # scikit-learn raises a `ValueError` naming it an "unknown" target.
     y = np.concatenate([np.asarray(y_train), np.asarray(y_val)])
     train_idx = np.arange(n_train)
     val_idx = np.arange(n_train, n_train + n_val)

@@ -115,10 +115,10 @@ def compute_partial_dependence(
     n_points: int = 20,
     max_ice_curves: int = 0,
 ) -> tuple[list, List[List[Optional[float]]], List[Optional[float]], Optional[str]]:
-    """Each ICE curve holds one trial's other values fixed and swaps in each
+    """Each ICE curve keeps one trial's other values fixed and swaps in each
     grid value of *hp_name*; the PDP is the grid-wise mean. Averaging over
-    trials weights the curve by where the search went. A rejected configuration
-    leaves None, and *max_ice_curves* samples trials evenly before predicting,
+    trials weights the curve by where the search went. A configuration the space
+    cannot build leaves None, and *max_ice_curves* samples trials evenly before predicting,
     since the cost is `n_trials x n_points` predictions. All rows go through one
     `rf.predict` call, which cut 1.5s to 52ms end to end.
     """
@@ -133,7 +133,7 @@ def compute_partial_dependence(
 
     trials = sample_evenly(trials, max_ice_curves)
 
-    # A rejected configuration leaves a hole.
+    # A configuration the space cannot build leaves a hole.
     rows, slots = [], []
     for i, t in enumerate(trials):
         for j, value in enumerate(grid):
@@ -174,8 +174,8 @@ def compute_surrogate_uncertainty(
     seed: int = 0,
     n_points: int = 20,
 ) -> tuple[list, list, List[List[Optional[float]]], Optional[str]]:
-    """`z_rows` holds tree-disagreement standard deviations in the metric's
-    units, None where the space rejects a pair. Tree disagreement is
+    """`z_rows` contains tree-disagreement standard deviations in the metric's
+    units, None where the space cannot build a pair. Tree disagreement is
     uncalibrated, and far from the trials every tree agrees, so the field turns
     confident where data is missing. The plane passes through the best trial, an
     evaluated configuration, and costs `n_points^2` rows instead of an average

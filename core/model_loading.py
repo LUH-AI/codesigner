@@ -61,8 +61,8 @@ def load_model_from_path(model_path: str) -> tuple:
 
 
 def give_context(model, attribute: str, value) -> None:
-    """A model written before *attribute* existed may refuse it and stays as
-    written, for numeric classification."""
+    """A model written before *attribute* existed may raise `AttributeError` on
+    it and then stays as written, for numeric classification."""
     try:
         setattr(model, attribute, value)
     except AttributeError:
@@ -73,7 +73,7 @@ def resolve_model(snapshot: dict, evaluation: dict, task: str, available_models:
                   model_name: str | None = None, load_file: bool = True) -> tuple[Any, str]:
     model_path = snapshot["model"].get("path", "")
     if snapshot["model"].get("kind") == "external":
-        # The file of an external run holds the search and its scores, with no
+        # The file of an external run contains the search and its scores, with no
         # model or dataset. `model = None` matches a read-only custom model, and
         # `_model_available` treats such an experiment as unrunnable.
         model = None

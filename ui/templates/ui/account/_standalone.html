@@ -14,7 +14,7 @@ would offer links that bounce straight back. The language switcher is kept,
 because choosing a language you can read should not require signing in first.
 {% endcomment %}
 <body class="signin">
-    <main class="signin-panel">
+    <main class="signin-panel{% block panel_class %}{% endblock %}">
         <h1>Codesigner</h1>
         {% for message in messages %}<p class="alert {{ message.tags }}">{{ message }}</p>{% endfor %}
         {% block content %}{% endblock %}
@@ -33,6 +33,7 @@ because choosing a language you can read should not require signing in first.
             </select>
         </form>
         {% endif %}
+        {% include "ui/_legal_links.html" %}
     </main>
 </body>
 </html>

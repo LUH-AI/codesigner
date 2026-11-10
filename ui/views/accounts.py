@@ -83,6 +83,29 @@ class DisplayNameForm(forms.Form):
     display_name = display_name_field()
 
 
+class DeleteAccountForm(forms.Form):
+    """`DeleteAccountForm` asks for the password and the address typed out, so
+    the deletion is deliberate."""
+
+    password = forms.CharField(label=gettext_lazy("Your password"), widget=forms.PasswordInput(
+        attrs={"autocomplete": "current-password"}))
+    email = forms.CharField(label=gettext_lazy("Your email address, typed out"))
+
+    def __init__(self, user, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.user = user
+
+    def clean_password(self):
+        if not self.user.check_password(self.cleaned_data["password"]):
+            raise forms.ValidationError(_("That is not your password."))
+        return self.cleaned_data["password"]
+
+    def clean_email(self):
+        if self.cleaned_data["email"].strip().lower() != (self.user.email or "").lower():
+            raise forms.ValidationError(_("That is not the address you sign in with."))
+        return self.cleaned_data["email"]
+
+
 class PasswordSetupForm(SetPasswordForm):
     """`PasswordSetupForm` also takes an optional display name, and asks for
     the agreement when one is due."""

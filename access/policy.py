@@ -76,7 +76,8 @@ class OpenPolicy:
 _cached: tuple[str, OpenPolicy] | None = None
 
 
-#: A person does these themselves, even with an assistant acting for them.
+#: `HUMAN_ONLY` lists the actions a person always does themselves, even with an
+#: assistant acting for them.
 HUMAN_ONLY = frozenset({RUN, DELETE, SHARE})
 
 
@@ -162,7 +163,7 @@ def primary_led_group_ids(user) -> set:
 
 def assume_memberships(user, memberships) -> None:
     """`assume_memberships` makes *memberships* what `memberships_of` returns
-    for this *user* object, without saving them. A deployment uses it to
+    for the *user* object passed in, without saving them. A deployment uses it to
     present an account as a member, such as codesigner-manage's support view,
     which shows its system account every group as a lead.
     """

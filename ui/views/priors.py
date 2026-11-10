@@ -24,6 +24,7 @@ from ..experiment_settings import SETTING_DEFAULTS, resolve_settings
 from ..figures import acquisition_slice_plots
 from ..formatting import sigfigs
 from ..permissions import BOTH, experiment_view
+from ..metric_names import metric_title
 from .common import _judges_priors, _model_available, _plot_json, logger
 
 
@@ -78,7 +79,7 @@ def proposal_panel(request, exp):
     return render(request, "ui/_selected_proposal_inner.html", {
         "proposal": {
             "metric": metric,
-            "metric_title": scoring.title,
+            "metric_title": metric_title(scoring),
             "number": n + 1,
             "of": len(sample["configurations"]),
             "index": n,

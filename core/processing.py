@@ -1,9 +1,9 @@
 """`CHOICES` maps each data preparation step (missing values, scaling and
-label encoding) to the options an experiment can select for it. An experiment
-saves its selected options in its `.ihpo` file. Every step starts as "auto",
-which `model_defaults` resolves to the option the model needs, and `resolve`
+label encoding) to the options an experiment can select for it, and the
+experiment's `.ihpo` file saves the selection. Every step starts as "auto",
+which `model_defaults` resolves to the option the model needs; `resolve`
 overrules an option the model cannot take. `Processing` only fits on a fold's
-training rows, so validation rows never shape their own scaling. An exported
+training rows. Validation rows never shape their own scaling. An exported
 model carries `core.processing` as its processing step, since the module
 imports nothing from codesigner.
 """

@@ -377,3 +377,17 @@ def test_a_cluster_run_refuses_a_metric_its_model_cannot_score(tmp_path, monkeyp
     status = json.loads((tmp_path / "status.json").read_text())
     assert status["state"] == "error"
     assert "class probabilities" in status["error"]
+
+
+def test_a_finished_run_leaves_nothing_on_the_cluster(cluster_settings, experiment, monkeypatch):
+    """What: once its results are stored, the run's directory on the cluster,
+    with the dataset copy, is deleted. How: a finished run through the fake
+    transport, then its commands."""
+    transport = FakeTransport()
+    run, workdir = _run(experiment, transport, monkeypatch,
+                        status={"state": "done", "offset": 0, "stopped_by": "",
+                                "config_space": None, "error": ""},
+                        result=_finished_result())
+
+    assert run.status == "done"
+    assert transport.commands[-1] == f"rm -rf -- {workdir}"

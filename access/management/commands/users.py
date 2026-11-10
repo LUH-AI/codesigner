@@ -26,6 +26,9 @@ class Command(JsonCommand):
         sub.add_parser("list")
         for name in ("deactivate", "activate", "delete", "reset-password"):
             sub.add_parser(name).add_argument("who")
+        email = sub.add_parser("set-email", help="Change the address somebody signs in with.")
+        email.add_argument("who")
+        email.add_argument("address")
         custom = sub.add_parser("custom-models")
         custom.add_argument("who")
         custom.add_argument("state", choices=["on", "off"])
@@ -52,6 +55,11 @@ class Command(JsonCommand):
         user = user_service.named(options["who"])
         user_service.delete_user(user)
         return {"deleted": options["who"]}
+
+    def do_set_email(self, options):
+        user = user_service.named(options["who"])
+        user_service.set_email(user, options["address"])
+        return {"email": user.email}
 
     def do_custom_models(self, options):
         user = user_service.named(options["who"])

@@ -1,0 +1,12 @@
+{% extends "ui/account/_standalone.html" %}
+{% load i18n %}
+
+{% block title %}{{ heading }}{% endblock %}
+{% block panel_class %} legal{% endblock %}
+
+{% block content %}
+    <div class="legal-text">{{ body }}</div>
+    <p class="caption" style="margin-top: 1.5rem;">
+        <a href="{% url 'ui:home' %}">{% translate "Back to Codesigner" %}</a>
+    </p>
+{% endblock %}

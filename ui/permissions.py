@@ -25,8 +25,8 @@ DRAFTS = (CREATED, ONLY, BOTH)
 
 class WrongKind(Http404):
     """`WrongKind` is the 404 for a draft reached where a created experiment
-    was asked for, or the reverse. A page catches it and sends the reader to
-    where that kind is worked on.
+    was asked for, or the reverse. A page catches it and sends the reader to the
+    pages for drafts or for created experiments, whichever the experiment is.
     """
 
     def __init__(self, experiment):
@@ -37,7 +37,7 @@ class WrongKind(Http404):
 def resolve_experiment(request, pk, action, drafts=CREATED):
     """`resolve_experiment` runs the check of `experiment_view` for code that
     reaches an experiment outside a view. A pk the policy hides raises
-    `Http404`, the wrong kind raises `WrongKind`, and a refused action raises
+    `Http404`, the wrong kind raises `WrongKind`, and an action the policy denies raises
     `PermissionDenied`.
     """
     current = policy()

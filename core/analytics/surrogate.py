@@ -11,8 +11,8 @@ if TYPE_CHECKING:
 def pair_trials_with_scores(config_space, trials: List[TrialResult], metric_name: str,
                              values=None):
     """`pair_trials_with_scores` is the one place a trial becomes training data,
-    for HyperSHAP and `fit_surrogate` alike. A trial the current space rejects
-    is skipped, as is one where *values* raises. By default
+    for HyperSHAP and `fit_surrogate` alike. A trial the current space cannot
+    build is skipped, as is one where *values* raises. By default
     `pair_trials_with_scores` learns the *metric_name* score, and `lambda t:
     t.duration` models run time instead.
     """

@@ -6,6 +6,7 @@ import plotly.graph_objects as go
 
 from core.metrics import to_error
 
+from ...metric_names import metric_title
 from .style import (
     ACCENT_COLOR, FAILURE_FILL, MARKER_COLOR, RECOLOR, SELECTION_COLOR, failure_marks,
     selection_meta, translucent,
@@ -35,10 +36,10 @@ def performance_over_time_plot(result, display_metric, *, x_axis="trial",
         for t in trials:
             running += t.duration
             xs.append(running)
-        x_title = "Time (s)"
+        x_title = _("Time (s)")
     else:
         xs = [t.trial for t in trials]
-        x_title = "Trial"
+        x_title = _("Trial")
 
     metric = result.metric(display_metric)
     incumbents = incumbent_scores(result, display_metric)
@@ -55,11 +56,11 @@ def performance_over_time_plot(result, display_metric, *, x_axis="trial",
         floor = (lambda e: max(1e-3, e)) if y_type == "log" else (lambda e: e)
         ys = [floor(e) for e in errors]
         incumbent_ys = [floor(e) for e in incumbent_errors]
-        y_title, outcome_name = "Error", "Trial error"
+        y_title, outcome_name = _("Error"), _("Trial error")
     else:
         ys = [t.scores[display_metric] for t in trials]
         incumbent_ys = incumbents
-        y_title, y_type, outcome_name = metric.title, "linear", "Trial score"
+        y_title, y_type, outcome_name = metric_title(metric), "linear", _("Trial score")
 
     colors = [MARKER_COLOR] * len(trials)
     sizes = [6] * len(trials)
@@ -102,7 +103,7 @@ def performance_over_time_plot(result, display_metric, *, x_axis="trial",
         xaxis_title=x_title, yaxis_title=y_title, yaxis_type=y_type,
         legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1),
         margin=dict(t=40, b=40, l=40, r=20),
-        # Trace 0 only, since incumbent traces hold no trials.
+        # Trace 0 only, since incumbent traces contain no trials.
         meta={"selection": selection_meta({0: range(len(trials))},
                                            style=RECOLOR)},
     )

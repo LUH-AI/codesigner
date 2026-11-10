@@ -4,6 +4,9 @@ message gives the reason.
 
 from django.contrib.auth import get_user_model
 from django.contrib.auth.models import Permission
+from django.core.exceptions import ValidationError
+from django.core.validators import validate_email
+from django.db import transaction
 from django.db.models import Case, CharField, Count, Exists, OuterRef, Value, When
 from django.utils import timezone
 from django.utils.translation import gettext as _
@@ -21,7 +24,8 @@ def named(who: str):
     return user
 
 
-#: An account's status, from its flag, its pending password and its links.
+#: Each account has one status, worked out from its active flag, its pending
+#: password and its setup links.
 ACTIVE = "active"
 INVITED = "invited"
 INVITE_EXPIRED = "invite expired"
@@ -74,14 +78,116 @@ def set_active(user, active: bool) -> None:
 
 def delete_user(user) -> None:
     """`delete_user` raises `.ServiceError` when *user* still owns live
-    experiments. Experiments of theirs in the bin lose their owner and, with no
-    bin left holding them, go to the site bin (`.orphaned`)."""
+    experiments or leads a group with other people in it. Experiments of
+    theirs in the bin lose their owner and, with no bin left holding them, go
+    to the site bin (`.orphaned`)."""
     if user.experiments.filter(deleted_at__isnull=True, trashed_at__isnull=True).exists():
         raise ServiceError(_(
             "%(who)s still owns experiments, so this account cannot be deleted. "
             "Deactivate it instead, or hand the experiments to somebody else "
             "first.") % {"who": shown_name(user)})
+    _refuse_while_primary(user)
+    _forget(user)
+
+
+def _led_groups(user):
+    """`_led_groups` lists the memberships in which *user* is primary lead of a
+    group with somebody else in it."""
+    from access.models import Membership
+
+    return [m for m in user.memberships.filter(role=Membership.PRIMARY_LEAD)
+            .select_related("group")
+            if m.group.memberships.exclude(user=user).exists()]
+
+
+def _refuse_while_primary(user) -> None:
+    led = _led_groups(user)
+    if led:
+        raise ServiceError(_(
+            "%(who)s is the primary lead of %(groups)s. Make somebody else primary "
+            "lead first.") % {"who": shown_name(user),
+                              "groups": ", ".join(m.group.name for m in led)})
+
+
+def erase_user(user) -> None:
+    """`erase_user` deletes *user* at their own request (DSGVO Art. 17). Their
+    primary-lead role passes to the longest-serving lead of each group, and
+    their live experiments pass to their group's primary lead, or to the bin
+    when nobody else is in the group. It raises `.ServiceError`, with nothing
+    changed, when a group they lead primarily has nobody to take it over."""
+    from access.models import Membership
+    from access.services import groups as group_service
+    from experiments.services import bin as bin_service
+
+    with transaction.atomic():
+        for membership in _led_groups(user):
+            heir = (membership.group.memberships.exclude(user=user)
+                    .filter(role=Membership.LEAD).order_by("joined_at", "pk").first())
+            if heir is None:
+                raise ServiceError(_(
+                    "You are the primary lead of %(group)s and nobody else there is a "
+                    "group lead. Make somebody a group lead first, so the group is "
+                    "not left without one.") % {"group": membership.group.name})
+            group_service.transfer_primary(membership, heir)
+        for experiment in user.experiments.filter(deleted_at__isnull=True,
+                                                  trashed_at__isnull=True):
+            heir = None
+            if experiment.group_id is not None:
+                heir = (experiment.group.memberships.exclude(user=user)
+                        .filter(role=Membership.PRIMARY_LEAD).select_related("user").first())
+            if heir is None:
+                bin_service.delete(experiment, by=user)
+                continue
+            experiment.shares.filter(user=heir.user).delete()
+            experiment.owner = heir.user
+            experiment.save(update_fields=["owner"])
+        _forget(user)
+
+
+def _forget(user) -> None:
+    """`_forget` deletes *user* with what still points at them: their sessions,
+    their assistant actions and their failed sign-ins."""
+    from django.contrib.sessions.models import Session
+
+    from assistant.models import AgentAction
+
+    pk = str(user.pk)
+    for session in Session.objects.filter(expire_date__gt=timezone.now()):
+        if session.get_decoded().get("_auth_user_id") == pk:
+            session.delete()
+    AgentAction.objects.filter(user=user).delete()
+    try:
+        from axes.models import AccessAttempt, AccessFailureLog, AccessLog
+    except ImportError:
+        pass
+    else:
+        names = {user.get_username(), user.email}
+        for model in (AccessAttempt, AccessFailureLog, AccessLog):
+            model.objects.filter(username__in=names).delete()
     user.delete()
+
+
+def set_email(user, email: str) -> None:
+    """`set_email` changes the address *user* signs in with, which is also
+    their username (DSGVO Art. 16). It raises `.ServiceError` for an invalid
+    address or one another account uses."""
+    from access.services import accounts
+
+    address = accounts.normalize(email)
+    try:
+        validate_email(address)
+    except ValidationError as error:
+        raise ServiceError(_("%(address)s is not an email address.") % {"address": email}) \
+            from error
+    User = get_user_model()
+    taken = User.objects.exclude(pk=user.pk).filter(email__iexact=address).exists() or \
+        User.objects.exclude(pk=user.pk).filter(username__iexact=address).exists()
+    if taken:
+        raise ServiceError(_("Another account already uses %(address)s.") % {"address": address})
+    user.email = address
+    if len(address) <= accounts.USERNAME_MAX:
+        user.username = address
+    user.save(update_fields=["email", "username"])
 
 
 def _custom_models_permission():

@@ -178,6 +178,12 @@ body.signin { display: block; background: var(--rail-bg); }
 .signin-locale select { width: auto; }
 .signin-panel > .caption, .signin-signout { margin-top: 0.75rem; text-align: center; }
 .signin-panel .agreement { max-height: 40vh; overflow: auto; margin-bottom: 1rem; }
+.signin-panel.legal { max-width: 46rem; margin-top: 6vh; }
+.legal-text h2 { margin-top: 1.5rem; }
+.legal-text table { border-collapse: collapse; width: 100%; }
+.legal-text th, .legal-text td { border-bottom: 1px solid var(--border); padding: 0.35rem 0.5rem; text-align: left; vertical-align: top; }
+.legal-links { display: flex; flex-wrap: wrap; justify-content: center; gap: 0.25rem 1rem; margin-top: 2rem; font-size: 0.8rem; }
+.legal-links a { color: var(--muted); }
 .signin-signout button { background: none; border: 0; color: inherit; text-decoration: underline; cursor: pointer; }
 
 /* Language switcher: a native <select> transparently overlaid on the globe

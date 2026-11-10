@@ -56,4 +56,17 @@
             <a class="btn" href="{% url 'ui:password_change' %}">{% translate "Change password" %}</a>
         </p>
     </section>
+
+    <section class="card" style="max-width: 34rem; margin-top: 1rem;">
+        <div class="subheader">{% translate "Your data" %}</div>
+        <p class="caption">{% translate "A zip of everything codesigner holds about you, with a file for each experiment you own." %}</p>
+        <form method="post" action="{% url 'ui:account_data' %}" style="margin-top: 0.75rem;">
+            {% csrf_token %}
+            <button type="submit" class="btn">{% translate "Download my data" %}</button>
+        </form>
+        <p class="caption" style="margin-top: 1rem;">{% translate "To change your email address, ask the site's operator." %}</p>
+        <p style="margin-top: 0.75rem;">
+            <a class="btn" href="{% url 'ui:account_delete' %}">{% translate "Delete my account" %}</a>
+        </p>
+    </section>
 {% endblock %}

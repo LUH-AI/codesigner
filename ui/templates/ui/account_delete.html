@@ -1,0 +1,30 @@
+{% extends "ui/base.html" %}
+{% load i18n %}
+
+{% block title %}{% translate "Delete my account" %} · Codesigner{% endblock %}
+
+{% block content %}
+    <h1>{% translate "Delete my account" %}</h1>
+    <section class="card" style="max-width: 34rem; margin-top: 1rem;">
+        <p>{% translate "This deletes your account and signs you out. It cannot be undone." %}</p>
+        <ul>
+            <li>{% translate "Experiments you own pass to your group's primary lead, so your group keeps its work. In a group with nobody else, they go to the bin." %}</li>
+            <li>{% translate "If you are a group's primary lead, its longest-serving group lead takes over." %}</li>
+            <li>{% translate "Your memberships, shares, assistant chats and settings are deleted. Where your work stays, it shows a former member instead of you." %}</li>
+        </ul>
+        <p class="caption">{% translate "Download your data first if you want a copy." %}</p>
+        <form method="post" style="margin-top: 1rem;">
+            {% csrf_token %}
+            {% for error in form.non_field_errors %}<p class="alert error">{{ error }}</p>{% endfor %}
+            {% for field in form %}
+                <div class="field">
+                    <label for="{{ field.id_for_label }}">{{ field.label }}</label>
+                    {{ field }}
+                    {% for error in field.errors %}<p class="alert error">{{ error }}</p>{% endfor %}
+                </div>
+            {% endfor %}
+            <button type="submit" class="btn-primary">{% translate "Delete my account" %}</button>
+            <a class="btn" href="{% url 'ui:account' %}">{% translate "Cancel" %}</a>
+        </form>
+    </section>
+{% endblock %}

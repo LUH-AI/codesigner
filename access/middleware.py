@@ -2,7 +2,8 @@
 `LoginRequiredMiddleware`, so a forgotten route stays protected, and passes
 everything through while `REQUIRE_LOGIN` is off. One boolean separates hosted
 and local installs, instead of a second settings module. `AccountGateMiddleware`
-holds a signed-in person at the agreement and password pages until done.
+sends a signed-in person to the agreement and password pages until both are
+done.
 """
 
 from urllib.parse import urlencode
@@ -34,7 +35,7 @@ class AccountGateMiddleware:
     #: Views a person needs to get through the gate.
     OPEN = {"ui:agreement", "ui:password_change", "ui:password_changed", "ui:logout",
             "set_language", "ui:healthz", "ui:account_setup", "ui:first_password",
-            "ui:password_forgot"}
+            "ui:password_forgot", "ui:imprint", "ui:privacy", "ui:terms"}
 
     def __init__(self, get_response):
         self.get_response = get_response

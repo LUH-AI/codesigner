@@ -42,7 +42,7 @@ def confidence_nothing_better(smac, config_space, incumbent_config: Optional[dic
     `Φ((μ(inc) − μ(x)) / σ(x))`, and the confidence is one minus the best
     chance. The incumbent's predicted cost is the reference, since the
     forest predicts log-scaled costs. None means an unfitted model or a
-    failed prediction, and the answer holds only under the surrogate's own
+    failed prediction, and the answer is only valid under the surrogate's own
     model over a sample of the space.
     """
     selector = getattr(smac.intensifier, "_config_selector", None)

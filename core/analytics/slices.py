@@ -198,8 +198,8 @@ def compute_incumbent_slice(
     if len(grid) < 2:
         return IncumbentSlice([], [], [], [], None, None, None, "A slice needs the hyperparameter to take more than one value.")
 
-    # Three lists the browser indexes in lockstep drop a rejected value
-    # together.
+    # The three lists the browser indexes in lockstep drop a value the space
+    # cannot build together.
     kept_values, kept_positions, rows = [], [], []
     positions = np.asarray(hp.to_vector(np.asarray(grid)), dtype=float).ravel()
     for value, position in zip(grid, positions):

@@ -2,8 +2,8 @@ from django.contrib.auth import views as auth_views
 from django.urls import path
 
 from .views import (
-    accounts, analytics, bin, dashboard, data_handling, export, groups, imports, notes, pages,
-    preferences, priors, runs, setup, sharing,
+    accounts, analytics, bin, dashboard, data_handling, export, groups, imports, legal, notes,
+    pages, preferences, priors, runs, setup, sharing,
 )
 
 app_name = "ui"
@@ -21,6 +21,11 @@ urlpatterns = [
     path("accounts/setup/<str:token>/", accounts.account_setup, name="account_setup"),
     path("accounts/agreement/", accounts.agreement_page, name="agreement"),
     path("accounts/forgot/", accounts.password_forgot, name="password_forgot"),
+    path("imprint/", legal.imprint, name="imprint"),
+    path("privacy/", legal.privacy, name="privacy"),
+    path("terms/", legal.terms, name="terms"),
+    path("settings/account/data/", preferences.download_my_data, name="account_data"),
+    path("settings/account/delete/", preferences.delete_my_account, name="account_delete"),
     # The current-password check stops a borrowed browser locking its owner out.
     path("accounts/password/", accounts.PasswordChangeView.as_view(), name="password_change"),
     path("accounts/password/done/", auth_views.PasswordChangeDoneView.as_view(

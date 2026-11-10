@@ -409,7 +409,7 @@ def _run_safe_rows(exp, params):
 
 
 def _scheduled(event, runs):
-    """`_scheduled` marks a prior that its run under way holds back until the
+    """`_scheduled` marks a prior that its run under way only applies once the
     initial design ends."""
     import copy
 

@@ -12,7 +12,7 @@ from ...formatting import sigfigs
 MARKER_COLOR = "#636EFA"
 #: `SELECTION_COLOR` is the soft coral that `#EF553B` became when faded over
 #: Plotly's background, painted at full opacity on every figure so the selection
-#: looks the same everywhere. `--selected` in app.css holds the same value.
+#: looks the same everywhere. `--selected` in app.css sets the same value.
 SELECTION_COLOR = "#EC8273"
 ACCENT_COLOR = "#10B981"
 NEGATIVE_COLOR = "#FF2B2B"

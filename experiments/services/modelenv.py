@@ -18,6 +18,7 @@ from pathlib import Path
 
 from django.conf import settings
 from django.utils import timezone
+from django.utils.translation import gettext
 
 from core.modelhost import deadline
 
@@ -282,16 +283,16 @@ def _digest(path: Path) -> str:
 
 
 def refusal(exp, user) -> str:
-    """`refusal` returns why the worker must not run *exp*'s custom model for
-    *user*, or "". Every path that runs the code asks it: a local run, a cluster
-    job and an environment build.
+    """`refusal` returns the reason the worker stops before running *exp*'s
+    custom model for *user*, or "" when the model may run. Every path that runs
+    the code asks it: a local run, a cluster job and an environment build.
     """
     from access.policy import policy
 
     if not exp.data.model_file:
         return ""
     if not settings.ALLOW_CUSTOM_MODELS:
-        return "Custom models are turned off on this instance."
+        return gettext("Custom models are turned off on this instance.")
     return policy().custom_model_refusal(exp, user)
 
 

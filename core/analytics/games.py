@@ -284,8 +284,8 @@ def _derived_fields(game: str) -> tuple:
 def without_derived(result: dict) -> dict:
     """`without_derived` returns a copy of *result* without each game's
     importance, interactions and total wherever its Möbius terms are stored,
-    since `with_derived` rebuilds them exactly. A game that fell back to forest
-    importances or uniform weights has no terms and keeps its values.
+    since `with_derived` rebuilds them from those terms. A game that fell back
+    to forest importances or uniform weights has no terms and keeps its values.
     """
     from ..optimizers.base import HP_GAME_FIELDS
 

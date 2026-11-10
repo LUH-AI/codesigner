@@ -109,8 +109,8 @@ def _put_back(exp):
 
 
 def purge(exp):
-    """`purge` deletes for real, cascading to runs, their jobs and files. A
-    scheduler job still open is cancelled first, since nothing would watch it
+    """`purge` deletes for real, cascading to runs, their jobs and files. It
+    first cancels a scheduler job still open, since nothing watches the job
     once its rows are gone."""
     from .run import abandon_jobs
     from .storage import delete_experiment_files

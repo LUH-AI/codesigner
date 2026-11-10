@@ -1,5 +1,6 @@
 """`SafeJSONField` stores the non-finite floats in SMAC's scenario state as
-sentinel objects, because SQLite's JSON column rejects the `Infinity` token.
+sentinel objects, because SQLite's JSON column raises an error on the
+`Infinity` token.
 """
 
 import math

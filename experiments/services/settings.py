@@ -18,7 +18,8 @@ SETTING_DEFAULTS = {
     "local_effects_max_trials": 100,
     # `prior_acceptance_tolerance` is how far, as a share of
     # `priors.metric_scale`, a stated belief's region may score below the
-    # searched region before "Evaluate prior" rejects it. The default is
+    # searched region before "Evaluate prior" returns the verdict "rejected".
+    # The default is
     # DynaBO's own threshold on a [0, 1] metric.
     "prior_acceptance_tolerance": 0.15,
     # Climbs averaged per side; SMAC's `ClimbingComparisonPolicy.top_k` default.

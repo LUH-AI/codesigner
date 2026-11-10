@@ -426,6 +426,11 @@ def execute_run_on_cluster(run_id):
         return
 
     _finish_cluster_run(run_id, experiment.pk, status)
+    # With the results stored here, the copies on the cluster are deleted.
+    try:
+        jobs.remove(ssh, workdir)
+    except Exception:  # noqa: BLE001 — an unreachable cluster keeps them until a retry
+        logger.warning("could not remove %s from the cluster", workdir, exc_info=True)
 
 
 def _watch(ssh, run_id, experiment_pk, workdir, job_id) -> dict:

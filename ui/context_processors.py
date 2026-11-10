@@ -77,6 +77,14 @@ def offered_languages(request):
     return {"offered_languages": settings.OFFERED_LANGUAGES}
 
 
+def legal(request):
+    """`legal` tells the footer which of the deployment's legal pages exist,
+    and gives an empty mapping while both hooks are unset."""
+    links = {"imprint": bool(settings.LEGAL_PAGES), "privacy": bool(settings.LEGAL_PAGES),
+             "terms": bool(settings.ACCOUNT_AGREEMENT)}
+    return {"legal_links": links if any(links.values()) else {}}
+
+
 def capabilities(request):
     """`capabilities` exposes instance-wide permissions to the layout.
     """

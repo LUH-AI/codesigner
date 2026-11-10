@@ -119,7 +119,8 @@ def test_the_language_route_is_reachable_before_signing_in(client, hosted):
 
 def test_the_url_space_has_no_unintended_exemptions(hosted):
     """The wall is default-closed, so every exemption listed here is
-    deliberate: the pages that set a password come before any session."""
+    deliberate: the pages that set a password come before any session, and the
+    legal texts are for everybody."""
     exempt = set()
     for pattern in get_resolver().url_patterns:
         for route in getattr(pattern, "url_patterns", [pattern]):
@@ -128,7 +129,7 @@ def test_the_url_space_has_no_unintended_exemptions(hosted):
                 exempt.add(route.name)
 
     assert exempt == {"healthz", "set_language", "login", "first_password", "account_setup",
-                      "password_forgot"}
+                      "password_forgot", "imprint", "privacy", "terms"}
 
 
 def test_the_health_check_answers_over_plain_http_behind_tls(client, settings):

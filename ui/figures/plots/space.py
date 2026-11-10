@@ -2,11 +2,13 @@ import math
 
 # Immediate `gettext`, since `to_json` cannot serialize a lazy proxy.
 from django.utils.translation import gettext as _
+
 import plotly.graph_objects as go
 
 from core.projection import fit, log_hyperparameters
 
 from ...formatting import sigfigs
+from ...metric_names import metric_title
 from .style import (
     FAILURE_LINE_WIDTH_RINGED, LINE, OVERLAY, SELECTION_COLOR, failure_marks,
     selection_meta,
@@ -27,7 +29,7 @@ _INTENSITY_SCALE = [
 def _trial_hovers(result, display_metric):
     """The hover lists number, score and full configuration, since projected
     coordinates name no values."""
-    title = result.metric(display_metric).title
+    title = metric_title(result.metric(display_metric))
     return [f"Trial {t.trial}<br>{title} = {sigfigs(t.scores.get(display_metric))}<br>"
             + "<br>".join(f"{k} = {sigfigs(v)}" for k, v in sorted(t.config.items()))
             for t in result.trials]
@@ -54,7 +56,7 @@ def configuration_cube_plot(result, display_metric, config_space=None):
                        # Darker is better; only the ramp direction flips.
                        reversescale=not result.metric(display_metric).higher_is_better,
                        showscale=True,
-                       colorbar=dict(title=result.metric(display_metric).title),
+                       colorbar=dict(title=metric_title(result.metric(display_metric))),
                        # Points are opaque and ringed in the card's colour,
                        # since a blended overlap would look darker and read as a
                        # better trial.
@@ -101,7 +103,7 @@ def configuration_projection_plot(result, display_metric, method,
                   # Same ramp as the cube.
                   reversescale=not result.metric(display_metric).higher_is_better,
                   showscale=True,
-                  colorbar=dict(title=result.metric(display_metric).title),
+                  colorbar=dict(title=metric_title(result.metric(display_metric))),
                   # Opaque and ringed for the same reason as the cube.
                   opacity=1, line=dict(width=1, color="#FFFFFF"))
     marker.update(failure_marks(trials, size=8,
@@ -238,7 +240,7 @@ def parallel_coordinates_plot(result, display_metric, config_space=None):
             ))
 
     scores = [t.scores[display_metric] for t in trials]
-    dimensions.append(dict(label=result.metric(display_metric).title, values=scores))
+    dimensions.append(dict(label=metric_title(result.metric(display_metric)), values=scores))
 
     columns, ticks, shapes = [], [], []
     for x, dimension in enumerate(dimensions):
@@ -293,7 +295,7 @@ def parallel_coordinates_plot(result, display_metric, config_space=None):
         marker=dict(color=[lo, hi], colorscale=_INTENSITY_SCALE, cmin=lo, cmax=hi,
                     reversescale=not metric.higher_is_better,
                     showscale=True, opacity=0,
-                    colorbar=dict(title=result.metric(display_metric).title)),
+                    colorbar=dict(title=metric_title(result.metric(display_metric)))),
     ))
     # The highlight trace comes last and the page fills it.
     fig.add_trace(go.Scatter(

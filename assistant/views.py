@@ -1,9 +1,5 @@
-"""`assistant.views` serves the page chat: `message` takes a message, and
-`events` streams what follows as server-sent events. A reconnecting browser
-sends `Last-Event-ID` and resumes after that id; each stream closes after
-`.ASSISTANT_STREAM_SECONDS`. Under WSGI (the development server) each stream
-occupies a thread. Without the stream's Accept header, `events` answers
-`?after=<id>` once as JSON.
+"""`events` streams a chat's events, resumes after `Last-Event-ID` and closes
+after `.ASSISTANT_STREAM_SECONDS`. Under WSGI each stream occupies a thread.
 """
 
 from __future__ import annotations
@@ -14,6 +10,7 @@ import time
 from django.conf import settings
 from django.core.exceptions import PermissionDenied
 from django.http import Http404, HttpResponseBadRequest, JsonResponse, StreamingHttpResponse
+from django.utils.translation import gettext as _
 from django.views.decorators.http import require_GET, require_POST
 
 from access.policy import VIEW
@@ -23,18 +20,17 @@ from ui.permissions import BOTH, resolve_experiment
 from . import turns
 from .models import AssistantEvent, Conversation
 
-#: `MAX_MESSAGE` caps a message, in characters.
+#: `MAX_MESSAGE` counts characters.
 MAX_MESSAGE = 4000
 POLL_SECONDS = 0.3
-#: `KEEP_ALIVE_SECONDS` spaces an idle stream's keep-alive comments.
+#: Idle-stream keep-alive interval.
 KEEP_ALIVE_SECONDS = 15.0
-#: `REPLAY` caps the events a page replays on opening.
+#: `REPLAY` caps events replayed on opening.
 REPLAY = 300
 
 
 def on_for(request) -> bool:
-    """`on_for` checks both the instance switch and the person's own (Settings →
-    Appearance)."""
+    """`on_for` checks the instance switch and the person's own."""
     from ui.times import assistant_on
 
     return settings.ASSISTANT_ENABLED and assistant_on(request.user)
@@ -51,14 +47,11 @@ def _owner(request):
 
 
 def conversations_of(request):
-    """`conversations_of` returns the person's conversations, or every ownerless
-    one."""
+    """Anonymous requests get every ownerless conversation."""
     return Conversation.objects.filter(owner=_owner(request))
 
 
 def conversation_for_page(request, experiment_id=None):
-    """With *experiment_id*, `conversation_for_page` returns that experiment's
-    newest conversation, and otherwise the newest planning one."""
     found = conversations_of(request)
     if experiment_id is not None:
         found = found.filter(experiment_id=experiment_id)
@@ -67,16 +60,13 @@ def conversation_for_page(request, experiment_id=None):
     return found.order_by("-updated_at").first()
 
 
-#: `VISITOR` is another experiment's chat that brought the person here and
-#: offers Return.
+#: `VISITOR` names another experiment's chat that led here.
 GENERAL, OWN, VISITOR = "general", "experiment", "visitor"
 
 
 def chats_context(request, experiment_id=None, url_name="") -> dict:
-    """`general` is the general chat, shown full-page on the home page. `tabs`
-    are the dock's tabs in order, minus the general chat on the home page.
-    `active` is the last busy tab, else the last tab, and `fill` comes from the
-    page's own chat's plan."""
+    """On the home page, `chats_context` shows the general chat full-page
+    instead of as a tab."""
     own_conversation = None
     general = _tab(request, GENERAL, conversation_for_page(request))
     tabs = [] if url_name == "ui:home" else [general]
@@ -93,9 +83,7 @@ def chats_context(request, experiment_id=None, url_name="") -> dict:
 
 
 def _tab(request, key, conversation, experiment_id=None, return_path="") -> dict:
-    """`_tab` describes one chat's tab: its conversation, where its replay
-    starts, and its experiment. A planning tab also carries the dataset, demos
-    and groups."""
+    """A planning `_tab` also carries the dataset, demos and groups."""
     from experiments.models import Experiment
 
     if conversation is not None:
@@ -133,8 +121,8 @@ def _tab(request, key, conversation, experiment_id=None, return_path="") -> dict
 
 
 def _visitor(request, experiment_id):
-    """`_visitor` returns the visitor's tab or None. The visit ends on the
-    visitor's experiment or once the person loses the chat."""
+    """`_visitor` ends the visit on the visitor's experiment or when the chat is
+    gone."""
     from .models import BrowserPage
 
     if not request.session.session_key:
@@ -157,8 +145,6 @@ def end_visit(browser: str) -> None:
 
 
 def home_of(conversation) -> str:
-    """`home_of` returns a draft's setup page and otherwise the experiment
-    dashboard."""
     from django.urls import reverse
 
     from ui import setup_steps as steps
@@ -171,8 +157,7 @@ def home_of(conversation) -> str:
 
 
 def _fill(conversation, url_name) -> list:
-    """`_fill` fills a setup step until saved, since then the values are the
-    person's, and the run form until the first run."""
+    """`_fill` skips saved setup steps, whose values are the person's."""
     from ui import setup_steps as steps
 
     from .plan import RUN, fill_for
@@ -208,8 +193,7 @@ def replay_from(conversation) -> int:
 
 @require_POST
 def message(request):
-    """`message` starts a turn in *conversation*, or a new one, and answers 409
-    while busy."""
+    """`message` answers 409 while a turn runs."""
     _enabled(request)
     text = (request.POST.get("text") or "").strip()
     if not text:
@@ -237,10 +221,8 @@ def message(request):
 
 @require_POST
 def dataset(request):
-    """`dataset` keeps the planning dataset, a demo or an upload, on the
-    conversation after `.check_dataset`; `approve` makes the draft later. With
-    `clear`, `dataset` drops the dataset. A conversation past planning gets a
-    400."""
+    """`dataset` only stores the chosen dataset on the conversation; `approve`
+    makes the draft later."""
     from ui import drafts
 
     from .loop import emit
@@ -248,7 +230,7 @@ def dataset(request):
     _enabled(request)
     conversation = _conversation(request) or _new_conversation(request)
     if conversation.phase != Conversation.PLANNING:
-        return JsonResponse({"error": "This conversation's plan is approved."}, status=400)
+        return JsonResponse({"error": _("This conversation's plan is approved.")}, status=400)
     if request.POST.get("clear"):
         conversation.forget_dataset()
         conversation.save()
@@ -274,9 +256,8 @@ def dataset(request):
 
 @require_POST
 def approve(request):
-    """`approve` checks the plan against the setup forms, then makes the
-    person's draft and stages the dataset on it as setup step 1 would. The
-    conversation moves to the setup phase. No tool reaches `approve`."""
+    """`approve` stages the dataset on a new draft as setup step 1 would. No
+    tool reaches `approve`."""
     from django.core.files import File
 
     from ui import drafts
@@ -292,9 +273,9 @@ def approve(request):
     if conversation is None:
         raise Http404
     if conversation.phase != Conversation.PLANNING:
-        return JsonResponse({"problems": ["There is no plan to approve."]}, status=400)
+        return JsonResponse({"problems": [_("There is no plan to approve.")]}, status=400)
     if turns.busy(conversation):
-        return JsonResponse({"problems": ["The assistant is still answering."]}, status=409)
+        return JsonResponse({"problems": [_("The assistant is still answering.")]}, status=409)
     found = plans.problems(conversation.plan, request, conversation.dataset_path(),
                            conversation.group_id)
     if found:
@@ -329,10 +310,8 @@ def approve(request):
 
 @require_POST
 def reset(request):
-    """`reset` deletes a planning chat and its dataset. `reset` replaces a chat
-    about an experiment with an empty one of the same stage and plan, so the
-    setup forms stay filled. The experiment, its notes and the `.AgentAction`
-    records stay."""
+    """`reset` replaces an experiment's chat with an empty one of the same phase
+    and plan, which keeps the setup forms filled."""
     from .models import BrowserPage
 
     _enabled(request)
@@ -340,7 +319,7 @@ def reset(request):
     if conversation is None:
         return JsonResponse({"reset": True})
     if turns.busy(conversation):
-        return JsonResponse({"error": "The assistant is still answering."}, status=409)
+        return JsonResponse({"error": _("The assistant is still answering.")}, status=409)
     if conversation.phase == Conversation.PLANNING:
         conversation.forget_dataset()
         conversation.delete()
@@ -372,8 +351,8 @@ def back(request):
 
 @require_GET
 def window(request):
-    """`window` pops the chat out into its own window: *conversation*, else
-    *experiment*'s, else the general one."""
+    """`window` pops out *conversation*, else *experiment*'s chat, else the
+    general chat."""
     from django.shortcuts import render
 
     _enabled(request)
@@ -411,8 +390,7 @@ def note_browser(request, conversation) -> None:
 
 
 def _conversation(request):
-    """`_conversation` returns the POST's conversation or None, and raises
-    `.Http404` for another person's."""
+    """`_conversation` raises `.Http404` for another person's conversation."""
     if not request.POST.get("conversation"):
         return None
     found = conversations_of(request).filter(pk=_int(request.POST["conversation"])).first()
@@ -422,8 +400,6 @@ def _conversation(request):
 
 
 def _new_conversation(request, experiment=None):
-    """`_new_conversation` picks the setup or dashboard phase for *experiment*,
-    else planning."""
     if settings.REQUIRE_LOGIN and not request.session.session_key:
         request.session.save()
     phase = Conversation.PLANNING
@@ -512,16 +488,15 @@ def _int(value) -> int:
         raise Http404
 
 
-#: `PAGE_ITEMS` caps a page report's fields and named elements.
+#: `PAGE_ITEMS` caps each reported list.
 PAGE_ITEMS = 300
-#: `PAGE_VALUE` caps each reported field value.
+#: `PAGE_VALUE` caps reported values.
 PAGE_VALUE = 500
 
 
 @require_POST
 def page(request):
-    """`page` stores what the open page reports: its path, title, fields and
-    named elements (`.acts`). Pages send the report as JSON on opening and on
+    """`page` stores the open page's report, which pages send on opening and on
     reuse."""
     import json as _json
 
@@ -576,8 +551,7 @@ def _clipped(items) -> list:
 
 
 def _view(view) -> dict:
-    """`_view` keeps figure tabs and trials table fields `.BrowserPage.view`
-    names, plain and bounded."""
+    """`_view` only keeps the fields `.BrowserPage.view` names."""
     if not isinstance(view, dict):
         return {}
 
@@ -609,8 +583,7 @@ def _view(view) -> dict:
 
 @require_GET
 def acts(request):
-    """`acts` streams the browser's pending actions, then each new one, as
-    server-sent events."""
+    """`acts` streams pending browser actions as server-sent events."""
     _enabled(request)
     browser = browser_of(request)
     from django.core.handlers.asgi import ASGIRequest
@@ -622,7 +595,7 @@ def acts(request):
     return response
 
 
-#: `SEEN_SECONDS` spaces the acts stream's `seen_at` updates.
+#: `SEEN_SECONDS` spaces `seen_at` updates.
 SEEN_SECONDS = 10.0
 
 
@@ -691,7 +664,6 @@ async def _async_acts(browser):
 
 @require_POST
 def acted(request):
-    """`acted` records how a page's action went."""
     from .models import ClientAct
 
     _enabled(request)
