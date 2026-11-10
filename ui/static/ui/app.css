@@ -178,6 +178,9 @@ body.signin { display: block; background: var(--rail-bg); }
 .signin-locale select { width: auto; }
 .signin-panel > .caption, .signin-signout { margin-top: 0.75rem; text-align: center; }
 .signin-panel .agreement { max-height: 40vh; overflow: auto; margin-bottom: 1rem; }
+.signin-panel.wide { max-width: 30rem; }
+.signin-panel .legal-notice { margin-bottom: 1rem; }
+.password-rules { margin: 0.4rem 0 0; padding-left: 1.1rem; font-size: 0.8rem; line-height: 1.4; }
 .signin-panel.legal { max-width: 46rem; margin-top: 6vh; }
 .legal-text h2 { margin-top: 1.5rem; }
 .legal-text table { border-collapse: collapse; width: 100%; }

@@ -8,7 +8,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: PACKAGE VERSION\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2026-11-10 11:49+0000\n"
+"POT-Creation-Date: 2026-11-10 14:59+0000\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
 "Language-Team: LANGUAGE <LL@li.org>\n"
@@ -28,16 +28,16 @@ msgstr "No hay ningún grupo llamado «%(name)s»."
 msgid "%(who)s is not in %(group)s."
 msgstr "%(who)s no está en %(group)s."
 
-#: access/models.py:99 access/services/groups.py:80
+#: access/models.py:100 access/services/groups.py:80
 #: access/services/groups.py:81
 msgid "Member"
 msgstr "Miembro"
 
-#: access/models.py:99 access/services/groups.py:80
+#: access/models.py:100 access/services/groups.py:80
 msgid "Group lead"
 msgstr "Dirección del grupo"
 
-#: access/models.py:100
+#: access/models.py:101
 msgid "Primary group lead"
 msgstr "Dirección principal"
 
@@ -51,8 +51,8 @@ msgid ""
 "Added %(name)s to %(group)s. They choose their password the first time they "
 "sign in with this email address."
 msgstr ""
-"%(name)s se ha añadido a %(group)s. La contraseña se elige al iniciar sesión"
-" por primera vez con esta dirección de correo."
+"%(name)s se ha añadido a %(group)s. La contraseña se elige al iniciar sesión "
+"por primera vez con esta dirección de correo."
 
 #: access/onboarding.py:49
 #, python-format
@@ -65,18 +65,18 @@ msgid "%(name)s chooses a new password the next time they sign in."
 msgstr ""
 "%(name)s elegirá una contraseña nueva al iniciar sesión la próxima vez."
 
-#: access/policy.py:329
+#: access/policy.py:330
 #, python-format
 msgid "%(user)s is not allowed to run custom models here."
 msgstr "%(user)s no puede ejecutar modelos propios aquí."
 
-#: access/policy.py:330
+#: access/policy.py:331
 msgid ""
 "This experiment's custom model has no account behind it, so it cannot be "
 "run. Give the experiment an owner who is allowed to run custom models."
 msgstr ""
-"El modelo propio de este experimento no tiene ninguna cuenta detrás, así que"
-" no puede ejecutarse. Asigne al experimento una persona propietaria con "
+"El modelo propio de este experimento no tiene ninguna cuenta detrás, así que "
+"no puede ejecutarse. Asigne al experimento una persona propietaria con "
 "permiso para ejecutar modelos propios."
 
 #: access/services/groups.py:24
@@ -122,8 +122,8 @@ msgstr "Indique a quién quiere añadir."
 #: access/services/groups.py:100
 #, python-format
 msgid ""
-"%(group)s is full: %(limit)s of %(limit)s seats used. A site admin can raise"
-" the limit."
+"%(group)s is full: %(limit)s of %(limit)s seats used. A site admin can raise "
+"the limit."
 msgstr ""
 "%(group)s está lleno: %(limit)s de %(limit)s plazas ocupadas. La "
 "administración del sitio puede subir el límite."
@@ -144,8 +144,8 @@ msgstr "No puede quitarse a sí mismo de su propio grupo."
 #: access/services/groups.py:122
 #, python-format
 msgid ""
-"%(name)s is the primary lead. The role has to be transferred before they can"
-" leave."
+"%(name)s is the primary lead. The role has to be transferred before they can "
+"leave."
 msgstr ""
 "%(name)s es la dirección principal. El rol debe transferirse antes de que "
 "pueda salir."
@@ -189,12 +189,12 @@ msgstr ""
 msgid "There is no account for %(who)s."
 msgstr "No hay ninguna cuenta para %(who)s."
 
-#: access/services/users.py:65
+#: access/services/users.py:66
 #, python-format
 msgid "A display name needs at least %(n)s characters."
 msgstr "Un nombre visible necesita al menos %(n)s caracteres."
 
-#: access/services/users.py:85
+#: access/services/users.py:86
 #, python-format
 msgid ""
 "%(who)s still owns experiments, so this account cannot be deleted. "
@@ -204,7 +204,7 @@ msgstr ""
 "eliminar. Desactívela en su lugar, o entregue primero los experimentos a "
 "otra persona."
 
-#: access/services/users.py:106
+#: access/services/users.py:107
 #, python-format
 msgid ""
 "%(who)s is the primary lead of %(groups)s. Make somebody else primary lead "
@@ -213,22 +213,22 @@ msgstr ""
 "%(who)s es la dirección principal de %(groups)s. Nombre primero a otra "
 "persona dirección principal."
 
-#: access/services/users.py:127
+#: access/services/users.py:128
 #, python-format
 msgid ""
-"You are the primary lead of %(group)s and nobody else there is a group lead."
-" Make somebody a group lead first, so the group is not left without one."
+"You are the primary lead of %(group)s and nobody else there is a group lead. "
+"Make somebody a group lead first, so the group is not left without one."
 msgstr ""
 "Usted es la dirección principal de %(group)s y nadie más allí dirige el "
 "grupo. Nombre primero a alguien dirección del grupo, para que el grupo no "
 "quede sin ella."
 
-#: access/services/users.py:179
+#: access/services/users.py:180
 #, python-format
 msgid "%(address)s is not an email address."
 msgstr "%(address)s no es una dirección de correo electrónico."
 
-#: access/services/users.py:185
+#: access/services/users.py:186
 #, python-format
 msgid "Another account already uses %(address)s."
 msgstr "Otra cuenta ya usa %(address)s."
@@ -285,8 +285,8 @@ msgstr ""
 "La respuesta de arriba citaba {keys}, que no está en la biblioteca del "
 "asistente. Se ha retirado; sigue una respuesta corregida."
 
-#: assistant/templates/assistant/_chat.html:43 assistant/views.py:298
-#: assistant/views.py:344
+#: assistant/templates/assistant/_chat.html:43 assistant/views.py:278
+#: assistant/views.py:322
 msgid "The assistant is still answering."
 msgstr "El asistente todavía está respondiendo."
 
@@ -433,8 +433,8 @@ msgstr "Mensaje para el asistente"
 #: assistant/templates/assistant/_chat.html:117
 msgid ""
 "Upload a dataset and enter a prompt to get started optimizing with your "
-"Design Assistant, or create a new experiment yourself by clicking “+ New” in"
-" the sidebar."
+"Design Assistant, or create a new experiment yourself by clicking “+ New” in "
+"the sidebar."
 msgstr ""
 "Suba un conjunto de datos y escriba una petición para empezar a optimizar "
 "con su asistente de diseño, o cree usted mismo un experimento nuevo con «+ "
@@ -465,8 +465,7 @@ msgid "Reset the conversation?"
 msgstr "¿Reiniciar la conversación?"
 
 #: assistant/templates/assistant/_chat.html:126
-msgid ""
-"This deletes the chat and the dataset given to it. It cannot be undone."
+msgid "This deletes the chat and the dataset given to it. It cannot be undone."
 msgstr ""
 "Esto elimina el chat y el conjunto de datos que se le dio. No se puede "
 "deshacer."
@@ -477,12 +476,11 @@ msgid ""
 "This deletes the chat about %(name)s and starts an empty one. The "
 "experiment, its notes and its plan stay. It cannot be undone."
 msgstr ""
-"Esto elimina el chat sobre %(name)s y empieza uno vacío. El experimento, sus"
-" notas y su plan se conservan. No se puede deshacer."
+"Esto elimina el chat sobre %(name)s y empieza uno vacío. El experimento, sus "
+"notas y su plan se conservan. No se puede deshacer."
 
 #: assistant/templates/assistant/_chat.html:129
-#: ui/templates/ui/_confirm_page.html:33
-#: ui/templates/ui/account_delete.html:27
+#: ui/templates/ui/_confirm_page.html:33 ui/templates/ui/account_delete.html:27
 msgid "Cancel"
 msgstr "Cancelar"
 
@@ -523,11 +521,11 @@ msgstr "Este experimento"
 msgid "Return to %(name)s"
 msgstr "Volver a %(name)s"
 
-#: assistant/views.py:252
+#: assistant/views.py:233
 msgid "This conversation's plan is approved."
 msgstr "El plan de esta conversación ya está aprobado."
 
-#: assistant/views.py:296
+#: assistant/views.py:276
 msgid "There is no plan to approve."
 msgstr "No hay ningún plan que aprobar."
 
@@ -549,38 +547,36 @@ msgstr "El experimento %(id)s no está en la papelera del sitio."
 msgid "Untitled Experiment"
 msgstr "Experimento sin título"
 
-#: experiments/models.py:171 experiments/models.py:269
+#: experiments/models.py:172 experiments/models.py:270
 msgid "Viewer"
 msgstr "Lector"
 
-#: experiments/models.py:171 experiments/models.py:271
+#: experiments/models.py:172 experiments/models.py:272
 msgid "Contributor"
 msgstr "Colaborador"
 
-#: experiments/models.py:306
+#: experiments/models.py:307
 msgid "The owner already has every kind of access."
 msgstr "El propietario ya tiene todo tipo de acceso."
 
-#: experiments/models.py:312
+#: experiments/models.py:313
 #, python-format
 msgid ""
-"%(user)s is not in this experiment's group, so it cannot be shared with "
-"them."
+"%(user)s is not in this experiment's group, so it cannot be shared with them."
 msgstr ""
 "%(user)s no está en el grupo de este experimento, así que no se puede "
 "compartir con esa persona."
 
 #: experiments/services/model_export.py:24
 msgid ""
-"This forecast's dataset is not on this instance, and the exported file needs"
-" to know how its columns were read."
+"This forecast's dataset is not on this instance, and the exported file needs "
+"to know how its columns were read."
 msgstr ""
 "El conjunto de datos de este pronóstico no está en esta instancia, y el "
 "archivo exportado necesita saber cómo se leyeron sus columnas."
 
 #: experiments/services/model_export.py:28
-msgid ""
-"This experiment's model file is missing, so there is nothing to export."
+msgid "This experiment's model file is missing, so there is nothing to export."
 msgstr ""
 "Falta el archivo del modelo de este experimento, así que no hay nada que "
 "exportar."
@@ -629,8 +625,8 @@ msgstr "Los modelos propios están desactivados en esta instancia."
 
 #: experiments/services/processing.py:18
 msgid ""
-"This experiment has trials, and they were scored on its columns processed as"
-" they are now; changing that would make the next ones incomparable."
+"This experiment has trials, and they were scored on its columns processed as "
+"they are now; changing that would make the next ones incomparable."
 msgstr ""
 "Este experimento tiene pruebas, y se puntuaron con sus columnas procesadas "
 "como lo están ahora; cambiarlo haría que las siguientes no fueran "
@@ -664,9 +660,9 @@ msgid ""
 "take %(used)s of its %(limit)s. Delete experiments it no longer needs, or "
 "ask a site administrator for more."
 msgstr ""
-"%(group)s no tiene espacio para esto: solo sus conjuntos de datos y archivos"
-" de modelo ocuparían %(used)s de sus %(limit)s. Elimine los experimentos que"
-" ya no necesite, o pida más a la administración del sitio."
+"%(group)s no tiene espacio para esto: solo sus conjuntos de datos y archivos "
+"de modelo ocuparían %(used)s de sus %(limit)s. Elimine los experimentos que "
+"ya no necesite, o pida más a la administración del sitio."
 
 #: ui/drafts.py:74
 #, python-format
@@ -674,15 +670,14 @@ msgid ""
 "To make room in %(group)s, %(n)s kept trial model was deleted, the stalest "
 "first. It now uses %(used)s of %(limit)s."
 msgid_plural ""
-"To make room in %(group)s, %(n)s kept trial models were deleted, the stalest"
-" first. It now uses %(used)s of %(limit)s."
+"To make room in %(group)s, %(n)s kept trial models were deleted, the stalest "
+"first. It now uses %(used)s of %(limit)s."
 msgstr[0] ""
-"Para hacer sitio en %(group)s, se eliminó %(n)s modelo de prueba conservado,"
-" empezando por el más antiguo. Ahora usa %(used)s de %(limit)s."
+"Para hacer sitio en %(group)s, se eliminó %(n)s modelo de prueba conservado, "
+"empezando por el más antiguo. Ahora usa %(used)s de %(limit)s."
 msgstr[1] ""
 "Para hacer sitio en %(group)s, se eliminaron %(n)s modelos de pruebas "
-"conservados, empezando por los más antiguos. Ahora usa %(used)s de "
-"%(limit)s."
+"conservados, empezando por los más antiguos. Ahora usa %(used)s de %(limit)s."
 
 #: ui/drafts.py:87
 msgid "This draft's first step is saved: change its dataset there."
@@ -850,8 +845,8 @@ msgid ""
 "Each column as numeric, categorical, datetime, text or identifier, as "
 "detected."
 msgstr ""
-"Cada columna como numérica, categórica, fecha y hora, texto o identificador,"
-" según se detectó."
+"Cada columna como numérica, categórica, fecha y hora, texto o identificador, "
+"según se detectó."
 
 #: ui/figures/data_handling.py:44
 msgid "Where values are missing"
@@ -921,8 +916,8 @@ msgstr "Roles"
 
 #: ui/figures/data_handling.py:60
 msgid ""
-"Mark the time column, the series identifier for many series in one file, and"
-" the group column for grouped splits."
+"Mark the time column, the series identifier for many series in one file, and "
+"the group column for grouped splits."
 msgstr ""
 "Marcar la columna de tiempo, el identificador de serie cuando hay muchas "
 "series en un archivo y la columna de grupo para divisiones agrupadas."
@@ -933,8 +928,8 @@ msgstr "Conocidos de antemano"
 
 #: ui/figures/data_handling.py:62
 msgid ""
-"For forecasting: which features are known ahead of time (a holiday calendar)"
-" and which only up to now (yesterday's sales)."
+"For forecasting: which features are known ahead of time (a holiday calendar) "
+"and which only up to now (yesterday's sales)."
 msgstr ""
 "Para pronóstico: qué atributos se conocen de antemano (un calendario de "
 "festivos) y cuáles solo hasta ahora (las ventas de ayer)."
@@ -948,8 +943,7 @@ msgid "Missing-value patterns"
 msgstr "Patrones de valores faltantes"
 
 #: ui/figures/data_handling.py:70
-msgid ""
-"Whether gaps are random or cluster in certain rows, columns or classes."
+msgid "Whether gaps are random or cluster in certain rows, columns or classes."
 msgstr ""
 "Si los huecos son aleatorios o se concentran en ciertas filas, columnas o "
 "clases."
@@ -962,8 +956,8 @@ msgstr "Duplicados"
 msgid ""
 "Exact and near-duplicate rows, and duplicates that disagree on the target."
 msgstr ""
-"Filas duplicadas exactas y casi duplicadas, y duplicados que discrepan en el"
-" objetivo."
+"Filas duplicadas exactas y casi duplicadas, y duplicados que discrepan en el "
+"objetivo."
 
 #: ui/figures/data_handling.py:74
 msgid "Constant columns"
@@ -989,8 +983,8 @@ msgstr "Desequilibrio de clases"
 msgid ""
 "How rare the rarest class is, and what that does to accuracy as a metric."
 msgstr ""
-"Lo rara que es la clase más rara, y lo que eso supone para la exactitud como"
-" métrica."
+"Lo rara que es la clase más rara, y lo que eso supone para la exactitud como "
+"métrica."
 
 #: ui/figures/data_handling.py:80
 msgid "Label noise"
@@ -1019,8 +1013,7 @@ msgstr "Solapamiento entre entrenamiento y test"
 #: ui/figures/data_handling.py:84
 msgid "The same row on both sides of a split, which flatters every score."
 msgstr ""
-"La misma fila a ambos lados de una división, lo que favorece toda "
-"puntuación."
+"La misma fila a ambos lados de una división, lo que favorece toda puntuación."
 
 #: ui/figures/data_handling.py:89
 msgid "Cleaning"
@@ -1047,8 +1040,8 @@ msgstr "Imputación"
 #: ui/figures/data_handling.py:95
 msgid "Fill gaps with a column's mean, a constant, or from the nearest rows."
 msgstr ""
-"Rellenar huecos con la media de una columna, una constante o a partir de las"
-" filas más cercanas."
+"Rellenar huecos con la media de una columna, una constante o a partir de las "
+"filas más cercanas."
 
 #: ui/figures/data_handling.py:97
 msgid "Drop rows or columns"
@@ -1058,8 +1051,8 @@ msgstr "Descartar filas o columnas"
 msgid ""
 "Leave out rows or columns over a threshold of missing values, or by hand."
 msgstr ""
-"Dejar fuera las filas o columnas que superen un umbral de valores faltantes,"
-" o a mano."
+"Dejar fuera las filas o columnas que superen un umbral de valores faltantes, "
+"o a mano."
 
 #: ui/figures/data_handling.py:99
 msgid "De-duplication"
@@ -1084,8 +1077,7 @@ msgstr "Conversión de tipos"
 #: ui/figures/data_handling.py:102
 msgid "Read numbers written as text, dates in a given format, decimal commas."
 msgstr ""
-"Leer números escritos como texto, fechas en un formato dado, comas "
-"decimales."
+"Leer números escritos como texto, fechas en un formato dado, comas decimales."
 
 #: ui/figures/data_handling.py:104
 msgid "Value mapping"
@@ -1159,8 +1151,8 @@ msgstr "Atributos de calendario"
 #: ui/figures/data_handling.py:122
 msgid "Year, month, weekday, hour, holidays from a datetime column."
 msgstr ""
-"Año, mes, día de la semana, hora y festivos a partir de una columna de fecha"
-" y hora."
+"Año, mes, día de la semana, hora y festivos a partir de una columna de fecha "
+"y hora."
 
 #: ui/figures/data_handling.py:124
 msgid "Interactions"
@@ -1168,8 +1160,7 @@ msgstr "Interacciones"
 
 #: ui/figures/data_handling.py:124
 msgid "Products, ratios and polynomial features of chosen columns."
-msgstr ""
-"Productos, cocientes y atributos polinómicos de las columnas elegidas."
+msgstr "Productos, cocientes y atributos polinómicos de las columnas elegidas."
 
 #: ui/figures/data_handling.py:126
 msgid "Lags and windows"
@@ -1178,8 +1169,7 @@ msgstr "Retardos y ventanas"
 #: ui/figures/data_handling.py:126
 msgid "Earlier values and rolling statistics, for data ordered in time."
 msgstr ""
-"Valores anteriores y estadísticas móviles, para datos ordenados en el "
-"tiempo."
+"Valores anteriores y estadísticas móviles, para datos ordenados en el tiempo."
 
 #: ui/figures/data_handling.py:128
 msgid "Feature selection"
@@ -1238,8 +1228,8 @@ msgid ""
 "New rows drawn from a model of the dataset's joint distribution, such as a "
 "Gaussian copula."
 msgstr ""
-"Filas nuevas extraídas de un modelo de la distribución conjunta del conjunto"
-" de datos, como una cópula gaussiana."
+"Filas nuevas extraídas de un modelo de la distribución conjunta del conjunto "
+"de datos, como una cópula gaussiana."
 
 #: ui/figures/data_handling.py:141
 msgid "Time-series augmentation"
@@ -1279,8 +1269,7 @@ msgid "Fold preview"
 msgstr "Vista previa de los pliegues"
 
 #: ui/figures/data_handling.py:151
-msgid ""
-"Each fold's size, its class balance or target range, and its time span."
+msgid "Each fold's size, its class balance or target range, and its time span."
 msgstr ""
 "El tamaño de cada pliegue, su equilibrio de clases o rango del objetivo, y "
 "su intervalo de tiempo."
@@ -1295,8 +1284,8 @@ msgstr "Reemplazar"
 
 #: ui/figures/data_handling.py:158
 msgid ""
-"Upload a new version of the dataset, checked against the columns the old one"
-" had."
+"Upload a new version of the dataset, checked against the columns the old one "
+"had."
 msgstr ""
 "Subir una nueva versión del conjunto de datos, comprobada frente a las "
 "columnas que tenía la anterior."
@@ -1364,8 +1353,7 @@ msgstr "Diferencias"
 
 #: ui/figures/data_handling.py:174
 msgid "Rows and columns added, removed or changed between two versions."
-msgstr ""
-"Filas y columnas añadidas, eliminadas o cambiadas entre dos versiones."
+msgstr "Filas y columnas añadidas, eliminadas o cambiadas entre dos versiones."
 
 #: ui/figures/data_handling.py:176 ui/navigation.py:53
 #: ui/templates/ui/base.html:83 ui/templates/ui/export_confirm.html:50
@@ -1426,8 +1414,7 @@ msgstr "Aún por ganar"
 msgid "Achievable gain"
 msgstr "Ganancia alcanzable"
 
-#: ui/figures/plots/importance.py:114
-#: ui/templates/ui/_side_explanation.html:43
+#: ui/figures/plots/importance.py:114 ui/templates/ui/_side_explanation.html:43
 #: ui/templates/ui/figures/_importance_table.html:19
 #: ui/templates/ui/figures/hyperparameter_importance.html:31
 msgid "Default"
@@ -1557,8 +1544,7 @@ msgid "Best sampled, weighted"
 msgstr "Mejor muestreado, ponderado"
 
 #: ui/figures/plots/surrogate.py:152 ui/figures/plots/surrogate.py:184
-#: ui/templates/ui/figures/configuration_cube.html:83
-#: ui/views/dashboard.py:218
+#: ui/templates/ui/figures/configuration_cube.html:83 ui/views/dashboard.py:218
 msgid "Acquisition"
 msgstr "Adquisición"
 
@@ -1622,8 +1608,8 @@ msgid ""
 msgstr ""
 "Cada backtest entrena con todo lo anterior a un origen y pronostica el "
 "horizonte posterior; el último origen está un horizonte antes del final y "
-"cada uno anterior, un horizonte antes que el siguiente. Cuesta un ajuste del"
-" modelo por backtest."
+"cada uno anterior, un horizonte antes que el siguiente. Cuesta un ajuste del "
+"modelo por backtest."
 
 #: ui/forms.py:74
 msgid "Invalid or unreadable experiment file."
@@ -1655,13 +1641,13 @@ msgstr ""
 msgid ""
 "What the experiment predicts: one of a set of labels, or a number. Only the "
 "models that can do it are offered. Fixed once the experiment exists. To "
-"predict a series' next labels or numbers, choose backtests as the validation"
-" method."
+"predict a series' next labels or numbers, choose backtests as the validation "
+"method."
 msgstr ""
-"Lo que predice el experimento: una de un conjunto de etiquetas, o un número."
-" Solo se ofrecen los modelos capaces de hacerlo. Queda fijada en cuanto "
-"existe el experimento. Para predecir las próximas etiquetas o números de una"
-" serie, elija backtests como método de validación."
+"Lo que predice el experimento: una de un conjunto de etiquetas, o un número. "
+"Solo se ofrecen los modelos capaces de hacerlo. Queda fijada en cuanto "
+"existe el experimento. Para predecir las próximas etiquetas o números de una "
+"serie, elija backtests como método de validación."
 
 #: ui/forms.py:120 ui/forms.py:193 ui/forms.py:196
 #: ui/templates/ui/_group_picker.html:9
@@ -1685,14 +1671,14 @@ msgid ""
 msgstr ""
 "Un valor negativo elige una al azar. Gobierna cada parte estocástica del "
 "experimento: cómo se dividen los datos, la aleatoriedad del propio modelo, "
-"qué configuraciones prueba la búsqueda y los sustitutos que hay detrás de la"
-" dependencia parcial y de las explicaciones."
+"qué configuraciones prueba la búsqueda y los sustitutos que hay detrás de la "
+"dependencia parcial y de las explicaciones."
 
 #: ui/forms.py:135
 msgid ""
 "Fixed once the experiment exists: trials evaluated different ways cannot be "
-"compared with each other. Cross-validation costs one fit per fold. Backtests"
-" make the experiment a forecast: each predicts the next steps of a series "
+"compared with each other. Cross-validation costs one fit per fold. Backtests "
+"make the experiment a forecast: each predicts the next steps of a series "
 "from its past."
 msgstr ""
 "Queda fijado en cuanto existe el experimento: pruebas evaluadas de formas "
@@ -1746,8 +1732,8 @@ msgid ""
 "How many time steps ahead each forecast predicts. Each backtest forecasts "
 "this many steps from an origin one horizon later than the last."
 msgstr ""
-"Cuántos pasos de tiempo hacia delante predice cada pronóstico. Cada backtest"
-" pronostica este número de pasos desde un origen un horizonte posterior al "
+"Cuántos pasos de tiempo hacia delante predice cada pronóstico. Cada backtest "
+"pronostica este número de pasos desde un origen un horizonte posterior al "
 "del anterior."
 
 #: ui/forms.py:171
@@ -1770,11 +1756,11 @@ msgstr "Periodo estacional (pasos)"
 
 #: ui/forms.py:177
 msgid ""
-"How many steps make a season — 12 for monthly data, 7 for daily. Leave empty"
-" to infer it from the order column's spacing."
+"How many steps make a season — 12 for monthly data, 7 for daily. Leave empty "
+"to infer it from the order column's spacing."
 msgstr ""
-"Cuántos pasos forman un periodo estacional — 12 para datos mensuales, 7 para"
-" diarios. Déjelo vacío para deducirlo del espaciado de la columna de orden."
+"Cuántos pasos forman un periodo estacional — 12 para datos mensuales, 7 para "
+"diarios. Déjelo vacío para deducirlo del espaciado de la columna de orden."
 
 #: ui/forms.py:198 ui/forms.py:202
 msgid "— none —"
@@ -1814,14 +1800,14 @@ msgid ""
 "%(model)s does not forecast, so it cannot be backtested. A model file that "
 "does says so with forecaster = True."
 msgstr ""
-"%(model)s no pronostica, así que no se le pueden hacer backtests. Un archivo"
-" de modelo que sí lo hace lo indica con forecaster = True."
+"%(model)s no pronostica, así que no se le pueden hacer backtests. Un archivo "
+"de modelo que sí lo hace lo indica con forecaster = True."
 
 #: ui/forms.py:326
 msgid "A forecast needs the column its rows are ordered in time by."
 msgstr ""
-"Un pronóstico necesita la columna por la que sus filas están ordenadas en el"
-" tiempo."
+"Un pronóstico necesita la columna por la que sus filas están ordenadas en el "
+"tiempo."
 
 #: ui/forms.py:330
 msgid "A forecast needs a horizon of at least one step."
@@ -2033,8 +2019,7 @@ msgstr "Elija un optimizador."
 #: ui/optimizer_form.py:88
 #, python-format
 msgid "These settings stay as the first run had them: %(names)s."
-msgstr ""
-"Estos ajustes se quedan como los tuvo la primera ejecución: %(names)s."
+msgstr "Estos ajustes se quedan como los tuvo la primera ejecución: %(names)s."
 
 #: ui/optimizer_labels.py:13
 msgid "all the requested trials ran"
@@ -2135,9 +2120,9 @@ msgstr "Usar el mayor de los dos"
 
 #: ui/optimizer_labels.py:54
 msgid ""
-"With both caps in use, sample up to the larger rather than the smaller. SMAC"
-" itself only ever takes the smaller; the larger is worked out here and "
-"handed to it."
+"With both caps in use, sample up to the larger rather than the smaller. SMAC "
+"itself only ever takes the smaller; the larger is worked out here and handed "
+"to it."
 msgstr ""
 "Con ambos topes en uso, muestrear hasta el mayor en vez de hasta el menor. "
 "SMAC por su cuenta toma siempre el menor; el mayor se calcula aquí y se le "
@@ -2184,8 +2169,8 @@ msgid ""
 "How the model scores a candidate. Expected improvement weighs by how much "
 "better it might be; probability of improvement, only by whether."
 msgstr ""
-"Cómo puntúa el modelo a una candidata. La mejora esperada pondera por cuánto"
-" mejor podría ser; la probabilidad de mejora, solo por si lo es."
+"Cómo puntúa el modelo a una candidata. La mejora esperada pondera por cuánto "
+"mejor podría ser; la probabilidad de mejora, solo por si lo es."
 
 #: ui/optimizer_labels.py:79
 msgid "Improvement margin"
@@ -2297,8 +2282,8 @@ msgid ""
 "Share of your hyperparameters the search considers at each split of its own "
 "trees."
 msgstr ""
-"Proporción de sus hiperparámetros que la búsqueda considera en cada división"
-" de sus propios árboles."
+"Proporción de sus hiperparámetros que la búsqueda considera en cada división "
+"de sus propios árboles."
 
 #: ui/optimizer_labels.py:129
 msgid "Bootstrap the surrogate's trees"
@@ -2324,8 +2309,8 @@ msgid ""
 "kernel's own hyperparameters and averages over the result: better "
 "calibrated, and about an order of magnitude slower."
 msgstr ""
-"«Vanilla» ajusta el proceso una vez, por máxima verosimilitud. MCMC muestrea"
-" los propios hiperparámetros del núcleo y promedia el resultado: mejor "
+"«Vanilla» ajusta el proceso una vez, por máxima verosimilitud. MCMC muestrea "
+"los propios hiperparámetros del núcleo y promedia el resultado: mejor "
 "calibrado, y alrededor de un orden de magnitud más lento."
 
 #: ui/optimizer_labels.py:141
@@ -2337,8 +2322,8 @@ msgid ""
 "Attempts at fitting the process, from different starting points. More is a "
 "better fit and a slower trial."
 msgstr ""
-"Intentos de ajustar el proceso, desde distintos puntos de partida. Más es un"
-" ajuste mejor y una prueba más lenta."
+"Intentos de ajustar el proceso, desde distintos puntos de partida. Más es un "
+"ajuste mejor y una prueba más lenta."
 
 #: ui/optimizer_labels.py:146
 msgid "Normalise surrogate targets"
@@ -2406,8 +2391,8 @@ msgstr "Puntos iniciales"
 
 #: ui/optimizer_labels.py:183
 msgid ""
-"How many configurations are sampled before the model takes over. SMAC bounds"
-" this two ways at once and uses the smaller of them."
+"How many configurations are sampled before the model takes over. SMAC bounds "
+"this two ways at once and uses the smaller of them."
 msgstr ""
 "Cuántas configuraciones se muestrean antes de que el modelo tome el relevo. "
 "SMAC acota esto de dos maneras a la vez y usa la menor de ellas."
@@ -2535,8 +2520,8 @@ msgid ""
 "Download the selected trial’s fitted model, in its library’s own format: "
 "partially trained, fitted on one fold’s training rows"
 msgstr ""
-"Descargar el modelo ajustado de la prueba seleccionada, en el formato propio"
-" de su biblioteca: parcialmente entrenado, ajustado con las filas de "
+"Descargar el modelo ajustado de la prueba seleccionada, en el formato propio "
+"de su biblioteca: parcialmente entrenado, ajustado con las filas de "
 "entrenamiento de un solo pliegue"
 
 #: ui/templates/ui/_experiment_header.html:69
@@ -2600,8 +2585,8 @@ msgid ""
 "This model runs inside the application's own Python environment, not one of "
 "its own — so the dependencies it declares are ignored."
 msgstr ""
-"Este modelo se ejecuta dentro del propio entorno de Python de la aplicación,"
-" no en uno propio — por eso se ignoran las dependencias que declara."
+"Este modelo se ejecuta dentro del propio entorno de Python de la aplicación, "
+"no en uno propio — por eso se ignoran las dependencias que declara."
 
 #: ui/templates/ui/_experiment_header.html:126
 msgid "Prepare an isolated environment"
@@ -2643,8 +2628,8 @@ msgstr "Aviso legal"
 msgid "Privacy policy"
 msgstr "Política de privacidad"
 
-#: ui/templates/ui/_legal_links.html:5
-#: ui/templates/ui/account/agreement.html:4 ui/views/legal.py:33
+#: ui/templates/ui/_legal_links.html:5 ui/templates/ui/account/agreement.html:4
+#: ui/views/legal.py:33
 msgid "Terms of use"
 msgstr "Condiciones de uso"
 
@@ -2836,8 +2821,8 @@ msgid ""
 "that some untried configuration beats the best one so far. Confidence under "
 "that model, not a guarantee."
 msgstr ""
-"Pregunta al optimizador qué probabilidad le da su propio modelo del objetivo"
-" a que alguna configuración no probada supere a la mejor hasta ahora. "
+"Pregunta al optimizador qué probabilidad le da su propio modelo del objetivo "
+"a que alguna configuración no probada supere a la mejor hasta ahora. "
 "Confianza bajo ese modelo, no una garantía."
 
 #: ui/templates/ui/_side_evaluation.html:102
@@ -2859,9 +2844,9 @@ msgstr "…han fallado estas pruebas"
 #: ui/templates/ui/_side_evaluation.html:115
 msgid ""
 "A trial fails when the model raises on its configuration, runs past its "
-"deadline, or returns something that cannot be scored. It is still recorded —"
-" with its reason, and its stacktrace where there is one — and it scores what"
-" a model that knows nothing would — zero accuracy, or the error of always "
+"deadline, or returns something that cannot be scored. It is still recorded — "
+"with its reason, and its stacktrace where there is one — and it scores what "
+"a model that knows nothing would — zero accuracy, or the error of always "
 "predicting the average — so the search learns to avoid that region. Default "
 "1: the first failure is usually the one worth reading. Raise it when a "
 "search is deliberately probing a region you expect to break. At least 1."
@@ -2901,20 +2886,20 @@ msgstr "…un plazo fijado"
 #: ui/templates/ui/_side_evaluation.html:156
 msgid ""
 "The limit is on one model fit, not on a whole trial: under cross-validation "
-"a trial is one fit per fold, and each fold is given the deadline separately."
-" A fixed deadline is one number for every configuration, and nobody knows "
-"the right one before their first run. Predicted fits a forest to how long "
-"the fits already measured in this run took, and gives each new one a "
-"multiple of what it predicts for that configuration — so a large "
-"configuration gets proportionally longer instead of being killed for being "
-"large. The seconds below stay the outer bound under either."
+"a trial is one fit per fold, and each fold is given the deadline separately. "
+"A fixed deadline is one number for every configuration, and nobody knows the "
+"right one before their first run. Predicted fits a forest to how long the "
+"fits already measured in this run took, and gives each new one a multiple of "
+"what it predicts for that configuration — so a large configuration gets "
+"proportionally longer instead of being killed for being large. The seconds "
+"below stay the outer bound under either."
 msgstr ""
 "El límite se aplica a un ajuste del modelo, no a una prueba entera: bajo "
 "validación cruzada una prueba es un ajuste por pliegue, y a cada pliegue se "
 "le concede el plazo por separado. Un plazo fijo es una sola cifra para toda "
 "configuración, y nadie sabe la correcta antes de su primera ejecución. "
-"«Predicho» ajusta un bosque a lo que tardaron los ajustes ya medidos en esta"
-" ejecución y da a cada nuevo un múltiplo de lo que predice para esa "
+"«Predicho» ajusta un bosque a lo que tardaron los ajustes ya medidos en esta "
+"ejecución y da a cada nuevo un múltiplo de lo que predice para esa "
 "configuración — así una configuración grande recibe proporcionalmente más "
 "tiempo en vez de morir por ser grande. Los segundos de abajo siguen siendo "
 "el límite exterior en ambos casos."
@@ -2974,8 +2959,7 @@ msgstr ""
 
 #: ui/templates/ui/_side_explanation.html:30
 msgid "What a hyperparameter could have gained you, had it been tuned."
-msgstr ""
-"Lo que un hiperparámetro podría haberle aportado, de haberse ajustado."
+msgstr "Lo que un hiperparámetro podría haberle aportado, de haberse ajustado."
 
 #: ui/templates/ui/_side_explanation.html:40
 msgid "Compare against"
@@ -3039,14 +3023,15 @@ msgid ""
 "Custom models are switched off for this whole instance, so nobody may run "
 "one — including administrators."
 msgstr ""
-"Los modelos propios están desactivados en toda esta instancia, así que nadie"
-" puede ejecutar ninguno — tampoco la administración."
+"Los modelos propios están desactivados en toda esta instancia, así que nadie "
+"puede ejecutar ninguno — tampoco la administración."
 
 #: ui/templates/ui/account.html:48
 msgid "The site's operator grants this."
 msgstr "La administración del sitio concede esto."
 
 #: ui/templates/ui/account.html:53 ui/templates/ui/account/login.html:17
+#: ui/views/accounts.py:120
 msgid "Password"
 msgstr "Contraseña"
 
@@ -3070,8 +3055,8 @@ msgid ""
 "A zip of everything codesigner holds about you, with a file for each "
 "experiment you own."
 msgstr ""
-"Un archivo ZIP con todo lo que Codesigner guarda sobre usted, con un archivo"
-" por cada experimento que le pertenece."
+"Un archivo ZIP con todo lo que Codesigner guarda sobre usted, con un archivo "
+"por cada experimento que le pertenece."
 
 #: ui/templates/ui/account.html:65
 msgid "Download my data"
@@ -3084,36 +3069,34 @@ msgstr ""
 "administración del sitio."
 
 #: ui/templates/ui/account.html:69 ui/templates/ui/account_delete.html:4
-#: ui/templates/ui/account_delete.html:7
-#: ui/templates/ui/account_delete.html:26
+#: ui/templates/ui/account_delete.html:7 ui/templates/ui/account_delete.html:26
 msgid "Delete my account"
 msgstr "Eliminar mi cuenta"
 
-#: ui/templates/ui/account/_standalone.html:29 ui/templates/ui/base.html:67
+#: ui/templates/ui/account/_standalone.html:30 ui/templates/ui/base.html:67
 msgid "Language"
 msgstr "Idioma"
 
-#: ui/templates/ui/account/agreement.html:10
-#: ui/templates/ui/account/set_password.html:19
+#: ui/templates/ui/account/agreement.html:13
 #, python-format
 msgid ""
 "How codesigner handles your data is described in the <a "
-"href=\"%(url_privacy)s\" target=\"_blank\" rel=\"noopener\">privacy "
-"policy</a>."
+"href=\"%(url_privacy)s\" target=\"_blank\" rel=\"noopener\">privacy policy</"
+"a>."
 msgstr ""
 "Cómo trata Codesigner sus datos se describe en la <a "
 "href=\"%(url_privacy)s\" target=\"_blank\" rel=\"noopener\">política de "
 "privacidad</a>."
 
-#: ui/templates/ui/account/agreement.html:12 ui/views/accounts.py:114
+#: ui/templates/ui/account/agreement.html:15
 msgid "I accept these terms."
 msgstr "Acepto estas condiciones."
 
-#: ui/templates/ui/account/agreement.html:15
+#: ui/templates/ui/account/agreement.html:18
 msgid "Continue"
 msgstr "Continuar"
 
-#: ui/templates/ui/account/agreement.html:19 ui/templates/ui/base.html:47
+#: ui/templates/ui/account/agreement.html:22 ui/templates/ui/base.html:47
 msgid "Sign out"
 msgstr "Cerrar sesión"
 
@@ -3155,8 +3138,8 @@ msgstr "Contraseña cambiada"
 
 #: ui/templates/ui/account/password_changed.html:9
 msgid ""
-"Your password has been changed. Other browsers signed in as you will need it"
-" next time."
+"Your password has been changed. Other browsers signed in as you will need it "
+"next time."
 msgstr ""
 "Su contraseña ha cambiado. Los demás navegadores con su sesión iniciada la "
 "necesitarán la próxima vez."
@@ -3170,8 +3153,22 @@ msgid "Forgot password"
 msgstr "Contraseña olvidada"
 
 #: ui/templates/ui/account/set_password.html:32
-msgid "Set password"
-msgstr "Establecer contraseña"
+#, python-format
+msgid ""
+"Your account is subject to the <a href=\"%(url_terms)s\" target=\"_blank\" "
+"rel=\"noopener\">terms of use</a>."
+msgstr "Su cuenta está sujeta a las <a href=\"%(url_terms)s\" target=\"_blank\" rel=\"noopener\">condiciones de uso</a>."
+
+#: ui/templates/ui/account/set_password.html:33
+#, python-format
+msgid ""
+"The <a href=\"%(url_privacy)s\" target=\"_blank\" rel=\"noopener\">privacy "
+"policy</a> explains how your data is handled."
+msgstr "La <a href=\"%(url_privacy)s\" target=\"_blank\" rel=\"noopener\">política de privacidad</a> explica cómo se tratan sus datos."
+
+#: ui/templates/ui/account/set_password.html:39
+msgid "Register"
+msgstr "Registrarse"
 
 #: ui/templates/ui/account_delete.html:9
 msgid "This deletes your account and signs you out. It cannot be undone."
@@ -3183,13 +3180,12 @@ msgid ""
 "its work. In a group with nobody else, they go to the bin."
 msgstr ""
 "Los experimentos que le pertenecen pasan a la dirección principal de su "
-"grupo, para que el grupo conserve su trabajo. En un grupo sin nadie más, van"
-" a la papelera."
+"grupo, para que el grupo conserve su trabajo. En un grupo sin nadie más, van "
+"a la papelera."
 
 #: ui/templates/ui/account_delete.html:12
 msgid ""
-"If you are a group's primary lead, its longest-serving group lead takes "
-"over."
+"If you are a group's primary lead, its longest-serving group lead takes over."
 msgstr ""
 "Si usted es la dirección principal de un grupo, la asume la persona que "
 "dirige el grupo desde hace más tiempo."
@@ -3225,8 +3221,8 @@ msgstr "Desactivado"
 
 #: ui/templates/ui/appearance.html:40
 msgid ""
-"Off hides the assistant on every page. Its chats and notes are kept for when"
-" you turn it back on."
+"Off hides the assistant on every page. Its chats and notes are kept for when "
+"you turn it back on."
 msgstr ""
 "Desactivado oculta el asistente en todas las páginas. Sus chats y notas se "
 "conservan para cuando vuelva a activarlo."
@@ -3319,8 +3315,7 @@ msgstr ""
 msgid ""
 "Each stays here for %(days)s day, then goes to the site administrators' bin."
 msgid_plural ""
-"Each stays here for %(days)s days, then goes to the site administrators' "
-"bin."
+"Each stays here for %(days)s days, then goes to the site administrators' bin."
 msgstr[0] ""
 "Cada uno se queda aquí %(days)s día y luego pasa a la papelera de la "
 "administración del sitio."
@@ -3388,8 +3383,8 @@ msgstr "Quitar de su papelera"
 #: ui/templates/ui/bin_dismiss_confirm.html:9
 #, python-format
 msgid ""
-"<strong>%(name)s</strong> (<code>%(ref)s</code>) and every run in it will be"
-" destroyed. This cannot be undone."
+"<strong>%(name)s</strong> (<code>%(ref)s</code>) and every run in it will be "
+"destroyed. This cannot be undone."
 msgstr ""
 "<strong>%(name)s</strong> (<code>%(ref)s</code>) y todas sus ejecuciones se "
 "destruirán. Esto no se puede deshacer."
@@ -3417,8 +3412,8 @@ msgid ""
 "they can put it back."
 msgstr ""
 "<strong>%(name)s</strong> (<code>%(ref)s</code>) sale de su papelera. Nadie "
-"más lo tiene en la suya, así que pasa a la papelera de la administración del"
-" sitio, y solo ella puede devolverlo."
+"más lo tiene en la suya, así que pasa a la papelera de la administración del "
+"sitio, y solo ella puede devolverlo."
 
 #: ui/templates/ui/bin_dismiss_confirm.html:20
 msgid "Download .ihpo first"
@@ -3458,9 +3453,9 @@ msgstr "Eliminar %(name)s"
 #: ui/templates/ui/delete_confirm.html:8
 #, python-format
 msgid ""
-"Delete <strong>%(name)s</strong> (<code>%(ref)s</code>)? Any run still going"
-" is stopped, and it moves to the bin, where it can be restored exactly as it"
-" is now."
+"Delete <strong>%(name)s</strong> (<code>%(ref)s</code>)? Any run still going "
+"is stopped, and it moves to the bin, where it can be restored exactly as it "
+"is now."
 msgstr ""
 "¿Eliminar <strong>%(name)s</strong> (<code>%(ref)s</code>)? Cualquier "
 "ejecución en curso se detiene, y pasa a la papelera, desde donde se puede "
@@ -3470,8 +3465,7 @@ msgstr ""
 msgid "It will be in the bin of:"
 msgstr "Estará en la papelera de:"
 
-#: ui/templates/ui/delete_confirm.html:11
-#: ui/templates/ui/panels/group.html:173
+#: ui/templates/ui/delete_confirm.html:11 ui/templates/ui/panels/group.html:173
 msgid "you"
 msgstr "usted"
 
@@ -3558,8 +3552,7 @@ msgstr "Siguiente →"
 
 #: ui/templates/ui/experiment_notes.html:23
 msgid ""
-"Shared with everyone who can open this experiment, and with their "
-"assistants."
+"Shared with everyone who can open this experiment, and with their assistants."
 msgstr ""
 "Compartido con todas las personas que pueden abrir este experimento, y con "
 "sus asistentes."
@@ -3572,8 +3565,8 @@ msgstr "Último cambio de %(by)s: %(when)s"
 #: ui/templates/ui/experiment_notes.html:28
 #, python-format
 msgid ""
-"%(by)s changed the notes after you opened them. They now read as below; your"
-" text is still in the editor. Merge the two and save again."
+"%(by)s changed the notes after you opened them. They now read as below; your "
+"text is still in the editor. Merge the two and save again."
 msgstr ""
 "%(by)s cambió las notas después de que usted las abriera. Ahora dicen lo de "
 "abajo; su texto sigue en el editor. Combine ambos y vuelva a guardar."
@@ -3632,8 +3625,8 @@ msgid ""
 "How you have arranged the figures on this experiment's page. Nobody else's "
 "is affected. Experiments you have not arranged open on your default layout."
 msgstr ""
-"Cómo ha organizado las figuras en la página de este experimento. No afecta a"
-" la de nadie más. Los experimentos que no ha organizado se abren con su "
+"Cómo ha organizado las figuras en la página de este experimento. No afecta a "
+"la de nadie más. Los experimentos que no ha organizado se abren con su "
 "disposición predeterminada."
 
 #: ui/templates/ui/experiment_settings.html:44
@@ -3701,12 +3694,12 @@ msgstr[1] "Las trazas de %(n)s pruebas fallidas"
 
 #: ui/templates/ui/export_confirm.html:45
 msgid ""
-"A stacktrace names absolute paths on this machine, the packages installed on"
-" it and their versions. Without them the failed trials are still in the "
-"file, with the one-line reason each of them failed."
+"A stacktrace names absolute paths on this machine, the packages installed on "
+"it and their versions. Without them the failed trials are still in the file, "
+"with the one-line reason each of them failed."
 msgstr ""
-"Una traza nombra rutas absolutas de esta máquina, los paquetes instalados en"
-" ella y sus versiones. Sin ellas las pruebas fallidas siguen en el archivo, "
+"Una traza nombra rutas absolutas de esta máquina, los paquetes instalados en "
+"ella y sus versiones. Sin ellas las pruebas fallidas siguen en el archivo, "
 "con el motivo de una línea por el que falló cada una."
 
 #: ui/templates/ui/figures/_acquisition_shared.html:20
@@ -3839,8 +3832,7 @@ msgstr "Restablecido a lo que usó la última ejecución."
 #: ui/templates/ui/figures/_acquisition_shared.html:66
 msgid "Reset. No earlier run stated one for this hyperparameter."
 msgstr ""
-"Restablecido. Ninguna ejecución anterior indicó uno para este "
-"hiperparámetro."
+"Restablecido. Ninguna ejecución anterior indicó uno para este hiperparámetro."
 
 #: ui/templates/ui/figures/_before_this_run.html:7
 msgid "Waiting for run to finish…"
@@ -4013,13 +4005,13 @@ msgstr "vs."
 msgid ""
 "Tunability measures what each hyperparameter could gain you, starting from "
 "the search space's default. Ticking this subtracts what the selected trial "
-"has already gained, leaving what is still on the table — which is the number"
-" worth spending the rest of a budget against. Tunability only: "
+"has already gained, leaving what is still on the table — which is the number "
+"worth spending the rest of a budget against. Tunability only: "
 "mistunability's achievable value is downside rather than gain, and nothing "
 "'achieves' sensitivity's variance."
 msgstr ""
-"La ajustabilidad mide lo que cada hiperparámetro podría aportarle, partiendo"
-" del valor por defecto del espacio de búsqueda. Marcar esto resta lo que la "
+"La ajustabilidad mide lo que cada hiperparámetro podría aportarle, partiendo "
+"del valor por defecto del espacio de búsqueda. Marcar esto resta lo que la "
 "prueba seleccionada ya ha ganado y deja lo que sigue sobre la mesa — la "
 "cifra contra la que merece la pena gastar el resto de un presupuesto. Solo "
 "para la ajustabilidad: el valor alcanzable de la desajustabilidad es una "
@@ -4140,12 +4132,12 @@ msgstr "Decaimiento cúbico"
 
 #: ui/templates/ui/figures/prior.html:104
 msgid ""
-"Decay factor as a fraction of the trial budget (β = ratio × N). Larger keeps"
-" the prior influential for longer: better for an accurate prior, worse for a"
-" misleading one."
+"Decay factor as a fraction of the trial budget (β = ratio × N). Larger keeps "
+"the prior influential for longer: better for an accurate prior, worse for a "
+"misleading one."
 msgstr ""
-"Factor de decaimiento como fracción del presupuesto de pruebas (β = fracción"
-" × N). Cuanto mayor, más tiempo mantiene el prior su influencia: mejor para "
+"Factor de decaimiento como fracción del presupuesto de pruebas (β = fracción "
+"× N). Cuanto mayor, más tiempo mantiene el prior su influencia: mejor para "
 "un prior acertado, peor para uno engañoso."
 
 #: ui/templates/ui/figures/prior.html:108
@@ -4155,8 +4147,8 @@ msgstr "Factor de decaimiento como fracción del presupuesto de pruebas"
 #: ui/templates/ui/figures/prior.html:147
 msgid ""
 "The initial design is drawn before any surrogate is fitted, so nothing "
-"stated here can reach those trials. Waiting means the belief arrives at full"
-" strength on the first trial it can actually influence."
+"stated here can reach those trials. Waiting means the belief arrives at full "
+"strength on the first trial it can actually influence."
 msgstr ""
 "El diseño inicial se extrae antes de ajustar ningún sustituto, así que nada "
 "de lo indicado aquí alcanza esas pruebas. Esperar significa que el prior "
@@ -4262,11 +4254,13 @@ msgstr "Cargar un experimento"
 #: ui/templates/ui/import.html:8
 msgid ""
 "Upload an <code>.ihpo</code> file to add it to your saved\n"
-"       experiments. Optionally attach its dataset to make it runnable; otherwise\n"
+"       experiments. Optionally attach its dataset to make it runnable; "
+"otherwise\n"
 "       it loads read-only."
 msgstr ""
 "Suba un archivo <code>.ihpo</code> para añadirlo a sus experimentos\n"
-"       guardados. Opcionalmente adjunte su conjunto de datos para hacerlo ejecutable;\n"
+"       guardados. Opcionalmente adjunte su conjunto de datos para hacerlo "
+"ejecutable;\n"
 "       si no, se carga solo para lectura."
 
 #: ui/templates/ui/import.html:19
@@ -4293,12 +4287,15 @@ msgstr "…o una ejecución de SMAC"
 msgid ""
 "Choose the output directory of a SMAC\n"
 "       run — the folder holding its <code>runhistory.json</code>. It loads\n"
-"       read-only: the files record what was searched and what it scored, not\n"
+"       read-only: the files record what was searched and what it scored, "
+"not\n"
 "       what was doing the searching."
 msgstr ""
 "Elija el directorio de salida de una ejecución de\n"
-"       SMAC — la carpeta que contiene su <code>runhistory.json</code>. Se carga solo\n"
-"       para lectura: los archivos registran qué se buscó y cómo puntuó, no qué estaba\n"
+"       SMAC — la carpeta que contiene su <code>runhistory.json</code>. Se "
+"carga solo\n"
+"       para lectura: los archivos registran qué se buscó y cómo puntuó, no "
+"qué estaba\n"
 "       haciendo la búsqueda."
 
 #: ui/templates/ui/import.html:50
@@ -4309,7 +4306,7 @@ msgstr "Directorio de salida de SMAC"
 msgid "Load run"
 msgstr "Cargar la ejecución"
 
-#: ui/templates/ui/legal.html:10
+#: ui/templates/ui/legal.html:11
 msgid "Back to Codesigner"
 msgstr "Volver a Codesigner"
 
@@ -4321,17 +4318,23 @@ msgstr "¿Cambiar la métrica optimizada?"
 #, python-format
 msgid ""
 "\n"
-"    These trials were chosen to optimize <strong>%(current)s</strong>. Their\n"
+"    These trials were chosen to optimize <strong>%(current)s</strong>. "
+"Their\n"
 "    scores for <strong>%(chosen)s</strong> were recorded too, so the search\n"
-"    continues from them rather than starting over — but they are still a sample\n"
+"    continues from them rather than starting over — but they are still a "
+"sample\n"
 "    the old objective picked, and the run inherits that bias.\n"
 "    "
 msgstr ""
 "\n"
-"    Estas pruebas se eligieron para optimizar <strong>%(current)s</strong>. También se\n"
-"    registraron sus puntuaciones para <strong>%(chosen)s</strong>, así que la búsqueda\n"
-"    continúa a partir de ellas en vez de empezar de cero — pero siguen siendo una\n"
-"    muestra que eligió el objetivo antiguo, y la ejecución hereda ese sesgo.\n"
+"    Estas pruebas se eligieron para optimizar <strong>%(current)s</strong>. "
+"También se\n"
+"    registraron sus puntuaciones para <strong>%(chosen)s</strong>, así que "
+"la búsqueda\n"
+"    continúa a partir de ellas en vez de empezar de cero — pero siguen "
+"siendo una\n"
+"    muestra que eligió el objetivo antiguo, y la ejecución hereda ese "
+"sesgo.\n"
 "    "
 
 #: ui/templates/ui/metric_change.html:34
@@ -4349,8 +4352,8 @@ msgid ""
 "A new experiment starts as a draft that only you can see, and is set up in "
 "three steps before it is created."
 msgstr ""
-"Un experimento nuevo empieza como un borrador que solo usted puede ver, y se"
-" prepara en tres pasos antes de crearse."
+"Un experimento nuevo empieza como un borrador que solo usted puede ver, y se "
+"prepara en tres pasos antes de crearse."
 
 #: ui/templates/ui/new_experiment.html:14
 msgid "Start a new experiment"
@@ -4364,8 +4367,8 @@ msgid ""
 "stalest kept trial models."
 msgstr ""
 "Almacenamiento: %(used)s de %(limit)s, de los que %(models)s son modelos de "
-"las pruebas conservados. Los conjuntos de datos van primero: cuando el grupo"
-" está lleno, un conjunto de datos nuevo sustituye a los modelos de las "
+"las pruebas conservados. Los conjuntos de datos van primero: cuando el grupo "
+"está lleno, un conjunto de datos nuevo sustituye a los modelos de las "
 "pruebas conservados más antiguos."
 
 #: ui/templates/ui/panels/group.html:21
@@ -4394,8 +4397,8 @@ msgstr "Sus experimentos"
 #: ui/templates/ui/panels/group.html:35
 msgid ""
 "A viewer can look at an experiment and download it. A contributor can also "
-"run, change and delete it. Only you decide who else may, and you can hand an"
-" experiment to one of its contributors."
+"run, change and delete it. Only you decide who else may, and you can hand an "
+"experiment to one of its contributors."
 msgstr ""
 "Quien lo ve puede consultar un experimento y descargarlo. Quien colabora "
 "también puede ejecutarlo, cambiarlo y eliminarlo. Solo usted decide quién "
@@ -4466,11 +4469,11 @@ msgstr "Los de los demás"
 
 #: ui/templates/ui/panels/group.html:133
 msgid ""
-"As a lead you can open, run and stop any of these. Deleting one, or deciding"
-" who it is shared with, stays with its owner."
+"As a lead you can open, run and stop any of these. Deleting one, or deciding "
+"who it is shared with, stays with its owner."
 msgstr ""
-"Como dirección puede abrir, ejecutar y detener cualquiera de estos. Eliminar"
-" uno, o decidir con quién se comparte, le corresponde a su propietario."
+"Como dirección puede abrir, ejecutar y detener cualquiera de estos. Eliminar "
+"uno, o decidir con quién se comparte, le corresponde a su propietario."
 
 #: ui/templates/ui/panels/group.html:139
 msgid "Shared"
@@ -4546,11 +4549,13 @@ msgstr "¿Hacer que estos sean los ajustes predeterminados?"
 #: ui/templates/ui/save_as_default_confirm.html:8
 msgid ""
 "These settings become the defaults for every experiment that\n"
-"    uses them, including existing ones. Experiments with their own settings are\n"
+"    uses them, including existing ones. Experiments with their own settings "
+"are\n"
 "    unaffected."
 msgstr ""
 "Estos ajustes pasan a ser los predeterminados de todo experimento\n"
-"    que los use, incluidos los ya existentes. Los experimentos con ajustes propios no\n"
+"    que los use, incluidos los ya existentes. Los experimentos con ajustes "
+"propios no\n"
 "    se ven afectados."
 
 #: ui/templates/ui/setup_step_optimizer.html:16
@@ -4968,8 +4973,7 @@ msgstr "La ejecución %(no)s no hizo ninguna prueba, optimizando %(metric)s."
 #, python-format
 msgid "Run %(no)s ran %(n)s trials (%(a)s–%(b)s), optimizing %(metric)s."
 msgstr ""
-"La ejecución %(no)s hizo %(n)s pruebas (%(a)s–%(b)s), optimizando "
-"%(metric)s."
+"La ejecución %(no)s hizo %(n)s pruebas (%(a)s–%(b)s), optimizando %(metric)s."
 
 #: ui/timeline.py:352
 #, python-format
@@ -5132,15 +5136,34 @@ msgstr "Esa no es su contraseña."
 msgid "That is not the address you sign in with."
 msgstr "Esa no es la dirección con la que inicia sesión."
 
-#: ui/views/accounts.py:160
+#: ui/views/accounts.py:115
+#
+msgid "I accept the terms of use."
+msgstr "Acepto las condiciones de uso."
+
+#: ui/views/accounts.py:121
+#
+msgid "Confirm password"
+msgstr "Confirmar contraseña"
+
+#: ui/views/accounts.py:123
+#
+msgid "Display name (optional)"
+msgstr "Nombre visible (opcional)"
+
+#: ui/views/accounts.py:154
+msgid "Your account is ready. Sign in with your new password."
+msgstr "Su cuenta está lista. Inicie sesión con su nueva contraseña."
+
+#: ui/views/accounts.py:173
 msgid "Choose your password"
 msgstr "Elija su contraseña"
 
-#: ui/views/accounts.py:170
+#: ui/views/accounts.py:183
 msgid "Set your password"
 msgstr "Establezca su contraseña"
 
-#: ui/views/accounts.py:197
+#: ui/views/accounts.py:210
 msgid "If an account matches, a message is on its way."
 msgstr "Si hay una cuenta que coincide, se le ha enviado un mensaje."
 
@@ -5190,8 +5213,8 @@ msgid ""
 "Partial dependence needs the search space, which this experiment does not "
 "carry and has no model to ask."
 msgstr ""
-"La dependencia parcial necesita el espacio de búsqueda, que este experimento"
-" no lleva consigo y para el que no hay modelo al que preguntar."
+"La dependencia parcial necesita el espacio de búsqueda, que este experimento "
+"no lleva consigo y para el que no hay modelo al que preguntar."
 
 #: ui/views/analytics.py:429
 msgid ""
@@ -5217,12 +5240,12 @@ msgstr "Guardado."
 
 #: ui/views/dashboard.py:112
 msgid ""
-"Trial parameters are kept for the built-in models only: an uploaded model is"
-" fitted in its own environment, which nothing is brought back from."
+"Trial parameters are kept for the built-in models only: an uploaded model is "
+"fitted in its own environment, which nothing is brought back from."
 msgstr ""
-"Los parámetros de las pruebas solo se conservan para los modelos integrados:"
-" un modelo subido se ajusta en su propio entorno, del que no se trae nada de"
-" vuelta."
+"Los parámetros de las pruebas solo se conservan para los modelos integrados: "
+"un modelo subido se ajusta en su propio entorno, del que no se trae nada de "
+"vuelta."
 
 #: ui/views/dashboard.py:115
 #, python-format
@@ -5245,16 +5268,16 @@ msgstr ""
 #, python-format
 msgid ""
 "This trial's model was not kept: a run keeps only the best %(n)s trial's "
-"model (and with the option on, its own), or its group had no room. Change it"
-" in Settings."
+"model (and with the option on, its own), or its group had no room. Change it "
+"in Settings."
 msgid_plural ""
 "This trial's model was not kept: a run keeps only the best %(n)s trials' "
 "models (and with the option on, its own), or its group had no room. Change "
 "it in Settings."
 msgstr[0] ""
 "El modelo de esta prueba no se conservó: una ejecución solo conserva %(n)s "
-"modelo, el de la mejor prueba (y, con la opción activada, los de sus propias"
-" pruebas), o su grupo no tenía espacio. Cámbielo en Ajustes."
+"modelo, el de la mejor prueba (y, con la opción activada, los de sus propias "
+"pruebas), o su grupo no tenía espacio. Cámbielo en Ajustes."
 msgstr[1] ""
 "El modelo de esta prueba no se conservó: una ejecución solo conserva %(n)s "
 "modelos, los de las mejores pruebas (y, con la opción activada, los de sus "
@@ -5282,8 +5305,8 @@ msgstr "%(name)s es ahora %(role)s."
 #, python-format
 msgid "%(name)s is now the primary lead of %(group)s. You are a group lead."
 msgstr ""
-"%(name)s es ahora la dirección principal de %(group)s. Usted es dirección de"
-" grupo."
+"%(name)s es ahora la dirección principal de %(group)s. Usted es dirección de "
+"grupo."
 
 #: ui/views/imports.py:73
 #, python-format
@@ -5369,8 +5392,8 @@ msgid ""
 "This prior is potentially informative: the model rates the region it points "
 "at as promising as where the search is already headed."
 msgstr ""
-"Este prior es potencialmente informativo: el modelo considera la región a la"
-" que apunta tan prometedora como aquella hacia la que ya se dirige la "
+"Este prior es potencialmente informativo: el modelo considera la región a la "
+"que apunta tan prometedora como aquella hacia la que ya se dirige la "
 "búsqueda."
 
 #: ui/views/priors.py:309
@@ -5391,8 +5414,8 @@ msgstr ""
 
 #: ui/views/priors.py:522
 msgid ""
-"This SMAC has no acquisition weight layer, so a stated prior does not affect"
-" the search or the candidates below. Install the version requirements.txt "
+"This SMAC has no acquisition weight layer, so a stated prior does not affect "
+"the search or the candidates below. Install the version requirements.txt "
 "pins."
 msgstr ""
 "Este SMAC no tiene capa de ponderación de la adquisición, así que un prior "
@@ -5403,8 +5426,8 @@ msgstr ""
 msgid ""
 "Set at least one stopping criterion, so the run has something to end on."
 msgstr ""
-"Fije al menos un criterio de parada, para que la ejecución tenga algo con lo"
-" que terminar."
+"Fije al menos un criterio de parada, para que la ejecución tenga algo con lo "
+"que terminar."
 
 #: ui/views/setup.py:122
 #, python-format
@@ -5419,24 +5442,3 @@ msgstr "Nivel de acceso desconocido."
 #, python-format
 msgid "%(name)s now belongs to %(user)s. You are a contributor."
 msgstr "%(name)s ahora pertenece a %(user)s. Usted colabora."
-
-#~ msgid "Yours, shared with everyone in its group."
-#~ msgstr "Suyo, compartido con todo su grupo."
-
-#, python-format
-#~ msgid "Yours, shared with %(people)s person in its group."
-#~ msgid_plural "Yours, shared with %(people)s people in its group."
-#~ msgstr[0] "Suyo, compartido con %(people)s persona de su grupo."
-#~ msgstr[1] "Suyo, compartido con %(people)s personas de su grupo."
-
-#~ msgid "Yours, and not shared."
-#~ msgstr "Suyo, y sin compartir."
-
-#, python-format
-#~ msgid "Share it from %(name)s"
-#~ msgstr "Compartirlo desde %(name)s"
-
-#, python-format
-#~ msgid "Prior on %(hp)s put back to what the last run searched under: %(new)s."
-#~ msgstr ""
-#~ "Prior de %(hp)s restablecido a lo que usó la última ejecución: %(new)s."

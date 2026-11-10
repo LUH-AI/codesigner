@@ -5,9 +5,10 @@ from urllib.parse import urlencode
 
 from django import forms
 from django.contrib import messages
-from django.contrib.auth import get_user_model, login, views as auth_views
+from django.contrib.auth import get_user_model, views as auth_views
 from django.contrib.auth.decorators import login_not_required  # pyright: ignore[reportAttributeAccessIssue]
 from django.contrib.auth.forms import AuthenticationForm, SetPasswordForm
+from django.contrib.auth.password_validation import password_validators_help_texts
 from django.http import Http404
 from django.shortcuts import redirect, render
 from django.urls import reverse, reverse_lazy
@@ -25,7 +26,6 @@ from ..navigation import safe_next
 
 #: The key stores the first-sign-in account's pk.
 FIRST_SIGN_IN = "first_sign_in"
-BACKEND = "access.backends.SiteBackend"
 
 
 def _first_sign_in_account(identifier: str):
@@ -108,15 +108,24 @@ class DeleteAccountForm(forms.Form):
 
 class PasswordSetupForm(SetPasswordForm):
     """`PasswordSetupForm` also takes an optional display name, and asks for
-    the agreement when one is due."""
+    the agreement when one is due. `password_rules` lists the validators'
+    requirements once, under both password fields."""
 
     display_name = display_name_field()
-    accept = forms.BooleanField(required=False, label=gettext_lazy("I accept these terms."))
-    field_order = ["display_name", "new_password1", "new_password2", "accept"]
+    accept = forms.BooleanField(required=False, label=gettext_lazy("I accept the terms of use."))
+    field_order = ["new_password1", "new_password2", "display_name", "accept"]
 
     def __init__(self, user, *args, terms=None, **kwargs):
         super().__init__(user, *args, **kwargs)
-        self.fields["display_name"].initial = account_of(user).display_name
+        self.fields["new_password1"].label = _("Password")
+        self.fields["new_password2"].label = _("Confirm password")
+        name = self.fields["display_name"]
+        name.label = _("Display name (optional)")
+        name.initial = account_of(user).display_name
+        name.widget.attrs["placeholder"] = user.email or ""
+        for field in ("new_password1", "new_password2", "display_name"):
+            self.fields[field].help_text = ""
+        self.password_rules = password_validators_help_texts()
         self.terms = terms
         if terms is None:
             del self.fields["accept"]
@@ -134,17 +143,21 @@ class PasswordSetupForm(SetPasswordForm):
 
 def _set_password_page(request, user, *, title, done):
     """`_set_password_page` calls *done* before saving a valid form and renders
-    `link_dead.html` when *done* returns False."""
+    `link_dead.html` when *done* returns False. A saved form leads to the
+    sign-in page."""
     terms = agreement_due(user)
     form = PasswordSetupForm(user, request.POST or None, terms=terms)
     if request.method == "POST" and form.is_valid():
         if not done():
             return render(request, "ui/account/link_dead.html", status=410)
         form.save()
-        login(request, user, backend=BACKEND)
-        return redirect(safe_next(request) or "ui:home")
+        messages.success(request, _("Your account is ready. Sign in with your new password."))
+        target = reverse("ui:login")
+        if following := safe_next(request):
+            target += "?" + urlencode({"next": following})
+        return redirect(target)
     return render(request, "ui/account/set_password.html", {
-        "form": form, "terms": terms, "title": title, "who": user.email or user.get_username()})
+        "form": form, "terms": terms, "title": title})
 
 
 @login_not_required

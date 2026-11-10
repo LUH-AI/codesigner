@@ -3,6 +3,9 @@
 
 {% block title %}{% translate "Terms of use" %}{% endblock %}
 
+{% block panel_class %} wide{% endblock %}
+{% block notice %}{% include "ui/account/_legal_notice.html" %}{% endblock %}
+
 {% block content %}
         <form method="post" class="card">
             {% csrf_token %}

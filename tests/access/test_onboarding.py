@@ -46,17 +46,24 @@ def _set(client, url, password=GOOD, **extra):
     return client.post(url, {"new_password1": password, "new_password2": password, **extra})
 
 
+def _sign_in(client, address="newbie@lab.de"):
+    resp = client.post(reverse("ui:login"), {"username": address, "password": GOOD})
+    assert resp.status_code == 302
+
+
 def test_a_new_account_chooses_its_password_at_first_sign_in(client, hosted, lab):
     """What: an address a lead added signs in without a password, chooses
-    one and lands on the site; afterwards the password is required. How: sign
-    in as the new account, set a password, sign out, sign in by address
-    alone."""
+    one, is sent to the sign-in page and signs in with it; afterwards the
+    password is required. How: sign in as the new account, set a password,
+    sign in with it, sign out, sign in by address alone."""
     user = _added(lab)
 
     resp = client.post(reverse("ui:login"), {"username": "newbie@lab.de", "password": ""})
     assert resp.status_code == 302 and resp["Location"] == reverse("ui:first_password")
     resp = _set(client, reverse("ui:first_password"))
-    assert resp.status_code == 302 and resp["Location"] == reverse("ui:home")
+    assert resp.status_code == 302 and resp["Location"] == reverse("ui:login")
+    assert "_auth_user_id" not in client.session
+    _sign_in(client)
     assert client.get(reverse("ui:home")).status_code == 200
 
     user.refresh_from_db()
@@ -111,9 +118,9 @@ def test_operator_accounts_cannot_sign_in(client, hosted, django_user_model, fla
 
 
 def test_a_setup_link_sets_the_password_once(client, hosted, lab):
-    """What: a setup link survives being opened, sets the password and signs
-    the person in, then is dead. How: open the link twice, post a password,
-    open it again."""
+    """What: a setup link survives being opened, sets the password and leads
+    to the sign-in page with a confirmation, then is dead. How: open the link
+    twice, post a password, follow the redirect, open the link again."""
     user = _added(lab)
     url = setup_links.issue(user, hours=24)
     assert user.account.password_pending == Account.SETUP_LINK
@@ -121,8 +128,9 @@ def test_a_setup_link_sets_the_password_once(client, hosted, lab):
     assert client.get(url).status_code == 200
     assert client.get(url).status_code == 200
     resp = _set(client, url)
-    assert resp.status_code == 302
-    assert client.session["_auth_user_id"] == str(user.pk)
+    assert resp.status_code == 302 and resp["Location"] == reverse("ui:login")
+    assert "_auth_user_id" not in client.session
+    assert "Your account is ready" in client.get(resp["Location"]).content.decode()
 
     user.refresh_from_db()
     assert user.check_password(GOOD) and user.account.password_pending == ""
@@ -144,14 +152,14 @@ def test_a_setup_link_expires(client, hosted, lab):
 
 
 def test_a_setup_link_asks_for_the_agreement(client, hosted, lab):
-    """What: with `ACCOUNT_AGREEMENT` set, the setup page shows the terms and
+    """What: with `ACCOUNT_AGREEMENT` set, the setup page links the terms and
     sets nothing until they are accepted. How: post without, then with,
     acceptance."""
     hosted.ACCOUNT_AGREEMENT = "tests.access.test_onboarding.terms"
     user = _added(lab)
     url = setup_links.issue(user, hours=24)
 
-    assert "Be kind to the cluster." in client.get(url).content.decode()
+    assert f'href="{reverse("ui:terms")}"' in client.get(url).content.decode()
     assert _set(client, url).status_code == 200
     assert not AgreementAcceptance.objects.exists()
     assert _set(client, url, accept="on").status_code == 302
@@ -343,15 +351,17 @@ def test_a_setup_link_points_at_the_site_whoever_issues_it(settings, django_user
 
 def test_a_display_name_is_chosen_with_the_password(client, hosted, lab):
     """What: the setup page takes an optional display name of at least three
-    characters with the password, and the group page then shows it beside
+    characters with the password, its placeholder the email address, and the group page then shows it beside
     the email address. How: a two-letter name, then a good one."""
     user = _added(lab)
     Membership.objects.filter(user=user).update(role=Membership.PRIMARY_LEAD)
     url = setup_links.issue(user, hours=24)
+    assert 'placeholder="newbie@lab.de"' in client.get(url).content.decode()
 
     resp = _set(client, url, display_name="Al")
     assert resp.status_code == 200 and "display_name" in resp.context["form"].errors
     assert _set(client, url, display_name="  Ada   Lovelace ").status_code == 302
+    _sign_in(client)
 
     user.account.refresh_from_db()
     assert user.account.display_name == "Ada Lovelace"

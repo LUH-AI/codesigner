@@ -16,6 +16,7 @@ because choosing a language you can read should not require signing in first.
 <body class="signin">
     <main class="signin-panel{% block panel_class %}{% endblock %}">
         <h1>Codesigner</h1>
+        {% block notice %}{% endblock %}
         {% for message in messages %}<p class="alert {{ message.tags }}">{{ message }}</p>{% endfor %}
         {% block content %}{% endblock %}
 

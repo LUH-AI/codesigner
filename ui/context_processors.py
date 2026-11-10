@@ -79,10 +79,13 @@ def offered_languages(request):
 
 def legal(request):
     """`legal` tells the footer which of the deployment's legal pages exist,
-    and gives an empty mapping while both hooks are unset."""
+    and gives an empty mapping while both hooks are unset. `legal_notice` is a
+    callable, so only a template that shows the notice asks the hook."""
+    from access.onboarding import legal_notice
+
     links = {"imprint": bool(settings.LEGAL_PAGES), "privacy": bool(settings.LEGAL_PAGES),
              "terms": bool(settings.ACCOUNT_AGREEMENT)}
-    return {"legal_links": links if any(links.values()) else {}}
+    return {"legal_links": links if any(links.values()) else {}, "legal_notice": legal_notice}
 
 
 def capabilities(request):

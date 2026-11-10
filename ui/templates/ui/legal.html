@@ -3,6 +3,7 @@
 
 {% block title %}{{ heading }}{% endblock %}
 {% block panel_class %} legal{% endblock %}
+{% block notice %}{% include "ui/account/_legal_notice.html" %}{% endblock %}
 
 {% block content %}
     <div class="legal-text">{{ body }}</div>

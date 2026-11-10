@@ -21,7 +21,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: PACKAGE VERSION\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2026-11-10 11:49+0000\n"
+"POT-Creation-Date: 2026-11-10 14:59+0000\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
 "Language-Team: LANGUAGE <LL@li.org>\n"
@@ -43,18 +43,18 @@ msgstr "There is already a group called “%(name)s”."
 msgid "%(who)s is not in %(group)s."
 msgstr "%(email)s is already in %(group)s."
 
-#: access/models.py:99 access/services/groups.py:80
+#: access/models.py:100 access/services/groups.py:80
 #: access/services/groups.py:81
 msgid "Member"
 msgstr ""
 
-#: access/models.py:99 access/services/groups.py:80
+#: access/models.py:100 access/services/groups.py:80
 #, fuzzy
 #| msgid "Group"
 msgid "Group lead"
 msgstr "Group"
 
-#: access/models.py:100
+#: access/models.py:101
 #, fuzzy
 #| msgid "Make primary lead"
 msgid "Primary group lead"
@@ -82,12 +82,12 @@ msgstr "Added %(email)s to %(group)s."
 msgid "%(name)s chooses a new password the next time they sign in."
 msgstr ""
 
-#: access/policy.py:329
+#: access/policy.py:330
 #, python-format
 msgid "%(user)s is not allowed to run custom models here."
 msgstr "%(user)s is not allowed to run custom models here."
 
-#: access/policy.py:330
+#: access/policy.py:331
 msgid ""
 "This experiment's custom model has no account behind it, so it cannot be "
 "run. Give the experiment an owner who is allowed to run custom models."
@@ -208,19 +208,19 @@ msgstr ""
 msgid "There is no account for %(who)s."
 msgstr ""
 
-#: access/services/users.py:65
+#: access/services/users.py:66
 #, python-format
 msgid "A display name needs at least %(n)s characters."
 msgstr ""
 
-#: access/services/users.py:85
+#: access/services/users.py:86
 #, python-format
 msgid ""
 "%(who)s still owns experiments, so this account cannot be deleted. "
 "Deactivate it instead, or hand the experiments to somebody else first."
 msgstr ""
 
-#: access/services/users.py:106
+#: access/services/users.py:107
 #, fuzzy, python-format
 #| msgid "%(name)s is now the primary lead of %(group)s. You are a group lead."
 msgid ""
@@ -228,20 +228,20 @@ msgid ""
 "first."
 msgstr "%(name)s is now the primary lead of %(group)s. You are a group lead."
 
-#: access/services/users.py:127
+#: access/services/users.py:128
 #, python-format
 msgid ""
 "You are the primary lead of %(group)s and nobody else there is a group lead. "
 "Make somebody a group lead first, so the group is not left without one."
 msgstr ""
 
-#: access/services/users.py:179
+#: access/services/users.py:180
 #, fuzzy, python-format
 #| msgid "%(name)s is now a %(role)s."
 msgid "%(address)s is not an email address."
 msgstr "%(name)s is now a %(role)s."
 
-#: access/services/users.py:185
+#: access/services/users.py:186
 #, python-format
 msgid "Another account already uses %(address)s."
 msgstr ""
@@ -292,8 +292,8 @@ msgid ""
 "is withdrawn; a corrected answer follows."
 msgstr ""
 
-#: assistant/templates/assistant/_chat.html:43 assistant/views.py:298
-#: assistant/views.py:344
+#: assistant/templates/assistant/_chat.html:43 assistant/views.py:278
+#: assistant/views.py:322
 #, fuzzy
 #| msgid "This trial is the baseline."
 msgid "The assistant is still answering."
@@ -550,11 +550,11 @@ msgstr "New experiment"
 msgid "Return to %(name)s"
 msgstr "Restored %(name)s."
 
-#: assistant/views.py:252
+#: assistant/views.py:233
 msgid "This conversation's plan is approved."
 msgstr ""
 
-#: assistant/views.py:296
+#: assistant/views.py:276
 msgid "There is no plan to approve."
 msgstr ""
 
@@ -577,19 +577,19 @@ msgstr "Deleted %(name)s. Anything it held is in the bin."
 msgid "Untitled Experiment"
 msgstr "Untitled Experiment"
 
-#: experiments/models.py:171 experiments/models.py:269
+#: experiments/models.py:172 experiments/models.py:270
 msgid "Viewer"
 msgstr "Viewer"
 
-#: experiments/models.py:171 experiments/models.py:271
+#: experiments/models.py:172 experiments/models.py:272
 msgid "Contributor"
 msgstr "Contributor"
 
-#: experiments/models.py:306
+#: experiments/models.py:307
 msgid "The owner already has every kind of access."
 msgstr "The owner already has every kind of access."
 
-#: experiments/models.py:312
+#: experiments/models.py:313
 #, python-format
 msgid ""
 "%(user)s is not in this experiment's group, so it cannot be shared with them."
@@ -3038,6 +3038,7 @@ msgid "The site's operator grants this."
 msgstr ""
 
 #: ui/templates/ui/account.html:53 ui/templates/ui/account/login.html:17
+#: ui/views/accounts.py:120
 msgid "Password"
 msgstr "Password"
 
@@ -3077,12 +3078,11 @@ msgstr ""
 msgid "Delete my account"
 msgstr ""
 
-#: ui/templates/ui/account/_standalone.html:29 ui/templates/ui/base.html:67
+#: ui/templates/ui/account/_standalone.html:30 ui/templates/ui/base.html:67
 msgid "Language"
 msgstr "Language"
 
-#: ui/templates/ui/account/agreement.html:10
-#: ui/templates/ui/account/set_password.html:19
+#: ui/templates/ui/account/agreement.html:13
 #, python-format
 msgid ""
 "How codesigner handles your data is described in the <a "
@@ -3090,17 +3090,17 @@ msgid ""
 "a>."
 msgstr ""
 
-#: ui/templates/ui/account/agreement.html:12 ui/views/accounts.py:114
+#: ui/templates/ui/account/agreement.html:15
 msgid "I accept these terms."
 msgstr ""
 
-#: ui/templates/ui/account/agreement.html:15
+#: ui/templates/ui/account/agreement.html:18
 #, fuzzy
 #| msgid "Contributor"
 msgid "Continue"
 msgstr "Contributor"
 
-#: ui/templates/ui/account/agreement.html:19 ui/templates/ui/base.html:47
+#: ui/templates/ui/account/agreement.html:22 ui/templates/ui/base.html:47
 msgid "Sign out"
 msgstr "Sign out"
 
@@ -3158,10 +3158,22 @@ msgid "Forgot password"
 msgstr "Change password"
 
 #: ui/templates/ui/account/set_password.html:32
-#, fuzzy
-#| msgid "Change password"
-msgid "Set password"
-msgstr "Change password"
+#, python-format
+msgid ""
+"Your account is subject to the <a href=\"%(url_terms)s\" target=\"_blank\" "
+"rel=\"noopener\">terms of use</a>."
+msgstr ""
+
+#: ui/templates/ui/account/set_password.html:33
+#, python-format
+msgid ""
+"The <a href=\"%(url_privacy)s\" target=\"_blank\" rel=\"noopener\">privacy "
+"policy</a> explains how your data is handled."
+msgstr ""
+
+#: ui/templates/ui/account/set_password.html:39
+msgid "Register"
+msgstr ""
 
 #: ui/templates/ui/account_delete.html:9
 msgid "This deletes your account and signs you out. It cannot be undone."
@@ -4283,7 +4295,7 @@ msgstr "SMAC output directory"
 msgid "Load run"
 msgstr "Load run"
 
-#: ui/templates/ui/legal.html:10
+#: ui/templates/ui/legal.html:11
 msgid "Back to Codesigner"
 msgstr ""
 
@@ -5122,19 +5134,39 @@ msgstr "Change password"
 msgid "That is not the address you sign in with."
 msgstr "That is not a role you can set."
 
-#: ui/views/accounts.py:160
+#: ui/views/accounts.py:115
+msgid "I accept the terms of use."
+msgstr ""
+
+#: ui/views/accounts.py:121
+#, fuzzy
+#| msgid "Change password"
+msgid "Confirm password"
+msgstr "Change password"
+
+#: ui/views/accounts.py:123
+#, fuzzy
+#| msgid "Dataset CSV (optional)"
+msgid "Display name (optional)"
+msgstr "Dataset CSV (optional)"
+
+#: ui/views/accounts.py:154
+msgid "Your account is ready. Sign in with your new password."
+msgstr ""
+
+#: ui/views/accounts.py:173
 #, fuzzy
 #| msgid "Change password"
 msgid "Choose your password"
 msgstr "Change password"
 
-#: ui/views/accounts.py:170
+#: ui/views/accounts.py:183
 #, fuzzy
 #| msgid "Change password"
 msgid "Set your password"
 msgstr "Change password"
 
-#: ui/views/accounts.py:197
+#: ui/views/accounts.py:210
 msgid "If an account matches, a message is on its way."
 msgstr ""
 
@@ -5414,28 +5446,3 @@ msgstr "Unknown sharing level."
 #, python-format
 msgid "%(name)s now belongs to %(user)s. You are a contributor."
 msgstr "%(name)s now belongs to %(user)s. You are a contributor."
-
-#, fuzzy
-#~| msgid "Yours, shared with %(people)s person in its group."
-#~| msgid_plural "Yours, shared with %(people)s people in its group."
-#~ msgid "Yours, shared with everyone in its group."
-#~ msgstr "Yours, shared with %(people)s person in its group."
-
-#, python-format
-#~ msgid "Yours, shared with %(people)s person in its group."
-#~ msgid_plural "Yours, shared with %(people)s people in its group."
-#~ msgstr[0] "Yours, shared with %(people)s person in its group."
-#~ msgstr[1] "Yours, shared with %(people)s people in its group."
-
-#~ msgid "Yours, and not shared."
-#~ msgstr "Yours, and not shared."
-
-#, python-format
-#~ msgid "Share it from %(name)s"
-#~ msgstr "Share it from %(name)s"
-
-#, python-format
-#~ msgid ""
-#~ "Prior on %(hp)s put back to what the last run searched under: %(new)s."
-#~ msgstr ""
-#~ "Prior on %(hp)s put back to what the last run searched under: %(new)s."

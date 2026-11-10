@@ -72,6 +72,11 @@ def agreement():
 
 def legal_pages():
     """`legal_pages` returns `{"privacy": html, "imprint": html}` in the active
-    language from `LEGAL_PAGES`, or None."""
+    language from `LEGAL_PAGES`, or None. An optional `"notice"` is plain text
+    shown above the legal texts and the sign-up form."""
     path = getattr(settings, "LEGAL_PAGES", "")
     return import_string(path)() if path else None
+
+
+def legal_notice() -> str:
+    return (legal_pages() or {}).get("notice") or ""

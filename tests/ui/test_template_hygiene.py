@@ -37,7 +37,8 @@ def test_every_template_with_text_of_its_own_marks_it_for_translation():
     """
     exempt = {"_selected_config_inner.html", "_breadcrumbs.html", "_metric_select.html",
               "_optimizer_param_field.html", "_info_label.html",
-              "_group_initial_points.html", "_experiment_page.html", "processing_step.html"}
+              "_group_initial_points.html", "_experiment_page.html", "processing_step.html",
+              "_legal_notice.html"}
     no_i18n = {p.name for p in _templates()
                if "translate" not in p.read_text()
                and p.name not in exempt
