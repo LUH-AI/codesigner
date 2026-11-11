@@ -3,11 +3,11 @@ id: concept-stopping
 title: When a run stops
 kind: concept
 about: [field:max_trials, field:target_score, field:max_seconds, field:max_trial_seconds, field:no_improvement_trials, field:incumbent_confidence, field:max_failures, field:max_consecutive_failures, field:trial_timeout_mode, field:trial_timeout_seconds, field:trial_timeout_factor, data-assist:run]
-related: [concept-metrics, concept-optimizers, concept-surrogate-and-acquisition, page-dashboard-sidebar, figure-performance-over-time, figure-trial-duration]
+related: [concept-metrics, concept-optimizers, concept-surrogate-and-acquisition, figure-evaluation, figure-performance-over-time, figure-trial-duration]
 keywords: [stopping criteria, run until, trials, budget, target score, time limit, compute time, no improvement, confidence, nothing better remains, give up, failures, consecutive failures, deadline, timeout, model fit, predicted duration, cancel, stopped because]
 status: draft
 sources:
-  - ui/templates/ui/_side_evaluation.html:39-213
+  - ui/templates/ui/figures/evaluation.html
   - ui/run_form.py:6-66
   - core/optimizers/base.py:246-306
   - core/optimizers/base.py:306-460
@@ -75,7 +75,7 @@ A fit past its deadline is stopped and counts as a failed trial, and the run con
 
 ## In Codesigner
 
-- Dashboard sidebar, "Experiment Evaluation" → "Next run": the three fieldsets, then "▶ Run".
+- The "Experiment Evaluation" card: "Run until…" in its first column; "Give up if…", "Give up on a model fit after…" and "▶ Run" in its last.
 - The header then says "Last run: … Stopped because …", for example "the score had stopped improving".
 - Only the person presses Run or Cancel. The assistant can fill the fields and point at the button.
 

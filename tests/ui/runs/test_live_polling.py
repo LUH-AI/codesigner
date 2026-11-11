@@ -207,21 +207,34 @@ def test_every_selected_state_uses_it(rule):
 
 
 @pytest.mark.django_db
-def test_a_fresh_experiment_opens_with_the_run_settings_showing(client):
-    """A fresh experiment has nothing else to do but run."""
+def test_a_fresh_experiment_shows_the_run_form_in_the_middle(client):
+    """What: before the first trial the page shows the Experiment Evaluation
+    card, with the Run button, beside the optimizer and the prior, fixed in
+    place: no slot layout.js could move or resize. How: a fresh experiment's
+    page."""
     from tests.ui.runs.test_run_views import _experiment
 
     exp = _experiment()
     body = client.get(reverse("ui:experiment_detail", args=[exp.pk])).content.decode()
+    grid = body.split('class="prerun-grid"', 1)[1]
 
-    assert '<details class="run-config" open>' in body
+    assert grid.index("prerun-evaluation") < grid.index("prerun-optimizer")
+    evaluation = grid.split("prerun-evaluation", 1)[1].split("prerun-optimizer", 1)[0]
+    assert 'data-assist="run"' in evaluation and 'name="max_trials"' in evaluation
+    assert "fig-slot" not in body and "ui/layout.js" not in body
 
 
 @pytest.mark.django_db
-def test_an_experiment_with_results_keeps_it_folded_away(client, ran_experiment):
-    """With results, the metric selector is the recurring control."""
+def test_an_experiment_with_results_pins_the_card_to_overview(client, ran_experiment):
+    """What: with results, the Experiment Evaluation card lives on Misc and is
+    pinned to Overview by default. How: the tab panels of a finished
+    experiment's page."""
     ran_experiment.runs.all().update(status="done")
     body = client.get(
         reverse("ui:experiment_detail", args=[ran_experiment.pk])).content.decode()
 
-    assert '<details class="run-config">' in body
+    def panel(tab):
+        return body.split(f'id="fig-panel-{tab}"', 1)[1].split('class="fig-panel"', 1)[0]
+
+    assert 'data-figure="evaluation"' in panel("misc")
+    assert 'data-key="evaluation"' in panel("overview")

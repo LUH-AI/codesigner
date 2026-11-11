@@ -11,13 +11,13 @@ sources:
   - ui/templates/ui/_experiment_settings_fields.html
   - ui/templates/ui/default_experiment_settings.html
   - ui/templates/ui/save_as_default_confirm.html
-  - ui/forms.py:373-433
+  - ui/forms.py:373-435
   - experiments/services/settings.py
   - experiments/services/settings.py:71-93
   - ui/views/preferences.py:113-122
   - ui/views/dashboard.py:240-281
   - ui/figures/base.py:116-119 (deferred), 164-168 (autocompute_key)
-  - ui/figures/catalog.py:399-421
+  - ui/figures/catalog.py:410-433
   - ui/layout.py:190-229
   - ui/templates/ui/base.html:96-99
   - ui/templates/ui/base.html:197-208

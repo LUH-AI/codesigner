@@ -7,11 +7,11 @@ related: [figure-selected-configuration, figure-best-configuration, figure-perfo
 keywords: [trials table, all trials, sort, page, rows per page, failed trials, scores, durations, configurations]
 status: draft
 sources:
-  - ui/figures/catalog.py:372-404 (Trials, page_size)
+  - ui/figures/catalog.py:383-416 (Trials, page_size)
   - ui/templates/ui/figures/trials.html, _trial_rows.html
   - ui/views/dashboard.py:141-159 (_trial_rows)
   - ui/views/runs.py:65-101 (_live_payloads rows_html)
-  - ui/templates/ui/experiment_detail.html:77-131 (sorting), 612-700 (pager, table selection), 501-515 (row clicks), 3266-3294 (appendTrialRows)
+  - ui/templates/ui/experiment_detail.html:74-128 (sorting), 612-700 (pager, table selection), 501-515 (row clicks), 3266-3294 (appendTrialRows)
   - ui/figure_layout.toml (overview, misc)
 ---
 

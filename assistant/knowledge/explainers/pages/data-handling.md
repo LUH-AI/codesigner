@@ -14,7 +14,7 @@ sources:
   - ui/templates/ui/data_handling/_tabs.html
   - ui/templates/ui/data_handling/panels/processing_step.html
   - ui/templates/ui/data_handling/panels/planned.html
-  - ui/figure_layout.toml:56-139
+  - ui/figure_layout.toml:58-141
   - core/processing.py
   - ui/templates/ui/base.html:163-175
   - ui/timeline.py:239-247

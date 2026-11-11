@@ -7,13 +7,13 @@ related: [concept-explanation-games, figure-local-effects, figure-hyperparameter
 keywords: [local explanation, ablation, waterfall, why did this trial score well, helped, hurt, HyperSHAP]
 status: draft
 sources:
-  - ui/figures/catalog.py:99-110 (LocalExplanation)
+  - ui/figures/catalog.py:110-121 (LocalExplanation)
   - ui/templates/ui/figures/local_explanation.html
   - ui/figures/plots/importance.py:101-125 (hyperparameter_ablation_plot)
   - ui/views/analytics.py:61-105 (trial_ablation), 373-395 (_local_ablation_data)
   - core/analytics/surrogate.py:34-46 (_pair_trials_with_oriented_scores)
   - core/analytics/effects.py:18-66 (compute_hp_ablation, _ablate)
-  - ui/templates/ui/experiment_detail.html:1204-1267 (refreshLocalAblation), 834-850 (selectionMoved), 3467-3475 (baseline handler)
+  - ui/templates/ui/experiment_detail.html:1201-1264 (refreshLocalAblation), 834-850 (selectionMoved), 3467-3475 (baseline handler)
   - experiments/services/settings.py (autocompute_local_ablation off by default)
 ---
 

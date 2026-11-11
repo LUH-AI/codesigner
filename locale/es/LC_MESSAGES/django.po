@@ -8,7 +8,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: PACKAGE VERSION\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2026-11-10 15:58+0000\n"
+"POT-Creation-Date: 2026-11-11 11:41+0000\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
 "Language-Team: LANGUAGE <LL@li.org>\n"
@@ -224,27 +224,27 @@ msgid "Another account already uses %(address)s."
 msgstr "Otra cuenta ya usa %(address)s."
 
 #: assistant/templates/assistant/_chat.html:21
-#: assistant/templates/assistant/_chat.html:75
+#: assistant/templates/assistant/_chat.html:79
 #: assistant/templates/assistant/_dock.html:18
 #: assistant/templates/assistant/window.html:10
 #: ui/templates/ui/appearance.html:27
 msgid "Assistant"
 msgstr "Asistente"
 
-#: assistant/templates/assistant/_chat.html:35
+#: assistant/templates/assistant/_chat.html:36
 msgid "Working…"
 msgstr "Trabajando…"
 
-#: assistant/templates/assistant/_chat.html:36
+#: assistant/templates/assistant/_chat.html:37
 msgid "Thinking…"
 msgstr "Pensando…"
 
-#: assistant/templates/assistant/_chat.html:37
+#: assistant/templates/assistant/_chat.html:38
 #, python-brace-format
 msgid "Used {tool}"
 msgstr "Ha usado {tool}"
 
-#: assistant/templates/assistant/_chat.html:38
+#: assistant/templates/assistant/_chat.html:39
 msgid ""
 "The assistant’s model cannot be reached right now. Everything else works as "
 "usual."
@@ -252,21 +252,21 @@ msgstr ""
 "El modelo del asistente no está disponible ahora mismo. Todo lo demás "
 "funciona como siempre."
 
-#: assistant/templates/assistant/_chat.html:39
+#: assistant/templates/assistant/_chat.html:40
 msgid "Today’s assistant budget is used up."
 msgstr "El presupuesto del asistente para hoy se ha agotado."
 
-#: assistant/templates/assistant/_chat.html:40
+#: assistant/templates/assistant/_chat.html:41
 msgid "The assistant stopped before finishing. Ask again, more specifically."
 msgstr ""
 "El asistente se detuvo antes de terminar. Vuelva a preguntar, de forma más "
 "concreta."
 
-#: assistant/templates/assistant/_chat.html:41
+#: assistant/templates/assistant/_chat.html:42
 msgid "Something went wrong on the assistant’s side."
 msgstr "Algo ha fallado en el lado del asistente."
 
-#: assistant/templates/assistant/_chat.html:42
+#: assistant/templates/assistant/_chat.html:43
 #, python-brace-format
 msgid ""
 "The answer above cited {keys}, which is not in the assistant’s library. It "
@@ -275,140 +275,155 @@ msgstr ""
 "La respuesta de arriba citaba {keys}, que no está en la biblioteca del "
 "asistente. Se ha retirado; sigue una respuesta corregida."
 
-#: assistant/templates/assistant/_chat.html:43 assistant/views.py:278
-#: assistant/views.py:322
+#: assistant/templates/assistant/_chat.html:44 assistant/views.py:282
+#: assistant/views.py:357 assistant/views.py:376
 msgid "The assistant is still answering."
 msgstr "El asistente todavía está respondiendo."
 
-#: assistant/templates/assistant/_chat.html:44
+#: assistant/templates/assistant/_chat.html:45
 msgid "Could not reach the server."
 msgstr "No se pudo contactar con el servidor."
 
-#: assistant/templates/assistant/_chat.html:45
+#: assistant/templates/assistant/_chat.html:46
 #, python-brace-format
 msgid "Dataset: {name}"
 msgstr "Conjunto de datos: {name}"
 
-#: assistant/templates/assistant/_chat.html:46
+#: assistant/templates/assistant/_chat.html:47
 msgid "Upload or choose a dataset."
 msgstr "Suba o elija un conjunto de datos."
 
-#: assistant/templates/assistant/_chat.html:47
+#: assistant/templates/assistant/_chat.html:48
 msgid "Enter a prompt."
 msgstr "Escriba una petición."
 
-#: assistant/templates/assistant/_chat.html:48
+#: assistant/templates/assistant/_chat.html:49
 msgid "The plan"
 msgstr "El plan"
 
-#: assistant/templates/assistant/_chat.html:49
+#: assistant/templates/assistant/_chat.html:50
 msgid "Approve and set up"
 msgstr "Aprobar y configurar"
 
-#: assistant/templates/assistant/_chat.html:50
+#: assistant/templates/assistant/_chat.html:51
+#
+msgid "Review as draft"
+msgstr "Revisar como borrador"
+
+#: assistant/templates/assistant/_chat.html:52
+#
+msgid "Reject plan"
+msgstr "Rechazar el plan"
+
+#: assistant/templates/assistant/_chat.html:53
+#
+msgid "Plan rejected."
+msgstr "Plan rechazado."
+
+#: assistant/templates/assistant/_chat.html:54
 msgid "Not ready yet:"
 msgstr "Todavía no está listo:"
 
-#: assistant/templates/assistant/_chat.html:51
+#: assistant/templates/assistant/_chat.html:55
 msgid "Plan approved."
 msgstr "Plan aprobado."
 
-#: assistant/templates/assistant/_chat.html:52
-#: assistant/templates/assistant/_chat.html:62
+#: assistant/templates/assistant/_chat.html:56
+#: assistant/templates/assistant/_chat.html:66
 msgid "Goal"
 msgstr "Objetivo"
 
-#: assistant/templates/assistant/_chat.html:53
-#: assistant/templates/assistant/_chat.html:63
+#: assistant/templates/assistant/_chat.html:57
+#: assistant/templates/assistant/_chat.html:67
 #: ui/templates/ui/experiment_list.html:12
 msgid "Name"
 msgstr "Nombre"
 
-#: assistant/templates/assistant/_chat.html:54
-#: assistant/templates/assistant/_chat.html:64 ui/forms.py:115
+#: assistant/templates/assistant/_chat.html:58
+#: assistant/templates/assistant/_chat.html:68 ui/forms.py:115
 #: ui/timeline.py:185
 msgid "Task"
 msgstr "Tarea"
 
-#: assistant/templates/assistant/_chat.html:55
-#: assistant/templates/assistant/_chat.html:65 ui/figures/data_handling.py:54
+#: assistant/templates/assistant/_chat.html:59
+#: assistant/templates/assistant/_chat.html:69 ui/figures/data_handling.py:54
 #: ui/forms.py:110
 msgid "Target"
 msgstr "Objetivo"
 
-#: assistant/templates/assistant/_chat.html:56
-#: assistant/templates/assistant/_chat.html:66 ui/forms.py:98
+#: assistant/templates/assistant/_chat.html:60
+#: assistant/templates/assistant/_chat.html:70 ui/forms.py:98
 #: ui/templates/ui/_experiment_header.html:35
 #: ui/templates/ui/experiment_list.html:13 ui/timeline.py:188
 msgid "Model"
 msgstr "Modelo"
 
-#: assistant/templates/assistant/_chat.html:57
-#: assistant/templates/assistant/_chat.html:67 ui/forms.py:134
+#: assistant/templates/assistant/_chat.html:61
+#: assistant/templates/assistant/_chat.html:71 ui/forms.py:134
 msgid "Validation method"
 msgstr "Método de validación"
 
-#: assistant/templates/assistant/_chat.html:58
-#: assistant/templates/assistant/_chat.html:68 ui/setup_steps.py:75
+#: assistant/templates/assistant/_chat.html:62
+#: assistant/templates/assistant/_chat.html:72 ui/setup_steps.py:75
 #: ui/templates/ui/_experiment_header.html:36
 #: ui/templates/ui/_optimizer_form.html:9
 #: ui/templates/ui/experiment_list.html:14
-#: ui/templates/ui/experiment_prerun.html:52
+#: ui/templates/ui/experiment_prerun.html:53
 #: ui/templates/ui/setup_step_optimizer.html:4 ui/timeline.py:192
 #: ui/timeline.py:278 ui/timeline.py:280
 msgid "Optimizer"
 msgstr "Optimizador"
 
-#: assistant/templates/assistant/_chat.html:59
-#: assistant/templates/assistant/_chat.html:69
+#: assistant/templates/assistant/_chat.html:63
+#: assistant/templates/assistant/_chat.html:73
 msgid "Data handling"
 msgstr "Tratamiento de datos"
 
-#: assistant/templates/assistant/_chat.html:60
-#: assistant/templates/assistant/_chat.html:70
+#: assistant/templates/assistant/_chat.html:64
+#: assistant/templates/assistant/_chat.html:74
 #: ui/templates/ui/_experiment_header.html:37
 msgid "Metric"
 msgstr "Métrica"
 
-#: assistant/templates/assistant/_chat.html:61
-#: assistant/templates/assistant/_chat.html:71
+#: assistant/templates/assistant/_chat.html:65
+#: assistant/templates/assistant/_chat.html:75
 msgid "Stopping criteria"
 msgstr "Criterios de parada"
 
-#: assistant/templates/assistant/_chat.html:72 ui/forms.py:125
+#: assistant/templates/assistant/_chat.html:76 ui/forms.py:125
 #: ui/templates/ui/_experiment_header.html:39 ui/timeline.py:194
 msgid "Seed"
 msgstr "Semilla"
 
-#: assistant/templates/assistant/_chat.html:76
+#: assistant/templates/assistant/_chat.html:80
 msgid "Return to page"
 msgstr "Volver a la página"
 
-#: assistant/templates/assistant/_chat.html:86
+#: assistant/templates/assistant/_chat.html:90
 #, python-format
 msgid "Visiting from <strong>%(name)s</strong>"
 msgstr "De visita desde <strong>%(name)s</strong>"
 
-#: assistant/templates/assistant/_chat.html:87
+#: assistant/templates/assistant/_chat.html:91
 #: assistant/templates/assistant/_dock.html:43
 msgid "Return"
 msgstr "Volver"
 
-#: assistant/templates/assistant/_chat.html:99 ui/forms.py:102
+#: assistant/templates/assistant/_chat.html:103 ui/forms.py:102
 msgid "Dataset (demo)"
 msgstr "Conjunto de datos (demo)"
 
-#: assistant/templates/assistant/_chat.html:101
+#: assistant/templates/assistant/_chat.html:105
 msgid "Choose a demo dataset"
 msgstr "Elija un conjunto de datos de demostración"
 
-#: assistant/templates/assistant/_chat.html:104
+#: assistant/templates/assistant/_chat.html:108
 #: ui/templates/ui/setup_step_setup.html:89
 msgid "Use demo dataset"
 msgstr "Usar conjunto de datos de demostración"
 
-#: assistant/templates/assistant/_chat.html:106
-#: assistant/templates/assistant/_chat.html:107 ui/forms.py:192
+#: assistant/templates/assistant/_chat.html:110
+#: assistant/templates/assistant/_chat.html:111 ui/forms.py:192
 #: ui/templates/ui/_group_picker.html:7 ui/templates/ui/base.html:25
 #: ui/templates/ui/base.html:27 ui/templates/ui/base.html:100
 #: ui/templates/ui/panels/group_none.html:4
@@ -416,11 +431,11 @@ msgstr "Usar conjunto de datos de demostración"
 msgid "Group"
 msgstr "Grupo"
 
-#: assistant/templates/assistant/_chat.html:115
+#: assistant/templates/assistant/_chat.html:119
 msgid "Message to the assistant"
 msgstr "Mensaje para el asistente"
 
-#: assistant/templates/assistant/_chat.html:117
+#: assistant/templates/assistant/_chat.html:121
 msgid ""
 "Upload a dataset and enter a prompt to get started optimizing with your "
 "Design Assistant, or create a new experiment yourself by clicking “+ New” in "
@@ -430,37 +445,37 @@ msgstr ""
 "con su asistente de diseño, o cree usted mismo un experimento nuevo con «+ "
 "Nuevo» en la barra lateral."
 
-#: assistant/templates/assistant/_chat.html:117
+#: assistant/templates/assistant/_chat.html:121
 msgid "Ask a question or request help setting or running your experiment"
 msgstr ""
 "Haga una pregunta o pida ayuda para configurar o ejecutar su experimento"
 
-#: assistant/templates/assistant/_chat.html:117
+#: assistant/templates/assistant/_chat.html:121
 msgid "Ask about Codesigner or any of your experiments"
 msgstr "Pregunte sobre Codesigner o sobre cualquiera de sus experimentos"
 
-#: assistant/templates/assistant/_chat.html:119
+#: assistant/templates/assistant/_chat.html:123
 #: ui/templates/ui/account/password_forgot.html:13
 msgid "Send"
 msgstr "Enviar"
 
-#: assistant/templates/assistant/_chat.html:120
-#: assistant/templates/assistant/_chat.html:128
+#: assistant/templates/assistant/_chat.html:124
+#: assistant/templates/assistant/_chat.html:132
 #: ui/templates/ui/figures/prior.html:170
 msgid "Reset"
 msgstr "Restablecer"
 
-#: assistant/templates/assistant/_chat.html:125
+#: assistant/templates/assistant/_chat.html:129
 msgid "Reset the conversation?"
 msgstr "¿Reiniciar la conversación?"
 
-#: assistant/templates/assistant/_chat.html:126
+#: assistant/templates/assistant/_chat.html:130
 msgid "This deletes the chat and the dataset given to it. It cannot be undone."
 msgstr ""
 "Esto elimina el chat y el conjunto de datos que se le dio. No se puede "
 "deshacer."
 
-#: assistant/templates/assistant/_chat.html:126
+#: assistant/templates/assistant/_chat.html:130
 #, python-format
 msgid ""
 "This deletes the chat about %(name)s and starts an empty one. The "
@@ -469,7 +484,7 @@ msgstr ""
 "Esto elimina el chat sobre %(name)s y empieza uno vacío. El experimento, sus "
 "notas y su plan se conservan. No se puede deshacer."
 
-#: assistant/templates/assistant/_chat.html:129
+#: assistant/templates/assistant/_chat.html:133
 #: ui/templates/ui/_confirm_page.html:33 ui/templates/ui/account_delete.html:31
 msgid "Cancel"
 msgstr "Cancelar"
@@ -515,9 +530,14 @@ msgstr "Volver a %(name)s"
 msgid "This conversation's plan is approved."
 msgstr "El plan de esta conversación ya está aprobado."
 
-#: assistant/views.py:276
+#: assistant/views.py:280
 msgid "There is no plan to approve."
 msgstr "No hay ningún plan que aprobar."
+
+#: assistant/views.py:355
+#
+msgid "There is no plan to reject."
+msgstr "No hay ningún plan que rechazar."
 
 #: experiments/management/commands/jobs.py:27
 #, python-format
@@ -697,116 +717,120 @@ msgstr "Elija en qué grupo está este experimento."
 msgid "Save the first step before this one."
 msgstr "Guarde primero el primer paso."
 
-#: ui/figures/catalog.py:39
+#: ui/figures/catalog.py:41 ui/templates/ui/figures/evaluation.html:8
+msgid "Experiment Evaluation"
+msgstr "Evaluación del experimento"
+
+#: ui/figures/catalog.py:50
 msgid "Best configuration"
 msgstr "Mejor configuración"
 
-#: ui/figures/catalog.py:49
+#: ui/figures/catalog.py:60
 msgid "Selected Configuration"
 msgstr "Configuración seleccionada"
 
-#: ui/figures/catalog.py:56
+#: ui/figures/catalog.py:67
 msgid "Tunability"
 msgstr "Ajustabilidad"
 
-#: ui/figures/catalog.py:57
+#: ui/figures/catalog.py:68
 msgid "Mistunability"
 msgstr "Desajustabilidad"
 
-#: ui/figures/catalog.py:58
+#: ui/figures/catalog.py:69
 msgid "Sensitivity"
 msgstr "Sensibilidad"
 
-#: ui/figures/catalog.py:61
+#: ui/figures/catalog.py:72
 msgid "How much is there to gain by tuning this hyperparameter?"
 msgstr "¿Cuánto hay que ganar ajustando este hiperparámetro?"
 
-#: ui/figures/catalog.py:62
+#: ui/figures/catalog.py:73
 msgid "How much is there to lose by getting this hyperparameter wrong?"
 msgstr "¿Cuánto hay que perder si este hiperparámetro se equivoca?"
 
-#: ui/figures/catalog.py:63
+#: ui/figures/catalog.py:74
 msgid "How much does performance move as this hyperparameter moves?"
 msgstr "¿Cuánto se mueve el rendimiento cuando se mueve este hiperparámetro?"
 
-#: ui/figures/catalog.py:79
+#: ui/figures/catalog.py:90
 msgid "Hyperparameter importance (HyperSHAP)"
 msgstr "Importancia de hiperparámetros (HyperSHAP)"
 
-#: ui/figures/catalog.py:85
+#: ui/figures/catalog.py:96
 msgid "HyperSHAP against the incumbent or selected trial"
 msgstr "HyperSHAP frente al incumbente o la prueba seleccionada"
 
-#: ui/figures/catalog.py:106 ui/figures/catalog.py:110
+#: ui/figures/catalog.py:117 ui/figures/catalog.py:121
 msgid "Local explanation (selected trial)"
 msgstr "Explicación local (prueba seleccionada)"
 
-#: ui/figures/catalog.py:143
+#: ui/figures/catalog.py:154
 msgid "Interactions: heatmap"
 msgstr "Interacciones: mapa de calor"
 
-#: ui/figures/catalog.py:151
+#: ui/figures/catalog.py:162
 msgid "Interactions: top pairs"
 msgstr "Interacciones: pares principales"
 
-#: ui/figures/catalog.py:159
+#: ui/figures/catalog.py:170
 msgid "Interactions: graph"
 msgstr "Interacciones: grafo"
 
-#: ui/figures/catalog.py:169
+#: ui/figures/catalog.py:180
 msgid "Interactions: coalitions"
 msgstr "Interacciones: coaliciones"
 
-#: ui/figures/catalog.py:178
+#: ui/figures/catalog.py:189
 msgid "Interactions: by order"
 msgstr "Interacciones: por orden"
 
-#: ui/figures/catalog.py:194
+#: ui/figures/catalog.py:205
 msgid "Trial performance"
 msgstr "Rendimiento de las pruebas"
 
-#: ui/figures/catalog.py:255
+#: ui/figures/catalog.py:266
 msgid "Hyperparameter space projection"
 msgstr "Proyección del espacio de hiperparámetros"
 
-#: ui/figures/catalog.py:266
+#: ui/figures/catalog.py:277
 msgid "Surrogate uncertainty (axes view)"
 msgstr "Incertidumbre del sustituto (vista de ejes)"
 
-#: ui/figures/catalog.py:287
+#: ui/figures/catalog.py:298
 msgid "Parallel coordinates"
 msgstr "Coordenadas paralelas"
 
-#: ui/figures/catalog.py:305 ui/figures/catalog.py:310
+#: ui/figures/catalog.py:316 ui/figures/catalog.py:321
 msgid "Partial dependence (PDP/ICE)"
 msgstr "Dependencia parcial (PDP/ICE)"
 
-#: ui/figures/catalog.py:320 ui/optimizer_labels.py:74
+#: ui/figures/catalog.py:331 ui/optimizer_labels.py:74
 msgid "Acquisition function"
 msgstr "Función de adquisición"
 
-#: ui/figures/catalog.py:325
+#: ui/figures/catalog.py:336
 msgid "Acquisition and priors"
 msgstr "Adquisición y priores"
 
-#: ui/figures/catalog.py:335 ui/figures/plots/surrogate.py:198
+#: ui/figures/catalog.py:346 ui/figures/plots/surrogate.py:198
 #: ui/figures/plots/surrogate.py:208 ui/timeline.py:260
 msgid "Prior"
 msgstr "Prior"
 
-#: ui/figures/catalog.py:346 ui/figures/catalog.py:354
+#: ui/figures/catalog.py:357 ui/figures/catalog.py:365
 msgid "Local effects across trials"
 msgstr "Efectos locales a lo largo de las pruebas"
 
-#: ui/figures/catalog.py:364
+#: ui/figures/catalog.py:375
 msgid "Trial duration"
 msgstr "Duración de la prueba"
 
-#: ui/figures/catalog.py:376 ui/timeline.py:89 ui/timeline.py:332
+#: ui/figures/catalog.py:387 ui/timeline.py:89 ui/timeline.py:332
 msgid "Trials"
 msgstr "Pruebas"
 
-#: ui/figures/catalog.py:392 ui/figures/catalog.py:396
+#: ui/figures/catalog.py:403 ui/figures/catalog.py:407
 msgid "Forecast"
 msgstr "Pronóstico"
 
@@ -1887,7 +1911,7 @@ msgstr "La preferencia de quien exporta"
 msgid "What the export page preselects."
 msgstr "Lo que la página de exportación preselecciona."
 
-#: ui/forms.py:433
+#: ui/forms.py:435
 msgid "Use default experiment settings"
 msgstr "Usar los ajustes predeterminados de los experimentos"
 
@@ -2459,7 +2483,7 @@ msgstr "Renombrar"
 #: ui/templates/ui/appearance.html:43
 #: ui/templates/ui/data_handling/_tabs.html:51
 #: ui/templates/ui/experiment_notes.html:47
-#: ui/templates/ui/experiment_prerun.html:59
+#: ui/templates/ui/experiment_prerun.html:60
 #: ui/templates/ui/export_preferences.html:22
 msgid "Save"
 msgstr "Guardar"
@@ -2627,11 +2651,11 @@ msgstr "Política de privacidad"
 msgid "Terms of use"
 msgstr "Condiciones de uso"
 
-#: ui/templates/ui/_optimizer_params.html:39
+#: ui/templates/ui/_optimizer_params.html:41
 msgid "Configure optimizer"
 msgstr "Configurar el optimizador"
 
-#: ui/templates/ui/_optimizer_params.html:51
+#: ui/templates/ui/_optimizer_params.html:57
 msgid "Advanced search settings"
 msgstr "Ajustes avanzados de búsqueda"
 
@@ -2692,7 +2716,7 @@ msgid "Value"
 msgstr "Valor"
 
 #: ui/templates/ui/_selected_proposal_inner.html:9
-#: ui/templates/ui/experiment_detail.html:2162 ui/timeline.py:385
+#: ui/templates/ui/experiment_detail.html:2159 ui/timeline.py:385
 msgid "Proposal"
 msgstr "Propuesta"
 
@@ -2749,185 +2773,6 @@ msgstr "Guardar para continuar"
 #: ui/templates/ui/_setup_steps.html:19
 msgid "Optional"
 msgstr "Opcional"
-
-#: ui/templates/ui/_side_evaluation.html:13
-msgid "Experiment Evaluation"
-msgstr "Evaluación del experimento"
-
-#: ui/templates/ui/_side_evaluation.html:18
-#: ui/templates/ui/_side_evaluation.html:27
-#: ui/templates/ui/_side_evaluation.html:258
-msgid "Evaluation metric"
-msgstr "Métrica de evaluación"
-
-#: ui/templates/ui/_side_evaluation.html:42
-msgid "Next run"
-msgstr "Próxima ejecución"
-
-#: ui/templates/ui/_side_evaluation.html:51
-msgid "Run until…"
-msgstr "Ejecutar hasta que…"
-
-#: ui/templates/ui/_side_evaluation.html:53
-msgid "…this many trials have run"
-msgstr "…se hayan hecho estas pruebas"
-
-#: ui/templates/ui/_side_evaluation.html:57
-#, python-format
-msgid "The planned %(n)s trial has run."
-msgid_plural "The planned %(n)s trials have run."
-msgstr[0] "Se ha ejecutado la %(n)s prueba prevista."
-msgstr[1] "Se han ejecutado las %(n)s pruebas previstas."
-
-#: ui/templates/ui/_side_evaluation.html:59
-#, python-format
-msgid "What is left of the %(n)s trials planned."
-msgstr "Lo que queda de las %(n)s pruebas previstas."
-
-#: ui/templates/ui/_side_evaluation.html:63
-msgid "…performance surpasses"
-msgstr "…el rendimiento supere"
-
-#: ui/templates/ui/_side_evaluation.html:75
-#: ui/templates/ui/_side_evaluation.html:98
-msgid "e.g. 0.95"
-msgstr "p. ej. 0,95"
-
-#: ui/templates/ui/_side_evaluation.html:78
-msgid "…the run has taken this many seconds"
-msgstr "…la ejecución haya durado estos segundos"
-
-#: ui/templates/ui/_side_evaluation.html:82
-msgid "…this many seconds have been spent in trials"
-msgstr "…se hayan dedicado estos segundos a las pruebas"
-
-#: ui/templates/ui/_side_evaluation.html:86
-msgid "…this many trials in a row have not improved"
-msgstr "…estas pruebas seguidas no hayan mejorado"
-
-#: ui/templates/ui/_side_evaluation.html:92
-msgid "…the search is this sure nothing better remains"
-msgstr "…la búsqueda esté así de segura de que no queda nada mejor"
-
-#: ui/templates/ui/_side_evaluation.html:93
-msgid ""
-"Asks the optimizer how likely its own model of the objective thinks it is "
-"that some untried configuration beats the best one so far. Confidence under "
-"that model, not a guarantee."
-msgstr ""
-"Pregunta al optimizador qué probabilidad le da su propio modelo del objetivo "
-"a que alguna configuración no probada supere a la mejor hasta ahora. "
-"Confianza bajo ese modelo, no una garantía."
-
-#: ui/templates/ui/_side_evaluation.html:102
-msgid ""
-"These may never happen. Consider a trial or time limit as well, so the run "
-"is certain to end."
-msgstr ""
-"Puede que nunca ocurran. Ponga también un límite de pruebas o de tiempo, "
-"para que la ejecución termine con seguridad."
-
-#: ui/templates/ui/_side_evaluation.html:111
-msgid "Give up if…"
-msgstr "Abandonar si…"
-
-#: ui/templates/ui/_side_evaluation.html:114
-msgid "…this many trials have failed"
-msgstr "…han fallado estas pruebas"
-
-#: ui/templates/ui/_side_evaluation.html:115
-msgid ""
-"A trial fails when the model raises on its configuration, runs past its "
-"deadline, or returns something that cannot be scored. It is still recorded — "
-"with its reason, and its stacktrace where there is one — and it scores what "
-"a model that knows nothing would — zero accuracy, or the error of always "
-"predicting the average — so the search learns to avoid that region. Default "
-"1: the first failure is usually the one worth reading. Raise it when a "
-"search is deliberately probing a region you expect to break. At least 1."
-msgstr ""
-"Una prueba falla cuando el modelo lanza una excepción con su configuración, "
-"supera su plazo o devuelve algo que no se puede puntuar. Se registra "
-"igualmente — con su motivo y, cuando la hay, su traza — y puntúa lo que "
-"puntuaría un modelo que no sabe nada — exactitud cero, o el error de "
-"predecir siempre la media —, de modo que la búsqueda aprende a evitar esa "
-"región. Por defecto 1: el primer fallo suele ser el que merece leerse. Suba "
-"el número cuando una búsqueda sondee a propósito una región que espera que "
-"rompa. Al menos 1."
-
-#: ui/templates/ui/_side_evaluation.html:123
-msgid "…this many have failed in a row"
-msgstr "…han fallado estas seguidas"
-
-#: ui/templates/ui/_side_evaluation.html:124
-msgid ""
-"A different question from the total: in a row means nothing here can work — "
-"a model that cannot fit this dataset at all fails identically every time, "
-"and without a limit it spends the whole budget proving it. At least 1."
-msgstr ""
-"Una pregunta distinta de la del total: seguidas significa que aquí no puede "
-"funcionar nada — un modelo que no encaja en absoluto con este conjunto de "
-"datos falla igual cada vez, y sin límite gasta todo el presupuesto "
-"demostrándolo. Al menos 1."
-
-#: ui/templates/ui/_side_evaluation.html:152
-msgid "Give up on a model fit after…"
-msgstr "Abandonar un ajuste del modelo tras…"
-
-#: ui/templates/ui/_side_evaluation.html:155
-msgid "…a deadline set"
-msgstr "…un plazo fijado"
-
-#: ui/templates/ui/_side_evaluation.html:156
-msgid ""
-"The limit is on one model fit, not on a whole trial: under cross-validation "
-"a trial is one fit per fold, and each fold is given the deadline separately. "
-"A fixed deadline is one number for every configuration, and nobody knows the "
-"right one before their first run. Predicted fits a forest to how long the "
-"fits already measured in this run took, and gives each new one a multiple of "
-"what it predicts for that configuration — so a large configuration gets "
-"proportionally longer instead of being killed for being large. The seconds "
-"below stay the outer bound under either."
-msgstr ""
-"El límite se aplica a un ajuste del modelo, no a una prueba entera: bajo "
-"validación cruzada una prueba es un ajuste por pliegue, y a cada pliegue se "
-"le concede el plazo por separado. Un plazo fijo es una sola cifra para toda "
-"configuración, y nadie sabe la correcta antes de su primera ejecución. "
-"«Predicho» ajusta un bosque a lo que tardaron los ajustes ya medidos en esta "
-"ejecución y da a cada nuevo un múltiplo de lo que predice para esa "
-"configuración — así una configuración grande recibe proporcionalmente más "
-"tiempo en vez de morir por ser grande. Los segundos de abajo siguen siendo "
-"el límite exterior en ambos casos."
-
-#: ui/templates/ui/_side_evaluation.html:161
-msgid "a fixed number of seconds"
-msgstr "un número fijo de segundos"
-
-#: ui/templates/ui/_side_evaluation.html:162
-msgid "a multiple of its predicted duration"
-msgstr "un múltiplo de su duración predicha"
-
-#: ui/templates/ui/_side_evaluation.html:166
-msgid "…this many seconds (0 for no limit)"
-msgstr "…estos segundos (0 para no poner límite)"
-
-#: ui/templates/ui/_side_evaluation.html:171
-msgid "…this many times the fit's predicted duration"
-msgstr "…este múltiplo de la duración predicha del ajuste"
-
-#: ui/templates/ui/_side_evaluation.html:187
-msgid "▶ Run"
-msgstr "▶ Ejecutar"
-
-#: ui/templates/ui/_side_evaluation.html:189
-#, python-format
-msgid "Environment: %(summary)s"
-msgstr "Entorno: %(summary)s"
-
-#: ui/templates/ui/_side_evaluation.html:262
-msgid "Attach a dataset to run this experiment (loaded read-only)."
-msgstr ""
-"Adjunte un conjunto de datos para ejecutar este experimento (se carga solo "
-"para lectura)."
 
 #: ui/templates/ui/_side_explanation.html:18 ui/views/dashboard.py:217
 msgid "HyperSHAP"
@@ -3184,12 +3029,15 @@ msgstr ""
 "grupo, para que el grupo conserve su trabajo. En un grupo sin nadie más, van "
 "a la papelera."
 
-#: ui/templates/ui/account_delete.html:12
 #
+#: ui/templates/ui/account_delete.html:12
 msgid ""
 "If you are a group's primary lead, its longest-serving group lead takes "
 "over, or without another lead, the member with the oldest account."
-msgstr "Si es la dirección principal de un grupo, asume el cargo la dirección del grupo con más antigüedad o, si no hay otra, el miembro con la cuenta más antigua."
+msgstr ""
+"Si es la dirección principal de un grupo, asume el cargo la dirección del "
+"grupo con más antigüedad o, si no hay otra, el miembro con la cuenta más "
+"antigua."
 
 #: ui/templates/ui/account_delete.html:13
 msgid ""
@@ -3206,7 +3054,10 @@ msgid ""
 "You are the primary lead of <a href=\"%(url)s\">%(group)s</a>. Unless you "
 "make somebody else primary lead first, %(heir)s, its longest-serving group "
 "lead, takes over."
-msgstr "Es la dirección principal de <a href=\"%(url)s\">%(group)s</a>. Si antes no nombra a otra persona dirección principal, asume el cargo %(heir)s, la dirección del grupo con más antigüedad."
+msgstr ""
+"Es la dirección principal de <a href=\"%(url)s\">%(group)s</a>. Si antes no "
+"nombra a otra persona dirección principal, asume el cargo %(heir)s, la "
+"dirección del grupo con más antigüedad."
 
 #: ui/templates/ui/account_delete.html:17
 #, python-format
@@ -3214,7 +3065,10 @@ msgid ""
 "You are the primary lead of <a href=\"%(url)s\">%(group)s</a>, which has no "
 "other group lead. Unless you make somebody else primary lead first, "
 "%(heir)s, the member with the oldest account, takes over."
-msgstr "Es la dirección principal de <a href=\"%(url)s\">%(group)s</a>, que no tiene otra dirección del grupo. Si antes no nombra a otra persona dirección principal, asume el cargo %(heir)s, el miembro con la cuenta más antigua."
+msgstr ""
+"Es la dirección principal de <a href=\"%(url)s\">%(group)s</a>, que no tiene "
+"otra dirección del grupo. Si antes no nombra a otra persona dirección "
+"principal, asume el cargo %(heir)s, el miembro con la cuenta más antigua."
 
 #: ui/templates/ui/account_delete.html:19
 msgid "Download your data first if you want a copy."
@@ -3486,66 +3340,66 @@ msgstr "Estará en la papelera de:"
 msgid "you"
 msgstr "usted"
 
-#: ui/templates/ui/experiment_detail.html:18
+#: ui/templates/ui/experiment_detail.html:15
 #, python-format
 msgid "The search space is exhausted at %(n)s trials."
 msgstr "El espacio de búsqueda se agota a las %(n)s pruebas."
 
-#: ui/templates/ui/experiment_detail.html:44
+#: ui/templates/ui/experiment_detail.html:41
 msgid "Drag to move"
 msgstr "Arrastrar para mover"
 
-#: ui/templates/ui/experiment_detail.html:45
+#: ui/templates/ui/experiment_detail.html:42
 msgid "Pin to Overview"
 msgstr "Fijar en Resumen"
 
-#: ui/templates/ui/experiment_detail.html:46
+#: ui/templates/ui/experiment_detail.html:43
 msgid "Remove from Overview"
 msgstr "Quitar de Resumen"
 
-#: ui/templates/ui/experiment_detail.html:47
+#: ui/templates/ui/experiment_detail.html:44
 msgid "Wider"
 msgstr "Más ancho"
 
-#: ui/templates/ui/experiment_detail.html:48
+#: ui/templates/ui/experiment_detail.html:45
 msgid "Narrower"
 msgstr "Más estrecho"
 
-#: ui/templates/ui/experiment_detail.html:49
-#: ui/templates/ui/experiment_detail.html:73
+#: ui/templates/ui/experiment_detail.html:46
+#: ui/templates/ui/experiment_detail.html:70
 msgid "Nothing is pinned here yet."
 msgstr "Todavía no hay nada fijado aquí."
 
-#: ui/templates/ui/experiment_detail.html:51
+#: ui/templates/ui/experiment_detail.html:48
 msgid "Figures"
 msgstr "Figuras"
 
-#: ui/templates/ui/experiment_detail.html:73
+#: ui/templates/ui/experiment_detail.html:70
 msgid "No figures on this tab are switched on for this experiment."
 msgstr "Ninguna figura de esta pestaña está activada para este experimento."
 
-#: ui/templates/ui/experiment_detail.html:317
+#: ui/templates/ui/experiment_detail.html:314
 msgid "Absolute scale (0-1)"
 msgstr "Escala absoluta (0-1)"
 
-#: ui/templates/ui/experiment_detail.html:318
+#: ui/templates/ui/experiment_detail.html:315
 msgid "Relative scale (fit to data)"
 msgstr "Escala relativa (ajustada a los datos)"
 
-#: ui/templates/ui/experiment_detail.html:438
+#: ui/templates/ui/experiment_detail.html:435
 msgid "A proposal is selected, not a trial."
 msgstr "Está seleccionada una propuesta, no una prueba."
 
-#: ui/templates/ui/experiment_detail.html:2149
+#: ui/templates/ui/experiment_detail.html:2146
 #: ui/templates/ui/figures/configuration_cube.html:82
 msgid "Prediction"
 msgstr "Predicción"
 
-#: ui/templates/ui/experiment_detail.html:2213
+#: ui/templates/ui/experiment_detail.html:2210
 msgid "(weighted)"
 msgstr "(ponderada)"
 
-#: ui/templates/ui/experiment_detail.html:2886
+#: ui/templates/ui/experiment_detail.html:2883
 msgid "Uncertainty"
 msgstr "Incertidumbre"
 
@@ -3616,7 +3470,7 @@ msgstr ""
 msgid "Nothing written down yet."
 msgstr "Todavía no hay nada escrito."
 
-#: ui/templates/ui/experiment_prerun.html:16
+#: ui/templates/ui/experiment_prerun.html:15
 msgid "Waiting for the first trial…"
 msgstr "Esperando la primera prueba…"
 
@@ -3989,6 +3843,177 @@ msgstr "Elija un hiperparámetro para un eje."
 #: ui/templates/ui/figures/configuration_cube.html:118
 msgid "No configurations to plot."
 msgstr "No hay configuraciones que dibujar."
+
+#: ui/templates/ui/figures/evaluation.html:12
+#: ui/templates/ui/figures/evaluation.html:89
+#: ui/templates/ui/figures/evaluation.html:237
+msgid "Evaluation metric"
+msgstr "Métrica de evaluación"
+
+#: ui/templates/ui/figures/evaluation.html:23
+msgid "Run until…"
+msgstr "Ejecutar hasta que…"
+
+#: ui/templates/ui/figures/evaluation.html:25
+msgid "…this many trials have run"
+msgstr "…se hayan hecho estas pruebas"
+
+#: ui/templates/ui/figures/evaluation.html:29
+#, python-format
+msgid "The planned %(n)s trial has run."
+msgid_plural "The planned %(n)s trials have run."
+msgstr[0] "Se ha ejecutado la %(n)s prueba prevista."
+msgstr[1] "Se han ejecutado las %(n)s pruebas previstas."
+
+#: ui/templates/ui/figures/evaluation.html:31
+#, python-format
+msgid "What is left of the %(n)s trials planned."
+msgstr "Lo que queda de las %(n)s pruebas previstas."
+
+#: ui/templates/ui/figures/evaluation.html:35
+msgid "…performance surpasses"
+msgstr "…el rendimiento supere"
+
+#: ui/templates/ui/figures/evaluation.html:47
+#: ui/templates/ui/figures/evaluation.html:70
+msgid "e.g. 0.95"
+msgstr "p. ej. 0,95"
+
+#: ui/templates/ui/figures/evaluation.html:50
+msgid "…the run has taken this many seconds"
+msgstr "…la ejecución haya durado estos segundos"
+
+#: ui/templates/ui/figures/evaluation.html:54
+msgid "…this many seconds have been spent in trials"
+msgstr "…se hayan dedicado estos segundos a las pruebas"
+
+#: ui/templates/ui/figures/evaluation.html:58
+msgid "…this many trials in a row have not improved"
+msgstr "…estas pruebas seguidas no hayan mejorado"
+
+#: ui/templates/ui/figures/evaluation.html:64
+msgid "…the search is this sure nothing better remains"
+msgstr "…la búsqueda esté así de segura de que no queda nada mejor"
+
+#: ui/templates/ui/figures/evaluation.html:65
+msgid ""
+"Asks the optimizer how likely its own model of the objective thinks it is "
+"that some untried configuration beats the best one so far. Confidence under "
+"that model, not a guarantee."
+msgstr ""
+"Pregunta al optimizador qué probabilidad le da su propio modelo del objetivo "
+"a que alguna configuración no probada supere a la mejor hasta ahora. "
+"Confianza bajo ese modelo, no una garantía."
+
+#: ui/templates/ui/figures/evaluation.html:74
+msgid ""
+"These may never happen. Consider a trial or time limit as well, so the run "
+"is certain to end."
+msgstr ""
+"Puede que nunca ocurran. Ponga también un límite de pruebas o de tiempo, "
+"para que la ejecución termine con seguridad."
+
+#: ui/templates/ui/figures/evaluation.html:99
+msgid "Give up if…"
+msgstr "Abandonar si…"
+
+#: ui/templates/ui/figures/evaluation.html:102
+msgid "…this many trials have failed"
+msgstr "…han fallado estas pruebas"
+
+#: ui/templates/ui/figures/evaluation.html:103
+msgid ""
+"A trial fails when the model raises on its configuration, runs past its "
+"deadline, or returns something that cannot be scored. It is still recorded — "
+"with its reason, and its stacktrace where there is one — and it scores what "
+"a model that knows nothing would — zero accuracy, or the error of always "
+"predicting the average — so the search learns to avoid that region. Default "
+"1: the first failure is usually the one worth reading. Raise it when a "
+"search is deliberately probing a region you expect to break. At least 1."
+msgstr ""
+"Una prueba falla cuando el modelo lanza una excepción con su configuración, "
+"supera su plazo o devuelve algo que no se puede puntuar. Se registra "
+"igualmente — con su motivo y, cuando la hay, su traza — y puntúa lo que "
+"puntuaría un modelo que no sabe nada — exactitud cero, o el error de "
+"predecir siempre la media —, de modo que la búsqueda aprende a evitar esa "
+"región. Por defecto 1: el primer fallo suele ser el que merece leerse. Suba "
+"el número cuando una búsqueda sondee a propósito una región que espera que "
+"rompa. Al menos 1."
+
+#: ui/templates/ui/figures/evaluation.html:111
+msgid "…this many have failed in a row"
+msgstr "…han fallado estas seguidas"
+
+#: ui/templates/ui/figures/evaluation.html:112
+msgid ""
+"A different question from the total: in a row means nothing here can work — "
+"a model that cannot fit this dataset at all fails identically every time, "
+"and without a limit it spends the whole budget proving it. At least 1."
+msgstr ""
+"Una pregunta distinta de la del total: seguidas significa que aquí no puede "
+"funcionar nada — un modelo que no encaja en absoluto con este conjunto de "
+"datos falla igual cada vez, y sin límite gasta todo el presupuesto "
+"demostrándolo. Al menos 1."
+
+#: ui/templates/ui/figures/evaluation.html:140
+msgid "Give up on a model fit after…"
+msgstr "Abandonar un ajuste del modelo tras…"
+
+#: ui/templates/ui/figures/evaluation.html:143
+msgid "…a deadline set"
+msgstr "…un plazo fijado"
+
+#: ui/templates/ui/figures/evaluation.html:144
+msgid ""
+"The limit is on one model fit, not on a whole trial: under cross-validation "
+"a trial is one fit per fold, and each fold is given the deadline separately. "
+"A fixed deadline is one number for every configuration, and nobody knows the "
+"right one before their first run. Predicted fits a forest to how long the "
+"fits already measured in this run took, and gives each new one a multiple of "
+"what it predicts for that configuration — so a large configuration gets "
+"proportionally longer instead of being killed for being large. The seconds "
+"below stay the outer bound under either."
+msgstr ""
+"El límite se aplica a un ajuste del modelo, no a una prueba entera: bajo "
+"validación cruzada una prueba es un ajuste por pliegue, y a cada pliegue se "
+"le concede el plazo por separado. Un plazo fijo es una sola cifra para toda "
+"configuración, y nadie sabe la correcta antes de su primera ejecución. "
+"«Predicho» ajusta un bosque a lo que tardaron los ajustes ya medidos en esta "
+"ejecución y da a cada nuevo un múltiplo de lo que predice para esa "
+"configuración — así una configuración grande recibe proporcionalmente más "
+"tiempo en vez de morir por ser grande. Los segundos de abajo siguen siendo "
+"el límite exterior en ambos casos."
+
+#: ui/templates/ui/figures/evaluation.html:149
+msgid "a fixed number of seconds"
+msgstr "un número fijo de segundos"
+
+#: ui/templates/ui/figures/evaluation.html:150
+msgid "a multiple of its predicted duration"
+msgstr "un múltiplo de su duración predicha"
+
+#: ui/templates/ui/figures/evaluation.html:154
+msgid "…this many seconds (0 for no limit)"
+msgstr "…estos segundos (0 para no poner límite)"
+
+#: ui/templates/ui/figures/evaluation.html:159
+msgid "…this many times the fit's predicted duration"
+msgstr "…este múltiplo de la duración predicha del ajuste"
+
+#: ui/templates/ui/figures/evaluation.html:165
+msgid "▶ Run"
+msgstr "▶ Ejecutar"
+
+#: ui/templates/ui/figures/evaluation.html:167
+#, python-format
+msgid "Environment: %(summary)s"
+msgstr "Entorno: %(summary)s"
+
+#: ui/templates/ui/figures/evaluation.html:241
+msgid "Attach a dataset to run this experiment (loaded read-only)."
+msgstr ""
+"Adjunte un conjunto de datos para ejecutar este experimento (se carga solo "
+"para lectura)."
 
 #: ui/templates/ui/figures/forecast.html:11
 msgid "Series"

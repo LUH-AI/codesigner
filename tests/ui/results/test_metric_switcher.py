@@ -67,27 +67,23 @@ def test_metric_select_present_before_first_run(client):
 
 
 @pytest.mark.django_db
-def test_run_and_metric_controls_share_one_form_in_the_sidebar(client):
-    """The dropdown is the run's optimize-metric field, and it stays in the
-    sidebar because it drives every figure.
-    """
+def test_run_and_metric_controls_share_one_form_in_the_evaluation_card(client):
+    """What: the metric dropdown is the run's optimize-metric field, in one
+    form with the stopping conditions in the Experiment Evaluation card, and
+    the sidebar no longer has them. How: the page of an experiment with a
+    result."""
     exp = _experiment_with_result()
 
     html = client.get(reverse("ui:experiment_detail", args=[exp.pk])).content.decode()
     sidebar = html.split('<nav class="sidebar"', 1)[1].split("</nav>", 1)[0]
-    content = html.split("<main", 1)[-1]
+    card = html.split('data-figure="evaluation"', 1)[1].split("</section>", 1)[0]
 
-    assert "Experiment Evaluation" in sidebar
-    # Counted per section; other sidebar sections post forms too.
-    evaluation = sidebar.split("Experiment Evaluation", 1)[1].split("</section>", 1)[0]
-    assert evaluation.count("<form") == 1
-    assert 'name="max_trials"' in sidebar
-    assert 'id="metric-select"' in sidebar
+    assert card.count("<form") == 1
+    assert 'name="max_trials"' in card and 'id="metric-select"' in card
     # dropdown doubles as optimize-metric field
-    assert 'name="optimize_metric"' in sidebar
-    # and stays out of the main column
-    assert 'id="metric-select"' not in content
-    assert "<details class=\"run-config\">" in sidebar
+    assert 'name="optimize_metric"' in card
+    assert 'id="metric-select"' not in sidebar and "Experiment Evaluation" not in sidebar
+    assert "run-config" not in card
 
 
 @pytest.mark.django_db

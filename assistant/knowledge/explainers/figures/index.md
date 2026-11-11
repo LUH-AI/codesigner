@@ -2,7 +2,7 @@
 id: page-figure-index
 title: Dashboard figures
 kind: page
-about: [figure:selected_configuration, figure:best_configuration, figure:hyperparameter_importance, figure:performance_over_time, figure:interactions_heatmap, figure:interactions_top_pairs, figure:interactions_graph, figure:interactions_coalitions, figure:interactions_orders, figure:trial_duration, figure:forecast, figure:parallel_coordinates, figure:partial_dependence, figure:local_explanation, figure:local_effects, figure:acquisition_slice, figure:prior, figure:configuration_cube, figure:trials]
+about: [figure:evaluation, figure:selected_configuration, figure:best_configuration, figure:hyperparameter_importance, figure:performance_over_time, figure:interactions_heatmap, figure:interactions_top_pairs, figure:interactions_graph, figure:interactions_coalitions, figure:interactions_orders, figure:trial_duration, figure:forecast, figure:parallel_coordinates, figure:partial_dependence, figure:local_explanation, figure:local_effects, figure:acquisition_slice, figure:prior, figure:configuration_cube, figure:trials]
 related: [page-dashboard-sidebar, concept-explanation-games, concept-priors, concept-projection, concept-metrics]
 keywords: [which figure, dashboard, tabs, overview, HyperSHAP tab, acquisition tab, misc tab]
 status: draft
@@ -13,7 +13,7 @@ sources:
   - ui/figure_layout.toml (default placement and Overview pins)
 ---
 
-Each figure lives on one tab (its home tab). **Overview** holds copies pinned from the other tabs; by default these are Best configuration, Hyperparameter importance, Trials, Trial performance, Forecast and Hyperparameter space projection. Readers can pin, move and resize figures; this lists the defaults. Any figure can be switched off in the experiment's settings.
+Each figure lives on one tab (its home tab). **Overview** holds copies pinned from the other tabs; by default these are Experiment Evaluation, Best configuration, Hyperparameter importance, Trials, Trial performance, Forecast and Hyperparameter space projection. Readers can pin, move and resize figures; this lists the defaults. Any figure but Experiment Evaluation can be switched off in the experiment's settings.
 
 ## Sidebar
 
@@ -38,6 +38,7 @@ Each figure lives on one tab (its home tab). **Overview** holds copies pinned fr
 
 ## Misc
 
+- [Experiment Evaluation](evaluation.md) (`figure-evaluation`): which metric, and when should the next run end or give up? Where is the Run button?
 - [Best configuration](best_configuration.md) (`figure-best-configuration`): which trial is best so far for this metric, and with which values?
 - [Trial performance](performance_over_time.md) (`figure-performance-over-time`): is the search still improving?
 - [Trial duration](trial_duration.md) (`figure-trial-duration`): how long did each trial take, and which failed?

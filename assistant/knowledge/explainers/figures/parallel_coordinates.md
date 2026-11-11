@@ -7,10 +7,10 @@ related: [figure-hyperparameter-importance, figure-configuration-cube, figure-se
 keywords: [parallel coordinates, lines, every trial, axes order, good region, hyperparameter values vs score]
 status: draft
 sources:
-  - ui/figures/catalog.py:277-295 (ParallelCoordinates)
+  - ui/figures/catalog.py:288-306 (ParallelCoordinates)
   - ui/templates/ui/figures/parallel_coordinates.html
   - ui/figures/plots/space.py:202-319 (parallel_coordinates_plot and helpers), 18-30 (_INTENSITY_SCALE)
-  - ui/templates/ui/experiment_detail.html:513-529 (line highlight), 857-978 (click via hover)
+  - ui/templates/ui/experiment_detail.html:510-526 (line highlight), 857-978 (click via hover)
   - ui/figure_layout.toml (misc)
 ---
 

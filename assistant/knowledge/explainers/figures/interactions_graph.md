@@ -7,7 +7,7 @@ related: [concept-explanation-games, figure-interactions-coalitions, figure-inte
 keywords: [Möbius graph, interaction graph, higher-order interactions, coalitions, hyperedge, synergy, redundancy]
 status: draft
 sources:
-  - ui/figures/catalog.py:113-161 (_Interactions, InteractionsGraph)
+  - ui/figures/catalog.py:124-172 (_Interactions, InteractionsGraph)
   - ui/templates/ui/figures/interactions_graph.html, _before_this_run.html
   - ui/figures/plots/interactions.py:62-144 (_circle_positions, hyperparameter_graph_plot)
   - core/analytics/games.py:62-70 (_moebius_terms), 191-258 (_compute_hp_game)

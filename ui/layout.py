@@ -178,6 +178,12 @@ def _from_default(tab, key):
     return next((dict(s) for s in read_default()["tabs"][tab] if s["key"] == key), None)
 
 
+def _default_index(tab, key) -> int:
+    """`_default_index` is *key*'s position on *tab* in the site's default."""
+    keys = [s["key"] for s in read_default()["tabs"][tab]]
+    return keys.index(key) if key in keys else len(keys)
+
+
 def _width(figure, value, tab) -> int:
     try:
         return figure.fit(int(value))
@@ -191,8 +197,9 @@ def normalize(layout) -> dict:
     """`normalize` drops slots naming no figure, off their home tab outside
     Overview, or repeated on a tab. An unallowed width shrinks to the widest
     allowed, and an invalid column is dropped for the page to choose. A figure
-    absent from every home tab is new and goes where the default puts it, while
-    a figure absent only from Overview stays unpinned.
+    absent from every home tab is new and goes where the default puts it, at
+    its place in the default's order, while a figure absent only from Overview
+    stays unpinned.
     """
     if not isinstance(layout, dict) or not isinstance(layout.get("tabs"), dict):
         return default_layout()
@@ -222,10 +229,13 @@ def normalize(layout) -> dict:
     for figure in _arrangeable():
         if figure.key in known:
             continue
-        tabs[figure.home_tab].append(_from_default(figure.home_tab, figure.key))
+        home = tabs[figure.home_tab]
+        home.insert(min(_default_index(figure.home_tab, figure.key), len(home)),
+                    _from_default(figure.home_tab, figure.key))
         pinned = _from_default(OVERVIEW, figure.key)
         if pinned and all(s["key"] != figure.key for s in tabs[OVERVIEW]):
-            tabs[OVERVIEW].append(pinned)
+            tabs[OVERVIEW].insert(min(_default_index(OVERVIEW, figure.key),
+                                      len(tabs[OVERVIEW])), pinned)
     return {"version": VERSION, "tabs": tabs}
 
 

@@ -1,5 +1,6 @@
-"""Each catalog figure has a visibility setting, on by default, and hiding one
-must leave the rest of the shared script working.
+"""Each catalog figure but the Experiment Evaluation card has a visibility
+setting, on by default, and hiding one must leave the rest of the shared script
+working.
 """
 
 import re
@@ -13,6 +14,8 @@ from ui.figures import (
 from experiments.models import Experiment, GlobalSettings
 
 EXPECTED_KEYS = [
+    # The run form; always shown (`Figure.switchable` is False).
+    "evaluation",
     # Sidebar figure (`Figure.in_sidebar`) with its own visibility setting.
     "selected_configuration",
     "best_configuration",
@@ -190,11 +193,14 @@ def test_hiding_the_performance_figure_keeps_the_page_working(client):
 
 
 def test_all_figures_can_be_hidden_at_once(client):
+    """What: switching every figure off leaves only the Experiment Evaluation
+    card, which no setting switches off. How: every visibility setting off."""
     _hide(*EXPECTED_KEYS)
     html = _page(client, _experiment())
 
     for figure in FIGURES:
-        assert f'data-figure="{figure.key}"' not in html, figure.key
+        shown = f'data-figure="{figure.key}"' in html
+        assert shown == (not figure.switchable), figure.key
     assert "Trials" not in html.split("<main", 1)[-1]
 
 

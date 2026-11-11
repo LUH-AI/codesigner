@@ -39,9 +39,13 @@ def _request():
 
 
 def _run_form(client, exp):
+    """`_run_form` is the run form's markup with each run of whitespace one
+    space."""
+    import re
+
     page = client.get(reverse("ui:experiment_detail", args=[exp.pk])).content.decode()
     start = page.index('action="' + reverse("ui:experiment_run", args=[exp.pk]))
-    return page[start:page.index("</form>", start)]
+    return re.sub(r"\s+", " ", page[start:page.index("</form>", start)])
 
 
 def test_only_run_safe_settings_change_once_there_are_trials(guided):
@@ -75,15 +79,19 @@ def test_nothing_changes_while_a_run_is_going(guided):
     assert optimizer_form.why_fixed(guided, "random_probability") is not None
 
 
-def test_the_next_run_fold_offers_the_run_safe_settings(client, guided):
-    """What: the dashboard's run form carries the run-safe settings, and none
-    of the locked ones.
+def test_the_run_form_offers_the_run_safe_settings_between_its_columns(client, guided):
+    """What: after a run, the run form carries the run-safe settings, and none
+    of the locked ones, in a column between the stopping conditions and the
+    metric, with the advanced ones listed without a fold.
     How: the guided fixture's page."""
     form = _run_form(client, guided)
 
     assert 'name="next_run_settings"' in form
     assert 'id="opt_random_probability"' in form and 'id="opt_trial_cap"' in form
     assert 'id="opt_initial_design"' not in form and 'id="opt_search_strategy"' not in form
+    assert (form.index('name="max_trials"') < form.index('id="opt_random_probability"')
+            < form.index('name="optimize_metric"'))
+    assert form.count('class="evaluation-column"') == 3 and "advanced-params" not in form
 
 
 def test_run_saves_the_changed_rate_and_the_run_records_it(client, guided, no_thread):
@@ -120,15 +128,15 @@ def test_a_planned_budget_fills_the_run_form_with_what_is_left(client, guided):
     it offers 30 and the target to beat.
     How: the guided fixture's run form under each."""
     plain = _run_form(client, guided)
-    assert 'name="max_trials"\n                               value="30"' in plain
-    assert 'id="target_score" name="target_score"\n                               value=""' \
+    assert 'name="max_trials" value="30"' in plain
+    assert 'id="target_score" name="target_score" value=""' \
         not in plain
 
     guided.data.trial_budget = 150
     guided.data.save(update_fields=["trial_budget"])
     form = _run_form(client, guided)
     assert 'value="110"' in form and "What is left of the 150 trials planned." in form
-    assert 'id="target_score" name="target_score"\n                               value=""' in form
+    assert 'id="target_score" name="target_score" value=""' in form
 
     guided.data.trial_budget = 40
     guided.data.save(update_fields=["trial_budget"])

@@ -7,14 +7,14 @@ related: [figure-hyperparameter-importance, figure-acquisition-slice, figure-par
 keywords: [partial dependence, PDP, ICE, individual conditional expectation, effect of one hyperparameter, predicted score, surrogate]
 status: draft
 sources:
-  - ui/figures/catalog.py:298-310 (PartialDependence)
+  - ui/figures/catalog.py:309-321 (PartialDependence)
   - ui/templates/ui/figures/partial_dependence.html
   - ui/figures/plots/surrogate.py:13-42 (partial_dependence_plot)
   - core/analytics/surrogate.py:49-70 (fit_surrogate), 101-115 (_hp_grid), 132-141 (_sample_evenly)
   - core/analytics/effects.py:109-165 (compute_partial_dependence)
   - ui/views/analytics.py:109-127 (partial_dependence), 406-420 (_partial_dependence_data)
   - ui/views/dashboard.py:409-416 (top_hp)
-  - ui/templates/ui/experiment_detail.html:1443-1494, 1609-1614, 3117-3121
+  - ui/templates/ui/experiment_detail.html:1440-1491, 1609-1614, 3117-3121
   - ui/forms.py:373, 385-387 (ice_max_curves label)
   - experiments/services/settings.py (ice_max_curves 100, autocompute_partial_dependence off)
 ---

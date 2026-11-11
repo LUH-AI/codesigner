@@ -16,7 +16,7 @@ sources:
   - ui/figures/data_handling.py:88-131
   - core/fitted_model.py:17-29
   - core/processing.py
-  - ui/figure_layout.toml:141-148
+  - ui/figure_layout.toml:143-150
   - ui/drafts.py:147-166
   - ui/drafts.py:295-296
   - core/models/svm.py:17-18

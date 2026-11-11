@@ -3,7 +3,7 @@ id: concept-metrics
 title: Metrics
 kind: concept
 about: [field:optimize_metric, field:metric-select]
-related: [concept-evaluation, concept-tasks-and-models, concept-stopping, concept-priors, figure-performance-over-time, figure-trials, page-dashboard-sidebar]
+related: [concept-evaluation, concept-tasks-and-models, concept-stopping, concept-priors, figure-performance-over-time, figure-trials, figure-evaluation]
 keywords: [metric, score, accuracy, F1, precision, recall, balanced accuracy, ROC AUC, log loss, RMSE, MAE, R², MASE, sMAPE, null score, baseline score, failed trial, higher is better, lower is better]
 status: draft
 sources:
@@ -18,7 +18,7 @@ sources:
   - experiments/services/run.py:36-42
   - experiments/services/priors.py:42-64
   - assistant/data.py:490-506
-  - ui/templates/ui/_side_evaluation.html:16-28
+  - ui/templates/ui/figures/evaluation.html
   - ui/templates/ui/metric_change.html
 ---
 
@@ -78,7 +78,7 @@ SMAC minimizes a cost. A higher-is-better metric with an upper end becomes best 
 
 ## In Codesigner
 
-- Dashboard sidebar, "Experiment Evaluation": "Evaluation metric" (`metric-select`) switches every figure. In the Run form it is also the metric the next run optimizes (`optimize_metric`).
+- The "Experiment Evaluation" card: "Evaluation metric" (`metric-select`) switches every figure. In the Run form it is also the metric the next run optimizes (`optimize_metric`).
 - Picking a different metric than the one being optimized asks "Change the optimized metric?". The trials are kept and read again under the new metric.
 - Figures use short titles ("ROC AUC", "RMSE", "R²", "sMAPE (%)"). The Trials table has a column per metric.
 

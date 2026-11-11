@@ -7,11 +7,11 @@ related: [concept-metrics, figure-selected-configuration, figure-trial-duration,
 keywords: [score over time, running best, incumbent, convergence, error over time, trials vs time, absolute scale, log scale]
 status: draft
 sources:
-  - ui/figures/catalog.py:183-239 (PerformanceOverTime, absolute_scale_for)
+  - ui/figures/catalog.py:194-250 (PerformanceOverTime, absolute_scale_for)
   - ui/figures/plots/performance.py:22-109 (performance_over_time_plot)
   - ui/figures/plots/style.py:1-45 (palette), 25-97 (failure marks)
   - ui/templates/ui/figures/performance_over_time.html
-  - ui/templates/ui/experiment_detail.html:304-411 (scale toggle), 3476-3484 (view selects), 3165-3250 (live updates)
+  - ui/templates/ui/experiment_detail.html:301-408 (scale toggle), 3476-3484 (view selects), 3165-3250 (live updates)
   - core/metrics.py:343-360 (to_error, error_range)
   - ui/figure_layout.toml (overview, misc)
 ---

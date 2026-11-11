@@ -7,13 +7,13 @@ related: [figure-selected-configuration, figure-performance-over-time, concept-m
 keywords: [best trial, incumbent, best score, winning hyperparameters, best overall]
 status: draft
 sources:
-  - ui/figures/catalog.py:35-40 (BestConfiguration)
+  - ui/figures/catalog.py:46-51 (BestConfiguration)
   - ui/templates/ui/figures/best_configuration.html
   - ui/views/dashboard.py:346-477 (_detail_context panels)
   - ui/views/common.py:91-110 (_best_panels)
   - ui/views/runs.py:65-101 (_live_payloads best_html)
   - core/optimizers/base.py:142-152 (OptimizationResult.best_index)
-  - ui/templates/ui/experiment_detail.html:3055-3064 (show), 3255-3267 (swapBestConfiguration)
+  - ui/templates/ui/experiment_detail.html:3052-3061 (show), 3255-3267 (swapBestConfiguration)
   - ui/figure_layout.toml (overview, misc)
 ---
 
@@ -33,7 +33,7 @@ This card always shows the best trial. To look at any other trial, click it in a
 
 ## Controls
 
-None. It follows the sidebar's **Evaluation metric** selector (`metric-select`): one card per metric, and only the viewed metric's card is shown.
+None. It follows the **Evaluation metric** selector (`metric-select`) in the Experiment Evaluation card: one card per metric, and only the viewed metric's card is shown.
 
 ## When it appears
 

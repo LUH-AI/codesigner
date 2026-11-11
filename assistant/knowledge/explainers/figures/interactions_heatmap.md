@@ -7,11 +7,11 @@ related: [concept-explanation-games, figure-interactions-top-pairs, figure-inter
 keywords: [interaction, pairwise, synergy, redundancy, FSII, order 2, heatmap, hyperparameter pairs]
 status: draft
 sources:
-  - ui/figures/catalog.py:113-144 (_Interactions, InteractionsHeatmap)
+  - ui/figures/catalog.py:124-155 (_Interactions, InteractionsHeatmap)
   - ui/templates/ui/figures/interactions_heatmap.html, _before_this_run.html
   - ui/figures/plots/interactions.py:9-25 (hyperparameter_interactions_heatmap_plot), 55-73 (_SIGN_SCALE)
   - core/analytics/games.py:191-258 (_compute_hp_game), 261-269 (_extract_pairwise)
-  - ui/templates/ui/experiment_detail.html:1435-1445 (syncInteractionsWarning), 3452-3475 (game and baseline handlers)
+  - ui/templates/ui/experiment_detail.html:1432-1442 (syncInteractionsWarning), 3452-3475 (game and baseline handlers)
   - ui/views/analytics.py:349-354 (_analytics_absent)
 ---
 

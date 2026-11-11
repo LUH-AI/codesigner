@@ -7,12 +7,12 @@ related: [concept-explanation-games, concept-surrogate-and-acquisition, concept-
 keywords: [compute, compute button, autocompute, computed automatically, deferred, on request, cost, slow, compute explanations, during a run, live, partial result, analytics]
 status: draft
 sources:
-  - ui/figures/base.py:58-137
-  - ui/figures/catalog.py:76-96
-  - ui/figures/catalog.py:242-274
-  - ui/figures/catalog.py:298-310
+  - ui/figures/base.py:58-139
+  - ui/figures/catalog.py:87-107
+  - ui/figures/catalog.py:253-285
+  - ui/figures/catalog.py:309-321
   - experiments/services/settings.py
-  - ui/forms.py:373-433
+  - ui/forms.py:373-435
   - ui/templates/ui/_experiment_settings_fields.html
   - ui/templates/ui/_side_explanation.html
   - core/analytics/slices.py:12-21

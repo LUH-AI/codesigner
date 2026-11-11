@@ -7,7 +7,7 @@ related: [concept-explanation-games, figure-interactions-graph, figure-interacti
 keywords: [on its own, in pairs, in larger groups, Möbius, Harsanyi dividend, attributed influence, interaction order]
 status: draft
 sources:
-  - ui/figures/catalog.py:113-180 (_Interactions, InteractionsOrders)
+  - ui/figures/catalog.py:124-191 (_Interactions, InteractionsOrders)
   - ui/templates/ui/figures/interactions_orders.html, _before_this_run.html
   - ui/figures/plots/interactions.py:203-244 (_ORDER_BANDS, hyperparameter_orders_plot)
   - core/analytics/games.py:62-70 (_moebius_terms)

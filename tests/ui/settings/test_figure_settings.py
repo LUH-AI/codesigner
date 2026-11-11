@@ -8,29 +8,33 @@ from ui.figures import FIGURES
 from experiments.models import GlobalSettings
 from ui.experiment_settings import SETTING_DEFAULTS, global_defaults
 
+#: The figures the settings can switch off; the Experiment Evaluation card is
+#: always shown.
+SWITCHABLE = [figure for figure in FIGURES if figure.switchable]
+
 
 def test_every_figure_has_a_visibility_setting_defaulting_to_on():
-    for figure in FIGURES:
+    for figure in SWITCHABLE:
         assert SETTING_DEFAULTS[figure.setting_key] is True
         assert global_defaults()[figure.setting_key] is True
 
 
 def test_page_renders_a_checkbox_per_figure(client):
     body = client.get(reverse("ui:default_experiment_settings")).content.decode()
-    for figure in FIGURES:
+    for figure in SWITCHABLE:
         assert f'name="{figure.setting_key}"' in body, figure.key
 
 
 def test_checkboxes_start_checked_when_no_choice_is_stored(client):
     body = client.get(reverse("ui:default_experiment_settings")).content.decode()
-    for figure in FIGURES:
+    for figure in SWITCHABLE:
         field = body.split(f'name="{figure.setting_key}"', 1)[1].split(">", 1)[0]
         assert "checked" in field, figure.key
 
 
 def test_saving_records_each_figure_choice(client):
     """`default_experiment_settings` stores unticked boxes as off, others as on."""
-    kept = [c for c in FIGURES if c.key != "trial_duration"]
+    kept = [c for c in SWITCHABLE if c.key != "trial_duration"]
     client.post(reverse("ui:default_experiment_settings"),
                 {
                  **{c.setting_key: "on" for c in kept}})
@@ -39,6 +43,14 @@ def test_saving_records_each_figure_choice(client):
     assert stored["show_trial_duration"] is False
     for figure in kept:
         assert stored[figure.setting_key] is True
+
+
+def test_the_evaluation_card_cannot_be_switched_off(client):
+    """What: the Experiment Evaluation card, which holds the Run button, has no
+    visibility setting and no checkbox. How: the defaults and the settings
+    page."""
+    body = client.get(reverse("ui:default_experiment_settings")).content.decode()
+    assert "show_evaluation" not in SETTING_DEFAULTS and 'name="show_evaluation"' not in body
 
 
 def test_a_stored_choice_comes_back_unchecked(client):

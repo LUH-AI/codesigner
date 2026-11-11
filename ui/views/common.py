@@ -172,8 +172,8 @@ def _shown_figures(exp):
     endpoint never returns a figure the settings switch off.
     """
     shown = resolve_settings(exp)
-    return [figure for figure in FIGURES if shown[figure.setting_key]
-            and figure.applies(exp.data)]
+    return [figure for figure in FIGURES
+            if (not figure.switchable or shown[figure.setting_key]) and figure.applies(exp.data)]
 
 
 def _hp_names(result) -> list:

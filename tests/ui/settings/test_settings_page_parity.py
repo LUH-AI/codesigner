@@ -31,7 +31,7 @@ def test_both_pages_offer_the_same_settings(client):
 
 def test_both_pages_label_the_figures_identically(client):
     defaults, per_experiment, _ = _both_pages(client)
-    for figure in FIGURES:
+    for figure in (f for f in FIGURES if f.switchable):
         assert str(figure.label) in defaults, figure.key
         assert str(figure.label) in per_experiment, figure.key
 

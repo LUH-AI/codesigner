@@ -24,7 +24,7 @@ sources:
   - ui/views/bin.py:15-85
   - experiments/services/bin.py
   - config/settings.py:33
-  - ui/templates/ui/experiment_detail.html:719-756
+  - ui/templates/ui/experiment_detail.html:716-753
 ---
 
 ## What it is for

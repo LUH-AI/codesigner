@@ -7,7 +7,7 @@ related: [concept-priors, figure-acquisition-slice, figure-configuration-cube, p
 keywords: [prior, belief, where good values are, Normal, Beta, freeform, decay, beta over N, πBO, DynaBO, evaluate prior, reset prior, initial design]
 status: draft
 sources:
-  - ui/figures/catalog.py:328-337 (Prior)
+  - ui/figures/catalog.py:339-348 (Prior)
   - ui/templates/ui/figures/prior.html (assistant branch: data-assist="prior", "evaluate_prior"), _acquisition_shared.html
   - ui/static/ui/acquisition.js:89-132 (KINDS), 711-1019 (editing), 1021-1169 (controls), 1589-1803 (judge, reset, strength, syncControls)
   - ui/views/priors.py:186-316 (save_prior, reset_prior, evaluate_prior)

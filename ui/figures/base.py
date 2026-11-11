@@ -129,6 +129,8 @@ class Figure(Panel):
     #: True for a figure that answers clicks elsewhere, since in the grid it
     #: would scroll away while in use.
     in_sidebar = False
+    #: False for a panel the experiment's settings cannot switch off.
+    switchable = True
     #: Live figures redraw from the trials alone during a run. Surrogate-backed
     #: figures cannot run per trial, and the trials table updates through
     #: `_live_payloads` instead.

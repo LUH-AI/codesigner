@@ -26,7 +26,7 @@ def _page(client, *, running=False):
 
 def test_the_forms_that_start_or_stop_a_run_keep_the_view():
     """The run form and the cancel and give-up buttons carry `data-keeps-view`."""
-    side = Path("ui/templates/ui/_side_evaluation.html").read_text()
+    side = Path("ui/templates/ui/figures/evaluation.html").read_text()
     status = Path("ui/templates/ui/_run_status.html").read_text()
 
     assert "{% url 'ui:experiment_run' summary.pk %}\" data-keeps-view>" in side

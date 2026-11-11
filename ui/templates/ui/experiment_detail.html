@@ -1,13 +1,10 @@
 {% extends "ui/_experiment_page.html" %}
 {% load assets numbers static i18n %}
 
-{% comment %}Two of the page's three sidebar sections; the first (which
-experiment) is the sidebar's own, in base.html. Both of these are things the
-figures below are an answer to — what the experiment is scored on, and which
-trial is selected — so they sit where they stay visible while the figures are
-being read.{% endcomment %}
+{% comment %}The selected trial, which the figures below answer to, stays in
+the sidebar where it is visible while the figures are read. Starting a run is
+the Experiment Evaluation card (ui/figures/evaluation.html).{% endcomment %}
 {% block sidebar_sections %}
-    {% include "ui/_side_evaluation.html" %}
     {% include "ui/_side_explanation.html" %}
     {% for figure in sidebar_figures %}{% include figure.template %}{% endfor %}
 {% endblock %}

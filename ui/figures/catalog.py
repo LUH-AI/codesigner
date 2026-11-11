@@ -32,6 +32,17 @@ if TYPE_CHECKING:
     import plotly.graph_objects as go
 
 
+class Evaluation(Figure):
+    """`Evaluation` starts the next run: what ends it, the metric it optimizes,
+    when it gives up, and the optimizer settings a later run may change; during
+    a run, the run's status."""
+
+    key = "evaluation"
+    label = _("Experiment Evaluation")
+    home_tab = MISC
+    switchable = False
+
+
 class BestConfiguration(Figure):
     """`BestConfiguration` tabulates the viewed metric's best trial."""
 
@@ -397,6 +408,7 @@ class Forecast(Figure):
 
 
 FIGURES = (
+    Evaluation,
     SelectedConfiguration,
     BestConfiguration,
     HyperparameterImportance,

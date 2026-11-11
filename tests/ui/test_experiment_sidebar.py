@@ -1,5 +1,5 @@
 """The figures scroll past a fixed sidebar, since its controls choose the
-experiment, metric and trial. The experiment page adds sections to the base
+experiment and trial. The experiment page adds sections to the base
 section through `sidebar_sections`.
 """
 
@@ -9,8 +9,7 @@ from django.urls import reverse
 
 from tests.conftest import DATASETS_DIR
 
-SECTIONS = ["Experiment Selection", "Experiment Evaluation",
-            "HyperSHAP", "Selected Configuration"]
+SECTIONS = ["Experiment Selection", "HyperSHAP", "Selected Configuration"]
 
 
 _RESULT = {
@@ -27,7 +26,7 @@ _RESULT = {
 
 
 def _experiment(**overrides):
-    """A reachable dataset puts the run form in the sidebar."""
+    """A reachable dataset puts the run form on the page."""
     from experiments.services import snapshot as adapter
 
     fields = dict(
@@ -66,35 +65,48 @@ def test_other_pages_keep_the_first_section_alone(client):
     assert re.findall(r"<h2>([^<]+)</h2>", sidebar) == SECTIONS[:1]
 
 
+def _card(client, exp):
+    html = client.get(reverse("ui:experiment_detail", args=[exp.pk])).content.decode()
+    return html.split('data-figure="evaluation"', 1)[1].split("</section>", 1)[0]
+
+
 def test_a_read_only_experiment_still_gets_them_all(client):
-    """A read-only experiment keeps every section and only loses the run form."""
-    sidebar = _sidebar(client, _experiment(name="frozen", dataset_path=""))
+    """What: a read-only experiment keeps every sidebar section, and its
+    Experiment Evaluation card keeps the metric selector without the run form.
+    How: an experiment without a dataset."""
+    exp = _experiment(name="frozen", dataset_path="")
+    sidebar = _sidebar(client, exp)
+    card = _card(client, exp)
 
     assert re.findall(r"<h2>([^<]+)</h2>", sidebar) == SECTIONS
-    assert 'name="max_trials"' not in sidebar
-    assert 'id="metric-select"' in sidebar
+    assert 'name="max_trials"' not in card and 'id="metric-select"' in card
 
 
-def test_what_bounds_the_next_run_is_folded_away(client):
-    """The run bounds sit in a closed fold, since people set them once."""
-    sidebar = _sidebar(client, _experiment())
-    details = sidebar.split("<details class=", 1)[1]
+def test_the_evaluation_card_lays_out_its_columns(client):
+    """What: the card's first column is what ends the run; the last holds the
+    metric, the failure limits and Run, in that order, and nothing folds away.
+    How: the card of an experiment with a result."""
+    card = _card(client, _experiment())
+    columns = card.split('class="evaluation-column"')[1:]
 
-    assert "open" not in details.split(">", 1)[0]
-    assert 'name="max_trials"' in details
-    assert 'name="optimize_metric"' not in details, "the metric stays outside the fold"
+    assert 'name="max_trials"' in columns[0] and 'name="optimize_metric"' not in columns[0]
+    last = columns[-1]
+    assert (last.index('name="optimize_metric"') < last.index('name="max_failures"')
+            < last.index('data-assist="run"'))
+    assert "<details" not in card
 
 
-def test_a_run_in_flight_replaces_the_fold(client):
-    """A running run leaves nothing to configure until it finishes."""
+def test_a_run_in_flight_replaces_the_form(client):
+    """What: a running run shows its status in the card instead of the form,
+    and the metric selector stays, since the figures read it. How: an
+    experiment with a running run."""
     exp = _experiment(name="busy")
     exp.runs.create(primary_metric="accuracy", status="running", stopping={})
 
-    sidebar = _sidebar(client, exp)
+    card = _card(client, exp)
 
-    assert 'id="run-status"' in sidebar
-    assert "<details class=" not in sidebar
-    assert 'id="metric-select"' in sidebar, "the figures still need it"
+    assert 'id="run-status"' in card and 'name="max_trials"' not in card
+    assert 'id="metric-select"' in card
 
 
 # Experiment views

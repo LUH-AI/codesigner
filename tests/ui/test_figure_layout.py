@@ -166,15 +166,32 @@ def test_the_page_carries_each_column(client):
 
 
 def test_a_figure_new_to_the_catalog_is_added_where_it_belongs():
-    """`normalize` adds figures the layout lacks."""
+    """What: `normalize` adds a figure the layout lacks at its place in the
+    default's order, on its home tab and, when the default pins it, on
+    Overview. How: a default layout without the trials table."""
     layout = layouts.default_layout()
     layout["tabs"]["misc"] = [s for s in layout["tabs"]["misc"] if s["key"] != "trials"]
     layout["tabs"][OVERVIEW] = [s for s in layout["tabs"][OVERVIEW] if s["key"] != "trials"]
 
     fixed = layouts.normalize(layout)
 
-    assert _keys(fixed, "misc")[-1] == "trials"
-    assert "trials" in _keys(fixed, OVERVIEW), "the default file pins it"
+    assert _keys(fixed, "misc") == _keys(layouts.default_layout(), "misc")
+    assert _keys(fixed, OVERVIEW) == _keys(layouts.default_layout(), OVERVIEW)
+
+
+def test_a_layout_saved_before_the_evaluation_card_gets_it_first():
+    """What: a layout someone saved before the Experiment Evaluation card
+    existed gets it first on Misc and first on Overview, where the Run button
+    is found. How: a rearranged layout without the card."""
+    layout = layouts.default_layout()
+    for tab in ("misc", OVERVIEW):
+        layout["tabs"][tab] = list(reversed(
+            [s for s in layout["tabs"][tab] if s["key"] != "evaluation"]))
+
+    fixed = layouts.normalize(layout)
+
+    assert _keys(fixed, "misc")[0] == "evaluation"
+    assert _keys(fixed, OVERVIEW)[0] == "evaluation"
 
 
 def test_but_one_missing_only_from_overview_was_unpinned():

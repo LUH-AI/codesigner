@@ -36,4 +36,4 @@ A larger initial design covers the space before the model guides anything. The s
 
 **Why did my continued run start with unguided trials again?** The design is sized over all the trials, old and new, so a longer total can make it bigger. Setting the trial cap to the design already drawn stops that.
 
-**Can the caps change after the first run?** Yes, on the run form's "Next run" fold; they are saved when the run starts.
+**Can the caps change after the first run?** Yes, in the middle column of the Experiment Evaluation card; they are saved when the run starts.

@@ -3,12 +3,11 @@
 
 {% comment %}An experiment's dashboard before it has any trials: nothing to
 plot yet, so in place of the figures what can still be decided before the
-search starts — its optimizer and settings, and the prior. The sidebar keeps
-the Run form. Once a trial exists the dashboard (experiment_detail.html) takes
-over, at the same address.{% endcomment %}
-{% block sidebar_sections %}
-    {% include "ui/_side_evaluation.html" %}
-{% endblock %}
+search starts. Three cards sized as the dashboard's are, but fixed in place:
+the Experiment Evaluation card with the Run button (one column, one row), the
+optimizer (one column, two rows) and the prior (two columns, one row). Once a
+trial exists the dashboard (experiment_detail.html) takes over, at the same
+address.{% endcomment %}
 
 {% block experiment_body %}
     {% if active_run %}
@@ -47,7 +46,9 @@ over, at the same address.{% endcomment %}
     {% endif %}
 
     <div class="prerun">
-        <section class="card prerun-optimizer">
+    <div class="prerun-grid">
+        <div class="prerun-slot prerun-evaluation">{% include "ui/figures/evaluation.html" %}</div>
+        <section class="card prerun-slot prerun-optimizer">
             <h2 class="subheader">{% translate "Optimizer" %}</h2>
             <form method="post" action="{% url 'ui:experiment_optimizer' summary.pk %}" class="experiment-form">
                 {% csrf_token %}
@@ -66,10 +67,11 @@ over, at the same address.{% endcomment %}
         are the surrogate's, and there is none yet. Plotly is loaded here, as
         the dashboard's grid would.{% endcomment %}
         {% if prior_only_figure %}
-            <div class="prerun-prior">
+            <div class="prerun-slot prerun-prior">
                 <script src="{% static 'ui/plotly.min.js' %}"></script><script src="{% asset 'ui/theme.js' %}"></script>
                 {% include prior_only_figure.template with figure=prior_only_figure %}
             </div>
         {% endif %}
+    </div>
     </div>
 {% endblock %}

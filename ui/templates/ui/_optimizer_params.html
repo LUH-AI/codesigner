@@ -9,6 +9,8 @@ Nothing here names an optimizer. The fields come from what the optimizer
 declares in its `params_schema`, so a new setting is one line in `core` and this
 template does not change. An optimizer that declares nothing renders nothing.
 
+`flat_advanced` lists the advanced settings with the rest, without their fold.
+
 `panel_disabled` renders the fieldset inert, which disables every control in it
 without touching them one by one. The create page uses it so an unchosen
 optimizer's settings are never submitted even with no JavaScript running; pages
@@ -46,7 +48,11 @@ keeping.
             {% endif %}
         {% endfor %}
 
-        {% if has_advanced_params %}
+        {% if has_advanced_params and flat_advanced %}
+            {% for p in advanced_params %}
+                {% include "ui/_optimizer_param_field.html" %}
+            {% endfor %}
+        {% elif has_advanced_params %}
             <details class="advanced-params">
                 <summary>{% translate "Advanced search settings" %}</summary>
                 {% for p in advanced_params %}

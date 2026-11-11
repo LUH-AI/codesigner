@@ -7,7 +7,7 @@ related: [concept-explanation-games, figure-interactions-graph, figure-interacti
 keywords: [UpSet plot, coalitions, groups of hyperparameters, Möbius, higher-order interactions, ranked]
 status: draft
 sources:
-  - ui/figures/catalog.py:113-171 (_Interactions, InteractionsCoalitions)
+  - ui/figures/catalog.py:124-182 (_Interactions, InteractionsCoalitions)
   - ui/templates/ui/figures/interactions_coalitions.html, _before_this_run.html
   - ui/figures/plots/interactions.py:147-198 (hyperparameter_upset_plot)
   - core/analytics/games.py:62-70 (_moebius_terms)

@@ -18,7 +18,7 @@ sources:
   - core/optimizers/base.py:500-503
   - ui/optimizer_labels.py:26-191
   - ui/optimizer_form.py
-  - ui/templates/ui/_optimizer_params.html:49-52
+  - ui/templates/ui/_optimizer_params.html:56-58
   - SMAC3/smac/facade/blackbox_facade.py
   - SMAC3/smac/facade/hyperparameter_optimization_facade.py
   - SMAC3/smac/facade/abstract_facade.py:511

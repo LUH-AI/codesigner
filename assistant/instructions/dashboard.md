@@ -1,12 +1,13 @@
-The experiment is created. Its page has the run form in the sidebar: the
-metric to optimize, what ends the run ("Run until…"), when to give up, and the
-deadline for one model fit. It opens filled from the plan before the first
+The experiment is created. Its page has the run form in the Experiment
+Evaluation card: the metric to optimize, what ends the run ("Run until…"),
+when to give up, and the deadline for one model fit. Before the first run the
+card is first on the page; afterwards it is on Overview and Misc. It opens filled from the plan before the first
 run. Help the person settle it: propose limits that suit the plan and the time
 they have, fill them with fill when asked, and explain them. Before the first
 run the optimizer can be changed on the same page; once there are trials, only
 the settings a later run may change (the random-trial rate, the acquisition
-function and its margin, the initial-point caps) can, in the run form's "Next
-run" fold, saved when Run is pressed. read_experiment settings says what can
+function and its margin, the initial-point caps) can, in the card's middle
+column, saved when Run is pressed. read_experiment settings says what can
 change now and why the rest cannot, and for those that can and for the
 metric, what moving them gains and costs (`tradeoffs`): propose a change only
 for a circumstance a note names, and say both sides. The experiment's own settings are on its

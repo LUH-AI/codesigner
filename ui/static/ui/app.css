@@ -596,11 +596,51 @@ nav.sidebar .info-bubble {
 .rename-form input[type=text] { width: min(24rem, 60vw); }
 
 /* ── An experiment before its first trial (experiment_prerun.html) ──────
-   The optimizer beside the prior; one above the other when narrow. */
-.prerun { display: flex; flex-wrap: wrap; gap: 1.5rem; align-items: flex-start; margin-top: 1.5rem; }
-.prerun-optimizer { flex: 0 1 30rem; min-width: 0; }
+   The dashboard's grid and card sizes, without its moving and resizing: the
+   columns as .fig-grid has them, and a row as high as a squat card one
+   column wide (3:2 of a column), so a card takes columns × rows of those. */
+.prerun { container-type: inline-size; margin-top: 1.5rem; }
+.prerun-grid {
+    --cols: 4;
+    --gap: 1.5rem;
+    display: grid;
+    grid-template-columns: repeat(var(--cols), minmax(0, 1fr));
+    grid-auto-rows: calc((100cqi - (var(--cols) - 1) * var(--gap)) / var(--cols) * 2 / 3);
+    grid-auto-flow: row dense;
+    gap: var(--gap);
+}
+@media (max-width: 3215px) { .prerun-grid { --cols: 2; } }
+@media (max-width: 1687px) { .prerun-grid { --cols: 1; } }
+.prerun-slot { min-width: 0; min-height: 0; display: flex; flex-direction: column; }
+.prerun-slot > [data-figure] { flex: 1; min-height: 0; display: flex; flex-direction: column; overflow: auto; }
+.prerun-slot > [data-figure] .plot { flex: 1; min-height: 0; }
+.prerun-evaluation { grid-column: span 1; grid-row: span 1; }
+.prerun-optimizer { grid-column: span 1; grid-row: span 2; overflow: auto; }
 .prerun-optimizer .subheader { margin-top: 0; }
-.prerun-prior { flex: 1 1 32rem; min-width: 0; }
+.prerun-prior { grid-column: span 2; grid-row: span 1; }
+@media (max-width: 1687px) { .prerun-prior { grid-column: span 1; } }
+
+/* The Experiment Evaluation card (ui/figures/evaluation.html): its columns
+   side by side, one under another when the card is narrow. */
+.evaluation-columns {
+    display: grid; grid-template-columns: repeat(auto-fit, minmax(13rem, 1fr));
+    gap: 0 1.25rem; align-items: start;
+}
+.evaluation-column { min-width: 0; }
+/* Compact, so a one-by-one card holds the form down to its Run button: a
+   number field puts its label beside a narrow input instead of above a wide
+   one, and the fieldsets sit closer together. */
+.evaluation-card fieldset.check-group { padding: 0.35rem 0.75rem 0.5rem; margin-bottom: 0.6rem; }
+.evaluation-card .field { margin-bottom: 0.45rem; }
+.evaluation-card .field:has(> input[type="number"], > input[inputmode="decimal"]) {
+    display: grid; grid-template-columns: minmax(0, 1fr) 6.5rem; align-items: center; gap: 0 0.5rem;
+}
+.evaluation-card .field:has(> input[type="number"], > input[inputmode="decimal"]) > label,
+.evaluation-card .field:has(> input[type="number"], > input[inputmode="decimal"]) > .field-label { margin-bottom: 0; }
+.evaluation-card .field > input[type="number"], .evaluation-card .field > input[inputmode="decimal"] {
+    padding: 0.25rem 0.4rem;
+}
+.evaluation-card .field > .caption { grid-column: 1 / -1; margin: 0.15rem 0 0; }
 
 /* ── A draft's setup steps (ui/templates/ui/_setup_steps.html) ──────────
    Numbered stops joined by a line, not tabs: they are done in order. The
@@ -1207,6 +1247,8 @@ hr.divider { border: none; border-top: 1px solid var(--border); margin: 1.5rem 0
 .assistant-plan dd { overflow-wrap: anywhere; }
 .assistant-plan ul { padding-left: 1.2rem; color: var(--warning-fg); }
 .assistant-plan button { align-self: flex-start; }
+.assistant-plan-actions { display: flex; flex-wrap: wrap; gap: 0.5rem; }
+.assistant-plan.is-rejected { opacity: 0.55; }
 .assistant dialog { border: 1px solid var(--border); border-radius: var(--radius); padding: 1.25rem;
                     max-width: 28rem; background: var(--bg); color: var(--text); margin: auto; }
 .assistant dialog::backdrop { background: var(--shadow); }

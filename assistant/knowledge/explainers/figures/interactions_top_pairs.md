@@ -7,11 +7,11 @@ related: [concept-explanation-games, figure-interactions-heatmap, figure-interac
 keywords: [strongest interactions, pairs, synergy, redundancy, ranked, FSII, order 2]
 status: draft
 sources:
-  - ui/figures/catalog.py:113-152 (_Interactions, InteractionsTopPairs)
+  - ui/figures/catalog.py:124-163 (_Interactions, InteractionsTopPairs)
   - ui/templates/ui/figures/interactions_top_pairs.html, _before_this_run.html
   - ui/figures/plots/interactions.py:28-46 (hyperparameter_interactions_bar_plot)
   - core/analytics/games.py:261-269 (_extract_pairwise)
-  - ui/templates/ui/experiment_detail.html:1431-1441, 3452-3475
+  - ui/templates/ui/experiment_detail.html:1428-1438, 3452-3475
 ---
 
 ## What it shows

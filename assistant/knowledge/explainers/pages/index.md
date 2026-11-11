@@ -8,7 +8,7 @@
 - `setup-step-3.md` (page-setup-step-3): Data: the three processing choices and the Data Handling tabs as they appear in setup.
 - `setup-step-4.md` (page-setup-step-4): Priors & constraints, and Create experiment with what must be saved first.
 - `dashboard.md` (page-dashboard): the experiment page: header, the four tabs and arranging figures, the page shown before the first trial.
-- `dashboard-sidebar.md` (page-dashboard-sidebar): Experiment Evaluation (metric, run form, run status), HyperSHAP, Selected Configuration, exporting the selected trial.
+- `dashboard-sidebar.md` (page-dashboard-sidebar): HyperSHAP, Selected Configuration, exporting the selected trial.
 - `data-handling.md` (page-data-handling): the Data Handling page, its nine tabs, which cards are built and which are planned.
 - `experiment-settings.md` (page-experiment-settings): every per-experiment setting, inheriting the defaults, and resetting the figure layout.
 - `timeline.md` (page-timeline): what the timeline records and how to read its entries.

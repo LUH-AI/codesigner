@@ -16,7 +16,7 @@ sources:
   - core/analytics/games.py:261-269
   - core/analytics/surrogate.py:34-46
   - core/optimizers/base.py:64-68
-  - ui/figures/catalog.py:340-354
+  - ui/figures/catalog.py:351-365
   - ui/templates/ui/_side_explanation.html
   - ui/templates/ui/figures/hyperparameter_importance.html
   - ui/templates/ui/figures/local_explanation.html

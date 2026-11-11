@@ -9,7 +9,7 @@ from .figures import FIGURES, autocompute_key, deferred_computations
 
 SETTING_DEFAULTS = {
     **run_settings.SETTING_DEFAULTS,
-    **{figure.setting_key: True for figure in FIGURES},
+    **{figure.setting_key: True for figure in FIGURES if figure.switchable},
     **{autocompute_key(name): False for name, _label in deferred_computations()},
     # The incumbent's HyperSHAP games and the cube's acquisition sample are
     # drawn on page open anyway.

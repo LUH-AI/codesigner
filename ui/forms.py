@@ -410,6 +410,8 @@ class ExperimentSettingsFields(forms.Form):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         for figure in FIGURES:
+            if not figure.switchable:
+                continue
             self.fields[figure.setting_key] = forms.BooleanField(
                 label=figure.label, required=False,
             )
@@ -420,7 +422,7 @@ class ExperimentSettingsFields(forms.Form):
 
     @property
     def figure_fields(self):
-        return [self[figure.setting_key] for figure in FIGURES]
+        return [self[figure.setting_key] for figure in FIGURES if figure.switchable]
 
     @property
     def autocompute_fields(self):

@@ -7,7 +7,7 @@ related: [figure-prior, figure-configuration-cube, concept-priors, figure-partia
 keywords: [acquisition function, expected improvement, EI, PI, what the optimizer tries next, next trials, requery, candidates, prior weighting, surrogate]
 status: draft
 sources:
-  - ui/figures/catalog.py:313-325 (AcquisitionSlice)
+  - ui/figures/catalog.py:324-336 (AcquisitionSlice)
   - ui/templates/ui/figures/acquisition_slice.html, _next_trials.html, _acquisition_shared.html
   - ui/figures/plots/surrogate.py:83-270 (acquisition_slice_plots)
   - ui/static/ui/acquisition.js:207-444 (compute), 475-518 (priorTraces), 1178-1306 (candidates), 1762-1816 (refresh)

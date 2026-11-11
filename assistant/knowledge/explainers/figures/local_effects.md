@@ -7,13 +7,13 @@ related: [figure-local-explanation, concept-explanation-games, figure-hyperparam
 keywords: [beeswarm, local effects, spread of effects, helped or hurt, ablation across trials, consistent effect]
 status: draft
 sources:
-  - ui/figures/catalog.py:340-354 (LocalEffects)
+  - ui/figures/catalog.py:351-365 (LocalEffects)
   - ui/templates/ui/figures/local_effects.html
   - ui/figures/plots/surrogate.py:273-317 (local_effects_plot)
   - core/analytics/surrogate.py:132-141 (_sample_evenly)
   - core/analytics/effects.py:69-106 (compute_local_effects)
   - ui/views/analytics.py:213-232 (local_effects), 423-437 (_local_effects_data)
-  - ui/templates/ui/experiment_detail.html:1501-1551 (refreshLocalEffects), 834-850, 3467-3475
+  - ui/templates/ui/experiment_detail.html:1498-1548 (refreshLocalEffects), 834-850, 3467-3475
   - ui/forms.py:374, 388-390 (local_effects_max_trials label)
   - experiments/services/settings.py (local_effects_max_trials 100, autocompute_local_effects off)
 ---
