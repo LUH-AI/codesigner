@@ -18,13 +18,13 @@
 #           3, a four-wide one in 1
 
 overview = [
-    { figure = "evaluation",                width = 2, column = 1 },
-    { figure = "hyperparameter_importance", width = 1, column = 2 },
+    { figure = "evaluation",                width = 2, column = 3 },
     { figure = "best_configuration",        width = 1, column = 1 },
-    { figure = "performance_over_time",     width = 2, column = 3 },
-    { figure = "configuration_cube",        width = 2, column = 3 },
+    { figure = "hyperparameter_importance", width = 1, column = 2 },
+    { figure = "performance_over_time",     width = 2, column = 1 },
+    { figure = "trials",                    width = 2, column = 3 },
     { figure = "forecast",                  width = 2, column = 3 },
-    { figure = "trials",                    width = 2, column = 1 },
+    { figure = "configuration_cube",        width = 2, column = 1 },
 ]
 
 hypershap = [
@@ -34,8 +34,8 @@ hypershap = [
     { figure = "interactions_graph",        width = 1, column = 3 },
     { figure = "interactions_coalitions",   width = 1, column = 4 },
     { figure = "interactions_heatmap",      width = 1, column = 1 },
-    { figure = "local_effects",             width = 2, column = 3 },
     { figure = "local_explanation",         width = 1, column = 2 },
+    { figure = "local_effects",             width = 2, column = 3 },
 ]
 
 acquisition = [
@@ -48,7 +48,7 @@ misc = [
     { figure = "evaluation",            width = 2, column = 1 },
     { figure = "best_configuration",    width = 1, column = 2 },
     { figure = "trials",                width = 2, column = 3 },
-    { figure = "trial_duration",        width = 1, column = 2 },
+    { figure = "trial_duration",        width = 1, column = 1 },
     { figure = "performance_over_time", width = 2, column = 1 },
     { figure = "parallel_coordinates",  width = 2, column = 1 },
     { figure = "partial_dependence",    width = 2, column = 1 },
