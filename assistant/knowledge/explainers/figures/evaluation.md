@@ -1,10 +1,10 @@
 ---
 id: figure-evaluation
-title: Experiment Evaluation
+title: Evaluation
 kind: figure
 about: [figure:evaluation, element:metric-select, field:optimize_metric, field:max_trials, field:target_score, field:max_seconds, field:max_trial_seconds, field:no_improvement_trials, field:incumbent_confidence, field:max_failures, field:max_consecutive_failures, field:trial_timeout_mode, field:trial_timeout_seconds, field:trial_timeout_factor, field:next_run_settings, data-assist:run]
 related: [page-dashboard, page-dashboard-sidebar, concept-metrics, concept-stopping, concept-optimizers, concept-permissions, figure-best-configuration]
-keywords: [Experiment Evaluation, evaluation metric, run form, run, start a run, run button, next run, run until, stopping criteria, give up, failures, deadline, timeout, cancel run, give up on it, optimizer settings between runs]
+keywords: [Evaluation, evaluation metric, run form, run, start a run, run button, next run, run until, stopping criteria, give up, failures, deadline, timeout, cancel run, give up on it, optimizer settings between runs]
 status: draft
 sources:
   - ui/figures/catalog.py (Evaluation)
@@ -29,9 +29,10 @@ The card that starts a run: which metric the figures show and the run optimizes,
 
 ## How to read it
 
-- **First column, Run until…** (fill at least one): **Trials** (`max_trials`, 30, or the rest of a planned budget), **Score exceeds** (`target_score`, opens at the score there is to beat and follows the metric until you type), **Seconds elapsed** (`max_seconds`), **Seconds in trials** (`max_trial_seconds`), **Trials without improvement** (`no_improvement_trials`), and for SMAC **Search confidence** (`incumbent_confidence`, 0–1, the optimizer's own confidence, not a guarantee). The run ends at the first criterion reached.
+- **Header**: **Metric** (`metric-select`) beside the title, which every figure shows and the next run optimizes (`optimize_metric`).
+- **First column, Run until…** (fill at least one): **…N trials have run** (`max_trials`, 30, or the rest of a planned budget), **…the score exceeds** (`target_score`, opens at the score there is to beat and follows the metric until you type), **…N seconds have passed** (`max_seconds`), **…N seconds spent in trials** (`max_trial_seconds`), **…N trials without gain** (`no_improvement_trials`), and for SMAC **…the search is this sure** (`incumbent_confidence`, 0–1, the optimizer's own confidence, not a guarantee). The run ends at the first criterion reached.
 - **Middle column, after the first run only**: the optimizer settings a later run may change (`next_run_settings`), such as the random trial rate and the initial design caps, all listed, the advanced ones included. They are saved when the run starts. The rest stay as the first run had them.
-- **Last column**: **Metric** (`metric-select`), which every figure shows and the next run optimizes (`optimize_metric`); **Give up if…**: **Failed trials** (`max_failures`, 1) and **Failures in a row** (`max_consecutive_failures`, 15); **Model fit deadline** (not for a model running in-process): **Kind** (`trial_timeout_mode`: "Fixed" seconds, or "Predicted", a multiple of the fit's predicted duration), **Seconds (0 = none)** (`trial_timeout_seconds`, normally 600), and in predicted mode **× predicted** (`trial_timeout_factor`, 5); then **▶ Run** (`data-assist="run"`).
+- **Last column**: **Give up if…**: **…N trials have failed** (`max_failures`, 1) and **…N fail in a row** (`max_consecutive_failures`, 15); **Model fit deadline** (not for a model running in-process): **Kind** (`trial_timeout_mode`: "Fixed" seconds, or "Predicted", a multiple of the fit's predicted duration), **Seconds (0 = none)** (`trial_timeout_seconds`, normally 600), and in predicted mode **× predicted** (`trial_timeout_factor`, 5); then **▶ Run** (`data-assist="run"`).
 - The deadline is per model fit, so each fold gets it. A fit past it fails the trial, not the run.
 - While a run is going: the metric selector, "Optimizing… (status)", **Cancel run**, then "Cancelling — it stops after the trial it is on." and **Give up on it**.
 
@@ -43,15 +44,15 @@ The card that starts a run: which metric the figures show and the run optimizes,
 
 ## When it appears
 
-- Before the first trial: on the experiment's page, first, beside the Optimizer card and the Prior. Those three cards stay in place and keep their size.
-- After the first trial: on the **Misc** tab, and pinned to **Overview** by default, two columns wide and one row high. It can be moved, made full width, and unpinned from Overview like any figure.
+- Before the first trial: on the experiment's page, first, beside the Optimizer card, with the Prior under both. Those three cards stay in place and keep their size.
+- After the first trial: on the **Misc** tab, and pinned to **Overview** by default, first, two columns wide and one row high. It can be moved, made full width, and unpinned from Overview like any figure.
 - It follows nothing; the metric selector in it is what the other figures follow.
 - During a run the form gives way to the run's status.
 - Viewers, and experiments loaded without a dataset, get the metric selector only. No setting switches the card off.
 
 ## Questions people ask
 
-**Where is the Run button?** In the Experiment Evaluation card: first on the page before the first run, and on Overview and Misc afterwards.
+**Where is the Run button?** In the Evaluation card: first on the page before the first run, and on Overview and Misc afterwards.
 
 **Why did my run stop early?** The header's "Stopped because …" names the criterion reached.
 

@@ -8,7 +8,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: PACKAGE VERSION\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2026-11-11 12:20+0000\n"
+"POT-Creation-Date: 2026-11-11 12:30+0000\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
 "Language-Team: LANGUAGE <LL@li.org>\n"
@@ -380,7 +380,8 @@ msgstr "Datenaufbereitung"
 #: assistant/templates/assistant/_chat.html:64
 #: assistant/templates/assistant/_chat.html:74
 #: ui/templates/ui/_experiment_header.html:37
-#: ui/templates/ui/figures/evaluation.html:87
+#: ui/templates/ui/figures/evaluation.html:20
+#: ui/templates/ui/figures/evaluation.html:25
 msgid "Metric"
 msgstr "Metrik"
 
@@ -723,9 +724,10 @@ msgstr "Wählen Sie, in welche Gruppe dieses Experiment gehört."
 msgid "Save the first step before this one."
 msgstr "Speichern Sie zuerst den ersten Schritt."
 
-#: ui/figures/catalog.py:41 ui/templates/ui/figures/evaluation.html:8
-msgid "Experiment Evaluation"
-msgstr "Bewertung des Experiments"
+#: ui/figures/catalog.py:41 ui/templates/ui/_experiment_header.html:38
+#: ui/templates/ui/figures/evaluation.html:17 ui/timeline.py:190
+msgid "Evaluation"
+msgstr "Bewertung"
 
 #: ui/figures/catalog.py:51
 msgid "Best configuration"
@@ -835,8 +837,7 @@ msgstr "Lokale Effekte über die Versuche"
 msgid "Trial duration"
 msgstr "Versuchsdauer"
 
-#: ui/figures/catalog.py:388 ui/templates/ui/figures/evaluation.html:25
-#: ui/timeline.py:89 ui/timeline.py:332
+#: ui/figures/catalog.py:388 ui/timeline.py:89 ui/timeline.py:332
 msgid "Trials"
 msgstr "Versuche"
 
@@ -1593,7 +1594,7 @@ msgid "Control points"
 msgstr "Kontrollpunkte"
 
 #: ui/figures/plots/surrogate.py:226
-#: ui/templates/ui/figures/evaluation.html:148
+#: ui/templates/ui/figures/evaluation.html:157
 msgid "Predicted"
 msgstr "Vorhergesagt"
 
@@ -2502,10 +2503,6 @@ msgstr "Umbenennen"
 #: ui/templates/ui/export_preferences.html:22
 msgid "Save"
 msgstr "Speichern"
-
-#: ui/templates/ui/_experiment_header.html:38 ui/timeline.py:190
-msgid "Evaluation"
-msgstr "Bewertung"
 
 #: ui/templates/ui/_experiment_header.html:40
 msgid "ID"
@@ -3872,51 +3869,53 @@ msgstr "Wählen Sie einen Hyperparameter für eine Achse."
 msgid "No configurations to plot."
 msgstr "Keine Konfigurationen zum Zeichnen."
 
-#: ui/templates/ui/figures/evaluation.html:12
-#: ui/templates/ui/figures/evaluation.html:235
-msgid "Evaluation metric"
-msgstr "Bewertungsmetrik"
-
-#: ui/templates/ui/figures/evaluation.html:23
+#: ui/templates/ui/figures/evaluation.html:36
 msgid "Run until…"
 msgstr "Laufen lassen, bis…"
 
-#: ui/templates/ui/figures/evaluation.html:29
+#: ui/templates/ui/figures/evaluation.html:38
+msgid "…N trials have run"
+msgstr "…N Versuche gelaufen sind"
+
+#: ui/templates/ui/figures/evaluation.html:42
 #, python-format
 msgid "The planned %(n)s trial has run."
 msgid_plural "The planned %(n)s trials have run."
 msgstr[0] "Der geplante %(n)s Versuch ist gelaufen."
 msgstr[1] "Die geplanten %(n)s Versuche sind gelaufen."
 
-#: ui/templates/ui/figures/evaluation.html:33
-msgid "Score exceeds"
-msgstr "Bewertung übertrifft"
+#: ui/templates/ui/figures/evaluation.html:46
+#
+msgid "…the score exceeds"
+msgstr "…die Bewertung übertrifft"
 
-#: ui/templates/ui/figures/evaluation.html:45
-#: ui/templates/ui/figures/evaluation.html:68
+#: ui/templates/ui/figures/evaluation.html:58
+#: ui/templates/ui/figures/evaluation.html:81
 msgid "e.g. 0.95"
 msgstr "z. B. 0,95"
 
-#: ui/templates/ui/figures/evaluation.html:48
 #
-msgid "Seconds elapsed"
-msgstr "Verstrichene Sekunden"
-
-#: ui/templates/ui/figures/evaluation.html:52
+#: ui/templates/ui/figures/evaluation.html:61
 #
-msgid "Seconds in trials"
-msgstr "Sekunden in Versuchen"
+msgid "…N seconds have passed"
+msgstr "…N Sekunden vergangen sind"
 
-#: ui/templates/ui/figures/evaluation.html:56 ui/timeline.py:93
-msgid "Trials without improvement"
-msgstr "Versuche ohne Verbesserung"
-
-#: ui/templates/ui/figures/evaluation.html:62
 #
-msgid "Search confidence"
-msgstr "Sicherheit der Suche"
+#: ui/templates/ui/figures/evaluation.html:65
+#
+msgid "…N seconds spent in trials"
+msgstr "…N Sekunden in Versuchen stecken"
 
-#: ui/templates/ui/figures/evaluation.html:63
+#: ui/templates/ui/figures/evaluation.html:69
+#
+msgid "…N trials without gain"
+msgstr "…N Versuche ohne Gewinn liefen"
+
+#: ui/templates/ui/figures/evaluation.html:75
+msgid "…the search is this sure"
+msgstr "…die Suche so sicher ist"
+
+#: ui/templates/ui/figures/evaluation.html:76
 msgid ""
 "Asks the optimizer how likely its own model of the objective thinks it is "
 "that some untried configuration beats the best one so far. Confidence under "
@@ -3926,21 +3925,22 @@ msgstr ""
 "Zielfunktion es hält, dass eine unerprobte Konfiguration die bisher beste "
 "schlägt. Zuversicht unter diesem Modell, keine Garantie."
 
-#: ui/templates/ui/figures/evaluation.html:72
 #
+#: ui/templates/ui/figures/evaluation.html:85
 msgid "These may never be reached. Add a trial or time limit too."
-msgstr "Diese werden vielleicht nie erreicht. Legen Sie zusätzlich eine Versuchs- oder Zeitgrenze fest."
+msgstr ""
+"Diese werden vielleicht nie erreicht. Legen Sie zusätzlich eine Versuchs- "
+"oder Zeitgrenze fest."
 
-#: ui/templates/ui/figures/evaluation.html:97
+#: ui/templates/ui/figures/evaluation.html:106
 msgid "Give up if…"
 msgstr "Aufgeben, wenn…"
 
-#: ui/templates/ui/figures/evaluation.html:100
-#
-msgid "Failed trials"
-msgstr "Fehlgeschlagene Versuche"
+#: ui/templates/ui/figures/evaluation.html:109
+msgid "…N trials have failed"
+msgstr "…N Versuche fehlschlugen"
 
-#: ui/templates/ui/figures/evaluation.html:101
+#: ui/templates/ui/figures/evaluation.html:110
 msgid ""
 "A trial fails when the model raises on its configuration, runs past its "
 "deadline, or returns something that cannot be scored. It is still recorded — "
@@ -3960,12 +3960,13 @@ msgstr ""
 "eine Suche bewusst eine Region abtastet, von der Sie erwarten, dass sie "
 "bricht. Mindestens 1."
 
-#: ui/templates/ui/figures/evaluation.html:109
 #
-msgid "Failures in a row"
-msgstr "Fehlschläge in Folge"
+#: ui/templates/ui/figures/evaluation.html:118
+#
+msgid "…N fail in a row"
+msgstr "…N in Folge fehlschlagen"
 
-#: ui/templates/ui/figures/evaluation.html:110
+#: ui/templates/ui/figures/evaluation.html:119
 msgid ""
 "A different question from the total: in a row means nothing here can work — "
 "a model that cannot fit this dataset at all fails identically every time, "
@@ -3976,16 +3977,16 @@ msgstr ""
 "passt, scheitert jedes Mal gleich, und ohne Grenze verbringt es das ganze "
 "Budget damit, das zu beweisen. Mindestens 1."
 
-#: ui/templates/ui/figures/evaluation.html:138
+#: ui/templates/ui/figures/evaluation.html:147
 msgid "Model fit deadline"
 msgstr "Frist je Modellanpassung"
 
-#: ui/templates/ui/figures/evaluation.html:141
 #
+#: ui/templates/ui/figures/evaluation.html:150
 msgid "Kind"
 msgstr "Art"
 
-#: ui/templates/ui/figures/evaluation.html:142
+#: ui/templates/ui/figures/evaluation.html:151
 msgid ""
 "The limit is on one model fit, not on a whole trial: under cross-validation "
 "a trial is one fit per fold, and each fold is given the deadline separately. "
@@ -4006,29 +4007,29 @@ msgstr ""
 "proportional länger, statt für ihre Größe abgebrochen zu werden. Die "
 "Sekunden unten bleiben in beiden Fällen die äußere Grenze."
 
-#: ui/templates/ui/figures/evaluation.html:147 ui/timeline.py:143
+#: ui/templates/ui/figures/evaluation.html:156 ui/timeline.py:143
 msgid "Fixed"
 msgstr "Fest"
 
-#: ui/templates/ui/figures/evaluation.html:152
+#: ui/templates/ui/figures/evaluation.html:161
 msgid "Seconds (0 = none)"
 msgstr "Sekunden (0 = keine)"
 
-#: ui/templates/ui/figures/evaluation.html:157
 #
+#: ui/templates/ui/figures/evaluation.html:166
 msgid "× predicted"
 msgstr "× vorhergesagt"
 
-#: ui/templates/ui/figures/evaluation.html:163
+#: ui/templates/ui/figures/evaluation.html:172
 msgid "▶ Run"
 msgstr "▶ Starten"
 
-#: ui/templates/ui/figures/evaluation.html:165
+#: ui/templates/ui/figures/evaluation.html:174
 #, python-format
 msgid "Environment: %(summary)s"
 msgstr "Umgebung: %(summary)s"
 
-#: ui/templates/ui/figures/evaluation.html:239
+#: ui/templates/ui/figures/evaluation.html:244
 msgid "Attach a dataset to run this experiment (loaded read-only)."
 msgstr ""
 "Hängen Sie einen Datensatz an, um dieses Experiment auszuführen (wird nur "
@@ -4718,6 +4719,10 @@ msgstr "Zeitgrenze"
 #: ui/timeline.py:92
 msgid "Time spent in trials"
 msgstr "In Versuchen verbrachte Zeit"
+
+#: ui/timeline.py:93
+msgid "Trials without improvement"
+msgstr "Versuche ohne Verbesserung"
 
 #: ui/timeline.py:94
 msgid "Confidence nothing better remains"

@@ -72,7 +72,7 @@ def _card(client, exp):
 
 def test_a_read_only_experiment_still_gets_them_all(client):
     """What: a read-only experiment keeps every sidebar section, and its
-    Experiment Evaluation card keeps the metric selector without the run form.
+    Evaluation card keeps the metric selector without the run form.
     How: an experiment without a dataset."""
     exp = _experiment(name="frozen", dataset_path="")
     sidebar = _sidebar(client, exp)
@@ -83,16 +83,19 @@ def test_a_read_only_experiment_still_gets_them_all(client):
 
 
 def test_the_evaluation_card_lays_out_its_columns(client):
-    """What: the card's first column is what ends the run; the last holds the
-    metric, the failure limits and Run, in that order, and nothing folds away.
-    How: the card of an experiment with a result."""
+    """What: the metric sits in the card's header, inside the run form; the
+    first column is what ends the run, and the last holds the failure limits
+    then Run, and nothing folds away. How: the card of an experiment with a
+    result."""
     card = _card(client, _experiment())
+    head = card.split('class="card-head evaluation-head"', 1)[1].split('class="evaluation-columns"', 1)[0]
     columns = card.split('class="evaluation-column"')[1:]
 
-    assert 'name="max_trials"' in columns[0] and 'name="optimize_metric"' not in columns[0]
+    assert 'name="optimize_metric"' in head and ">Evaluation<" in head
+    assert card.index("<form") < card.index('name="optimize_metric"')
+    assert 'name="max_trials"' in columns[0]
     last = columns[-1]
-    assert (last.index('name="optimize_metric"') < last.index('name="max_failures"')
-            < last.index('data-assist="run"'))
+    assert last.index('name="max_failures"') < last.index('data-assist="run"')
     assert "<details" not in card
 
 

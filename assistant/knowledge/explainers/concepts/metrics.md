@@ -78,7 +78,7 @@ SMAC minimizes a cost. A higher-is-better metric with an upper end becomes best 
 
 ## In Codesigner
 
-- The "Experiment Evaluation" card: "Metric" (`metric-select`) switches every figure. In the Run form it is also the metric the next run optimizes (`optimize_metric`).
+- The "Evaluation" card: "Metric" (`metric-select`) switches every figure. In the Run form it is also the metric the next run optimizes (`optimize_metric`).
 - Picking a different metric than the one being optimized asks "Change the optimized metric?". The trials are kept and read again under the new metric.
 - Figures use short titles ("ROC AUC", "RMSE", "R²", "sMAPE (%)"). The Trials table has a column per metric.
 

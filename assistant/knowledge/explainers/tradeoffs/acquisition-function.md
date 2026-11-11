@@ -26,4 +26,4 @@ Expected improvement, the default, weighs how much better a candidate might be [
 
 **Which finds better configurations?** Over a whole run, expected improvement; probability of improvement tends to settle near the first good region it finds.
 
-**Can I change it between runs?** Yes, in the middle column of the Experiment Evaluation card.
+**Can I change it between runs?** Yes, in the middle column of the Evaluation card.

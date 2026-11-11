@@ -208,7 +208,7 @@ def test_every_selected_state_uses_it(rule):
 
 @pytest.mark.django_db
 def test_a_fresh_experiment_shows_the_run_form_in_the_middle(client):
-    """What: before the first trial the page shows the Experiment Evaluation
+    """What: before the first trial the page shows the Evaluation
     card, with the Run button, beside the optimizer and the prior, fixed in
     place: no slot layout.js could move or resize. How: a fresh experiment's
     page."""
@@ -226,7 +226,7 @@ def test_a_fresh_experiment_shows_the_run_form_in_the_middle(client):
 
 @pytest.mark.django_db
 def test_an_experiment_with_results_pins_the_card_to_overview(client, ran_experiment):
-    """What: with results, the Experiment Evaluation card lives on Misc and is
+    """What: with results, the Evaluation card lives on Misc and is
     pinned to Overview by default. How: the tab panels of a finished
     experiment's page."""
     ran_experiment.runs.all().update(status="done")

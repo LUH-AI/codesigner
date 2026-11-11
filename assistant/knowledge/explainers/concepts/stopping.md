@@ -32,12 +32,12 @@ A run continues until one of the limits you set is reached. At least one limit m
 
 Empty means "do not stop for this". No single field is required, but at least one must be filled.
 
-- **Trials** (`max_trials`, default 30): new trials in this run.
-- **Score exceeds** (`target_score`): the best score must strictly beat this, in the metric's direction (for RMSE, get under it). The field opens at the current best score and follows the metric selector until you type in it.
-- **Seconds elapsed** (`max_seconds`): wall-clock time.
-- **Seconds in trials** (`max_trial_seconds`): time inside trials only.
-- **Trials without improvement** (`no_improvement_trials`).
-- **Search confidence** (`incumbent_confidence`, 0–1, SMAC only). SMAC samples 1,000 configurations. Each x has chance Φ((μ(best) − μ(x)) / σ(x)) of beating the best, on costs. The confidence is 1 minus the largest chance. It is checked only once the run has 10 trials and a fitted model. It is confidence under the model's own assumptions, and a narrow optimum no sample lands near is missed.
+- **…N trials have run** (`max_trials`, default 30): new trials in this run.
+- **…the score exceeds** (`target_score`): the best score must strictly beat this, in the metric's direction (for RMSE, get under it). The field opens at the current best score and follows the metric selector until you type in it.
+- **…N seconds have passed** (`max_seconds`): wall-clock time.
+- **…N seconds spent in trials** (`max_trial_seconds`): time inside trials only.
+- **…N trials without gain** (`no_improvement_trials`).
+- **…the search is this sure** (`incumbent_confidence`, 0–1, SMAC only). SMAC samples 1,000 configurations. Each x has chance Φ((μ(best) − μ(x)) / σ(x)) of beating the best, on costs. The confidence is 1 minus the largest chance. It is checked only once the run has 10 trials and a fitted model. It is confidence under the model's own assumptions, and a narrow optimum no sample lands near is missed.
 
 With only a target or a confidence set, the form warns that these may never happen.
 
@@ -45,8 +45,8 @@ With only a target or a confidence set, the form warns that these may never happ
 
 These two do not count as the required limit.
 
-- **Failed trials** (`max_failures`, default 1). The first failure is usually the one worth reading. Raise this if you expect part of the space to break.
-- **Failures in a row** (`max_consecutive_failures`, default 15). Catches a model that cannot fit the data at all.
+- **…N trials have failed** (`max_failures`, default 1). The first failure is usually the one worth reading. Raise this if you expect part of the space to break.
+- **…N fail in a row** (`max_consecutive_failures`, default 15). Catches a model that cannot fit the data at all.
 
 A trial fails when the model raises an error, misses its deadline, or returns something unscoreable. It is recorded with its reason, and a traceback where there is one, and gets the know-nothing score (see concept-metrics).
 
@@ -75,13 +75,13 @@ A fit past its deadline is stopped and counts as a failed trial, and the run con
 
 ## In Codesigner
 
-- The "Experiment Evaluation" card: "Run until…" in its first column; "Give up if…", "Model fit deadline" and "▶ Run" in its last.
+- The "Evaluation" card: "Run until…" in its first column; "Give up if…", "Model fit deadline" and "▶ Run" in its last.
 - The header then says "Last run: … Stopped because …", for example "the score had stopped improving".
 - Only the person presses Run or Cancel. The assistant can fill the fields and point at the button.
 
 ## Questions people ask
 
-**Why did my run stop after one trial?** By default the first failure ends it. Read the reason in the Trials table, or raise "Failed trials".
+**Why did my run stop after one trial?** By default the first failure ends it. Read the reason in the Trials table, or raise "…N trials have failed".
 
 **Is time in trials the same as run time?** No. It leaves out the optimizer's own work between trials.
 

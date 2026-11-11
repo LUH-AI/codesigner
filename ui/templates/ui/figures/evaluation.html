@@ -5,24 +5,36 @@ column, between those two, holds the optimizer settings a later run may change
 (`run_safe`). While a run is in flight the run's status takes the form's place.
 {% endcomment %}
 <section class="card evaluation-card compact-form" data-figure="{{ figure.key|default:'evaluation' }}">
-    <div class="card-head"><div class="subheader">{% translate "Experiment Evaluation" %}</div></div>
-    {% if active_run %}
-        {% if has_result %}
-            <div class="field">
-                <label for="metric-select">{% translate "Evaluation metric" %}</label>
+    {% comment %}The metric sits in the header: every figure follows it, and it is
+    the metric the next run optimizes. While a run can start, the form opens
+    above the header, so the select is still the run's `optimize_metric`.{% endcomment %}
+    {% if not active_run and can_run %}
+        <form method="post" action="{% url 'ui:experiment_run' summary.pk %}" data-keeps-view>
+            {% csrf_token %}
+    {% endif %}
+    <div class="card-head evaluation-head">
+        <div class="subheader">{% translate "Evaluation" %}</div>
+        {% if not active_run and can_run %}
+            <div class="evaluation-metric">
+                <label for="metric-select">{% translate "Metric" %}</label>
+                {% include "ui/_metric_select.html" with field_name="optimize_metric" %}
+            </div>
+        {% elif has_result %}
+            <div class="evaluation-metric">
+                <label for="metric-select">{% translate "Metric" %}</label>
                 {% include "ui/_metric_select.html" %}
             </div>
         {% endif %}
+    </div>
+    {% if active_run %}
         {% include "ui/_run_status.html" with run=active_run %}
     {% elif can_run %}
-        <form method="post" action="{% url 'ui:experiment_run' summary.pk %}" data-keeps-view>
-            {% csrf_token %}
             <div class="evaluation-columns">
                 <div class="evaluation-column">
                     <fieldset class="check-group stopping">
                         <legend>{% translate "Run until…" %}</legend>
                         <div class="field">
-                            <label for="max_trials">{% translate "Trials" %}</label>
+                            <label for="max_trials">{% translate "…N trials have run" %}</label>
                             <input type="number" id="max_trials" name="max_trials"
                                    value="{{ next_run_trials }}" min="1" max="100000">
                             {% if trial_budget and not next_run_trials %}
@@ -30,7 +42,7 @@ column, between those two, holds the optimizer settings a later run may change
                             {% endif %}
                         </div>
                         <div class="field">
-                            <label for="target_score">{% translate "Score exceeds" %}</label>
+                            <label for="target_score">{% translate "…the score exceeds" %}</label>
                             {% comment %}A number field, not a text one with a
                             digits-and-a-dot pattern: that pattern rejects a minus
                             sign and exponent notation, which are ordinary ways to
@@ -44,21 +56,21 @@ column, between those two, holds the optimizer settings a later run may change
                                    placeholder="{% translate 'e.g. 0.95' %}">
                         </div>
                         <div class="field">
-                            <label for="max_seconds">{% translate "Seconds elapsed" %}</label>
+                            <label for="max_seconds">{% translate "…N seconds have passed" %}</label>
                             <input type="number" id="max_seconds" name="max_seconds" min="1" step="1">
                         </div>
                         <div class="field">
-                            <label for="max_trial_seconds">{% translate "Seconds in trials" %}</label>
+                            <label for="max_trial_seconds">{% translate "…N seconds spent in trials" %}</label>
                             <input type="number" id="max_trial_seconds" name="max_trial_seconds" min="1" step="1">
                         </div>
                         <div class="field">
-                            <label for="no_improvement_trials">{% translate "Trials without improvement" %}</label>
+                            <label for="no_improvement_trials">{% translate "…N trials without gain" %}</label>
                             <input type="number" id="no_improvement_trials" name="no_improvement_trials" min="1" step="1">
                         </div>
                         {% if supports_confidence %}
                             <div class="field">
                                 <div class="field-label">
-                                    <label for="incumbent_confidence">{% translate "Search confidence" %}</label>
+                                    <label for="incumbent_confidence">{% translate "…the search is this sure" %}</label>
                                     {% translate "Asks the optimizer how likely its own model of the objective thinks it is that some untried configuration beats the best one so far. Confidence under that model, not a guarantee." as confidence_help %}
                                     {% include "ui/_info.html" with info_id="incumbent_confidence_help" info_text=confidence_help %}
                                 </div>
@@ -81,10 +93,6 @@ column, between those two, holds the optimizer settings a later run may change
                     </div>
                 {% endif %}
                 <div class="evaluation-column">
-                    <div class="field">
-                        <label for="metric-select">{% translate "Metric" %}</label>
-                        {% include "ui/_metric_select.html" with field_name="optimize_metric" %}
-                    </div>
                 {% comment %}Its own fieldset rather than two more "run until…"
                     fields: those are budgets someone chose, and these are the run
                     noticing it is going wrong. Read under the same legend, "run
@@ -94,7 +102,7 @@ column, between those two, holds the optimizer settings a later run may change
                         <legend>{% translate "Give up if…" %}</legend>
                         <div class="field">
                             <div class="field-label">
-                                <label for="max_failures">{% translate "Failed trials" %}</label>
+                                <label for="max_failures">{% translate "…N trials have failed" %}</label>
                                 {% translate "A trial fails when the model raises on its configuration, runs past its deadline, or returns something that cannot be scored. It is still recorded — with its reason, and its stacktrace where there is one — and it scores what a model that knows nothing would — zero accuracy, or the error of always predicting the average — so the search learns to avoid that region. Default 1: the first failure is usually the one worth reading. Raise it when a search is deliberately probing a region you expect to break. At least 1." as failures_help %}
                                 {% include "ui/_info.html" with info_id="max_failures_help" info_text=failures_help %}
                             </div>
@@ -103,7 +111,7 @@ column, between those two, holds the optimizer settings a later run may change
                         </div>
                         <div class="field">
                             <div class="field-label">
-                                <label for="max_consecutive_failures">{% translate "Failures in a row" %}</label>
+                                <label for="max_consecutive_failures">{% translate "…N fail in a row" %}</label>
                                 {% translate "A different question from the total: in a row means nothing here can work — a model that cannot fit this dataset at all fails identically every time, and without a limit it spends the whole budget proving it. At least 1." as streak_help %}
                                 {% include "ui/_info.html" with info_id="max_consecutive_failures_help" info_text=streak_help %}
                             </div>
@@ -215,7 +223,7 @@ column, between those two, holds the optimizer settings a later run may change
             (function () {
                 const form = document.currentScript.closest("section").querySelector("form");
                 const field = form.querySelector('[name="target_score"]');
-                const metric = form.querySelector("#metric-select");
+                const metric = document.getElementById("metric-select");
                 const holder = document.getElementById("incumbent-targets");
                 if (!field || !metric || !holder) return;
                 const targets = JSON.parse(holder.textContent || "{}");
@@ -227,10 +235,6 @@ column, between those two, holds the optimizer settings a later run may change
             })();
         </script>
     {% elif has_result %}
-        <div class="field">
-            <label for="metric-select">{% translate "Evaluation metric" %}</label>
-            {% include "ui/_metric_select.html" %}
-        </div>
     {% else %}
         <p class="caption">{% translate "Attach a dataset to run this experiment (loaded read-only)." %}</p>
     {% endif %}

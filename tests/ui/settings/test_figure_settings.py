@@ -8,7 +8,7 @@ from ui.figures import FIGURES
 from experiments.models import GlobalSettings
 from ui.experiment_settings import SETTING_DEFAULTS, global_defaults
 
-#: The figures the settings can switch off; the Experiment Evaluation card is
+#: The figures the settings can switch off; the Evaluation card is
 #: always shown.
 SWITCHABLE = [figure for figure in FIGURES if figure.switchable]
 
@@ -46,7 +46,7 @@ def test_saving_records_each_figure_choice(client):
 
 
 def test_the_evaluation_card_cannot_be_switched_off(client):
-    """What: the Experiment Evaluation card, which holds the Run button, has no
+    """What: the Evaluation card, which holds the Run button, has no
     visibility setting and no checkbox. How: the defaults and the settings
     page."""
     body = client.get(reverse("ui:default_experiment_settings")).content.decode()

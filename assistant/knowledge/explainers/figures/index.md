@@ -13,7 +13,7 @@ sources:
   - ui/figure_layout.toml (default placement and Overview pins)
 ---
 
-Each figure lives on one tab (its home tab). **Overview** holds copies pinned from the other tabs; by default these are Experiment Evaluation, Best configuration, Hyperparameter importance, Trials, Trial performance, Forecast and Hyperparameter space projection. Readers can pin, move and resize figures; this lists the defaults. Any figure but Experiment Evaluation can be switched off in the experiment's settings.
+Each figure lives on one tab (its home tab). **Overview** holds copies pinned from the other tabs; by default these are Evaluation, Best configuration, Hyperparameter importance, Trials, Trial performance, Forecast and Hyperparameter space projection. Readers can pin, move and resize figures; this lists the defaults. Any figure but Evaluation can be switched off in the experiment's settings.
 
 ## Sidebar
 
@@ -38,7 +38,7 @@ Each figure lives on one tab (its home tab). **Overview** holds copies pinned fr
 
 ## Misc
 
-- [Experiment Evaluation](evaluation.md) (`figure-evaluation`): which metric, and when should the next run end or give up? Where is the Run button?
+- [Evaluation](evaluation.md) (`figure-evaluation`): which metric, and when should the next run end or give up? Where is the Run button?
 - [Best configuration](best_configuration.md) (`figure-best-configuration`): which trial is best so far for this metric, and with which values?
 - [Trial performance](performance_over_time.md) (`figure-performance-over-time`): is the search still improving?
 - [Trial duration](trial_duration.md) (`figure-trial-duration`): how long did each trial take, and which failed?

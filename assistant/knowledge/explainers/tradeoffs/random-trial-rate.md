@@ -33,4 +33,4 @@ After the design, each trial is drawn at random with this probability instead of
 
 **Does a random trial follow my prior?** No. A prior weights the model's choice, and a random trial skips the model.
 
-**Can I change the rate between runs?** Yes, in the middle column of the Experiment Evaluation card.
+**Can I change the rate between runs?** Yes, in the middle column of the Evaluation card.

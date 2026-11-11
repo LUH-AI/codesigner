@@ -38,7 +38,7 @@ class Evaluation(Figure):
     a run, the run's status."""
 
     key = "evaluation"
-    label = _("Experiment Evaluation")
+    label = _("Evaluation")
     home_tab = MISC
     shape = LONG
     switchable = False

@@ -29,7 +29,7 @@ sources:
 
 ## What it is for
 
-An experiment's own page, at one address for its whole life. Before its first trial it shows what can still be decided, as three cards fixed in place: Experiment Evaluation with the Run button, the optimizer, and the prior. Once a trial exists it shows the figures that analyse the trials, on four tabs; Experiment Evaluation is on Misc and pinned to Overview. The sidebar (its own explainer) holds HyperSHAP and the selected trial.
+An experiment's own page, at one address for its whole life. Before its first trial it shows what can still be decided, as three cards fixed in place: Evaluation with the Run button, the optimizer, and the prior. Once a trial exists it shows the figures that analyse the trials, on four tabs; Evaluation is on Misc and pinned to Overview. The sidebar (its own explainer) holds HyperSHAP and the selected trial.
 
 ## What is on it
 
@@ -46,7 +46,7 @@ An experiment's own page, at one address for its whole life. Before its first tr
 
 ## How to use it
 
-1. Before running: check the optimizer (change it and press **Save** if needed), optionally state a prior, then set the Experiment Evaluation card and press **▶ Run**.
+1. Before running: check the optimizer (change it and press **Save** if needed), optionally state a prior, then set the Evaluation card and press **▶ Run**.
 2. Switch tabs to see different figures. Pin a figure you use often to Overview with 📌.
 3. Drag a figure by ⠿ to move it within its tab; use − and + to change its width (one, two or four columns, as the figure allows).
 

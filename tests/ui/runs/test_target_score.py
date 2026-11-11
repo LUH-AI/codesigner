@@ -54,7 +54,7 @@ def _field(client, exp):
 def test_the_field_asks_to_be_surpassed(client):
     _, body = _field(client, _experiment())
 
-    assert "Score exceeds" in body
+    assert "…the score exceeds" in body
 
 
 def test_an_equal_score_does_not_end_the_run(client):

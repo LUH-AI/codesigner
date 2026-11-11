@@ -180,7 +180,7 @@ def test_a_figure_new_to_the_catalog_is_added_where_it_belongs():
 
 
 def test_a_layout_saved_before_the_evaluation_card_gets_it_first():
-    """What: a layout someone saved before the Experiment Evaluation card
+    """What: a layout someone saved before the Evaluation card
     existed gets it first on Misc and first on Overview, where the Run button
     is found. How: a rearranged layout without the card."""
     layout = layouts.default_layout()

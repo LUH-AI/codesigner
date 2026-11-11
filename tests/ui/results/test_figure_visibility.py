@@ -1,4 +1,4 @@
-"""Each catalog figure but the Experiment Evaluation card has a visibility
+"""Each catalog figure but the Evaluation card has a visibility
 setting, on by default, and hiding one must leave the rest of the shared script
 working.
 """
@@ -119,7 +119,7 @@ def test_each_figure_declares_a_tab_and_a_shape():
     assert by_tab[ACQUISITION] == ["acquisition_slice", "prior", "configuration_cube"]
     assert by_tab[OVERVIEW] == []
     # Wider than tall, at least two columns: the axis-read figures, and the
-    # Experiment Evaluation card's columns of fields.
+    # Evaluation card's columns of fields.
     assert [f.key for f in FIGURES if f.shape == LONG] == [
         "evaluation", "performance_over_time", "forecast", "parallel_coordinates", "partial_dependence",
         "local_effects", "acquisition_slice", "prior"]
@@ -194,7 +194,7 @@ def test_hiding_the_performance_figure_keeps_the_page_working(client):
 
 
 def test_all_figures_can_be_hidden_at_once(client):
-    """What: switching every figure off leaves only the Experiment Evaluation
+    """What: switching every figure off leaves only the Evaluation
     card, which no setting switches off. How: every visibility setting off."""
     _hide(*EXPECTED_KEYS)
     html = _page(client, _experiment())

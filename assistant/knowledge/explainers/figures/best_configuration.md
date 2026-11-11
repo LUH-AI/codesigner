@@ -33,7 +33,7 @@ This card always shows the best trial. To look at any other trial, click it in a
 
 ## Controls
 
-None. It follows the **Metric** selector (`metric-select`) in the Experiment Evaluation card: one card per metric, and only the viewed metric's card is shown.
+None. It follows the **Metric** selector (`metric-select`) in the Evaluation card: one card per metric, and only the viewed metric's card is shown.
 
 ## When it appears
 

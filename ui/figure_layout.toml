@@ -19,12 +19,12 @@
 
 overview = [
     { figure = "evaluation",                width = 2, column = 1 },
-    { figure = "best_configuration",        width = 1, column = 3 },
-    { figure = "hyperparameter_importance", width = 1, column = 4 },
-    { figure = "trials",                    width = 2, column = 3 },
-    { figure = "performance_over_time",     width = 2, column = 1 },
+    { figure = "hyperparameter_importance", width = 1, column = 2 },
+    { figure = "best_configuration",        width = 1, column = 1 },
+    { figure = "performance_over_time",     width = 2, column = 3 },
+    { figure = "configuration_cube",        width = 2, column = 3 },
     { figure = "forecast",                  width = 2, column = 3 },
-    { figure = "configuration_cube",        width = 2, column = 1 },
+    { figure = "trials",                    width = 2, column = 1 },
 ]
 
 hypershap = [
@@ -46,9 +46,9 @@ acquisition = [
 
 misc = [
     { figure = "evaluation",            width = 2, column = 1 },
-    { figure = "best_configuration",    width = 1, column = 3 },
+    { figure = "best_configuration",    width = 1, column = 2 },
     { figure = "trials",                width = 2, column = 3 },
-    { figure = "trial_duration",        width = 1, column = 4 },
+    { figure = "trial_duration",        width = 1, column = 2 },
     { figure = "performance_over_time", width = 2, column = 1 },
     { figure = "parallel_coordinates",  width = 2, column = 1 },
     { figure = "partial_dependence",    width = 2, column = 1 },

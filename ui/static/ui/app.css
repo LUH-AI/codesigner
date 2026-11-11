@@ -614,11 +614,15 @@ nav.sidebar .info-bubble {
 .prerun-slot { min-width: 0; min-height: 0; display: flex; flex-direction: column; }
 .prerun-slot > [data-figure] { flex: 1; min-height: 0; display: flex; flex-direction: column; overflow: auto; }
 .prerun-slot > [data-figure] .plot { flex: 1; min-height: 0; }
-.prerun-evaluation { grid-column: span 1; grid-row: span 1; }
-.prerun-optimizer { grid-column: span 1; grid-row: span 1; overflow: auto; }
+/* Evaluation beside the Optimizer, both over the Prior: two columns by two
+   rows, whatever the grid's width. */
+.prerun-evaluation { grid-column: 1; grid-row: 1; }
+.prerun-optimizer { grid-column: 2; grid-row: 1; overflow: auto; }
 .prerun-optimizer .subheader { margin-top: 0; }
-.prerun-prior { grid-column: span 2; grid-row: span 1; }
-@media (max-width: 1687px) { .prerun-prior { grid-column: span 1; } }
+.prerun-prior { grid-column: 1 / span 2; grid-row: 2; }
+@media (max-width: 1687px) {
+    .prerun-evaluation, .prerun-optimizer, .prerun-prior { grid-column: 1; grid-row: auto; }
+}
 
 /* The Experiment Evaluation card (ui/figures/evaluation.html): its columns
    side by side, one under another when the card is narrow. */
@@ -627,6 +631,16 @@ nav.sidebar .info-bubble {
     gap: 0 1rem; align-items: start;
 }
 .evaluation-column { min-width: 0; }
+/* The metric in the card's header, beside its title and as large: every
+   figure follows it, and the next run optimizes it. */
+.evaluation-head { display: flex; align-items: center; justify-content: space-between; gap: 0.75rem; flex-wrap: wrap; }
+.evaluation-metric { display: flex; align-items: center; gap: 0.5rem; }
+.fig-slot .evaluation-head { padding-right: 1.25rem; }
+.evaluation-metric label { font-weight: 600; font-size: 0.95rem; margin: 0; }
+.compact-form .evaluation-metric select {
+    width: auto; min-width: 10rem; font-size: 1rem; font-weight: 600; padding: 0.3rem 0.6rem;
+    border-color: var(--primary);
+}
 /* Compact forms, so the Experiment Evaluation card and the pre-run Optimizer
    card each fit their card: a field is one line, its label then its control,
    in the same bordered groups as elsewhere with less padding. */

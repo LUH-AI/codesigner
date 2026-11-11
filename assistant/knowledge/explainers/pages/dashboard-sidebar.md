@@ -28,7 +28,7 @@ sources:
 
 ## What it is for
 
-The experiment page's sidebar holds the choices the figures answer to, and stays in view while you read them. Below Experiment Selection are two sections: **HyperSHAP** and **Selected Configuration**. Before the first trial neither is there. The metric selector and the Run form are the **Experiment Evaluation** card (its own explainer), not the sidebar.
+The experiment page's sidebar holds the choices the figures answer to, and stays in view while you read them. Below Experiment Selection are two sections: **HyperSHAP** and **Selected Configuration**. Before the first trial neither is there. The metric selector and the Run form are the **Evaluation** card (its own explainer), not the sidebar.
 
 ## What is on it
 
@@ -54,7 +54,7 @@ The experiment page's sidebar holds the choices the figures answer to, and stays
 
 ## Questions people ask
 
-**Where did the Run button go?** It is in the Experiment Evaluation card, on Overview and Misc, and first on the page before the first run.
+**Where did the Run button go?** It is in the Evaluation card, on Overview and Misc, and first on the page before the first run.
 
 **Why is Export trial parameters greyed out?** That trial's fitted model was not kept (the tooltip says why), or a proposal is selected, which has no model.
 

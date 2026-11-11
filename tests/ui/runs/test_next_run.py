@@ -82,7 +82,7 @@ def test_nothing_changes_while_a_run_is_going(guided):
 def test_the_run_form_offers_the_run_safe_settings_between_its_columns(client, guided):
     """What: after a run, the run form carries the run-safe settings, and none
     of the locked ones, in a column between the stopping conditions and the
-    metric, with the advanced ones listed without a fold.
+    failure limits, with the advanced ones listed without a fold.
     How: the guided fixture's page."""
     form = _run_form(client, guided)
 
@@ -90,7 +90,7 @@ def test_the_run_form_offers_the_run_safe_settings_between_its_columns(client, g
     assert 'id="opt_random_probability"' in form and 'id="opt_trial_cap"' in form
     assert 'id="opt_initial_design"' not in form and 'id="opt_search_strategy"' not in form
     assert (form.index('name="max_trials"') < form.index('id="opt_random_probability"')
-            < form.index('name="optimize_metric"'))
+            < form.index('name="max_failures"'))
     assert form.count('class="evaluation-column"') == 3 and "advanced-params" not in form
 
 

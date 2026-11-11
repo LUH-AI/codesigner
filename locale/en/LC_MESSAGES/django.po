@@ -21,7 +21,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: PACKAGE VERSION\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2026-11-11 12:20+0000\n"
+"POT-Creation-Date: 2026-11-11 12:30+0000\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
 "Language-Team: LANGUAGE <LL@li.org>\n"
@@ -402,7 +402,8 @@ msgstr "Data Handling"
 #: assistant/templates/assistant/_chat.html:64
 #: assistant/templates/assistant/_chat.html:74
 #: ui/templates/ui/_experiment_header.html:37
-#: ui/templates/ui/figures/evaluation.html:87
+#: ui/templates/ui/figures/evaluation.html:20
+#: ui/templates/ui/figures/evaluation.html:25
 msgid "Metric"
 msgstr "Metric"
 
@@ -748,9 +749,10 @@ msgstr "Choose which group this experiment is in."
 msgid "Save the first step before this one."
 msgstr ""
 
-#: ui/figures/catalog.py:41 ui/templates/ui/figures/evaluation.html:8
-msgid "Experiment Evaluation"
-msgstr "Experiment Evaluation"
+#: ui/figures/catalog.py:41 ui/templates/ui/_experiment_header.html:38
+#: ui/templates/ui/figures/evaluation.html:17 ui/timeline.py:190
+msgid "Evaluation"
+msgstr "Evaluation"
 
 #: ui/figures/catalog.py:51
 msgid "Best configuration"
@@ -857,8 +859,7 @@ msgstr "Local effects across trials"
 msgid "Trial duration"
 msgstr "Trial duration"
 
-#: ui/figures/catalog.py:388 ui/templates/ui/figures/evaluation.html:25
-#: ui/timeline.py:89 ui/timeline.py:332
+#: ui/figures/catalog.py:388 ui/timeline.py:89 ui/timeline.py:332
 msgid "Trials"
 msgstr "Trials"
 
@@ -1594,7 +1595,7 @@ msgid "Control points"
 msgstr "Control points"
 
 #: ui/figures/plots/surrogate.py:226
-#: ui/templates/ui/figures/evaluation.html:148
+#: ui/templates/ui/figures/evaluation.html:157
 msgid "Predicted"
 msgstr "Predicted"
 
@@ -2505,10 +2506,6 @@ msgstr "Rename"
 #: ui/templates/ui/export_preferences.html:22
 msgid "Save"
 msgstr "Save"
-
-#: ui/templates/ui/_experiment_header.html:38 ui/timeline.py:190
-msgid "Evaluation"
-msgstr "Evaluation"
 
 #: ui/templates/ui/_experiment_header.html:40
 msgid "ID"
@@ -3833,54 +3830,53 @@ msgstr "Pick a hyperparameter for an axis."
 msgid "No configurations to plot."
 msgstr "No configurations to plot."
 
-#: ui/templates/ui/figures/evaluation.html:12
-#: ui/templates/ui/figures/evaluation.html:235
-msgid "Evaluation metric"
-msgstr "Evaluation metric"
-
-#: ui/templates/ui/figures/evaluation.html:23
+#: ui/templates/ui/figures/evaluation.html:36
 msgid "Run until…"
 msgstr "Run until…"
 
-#: ui/templates/ui/figures/evaluation.html:29
+#: ui/templates/ui/figures/evaluation.html:38
+msgid "…N trials have run"
+msgstr ""
+
+#: ui/templates/ui/figures/evaluation.html:42
 #, python-format
 msgid "The planned %(n)s trial has run."
 msgid_plural "The planned %(n)s trials have run."
 msgstr[0] ""
 msgstr[1] ""
 
-#: ui/templates/ui/figures/evaluation.html:33
-msgid "Score exceeds"
+#: ui/templates/ui/figures/evaluation.html:46
+msgid "…the score exceeds"
 msgstr ""
 
-#: ui/templates/ui/figures/evaluation.html:45
-#: ui/templates/ui/figures/evaluation.html:68
+#: ui/templates/ui/figures/evaluation.html:58
+#: ui/templates/ui/figures/evaluation.html:81
 msgid "e.g. 0.95"
 msgstr "e.g. 0.95"
 
-#: ui/templates/ui/figures/evaluation.html:48
+#: ui/templates/ui/figures/evaluation.html:61
 #, fuzzy
 #| msgid "Second axis"
-msgid "Seconds elapsed"
+msgid "…N seconds have passed"
 msgstr "Second axis"
 
-#: ui/templates/ui/figures/evaluation.html:52
+#: ui/templates/ui/figures/evaluation.html:65
 #, fuzzy
 #| msgid "Time in trials"
-msgid "Seconds in trials"
+msgid "…N seconds spent in trials"
 msgstr "Time in trials"
 
-#: ui/templates/ui/figures/evaluation.html:56 ui/timeline.py:93
-msgid "Trials without improvement"
+#: ui/templates/ui/figures/evaluation.html:69
+#, fuzzy
+#| msgid "Trials without improvement"
+msgid "…N trials without gain"
 msgstr "Trials without improvement"
 
-#: ui/templates/ui/figures/evaluation.html:62
-#, fuzzy
-#| msgid "Search's model"
-msgid "Search confidence"
-msgstr "Search's model"
+#: ui/templates/ui/figures/evaluation.html:75
+msgid "…the search is this sure"
+msgstr ""
 
-#: ui/templates/ui/figures/evaluation.html:63
+#: ui/templates/ui/figures/evaluation.html:76
 msgid ""
 "Asks the optimizer how likely its own model of the objective thinks it is "
 "that some untried configuration beats the best one so far. Confidence under "
@@ -3890,7 +3886,7 @@ msgstr ""
 "that some untried configuration beats the best one so far. Confidence under "
 "that model, not a guarantee."
 
-#: ui/templates/ui/figures/evaluation.html:72
+#: ui/templates/ui/figures/evaluation.html:85
 #, fuzzy
 #| msgid ""
 #| "These may never happen. Consider a trial or time limit as well, so the "
@@ -3900,42 +3896,40 @@ msgstr ""
 "These may never happen. Consider a trial or time limit as well, so the run "
 "is certain to end."
 
-#: ui/templates/ui/figures/evaluation.html:97
+#: ui/templates/ui/figures/evaluation.html:106
 msgid "Give up if…"
 msgstr "Give up if…"
 
-#: ui/templates/ui/figures/evaluation.html:100
-#, fuzzy
-#| msgid "Failed trials allowed"
-msgid "Failed trials"
-msgstr "Failed trials allowed"
-
-#: ui/templates/ui/figures/evaluation.html:101
-msgid ""
-"A trial fails when the model raises on its configuration, runs past its "
-"deadline, or returns something that cannot be scored. It is still recorded — "
-"with its reason, and its stacktrace where there is one — and it scores what "
-"a model that knows nothing would — zero accuracy, or the error of always "
-"predicting the average — so the search learns to avoid that region. Default "
-"1: the first failure is usually the one worth reading. Raise it when a "
-"search is deliberately probing a region you expect to break. At least 1."
-msgstr ""
-"A trial fails when the model raises on its configuration, runs past its "
-"deadline, or returns something that cannot be scored. It is still recorded — "
-"with its reason, and its stacktrace where there is one — and it scores what "
-"a model that knows nothing would — zero accuracy, or the error of always "
-"predicting the average — so the search learns to avoid that region. Default "
-"1: the first failure is usually the one worth reading. Raise it when a "
-"search is deliberately probing a region you expect to break. At least 1."
-
 #: ui/templates/ui/figures/evaluation.html:109
-#, fuzzy
-#| msgid "Failed in a row allowed"
-msgid "Failures in a row"
-msgstr "Failed in a row allowed"
+msgid "…N trials have failed"
+msgstr ""
 
 #: ui/templates/ui/figures/evaluation.html:110
 msgid ""
+"A trial fails when the model raises on its configuration, runs past its "
+"deadline, or returns something that cannot be scored. It is still recorded — "
+"with its reason, and its stacktrace where there is one — and it scores what "
+"a model that knows nothing would — zero accuracy, or the error of always "
+"predicting the average — so the search learns to avoid that region. Default "
+"1: the first failure is usually the one worth reading. Raise it when a "
+"search is deliberately probing a region you expect to break. At least 1."
+msgstr ""
+"A trial fails when the model raises on its configuration, runs past its "
+"deadline, or returns something that cannot be scored. It is still recorded — "
+"with its reason, and its stacktrace where there is one — and it scores what "
+"a model that knows nothing would — zero accuracy, or the error of always "
+"predicting the average — so the search learns to avoid that region. Default "
+"1: the first failure is usually the one worth reading. Raise it when a "
+"search is deliberately probing a region you expect to break. At least 1."
+
+#: ui/templates/ui/figures/evaluation.html:118
+#, fuzzy
+#| msgid "Failed in a row allowed"
+msgid "…N fail in a row"
+msgstr "Failed in a row allowed"
+
+#: ui/templates/ui/figures/evaluation.html:119
+msgid ""
 "A different question from the total: in a row means nothing here can work — "
 "a model that cannot fit this dataset at all fails identically every time, "
 "and without a limit it spends the whole budget proving it. At least 1."
@@ -3944,17 +3938,17 @@ msgstr ""
 "a model that cannot fit this dataset at all fails identically every time, "
 "and without a limit it spends the whole budget proving it. At least 1."
 
-#: ui/templates/ui/figures/evaluation.html:138
+#: ui/templates/ui/figures/evaluation.html:147
 msgid "Model fit deadline"
 msgstr ""
 
-#: ui/templates/ui/figures/evaluation.html:141
+#: ui/templates/ui/figures/evaluation.html:150
 #, fuzzy
 #| msgid "Kinds"
 msgid "Kind"
 msgstr "Kinds"
 
-#: ui/templates/ui/figures/evaluation.html:142
+#: ui/templates/ui/figures/evaluation.html:151
 msgid ""
 "The limit is on one model fit, not on a whole trial: under cross-validation "
 "a trial is one fit per fold, and each fold is given the deadline separately. "
@@ -3974,30 +3968,30 @@ msgstr ""
 "proportionally longer instead of being killed for being large. The seconds "
 "below stay the outer bound under either."
 
-#: ui/templates/ui/figures/evaluation.html:147 ui/timeline.py:143
+#: ui/templates/ui/figures/evaluation.html:156 ui/timeline.py:143
 msgid "Fixed"
 msgstr "Fixed"
 
-#: ui/templates/ui/figures/evaluation.html:152
+#: ui/templates/ui/figures/evaluation.html:161
 msgid "Seconds (0 = none)"
 msgstr ""
 
-#: ui/templates/ui/figures/evaluation.html:157
+#: ui/templates/ui/figures/evaluation.html:166
 #, fuzzy
 #| msgid "Predicted"
 msgid "× predicted"
 msgstr "Predicted"
 
-#: ui/templates/ui/figures/evaluation.html:163
+#: ui/templates/ui/figures/evaluation.html:172
 msgid "▶ Run"
 msgstr "▶ Run"
 
-#: ui/templates/ui/figures/evaluation.html:165
+#: ui/templates/ui/figures/evaluation.html:174
 #, python-format
 msgid "Environment: %(summary)s"
 msgstr "Environment: %(summary)s"
 
-#: ui/templates/ui/figures/evaluation.html:239
+#: ui/templates/ui/figures/evaluation.html:244
 msgid "Attach a dataset to run this experiment (loaded read-only)."
 msgstr "Attach a dataset to run this experiment (loaded read-only)."
 
@@ -4685,6 +4679,10 @@ msgstr "Time limit"
 #: ui/timeline.py:92
 msgid "Time spent in trials"
 msgstr "Time spent in trials"
+
+#: ui/timeline.py:93
+msgid "Trials without improvement"
+msgstr "Trials without improvement"
 
 #: ui/timeline.py:94
 msgid "Confidence nothing better remains"
