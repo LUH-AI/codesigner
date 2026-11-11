@@ -293,7 +293,7 @@ nav.sidebar hr { border: none; border-top: 1px solid var(--border); margin: 0.25
    which is what its `overflow-y` is for. */
 .side-section { display: flex; flex-direction: column; gap: 0.6rem; flex-shrink: 0; }
 .side-section + .side-section { border-top: 1px solid var(--border); padding-top: 1.25rem; }
-.side-section > h2 {
+.side-section > h2, .side-section > .side-head > h2 {
     font-size: 0.8rem;
     font-weight: 700;
     letter-spacing: 0.04em;
@@ -631,6 +631,21 @@ nav.sidebar .info-bubble {
     gap: 0 1rem; align-items: start;
 }
 .evaluation-column { min-width: 0; }
+
+/* A sidebar section's heading with a link that shows its card. */
+.side-head { display: flex; align-items: baseline; justify-content: space-between; gap: 0.5rem; }
+.side-jump { text-decoration: none; color: var(--muted); font-size: 0.9rem; line-height: 1; padding: 0 0.15rem; }
+.side-jump:hover, .side-jump:focus-visible { color: var(--primary); }
+
+/* During a run the Evaluation card keeps its fields, greyed and inert, and
+   shows the run's status at its bottom. */
+.evaluation-card.is-running [inert] { opacity: 0.45; }
+.evaluation-banner { margin-top: auto; padding-top: 0.5rem; }
+.evaluation-banner .alert, .side-evaluation .alert { margin: 0; }
+.run-banner-running { display: flex; align-items: center; gap: 0.5rem; }
+.side-evaluation .run-status { display: flex; flex-direction: column; gap: 0.5rem; }
+.side-evaluation .btn-block { margin-top: 0.25rem; }
+[data-run-stop-copy] .caption, [data-run-stop] .caption { margin: 0 0 0.35rem; }
 
 /* A card whose contents are being computed: a spinner after its title
    (ui/static/ui/busy.js). */

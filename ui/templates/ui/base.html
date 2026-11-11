@@ -208,6 +208,9 @@
             </div>
         {% endif %}
     {% endblock %}
+    {% comment %}Shows a card or field the way the assistant's highlight does,
+    for the page's own links and for act.js below.{% endcomment %}
+    <script src="{% asset 'ui/pointer.js' %}" defer></script>
     {% comment %}What lets the assistant act on this page: it says what the page
     is, carries out what the assistant does here, and fills a setup step from
     the approved plan (assistant/acts.py).{% endcomment %}

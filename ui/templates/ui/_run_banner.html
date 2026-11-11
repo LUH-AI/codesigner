@@ -1,0 +1,19 @@
+{% load i18n %}
+{% comment %}What the run is doing, by its status. Pending is a local run the
+worker has not picked up yet; submitted is a cluster job waiting for a node;
+only running is optimizing. The cluster job id is what an operator needs to
+ask the scheduler anything.{% endcomment %}
+{% with job=run.job %}
+    {% if run.status == "submitted" %}
+        <div class="alert info">
+            {% if job.scheduler_id %}{% blocktranslate with job=job.scheduler_id %}Submitted to the cluster as job {{ job }}. Waiting for a node.{% endblocktranslate %}{% else %}{% translate "Submitted to the cluster. Waiting for a node." %}{% endif %}
+        </div>
+    {% elif run.status == "pending" %}
+        <div class="alert info">{% translate "Waiting to start." %}</div>
+    {% else %}
+        <div class="alert info run-banner-running">
+            <span class="spinner"></span>
+            <span>{% translate "Optimizing…" %}{% if job.scheduler_id %} {% blocktranslate with job=job.scheduler_id %}Running on the cluster as job {{ job }}.{% endblocktranslate %}{% endif %}</span>
+        </div>
+    {% endif %}
+{% endwith %}

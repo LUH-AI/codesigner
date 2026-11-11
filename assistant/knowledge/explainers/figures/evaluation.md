@@ -34,7 +34,7 @@ The card that starts a run: which metric the figures show and the run optimizes,
 - **Middle column, after the first run only**: the optimizer settings a later run may change (`next_run_settings`), such as the random trial rate and the initial design caps, all listed, the advanced ones included. They are saved when the run starts. The rest stay as the first run had them.
 - **Last column**: **Give up if…**: **…N trials have failed** (`max_failures`, 1) and **…N fail in a row** (`max_consecutive_failures`, 15); **Model fit deadline** (not for a model running in-process): **Kind** (`trial_timeout_mode`: "Fixed" seconds, or "Predicted", a multiple of the fit's predicted duration), **Seconds (0 = none)** (`trial_timeout_seconds`, normally 600), and in predicted mode **× predicted** (`trial_timeout_factor`, 5); then **▶ Run** (`data-assist="run"`).
 - The deadline is per model fit, so each fold gets it. A fit past it fails the trial, not the run.
-- While a run is going: the metric selector, "Optimizing… (status)", **Cancel run**, then "Cancelling — it stops after the trial it is on." and **Give up on it**.
+- While a run is going: the fields stay, greyed and locked, and the metric selector still works. **Cancel run** takes Run's place, then "Cancelling — it stops after the trial it is on." and **Give up on it**. The run's status is at the bottom of the card: "Waiting to start.", "Submitted to the cluster as job N. Waiting for a node." or "Optimizing…". The sidebar shows the same.
 
 ## Controls
 
@@ -47,7 +47,7 @@ The card that starts a run: which metric the figures show and the run optimizes,
 - Before the first trial: on the experiment's page, first, beside the Optimizer card, with the Prior under both. Those three cards stay in place and keep their size.
 - After the first trial: on the **Misc** tab, and pinned to **Overview** by default, first, two columns wide and one row high. It can be moved, made full width, and unpinned from Overview like any figure.
 - It follows nothing; the metric selector in it is what the other figures follow.
-- During a run the form gives way to the run's status.
+- During a run its fields are locked and it shows the run's status.
 - Viewers, and experiments loaded without a dataset, get the metric selector only. No setting switches the card off.
 
 ## Questions people ask

@@ -260,38 +260,21 @@
         return problems;
     }
 
-    function showTab(name) {
-        var tab = document.querySelector('.fig-tab[data-tab="' + CSS.escape(name) + '"]');
-        if (!tab) return false;
-        if (tab.getAttribute("aria-selected") !== "true") {
-            document.dispatchEvent(new CustomEvent("assistant:show-tab", {detail: {tab: name}}));
-        }
-        return tab.getAttribute("aria-selected") === "true";
-    }
-
-    // The figure *key*'s card, on the tab showing when it has a place there,
-    // else on its home tab, which is then shown.
-    function figureCard(key) {
-        var here = document.querySelector('.fig-panel:not(.is-inactive) .fig-slot[data-key="' + CSS.escape(key) + '"]');
-        if (!here) {
-            var home = document.querySelector('.fig-slot[data-key="' + CSS.escape(key) + '"]');
-            if (home && home.dataset.home) showTab(home.dataset.home);
-            here = document.querySelector('.fig-panel:not(.is-inactive) .fig-slot[data-key="' + CSS.escape(key) + '"]');
-        }
-        return here || document.querySelector('[data-figure="' + CSS.escape(key) + '"]');
-    }
+    // Finding and showing a figure's card is the page's own
+    // (ui/static/ui/pointer.js), shared with its links.
+    var pointer = window.pagePointer;
 
     function element(name) {
         var kind = name.split(":")[0], rest = name.slice(kind.length + 1);
         if (kind === "tab") {
-            if (!showTab(rest)) return null;
+            if (!pointer.showTab(rest)) return null;
             return document.getElementById("fig-tab-" + rest);
         }
-        if (kind === "figure") return figureCard(rest);
+        if (kind === "figure") return pointer.figureCard(rest);
         if (kind === "trial") {
             var row = trialRows().filter(function (r) { return trialNumber(r) === Number(rest); })[0];
             if (!row) return null;
-            figureCard("trials");
+            pointer.figureCard("trials");
             document.dispatchEvent(new CustomEvent("assistant:select-trial",
                                                    {detail: {idx: Number(row.dataset.trialIdx)}}));
             return row;
@@ -304,30 +287,7 @@
         return el;
     }
 
-    // What is outlined stays outlined until the person clicks somewhere else
-    // on the page, or the assistant points at something else. Clicking in the
-    // chat leaves it, so they can answer while looking at it.
-    var outlined = null;
-    function unoutline() {
-        if (outlined) outlined.classList.remove("assistant-highlight");
-        outlined = null;
-    }
-    document.addEventListener("pointerdown", function (e) {
-        if (!outlined || outlined.contains(e.target)) return;
-        if (e.target.closest && e.target.closest("[data-assistant]")) return;
-        unoutline();
-    }, true);
-
-    function highlight(name) {
-        var el = element(name);
-        if (!el) return false;
-        unoutline();
-        el.scrollIntoView({behavior: "smooth", block: "center"});
-        void el.offsetWidth;
-        el.classList.add("assistant-highlight");
-        outlined = el;
-        return true;
-    }
+    function highlight(name) { return pointer.outline(element(name)); }
 
     function acted(id, ok, detail, keepalive) {
         var body = new FormData();

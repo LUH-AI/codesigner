@@ -98,17 +98,21 @@ def test_readonly_experiment_keeps_metric_selector_without_run_form(client):
 
 @pytest.mark.django_db
 def test_metric_selector_present_while_a_run_is_in_flight(client):
-    """The selector must survive while a run replaces the Run form, because the
-    figures read it."""
+    """What: during a run the metric selector stays usable, because the figures
+    read it, while the run form is gone and its fields are inert. How: the page
+    of an experiment with a running run."""
     from experiments.models import Run
 
     exp = _experiment_with_result()
     Run.objects.create(experiment=exp, stopping={"max_trials": 3}, primary_metric="accuracy", status="running")
 
     html = client.get(reverse("ui:experiment_detail", args=[exp.pk])).content.decode()
-    assert 'id="metric-select"' in html
-    # run form gone while running
-    assert 'name="max_trials"' not in html
+    card = html.split('data-figure="evaluation"', 1)[1].split("</section>", 1)[0]
+    assert 'id="metric-select"' in card and 'id="run-form"' not in html
+    head = card.split('class="evaluation-columns"', 1)[0]
+    assert "inert" not in head
+    stopping = card.split('class="evaluation-column"', 1)[1].split(">", 1)[0]
+    assert "inert" in stopping
 
 
 @pytest.mark.django_db

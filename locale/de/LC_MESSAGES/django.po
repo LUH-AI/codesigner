@@ -8,7 +8,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: PACKAGE VERSION\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2026-11-11 12:55+0000\n"
+"POT-Creation-Date: 2026-11-11 13:23+0000\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
 "Language-Team: LANGUAGE <LL@li.org>\n"
@@ -366,7 +366,7 @@ msgstr "Validierungsverfahren"
 #: ui/templates/ui/_experiment_header.html:36
 #: ui/templates/ui/_optimizer_form.html:9
 #: ui/templates/ui/experiment_list.html:14
-#: ui/templates/ui/experiment_prerun.html:53
+#: ui/templates/ui/experiment_prerun.html:56
 #: ui/templates/ui/setup_step_optimizer.html:4 ui/timeline.py:192
 #: ui/timeline.py:278 ui/timeline.py:280
 msgid "Optimizer"
@@ -380,8 +380,9 @@ msgstr "Datenaufbereitung"
 #: assistant/templates/assistant/_chat.html:64
 #: assistant/templates/assistant/_chat.html:74
 #: ui/templates/ui/_experiment_header.html:37
-#: ui/templates/ui/figures/evaluation.html:20
-#: ui/templates/ui/figures/evaluation.html:25
+#: ui/templates/ui/_side_evaluation.html:20
+#: ui/templates/ui/figures/evaluation.html:22
+#: ui/templates/ui/figures/evaluation.html:27
 msgid "Metric"
 msgstr "Metrik"
 
@@ -725,7 +726,7 @@ msgid "Save the first step before this one."
 msgstr "Speichern Sie zuerst den ersten Schritt."
 
 #: ui/figures/catalog.py:41 ui/templates/ui/_experiment_header.html:38
-#: ui/templates/ui/figures/evaluation.html:17 ui/timeline.py:190
+#: ui/templates/ui/figures/evaluation.html:19 ui/timeline.py:190
 msgid "Evaluation"
 msgstr "Bewertung"
 
@@ -1447,7 +1448,7 @@ msgstr "Noch zu gewinnen"
 msgid "Achievable gain"
 msgstr "Erreichbarer Gewinn"
 
-#: ui/figures/plots/importance.py:114 ui/templates/ui/_side_explanation.html:43
+#: ui/figures/plots/importance.py:114 ui/templates/ui/_side_explanation.html:50
 #: ui/templates/ui/figures/_importance_table.html:19
 #: ui/templates/ui/figures/hyperparameter_importance.html:31
 msgid "Default"
@@ -1520,7 +1521,7 @@ msgstr "Versuchsbewertung"
 
 #: ui/figures/plots/performance.py:87 ui/figures/plots/surrogate.py:163
 #: ui/figures/plots/surrogate.py:166 ui/figures/plots/surrogate.py:233
-#: ui/figures/plots/surrogate.py:236 ui/templates/ui/_side_explanation.html:44
+#: ui/figures/plots/surrogate.py:236 ui/templates/ui/_side_explanation.html:51
 #: ui/templates/ui/figures/_importance_table.html:20
 #: ui/templates/ui/figures/hyperparameter_importance.html:30
 msgid "Incumbent"
@@ -1594,7 +1595,7 @@ msgid "Control points"
 msgstr "Kontrollpunkte"
 
 #: ui/figures/plots/surrogate.py:226
-#: ui/templates/ui/figures/evaluation.html:157
+#: ui/templates/ui/figures/evaluation.html:158
 msgid "Predicted"
 msgstr "Vorhergesagt"
 
@@ -2499,7 +2500,7 @@ msgstr "Umbenennen"
 #: ui/templates/ui/appearance.html:43
 #: ui/templates/ui/data_handling/_tabs.html:51
 #: ui/templates/ui/experiment_notes.html:47
-#: ui/templates/ui/experiment_prerun.html:60
+#: ui/templates/ui/experiment_prerun.html:63
 #: ui/templates/ui/export_preferences.html:22
 msgid "Save"
 msgstr "Speichern"
@@ -2619,8 +2620,8 @@ msgstr ""
 msgid "Prepare an isolated environment"
 msgstr "Eine isolierte Umgebung vorbereiten"
 
-#: ui/templates/ui/_experiment_page.html:16
 #
+#: ui/templates/ui/_experiment_page.html:16
 msgid "Computing…"
 msgstr "Wird berechnet…"
 
@@ -2677,30 +2678,39 @@ msgstr "Optimierer einrichten"
 msgid "Advanced search settings"
 msgstr "Erweiterte Sucheinstellungen"
 
-#: ui/templates/ui/_run_status.html:14
+#: ui/templates/ui/_run_banner.html:10
 #, python-format
 msgid "Submitted to the cluster as job %(job)s. Waiting for a node."
 msgstr "Als Auftrag %(job)s an den Cluster übergeben. Wartet auf einen Knoten."
 
-#: ui/templates/ui/_run_status.html:18
-#, python-format
-msgid "Optimizing… (%(status)s)"
-msgstr "Optimierung läuft… (%(status)s)"
+#
+#: ui/templates/ui/_run_banner.html:10
+msgid "Submitted to the cluster. Waiting for a node."
+msgstr "An den Cluster übergeben. Wartet auf einen Knoten."
 
-#: ui/templates/ui/_run_status.html:30
+#: ui/templates/ui/_run_banner.html:13
+msgid "Waiting to start."
+msgstr "Wartet auf den Start."
+
+#
+#: ui/templates/ui/_run_banner.html:17
+msgid "Optimizing…"
+msgstr "Optimierung läuft…"
+
+#: ui/templates/ui/_run_banner.html:17
 #, python-format
 msgid "Running on the cluster as job %(job)s."
 msgstr "Läuft auf dem Cluster als Auftrag %(job)s."
 
-#: ui/templates/ui/_run_status.html:43
+#: ui/templates/ui/_run_stop.html:8
 msgid "Cancelling — it stops after the trial it is on."
 msgstr "Wird abgebrochen — hält nach dem laufenden Versuch an."
 
-#: ui/templates/ui/_run_status.html:46
+#: ui/templates/ui/_run_stop.html:11
 msgid "Give up on it"
 msgstr "Endgültig aufgeben"
 
-#: ui/templates/ui/_run_status.html:51
+#: ui/templates/ui/_run_stop.html:16
 msgid "Cancel run"
 msgstr "Lauf abbrechen"
 
@@ -2734,7 +2744,7 @@ msgid "Value"
 msgstr "Wert"
 
 #: ui/templates/ui/_selected_proposal_inner.html:9
-#: ui/templates/ui/experiment_detail.html:2159 ui/timeline.py:385
+#: ui/templates/ui/experiment_detail.html:2161 ui/timeline.py:385
 msgid "Proposal"
 msgstr "Vorschlag"
 
@@ -2792,15 +2802,35 @@ msgstr "Speichern, um fortzufahren"
 msgid "Optional"
 msgstr "Optional"
 
-#: ui/templates/ui/_side_explanation.html:18 ui/views/dashboard.py:218
+#
+#: ui/templates/ui/_side_evaluation.html:10
+msgid "Experiment Evaluation"
+msgstr "Experimentbewertung"
+
+#: ui/templates/ui/_side_evaluation.html:16
+#: ui/templates/ui/_side_evaluation.html:17
+msgid "Show the Evaluation card"
+msgstr "Bewertungskarte zeigen"
+
+#: ui/templates/ui/_side_evaluation.html:26
+#: ui/templates/ui/figures/evaluation.html:177
+msgid "▶ Run"
+msgstr "▶ Starten"
+
+#: ui/templates/ui/_side_explanation.html:19 ui/views/dashboard.py:218
 msgid "HyperSHAP"
 msgstr "HyperSHAP"
 
-#: ui/templates/ui/_side_explanation.html:21
+#: ui/templates/ui/_side_explanation.html:23
+#: ui/templates/ui/_side_explanation.html:24
+msgid "Show the HyperSHAP tab"
+msgstr "HyperSHAP-Reiter zeigen"
+
+#: ui/templates/ui/_side_explanation.html:28
 msgid "Game"
 msgstr "Spiel"
 
-#: ui/templates/ui/_side_explanation.html:22
+#: ui/templates/ui/_side_explanation.html:29
 msgid ""
 "HyperSHAP treats a finished search as a cooperative game between its "
 "hyperparameters, and splits the outcome between them the way Shapley values "
@@ -2814,23 +2844,23 @@ msgstr ""
 "entscheidet, welche Frage an dieselbe Versuchshistorie gestellt wird — und "
 "jede Abbildung, die Hyperparameter erklärt, beantwortet die hier gewählte."
 
-#: ui/templates/ui/_side_explanation.html:30
+#: ui/templates/ui/_side_explanation.html:37
 msgid "What a hyperparameter could have gained you, had it been tuned."
 msgstr ""
 "Was ein Hyperparameter Ihnen hätte einbringen können, wäre er abgestimmt "
 "worden."
 
-#: ui/templates/ui/_side_explanation.html:40
+#: ui/templates/ui/_side_explanation.html:47
 msgid "Compare against"
 msgstr "Vergleichen mit"
 
-#: ui/templates/ui/_side_explanation.html:45
+#: ui/templates/ui/_side_explanation.html:52
 #: ui/templates/ui/figures/_importance_table.html:21
 #: ui/templates/ui/figures/hyperparameter_importance.html:29
 msgid "Selected"
 msgstr "Ausgewählt"
 
-#: ui/templates/ui/_side_explanation.html:49
+#: ui/templates/ui/_side_explanation.html:56
 #: ui/templates/ui/figures/acquisition_slice.html:77
 #: ui/templates/ui/figures/forecast.html:16
 #: ui/templates/ui/figures/local_effects.html:14
@@ -2839,7 +2869,7 @@ msgstr "Ausgewählt"
 msgid "Compute"
 msgstr "Berechnen"
 
-#: ui/templates/ui/_side_explanation.html:67
+#: ui/templates/ui/_side_explanation.html:74
 msgid "Compute explanations"
 msgstr "Erklärungen berechnen"
 
@@ -3190,7 +3220,7 @@ msgstr ""
 "%(limit)s). Ist er voll, verdrängt ein neuer Datensatz die ältesten "
 "aufbewahrten Versuchsmodelle."
 
-#: ui/templates/ui/base.html:233
+#: ui/templates/ui/base.html:237
 msgid "Filled by the assistant"
 msgstr "Vom Assistenten ausgefüllt"
 
@@ -3363,67 +3393,67 @@ msgstr "Es liegt dann im Papierkorb von:"
 msgid "you"
 msgstr "Sie"
 
-#: ui/templates/ui/experiment_detail.html:15
+#: ui/templates/ui/experiment_detail.html:17
 #, python-format
 msgid "The search space is exhausted at %(n)s trials."
 msgstr "Der Suchraum ist nach %(n)s Versuchen erschöpft."
 
-#: ui/templates/ui/experiment_detail.html:41
+#: ui/templates/ui/experiment_detail.html:43
 msgid "Drag to move"
 msgstr "Zum Verschieben ziehen"
 
-#: ui/templates/ui/experiment_detail.html:42
+#: ui/templates/ui/experiment_detail.html:44
 msgid "Pin to Overview"
 msgstr "An Übersicht anheften"
 
-#: ui/templates/ui/experiment_detail.html:43
+#: ui/templates/ui/experiment_detail.html:45
 msgid "Remove from Overview"
 msgstr "Von Übersicht lösen"
 
-#: ui/templates/ui/experiment_detail.html:44
+#: ui/templates/ui/experiment_detail.html:46
 msgid "Wider"
 msgstr "Breiter"
 
-#: ui/templates/ui/experiment_detail.html:45
+#: ui/templates/ui/experiment_detail.html:47
 msgid "Narrower"
 msgstr "Schmaler"
 
-#: ui/templates/ui/experiment_detail.html:46
-#: ui/templates/ui/experiment_detail.html:70
+#: ui/templates/ui/experiment_detail.html:48
+#: ui/templates/ui/experiment_detail.html:72
 msgid "Nothing is pinned here yet."
 msgstr "Hier ist noch nichts angeheftet."
 
-#: ui/templates/ui/experiment_detail.html:48
+#: ui/templates/ui/experiment_detail.html:50
 msgid "Figures"
 msgstr "Abbildungen"
 
-#: ui/templates/ui/experiment_detail.html:70
+#: ui/templates/ui/experiment_detail.html:72
 msgid "No figures on this tab are switched on for this experiment."
 msgstr ""
 "Für dieses Experiment ist keine Abbildung dieses Reiters eingeschaltet."
 
-#: ui/templates/ui/experiment_detail.html:314
+#: ui/templates/ui/experiment_detail.html:316
 msgid "Absolute scale (0-1)"
 msgstr "Absolute Skala (0–1)"
 
-#: ui/templates/ui/experiment_detail.html:315
+#: ui/templates/ui/experiment_detail.html:317
 msgid "Relative scale (fit to data)"
 msgstr "Relative Skala (an die Daten angepasst)"
 
-#: ui/templates/ui/experiment_detail.html:435
+#: ui/templates/ui/experiment_detail.html:437
 msgid "A proposal is selected, not a trial."
 msgstr "Ausgewählt ist ein Vorschlag, kein Versuch."
 
-#: ui/templates/ui/experiment_detail.html:2146
+#: ui/templates/ui/experiment_detail.html:2148
 #: ui/templates/ui/figures/configuration_cube.html:82
 msgid "Prediction"
 msgstr "Vorhersage"
 
-#: ui/templates/ui/experiment_detail.html:2210
+#: ui/templates/ui/experiment_detail.html:2212
 msgid "(weighted)"
 msgstr "(gewichtet)"
 
-#: ui/templates/ui/experiment_detail.html:2883
+#: ui/templates/ui/experiment_detail.html:2885
 msgid "Uncertainty"
 msgstr "Unsicherheit"
 
@@ -3494,10 +3524,6 @@ msgstr ""
 #: ui/templates/ui/experiment_notes.html:52
 msgid "Nothing written down yet."
 msgstr "Noch nichts aufgeschrieben."
-
-#: ui/templates/ui/experiment_prerun.html:15
-msgid "Waiting for the first trial…"
-msgstr "Warten auf den ersten Versuch…"
 
 #: ui/templates/ui/experiment_settings.html:7
 #, python-format
@@ -3937,15 +3963,15 @@ msgstr ""
 "Diese werden vielleicht nie erreicht. Legen Sie zusätzlich eine Versuchs- "
 "oder Zeitgrenze fest."
 
-#: ui/templates/ui/figures/evaluation.html:106
+#: ui/templates/ui/figures/evaluation.html:107
 msgid "Give up if…"
 msgstr "Aufgeben, wenn…"
 
-#: ui/templates/ui/figures/evaluation.html:109
+#: ui/templates/ui/figures/evaluation.html:110
 msgid "…N trials have failed"
 msgstr "…N Versuche fehlschlugen"
 
-#: ui/templates/ui/figures/evaluation.html:110
+#: ui/templates/ui/figures/evaluation.html:111
 msgid ""
 "A trial fails when the model raises on its configuration, runs past its "
 "deadline, or returns something that cannot be scored. It is still recorded — "
@@ -3967,11 +3993,11 @@ msgstr ""
 
 #
 #
-#: ui/templates/ui/figures/evaluation.html:118
+#: ui/templates/ui/figures/evaluation.html:119
 msgid "…N fail in a row"
 msgstr "…N in Folge fehlschlagen"
 
-#: ui/templates/ui/figures/evaluation.html:119
+#: ui/templates/ui/figures/evaluation.html:120
 msgid ""
 "A different question from the total: in a row means nothing here can work — "
 "a model that cannot fit this dataset at all fails identically every time, "
@@ -3982,16 +4008,16 @@ msgstr ""
 "passt, scheitert jedes Mal gleich, und ohne Grenze verbringt es das ganze "
 "Budget damit, das zu beweisen. Mindestens 1."
 
-#: ui/templates/ui/figures/evaluation.html:147
+#: ui/templates/ui/figures/evaluation.html:148
 msgid "Model fit deadline"
 msgstr "Frist je Modellanpassung"
 
 #
-#: ui/templates/ui/figures/evaluation.html:150
+#: ui/templates/ui/figures/evaluation.html:151
 msgid "Kind"
 msgstr "Art"
 
-#: ui/templates/ui/figures/evaluation.html:151
+#: ui/templates/ui/figures/evaluation.html:152
 msgid ""
 "The limit is on one model fit, not on a whole trial: under cross-validation "
 "a trial is one fit per fold, and each fold is given the deadline separately. "
@@ -4012,29 +4038,25 @@ msgstr ""
 "proportional länger, statt für ihre Größe abgebrochen zu werden. Die "
 "Sekunden unten bleiben in beiden Fällen die äußere Grenze."
 
-#: ui/templates/ui/figures/evaluation.html:156 ui/timeline.py:143
+#: ui/templates/ui/figures/evaluation.html:157 ui/timeline.py:143
 msgid "Fixed"
 msgstr "Fest"
 
-#: ui/templates/ui/figures/evaluation.html:161
+#: ui/templates/ui/figures/evaluation.html:162
 msgid "Seconds (0 = none)"
 msgstr "Sekunden (0 = keine)"
 
 #
-#: ui/templates/ui/figures/evaluation.html:166
+#: ui/templates/ui/figures/evaluation.html:167
 msgid "× predicted"
 msgstr "× vorhergesagt"
 
-#: ui/templates/ui/figures/evaluation.html:172
-msgid "▶ Run"
-msgstr "▶ Starten"
-
-#: ui/templates/ui/figures/evaluation.html:174
+#: ui/templates/ui/figures/evaluation.html:180
 #, python-format
 msgid "Environment: %(summary)s"
 msgstr "Umgebung: %(summary)s"
 
-#: ui/templates/ui/figures/evaluation.html:244
+#: ui/templates/ui/figures/evaluation.html:251
 msgid "Attach a dataset to run this experiment (loaded read-only)."
 msgstr ""
 "Hängen Sie einen Datensatz an, um dieses Experiment auszuführen (wird nur "

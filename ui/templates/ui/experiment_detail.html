@@ -1,10 +1,12 @@
 {% extends "ui/_experiment_page.html" %}
 {% load assets numbers static i18n %}
 
-{% comment %}The selected trial, which the figures below answer to, stays in
-the sidebar where it is visible while the figures are read. Starting a run is
-the Evaluation card (ui/figures/evaluation.html).{% endcomment %}
+{% comment %}The metric and Run, from the Evaluation card
+(ui/figures/evaluation.html), and the selected trial, which the figures below
+answer to, stay in the sidebar where they are visible while the figures are
+read.{% endcomment %}
 {% block sidebar_sections %}
+    {% include "ui/_side_evaluation.html" %}
     {% include "ui/_side_explanation.html" %}
     {% for figure in sidebar_figures %}{% include figure.template %}{% endfor %}
 {% endblock %}

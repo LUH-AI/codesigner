@@ -3,9 +3,9 @@ The metric the results are shown for. Changing it re-renders the figures on the
 spot (see the detail page's script). It doubles as the Run form's
 optimize-metric field when included with field_name set; the figures are driven
 off it either way, so it must render on every branch that has results —
-including while a run is in flight.
+including while a run is in flight. The sidebar's copy takes `select_id`.
 {% endcomment %}
-<select id="metric-select"{% if field_name %} name="{{ field_name }}"{% endif %}>
+<select id="{{ select_id|default:'metric-select' }}"{% if field_name %} name="{{ field_name }}"{% endif %}>
     {% for m in metric_names %}
         <option value="{{ m }}"{% if m == run_default_metric %} selected{% endif %}>{{ m }}</option>
     {% endfor %}

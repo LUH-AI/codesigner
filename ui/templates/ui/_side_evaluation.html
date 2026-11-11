@@ -1,0 +1,61 @@
+{% load i18n %}
+{% comment %}The Evaluation card's controls kept in view, with a link to the card: the metric, tied to
+the card's (`#metric-select`, which the figures and the run form read), and Run,
+which submits the card's form (`#run-form`). During a run, the run's status and
+its Cancel or Give up button instead of Run; this is where the run is polled.
+{% endcomment %}
+{% if can_run or has_result or active_run %}
+<section class="side-section side-evaluation">
+    <div class="side-head">
+        <h2>{% translate "Experiment Evaluation" %}</h2>
+        {% comment %}Shows the card the way the assistant points at it
+        (ui/static/ui/pointer.js): on this tab when it is here, else on
+        Overview when pinned there, else on Misc.{% endcomment %}
+        <a href="#figure-evaluation" class="side-jump" data-points-at="evaluation"
+           title="{% translate 'Show the Evaluation card' %}"
+           aria-label="{% translate 'Show the Evaluation card' %}">↗</a>
+    </div>
+    <div class="field">
+        <label for="metric-select-side">{% translate "Metric" %}</label>
+        {% include "ui/_metric_select.html" with select_id="metric-select-side" %}
+    </div>
+    {% if active_run %}
+        {% include "ui/_run_status.html" with run=active_run %}
+    {% elif can_run %}
+        <button type="submit" form="run-form" class="btn-primary btn-block">{% translate "▶ Run" %}</button>
+    {% endif %}
+    <script>
+        // The two metric selectors are one choice. The card's is the one the
+        // page's figures and the run form read, so a change here is passed on
+        // to it as a change of its own.
+        (function () {
+            const side = document.getElementById("metric-select-side");
+            function card() { return document.getElementById("metric-select"); }
+            side.addEventListener("change", function () {
+                const main = card();
+                if (main && main.value !== side.value) {
+                    main.value = side.value;
+                    main.dispatchEvent(new Event("change", {bubbles: true}));
+                }
+            });
+            document.addEventListener("change", function (e) {
+                if (e.target === card() && side.value !== e.target.value) side.value = e.target.value;
+            });
+            window.addEventListener("load", function () { const main = card(); if (main) side.value = main.value; });
+        })();
+        // Each poll replaces the status here; the card's copies follow it.
+        document.addEventListener("poll:swapped", function (e) {
+            const fresh = e.detail && e.detail.element;
+            if (!fresh || fresh.id !== "run-status") return;
+            [["[data-run-banner]", "[data-run-banner-copy]"], ["[data-run-stop]", "[data-run-stop-copy]"]]
+                .forEach(function (pair) {
+                    const source = fresh.querySelector(pair[0]);
+                    if (!source) return;
+                    document.querySelectorAll(pair[1]).forEach(function (copy) {
+                        copy.innerHTML = source.innerHTML;
+                    });
+                });
+        });
+    </script>
+</section>
+{% endif %}

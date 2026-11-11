@@ -28,11 +28,18 @@ sources:
 
 ## What it is for
 
-The experiment page's sidebar holds the choices the figures answer to, and stays in view while you read them. Below Experiment Selection are two sections: **HyperSHAP** and **Selected Configuration**. Before the first trial neither is there. The metric selector and the Run form are the **Evaluation** card (its own explainer), not the sidebar.
+The experiment page's sidebar holds the choices the figures answer to, and stays in view while you read them. Below Experiment Selection are three sections: **Experiment Evaluation**, **HyperSHAP** and **Selected Configuration**. Before the first trial only Experiment Evaluation is there. The full Run form is the **Evaluation** card (its own explainer).
 
 ## What is on it
 
+**Experiment Evaluation**
+- **↗** beside the heading shows the Evaluation card: the one on the tab showing, else the one pinned to Overview, else the one on Misc. It outlines the card as the assistant does.
+- **Metric** (`metric-select-side`): the same choice as the card's metric selector; changing either changes both.
+- **▶ Run**: starts a run with the settings in the Evaluation card.
+- During a run: the run's status ("Waiting to start.", "Submitted to the cluster as job N. Waiting for a node." or "Optimizing…"), and **Cancel run**, then **Give up on it**, in place of Run.
+
 **HyperSHAP**
+- **↗** beside the heading opens the HyperSHAP tab.
 - **Game** (`explanation-game`): **Tunability**, **Mistunability** or **Sensitivity**. All six HyperSHAP figures answer the one chosen.
 - **Compare against** (`hypershap-baseline`): **Default**, **Incumbent** (the default choice) or **Selected**: the configuration the figures measure gains from.
 - **Compute** (`hypershap-compute-btn`): shown when that measurement waits to be asked for.
@@ -54,7 +61,7 @@ The experiment page's sidebar holds the choices the figures answer to, and stays
 
 ## Questions people ask
 
-**Where did the Run button go?** It is in the Evaluation card, on Overview and Misc, and first on the page before the first run.
+**Where are the stopping conditions?** In the Evaluation card. The sidebar's **↗** beside Experiment Evaluation shows it.
 
 **Why is Export trial parameters greyed out?** That trial's fitted model was not kept (the tooltip says why), or a proposal is selected, which has no model.
 

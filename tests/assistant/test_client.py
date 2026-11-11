@@ -303,10 +303,11 @@ def test_planning_only_looks_and_points_and_the_plan_tools_go_after_approval(cli
 
 def test_the_actions_are_only_going_filling_and_pointing():
     """What: the actions a page can be asked for are a fixed four, none of them
-    a click or a submit; the page's script presses nothing, and the only page
-    behaviour it asks for is showing a tab and selecting a trial.
-    How: the action kinds, and act.js's source."""
-    source = ACT_JS.read_text()
+    a click or a submit; the page's scripts press nothing, and the only page
+    behaviour they ask for is showing a tab and selecting a trial.
+    How: the action kinds, and the source of act.js and of the page pointer it
+    shows cards through."""
+    source = ACT_JS.read_text() + (ACT_JS.parents[3] / "ui/static/ui/pointer.js").read_text()
 
     assert {kind for kind, _ in ClientAct.KINDS} == {"navigate", "fill", "highlight", "report"}
     for pressing in (".click(", ".submit(", "requestSubmit", "dispatchEvent(new MouseEvent",

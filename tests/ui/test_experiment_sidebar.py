@@ -9,7 +9,8 @@ from django.urls import reverse
 
 from tests.conftest import DATASETS_DIR
 
-SECTIONS = ["Experiment Selection", "HyperSHAP", "Selected Configuration"]
+SECTIONS = ["Experiment Selection", "Experiment Evaluation", "HyperSHAP",
+            "Selected Configuration"]
 
 
 _RESULT = {
@@ -99,17 +100,45 @@ def test_the_evaluation_card_lays_out_its_columns(client):
     assert "<details" not in card
 
 
-def test_a_run_in_flight_replaces_the_form(client):
-    """What: a running run shows its status in the card instead of the form,
-    and the metric selector stays, since the figures read it. How: an
-    experiment with a running run."""
+def test_the_sidebar_keeps_the_metric_and_run(client):
+    """What: the sidebar's Experiment Evaluation section has a metric selector
+    of its own, tied to the card's, and a Run button that submits the card's
+    run form. How: the sidebar of an experiment with a result."""
+    sidebar = _sidebar(client, _experiment())
+    section = sidebar.split("<h2>Experiment Evaluation</h2>", 1)[1].split("</section>", 1)[0]
+
+    assert 'id="metric-select-side"' in section and 'id="metric-select"' not in section
+    assert 'form="run-form"' in section and 'getElementById("metric-select")' in section
+
+
+def test_a_run_in_flight_greys_the_card_and_reports_its_status(client):
+    """What: during a run the card keeps its fields, inert, with Cancel run in
+    Run's place and the status at its bottom; the sidebar shows the same status
+    and Cancel run instead of Run, and is what polls. Each status is reported
+    as it is: waiting to start, submitted and waiting for a node, or
+    optimizing. How: one experiment whose run is pending, then submitted with
+    a cluster job, then running."""
     exp = _experiment(name="busy")
-    exp.runs.create(primary_metric="accuracy", status="running", stopping={})
+    run = exp.runs.create(primary_metric="accuracy", status="pending", stopping={})
+    expected = {"pending": "Waiting to start.",
+                "submitted": "Submitted to the cluster as job 4242. Waiting for a node.",
+                "running": "Optimizing…"}
+    for status, words in expected.items():
+        run.status = status
+        run.save(update_fields=["status"])
+        if status == "submitted":
+            run.jobs.create(backend="slurm", scheduler_id="4242", status="submitted")
+        card = _card(client, exp)
+        section = _sidebar(client, exp).split("<h2>Experiment Evaluation</h2>", 1)[1]
 
-    card = _card(client, exp)
-
-    assert 'id="run-status"' in card and 'name="max_trials"' not in card
-    assert 'id="metric-select"' in card
+        assert 'name="max_trials"' in card and 'id="run-form"' not in card
+        assert 'inert' in card and "Cancel run" in card and 'data-assist="run"' not in card
+        banner = card.split("data-run-banner-copy", 1)[1]
+        assert words in banner, status
+        assert 'id="run-status"' in section and words in section, status
+        assert 'form="run-form"' not in section
+        for other in set(expected.values()) - {words}:
+            assert other not in banner, (status, other)
 
 
 # Experiment views
@@ -169,3 +198,26 @@ def test_an_open_experiment_beyond_the_recent_ones_is_still_listed(client):
 
     assert _views(html)[0] == ["Dashboard", "Data Handling", "Timeline"]
     assert "oldest" in html.split('<nav class="sidebar"', 1)[1].split("</nav>", 1)[0]
+
+
+def test_the_section_links_to_its_card_as_the_assistant_points(client):
+    """What: the sidebar's Experiment Evaluation heading has a link that shows
+    the Evaluation card, and the HyperSHAP heading one that opens its tab,
+    through the page's pointer, the one the assistant's
+    highlight uses, which prefers the card on the tab showing, then the copy
+    pinned on Overview, then the card's home tab. How: the sidebar's markup,
+    the base layout and the pointer and act scripts."""
+    from pathlib import Path
+
+    sidebar = _sidebar(client, _experiment())
+    section = sidebar.split("<h2>Experiment Evaluation</h2>", 1)[1]
+    assert 'data-points-at="evaluation"' in section.split("</div>", 1)[0]
+    hypershap = sidebar.split("<h2>HyperSHAP</h2>", 1)[1]
+    assert 'data-shows-tab="hypershap"' in hypershap.split("</div>", 1)[0]
+    base = Path("ui/templates/ui/base.html").read_text()
+    assert base.index("ui/pointer.js") < base.index("assistant/act.js")
+    pointer = Path("ui/static/ui/pointer.js").read_text()
+    assert "#fig-panel-overview" in pointer and "dataset.home" in pointer
+    act = Path("assistant/static/assistant/act.js").read_text()
+    assert "pointer.figureCard(rest)" in act and "pointer.outline(element(name))" in act
+    assert "function figureCard" not in act

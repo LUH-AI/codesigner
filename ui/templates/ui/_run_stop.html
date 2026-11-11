@@ -1,0 +1,18 @@
+{% load i18n %}
+{% comment %}Cancelling asks whatever executes the run to stop between trials,
+so the finished trials are kept. Once asked, the only question left is whether
+anything is listening; if nothing is, giving up ends the run without its
+unwritten work. Second, not first, because a cooperative cancel keeps the work.
+{% endcomment %}
+{% if run.cancel_requested %}
+    <p class="caption">{% translate "Cancelling — it stops after the trial it is on." %}</p>
+    <form method="post" action="{% url 'ui:run_force_stop' experiment.pk %}" data-keeps-view>
+        {% csrf_token %}
+        <button type="submit" class="btn btn-block">{% translate "Give up on it" %}</button>
+    </form>
+{% else %}
+    <form method="post" action="{% url 'ui:run_cancel' experiment.pk %}" data-keeps-view>
+        {% csrf_token %}
+        <button type="submit" class="btn btn-block">{% translate "Cancel run" %}</button>
+    </form>
+{% endif %}

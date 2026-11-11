@@ -14,7 +14,13 @@ its own figure. It does share the baseline: every HyperSHAP figure is a gain ove
 some configuration, and two figures measured from different ones would not read
 together.{% endcomment %}
 <section class="side-section">
-    <h2>{% translate "HyperSHAP" %}</h2>
+    <div class="side-head">
+        <h2>{% translate "HyperSHAP" %}</h2>
+        {% comment %}Opens the HyperSHAP tab (ui/static/ui/pointer.js).{% endcomment %}
+        <a href="#fig-panel-hypershap" class="side-jump" data-shows-tab="hypershap"
+           title="{% translate 'Show the HyperSHAP tab' %}"
+           aria-label="{% translate 'Show the HyperSHAP tab' %}">↗</a>
+    </div>
     <div class="field">
         <div class="field-label">
             <label for="explanation-game">{% translate "Game" %}</label>

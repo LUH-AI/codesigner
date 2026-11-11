@@ -2,14 +2,16 @@
 {% comment %}Starting a run, as a card: the stopping conditions in one column,
 and the metric, the failure limits and Run in another. Between runs a third
 column, between those two, holds the optimizer settings a later run may change
-(`run_safe`). While a run is in flight the run's status takes the form's place.
+(`run_safe`). While a run is in flight the fields stay, greyed and inert, Cancel
+or Give up takes Run's place, and the run's status sits at the bottom; both are
+copies of the sidebar's (`_side_evaluation.html`), which the poll refreshes.
 {% endcomment %}
-<section class="card evaluation-card compact-form" data-figure="{{ figure.key|default:'evaluation' }}">
+<section class="card evaluation-card compact-form{% if active_run %} is-running{% endif %}" data-figure="{{ figure.key|default:'evaluation' }}">
     {% comment %}The metric sits in the header: every figure follows it, and it is
     the metric the next run optimizes. While a run can start, the form opens
     above the header, so the select is still the run's `optimize_metric`.{% endcomment %}
     {% if not active_run and can_run %}
-        <form method="post" action="{% url 'ui:experiment_run' summary.pk %}" data-keeps-view>
+        <form method="post" action="{% url 'ui:experiment_run' summary.pk %}" id="run-form" data-keeps-view>
             {% csrf_token %}
     {% endif %}
     <div class="card-head evaluation-head">
@@ -19,18 +21,16 @@ column, between those two, holds the optimizer settings a later run may change
                 <label for="metric-select">{% translate "Metric" %}</label>
                 {% include "ui/_metric_select.html" with field_name="optimize_metric" %}
             </div>
-        {% elif has_result %}
+        {% elif has_result or active_run %}
             <div class="evaluation-metric">
                 <label for="metric-select">{% translate "Metric" %}</label>
                 {% include "ui/_metric_select.html" %}
             </div>
         {% endif %}
     </div>
-    {% if active_run %}
-        {% include "ui/_run_status.html" with run=active_run %}
-    {% elif can_run %}
+    {% if can_run %}
             <div class="evaluation-columns">
-                <div class="evaluation-column">
+                <div class="evaluation-column"{% if active_run %} inert{% endif %}>
                     <fieldset class="check-group stopping">
                         <legend>{% translate "Run until…" %}</legend>
                         <div class="field">
@@ -87,12 +87,13 @@ column, between those two, holds the optimizer settings a later run may change
                 form, so a form without it leaves the stored settings
                 alone.{% endcomment %}
                 {% if next_run_layout %}
-                    <div class="evaluation-column">
+                    <div class="evaluation-column"{% if active_run %} inert{% endif %}>
                         <input type="hidden" name="next_run_settings" value="1">
                         {% include "ui/_optimizer_params.html" with optimizer_layout=next_run_layout advanced_params=next_run_advanced has_advanced_params=next_run_advanced flat_advanced=True %}
                     </div>
                 {% endif %}
                 <div class="evaluation-column">
+                    <div class="evaluation-limits"{% if active_run %} inert{% endif %}>
                 {% comment %}Its own fieldset rather than two more "run until…"
                     fields: those are budgets someone chose, and these are the run
                     noticing it is going wrong. Read under the same legend, "run
@@ -164,12 +165,18 @@ column, between those two, holds the optimizer settings a later run may change
                             </div>
                         </fieldset>
                     {% endif %}
-                <button type="submit" class="btn-primary btn-block" data-assist="run">{% translate "▶ Run" %}</button>
+                    </div>
+                    {% if active_run %}
+                        <div data-run-stop-copy>{% include "ui/_run_stop.html" with run=active_run %}</div>
+                    {% else %}
+                        <button type="submit" class="btn-primary btn-block" data-assist="run">{% translate "▶ Run" %}</button>
+                    {% endif %}
                     {% if env.ready and env.summary %}
                         <p class="caption">{% blocktranslate with summary=env.summary %}Environment: {{ summary }}{% endblocktranslate %}</p>
                     {% endif %}
                 </div>
             </div>
+        {% if not active_run %}
         </form>
         {% if not env.in_process %}
             <script>
@@ -234,8 +241,11 @@ column, between those two, holds the optimizer settings a later run may change
                 });
             })();
         </script>
-    {% elif has_result %}
-    {% else %}
+        {% endif %}
+    {% elif not has_result and not active_run %}
         <p class="caption">{% translate "Attach a dataset to run this experiment (loaded read-only)." %}</p>
+    {% endif %}
+    {% if active_run %}
+        <div class="evaluation-banner" data-run-banner-copy>{% include "ui/_run_banner.html" with run=active_run %}</div>
     {% endif %}
 </section>
