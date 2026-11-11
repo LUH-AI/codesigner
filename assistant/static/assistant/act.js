@@ -271,14 +271,6 @@
             return document.getElementById("fig-tab-" + rest);
         }
         if (kind === "figure") return pointer.figureCard(rest);
-        if (kind === "trial") {
-            var row = trialRows().filter(function (r) { return trialNumber(r) === Number(rest); })[0];
-            if (!row) return null;
-            pointer.figureCard("trials");
-            document.dispatchEvent(new CustomEvent("assistant:select-trial",
-                                                   {detail: {idx: Number(row.dataset.trialIdx)}}));
-            return row;
-        }
         var el = document.querySelector('[data-assist="' + CSS.escape(name) + '"]');
         if (!el) {
             var field = main.querySelector('[name="' + CSS.escape(name) + '"]');
@@ -288,6 +280,16 @@
     }
 
     function highlight(name) { return pointer.outline(element(name)); }
+
+    // Selects trial *number* as clicking it would; every figure that shows
+    // the selected trial then marks it in its own way.
+    function selectTrial(number) {
+        var row = trialRows().filter(function (r) { return trialNumber(r) === Number(number); })[0];
+        if (!row) return false;
+        document.dispatchEvent(new CustomEvent("assistant:select-trial",
+                                               {detail: {idx: Number(row.dataset.trialIdx)}}));
+        return true;
+    }
 
     function acted(id, ok, detail, keepalive) {
         var body = new FormData();
@@ -331,7 +333,10 @@
         } else if (act.kind === "highlight") {
             // Reported before it is confirmed, so the record already holds
             // the tab it opened and the trial it selected.
-            if (highlight(args.target)) {
+            var hasTrial = args.trial !== undefined && args.trial !== null;
+            if (hasTrial && !selectTrial(args.trial)) {
+                acted(act.id, false, "Trial " + args.trial + " is not in the trials table.");
+            } else if (highlight(args.target)) {
                 clearTimeout(reportTimer);
                 send().then(function () { acted(act.id, true, ""); });
             } else acted(act.id, false, "Nothing called " + args.target + " is on the page.");

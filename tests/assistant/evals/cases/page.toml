@@ -10,7 +10,19 @@ phase = "results"
 fixture = "test"
 tab = "hypershap"
 [case.expect]
-calls = [{tool = "highlight", args = {target = "trial:15"}}]
+calls = [{tool = "highlight", args = {target = "figure:trials", trial = 15}}]
+never = ["navigate"]
+mentions = ["15"]
+
+[[case]]
+id = "highlight-the-second-incumbent-in-the-performance-plot"
+say = "Show me the second incumbent in the trial performance plot."
+[case.situation]
+phase = "results"
+fixture = "test"
+tab = "hypershap"
+[case.expect]
+calls = [{tool = "highlight", args = {target = "figure:performance_over_time", trial = 15}}]
 never = ["navigate"]
 mentions = ["15"]
 

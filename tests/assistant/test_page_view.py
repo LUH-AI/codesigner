@@ -104,8 +104,9 @@ def test_look_at_page_names_the_tab_and_where_each_figures_numbers_are_read(clie
     importance = seen["tabs"][1]["figures"][0]
     assert importance["target"] == "figure:hyperparameter_importance"
     assert importance["numbers_from"] == "analyze_experiment(analysis=importance)"
-    assert seen["trials_table"] == {"count": 40, "first": 1, "last": 40,
-                                    "target": "figure:trials", "one_row": "trial:<number>"}
+    assert seen["trials_table"]["target"] == "figure:trials"
+    assert {"count": 40, "first": 1, "last": 40}.items() <= seen["trials_table"].items()
+    assert "performance_over_time" in seen["trials_table"]["figures_showing_a_trial"]
     assert seen["selected_trial"] == 7
 
 
@@ -121,35 +122,52 @@ def test_the_system_prompt_says_which_tab_shows_and_what_is_on_it(client, on, gu
     assert "The figures show trial 7." in told
 
 
-@pytest.mark.parametrize("target", ["tab:misc", "figure:trials", "figure:selected_configuration",
-                                    "trial:40"])
-def test_the_assistant_points_at_tabs_figures_and_trials(client, on, guided, target):
-    """What: highlight sends a tab, a figure (in a tab or outside them) or a
-    trial the page reported.
+@pytest.mark.parametrize("target", ["tab:misc", "figure:trials", "figure:selected_configuration"])
+def test_the_assistant_points_at_tabs_and_figures(client, on, guided, target):
+    """What: highlight sends a tab or a figure, in a tab or outside them, that
+    the page reported.
     How: each kind of target on the reported dashboard."""
     _run(_open(client, guided), "highlight", target=target)
 
     assert ClientAct.objects.get().args == {"target": target}
 
 
-@pytest.mark.parametrize("target, said", [
-    ("tab:timeline", "tabs are"), ("figure:forecast", "no figure 'forecast'"),
-    ("trial:41", "trials 1 to 40"), ("trial:x", "trials 1 to 40")])
-def test_what_the_page_does_not_have_is_not_pointed_at(client, on, guided, target, said):
+@pytest.mark.parametrize("target", ["figure:trials", "figure:selected_configuration"])
+def test_a_trial_is_shown_in_a_figure_that_shows_the_selection(client, on, guided, target):
+    """What: highlight with `trial` sends the figure and the trial's number, for
+    any figure that shows the selected trial.
+    How: the trials table, then the sidebar's selected configuration, with
+    trial 40."""
+    _run(_open(client, guided), "highlight", target=target, trial=40)
+
+    assert ClientAct.objects.get().args == {"target": target, "trial": 40}
+
+
+@pytest.mark.parametrize("target, trial, said", [
+    ("tab:timeline", None, "tabs are"), ("figure:forecast", None, "no figure 'forecast'"),
+    ("figure:trials", 41, "trials 1 to 40"),
+    ("figure:hyperparameter_importance", 3, "shows the selected trial"),
+    ("tab:misc", 3, "shows the selected trial"),
+    ("trial:3", None, "pass the trial's number as `trial`")])
+def test_what_the_page_does_not_have_is_not_pointed_at(client, on, guided, target, trial, said):
     """What: a tab, figure or trial the page did not report is refused, saying
-    what there is.
-    How: a missing tab, a figure off the page, and trials past the table."""
-    refused = _run(_open(client, guided), "highlight", target=target)
+    what there is, and so is a trial asked for in a figure or tab that does not
+    show the selected trial, or named as a target.
+    How: a missing tab, a figure off the page, a trial past the table, a trial
+    in the importance figure and in a tab, and the old `trial:` target."""
+    args = {"target": target} if trial is None else {"target": target, "trial": trial}
+    refused = _run(_open(client, guided), "highlight", **args)
 
     assert said in refused.output and not ClientAct.objects.exists()
 
 
-def test_a_trial_needs_a_trials_table(client, on, guided):
-    """What: pointing at a trial on a page without a trials table is refused.
-    How: a dashboard reported without one."""
-    refused = _run(_open(client, guided, {**VIEW, "trials": None}), "highlight", target="trial:3")
+def test_a_trial_needs_trials_on_the_page(client, on, guided):
+    """What: selecting a trial on a page that lists none is refused.
+    How: a dashboard reported without a trials table."""
+    refused = _run(_open(client, guided, {**VIEW, "trials": None}), "highlight",
+                   target="figure:trials", trial=3)
 
-    assert "no trials table" in refused.output
+    assert "lists no trials" in refused.output
 
 
 def test_navigate_opens_a_dashboard_tab(client, on, guided):
@@ -234,10 +252,11 @@ def test_a_highlight_says_exactly_what_it_outlined_and_what_shows_now(client, on
 
     monkeypatch.setattr(acts, "wait", carried_out)
     tab = _run(conversation, "highlight", target="tab:hypershap").output
-    trial = _run(conversation, "highlight", target="trial:12").output
+    trial = _run(conversation, "highlight", target="figure:trials", trial=12).output
 
     assert tab.startswith("Outlined tab:hypershap") and "The HyperSHAP tab is showing." in tab
-    assert "The Misc tab is showing." in trial and "Every figure now shows trial 12." in trial
+    # The trials table is pinned to Overview, so that copy is the one shown.
+    assert "The Overview tab is showing." in trial and "Trial 12 is selected" in trial
 
 
 def test_navigate_does_not_reopen_the_page_already_open(client, on, guided):

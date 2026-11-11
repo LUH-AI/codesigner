@@ -322,16 +322,11 @@ class SimulatedPage:
             showing = next((t for t in tabs if t["name"] == self.view["tab"]), None)
             if showing and any(f["key"] == rest for f in showing["figures"]):
                 return True
-            home = next((t["name"] for t in tabs for f in t["figures"]
-                         if f["key"] == rest and f["home"]), None)
+            pinned = next((t["name"] for t in tabs if t["name"] == "overview"
+                           and any(f["key"] == rest for f in t["figures"])), None)
+            home = pinned or next((t["name"] for t in tabs for f in t["figures"]
+                                   if f["key"] == rest and f["home"]), None)
             return home is not None and self.show_tab(home)
-        if kind == "trial":
-            if not rest.isdigit() or int(rest) not in self._reader.trial_numbers:
-                return False
-            self._point_at("figure:trials")
-            self.view = {**self.view, "selected_trial": int(rest)}
-            self._report()
-            return True
         return (any(t["name"] == target for t in self.targets)
                 or any(f["name"] == target for f in self.fields))
 
@@ -353,9 +348,16 @@ class SimulatedPage:
             done = not problems
             detail = " ".join(problems) if problems else f"Filled {', '.join(values)}."
         elif act.kind == "highlight":
-            target = args.get("target")
-            done = self._point_at(target)
-            detail = "" if done else f"Nothing called {target} is on the page."
+            target, trial = args.get("target"), args.get("trial")
+            if trial is not None and int(trial) not in self._reader.trial_numbers:
+                done, detail = False, f"Trial {trial} is not in the trials table."
+            else:
+                if trial is not None:
+                    self.view = {**self.view, "selected_trial": int(trial)}
+                done = self._point_at(target)
+                if done and trial is not None:
+                    self._report()
+                detail = "" if done else f"Nothing called {target} is on the page."
         elif act.kind == "report":
             self._report()
             done, detail = True, ""

@@ -10,11 +10,17 @@ from django.urls import NoReverseMatch, resolve, reverse
 
 from access.policy import EDIT
 
+from ui.figures import FIGURES
 from ui.permissions import BOTH
 
 from .. import acts
 from ..models import ClientAct
 from .registry import Refused, ToolResult, ToolSpec
+
+#: The figures that show the selected trial, which `highlight` can show a
+#: trial in.
+TRIAL_FIGURES = frozenset(
+    {f.key for f in FIGURES if f.selects_trials} | {"selected_configuration"})
 
 #: `PAGES` maps a page name to (URL name, per-experiment).
 PAGES = {
@@ -83,7 +89,7 @@ def _look_at_page(context) -> ToolResult:
         found["figures_outside_tabs"] = [_with_data(f) for f in view.get("outside_tabs") or []]
     if view.get("trials"):
         found["trials_table"] = {**view["trials"], "target": "figure:trials",
-                                 "one_row": "trial:<number>"}
+                                 "figures_showing_a_trial": sorted(TRIAL_FIGURES)}
     if view.get("selected_trial") is not None:
         found["selected_trial"] = view["selected_trial"]
     return ToolResult(output=json.dumps(found))
@@ -180,7 +186,7 @@ def _navigate(context, page: str, experiment: int | None = None, tab: str = "") 
     open_now = acts.current(context.conversation)
     if open_now is not None and open_now.path == url:
         raise Refused("the person already has that page open; to show a tab or figure on it, "
-                      "highlight it (tab:<name>, figure:<key> or trial:<number>)")
+                      "highlight it (tab:<name>, or figure:<key> with a trial)")
     if tab:
         url += f"#{tab}"
     if per_experiment:
@@ -344,52 +350,70 @@ def _on_page(page, target: str) -> str:
         keys |= {f["key"] for f in view.get("outside_tabs") or []}
         return "" if rest in keys else (f"there is no figure {rest!r} on the page; its figures "
                                         f"are {sorted(keys)}")
-    if kind == "trial" and rest:
-        trials = view.get("trials")
-        if not trials:
-            return "the page has no trials table"
-        if not rest.isdigit() or not trials["first"] <= int(rest) <= trials["last"]:
-            return f"the trials table lists trials {trials['first']} to {trials['last']}"
-        return ""
+    if kind == "trial":
+        return ("a trial is shown in a figure: name the figure as the target, such as "
+                "figure:trials, and pass the trial's number as `trial`")
     named = {t.get("name") for t in page.targets} | {f.get("name") for f in page.fields}
     return "" if target in named else (f"there is no {target!r} on the person's page; "
                                        "look_at_page lists what there is")
 
 
-def _highlight(context, target: str) -> ToolResult:
+def _trial_problem(page, target: str, trial: int) -> str:
+    kind, _, key = target.partition(":")
+    if kind != "figure" or key not in TRIAL_FIGURES:
+        return (f"a trial is shown only in a figure that shows the selected trial: "
+                f"{sorted(TRIAL_FIGURES)}")
+    trials = (page.view or {}).get("trials")
+    if not trials:
+        return "the page lists no trials to select from"
+    if not trials["first"] <= trial <= trials["last"]:
+        return f"the page lists trials {trials['first']} to {trials['last']}"
+    return ""
+
+
+def _highlight(context, target: str, trial: int | None = None) -> ToolResult:
     page = _page(context)
     problem = _on_page(page, target)
+    if not problem and trial is not None:
+        problem = _trial_problem(page, target, int(trial))
     if problem:
         raise Refused(problem)
-    act = acts.send(context.conversation, ClientAct.HIGHLIGHT, {"target": target},
-                    path=page.path)
+    args = {"target": target} if trial is None else {"target": target, "trial": int(trial)}
+    act = acts.send(context.conversation, ClientAct.HIGHLIGHT, args, path=page.path)
     if act.status != ClientAct.DONE:
         return ToolResult(output=acts.outcome(act))
     return ToolResult(output=f"Outlined {target} on the person's page, and nothing else."
-                             + _after(acts.page_of(context.conversation.browser), target))
+                             + _after(acts.page_of(context.conversation.browser), trial))
 
 
-def _after(page, target: str) -> str:
-    """`_after` reports tab and trial."""
+def _after(page, trial) -> str:
+    """`_after` reports the tab showing and, with *trial*, the trial selected."""
     view = (page.view or {}) if page is not None else {}
     showing = next((t for t in view.get("tabs") or [] if t["name"] == view.get("tab")), None)
     out = f" The {showing['label']} tab is showing." if showing else ""
-    if target.startswith("trial:") and view.get("selected_trial") is not None:
-        out += f" Every figure now shows trial {view['selected_trial']}."
+    if trial is not None and view.get("selected_trial") is not None:
+        out += (f" Trial {view['selected_trial']} is selected: every figure that shows the "
+                "selected trial marks it, and the trials table highlights its row.")
     return out
 
 
 HIGHLIGHT = ToolSpec(
     name="highlight",
     description=(
-        "Point something out on the person's page: scroll to it and outline it for a "
-        "moment. `target` is a field's name, one of the page's targets, `tab:<name>` for a "
-        "tab, `figure:<key>` for a figure (its tab is opened if another is showing), or "
-        "`trial:<number>` for a trial's row in the trials table, which also selects that "
-        "trial in every figure. To show a figure, point at the figure, not its tab. "
+        "Point something out on the person's page: scroll to it and outline it until they "
+        "click elsewhere. `target` is a field's name, one of the page's targets, "
+        "`tab:<name>` for a tab, or `figure:<key>` for a figure's card: the one on the tab "
+        "showing, else the one pinned to Overview, else the one on its home tab, which is "
+        "opened. To show a figure, point at the figure, not its tab. With `trial` (a trial's "
+        "number) and a figure that shows the selected trial ("
+        + ", ".join(sorted(TRIAL_FIGURES)) + "), that trial is also selected, as clicking "
+        "it would: every such figure marks it, and the trials table highlights its row. So "
+        "to show a particular trial, such as the second new best, find its number with the "
+        "experiment tools, then highlight the figure it should be seen in with `trial`. "
         "look_at_page lists the tabs, figures and trials."),
-    parameters={"type": "object", "properties": {"target": {"type": "string"}},
-                "required": ["target"]},
+    parameters={"type": "object", "properties": {
+        "target": {"type": "string"}, "trial": {"type": "integer"}},
+        "required": ["target"]},
     handler=_highlight,
 )
 
