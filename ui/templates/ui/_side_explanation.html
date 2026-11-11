@@ -63,5 +63,18 @@ together.{% endcomment %}
             {% csrf_token %}
             <button type="submit" class="btn btn-block">{% translate "Compute explanations" %}</button>
         </form>
+        <script>
+            // The page reloads once the games are computed; until then each
+            // figure that shows them carries the computing spinner.
+            (function () {
+                const form = document.currentScript.previousElementSibling;
+                form.addEventListener("submit", function () {
+                    const holder = document.getElementById("game-figures-data");
+                    const keys = holder ? JSON.parse(holder.textContent || "[]") : [];
+                    if (window.cardBusy) window.cardBusy(keys, new Promise(function () {}));
+                    form.querySelector("button").disabled = true;
+                });
+            })();
+        </script>
     {% endif %}
 </section>

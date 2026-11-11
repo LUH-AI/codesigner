@@ -1438,8 +1438,8 @@
         if (topKField && topKField.value) body.append("top_k", topKField.value);
         evaluateBtn.disabled = true;
         setVerdict(text("judging"), "");
-        fetch(evaluateUrl, {method: "POST", headers: {"X-CSRFToken": csrf},
-                            body: body})
+        window.cardBusy("prior", fetch(evaluateUrl, {method: "POST", headers: {"X-CSRFToken": csrf},
+                                                     body: body}))
             .then(answer)
             .then(function (data) {
                 setVerdict(data.message,
@@ -1816,7 +1816,8 @@
         if (inflight[key]) return;
         inflight[key] = true;
         setPrompt(false);
-        fetch(url + "?metric=" + encodeURIComponent(m) + "&hp=" + encodeURIComponent(hp))
+        window.cardBusy("acquisition_slice",
+                        fetch(url + "?metric=" + encodeURIComponent(m) + "&hp=" + encodeURIComponent(hp)))
             .then(answer)
             .then(function (data) { cache[key] = data; apply(data); })
             .catch(function (err) {

@@ -8,7 +8,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: PACKAGE VERSION\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2026-11-11 12:30+0000\n"
+"POT-Creation-Date: 2026-11-11 12:55+0000\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
 "Language-Team: LANGUAGE <LL@li.org>\n"
@@ -2606,6 +2606,11 @@ msgstr ""
 msgid "Prepare an isolated environment"
 msgstr "Preparar un entorno aislado"
 
+#: ui/templates/ui/_experiment_page.html:16
+#
+msgid "Computing…"
+msgstr "Calculando…"
+
 #: ui/templates/ui/_experiment_settings_fields.html:7
 msgid "Figures shown on an experiment page"
 msgstr "Figuras mostradas en la página de un experimento"
@@ -3859,8 +3864,8 @@ msgid_plural "The planned %(n)s trials have run."
 msgstr[0] "Se ha ejecutado la %(n)s prueba prevista."
 msgstr[1] "Se han ejecutado las %(n)s pruebas previstas."
 
-#: ui/templates/ui/figures/evaluation.html:46
 #
+#: ui/templates/ui/figures/evaluation.html:46
 msgid "…the score exceeds"
 msgstr "…la puntuación supere"
 
@@ -3870,19 +3875,19 @@ msgid "e.g. 0.95"
 msgstr "p. ej. 0,95"
 
 #
-#: ui/templates/ui/figures/evaluation.html:61
 #
+#: ui/templates/ui/figures/evaluation.html:61
 msgid "…N seconds have passed"
 msgstr "…pasen N segundos"
 
 #
-#: ui/templates/ui/figures/evaluation.html:65
 #
+#: ui/templates/ui/figures/evaluation.html:65
 msgid "…N seconds spent in trials"
 msgstr "…se gasten N s en pruebas"
 
-#: ui/templates/ui/figures/evaluation.html:69
 #
+#: ui/templates/ui/figures/evaluation.html:69
 msgid "…N trials without gain"
 msgstr "…haya N pruebas sin mejora"
 
@@ -3934,8 +3939,8 @@ msgstr ""
 "rompa. Al menos 1."
 
 #
-#: ui/templates/ui/figures/evaluation.html:118
 #
+#: ui/templates/ui/figures/evaluation.html:118
 msgid "…N fail in a row"
 msgstr "…fallan N seguidas"
 

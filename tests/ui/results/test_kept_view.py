@@ -57,3 +57,23 @@ def test_the_view_is_put_back_before_anything_reads_a_control(client):
     assert "if (!keptView) {" in html
     assert 'document.addEventListener("poll:reloading", keepView);' in html
     assert 'event.target.matches("form[data-keeps-view]")' in html
+
+
+def test_slow_figures_mark_their_cards_computing():
+    """What: every request that computes a figure goes through `cardBusy`, so
+    its card shows the computing spinner, and the Compute explanations form
+    marks the HyperSHAP cards. How: the page script, the acquisition and
+    next-trials scripts and the sidebar template are read for each wrapped
+    request."""
+    detail = Path("ui/templates/ui/experiment_detail.html").read_text()
+    for url in ("trialAblationUrl", "hypershapUrl", "partialDependenceUrl", "localEffectsUrl",
+                "forecastUrl", "uncertaintyUrl", "predictionUrl"):
+        assert f"cardBusy(" in detail.split(f"fetch({url}", 1)[0].rsplit("\n", 2)[-1] \
+            or f"cardBusy(measuredFigures, fetch({url}" in detail, url
+    assert detail.count("cardBusy(") >= 7
+    acquisition = Path("ui/static/ui/acquisition.js").read_text()
+    assert 'cardBusy("acquisition_slice"' in acquisition and 'cardBusy("prior"' in acquisition
+    assert "window.cardBusy(cards, fetch(" in Path("ui/static/ui/next_trials.js").read_text()
+    side = Path("ui/templates/ui/_side_explanation.html").read_text()
+    assert "game-figures-data" in side and "cardBusy(keys" in side
+    assert "ui/busy.js" in Path("ui/templates/ui/_experiment_page.html").read_text()

@@ -1244,8 +1244,8 @@ the Evaluation card (ui/figures/evaluation.html).{% endcomment %}
                     return;
                 }
                 setComputePrompt("ablation-compute", false);
-                fetch(trialAblationUrl + "?metric=" + encodeURIComponent(metric) + "&idx=" + idx
-                      + baselineQuery(metric))
+                cardBusy("local_explanation", fetch(trialAblationUrl + "?metric=" + encodeURIComponent(metric) + "&idx=" + idx
+                      + baselineQuery(metric)))
                     .then(function (r) { return r.ok ? r.json() : Promise.reject(); })
                     .then(function (data) { localAblationCache[key] = data; apply(data); })
                     .catch(function () {});
@@ -1277,7 +1277,7 @@ the Evaluation card (ui/figures/evaluation.html).{% endcomment %}
                 if (hypershapCache[key]) { done(hypershapCache[key]); return true; }
                 if (!mayFetch("hypershap_baseline") && asked !== true) return false;
                 if (!gamesInFlight[key]) {
-                    gamesInFlight[key] = fetch(hypershapUrl + "?metric=" + encodeURIComponent(metric) + "&idx=" + idx)
+                    gamesInFlight[key] = cardBusy(measuredFigures, fetch(hypershapUrl + "?metric=" + encodeURIComponent(metric) + "&idx=" + idx))
                         .then(function (r) { return r.ok ? r.json() : Promise.reject(); })
                         .then(function (data) { hypershapCache[key] = data; return data; })
                         .finally(function () { delete gamesInFlight[key]; });
@@ -1485,7 +1485,7 @@ the Evaluation card (ui/figures/evaluation.html).{% endcomment %}
                     return;
                 }
                 setComputePrompt("pdp-compute", false);
-                fetch(partialDependenceUrl + "?metric=" + encodeURIComponent(metric) + "&hp=" + encodeURIComponent(hp))
+                cardBusy("partial_dependence", fetch(partialDependenceUrl + "?metric=" + encodeURIComponent(metric) + "&hp=" + encodeURIComponent(hp)))
                     .then(function (r) { return r.ok ? r.json() : Promise.reject(); })
                     .then(function (data) { pdpCache[key] = data; apply(data); })
                     .catch(function () {});
@@ -1535,7 +1535,7 @@ the Evaluation card (ui/figures/evaluation.html).{% endcomment %}
                     return;
                 }
                 setComputePrompt("local-effects-compute", false);
-                fetch(localEffectsUrl + "?metric=" + encodeURIComponent(metric) + baselineQuery(metric))
+                cardBusy("local_effects", fetch(localEffectsUrl + "?metric=" + encodeURIComponent(metric) + baselineQuery(metric)))
                     .then(function (r) { return r.ok ? r.json() : Promise.reject(); })
                     .then(function (data) { localEffectsCache[key] = data; apply(data); })
                     .catch(function () {});
@@ -1590,8 +1590,8 @@ the Evaluation card (ui/figures/evaluation.html).{% endcomment %}
                     return;
                 }
                 setComputePrompt("forecast-compute", false);
-                fetch(forecastUrl + "?metric=" + encodeURIComponent(metric) + "&idx=" + idx
-                      + (series ? "&series=" + encodeURIComponent(series) : ""))
+                cardBusy("forecast", fetch(forecastUrl + "?metric=" + encodeURIComponent(metric) + "&idx=" + idx
+                      + (series ? "&series=" + encodeURIComponent(series) : "")))
                     .then(function (r) { return r.ok ? r.json() : Promise.reject(); })
                     .then(function (data) { forecastCache[key] = data; apply(data); })
                     .catch(function () {});
@@ -1719,9 +1719,9 @@ the Evaluation card (ui/figures/evaluation.html).{% endcomment %}
                     return;
                 }
                 setComputePrompt("uncertainty-compute", false);
-                fetch(uncertaintyUrl + "?metric=" + encodeURIComponent(metric)
+                cardBusy("configuration_cube", fetch(uncertaintyUrl + "?metric=" + encodeURIComponent(metric)
                       + "&x=" + encodeURIComponent(pair[0])
-                      + "&y=" + encodeURIComponent(pair[1]))
+                      + "&y=" + encodeURIComponent(pair[1])))
                     .then(function (r) { return r.ok ? r.json() : Promise.reject(); })
                     .then(function (data) { uncertaintyCache[key] = data; apply(data); })
                     .catch(function () {});
@@ -1786,7 +1786,7 @@ the Evaluation card (ui/figures/evaluation.html).{% endcomment %}
                 if (layerCache[metric]) { apply(layerCache[metric]); return; }
                 layerData = null;
                 applyCubeAxes();
-                fetch(predictionUrl + "?metric=" + encodeURIComponent(metric))
+                cardBusy("configuration_cube", fetch(predictionUrl + "?metric=" + encodeURIComponent(metric)))
                     .then(function (r) { return r.ok ? r.json() : Promise.reject(); })
                     .then(function (data) {
                         layerCache[metric] = data;

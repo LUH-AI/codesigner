@@ -56,7 +56,11 @@
             ready = api.before ? api.before() : null;
         Promise.resolve(ready)
             .then(function () {
-                return fetch(url + (anchor ? "?hp=" + encodeURIComponent(anchor) : ""));
+                var cards = boxes().map(function (b) {
+                    var card = b.closest("[data-figure]");
+                    return card && card.getAttribute("data-figure");
+                });
+                return window.cardBusy(cards, fetch(url + (anchor ? "?hp=" + encodeURIComponent(anchor) : "")));
             })
             .then(function (r) { return r.ok ? r.json() : Promise.reject(); })
             .then(function (data) {
