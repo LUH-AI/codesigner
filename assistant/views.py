@@ -18,7 +18,7 @@ from access.policy import VIEW
 from ui.permissions import BOTH, resolve_experiment
 
 from . import turns
-from .models import AssistantEvent, Conversation
+from .models import AssistantEvent, Conversation, Message
 
 #: `MAX_MESSAGE` counts characters.
 MAX_MESSAGE = 4000
@@ -256,9 +256,13 @@ def dataset(request):
 
 @require_POST
 def approve(request):
-    """`approve` stages the dataset on a new draft as setup step 1 would. No
-    tool reaches `approve`."""
+    """`approve` stages the dataset on a new draft as setup step 1 would, and
+    gives the plan its suggested name (`.plan.suggested_name`). With `create`
+    posted, it also saves the setup steps from the plan and creates the
+    experiment; a step the plan does not satisfy leaves the draft at that
+    step instead. No tool reaches `approve`."""
     from django.core.files import File
+    from django.urls import reverse
 
     from ui import drafts
 
@@ -298,14 +302,64 @@ def approve(request):
     if budget:
         exp.data.trial_budget = int(budget)
         exp.data.save(update_fields=["trial_budget"])
+    conversation.plan = {**conversation.plan, "name": plans.suggested_name(
+        conversation.plan, conversation.dataset_name)}
     conversation.forget_dataset()
     conversation.experiment = exp
     conversation.phase = Conversation.SETUP
     conversation.browser = browser_of(request)
-    conversation.save()
     url = steps.url(exp, steps.SETUP)
+    if request.POST.get("create"):
+        stuck = _set_up(request, exp, conversation)
+        if stuck is None:
+            conversation.phase = Conversation.DASHBOARD
+            url = reverse("ui:experiment_detail", args=[exp.pk])
+        else:
+            url = steps.url(exp, stuck)
+    conversation.save()
     emit(conversation, "approved", url=url)
     return JsonResponse({"url": url})
+
+
+def _set_up(request, exp, conversation):
+    """`_set_up` saves steps 1 to 3 from the plan and creates the experiment.
+    It returns None, or the step the plan did not satisfy."""
+    from ui import drafts
+    from ui import setup_steps as steps
+
+    from . import plan as plans
+
+    plan = conversation.plan
+    for step, data, partial in (
+            (steps.SETUP, plans.setup_data(plan, conversation.group_id), False),
+            (steps.OPTIMIZER, plans.optimizer_data(plan), True),
+            (steps.DATA, plans.processing_data(plan), False)):
+        if not drafts.save_step(request, exp, step, data, partial=partial).saved:
+            return step
+    if drafts.create(request, exp) is not None:
+        return steps.SETUP
+    return None
+
+
+@require_POST
+def reject(request):
+    """`reject` marks the plan rejected. The model reads a note saying so with
+    the person's next message; no turn starts here."""
+    from .loop import emit
+
+    _enabled(request)
+    conversation = _conversation(request)
+    if conversation is None:
+        raise Http404
+    if conversation.phase != Conversation.PLANNING or not conversation.plan:
+        return JsonResponse({"problems": [_("There is no plan to reject.")]}, status=400)
+    if turns.busy(conversation):
+        return JsonResponse({"problems": [_("The assistant is still answering.")]}, status=409)
+    Message.objects.create(conversation=conversation, role=Message.USER, content=(
+        "Codesigner's note, not typed by the person: the person rejected the plan as it "
+        "stands. Do not set it up; ask what to change if their next message does not say."))
+    emit(conversation, "rejected")
+    return JsonResponse({"ok": True})
 
 
 @require_POST

@@ -154,8 +154,9 @@ def _update_plan(context, **changes) -> ToolResult:
         return ToolResult(output="Plan updated. Not ready yet: " + " ".join(found) + design)
     return ToolResult(output="Plan updated." + design + " It can be set up as it stands. "
                              "Stop here: tell the "
-                             "person in a sentence or two what the plan is, and that they "
-                             "approve it with the button under it or say what to change. "
+                             "person in a sentence or two what the plan is, and that the "
+                             "buttons under it review it as a draft, set it up at once, or "
+                             "reject it, or that they can say what to change. "
                              "There is nothing to open or fill yet.")
 
 
@@ -182,7 +183,8 @@ def _check_plan(context) -> ToolResult:
         return ToolResult(output="Not ready: " + " ".join(found) + design)
     return ToolResult(output="The plan can be set up as it stands." + design
                              + " Stop here: tell the person "
-                             "it is ready and that they approve it with the button under it.")
+                             "it is ready and that the buttons under it review it as a "
+                             "draft, set it up at once, or reject it.")
 
 
 CHECK_PLAN = ToolSpec(

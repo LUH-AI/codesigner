@@ -252,15 +252,41 @@
             planCard.appendChild(notReady);
             planCard.appendChild(list);
         }
-        var approve = document.createElement("button");
-        approve.type = "button";
-        approve.className = "btn-primary";
-        approve.textContent = text("approve");
-        approve.disabled = !!(problems && problems.length);
-        approve.addEventListener("click", function () { approvePlan(approve); });
-        planCard.appendChild(approve);
+        var actions = document.createElement("div");
+        actions.className = "assistant-plan-actions";
+        var blocked = !!(problems && problems.length);
+        [["draft", "", false], ["create", "btn-primary", true]].forEach(function (spec) {
+            var button = document.createElement("button");
+            button.type = "button";
+            button.className = spec[1];
+            button.textContent = text(spec[0] === "draft" ? "reviewDraft" : "approve");
+            button.disabled = blocked;
+            button.addEventListener("click", function () { approvePlan(spec[2]); });
+            actions.appendChild(button);
+        });
+        var reject = document.createElement("button");
+        reject.type = "button";
+        reject.textContent = text("reject");
+        reject.addEventListener("click", rejectPlan);
+        actions.appendChild(reject);
+        planCard.appendChild(actions);
         log.appendChild(planCard);
         scroll();
+    }
+
+    function planButtons(disabled) {
+        if (planCard) planCard.querySelectorAll("button").forEach(function (b) { b.disabled = disabled; });
+    }
+
+    function planRejected() {
+        if (!planCard) return;
+        planCard.classList.add("is-rejected");
+        var actions = planCard.querySelector(".assistant-plan-actions");
+        if (actions) actions.remove();
+        var note = document.createElement("p");
+        note.className = "caption";
+        note.textContent = text("rejected");
+        planCard.appendChild(note);
     }
 
     function post(url, body) {
@@ -275,18 +301,32 @@
         });
     }
 
-    function approvePlan(button) {
-        button.disabled = true;
-        post(root.dataset.approveUrl, new FormData()).then(function (r) {
+    function approvePlan(create) {
+        planButtons(true);
+        var body = new FormData();
+        if (create) body.append("create", "1");
+        post(root.dataset.approveUrl, body).then(function (r) {
             if (r.ok && r.data.url) {
                 window.location.href = r.data.url;
                 return;
             }
             bubble("notice", (r.data.problems || [text("error")]).join(" "));
-            button.disabled = false;
+            planButtons(false);
         }).catch(function () {
             bubble("notice", text("error"));
-            button.disabled = false;
+            planButtons(false);
+        });
+    }
+
+    function rejectPlan() {
+        planButtons(true);
+        post(root.dataset.rejectUrl, new FormData()).then(function (r) {
+            if (r.ok) return;
+            bubble("notice", (r.data.problems || [text("error")]).join(" "));
+            planButtons(false);
+        }).catch(function () {
+            bubble("notice", text("error"));
+            planButtons(false);
         });
     }
 
@@ -400,8 +440,10 @@
         } else if (kind === "chart") {
             drawChart(payload.title, payload.spec);
         } else if (kind === "approved") {
-            if (planCard) planCard.querySelectorAll("button").forEach(function (b) { b.disabled = true; });
+            planButtons(true);
             bubble("notice dataset", text("approved"));
+        } else if (kind === "rejected") {
+            planRejected();
         } else if (kind === "turn_end") {
             answering();
             setStatus("");
@@ -417,7 +459,7 @@
         root.dataset.conversation = conversation;
         source = new EventSource(eventsUrl(conversation));
         ["user", "status", "text", "tool_call", "tool_result", "choices", "turn_end",
-         "plan", "dataset", "approved", "chart", "sources", "withdrawn"]
+         "plan", "dataset", "approved", "rejected", "chart", "sources", "withdrawn"]
             .forEach(function (kind) {
                 source.addEventListener(kind, function (e) {
                     var id = parseInt(e.lastEventId || "0", 10);

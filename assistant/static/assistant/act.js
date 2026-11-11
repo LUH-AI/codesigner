@@ -159,13 +159,27 @@
     // ── Doing things ───────────────────────────────────────────────────────
     function wrapperOf(el) { return el.closest(".field") || el; }
 
-    function setOne(name, value, reason) {
+    // A suggestion shows as the field's placeholder, and becomes its value on
+    // submit only if the person left the field empty.
+    function suggest(el, placeholder) {
+        el.placeholder = placeholder;
+        if (el.form && !el.dataset.suggested) {
+            el.dataset.suggested = "1";
+            el.form.addEventListener("submit", function () {
+                if (!el.value.trim()) el.value = el.placeholder;
+            });
+        }
+        return true;
+    }
+
+    function setOne(name, value, reason, placeholder) {
         var els = main.querySelectorAll('[name="' + CSS.escape(name) + '"]');
         els = Array.prototype.filter.call(els, function (el) {
             return !SKIP[el.type] && !el.closest("[data-assistant]");
         });
         if (!els.length) return false;
         var el = els[0];
+        if (placeholder) return suggest(el, placeholder);
         if (el.type === "radio") {
             var match = els.filter(function (r) { return r.value === String(value); })[0];
             if (!match) return false;
@@ -196,7 +210,7 @@
         function next(tries) {
             if (i >= items.length) return done(missed);
             var item = items[i];
-            if (setOne(item.name, item.value, item.reason)) {
+            if (setOne(item.name, item.value, item.reason, item.placeholder)) {
                 i += 1;
                 setTimeout(function () { next(0); }, 60);
             } else if (tries < 4) {
@@ -220,6 +234,7 @@
     function readBack(items) {
         var problems = [];
         items.forEach(function (item) {
+            if (item.placeholder) return;
             var els = Array.prototype.filter.call(
                 main.querySelectorAll('[name="' + CSS.escape(item.name) + '"]'),
                 function (el) { return !SKIP[el.type] && !el.closest("[data-assistant]"); });

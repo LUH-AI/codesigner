@@ -363,6 +363,72 @@ def test_a_plan_is_approved_once(client, on):
     assert again.status_code == 400 and other.status_code == 400
 
 
+def test_approve_and_set_up_creates_the_experiment(client, on):
+    """What: "Approve and set up" saves the setup steps from the plan and
+    creates the experiment under the plan's name, then leads to its page with
+    the conversation moved on to the dashboard. How: the iris plan approved
+    with `create`."""
+    conversation = _planning(plan=IRIS)
+    data = json.loads(client.post(reverse("assistant:approve"),
+                                  {"conversation": conversation.pk, "create": "1"}).content)
+    conversation.refresh_from_db()
+    exp = conversation.experiment
+
+    assert not exp.draft and exp.data.name == "irises"
+    assert exp.data.model_name == "Random Forest" and exp.data.target_column == "variety"
+    assert data["url"] == reverse("ui:experiment_detail", args=[exp.pk])
+    assert conversation.phase == Conversation.DASHBOARD
+
+
+def test_a_plan_without_a_name_gets_one_from_the_model_and_the_dataset(client, on):
+    """What: without a name in the plan, the experiment is named after the
+    model and the dataset; reviewing as a draft offers the name as the name
+    field's placeholder, with no value. How: a nameless iris plan, set up at
+    once; another reviewed as a draft, with step 1's fill."""
+    nameless = {k: v for k, v in IRIS.items() if k != "name"}
+    created = _planning(plan=nameless)
+    client.post(reverse("assistant:approve"), {"conversation": created.pk, "create": "1"})
+    created.refresh_from_db()
+    assert created.experiment.data.name == "Random Forest on iris"
+
+    drafted = _planning(plan=nameless)
+    data = json.loads(client.post(reverse("assistant:approve"),
+                                  {"conversation": drafted.pk}).content)
+    drafted.refresh_from_db()
+    assert drafted.experiment.draft and drafted.experiment.data.name == ""
+    fill = plans.fill_for(drafted.plan, steps.SETUP)
+    assert fill[0] == {"name": "name", "placeholder": "Random Forest on iris", "value": "",
+                       "reason": ""}
+    assert all(item["name"] != "name" or "placeholder" in item for item in fill)
+    assert "Random Forest on iris" in client.get(data["url"]).content.decode()
+
+
+def test_rejecting_a_plan_leaves_a_note_for_the_next_turn(client, on):
+    """What: "Reject plan" leaves a note the model reads with the person's
+    next message and an event that greys the plan out, starts no turn, and
+    keeps the conversation planning; a conversation with no plan has nothing
+    to reject. How: rejecting the iris plan, then a conversation without
+    one."""
+    from assistant.loop import history
+    from assistant.models import Message
+
+    conversation = _planning(plan=IRIS)
+    response = client.post(reverse("assistant:reject"), {"conversation": conversation.pk})
+    conversation.refresh_from_db()
+
+    assert response.status_code == 200
+    assert conversation.phase == Conversation.PLANNING and conversation.experiment is None
+    assert conversation.events.filter(kind="rejected").exists()
+    note = conversation.messages.get()
+    assert note.role == Message.USER and "rejected the plan" in note.content
+    assert not conversation.messages.filter(role=Message.ASSISTANT).exists()
+    assert note.as_openai() in history(conversation)
+
+    empty = _planning()
+    assert client.post(reverse("assistant:reject"),
+                       {"conversation": empty.pk}).status_code == 400
+
+
 # ── a whole planning conversation ───────────────────────────────────────────
 
 def test_a_conversation_plans_iris_and_is_approved(client, on, model):

@@ -3,6 +3,8 @@
 
 from __future__ import annotations
 
+from pathlib import Path
+
 from ui.forms import EVALUATION_BACKTEST, EVALUATION_HOLDOUT, EVALUATION_KFOLD
 
 #: `SCHEMA` is the `update_plan` argument schema.
@@ -93,6 +95,16 @@ def merged(plan: dict, changes: dict) -> dict:
     return out
 
 
+def suggested_name(plan: dict, dataset_name: str) -> str:
+    """`suggested_name` is the plan's own `name`, or the model and the
+    dataset's name, such as "Random Forest on iris"."""
+    if plan.get("name"):
+        return str(plan["name"])
+    stem = Path(dataset_name or "").stem
+    model = plan.get("model_name") or ""
+    return f"{model} on {stem}" if model and stem else model or stem
+
+
 def setup_data(plan: dict, group_id=None) -> dict:
     """`setup_data` builds step 1's form data."""
     evaluation = plan.get("evaluation") or {}
@@ -164,7 +176,7 @@ def fill_for(plan: dict, step: str) -> list[dict]:
     if step == steps.SETUP:
         data = setup_data(plan)
         evaluation = plan.get("evaluation") or {}
-        order = ["name", "task", "model_name", "target_column", "evaluation_scheme",
+        order = ["task", "model_name", "target_column", "evaluation_scheme",
                  "evaluation_value", "time_column", "time_gap", "horizon", "series_column",
                  "season", "seed"]
 
@@ -175,6 +187,11 @@ def fill_for(plan: dict, step: str) -> list[dict]:
             return name in plan
 
         items = [(k, data[k]) for k in order if stated(k) and data.get(k) not in ("", None)]
+        if plan.get("name"):
+            # The name is a suggestion: the field's placeholder, and its value
+            # only when the person leaves the field empty.
+            return [{"name": "name", "placeholder": str(plan["name"]), "value": "",
+                     "reason": ""}] + _with_reasons(plan, items)
     elif step == steps.OPTIMIZER:
         data = optimizer_data(plan)
         items = [(k, v) for k, v in data.items() if v not in ("", None)]
@@ -184,6 +201,10 @@ def fill_for(plan: dict, step: str) -> list[dict]:
         items = run_items(plan)
     else:
         items = []
+    return _with_reasons(plan, items)
+
+
+def _with_reasons(plan: dict, items) -> list[dict]:
     reasons = plan.get("reasons") or {}
     out = []
     for name, value in items:

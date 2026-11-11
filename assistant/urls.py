@@ -8,6 +8,7 @@ urlpatterns = [
     path("assistant/message/", views.message, name="message"),
     path("assistant/dataset/", views.dataset, name="dataset"),
     path("assistant/approve/", views.approve, name="approve"),
+    path("assistant/reject/", views.reject, name="reject"),
     path("assistant/reset/", views.reset, name="reset"),
     path("assistant/back/", views.back, name="back"),
     path("assistant/window/", views.window, name="window"),
