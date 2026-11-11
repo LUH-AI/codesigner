@@ -18,9 +18,9 @@
 #           3, a four-wide one in 1
 
 overview = [
-    { figure = "evaluation",                width = 1, column = 1 },
-    { figure = "best_configuration",        width = 1, column = 2 },
-    { figure = "hyperparameter_importance", width = 1, column = 1 },
+    { figure = "evaluation",                width = 2, column = 1 },
+    { figure = "best_configuration",        width = 1, column = 3 },
+    { figure = "hyperparameter_importance", width = 1, column = 4 },
     { figure = "trials",                    width = 2, column = 3 },
     { figure = "performance_over_time",     width = 2, column = 1 },
     { figure = "forecast",                  width = 2, column = 3 },
@@ -45,10 +45,10 @@ acquisition = [
 ]
 
 misc = [
-    { figure = "evaluation",            width = 1, column = 1 },
-    { figure = "best_configuration",    width = 1, column = 2 },
+    { figure = "evaluation",            width = 2, column = 1 },
+    { figure = "best_configuration",    width = 1, column = 3 },
     { figure = "trials",                width = 2, column = 3 },
-    { figure = "trial_duration",        width = 1, column = 2 },
+    { figure = "trial_duration",        width = 1, column = 4 },
     { figure = "performance_over_time", width = 2, column = 1 },
     { figure = "parallel_coordinates",  width = 2, column = 1 },
     { figure = "partial_dependence",    width = 2, column = 1 },

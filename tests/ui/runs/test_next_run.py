@@ -124,7 +124,7 @@ def _registries():
 
 def test_a_planned_budget_fills_the_run_form_with_what_is_left(client, guided):
     """What: with a budget of 150 and 40 trials done, the run form offers 110
-    trials and no target; spent, it offers none and says so; without a budget
+    trials and no target, with no caption; spent, it offers none and says so; without a budget
     it offers 30 and the target to beat.
     How: the guided fixture's run form under each."""
     plain = _run_form(client, guided)
@@ -135,7 +135,7 @@ def test_a_planned_budget_fills_the_run_form_with_what_is_left(client, guided):
     guided.data.trial_budget = 150
     guided.data.save(update_fields=["trial_budget"])
     form = _run_form(client, guided)
-    assert 'value="110"' in form and "What is left of the 150 trials planned." in form
+    assert 'value="110"' in form and "What is left of" not in form
     assert 'id="target_score" name="target_score" value=""' in form
 
     guided.data.trial_budget = 40

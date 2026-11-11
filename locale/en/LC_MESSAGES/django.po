@@ -21,7 +21,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: PACKAGE VERSION\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2026-11-11 11:41+0000\n"
+"POT-Creation-Date: 2026-11-11 12:20+0000\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
 "Language-Team: LANGUAGE <LL@li.org>\n"
@@ -402,6 +402,7 @@ msgstr "Data Handling"
 #: assistant/templates/assistant/_chat.html:64
 #: assistant/templates/assistant/_chat.html:74
 #: ui/templates/ui/_experiment_header.html:37
+#: ui/templates/ui/figures/evaluation.html:87
 msgid "Metric"
 msgstr "Metric"
 
@@ -751,120 +752,121 @@ msgstr ""
 msgid "Experiment Evaluation"
 msgstr "Experiment Evaluation"
 
-#: ui/figures/catalog.py:50
+#: ui/figures/catalog.py:51
 msgid "Best configuration"
 msgstr "Best configuration"
 
-#: ui/figures/catalog.py:60
+#: ui/figures/catalog.py:61
 msgid "Selected Configuration"
 msgstr "Selected Configuration"
 
-#: ui/figures/catalog.py:67
+#: ui/figures/catalog.py:68
 msgid "Tunability"
 msgstr "Tunability"
 
-#: ui/figures/catalog.py:68
+#: ui/figures/catalog.py:69
 msgid "Mistunability"
 msgstr "Mistunability"
 
-#: ui/figures/catalog.py:69
+#: ui/figures/catalog.py:70
 msgid "Sensitivity"
 msgstr "Sensitivity"
 
-#: ui/figures/catalog.py:72
+#: ui/figures/catalog.py:73
 msgid "How much is there to gain by tuning this hyperparameter?"
 msgstr "How much is there to gain by tuning this hyperparameter?"
 
-#: ui/figures/catalog.py:73
+#: ui/figures/catalog.py:74
 msgid "How much is there to lose by getting this hyperparameter wrong?"
 msgstr "How much is there to lose by getting this hyperparameter wrong?"
 
-#: ui/figures/catalog.py:74
+#: ui/figures/catalog.py:75
 msgid "How much does performance move as this hyperparameter moves?"
 msgstr "How much does performance move as this hyperparameter moves?"
 
-#: ui/figures/catalog.py:90
+#: ui/figures/catalog.py:91
 msgid "Hyperparameter importance (HyperSHAP)"
 msgstr "Hyperparameter importance (HyperSHAP)"
 
-#: ui/figures/catalog.py:96
+#: ui/figures/catalog.py:97
 msgid "HyperSHAP against the incumbent or selected trial"
 msgstr "HyperSHAP against the incumbent or selected trial"
 
-#: ui/figures/catalog.py:117 ui/figures/catalog.py:121
+#: ui/figures/catalog.py:118 ui/figures/catalog.py:122
 msgid "Local explanation (selected trial)"
 msgstr "Local explanation (selected trial)"
 
-#: ui/figures/catalog.py:154
+#: ui/figures/catalog.py:155
 msgid "Interactions: heatmap"
 msgstr "Interactions: heatmap"
 
-#: ui/figures/catalog.py:162
+#: ui/figures/catalog.py:163
 msgid "Interactions: top pairs"
 msgstr "Interactions: top pairs"
 
-#: ui/figures/catalog.py:170
+#: ui/figures/catalog.py:171
 msgid "Interactions: graph"
 msgstr "Interactions: graph"
 
-#: ui/figures/catalog.py:180
+#: ui/figures/catalog.py:181
 msgid "Interactions: coalitions"
 msgstr "Interactions: coalitions"
 
-#: ui/figures/catalog.py:189
+#: ui/figures/catalog.py:190
 msgid "Interactions: by order"
 msgstr "Interactions: by order"
 
-#: ui/figures/catalog.py:205
+#: ui/figures/catalog.py:206
 msgid "Trial performance"
 msgstr "Trial performance"
 
-#: ui/figures/catalog.py:266
+#: ui/figures/catalog.py:267
 msgid "Hyperparameter space projection"
 msgstr "Hyperparameter space projection"
 
-#: ui/figures/catalog.py:277
+#: ui/figures/catalog.py:278
 msgid "Surrogate uncertainty (axes view)"
 msgstr "Surrogate uncertainty (axes view)"
 
-#: ui/figures/catalog.py:298
+#: ui/figures/catalog.py:299
 msgid "Parallel coordinates"
 msgstr "Parallel coordinates"
 
-#: ui/figures/catalog.py:316 ui/figures/catalog.py:321
+#: ui/figures/catalog.py:317 ui/figures/catalog.py:322
 msgid "Partial dependence (PDP/ICE)"
 msgstr "Partial dependence (PDP/ICE)"
 
-#: ui/figures/catalog.py:331 ui/optimizer_labels.py:74
+#: ui/figures/catalog.py:332 ui/optimizer_labels.py:74
 msgid "Acquisition function"
 msgstr "Acquisition function"
 
-#: ui/figures/catalog.py:336
+#: ui/figures/catalog.py:337
 msgid "Acquisition and priors"
 msgstr "Acquisition and priors"
 
-#: ui/figures/catalog.py:346 ui/figures/plots/surrogate.py:198
+#: ui/figures/catalog.py:347 ui/figures/plots/surrogate.py:198
 #: ui/figures/plots/surrogate.py:208 ui/timeline.py:260
 msgid "Prior"
 msgstr "Prior"
 
-#: ui/figures/catalog.py:357 ui/figures/catalog.py:365
+#: ui/figures/catalog.py:358 ui/figures/catalog.py:366
 msgid "Local effects across trials"
 msgstr "Local effects across trials"
 
-#: ui/figures/catalog.py:375
+#: ui/figures/catalog.py:376
 msgid "Trial duration"
 msgstr "Trial duration"
 
-#: ui/figures/catalog.py:387 ui/timeline.py:89 ui/timeline.py:332
+#: ui/figures/catalog.py:388 ui/templates/ui/figures/evaluation.html:25
+#: ui/timeline.py:89 ui/timeline.py:332
 msgid "Trials"
 msgstr "Trials"
 
-#: ui/figures/catalog.py:403 ui/figures/catalog.py:407
+#: ui/figures/catalog.py:404 ui/figures/catalog.py:408
 msgid "Forecast"
 msgstr "Forecast"
 
-#: ui/figures/data_handling.py:38 ui/views/dashboard.py:216
+#: ui/figures/data_handling.py:38 ui/views/dashboard.py:217
 msgid "Overview"
 msgstr "Overview"
 
@@ -1575,7 +1577,7 @@ msgid "Best sampled, weighted"
 msgstr "Best sampled, weighted"
 
 #: ui/figures/plots/surrogate.py:152 ui/figures/plots/surrogate.py:184
-#: ui/templates/ui/figures/configuration_cube.html:83 ui/views/dashboard.py:218
+#: ui/templates/ui/figures/configuration_cube.html:83 ui/views/dashboard.py:219
 msgid "Acquisition"
 msgstr "Acquisition"
 
@@ -1592,6 +1594,7 @@ msgid "Control points"
 msgstr "Control points"
 
 #: ui/figures/plots/surrogate.py:226
+#: ui/templates/ui/figures/evaluation.html:148
 msgid "Predicted"
 msgstr "Predicted"
 
@@ -2035,15 +2038,15 @@ msgstr "Data Handling"
 msgid "This experiment has trials, and the next run continues their search."
 msgstr "This experiment has trials, and the next run continues their search."
 
-#: ui/optimizer_form.py:25 ui/optimizer_form.py:76
+#: ui/optimizer_form.py:25 ui/optimizer_form.py:82
 msgid "A run is under way with this optimizer."
 msgstr "A run is under way with this optimizer."
 
-#: ui/optimizer_form.py:62
+#: ui/optimizer_form.py:68
 msgid "Choose an optimizer."
 msgstr "Choose an optimizer."
 
-#: ui/optimizer_form.py:88
+#: ui/optimizer_form.py:94
 #, python-format
 msgid "These settings stay as the first run had them: %(names)s."
 msgstr ""
@@ -2789,7 +2792,7 @@ msgstr "Save to continue"
 msgid "Optional"
 msgstr "Optional"
 
-#: ui/templates/ui/_side_explanation.html:18 ui/views/dashboard.py:217
+#: ui/templates/ui/_side_explanation.html:18 ui/views/dashboard.py:218
 msgid "HyperSHAP"
 msgstr "HyperSHAP"
 
@@ -3831,18 +3834,13 @@ msgid "No configurations to plot."
 msgstr "No configurations to plot."
 
 #: ui/templates/ui/figures/evaluation.html:12
-#: ui/templates/ui/figures/evaluation.html:89
-#: ui/templates/ui/figures/evaluation.html:237
+#: ui/templates/ui/figures/evaluation.html:235
 msgid "Evaluation metric"
 msgstr "Evaluation metric"
 
 #: ui/templates/ui/figures/evaluation.html:23
 msgid "Run until…"
 msgstr "Run until…"
-
-#: ui/templates/ui/figures/evaluation.html:25
-msgid "…this many trials have run"
-msgstr "…this many trials have run"
 
 #: ui/templates/ui/figures/evaluation.html:29
 #, python-format
@@ -3851,37 +3849,38 @@ msgid_plural "The planned %(n)s trials have run."
 msgstr[0] ""
 msgstr[1] ""
 
-#: ui/templates/ui/figures/evaluation.html:31
-#, python-format
-msgid "What is left of the %(n)s trials planned."
+#: ui/templates/ui/figures/evaluation.html:33
+msgid "Score exceeds"
 msgstr ""
 
-#: ui/templates/ui/figures/evaluation.html:35
-msgid "…performance surpasses"
-msgstr "…performance surpasses"
-
-#: ui/templates/ui/figures/evaluation.html:47
-#: ui/templates/ui/figures/evaluation.html:70
+#: ui/templates/ui/figures/evaluation.html:45
+#: ui/templates/ui/figures/evaluation.html:68
 msgid "e.g. 0.95"
 msgstr "e.g. 0.95"
 
-#: ui/templates/ui/figures/evaluation.html:50
-msgid "…the run has taken this many seconds"
-msgstr "…the run has taken this many seconds"
+#: ui/templates/ui/figures/evaluation.html:48
+#, fuzzy
+#| msgid "Second axis"
+msgid "Seconds elapsed"
+msgstr "Second axis"
 
-#: ui/templates/ui/figures/evaluation.html:54
-msgid "…this many seconds have been spent in trials"
-msgstr "…this many seconds have been spent in trials"
+#: ui/templates/ui/figures/evaluation.html:52
+#, fuzzy
+#| msgid "Time in trials"
+msgid "Seconds in trials"
+msgstr "Time in trials"
 
-#: ui/templates/ui/figures/evaluation.html:58
-msgid "…this many trials in a row have not improved"
-msgstr "…this many trials in a row have not improved"
+#: ui/templates/ui/figures/evaluation.html:56 ui/timeline.py:93
+msgid "Trials without improvement"
+msgstr "Trials without improvement"
 
-#: ui/templates/ui/figures/evaluation.html:64
-msgid "…the search is this sure nothing better remains"
-msgstr "…the search is this sure nothing better remains"
+#: ui/templates/ui/figures/evaluation.html:62
+#, fuzzy
+#| msgid "Search's model"
+msgid "Search confidence"
+msgstr "Search's model"
 
-#: ui/templates/ui/figures/evaluation.html:65
+#: ui/templates/ui/figures/evaluation.html:63
 msgid ""
 "Asks the optimizer how likely its own model of the objective thinks it is "
 "that some untried configuration beats the best one so far. Confidence under "
@@ -3891,23 +3890,27 @@ msgstr ""
 "that some untried configuration beats the best one so far. Confidence under "
 "that model, not a guarantee."
 
-#: ui/templates/ui/figures/evaluation.html:74
-msgid ""
-"These may never happen. Consider a trial or time limit as well, so the run "
-"is certain to end."
+#: ui/templates/ui/figures/evaluation.html:72
+#, fuzzy
+#| msgid ""
+#| "These may never happen. Consider a trial or time limit as well, so the "
+#| "run is certain to end."
+msgid "These may never be reached. Add a trial or time limit too."
 msgstr ""
 "These may never happen. Consider a trial or time limit as well, so the run "
 "is certain to end."
 
-#: ui/templates/ui/figures/evaluation.html:99
+#: ui/templates/ui/figures/evaluation.html:97
 msgid "Give up if…"
 msgstr "Give up if…"
 
-#: ui/templates/ui/figures/evaluation.html:102
-msgid "…this many trials have failed"
-msgstr "…this many trials have failed"
+#: ui/templates/ui/figures/evaluation.html:100
+#, fuzzy
+#| msgid "Failed trials allowed"
+msgid "Failed trials"
+msgstr "Failed trials allowed"
 
-#: ui/templates/ui/figures/evaluation.html:103
+#: ui/templates/ui/figures/evaluation.html:101
 msgid ""
 "A trial fails when the model raises on its configuration, runs past its "
 "deadline, or returns something that cannot be scored. It is still recorded — "
@@ -3925,11 +3928,13 @@ msgstr ""
 "1: the first failure is usually the one worth reading. Raise it when a "
 "search is deliberately probing a region you expect to break. At least 1."
 
-#: ui/templates/ui/figures/evaluation.html:111
-msgid "…this many have failed in a row"
-msgstr "…this many have failed in a row"
+#: ui/templates/ui/figures/evaluation.html:109
+#, fuzzy
+#| msgid "Failed in a row allowed"
+msgid "Failures in a row"
+msgstr "Failed in a row allowed"
 
-#: ui/templates/ui/figures/evaluation.html:112
+#: ui/templates/ui/figures/evaluation.html:110
 msgid ""
 "A different question from the total: in a row means nothing here can work — "
 "a model that cannot fit this dataset at all fails identically every time, "
@@ -3939,15 +3944,17 @@ msgstr ""
 "a model that cannot fit this dataset at all fails identically every time, "
 "and without a limit it spends the whole budget proving it. At least 1."
 
-#: ui/templates/ui/figures/evaluation.html:140
-msgid "Give up on a model fit after…"
-msgstr "Give up on a model fit after…"
+#: ui/templates/ui/figures/evaluation.html:138
+msgid "Model fit deadline"
+msgstr ""
 
-#: ui/templates/ui/figures/evaluation.html:143
-msgid "…a deadline set"
-msgstr "…a deadline set"
+#: ui/templates/ui/figures/evaluation.html:141
+#, fuzzy
+#| msgid "Kinds"
+msgid "Kind"
+msgstr "Kinds"
 
-#: ui/templates/ui/figures/evaluation.html:144
+#: ui/templates/ui/figures/evaluation.html:142
 msgid ""
 "The limit is on one model fit, not on a whole trial: under cross-validation "
 "a trial is one fit per fold, and each fold is given the deadline separately. "
@@ -3967,32 +3974,30 @@ msgstr ""
 "proportionally longer instead of being killed for being large. The seconds "
 "below stay the outer bound under either."
 
-#: ui/templates/ui/figures/evaluation.html:149
-msgid "a fixed number of seconds"
-msgstr "a fixed number of seconds"
+#: ui/templates/ui/figures/evaluation.html:147 ui/timeline.py:143
+msgid "Fixed"
+msgstr "Fixed"
 
-#: ui/templates/ui/figures/evaluation.html:150
-msgid "a multiple of its predicted duration"
-msgstr "a multiple of its predicted duration"
+#: ui/templates/ui/figures/evaluation.html:152
+msgid "Seconds (0 = none)"
+msgstr ""
 
-#: ui/templates/ui/figures/evaluation.html:154
-msgid "…this many seconds (0 for no limit)"
-msgstr "…this many seconds (0 for no limit)"
+#: ui/templates/ui/figures/evaluation.html:157
+#, fuzzy
+#| msgid "Predicted"
+msgid "× predicted"
+msgstr "Predicted"
 
-#: ui/templates/ui/figures/evaluation.html:159
-msgid "…this many times the fit's predicted duration"
-msgstr "…this many times the fit's predicted duration"
-
-#: ui/templates/ui/figures/evaluation.html:165
+#: ui/templates/ui/figures/evaluation.html:163
 msgid "▶ Run"
 msgstr "▶ Run"
 
-#: ui/templates/ui/figures/evaluation.html:167
+#: ui/templates/ui/figures/evaluation.html:165
 #, python-format
 msgid "Environment: %(summary)s"
 msgstr "Environment: %(summary)s"
 
-#: ui/templates/ui/figures/evaluation.html:241
+#: ui/templates/ui/figures/evaluation.html:239
 msgid "Attach a dataset to run this experiment (loaded read-only)."
 msgstr "Attach a dataset to run this experiment (loaded read-only)."
 
@@ -4681,10 +4686,6 @@ msgstr "Time limit"
 msgid "Time spent in trials"
 msgstr "Time spent in trials"
 
-#: ui/timeline.py:93
-msgid "Trials without improvement"
-msgstr "Trials without improvement"
-
 #: ui/timeline.py:94
 msgid "Confidence nothing better remains"
 msgstr "Confidence nothing better remains"
@@ -4744,10 +4745,6 @@ msgstr "Deadline"
 #: ui/timeline.py:142
 msgid "A multiple of the predicted duration"
 msgstr "A multiple of the predicted duration"
-
-#: ui/timeline.py:143
-msgid "Fixed"
-msgstr "Fixed"
 
 #: ui/timeline.py:145
 msgid "At most"
@@ -5268,11 +5265,11 @@ msgstr "Moved %(name)s to the bin."
 msgid "Restored %(name)s."
 msgstr "Restored %(name)s."
 
-#: ui/views/dashboard.py:71 ui/views/data_handling.py:46
+#: ui/views/dashboard.py:72 ui/views/data_handling.py:46
 msgid "Saved."
 msgstr "Saved."
 
-#: ui/views/dashboard.py:112
+#: ui/views/dashboard.py:113
 msgid ""
 "Trial parameters are kept for the built-in models only: an uploaded model is "
 "fitted in its own environment, which nothing is brought back from."
@@ -5280,7 +5277,7 @@ msgstr ""
 "Trial parameters are kept for the built-in models only: an uploaded model is "
 "fitted in its own environment, which nothing is brought back from."
 
-#: ui/views/dashboard.py:115
+#: ui/views/dashboard.py:116
 #, python-format
 msgid ""
 "%(model)s has no fitted parameters to keep: its forecast is its history "
@@ -5289,7 +5286,7 @@ msgstr ""
 "%(model)s has no fitted parameters to keep: its forecast is its history "
 "replayed."
 
-#: ui/views/dashboard.py:119
+#: ui/views/dashboard.py:120
 msgid ""
 "This experiment keeps no trial models. Turn it on in Settings; a new run "
 "keeps them from then on."
@@ -5297,7 +5294,7 @@ msgstr ""
 "This experiment keeps no trial models. Turn it on in Settings; a new run "
 "keeps them from then on."
 
-#: ui/views/dashboard.py:122
+#: ui/views/dashboard.py:123
 #, python-format
 msgid ""
 "This trial's model was not kept: a run keeps only the best %(n)s trial's "
@@ -5316,11 +5313,11 @@ msgstr[1] ""
 "models (and with the option on, its own), or its group had no room. Change "
 "it in Settings."
 
-#: ui/views/dashboard.py:169
+#: ui/views/dashboard.py:170
 msgid "Inconsistent"
 msgstr "Inconsistent"
 
-#: ui/views/dashboard.py:219
+#: ui/views/dashboard.py:220
 msgid "Misc"
 msgstr "Misc"
 

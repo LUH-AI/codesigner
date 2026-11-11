@@ -8,7 +8,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: PACKAGE VERSION\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2026-11-11 11:41+0000\n"
+"POT-Creation-Date: 2026-11-11 12:20+0000\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
 "Language-Team: LANGUAGE <LL@li.org>\n"
@@ -303,18 +303,18 @@ msgstr "Der Plan"
 msgid "Approve and set up"
 msgstr "Freigeben und einrichten"
 
-#: assistant/templates/assistant/_chat.html:51
 #
+#: assistant/templates/assistant/_chat.html:51
 msgid "Review as draft"
 msgstr "Als Entwurf prüfen"
 
-#: assistant/templates/assistant/_chat.html:52
 #
+#: assistant/templates/assistant/_chat.html:52
 msgid "Reject plan"
 msgstr "Plan ablehnen"
 
-#: assistant/templates/assistant/_chat.html:53
 #
+#: assistant/templates/assistant/_chat.html:53
 msgid "Plan rejected."
 msgstr "Plan abgelehnt."
 
@@ -380,6 +380,7 @@ msgstr "Datenaufbereitung"
 #: assistant/templates/assistant/_chat.html:64
 #: assistant/templates/assistant/_chat.html:74
 #: ui/templates/ui/_experiment_header.html:37
+#: ui/templates/ui/figures/evaluation.html:87
 msgid "Metric"
 msgstr "Metrik"
 
@@ -534,8 +535,8 @@ msgstr "Der Plan dieser Unterhaltung ist bereits freigegeben."
 msgid "There is no plan to approve."
 msgstr "Es gibt keinen Plan zum Freigeben."
 
-#: assistant/views.py:355
 #
+#: assistant/views.py:355
 msgid "There is no plan to reject."
 msgstr "Es gibt keinen Plan zum Ablehnen."
 
@@ -726,123 +727,124 @@ msgstr "Speichern Sie zuerst den ersten Schritt."
 msgid "Experiment Evaluation"
 msgstr "Bewertung des Experiments"
 
-#: ui/figures/catalog.py:50
+#: ui/figures/catalog.py:51
 msgid "Best configuration"
 msgstr "Beste Konfiguration"
 
-#: ui/figures/catalog.py:60
+#: ui/figures/catalog.py:61
 msgid "Selected Configuration"
 msgstr "Ausgewählte Konfiguration"
 
-#: ui/figures/catalog.py:67
+#: ui/figures/catalog.py:68
 msgid "Tunability"
 msgstr "Abstimmbarkeit"
 
-#: ui/figures/catalog.py:68
+#: ui/figures/catalog.py:69
 msgid "Mistunability"
 msgstr "Fehlabstimmbarkeit"
 
-#: ui/figures/catalog.py:69
+#: ui/figures/catalog.py:70
 msgid "Sensitivity"
 msgstr "Sensitivität"
 
-#: ui/figures/catalog.py:72
+#: ui/figures/catalog.py:73
 msgid "How much is there to gain by tuning this hyperparameter?"
 msgstr "Wie viel ist durch Abstimmen dieses Hyperparameters zu gewinnen?"
 
-#: ui/figures/catalog.py:73
+#: ui/figures/catalog.py:74
 msgid "How much is there to lose by getting this hyperparameter wrong?"
 msgstr ""
 "Wie viel ist zu verlieren, wenn dieser Hyperparameter falsch gesetzt wird?"
 
-#: ui/figures/catalog.py:74
+#: ui/figures/catalog.py:75
 msgid "How much does performance move as this hyperparameter moves?"
 msgstr ""
 "Wie stark verändert sich die Leistung, wenn sich dieser Hyperparameter "
 "ändert?"
 
-#: ui/figures/catalog.py:90
+#: ui/figures/catalog.py:91
 msgid "Hyperparameter importance (HyperSHAP)"
 msgstr "Hyperparameter-Wichtigkeit (HyperSHAP)"
 
-#: ui/figures/catalog.py:96
+#: ui/figures/catalog.py:97
 msgid "HyperSHAP against the incumbent or selected trial"
 msgstr "HyperSHAP gegenüber dem Incumbent oder dem ausgewählten Versuch"
 
-#: ui/figures/catalog.py:117 ui/figures/catalog.py:121
+#: ui/figures/catalog.py:118 ui/figures/catalog.py:122
 msgid "Local explanation (selected trial)"
 msgstr "Lokale Erklärung (ausgewählter Versuch)"
 
-#: ui/figures/catalog.py:154
+#: ui/figures/catalog.py:155
 msgid "Interactions: heatmap"
 msgstr "Wechselwirkungen: Heatmap"
 
-#: ui/figures/catalog.py:162
+#: ui/figures/catalog.py:163
 msgid "Interactions: top pairs"
 msgstr "Wechselwirkungen: wichtigste Paare"
 
-#: ui/figures/catalog.py:170
+#: ui/figures/catalog.py:171
 msgid "Interactions: graph"
 msgstr "Wechselwirkungen: Graph"
 
-#: ui/figures/catalog.py:180
+#: ui/figures/catalog.py:181
 msgid "Interactions: coalitions"
 msgstr "Wechselwirkungen: Koalitionen"
 
-#: ui/figures/catalog.py:189
+#: ui/figures/catalog.py:190
 msgid "Interactions: by order"
 msgstr "Wechselwirkungen: nach Ordnung"
 
-#: ui/figures/catalog.py:205
+#: ui/figures/catalog.py:206
 msgid "Trial performance"
 msgstr "Versuchsleistung"
 
-#: ui/figures/catalog.py:266
+#: ui/figures/catalog.py:267
 msgid "Hyperparameter space projection"
 msgstr "Projektion des Hyperparameterraums"
 
-#: ui/figures/catalog.py:277
+#: ui/figures/catalog.py:278
 msgid "Surrogate uncertainty (axes view)"
 msgstr "Unsicherheit des Surrogats (Achsenansicht)"
 
-#: ui/figures/catalog.py:298
+#: ui/figures/catalog.py:299
 msgid "Parallel coordinates"
 msgstr "Parallele Koordinaten"
 
-#: ui/figures/catalog.py:316 ui/figures/catalog.py:321
+#: ui/figures/catalog.py:317 ui/figures/catalog.py:322
 msgid "Partial dependence (PDP/ICE)"
 msgstr "Partielle Abhängigkeit (PDP/ICE)"
 
-#: ui/figures/catalog.py:331 ui/optimizer_labels.py:74
+#: ui/figures/catalog.py:332 ui/optimizer_labels.py:74
 msgid "Acquisition function"
 msgstr "Akquisitionsfunktion"
 
-#: ui/figures/catalog.py:336
+#: ui/figures/catalog.py:337
 msgid "Acquisition and priors"
 msgstr "Akquisition und Priors"
 
-#: ui/figures/catalog.py:346 ui/figures/plots/surrogate.py:198
+#: ui/figures/catalog.py:347 ui/figures/plots/surrogate.py:198
 #: ui/figures/plots/surrogate.py:208 ui/timeline.py:260
 msgid "Prior"
 msgstr "Prior"
 
-#: ui/figures/catalog.py:357 ui/figures/catalog.py:365
+#: ui/figures/catalog.py:358 ui/figures/catalog.py:366
 msgid "Local effects across trials"
 msgstr "Lokale Effekte über die Versuche"
 
-#: ui/figures/catalog.py:375
+#: ui/figures/catalog.py:376
 msgid "Trial duration"
 msgstr "Versuchsdauer"
 
-#: ui/figures/catalog.py:387 ui/timeline.py:89 ui/timeline.py:332
+#: ui/figures/catalog.py:388 ui/templates/ui/figures/evaluation.html:25
+#: ui/timeline.py:89 ui/timeline.py:332
 msgid "Trials"
 msgstr "Versuche"
 
-#: ui/figures/catalog.py:403 ui/figures/catalog.py:407
+#: ui/figures/catalog.py:404 ui/figures/catalog.py:408
 msgid "Forecast"
 msgstr "Prognose"
 
-#: ui/figures/data_handling.py:38 ui/views/dashboard.py:216
+#: ui/figures/data_handling.py:38 ui/views/dashboard.py:217
 msgid "Overview"
 msgstr "Übersicht"
 
@@ -1574,7 +1576,7 @@ msgid "Best sampled, weighted"
 msgstr "Beste Stichprobe, gewichtet"
 
 #: ui/figures/plots/surrogate.py:152 ui/figures/plots/surrogate.py:184
-#: ui/templates/ui/figures/configuration_cube.html:83 ui/views/dashboard.py:218
+#: ui/templates/ui/figures/configuration_cube.html:83 ui/views/dashboard.py:219
 msgid "Acquisition"
 msgstr "Akquisition"
 
@@ -1591,6 +1593,7 @@ msgid "Control points"
 msgstr "Kontrollpunkte"
 
 #: ui/figures/plots/surrogate.py:226
+#: ui/templates/ui/figures/evaluation.html:148
 msgid "Predicted"
 msgstr "Vorhergesagt"
 
@@ -2035,15 +2038,15 @@ msgid "This experiment has trials, and the next run continues their search."
 msgstr ""
 "Dieses Experiment hat Versuche, und der nächste Lauf setzt deren Suche fort."
 
-#: ui/optimizer_form.py:25 ui/optimizer_form.py:76
+#: ui/optimizer_form.py:25 ui/optimizer_form.py:82
 msgid "A run is under way with this optimizer."
 msgstr "Mit diesem Optimierer ist ein Lauf im Gang."
 
-#: ui/optimizer_form.py:62
+#: ui/optimizer_form.py:68
 msgid "Choose an optimizer."
 msgstr "Wählen Sie einen Optimierer."
 
-#: ui/optimizer_form.py:88
+#: ui/optimizer_form.py:94
 #, python-format
 msgid "These settings stay as the first run had them: %(names)s."
 msgstr "Diese Einstellungen bleiben, wie der erste Lauf sie hatte: %(names)s."
@@ -2787,7 +2790,7 @@ msgstr "Speichern, um fortzufahren"
 msgid "Optional"
 msgstr "Optional"
 
-#: ui/templates/ui/_side_explanation.html:18 ui/views/dashboard.py:217
+#: ui/templates/ui/_side_explanation.html:18 ui/views/dashboard.py:218
 msgid "HyperSHAP"
 msgstr "HyperSHAP"
 
@@ -3870,18 +3873,13 @@ msgid "No configurations to plot."
 msgstr "Keine Konfigurationen zum Zeichnen."
 
 #: ui/templates/ui/figures/evaluation.html:12
-#: ui/templates/ui/figures/evaluation.html:89
-#: ui/templates/ui/figures/evaluation.html:237
+#: ui/templates/ui/figures/evaluation.html:235
 msgid "Evaluation metric"
 msgstr "Bewertungsmetrik"
 
 #: ui/templates/ui/figures/evaluation.html:23
 msgid "Run until…"
 msgstr "Laufen lassen, bis…"
-
-#: ui/templates/ui/figures/evaluation.html:25
-msgid "…this many trials have run"
-msgstr "…so viele Versuche gelaufen sind"
 
 #: ui/templates/ui/figures/evaluation.html:29
 #, python-format
@@ -3890,37 +3888,35 @@ msgid_plural "The planned %(n)s trials have run."
 msgstr[0] "Der geplante %(n)s Versuch ist gelaufen."
 msgstr[1] "Die geplanten %(n)s Versuche sind gelaufen."
 
-#: ui/templates/ui/figures/evaluation.html:31
-#, python-format
-msgid "What is left of the %(n)s trials planned."
-msgstr "Was von den %(n)s geplanten Versuchen übrig ist."
+#: ui/templates/ui/figures/evaluation.html:33
+msgid "Score exceeds"
+msgstr "Bewertung übertrifft"
 
-#: ui/templates/ui/figures/evaluation.html:35
-msgid "…performance surpasses"
-msgstr "…die Leistung diesen Wert übertrifft"
-
-#: ui/templates/ui/figures/evaluation.html:47
-#: ui/templates/ui/figures/evaluation.html:70
+#: ui/templates/ui/figures/evaluation.html:45
+#: ui/templates/ui/figures/evaluation.html:68
 msgid "e.g. 0.95"
 msgstr "z. B. 0,95"
 
-#: ui/templates/ui/figures/evaluation.html:50
-msgid "…the run has taken this many seconds"
-msgstr "…der Lauf so viele Sekunden gedauert hat"
+#: ui/templates/ui/figures/evaluation.html:48
+#
+msgid "Seconds elapsed"
+msgstr "Verstrichene Sekunden"
 
-#: ui/templates/ui/figures/evaluation.html:54
-msgid "…this many seconds have been spent in trials"
-msgstr "…so viele Sekunden in Versuchen verbracht wurden"
+#: ui/templates/ui/figures/evaluation.html:52
+#
+msgid "Seconds in trials"
+msgstr "Sekunden in Versuchen"
 
-#: ui/templates/ui/figures/evaluation.html:58
-msgid "…this many trials in a row have not improved"
-msgstr "…so viele Versuche in Folge keine Verbesserung brachten"
+#: ui/templates/ui/figures/evaluation.html:56 ui/timeline.py:93
+msgid "Trials without improvement"
+msgstr "Versuche ohne Verbesserung"
 
-#: ui/templates/ui/figures/evaluation.html:64
-msgid "…the search is this sure nothing better remains"
-msgstr "…die Suche so sicher ist, dass nichts Besseres übrig bleibt"
+#: ui/templates/ui/figures/evaluation.html:62
+#
+msgid "Search confidence"
+msgstr "Sicherheit der Suche"
 
-#: ui/templates/ui/figures/evaluation.html:65
+#: ui/templates/ui/figures/evaluation.html:63
 msgid ""
 "Asks the optimizer how likely its own model of the objective thinks it is "
 "that some untried configuration beats the best one so far. Confidence under "
@@ -3930,23 +3926,21 @@ msgstr ""
 "Zielfunktion es hält, dass eine unerprobte Konfiguration die bisher beste "
 "schlägt. Zuversicht unter diesem Modell, keine Garantie."
 
-#: ui/templates/ui/figures/evaluation.html:74
-msgid ""
-"These may never happen. Consider a trial or time limit as well, so the run "
-"is certain to end."
-msgstr ""
-"Diese treten möglicherweise nie ein. Setzen Sie zusätzlich eine Versuchs- "
-"oder Zeitgrenze, damit der Lauf sicher endet."
+#: ui/templates/ui/figures/evaluation.html:72
+#
+msgid "These may never be reached. Add a trial or time limit too."
+msgstr "Diese werden vielleicht nie erreicht. Legen Sie zusätzlich eine Versuchs- oder Zeitgrenze fest."
 
-#: ui/templates/ui/figures/evaluation.html:99
+#: ui/templates/ui/figures/evaluation.html:97
 msgid "Give up if…"
 msgstr "Aufgeben, wenn…"
 
-#: ui/templates/ui/figures/evaluation.html:102
-msgid "…this many trials have failed"
-msgstr "…so viele Versuche fehlgeschlagen sind"
+#: ui/templates/ui/figures/evaluation.html:100
+#
+msgid "Failed trials"
+msgstr "Fehlgeschlagene Versuche"
 
-#: ui/templates/ui/figures/evaluation.html:103
+#: ui/templates/ui/figures/evaluation.html:101
 msgid ""
 "A trial fails when the model raises on its configuration, runs past its "
 "deadline, or returns something that cannot be scored. It is still recorded — "
@@ -3966,11 +3960,12 @@ msgstr ""
 "eine Suche bewusst eine Region abtastet, von der Sie erwarten, dass sie "
 "bricht. Mindestens 1."
 
-#: ui/templates/ui/figures/evaluation.html:111
-msgid "…this many have failed in a row"
-msgstr "…so viele in Folge fehlgeschlagen sind"
+#: ui/templates/ui/figures/evaluation.html:109
+#
+msgid "Failures in a row"
+msgstr "Fehlschläge in Folge"
 
-#: ui/templates/ui/figures/evaluation.html:112
+#: ui/templates/ui/figures/evaluation.html:110
 msgid ""
 "A different question from the total: in a row means nothing here can work — "
 "a model that cannot fit this dataset at all fails identically every time, "
@@ -3981,15 +3976,16 @@ msgstr ""
 "passt, scheitert jedes Mal gleich, und ohne Grenze verbringt es das ganze "
 "Budget damit, das zu beweisen. Mindestens 1."
 
-#: ui/templates/ui/figures/evaluation.html:140
-msgid "Give up on a model fit after…"
-msgstr "Eine Modellanpassung aufgeben nach…"
+#: ui/templates/ui/figures/evaluation.html:138
+msgid "Model fit deadline"
+msgstr "Frist je Modellanpassung"
 
-#: ui/templates/ui/figures/evaluation.html:143
-msgid "…a deadline set"
-msgstr "…einer gesetzten Frist"
+#: ui/templates/ui/figures/evaluation.html:141
+#
+msgid "Kind"
+msgstr "Art"
 
-#: ui/templates/ui/figures/evaluation.html:144
+#: ui/templates/ui/figures/evaluation.html:142
 msgid ""
 "The limit is on one model fit, not on a whole trial: under cross-validation "
 "a trial is one fit per fold, and each fold is given the deadline separately. "
@@ -4010,32 +4006,29 @@ msgstr ""
 "proportional länger, statt für ihre Größe abgebrochen zu werden. Die "
 "Sekunden unten bleiben in beiden Fällen die äußere Grenze."
 
-#: ui/templates/ui/figures/evaluation.html:149
-msgid "a fixed number of seconds"
-msgstr "eine feste Anzahl Sekunden"
+#: ui/templates/ui/figures/evaluation.html:147 ui/timeline.py:143
+msgid "Fixed"
+msgstr "Fest"
 
-#: ui/templates/ui/figures/evaluation.html:150
-msgid "a multiple of its predicted duration"
-msgstr "ein Vielfaches ihrer vorhergesagten Dauer"
+#: ui/templates/ui/figures/evaluation.html:152
+msgid "Seconds (0 = none)"
+msgstr "Sekunden (0 = keine)"
 
-#: ui/templates/ui/figures/evaluation.html:154
-msgid "…this many seconds (0 for no limit)"
-msgstr "…so viele Sekunden (0 für keine Grenze)"
+#: ui/templates/ui/figures/evaluation.html:157
+#
+msgid "× predicted"
+msgstr "× vorhergesagt"
 
-#: ui/templates/ui/figures/evaluation.html:159
-msgid "…this many times the fit's predicted duration"
-msgstr "…dieses Vielfache der vorhergesagten Dauer der Anpassung"
-
-#: ui/templates/ui/figures/evaluation.html:165
+#: ui/templates/ui/figures/evaluation.html:163
 msgid "▶ Run"
 msgstr "▶ Starten"
 
-#: ui/templates/ui/figures/evaluation.html:167
+#: ui/templates/ui/figures/evaluation.html:165
 #, python-format
 msgid "Environment: %(summary)s"
 msgstr "Umgebung: %(summary)s"
 
-#: ui/templates/ui/figures/evaluation.html:241
+#: ui/templates/ui/figures/evaluation.html:239
 msgid "Attach a dataset to run this experiment (loaded read-only)."
 msgstr ""
 "Hängen Sie einen Datensatz an, um dieses Experiment auszuführen (wird nur "
@@ -4726,10 +4719,6 @@ msgstr "Zeitgrenze"
 msgid "Time spent in trials"
 msgstr "In Versuchen verbrachte Zeit"
 
-#: ui/timeline.py:93
-msgid "Trials without improvement"
-msgstr "Versuche ohne Verbesserung"
-
 #: ui/timeline.py:94
 msgid "Confidence nothing better remains"
 msgstr "Zuversicht, dass nichts Besseres bleibt"
@@ -4789,10 +4778,6 @@ msgstr "Frist"
 #: ui/timeline.py:142
 msgid "A multiple of the predicted duration"
 msgstr "Ein Vielfaches der vorhergesagten Dauer"
-
-#: ui/timeline.py:143
-msgid "Fixed"
-msgstr "Fest"
 
 #: ui/timeline.py:145
 msgid "At most"
@@ -5304,11 +5289,11 @@ msgstr "%(name)s wurde in den Papierkorb verschoben."
 msgid "Restored %(name)s."
 msgstr "%(name)s wurde wiederhergestellt."
 
-#: ui/views/dashboard.py:71 ui/views/data_handling.py:46
+#: ui/views/dashboard.py:72 ui/views/data_handling.py:46
 msgid "Saved."
 msgstr "Gespeichert."
 
-#: ui/views/dashboard.py:112
+#: ui/views/dashboard.py:113
 msgid ""
 "Trial parameters are kept for the built-in models only: an uploaded model is "
 "fitted in its own environment, which nothing is brought back from."
@@ -5317,7 +5302,7 @@ msgstr ""
 "hochgeladenes Modell wird in seiner eigenen Umgebung angepasst, aus der "
 "nichts zurückgeholt wird."
 
-#: ui/views/dashboard.py:115
+#: ui/views/dashboard.py:116
 #, python-format
 msgid ""
 "%(model)s has no fitted parameters to keep: its forecast is its history "
@@ -5326,7 +5311,7 @@ msgstr ""
 "%(model)s hat keine angepassten Parameter zum Aufbewahren: Seine Prognose "
 "spielt nur die Historie erneut ab."
 
-#: ui/views/dashboard.py:119
+#: ui/views/dashboard.py:120
 msgid ""
 "This experiment keeps no trial models. Turn it on in Settings; a new run "
 "keeps them from then on."
@@ -5334,7 +5319,7 @@ msgstr ""
 "Dieses Experiment bewahrt keine Versuchsmodelle auf. Schalten Sie es in den "
 "Einstellungen ein; ein neuer Lauf bewahrt sie von da an auf."
 
-#: ui/views/dashboard.py:122
+#: ui/views/dashboard.py:123
 #, python-format
 msgid ""
 "This trial's model was not kept: a run keeps only the best %(n)s trial's "
@@ -5355,11 +5340,11 @@ msgstr[1] ""
 "seiner eigenen), oder seine Gruppe hatte keinen Platz. Ändern Sie das in den "
 "Einstellungen."
 
-#: ui/views/dashboard.py:169
+#: ui/views/dashboard.py:170
 msgid "Inconsistent"
 msgstr "Inkonsistent"
 
-#: ui/views/dashboard.py:219
+#: ui/views/dashboard.py:220
 msgid "Misc"
 msgstr "Sonstiges"
 

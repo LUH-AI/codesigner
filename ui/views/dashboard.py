@@ -47,7 +47,8 @@ def _dashboard(request, exp, context):
         return render(request, "ui/experiment_detail.html", context)
     fixed = optimizer_form.why_fixed(exp)
     may_edit = policy().may(request, exp, EDIT)
-    context.update(optimizer_form.context(exp, locked=bool(fixed) or not may_edit))
+    context.update(optimizer_form.context(exp, locked=bool(fixed) or not may_edit,
+                                          promoted=optimizer_form.PRERUN_PROMOTED))
     context["optimizer_locked_reason"] = fixed
     return render(request, "ui/experiment_prerun.html", context)
 

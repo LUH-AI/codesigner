@@ -48,7 +48,7 @@ address.{% endcomment %}
     <div class="prerun">
     <div class="prerun-grid">
         <div class="prerun-slot prerun-evaluation">{% include "ui/figures/evaluation.html" %}</div>
-        <section class="card prerun-slot prerun-optimizer">
+        <section class="card prerun-slot prerun-optimizer compact-form">
             <h2 class="subheader">{% translate "Optimizer" %}</h2>
             <form method="post" action="{% url 'ui:experiment_optimizer' summary.pk %}" class="experiment-form">
                 {% csrf_token %}

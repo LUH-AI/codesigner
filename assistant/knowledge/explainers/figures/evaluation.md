@@ -29,9 +29,9 @@ The card that starts a run: which metric the figures show and the run optimizes,
 
 ## How to read it
 
-- **First column, Run until…** (fill at least one): **…this many trials have run** (`max_trials`, 30, or what is left of a planned budget), **…performance surpasses** (`target_score`, opens at the score there is to beat and follows the metric until you type), **…the run has taken this many seconds** (`max_seconds`), **…this many seconds have been spent in trials** (`max_trial_seconds`), **…this many trials in a row have not improved** (`no_improvement_trials`), and for SMAC **…the search is this sure nothing better remains** (`incumbent_confidence`, 0–1, the optimizer's own confidence, not a guarantee). The run ends at the first criterion reached.
+- **First column, Run until…** (fill at least one): **Trials** (`max_trials`, 30, or the rest of a planned budget), **Score exceeds** (`target_score`, opens at the score there is to beat and follows the metric until you type), **Seconds elapsed** (`max_seconds`), **Seconds in trials** (`max_trial_seconds`), **Trials without improvement** (`no_improvement_trials`), and for SMAC **Search confidence** (`incumbent_confidence`, 0–1, the optimizer's own confidence, not a guarantee). The run ends at the first criterion reached.
 - **Middle column, after the first run only**: the optimizer settings a later run may change (`next_run_settings`), such as the random trial rate and the initial design caps, all listed, the advanced ones included. They are saved when the run starts. The rest stay as the first run had them.
-- **Last column**: **Evaluation metric** (`metric-select`), which every figure shows and the next run optimizes (`optimize_metric`); **Give up if…**: **…this many trials have failed** (`max_failures`, 1) and **…this many have failed in a row** (`max_consecutive_failures`, 15); **Give up on a model fit after…** (not for a model running in-process): **…a deadline set** (`trial_timeout_mode`: a fixed number of seconds, or a multiple of its predicted duration), **…this many seconds (0 for no limit)** (`trial_timeout_seconds`, normally 600), and in predicted mode **…this many times the fit's predicted duration** (`trial_timeout_factor`, 5); then **▶ Run** (`data-assist="run"`).
+- **Last column**: **Metric** (`metric-select`), which every figure shows and the next run optimizes (`optimize_metric`); **Give up if…**: **Failed trials** (`max_failures`, 1) and **Failures in a row** (`max_consecutive_failures`, 15); **Model fit deadline** (not for a model running in-process): **Kind** (`trial_timeout_mode`: "Fixed" seconds, or "Predicted", a multiple of the fit's predicted duration), **Seconds (0 = none)** (`trial_timeout_seconds`, normally 600), and in predicted mode **× predicted** (`trial_timeout_factor`, 5); then **▶ Run** (`data-assist="run"`).
 - The deadline is per model fit, so each fold gets it. A fit past it fails the trial, not the run.
 - While a run is going: the metric selector, "Optimizing… (status)", **Cancel run**, then "Cancelling — it stops after the trial it is on." and **Give up on it**.
 
@@ -44,7 +44,7 @@ The card that starts a run: which metric the figures show and the run optimizes,
 ## When it appears
 
 - Before the first trial: on the experiment's page, first, beside the Optimizer card and the Prior. Those three cards stay in place and keep their size.
-- After the first trial: on the **Misc** tab, and pinned to **Overview** by default. It can be moved, resized, and unpinned from Overview like any figure.
+- After the first trial: on the **Misc** tab, and pinned to **Overview** by default, two columns wide and one row high. It can be moved, made full width, and unpinned from Overview like any figure.
 - It follows nothing; the metric selector in it is what the other figures follow.
 - During a run the form gives way to the run's status.
 - Viewers, and experiments loaded without a dataset, get the metric selector only. No setting switches the card off.

@@ -615,7 +615,7 @@ nav.sidebar .info-bubble {
 .prerun-slot > [data-figure] { flex: 1; min-height: 0; display: flex; flex-direction: column; overflow: auto; }
 .prerun-slot > [data-figure] .plot { flex: 1; min-height: 0; }
 .prerun-evaluation { grid-column: span 1; grid-row: span 1; }
-.prerun-optimizer { grid-column: span 1; grid-row: span 2; overflow: auto; }
+.prerun-optimizer { grid-column: span 1; grid-row: span 1; overflow: auto; }
 .prerun-optimizer .subheader { margin-top: 0; }
 .prerun-prior { grid-column: span 2; grid-row: span 1; }
 @media (max-width: 1687px) { .prerun-prior { grid-column: span 1; } }
@@ -623,24 +623,62 @@ nav.sidebar .info-bubble {
 /* The Experiment Evaluation card (ui/figures/evaluation.html): its columns
    side by side, one under another when the card is narrow. */
 .evaluation-columns {
-    display: grid; grid-template-columns: repeat(auto-fit, minmax(13rem, 1fr));
-    gap: 0 1.25rem; align-items: start;
+    display: grid; grid-template-columns: repeat(auto-fit, minmax(11rem, 1fr));
+    gap: 0 1rem; align-items: start;
 }
 .evaluation-column { min-width: 0; }
-/* Compact, so a one-by-one card holds the form down to its Run button: a
-   number field puts its label beside a narrow input instead of above a wide
-   one, and the fieldsets sit closer together. */
-.evaluation-card fieldset.check-group { padding: 0.35rem 0.75rem 0.5rem; margin-bottom: 0.6rem; }
-.evaluation-card .field { margin-bottom: 0.45rem; }
-.evaluation-card .field:has(> input[type="number"], > input[inputmode="decimal"]) {
-    display: grid; grid-template-columns: minmax(0, 1fr) 6.5rem; align-items: center; gap: 0 0.5rem;
+/* Compact forms, so the Experiment Evaluation card and the pre-run Optimizer
+   card each fit their card: a field is one line, its label then its control,
+   in the same bordered groups as elsewhere with less padding. */
+.compact-form { font-size: 0.85rem; }
+.compact-form .card-head { margin-bottom: 0.4rem; }
+.compact-form fieldset.check-group, .compact-form .param-group {
+    padding: 0.25rem 0.6rem 0.35rem; margin: 0 0 0.5rem; min-width: 0;
 }
-.evaluation-card .field:has(> input[type="number"], > input[inputmode="decimal"]) > label,
-.evaluation-card .field:has(> input[type="number"], > input[inputmode="decimal"]) > .field-label { margin-bottom: 0; }
-.evaluation-card .field > input[type="number"], .evaluation-card .field > input[inputmode="decimal"] {
-    padding: 0.25rem 0.4rem;
+.compact-form .param-group { margin-bottom: 0.35rem; }
+/* The assistant's mark on a field it filled: the control's border, since a
+   bar beside a one-line field reads as a highlighted row. */
+.compact-form .assistant-filled { border-left: none; padding-left: 0; margin-left: 0; }
+.compact-form .assistant-filled > input, .compact-form .assistant-filled > select {
+    border-color: var(--primary);
 }
-.evaluation-card .field > .caption { grid-column: 1 / -1; margin: 0.15rem 0 0; }
+.compact-form .field { margin-bottom: 0.25rem; }
+.compact-form .field:has(> input:not([type="checkbox"]):not([type="hidden"])) {
+    display: grid; grid-template-columns: minmax(0, 1fr) 5.5rem; align-items: center; gap: 0 0.4rem;
+}
+.compact-form .field:has(> select) {
+    display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; gap: 0 0.4rem;
+}
+.compact-form .field > select { width: auto; max-width: 11rem; }
+.compact-form .param-column > .field:last-child:has(> input) { grid-template-columns: max-content minmax(3rem, 1fr); }
+.compact-form .param-column > .field:last-child .field-label { white-space: nowrap; }
+.compact-form .field > label, .compact-form .field > .field-label,
+.compact-form .field-label label { margin-bottom: 0; font-size: inherit; }
+.compact-form .field input:not([type="checkbox"]), .compact-form .field select {
+    padding: 0.2rem 0.4rem; font-size: 0.85rem;
+}
+.compact-form .field > .caption { grid-column: 1 / -1; margin: 0.1rem 0 0; font-size: 0.75rem; }
+.compact-form .param-columns { display: block; }
+.compact-form .param-column .field { margin-bottom: 0.25rem; }
+/* Each cap in two lines: whether to use it, then its value with "Use
+   default" after it. */
+.compact-form .param-column { display: grid; grid-template-columns: minmax(0, 1fr) auto; column-gap: 0.4rem; align-items: center; }
+.compact-form .param-column > .field:first-child { grid-column: 1 / -1; }
+.compact-form .param-column > .use-default { grid-column: 2; grid-row: 2; font-size: 0.75rem; margin: 0; }
+.compact-form .param-column > .field:last-child { grid-column: 1; grid-row: 2; margin: 0; }
+.compact-form .btn-block { padding: 0.35rem; }
+
+/* The pre-run Optimizer card in two columns: the settings on the left, the
+   initial points beside them, and the advanced fold under both. */
+.prerun-optimizer .subheader { margin-bottom: 0.4rem; }
+.prerun-optimizer form > .field:first-of-type { display: block; }
+.prerun-optimizer [data-optimizer] > fieldset.check-group {
+    display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); column-gap: 1.25rem;
+    align-items: start; grid-auto-flow: row dense;
+}
+.prerun-optimizer [data-optimizer] > fieldset > .field { grid-column: 1; }
+.prerun-optimizer [data-optimizer] > fieldset > .param-group { grid-column: 2; grid-row: 1 / span 6; }
+.prerun-optimizer [data-optimizer] > fieldset > details.advanced-params { grid-column: 1 / -1; }
 
 /* ── A draft's setup steps (ui/templates/ui/_setup_steps.html) ──────────
    Numbered stops joined by a line, not tabs: they are done in order. The

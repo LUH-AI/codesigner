@@ -4,7 +4,7 @@ and the metric, the failure limits and Run in another. Between runs a third
 column, between those two, holds the optimizer settings a later run may change
 (`run_safe`). While a run is in flight the run's status takes the form's place.
 {% endcomment %}
-<section class="card evaluation-card" data-figure="{{ figure.key|default:'evaluation' }}">
+<section class="card evaluation-card compact-form" data-figure="{{ figure.key|default:'evaluation' }}">
     <div class="card-head"><div class="subheader">{% translate "Experiment Evaluation" %}</div></div>
     {% if active_run %}
         {% if has_result %}
@@ -22,17 +22,15 @@ column, between those two, holds the optimizer settings a later run may change
                     <fieldset class="check-group stopping">
                         <legend>{% translate "Run until…" %}</legend>
                         <div class="field">
-                            <label for="max_trials">{% translate "…this many trials have run" %}</label>
+                            <label for="max_trials">{% translate "Trials" %}</label>
                             <input type="number" id="max_trials" name="max_trials"
                                    value="{{ next_run_trials }}" min="1" max="100000">
                             {% if trial_budget and not next_run_trials %}
                                 <p class="caption">{% blocktranslate count n=trial_budget %}The planned {{ n }} trial has run.{% plural %}The planned {{ n }} trials have run.{% endblocktranslate %}</p>
-                            {% elif trial_budget %}
-                                <p class="caption">{% blocktranslate with n=trial_budget %}What is left of the {{ n }} trials planned.{% endblocktranslate %}</p>
                             {% endif %}
                         </div>
                         <div class="field">
-                            <label for="target_score">{% translate "…performance surpasses" %}</label>
+                            <label for="target_score">{% translate "Score exceeds" %}</label>
                             {% comment %}A number field, not a text one with a
                             digits-and-a-dot pattern: that pattern rejects a minus
                             sign and exponent notation, which are ordinary ways to
@@ -46,21 +44,21 @@ column, between those two, holds the optimizer settings a later run may change
                                    placeholder="{% translate 'e.g. 0.95' %}">
                         </div>
                         <div class="field">
-                            <label for="max_seconds">{% translate "…the run has taken this many seconds" %}</label>
+                            <label for="max_seconds">{% translate "Seconds elapsed" %}</label>
                             <input type="number" id="max_seconds" name="max_seconds" min="1" step="1">
                         </div>
                         <div class="field">
-                            <label for="max_trial_seconds">{% translate "…this many seconds have been spent in trials" %}</label>
+                            <label for="max_trial_seconds">{% translate "Seconds in trials" %}</label>
                             <input type="number" id="max_trial_seconds" name="max_trial_seconds" min="1" step="1">
                         </div>
                         <div class="field">
-                            <label for="no_improvement_trials">{% translate "…this many trials in a row have not improved" %}</label>
+                            <label for="no_improvement_trials">{% translate "Trials without improvement" %}</label>
                             <input type="number" id="no_improvement_trials" name="no_improvement_trials" min="1" step="1">
                         </div>
                         {% if supports_confidence %}
                             <div class="field">
                                 <div class="field-label">
-                                    <label for="incumbent_confidence">{% translate "…the search is this sure nothing better remains" %}</label>
+                                    <label for="incumbent_confidence">{% translate "Search confidence" %}</label>
                                     {% translate "Asks the optimizer how likely its own model of the objective thinks it is that some untried configuration beats the best one so far. Confidence under that model, not a guarantee." as confidence_help %}
                                     {% include "ui/_info.html" with info_id="incumbent_confidence_help" info_text=confidence_help %}
                                 </div>
@@ -70,7 +68,7 @@ column, between those two, holds the optimizer settings a later run may change
                                        aria-describedby="incumbent_confidence_help">
                             </div>
                         {% endif %}
-                        <p class="caption stopping-note" hidden>{% translate "These may never happen. Consider a trial or time limit as well, so the run is certain to end." %}</p>
+                        <p class="caption stopping-note" hidden>{% translate "These may never be reached. Add a trial or time limit too." %}</p>
                     </fieldset>
                 </div>
                 {% comment %}The marker tells the run view the panel was on the
@@ -84,7 +82,7 @@ column, between those two, holds the optimizer settings a later run may change
                 {% endif %}
                 <div class="evaluation-column">
                     <div class="field">
-                        <label for="metric-select">{% translate "Evaluation metric" %}</label>
+                        <label for="metric-select">{% translate "Metric" %}</label>
                         {% include "ui/_metric_select.html" with field_name="optimize_metric" %}
                     </div>
                 {% comment %}Its own fieldset rather than two more "run until…"
@@ -96,7 +94,7 @@ column, between those two, holds the optimizer settings a later run may change
                         <legend>{% translate "Give up if…" %}</legend>
                         <div class="field">
                             <div class="field-label">
-                                <label for="max_failures">{% translate "…this many trials have failed" %}</label>
+                                <label for="max_failures">{% translate "Failed trials" %}</label>
                                 {% translate "A trial fails when the model raises on its configuration, runs past its deadline, or returns something that cannot be scored. It is still recorded — with its reason, and its stacktrace where there is one — and it scores what a model that knows nothing would — zero accuracy, or the error of always predicting the average — so the search learns to avoid that region. Default 1: the first failure is usually the one worth reading. Raise it when a search is deliberately probing a region you expect to break. At least 1." as failures_help %}
                                 {% include "ui/_info.html" with info_id="max_failures_help" info_text=failures_help %}
                             </div>
@@ -105,7 +103,7 @@ column, between those two, holds the optimizer settings a later run may change
                         </div>
                         <div class="field">
                             <div class="field-label">
-                                <label for="max_consecutive_failures">{% translate "…this many have failed in a row" %}</label>
+                                <label for="max_consecutive_failures">{% translate "Failures in a row" %}</label>
                                 {% translate "A different question from the total: in a row means nothing here can work — a model that cannot fit this dataset at all fails identically every time, and without a limit it spends the whole budget proving it. At least 1." as streak_help %}
                                 {% include "ui/_info.html" with info_id="max_consecutive_failures_help" info_text=streak_help %}
                             </div>
@@ -133,26 +131,26 @@ column, between those two, holds the optimizer settings a later run may change
                     sitting there being ignored.{% endcomment %}
                     {% if not env.in_process %}
                         <fieldset class="check-group stopping">
-                            <legend>{% translate "Give up on a model fit after…" %}</legend>
+                            <legend>{% translate "Model fit deadline" %}</legend>
                             <div class="field">
                                 <div class="field-label">
-                                    <label for="trial_timeout_mode">{% translate "…a deadline set" %}</label>
+                                    <label for="trial_timeout_mode">{% translate "Kind" %}</label>
                                     {% translate "The limit is on one model fit, not on a whole trial: under cross-validation a trial is one fit per fold, and each fold is given the deadline separately. A fixed deadline is one number for every configuration, and nobody knows the right one before their first run. Predicted fits a forest to how long the fits already measured in this run took, and gives each new one a multiple of what it predicts for that configuration — so a large configuration gets proportionally longer instead of being killed for being large. The seconds below stay the outer bound under either." as timeout_help %}
                                     {% include "ui/_info.html" with info_id="trial_timeout_help" info_text=timeout_help %}
                                 </div>
                                 <select id="trial_timeout_mode" name="trial_timeout_mode"
                                         aria-describedby="trial_timeout_help">
-                                    <option value="fixed" selected>{% translate "a fixed number of seconds" %}</option>
-                                    <option value="predicted">{% translate "a multiple of its predicted duration" %}</option>
+                                    <option value="fixed" selected>{% translate "Fixed" %}</option>
+                                    <option value="predicted">{% translate "Predicted" %}</option>
                                 </select>
                             </div>
                             <div class="field">
-                                <label for="trial_timeout_seconds">{% translate "…this many seconds (0 for no limit)" %}</label>
+                                <label for="trial_timeout_seconds">{% translate "Seconds (0 = none)" %}</label>
                                 <input type="number" id="trial_timeout_seconds" name="trial_timeout_seconds"
                                        value="{{ default_trial_timeout }}" min="0" step="1">
                             </div>
                             <div class="field" data-timeout-mode="predicted" hidden>
-                                <label for="trial_timeout_factor">{% translate "…this many times the fit's predicted duration" %}</label>
+                                <label for="trial_timeout_factor">{% translate "× predicted" %}</label>
                                 <input type="number" id="trial_timeout_factor" name="trial_timeout_factor"
                                        value="{{ default_trial_factor }}" min="1" step="0.5">
                             </div>

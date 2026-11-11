@@ -31,7 +31,13 @@ def has_trials(exp) -> bool:
     return bool(result.get("data") or result.get("trials"))
 
 
-def context(exp, locked=False) -> dict:
+#: The advanced settings the pre-run Optimizer card lists with the rest.
+PRERUN_PROMOTED = ("initial_design", "acquisition", "acquisition_xi")
+
+
+def context(exp, locked=False, promoted=()) -> dict:
+    """`context` lists the settings in *promoted* with the regular ones rather
+    than under the advanced fold."""
     data = exp.data
     selected = data.optimizer_name if data.optimizer_name in OPTIMIZERS else next(iter(OPTIMIZERS))
     panels = []
@@ -41,7 +47,7 @@ def context(exp, locked=False) -> dict:
         stored = data.optimizer_params if key == data.optimizer_name else None
         panels.append({"key": key, "selected": key == selected,
                        "disabled": locked or key != selected,
-                       **_param_context(optimizer, stored)})
+                       **_param_context(optimizer, stored, promoted)})
     return {"optimizer_choices": list(OPTIMIZERS), "optimizer_selected": selected,
             "optimizer_panels": panels, "optimizer_locked": locked}
 
@@ -163,8 +169,10 @@ def cleaned_params(optimizer, params: dict) -> dict:
     return _posted_params(posted, optimizer, base={})
 
 
-def _param_context(optimizer, stored=None) -> dict:
+def _param_context(optimizer, stored=None, promoted=()) -> dict:
     layout, advanced = grouped(describe_all(optimizer, stored))
+    layout += [{"param": p} for p in advanced if p["name"] in promoted]
+    advanced = [p for p in advanced if p["name"] not in promoted]
     return {
         "optimizer_layout": layout,
         "advanced_params": advanced,

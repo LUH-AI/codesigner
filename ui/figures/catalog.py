@@ -40,6 +40,7 @@ class Evaluation(Figure):
     key = "evaluation"
     label = _("Experiment Evaluation")
     home_tab = MISC
+    shape = LONG
     switchable = False
 
 

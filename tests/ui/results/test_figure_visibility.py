@@ -118,9 +118,10 @@ def test_each_figure_declares_a_tab_and_a_shape():
         "local_explanation", "local_effects"]
     assert by_tab[ACQUISITION] == ["acquisition_slice", "prior", "configuration_cube"]
     assert by_tab[OVERVIEW] == []
-    # Axis-read figures: wider than tall, at least two columns.
+    # Wider than tall, at least two columns: the axis-read figures, and the
+    # Experiment Evaluation card's columns of fields.
     assert [f.key for f in FIGURES if f.shape == LONG] == [
-        "performance_over_time", "forecast", "parallel_coordinates", "partial_dependence",
+        "evaluation", "performance_over_time", "forecast", "parallel_coordinates", "partial_dependence",
         "local_effects", "acquisition_slice", "prior"]
     assert FIGURES_BY_KEY["trials"].shape == TABLE
     assert SHAPES[TABLE] == (2,), "the trials table is always two columns"

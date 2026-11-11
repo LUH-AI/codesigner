@@ -72,7 +72,7 @@ def test_a_run_under_way_locks_the_optimizer(client):
     Run.objects.create(experiment=exp, primary_metric="accuracy", status="running",
                        stopping={"max_trials": 3}, trial_offset=0, trial_count=0)
     html = client.get(reverse("ui:experiment_detail", args=[exp.pk])).content.decode()
-    form = html.split('prerun-optimizer"', 1)[1].split("</section>", 1)[0]
+    form = html.split("prerun-optimizer", 1)[1].split("</section>", 1)[0]
 
     assert '<select id="optimizer_name" name="optimizer_name" disabled>' in form
     assert "A run is under way with this optimizer." in form

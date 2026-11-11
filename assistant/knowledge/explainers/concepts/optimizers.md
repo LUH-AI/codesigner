@@ -65,7 +65,7 @@ Grid Search tries every combination of a fixed set of values, in order. "Grid st
 
 Only SMAC fits a surrogate, so only SMAC offers:
 
-- the "…the search is this sure nothing better remains" stopping criterion;
+- the "Search confidence" stopping criterion;
 - the acquisition figure, Next Trials, and the projection's Acquisition layer;
 - acting on priors. Random and Grid Search accept priors and ignore them.
 

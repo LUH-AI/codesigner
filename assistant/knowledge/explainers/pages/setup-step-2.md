@@ -50,7 +50,7 @@ The second setup step chooses what searches the model's hyperparameters, and wit
 - Step 1 must be saved first; otherwise this step sends you back there.
 - The optimizer and its settings can change until the experiment has its first trial, here or on the experiment's page. After that they are fixed ("This experiment has trials, and the next run continues their search."), and also while a run is under way.
 - Priors only steer SMAC. Random Search and Grid Search ignore them. Judging a prior with "Evaluate Prior" needs SMAC with the Gaussian process strategy.
-- The "…the search is this sure nothing better remains" stopping criterion is offered only for SMAC.
+- The "Search confidence" stopping criterion is offered only for SMAC.
 - Changing the optimizer of a created experiment is recorded on its timeline.
 
 ## Questions people ask
