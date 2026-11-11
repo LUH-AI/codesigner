@@ -670,7 +670,9 @@
         var size = null;
         try { size = JSON.parse(localStorage.getItem(SIZE) || "null"); } catch (e) { size = null; }
         var fit = function (w, h) {
-            w = Math.round(Math.min(Math.max(w, 288), window.innerWidth - 40));
+            // 26rem at the least: narrower, a line of an answer is a few words.
+            var least = 26 * parseFloat(getComputedStyle(document.documentElement).fontSize);
+            w = Math.round(Math.min(Math.max(w, least), window.innerWidth - 40));
             h = Math.round(Math.min(Math.max(h, 240), window.innerHeight - 32));
             dock.style.setProperty("--dock-width", w + "px");
             dock.style.setProperty("--dock-height", h + "px");

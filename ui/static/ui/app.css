@@ -1217,7 +1217,7 @@ hr.divider { border: none; border-top: 1px solid var(--border); margin: 1.5rem 0
    a button until opened; and a browser window of its own. Only the log
    scrolls. */
 .assistant { display: flex; flex-direction: column; gap: 0.75rem; min-height: 0; }
-.assistant-full { height: calc(100vh - 12rem); max-width: 52rem; }
+.assistant-full { height: calc(100vh - 12rem); max-width: 52rem; min-width: min(26rem, 100%); }
 /* Before anything is said, the box to type in sits in the middle of the page;
    once the assistant answers, the conversation takes the space above it. */
 .assistant-full.is-empty .assistant-log,
@@ -1227,9 +1227,13 @@ hr.divider { border: none; border-top: 1px solid var(--border); margin: 1.5rem 0
 .assistant-head h2 { font-size: 1.1rem; }
 .assistant-head-actions { display: flex; gap: 0.35rem; }
 .assistant-head .btn { font-size: 0.8rem; padding: 0.2rem 0.6rem; }
-.assistant-log { flex: 1; overflow-y: auto; display: flex; flex-direction: column; gap: 0.5rem; min-height: 0; }
+/* The log scrolls up and down only: whatever is in it wraps to its width. */
+.assistant-log {
+    flex: 1; overflow-y: auto; overflow-x: hidden; display: flex; flex-direction: column;
+    gap: 0.5rem; min-height: 0; min-width: 0;
+}
 /* A full log scrolls; its messages keep their height rather than shrink to fit. */
-.assistant-log > * { flex-shrink: 0; }
+.assistant-log > * { flex-shrink: 0; min-width: 0; max-width: 100%; }
 .assistant-msg {
     white-space: pre-wrap;
     overflow-wrap: anywhere;
@@ -1252,12 +1256,12 @@ hr.divider { border: none; border-top: 1px solid var(--border); margin: 1.5rem 0
 .assistant-msg.assistant li + li { margin-top: 0.15em; }
 .assistant-msg.assistant .md-heading { font-weight: 600; }
 .assistant-msg.assistant code { font-size: 0.875em; background: var(--hover); padding: 0.05em 0.3em; border-radius: 4px; }
-.assistant-msg.assistant pre { white-space: pre; overflow-x: auto; background: var(--hover); padding: 0.5em 0.65em; border-radius: var(--radius); }
+.assistant-msg.assistant pre { white-space: pre-wrap; overflow-wrap: anywhere; background: var(--hover); padding: 0.5em 0.65em; border-radius: var(--radius); }
 .assistant-msg.assistant pre code { background: none; padding: 0; }
 .assistant-msg.assistant blockquote { border-left: 3px solid var(--border); padding-left: 0.65em; color: var(--muted); }
 .assistant-msg.assistant hr { border: none; border-top: 1px solid var(--border); margin: 0.6em 0; }
-.assistant-msg.assistant .md-table { overflow-x: auto; }
-.assistant-msg.assistant table { border-collapse: collapse; font-size: 0.875em; }
+.assistant-msg.assistant table { border-collapse: collapse; font-size: 0.875em; max-width: 100%; }
+.assistant-msg.assistant th, .assistant-msg.assistant td { overflow-wrap: anywhere; }
 .assistant-msg.assistant th, .assistant-msg.assistant td { border: 1px solid var(--border); padding: 0.2em 0.5em; text-align: left; vertical-align: top; }
 .assistant-msg.assistant th { background: var(--hover); font-weight: 600; }
 .assistant-msg.notice { align-self: stretch; background: var(--warning-bg); color: var(--warning-fg); font-size: 0.875rem; }
@@ -1319,7 +1323,7 @@ hr.divider { border: none; border-top: 1px solid var(--border); margin: 1.5rem 0
     font-size: 0.9rem;
 }
 .assistant-plan h3 { font-size: 1rem; }
-.assistant-plan dl { display: grid; grid-template-columns: max-content 1fr; gap: 0.15rem 0.75rem; }
+.assistant-plan dl { display: grid; grid-template-columns: minmax(0, max-content) minmax(0, 1fr); gap: 0.15rem 0.75rem; }
 .assistant-plan dt { color: var(--muted); }
 .assistant-plan dd { overflow-wrap: anywhere; }
 .assistant-plan ul { padding-left: 1.2rem; color: var(--warning-fg); }
@@ -1338,8 +1342,10 @@ hr.divider { border: none; border-top: 1px solid var(--border); margin: 1.5rem 0
     right: 1.25rem;
     bottom: 0;
     z-index: 20;
-    /* Wide enough by default for the chat box's hint on one line. */
+    /* Wide enough by default for the chat box's hint on one line, and never
+       so narrow that a line of an answer is a few words. */
     width: var(--dock-width, min(38rem, calc(100vw - 2.5rem)));
+    min-width: min(26rem, calc(100vw - 2.5rem));
 }
 .assistant-dock.collapsed { width: var(--dock-width, min(24rem, calc(100vw - 2.5rem))); }
 .assistant-floating {
