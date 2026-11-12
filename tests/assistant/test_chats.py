@@ -277,6 +277,27 @@ def test_who_may_edit_gets_the_editor_and_who_may_view_reads(client, hosted, wor
     assert _notes(client, world["cleo_private"]).status_code == 404
 
 
+def test_the_notes_open_on_view_with_edit_beside_it(client, on):
+    """What: the notes page opens on View, the notes as drawn with no editor
+    controls; Edit, in the dashboard's tab bar, holds the box with its preview
+    beside it, the Markdown help and Save.
+    How: an editor's notes page, split at the Edit panel."""
+    exp = _experiment()
+    notepad.save(exp, "Budget is 100 trials.", user=None, seen="")
+
+    page = _notes(client, exp).content.decode()
+    view, edit = page.split('id="fig-panel-edit"')
+
+    assert 'class="fig-tab" id="fig-tab-view" data-tab="view"' in page
+    assert 'aria-controls="fig-panel-view"\n                        aria-selected="true">View' in page
+    assert 'aria-selected="false">Edit' in page
+    assert "Budget is 100 trials." in view.split('id="fig-panel-view"')[1]
+    assert "<textarea" not in view and "Save" not in view.split('id="fig-panel-view"')[1]
+    assert "data-notes-text" in edit and "data-notes-preview" in edit
+    assert "Markdown:" in edit and "Save</button>" in edit
+    assert "Shared with everyone" not in page
+
+
 def test_a_save_over_newer_notes_is_refused_with_them_shown(client, on):
     """What: a person saving notes someone changed after they opened them is
     refused; the page shows the newer notes and keeps their text in the
@@ -293,6 +314,7 @@ def test_a_save_over_newer_notes_is_refused_with_them_shown(client, on):
 
     assert ExperimentNotes.objects.get().text == "Budget is 200 trials."
     assert "Budget is 200 trials." in page and ">Budget is 150.</textarea>" in page
+    assert 'aria-selected="true">Edit' in page
 
 
 def test_the_notes_have_room_for_so_much(client, on):

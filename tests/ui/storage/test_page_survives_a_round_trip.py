@@ -29,6 +29,7 @@ DISPLAYED = [
     "trial_budget",       # the trials planned, and what is left of them
     "next_run_trials",
     "metric_names",
+    "lower_better_metrics",  # run form's target wording
     "run_default_metric",
     "trials_exhausted",
     "figure_options",

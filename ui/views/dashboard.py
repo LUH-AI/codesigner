@@ -11,6 +11,7 @@ from django.utils.translation import gettext as _
 from django.views.decorators.http import require_POST
 
 from access.policy import COMPUTE, DELETE, EDIT, EXPORT, RENAME, RUN, SHARE, VIEW, policy
+from core.metrics import metric_for
 from core.modelhost import deadline
 from core.registry import MODELS, optimizer_class
 from core import priors as prior_math
@@ -364,6 +365,10 @@ def _detail_context(request, exp):
     context = {
         **header,
         "metric_names": metric_names,
+        # The Run form's target reads "drops below" for these.
+        "lower_better_metrics": [
+            m for m in metric_names
+            if not (result.metric(m) if result else metric_for(m)).higher_is_better],
         "active_run": active_run,
         "can_run": (exp.data.has_dataset and _model_available(exp)
                     and policy().may(request, exp, RUN)
@@ -442,7 +447,10 @@ def _detail_context(request, exp):
     # With a planned budget the Run form's target stays empty, since a near-best
     # target would end the run at its first improvement.
     incumbent_targets = ({} if exp.data.trial_budget else
-                         {p["metric"]: surpass_target(p["best_score"]) for p in panels})
+                         {p["metric"]: surpass_target(
+                             p["best_score"],
+                             higher_is_better=result.metric(p["metric"]).higher_is_better)
+                          for p in panels})
     context.update(
         result=result,
         panels=panels,

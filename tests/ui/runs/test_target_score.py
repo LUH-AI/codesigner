@@ -29,7 +29,7 @@ def _result(**scores):
     }
 
 
-def _experiment(result=None, metric="accuracy"):
+def _experiment(result=None, metric="accuracy", names=("accuracy", "f1")):
     from experiments.services import snapshot as adapter
 
     exp = adapter.experiment_from_snapshot({
@@ -37,7 +37,7 @@ def _experiment(result=None, metric="accuracy"):
         "model_path": "", "optimizer_name": "Random Search", "optimizer_params": {},
         "primary_metric": metric if result else None,
         "original_metric": metric if result else None,
-        "metric_names": ["accuracy", "f1"], "seed": 0,
+        "metric_names": list(names), "seed": 0,
         "dataset_path": str(DATASETS_DIR / "iris.csv"), "result": result,
     }, adopt_paths=True)
     return exp
@@ -55,6 +55,28 @@ def test_the_field_asks_to_be_surpassed(client):
     _, body = _field(client, _experiment())
 
     assert "…the score exceeds" in body
+
+
+def test_a_loss_asks_to_be_dropped_below(client):
+    """Renders the page for an experiment whose first metric is log loss, where
+    lower is better, and checks the label and placeholder read that way."""
+    field, body = _field(client, _experiment(names=("log_loss", "accuracy")))
+
+    assert "…the score drops below</label>" in body
+    assert 'placeholder="e.g. 0.05"' in field
+
+
+def test_the_wording_follows_the_metric_dropdown(client):
+    """Renders the page and checks it lists the lower-is-better metrics and
+    carries both wordings for the script that swaps them on a metric change."""
+    field, body = _field(client, _experiment(names=("accuracy", "log_loss")))
+    found = re.search(r'id="lower-better-metrics"[^>]*>(.*?)</script>', body, re.S)
+
+    assert found is not None and json.loads(found.group(1)) == ["log_loss"]
+    assert "…the score exceeds</label>" in body
+    assert 'data-lower="…the score drops below"' in body
+    assert 'data-lower="e.g. 0.05"' in field
+    assert "label.textContent = label.dataset[side];" in body
 
 
 def test_an_equal_score_does_not_end_the_run(client):
@@ -92,6 +114,25 @@ def test_an_experiment_with_no_trials_yet_leaves_it_empty(client):
 def test_the_shown_target_is_never_below_the_score_it_came_from(score):
     """Rounding down would end the run after one trial without improvement."""
     assert float(surpass_target(score)) >= score
+
+
+@pytest.mark.parametrize("score", [0.33337, 1 / 3, 0.2, 0.5000049])
+def test_a_loss_target_is_never_above_the_score_it_came_from(score):
+    """Rounds lower-is-better scores and checks none rounds up, which would end
+    the run after one trial without improvement."""
+    assert float(surpass_target(score, higher_is_better=False)) <= score
+
+
+def test_a_loss_target_starts_rounded_down(client):
+    """Renders a finished trial's page and checks the log loss target opens at
+    the incumbent's loss rounded down to four places."""
+    exp = _experiment(_result(accuracy=0.9, log_loss=1 / 3),
+                      names=("accuracy", "log_loss"))
+
+    _, body = _field(client, exp)
+    found = re.search(r'id="incumbent-targets"[^>]*>(.*?)</script>', body, re.S)
+
+    assert json.loads(found.group(1))["log_loss"] == "0.3333"
 
 
 def test_the_target_is_rounded_rather_than_shown_in_full(client):

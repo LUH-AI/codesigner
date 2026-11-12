@@ -67,13 +67,17 @@ def _ownership(request, exp):
             "level": share_of(request.user, exp)}
 
 
-def surpass_target(score: float, places: int = 4) -> str:
-    """`surpass_target` rounds the incumbent's score up, since a target under
-    the score would meet the strict-improvement criterion at once.
+def surpass_target(score: float, places: int = 4, higher_is_better: bool = True) -> str:
+    """`surpass_target` rounds the incumbent's score away from better, up for a
+    metric where higher is better and down otherwise, since a target the score
+    already beats would meet the strict-improvement criterion at once.
     """
+    step = 10 ** -places
     shown = round(score, places)
-    if shown < score:
-        shown = round(shown + 10 ** -places, places)
+    if higher_is_better and shown < score:
+        shown = round(shown + step, places)
+    elif not higher_is_better and shown > score:
+        shown = round(shown - step, places)
     return f"{shown:g}"
 
 

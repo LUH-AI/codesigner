@@ -42,7 +42,10 @@ copies of the sidebar's (`_side_evaluation.html`), which the poll refreshes.
                             {% endif %}
                         </div>
                         <div class="field">
-                            <label for="target_score">{% translate "…the score exceeds" %}</label>
+                            {% translate "…the score exceeds" as exceeds %}
+                            {% translate "…the score drops below" as drops_below %}
+                            <label for="target_score" data-higher="{{ exceeds }}" data-lower="{{ drops_below }}"
+                                   >{% if run_default_metric in lower_better_metrics %}{{ drops_below }}{% else %}{{ exceeds }}{% endif %}</label>
                             {% comment %}A number field, not a text one with a
                             digits-and-a-dot pattern: that pattern rejects a minus
                             sign and exponent notation, which are ordinary ways to
@@ -53,7 +56,8 @@ copies of the sidebar's (`_side_evaluation.html`), which the poll refreshes.
                             <input type="number" step="any"
                                    id="target_score" name="target_score"
                                    value="{{ incumbent_target }}"
-                                   placeholder="{% translate 'e.g. 0.95' %}">
+                                   data-higher="{% translate 'e.g. 0.95' %}" data-lower="{% translate 'e.g. 0.05' %}"
+                                   placeholder="{% if run_default_metric in lower_better_metrics %}{% translate 'e.g. 0.05' %}{% else %}{% translate 'e.g. 0.95' %}{% endif %}">
                         </div>
                         <div class="field">
                             <label for="max_seconds">{% translate "…N seconds have passed" %}</label>
@@ -218,6 +222,25 @@ copies of the sidebar's (`_side_evaluation.html`), which the poll refreshes.
                 }
                 form.addEventListener("input", apply);
                 apply();
+            })();
+        </script>
+        {{ lower_better_metrics|json_script:"lower-better-metrics" }}
+        <script>
+            // The target's wording follows the metric's direction: a loss
+            // such as RMSE ends the run by dropping below it.
+            (function () {
+                const form = document.currentScript.closest("section").querySelector("form");
+                const field = form.querySelector('[name="target_score"]');
+                const label = form.querySelector('label[for="target_score"]');
+                const metric = document.getElementById("metric-select");
+                const holder = document.getElementById("lower-better-metrics");
+                if (!field || !label || !metric || !holder) return;
+                const lower = JSON.parse(holder.textContent || "[]");
+                metric.addEventListener("change", function () {
+                    const side = lower.includes(metric.value) ? "lower" : "higher";
+                    label.textContent = label.dataset[side];
+                    field.placeholder = field.dataset[side];
+                });
             })();
         </script>
         {{ incumbent_targets|json_script:"incumbent-targets" }}

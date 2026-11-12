@@ -18,7 +18,9 @@ def experiment_notes(request, exp):
     from assistant import notes as notepad
 
     may_edit = policy().may(request, exp, EDIT)
-    context = {"may_edit": may_edit, "draft": exp.draft}
+    # `editing` opens the page on Edit, where a refused save's text waits.
+    context = {"may_edit": may_edit, "draft": exp.draft, "editing": False,
+               "stale": None, "error": ""}
     if request.method == "POST":
         if not may_edit:
             raise PermissionDenied
@@ -26,9 +28,9 @@ def experiment_notes(request, exp):
         try:
             notepad.save(exp, text, user=request.user, seen=request.POST.get("seen", ""))
         except notepad.Stale as stale:
-            context.update(stale=notepad.as_dict(stale.notes), text=text)
+            context.update(stale=notepad.as_dict(stale.notes), text=text, editing=True)
         except notepad.NoteError as error:
-            context.update(error=str(error), text=text)
+            context.update(error=str(error), text=text, editing=True)
         else:
             return redirect("ui:experiment_notes", pk=exp.pk)
     current = notepad.notes_of(exp)

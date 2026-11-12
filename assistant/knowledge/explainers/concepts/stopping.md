@@ -33,7 +33,7 @@ A run continues until one of the limits you set is reached. At least one limit m
 Empty means "do not stop for this". No single field is required, but at least one must be filled.
 
 - **…N trials have run** (`max_trials`, default 30): new trials in this run.
-- **…the score exceeds** (`target_score`): the best score must strictly beat this, in the metric's direction (for RMSE, get under it). The field opens at the current best score and follows the metric selector until you type in it.
+- **…the score exceeds**, or **…the score drops below** for a metric where lower is better such as RMSE or log loss (`target_score`): the best score must strictly beat this in the metric's direction. The field opens at the current best score. Its label always follows the metric selector, and its value does until you type in it.
 - **…N seconds have passed** (`max_seconds`): wall-clock time.
 - **…N seconds spent in trials** (`max_trial_seconds`): time inside trials only.
 - **…N trials without gain** (`no_improvement_trials`).

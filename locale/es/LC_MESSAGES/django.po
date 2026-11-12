@@ -8,7 +8,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: PACKAGE VERSION\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2026-11-11 13:23+0000\n"
+"POT-Creation-Date: 2026-11-12 10:43+0000\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
 "Language-Team: LANGUAGE <LL@li.org>\n"
@@ -838,7 +838,7 @@ msgstr "Pruebas"
 msgid "Forecast"
 msgstr "Pronóstico"
 
-#: ui/figures/data_handling.py:38 ui/views/dashboard.py:217
+#: ui/figures/data_handling.py:38 ui/views/dashboard.py:218
 msgid "Overview"
 msgstr "Resumen"
 
@@ -1562,7 +1562,7 @@ msgid "Best sampled, weighted"
 msgstr "Mejor muestreado, ponderado"
 
 #: ui/figures/plots/surrogate.py:152 ui/figures/plots/surrogate.py:184
-#: ui/templates/ui/figures/configuration_cube.html:83 ui/views/dashboard.py:219
+#: ui/templates/ui/figures/configuration_cube.html:83 ui/views/dashboard.py:220
 msgid "Acquisition"
 msgstr "Adquisición"
 
@@ -1579,7 +1579,7 @@ msgid "Control points"
 msgstr "Puntos de control"
 
 #: ui/figures/plots/surrogate.py:226
-#: ui/templates/ui/figures/evaluation.html:158
+#: ui/templates/ui/figures/evaluation.html:162
 msgid "Predicted"
 msgstr "Predicho"
 
@@ -1966,8 +1966,8 @@ msgstr "Cronología"
 
 #: ui/navigation.py:21 ui/templates/ui/base.html:162
 #: ui/templates/ui/base.html:169 ui/templates/ui/experiment_notes.html:4
-#: ui/templates/ui/experiment_notes.html:21
-#: ui/templates/ui/experiment_notes.html:41
+#: ui/templates/ui/experiment_notes.html:20
+#: ui/templates/ui/experiment_notes.html:23
 msgid "Notes"
 msgstr "Notas"
 
@@ -2487,7 +2487,7 @@ msgstr "Renombrar"
 #: ui/templates/ui/_experiment_header.html:29 ui/templates/ui/account.html:19
 #: ui/templates/ui/appearance.html:43
 #: ui/templates/ui/data_handling/_tabs.html:51
-#: ui/templates/ui/experiment_notes.html:47
+#: ui/templates/ui/experiment_notes.html:72
 #: ui/templates/ui/experiment_prerun.html:63
 #: ui/templates/ui/export_preferences.html:22
 msgid "Save"
@@ -2800,11 +2800,11 @@ msgid "Show the Evaluation card"
 msgstr "Mostrar la tarjeta de evaluación"
 
 #: ui/templates/ui/_side_evaluation.html:26
-#: ui/templates/ui/figures/evaluation.html:177
+#: ui/templates/ui/figures/evaluation.html:181
 msgid "▶ Run"
 msgstr "▶ Ejecutar"
 
-#: ui/templates/ui/_side_explanation.html:19 ui/views/dashboard.py:218
+#: ui/templates/ui/_side_explanation.html:19 ui/views/dashboard.py:219
 msgid "HyperSHAP"
 msgstr "HyperSHAP"
 
@@ -3456,19 +3456,25 @@ msgstr "Página %(current)s de %(total)s"
 msgid "Next →"
 msgstr "Siguiente →"
 
-#: ui/templates/ui/experiment_notes.html:23
-msgid ""
-"Shared with everyone who can open this experiment, and with their assistants."
-msgstr ""
-"Compartido con todas las personas que pueden abrir este experimento, y con "
-"sus asistentes."
+#: ui/templates/ui/experiment_notes.html:26
+#: ui/templates/ui/figures/hyperparameter_importance.html:17
+msgid "View"
+msgstr "Vista"
 
-#: ui/templates/ui/experiment_notes.html:24
+#: ui/templates/ui/experiment_notes.html:30
+msgid "Edit"
+msgstr "Editar"
+
+#: ui/templates/ui/experiment_notes.html:39
+msgid "Nothing written down yet."
+msgstr "Todavía no hay nada escrito."
+
+#: ui/templates/ui/experiment_notes.html:42
 #, python-format
 msgid "Last changed by %(by)s: %(when)s"
 msgstr "Último cambio de %(by)s: %(when)s"
 
-#: ui/templates/ui/experiment_notes.html:28
+#: ui/templates/ui/experiment_notes.html:50
 #, python-format
 msgid ""
 "%(by)s changed the notes after you opened them. They now read as below; your "
@@ -3477,15 +3483,11 @@ msgstr ""
 "%(by)s cambió las notas después de que usted las abriera. Ahora dicen lo de "
 "abajo; su texto sigue en el editor. Combine ambos y vuelva a guardar."
 
-#: ui/templates/ui/experiment_notes.html:38
+#: ui/templates/ui/experiment_notes.html:60
 msgid "Write"
 msgstr "Escribir"
 
-#: ui/templates/ui/experiment_notes.html:39
-msgid "Preview"
-msgstr "Vista previa"
-
-#: ui/templates/ui/experiment_notes.html:43
+#: ui/templates/ui/experiment_notes.html:62
 msgid ""
 "What everyone working on this experiment should know: goals, rules, "
 "decisions and why, what was tried."
@@ -3493,17 +3495,17 @@ msgstr ""
 "Lo que debería saber quien trabaja en este experimento: objetivos, reglas, "
 "decisiones y su porqué, lo que se ha probado."
 
-#: ui/templates/ui/experiment_notes.html:46
+#: ui/templates/ui/experiment_notes.html:66
+msgid "Preview"
+msgstr "Vista previa"
+
+#: ui/templates/ui/experiment_notes.html:71
 msgid ""
 "Markdown: # headings, **bold**, *italics*, - lists, 1. numbered lists, > "
 "quotes, `code`, [links](https://…) and | tables |."
 msgstr ""
 "Markdown: # títulos, **negrita**, *cursiva*, - listas, 1. listas numeradas, "
 "> citas, `código`, [enlaces](https://…) y | tablas |."
-
-#: ui/templates/ui/experiment_notes.html:52
-msgid "Nothing written down yet."
-msgstr "Todavía no hay nada escrito."
 
 #: ui/templates/ui/experiment_settings.html:7
 #, python-format
@@ -3895,33 +3897,44 @@ msgstr[1] "Se han ejecutado las %(n)s pruebas previstas."
 msgid "…the score exceeds"
 msgstr "…la puntuación supere"
 
-#: ui/templates/ui/figures/evaluation.html:58
-#: ui/templates/ui/figures/evaluation.html:81
+#
+#: ui/templates/ui/figures/evaluation.html:47
+msgid "…the score drops below"
+msgstr "…la puntuación baje de"
+
+#: ui/templates/ui/figures/evaluation.html:61
+#: ui/templates/ui/figures/evaluation.html:62
+#: ui/templates/ui/figures/evaluation.html:85
 msgid "e.g. 0.95"
 msgstr "p. ej. 0,95"
 
-#
-#
 #: ui/templates/ui/figures/evaluation.html:61
+#: ui/templates/ui/figures/evaluation.html:62
+msgid "e.g. 0.05"
+msgstr "p. ej. 0,05"
+
+#
+#
+#: ui/templates/ui/figures/evaluation.html:65
 msgid "…N seconds have passed"
 msgstr "…pasen N segundos"
 
 #
 #
-#: ui/templates/ui/figures/evaluation.html:65
+#: ui/templates/ui/figures/evaluation.html:69
 msgid "…N seconds spent in trials"
 msgstr "…se gasten N s en pruebas"
 
 #
-#: ui/templates/ui/figures/evaluation.html:69
+#: ui/templates/ui/figures/evaluation.html:73
 msgid "…N trials without gain"
 msgstr "…haya N pruebas sin mejora"
 
-#: ui/templates/ui/figures/evaluation.html:75
+#: ui/templates/ui/figures/evaluation.html:79
 msgid "…the search is this sure"
 msgstr "…la búsqueda esté así de segura"
 
-#: ui/templates/ui/figures/evaluation.html:76
+#: ui/templates/ui/figures/evaluation.html:80
 msgid ""
 "Asks the optimizer how likely its own model of the objective thinks it is "
 "that some untried configuration beats the best one so far. Confidence under "
@@ -3932,20 +3945,20 @@ msgstr ""
 "Confianza bajo ese modelo, no una garantía."
 
 #
-#: ui/templates/ui/figures/evaluation.html:85
+#: ui/templates/ui/figures/evaluation.html:89
 msgid "These may never be reached. Add a trial or time limit too."
 msgstr ""
 "Puede que nunca se alcancen. Añada también un límite de pruebas o de tiempo."
 
-#: ui/templates/ui/figures/evaluation.html:107
+#: ui/templates/ui/figures/evaluation.html:111
 msgid "Give up if…"
 msgstr "Abandonar si…"
 
-#: ui/templates/ui/figures/evaluation.html:110
+#: ui/templates/ui/figures/evaluation.html:114
 msgid "…N trials have failed"
 msgstr "…fallan N pruebas"
 
-#: ui/templates/ui/figures/evaluation.html:111
+#: ui/templates/ui/figures/evaluation.html:115
 msgid ""
 "A trial fails when the model raises on its configuration, runs past its "
 "deadline, or returns something that cannot be scored. It is still recorded — "
@@ -3966,11 +3979,11 @@ msgstr ""
 
 #
 #
-#: ui/templates/ui/figures/evaluation.html:119
+#: ui/templates/ui/figures/evaluation.html:123
 msgid "…N fail in a row"
 msgstr "…fallan N seguidas"
 
-#: ui/templates/ui/figures/evaluation.html:120
+#: ui/templates/ui/figures/evaluation.html:124
 msgid ""
 "A different question from the total: in a row means nothing here can work — "
 "a model that cannot fit this dataset at all fails identically every time, "
@@ -3981,16 +3994,16 @@ msgstr ""
 "datos falla igual cada vez, y sin límite gasta todo el presupuesto "
 "demostrándolo. Al menos 1."
 
-#: ui/templates/ui/figures/evaluation.html:148
+#: ui/templates/ui/figures/evaluation.html:152
 msgid "Model fit deadline"
 msgstr "Plazo por ajuste del modelo"
 
 #
-#: ui/templates/ui/figures/evaluation.html:151
+#: ui/templates/ui/figures/evaluation.html:155
 msgid "Kind"
 msgstr "Tipo"
 
-#: ui/templates/ui/figures/evaluation.html:152
+#: ui/templates/ui/figures/evaluation.html:156
 msgid ""
 "The limit is on one model fit, not on a whole trial: under cross-validation "
 "a trial is one fit per fold, and each fold is given the deadline separately. "
@@ -4011,25 +4024,25 @@ msgstr ""
 "tiempo en vez de morir por ser grande. Los segundos de abajo siguen siendo "
 "el límite exterior en ambos casos."
 
-#: ui/templates/ui/figures/evaluation.html:157 ui/timeline.py:143
+#: ui/templates/ui/figures/evaluation.html:161 ui/timeline.py:143
 msgid "Fixed"
 msgstr "Fijo"
 
-#: ui/templates/ui/figures/evaluation.html:162
+#: ui/templates/ui/figures/evaluation.html:166
 msgid "Seconds (0 = none)"
 msgstr "Segundos (0 = ninguno)"
 
 #
-#: ui/templates/ui/figures/evaluation.html:167
+#: ui/templates/ui/figures/evaluation.html:171
 msgid "× predicted"
 msgstr "× previsto"
 
-#: ui/templates/ui/figures/evaluation.html:180
+#: ui/templates/ui/figures/evaluation.html:184
 #, python-format
 msgid "Environment: %(summary)s"
 msgstr "Entorno: %(summary)s"
 
-#: ui/templates/ui/figures/evaluation.html:251
+#: ui/templates/ui/figures/evaluation.html:274
 msgid "Attach a dataset to run this experiment (loaded read-only)."
 msgstr ""
 "Adjunte un conjunto de datos para ejecutar este experimento (se carga solo "
@@ -4042,10 +4055,6 @@ msgstr "Serie"
 #: ui/templates/ui/figures/forecast.html:19
 msgid "No forecast to draw."
 msgstr "No hay ningún pronóstico que dibujar."
-
-#: ui/templates/ui/figures/hyperparameter_importance.html:17
-msgid "View"
-msgstr "Vista"
 
 #: ui/templates/ui/figures/hyperparameter_importance.html:18
 msgid "Pie"
@@ -5292,11 +5301,11 @@ msgstr "%(name)s se movió a la papelera."
 msgid "Restored %(name)s."
 msgstr "%(name)s se restauró."
 
-#: ui/views/dashboard.py:72 ui/views/data_handling.py:46
+#: ui/views/dashboard.py:73 ui/views/data_handling.py:46
 msgid "Saved."
 msgstr "Guardado."
 
-#: ui/views/dashboard.py:113
+#: ui/views/dashboard.py:114
 msgid ""
 "Trial parameters are kept for the built-in models only: an uploaded model is "
 "fitted in its own environment, which nothing is brought back from."
@@ -5305,7 +5314,7 @@ msgstr ""
 "un modelo subido se ajusta en su propio entorno, del que no se trae nada de "
 "vuelta."
 
-#: ui/views/dashboard.py:116
+#: ui/views/dashboard.py:117
 #, python-format
 msgid ""
 "%(model)s has no fitted parameters to keep: its forecast is its history "
@@ -5314,7 +5323,7 @@ msgstr ""
 "%(model)s no tiene parámetros ajustados que conservar: su pronóstico es su "
 "historial reproducido."
 
-#: ui/views/dashboard.py:120
+#: ui/views/dashboard.py:121
 msgid ""
 "This experiment keeps no trial models. Turn it on in Settings; a new run "
 "keeps them from then on."
@@ -5322,7 +5331,7 @@ msgstr ""
 "Este experimento no conserva modelos de las pruebas. Actívelo en Ajustes; a "
 "partir de entonces, una ejecución nueva los conserva."
 
-#: ui/views/dashboard.py:123
+#: ui/views/dashboard.py:124
 #, python-format
 msgid ""
 "This trial's model was not kept: a run keeps only the best %(n)s trial's "
@@ -5341,11 +5350,11 @@ msgstr[1] ""
 "modelos, los de las mejores pruebas (y, con la opción activada, los de sus "
 "propias pruebas), o su grupo no tenía espacio. Cámbielo en Ajustes."
 
-#: ui/views/dashboard.py:170
+#: ui/views/dashboard.py:171
 msgid "Inconsistent"
 msgstr "Inconsistente"
 
-#: ui/views/dashboard.py:220
+#: ui/views/dashboard.py:221
 msgid "Misc"
 msgstr "Varios"
 

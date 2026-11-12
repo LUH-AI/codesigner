@@ -1564,26 +1564,22 @@ label[data-slice-control][hidden] { display: inline-flex; }
 .run-proposal button[type="submit"]:hover:not(:disabled) {
     background: #7C3AED; border-color: #7C3AED; color: #fff;
 }
-/* An experiment's notes (ui/experiment_notes.html): the editor, Write and
-   Preview, and the notes drawn from their Markdown. */
-.notes-page { display: flex; flex-direction: column; gap: 0.75rem; }
+/* An experiment's notes (ui/experiment_notes.html): View, and Edit with the
+   editor and its preview side by side, one above the other on a narrow
+   window; and the notes drawn from their Markdown. */
 .notes-editor { display: flex; flex-direction: column; gap: 0.5rem; }
-.notes-modes { display: flex; gap: 0.25rem; border-bottom: 1px solid var(--border-light); }
-.notes-mode {
-    border: none; border-bottom: 2px solid transparent; border-radius: 0; background: none;
-    color: var(--muted); font: inherit; font-size: 0.9rem; padding: 0.35rem 0.75rem; cursor: pointer;
-}
-.notes-mode:hover:not(:disabled) { color: var(--text); background: var(--hover); border: none; border-bottom: 2px solid transparent; }
-.notes-mode[aria-selected="true"], .notes-mode[aria-selected="true"]:hover:not(:disabled) { color: var(--text); border-bottom-color: var(--primary); }
+.notes-split { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 28rem), 1fr)); gap: 1rem; }
+.notes-pane { display: flex; flex-direction: column; gap: 0.35rem; min-width: 0; }
+.notes-changed { margin-top: 1rem; }
 .notes-editor textarea {
-    width: 100%; min-height: 18rem; box-sizing: border-box; padding: 0.75rem 0.9rem;
+    width: 100%; min-height: 24rem; flex: 1; box-sizing: border-box; padding: 0.75rem 0.9rem;
     border: 1px solid var(--border); border-radius: var(--radius); background: var(--bg); color: var(--text);
     font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size: 0.9rem; line-height: 1.5; resize: vertical;
 }
 .notes-editor textarea:focus { outline: none; border-color: var(--primary); box-shadow: 0 0 0 1px var(--primary); }
 .notes-rendered { white-space: pre-wrap; overflow-wrap: anywhere; line-height: 1.55; }
 .notes-rendered.is-drawn, .notes-preview { white-space: normal; }
-.notes-preview { min-height: 18rem; padding: 0.75rem 0.9rem; border: 1px solid var(--border-light); border-radius: var(--radius); }
+.notes-preview { flex: 1; min-height: 24rem; overflow-wrap: anywhere; padding: 0.75rem 0.9rem; border: 1px solid var(--border-light); border-radius: var(--radius); }
 .notes-rendered p, .notes-rendered ul, .notes-rendered ol, .notes-rendered pre,
 .notes-rendered blockquote, .notes-rendered .md-table { margin: 0 0 0.75em; }
 .notes-rendered ul, .notes-rendered ol { padding-left: 1.4em; }
